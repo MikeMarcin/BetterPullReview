@@ -190,6 +190,12 @@ namespace bpr::application {
 		return Implementation->keep_managed_clone(aRequest, aProgress, aStop);
 	}
 
+	auto epoch_application_host::inspect_agent_workspace(const owned_agent_workspace& aWorkspace, const std::stop_token aStop)
+		-> std::expected<void, agent_workspace_error>
+	{
+		return Implementation->cleanup_agent_workspace(aWorkspace, aStop, true);
+	}
+
 	auto epoch_application_host::cleanup_agent_workspace(
 		const owned_agent_workspace& aWorkspace,
 		const std::stop_token        aStop)

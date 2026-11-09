@@ -127,11 +127,26 @@ the launching shell.
 
 The profile runtime owns private storage roots,
 authentication, provider capabilities, queue refresh, preferences, logging,
-epoch cache actors, shared drafts and workspace recovery. A window session owns
+epoch cache actors, shared drafts, durable native agent conversation records and
+workspace recovery. A window session owns
 its read host, epoch and diff state, selected review, navigation, Qt surface,
-mutation jobs and agent session. Closing a window drains its consumers; quitting
+mutation jobs and agent activation/turn state. Native Agent-tab conversation
+identity and retained workspace ownership survive that activation. Tour scopes add the durable draft/reset generation, thread and stable stop identity per agent. Version-nine tour payloads retain reset namespace high water across Undo. Scoped New session/history operations run on the effect lane and project no native handles; they submit no inference. Closing a window drains its consumers; quitting
 drains all windows before profile services. The first window has no special
 ownership of shared services or projection delivery.
+
+Explicit transcript replay uses the same scoped catalog with its own generation
+and durable source link. It never acquires the source's opaque native handle or
+workspace. Only that selected generation's answered prose enters a bounded core
+replay projection; a cache containing other tour threads/agents is not a source.
+The host rechecks selected generation and mode before input, and serialized CAS
+submission state preserves uncertain sends without retry. Legacy slot identities
+remain unknown until the reviewer chooses a destination. Native and legacy
+admission share the 500-record transaction, with no automatic ownership pruning;
+failed admission keeps selection and history. Replay workspaces retain the ordinary
+exact-owned cleanup path; retained native trees are preserved on unverifiable
+cleanup or storage pressure.
+
 
 Window read requests retain their exact application session. Authenticated
 provider requests additionally carry the accepted profile authentication session
@@ -1511,7 +1526,12 @@ RFC-BPR-0073 applies the containing native row and the remaining within-line
 pixels as one origin: the native viewport is placed and clipped, so its text,
 selection and pointer coordinates move together. The fixed overscan is bounded
 by font metrics; fractional events do not resize the viewport or remeasure the
-file. Static gutters and link-map bands use that same applied origin. Qt-local
+file. Static gutters and link-map bands use that same applied origin. Unified
+base/head headings and their clipping boundary stay fixed above those rows;
+number hits and thread indications apply the within-row displacement once.
+Floating source Find anchors to the stationary displayed pane area, excluding
+backing-widget overscan, so scrolling and match reveals do not move it
+(RFC-BPR-0095). Qt-local
 pixel-gesture state suppresses perpendicular drift on the predominant axis before
 scrollbar clamping. Recent directional evidence can release or change that
 preference; discarded motion is never banked, and momentum retains the established

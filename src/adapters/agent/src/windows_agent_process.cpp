@@ -646,6 +646,9 @@ namespace bpr::adapters::agent::detail {
 				});
 			}
 
+			[[nodiscard]] auto process_identity() const noexcept -> std::uint64_t override { return static_cast<std::uint64_t>(GetProcessId(Process)); }
+			void               begin_turn(const int aTimeout) override { Deadline = clock::now() + std::chrono::milliseconds{ std::max(aTimeout, 0) }; }
+
 			void close_input() noexcept override
 			{
 				Input.reset();

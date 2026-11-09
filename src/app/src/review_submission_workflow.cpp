@@ -1085,7 +1085,7 @@ namespace bpr::app {
 		}
 		present();
 	}
-	void review_tour_publication_workflow::present()
+	auto review_tour_publication_workflow::presentation() const -> application::tour_publication_presentation
 	{
 		application::tour_publication_presentation view{ .Status = Status };
 		if (Plan) {
@@ -1111,7 +1111,11 @@ namespace bpr::app {
 		} else if (Attempted && !Context) {
 			view.Phase = phase::attention;
 		}
-		Editor.present_publication(view);
+		return view;
+	}
+	void review_tour_publication_workflow::present()
+	{
+		Editor.present_publication(presentation());
 	}
 	void review_tour_publication_workflow::shutdown()
 	{

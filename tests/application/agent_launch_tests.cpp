@@ -1663,6 +1663,18 @@ namespace {
 		expect(application::build_agent_context_supplement(typed, session()).has_value(), "a typed message at its bound still builds");
 	}
 
+	void test_replay_keeps_permissions_and_whole_tour_bound()
+	{
+		auto supplement            = built_supplement();
+		supplement.Replay          = core::bound_transcript_replay({ { "previous question", "previous answer" } }, true);
+		supplement.Session.Profile = profile(core::agent_protocol::external_terminal).Id;
+		expect(!application::build_agent_launch(profile(core::agent_protocol::external_terminal), supplement, reader(), { .ReadOnlyTools = true }), "explicit replay cannot admit a read-only unsupported backend");
+		supplement.Session.Profile = profile(core::agent_protocol::claude_stream_json).Id;
+		supplement.TourPrompt      = std::string(core::maximum_tour_prompt_bytes, 'x');
+		const auto oversized       = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement, reader(), { .ReadOnlyTools = true });
+		expect(!oversized && oversized.error() == application::agent_launch_failure::input_too_large, "tour snapshot plus replay refuses whole oversized carrier before any launch");
+	}
+
 	void test_read_only_tour_drafting()
 	{
 		const auto claude   = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
@@ -1674,9 +1686,20 @@ namespace {
 		expect(claude && std::ranges::find(claude->Environment, std::pair<std::string, std::string>{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1" }) != claude->Environment.end(), "auto-memory stays off");
 		const auto codex = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .ReadOnlyTools = true });
 		expect(codex && codex->Arguments == std::vector<std::string>{ "exec", "--json", "--sandbox", "read-only", "-c", "approval_policy=\"never\"", "-c", "mcp_servers={}", "-c", "tools.web_search=false", "-" }, "Codex runs in its own read-only sandbox");
-		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::external_terminal }) {
-			expect(!application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .ReadOnlyTools = true }), "no other protocol has a recorded read-only allowlist");
-		}
+		expect(!application::build_agent_launch(profile(core::agent_protocol::external_terminal), built_supplement(), reader(), { .ReadOnlyTools = true }), "terminal has no recorded read-only protocol");
+		auto server = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .ReadOnlyTools = true });
+		expect(server && server->Arguments == std::vector<std::string>{ "app-server", "-c", "mcp_servers={}", "-c", "tools.web_search=false" }, "App Server disables MCP and web tools before launch");
+		const auto started = application::build_agent_protocol_followup(*server, { .Kind = application::agent_protocol_event_kind::initialization_complete });
+		expect(started && started->find("\"sandbox\":\"read-only\"") != std::string::npos && started->find("\"approvalPolicy\":\"never\"") != std::string::npos, "new tour thread sets read-only and never approvals");
+		server->NativeHandle = "exact-tour-thread";
+		const auto resumed   = application::build_agent_protocol_followup(*server, { .Kind = application::agent_protocol_event_kind::initialization_complete });
+		expect(resumed && resumed->find("exact-tour-thread") != std::string::npos && resumed->find("\"sandbox\":\"read-only\"") != std::string::npos, "exact resume reapplies read-only permissions");
+		const auto turn = application::build_agent_protocol_followup(*server, { .Kind = application::agent_protocol_event_kind::context_channel_ready, .Text = "exact-tour-thread" });
+		expect(turn && turn->find("\"sandboxPolicy\":{\"type\":\"readOnly\",\"networkAccess\":false}") != std::string::npos, "each continuing tour turn reapplies network-off read-only policy");
+		auto nativeClaude               = *claude;
+		nativeClaude.NativeConversation = "tour-native";
+		const auto persistent           = application::prepare_native_agent_turn(std::move(nativeClaude), false);
+		expect(persistent && std::ranges::find(persistent->Arguments, "--no-session-persistence") == persistent->Arguments.end() && std::ranges::find(persistent->Arguments, "Read,Grep,Glob,Bash") != persistent->Arguments.end(), "native Claude retains history without losing read-only restrictions");
 		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .WritingOnly = true, .ReadOnlyTools = true }), "a run is tool-free or read-only, not both");
 
 		const std::string init = R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Grep","Glob","Bash"],"mcp_servers":[],"plugins":[]})"
@@ -2298,6 +2321,7 @@ auto main() -> int
 	test_claude_takes_only_a_model_as_one_argument();
 	test_claude_writing_argv_reads_the_account_sign_in();
 	test_read_only_tour_drafting();
+	test_replay_keeps_permissions_and_whole_tour_bound();
 	test_a_tour_prompt_crosses_only_on_a_read_only_tour_run();
 	test_skill_references_reach_the_run();
 	test_workspace_line_counts();

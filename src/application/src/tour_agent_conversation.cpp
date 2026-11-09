@@ -182,8 +182,11 @@ namespace bpr::application {
 	}
 
 	auto build_tour_ask_prompt(const std::string_view aTitle, const std::string_view aDescription, const std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, const core::tour_conversation& aConversation, const core::tour_thread& aThread, const std::optional<core::tour_passage>& aPassage,
-							   const std::string_view aQuestion, const bool aUpdate, const std::optional<core::tour_proposal>& aWaiting, const std::string_view aFocus, const std::string_view aDirective) -> std::optional<std::string>
+							   const std::string_view aQuestion, const bool aUpdate, const std::optional<core::tour_proposal>& aWaiting, const std::string_view aFocus, const std::string_view aDirective, const tour_agent_context& aContext) -> std::optional<std::string>
 	{
+		if (aQuestion.size() > 16U * 1024U) {
+			return std::nullopt;
+		}
 		const auto wholeTour = aThread.Kind == core::tour_thread_kind::tour;
 		auto       files     = cycle_json_value::array{ };
 		for (const auto& file : aFiles.first(std::min(aFiles.size(), maximum_ask_files))) {
@@ -202,7 +205,7 @@ namespace bpr::application {
 		auto stops = cycle_json_value::array{ };
 		for (std::size_t index = 0U; index < aDraft.Stops.size(); ++index) {
 			const auto& stop  = aDraft.Stops[index];
-			auto        value = cycle_json_value::object{ { "number", number(index + 1U) }, { "title", text(stop.Title) }, { "explanation", text(stop.Body) } };
+			auto        value = cycle_json_value::object{ { "id", number(stop.Id.value()) }, { "number", number(index + 1U) }, { "title", text(stop.Title) }, { "explanation", text(stop.Body) } };
 			if (const auto& source = stop.Mapped ? stop.Mapped : stop.Original; source) {
 				value.push_back({ "path", text(source->Path) });
 				value.push_back({ "first_line", number(source->First.Line + 1U) });
@@ -237,8 +240,13 @@ namespace bpr::application {
 			{ "earlier_turns", number(aConversation.Turns.size() + aConversation.Dropped) },
 			{ "earlier_turns_left_out", number(aConversation.Dropped) },
 			{ "conversation_so_far", cycle_json_value{ std::move(turns) } },
-			{ "this_turn", cycle_json_value{ std::move(thisTurn) } },
+			{ "this_turn", cycle_json_value{ thisTurn } },
 		};
+		const auto snapshot = tour_agent_snapshot(aDraft, aWaiting, aFocus, cycle_json_value{ thisTurn }, aContext);
+		if (!snapshot) {
+			return std::nullopt;
+		}
+		members.push_back({ "bpr_snapshot", *snapshot });
 		// [[BPR-1930]]. The focus the author accepted, for every turn.
 		if (!aFocus.empty()) {
 			members.push_back({ "focus", text(aFocus) });
@@ -269,7 +277,7 @@ namespace bpr::application {
 			"You are the author's partner on the guided review tour of this pull request. A tour states the Problem the change solves, the Solution it takes, "
 			"and a short route of stops in the code, each with an explanation. The author is talking with you about the tour: they may ask what a passage means, "
 			"ask about the change, or ask you to change the tour.\n"
-			"Your working directory is a private copy of the repository at the pull request's head. Read, search and use read-only git (log, show, blame, diff) "
+			"Your working directory is a private copy of the repository at the session's pinned revision (the execution binding). Read, search and use read-only git (log, show, blame, diff) "
 			"to check your answer against the code. You cannot edit, write, run builds or reach the network; do not try.\n"
 			"conversation_so_far holds the earlier turns, oldest first: what the author asked, the passage it was about, your reply, and the thread: the part of the tour "
 			"the turn was asked from (the tour, the Problem, the Solution, or a stop). Continue that conversation: a follow-up such as \"that\" or \"it\" refers first to "
@@ -317,6 +325,7 @@ namespace bpr::application {
 					  "\"stop_texts\":[{\"stop\":integer,\"explanation\":string}],\"remove_stops\":[integer],\"merge_stops\":[{\"stops\":[integer],\"title\":string,\"explanation\":string}],"
 					  "\"split_stops\":[{\"stop\":integer,\"into\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}]}],\"order\":[integer],\"focus\":string,\"replace_waiting_stops\":boolean}\n";
 		}
+		prompt += tour_agent_guide();
 		prompt += "A new stop's path is one of the pull request's files and its lines are one-based head lines you have read, preferably wholly inside one of the file's changed_lines.\n";
 		if (!aFocus.empty()) {
 			prompt += "The author asked this tour to focus on what focus names: keep to it unless the question asks otherwise.\n";

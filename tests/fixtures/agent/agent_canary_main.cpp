@@ -361,7 +361,7 @@ namespace {
 				"{\"method\":\"turn/completed\",\"params\":{"
 				"\"threadId\":\"canary-thread\",\"turn\":{"
 				"\"id\":\"canary-turn\",\"items\":[],"
-				"\"status\":\"completed\"}}}\n"
+				"\"status\":\"completed\",\"items\":[]}}}\n"
 			};
 			std::cout.write(
 				preemptive.data(), static_cast<std::streamsize>(preemptive.size()));
@@ -678,10 +678,121 @@ namespace {
 		std::cout << out;
 		std::cout.flush();
 	}
+	// Native fixture memory lives behind the protocol, never in the first
+	// assistant answer. Its file also represents allowed retained workspace work.
+	auto native_session_fixture(const int aCount, char** const aArguments) -> int
+	{
+		const auto protocol = selected_protocol(aCount, aArguments);
+		const auto state    = std::filesystem::current_path() / ".bpr-native-fixture-state";
+		auto       handle   = argument_after(aCount, aArguments, "--resume");
+		auto       saved    = std::string{ };
+		{
+			auto input = std::ifstream{ state };
+			std::getline(input, saved);
+		}
+		const auto uuidless = has_argument(aCount, aArguments, "--uuidless-native-results");
+		if (uuidless && !saved.empty() && handle.empty()) {
+			return 24;
+		}
+		if (handle.empty()) {
+			handle = saved.empty() ? "native-fixture-session" : saved;
+		}
+		if (!saved.empty() && saved != handle) {
+			return 23;
+		}
+		{
+			auto output = std::ofstream{ state };
+			output << handle << '\n';
+		}
+#if defined(_WIN32)
+		const auto process = std::to_string(_getpid());
+#else
+		const auto process = std::to_string(::getpid());
+#endif
+		auto turn = 0U;
+		auto line = std::string{ };
+		while (std::getline(std::cin, line)) {
+			if (protocol == protocol::codex_app_server && line.find("\"method\":\"initialize\"") != std::string::npos) {
+				std::cout << "{\"id\":0,\"result\":{}}\n"
+						  << std::flush;
+				continue;
+			}
+			if (protocol == protocol::codex_app_server && (line.find("\"method\":\"thread/start\"") != std::string::npos || line.find("\"method\":\"thread/resume\"") != std::string::npos)) {
+				std::cout << "{\"id\":1,\"result\":{\"thread\":{\"id\":\"" << handle << "\"}}}\n"
+						  << std::flush;
+				continue;
+			}
+			if (protocol == protocol::codex_app_server && line.find("\"method\":\"turn/start\"") == std::string::npos) {
+				continue;
+			}
+			++turn;
+			auto answer = (line.find("remember-tool-observation") == std::string::npos ? std::string{ "First answer omits the tool observation" } : std::string{ "tool-observation-7f13 retained-file=yes" }) + " process=" + process;
+			if (line.find("verify-replay") != std::string::npos) {
+				const auto replay  = line.find("Transcript replay") != std::string::npos;
+				const auto prior   = line.find("native source question") != std::string::npos || line.find("legacy replay canary") != std::string::npos || line.find("conversation_so_far") != std::string::npos;
+				const auto retried = line.find("failed request must not be replayed") != std::string::npos;
+				answer             = (replay && prior && !retried && saved.empty() && argument_after(aCount, aArguments, "--resume").empty() ? "transcript-replay-ok prior-workspace=no" : "replay-contract-failed") + std::string{ " process=" } + process;
+			}
+			if (line.find("explain-source-status") != std::string::npos) {
+				const auto hasFact   = [&line](const std::string& aFact) {const auto once=json_escape(aFact);return line.find(once)!=std::string::npos || line.find(json_escape(once))!=std::string::npos; };
+				const bool bootstrap = line.find("bpr.tour-context.v1") != std::string::npos && line.find("bpr.tour-guide.v1") != std::string::npos;
+				answer               = (bootstrap && hasFact("\"confirmed_lines\":true") && hasFact("\"source_attention\":false") ? "current-source-confirmed no-source-warning" : "missing-current-source-context") + std::string{ " process=" } + process;
+				if (hasFact("\"outcome\":\"accepted\"") && line.find("Source-preserving update from fixture.") != std::string::npos) {
+					answer = "accepted-update-confirmed process=" + process;
+				}
+			}
+			if (line.find("verify-stale-native") != std::string::npos || line.find("verify-current-native") != std::string::npos) {
+				auto head  = std::string{ };
+				auto input = std::ifstream{ std::filesystem::current_path() / ".git" / "HEAD" };
+				std::getline(input, head);
+				const auto hasFact  = [&line](const std::string& aFact) { const auto once = json_escape(aFact); return line.find(once) != std::string::npos || line.find(json_escape(once)) != std::string::npos; };
+				const auto stale    = line.find("verify-stale-native") != std::string::npos;
+				const auto pinned   = !head.empty() && hasFact("\"pinned_head\":\"" + head + "\"");
+				const auto current  = hasFact("\"observed_head\":\"" + head + "\"");
+				const auto readOnly = protocol == protocol::codex_app_server && line.find("\"sandboxPolicy\":{\"type\":\"readOnly\",\"networkAccess\":false}") != std::string::npos;
+				const auto valid    = pinned && readOnly && hasFact(stale ? "\"head_changed\":true" : "\"head_changed\":false") && (stale ? !current : current);
+				answer              = (valid ? (stale ? "stale-native-validated head=" : "current-native-validated head=") + head : "native-revision-context-failed") + std::string{ " process=" } + process;
+			}
+			if (line.find("bpr.tour-ask.v1") != std::string::npos || line.find("bpr.tour-revise.v1") != std::string::npos) {
+				answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"" + answer + "\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[]}");
+				if (line.find("update-source-explanation") != std::string::npos) {
+					answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"Proposed an explanation update.\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[{\"stop\":1,\"explanation\":\"Source-preserving update from fixture.\"}]}");
+				}
+			} else if (line.find("bpr.tour-draft.v1") != std::string::npos) {
+				answer = json_escape("{\"schema\":\"bpr.tour-draft.v1\",\"problem\":\"Native drafted problem\",\"solution\":\"Native drafted solution\",\"stops\":[]}");
+			}
+			if (protocol == protocol::claude_stream_json) {
+				if (turn == 1U) {
+					std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"" << handle << "\",\"tools\":[\"Read\",\"Grep\",\"Glob\",\"Bash\"],\"mcp_servers\":[]}\n";
+				}
+				std::cout << "{\"type\":\"user\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"read\",\"content\":\"tool-observation-7f13\"}]}}\n";
+				std::cout << "{\"type\":\"assistant\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"assistant\",\"id\":\"m" << turn << "\",\"content\":[{\"type\":\"text\",\"text\":\"" << answer << "\"}]}}\n";
+				std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"" << handle << "\",\"is_error\":false,\"result\":\"done\"";
+				if (!uuidless) {
+					std::cout << ",\"uuid\":\"result-" << process << '-' << turn << "\"";
+				}
+				std::cout << "}\n"
+						  << std::flush;
+			} else {
+				const auto start  = line.find("\"id\":") + 5U;
+				const auto id     = line.substr(start, line.find(',', start) - start);
+				const auto turnId = "turn-" + std::to_string(turn);
+				std::cout << "{\"id\":" << id << ",\"result\":{\"turn\":{\"id\":\"" << turnId << "\",\"status\":\"inProgress\",\"items\":[]}}}\n";
+				std::cout << "{\"method\":\"item/completed\",\"params\":{\"threadId\":\"" << handle << "\",\"turnId\":\"" << turnId << "\",\"item\":{\"id\":\"answer-" << turn << "\",\"type\":\"agentMessage\",\"text\":\"" << answer << "\"}}}\n";
+				std::cout << "{\"method\":\"turn/completed\",\"params\":{\"threadId\":\"" << handle << "\",\"turn\":{\"id\":\"" << turnId << "\",\"status\":\"completed\",\"items\":[]}}}\n"
+						  << std::flush;
+			}
+		}
+		return 0;
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
+	if (has_argument(argc, argv, "--native-session-fixture") && selected_protocol(argc, argv) != protocol::external_terminal) {
+		return native_session_fixture(argc, argv);
+	}
 #if defined(_WIN32)
 	// Every raw-protocol fixture in this tree selects binary standard streams
 	// first: the CRT's default text mode rewrites each protocol '\n' as
@@ -801,6 +912,12 @@ auto main(int argc, char** argv) -> int
 	}
 	const auto input = read_input(
 		protocol, has_argument(argc, argv, "--preemptive-app-server"));
+	if (has_argument(argc, argv, "--nonresuming-replay-fixture")) {
+		const auto permitted = input.find("Transcript replay") != std::string::npos && argument_after(argc, argv, "--resume").empty();
+		std::cout << (permitted ? "nonresuming-replay-ok" : "unlabelled-replay-refused") << '\n';
+		return permitted ? 0 : 19;
+	}
+
 	// Deliberately not `write_partial` and deliberately ahead of
 	// `begin_output`: the whole refused exchange has to reach the pipe in one
 	// write and be followed immediately by exit, so that the parent reads it in

@@ -15,7 +15,13 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include <QMenu>
+#include <QToolButton>
 
 #include <QAction>
 #include <QApplication>
@@ -53,6 +59,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -631,6 +638,9 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto course              = std::string_view{ argv[1] };
+	const auto replayCourse        = course == "transcript-replay" || course == "transcript-replay-reopen";
+	const auto tourCourse          = course == "tour-native" || course == "tour-native-reopen";
+	const auto nativeCourse        = course == "native-session" || course == "native-session-reopen" || tourCourse || replayCourse;
 	const auto setupWrapper        = course == "setup-wrapper";
 	const auto workspaceDiagnostic = course == "workspace-diagnostic" || setupWrapper;
 	const auto crashMaterializing  = course == "crash-materializing-init" || course == "crash-materializing-checkout" || course == "cancel-materializing-checkout";
@@ -647,7 +657,7 @@ auto main(int argc, char** argv) -> int
 		&& course != "launcher-construction-cut"
 		&& course != "gesture-cut" && course != "cancellation"
 		&& course != "staleness" && course != "cleanup-retry"
-		&& !workspaceDiagnostic && !crashMaterializing) {
+		&& !workspaceDiagnostic && !crashMaterializing && !nativeCourse) {
 		return EXIT_FAILURE;
 	}
 	if (course == "cancellation" && !cancellation_diagnostic_controls_pass()) {
@@ -773,6 +783,41 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 	}
+	if (course == "native-session" || course == "tour-native" || course == "transcript-replay") {
+		auto preferences        = application::agent_setup_preferences{ };
+		preferences.AgentsMoved = true;
+		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
+			auto entry      = core::agent_entry{ };
+			entry.Id        = static_cast<std::uint32_t>(preferences.Agents.size() + 1U);
+			entry.Name      = "Native fixture " + std::to_string(entry.Id);
+			entry.Protocol  = protocol;
+			entry.Program   = externalExecutable.string();
+			entry.Arguments = { "--native-session-fixture" };
+			entry.Identity  = std::string(32U, static_cast<char>('a' + entry.Id));
+			preferences.Agents.push_back(std::move(entry));
+		}
+		if (course == "transcript-replay") {
+			auto custom      = core::agent_entry{ };
+			custom.Id        = 3U;
+			custom.Name      = "Nonresuming custom fixture";
+			custom.Protocol  = core::agent_protocol::external_terminal;
+			custom.Program   = externalExecutable.string();
+			custom.Arguments = { "--nonresuming-replay-fixture" };
+			custom.Identity  = std::string(32U, 'z');
+			preferences.Agents.push_back(std::move(custom));
+		}
+		preferences.PreferredAgent = 1U;
+		if (!adapters::sqlite::make_agent_setup_store(dataRoot)->store(preferences)) {
+			return EXIT_FAILURE;
+		}
+	}
+
+	if (course == "transcript-replay") {
+		const auto key = application::agent_conversation_key{ "github.com", "octo-org", "review-repository", 17U, 1U };
+		if (!adapters::sqlite::make_agent_conversation_store(dataRoot)->store(key, { { "legacy replay canary question", "legacy replay canary answer", "Answered" } })) {
+			return EXIT_FAILURE;
+		}
+	}
 	if (setupWrapper) {
 		auto preferences        = application::agent_setup_preferences{ };
 		preferences.Chosen      = core::setup_agent::claude_code;
@@ -816,7 +861,7 @@ auto main(int argc, char** argv) -> int
 		app::detail::github_public_path_fixture::github_com,
 		{
 			.ApplicationDataRoot = dataRoot,
-			.EpochPhase          = app::detail::github_epoch_fixture_phase::single,
+			.EpochPhase          = course == "tour-native-reopen" ? app::detail::github_epoch_fixture_phase::seed : app::detail::github_epoch_fixture_phase::single,
 			.DisableAgentProcessLauncherComposition
 			= course == "launcher-construction-cut",
 			.DisableAgentHostComposition = course == "construction-cut",
@@ -945,6 +990,557 @@ auto main(int argc, char** argv) -> int
 			? sharedCutEvidence && !evidence.AgentProcessLauncherComposed
 			: sharedCutEvidence && evidence.AgentProcessLauncherComposed;
 		if (!shutdown(*application) || !passed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-invocation-" << course << ":pass\n";
+		return EXIT_SUCCESS;
+	}
+
+	if (nativeCourse) {
+		window.choose_modality(qt::review_modality::review);
+		if (!window.ai_tools_action()->isChecked()) {
+			window.ai_tools_action()->trigger();
+		}
+		window.tray_tabs()->setCurrentIndex(3);
+		if (!wait_until([&] { return window.files_drawer()->contents_view()->model()->rowCount() > 0 && panel->profile_selector()->count() >= 2; })) {
+			return fail(*application, "native-open");
+		}
+		auto* const files = window.files_drawer()->contents_view();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		if (!wait_until([&] { return window.comparison_surface()->current_result() != nullptr; }, extended_agent_budget)
+			|| !window.comparison_surface()->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop)
+			|| !wait_until([&] { return window.comparison_surface()->selection().has_value(); })) {
+			return fail(*application, "native-semantic-selection");
+		}
+		auto* const setup = window.agent_setup();
+		if (!wait_until([&] { return setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck")) != nullptr; })) {
+			return fail(*application, "native-setup-check", setup->step_text().toStdString());
+		}
+		setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"))->click();
+		if (!wait_until([&] { return !setup->needed() && window.agent_tab()->state() != qt::agent_tab_state::setting_up; }, extended_agent_budget)) {
+			return fail(*application, "native-setup-ready", setup->step_text().toStdString());
+		}
+		if (replayCourse) {
+			const auto profile = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+			if (!window.agent_tab()->choose_agent(profile.value())) {
+				return fail(*application, "replay-agent-choice");
+			}
+			auto* tab       = window.agent_tab();
+			auto* mode      = tab->findChild<QLabel*>(QStringLiteral("agentContinuationMode"));
+			auto* histories = tab->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
+			if (!wait_until([&] { return !tab->ask_button()->property("conversationLoading").toBool() && histories && mode; })) {
+				return fail(*application, "replay-history-ready");
+			}
+			const auto send = [&](const QString& aQuestion) {
+				window.side_chat()->composer()->setPlainText(aQuestion);
+				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
+					return false;
+				}
+				tab->ask_button()->click();
+				return wait_until([&] {const auto count=tab->turn_count();return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && count>0U && tab->turn_outcome(count-1U)==core::agent_turn_outcome::answered; }, extended_agent_budget);
+			};
+			if (course == "transcript-replay") {
+				if (tab->turn_count() != 0U) {
+					return fail(*application, "legacy-not-silently-assigned");
+				}
+				if (!send(QStringLiteral("native source question"))) {
+					return fail(*application, "replay-native-seed", panel->status_text().toStdString());
+				}
+				QMetaObject::invokeMethod(tab->history_button()->menu(), "aboutToShow");
+				auto origin = QString{ };
+				if (!wait_until([&] {for(auto* item:histories->actions()){if(item->isChecked()){origin=item->data().toString();}}return !origin.isEmpty() && tab->ask_button()->isEnabled(); })) {
+					return fail(*application, "replay-native-origin");
+				}
+				const auto before    = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+				auto       workspace = std::filesystem::path{ };
+				for (const auto& item : std::filesystem::recursive_directory_iterator(before.WorkspaceRoot)) {
+					if (item.path().filename() == ".bpr-native-fixture-state") {
+						workspace = item.path().parent_path();
+						break;
+					}
+				}
+				if (workspace.empty()) {
+					return fail(*application, "replay-owned-workspace");
+				}
+				const auto pressure = workspace / "bpr-qualification-owned-pressure";
+				if (std::filesystem::exists(pressure)) {
+					return fail(*application, "storage-pressure-path-owned");
+				}
+				{
+					auto file = std::ofstream{ pressure };
+					file << "owned qualification sparse file";
+				}
+				std::filesystem::resize_file(pressure, 16ULL * 1024ULL * 1024ULL * 1024ULL + 1ULL);
+				window.side_chat()->composer()->setPlainText(QStringLiteral("capacity-refusal-question"));
+				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
+					std::filesystem::remove(pressure);
+					return fail(*application, "storage-pressure-send-ready");
+				}
+				tab->ask_button()->click();
+				const auto capacityRefused = wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("private_storage_failure")); }, extended_agent_budget);
+				std::filesystem::remove(pressure);
+				if (!capacityRefused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts || !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {
+					return fail(*application, "storage-pressure-protected-refusal");
+				}
+				const auto held = std::filesystem::path{ workspace.string() + ".course-held" };
+				std::filesystem::rename(workspace, held);
+				window.side_chat()->composer()->setPlainText(QStringLiteral("failed request must not be replayed"));
+				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
+					std::filesystem::rename(held, workspace);
+					return fail(*application, "missing-native-send-ready");
+				}
+				tab->ask_button()->click();
+				const auto refused = wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("private_storage_failure")); }, extended_agent_budget);
+				std::filesystem::rename(held, workspace);
+				if (!refused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
+					return fail(*application, "missing-native-no-retry", panel->status_text().toStdString());
+				}
+				auto* replay = tab->findChild<QAction*>(QStringLiteral("agentTranscriptReplay"));
+				if (!replay) {
+					return fail(*application, "replay-explicit-offer");
+				}
+				replay->trigger();
+				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() == 1U && tab->ask_button()->isEnabled(); })) {
+					return fail(*application, "replay-separate-projection");
+				}
+				if (app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
+					return fail(*application, "replay-choice-no-inference");
+				}
+				if (!send(QStringLiteral("verify-replay")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok")) || !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {
+					return fail(*application, "replay-fresh-workspace", panel->output_text().toStdString());
+				}
+				// Explicit unknown legacy source -> currently selected destination.
+				QAction* legacy = nullptr;
+				for (auto* item : histories->actions()) {
+					if (item->menu()) {
+						for (auto* child : item->menu()->actions()) {
+							if (child->data().toString() == QStringLiteral("legacy:1")) {
+								legacy = child;
+								break;
+							}
+						}
+					}
+				}
+				if (!legacy || !legacy->text().contains(QStringLiteral("identity unknown"))) {
+					return fail(*application, "legacy-unknown-source");
+				}
+				legacy->trigger();
+				if (!wait_until([&] { return tab->turn_count() == 1U && tab->turn_answer(0U).contains(QStringLiteral("legacy replay canary")) && tab->ask_button()->isEnabled(); })) {
+					return fail(*application, "legacy-explicit-destination");
+				}
+				if (!send(QStringLiteral("verify-replay")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok"))) {
+					return fail(*application, "legacy-replay-send", panel->output_text().toStdString());
+				}
+			} else {
+				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() >= 2U && tab->ask_button()->isEnabled(); })) {
+					return fail(*application, "replay-restart-mode-and-history");
+				}
+				if (app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != 0U) {
+					return fail(*application, "replay-restart-no-inference");
+				}
+				if (!send(QStringLiteral("verify-replay")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok"))) {
+					return fail(*application, "replay-restart-explicit-send", panel->output_text().toStdString());
+				}
+			}
+			if (course == "transcript-replay") {
+				const auto custom = core::entry_profile_id(core::agent_protocol::external_terminal, 3U);
+				if (!tab->choose_agent(custom.value()) || !wait_until([&] { return !tab->ask_button()->property("conversationLoading").toBool(); })) {
+					return fail(*application, "nonresuming-agent-choice");
+				}
+				const auto before = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+				window.side_chat()->composer()->setPlainText(QStringLiteral("unsupported native question"));
+				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
+					return fail(*application, "nonresuming-first-ready");
+				}
+				tab->ask_button()->click();
+				if (!wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("private_storage_failure")); }, extended_agent_budget) || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
+					return fail(*application, "unsupported-no-silent-fallback", panel->status_text().toStdString());
+				}
+				QMetaObject::invokeMethod(tab->history_button()->menu(), "aboutToShow");
+				QApplication::processEvents();
+				if (!mode->text().contains(QStringLiteral("unavailable"))) {
+					return fail(*application, "unsupported-visible-capability");
+				}
+				if (!wait_until([&] { return tab->clear_session_button()->isEnabled() && !tab->ask_button()->property("conversationLoading").toBool(); })) {
+					return fail(*application, "unsupported-new-ready");
+				}
+				tab->clear_session_button()->click();
+				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->ask_button()->isEnabled(); })) {
+					return fail(*application, "unsupported-replay-choice", mode->text().toStdString() + " status=" + panel->status_text().toStdString());
+				}
+				const auto unusedEntries = histories->actions().size();
+				tab->clear_session_button()->click();
+				if (!wait_until([&] { return tab->ask_button()->isEnabled(); }) || histories->actions().size() != unusedEntries || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
+					return fail(*application, "unsupported-new-empty-reuse-no-inference");
+				}
+				if (!send(QStringLiteral("verify-nonresuming")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("nonresuming-replay-ok"))) {
+					return fail(*application, "nonresuming-labelled-send", panel->output_text().toStdString());
+				}
+				if (!send(QStringLiteral("verify-nonresuming-followup")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("nonresuming-replay-ok"))) {
+					return fail(*application, "nonresuming-second-generation-turn", panel->output_text().toStdString());
+				}
+				if (!tab->choose_agent(profile.value()) || !wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() >= 2U && tab->ask_button()->isEnabled(); })) {
+					return fail(*application, "legacy-return-after-custom");
+				}
+			}
+			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / (course == "transcript-replay" ? "transcript-replay.png" : "transcript-replay-reopen.png")).u16string())) || !shutdown(*application)) {
+				return EXIT_FAILURE;
+			}
+			std::cout << "agent-invocation-" << course << ":pass\n";
+			return EXIT_SUCCESS;
+		}
+		if (tourCourse) {
+			window.open_review_tour();
+			auto* editor = window.tour_editor();
+			auto* chat   = editor->side_chat();
+			if (!wait_until([&] { return editor->shown().Draft && !editor->shown().Loading && editor->isVisible(); })) {
+				return fail(*application, "tour-native-open");
+			}
+			if (course == "tour-native") {
+				editor->problem_editor()->setPlainText(QStringLiteral("Accepted problem stays"));
+				editor->solution_editor()->setPlainText(QStringLiteral("Accepted solution stays"));
+				window.add_tour_stop_action()->trigger();
+				if (!wait_until([&] { return editor->shown().Draft && !editor->shown().Draft->Stops.empty() && !editor->shown().Saving; })) {
+					return fail(*application, "tour-native-add-stop");
+				}
+			}
+			const auto original = *editor->shown().Draft;
+			if (original.Stops.empty()) {
+				return fail(*application, "tour-native-restored-stop");
+			}
+			const auto stop            = original.Stops.front().Id;
+			auto       scopedProcesses = std::set<std::string>{ };
+			for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
+				const auto profile = core::entry_profile_id(protocol, protocol == core::agent_protocol::claude_stream_json ? 1U : 2U);
+				if (!window.agent_tab()->choose_agent(profile.value())) {
+					return fail(*application, "tour-native-agent-choice");
+				}
+				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
+					editor->open_side_chat(thread);
+					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-history-loaded");
+					}
+					const auto prior = chat->turn_count();
+					chat->composer()->setPlainText(thread.Kind == core::tour_thread_kind::stop ? QStringLiteral("explain-source-status") : QStringLiteral("Review this tour part"));
+					if (!wait_until([&] { return chat->send_button()->isVisible() && chat->send_button()->isEnabled(); })) {
+						return fail(*application, "tour-native-composer-ready");
+					}
+					chat->send_button()->click();
+					if (!wait_until([&] { return chat->turn_count() > prior && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("process=") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+						return fail(*application, "tour-native-first-answer", chat->chat_text().toStdString());
+					}
+					const auto first = chat->reply(chat->turn_count() - 1U)->original_body();
+					if (thread.Kind == core::tour_thread_kind::stop && first.find("current-source-confirmed no-source-warning") == std::string::npos && first.find("accepted-update-confirmed") == std::string::npos) {
+						return fail(*application, "tour-native-authoritative-source", first);
+					}
+
+					if (!scopedProcesses.insert(first.substr(first.find("process="))).second) {
+						return fail(*application, "tour-native-thread-process-isolation");
+					}
+					chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+					chat->send_button()->click();
+					if (!wait_until([&] { return chat->turn_count() > prior + 1U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("tool-observation-7f13") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+						return fail(*application, "tour-native-followup", chat->chat_text().toStdString());
+					}
+					const auto second = chat->reply(chat->turn_count() - 1U)->original_body();
+					if (first.substr(first.find("process=")) != second.substr(second.find("process="))) {
+						return fail(*application, "tour-native-process-continuity");
+					}
+					auto expectedSaved = prior + 2U;
+					if (thread.Kind == core::tour_thread_kind::stop) {
+						const auto confirmedBefore = editor->shown().Draft->Stops.front();
+						chat->composer()->setPlainText(QStringLiteral("update-source-explanation"));
+						chat->send_button()->click();
+						if (!wait_until([&] { return chat->new_session_button()->isEnabled() && chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept")); }, extended_agent_budget)) {
+							return fail(*application, "tour-native-update-proposal", chat->chat_text().toStdString());
+						}
+						chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept"))->click();
+						if (!wait_until([&] { return editor->shown().Draft->Stops.front().Body == "Source-preserving update from fixture." && !editor->shown().Saving; })) {
+							return fail(*application, "tour-native-update-accepted");
+						}
+						const auto& after = editor->shown().Draft->Stops.front();
+						if (after.Original != confirmedBefore.Original || after.Mapped != confirmedBefore.Mapped || after.Mapping != confirmedBefore.Mapping) {
+							return fail(*application, "tour-native-update-keeps-confirmation");
+						}
+						editor->go_to_stop(stop);
+						const auto* label = editor->findChild<QLabel*>(QStringLiteral("tourStopSource"));
+						if (!label || label->text().contains(QStringLiteral("Lines not confirmed")) || label->text().contains(QStringLiteral("Source needs attention"))) {
+							return fail(*application, "tour-native-update-source-label");
+						}
+						chat->composer()->setPlainText(QStringLiteral("explain-source-status"));
+						chat->send_button()->click();
+						if (!wait_until([&] { return chat->turn_count() > prior + 3U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("accepted-update-confirmed") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+							return fail(*application, "tour-native-current-accepted-snapshot", chat->chat_text().toStdString());
+						}
+						expectedSaved += 2U;
+					}
+					const auto acceptedBeforeNew = *editor->shown().Draft;
+
+					if (thread.Kind == core::tour_thread_kind::tour) {
+						if (!wait_until([&] { return editor->tour_agent()->draft_button()->isVisible() && editor->tour_agent()->draft_button()->isEnabled(); })) {
+							return fail(*application, "tour-native-draft-ready");
+						}
+						editor->tour_agent()->draft_button()->click();
+						if (!wait_until([&] { const auto& runs=editor->tour_agent()->session().Runs; return !runs.empty() && runs.back().Request==core::tour_agent_request::draft_tour && runs.back().State==core::tour_agent_run_state::answered; }, extended_agent_budget)) {
+							return fail(*application, "tour-native-draft-proposal", editor->tour_agent()->transcript_text().toStdString());
+						}
+						++expectedSaved;
+					}
+					QMetaObject::invokeMethod(chat->history_button()->menu(), "aboutToShow");
+					auto priorId = QString{ };
+					if (!wait_until([&] { for (auto* item:chat->history_button()->menu()->actions()) { if (item->isChecked() && item->property("turns").toULongLong()>=expectedSaved) { priorId=item->data().toString(); } } return !priorId.isEmpty() && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-current-generation");
+					}
+					chat->new_session_button()->click();
+					if (!wait_until([&] { return chat->turn_count() == 0U && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-new-empty", chat->chat_text().toStdString());
+					}
+					const auto retained = chat->history_button()->menu()->actions().size();
+					chat->new_session_button()->click();
+					if (!wait_until([&] { return !chat->history_button()->property("loading").toBool(); }) || chat->history_button()->menu()->actions().size() != retained) {
+						return fail(*application, "tour-native-empty-reuse");
+					}
+
+					if (priorId.isEmpty()) {
+						return fail(*application, "tour-native-history-entry");
+					}
+					for (auto* item : chat->history_button()->menu()->actions()) {
+						if (item->data().toString() == priorId) {
+							item->trigger();
+							break;
+						}
+					}
+					if (!wait_until([&] { return chat->turn_count() >= prior + 2U && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-history-reopen", chat->chat_text().toStdString());
+					}
+					if (thread.Kind == core::tour_thread_kind::problem) {
+						auto* replay = chat->findChild<QAction*>(QStringLiteral("tourTranscriptReplay"));
+						if (!replay) {
+							return fail(*application, "tour-replay-offer");
+						}
+						replay->trigger();
+						auto* mode = chat->findChild<QLabel*>(QStringLiteral("tourContinuationMode"));
+						if (!wait_until([&] { return mode && mode->text().startsWith(QStringLiteral("Transcript replay")) && !chat->history_button()->property("loading").toBool(); })) {
+							return fail(*application, "tour-replay-mode");
+						}
+						const auto beforeReplay = chat->turn_count();
+						chat->composer()->setPlainText(QStringLiteral("verify-replay"));
+						chat->send_button()->click();
+						if (!wait_until([&] { return chat->turn_count() > beforeReplay && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("transcript-replay-ok") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+							return fail(*application, "tour-readonly-replay-send", chat->chat_text().toStdString());
+						}
+						if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "transcript-replay-tour.png").u16string()))) {
+							return fail(*application, "tour-replay-raster");
+						}
+						for (auto* item : chat->history_button()->menu()->actions()) {
+							if (item->data().toString() == priorId) {
+								item->trigger();
+								break;
+							}
+						}
+						if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Native")) && !chat->history_button()->property("loading").toBool(); })) {
+							return fail(*application, "tour-native-provenance-after-replay");
+						}
+					}
+					if (editor->shown().Draft->Problem != original.Problem || editor->shown().Draft->Solution != original.Solution || editor->shown().Draft->Stops != acceptedBeforeNew.Stops) {
+						return fail(*application, "tour-native-new-preserves-accepted");
+					}
+				}
+			}
+			// Reset remains a separate confirmed BPR operation; Undo restores original scopes.
+			const auto beforeReset = chat->chat_text();
+			auto*      reset       = editor->findChild<QToolButton*>(QStringLiteral("tourResetTour"));
+			if (!wait_until([&] { return reset && reset->isEnabled(); })) {
+				return fail(*application, "tour-native-reset-ready");
+			}
+			reset->click();
+			editor->findChild<QPushButton*>(QStringLiteral("tourResetConfirmButton"))->click();
+			if (!wait_until([&] { return editor->shown().Draft->ChatGeneration != original.ChatGeneration && !editor->shown().Saving; })) {
+				return fail(*application, "tour-native-reset");
+			}
+			editor->findChild<QPushButton*>(QStringLiteral("tourResetUndo"))->click();
+			if (!wait_until([&] { return editor->shown().Draft->ChatGeneration == original.ChatGeneration && !editor->shown().Saving; })) {
+				return fail(*application, "tour-native-undo-reset");
+			}
+			editor->open_side_chat({ core::tour_thread_kind::stop, stop });
+			if (!wait_until([&] { return chat->chat_text() == beforeReset && !chat->history_button()->property("loading").toBool(); })) {
+				return fail(*application, "tour-native-undo-history", chat->chat_text().toStdString());
+			}
+			if (course == "tour-native-reopen") {
+				const auto pinned = app::detail::github_application_fixture_access::agent_chat_evidence(*application).Observed;
+				if (!pinned || app::detail::github_application_fixture_access::review_ledger_file_exclusive(*application) != std::optional{ true }) {
+					return fail(*application, "tour-native-head-move-ready");
+				}
+				window.github_refresh_action()->trigger();
+				if (!wait_until([&] { const auto current = app::detail::github_application_fixture_access::agent_chat_evidence(*application).Observed; return current && current->HeadOid != pinned->HeadOid && (current->LeftEpoch != pinned->LeftEpoch || current->RightEpoch != pinned->RightEpoch); }, extended_agent_budget)) {
+					return fail(*application, "tour-native-head-moved");
+				}
+				QMetaObject::invokeMethod(chat->history_button()->menu(), "aboutToShow");
+				if (!wait_until([&] { const auto* action = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision")); return action && action->isVisible() && action->isEnabled() && !chat->history_button()->property("loading").toBool(); })) {
+					return fail(*application, "tour-old-revision-action");
+				}
+				const auto beforeChoice = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
+				const auto oldProcess   = chat->reply(chat->turn_count() - 1U)->original_body();
+				const auto oldId        = [&] { for (auto* item : chat->history_button()->menu()->actions()) { if (item->isChecked()) { return item->data().toString(); } } return QString{ }; }();
+				chat->composer()->setPlainText(QStringLiteral("verify-stale-native"));
+				if (chat->send_button()->isEnabled()) {
+					return fail(*application, "tour-stale-send-needs-choice");
+				}
+				chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision"))->click();
+				if (!chat->send_button()->isEnabled() || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations != beforeChoice) {
+					return fail(*application, "tour-old-choice-no-inference");
+				}
+				chat->send_button()->click();
+				if (!wait_until([&] { return chat->new_session_button()->isEnabled() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("stale-native-validated head=" + std::string{ core::canonical_hex(pinned->HeadOid).view() }) != std::string::npos; }, extended_agent_budget)) {
+					return fail(*application, "tour-old-native-workspace-context", chat->chat_text().toStdString());
+				}
+				const auto continuedAnswer = chat->reply(chat->turn_count() - 1U)->original_body();
+				if (continuedAnswer.substr(continuedAnswer.find("process=")) != oldProcess.substr(oldProcess.find("process="))) {
+					return fail(*application, "tour-old-native-process-kept");
+				}
+				if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "tour-old-revision.png").u16string()))) {
+					return fail(*application, "tour-old-revision-raster");
+				}
+				chat->new_session_button()->click();
+				if (!wait_until([&] { return chat->turn_count() == 0U && !chat->history_button()->property("loading").toBool(); })) {
+					return fail(*application, "tour-current-native-generation");
+				}
+				const auto current = app::detail::github_application_fixture_access::agent_chat_evidence(*application).Observed;
+				chat->composer()->setPlainText(QStringLiteral("verify-current-native"));
+				chat->send_button()->click();
+				if (!wait_until([&] { return current && chat->new_session_button()->isEnabled() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("current-native-validated head=" + std::string{ core::canonical_hex(current->HeadOid).view() }) != std::string::npos; }, extended_agent_budget)) {
+					return fail(*application, "tour-current-native-workspace-context", chat->chat_text().toStdString());
+				}
+				const auto freshAnswer = chat->reply(chat->turn_count() - 1U)->original_body();
+				if (freshAnswer.substr(freshAnswer.find("process=")) == continuedAnswer.substr(continuedAnswer.find("process="))) {
+					return fail(*application, "tour-current-native-distinct-process");
+				}
+				for (auto* item : chat->history_button()->menu()->actions()) {
+					if (item->data().toString() == oldId) {
+						item->trigger();
+						break;
+					}
+				}
+				if (!wait_until([&] { const auto* action = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision")); return action && action->isVisible() && !chat->history_button()->property("loading").toBool(); }) || chat->send_button()->isEnabled()) {
+					return fail(*application, "tour-history-rechecks-old-choice");
+				}
+			}
+			const auto raster = dataRoot.parent_path() / (course == "tour-native" ? "native-tour.png" : "native-tour-reopen.png");
+			if (!window.grab().save(QString::fromStdU16String(raster.u16string())) || !shutdown(*application)) {
+				return EXIT_FAILURE;
+			}
+			std::cout << "agent-invocation-" << course << ":pass\n";
+			return EXIT_SUCCESS;
+		}
+		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
+			const auto entryId = protocol == core::agent_protocol::claude_stream_json ? 1U : 2U;
+			const auto profile = core::entry_profile_id(protocol, entryId);
+			const auto index   = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(profile.value()));
+			if (index < 0) {
+				return fail(*application, "native-profile");
+			}
+			if (!window.agent_tab()->choose_agent(profile.value())) {
+				return fail(*application, "native-visible-agent-choice");
+			}
+			QApplication::processEvents();
+			const auto before         = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+			const auto previousStarts = (entryId - 1U) * 2U;
+			if (before.Statistics.ProcessStarts != previousStarts) {
+				return fail(*application, "native-view-does-not-infer");
+			}
+			// The ordinary Agent-tab launch action traverses the production
+			// profile/authority/private-run/workspace/process composition.
+			window.side_chat()->composer()->setPlainText(QStringLiteral("Review this pull request"));
+			if (!wait_until([&] { return window.agent_tab()->ask_button()->isVisible() && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-launch-ready", panel->status_text().toStdString());
+			}
+			window.agent_tab()->ask_button()->click();
+			if (!wait_until([&] {
+					const auto evidence = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+					return evidence.Quiescent && evidence.Statistics.ProcessStarts == previousStarts + 1U && panel->status_text().contains(QStringLiteral("success"));
+				},
+							extended_agent_budget)) {
+				return fail(*application, "native-first-turn", panel->status_text().toStdString());
+			}
+			const auto first = panel->output_text().toStdString();
+			if (first.find("process=") == std::string::npos
+				|| (course == "native-session" && first.find("First answer omits the tool observation") == std::string::npos)) {
+				return fail(*application, "native-first-output");
+			}
+			if (!wait_until([&] {
+					const auto count = window.agent_tab()->turn_count();
+					return count > 0U && window.agent_tab()->turn_outcome(count - 1U) == core::agent_turn_outcome::answered
+						&& window.agent_tab()->turn_answer(count - 1U) == QString::fromStdString(first).trimmed();
+				})) {
+				const auto count = window.agent_tab()->turn_count();
+				return fail(*application, "native-visible-first-answer", "entry=" + std::to_string(entryId) + " count=" + std::to_string(count) + " expected=" + first + " actual=" + (count ? window.agent_tab()->turn_answer(count - 1U).toStdString() : "none"));
+			}
+			window.side_chat()->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+			if (!window.agent_tab()->ask_button()->isEnabled()) {
+				return fail(*application, "native-followup-ready");
+			}
+			window.agent_tab()->ask_button()->click();
+			if (!wait_until([&] {
+					const auto evidence = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+					return evidence.Quiescent && evidence.Statistics.ProcessStarts == previousStarts + 2U && panel->status_text().contains(QStringLiteral("success"));
+				},
+							extended_agent_budget)) {
+				return fail(*application, "native-followup", panel->status_text().toStdString());
+			}
+			const auto followup = panel->output_text().toStdString();
+			if (followup.find("tool-observation-7f13 retained-file=yes") == std::string::npos
+				|| first.substr(first.find("process=")) != followup.substr(followup.find("process="))) {
+				return fail(*application, "native-followup-continuity");
+			}
+			if (!wait_until([&] {
+					const auto count = window.agent_tab()->turn_count();
+					return count >= 2U && window.agent_tab()->turn_answer(count - 1U).contains(QStringLiteral("tool-observation-7f13"));
+				})) {
+				return fail(*application, "native-visible-answer");
+			}
+			const auto after = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+			if (after.Statistics.WorkspaceStarts != (course == "native-session-reopen" ? 0U : entryId)) {
+				return fail(*application, "native-retained-workspace");
+			}
+			// Visible New session waits for admission and retains the completed native generation.
+			QMetaObject::invokeMethod(window.agent_tab()->history_button()->menu(), "aboutToShow");
+
+			auto* histories       = window.agent_tab()->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
+			auto  selectedHistory = QString{ };
+			if (!wait_until([&] { for (auto* item:histories->actions()) { if (item->isChecked() && item->property("turns").toULongLong()>=2U) { selectedHistory=item->data().toString(); } } return !selectedHistory.isEmpty() && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-current-generation");
+			}
+			window.agent_tab()->clear_session_button()->click();
+			if (!wait_until([&] { return window.agent_tab()->turn_count() == 0U && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-new-session-empty");
+			}
+			if (!histories || histories->actions().size() < 2) {
+				return fail(*application, "native-history-menu");
+			}
+			const auto retained = histories->actions().size();
+			window.agent_tab()->clear_session_button()->click();
+			if (!wait_until([&] { return window.agent_tab()->ask_button()->isEnabled(); }) || histories->actions().size() != retained) {
+				return fail(*application, "native-empty-generation-reused");
+			}
+			for (auto* item : histories->actions()) {
+				if (item->data().toString() == selectedHistory) {
+					item->trigger();
+					break;
+				}
+			}
+			if (!wait_until([&] { return window.agent_tab()->turn_count() >= 2U && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-history-reopened");
+			}
+			const auto viewed = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+			if (viewed.Statistics.ProcessStarts != after.Statistics.ProcessStarts || viewed.Statistics.WorkspaceStarts != after.Statistics.WorkspaceStarts) {
+				return fail(*application, "native-history-does-not-infer");
+			}
+		}
+		const auto renderPath = dataRoot.parent_path() / (course == "native-session-reopen" ? "native-reopen.png" : "native-agent-tab.png");
+		if (!window.grab().save(QString::fromStdU16String(renderPath.u16string()))) {
+			return fail(*application, "native-render");
+		}
+		if (!shutdown(*application) || application->status().AgentWorkspaceCleanupFailed) {
 			return EXIT_FAILURE;
 		}
 		std::cout << "agent-invocation-" << course << ":pass\n";

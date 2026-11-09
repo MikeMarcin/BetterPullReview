@@ -90,6 +90,8 @@ namespace bpr::application {
 			std::stop_token             aStop = { }) -> agent_run_result override;
 		void cancel() noexcept override;
 
+		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Process.native_connections_quiescent(); }
+
 	private:
 		void record(diagnostic_outcome aOutcome, const agent_run_diagnosis& aDiagnosis) noexcept;
 

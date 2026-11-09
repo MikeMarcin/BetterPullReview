@@ -734,3 +734,25 @@ The owner chose in chat: the pull request's own Agent thread with a removable
 conversation chip, Use as reply, and notes sent as a Private history copy.
 After the owner's look of 2026-10-27 (r2), Draft comment on every answer
 replaces Use as reply.
+
+## Stable diff scroll geometry
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0095](RFC-BPR-0095-stable-diff-gutters-and-find.md) | Keep diff gutters aligned and Find stationary | Auto-Verified | None |
+
+[Import](assets/diff-scroll-geometry-v1.LIVE_IMPORT.md), owner report 2026-11-08.
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0096](RFC-BPR-0096-native-agent-sessions-and-tour-context.md) | Resume native agent sessions and give tour chats their working context | Auto-Verified | None |
+
+Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendment adoption](assets/native-agent-sessions-v1.LIVE_IMPORT.md); [authored plan](plans/native-agent-sessions-v1/milestone-plan.json). The [final accepted-scope record](../verification/RFC-BPR-0096.md#final-accepted-scope-and-independent-review-reconciliation) binds all criteria, completed independent critical review and reconciled repairs to the final product. Installed Claude remains unverified under the owner's narrow waiver; all other recorded qualification/release limits remain explicit.
+
+## Exact source navigation
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0097](RFC-BPR-0097-go-to-line.md) | Go to a source line in the main diff | Auto-Verified | None |
+
+[Import](assets/go-to-line-v1.LIVE_IMPORT.md), owner request 2026-11-08.

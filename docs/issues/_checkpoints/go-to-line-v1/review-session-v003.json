@@ -1,0 +1,50 @@
+{
+  "state": "/Users/jaeger/.codex/attended-review-sessions/bpr1948-go-to-line-appearance-v003-bu2_fwza",
+  "registry": "/Users/jaeger/.mask/attended-review-resources",
+  "helper": "/Users/jaeger/.mask/store/v1/9781ac9f67acb2b9aa9dcf53895fb73be527a05c9f1bcffec62168b19dec2c32/payload/attended-review/scripts/attended_review.py",
+  "python": "/opt/homebrew/bin/python3.14",
+  "session": "97887edd2075de347dcc15e45da4be9c",
+  "consumed_cursor": 9,
+  "candidate": {
+    "id": "BPR-1948-go-to-line-dialog-v003",
+    "revision": "df4ccfc85-v003-a76ff5c430619448",
+    "fingerprint": "71751f6ea9a273ce5127f904c9ff1aeb9687464315c1f200ea58aca5a210694c",
+    "phase": "ready",
+    "protected": false,
+    "decision": {
+      "candidate": "BPR-1948-go-to-line-dialog-v003",
+      "fingerprint": "71751f6ea9a273ce5127f904c9ff1aeb9687464315c1f200ea58aca5a210694c",
+      "decision_id": "e3ac0cda-a18b-4d26-aa76-5213d4dbd706",
+      "note": "",
+      "attachments": [],
+      "outcome": "reject",
+      "saved_at": "2026-11-09T02:15:43.351009+00:00",
+      "actor": "human"
+    }
+  },
+  "frozen_root": "/Users/jaeger/.codex/attended-builds/bpr1948-go-to-line-v003.xm_6xqk8",
+  "source_revision": "df4ccfc8587e203048eb3d74499f6305480e5720",
+  "executable_sha256": "a76ff5c430619448f837272134a2d129b0f3cacda15ca09a39d0390f24387ad1",
+  "server": {
+    "pid": 90606,
+    "exec_session": 71483,
+    "port": 63778,
+    "tailscale_pid": 90615,
+    "foreground_session": "62aa1344a0daceca",
+    "stopped": true
+  },
+  "lifecycle": "Stopped after reconciled handback 8 and scoped development release 9. Exact rejected frozen v003 remains intact.",
+  "owning_driver": "/root",
+  "preparing_implementer": "/root/go_to_line_revision",
+  "waiter": "None started by this leaf; coordinator owns subsequent intake and handback-only wait.",
+  "schema": "betterpullreview.attended-handoff.v1",
+  "repo_root": "/Users/jaeger/.codex/worktrees/1567/BetterPullReview",
+  "mandate_revision": "go-to-line-appearance-r2",
+  "prior_session": "f5fee13c7d9e648334040aebfb1e09d9",
+  "prior_consumed_cursor": 38,
+  "launch_command": "/opt/homebrew/bin/python3.14 /Users/jaeger/.codex/attended-builds/bpr1948-go-to-line-v003.xm_6xqk8/launch.py",
+  "capability_location": "/Users/jaeger/.codex/attended-review-sessions/bpr1948-go-to-line-appearance-v003-bu2_fwza/served.json",
+  "prior_navigation_acceptance": "Preserved for exact v002 source/build; no new navigation judgment requested.",
+  "owner_chat_feedback": "It is better but still ugly and a terrible use of the space; explicitly requested an Astra max subagent to design the UI panel.",
+  "reconciling_implementer": "/root/go_to_line_design"
+}

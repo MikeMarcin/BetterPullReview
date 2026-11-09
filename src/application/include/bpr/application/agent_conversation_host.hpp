@@ -23,6 +23,7 @@ namespace bpr::application {
 		std::vector<agent_conversation_turn>  Turns;
 		/// The kept turns have been read for `Key`.
 		bool          Loaded     = false;
+		bool          SaveFailed = false;
 		std::uint64_t Generation = 0U;
 
 		auto operator<=>(const agent_conversation_projection&) const = default;

@@ -13,6 +13,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QPlainTextEdit>
+#include <QSignalBlocker>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QToolButton>
@@ -290,7 +291,9 @@ namespace bpr::qt {
 	void agent_launch_panel::offer_profiles(
 		const std::span<const core::agent_profile> aProfiles)
 	{
-		Settling = true;
+		const auto before           = selected_profile();
+		auto       selectionSignals = QSignalBlocker{ ProfileSelector };
+		Settling                    = true;
 		ProfileSelector->clear();
 		OfferedIds.clear();
 		for (const auto& profile : aProfiles) {
@@ -319,6 +322,14 @@ namespace bpr::qt {
 		Settling = false;
 		// [[BPR-1823]]. Offering again never moves a kept choice.
 		settle_pick(std::nullopt);
+		selectionSignals.unblock();
+		if (before != selected_profile()) {
+			// Rebuilding a menu is one settled selection observation. An
+			// intermediate empty row must not switch/clear a live conversation.
+			Settling = true;
+			Q_EMIT ProfileSelector->currentIndexChanged(ProfileSelector->currentIndex());
+			Settling = false;
+		}
 	}
 
 	void agent_launch_panel::prefer_profile(const std::optional<core::agent_profile_id> aProfile)

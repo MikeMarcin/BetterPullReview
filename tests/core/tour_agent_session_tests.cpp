@@ -599,14 +599,16 @@ namespace {
 		// The host restores the reset as it restores any tour: one Undo.
 		const auto restored = apply(cleared, tour_command{ .Draft = cleared.Id, .Owner = cleared.Owner, .ExpectedRevision = cleared.Revision, .Kind = tour_command_kind::restore, .Restore = tour });
 		expect(restored.Refusal == tour_refusal::none && restored.Accepted.Stops == tour.Stops && restored.Accepted.Problem == tour.Problem, "restoring the snapshot gives the draft back exactly");
+		expect(cleared.ChatGeneration == 1U && restored.Accepted.ChatGeneration == tour.ChatGeneration && restored.Accepted.LastChatGeneration == cleared.LastChatGeneration, "Undo reset restores original associations while retaining the namespace high water");
+		expect(reset_tour(restored.Accepted).ChatGeneration > cleared.ChatGeneration, "reset after Undo never inherits the abandoned reset draft's sessions");
 		// [[BPR-1931]] follow-up, owner: "Reset tour doesn't seem to reset
 		// unaccepted draft tour suggestions." A tour empty but for the agent's
 		// proposals still has something to reset, yet is already its own reset:
 		// the tour host takes restoring it as no change, so the host clears the
 		// proposals without asking it to.
-		expect(resettable(reset_tally_of(cleared, tour_agent_session{ }, proposal)) && reset_tour(cleared) == cleared, "an empty tour with proposals is resettable and already reset");
+		expect(resettable(reset_tally_of(cleared, tour_agent_session{ }, proposal)) && reset_tour(cleared).ChatGeneration != cleared.ChatGeneration, "a proposal-only reset detaches native chat associations too");
 		const auto same = apply(cleared, tour_command{ .Draft = cleared.Id, .Owner = cleared.Owner, .ExpectedRevision = cleared.Revision, .Kind = tour_command_kind::restore, .Restore = reset_tour(cleared) });
-		expect(same.Refusal == tour_refusal::none && !same.Changed, "restoring the tour as it is changes nothing");
+		expect(same.Refusal == tour_refusal::none && same.Changed, "a proposal-only reset durably changes the native chat namespace");
 	}
 
 	/// [[BPR-1900]] follow-up, owner 2026-11-07: "Why did my tour draft have
@@ -632,10 +634,43 @@ namespace {
 		expect(!ready(stop) && reaffirm_need(stop) == tour_reaffirm_need::confirmed_lines, "it is not Ready, and reaffirming it waits for its lines");
 		expect(reaffirm_need(tour_stop{ .Title = "t" }) == tour_reaffirm_need::explanation && reaffirm_need(tour_stop{ .Body = "b" }) == tour_reaffirm_need::title, "a missing title or explanation is named first");
 	}
+	void captured_targets_and_decisions()
+	{
+		auto tour = review_tour{ };
+		tour.Id   = tour_draft_id{ 1 };
+		tour.Stops.push_back(tour_stop{ .Id = tour_stop_id{ 4 }, .Title = "four", .Body = "original four" });
+		tour.Stops.push_back(tour_stop{ .Id = tour_stop_id{ 8 }, .Title = "eight", .Body = "original eight" });
+		auto current = tour;
+		std::ranges::reverse(current.Stops);
+		auto answer = tour_ask_answer{ };
+		answer.StopTexts.push_back({ 1U, "new four" });
+		const auto proposal = propose_tour_changes(tour_agent_run_id{ 3 }, answer, { }, tour, current, std::nullopt);
+		expect(proposal.Items.size() == 1U && proposal.Items.front().StopId == tour_stop_id{ 4 } && acceptable(proposal.Items.front()), "returned display number resolves against submitted stable identity after reorder");
+		current.Stops.back().Body = "new manual four";
+		const auto stale          = propose_tour_changes(tour_agent_run_id{ 3 }, answer, { }, tour, current, std::nullopt);
+		expect(stale.Items.size() == 1U && !acceptable(stale.Items.front()), "newer manual target changes refuse delayed proposal");
+		auto session          = tour_agent_session{ };
+		auto run              = tour_agent_run{ };
+		run.Id                = tour_agent_run_id{ 3 };
+		run.Conversation      = "origin-generation";
+		run.ConversationScope = "origin-thread";
+		session.Runs.push_back(run);
+		remember_tour_proposal(session, std::nullopt, proposal);
+		auto accepted = proposal;
+		expect(decide_tour_proposal(accepted, 0U, tour_proposal_decision::accepted, "author edit"), "author can accept captured proposal");
+		remember_tour_proposal(session, proposal, accepted);
+		expect(session.ProposalRecords.size() == 2U && session.ProposalRecords.back().Outcome == "accepted" && session.ProposalRecords.back().Conversation == "origin-generation", "accepted outcome retains original run/generation, including author edits");
+		remember_tour_proposal(session, proposal, std::nullopt);
+		expect(session.ProposalRecords.back().Outcome == "superseded", "replaced pending proposal is distinct from acceptance");
+		remember_tour_proposal(session, std::nullopt, stale);
+		expect(session.ProposalRecords.back().Outcome == "refused", "stale target refusal is distinct from author discard");
+	}
+
 }
 
 int main()
 {
+	captured_targets_and_decisions();
 	revision();
 	focus_and_feedback();
 	reset();

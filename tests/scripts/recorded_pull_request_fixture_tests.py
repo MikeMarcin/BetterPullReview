@@ -268,7 +268,7 @@ CONSTRUCTIONS = (
     {
         "Directory": "source-find-v1",
         "Generator": "scripts/build_source_find_fixture.py",
-        "Files": 2,
+        "Files": 5,
         "Folders": 1,
     },
     {

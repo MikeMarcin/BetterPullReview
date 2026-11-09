@@ -163,7 +163,8 @@ try {
 	listed.RunLimitMinutes = 45U;
 	listed.PreferredAgent  = 2U;
 	// Owner look v004: the Agent tab's Suggestions toggle is kept.
-	listed.SuggestionsHidden = true;
+	listed.SuggestionsHidden  = true;
+	listed.Agents[0].Identity = std::string(32U, 'a');
 	expect(store->store(listed), "an agent list is stored");
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");
@@ -183,6 +184,116 @@ try {
 	struct stat status{ };
 	expect(::stat(path.c_str(), &status) == 0 && (status.st_mode & 0077) == 0, "the file is owner-private");
 #endif
+
+	// Native identity is independent of application/window and invocation catalogs.
+	auto natives        = adapters::sqlite::make_native_agent_session_store(scratch.path());
+	auto binding        = core::agent_revision_binding{ };
+	binding.Host        = core::git_host_id{ 1 };
+	binding.Repository  = core::repository_id{ 2 };
+	binding.PullRequest = core::pull_request_id{ 3 };
+	binding.BaseOid     = *core::parse_git_commit_oid(std::string(40U, '1'));
+	binding.HeadOid     = *core::parse_git_commit_oid(std::string(40U, '2'));
+	binding.LeftEpoch   = core::epoch_ordinal{ 1 };
+	binding.RightEpoch  = core::epoch_ordinal{ 2 };
+	auto native         = natives->select("authority:agent-a:agent-tab", "claude", binding);
+	expect(native.has_value(), "native conversation is admitted durably");
+	native->Handle                 = "exact-native-id";
+	native->Pending                = true;
+	auto workspace                 = application::owned_agent_workspace{ };
+	workspace.Workspace.Path       = "/synthetic-retained-workspace";
+	workspace.Workspace.Shallow    = true;
+	workspace.SparseMissingObjects = "?" + std::string(40U, 'a') + "\n";
+	native->Workspace              = workspace;
+	expect(natives->store(*native), "pending send is stored before submission");
+	auto competing = *native;
+	natives        = adapters::sqlite::make_native_agent_session_store(scratch.path());
+	auto restored  = natives->select("authority:agent-a:agent-tab", "claude", binding);
+	expect(restored && restored->Id == native->Id && restored->Handle == native->Handle && restored->Pending,
+		   "restart restores exact native identity and uncertain submission, without inference");
+	expect(restored->Workspace && restored->Workspace->SparseMissingObjects == native->Workspace->SparseMissingObjects, "private sparse object evidence survives restart with its exact conversation");
+	restored->Pending = false;
+	++restored->Turn;
+	expect(natives->store(*restored) && !natives->store(competing), "revision CAS permits one writer and rejects stale activation");
+	expect(!natives->select("authority:agent-a:agent-tab", "changed-runtime", binding), "runtime identity mismatch never relabels a saved native session");
+	auto otherNative = natives->select("authority:agent-b:agent-tab", "claude", binding);
+	expect(otherNative && otherNative->Id != restored->Id, "another agent incarnation gets a distinct native conversation");
+	const auto missing = natives->find("unopened-scope", "claude", binding);
+	expect(missing && !*missing, "viewing absent native history admits nothing");
+	auto changedBinding    = binding;
+	changedBinding.HeadOid = *core::parse_git_commit_oid(std::string(40U, '3'));
+	const auto stale       = natives->select("authority:agent-a:agent-tab", "claude", changedBinding);
+	expect(stale && stale->Id == restored->Id && stale->Binding == binding, "head movement never silently retargets native ownership");
+	const auto fresh = natives->select("authority:agent-a:agent-tab", "claude", changedBinding, true);
+	expect(fresh && fresh->Id != restored->Id && fresh->Binding == changedBinding && fresh->Handle.empty()
+			   && natives->store(*restored),
+		   "explicit new revision creates a distinct generation while old native provenance stays stored");
+
+	const auto scope = std::string{ "authority:agent-a:agent-tab" };
+	expect(natives->append(restored->Id, { "Question", "Saved native answer", "Answered" }), "native transcript saved by original generation");
+	const auto opened = natives->choose(scope, "claude", binding, restored->Id);
+	expect(opened && opened->Id == restored->Id, "history opens exact earlier generation");
+	const auto newSession = natives->choose(scope, "claude", binding, "");
+	expect(newSession && newSession->Id != restored->Id && newSession->Handle.empty(), "same-head New session retains native origin");
+	const auto unusedAgain = natives->choose(scope, "claude", binding, "");
+	expect(unusedAgain && unusedAgain->Id == newSession->Id, "repeated New session reuses unused empty generation");
+	expect(natives->append(restored->Id, { "Late turn", "Late original answer", "Answered" }), "late output records only its originating history");
+	const auto list = natives->history(scope, "claude");
+	expect(list && list->Selected == newSession->Id && list->Turns.empty() && list->Entries.size() == 3U, "new generation empty while all scoped history retained");
+	expect(!natives->choose("authority:agent-b:agent-tab", "claude", binding, restored->Id), "history selection cannot cross agent scope");
+	expect(natives->choose(scope, "claude", binding, restored->Id).has_value(), "earlier history reopens without inference");
+	natives                   = adapters::sqlite::make_native_agent_session_store(scratch.path());
+	const auto durableHistory = natives->history(scope, "claude");
+	expect(durableHistory && durableHistory->Selected == restored->Id && durableHistory->Turns.size() == 2U && durableHistory->Turns.back().Answered == "Late original answer", "restart preserves selected generation and originating late transcript");
+
+	auto replayed = natives->replay(scope, "claude", changedBinding, restored->Id);
+	expect(replayed && replayed->Replay && replayed->Id != restored->Id && replayed->ReplaySource == restored->Id && replayed->Handle.empty() && !replayed->Workspace && replayed->Binding == changedBinding, "explicit replay has separate generation, shown revision and no native tool/filesystem ownership");
+	natives            = adapters::sqlite::make_native_agent_session_store(scratch.path());
+	auto replayHistory = natives->history(scope, "claude");
+	expect(replayHistory && replayHistory->Replay && replayHistory->Turns.size() == 2U && replayHistory->ReplaySource == restored->Id, "restart preserves replay mode, source link and retained prose");
+	expect(!natives->replay("authority:agent-b:agent-tab", "claude", binding, restored->Id), "replay source cannot cross agent authority");
+	expect(talks->store(pull, thread), "seed explicit legacy source after earlier clear");
+	const auto legacyHistory = natives->history(scope, "claude", "", pull);
+	expect(legacyHistory && !legacyHistory->Legacy.empty() && legacyHistory->Selected == replayed->Id, "legacy slots remain unassigned labelled sources alongside exact selected generation");
+	const auto legacySource = legacyHistory->Legacy.front().Id;
+	auto       legacyReplay = natives->replay(scope, "claude", binding, legacySource, pull);
+	expect(legacyReplay && legacyReplay->Replay && legacyReplay->ReplaySource == legacySource && legacyReplay->Handle.empty() && !legacyReplay->Workspace, "legacy prose moves only to explicitly chosen destination without fake native handle");
+	expect(!natives->replay(scope, "claude", binding, legacySource), "legacy replay requires explicit accepted PR source identity");
+	const auto fromReplay = natives->choose(scope, "claude", binding, "");
+	expect(fromReplay && !fromReplay->Replay && fromReplay->Id != legacyReplay->Id, "New session from replay starts empty native generation and preserves source");
+	expect(natives->choose(scope, "claude", binding, restored->Id).has_value(), "restore original native provenance after replay");
+
+	const auto removedScope = std::string{ "authority:agent-a:tour:71:0:3:9" };
+	auto       removed      = natives->select(removedScope, "readonly", binding);
+	expect(removed && natives->append(removed->Id, { "Removed stop question", "Retained answer", "Answered" }), "removed stop keeps a durable readable history");
+	const auto resetScope      = std::string{ "authority:agent-a:tour:71:1:0:0" };
+	auto       resetGeneration = natives->select(resetScope, "readonly", binding);
+	const auto detached        = natives->history(resetScope, "readonly", removed->Id);
+	expect(resetGeneration && detached && detached->ReadOnly && detached->Turns.size() == 1U && detached->Turns.front().Answered == "Retained answer", "detached history can be read across reset namespace without adopting it");
+	const auto stillReset = natives->find(resetScope, "readonly", binding);
+	expect(stillReset && *stillReset && (**stillReset).Id == resetGeneration->Id, "detached inspection preserves reset draft's current association");
+	expect(!natives->history("authority:agent-b:tour:71:1:0:0", "readonly", removed->Id), "retained chat viewer cannot cross agent authority");
+	auto refusedAt = std::size_t{ 0U };
+	for (auto index = 0U; index <= application::maximum_conversations; ++index) {
+		const auto admitted = natives->select("capacity-" + std::to_string(index), "claude", binding);
+		if (!admitted) {
+			expect(admitted.error() == application::native_agent_storage_failure::capacity, "full native catalog reports capacity");
+			refusedAt = index;
+			break;
+		}
+	}
+	expect(refusedAt > 0U && refusedAt < application::maximum_conversations, "combined native/legacy catalog refuses at its shared bound");
+	auto legacyNew   = pull;
+	legacyNew.Number = 7000U;
+	expect(!talks->store(legacyNew, thread), "legacy writer shares full native plus legacy capacity and cannot prune protected ownership");
+	expect(talks->store(workCodex, thread) && talks->load(workCodex) == std::optional{ thread }, "existing legacy projection may be updated at full capacity without losing another history");
+	expect(natives->history(scope, "claude")->Legacy.empty(), "legacy identity sources appear only for explicit accepted PR key");
+	expect(!natives->replay(scope, "claude", binding, restored->Id), "full replay admission refuses without changing native source");
+	const auto protectedHistory = natives->find("authority:agent-b:agent-tab", "claude", binding);
+	expect(protectedHistory && *protectedHistory && (**protectedHistory).Id == otherNative->Id, "capacity refusal never prunes protected native history");
+
+	expect(!natives->choose(scope, "claude", binding, ""), "full admission refuses New session");
+	const auto keptAfterRefusal = natives->history(scope, "claude");
+	expect(keptAfterRefusal && keptAfterRefusal->Selected == restored->Id && keptAfterRefusal->Turns.size() == 2U, "failed New session retains prior selected generation and transcript");
 
 	{
 		sqlite3* database = nullptr;

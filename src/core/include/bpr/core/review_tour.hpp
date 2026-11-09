@@ -188,6 +188,9 @@ namespace bpr::core {
 		std::vector<tour_stop>             Stops;
 		std::uint64_t                      Revision   = 1;
 		std::uint64_t                      LastStopId = 0;
+		/// Native chat namespace; Undo restores the active value, never its high water.
+		std::uint64_t                      ChatGeneration     = 0U;
+		std::uint64_t                      LastChatGeneration = 0U;
 		std::optional<tour_remote_binding> Remote;
 		std::optional<tour_field_baseline> IndexBaseline;
 		std::string                        ImportNotice;
@@ -262,6 +265,12 @@ namespace bpr::core {
 	[[nodiscard]] auto validate(const review_tour& aTour) noexcept -> tour_refusal;
 	/// \brief Conservative encoded-size budget including identities, metadata and length prefixes.
 	[[nodiscard]] auto retained_tour_bytes(const review_tour& aTour) noexcept -> std::size_t;
+	enum class tour_source_readiness : std::uint8_t { ready,
+													  confirmation_required,
+													  reaffirmation_required,
+													  mapping_required };
+	/// Source requirements for Ready, independently of prose and preparation.
+	[[nodiscard]] auto source_readiness(const tour_stop& aStop) noexcept -> tour_source_readiness;
 	[[nodiscard]] auto ready(const tour_stop& aStop) noexcept -> bool;
 	/// \brief [[BPR-1900]] follow-up, owner 2026-11-07: "there's this button
 	/// 'Reaffirm explanation for current head' which doesnt seem to do

@@ -1,9 +1,11 @@
 #include "agent_protocol_loop.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -18,18 +20,25 @@ namespace bpr::adapters::agent::detail {
 		{
 		public:
 			protocol_loop(
-				const application::agent_launch_request& aRequest,
-				const application::agent_output_sink&    aSink,
-				agent_protocol_transport&                aTransport)
+				const application::agent_launch_request&           aRequest,
+				const application::agent_output_sink&              aSink,
+				agent_protocol_transport&                          aTransport,
+				std::optional<application::agent_protocol_decoder> aDecoder = std::nullopt)
 				: Request{ aRequest }
 				, Sink{ aSink }
 				, Transport{ aTransport }
 				, Result{ .Session = aRequest.Session, .Run = aRequest.Run }
-				, Decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose, aRequest.ReadOnlyTools, aRequest.RunChecks }
+				, Decoder{ aDecoder ? std::move(*aDecoder) : application::agent_protocol_decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose, aRequest.ReadOnlyTools, aRequest.RunChecks } }
 				, IsAppServer{
 					aRequest.Protocol == core::agent_protocol::codex_app_server
 				}
 			{
+				Decoder.expect_native_handle(Request.NativeHandle);
+				Decoder.expect_response(Request.NativeTurn);
+				if (Request.NativeConnected) {
+					Decoder.continue_native(Request.NativeHandle, Request.NativeTurn);
+					AppServerPhase = IsAppServer ? 2U : 0U;
+				}
 			}
 
 			[[nodiscard]] auto run() -> application::agent_run_result
@@ -38,14 +47,25 @@ namespace bpr::adapters::agent::detail {
 					record_protocol_failure(admitted.error() == application::agent_launch_failure::input_too_large ? application::agent_protocol_failure::input_too_large : application::agent_protocol_failure::invalid_runtime_metadata);
 				} else {
 					Result.Metadata = Request.Metadata;
-					write_input(Request.Input, !IsAppServer);
+					write_input(Request.Input, !IsAppServer || Request.NativeConnected);
 				}
-				if (!IsAppServer && !has_cause()) {
+				if (!IsAppServer && !has_cause() && !native()) {
 					Transport.close_input();
 				}
 
 				while (!has_cause() && !ProcessExit) {
 					drain_available();
+					if (IsAppServer && !native() && !has_cause() && Decoder.turn_complete() && !InputClosed) {
+						// Modern App Server treats EOF as cancellation. Retain stdin
+						// until this explicit one-shot turn has actually completed.
+						Transport.close_input();
+						InputClosed = true;
+					}
+					if (native() && !has_cause() && Decoder.turn_complete()) {
+						finish_protocol();
+						ClassifiedOutcome = application::agent_run_outcome::success;
+						break;
+					}
 					if (!has_cause()) {
 						record_wait(Transport.wait());
 					}
@@ -71,7 +91,7 @@ namespace bpr::adapters::agent::detail {
 					}
 				}
 
-				const auto terminated = Transport.terminate();
+				const auto terminated = native() && !has_cause() && ClassifiedOutcome == application::agent_run_outcome::success ? true : Transport.terminate();
 				if (
 					!terminated && !has_cause()
 					&& ClassifiedOutcome
@@ -88,7 +108,41 @@ namespace bpr::adapters::agent::detail {
 				return std::move(Result);
 			}
 
+			/// \brief Drains bounded idle notifications through the completed turn's decoder.
+			[[nodiscard]] auto idle() -> bool
+			{
+				for (const auto stream : { application::agent_protocol_event_kind::output, application::agent_protocol_event_kind::usage_report }) {
+					while (true) {
+						const auto read = stream == application::agent_protocol_event_kind::output ? Transport.read_standard_output(Buffer) : Transport.read_standard_error(Buffer);
+						if (!valid_read(read) || read.Status == agent_protocol_pipe_read_status::failed || read.Status == agent_protocol_pipe_read_status::closed) {
+							return false;
+						}
+						if (read.Status == agent_protocol_pipe_read_status::no_data) {
+							break;
+						}
+						if (read.Count > 64U * 1024U - IdleBytes) {
+							return false;
+						}
+						IdleBytes += read.Count;
+						if (stream == application::agent_protocol_event_kind::output) {
+							const auto events = Decoder.push({ Buffer.data(), read.Count });
+							if (!events || !events->empty()) {
+								return false;
+							}
+						}
+					}
+				}
+				return true;
+			}
+
+			[[nodiscard]] auto reusable() const noexcept -> bool { return Decoder.native_connection_reusable(); }
+
+			[[nodiscard]] auto accepts_next_turn() const noexcept -> bool { return Decoder.turn_complete(); }
+
+			[[nodiscard]] auto release_decoder() -> application::agent_protocol_decoder { return std::move(Decoder); }
+
 		private:
+			[[nodiscard]] auto native() const noexcept -> bool { return !Request.NativeConversation.empty() || Request.NativeConnection != nullptr; }
 			[[nodiscard]] auto has_cause() const noexcept -> bool
 			{
 				return ForcedOutcome.has_value() || ProtocolFailure.has_value();
@@ -253,6 +307,10 @@ namespace bpr::adapters::agent::detail {
 					record_protocol_failure(followup.error());
 					return;
 				}
+				if (native() && aMessage.Kind == application::agent_protocol_event_kind::context_channel_ready && Request.SaveNativeHandle && !(*Request.SaveNativeHandle)(aMessage.Text)) {
+					record_forced_outcome(application::agent_run_outcome::private_storage_failure);
+					return;
+				}
 				write_input(*followup, aMessage.Kind == application::agent_protocol_event_kind::context_channel_ready);
 				if (has_cause()) {
 					return;
@@ -264,9 +322,6 @@ namespace bpr::adapters::agent::detail {
 					return;
 				}
 				++AppServerPhase;
-				if (AppServerPhase == 2U) {
-					Transport.close_input();
-				}
 			}
 
 			/// \brief Turns one lifted payload into this run's findings, once.
@@ -345,6 +400,7 @@ namespace bpr::adapters::agent::detail {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;
 						Transport.close_input();
+						InputClosed = true;
 					} else {
 						process_control(message);
 						if (has_cause()) {
@@ -384,6 +440,18 @@ namespace bpr::adapters::agent::detail {
 					if (!decoded) {
 						record_protocol_failure(decoded.error());
 						return;
+					}
+					// Claude announces its session before its first answer. Save
+					// that identity immediately, including when the turn is later
+					// interrupted; uncertainty must not lose the only resume ID.
+					if (native() && Request.Protocol == core::agent_protocol::claude_stream_json
+						&& Request.SaveNativeHandle && !Decoder.native_handle().empty()
+						&& SavedNativeHandle != Decoder.native_handle()) {
+						if (!(*Request.SaveNativeHandle)(Decoder.native_handle())) {
+							record_forced_outcome(application::agent_run_outcome::private_storage_failure);
+							return;
+						}
+						SavedNativeHandle = Decoder.native_handle();
 					}
 					batchMessages.insert(
 						batchMessages.end(),
@@ -431,6 +499,10 @@ namespace bpr::adapters::agent::detail {
 
 			void complete_result()
 			{
+				Result.NativeHandle = Decoder.native_handle();
+				if (native()) {
+					Result.NativeProcess = Transport.process_identity();
+				}
 				Result.AssistantItems      = Decoder.assistant_items();
 				Result.StandardOutputBytes = Decoder.pushed_bytes();
 				if (ProtocolFailure) {
@@ -476,7 +548,10 @@ namespace bpr::adapters::agent::detail {
 			agent_protocol_transport&                          Transport;
 			application::agent_run_result                      Result;
 			application::agent_protocol_decoder                Decoder;
+			std::string                                        SavedNativeHandle;
 			std::array<char, protocol_buffer_bytes>            Buffer{ };
+			bool                                               InputClosed    = false;
+			std::size_t                                        IdleBytes      = 0U;
 			std::size_t                                        InputBytes     = 0;
 			std::uint64_t                                      Sequence       = 0U;
 			std::uint8_t                                       AppServerPhase = 0U;
@@ -494,7 +569,58 @@ namespace bpr::adapters::agent::detail {
 		agent_protocol_transport&                aTransport)
 		-> application::agent_run_result
 	{
-		return protocol_loop{ aRequest, aSink, aTransport }.run();
+		if (aRequest.NativeConnection == nullptr) {
+			return protocol_loop{ aRequest, aSink, aTransport }.run();
+		}
+		auto* const connection = aRequest.NativeConnection;
+		auto        request    = aRequest;
+		auto        last       = application::agent_run_result{ };
+		auto        decoder    = std::optional<application::agent_protocol_decoder>{ };
+		while (true) {
+			auto loop           = protocol_loop{ request, aSink, aTransport, std::move(decoder) };
+			last                = loop.run();
+			const auto success  = last.Outcome == application::agent_run_outcome::success;
+			const auto handle   = last.NativeHandle;
+			const auto reusable = loop.reusable();
+			if (!success || !reusable) {
+				// An uncorrelated terminal is safe only as this transport's sole
+				// turn. Retire before releasing its caller, never select/resend work.
+				connection->retire();
+				if (success) {
+					static_cast<void>(aTransport.terminate());
+				}
+			}
+			connection->complete(last);
+			if (!success || !reusable) {
+				return last;
+			}
+			aTransport.begin_turn(std::numeric_limits<int>::max());
+			const auto idleEnd = std::chrono::steady_clock::now() + std::chrono::minutes{ 5 };
+			while (true) {
+				if (connection->cancelled() || !loop.idle() || std::chrono::steady_clock::now() >= idleEnd) {
+					static_cast<void>(aTransport.terminate());
+					return last;
+				}
+				if (auto next = loop.accepts_next_turn() ? connection->next() : std::nullopt) {
+					next->NativeHandle     = handle;
+					next->NativeConnection = connection;
+					auto prepared          = application::prepare_native_agent_turn(std::move(*next), true);
+					if (!prepared) {
+						connection->complete({ .Session = request.Session, .Outcome = application::agent_run_outcome::protocol_failure });
+						static_cast<void>(aTransport.terminate());
+						return last;
+					}
+					decoder = loop.release_decoder();
+					request = std::move(*prepared);
+					aTransport.begin_turn(connection->timeout_milliseconds());
+					break;
+				}
+				if (aTransport.wait().Status != agent_protocol_wait_status::running) {
+					static_cast<void>(aTransport.terminate());
+					return last;
+				}
+			}
+		}
 	}
 
 	auto agent_protocol_read_ahead_limit(const agent_protocol_stream aStream) noexcept

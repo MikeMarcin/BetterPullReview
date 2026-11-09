@@ -79,6 +79,8 @@ namespace bpr::application {
 							   std::stop_token aStop = { }) -> agent_run_result override;
 		void               cancel() noexcept override;
 
+		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Inner.native_connections_quiescent(); }
+
 	private:
 		agent_process_port&                                  Inner;
 		std::shared_ptr<const claude_process_wrapper_source> Source;

@@ -389,6 +389,7 @@ namespace bpr::qt {
 		comparisonColumn->addWidget(ComparisonSurface, 1);
 		update_idle_direction();
 		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
+			update_go_to_line_action();
 			if (DocumentTabs != nullptr) {
 				// [[BPR-1287]]. With nothing chosen the tab says so in the
 				// empty state's words, not "Select a file comparison".

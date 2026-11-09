@@ -70,6 +70,14 @@ namespace {
 		core::review_tour restored6;
 		read6.tour(restored6);
 		expect(read6.Good && read6.Input.empty() && restored6 == original, "v6 migration does not invent generated provenance");
+		original.ChatGeneration     = 4U;
+		original.LastChatGeneration = 7U;
+		adapters::sqlite::detail::tour_codec version9;
+		version9.tour(original);
+		auto              read9 = adapters::sqlite::detail::tour_codec{ .Input = version9.Bytes, .Reading = true };
+		core::review_tour restored9;
+		read9.tour(restored9);
+		expect(read9.Good && read9.Input.empty() && restored9 == original, "v9 roundtrip retains active and high-water native chat namespace");
 		original.Stops[0].Suggestion       = core::tour_suggestion{ "selected-source", "Private reason", "Author question", true };
 		original.Stops[0].CompletionOrigin = core::tour_completion_origin::relayed;
 		tests::sqlite_contract::scratch_root scratch{ "tour-v2" };

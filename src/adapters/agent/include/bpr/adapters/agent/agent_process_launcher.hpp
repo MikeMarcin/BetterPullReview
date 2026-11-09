@@ -92,7 +92,8 @@ namespace bpr::adapters::agent {
 		///
 		/// \details The run loop observes the atomic request and performs all
 		/// toolkit and process-tree operations on its owning thread.
-		void cancel() noexcept override;
+		void               cancel() noexcept override;
+		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override;
 
 #if defined(BPR_BUILD_TESTING) && defined(Q_OS_WIN)
 		/// \brief Forces the pre-resume Job Object assignment seam to fail.

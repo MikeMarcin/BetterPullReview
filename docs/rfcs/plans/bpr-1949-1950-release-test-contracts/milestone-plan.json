@@ -1,0 +1,44 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1949-1950-release-test-contracts",
+  "scope": {
+    "issues": [
+      "BPR-1949",
+      "BPR-1950"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "restore-test-contracts",
+      "outcome": "The runtime-root test follows shared containment/skip reporting, and the CLI labels course admits only intended privacy-safe logging while preserving its original domain checks.",
+      "work": [
+        {
+          "issue": "BPR-1949",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        },
+        {
+          "issue": "BPR-1950",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Adopt existing contained temporary and skip runner facilities without changing runtime-root seven cases or platform eligibility; their source contracts pass.",
+        "Logging capability derives from the configured target; strict known file/event/privacy/bounds checks distinguish intended thirteen count sessions from unexpected effects, with all original CLI oracles/refusals/read-only/removal checks preserved.",
+        "Bounded pure-Python checks and approved read-only frozen CLI engineering proof pass; documentation/board/latest-main integration and quiescent ownership handback retain all rejected43 failures and pending full qualification.",
+        "The latest accepted native-session wrapper also uses the existing contained factory, preserving its six commands,180s bounds,render copying and POSIX chmod; retain its newly exposed source-gate negative and focused normal validation."
+      ],
+      "boundary": "Runtime-root Python harness, CLI labels test and its one capability argument, plan/cards. No production logging/validator behavior change, producer source/build/cache mutation, native builds/CTest during qualification, blanket exclusion/waiver or release publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

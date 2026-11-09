@@ -312,6 +312,18 @@ namespace bpr::core {
 		auto operator<=>(const brief_review_skill&) const = default;
 	};
 
+	/// Bounded saved prose only; it cannot represent native tool or filesystem state.
+	struct transcript_replay
+	{
+		std::vector<brief_turn> Turns;
+		std::size_t             Omitted                                     = 0U;
+		std::size_t             CutBytes                                    = 0U;
+		bool                    Tour                                        = false;
+		auto                    operator<=>(const transcript_replay&) const = default;
+	};
+	[[nodiscard]] auto bound_transcript_replay(std::vector<brief_turn>, bool aTour) -> transcript_replay;
+	[[nodiscard]] auto valid_transcript_replay(const transcript_replay&) -> bool;
+
 	/// \brief What the host read for one brief, before its bounds.
 	struct review_brief_input
 	{
@@ -556,7 +568,8 @@ namespace bpr::core {
 		std::vector<supplement_skill> Skills;
 		/// [[BPR-1935]]. A tour run's composed prompt, admitted from the
 		/// request's `agent_tour_prompt`; empty for every other launch.
-		std::string TourPrompt;
+		std::string                      TourPrompt;
+		std::optional<transcript_replay> Replay;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

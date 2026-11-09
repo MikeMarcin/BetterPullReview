@@ -714,13 +714,17 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			std::string&           aThread,
-			std::string&           aTurn)
+			std::string& aTurn, const std::uint64_t aTurnResponse)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
+			const auto turnResponse = std::to_string(aTurnResponse);
 			if (const auto* id = member(aRoot, "id"); id != nullptr) {
+				if (aPhase == 1U || aPhase == 3U) {
+					return std::unexpected(agent_protocol_failure::causal_violation);
+				}
 				const auto expectedId = aPhase == 0U ? std::string_view{ "0" }
 					: aPhase == 2U                   ? std::string_view{ "1" }
-					: aPhase == 4U                   ? std::string_view{ "2" }
+					: aPhase == 4U                   ? std::string_view{ turnResponse }
 													 : std::string_view{ };
 				if (
 					id->Kind != json_kind::number_value || expectedId.empty()
@@ -836,6 +840,34 @@ namespace bpr::application {
 				return std::unexpected(agent_protocol_failure::remote_failed);
 			}
 			constexpr auto ignored = std::array{
+				// Advertised non-answer notifications in Codex 0.164.0.
+				// They cannot advance a turn, satisfy an RPC or publish text.
+				std::string_view{ "remoteControl/status/changed" },
+				std::string_view{ "thread/status/changed" },
+				std::string_view{ "thread/tokenUsage/updated" },
+				std::string_view{ "account/rateLimits/updated" },
+				std::string_view{ "account/updated" },
+				std::string_view{ "mcpServer/startupStatus/updated" },
+				std::string_view{ "thread/readState/changed" },
+				std::string_view{ "thread/settings/updated" },
+				std::string_view{ "thread/name/updated" },
+				std::string_view{ "thread/goal/updated" },
+				std::string_view{ "thread/goal/cleared" },
+				std::string_view{ "thread/queue/changed" },
+				std::string_view{ "model/rerouted" },
+				std::string_view{ "model/verification" },
+				std::string_view{ "model/safetyBuffering/updated" },
+				std::string_view{ "item/reasoning/summaryTextDelta" },
+				std::string_view{ "item/reasoning/summaryPartAdded" },
+				std::string_view{ "item/reasoning/textDelta" },
+				std::string_view{ "item/commandExecution/outputDelta" },
+				std::string_view{ "item/commandExecution/terminalInteraction" },
+				std::string_view{ "turn/diff/updated" },
+				std::string_view{ "turn/plan/updated" },
+				std::string_view{ "thread/compacted" },
+				std::string_view{ "warning" },
+				std::string_view{ "configWarning" },
+				std::string_view{ "deprecationNotice" },
 				std::string_view{ "thread/started" },
 				std::string_view{ "turn/started" },
 				std::string_view{ "item/started" },
@@ -1078,7 +1110,7 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			bool&                  aSawAssistant,
-			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false, held_tool_uses* aHeld = nullptr, const agent_run_checks aChecks = agent_run_checks::strict)
+			std::string& aSession, bool aWritingOnly, const bool aReadOnly, held_tool_uses* aHeld, const agent_run_checks aChecks, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const std::uint64_t aNativeTurn, const bool aConnectedNative, bool& aIdentifiedResult)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto  relaxed = aChecks == agent_run_checks::relaxed;
@@ -1199,7 +1231,20 @@ namespace bpr::application {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				// Older envelopes omit id. Exact duplicate envelopes still coalesce.
-				const auto  identity   = messageId ? *messageId : hex_identity(core::private_digest(aFrame));
+				const auto identity = messageId ? *messageId : hex_identity(core::private_digest(aFrame));
+				if (*type == "assistant") {
+					const auto found = std::ranges::find_if(aFrameTurns, [&](const auto& aEntry) { return aEntry.first == "assistant:" + identity; });
+					if (identity.size() > core::maximum_remote_run_id_bytes || (found != aFrameTurns.end() && found->second != aNativeTurn)) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					if (found == aFrameTurns.end()) {
+						// Refuse at capacity rather than forgetting an older turn's fence.
+						if (aFrameTurns.size() >= 4096U) {
+							return std::unexpected(agent_protocol_failure::output_too_large);
+						}
+						aFrameTurns.emplace_back("assistant:" + identity, aNativeTurn);
+					}
+				}
 				std::size_t blockIndex = 0;
 				auto        thought    = false;
 				auto        wroteText  = false;
@@ -1284,6 +1329,21 @@ namespace bpr::application {
 				return events;
 			}
 			if (*type == "result") {
+				// Modern Claude results carry an envelope UUID. Keep its fence even
+				// when a later turn has already emitted a fresh assistant message.
+				const auto* uuid = string_member(aRoot, "uuid");
+				if ((member(aRoot, "uuid") && uuid == nullptr) || (aConnectedNative && uuid == nullptr)) {
+					return std::unexpected(agent_protocol_failure::invalid_runtime_metadata);
+				}
+				aIdentifiedResult = uuid != nullptr;
+				if (uuid != nullptr) {
+					const auto identity = "result:" + *uuid;
+					const auto found    = std::ranges::find_if(aFrameTurns, [&](const auto& aEntry) { return aEntry.first == identity; });
+					if (uuid->empty() || identity.size() > core::maximum_remote_run_id_bytes || found != aFrameTurns.end() || aFrameTurns.size() >= 4096U) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					aFrameTurns.emplace_back(identity, aNativeTurn);
+				}
 				const auto* isError = member(aRoot, "is_error");
 				if (
 					subtype == nullptr || isError == nullptr
@@ -1726,7 +1786,7 @@ namespace bpr::application {
 					read(*result, "model", report.Settings.Model);
 					read(*result, "reasoningEffort", report.Settings.Effort, true);
 					read(*object_member(*result, "thread"), "id", report.RemoteThread);
-				} else if (id && result && id->Text == "2") {
+				} else if (id && result && object_member(*result, "turn")) {
 					report.Basis = "codex_app_server.turn/start.result.turn.id";
 					read(*object_member(*result, "turn"), "id", report.RemoteTurn);
 				}
@@ -1775,7 +1835,7 @@ namespace bpr::application {
 			std::string&                  aThread,
 			std::string&                  aTurn,
 			core::agent_runtime_metadata& aMetadata,
-			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks)
+			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks, const std::uint64_t aTurnResponse, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const bool aConnectedNative, bool& aIdentifiedResult)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
@@ -1814,14 +1874,14 @@ namespace bpr::application {
 			};
 			switch (aProtocol) {
 			case core::agent_protocol::codex_app_server:
-				events = decode_app_server_frame(*parsed, aFrame, aPhase, aThread, aTurn);
+				events = decode_app_server_frame(*parsed, aFrame, aPhase, aThread, aTurn, aTurnResponse);
 				break;
 			case core::agent_protocol::codex_jsonl_exec:
 				events = decode_codex_jsonl_frame(*parsed, aFrame, aPhase, aThread, aReadOnly);
 				break;
 			case core::agent_protocol::claude_stream_json:
 				events = decode_claude_frame(
-					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks);
+					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks, aFrameTurns, aTurnResponse, aConnectedNative, aIdentifiedResult);
 				break;
 			case core::agent_protocol::external_terminal: break;
 			}
@@ -2351,6 +2411,17 @@ namespace bpr::application {
 			if (!aSupplement.TourPrompt.empty()) {
 				append_field(aResult, "tour_prompt", aSupplement.TourPrompt);
 			}
+			if (aSupplement.Replay) {
+				append_field(aResult, "transcript_replay.mode", "Transcript replay: saved questions and replies only; prior tools and workspace changes are absent. Current BPR context is authoritative.");
+				append_number(aResult, "transcript_replay.omitted", aSupplement.Replay->Omitted);
+				append_number(aResult, "transcript_replay.cut_bytes", aSupplement.Replay->CutBytes);
+				append_number(aResult, "transcript_replay.turn.count", aSupplement.Replay->Turns.size());
+				for (std::size_t index = 0; index < aSupplement.Replay->Turns.size(); ++index) {
+					const auto prefix = "transcript_replay.turn." + std::to_string(index);
+					append_field(aResult, prefix + ".asked", aSupplement.Replay->Turns[index].Asked);
+					append_field(aResult, prefix + ".answered", aSupplement.Replay->Turns[index].Answered);
+				}
+			}
 			// BPR-0533: the one position the asked-for comment-workshop operation
 			// occupies. Written unconditionally and empty when the launch is not a
 			// workshop request, for the reason the message above is: a reader must
@@ -2763,6 +2834,9 @@ namespace bpr::application {
 		if (!core::valid(aProfile) || core::stable_name(aProfile.Protocol).empty()) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
+		if (aSupplement.Replay && !core::valid_transcript_replay(*aSupplement.Replay)) {
+			return std::unexpected(agent_launch_failure::input_too_large);
+		}
 		if (aProfile.Id != aSupplement.Session.Profile) {
 			return std::unexpected(agent_launch_failure::profile_session_mismatch);
 		}
@@ -2775,7 +2849,7 @@ namespace bpr::application {
 		}
 		// [[BPR-1900]]. Read-only drafting has a recorded allowlist for
 		// Claude's stream JSON and Codex's `exec --json`, and for nothing else.
-		if (aOptions.ReadOnlyTools && (aOptions.WritingOnly || (aProfile.Protocol != core::agent_protocol::claude_stream_json && aProfile.Protocol != core::agent_protocol::codex_jsonl_exec))) {
+		if (aOptions.ReadOnlyTools && (aOptions.WritingOnly || (aProfile.Protocol != core::agent_protocol::claude_stream_json && aProfile.Protocol != core::agent_protocol::codex_jsonl_exec && aProfile.Protocol != core::agent_protocol::codex_app_server))) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
 		const auto metadata = core::agent_runtime_metadata{ .Requested = aOptions.Requested, .Configured = aProfile.DefaultSettings };
@@ -2793,6 +2867,9 @@ namespace bpr::application {
 			auto counter = input_counter{ .Json = aProfile.Protocol == core::agent_protocol::codex_app_server || aProfile.Protocol == core::agent_protocol::claude_stream_json };
 			encode_supplement_into(counter, aSupplement);
 			encode_private_into(counter, aOptions);
+			if (!aSupplement.TourPrompt.empty() && aSupplement.Replay && counter.Bytes > core::maximum_tour_prompt_bytes) {
+				throw input_limit{ };
+			}
 			if (input_overhead(aProfile.Protocol, metadata) > maximum_agent_input_bytes - counter.Bytes) {
 				throw input_limit{ };
 			}
@@ -2803,6 +2880,9 @@ namespace bpr::application {
 		switch (aProfile.Protocol) {
 		case core::agent_protocol::codex_app_server:
 			arguments.emplace_back("app-server");
+			if (aOptions.ReadOnlyTools) {
+				arguments.insert(arguments.end(), { "-c", "mcp_servers={}", "-c", "tools.web_search=false" });
+			}
 			break;
 		case core::agent_protocol::codex_jsonl_exec:
 			arguments.emplace_back("exec");
@@ -3161,14 +3241,28 @@ namespace bpr::application {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
 		switch (aControl.Kind) {
-		case agent_protocol_event_kind::initialization_complete:
-			return app_server_thread_start(aRequest.Metadata);
+		case agent_protocol_event_kind::initialization_complete: {
+			if (!aRequest.NativeHandle.empty()) {
+				return "{\"method\":\"initialized\"}\n{\"method\":\"thread/resume\",\"id\":1,\"params\":{\"threadId\":\"" + json_escape(aRequest.NativeHandle) + "\",\"excludeTurns\":true" + (aRequest.ReadOnlyTools ? ",\"approvalPolicy\":\"never\",\"sandbox\":\"read-only\",\"config\":{\"mcp_servers\":{},\"tools.web_search\":false}" : "") + "}}\n";
+			}
+			auto input = app_server_thread_start(aRequest.Metadata);
+			if (aRequest.ReadOnlyTools) {
+				input.insert(input.size() - 3U, (effective_settings(aRequest.Metadata).Model ? "," : "") + std::string{ "\"approvalPolicy\":\"never\",\"sandbox\":\"read-only\",\"config\":{\"mcp_servers\":{},\"tools.web_search\":false}" });
+			}
+			return input;
+		}
 		case agent_protocol_event_kind::context_channel_ready: {
 			const auto fact = core::agent_reported_facts{ .Basis = "codex_app_server.thread/start.result.thread.id", .RemoteThread = aControl.Text };
 			if (!core::append_runtime_report({ }, fact) || aRequest.DeferredContext.empty()) {
 				return std::unexpected(agent_protocol_failure::invalid_runtime_metadata);
 			}
-			return app_server_turn_input(aRequest.DeferredContext, aControl.Text, aRequest.Metadata);
+			auto input = app_server_turn_input(aRequest.DeferredContext, aControl.Text, aRequest.Metadata);
+			if (aRequest.ReadOnlyTools) {
+				input.insert(input.size() - 3U, ",\"approvalPolicy\":\"never\",\"sandboxPolicy\":{\"type\":\"readOnly\",\"networkAccess\":false}");
+			}
+			const auto id = input.find("\"id\":2,");
+			input.replace(id, 7U, "\"id\":" + std::to_string(aRequest.NativeTurn) + ",");
+			return input;
 		}
 		case agent_protocol_event_kind::output:
 		case agent_protocol_event_kind::finding_payload:
@@ -3182,6 +3276,73 @@ namespace bpr::application {
 		case agent_protocol_event_kind::check_relaxed:        break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
+	}
+
+	auto prepare_native_agent_turn(agent_launch_request aRequest, const bool aConnected)
+		-> std::expected<agent_launch_request, agent_launch_failure>
+	{
+		if (aRequest.WritingOnly || aRequest.NativeTurn < 2U || aRequest.Protocol == core::agent_protocol::external_terminal
+			|| (!aRequest.NativeHandle.empty() && !core::send_session_name(aRequest.NativeHandle))) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
+		if (aRequest.ReadOnlyTools && aRequest.Protocol == core::agent_protocol::claude_stream_json) {
+			std::erase(aRequest.Arguments, "--no-session-persistence");
+		}
+		aRequest.NativeConnected = aConnected;
+		if (aConnected) {
+			if (aRequest.NativeHandle.empty() || aRequest.Protocol == core::agent_protocol::codex_jsonl_exec) {
+				return std::unexpected(agent_launch_failure::invalid_profile);
+			}
+			if (aRequest.Protocol == core::agent_protocol::codex_app_server) {
+				auto input = build_agent_protocol_followup(aRequest, { .Kind = agent_protocol_event_kind::context_channel_ready, .Text = aRequest.NativeHandle });
+				if (!input) {
+					return std::unexpected(agent_launch_failure::invalid_runtime_settings);
+				}
+				aRequest.Input = std::move(*input);
+			}
+		} else if (!aRequest.NativeHandle.empty()) {
+			if (aRequest.Protocol == core::agent_protocol::claude_stream_json) {
+				aRequest.Arguments.insert(aRequest.Arguments.end(), { "--resume", aRequest.NativeHandle });
+			} else if (aRequest.Protocol == core::agent_protocol::codex_jsonl_exec) {
+				// Preserve exec-level sandbox flags before the resume subcommand.
+				aRequest.Arguments.pop_back();
+				aRequest.Arguments.insert(aRequest.Arguments.end(), { "resume", aRequest.NativeHandle, "-" });
+			}
+		}
+		return aRequest;
+	}
+
+	void agent_protocol_decoder::continue_native(std::string aHandle, const std::uint64_t aTurn)
+	{
+		// Preserve connection identities, but reset every bounded turn carrier.
+		auto identities      = std::move(NativeFrameTurns);
+		*this                = agent_protocol_decoder{ Protocol, WritingOnly, Purpose, ReadOnlyTools, Checks };
+		NativeFrameTurns     = std::move(identities);
+		ExpectedNativeHandle = aHandle;
+		NativeTurn           = aTurn;
+		ConnectedNative      = true;
+		if (Protocol == core::agent_protocol::claude_stream_json) {
+			RemoteSession = std::move(aHandle);
+			Phase         = 1U;
+		} else if (Protocol == core::agent_protocol::codex_app_server) {
+			RemoteThread = std::move(aHandle);
+			Phase        = 4U;
+		}
+	}
+
+	auto agent_protocol_decoder::turn_complete() const noexcept -> bool
+	{
+		return !Failed && Pending.empty() && ((Protocol == core::agent_protocol::claude_stream_json && Phase == 2U) || (Protocol == core::agent_protocol::codex_app_server && Phase == 6U) || (Protocol == core::agent_protocol::codex_jsonl_exec && Phase == 3U));
+	}
+
+	auto agent_protocol_decoder::native_connection_reusable() const noexcept -> bool
+	{
+		return turn_complete() && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
+	}
+
+	auto agent_protocol_decoder::native_handle() const noexcept -> const std::string&
+	{
+		return Protocol == core::agent_protocol::claude_stream_json ? RemoteSession : RemoteThread;
 	}
 
 	agent_protocol_decoder::agent_protocol_decoder(
@@ -3231,12 +3392,6 @@ namespace bpr::application {
 			}
 			return events;
 		}
-		if (
-			Protocol == core::agent_protocol::codex_app_server
-			&& (Phase == 1U || Phase == 3U) && !aBytes.empty()) {
-			Failed = true;
-			return std::unexpected(agent_protocol_failure::causal_violation);
-		}
 		if (aBytes.size() > stream_limit() - TotalBytes) {
 			Failed = true;
 			return std::unexpected(agent_protocol_failure::output_too_large);
@@ -3267,7 +3422,7 @@ namespace bpr::application {
 				SawAssistant,
 				RemoteSession,
 				RemoteThread,
-				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks);
+				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks, NativeTurn, NativeFrameTurns, ConnectedNative, IdentifiedResult);
 			if (!decoded) {
 				reject_line(frame);
 				Failed = true;
@@ -3281,6 +3436,10 @@ namespace bpr::application {
 						event.CompleteItem = false;
 					}
 				}
+			}
+			if (!ExpectedNativeHandle.empty() && !native_handle().empty() && ExpectedNativeHandle != native_handle()) {
+				Failed = true;
+				return std::unexpected(agent_protocol_failure::invalid_runtime_metadata);
 			}
 			if (!retain_output(*decoded)) {
 				reject_line(frame);
@@ -3296,28 +3455,10 @@ namespace bpr::application {
 					}
 				}
 			}
-			// A finding payload is deliberately not a control event. It asks
-			// the host for no follow-up write, so pausing the decode on it
-			// would change the causal contract App Server's two follow-ups own.
-			const auto hasControl = std::ranges::any_of(
-				*decoded,
-				[](const agent_protocol_event& aEvent) {
-					return aEvent.Kind
-						== agent_protocol_event_kind::initialization_complete
-						|| aEvent.Kind
-						== agent_protocol_event_kind::context_channel_ready;
-				});
-			if (hasControl && !Pending.empty()) {
-				Failed = true;
-				return std::unexpected(agent_protocol_failure::causal_violation);
-			}
 			messages.insert(
 				messages.end(),
 				std::make_move_iterator(decoded->begin()),
 				std::make_move_iterator(decoded->end()));
-			if (hasControl) {
-				break;
-			}
 		}
 		if (Pending.size() > frame_limit()) {
 			reject_line(Pending);
@@ -3431,7 +3572,7 @@ namespace bpr::application {
 			= aControl == agent_protocol_event_kind::context_channel_ready
 			&& Phase == 3U;
 		if (
-			Failed || Protocol != core::agent_protocol::codex_app_server
+			Failed || !Pending.empty() || Protocol != core::agent_protocol::codex_app_server
 			|| (!followsInitialization && !followsThreadStart)) {
 			Failed = true;
 			return std::unexpected(agent_protocol_failure::causal_violation);

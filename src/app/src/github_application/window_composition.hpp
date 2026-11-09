@@ -175,6 +175,7 @@
 	#include "bpr/application/clone_link_host.hpp"
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
 	#include "bpr/application/review_skill_host.hpp"
+	#include "bpr/application/tour_agent_context.hpp"
 	#include "bpr/core/agent_chat_scope.hpp"
 	#include "bpr/core/agent_finding.hpp"
 	#include "bpr/core/agent_setup.hpp"
@@ -2110,8 +2111,9 @@ namespace bpr::app {
 		std::unique_ptr<application::review_skill_store_port> ReviewSkillStore;
 		std::unique_ptr<application::review_skill_host>       ReviewSkill;
 		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
-		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
-		std::unique_ptr<application::agent_conversation_host>       AgentConversation;
+		std::unique_ptr<application::native_agent_session_store_port> NativeAgentSessions;
+		std::unique_ptr<application::agent_conversation_store_port>   AgentConversationStore;
+		std::unique_ptr<application::agent_conversation_host>         AgentConversation;
 		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
@@ -2183,11 +2185,39 @@ namespace bpr::app {
 		std::string                                                      TourWorkspacePath;
 		/// [[BPR-1900]] follow-up. The head the tour run's workspace holds.
 		std::optional<core::git_commit_oid> TourWorkspaceHead;
+		std::optional<core::review_tour>    TourSubmittedDraft;
+		[[nodiscard]] auto                  capture_tour_agent_context(const core::tour_thread& aThread = { }) const -> application::tour_agent_context;
 		bool                                TourDraftPending = false;
 		/// [[BPR-1914]]. An ask turn is in flight, and the tour its
 		/// conversation belongs to.
-		bool                               TourAskPending = false;
-		std::optional<core::tour_draft_id> TourConversationDraft;
+		bool                                                TourAskPending = false;
+		std::optional<core::tour_draft_id>                  TourConversationDraft;
+		std::map<std::string, std::string>                  TourSelectedConversations;
+		std::map<std::string, core::agent_revision_binding> TourConversationBindings;
+		std::map<std::string, core::agent_session>          TourNativeSessions;
+		struct tour_continuation
+		{
+			std::string                  Scope;
+			std::string                  Conversation;
+			core::agent_session          Session;
+			core::agent_revision_binding Observed;
+		};
+		std::optional<tour_continuation>             TourContinuation;
+		[[nodiscard]] auto                           tour_observed_binding() const -> std::optional<core::agent_revision_binding>;
+		[[nodiscard]] auto                           continued_tour_session(const core::tour_thread&) const -> std::optional<core::agent_session>;
+		void                                         choose_tour_continuation(const core::tour_thread&);
+		void                                         present_tour_continuation();
+		application::native_agent_history_projection TourHistory;
+		std::string                                  TourHistoryKey;
+		std::string                                  TourRunScope;
+		application::native_agent_history_projection AgentNativeHistory;
+		void                                         present_agent_native_history(const application::native_agent_history_projection&);
+		void                                         observe_agent_native_history(std::optional<std::string> aChoice = std::nullopt);
+		void                                         observe_tour_native_history(const core::tour_thread&, std::optional<std::string> aChoice = std::nullopt);
+		void                                         present_tour_native_history(const application::native_agent_history_projection&);
+		[[nodiscard]] auto                           tour_native_scope(const core::tour_thread&) const -> std::string;
+		[[nodiscard]] auto                           tour_native_agent() const -> std::string;
+
 		/// [[BPR-1914]] v003. When the run in flight started, for "Worked for Ns".
 		std::chrono::steady_clock::time_point TourRunStarted;
 		/// [[BPR-1941]]. What the run in flight is doing now, as its live
@@ -2261,6 +2291,7 @@ namespace bpr::app {
 		/// promoted finding a proposal nobody workshopped.
 		std::optional<pending_comment_workshop>             PendingWorkshopOperation;
 		std::optional<core::agent_session>                  LatestAgentSession;
+		std::optional<core::agent_session>                  NativeFreshAtCurrentRevision;
 		std::size_t                                         FindingRefusalsPresented = 0U;
 		std::size_t                                         SideChatIntents          = 0U;
 		std::size_t                                         SideChatPresentations    = 0U;

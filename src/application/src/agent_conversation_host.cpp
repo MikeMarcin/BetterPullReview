@@ -93,10 +93,15 @@ namespace bpr::application {
 				Waiting.emplace(std::move(aKey), std::move(aTurns));
 				return;
 			}
-			Writing = true;
+			Writing         = true;
+			auto writtenKey = aKey;
 			off_lane([store = Dependencies.Store, key = std::move(aKey), turns = std::move(aTurns)] { return store != nullptr && store->store(key, turns); },
-					 [self = shared_from_this()](std::optional<bool> /*aStored*/) {
+					 [self = shared_from_this(), key = std::move(writtenKey)](std::optional<bool> aStored) {
 						 self->Writing = false;
+						 if (self->View.Key == std::optional{ key }) {
+							 self->View.SaveFailed = !aStored.value_or(false);
+							 self->publish();
+						 }
 						 if (self->Waiting) {
 							 auto next = std::exchange(self->Waiting, std::nullopt);
 							 self->write(std::move(next->first), std::move(next->second));

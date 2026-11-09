@@ -461,7 +461,7 @@ namespace bpr::qt {
 
 	auto source_pane::gutter_header() const -> int
 	{
-		return UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+		return UnifiedRows != nullptr ? viewportMargins().top() : 0;
 	}
 
 	auto source_pane::number_cell(const std::uint32_t aLine) const -> QRect
@@ -470,7 +470,7 @@ namespace bpr::qt {
 		if (row.isEmpty()) {
 			return { };
 		}
-		return QRect{ 0, row.top() + gutter_header(), gutter_width(), row.height() };
+		return QRect{ 0, row.top() + gutter_header() - AppliedOffset, gutter_width(), row.height() };
 	}
 
 	void source_pane::set_mark_dispatch(std::function<void(const diff_line_mark&)> aDispatch)
@@ -493,7 +493,10 @@ namespace bpr::qt {
 
 	auto source_pane::number_line_at(const QPoint aGutterPoint) const -> std::optional<std::uint32_t>
 	{
-		const auto y    = aGutterPoint.y() - gutter_header();
+		if (aGutterPoint.y() < gutter_header()) {
+			return std::nullopt;
+		}
+		const auto y    = aGutterPoint.y() - gutter_header() + AppliedOffset;
 		const auto line = line_at(y);
 		if (!line.has_value()) {
 			return std::nullopt;
@@ -522,7 +525,7 @@ namespace bpr::qt {
 		if (!NumberDrag.has_value() || !NumberDispatch) {
 			return;
 		}
-		const auto line = line_at(aGutterY - gutter_header());
+		const auto line = line_at(aGutterY - gutter_header() + AppliedOffset);
 		if (line.has_value() && *line != *NumberDrag) {
 			NumberDrag          = line;
 			const auto dispatch = NumberDispatch;
@@ -811,6 +814,8 @@ namespace bpr::qt {
 	auto source_pane::changes_viewport_extent(const QSize aSize) const noexcept -> bool { return !ViewportArea.isValid() || aSize != ViewportArea.size(); }
 
 	auto source_pane::viewport_extent() const noexcept -> int { return ViewportArea.isValid() ? ViewportArea.height() : viewport()->height(); }
+
+	auto source_pane::displayed_source_area() const noexcept -> QRect { return ViewportArea.isValid() ? ViewportArea : viewport()->geometry(); }
 
 	auto source_pane::within_line_position() const noexcept -> qreal { return RetainedOffset; }
 
@@ -1836,9 +1841,9 @@ namespace bpr::qt {
 			return;
 		}
 		aPainter.save();
-		aPainter.setClipping(false);
+		aPainter.setClipRect(QRect{ 0, gutter_header(), Gutter->width(), Gutter->height() - gutter_header() });
 		aPainter.setRenderHint(QPainter::Antialiasing, true);
-		const auto header = gutter_header();
+		const auto header = gutter_header() - AppliedOffset;
 		for (const auto& mark : Marks) {
 			if (mark.Writing) {
 				// A draft on several lines spans them all, drawn while any

@@ -1,0 +1,9 @@
+{
+  "mandate_revision": "go-to-line-columns-r4",
+  "authority": "Owner chat 2026-11-08 requests shared Find close control, no filename and optional line:column; coordinator confirms native UTF-16 column contract.",
+  "original_plan_fingerprint": "sha256:6f9afe1d073ec602aed2c1a1b3736d6eb3877d307d02851ba693cb0ae8047fad",
+  "amended_plan_fingerprint": "sha256:02f86101a6b1d3c26d13cd91842f4ca203736f75c285215b832289d26499aec1",
+  "scope_change": "Add allocated BPR-1957 and AC05\u2013AC06. Narrow original milestone RFC selector to its historical AC01\u2013AC04; no original criterion or producing acceptance is removed.",
+  "mechanical_amendment_helper": "check_amendment rejects authorized scope changes by construction: amendment cannot change plan identity or authorized scope. New explicit owner mandate supplies this scope; structural validation and exact selected-plan binding are used.",
+  "original_milestone_evidence": "BPR-1948 exact-source-line accepted at e3e600c9f5483bcec66b140d0473d232b4ae7564; v002 navigation accepted for its exact frozen binary."
+}

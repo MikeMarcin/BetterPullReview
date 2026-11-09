@@ -1,0 +1,56 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1959-1961-mac-release-contracts",
+  "scope": {
+    "issues": [
+      "BPR-1959",
+      "BPR-1960",
+      "BPR-1961"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "restore-mac-contracts",
+      "outcome": "Known stale Mac contracts preserve accepted prompt/storage behavior, and the combined application content is reviewed and sealed.",
+      "work": [
+        {
+          "issue": "BPR-1959",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        },
+        {
+          "issue": "BPR-1960",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        },
+        {
+          "issue": "BPR-1961",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Assert no checkbox in the feedback hook page, while the separately adopted hidden Review skill page retains its own named copy control. Preserve Guidance/navigation/dispatch/published settings assertions; no product UI change.",
+        "For POSIX own single-link store0644, require show success, exact0600 current-owner regular file and unchanged device/inode; preserve Windows behavior, foreign/link/root/domain/privacy oracles.",
+        "Independently recompute unchanged142-source inventory at last matching9c and combined latestmain, review every changed source/effect boundary and commit range, reseal only production manifest pin; preserve full-app/mutation/inventory pins.",
+        "Old recursive descendant assertion fails against accepted BPR-1917; exact focused Qt course and a deliberate feedback-page checkbox negative control pass/fail as intended.",
+        "Old refusal assertion fails against accepted BPR-1870; normal security course and owning storage privacy control pass with unchanged budgets.",
+        "Retain actual prior digest failure; maintained printer agrees with independent recomputation and existing adversarial composition contract passes, without full native acceptance claims.",
+        "Focused checks, format/docs/board and intentional main integration retain all43raw negatives, protected producers and remaining threaded-reaction/native qualification obligations."
+      ],
+      "boundary": "Only feedback Qt test, Review Cycle security Python test, application composition CMake pin/comment, cards/plan/checkpoint. No product UI/storage policy, timeout, producer mutation or publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

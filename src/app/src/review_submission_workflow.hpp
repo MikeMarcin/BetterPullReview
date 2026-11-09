@@ -180,6 +180,8 @@ namespace bpr::app {
 		void               invalidate();
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const -> bool;
+		[[nodiscard]] auto presentation() const -> application::tour_publication_presentation;
+		[[nodiscard]] auto operation_support() const noexcept -> core::tour_operation_support { return Qualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown; }
 		void               publish(const application::review_submission_host_terminal&) override;
 
 	private:

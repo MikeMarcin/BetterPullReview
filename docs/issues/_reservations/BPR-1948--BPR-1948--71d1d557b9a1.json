@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1948"
+  ],
+  "reserve_for": "go-to-line-v1",
+  "purpose": "Implement and close supplied Go to line RFC",
+  "created": "2026-11-09T00:28:17.220535+00:00",
+  "base": "663137a9ed3825c87934c93926d414725f8bee22"
+}

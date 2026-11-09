@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_TOUR_AGENT_DRAFTING_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_TOUR_AGENT_DRAFTING_HPP
 
+#include "bpr/application/tour_agent_context.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 
@@ -40,7 +41,7 @@ namespace bpr::application {
 	/// [[BPR-1935]]. `aDirective` is the [[BPR-1916]] skill directive, added
 	/// last; the whole request is refused when it is longer than
 	/// `core::maximum_tour_prompt_bytes`, the bound of its carrier.
-	[[nodiscard]] auto build_tour_draft_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, std::string_view aFocus = { }, std::string_view aDirective = { })
+	[[nodiscard]] auto build_tour_draft_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, std::string_view aFocus = { }, std::string_view aDirective = { }, const tour_agent_context& aContext = { })
 		-> std::optional<std::string>;
 
 	/// \brief What a read-only Draft from PR context or Suggest an outline

@@ -327,11 +327,12 @@ namespace bpr::app {
 			passed,
 			failed,
 		};
-		detail::threaded_reply_probe_evidence Evidence;
-		phase                                 Phase = phase::awaiting_ready;
-		std::string                           Diagnostic;
-		std::optional<std::uint32_t>          ThreadlessLine;
-		int                                   ReadsBeforeRefresh = 0;
+		detail::threaded_reply_probe_evidence     Evidence;
+		phase                                     Phase = phase::awaiting_ready;
+		std::string                               Diagnostic;
+		std::optional<std::uint32_t>              ThreadlessLine;
+		int                                       ReadsBeforeRefresh = 0;
+		std::optional<core::provider_snapshot_id> ReactionSnapshotBeforeRefresh;
 		/// [[BPR-1841]]. The counters as the Resolve press found them.
 		struct resolve_baseline
 		{

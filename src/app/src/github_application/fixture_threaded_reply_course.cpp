@@ -689,7 +689,11 @@ namespace bpr::app {
 			if (!probe.Evidence.PickerReacted) {
 				return fail("picker-reaction-not-heart");
 			}
-			probe.ReadsBeforeRefresh = implementation->Fixture->evidence().AccountReadCount;
+			if (!implementation->WindowRead || !implementation->WindowRead->accepted_snapshot()) {
+				return result::pending;
+			}
+			probe.ReactionSnapshotBeforeRefresh = implementation->WindowRead->accepted_snapshot()->Snapshot;
+			probe.ReadsBeforeRefresh            = implementation->Fixture->evidence().AccountReadCount;
 			if (auto* const refresh = window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
 				refresh->trigger();
 			} else {
@@ -699,10 +703,16 @@ namespace bpr::app {
 			return result::pending;
 		}
 		case state_type::phase::awaiting_reaction_reconciled: {
+			// [[BPR-1962]]. A transport read starting does not mean its
+			// snapshot has reached the completion/presentation lane yet.
+			const auto reading  = !implementation->WindowRead || implementation->WindowRead->state().PendingPullRequest.has_value();
+			const auto accepted = implementation->WindowRead && implementation->WindowRead->accepted_snapshot()
+				&& std::optional{ implementation->WindowRead->accepted_snapshot()->Snapshot } != probe.ReactionSnapshotBeforeRefresh;
 			const auto post  = std::string{ "review-comment:PRRC_fixture_1" };
 			const auto shown = cards->reactions_of(post);
-			note("reads=" + std::to_string(implementation->Fixture->evidence().AccountReadCount) + " overlay=" + std::to_string(implementation->ConversationOverlay.Reactions.size()));
-			if (implementation->Fixture->evidence().AccountReadCount <= probe.ReadsBeforeRefresh || !implementation->ConversationOverlay.Reactions.empty()
+			note("reads=" + std::to_string(implementation->Fixture->evidence().AccountReadCount) + " overlay=" + std::to_string(implementation->ConversationOverlay.Reactions.size())
+				 + " reading=" + std::to_string(reading ? 1 : 0) + " accepted=" + std::to_string(accepted ? 1 : 0));
+			if (reading || !accepted || implementation->Fixture->evidence().AccountReadCount <= probe.ReadsBeforeRefresh || !implementation->ConversationOverlay.Reactions.empty()
 				|| !shown.has_value()) {
 				return result::pending;
 			}

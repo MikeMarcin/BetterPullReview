@@ -296,10 +296,69 @@ namespace bpr::app {
 		return entry != nullptr ? entry->Id : 0U;
 	}
 
+	void github_application::implementation::observe_agent_native_history(std::optional<std::string> aChoice)
+	{
+		if (Closing || !Window || !AgentSetup || !AgentHost || !Window->agent_panel()->selected_profile()) {
+			return;
+		}
+		const auto  profile     = *Window->agent_panel()->selected_profile();
+		const auto  preferences = AgentSetup->projection().Preferences;
+		const auto* entry       = core::entry_of_profile(preferences.Agents, profile);
+		if (!entry) {
+			AgentNativeHistory = { };
+			return;
+		}
+		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice), AgentConversation ? AgentConversation->projection().Key : std::nullopt);
+	}
+	void github_application::implementation::present_agent_native_history(const application::native_agent_history_projection& aView)
+	{
+		if (Closing || !Window) {
+			return;
+		}
+		if (aView.ReadOnly) {
+			Window->agent_tab()->present_native_history(aView);
+			return;
+		}
+		AgentNativeHistory = aView;
+		auto* tab          = Window->agent_tab();
+		tab->present_native_history(aView);
+		tab->ask_button()->setProperty("conversationLoading", aView.Loading);
+		if (aView.Loading) {
+			tab->ask_button()->setEnabled(false);
+			return;
+		}
+		if (!aView.Failure.empty()) {
+			present_agent_refusal("session history", aView.Failure);
+			return;
+		}
+		if (ChatHost) {
+			ChatHost->reset_conversation();
+		}
+		LatestAgentSession.reset();
+		NativeFreshAtCurrentRevision.reset();
+		auto turns = std::vector<qt::agent_thread_turn>{ };
+		for (const auto& turn : aView.Turns) {
+			turns.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome });
+		}
+		tab->present_thread(turns);
+		present_agent_pull_request();
+	}
+
 	void github_application::implementation::observe_conversation_agent()
 	{
 		if (!Closing && AgentConversation) {
 			AgentConversation->switch_agent(current_conversation_agent());
+			observe_agent_native_history();
+			if (Window && Window->tour_editor()->side_chat()->current()) {
+				observe_tour_native_history(*Window->tour_editor()->side_chat()->current());
+			}
+			if (AgentHost && AgentSetup && Window && Window->agent_panel()->selected_profile()) {
+				const auto profile     = *Window->agent_panel()->selected_profile();
+				const auto preferences = AgentSetup->projection().Preferences;
+				if (const auto* const entry = core::entry_of_profile(preferences.Agents, profile); entry != nullptr) {
+					AgentHost->restore_native(profile, entry->Identity, "agent-tab");
+				}
+			}
 		}
 		// Send to Agent defaults to the agent the pull request's session uses.
 		if (!Closing && CycleDesktop && Window != nullptr) {
@@ -613,6 +672,19 @@ namespace bpr::app {
 		if (Closing || Window == nullptr) {
 			return;
 		}
+		if (aView.SaveFailed) {
+			present_agent_refusal("history storage", "This conversation could not be saved. Existing histories were kept. Free storage before starting another conversation.");
+		}
+		if (Window->agent_panel()->selected_profile() && AgentSetup) {
+			const auto preferences = AgentSetup->projection().Preferences;
+			if (const auto* entry = core::entry_of_profile(preferences.Agents, *Window->agent_panel()->selected_profile()); entry) {
+				observe_agent_native_history();
+				return;
+			}
+		}
+		// A late history load must settle before a new visible turn starts;
+		// otherwise presenting the loaded thread can replace that live turn.
+		Window->agent_tab()->ask_button()->setProperty("conversationLoading", !aView.Loaded);
 		auto shown = std::vector<qt::agent_thread_turn>{ };
 		shown.reserve(aView.Turns.size());
 		for (const auto& turn : aView.Turns) {
@@ -904,7 +976,9 @@ namespace bpr::app {
 			for (const auto& turn : aTurns) {
 				kept.push_back({ .Asked = turn.Question.toStdString(), .Answered = turn.Answer.toStdString(), .Ending = turn.Footer.toStdString(), .Outcome = turn.Outcome });
 			}
-			AgentConversation->record(std::move(kept));
+			if (AgentNativeHistory.Scope.empty()) {
+				AgentConversation->record(std::move(kept));
+			}
 		});
 		// Owner decision 2026-10-23 ("Yep build it like that"): a card's
 		// three actions, and Save as note on a plain reply. Each makes a
@@ -989,9 +1063,10 @@ namespace bpr::app {
 				AgentSetup->set_suggestions_hidden(!aShown);
 			}
 		});
+		tab->set_native_history_dispatch([this](std::optional<std::string> aChoice) { observe_agent_native_history(std::move(aChoice)); });
 		tab->set_clear_session_dispatch([this] {
 			if (!Closing && AgentConversation) {
-				AgentConversation->clear();
+				observe_agent_native_history(std::string{ });
 			}
 		});
 		// Owner decision (a). The suggested prompts name the open file and

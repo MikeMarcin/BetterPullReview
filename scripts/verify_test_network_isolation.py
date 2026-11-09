@@ -789,6 +789,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # (0.031s). The default in-memory provider suite stays contained.
     "live_review_mutation_outdated_reply_recovery": "persistent-recovery-open-unavailable",
     "application_agent_invocation_composition_contract": "dos-volume-name",
+    "application_native_agent_sessions": "unmeasured (registered on macOS)",
     "application_agent_invocation_construction_cut_contract": "dos-volume-name",
     "application_agent_invocation_launcher_construction_cut_contract": "dos-volume-name",
     "application_agent_invocation_gesture_cut_contract": "dos-volume-name",

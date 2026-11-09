@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1951",
+    "BPR-1952",
+    "BPR-1953",
+    "BPR-1954",
+    "BPR-1955",
+    "BPR-1956"
+  ],
+  "reserve_for": "native-agent-sessions-v1",
+  "purpose": "Import authorized native sessions pack",
+  "created": "2026-11-09T01:00:17.698070+00:00",
+  "base": "bebea27edf44fd63a7308307227035bf33391c5c"
+}

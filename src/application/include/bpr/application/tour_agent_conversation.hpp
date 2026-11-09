@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_TOUR_AGENT_CONVERSATION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_TOUR_AGENT_CONVERSATION_HPP
 
+#include "bpr/application/tour_agent_context.hpp"
 #include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 
@@ -13,15 +14,9 @@
 /// \brief [[BPR-1914]]. A turn of the tour conversation: what it asks the
 /// tour session, and how it reads the answer.
 ///
-/// \details The owner, 2026-11-06: "I want to ask questions, get back and
-/// forth and have it update it." Each turn is a fresh read-only run in the
-/// review's workspace, as a drafting run is. It is given the pull request,
-/// the tour as it is now (each stop's number, place and explanation), the
-/// earlier turns the core keeps (`core::tour_conversation_of`), and this
-/// turn's question and passage. The conversation is replayed, not resumed:
-/// a read-only run saves no session (`--no-session-persistence`), and the
-/// same request works for every agent kind. Any change it proposes comes
-/// back as a proposal the author decides part by part.
+/// \details Native turns continue the backend conversation and carry a full,
+/// current BPR bootstrap. Explicit replay callers additionally supply bounded
+/// earlier prose. Responses remain author-decided proposals.
 namespace bpr::application {
 	/// \brief The schema an ask turn answers in.
 	inline constexpr std::string_view tour_ask_schema = "bpr.tour-ask.v1";
@@ -52,7 +47,7 @@ namespace bpr::application {
 	/// it travels in (`core::agent_tour_prompt`).
 	[[nodiscard]] auto build_tour_ask_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, const core::tour_conversation& aConversation, const core::tour_thread& aThread,
 											 const std::optional<core::tour_passage>& aPassage, std::string_view aQuestion, bool aUpdate = false, const std::optional<core::tour_proposal>& aWaiting = std::nullopt, std::string_view aFocus = { },
-											 std::string_view aDirective = { }) -> std::optional<std::string>;
+											 std::string_view aDirective = { }, const tour_agent_context& aContext = { }) -> std::optional<std::string>;
 
 	/// \brief [[BPR-1935]]. What the tour's side chat says when the tour
 	/// session refused a run before it started: `aReason` is the refusal's

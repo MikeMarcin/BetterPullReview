@@ -1799,8 +1799,12 @@ namespace {
 
 	void test_nontext_publication_status()
 	{
-		auto       workbench = qt::diff_workbench{ };
-		const auto publish   = [&](const core::computed_file_diff& aDiff, const bool aCached) {
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(900, 500);
+		workbench.show();
+		process_events();
+		expect(!workbench.source_line_destination(), "empty workbench offers no Go to line destination");
+		const auto publish = [&](const core::computed_file_diff& aDiff, const bool aCached) {
 			const auto selected = context(aDiff, 1U, 1U);
 			workbench.set_loading(selected);
 			workbench.publish(bpr::qt::test::prepare_publication({ .Context  = selected,
@@ -1823,12 +1827,14 @@ namespace {
 			expect(!workbench.selection() && workbench.left_pane()->toPlainText().isEmpty()
 					   && workbench.right_pane()->toPlainText().isEmpty(),
 				   "unavailable result clears prior source and selection");
+			expect(!workbench.source_line_destination(), "refused comparison offers no line destination");
 		}
 		const auto binary  = bytes(std::string_view{ "a\0b", 3U });
 		const auto nontext = bpr::tests::product_file_diff({ .Key = key({ }, 72U), .Options = { }, .LeftBytes = binary, .RightBytes = right });
 		expect(nontext.Result && nontext.Reason == core::diff_reason_code::binary_file, "real binary result available");
 		publish(*nontext.Result, false);
 		expect(workbench.status_text() == QStringLiteral("Binary file comparison"), "binary content is distinct from equal text and unavailable content");
+		expect(!workbench.source_line_destination(), "binary comparison offers no line destination");
 		publish(computed("same\n", "same\n", { }, 73U), false);
 		expect(workbench.status_text() == QStringLiteral("Diff ready — 0 semantic changes")
 				   && workbench.left_pane()->toPlainText() == QStringLiteral("same\n"),
@@ -1838,6 +1844,87 @@ namespace {
 				   && label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse)
 				   && label->accessibleDescription() == label->text(),
 			   "comparison messages remain copyable and accessible");
+		publish(computed("base first\nbase last\n", "", { }, 74U), false);
+		expect(workbench.source_line_destination() && workbench.source_line_destination()->Side == core::diff_side::left,
+			   "an empty Head falls back to sole navigable Base");
+		const auto beforeInvalid = workbench.selection();
+		auto       invalid       = *workbench.source_line_destination();
+		invalid.Line             = 2U;
+		expect(!workbench.go_to_source_line(invalid) && workbench.selection() == beforeInvalid, "out-of-range semantic jump is refused without selection change");
+		publish(computed("", "head only\n", { }, 75U), false);
+		expect(workbench.source_line_destination() && workbench.source_line_destination()->Side == core::diff_side::right,
+			   "an empty Base offers Head");
+		workbench.set_loading(context(changed, 3U, 3U));
+		expect(!workbench.source_line_destination(), "loading comparison offers no line destination");
+	}
+
+	void test_go_to_line_columns()
+	{
+		const auto longLine  = std::string(400, 'x');
+		const auto diff      = computed("\uFEFFbase\n\t𝄞x\r\n\n" + longLine + "\n\uFEFFz\n", "\uFEFFnew first\nextra\n\t𝄞x\r\n\n" + longLine + "\n\uFEFFz\n", { }, 76U);
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(900, 500);
+		workbench.show();
+		const auto selected = context(diff, 1U, 1U);
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		process_events();
+		for (const bool unified : { false, true }) {
+			workbench.set_one_pane_enabled(unified);
+			process_events();
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				auto* const editor = unified ? workbench.unified_pane() : side == core::diff_side::left ? workbench.left_pane()
+																										: workbench.right_pane();
+				const auto  line   = side == core::diff_side::left ? 1U : 2U;
+				auto        target = core::source_line_ref{ diff.Alignment.Digest, side, line };
+				for (const auto column : { 0U, 1U, 3U, 4U }) {
+					expect(workbench.go_to_source_line(target, column), "tab and supplementary Unicode columns navigate in either presentation");
+					process_events();
+					expect(editor->textCursor().block().text() == QStringLiteral("\t𝄞x") && editor->textCursor().positionInBlock() == static_cast<int>(column) && !editor->textCursor().hasSelection(), "native caret counts tab once and supplementary Unicode twice, without CRLF");
+					const auto range = workbench.line_draft_range();
+					expect(range && range->first == target && range->second == target, "column navigation retains exactly one source-line draft anchor");
+				}
+				const auto selection = workbench.selection();
+				const auto cursor    = editor->textCursor();
+				const auto top       = editor->verticalScrollBar()->value();
+				const auto left      = editor->horizontalScrollBar()->value();
+				for (const auto column : { 2U, 5U, 4'294'967'295U }) {
+					expect(!workbench.go_to_source_line(target, column) && workbench.selection() == selection
+							   && editor->textCursor().position() == cursor.position() && editor->textCursor().anchor() == cursor.anchor()
+							   && editor->verticalScrollBar()->value() == top && editor->horizontalScrollBar()->value() == left,
+						   "inside-surrogate and out-of-range columns refuse before changing selection, cursor or scroll");
+				}
+				target.Line = line + 1U;
+				expect(workbench.source_line_text(target) == std::optional{ QString{ } }, "empty native line text is available, distinct from an invalid target");
+				expect(workbench.go_to_source_line(target, 0U) && editor->textCursor().block().text().isEmpty()
+						   && editor->textCursor().positionInBlock() == 0 && !workbench.go_to_source_line(target, 1U),
+					   "an empty source line has exactly one caret position");
+				target.Line = line + 2U;
+				expect(workbench.go_to_source_line(target, 400U), "end-of-line column is valid on a horizontally overflowing line");
+				process_events();
+				expect(editor->textCursor().positionInBlock() == 400 && editor->horizontalScrollBar()->value() > 0
+						   && editor->cursorRect().left() >= 0 && editor->cursorRect().right() <= editor->viewport()->width(),
+					   "exact long-line caret is horizontally visible");
+				expect(workbench.go_to_source_line(target) && editor->textCursor().positionInBlock() == 0 && editor->cursorRect().left() >= 0, "plain line navigation returns to the visible line start");
+				target.Line             = line + 3U;
+				const auto beforeText   = workbench.selection();
+				const auto beforeCursor = editor->textCursor();
+				const auto beforeTop    = editor->verticalScrollBar()->value();
+				const auto nativeText   = unified ? QStringLiteral("z") : QStringLiteral("\uFEFFz");
+				expect(workbench.source_line_text(target) == std::optional{ nativeText }
+						   && workbench.selection() == beforeText && editor->textCursor() == beforeCursor && editor->verticalScrollBar()->value() == beforeTop,
+					   "reading a later BOM line uses the exact native presentation without navigating");
+				expect(workbench.go_to_source_line(target, static_cast<std::uint32_t>(nativeText.size()))
+						   && editor->textCursor().positionInBlock() == nativeText.size(),
+					   "native BOM line text and caret validation share the same end-of-line position");
+				target.Line = 0U;
+				expect(workbench.source_line_text(target) == std::optional{ side == core::diff_side::left ? QStringLiteral("base") : QStringLiteral("new first") }, "a document-initial BOM is absent from the native line");
+				target.Line = 999U;
+				expect(!workbench.source_line_text(target), "out-of-range native line text is unavailable");
+			}
+		}
+		workbench.set_loading(context(diff, 2U, 2U));
+		expect(!workbench.source_line_text({ diff.Alignment.Digest, core::diff_side::right, 0U }), "loading replacement refuses retired native line text");
 	}
 
 	void test_semantic_selection_callback_tracks_both_panes_and_clear()
@@ -2177,6 +2264,37 @@ namespace {
 	};
 
 	[[nodiscard]] auto check_ribbons(qt::diff_workbench& aWorkbench, const core::computed_file_diff& aDiff) -> ribbon_check;
+
+	void test_horizontal_scroll_keeps_find_stationary()
+	{
+		const auto text = std::string(240U, 'x') + "\nsecond row\n";
+		const auto diff = computed(text, text, { }, 74U);
+		for (const auto mode : { 0, 1, 2 }) {
+			auto workbench = qt::diff_workbench{ };
+			workbench.resize(1'000, 520);
+			workbench.show();
+			const auto request = context(diff, 174U, 174U);
+			workbench.set_loading(request);
+			workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+			settle_geometry(workbench);
+			workbench.set_one_pane_enabled(mode == 2);
+			settle_geometry(workbench);
+			auto* target = mode == 2 ? workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) : mode == 0 ? workbench.left_pane()
+																															 : workbench.right_pane();
+			target->setFocus();
+			workbench.open_source_find();
+			process_events();
+			const auto findRect = workbench.source_find()->geometry();
+			expect(target->horizontalScrollBar()->maximum() > 0, "long source makes horizontal scrolling observable in every Find target");
+			expect(send_wheel(*target->viewport(), QPoint{ -20, 0 }), "Find target accepts native horizontal scroll");
+			process_events();
+			expect(target->horizontalScrollBar()->value() > 0 && workbench.source_find()->geometry() == findRect, "actual horizontal source motion leaves Find stationary in unified and both split panes");
+			auto refresh = QEvent{ QEvent::LayoutRequest };
+			QApplication::sendEvent(workbench.source_find(), &refresh);
+			process_events();
+			expect(workbench.source_find()->geometry() == findRect, "horizontal placement refresh preserves Find's rectangle");
+		}
+	}
 
 	void test_fractional_unified_and_keyboard_viewports()
 	{
@@ -5379,6 +5497,142 @@ namespace {
 				expect((count > 0) == (side == 0 ? row.Base.has_value() : row.Head.has_value()), "displayed base/head number columns are present only on their own rows");
 			}
 		}
+		const auto checkGutterMotion = [&](const bool aAfterMarginChange = false) {
+			unified->verticalScrollBar()->setValue(1);
+			unified->verticalScrollBar()->setValue(0);
+			settle_geometry(workbench);
+			const auto referenceImage = gutter->grab().toImage();
+			const auto rasterRatio    = referenceImage.devicePixelRatio();
+			// Compare painted numbers to native cursor rows, not the painter's own
+			// geometry. The initial glyph extents are a raster reference for each
+			// number; every later row must translate by the text's displacement once.
+			const auto nativeY = [&](const int aRow) {
+				const auto cell = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(aRow) });
+				return unified->viewport()->mapTo(&workbench, cell.topLeft()).y() - gutter->mapTo(&workbench, QPoint{ }).y();
+			};
+			const auto heading       = unified->viewport()->mapTo(&workbench, QPoint{ }).y() - gutter->mapTo(&workbench, QPoint{ }).y();
+			const auto headingPixels = qRound(heading * rasterRatio);
+			const auto headingImage  = referenceImage.copy(0, 0, referenceImage.width(), headingPixels);
+			const auto inkSpan       = [&](const QImage& aImage, const int aRow, const int aSide) {
+				const auto column   = aImage.width() / 2;
+				const auto y        = nativeY(aRow);
+				const auto height   = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(aRow) }).height();
+				auto       firstInk = aImage.height();
+				auto       lastInk  = -1;
+				for (auto py = std::max(headingPixels, qRound(y * rasterRatio)); py < std::min(aImage.height(), qRound((y + height) * rasterRatio)); ++py) {
+					for (auto px = aSide * column; px < (aSide + 1) * column; ++px) {
+						const auto ink = aImage.pixelColor(px, py);
+						if (std::abs(ink.red() - number.red()) <= 32 && std::abs(ink.green() - number.green()) <= 32 && std::abs(ink.blue() - number.blue()) <= 32) {
+							firstInk = std::min(firstInk, py);
+							lastInk  = std::max(lastInk, py);
+						}
+					}
+				}
+				return std::pair{ firstInk, lastInk };
+			};
+			auto originalInk  = std::vector<std::array<std::pair<int, int>, 2>>{ };
+			auto originalTops = std::vector<int>{ };
+			for (auto rowIndex = 0; rowIndex < static_cast<int>(rows.size()); ++rowIndex) {
+				originalInk.push_back({ inkSpan(referenceImage, rowIndex, 0), inkSpan(referenceImage, rowIndex, 1) });
+				originalTops.push_back(nativeY(rowIndex));
+			}
+			const auto beforeScroll = workbench.statistics();
+			for (const auto pixels : { -3, -5, -17, -9, 7, 19, -2 }) {
+				const auto beforeWheel = workbench.statistics();
+				expect(send_wheel(*unified->viewport(), QPoint{ 0, pixels }), "unified gutter course accepts fractional scrolling and reversal");
+				process_events();
+				const auto image      = gutter->grab().toImage();
+				const auto afterWheel = workbench.statistics();
+				if (afterWheel.GeometryRebuilds != beforeWheel.GeometryRebuilds) {
+					// Showing numbers also changes the hidden split viewports'
+					// margins. Qt can deliver that resize on its next scroll turn.
+					const auto cause = afterWheel.GeometryRebuildHistory[afterWheel.GeometryRebuildHistorySize - 1U];
+					expect(aAfterMarginChange && afterWheel.GeometryRebuilds == beforeScroll.GeometryRebuilds + 1U
+							   && cause.Changes == qt::measured_geometry_change::viewport_or_divider
+							   && cause.Triggers == qt::diff_geometry_rebuild_trigger::pane_viewport_resize,
+						   "only a deferred viewport resize from showing numbers can rebuild the changed axis");
+				} else {
+					expect(afterWheel.PaneMeasurements == beforeWheel.PaneMeasurements, "ordinary gutter scrolling performs no pane remeasurement");
+				}
+				expect(image.copy(0, 0, image.width(), headingPixels) == headingImage, "base/head heading and clipping boundary remain fixed during scrolling");
+				for (auto rowIndex = 0; rowIndex < static_cast<int>(rows.size()); ++rowIndex) {
+					const auto shift = (nativeY(rowIndex) - originalTops[static_cast<std::size_t>(rowIndex)]) * rasterRatio;
+					for (auto side = 0; side < 2; ++side) {
+						const auto original = originalInk[static_cast<std::size_t>(rowIndex)][static_cast<std::size_t>(side)];
+						if (original.second < 0 || original.second + shift < headingPixels) {
+							continue;
+						}
+						const auto actual   = inkSpan(image, rowIndex, side);
+						const auto firstInk = std::max(headingPixels, qRound(original.first + shift));
+						expect(std::abs(actual.first - firstInk) <= 1 && std::abs(actual.second - qRound(original.second + shift)) <= 1,
+							   "painted base/head numbers follow native text rows within one device pixel, including the clipped first row");
+					}
+					const auto& row    = rows[static_cast<std::size_t>(rowIndex)];
+					const auto  top    = nativeY(rowIndex);
+					const auto  height = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(rowIndex) }).height();
+					if (top + height <= heading) {
+						continue;
+					}
+					const auto point   = QPoint{ gutter->width() / 2, std::max(heading, top) + 1 };
+					auto       press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+					auto       release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+					QApplication::sendEvent(gutter, &press);
+					QApplication::sendEvent(gutter, &release);
+					expect(workbench.selection() && workbench.selection()->PreferredLine.Line == row.Head.value_or(row.Base.value_or(0U))
+							   && workbench.selection()->PreferredLine.Side == (row.Head ? core::diff_side::right : core::diff_side::left),
+						   "visible number resolves the displayed native source row after scrolling");
+				}
+				settle_geometry(workbench);
+			}
+			expect(workbench.current_semantic_index() == index, "gutter scroll and number clicks retain the immutable semantic index");
+			unified->verticalScrollBar()->setValue(1);
+			unified->verticalScrollBar()->setValue(0);
+			process_events();
+		};
+		checkGutterMotion();
+		workbench.resize(1'120, 720);
+		settle_geometry(workbench);
+		checkGutterMotion();
+		auto zoomedCode        = profile.typography().Code;
+		zoomedCode.ZoomPercent = 150U;
+		expect(profile.select_code_font(zoomedCode).Changed, "gutter motion course changes code zoom");
+		profile.apply_comparison_code_font_to(workbench);
+		settle_geometry(workbench);
+		checkGutterMotion();
+		workbench.set_line_numbers_visible(false);
+		settle_geometry(workbench);
+		workbench.set_line_numbers_visible(true);
+		settle_geometry(workbench);
+		checkGutterMotion(true);
+		zoomedCode.ZoomPercent = 100U;
+		static_cast<void>(profile.select_code_font(zoomedCode));
+		profile.apply_comparison_code_font_to(workbench);
+		workbench.resize(1'000, 780);
+		settle_geometry(workbench);
+		workbench.set_thread_markers(true);
+		const auto threadColour = QColor{ 190, 75, 15 };
+		workbench.set_mark_colours(threadColour, QColor{ 10, 80, 200 });
+		auto openThread      = qt::diff_line_mark{ };
+		openThread.Line      = 1U;
+		openThread.FirstLine = 0U;
+		openThread.Open      = true;
+		workbench.set_line_marks(core::diff_side::left, { openThread });
+		process_events();
+		for (const auto delta : { -3, -5, -17, 7, 19 }) {
+			expect(send_wheel(*unified->viewport(), QPoint{ 0, delta }), "open-thread gutter accepts fractional motion");
+			process_events();
+			const auto image     = gutter->grab().toImage();
+			const auto gutterTop = gutter->mapTo(&workbench, QPoint{ }).y();
+			const auto clipTop   = unified->viewport()->mapTo(&workbench, unified->viewport()->mask().boundingRect().topLeft()).y() - gutterTop;
+			const auto marked    = workbench.line_rect(core::diff_side::left, 0U).united(workbench.line_rect(core::diff_side::left, 1U));
+			for (auto y = std::max(clipTop, marked.top() - gutterTop); y < marked.bottom() - gutterTop; ++y) {
+				expect(image.pixelColor(qRound(ratio), qRound(y * ratio)) == threadColour, "open-thread bar follows its actual native source span and clips beneath the fixed heading");
+			}
+		}
+		workbench.set_line_marks(core::diff_side::left, { });
+		unified->verticalScrollBar()->setValue(1);
+		unified->verticalScrollBar()->setValue(0);
+		process_events();
 		expect(workbench.select_conversation_line(core::diff_side::left, 1U), "select a replacement for the current spine raster");
 		process_events();
 		const auto mapImage = map->grab().toImage();
@@ -6406,6 +6660,11 @@ auto main(int argc, char** argv) -> int
 		test_source_overlay_scrollbar_keeps_viewport_extent();
 		return EXIT_SUCCESS;
 	}
+	if (argc > 1 && std::string_view{ argv[1] } == "--go-to-line-only") {
+		test_nontext_publication_status();
+		test_go_to_line_columns();
+		return EXIT_SUCCESS;
+	}
 	test_source_overlay_scrollbar_keeps_viewport_extent();
 	test_an_opened_file_waits_by_name();
 
@@ -6414,6 +6673,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	test_fractional_native_viewport();
+	test_horizontal_scroll_keeps_find_stationary();
 	test_fractional_unified_and_keyboard_viewports();
 	test_keyboard_minimal_reveal();
 	test_keyboard_reveal_from_far_out_of_view();
@@ -6433,6 +6693,7 @@ auto main(int argc, char** argv) -> int
 	test_tinted_numbers_and_the_add_button();
 	test_selected_composition();
 	test_nontext_publication_status();
+	test_go_to_line_columns();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();
 	test_prepared_semantic_index_adoption();

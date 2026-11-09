@@ -31,6 +31,7 @@ class QEvent;
 class QLabel;
 class QPushButton;
 class QPlainTextEdit;
+class QTextBlock;
 class QTextDocument;
 class QResizeEvent;
 class QScrollBar;
@@ -443,7 +444,18 @@ namespace bpr::qt {
 		/// \returns Whether the point is on a line of the shown pane.
 		auto select_line_for_menu(QPlainTextEdit* aPane, QPoint aPosition) -> bool;
 		/// \brief Focuses the visible source editor in split or unified presentation.
-		void focus_source();
+		/// \brief The preferred available source side and zero-based line for Go to line.
+		[[nodiscard]] auto source_line_destination() const -> std::optional<core::source_line_ref>;
+		/// \brief Reads one core-validated line from the current native presentation.
+		/// \details Uses the same block as Go to line's caret validation, without
+		/// decoding source again or changing selection, focus or scroll.
+		[[nodiscard]] auto source_line_text(core::source_line_ref aLine) const -> std::optional<QString>;
+		/// \brief Selects, focuses and reveals one core-validated exact source line.
+		/// \details Replaces native ranges and reveals even a repeated selection.
+		/// Column is a zero-based UTF-16 caret offset, including end of line;
+		/// out-of-range offsets and positions inside surrogate pairs are refused.
+		[[nodiscard]] auto go_to_source_line(core::source_line_ref aLine, std::uint32_t aColumn = 0U) -> bool;
+		void               focus_source();
 		/// \brief Returns source focus to the exact side selected by an external occurrence.
 		void focus_source(core::diff_side aSide);
 		/// \brief Composes pane search gestures and exact-current result decorations.
@@ -624,6 +636,7 @@ namespace bpr::qt {
 		void               update_unified_paint();
 		void               update_unified_link_map();
 		[[nodiscard]] auto unified_row_for(core::diff_side aSide, std::uint32_t aLine) const -> std::optional<std::uint32_t>;
+		[[nodiscard]] auto source_line_block(core::source_line_ref aLine) const -> QTextBlock;
 		void               reveal_unified_row(std::uint32_t aRow);
 		void               apply_syntax_formats(
 			QPlainTextEdit& aPane,
@@ -792,8 +805,10 @@ namespace bpr::qt {
 		/// A removed/added viewport row can belong to the opposite side from
 		/// the semantic selection. Keep its side after the pending reveal is
 		/// consumed so the next presentation flip measures the same document.
-		std::optional<core::diff_side> PresentationReadingSide;
-		selection_observer             SelectionObserver;
+		std::optional<core::diff_side>            PresentationReadingSide;
+		std::optional<core::diff_request_context> RecentSourceContext;
+		core::diff_side                           RecentSourceSide = core::diff_side::right;
+		selection_observer                        SelectionObserver;
 		/// [[BPR-1132]]. The status's observer, and whether it is routine.
 		std::function<void(const QString&, bool)> StatusObserver;
 		bool                                      StatusRoutine = false;

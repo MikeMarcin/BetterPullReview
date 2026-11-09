@@ -4,12 +4,13 @@
 import os
 from pathlib import Path
 import sys
-import tempfile
 import unittest
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from validate_test_runtime_root import validate_runtime_root
+from contained_temporary_support import ContainedTemporaryDirectory
+from skip_report import SkipReportingTestRunner
 
 
 class DefaultRuntimeRootTests(unittest.TestCase):
@@ -26,7 +27,7 @@ class DefaultRuntimeRootTests(unittest.TestCase):
 @unittest.skipUnless(os.name == "posix", "the optional root is POSIX-only")
 class PrivateRuntimeRootTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(prefix="bpr-runtime-root-")
+        self.temporary = ContainedTemporaryDirectory(prefix="bpr-runtime-root-")
         self.addCleanup(self.temporary.cleanup)
         self.home = Path(self.temporary.name).resolve()
         self.source = self.home / "source"
@@ -82,4 +83,4 @@ class PrivateRuntimeRootTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

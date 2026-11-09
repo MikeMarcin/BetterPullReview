@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1949",
+    "BPR-1950"
+  ],
+  "reserve_for": "release-v042-contract-fixes",
+  "purpose": "Build 43 runtime-root harness and strict Tour CLI logging inventory corrections",
+  "created": "2026-11-09T00:46:21.039991+00:00",
+  "base": "7cda6945a95f3fa2c82b34076fb8d1cf26577174"
+}

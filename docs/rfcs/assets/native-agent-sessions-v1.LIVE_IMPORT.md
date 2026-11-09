@@ -1,0 +1,9 @@
+# Native agent sessions v1: live import
+
+Mandate `native-agent-sessions-r1`, 2026-11-08: the owner explicitly invoked implement-rfc to implement this pack. This supersedes the retained draft's no-implementation stop boundary. RFC_BASE_SHA: `bebea27edf44fd63a7308307227035bf33391c5c`, captured by record_evidence.py in the external execution state. Original pack bytes are preserved under [native-agent-sessions-v1](native-agent-sessions-v1/README.md).
+
+RFC-DRAFT-0030 → RFC-BPR-0096. DRAFT-0001–0006 → BPR-1951–1956, allocated by scripts/allocate_issue_id.py; receipt `docs/issues/_reservations/BPR-1951--BPR-1956--ed8ca44cbe3b.json`. All six cards are imported into the live issue board; only BPR-1951 is initially Ready. The authored five-milestone grouping is adopted without scope or exit changes under `docs/rfcs/plans/native-agent-sessions-v1/`.
+
+The [proposed amendment](native-agent-sessions-v1/proposed-session-amendment.md) is adopted for this follow-up conversational scope. All nine inspected source hashes match at import. It supersedes their conversational replay-only/no-session, per-turn workspace teardown, startup reclamation, destructive Clear, and incomplete tour context requirements only where the new RFC says so. Historical Done verdicts, one-shot tool-free modes, host/provider/permission restrictions and unobserved release/native/human obligations remain unchanged. Live normative prose will be reconciled with implemented behavior in its owning milestone; adoption is not implementation acceptance.
+
+Starting tree: main at the baseline, only this user-authored pack untracked. Existing unrelated worktrees and external release/test processes are not owned or stopped by this task. No source drift in the amendment and no source writer observed in this checkout. No frozen candidate is modified: retained attended sources live in their own roots. No push authorized. No credentials, local logs, screenshots or build outputs are imported.

@@ -4,6 +4,7 @@
 #include "bpr/qt/type_preview.hpp"
 #include "diff_workbench_support.hpp"
 #include "line_details_splitter.hpp"
+#include "source_column.hpp"
 
 #include <QAbstractScrollArea>
 #include <QAbstractSlider>
@@ -370,6 +371,102 @@ namespace bpr::qt {
 	auto diff_workbench::unified_pane() const noexcept -> QPlainTextEdit*
 	{
 		return Unified;
+	}
+
+	auto diff_workbench::source_line_destination() const -> std::optional<core::source_line_ref>
+	{
+		if (!CurrentResult || !SemanticIndex || !isVisible()) {
+			return std::nullopt;
+		}
+		const auto count = [this](const core::diff_side aSide) {
+			const auto& document = aSide == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
+			return document ? document->Lines.size() : 0U;
+		};
+		auto side = core::diff_side::right;
+		if (OnePaneEnabled && Interaction.Selection) {
+			side = Interaction.Selection->PreferredLine.Side;
+		} else if (!OnePaneEnabled && Left->hasFocus()) {
+			side = core::diff_side::left;
+		} else if (!OnePaneEnabled && Right->hasFocus()) {
+			side = core::diff_side::right;
+		} else if (!OnePaneEnabled && RecentSourceContext == CurrentContext) {
+			side = RecentSourceSide;
+		}
+		if (count(side) == 0U) {
+			side = side == core::diff_side::left ? core::diff_side::right : core::diff_side::left;
+		}
+		if (count(side) == 0U) {
+			return std::nullopt;
+		}
+		const auto line = Interaction.Selection && Interaction.Selection->PreferredLine.Side == side
+			? Interaction.Selection->PreferredLine.Line
+			: 0U;
+		return core::source_line_ref{ CurrentResult->Alignment.Digest, side, line };
+	}
+
+	auto diff_workbench::source_line_block(const core::source_line_ref aLine) const -> QTextBlock
+	{
+		if (!CurrentResult || !SemanticIndex || aLine.Comparison != CurrentResult->Alignment.Digest
+			|| !core::select_line(*SemanticIndex, aLine)) {
+			return { };
+		}
+		const auto row = OnePaneEnabled ? unified_row_for(aLine.Side, aLine.Line) : std::optional{ aLine.Line };
+		if (!row) {
+			return { };
+		}
+		auto* const editor = OnePaneEnabled ? Unified : aLine.Side == core::diff_side::left ? Left
+																							: Right;
+		return editor->document()->findBlockByNumber(static_cast<int>(*row));
+	}
+
+	auto diff_workbench::source_line_text(const core::source_line_ref aLine) const -> std::optional<QString>
+	{
+		const auto block = source_line_block(aLine);
+		return block.isValid() ? std::optional{ block.text() } : std::nullopt;
+	}
+
+	auto diff_workbench::go_to_source_line(const core::source_line_ref aLine, const std::uint32_t aColumn) -> bool
+	{
+		const auto block = source_line_block(aLine);
+		if (!block.isValid() || !valid_source_column(block.text(), aColumn)) {
+			return false;
+		}
+		auto* const editor   = OnePaneEnabled ? Unified : aLine.Side == core::diff_side::left ? Left
+																							  : Right;
+		const auto  material = CurrentResult;
+		const auto  context  = CurrentContext;
+		const auto  shared   = Controller->position();
+		for (auto* const source : { Left, Right, Unified }) {
+			const auto current = static_cast<std::uint32_t>(source->textCursor().blockNumber());
+			place_line_cursor(source, current, current);
+		}
+		auto cursor = QTextCursor{ block };
+		cursor.setPosition(block.position() + static_cast<int>(aColumn));
+		editor->setTextCursor(cursor);
+		if (!OnePaneEnabled) {
+			static_cast<void>(Controller->set_position(shared));
+		}
+		if (!select_line(aLine.Side, aLine.Line, true) || CurrentResult != material || CurrentContext != context || !Interaction.Selection) {
+			return false;
+		}
+		PresentationReadingLine.reset();
+		RestoredReadingLine.reset();
+		HeldLine.reset();
+		ConversationAnchor = aLine;
+		// A resize or gutter change may still be remeasuring. The geometry
+		// owner consumes this exact anchor when its shared axis is ready.
+		GeometryRevealPending  = !reveal_exact_line(*Interaction.Selection, aLine);
+		const auto  caret      = editor->cursorRect(cursor);
+		auto* const horizontal = editor->horizontalScrollBar();
+		if (caret.left() < 0) {
+			horizontal->setValue(horizontal->value() + caret.left());
+		} else if (caret.right() > editor->viewport()->width()) {
+			horizontal->setValue(horizontal->value() + caret.right() - editor->viewport()->width());
+		}
+		update_selection_paint();
+		focus_source(aLine.Side);
+		announce_line_selection();
+		return true;
 	}
 
 	void diff_workbench::focus_source()
@@ -1070,6 +1167,11 @@ namespace bpr::qt {
 			}
 			// Option+C and Option+R stay Comment and Compose review in the pane;
 			// only the find query claims them for its options.
+		}
+		if (CurrentResult && (aWatched == Left || aWatched == Right)
+			&& (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut)) {
+			RecentSourceContext = CurrentContext;
+			RecentSourceSide    = aWatched == Left ? core::diff_side::left : core::diff_side::right;
 		}
 		if (Find && (aWatched == Left || aWatched == Right || aWatched == Unified) && aEvent->type() == QEvent::FocusIn) {
 			Find->Recent = static_cast<QPlainTextEdit*>(aWatched);
