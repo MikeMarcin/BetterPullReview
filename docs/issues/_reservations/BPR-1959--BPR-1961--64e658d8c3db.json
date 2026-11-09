@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1959",
+    "BPR-1960",
+    "BPR-1961"
+  ],
+  "reserve_for": "release-v042-macos-contracts",
+  "purpose": "Feedback page predicate, accepted private store narrowing, reviewed latest-main source inventory seal",
+  "created": "2026-11-09T08:08:04.308857+00:00",
+  "base": "b76fdf0b1ec6d6e0d90a73d3aec4e6e9781bc09e"
+}
