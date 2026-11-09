@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1973"
 title: "Bound Debug functional application watchdogs"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
