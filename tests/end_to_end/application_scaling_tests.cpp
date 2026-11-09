@@ -268,7 +268,12 @@ try {
 					   && repositoriesAfter.FullBuilds == repositoriesBefore.FullBuilds,
 				   "public refresh publishes one queue item and rebuilds no retained queue or repository catalogue");
 		}
-		window->modality()->action(qt::review_modality::review)->trigger();
+		// [[BPR-1958]]. The modality's drawer projection arrives on the
+		// decision lane after the gesture; the next lookup needs that result.
+		auto reviewStep  = app::detail::course_modality_step{ };
+		reviewStep.Needs = app::detail::course_surfaces{ .Comparison = true, .FilesDrawer = true };
+		wait_for([&] { return access::enter_course_modality(*owner, reviewStep) != app::detail::course_modality_result::pending; }, "the scaling course enters Review");
+		expect(reviewStep.Result == app::detail::course_modality_result::entered, "Review shows the comparison and the Files drawer");
 		auto*      surface = window->comparison_surface();
 		auto*      files   = window->files_drawer();
 		const auto quiet   = [&] {
@@ -276,9 +281,9 @@ try {
 			return work.NavigationReady && work.WorkbenchOutstandingRequests == 0U && work.EpochOutstandingJobs == 0U && work.OutstandingJobs == 0U;
 		};
 		const auto select = [&](const char* aPath) {
-			const auto file  = core::file_identity_of(aPath);
+			const auto file = core::file_identity_of(aPath);
+			wait_for([&] { return files->contents()->index_for_file(file).isValid(); }, "actual file row exists");
 			const auto index = files->contents()->index_for_file(file);
-			expect(index.isValid(), "actual file row exists");
 			files->contents_view()->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 			wait_for([&] { return surface->current_result() && surface->current_result()->Alignment.Key.File == file && surface->current_semantic_index() && !surface->geometry_pending() && quiet(); }, "exact selected material settles");
 		};

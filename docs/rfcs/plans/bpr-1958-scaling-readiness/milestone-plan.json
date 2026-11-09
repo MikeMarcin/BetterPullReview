@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1958-scaling-readiness",
+  "scope": {
+    "issues": [
+      "BPR-1958"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "settle-scaling-review",
+      "outcome": "The scaling course waits for the current composed Review/file projection before measuring its unchanged gestures and lands on main.",
+      "work": [
+        {
+          "issue": "BPR-1958",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The existing public modality helper and exact file projection establish readiness without a sleep, altered workload, relaxed oracle or larger watchdog.",
+        "Original failure and a discriminating negative control are retained beside exact corrected composition evidence; every unrelated native/release failure remains open.",
+        "Formatting, documentation and focused checks pass; explicit paths are integrated on main with a quiescent ownership handback."
+      ],
+      "boundary": "BPR-1958 test readiness and main integration only; no frozen producer mutation, release qualification, signing or publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
