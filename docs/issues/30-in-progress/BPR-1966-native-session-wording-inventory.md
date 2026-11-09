@@ -14,7 +14,7 @@ metadata: {"kind": "test-correctness", "reservation": "docs/issues/_reservations
 
 ## Acceptance
 
-- AC1. Permit only exact accepted phrases on named Agent/Tour New-session controls, retaining strict review-thread naming elsewhere.
+- AC1. Permit only exact accepted phrases on named Agent/Tour New-session controls, retaining strict review-thread naming elsewhere. Also admit the exact accepted native-context disclosure clause only on agentScopeDisclosure or the unnamed QLabel with accessibleName Agent request scope.
 - AC2. Existing full wording course passes with added wrong-owner/extra-review-sentence negative controls; no production wording changes.
 - AC3. Reviewed app binding where affected, focused format/tidy/docs/board and intentional latest-main integration pass; raw44failures retained and full stable/native qualification remains coordinator-owned.
 

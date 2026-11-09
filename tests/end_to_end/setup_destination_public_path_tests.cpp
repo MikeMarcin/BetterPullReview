@@ -1431,7 +1431,7 @@ namespace {
 	{
 		// Negative controls: Agent's exact exemption cannot hide review-thread
 		// wording elsewhere, or an extra offending sentence in its tooltip.
-		const auto bad = review_thread_conversation_words({
+		const auto bad = std::vector<window_word>{
 			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("Back to the conversation") },
 			{ QStringLiteral("QPushButton tourSessionTranscriptOpen (tooltip)"), QStringLiteral("Conversation. Resolve this conversation.") },
 			{ QStringLiteral("QWidget tourSessionTranscript (window title)"), QStringLiteral("Tour conversation. Resolve this conversation.") },
@@ -1450,8 +1450,10 @@ namespace {
 			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("Native conversations retain their exact-head workspace and earlier agent context outside the Git cache.") },
 			{ QStringLiteral("QLabel  (text)"), QStringLiteral("Native conversations retain their exact-head workspace and earlier agent context outside the Git cache."), QStringLiteral("Review thread") },
 			{ QStringLiteral("QLabel  (text)"), QStringLiteral("Native conversations retain their exact-head workspace and earlier agent context outside the Git cache.") },
-		});
-		expect(bad.size() == 18U, "accepted surface wording exceptions still reject unrelated or extra review-thread conversation wording");
+		};
+		for (const auto& word : bad) {
+			expect(review_thread_conversation_words({ word }).size() == 1U, "accepted surface wording exceptions still reject unrelated or extra review-thread conversation wording");
+		}
 		expect(review_thread_conversation_words({
 													{ QStringLiteral("QAbstractButton pullRequestCommentsChip (text)"), QStringLiteral("Pull request conversation") },
 													{ QStringLiteral("QWidget tourSessionTranscript (window title)"), QStringLiteral("Tour conversation") },
