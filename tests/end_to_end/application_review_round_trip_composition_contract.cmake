@@ -3334,8 +3334,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# unchanged142-file manifest and complete source inventory, plus the
 	# full-app/mutation pins, are preserved. Complete per-file/commit review
 	# is on BPR-1961; no native/independent acceptance is inferred.
+	# [[BPR-1965]] reviewed storage-status projection: window_agent_setup.cpp
+	# keeps live turn About/DraftTarget when only its history save settles.
+	# Real history/agent restoration and clear still replace content; no
+	# provider, grant, mutation, inventory or other content-pin change.
 	set(bpr_expected_production_app_manifest_digest
-        "4420e34793a02ffd48f0901f44797e9fdf8e2348747ed11826f0d9778118505b"
+        "568258e6162ad6de3bea79a1b4ce7204bf03a0d49ecbcce182129735f6005049"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

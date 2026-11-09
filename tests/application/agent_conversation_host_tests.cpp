@@ -217,6 +217,44 @@ namespace {
 		test.settle();
 		expect(!test.Host->projection().SaveFailed && test.Store.Kept[seven()].size() == 1U, "successful explicit later record clears save failure");
 	}
+
+	/// [[BPR-1965]]. Only opening, switching or explicitly clearing content
+	/// replaces a transcript. Durability acknowledgments cannot erase live
+	/// turn metadata, including when a newer turn follows a queued clear.
+	void test_save_status_does_not_restore_content()
+	{
+		auto test = fixture{ };
+		test.Host->open(seven());
+		test.settle();
+		expect(test.Published.back().Update == application::agent_conversation_update::content, "a real history load restores its content");
+		test.Host->record({ { "First", "Reply", "answered" } });
+		test.settle();
+		expect(test.Published.back().Update == application::agent_conversation_update::storage_status && !test.Published.back().SaveFailed,
+			   "saving the live turn reports status without replacing its metadata");
+		test.Store.RefuseWrites = true;
+		test.Host->record({ { "Unsaved", "Still visible", "answered" } });
+		test.settle();
+		expect(test.Published.back().Update == application::agent_conversation_update::storage_status && test.Published.back().SaveFailed,
+			   "a save failure is reported without replacing the live turn either");
+		test.Store.RefuseWrites = false;
+		test.Host->record({ { "Pending", "Old reply", "answered" } });
+		test.Host->clear();
+		expect(test.Published.back().Update == application::agent_conversation_update::content && test.Published.back().Turns.empty(),
+			   "an explicit clear replaces content on its decision lane before persistence");
+		const auto cleared = test.Published.size();
+		const auto newest  = turns{ { "New turn", "Captured reply context", "answered" } };
+		test.Host->record(newest);
+		test.settle();
+		for (auto index = cleared; index < test.Published.size(); ++index) {
+			expect(test.Published[index].Update == application::agent_conversation_update::storage_status,
+				   "coalesced writes after clear only report storage status to the newer live turn");
+		}
+		expect(test.Store.Kept[seven()] == newest, "only the newest queued content is kept");
+		test.Host->switch_agent(2U);
+		test.settle();
+		expect(test.Published.back().Update == application::agent_conversation_update::content && test.Published.back().Key->Agent == 2U,
+			   "switching agents still restores that agent's own content");
+	}
 	void test_the_thread_is_bounded()
 	{
 		auto many = turns(application::maximum_conversation_turns + 3U);
@@ -240,6 +278,7 @@ auto main() -> int
 	test_one_conversation_per_agent();
 	test_the_thread_is_bounded();
 	test_failed_save_is_visible();
+	test_save_status_does_not_restore_content();
 	std::cout << "agent-conversation-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

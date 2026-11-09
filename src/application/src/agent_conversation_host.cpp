@@ -75,8 +75,9 @@ namespace bpr::application {
 			}
 		}
 
-		void publish()
+		void publish(const agent_conversation_update aUpdate = agent_conversation_update::content)
 		{
+			View.Update = aUpdate;
 			++View.Generation;
 			if (Dependencies.Publish) {
 				try {
@@ -100,7 +101,7 @@ namespace bpr::application {
 						 self->Writing = false;
 						 if (self->View.Key == std::optional{ key }) {
 							 self->View.SaveFailed = !aStored.value_or(false);
-							 self->publish();
+							 self->publish(agent_conversation_update::storage_status);
 						 }
 						 if (self->Waiting) {
 							 auto next = std::exchange(self->Waiting, std::nullopt);
@@ -227,6 +228,9 @@ namespace bpr::application {
 		}
 		host.View.Turns.clear();
 		host.View.Loaded = true;
+		// [[BPR-1965]]. The explicit clear changes content now; its later
+		// save acknowledgment must not replace a new turn started meanwhile.
+		host.publish();
 		host.write(*host.View.Key, { });
 	}
 

@@ -15,6 +15,12 @@ namespace bpr::application {
 	/// each text, at a character boundary, to `maximum_conversation_text_bytes`.
 	[[nodiscard]] auto bound_conversation(std::vector<agent_conversation_turn> aTurns) -> std::vector<agent_conversation_turn>;
 
+	/// \brief Whether the retained content changed or only its save status did.
+	enum class agent_conversation_update {
+		content,
+		storage_status,
+	};
+
 	/// \brief What the Agent tab's thread shows for the open pull request.
 	struct agent_conversation_projection
 	{
@@ -25,6 +31,8 @@ namespace bpr::application {
 		bool          Loaded     = false;
 		bool          SaveFailed = false;
 		std::uint64_t Generation = 0U;
+		/// A save acknowledgment does not replace the live turn's context.
+		agent_conversation_update Update = agent_conversation_update::content;
 
 		auto operator<=>(const agent_conversation_projection&) const = default;
 	};
