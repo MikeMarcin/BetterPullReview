@@ -35,6 +35,8 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QItemSelectionModel>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -76,6 +78,54 @@ namespace {
 	using e2e::default_agent_budget;
 	using e2e::extended_agent_budget;
 	using e2e::wait_terms;
+
+	[[nodiscard]] auto native_fixture_field(const std::string& aAnswer, const std::string_view aName) -> std::string
+	{
+		const auto at = aAnswer.find(aName);
+		if (at == std::string::npos) {
+			return { };
+		}
+		const auto start = at + aName.size();
+		return aAnswer.substr(start, aAnswer.find_first_of(" \n", start) - start);
+	}
+
+	[[nodiscard]] auto verify_native_fixture_identity(const std::string& aAnswer, const QString& aKey,
+													  const bool aReopened, const std::filesystem::path& aParent) -> bool
+	{
+		const auto handle = native_fixture_field(aAnswer, "backend=");
+		const auto memory = native_fixture_field(aAnswer, "memory=");
+		if (!handle.starts_with("native-fixture-") || !memory.starts_with("tool-observation-7f13-")) {
+			return false;
+		}
+		auto file     = QFile{ QString::fromStdU16String((aParent / "native-backend-expectations.json").u16string()) };
+		auto expected = QJsonObject{ };
+		if (file.exists()) {
+			if (!file.open(QIODevice::ReadOnly)) {
+				return false;
+			}
+			const auto document = QJsonDocument::fromJson(file.readAll());
+			if (!document.isObject()) {
+				return false;
+			}
+			expected = document.object();
+			file.close();
+		}
+		const auto identity = QString::fromStdString(handle + " " + memory);
+		if (expected.contains(aKey)) {
+			return expected.value(aKey).toString() == identity;
+		}
+		if (aReopened) {
+			return false;
+		}
+		for (auto entry = expected.begin(); entry != expected.end(); ++entry) {
+			if (entry.value().toString().startsWith(QString::fromStdString(handle + " "))) {
+				return false;
+			}
+		}
+		expected.insert(aKey, identity);
+		return file.open(QIODevice::WriteOnly | QIODevice::Truncate)
+			&& file.write(QJsonDocument{ expected }.toJson()) > 0;
+	}
 
 	using fixture_cache_inventory = std::map<std::filesystem::path,
 											 std::tuple<std::filesystem::file_type, std::filesystem::perms, std::uintmax_t, QByteArray>>;
@@ -796,7 +846,7 @@ auto main(int argc, char** argv) -> int
 			entry.Name      = "Native fixture " + std::to_string(entry.Id);
 			entry.Protocol  = protocol;
 			entry.Program   = externalExecutable.string();
-			entry.Arguments = { "--native-session-fixture" };
+			entry.Arguments = { "--native-session-fixture", "--native-memory-root", (dataRoot.parent_path() / "native-backend-memory").string() };
 			entry.Identity  = std::string(32U, static_cast<char>('a' + entry.Id));
 			preferences.Agents.push_back(std::move(entry));
 		}
@@ -1312,7 +1362,13 @@ auto main(int argc, char** argv) -> int
 					if (!wait_until([&] { return chat->turn_count() > prior + 1U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("tool-observation-7f13") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
 						return fail(*application, "tour-native-followup", chat->chat_text().toStdString());
 					}
-					const auto second = chat->reply(chat->turn_count() - 1U)->original_body();
+					const auto second      = chat->reply(chat->turn_count() - 1U)->original_body();
+					const auto identityKey = QStringLiteral("tour:%1:%2:%3").arg(static_cast<unsigned>(protocol)).arg(static_cast<unsigned>(thread.Kind)).arg(thread.Stop.value());
+					if (native_fixture_field(first, "backend=") != native_fixture_field(second, "backend=")
+						|| !verify_native_fixture_identity(second, identityKey, course == "tour-native-reopen", dataRoot.parent_path())) {
+						return fail(*application, "tour-native-exact-backend-memory");
+					}
+
 					if (course == "tour-native") {
 						auto createdWorkspaces = std::set<std::filesystem::path>{ };
 						for (const auto& item : std::filesystem::recursive_directory_iterator(workspaceRoot)) {
@@ -1425,10 +1481,53 @@ auto main(int argc, char** argv) -> int
 							return fail(*application, "tour-native-provenance-after-replay");
 						}
 					}
+					const auto beforeResume = chat->turn_count();
+					chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+					chat->send_button()->click();
+					if (!wait_until([&] { return chat->turn_count() > beforeResume && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("memory=") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)
+						|| !verify_native_fixture_identity(chat->reply(chat->turn_count() - 1U)->original_body(), identityKey, true, dataRoot.parent_path())) {
+						return fail(*application, "tour-native-history-exact-memory-resume");
+					}
 					if (editor->shown().Draft->Problem != original.Problem || editor->shown().Draft->Solution != original.Solution || editor->shown().Draft->Stops != acceptedBeforeNew.Stops) {
 						return fail(*application, "tour-native-new-preserves-accepted");
 					}
 				}
+			}
+			// Return to each chat after other agents/threads used the same files.
+			// Exact per-conversation memory must survive switching and cache eviction.
+			for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
+				const auto profile = core::entry_profile_id(protocol, protocol == core::agent_protocol::claude_stream_json ? 1U : 2U);
+				if (!window.agent_tab()->choose_agent(profile.value())) {
+					return fail(*application, "tour-native-return-agent");
+				}
+				for (const auto& thread : { core::tour_thread{ core::tour_thread_kind::stop, stop }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ } }) {
+					editor->open_side_chat(thread);
+					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-return-ready");
+					}
+					const auto beforeRun = editor->tour_agent()->session().LastRun;
+					const auto key       = QStringLiteral("tour:%1:%2:%3").arg(static_cast<unsigned>(protocol)).arg(static_cast<unsigned>(thread.Kind)).arg(thread.Stop.value());
+					const auto question  = std::string{ "remember-tool-observation " } + std::string{ course } + ":" + key.toStdString();
+					chat->composer()->setPlainText(QString::fromStdString(question));
+					if (!wait_until([&] { return chat->send_button()->isVisible() && chat->send_button()->isEnabled(); })) {
+						return fail(*application, "tour-native-return-send-ready");
+					}
+					chat->send_button()->click();
+					if (!wait_until([&] {
+							const auto& session = editor->tour_agent()->session();
+							return session.LastRun > beforeRun && !session.Runs.empty() && session.Runs.back().Question == question && session.Runs.back().Thread == thread
+								&& session.Runs.back().State == core::tour_agent_run_state::answered && session.Runs.back().Reply.find("memory=") != std::string::npos
+								&& chat->turn_count() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body() == session.Runs.back().Reply && chat->new_session_button()->isEnabled();
+						},
+									extended_agent_budget)
+						|| !verify_native_fixture_identity(chat->reply(chat->turn_count() - 1U)->original_body(), key, true, dataRoot.parent_path())) {
+						return fail(*application, "tour-native-return-exact-memory", "key=" + key.toStdString() + " before-run=" + std::to_string(beforeRun) + " now=" + std::to_string(chat->turn_count()) + " answer=" + (chat->turn_count() && chat->reply(chat->turn_count() - 1U) ? chat->reply(chat->turn_count() - 1U)->original_body() : "none") + " chat=" + chat->chat_text().toStdString());
+					}
+				}
+			}
+			editor->open_side_chat({ core::tour_thread_kind::stop, stop });
+			if (!wait_until([&] { return chat->current() == std::optional{ core::tour_thread{ core::tour_thread_kind::stop, stop } } && !chat->history_button()->property("loading").toBool(); })) {
+				return fail(*application, "tour-native-last-stop-restored");
 			}
 			// Reset remains a separate confirmed BPR operation; Undo restores original scopes.
 			const auto beforeReset = chat->chat_text();
@@ -1553,7 +1652,7 @@ auto main(int argc, char** argv) -> int
 			}
 			QApplication::processEvents();
 			const auto before         = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
-			const auto previousStarts = (entryId - 1U) * 2U;
+			const auto previousStarts = (entryId - 1U) * 4U;
 			if (before.Statistics.ProcessStarts != previousStarts) {
 				return fail(*application, "native-view-does-not-infer");
 			}
@@ -1598,7 +1697,9 @@ auto main(int argc, char** argv) -> int
 			}
 			const auto followup = panel->output_text().toStdString();
 			if (followup.find("tool-observation-7f13 retained-file=yes") == std::string::npos
-				|| first.substr(first.find("process=")) != followup.substr(followup.find("process="))) {
+				|| first.substr(first.find("process=")) != followup.substr(followup.find("process="))
+				|| native_fixture_field(first, "backend=") != native_fixture_field(followup, "backend=")
+				|| !verify_native_fixture_identity(followup, QStringLiteral("agent:%1").arg(entryId), course == "native-session-reopen", dataRoot.parent_path())) {
 				return fail(*application, "native-followup-continuity");
 			}
 			if (!wait_until([&] {
@@ -1631,6 +1732,21 @@ auto main(int argc, char** argv) -> int
 			if (!wait_until([&] { return window.agent_tab()->ask_button()->isEnabled(); }) || histories->actions().size() != retained) {
 				return fail(*application, "native-empty-generation-reused");
 			}
+			window.side_chat()->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+			window.agent_tab()->ask_button()->click();
+			if (!wait_until([&] { return window.agent_tab()->turn_count() == 1U && window.agent_tab()->turn_outcome(0U) == core::agent_turn_outcome::answered && window.agent_tab()->turn_answer(0U).contains(QStringLiteral("memory=")) && window.agent_tab()->ask_button()->isEnabled(); }, extended_agent_budget)) {
+				return fail(*application, "native-new-generation-answer");
+			}
+			const auto fresh = window.agent_tab()->turn_answer(0U).toStdString();
+			if (native_fixture_field(fresh, "backend=").empty()
+				|| native_fixture_field(fresh, "backend=") == native_fixture_field(followup, "backend=")
+				|| native_fixture_field(fresh, "memory=") == native_fixture_field(followup, "memory=")) {
+				return fail(*application, "native-new-generation-isolated-memory", "fresh=" + fresh + " original=" + followup + " visible=" + window.agent_tab()->turn_answer(0U).toStdString());
+			}
+			QMetaObject::invokeMethod(window.agent_tab()->history_button()->menu(), "aboutToShow");
+			if (!wait_until([&] { return !window.agent_tab()->ask_button()->property("conversationLoading").toBool() && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-new-generation-history-ready");
+			}
 			for (auto* item : histories->actions()) {
 				if (item->data().toString() == selectedHistory) {
 					item->trigger();
@@ -1641,8 +1757,15 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "native-history-reopened");
 			}
 			const auto viewed = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
-			if (viewed.Statistics.ProcessStarts != after.Statistics.ProcessStarts || viewed.Statistics.WorkspaceStarts != after.Statistics.WorkspaceStarts) {
+			if (viewed.Statistics.ProcessStarts != after.Statistics.ProcessStarts + 1U || viewed.Statistics.WorkspaceStarts != after.Statistics.WorkspaceStarts) {
 				return fail(*application, "native-history-does-not-infer");
+			}
+			const auto beforeResume = window.agent_tab()->turn_count();
+			window.side_chat()->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+			window.agent_tab()->ask_button()->click();
+			if (!wait_until([&] { return window.agent_tab()->turn_count() > beforeResume && window.agent_tab()->turn_outcome(window.agent_tab()->turn_count() - 1U) == core::agent_turn_outcome::answered && window.agent_tab()->turn_answer(window.agent_tab()->turn_count() - 1U).contains(QStringLiteral("memory=")) && window.agent_tab()->ask_button()->isEnabled() && app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts == previousStarts + 4U; }, extended_agent_budget)
+				|| !verify_native_fixture_identity(window.agent_tab()->turn_answer(window.agent_tab()->turn_count() - 1U).toStdString(), QStringLiteral("agent:%1").arg(entryId), true, dataRoot.parent_path())) {
+				return fail(*application, "native-history-exact-memory-resume");
 			}
 		}
 		const auto renderPath = dataRoot.parent_path() / (course == "native-session-reopen" ? "native-reopen.png" : "native-agent-tab.png");

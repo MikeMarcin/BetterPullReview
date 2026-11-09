@@ -12,6 +12,8 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -678,32 +680,83 @@ namespace {
 		std::cout << out;
 		std::cout.flush();
 	}
-	// Native fixture memory lives behind the protocol, never in the first
-	// assistant answer. Its file also represents allowed retained workspace work.
+	struct native_fixture_backend
+	{
+		std::string Handle;
+		std::string Observation;
+	};
+
+	[[nodiscard]] auto native_fixture_nonce() -> std::string
+	{
+		std::random_device random;
+		return std::to_string(random()) + "-" + std::to_string(random()) + "-" + std::to_string(random()) + "-" + std::to_string(random());
+	}
+
+	// Backend memory is keyed only by the requested native handle. The common
+	// workspace marker must never be used to infer a conversation or its memory.
+	[[nodiscard]] auto open_native_fixture_backend(const std::filesystem::path& aRoot, const std::string& aRequested)
+		-> std::optional<native_fixture_backend>
+	{
+		auto result = native_fixture_backend{ };
+		if (aRequested.empty()) {
+			std::filesystem::create_directories(aRoot);
+			result.Handle      = "native-fixture-" + native_fixture_nonce();
+			result.Observation = "tool-observation-7f13-" + native_fixture_nonce();
+			if (!std::filesystem::create_directory(aRoot / result.Handle)) {
+				return std::nullopt;
+			}
+			auto output = std::ofstream{ aRoot / result.Handle / "memory" };
+			output << result.Observation << '\n';
+			if (!output) {
+				return std::nullopt;
+			}
+		} else {
+			if (!aRequested.starts_with("native-fixture-") || aRequested.size() > 128U
+				|| !std::ranges::all_of(std::string_view{ aRequested }.substr(15U), [](const char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || aCharacter == '-'; })) {
+				return std::nullopt;
+			}
+			result.Handle = aRequested;
+			auto input    = std::ifstream{ aRoot / result.Handle / "memory" };
+			if (!std::getline(input, result.Observation) || !result.Observation.starts_with("tool-observation-7f13-")) {
+				return std::nullopt;
+			}
+		}
+		return result;
+	}
+
+	[[nodiscard]] auto requested_native_fixture_thread(const std::string& aLine) -> std::string
+	{
+		// The fixture's generated handles have no JSON escapes. Refuse anything
+		// outside that narrow contract instead of defaulting to the cwd's session.
+		const auto prefix = std::string_view{ "\"threadId\":\"" };
+		const auto start  = aLine.find(prefix);
+		if (start == std::string::npos) {
+			return { };
+		}
+		const auto at  = start + prefix.size();
+		const auto end = aLine.find('"', at);
+		return end == std::string::npos ? std::string{ } : aLine.substr(at, end - at);
+	}
+
 	auto native_session_fixture(const int aCount, char** const aArguments) -> int
 	{
-		const auto protocol = selected_protocol(aCount, aArguments);
-		const auto state    = std::filesystem::current_path() / ".bpr-native-fixture-state";
-		auto       handle   = argument_after(aCount, aArguments, "--resume");
-		auto       saved    = std::string{ };
-		{
-			auto input = std::ifstream{ state };
-			std::getline(input, saved);
+		const auto protocol       = selected_protocol(aCount, aArguments);
+		const auto state          = std::filesystem::current_path() / ".bpr-native-fixture-state";
+		const auto memoryArgument = argument_after(aCount, aArguments, "--native-memory-root");
+		const auto memoryRoot     = memoryArgument.empty() ? std::filesystem::current_path() / ".bpr-native-fixture-backends" : std::filesystem::path{ memoryArgument };
+		auto       backend        = std::optional<native_fixture_backend>{ };
+		if (protocol != protocol::codex_app_server) {
+			backend = open_native_fixture_backend(memoryRoot, argument_after(aCount, aArguments, "--resume"));
+			if (!backend) {
+				return 23;
+			}
 		}
 		const auto uuidless = has_argument(aCount, aArguments, "--uuidless-native-results");
-		if (uuidless && !saved.empty() && handle.empty()) {
-			return 24;
-		}
-		if (handle.empty()) {
-			handle = saved.empty() ? "native-fixture-session" : saved;
-		}
-		if (!saved.empty() && saved != handle) {
-			return 23;
-		}
-		{
+		if (!std::filesystem::exists(state)) {
 			auto output = std::ofstream{ state };
-			output << handle << '\n';
+			output << "shared workspace file\n";
 		}
+
 #if defined(_WIN32)
 		const auto process = std::to_string(_getpid());
 #else
@@ -718,6 +771,16 @@ namespace {
 				continue;
 			}
 			if (protocol == protocol::codex_app_server && (line.find("\"method\":\"thread/start\"") != std::string::npos || line.find("\"method\":\"thread/resume\"") != std::string::npos)) {
+				const auto resuming  = line.find("\"method\":\"thread/resume\"") != std::string::npos;
+				const auto requested = resuming ? requested_native_fixture_thread(line) : std::string{ };
+				if (resuming && requested.empty()) {
+					return 23;
+				}
+				backend = open_native_fixture_backend(memoryRoot, requested);
+				if (!backend) {
+					return 23;
+				}
+				const auto& handle = backend->Handle;
 				std::cout << "{\"id\":1,\"result\":{\"thread\":{\"id\":\"" << handle << "\"}}}\n"
 						  << std::flush;
 				continue;
@@ -725,6 +788,10 @@ namespace {
 			if (protocol == protocol::codex_app_server && line.find("\"method\":\"turn/start\"") == std::string::npos) {
 				continue;
 			}
+			if (!backend) {
+				return 23;
+			}
+			const auto& handle = backend->Handle;
 			++turn;
 			auto answer = (line.find("remember-tool-observation") == std::string::npos ? std::string{ "First answer omits the tool observation" } : std::string{ "tool-observation-7f13 retained-file=yes" }) + " process=" + process;
 			if (line.find("verify-replay") != std::string::npos) {
@@ -753,6 +820,8 @@ namespace {
 				const auto valid    = pinned && readOnly && hasFact(stale ? "\"head_changed\":true" : "\"head_changed\":false") && (stale ? !current : current);
 				answer              = (valid ? (stale ? "stale-native-validated head=" : "current-native-validated head=") + head : "native-revision-context-failed") + std::string{ " process=" } + process;
 			}
+			const auto processAt = answer.find(" process=");
+			answer.insert(processAt, " backend=" + handle + (line.find("remember-tool-observation") != std::string::npos ? " memory=" + backend->Observation : ""));
 			if (line.find("bpr.tour-ask.v1") != std::string::npos || line.find("bpr.tour-revise.v1") != std::string::npos) {
 				answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"" + answer + "\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[]}");
 				if (line.find("update-source-explanation") != std::string::npos) {
@@ -765,7 +834,7 @@ namespace {
 				if (turn == 1U) {
 					std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"" << handle << "\",\"tools\":[\"Read\",\"Grep\",\"Glob\",\"Bash\"],\"mcp_servers\":[]}\n";
 				}
-				std::cout << "{\"type\":\"user\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"read\",\"content\":\"tool-observation-7f13\"}]}}\n";
+				std::cout << "{\"type\":\"user\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"read\",\"content\":\"" << backend->Observation << "\"}]}}\n";
 				std::cout << "{\"type\":\"assistant\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"assistant\",\"id\":\"m" << turn << "\",\"content\":[{\"type\":\"text\",\"text\":\"" << answer << "\"}]}}\n";
 				std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"" << handle << "\",\"is_error\":false,\"result\":\"done\"";
 				if (!uuidless) {
