@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1972-retained-budget",
+  "scope": {
+    "issues": [
+      "BPR-1972"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "truthful-retained-admission",
+      "outcome": "Native continuation admits below-bound inventories and precisely diagnoses retained storage refusals without changing aggregate policy or deleting work.",
+      "work": [
+        {
+          "issue": "BPR-1972",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Any reproduced accounting/traversal defect is corrected with direct regression evidence; actual launch-root limits remain explicit.",
+        "Aggregate admission limits and preserved work are verified through host and composed courses; diagnostics are safe and actionable.",
+        "Source, evidence and board state are committed; all owned commands stop and the next action is concrete."
+      ],
+      "boundary": "Follow-up of BPR-1969 under original mandate; no budget-policy waiver or BPR-1971 overlap."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
