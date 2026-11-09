@@ -49,6 +49,13 @@ int main()
 	delivery.Binding.HeadOid = binding.BaseOid;
 	host.deliver(delivery);
 	expect(shown.Shown->Replies.empty(), "wrong binding is refused despite matching session identity");
+	expect(host.set_private_context({ .Session = next.Id, .Notes = true, .Drafts = true }).Refusal == application::agent_chat_refusal::none, "current private context is explicitly selected");
+	host.reset_conversation();
+	expect(host.projection() && host.projection()->PrivateContext.Notes && host.projection()->PrivateContext.Drafts, "New session retains currently selected context while clearing conversational replies");
+	auto reopened = next;
+	reopened.Id   = core::agent_session_id{ next.Id.value() + 1U };
+	host.admitted(reopened, true);
+	expect(host.projection()->PrivateContext.Session == reopened.Id && host.projection()->PrivateContext.Notes && host.projection()->Replies.empty(), "explicit history restore rebinds current context to exact restored session");
 	host.clear();
 	expect(!shown.Shown, "retirement clears private replies");
 

@@ -375,11 +375,13 @@ namespace bpr::core {
 				if (!aCommand.Restore || aCommand.Restore->Owner != aTour.Owner || aCommand.Restore->Id != aTour.Id || aCommand.Restore->Head != aTour.Head || aCommand.Restore->Base != aTour.Base) {
 					return tour_refusal::identity;
 				}
-				const auto revision  = aTour.Revision;
-				const auto highWater = std::max(aTour.LastStopId, aCommand.Restore->LastStopId);
-				aTour                = *aCommand.Restore;
-				aTour.Revision       = revision;
-				aTour.LastStopId     = highWater;
+				const auto revision      = aTour.Revision;
+				const auto highWater     = std::max(aTour.LastStopId, aCommand.Restore->LastStopId);
+				const auto chatHighWater = std::max(aTour.LastChatGeneration, aCommand.Restore->LastChatGeneration);
+				aTour                    = *aCommand.Restore;
+				aTour.Revision           = revision;
+				aTour.LastStopId         = highWater;
+				aTour.LastChatGeneration = chatHighWater;
 				return tour_refusal::none;
 			}
 			default: return edit_stop(aTour, aCommand, aSelected);
@@ -473,18 +475,28 @@ namespace bpr::core {
 		}
 		return tour_reaffirm_need::nothing;
 	}
-	auto ready(const tour_stop& aStop) noexcept -> bool
+	auto source_readiness(const tour_stop& aStop) noexcept -> tour_source_readiness
 	{
 		const bool original   = aStop.Original && valid(*aStop.Original);
 		const bool proposed   = aStop.Mapped && valid(*aStop.Mapped);
 		const bool reaffirmed = aStop.ReaffirmedHead && (original || (aStop.Remote && aStop.Destination && valid(*aStop.Destination)));
 		const bool mapped     = aStop.Mapping == tour_mapping::author_selected && proposed;
 		const bool retained   = original && (aStop.Mapping == tour_mapping::exact_original || (aStop.Mapping == tour_mapping::unchanged_material && proposed));
-		return nonblank(aStop.Title) && nonblank(aStop.Body) && (reaffirmed || mapped || retained);
+		if (reaffirmed || mapped || retained) {
+			return tour_source_readiness::ready;
+		}
+		if (aStop.Remote && aStop.Destination && valid(*aStop.Destination) && !original) {
+			return tour_source_readiness::reaffirmation_required;
+		}
+		return original ? tour_source_readiness::mapping_required : tour_source_readiness::confirmation_required;
+	}
+	auto ready(const tour_stop& aStop) noexcept -> bool
+	{
+		return nonblank(aStop.Title) && nonblank(aStop.Body) && source_readiness(aStop) == tour_source_readiness::ready;
 	}
 	auto validate(const review_tour& aTour) noexcept -> tour_refusal
 	{
-		if (!valid(aTour.Owner) || !aTour.Id.value() || !aTour.Revision) {
+		if (!valid(aTour.Owner) || !aTour.Id.value() || !aTour.Revision || aTour.ChatGeneration > aTour.LastChatGeneration) {
 			return tour_refusal::identity;
 		}
 		if (!field_ok(aTour.Problem) || !field_ok(aTour.Solution) || !baseline_ok(aTour.ProblemBaseline) || !baseline_ok(aTour.SolutionBaseline)

@@ -183,6 +183,20 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(editor.selected_stop()->Id == core::tour_stop_id{ 4 } && warned(), "after a real head change the drafted stop warns again");
 
+	// Confirmed replacement and missing prose are not source warnings.
+	draft.Stops.front().Mapped  = draft.Stops.front().Original;
+	draft.Stops.front().Mapping = core::tour_mapping::author_selected;
+	draft.Stops.front().Body.clear();
+	show();
+	editor.go_to_stop(draft.Stops.front().Id);
+	QApplication::processEvents();
+	expect(!source->text().contains(QStringLiteral("Source needs attention")) && !source->text().contains(QStringLiteral("Lines not confirmed")), "a confirmed author replacement stays confirmed when prose is empty");
+	render(editor, prefix, "confirmed-replacement");
+	draft.Stops.front().Mapping = core::tour_mapping::ambiguous;
+	show();
+	QApplication::processEvents();
+	expect(source->text().contains(QStringLiteral("Source needs attention")) && !source->text().contains(QStringLiteral("Lines not confirmed")), "ambiguous mapping warns separately from retained original confirmation");
+	render(editor, prefix, "ambiguous-mapping");
 	std::cout << "review-tour-reaffirm:pass\n";
 	return EXIT_SUCCESS;
 }

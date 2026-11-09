@@ -103,3 +103,16 @@ records the acceptance amendment separately from these observations.
 Profile schema, supported protocols, host policy, credential boundary, workspace modes, context schema, process environment, cancellation, staleness, and corporate harness fallback are mandatory.
 
 The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.
+
+## Conversational ownership amendment (RFC-BPR-0096, 2026-11-08)
+
+[The native-session RFC](RFC-BPR-0096-native-agent-sessions-and-tour-context.md)
+extends the host lifetime from one-turn launches to durable, per-entry native
+conversations and retained revision-pinned workspaces. It preserves this RFC's
+core authority/context/host-policy boundaries and the explicit old-head choice.
+Opaque backend handles and owned filesystem capabilities stay in the host. The
+bounded BPR display is separate from native memory. Explicit prose-only replay
+has a separate generation/source link and never supplies missing tool state or
+permission authority. Tool-free hooks remain one-shot. Original acceptance is
+historical; the new runtime and retention claims are scoped in the
+[RFC-BPR-0096 ledger](../verification/RFC-BPR-0096.md).

@@ -1624,6 +1624,18 @@ bpr_enable_warnings(
     test_better_pull_review_agent_invocation_composition_public_path
 )
 
+bpr_add_network_isolated_test(
+    NAME application_native_agent_sessions
+    WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/native_agent_sessions_course.py"
+        --executable "$<TARGET_FILE:test_better_pull_review_agent_invocation_composition_public_path>"
+        --canary "$<TARGET_FILE:test_better_pull_review_agent_canary>"
+)
+set_tests_properties(application_native_agent_sessions PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "native-agent-sessions-course:pass"
+    TIMEOUT 400)
+
 # [[BPR-0622]]. Windows runs both courses with handle-based liveness and
 # NtSuspendProcess in place of SIGSTOP; see the scripts.
 if(UNIX OR WIN32)

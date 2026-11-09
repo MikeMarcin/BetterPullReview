@@ -35,6 +35,7 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -1301,6 +1302,32 @@ namespace bpr::adapters::git {
 					   [](const char aCharacter) {
 						   return hex_value(aCharacter).has_value();
 					   });
+		}
+
+		// Git supplies only object IDs here (--no-object-names), never path text.
+		[[nodiscard]] auto workspace_missing_objects(std::string_view aOutput, std::size_t aHashBytes) -> std::optional<std::set<std::string>>
+		{
+			auto missing = std::set<std::string>{ };
+			auto count   = std::size_t{ 0U };
+			while (!aOutput.empty()) {
+				const auto newline = aOutput.find('\n');
+				if (newline == std::string_view::npos || ++count > 262144U) {
+					return std::nullopt;
+				}
+				auto       line         = aOutput.substr(0U, newline);
+				const bool absentObject = line.starts_with('?');
+				if (absentObject) {
+					line.remove_prefix(1U);
+				}
+				if (!valid_fixed_hex(line, aHashBytes)) {
+					return std::nullopt;
+				}
+				if (absentObject) {
+					missing.emplace(line);
+				}
+				aOutput.remove_prefix(newline + 1U);
+			}
+			return missing;
 		}
 
 		[[nodiscard]] auto ordinal_text(
@@ -3740,7 +3767,8 @@ namespace bpr::adapters::git {
 		{
 			std::uint32_t Version = 1U;
 			// 0 reserved, 1 parent owned, 2 materializing, 3 ready,
-			// 4 child cleanup planned, 5 parent cleanup planned, 6 removed.
+			// 4 child cleanup planned, 5 parent cleanup planned, 6 removed,
+			// 7 retained by a durable conversation.
 			std::uint32_t                                 Phase = 0U;
 			std::string                                   Token;
 			ownership_identity                            Registry{ };
@@ -3774,7 +3802,7 @@ namespace bpr::adapters::git {
 			const auto phase    = aNew.Phase;
 			if (!((phase == oldPhase + 1U && oldPhase < 6U)
 				  || (oldPhase == 0U && phase == 6U) || (oldPhase == 1U && phase == 5U)
-				  || (oldPhase == 2U && phase == 4U))) {
+				  || (oldPhase == 2U && phase == 4U) || (oldPhase == 3U && phase == 7U) || (oldPhase == 7U && phase == 4U))) {
 				return false;
 			}
 			auto adjusted  = aNew;
@@ -3846,11 +3874,12 @@ namespace bpr::adapters::git {
 				next.Phase = aPhase;
 				return append(std::move(next));
 			}
-			[[nodiscard]] auto mark_ready() -> bool override
+			[[nodiscard]] auto mark_ready(const bool aRetained) -> bool override
 			{
 				auto boundary = process_boundary_lock{ Registry };
 				return boundary.valid() && boundary_valid() && Record.Phase == 2U
-					&& directories_match() && read_exact_file(Layout.Workspace / ".git" / "bpr-owned-workspace", Layout.OwnershipMarker) && advance(3U);
+					&& directories_match() && read_exact_file(Layout.Workspace / ".git" / "bpr-owned-workspace", Layout.OwnershipMarker) && advance(3U)
+					&& (!aRetained || advance(7U));
 			}
 			[[nodiscard]] auto cleanup() -> bool override
 			{
@@ -3880,8 +3909,8 @@ namespace bpr::adapters::git {
 						return false;
 					}
 				}
-				if (Record.Phase == 2U || Record.Phase == 3U) {
-					if (!directories_match() || (Record.Phase == 3U && !read_exact_file(Layout.Workspace / ".git" / "bpr-owned-workspace", Layout.OwnershipMarker)) || !advance(4U)) {
+				if (Record.Phase == 2U || Record.Phase == 3U || Record.Phase == 7U) {
+					if (!directories_match() || ((Record.Phase == 3U || Record.Phase == 7U) && !read_exact_file(Layout.Workspace / ".git" / "bpr-owned-workspace", Layout.OwnershipMarker)) || !advance(4U)) {
 						return false;
 					}
 				}
@@ -4123,6 +4152,12 @@ namespace bpr::adapters::git {
 				auto record = load_workspace_record(fd, aRegistry, aNeighbourhood, path.stem().string());
 				if (!record) {
 					return refuse_recovery(aRefusal, workspace_refusal_check::record_unreadable, path, workspace_ownership_failure::repair_required);
+				}
+				// A retained conversation owns this tree even with no live process.
+				// Modified/unverifiable retained work is never startup garbage.
+				if (record->Phase == 7U) {
+					++result.Live;
+					continue;
 				}
 				workspace_ownership owner{ aRegistry, aNeighbourhood, std::move(*record), fd };
 				static_cast<void>(descriptor.release());
@@ -4656,14 +4691,15 @@ namespace bpr::adapters::git {
 					if (!trees.has_value()) {
 						return fail(trees.error());
 					}
-					arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+					arguments = workspace_git_arguments(destination, HooksRoot);
 					append_arguments(arguments, "pack-objects", "--delta-base-offset", "--non-empty", "--",
 									 path_text(destination / ".git" / "objects" / "pack" / "pack"));
 					const auto packed = submitWorkspace(
 						process_request{
-							.Arguments = std::move(arguments),
-							.Input     = memory_input{ headText + "\n" + root->StandardOutput + trees->StandardOutput },
-							.Timeout   = pack_process_timeout,
+							.Arguments   = std::move(arguments),
+							.Input       = memory_input{ headText + "\n" + root->StandardOutput + trees->StandardOutput },
+							.Timeout     = pack_process_timeout,
+							.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
 						},
 						aStop);
 					if (!packed.has_value()) {
@@ -4895,6 +4931,24 @@ namespace bpr::adapters::git {
 							: remotes.error());
 				}
 
+				if (materialization.RetainForSession && borrowed) {
+					auto retain = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(retain, "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--",
+									 path_text(destination / ".git" / "objects" / "pack" / "pack"));
+					auto tips = headText + "\n";
+					if (baseText != headText && present(baseText)) {
+						tips += baseText + "\n";
+					}
+					const auto packed = submitWorkspace(process_request{ .Arguments = std::move(retain), .Input = memory_input{ std::move(tips) }, .Timeout = pack_process_timeout }, aStop);
+					if (!packed) {
+						return fail(packed.error());
+					}
+					std::error_code removeError;
+					if (!std::filesystem::remove(destination / ".git" / "objects" / "info" / "alternates", removeError) || removeError) {
+						return fail(git_process_failure::invalid_repository);
+					}
+					borrowed.reset();
+				}
 				std::error_code topologyError;
 				// The only alternates entry a workspace may hold is the one it
 				// wrote for the linked clone.
@@ -4920,6 +4974,20 @@ namespace bpr::adapters::git {
 					return fail(git_process_failure::invalid_repository);
 				}
 
+				auto sparseMissing = std::optional<std::string>{ };
+				if (materialization.RetainForSession && shallow) {
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", headText);
+					const auto listed  = submitWorkspace(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
+					const auto missing = listed ? workspace_missing_objects(listed->StandardOutput, packHashBytes) : std::nullopt;
+					if (!missing) {
+						return fail(listed ? git_process_error{ git_process_failure::object_unavailable } : listed.error());
+					}
+					sparseMissing.emplace();
+					for (const auto& object : *missing) {
+						*sparseMissing += "?" + object + "\n";
+					}
+				}
 				const auto marker = "bpr-agent-workspace-v1:"
 					+ std::to_string(materialization.ApplicationSession.value()) + ":"
 					+ std::to_string(materialization.Session.Id.value()) + ":" + headText
@@ -4927,7 +4995,7 @@ namespace bpr::adapters::git {
 				if (!write_private_file(destination / ".git" / "bpr-owned-workspace", marker)) {
 					return fail(git_process_failure::invalid_repository);
 				}
-				if (workspaceOwner && !workspaceOwner->mark_ready()) {
+				if (workspaceOwner && !workspaceOwner->mark_ready(materialization.RetainForSession)) {
 					return fail(git_process_failure::invalid_repository);
 				}
 				auto owned = application::owned_agent_workspace{
@@ -4947,10 +5015,63 @@ namespace bpr::adapters::git {
 					.DirectoryIdentity  = workspace_directory_identity(*identity),
 					.LifetimeGuard      = workspaceOwner ? std::optional{ workspaceOwner->layout().Guard } : std::nullopt,
 				};
+				owned.SparseMissingObjects = std::move(sparseMissing);
+				if (materialization.RetainForSession && !shallow) {
+					owned.RequiredBase = materialization.Session.Binding.BaseOid;
+				}
 				if (workspaceOwner) {
 					WorkspaceOwners.emplace(owned.LifetimeGuard->Path, std::make_pair(owned, std::move(workspaceOwner)));
 				}
 				return owned;
+			}
+
+			[[nodiscard]] auto inspect_agent_workspace(const application::owned_agent_workspace& aWorkspace, const std::stop_token aStop)
+				-> git_process_result<void> override
+			{
+				auto boundary = process_boundary_lock{ IsolationRoot, aStop };
+				if (!boundary.valid() || !application::valid(aWorkspace) || !aWorkspace.LifetimeGuard || !WorkspaceRegistry) {
+					return std::unexpected(git_process_failure::invalid_request);
+				}
+				const auto path    = std::filesystem::path{ aWorkspace.Workspace.Path };
+				const auto journal = std::filesystem::path{ aWorkspace.LifetimeGuard->Path };
+				if (journal.parent_path() != *WorkspaceRegistry || journal.extension() != ".jsonl"
+					|| ownership_id(path, exact_artifact_kind::directory) != aWorkspace.DirectoryIdentity.Opaque
+					|| !workspace_private_directory(path) || !read_exact_file(path / ".git" / "bpr-owned-workspace", aWorkspace.OwnershipMarker)
+					|| ownership_id(journal, exact_artifact_kind::regular_file) != aWorkspace.LifetimeGuard->FileIdentity) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				workspace_descriptor descriptor{ open_journal(journal) };
+				if (!descriptor.valid()) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				auto record = load_workspace_record(descriptor.get(), *WorkspaceRegistry, aWorkspace.ParentDirectory.parent_path(), journal.stem().string());
+				if (!record || record->Phase != 7U || record->Child != aWorkspace.DirectoryIdentity.Opaque) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				const auto head = std::string{ core::canonical_hex(*aWorkspace.Workspace.PinnedHead).view() };
+				if (!read_exact_file(path / ".git" / "HEAD", head + "\n") || !absent(path / ".git" / "objects" / "info" / "alternates")
+					|| !absent(path / ".git" / "objects" / "info" / "http-alternates")) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				auto arguments = workspace_git_arguments(path, HooksRoot);
+				append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", head);
+				if (!aWorkspace.Workspace.Shallow && aWorkspace.RequiredBase) {
+					arguments.emplace_back(core::canonical_hex(*aWorkspace.RequiredBase).view());
+				}
+				auto checked = submit(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
+				if (!checked) {
+					return std::unexpected(checked ? git_process_error{ git_process_failure::object_unavailable } : checked.error());
+				}
+				const auto hashBytes = head.size();
+				const auto missing   = workspace_missing_objects(checked->StandardOutput, hashBytes);
+				const auto permitted = aWorkspace.Workspace.Shallow && aWorkspace.SparseMissingObjects
+					? workspace_missing_objects(*aWorkspace.SparseMissingObjects, hashBytes)
+					: std::optional{ std::set<std::string>{ } };
+				if (!missing || !permitted || (aWorkspace.Workspace.Shallow && !aWorkspace.SparseMissingObjects)
+					|| !std::includes(permitted->begin(), permitted->end(), missing->begin(), missing->end())) {
+					return std::unexpected(git_process_failure::object_unavailable);
+				}
+				return { };
 			}
 
 			[[nodiscard]] auto cleanup_agent_workspace(

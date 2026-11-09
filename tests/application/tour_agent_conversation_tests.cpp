@@ -3,6 +3,7 @@
 // style section; the answer is read strictly; the drafting requests carry
 // the same style section, and a draft whose fields hold a fenced block is
 // still read.
+#include "../support/review_tour_fixture.hpp"
 #include "bpr/application/tour_agent_conversation.hpp"
 #include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/tour_writing_style.hpp"
@@ -162,13 +163,13 @@ namespace {
 		const auto whole   = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ }, std::nullopt, "Too many stops", false, waiting, "the renderer");
 		expect(whole && contains(*whole, "bpr.tour-revise.v1") && contains(*whole, "merge_stops") && contains(*whole, "replace_waiting_stops"), "the tour chat asks for a revision");
 		expect(contains(*whole, "\"waiting_stops\":[{\"explanation\":\"WAITING_CANARY\",\"first_line\":3,\"last_line\":8,\"number\":2,"), "the waiting stop is numbered on from the tour's: " + whole.value_or(""));
-		expect(!contains(*whole, "Decided"), "a decided stop no longer waits");
+		expect(!contains(whole->substr(whole->find("\"waiting_stops\":")), "Decided"), "a decided stop no longer waits");
 		expect(contains(*whole, "\"focus\":\"the renderer\"") && contains(*whole, "focus on what focus names"), "the focus rides every turn");
 		const auto part = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::solution }, std::nullopt, "Why?");
-		expect(part && contains(*part, "bpr.tour-ask.v1") && !contains(*part, "bpr.tour-revise.v1") && !contains(*part, "waiting_stops") && !contains(*part, "\"focus\""), "a part's chat keeps its own schema");
+		expect(part && contains(*part, "bpr.tour-ask.v1") && !contains(*part, "bpr.tour-revise.v1") && !contains(*part, "waiting_stops") && contains(*part, "\"focus\":\"\""), "a part's chat keeps its own schema");
 		const auto drafted = application::build_tour_draft_prompt("t", "b", files, tour, "the renderer");
 		expect(drafted && contains(*drafted, "\"focus\":\"the renderer\"") && contains(*drafted, "favour stops there"), "Draft the tour favours the focus");
-		expect(!contains(*application::build_tour_draft_prompt("t", "b", files, tour), "\"focus\""), "with no focus, the draft request is as before");
+		expect(contains(*application::build_tour_draft_prompt("t", "b", files, tour), "\"focus\":\"\""), "without a focus, the authoritative snapshot says it is empty");
 
 		const auto read = application::decode_tour_ask_answer(
 			R"({"schema":"bpr.tour-revise.v1","reply":"Fewer.","problem":"","solution":"","stops":[],"stop_texts":[],"remove_stops":[5],"merge_stops":[{"stops":[2,3],"title":"Both","explanation":"One."}],"split_stops":[{"stop":1,"into":[{"path":"src/a.cpp","first_line":1,"last_line":2,"title":"A","explanation":"a"},{"path":"src/a.cpp","first_line":3,"last_line":4,"title":"B","explanation":"b"}]}],"order":[2,1],"focus":"the renderer","replace_waiting_stops":true})");
@@ -361,10 +362,64 @@ namespace {
 			expect(part && contains(*part, "rewrite the Solution as its whole new text") && contains(*part, "Leave every other field empty") && !contains(*part, "An update is not limited to text"), "D. a part's Update stays a rewrite of its text");
 		}
 	}
+	void authoritative_context()
+	{
+		auto tour            = tests::review_tour_fixture();
+		auto session         = core::tour_agent_session{ };
+		auto context         = application::tour_agent_context{ };
+		context.Session      = &session;
+		context.ObservedBase = tour.Base;
+		context.ObservedHead = tour.Head;
+		context.PinnedBase   = tour.Base;
+		context.PinnedHead   = tour.Head;
+		const auto snapshot  = [&] {const auto value=application::tour_agent_snapshot(tour,std::nullopt,session.Focus,core::cycle_json_value{},context);expect(value.has_value(),"complete small snapshot serializes");return *core::canonical_cycle_json(*value); };
+		const auto initial   = snapshot();
+		expect(contains(initial, "bpr.tour-context.v1") && contains(initial, "\"confirmed_lines\":true") && contains(initial, "\"source_attention\":false") && contains(initial, "\"related\":[{") && contains(initial, "\"first_line\":4"), "authoritative snapshot contains stable identity, confirmation and related source ranges");
+		tour.Stops.front().Mapping = core::tour_mapping::ambiguous;
+		const auto ambiguous       = snapshot();
+		expect(ambiguous != initial && contains(ambiguous, "source_ambiguous") && contains(ambiguous, "\"draft_revision\":1"), "source observation changes snapshot without changing accepted revision");
+		tour.Stops.front().Mapping = core::tour_mapping::exact_original;
+		session.Focus              = "Only lifecycle";
+		expect(snapshot() != initial, "focus participates in freshness");
+		session.Focus.clear();
+		context.Attention.Source = tour.Stops.front().Original;
+		context.SelectedSource   = context.Attention.Source;
+		expect(snapshot() != initial && contains(snapshot(), "Use selected lines"), "current selected source participates in freshness and actions");
+		context.Attention.Source.reset();
+		context.SelectedSource.reset();
+		session.ProposalRecords.push_back(core::tour_proposal_record{ .Run = core::tour_agent_run_id{ 4 }, .Conversation = "original-generation", .Scope = "origin-thread", .Outcome = "discarded", .Part = "stop_text" });
+		expect(snapshot() != initial && contains(snapshot(), "discarded") && contains(snapshot(), "original-generation"), "proposal decisions and original ownership participate in freshness");
+		{
+			auto  imported   = tour;
+			auto& stop       = imported.Stops.front();
+			stop.Remote      = core::tour_remote_binding{ .Kind = core::tour_remote_kind::line_comment, .Entity = "imported-stop", .Own = true };
+			stop.Destination = core::destination_of(*stop.Original);
+			stop.Mapped      = stop.Original;
+			stop.Original.reset();
+			stop.Mapping = core::tour_mapping::unchanged_material;
+			stop.ReaffirmedHead.reset();
+			const auto value   = application::tour_agent_snapshot(imported, std::nullopt, session.Focus, core::cycle_json_value{ }, context);
+			const auto encoded = value ? core::canonical_cycle_json(*value) : std::nullopt;
+			expect(encoded && contains(*encoded, "\"ready_eligible\":false") && contains(*encoded, "explanation_not_reaffirmed") && !contains(*encoded, "Ready, next"), "imported/remapped context agrees with core Ready refusal and offers reaffirmation separately from confirmed lines");
+		}
+		const auto prompt = application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, "Why the source warning?", false, std::nullopt, { }, { }, context);
+		expect(prompt && contains(*prompt, "bpr.tour-guide.v1") && contains(*prompt, "bpr.tour-context.v1") && contains(*prompt, "Show in code") && contains(*prompt, "Ready, next") && contains(*prompt, "full_each_explicit_turn"), "every explicit native or replay turn has the current bootstrap and real corrective actions");
+		expect(application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, std::string(16U * 1024U, 'x')).has_value(), "16 KiB typed question remains admitted");
+		expect(!application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, std::string(16U * 1024U + 1U, 'x')), "typed question above 16 KiB is refused before send");
+		tour.Stops.front().Body = std::string(64U * 1024U, 'x');
+		for (std::uint64_t index = 2U; index <= 4U; ++index) {
+			auto stop = tour.Stops.front();
+			stop.Id   = core::tour_stop_id{ index };
+			tour.Stops.push_back(stop);
+		}
+		expect(!application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, "why?"), "oversized required snapshot refuses whole request rather than dropping stops or reasons");
+	}
+
 }
 
 int main()
 {
+	authoritative_context();
 	request();
 	bound();
 	answer();

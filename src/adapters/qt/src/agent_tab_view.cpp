@@ -24,6 +24,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDateTime>
+#include <QDialog>
 #include <QEnterEvent>
 #include <QEvent>
 #include <QGuiApplication>
@@ -513,30 +514,31 @@ namespace bpr::qt {
 		auto* const historyMenu = new QMenu{ History };
 		HistoryMenu             = historyMenu;
 		historyMenu->setObjectName(QStringLiteral("agentHistoryMenu"));
-		auto* const clear = historyMenu->addAction(tr("Clear session"));
-		clear->setObjectName(QStringLiteral("agentClearSessionAction"));
-		connect(clear, &QAction::triggered, this, [this] { clear_session(); });
-		connect(historyMenu, &QMenu::aboutToShow, this, [this, clear] { clear->setEnabled(!Turns.empty() && State != agent_tab_state::working); });
+		NativeHistoryMenu = historyMenu->addMenu(tr("Sessions"));
+		NativeHistoryMenu->setObjectName(QStringLiteral("nativeAgentSessions"));
+		connect(historyMenu, &QMenu::aboutToShow, this, [this] { if (NativeHistoryDispatch) { NativeHistoryDispatch(std::nullopt); } });
 		historyMenu->addAction(Chat.new_session_action());
 		historyMenu->addAction(Chat.continue_old_revision_action());
 		historyMenu->addSeparator();
 		auto* const privateRuns = historyMenu->addAction(tr("Private history and runs"));
 		privateRuns->setObjectName(QStringLiteral("agentPrivateHistoryAction"));
 		connect(privateRuns, &QAction::triggered, this, [this] { show_history(true); });
-		auto* const sessions = historyMenu->addAction(tr("Sessions"));
-		sessions->setObjectName(QStringLiteral("agentSessionsAction"));
-		sessions->setEnabled(false);
-		connect(historyMenu, &QMenu::aboutToShow, this, [this, sessions] { sessions->setText(Launch.session_catalog_text()); });
+
 		History->setMenu(historyMenu);
 		row->addWidget(History);
 		// Owner decision (b) 2026-10-23: a new session clears the current
 		// agent's thread.
-		ClearSession = make_drawer_tool(context, drawer_icon(drawer_glyph::new_session, palette()), tr("New session: clear this agent's thread and start the next question afresh"),
+		ClearSession = make_drawer_tool(context, drawer_icon(drawer_glyph::new_session, palette()), tr("New session: retain this conversation in history and start fresh"),
 										QStringLiteral("agentClearSession"));
-		ClearSession->setAccessibleName(tr("Clear session"));
+		ClearSession->setAccessibleName(tr("New session"));
 		connect(ClearSession, &QToolButton::clicked, this, [this] { clear_session(); });
 		row->addWidget(ClearSession);
 		column->addWidget(context);
+		ContinuationMode = new QLabel{ tr("Native continuation"), this };
+		ContinuationMode->setObjectName(QStringLiteral("agentContinuationMode"));
+		ContinuationMode->setWordWrap(true);
+		ContinuationMode->setTextFormat(Qt::PlainText);
+		column->addWidget(ContinuationMode);
 
 		Pages = new QStackedWidget{ this };
 		column->addWidget(Pages, 1);
@@ -1133,14 +1135,14 @@ namespace bpr::qt {
 								? tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText))
 								: send_refusal_words(blocked, agent_name()));
 			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
-			Ask->setEnabled(Chat.send_action()->isEnabled());
+			Ask->setEnabled(Chat.send_action()->isEnabled() && !Ask->property("conversationLoading").toBool());
 		}
 		present_banner();
 		rebuild_findings();
 		Thread->setVisible(!Turns.empty());
 		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
-		ClearSession->setVisible(!Turns.empty());
-		ClearSession->setEnabled(State != agent_tab_state::working);
+		ClearSession->setVisible(true);
+		ClearSession->setEnabled(!NativeHistoryView.Loading && State != agent_tab_state::working);
 		// Owner look v006: the agent shown is asked what it offers, so its
 		// models are there when its menu opens.
 		if (isVisible() && CatalogDispatch && State != agent_tab_state::setting_up && State != agent_tab_state::not_set_up) {
@@ -1691,24 +1693,74 @@ namespace bpr::qt {
 		if (!panels_alive() || State == agent_tab_state::working) {
 			return;
 		}
-		// Owner decision (b): a confirmation only when turns would leave the
-		// thread; an empty one is cleared at once.
-		if (!Turns.empty()) {
-			const auto count     = Turns.size();
-			const auto confirmed = ClearConfirm ? ClearConfirm(count)
-												: QMessageBox::question(this, tr("Clear session?"),
-																		count == 1U ? tr("The thread's one turn leaves it, and the next question starts a new session that does not know it.")
-																					: tr("The thread's %1 turns leave it, and the next question starts a new session that does not know them.").arg(count),
-																		QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel)
-					== QMessageBox::Yes;
-			if (!confirmed) {
-				return;
-			}
-		}
-		present_thread({ });
 		if (ClearDispatch) {
 			ClearDispatch();
 		}
+	}
+
+	void agent_tab_view::present_native_history(const application::native_agent_history_projection& aView)
+	{
+		if (aView.ReadOnly) {
+			auto* dialog = new QDialog{ this };
+			dialog->setAttribute(Qt::WA_DeleteOnClose);
+			dialog->setWindowTitle(tr("Legacy history (agent identity unknown)"));
+			auto* column = new QVBoxLayout{ dialog };
+			auto* text   = new QPlainTextEdit{ dialog };
+			text->setReadOnly(true);
+			auto body = tr("Legacy saved questions and replies. Native tool observations and workspace state were not retained. Viewing sends no question. Choose an explicit replay destination in History to continue.\n\n");
+			for (const auto& turn : aView.Turns) {
+				body += QString::fromStdString(turn.Asked) + QStringLiteral("\n\n") + QString::fromStdString(turn.Answered) + QStringLiteral("\n\n");
+			}
+			text->setPlainText(body);
+			column->addWidget(text);
+			dialog->resize(600, 480);
+			dialog->show();
+			return;
+		}
+		NativeHistoryView = aView;
+		ClearSession->setEnabled(!aView.Loading && State != agent_tab_state::working);
+		if (aView.Loading) {
+			return;
+		}
+		NativeHistoryMenu->clear();
+		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool observations and workspace changes are absent.") : aView.NativeSupported ? tr("Native continuation")
+																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
+		ContinuationMode->setToolTip(tr("Replay uses at most 50 retained turns, 8 KiB per field and 48 KiB total; older turns and cut text are omitted. The source history stays. New session starts empty and sends no question."));
+		ContinuationMode->setText(ContinuationMode->text() + tr(" Replay omits %1 retained turns and cuts %2 text bytes; earlier storage omissions are unknown.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
+		auto* replay = NativeHistoryMenu->addAction(tr("Use Transcript replay with selected agent"));
+		replay->setObjectName(QStringLiteral("agentTranscriptReplay"));
+		replay->setToolTip(ContinuationMode->toolTip());
+		if (!aView.ReplaySource.empty()) {
+			ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" Source history: %1").arg(QString::fromStdString(aView.ReplaySource)));
+		}
+		replay->setEnabled(State != agent_tab_state::working);
+		connect(replay, &QAction::triggered, this, [this, id = aView.Selected] {
+			if (NativeHistoryDispatch) {
+				NativeHistoryDispatch("replay:" + id);
+			} });
+		if (!aView.Legacy.empty()) {
+			auto* legacy = NativeHistoryMenu->addMenu(tr("Legacy histories (agent identity unknown)"));
+			for (const auto& entry : aView.Legacy) {
+				auto* inspect = legacy->addAction(tr("View %1").arg(QString::fromStdString(entry.Title)));
+				connect(inspect, &QAction::triggered, this, [this, id = entry.Id] {if(NativeHistoryDispatch) {NativeHistoryDispatch("view:"+id);} });
+				auto* action = legacy->addAction(tr("Replay %1 with selected agent (%2 turns)").arg(QString::fromStdString(entry.Title)).arg(entry.Turns));
+				action->setData(QString::fromStdString(entry.Id));
+				action->setEnabled(State != agent_tab_state::working);
+				connect(action, &QAction::triggered, this, [this, id = entry.Id] {if(NativeHistoryDispatch) {NativeHistoryDispatch("replay:"+id);} });
+			}
+		}
+		NativeHistoryMenu->addSeparator();
+		for (const auto& entry : aView.Entries) {
+			auto  title = QString::fromStdString(entry.Title).simplified().left(72);
+			auto* item  = NativeHistoryMenu->addAction(tr("%1: %2 (%3 turns)").arg(entry.Replay ? tr("Transcript replay") : tr("Native"), title).arg(entry.Turns));
+			item->setData(QString::fromStdString(entry.Id));
+			item->setProperty("turns", QVariant::fromValue<qulonglong>(entry.Turns));
+			item->setCheckable(true);
+			item->setChecked(entry.Id == aView.Selected);
+			item->setEnabled(State != agent_tab_state::working);
+			connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (NativeHistoryDispatch) { NativeHistoryDispatch(id); } });
+		}
+		NativeHistoryMenu->setEnabled(true);
 	}
 
 	void agent_tab_view::set_suggestion_context(std::function<agent_suggestion_context()> aContext)
@@ -1735,7 +1787,7 @@ namespace bpr::qt {
 			.DraftHeld = !draft.trimmed().isEmpty(),
 			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
 		});
-		const auto  to_end   = [composer] {
+		const auto  toEnd    = [composer] {
 			auto cursor = composer->textCursor();
 			cursor.movePosition(QTextCursor::End);
 			composer->setTextCursor(cursor);
@@ -1754,18 +1806,18 @@ namespace bpr::qt {
 			ask();
 			KeepingDraft = false;
 			composer->setPlainText(draft);
-			to_end();
+			toEnd();
 			return;
 		case core::agent_suggestion_press::edit: composer->setPlainText(aPrompt); break;
 		case core::agent_suggestion_press::edit_after_draft:
 			// Added, never replacing: on its own line after the words there,
 			// and undone in one step.
-			to_end();
+			toEnd();
 			composer->textCursor().insertText((draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n")) + aPrompt);
 			break;
 		}
 		composer->setFocus(Qt::OtherFocusReason);
-		to_end();
+		toEnd();
 	}
 
 	void agent_tab_view::refresh_suggestions()

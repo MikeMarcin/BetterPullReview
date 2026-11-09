@@ -4,6 +4,7 @@
 #include "bpr/application/agent_finding_delivery.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/application/native_agent_session.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/private_review_application_host.hpp"
 #include "bpr/core/agent_profile.hpp"
@@ -82,9 +83,8 @@ namespace bpr::application {
 		/// until the agent finishes or Stop.
 		std::optional<int> RunLimitMilliseconds;
 		/// [[BPR-1900]]. A tour drafting run: the workspace, read-only tools.
-		/// Admitted for Claude's stream JSON and Codex's `exec --json`, never
-		/// with `WritingOnly`, a continuation, the existing checkout or a
-		/// private run.
+		/// Admitted for qualified Claude/Codex protocols, including native continuation.
+		/// Never with `WritingOnly`, the existing checkout or a private run.
 		bool ReadOnlyTools = false;
 		/// [[BPR-1918]]. A custom profile that opted out of strict run
 		/// checks; the host passes it to the launch as it is.
@@ -95,6 +95,14 @@ namespace bpr::application {
 		/// proposed stop's lines. At most `maximum_measured_paths`; a link, a
 		/// folder or a file over `maximum_measured_bytes` is not counted.
 		std::vector<std::string> MeasurePaths;
+		/// Host-minted entry incarnation; absent preserves non-conversational callers.
+		std::string NativeAgentIdentity;
+		/// Surface/thread scope; Agent tab and tour scopes never share a handle.
+		std::string NativeScope;
+		bool        NativeStartAtCurrentRevision = false;
+		std::string NativeQuestion;
+		std::string SelectedConversation;
+		bool        TranscriptReplay = false;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -173,6 +181,9 @@ namespace bpr::application {
 		}
 		virtual void private_changed(const agent_invocation_projection_identity&, const private_review_delta&) { }
 		virtual void private_refused(const agent_invocation_projection_identity&, const private_run_error&) { }
+		/// \brief Restores a durable native binding without an invocation or opaque handle.
+		virtual void restore_native_session(const core::agent_session&) { }
+		virtual void present_native_history(const native_agent_history_projection&) { }
 		virtual void present_session_catalog(
 			const agent_session_catalog_projection& aProjection) = 0;
 	};
@@ -205,7 +216,7 @@ namespace bpr::application {
 			effect_executor&                     aEffects,
 			decision_executor&                   aDecisionLane,
 			agent_invocation_projection_port&    aProjection,
-			private_agent_run_port*              aPrivateRuns = nullptr);
+			private_agent_run_port* aPrivateRuns = nullptr, native_agent_session_store_port* aNativeSessions = nullptr);
 		~agent_invocation_host();
 
 		agent_invocation_host(const agent_invocation_host&) = delete;
@@ -216,6 +227,8 @@ namespace bpr::application {
 			core::application_session_id aApplicationSession,
 			core::pull_request_authority aAuthority,
 			core::agent_revision_binding aBinding);
+		/// \brief Loads only the selected native binding; viewing never starts a process.
+		void restore_native(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice = std::nullopt, std::optional<agent_conversation_key> aLegacy = std::nullopt);
 		void clear();
 		void dispatch(agent_invocation_request aRequest);
 		void cancel();

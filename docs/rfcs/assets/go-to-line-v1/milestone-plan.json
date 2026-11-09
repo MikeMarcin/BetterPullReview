@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "go-to-line-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0096"
+    ],
+    "issues": [
+      "BPR-1948"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "exact-source-line",
+      "outcome": "The active main PR diff offers accessible Go to line with exact source identity, guarded input and platform shortcuts.",
+      "work": [
+        {
+          "issue": "BPR-1948"
+        },
+        {
+          "rfc": "RFC-BPR-0096"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01\u2013AC03 pass through the composed main diff in split and unified presentations.",
+        "AC04 passes keyboard/menu, accessible focus, minimum-size full-window scale renders and bounded-work checks through installed Git/cache.",
+        "Documentation checks pass; exact candidate, evidence and quiescent command state are recorded."
+      ],
+      "boundary": "Main PR diff only, Qt-local dialog and input mechanics using existing core semantic validation and shared reveal geometry."
+    }
+  ],
+  "unplanned_work": []
+}

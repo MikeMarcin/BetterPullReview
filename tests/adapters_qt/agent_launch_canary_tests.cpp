@@ -9,9 +9,14 @@
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/private_review_application_host.hpp"
+#include "native_session_qualification.hpp"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QThread>
+#include <QUuid>
 
 #include <algorithm>
 #include <array>
@@ -1246,11 +1251,205 @@ namespace {
 		std::filesystem::remove(marker, ignored);
 	}
 #endif
+	void native_connections_keep_the_process_and_exact_handle()
+	{
+		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
+			const auto directory = tests::make_scratch_directory("bpr-native-connection");
+			const auto owned     = tests::scratch_guard{ directory };
+			auto       launch    = request(protocol);
+			launch.Arguments.insert(launch.Arguments.begin(), "--native-session-fixture");
+			launch.WorkingDirectory   = directory.string();
+			launch.NativeConversation = "native-connection-fixture";
+			auto first                = application::agent_run_result{ };
+			auto second               = application::agent_run_result{ };
+			{
+				auto launcher = adapters::agent::agent_process_launcher{ };
+				first         = launcher.run(launch, 5000);
+				if (first.Outcome != application::agent_run_outcome::success) {
+					std::cerr << "native actor: " << application::name(first.Outcome) << " failure=" << (first.ProtocolFailure ? application::name(*first.ProtocolFailure) : "none") << " line=" << first.RejectedOutputLine << " stderr=" << first.StandardError << "\n";
+				}
+				expect(first.Outcome == application::agent_run_outcome::success && !first.NativeHandle.empty(), "native first turn completes while input remains open");
+				launch.NativeHandle = first.NativeHandle;
+				launch.NativeTurn   = 3U;
+				if (protocol == core::agent_protocol::codex_app_server) {
+					launch.DeferredContext = "remember-tool-observation";
+				} else {
+					launch.Input = "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"remember-tool-observation\"}}\n";
+				}
+				second = launcher.run(launch, 5000);
+				expect(second.Outcome == application::agent_run_outcome::success && second.NativeHandle == first.NativeHandle, "second native turn keeps exact backend identity");
+				expect(!first.Events.empty() && !second.Events.empty(), "native fixture publishes both answers");
+				const auto before = first.Events.front().Text;
+				const auto after  = second.Events.front().Text;
+				expect(before.find("tool-observation-7f13") == std::string::npos && after.find("tool-observation-7f13") != std::string::npos, "follow-up uses a prior tool observation absent from BPR prose");
+				expect(before.substr(before.find("process=")) == after.substr(after.find("process=")), "same supervised native process answers both turns");
+			}
+			auto       resumed  = adapters::agent::agent_process_launcher{ };
+			const auto restored = resumed.run(launch, 5000);
+			expect(restored.Outcome == application::agent_run_outcome::success && restored.NativeHandle == first.NativeHandle,
+				   "new launcher resumes the exact native conversation after process close");
+		}
+	}
+
+	void uuidless_native_turns_resume_exactly_on_fresh_transports()
+	{
+		const auto directory = tests::make_scratch_directory("bpr-native-uuidless");
+		const auto owned     = tests::scratch_guard{ directory };
+		auto       launch    = request(core::agent_protocol::claude_stream_json);
+		launch.Arguments.insert(launch.Arguments.begin(), { "--native-session-fixture", "--uuidless-native-results" });
+		launch.WorkingDirectory   = directory.string();
+		launch.NativeConversation = "uuidless-exact-resume";
+		auto launcher             = adapters::agent::agent_process_launcher{ };
+		auto priorProcess         = std::string{ };
+		auto handle               = std::string{ };
+		for (std::uint64_t turn = 2U; turn <= 4U; ++turn) {
+			launch.NativeTurn   = turn;
+			launch.NativeHandle = handle;
+			if (turn > 2U) {
+				launch.Input = "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"remember-tool-observation\"}}\n";
+			}
+			const auto result = launcher.run(launch, 5000);
+			expect(result.Outcome == application::agent_run_outcome::success && !result.Events.empty() && !result.NativeHandle.empty(), "a valid UUID-less result still completes its sole transport turn");
+			const auto& answer  = result.Events.front().Text;
+			const auto  process = answer.substr(answer.find("process="));
+			if (turn > 2U) {
+				expect(result.NativeHandle == handle && process != priorProcess && answer.find("tool-observation-7f13") != std::string::npos, "immediate explicit next send exact-resumes the same native handle/workspace on a different process without losing its decision");
+			}
+			handle       = result.NativeHandle;
+			priorProcess = process;
+		}
+		// Every fixture terminal has exactly the same UUID-less result text.
+		// It is legal on each fresh transport; no content-hash deduplication is used.
+	}
+
+	void native_idle_cache_eviction_keeps_resume_identity()
+	{
+		const auto directory = tests::make_scratch_directory("bpr-native-cache-bound");
+		const auto owned     = tests::scratch_guard{ directory };
+		auto       launcher  = adapters::agent::agent_process_launcher{ };
+		auto       first     = application::agent_run_result{ };
+		auto       original  = application::agent_launch_request{ };
+		for (std::size_t index = 0; index < 5U; ++index) {
+			const auto workspace = directory / std::to_string(index);
+			std::filesystem::create_directory(workspace);
+			auto launch = request(core::agent_protocol::claude_stream_json);
+			launch.Arguments.insert(launch.Arguments.begin(), "--native-session-fixture");
+			launch.WorkingDirectory   = workspace.string();
+			launch.NativeConversation = "cache-capacity-" + std::to_string(index);
+			const auto result         = launcher.run(launch, 5000);
+			expect(result.Outcome == application::agent_run_outcome::success, "bounded idle cache fixture turn completes");
+			if (index == 0U) {
+				first    = result;
+				original = launch;
+			}
+		}
+		original.NativeHandle = first.NativeHandle;
+		original.NativeTurn   = 3U;
+		const auto reopened   = launcher.run(original, 5000);
+		expect(reopened.Outcome == application::agent_run_outcome::success && reopened.NativeHandle == first.NativeHandle && reopened.NativeProcess != first.NativeProcess, "fifth idle session evicts one of four cached processes but exact native handle and workspace resume remain");
+		launcher.cancel();
+		auto waited = QElapsedTimer{ };
+		waited.start();
+		while (!launcher.native_connections_quiescent() && waited.elapsed() < 5000) {
+			QThread::msleep(10);
+		}
+		expect(launcher.native_connections_quiescent(), "owned cached processes finish after bounded shutdown");
+	}
+
+	auto installed_native_course(const core::agent_protocol aProtocol, const std::string& aExecutable, const std::filesystem::path& aRoot) -> bool
+	{
+		auto       profiles = core::built_in_agent_profiles();
+		const auto found    = std::ranges::find(profiles, aProtocol, &core::agent_profile::Protocol);
+		if (found == profiles.end() || !std::filesystem::is_directory(aRoot)) {
+			return false;
+		}
+		auto profile           = *found;
+		profile.Executable     = aExecutable;
+		const auto observation = std::string{ "native-observation-" } + QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+		{
+			auto note = std::ofstream{ aRoot / "observation.txt" };
+			note << observation << '\n';
+		}
+		const auto assignment = "Work only in the disposable fixture " + aRoot.string()
+			+ ". Do not read or write any other repository. Use a tool to read observation.txt, then reply only READY without revealing its contents. Do not modify files, use network, or run subagents. Native session metadata may be retained by your installed runtime.";
+		const auto environment = [](const std::string& aName) -> std::optional<std::string> {
+			return qEnvironmentVariableIsSet(aName.c_str()) ? std::optional{ qEnvironmentVariable(aName.c_str()).toStdString() } : std::nullopt;
+		};
+		auto initial = application::build_round_launch(profile, assignment, { }, aRoot.string(), environment);
+		if (!initial) {
+			return false;
+		}
+		initial->NativeConversation = "installed-native-course";
+		auto       first            = application::agent_run_result{ };
+		auto       second           = application::agent_run_result{ };
+		const auto contains         = [](const application::agent_run_result& aResult, const std::string& aText) {
+			auto assembled = std::string{ };
+			for (const auto& event : aResult.Events) {
+				assembled += event.Text;
+			}
+			return assembled.find(aText) != std::string::npos;
+		};
+		auto follow = application::agent_launch_request{ };
+		{
+			auto launcher = adapters::agent::agent_process_launcher{ };
+			first         = launcher.run(*initial, 120000);
+			if (first.Outcome != application::agent_run_outcome::success || first.NativeHandle.empty() || contains(first, observation)) {
+				std::cout << "installed-native:first=" << application::name(first.Outcome) << ":protocol=" << (first.ProtocolFailure ? application::name(*first.ProtocolFailure) : "none") << '\n';
+				const auto rejected = QJsonDocument::fromJson(QByteArray::fromStdString(first.RejectedOutputLine)).object();
+				std::cout << "installed-native:rejected-method=" << rejected.value(QStringLiteral("method")).toString().toStdString()
+						  << ":keys=" << rejected.keys().join(QLatin1Char(',')).toStdString() << '\n';
+				return false;
+			}
+			{
+				auto note = std::ofstream{ aRoot / "observation.txt", std::ios::trunc };
+				note << "CHANGED-CANNOT-SUPPLY-PRIOR-OBSERVATION\n";
+			}
+			auto next = application::build_round_launch(profile,
+														"Without reading the file again, return the exact original observation.txt value you read with your tool in the previous turn. Do not run any tools.", { }, aRoot.string(), environment);
+			if (!next) {
+				return false;
+			}
+			follow                    = std::move(*next);
+			follow.NativeConversation = initial->NativeConversation;
+			follow.NativeHandle       = first.NativeHandle;
+			follow.NativeTurn         = 3U;
+			second                    = launcher.run(follow, 120000);
+			if (second.Outcome != application::agent_run_outcome::success || second.NativeHandle != first.NativeHandle
+				|| first.NativeProcess == 0U || second.NativeProcess != first.NativeProcess || !contains(second, observation)) {
+				std::cout << "installed-native:second=" << application::name(second.Outcome) << ":protocol=" << (second.ProtocolFailure ? application::name(*second.ProtocolFailure) : "none")
+						  << ":same-process=" << (first.NativeProcess == second.NativeProcess) << ":memory=" << contains(second, observation) << '\n';
+				return false;
+			}
+		}
+		auto reopened     = adapters::agent::agent_process_launcher{ };
+		follow.NativeTurn = 4U;
+		const auto third  = reopened.run(follow, 120000);
+		const auto passed = third.Outcome == application::agent_run_outcome::success && third.NativeHandle == first.NativeHandle
+			&& third.NativeProcess != first.NativeProcess && contains(third, observation);
+		std::cout << "installed-native:third=" << application::name(third.Outcome) << ":protocol=" << (third.ProtocolFailure ? application::name(*third.ProtocolFailure) : "none")
+				  << ":exact-handle=" << (third.NativeHandle == first.NativeHandle) << ":memory=" << contains(third, observation) << '\n';
+		if (!passed) {
+			const auto rejected = QJsonDocument::fromJson(QByteArray::fromStdString(third.RejectedOutputLine)).object();
+			std::cout << "installed-native:resume-rejected-method=" << rejected.value(QStringLiteral("method")).toString().toStdString()
+					  << ":keys=" << rejected.keys().join(QLatin1Char(',')).toStdString() << '\n';
+		}
+		return passed;
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 try {
 	QCoreApplication application{ argc, argv };
+	if (argc == 6 && std::string_view{ argv[1] } == "--qualify-sessions") {
+		const auto protocol = std::string_view{ argv[2] } == "claude" ? core::agent_protocol::claude_stream_json : std::string_view{ argv[2] } == "codex-jsonl" ? core::agent_protocol::codex_jsonl_exec
+																																								: core::agent_protocol::codex_app_server;
+		return bpr::tests::qualify_native_sessions(protocol, argv[3], std::filesystem::canonical(argv[4]), std::string_view{ argv[5] } == "replay", std::string_view{ argv[5] } == "interrupt") ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+	if (argc == 5 && std::string_view{ argv[1] } == "--installed-native") {
+		const auto protocol = std::string_view{ argv[2] } == "claude" ? core::agent_protocol::claude_stream_json : core::agent_protocol::codex_app_server;
+		return installed_native_course(protocol, argv[3], std::filesystem::canonical(argv[4])) ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
 	// [[BPR-1229]]. The durable course opens a private SQLite store under a
 	// scratch root, which the Windows AppContainer refuses, so it is its own
 	// row (qt_agent_launch_canary_durable_course) on every platform and the
@@ -1270,6 +1469,9 @@ try {
 		run_parent_death_course(argv[1], std::filesystem::canonical(argv[2]));
 		return EXIT_SUCCESS;
 	}
+	uuidless_native_turns_resume_exactly_on_fresh_transports();
+	native_connections_keep_the_process_and_exact_handle();
+	native_idle_cache_eviction_keeps_resume_identity();
 	test_input_budget_refuses_before_real_child_effect();
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_a_catalog_run_lists_models_through_a_real_child();

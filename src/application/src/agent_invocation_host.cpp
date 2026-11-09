@@ -1,4 +1,6 @@
 #include "bpr/application/agent_invocation_host.hpp"
+#include "bpr/application/agent_conversation_host.hpp"
+#include "bpr/application/tour_agent_conversation.hpp"
 
 #include <algorithm>
 #include <array>
@@ -13,7 +15,46 @@
 #include <utility>
 
 namespace bpr::application {
+	[[nodiscard]] auto native_scope_key(const core::pull_request_authority& aAuthority, const std::string& aAgent, const std::string& aThread) -> std::string
+	{
+		return std::to_string(aAuthority.Profile.value()) + ":" + std::to_string(aAuthority.Account.value()) + ":"
+			+ std::to_string(aAuthority.Viewer.value()) + ":" + std::to_string(aAuthority.Host.value()) + ":" + std::to_string(aAuthority.Repository.value())
+			+ ":" + std::to_string(aAuthority.PullRequest.value()) + ":" + std::to_string(aAuthority.ProfileRevision.value()) + ":"
+			+ std::to_string(static_cast<unsigned>(aAuthority.Mode)) + ":" + aAgent + ":" + aThread;
+	}
+
 	namespace {
+		// Read only this selected catalog generation, never an in-memory cache of other chats.
+		auto prose_replay(const native_agent_history_projection& aHistory, const bool aTour) -> core::transcript_replay
+		{
+			auto turns      = std::vector<core::brief_turn>{ };
+			auto unanswered = std::size_t{ 0U };
+			for (const auto& saved : aHistory.Turns) {
+				if (saved.Outcome != core::agent_turn_outcome::answered) {
+					++unanswered;
+					continue;
+				}
+				auto answer = saved.Answered;
+				if (aTour) {
+					if (const auto parsed = decode_tour_ask_answer(answer)) {
+						answer = parsed->Reply;
+					} else if (const auto draft = decode_tour_draft_answer(answer)) {
+						answer = "Draft Tour proposal (history does not restore or accept proposals).";
+						if (draft->Problem) {
+							answer += "\nProblem: " + *draft->Problem;
+						}
+						if (draft->Solution) {
+							answer += "\nSolution: " + *draft->Solution;
+						}
+					}
+				}
+				turns.push_back({ saved.Asked, std::move(answer) });
+			}
+			auto result = core::bound_transcript_replay(std::move(turns), aTour);
+			result.Omitted += unanswered;
+			return result;
+		}
+
 		/// \brief Why the host is ending whatever is running.
 		///
 		/// \details Two causes, told apart because one of them is not news
@@ -35,6 +76,38 @@ namespace bpr::application {
 			return aBinding.Host == aAuthority.Host
 				&& aBinding.Repository == aAuthority.Repository
 				&& aBinding.PullRequest == aAuthority.PullRequest;
+		}
+
+		/// Includes retained and crash-recovery trees; a limit refuses admission,
+		/// never deletion of an agent's modified or unverifiable files.
+		[[nodiscard]] auto native_workspace_budget_available(const std::filesystem::path& aRoot) -> bool
+		{
+			constexpr auto maximumBytes   = std::uintmax_t{ 16ULL * 1024ULL * 1024ULL * 1024ULL };
+			constexpr auto maximumEntries = std::size_t{ 262144U };
+			auto           error          = std::error_code{ };
+			if (!std::filesystem::exists(aRoot, error)) {
+				return !error;
+			}
+			auto total   = std::uintmax_t{ 0U };
+			auto entries = std::size_t{ 0U };
+			for (auto item = std::filesystem::recursive_directory_iterator{ aRoot, std::filesystem::directory_options::none, error };
+				 !error && item != std::filesystem::recursive_directory_iterator{ }; item.increment(error)) {
+				if (++entries > maximumEntries) {
+					return false;
+				}
+				const auto status = item->symlink_status(error);
+				if (error) {
+					return false;
+				}
+				if (std::filesystem::is_regular_file(status)) {
+					const auto bytes = item->file_size(error);
+					if (error || bytes > maximumBytes - total) {
+						return false;
+					}
+					total += bytes;
+				}
+			}
+			return !error;
 		}
 
 		[[nodiscard]] auto workspace_outcome(
@@ -91,6 +164,9 @@ namespace bpr::application {
 			std::shared_ptr<std::stop_source>    Stop;
 			std::mutex                           WorkspaceMutex;
 			std::optional<owned_agent_workspace> OwnedWorkspace;
+			std::optional<native_agent_session>  Native;
+			bool                                 RetainWorkspace = false;
+			bool                                 NativeSubmitted = false;
 			std::optional<private_run_admission> PrivateAdmission;
 			std::atomic_uint64_t                 DurableRun          = 0;
 			std::atomic_bool                     Superseded          = false;
@@ -111,7 +187,7 @@ namespace bpr::application {
 			effect_executor&                     aEffects,
 			decision_executor&                   aDecisionLane,
 			agent_invocation_projection_port&    aProjection,
-			private_agent_run_port*              aPrivateRuns)
+			private_agent_run_port* aPrivateRuns, native_agent_session_store_port* aNativeSessions)
 			: Profiles{ std::move(aProfiles) }
 			, Policies{ std::move(aPolicies) }
 			, WorkspaceParent{ std::move(aWorkspaceParent) }
@@ -123,6 +199,7 @@ namespace bpr::application {
 			, DecisionLane{ aDecisionLane }
 			, Projection{ aProjection }
 			, PrivateRuns{ aPrivateRuns }
+			, NativeSessions{ aNativeSessions }
 		{
 		}
 
@@ -326,6 +403,10 @@ namespace bpr::application {
 
 		void clear()
 		{
+			NativeRestoreKey.clear();
+			++NativeRestoreGeneration;
+			NativeDrainRequested = true;
+			Processes.cancel();
 			{
 				std::scoped_lock lock{ StateMutex };
 				ApplicationSession.reset();
@@ -357,6 +438,11 @@ namespace bpr::application {
 
 		void dispatch(agent_invocation_request aRequest)
 		{
+			if (NativeDrainRequested && !Processes.native_connections_quiescent()) {
+				project_refuse("native_connection_still_stopping");
+				return;
+			}
+			NativeDrainRequested = false;
 			if (Closing.load(std::memory_order_acquire)) {
 				project_refuse("agent host is closing");
 				return;
@@ -376,8 +462,8 @@ namespace bpr::application {
 			// [[BPR-1900]]. A tour drafting run reads the workspace with
 			// read-only tools, for the two agents whose allowlist is recorded.
 			if (aRequest.ReadOnlyTools
-				&& (aRequest.WritingOnly || aRequest.ExistingCheckoutChosen || aRequest.ContinuedSession || aRequest.MeasurePaths.size() > maximum_measured_paths
-					|| (profile->Protocol != core::agent_protocol::claude_stream_json && profile->Protocol != core::agent_protocol::codex_jsonl_exec))) {
+				&& (aRequest.WritingOnly || aRequest.ExistingCheckoutChosen || aRequest.MeasurePaths.size() > maximum_measured_paths
+					|| (profile->Protocol != core::agent_protocol::claude_stream_json && profile->Protocol != core::agent_protocol::codex_jsonl_exec && profile->Protocol != core::agent_protocol::codex_app_server))) {
 				project_refuse("selected_agent_has_no_qualified_read_only_protocol");
 				return;
 			}
@@ -674,6 +760,9 @@ namespace bpr::application {
 		[[nodiscard]] auto cleanup_workspace(
 			const std::shared_ptr<invocation>& aInvocation) -> bool
 		{
+			if (aInvocation->RetainWorkspace) {
+				return true;
+			}
 			auto workspace = std::optional<owned_agent_workspace>{ };
 			{
 				std::scoped_lock lock{ aInvocation->WorkspaceMutex };
@@ -724,6 +813,52 @@ namespace bpr::application {
 					aInvocation->DurableRun.store(aInvocation->PrivateAdmission->Delta.Run.value(), std::memory_order_release);
 					post_private(aInvocation, aInvocation->PrivateAdmission->Delta, { });
 				}
+				const auto native = NativeSessions != nullptr && !aRequest.NativeAgentIdentity.empty() && !aRequest.NativeScope.empty()
+					&& !aRequest.WritingOnly && !aRequest.ExistingCheckoutChosen;
+				const auto refuseNative = [&](const std::string& aReason) {
+					finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = agent_run_outcome::private_storage_failure, .StandardError = aReason }, aInvocation);
+				};
+				if (native) {
+					if (!native_workspace_budget_available(WorkspaceParent)) {
+						refuseNative("Retained workspace storage reached its 16 GiB or 262144-entry bound, or could not be verified. Existing work was kept; no question was sent.");
+						return;
+					}
+					// Application/window and invocation IDs are deliberately absent.
+					const auto scope    = native_scope_key(aRequest.Authority, aRequest.NativeAgentIdentity, aRequest.NativeScope);
+					auto       selected = NativeSessions->select(scope, std::to_string(static_cast<unsigned>(aProfile.Protocol)) + ":" + aRequest.NativeAgentIdentity + (aRequest.ReadOnlyTools ? ":read-only" : ""),
+																 aInvocation->Identity.Session.Binding, aRequest.NativeStartAtCurrentRevision);
+					if (!selected) {
+						refuseNative("Native session storage is unavailable, full, or changed in another window. No question was sent.");
+						return;
+					}
+					if ((!aRequest.SelectedConversation.empty() && selected->Id != aRequest.SelectedConversation) || selected->Replay != aRequest.TranscriptReplay) {
+						refuseNative("The selected continuation changed. Open History and choose it again; no question was sent.");
+						return;
+					}
+					if (aProfile.Protocol == core::agent_protocol::external_terminal && !selected->Replay) {
+						refuseNative("This backend has no qualified native continuation. Choose Transcript replay or New session in History; no question was sent.");
+						return;
+					}
+					if (selected->Pending) {
+						refuseNative("The previous question may have been sent before interruption. It was not resent. Start a new session or inspect the native history before continuing.");
+						return;
+					}
+					auto bound    = aInvocation->Identity.Session;
+					bound.Binding = selected->Binding;
+					if (!core::may_treat_as_current(bound, aInvocation->Identity.Session.Binding)) {
+						refuseNative("This native session is pinned to an earlier revision. Explicitly continue that revision or start a new session.");
+						return;
+					}
+					aInvocation->Native = std::move(*selected);
+					if (aInvocation->Native->Replay) {
+						const auto history = NativeSessions->history(scope, aInvocation->Native->Configuration);
+						if (!history || history->Selected != aInvocation->Native->Id) {
+							refuseNative("Replay history changed or is unavailable. No question was sent.");
+							return;
+						}
+						aSupplement.Replay = prose_replay(*history, aRequest.ReadOnlyTools);
+					}
+				}
 				auto workspace     = std::optional<prepared_workspace>{ };
 				auto lifetimeGuard = std::optional<agent_workspace_lifetime_guard>{ };
 				if (aInvocation->Stop->stop_requested()) {
@@ -733,7 +868,18 @@ namespace bpr::application {
 						aInvocation);
 					return;
 				}
-				if (aRequest.ExistingCheckoutChosen) {
+				if (aInvocation->Native && !aInvocation->Native->Replay && aInvocation->Native->Workspace) {
+					auto retained               = *aInvocation->Native->Workspace;
+					retained.Authority          = aRequest.Authority;
+					retained.ApplicationSession = aRequest.ApplicationSession;
+					if (!Workspaces.inspect_agent_workspace(retained, aInvocation->Stop->get_token())) {
+						refuseNative("The retained native workspace or required Git objects are unavailable. Its transcript is kept; no clean replacement or question was sent.");
+						return;
+					}
+					workspace                    = retained.Workspace;
+					lifetimeGuard                = retained.LifetimeGuard;
+					aInvocation->RetainWorkspace = true;
+				} else if (aRequest.ExistingCheckoutChosen) {
 					workspace = std::move(aExisting.Workspace);
 				} else {
 					++WorkspaceStarts;
@@ -745,6 +891,7 @@ namespace bpr::application {
 							.ParentDirectory     = WorkspaceParent,
 							.HistoryClone        = aRequest.HistoryClone,
 							.HistoryCloneManaged = aRequest.HistoryCloneManaged,
+							.RetainForSession    = native && !aInvocation->Native->Replay,
 						},
 						aInvocation->Stop->get_token());
 					if (!materialized.has_value()) {
@@ -764,6 +911,9 @@ namespace bpr::application {
 					}
 					workspace     = materialized->Workspace;
 					lifetimeGuard = materialized->LifetimeGuard;
+					if (aInvocation->Native && !aInvocation->Native->Replay) {
+						aInvocation->Native->Workspace = *materialized;
+					}
 					track_workspace(aInvocation, std::move(*materialized));
 				}
 
@@ -797,6 +947,34 @@ namespace bpr::application {
 						aInvocation);
 					return;
 				}
+				if (aInvocation->Native) {
+					auto& session   = *aInvocation->Native;
+					session.Pending = true;
+					if (!NativeSessions->store(session)) {
+						refuseNative("The native session could not be saved. No question was sent.");
+						return;
+					}
+					if (!session.Replay) {
+						aInvocation->RetainWorkspace = true;
+						launch->NativeConversation   = session.Id;
+						launch->NativeHandle         = session.Handle;
+						launch->NativeTurn           = session.Turn;
+						launch->SaveNativeHandle     = std::make_shared<std::function<bool(const std::string&)>>([this, aInvocation](const std::string& aHandle) {
+							aInvocation->Native->Handle = aHandle;
+							return NativeSessions->store(*aInvocation->Native);
+						});
+						if (launch->Protocol == core::agent_protocol::codex_jsonl_exec) {
+							auto prepared = prepare_native_agent_turn(std::move(*launch), false);
+							if (!prepared) {
+								refuseNative("Native resume is unavailable for this configuration. No replay was attempted.");
+								return;
+							}
+							launch = std::move(*prepared);
+							// JSONL has exact-ID native resume, not persistent process reuse.
+							launch->NativeConversation.clear();
+						}
+					}
+				}
 				launch->WorkingDirectory       = workspace->Path;
 				launch->WorkspaceLifetimeGuard = std::move(lifetimeGuard);
 				if (aInvocation->Stop->stop_requested()) {
@@ -823,7 +1001,8 @@ namespace bpr::application {
 				const auto weak = weak_from_this();
 				// Owner decision 2026-10-23: no time limit unless the reviewer
 				// set one; Stop is always there.
-				auto result = Processes.run(
+				aInvocation->NativeSubmitted = true;
+				auto result                  = Processes.run(
 					*launch,
 					aRequest.RunLimitMilliseconds.value_or(agent_run_without_limit),
 					[weak, aInvocation](const agent_stream_event& aEvent) {
@@ -834,6 +1013,38 @@ namespace bpr::application {
 					aInvocation->Stop->get_token());
 				if (launch->PrivateInputClaim) {
 					launch->PrivateInputClaim->release();
+				}
+				if (aInvocation->Native) {
+					auto& session       = *aInvocation->Native;
+					result.Conversation = session.Id;
+					if (!session.Replay && !result.NativeHandle.empty()) {
+						session.Handle = result.NativeHandle;
+					}
+					session.Pending = !session.Replay && result.NativeHandle.empty() && session.Handle.empty() && result.Outcome != agent_run_outcome::failed_to_start;
+					++session.Turn;
+					auto answer = std::string{ };
+					if (aRequest.ReadOnlyTools && !result.AssistantItems.empty()) {
+						answer = result.AssistantItems.back();
+					} else {
+						for (const auto& item : result.AssistantItems) {
+							answer += item;
+						}
+					}
+					if (answer.empty()) {
+						for (const auto& event : result.Events) {
+							answer += event.Text;
+						}
+					}
+					auto turn     = agent_conversation_turn{ };
+					turn.Asked    = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion;
+					turn.Answered = std::move(answer);
+					turn.Ending   = std::string{ name(result.Outcome) };
+					turn.Outcome  = result.Outcome == agent_run_outcome::success ? core::agent_turn_outcome::answered : core::agent_turn_outcome::ended_without_answer;
+					auto bounded  = bound_conversation({ std::move(turn) });
+					if (!NativeSessions->append(session.Id, bounded.front()) || !NativeSessions->store(session)) {
+						result.Outcome       = agent_run_outcome::private_storage_failure;
+						result.StandardError = "The question ended, but native session storage failed. Its submission remains uncertain; it will not be resent.";
+					}
 				}
 				result.MeasuredLines = std::move(measured);
 				finish_run(std::move(result), aInvocation, true);
@@ -865,6 +1076,12 @@ namespace bpr::application {
 		}
 		void finish_run(agent_run_result aResult, const std::shared_ptr<invocation>& aInvocation, bool aProcessResult = false)
 		{
+			if (aInvocation->Native && aInvocation->Native->Pending && !aInvocation->NativeSubmitted) {
+				aInvocation->Native->Pending = false;
+				if (!NativeSessions->store(*aInvocation->Native)) {
+					aResult.Outcome = agent_run_outcome::private_storage_failure;
+				}
+			}
 			if (aInvocation->PrivateAdmission) {
 				if (aInvocation->ExplicitlyCancelled.load(std::memory_order_acquire) && aResult.Outcome == agent_run_outcome::success) {
 					aResult.Outcome = agent_run_outcome::cancelled;
@@ -1026,6 +1243,7 @@ namespace bpr::application {
 									aInvocation->Snapshot,
 									observed));
 						}
+						self->NativeRestoreKey.clear();
 						self->project_finish(aInvocation->Identity, final);
 						aInvocation->TerminalComplete.store(
 							true, std::memory_order_release);
@@ -1105,6 +1323,26 @@ namespace bpr::application {
 				}
 			}
 			ActiveJobs.store(0U, std::memory_order_release);
+			if (HasDeferredNativeHistory.exchange(false)) {
+				++Probes;
+				try {
+					DecisionLane.post([self = shared_from_this()] {
+						--self->Probes;
+						if (!self->Closing) {
+							auto choice      = std::exchange(self->DeferredNativeChoice, { });
+							auto observation = std::exchange(self->DeferredNativeHistory, { });
+							if (choice) {
+								choice();
+							}
+							if (observation) {
+								observation();
+							}
+						}
+					});
+				} catch (...) {
+					--Probes;
+				}
+			}
 		}
 
 		void cancel()
@@ -1115,12 +1353,13 @@ namespace bpr::application {
 				active             = ActiveInvocation;
 				AdmissionCancelled = AdmissionCancelled || AdmissionPending;
 			}
+			NativeDrainRequested = true;
+			Processes.cancel();
 			if (!active) {
 				return;
 			}
 			active->ExplicitlyCancelled.store(true, std::memory_order_release);
 			static_cast<void>(active->Stop->request_stop());
-			Processes.cancel();
 		}
 
 		void supersede(const supersession_cause aCause)
@@ -1189,6 +1428,134 @@ namespace bpr::application {
 		decision_executor&                   DecisionLane;
 		agent_invocation_projection_port&    Projection;
 		private_agent_run_port*              PrivateRuns;
+		void                                 restore_native(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice, std::optional<agent_conversation_key> aLegacy)
+		{
+			const auto self = shared_from_this();
+			if (self->Closing || !self->NativeSessions || aAgentIdentity.empty() || !self->Authority || !self->Binding || !self->ApplicationSession) {
+				return;
+			}
+			{
+				std::unique_lock lock{ self->StateMutex };
+				if (self->ActiveInvocation) {
+					if ((aChoice && !self->ActiveInvocation->TerminalComplete) || (aChoice && self->DeferredNativeChoice)) {
+						lock.unlock();
+						self->project_refuse("Stop the current turn and wait for it to finish before starting or opening a session.");
+						return;
+					}
+					const auto explicitChoice = aChoice.has_value();
+					auto       deferred       = [weak = weak_from_this(), aProfile, agent = std::move(aAgentIdentity), scope = std::move(aScope), choice = std::move(aChoice), legacy = aLegacy, application = self->ApplicationSession, authority = self->Authority, binding = self->Binding]() mutable {
+						if (auto owner = weak.lock(); owner && owner->ApplicationSession == application && owner->Authority == authority && owner->Binding == binding) {
+							owner->restore_native(aProfile, std::move(agent), std::move(scope), std::move(choice), std::move(legacy));
+						}
+					};
+					if (explicitChoice) {
+						self->DeferredNativeChoice = std::move(deferred);
+					} else {
+						self->DeferredNativeHistory = std::move(deferred);
+					}
+					self->HasDeferredNativeHistory = true;
+					return;
+				}
+			}
+
+			const auto profile = std::ranges::find(self->Profiles, aProfile, &core::agent_profile::Id);
+			if (profile == self->Profiles.end()) {
+				return;
+			}
+			const auto scope      = native_scope_key(*self->Authority, aAgentIdentity, aScope);
+			const auto activation = std::to_string(self->ApplicationSession->value()) + ":" + scope;
+			if (!aChoice && self->NativeRestoreKey == activation) {
+				return;
+			}
+			self->NativeRestoreKey     = activation;
+			const auto generation      = ++self->NativeRestoreGeneration;
+			const auto observed        = *self->Binding;
+			const auto nativeSupported = profile->Protocol != core::agent_protocol::external_terminal;
+			const auto configuration   = std::to_string(static_cast<unsigned>(profile->Protocol)) + ":" + aAgentIdentity + (aScope.starts_with("tour:") ? ":read-only" : "");
+			++self->Probes;
+			try {
+				if (!aChoice || !aChoice->starts_with("view:")) {
+					self->Projection.present_native_history({ .Scope = aScope, .Loading = true });
+				}
+			} catch (...) { }
+			try {
+				self->Effects.post([self, scope, configuration, observed, aProfile, generation, aScope, choice = std::move(aChoice), legacy = aLegacy, nativeSupported] {
+					auto loaded  = std::expected<std::optional<native_agent_session>, native_agent_storage_failure>{ std::unexpected(native_agent_storage_failure::unavailable) };
+					auto history = std::expected<native_agent_history_projection, native_agent_storage_failure>{ std::unexpected(native_agent_storage_failure::unavailable) };
+					try {
+						if (choice && !choice->starts_with("view:")) {
+							auto selected = choice->empty() && !nativeSupported ? self->NativeSessions->replay(scope, configuration, observed, "", legacy) : choice->starts_with("replay:") ? self->NativeSessions->replay(scope, configuration, observed, choice->substr(7U), legacy)
+																																															: self->NativeSessions->choose(scope, configuration, observed, *choice);
+							if (selected) {
+								loaded = std::optional{ std::move(*selected) };
+							} else {
+								loaded = std::unexpected(selected.error());
+							}
+						} else {
+							loaded = self->NativeSessions->find(scope, configuration, observed);
+						}
+						history = self->NativeSessions->history(scope, configuration, choice && choice->starts_with("view:") ? choice->substr(5U) : std::string{ }, legacy);
+					} catch (...) { }
+					try {
+						self->DecisionLane.post([self, outcome = std::move(loaded), savedHistory = std::move(history), aScope, aProfile, generation, nativeSupported] {
+							--self->Probes;
+							if (self->Closing || generation != self->NativeRestoreGeneration || !self->Binding || self->ActiveInvocation) {
+								return;
+							}
+							auto view               = savedHistory ? std::move(*savedHistory) : native_agent_history_projection{ };
+							view.Scope              = aScope;
+							view.NativeSupported    = nativeSupported;
+							const auto replay       = prose_replay(view, aScope.starts_with("tour:"));
+							view.ReplayTurnsOmitted = replay.Omitted;
+							view.ReplayTextCutBytes = replay.CutBytes;
+							if (!outcome || !savedHistory) {
+								view.Failure = "Session history could not be saved or opened. The previous session was kept; no question was sent.";
+							}
+							try {
+								self->Projection.present_native_history(view);
+							} catch (...) { }
+							if (view.ReadOnly) {
+								return;
+							}
+							if (!outcome) {
+								self->NativeRestoreKey.clear();
+								self->project_refuse("native_session_history_unavailable");
+								return;
+							}
+							if (*outcome && (**outcome).Pending) {
+								self->project_refuse("The previous question may have been sent before interruption. It was not resent. Choose New session or explicitly create Transcript replay.");
+							}
+							if (!*outcome || (**outcome).Replay || !(**outcome).Workspace || (**outcome).Handle.empty()) {
+								return;
+							}
+							const auto& saved   = **outcome;
+							auto        session = core::agent_session{ };
+							session.Id          = saved.Workspace->Session;
+							session.Profile     = aProfile;
+							session.Binding     = saved.Binding;
+							if (!core::valid_agent_session(session)) {
+								self->project_refuse("native_session_history_invalid");
+								return;
+							}
+							try {
+								self->Projection.restore_native_session(session);
+							} catch (...) { }
+							self->project_session_catalog({ .Latest = session, .LatestStatus = core::observe_agent_session(session, *self->Binding) });
+						});
+					} catch (...) {
+						--self->Probes;
+					}
+				});
+			} catch (...) {
+				--self->Probes;
+			}
+		}
+
+		std::function<void()> DeferredNativeHistory;
+		std::function<void()> DeferredNativeChoice;
+		std::atomic_bool      HasDeferredNativeHistory = false;
+
+		native_agent_session_store_port* NativeSessions;
 
 		mutable std::mutex                          StateMutex;
 		std::optional<core::application_session_id> ApplicationSession;
@@ -1201,8 +1568,11 @@ namespace bpr::application {
 		bool AdmissionPending   = false;
 		bool AdmissionCancelled = false;
 
-		std::atomic_bool   Closing    = false;
-		std::atomic_size_t ActiveJobs = 0U;
+		std::string        NativeRestoreKey;
+		std::uint64_t      NativeRestoreGeneration = 0U;
+		std::atomic_bool   NativeDrainRequested    = false;
+		std::atomic_bool   Closing                 = false;
+		std::atomic_size_t ActiveJobs              = 0U;
 		/// [[BPR-1751]]. Workspace probes posted and not yet answered.
 		std::atomic_size_t                     Probes        = 0U;
 		std::atomic_uint64_t                   ProbeSessions = 0U;
@@ -1232,7 +1602,7 @@ namespace bpr::application {
 		effect_executor&                     aEffects,
 		decision_executor&                   aDecisionLane,
 		agent_invocation_projection_port&    aProjection,
-		private_agent_run_port*              aPrivateRuns)
+		private_agent_run_port* aPrivateRuns, native_agent_session_store_port* aNativeSessions)
 		: Implementation{ std::make_shared<implementation>(
 			  std::move(aProfiles),
 			  std::move(aPolicies),
@@ -1243,7 +1613,7 @@ namespace bpr::application {
 			  std::move(aEnvironment),
 			  aEffects,
 			  aDecisionLane,
-			  aProjection, aPrivateRuns) }
+			  aProjection, aPrivateRuns, aNativeSessions) }
 	{
 	}
 
@@ -1265,6 +1635,11 @@ namespace bpr::application {
 			aApplicationSession,
 			std::move(aAuthority),
 			std::move(aBinding));
+	}
+
+	void agent_invocation_host::restore_native(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice, std::optional<agent_conversation_key> aLegacy)
+	{
+		Implementation->restore_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::move(aChoice), std::move(aLegacy));
 	}
 
 	void agent_invocation_host::clear()
@@ -1301,7 +1676,8 @@ namespace bpr::application {
 	auto agent_invocation_host::is_quiescent() const noexcept -> bool
 	{
 		const auto implementation = Implementation;
-		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U && implementation->Probes.load(std::memory_order_acquire) == 0U;
+		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U && implementation->Probes.load(std::memory_order_acquire) == 0U
+			&& (!implementation->NativeDrainRequested || implementation->Processes.native_connections_quiescent());
 	}
 
 	void agent_invocation_host::probe_workspace(const core::application_session_id aApplicationSession, core::pull_request_authority aAuthority,

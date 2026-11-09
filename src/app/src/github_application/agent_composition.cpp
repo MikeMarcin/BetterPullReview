@@ -283,6 +283,15 @@ namespace bpr::app {
 		}
 	}
 
+	void composition_agent_invocation_projection::restore_native_session(const core::agent_session& aSession)
+	{
+		if (NativeSession) {
+			NativeSession(aSession);
+		} else if (Sessions) {
+			Sessions(aSession);
+		}
+	}
+
 	void composition_agent_invocation_projection::present_session_catalog(
 		const application::agent_session_catalog_projection& aProjection)
 

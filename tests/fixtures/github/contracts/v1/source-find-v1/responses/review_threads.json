@@ -6,6 +6,18 @@
 				"files": {
 					"nodes": [
 						{
+							"path": "src/added.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/empty.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/emptied.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
 							"path": "src/find.cpp",
 							"viewerViewedState": "UNVIEWED"
 						},
@@ -18,7 +30,7 @@
 						"endCursor": "cursor:bpr-fixtures/source-find:77:files",
 						"hasNextPage": false
 					},
-					"totalCount": 2
+					"totalCount": 5
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
 				"id": "PR_77",

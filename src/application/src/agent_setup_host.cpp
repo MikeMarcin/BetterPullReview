@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <random>
 #include <stop_token>
 #include <utility>
 
@@ -74,6 +75,19 @@ namespace bpr::application {
 			return core::agent_setup_failure::failed_to_start;
 		}
 	} // namespace
+
+	namespace {
+		auto mint_agent_identity() -> std::string
+		{
+			auto           random   = std::random_device{ };
+			auto           identity = std::string{ };
+			constexpr auto digits   = std::string_view{ "0123456789abcdef" };
+			for (auto index = 0U; index < 32U; ++index) {
+				identity += digits[random() & 15U];
+			}
+			return identity;
+		}
+	}
 
 	struct agent_setup_host::implementation final : std::enable_shared_from_this<implementation>
 	{
@@ -158,19 +172,32 @@ namespace bpr::application {
 		{
 			auto& preferences = Projection.Preferences;
 			if (preferences.AgentsMoved) {
+				auto changed = false;
+				for (auto& entry : preferences.Agents) {
+					if (entry.Identity.empty()) {
+						entry.Identity = mint_agent_identity();
+						changed        = true;
+					}
+				}
+				if (changed) {
+					save();
+				}
 				return;
 			}
-			auto legacy                = core::legacy_agent_settings{ };
-			legacy.Chosen              = preferences.Chosen;
-			legacy.CodexProtocol       = preferences.CodexProtocol;
-			legacy.ClaudeWrapper       = Dependencies.ClaudeWrapper ? Dependencies.ClaudeWrapper->current() : std::string{ };
-			legacy.ClaudeModel         = Dependencies.LegacyClaudeModel ? Dependencies.LegacyClaudeModel() : std::string{ };
-			legacy.ClaudeEffort        = preferences.ClaudeEffort;
-			legacy.CodexProgram        = preferences.CodexProgram;
-			legacy.CodexModel          = preferences.CodexModel;
-			legacy.CodexEffort         = preferences.CodexEffort;
-			legacy.HarnessProgram      = preferences.HarnessProgram;
-			preferences.Agents         = core::migrate_agent_entries(legacy);
+			auto legacy           = core::legacy_agent_settings{ };
+			legacy.Chosen         = preferences.Chosen;
+			legacy.CodexProtocol  = preferences.CodexProtocol;
+			legacy.ClaudeWrapper  = Dependencies.ClaudeWrapper ? Dependencies.ClaudeWrapper->current() : std::string{ };
+			legacy.ClaudeModel    = Dependencies.LegacyClaudeModel ? Dependencies.LegacyClaudeModel() : std::string{ };
+			legacy.ClaudeEffort   = preferences.ClaudeEffort;
+			legacy.CodexProgram   = preferences.CodexProgram;
+			legacy.CodexModel     = preferences.CodexModel;
+			legacy.CodexEffort    = preferences.CodexEffort;
+			legacy.HarnessProgram = preferences.HarnessProgram;
+			preferences.Agents    = core::migrate_agent_entries(legacy);
+			for (auto& entry : preferences.Agents) {
+				entry.Identity = mint_agent_identity();
+			}
 			preferences.AgentsMoved    = true;
 			preferences.PreferredAgent = preferences.Agents.empty() || !preferences.Chosen ? 0U : preferences.Agents.front().Id;
 			save();
@@ -454,7 +481,8 @@ namespace bpr::application {
 		}()
 			: core::find_preset_entry(preferences.Agents, aAgent);
 		if (entry == nullptr && (aAgent != core::setup_agent::plain_text_harness || !preferences.HarnessProgram.empty())) {
-			auto preset = core::preset_agent_entry(aAgent, preferences.CodexProtocol, aAgent == core::setup_agent::plain_text_harness ? preferences.HarnessProgram : std::string{ });
+			auto preset     = core::preset_agent_entry(aAgent, preferences.CodexProtocol, aAgent == core::setup_agent::plain_text_harness ? preferences.HarnessProgram : std::string{ });
+			preset.Identity = mint_agent_identity();
 			if (auto added = core::add_agent_entry(preferences.Agents, std::move(preset))) {
 				preferences.Agents = std::move(*added);
 				entry              = &preferences.Agents.back();
@@ -467,8 +495,9 @@ namespace bpr::application {
 
 	void agent_setup_host::add_agent(core::agent_entry aEntry, const bool aPrefer, agent_entry_answer aAnswered)
 	{
-		auto& host  = *Implementation;
-		auto  added = core::add_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
+		auto& host      = *Implementation;
+		aEntry.Identity = mint_agent_identity();
+		auto added      = core::add_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
 		if (!added) {
 			if (aAnswered) {
 				aAnswered(added.error());
@@ -498,7 +527,14 @@ namespace bpr::application {
 		auto&             host      = *Implementation;
 		const auto* const current   = host.preferred_entry();
 		const auto        preferred = current != nullptr && current->Id == aEntry.Id;
-		auto              updated   = core::update_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
+		const auto        original  = std::ranges::find(host.Projection.Preferences.Agents, aEntry.Id, &core::agent_entry::Id);
+		if (original != host.Projection.Preferences.Agents.end()) {
+			aEntry.Identity = original->Protocol == aEntry.Protocol && original->Program == aEntry.Program && original->Arguments == aEntry.Arguments
+					&& original->StrictRunChecks == aEntry.StrictRunChecks
+				? original->Identity
+				: mint_agent_identity();
+		}
+		auto updated = core::update_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
 		if (!updated) {
 			if (aAnswered) {
 				aAnswered(updated.error());

@@ -391,6 +391,51 @@ namespace bpr::core {
 		return { };
 	}
 
+	auto bound_transcript_replay(std::vector<brief_turn> aTurns, const bool aTour) -> transcript_replay
+	{
+		auto result = transcript_replay{ };
+		result.Tour = aTour;
+		auto room   = maximum_brief_conversation_bytes;
+		auto first  = aTurns.size();
+		while (first > 0U && aTurns.size() - first < (aTour ? 12U : maximum_brief_turns)) {
+			auto&      turn   = aTurns[first - 1U];
+			const auto before = turn.Asked.size() + turn.Answered.size();
+			if (!aTour) {
+				turn.Asked    = cut_text(turn.Asked, maximum_brief_turn_bytes);
+				turn.Answered = cut_text(turn.Answered, maximum_brief_turn_bytes);
+			}
+			const auto bytes = turn.Asked.size() + turn.Answered.size();
+			if (bytes > room) {
+				break;
+			}
+			result.CutBytes += before - bytes;
+			room -= bytes;
+			--first;
+		}
+		result.Omitted = first;
+		result.Turns.assign(std::make_move_iterator(aTurns.begin() + static_cast<std::ptrdiff_t>(first)), std::make_move_iterator(aTurns.end()));
+		return result;
+	}
+	// Reapply the same bounds; callers cannot smuggle an oversized replay carrier.
+	auto valid_transcript_replay(const transcript_replay& aReplay) -> bool
+	{
+		if (aReplay.Turns.size() > (aReplay.Tour ? 12U : maximum_brief_turns)) {
+			return false;
+		}
+		auto room = maximum_brief_conversation_bytes;
+		for (const auto& turn : aReplay.Turns) {
+			if (!valid_writing_utf8(turn.Asked) || !valid_writing_utf8(turn.Answered) || (!aReplay.Tour && (turn.Asked.size() > maximum_brief_turn_bytes || turn.Answered.size() > maximum_brief_turn_bytes)) || turn.Asked.size() > room) {
+				return false;
+			}
+			room -= turn.Asked.size();
+			if (turn.Answered.size() > room) {
+				return false;
+			}
+			room -= turn.Answered.size();
+		}
+		return true;
+	}
+
 	auto bound_review_brief(review_brief_input aInput) -> std::optional<supplement_brief>
 	{
 		if (!enumerator_at_most(aInput.Workspace, brief_workspace::private_snapshot) || (aInput.Skill && !valid_skill(*aInput.Skill))) {

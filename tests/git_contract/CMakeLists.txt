@@ -87,6 +87,11 @@ target_compile_definitions(
         BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
         BPR_FSCK_SEVERITY_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/git/fsck-severity/v1"
 )
+if(TARGET tool_better_pull_review_agent_supervisor)
+    add_dependencies(test_better_pull_review_git_process_contract_tests tool_better_pull_review_agent_supervisor)
+    target_compile_definitions(test_better_pull_review_git_process_contract_tests PRIVATE
+        "BPR_AGENT_SUPERVISOR_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_agent_supervisor>\"")
+endif()
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(
         test_better_pull_review_git_process_contract_tests

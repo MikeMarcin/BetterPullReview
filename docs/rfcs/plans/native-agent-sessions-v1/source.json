@@ -1,0 +1,14 @@
+{
+  "mapping": {
+    "DRAFT-0001": "BPR-1951",
+    "DRAFT-0002": "BPR-1952",
+    "DRAFT-0003": "BPR-1953",
+    "DRAFT-0004": "BPR-1954",
+    "DRAFT-0005": "BPR-1955",
+    "DRAFT-0006": "BPR-1956",
+    "RFC-DRAFT-0030": "RFC-BPR-0096"
+  },
+  "plan_path": "docs/rfcs/plans/native-agent-sessions-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "ed5d8e27a2d462710ddbec2ede25232dadeea1538e7ba247c5216381c815d466"
+}

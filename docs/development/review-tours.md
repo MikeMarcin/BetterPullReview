@@ -44,6 +44,48 @@ The assist buttons rewrite a field or selection as one undoable edit; their
 instructions live in [Settings](settings.md#review-preparation-writing-hooks).
 AI text is never published without you, so check its claims.
 
+The whole tour, Problem, Solution and each stop have separate conversations for
+the selected agent. **Draft Tour** and that agent's whole-tour chat continue the
+same native session. Small writing hooks remain separate requests.
+
+**New session** starts fresh in the selected chat and retains its earlier
+conversation in **History**. It asks no clear-confirmation question and sends
+nothing until you send a message. Choose an earlier session to read it or
+continue it after its revision and permissions are checked. A storage refusal
+keeps the previous session selected. **Other tour chats and detached history**
+opens retained chats for reading, including removed stops and drafts left behind
+by Reset tour. It does not make them the current draft's conversation.
+
+When the head changes, the chat shows its saved revision and the current head.
+Choose **Continue old revision** to keep its exact native conversation and
+workspace, or **New session** to work at the current revision. Choosing sends
+no question. Changing the selected chat/history or the observed revision requires
+choosing again. A continued answer and any source proposal retain the revision
+the agent actually read; current tour facts still accompany the next question.
+
+Starting or reopening a session preserves accepted tour text, sources, focus,
+notes and comment drafts. **Reset tour** is separate: its existing confirmation
+clears the active tour and proposal associations; **Undo reset** restores them.
+Neither action deletes the agent's own transcript. Native conversations retain
+previously sent context, even after its selection is removed; New session begins
+without that older memory and receives the current selected context.
+
+Each explicit tour message carries BPR's versioned guide and a complete current
+snapshot. The snapshot separates confirmed lines, preparation **Ready**, and
+publication eligibility, and includes pending proposals and recorded decisions.
+**Source needs attention** describes changed, ambiguous, missing or unavailable
+source evidence. **Lines not confirmed** means there is no confirmed source
+binding; accepting an explanation does not supply one. To confirm a proposed
+place, choose **Show in code**, select its exact lines, edit the stop, and choose
+**Use selected lines**. A confirmed author-selected replacement alone needs no
+attention warning. Editing text or reordering preserves its confirmed binding.
+
+After a head change, an answer must distinguish the revision its workspace read
+from the observed head. Missing evidence stays unknown. Refreshing the tour sends
+no question. Context updates accompany an explicit send, and the complete request
+is refused if the required snapshot exceeds the 160 KiB carrier. Typed questions
+have a separate 16 KiB limit.
+
 Drafts stay on this computer; see
 [Storage and diagnostics](storage-and-diagnostics.md). To work with tours from
 a terminal, see the [tour CLI](tour-cli.md).

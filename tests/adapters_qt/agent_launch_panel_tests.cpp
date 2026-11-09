@@ -140,7 +140,10 @@ namespace {
 		const auto otherData = panel.profile_selector()->itemData(other);
 		panel.profile_selector()->setCurrentIndex(other);
 		expect(panel.profile_selector()->currentData() == otherData, "the reviewer chooses another");
+		auto selectionChanges = 0U;
+		QObject::connect(panel.profile_selector(), &QComboBox::currentIndexChanged, &panel, [&selectionChanges] { ++selectionChanges; });
 		panel.offer_profiles(shipped);
+		expect(selectionChanges == 0U, "offering unchanged profiles emits no transient empty or different agent selection");
 		expect(panel.profile_selector()->currentData() == otherData, "offered again, the reviewer's choice is kept, not the saved profile");
 		panel.prefer_profile(core::claude_stream_json_profile_id);
 		panel.offer_profiles(shipped);

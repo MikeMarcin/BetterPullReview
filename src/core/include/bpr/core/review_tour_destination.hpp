@@ -45,6 +45,54 @@ namespace bpr::core {
 		bool                IncompatibleBody                                       = false;
 		auto                operator==(const tour_destination_plan&) const -> bool = default;
 	};
+	/// \brief Semantic reasons shared by presentation and tour-agent context.
+	enum class tour_status_reason : std::uint8_t {
+		lines_unconfirmed,
+		source_changed,
+		source_ambiguous,
+		source_missing,
+		source_unavailable,
+		title_missing,
+		explanation_missing,
+		generated_unvisited,
+		generated_not_ready,
+		preparation_attention,
+		explanation_not_reaffirmed,
+		read_only,
+		invalid_tour,
+		problem_missing,
+		solution_missing,
+		no_stops,
+		too_many_stops,
+		remote_not_owned,
+		remote_stale,
+		edit_conflict,
+		baseline_missing,
+		destination_unknown,
+		incompatible_body,
+		compatibility_required,
+		destination_unsupported,
+		body_edits_unqualified,
+		stop_not_owned,
+		stop_baseline_missing,
+		source_not_visible,
+	};
+	/// \brief Confirmation, preparation and publication are separate facts; no path implies confirmation.
+	struct tour_stop_status
+	{
+		bool                            ConfirmedLines     = false;
+		bool                            SourceAttention    = false;
+		bool                            ReadyEligible      = false;
+		bool                            ExplanationCurrent = false;
+		std::vector<tour_status_reason> SourceReasons, ReadyReasons, PublicationReasons;
+		std::vector<std::string>        AvailableActions;
+	};
+	[[nodiscard]] auto tour_reason_name(tour_status_reason aReason) noexcept -> std::string_view;
+	[[nodiscard]] auto tour_mapping_name(tour_mapping aMapping) noexcept -> std::string_view;
+	/// \brief Current stop facts. Attention is the explicit observed editor/selected-source state.
+	[[nodiscard]] auto project_tour_stop_status(const review_tour& aTour, const tour_stop& aStop, const tour_attention& aAttention = { }) -> tour_stop_status;
+	/// \brief Complete tour-level blockers from the same policy as assess_tour_publication/update.
+	[[nodiscard]] auto tour_publication_reasons(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility, tour_operation_support aBodyEdits = tour_operation_support::unknown) -> std::vector<tour_status_reason>;
 	enum class tour_publication_readiness : std::uint8_t { incomplete,
 														   unavailable,
 														   compatibility_choice,

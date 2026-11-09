@@ -184,7 +184,7 @@ Git hosts map to allowed or required agent profiles. A corporate GHES profile ca
 ## Workspaces
 
 - Existing checkout: deliberate user selection for repository-wide context.
-- Disposable review workspace: default for bounded AI review, pinned to the exact review head and isolated from the active worktree.
+- Private review workspace: default for bounded AI review, pinned to the exact review head and isolated from the active worktree. Native Agent-tab conversations retain it for later turns; one-shot requests dispose of it after completion.
 
 The disposable destination is owner-private and outside the retained cache.
 The cache actor initializes a new repository, transfers the exact requested head
@@ -192,10 +192,21 @@ through Git pack plumbing, checks it out detached, and validates that no
 remote, alternate, hook, or linked-worktree topology crossed. It creates no
 cache ref and no hardlink. Cleanup requires the marker and the opaque directory
 identity captured at creation; a same-path, same-marker substitute is not
-authorized. Cleanup runs only after terminal delivery, and cancellation,
+authorized. One-shot cleanup runs only after terminal delivery, and cancellation,
 staleness, and orderly shutdown use the same bounded path. The child working
 directory is assigned only after materialization. Existing-checkout mode
 remains a per-invocation choice and discloses dirty or unknown state.
+
+[RFC-BPR-0096](../rfcs/RFC-BPR-0096-native-agent-sessions-and-tour-context.md)
+adds retained native workspaces for the Agent tab and per-agent tour chats. A durable session owns its original
+workspace and guard identities and journal phase 7. Startup recovery preserves
+that state even with no live process. Resume checks the marker, captured directory
+and guard identities, pinned HEAD and available required object closure; it never
+cleans allowed edits to make a resume succeed. Before retention, borrowed objects
+are packed locally and the alternates file is removed, so removing the linked
+clone does not invalidate a retained tree. A missing or unverifiable tree refuses
+input and is preserved for repair. Retention and safe admission bounds are recorded
+in the [RFC-0096 ledger](../verification/RFC-BPR-0096.md).
 
 **A linked clone's history ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md), Q7, Q8 A).**
 When the pull request's repository is linked to the reviewer's own clone, the
@@ -234,21 +245,64 @@ changed files with their status, the review threads (64 KiB in all, unresolved
 first, omissions counted), the workspace's kind (`linked_clone_history`,
 `private_copy` or `private_snapshot`, set once it is made), the diff named
 rather than copied (`git diff BASE...HEAD`, none for a snapshot), and the
-review skill's text. It also carries the conversation so far about the pull
-request ([[BPR-1753]], owner decision (b), 2026-10-23): the earlier
-questions and answers, oldest first (`brief.conversation.N.asked` and
-`.answered`), each side cut to 8 KiB, the newest 50 turns within 48 KiB and
-the older ones counted (`brief.conversation.omitted`). The application
-carries the conversation rather than a harness's own resumable session, so a
-follow-up continues it in whichever agent answers. The turns are kept, as the
-Agent tab shows them, in the profile's `agent-setup.sqlite3` for each pull
-request (host, owner, name and number; at most 50 turns, 64 KiB per text and
-500 pull requests, the least recently written going first); Clear session
-removes them, and settings resets remove the file. They are the reviewer's
-questions and the agent's prose, and no credential. Its lines follow every
-version-two field and are written only when present, so a launch without a
-brief differs from version two only in its `schema` line. The agent may still
-read GitHub through its own tools.
+review skill's text. Native Agent-tab Claude stream-json and Codex App Server continue the selected
+agent's durable conversation, without replaying shortened prose as native memory.
+Codex JSONL reconnects by exact native ID with a process per turn. The retained
+BPR display keeps at most 50 turns and 64 KiB per text; it is not a complete
+native transcript viewer.
+
+A persistent connection keeps bounded Claude assistant-envelope identities across
+turns, including tool-only messages and exact envelope digests when older messages
+omit an ID. Reported result UUIDs are fenced separately. Reusing an earlier turn's
+identity refuses the turn; the 4,096-identity connection bound refuses rather than
+forgetting old fences. Each turn still resets its output budget. An incomplete idle
+frame finishes under its original decoder before another question can be selected.
+
+A Claude result without a terminal UUID is accepted only as a transport's sole
+native turn. BPR retires that connection before publishing its answer or selecting
+another question. The native handle and workspace remain retained; a later explicit
+question exact-resumes them on a fresh process. Retirement sends no question and
+never retries or switches to replay. An already-connected turn without a UUID, or
+any result reporting a malformed UUID, refuses. Identical valid UUID-less results
+on separate fresh transports remain legal: content equality cannot distinguish a
+late terminal from a legitimate repeated answer. Such older envelopes are not
+qualified for persistent process reuse; UUID-bearing streams retain that route.
+
+A retained sparse workspace records its original missing object IDs in private
+conversation metadata, atomically with the session revision. Resume permits those
+original unselected blob holes, but refuses a newly missing selected blob or head
+tree. The bounded object walk admits at most 262,144 entries and 64 MiB of output.
+Complete workspaces also check required base closure; an advertised head-only sparse
+workspace does not claim to hold unfetched base history. Older sparse records without
+this evidence refuse resume and preserve their files; BPR never reconstructs the
+allowlist from an agent-editable index or configuration. New session or explicitly
+chosen Transcript replay remains available under its usual checks.
+
+**Transcript replay** is an explicit alternative for unsupported backends or
+unavailable native state. Choosing it creates a separate generation at the shown
+revision and keeps the source history, native handle and owned workspace intact.
+It sends saved answered questions/replies in `transcript_replay.*`, counting
+omitted turns and cut bytes. Agent replay takes the newest 50 within 48 KiB,
+with 8 KiB per field; tour replay takes the newest 12 answered turns within
+48 KiB. Prior tool observations and workspace changes are absent. Each replay
+turn gets a new private workspace and the same authority/tool/network checks.
+A failed native turn never automatically resends through replay. Legacy numeric
+slots remain labelled unknown identities, readable without sending; using them
+requires an explicit replay destination, even if today's agent uses that slot.
+Earlier storage omissions that were never recorded remain unknown.
+
+**New session** keeps earlier generations in scoped History and sends nothing.
+An unused empty generation is reused. Native-capable entries start native;
+unsupported entries select a visibly labelled empty replay generation. New session
+is neither deletion nor profile purge. Both legacy and native writers share the
+500-record admission bound across surfaces/generations. Admission refuses safely
+instead of pruning protected records or owned workspaces; an existing record can
+still be saved at capacity. A failed legacy or native save is visible. The
+128-entry invocation metadata catalog does not own resume state. BPR metadata and
+saved prose live in the profile's `agent-setup.sqlite3`; agent-owned transcripts
+and retained workspaces have separate ownership and cleanup. Removing the setup/history catalog does not delete agent-owned transcripts or
+establish safe retained-workspace reclamation.
+
 
 **A question about one conversation ([[BPR-1773]]).** The eighth entry
 point, `ask_about_conversation`, is a chat turn whose subject is the review
@@ -503,7 +557,16 @@ The application composition follows one public route: the workbench panel emits
 an intent; `agent_invocation_host` reruns core legality and validates the full
 current context, durably admits an immutable session, then materializes the
 workspace through the retained cache actor, starts the adapter, serializes
-stream/terminal projection, and cleans the owned workspace. A core/context
+stream/terminal projection, and cleans a one-shot owned workspace. Native
+Agent-tab sessions retain the workspace and opaque backend handle in private
+SQLite storage, separately from the bounded invocation catalog. Selection alone
+restores metadata and cannot send input. Each explicit send saves a pending marker
+under an optimistic revision check before launch/input; an uncertain previous
+submission refuses automatic retry. Claude and Codex App Server connections remain
+open after successful turns, with independent per-turn budgets and correlation.
+Stop/shutdown drain those supervised connections without deleting durable history.
+Native context already received by the agent survives a later removal from the
+BPR context selection. A core/context
 refusal performs no session write. A session-store refusal is typed and visible
 before workspace, environment, executable, or process work. Workspace and
 parent-root cleanup each require their originally captured directory identity;
@@ -1657,8 +1720,10 @@ tool-free as above. A read-only Claude launch adds
 `--allowedTools` list of Read, Grep, Glob and the shell programs `rg`, `grep`,
 `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `find` and `git log|show|blame|diff|grep|ls-files`,
 `--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`,
-an empty strict MCP configuration, no setting sources, no slash commands, no
-saved session, `claude_writing_settings` and auto-memory off. In print mode a
+an empty strict MCP configuration, no setting sources, no slash commands,
+`claude_writing_settings` and auto-memory off. Native conversational launches
+retain the native transcript; one-shot writing launches keep their no-session
+restriction. In print mode a
 tool use outside the allowed list is denied without a prompt.
 
 Claude's permission check is the gate ([[BPR-1912]]). It decides before a
@@ -1696,8 +1761,13 @@ without a note, are `rg`, `grep`, `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `sort
 only) and `git log|show|blame|diff|grep|ls-files|status|rev-parse|shortlog|describe|cat-file|ls-tree|merge-base|name-rev`. A read-only Codex launch is
 `codex exec --json --sandbox read-only -c approval_policy="never" -c mcp_servers={} -c tools.web_search=false -`:
 Codex's own sandbox holds it to reading with no network; its commands are
-shown in the transcript and not re-checked. The App Server and the plain-text
-harness have no recorded read-only mode and are refused.
+shown in the transcript and not re-checked. Conversational App Server launches
+disable MCP and web-search configuration, set `approvalPolicy: never` and
+`sandbox: read-only` on both thread creation and exact-ID resume, and reapply
+`readOnly` with network access false on every turn. These fields follow the
+installed 0.164.0 protocol schema; functional fixtures verify the serialized
+configuration. Installed permission enforcement remains BPR-1955 qualification.
+The plain-text harness has no recorded read-only mode and is refused.
 
 Before a whole-tour run starts the host counts the head lines of the pull
 request's files in the new workspace (`measure_workspace_lines`: regular

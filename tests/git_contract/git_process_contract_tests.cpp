@@ -1,6 +1,7 @@
 #include "../../src/adapters/git/src/git_process_output.hpp"
 #include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "windows_system_root.hpp"
 
@@ -954,15 +955,17 @@ namespace {
 	}
 
 	[[nodiscard]] auto make_adapter(
-		const std::filesystem::path& aExecutable,
-		const std::filesystem::path& aRoot)
+		const std::filesystem::path&                aExecutable,
+		const std::filesystem::path&                aRoot,
+		const std::optional<std::filesystem::path>& aRegistry = std::nullopt)
 		-> std::unique_ptr<application::git_process_port>
 	{
 		auto made = git_adapter::make_installed_git_process(
 			{
-				.GitExecutable     = std::filesystem::canonical(aExecutable),
-				.IsolationRoot     = std::filesystem::canonical(aRoot),
-				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
+				.GitExecutable              = std::filesystem::canonical(aExecutable),
+				.IsolationRoot              = std::filesystem::canonical(aRoot),
+				.WindowsSystemRoot          = bpr::tests::git_contract::windows_system_root(),
+				.WorkspaceOwnershipRegistry = aRegistry,
 			});
 		if (!made.has_value()) {
 			const auto message = "construct installed Git adapter, failure="
@@ -4293,7 +4296,7 @@ namespace {
 		return at == std::string::npos ? std::string{ } : counted.substr(at + 9U, counted.find('\n', at) - at - 9U);
 	}
 
-	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false) -> void
+	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false, const bool aRetained = false) -> void
 	{
 		temporary_root root{ "git-borrowed-history-workspace" };
 		temporary_root cacheRoot{ "git-workspace-copy-source" };
@@ -4306,7 +4309,8 @@ namespace {
 #endif
 		require(std::filesystem::create_directory(cacheIsolation), "create an owned special-path cache isolation");
 		std::filesystem::permissions(cacheIsolation, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
-		auto adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation);
+		const auto registry = aRetained ? std::optional{ root.Path / "registry" } : std::nullopt;
+		auto       adapter  = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
 		// The complete cache: the base and the head with their whole history.
 		const auto cache = repository_path(cacheIsolation, '1');
 		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
@@ -4342,8 +4346,13 @@ namespace {
 		const auto cloneBefore = file_inventory(clone);
 
 		temporary_root workspaceParent{ "git-borrowed-history-workspace-parent" };
-		const auto     authority = workspace_authority();
-		const auto     oid       = [](const std::string& aHex) {
+		const auto     neighbourhood = aRetained ? root.Path / "retained-neighbourhood" : workspaceParent.Path;
+		if (aRetained) {
+			std::filesystem::create_directory(neighbourhood);
+			std::filesystem::permissions(neighbourhood, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		}
+		const auto authority = workspace_authority();
+		const auto oid       = [](const std::string& aHex) {
 			return core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(aHex, application::git_hash_algorithm::sha1).Digest };
 		};
 		const auto request = [&](const std::uint64_t aSession, std::optional<std::filesystem::path> aClone) {
@@ -4360,13 +4369,88 @@ namespace {
 			made.Materialization.Session.Binding.HeadOid     = oid(head);
 			made.Materialization.Session.Binding.LeftEpoch   = core::epoch_ordinal{ 1U };
 			made.Materialization.Session.Binding.RightEpoch  = core::epoch_ordinal{ 1U };
-			made.Materialization.ParentDirectory             = workspaceParent.Path;
+			made.Materialization.ParentDirectory             = neighbourhood;
 			made.Materialization.HistoryClone                = std::move(aClone);
 			return made;
 		};
 
-		const auto cacheBefore = file_inventory(cache);
-		const auto made        = adapter->materialize_agent_workspace(request(1U, clone), { });
+		const auto headOnlyPack = root.Path / "head-only";
+		const auto headOnlyHash = aRetained ? run_fixture_git(cache, { "pack-objects", headOnlyPack.string() }, head + "\n") : std::string{ };
+		const auto cacheBefore  = file_inventory(cache);
+		if (aRetained) {
+			const auto sparseRegistry               = root.Path / "sparse-registry";
+			auto       sparseAdapter                = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, sparseRegistry);
+			auto       sparse                       = request(11U, std::nullopt);
+			sparse.Materialization.RetainForSession = true;
+			sparse.Materialization.ParentDirectory  = root.Path / "sparse-neighbourhood";
+			std::filesystem::create_directory(sparse.Materialization.ParentDirectory);
+			std::filesystem::permissions(sparse.Materialization.ParentDirectory, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			auto file        = application::git_workspace_file{ };
+			file.Path        = "src/main.cpp";
+			file.Mode        = 0100644U;
+			file.Blob        = core::git_blob_oid{ core::git_hash_algorithm::sha1, object<application::git_blob_id>(code, application::git_hash_algorithm::sha1).Digest };
+			const auto bytes = std::string{ "int main() { return 0; }\n" };
+			file.Bytes.assign(bytes.begin(), bytes.end());
+			sparse.Source.PullRequestFiles = std::vector{ file };
+			const auto owned               = sparseAdapter->materialize_agent_workspace(sparse, { });
+			require(owned && owned->Workspace.Shallow && owned->SparseMissingObjects && !owned->SparseMissingObjects->empty(), "retained sparse workspace captures its original unselected object holes");
+			const auto tree = std::filesystem::path{ owned->Workspace.Path };
+			require(!std::filesystem::exists(tree / "README.md") && sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "unselected missing blobs remain allowed");
+			write_text(tree / "src" / "main.cpp", "allowed agent edit\n");
+			write_text(tree / "retained-note", "keep\n");
+			sparseAdapter.reset();
+			sparseAdapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, sparseRegistry);
+			require(sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "sparse object evidence remains valid through fresh adapter and allowed edits");
+			auto legacy = *owned;
+			legacy.SparseMissingObjects.reset();
+			require(!sparseAdapter->inspect_agent_workspace(legacy, { }), "old sparse state without original object evidence refuses rather than inferring from its mutable index");
+			const auto blob = tree / ".git" / "objects" / code.substr(0U, 2U) / code.substr(2U);
+			require(std::filesystem::remove(blob) && !sparseAdapter->inspect_agent_workspace(*owned, { }), "deleting a selected required blob refuses sparse resume");
+			require(read_text(tree / "src" / "main.cpp") == "allowed agent edit\n" && read_text(tree / "retained-note") == "keep\n", "failed object inspection preserves all allowed work");
+			static_cast<void>(run_fixture_git(tree / ".git", { "hash-object", "-w", "--stdin" }, bytes));
+			require(sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "restoring the selected object repairs availability without resetting agent files");
+			// Leave the commit available while removing its packed tree closure.
+			for (const auto& entry : std::filesystem::directory_iterator{ tree / ".git" / "objects" / "pack" }) {
+				std::filesystem::rename(entry.path(), tree / entry.path().filename());
+			}
+			for (const auto suffix : { ".pack", ".idx" }) {
+				std::filesystem::copy_file(headOnlyPack.string() + "-" + headOnlyHash + suffix, tree / ".git" / "objects" / "pack" / (std::string{ "head-only" } + suffix));
+			}
+			require(!sparseAdapter->inspect_agent_workspace(*owned, { }), "a missing head tree cannot be treated as an allowed unselected blob hole");
+			report_inventory_changes(cacheBefore, file_inventory(cache), "sparse-cache");
+			report_inventory_changes(cloneBefore, file_inventory(clone), "sparse-clone");
+			require(file_inventory(cache) == cacheBefore && file_inventory(clone) == cloneBefore, "sparse inspection never writes to the source cache or linked clone");
+		}
+
+		if (aRetained) {
+			auto retained                             = request(10U, clone);
+			retained.Materialization.RetainForSession = true;
+			const auto owned                          = adapter->materialize_agent_workspace(retained, { });
+			if (!owned) {
+				std::cerr << "retained-materialization:failure=" << static_cast<unsigned>(owned.error().Code) << ":detail=" << owned.error().Detail << '\n';
+			}
+			require(owned.has_value(), "retained workspace materializes with durable ownership");
+			const auto tree = std::filesystem::path{ owned->Workspace.Path };
+			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "retention removes borrowed object lifetime dependency");
+			write_text(tree / "README.md", "allowed agent edit\n");
+			write_text(tree / "untracked-agent-note", "kept across restart\n");
+			adapter.reset();
+			std::filesystem::rename(clone, root.Path / "clone-moved");
+			const auto recovered = git_adapter::recover_installed_agent_workspaces(*registry, neighbourhood);
+			require(recovered && recovered->Live == 1U && recovered->Recovered == 0U, "startup preserves unlocked retained ownership");
+			adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "a fresh adapter validates retained workspace and local object closure");
+			require(run_fixture_git(tree / ".git", { "cat-file", "-t", base }) == "commit", "base objects survive removal of the lending clone");
+			require(read_text(tree / "README.md") == "allowed agent edit\n" && read_text(tree / "untracked-agent-note") == "kept across restart\n", "resume preserves tracked and untracked agent files");
+			auto missing         = *owned;
+			missing.RequiredBase = oid(std::string(40U, 'f'));
+			require(!adapter->inspect_agent_workspace(missing, { }), "missing required base objects refuse even with a valid head");
+			require(read_text(tree / "untracked-agent-note") == "kept across restart\n", "refused inspection preserves agent work");
+			require(!adapter->cleanup_agent_workspace(*owned, { }) && std::filesystem::exists(tree / "untracked-agent-note"),
+					"a restarted adapter cannot reclaim retained work through an old in-memory cleanup capability");
+			return;
+		}
+		const auto made = adapter->materialize_agent_workspace(request(1U, clone), { });
 		require(made.has_value() && made->Workspace.BorrowsHistory, "a workspace borrows the linked clone's history");
 		require(file_inventory(cache) == cacheBefore, "workspace pack copying leaves the source cache unchanged");
 		const auto workspace = std::filesystem::path{ made->Workspace.Path };
@@ -4835,6 +4919,15 @@ try {
 		std::cout << "GIT_BORROWED_HISTORY_INVENTORY_CONTROL_OK\n";
 		return 0;
 	}
+	if (argc == 2 && std::string_view{ argv[1] } == "--native-retained-workspace") {
+#ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
+		run_borrowed_history_workspace_contract(false, true);
+		std::cout << "GIT_NATIVE_RETAINED_WORKSPACE_OK\n";
+		return 0;
+#else
+		return 2;
+#endif
+	}
 
 	run_real_git_contract();
 	run_comparison_base_contract();
@@ -4856,6 +4949,9 @@ try {
 	run_sparse_special_blob_contract();
 	run_sparse_agent_workspace_contract();
 	run_borrowed_history_workspace_contract();
+#ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
+	run_borrowed_history_workspace_contract(false, true);
+#endif
 #if defined(_WIN32)
 	run_windows_inherited_handle_contract();
 	// Last: it moves this process into an accounting job it cannot leave.

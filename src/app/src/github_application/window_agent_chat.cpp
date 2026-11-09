@@ -397,6 +397,7 @@ namespace bpr::app {
 			state.ApplicationSession, authority, observedBinding);
 		if (TourSession) {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);
+			present_tour_continuation();
 		}
 		if (AgentSetup) {
 			// [[BPR-1749]]. Setup's rows carry this review's host
@@ -413,12 +414,14 @@ namespace bpr::app {
 		} else {
 			present_side_chat(observedBinding);
 		}
+		observe_conversation_agent();
 		Window->agent_panel()->disclose_scope(
 			QStringLiteral(
 				"The selected agent receives the exact accepted PR/diff identities, "
 				"durable defects, current semantic selection, and only private notes or "
-				"the current draft checked for this invocation. It runs in a disposable exact-head workspace "
-				"outside the Git cache.%1")
+				"the current draft checked for this invocation. Native conversations retain their exact-head workspace "
+				"and earlier agent context outside the Git cache. Removing context from a later turn does not erase "
+				"what the agent already received.%1")
 				.arg(ExistingCheckout.has_value()
 						 ? QStringLiteral(
 							   " Choose the working-copy option only for this invocation; its state is disclosed as unknown.")
@@ -494,6 +497,10 @@ namespace bpr::app {
 	{
 		if (Closing || AgentHost == nullptr || EpochHost == nullptr
 			|| Window == nullptr) {
+			return false;
+		}
+		if (!aWritingOnly && !aExistingCheckoutChosen && AgentConversation && !AgentConversation->projection().Loaded) {
+			Window->agent_panel()->refuse("Saved conversation is still loading. No question was sent.");
 			return false;
 		}
 		const auto& state = EpochHost->state();
@@ -602,14 +609,7 @@ namespace bpr::app {
 		// workshop press and a writing request are not review requests.
 		if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
 			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
-			// [[BPR-1753]], owner decision (b). The conversation so
-			// far about this pull request, so a follow-up continues it.
-			if (AgentConversation) {
-				const auto earlier = AgentConversation->projection().Turns;
-				for (const auto& turn : earlier) {
-					brief.Conversation.push_back({ .Asked = turn.Asked, .Answered = turn.Answered });
-				}
-			}
+
 			observation.Brief = core::bound_review_brief(std::move(brief));
 		}
 		// Which file, and where in it. The two are told apart because
@@ -671,7 +671,9 @@ namespace bpr::app {
 		// review is already doing, and a gesture that waited for it would
 		// freeze the window for seconds. The reviewer's send returns here;
 		// the dispatch follows the answer.
-		if (continuing) {
+		// Tour turns carry their own complete snapshot, not a finding alignment.
+		// Keep their read-only launch context when continuing a retained revision.
+		if (continuing && !aWritingOnly) {
 			return begin_continuation_realignment(
 				aProfile,
 				authority,
@@ -694,7 +696,7 @@ namespace bpr::app {
 			state.ApplicationSession,
 			std::move(observation),
 			aExistingCheckoutChosen,
-			std::nullopt,
+			aWritingOnly ? aTurnSession : std::nullopt,
 			aWritingOnly ? std::vector<core::agent_finding_snapshot_file>{ } : frozen_snapshot_files(), aWritingOnly, aTour);
 	}
 
@@ -819,8 +821,29 @@ namespace bpr::app {
 			invocation.RunChecks           = checks;
 			// [[BPR-1916]]. The skills the prompt names ride in the supplement.
 			invocation.Context.Skills = aTour.Skills.Inline;
+			if (!aTour.NativeScope.empty() && AgentSetup) {
+				const auto preferences = AgentSetup->projection().Preferences;
+				if (const auto* entry = core::entry_of_profile(preferences.Agents, aProfile); entry) {
+					invocation.NativeAgentIdentity  = entry->Identity;
+					invocation.NativeScope          = aTour.NativeScope;
+					invocation.NativeQuestion       = aTour.NativeQuestion;
+					invocation.TranscriptReplay     = TourHistory.Scope == aTour.NativeScope && TourHistory.Replay;
+					invocation.SelectedConversation = TourHistory.Scope == aTour.NativeScope ? TourHistory.Selected : std::string{ };
+				}
+			}
 			TourSession->dispatch(std::move(invocation));
 			return true;
+		}
+		if (AgentSetup && !aExistingCheckoutChosen) {
+			const auto preferences = AgentSetup->projection().Preferences;
+			if (const auto* const entry = core::entry_of_profile(preferences.Agents, aProfile); entry != nullptr) {
+				invocation.NativeAgentIdentity          = entry->Identity;
+				invocation.NativeScope                  = "agent-tab";
+				invocation.TranscriptReplay             = AgentNativeHistory.Replay;
+				invocation.SelectedConversation         = AgentNativeHistory.Selected;
+				invocation.NativeStartAtCurrentRevision = NativeFreshAtCurrentRevision && NativeFreshAtCurrentRevision->Profile == aProfile
+					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
+			}
 		}
 		AgentHost->dispatch(std::move(invocation));
 		return true;
@@ -1557,12 +1580,11 @@ namespace bpr::app {
 		}
 		const auto& choice
 			= std::get<qt::choose_chat_continuation_intent>(aIntent);
-		static_cast<void>(
-			ChatHost->choose(application::agent_chat_continuation_choice{
-				.Session        = choice.Session,
-				.Choice         = choice.Choice,
-				.OfferedBinding = choice.OfferedBinding,
-			}));
+		const auto outcome = ChatHost->choose(application::agent_chat_continuation_choice{
+			.Session = choice.Session, .Choice = choice.Choice, .OfferedBinding = choice.OfferedBinding });
+		if (outcome.Started && choice.Choice == core::agent_continuation::start_new_session) {
+			NativeFreshAtCurrentRevision = outcome.Started;
+		}
 	}
 
 	/// \brief Says on the panel what one chat gesture produced.

@@ -192,12 +192,12 @@ namespace bpr::qt {
 		if (axis == nullptr || !aSelection.Segment.has_value()) {
 			return false;
 		}
-		const auto measured = std::ranges::find(
-			axis->segments(), *aSelection.Segment, &measured_alignment_segment::Id);
-		if (measured == axis->segments().end()) {
+		const auto index = SemanticIndex ? SemanticIndex->segment_index(*aSelection.Segment) : std::nullopt;
+		if (!index || *index >= axis->segments().size() || axis->segments()[*index].Id != *aSelection.Segment) {
 			return false;
 		}
-		const auto origin = aLine.Side == core::diff_side::left
+		const auto* const measured = &axis->segments()[*index];
+		const auto        origin   = aLine.Side == core::diff_side::left
 			? axis->left_line_origin(aLine.Line)
 			: axis->right_line_origin(aLine.Line);
 		if (!origin.has_value()) {

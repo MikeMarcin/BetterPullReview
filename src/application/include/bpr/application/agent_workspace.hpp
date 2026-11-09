@@ -114,6 +114,8 @@ namespace bpr::application {
 		/// base into it, then lends from it. A reviewer-linked clone is never
 		/// written.
 		bool HistoryCloneManaged = false;
+		/// Session-owned workspaces are retained by recovery after materialization.
+		bool RetainForSession = false;
 
 		auto operator<=>(const agent_workspace_materialization_request&) const
 			= default;
@@ -146,6 +148,12 @@ namespace bpr::application {
 		std::string                                   OwnershipMarker;
 		agent_workspace_directory_identity            DirectoryIdentity;
 		std::optional<agent_workspace_lifetime_guard> LifetimeGuard;
+		/// Retained complete workspaces must also keep the session's base objects,
+		/// including a base which is not an ancestor of the pinned head.
+		std::optional<core::git_commit_oid> RequiredBase;
+		/// Original sparse object holes, captured before agent edits. Absent evidence
+		/// refuses sparse resume; an empty manifest means no holes were permitted.
+		std::optional<std::string> SparseMissingObjects;
 
 		auto operator<=>(const owned_agent_workspace&) const = default;
 	};
@@ -267,6 +275,9 @@ namespace bpr::application {
 			const agent_workspace_materialization_request& aRequest,
 			std::stop_token                                aStop)
 			-> std::expected<owned_agent_workspace, agent_workspace_error> = 0;
+		/// \brief Validates an exact retained tree without resetting allowed file changes.
+		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, std::stop_token)
+			-> std::expected<void, agent_workspace_error> { return std::unexpected(agent_workspace_failure::unavailable); }
 		[[nodiscard]] virtual auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop)
