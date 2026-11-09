@@ -364,6 +364,25 @@ namespace bpr::qt {
 		ContinuationMode->setWordWrap(true);
 		ContinuationMode->setTextFormat(Qt::PlainText);
 		column->addWidget(ContinuationMode);
+		RevisionStatus = new QLabel{ this };
+		RevisionStatus->setObjectName(QStringLiteral("tourRevisionStatus"));
+		RevisionStatus->setTextFormat(Qt::PlainText);
+		RevisionStatus->setWordWrap(true);
+		RevisionStatus->hide();
+		column->addWidget(RevisionStatus);
+		ContinueOld = new quiet_tool_button{ this };
+		ContinueOld->setObjectName(QStringLiteral("tourContinueOldRevision"));
+		ContinueOld->setText(tr("Continue old revision"));
+		ContinueOld->setToolTip(tr("Keep this chat's saved revision and workspace. No question is sent until you press Send."));
+		ContinueOld->hide();
+		column->addWidget(ContinueOld, 0, Qt::AlignLeft);
+		connect(ContinueOld, &QToolButton::clicked, this, [this] {
+			if (!Running && !HistoryLoading && RevisionChoiceRequired && ContinuationDispatch) {
+				if (const auto thread = current()) {
+					ContinuationDispatch(*thread);
+				}
+			}
+		});
 		connect(SessionMenu, &QMenu::aboutToShow, this, [this] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,std::nullopt); } });
 		connect(NewSession, &QToolButton::clicked, this, [this] { if (!Running && !HistoryLoading) { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,std::string{}); } } });
 		// The composer: the passage it quotes, the words, Send.
@@ -636,6 +655,19 @@ namespace bpr::qt {
 					connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,"view:"+id); } });
 				}
 			}
+		}
+		refresh_actions();
+	}
+
+	void tour_side_chat::present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, const core::git_commit_oid aObservedHead, const bool aContinued)
+	{
+		const auto stale       = aOffer && aOffer->Required;
+		RevisionChoiceRequired = stale && !aContinued;
+		ContinueOld->setVisible(RevisionChoiceRequired);
+		RevisionStatus->setVisible(stale);
+		if (stale) {
+			RevisionStatus->setText((aContinued ? tr("Continuing saved revision %1. Current head: %2.") : tr("Head changed. This chat reads %1; current head: %2. Choose New session or Continue old revision."))
+										.arg(QString::fromStdString(std::string{ core::canonical_hex(aOffer->ContinueAgainst.HeadOid).view() }).left(12), QString::fromStdString(std::string{ core::canonical_hex(aObservedHead).view() }).left(12)));
 		}
 		refresh_actions();
 	}
@@ -1025,7 +1057,8 @@ namespace bpr::qt {
 		Send->setToolTip(!Ready ? Why : Mine ? tr("Stop the tour agent; nothing in the tour changes.")
 											 : tr("Send (Return). Shift+Return starts a new line."));
 		Send->setAccessibleName(Mine ? tr("Stop") : tr("Send"));
-		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (Mine || ((!Running || takes_feedback()) && !blank)));
+		ContinueOld->setEnabled(active && !Running && !HistoryLoading && Ready);
+		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (Mine || (!RevisionChoiceRequired && (!Running || takes_feedback()) && !blank)));
 		Send->setIcon(drawer_icon(Mine ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
 		const auto part = !thread                              ? QString{ }
 			: thread->Kind == core::tour_thread_kind::stop     ? tr("this stop")
@@ -1033,7 +1066,7 @@ namespace bpr::qt {
 			: thread->Kind == core::tour_thread_kind::solution ? tr("the Solution")
 															   : tr("the tour");
 		Update->setText(tr("Update %1 from this chat").arg(part));
-		Update->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && answered && !Running);
+		Update->setEnabled(active && !RevisionChoiceRequired && !HistoryLoading && Ready && thread.has_value() && answered && !Running);
 		Update->setToolTip(!Ready          ? Why
 							   : !answered ? tr("Ask something first. Then this asks the agent to rewrite %1 from the chat; you accept, edit or discard what it proposes.").arg(part)
 							   : thread->Kind == core::tour_thread_kind::tour

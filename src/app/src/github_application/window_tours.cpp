@@ -755,6 +755,15 @@ namespace bpr::app {
 			},
 			TourAgentEffects, DecisionLane, *TourProjection, nullptr, NativeAgentSessions.get());
 		TourProjection->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_tour_native_history(aView); };
+		TourProjection->NativeSession = [this](const core::agent_session& aSession) {
+			if (Closing || !Window) {
+				return;
+			}
+			if (const auto thread = Window->tour_editor()->side_chat()->current(); thread && TourHistoryKey == tour_native_agent() + ":" + tour_native_scope(*thread)) {
+				TourNativeSessions[TourHistoryKey] = aSession;
+				present_tour_continuation();
+			}
+		};
 	}
 
 	/// [[BPR-1900]]. What a drafting run says while it reads, and that a
@@ -787,6 +796,16 @@ namespace bpr::app {
 															   const std::optional<core::tour_passage>& aPassage, const core::tour_thread& aThread, const bool aUpdate, skill_run aSkills) -> bool
 	{
 		adopt_tour_conversation();
+		const auto conversational = aKind == core::tour_agent_request::ask || aKind == core::tour_agent_request::draft_tour;
+		const auto continued      = conversational ? continued_tour_session(aThread) : std::nullopt;
+		const auto key            = tour_native_agent() + ":" + tour_native_scope(aThread);
+		const auto session        = TourNativeSessions.find(key);
+		const auto observed       = tour_observed_binding();
+		if (conversational && !continued && session != TourNativeSessions.end() && observed && core::offer_agent_continuations(session->second, *observed).Required) {
+			Window->tour_editor()->show_writing_notice(QStringLiteral("This chat reads an earlier revision. Choose New session or Continue old revision before asking."));
+			present_tour_continuation();
+			return false;
+		}
 		const auto tools = core::tools_for(aKind);
 		const auto run   = aKind == core::tour_agent_request::ask ? core::begin_tour_ask(TourAgent, aThread, aPassage, aAsked, aUpdate) : core::begin_tour_run(TourAgent, aKind, tools, aAsked);
 		if (!run) {
@@ -823,7 +842,7 @@ namespace bpr::app {
 		}
 		Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour, aKind == core::tour_agent_request::ask);
 		present_tour_session();
-		if (!dispatch_agent_invocation(aAgent, { }, { }, false, aPrompt, { }, core::agent_entry_point::ask_about_selection, { }, true, launch)) {
+		if (!dispatch_agent_invocation(aAgent, { }, { }, false, aPrompt, continued, core::agent_entry_point::ask_about_selection, { }, true, launch)) {
 			static_cast<void>(core::finish_tour_run(TourAgent, *run, core::tour_agent_run_state::failed, "The tour session could not start this request."));
 			TourRun.reset();
 			Window->tour_editor()->set_tour_running(std::nullopt, false);
@@ -922,8 +941,12 @@ namespace bpr::app {
 		if (TourRun) {
 			if (!aResult.Conversation.empty()) {
 				TourSelectedConversations[TourRunScope] = aResult.Conversation;
+				TourConversationBindings[TourRunScope]  = aIdentity.Session.Binding;
 				if (auto found = std::ranges::find(TourAgent.Runs, *TourRun, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
 					found->Conversation = aResult.Conversation;
+					if (TourHistory.Scope == tour_native_scope(found->Thread) && !TourHistory.Replay) {
+						TourNativeSessions[TourRunScope] = aIdentity.Session;
+					}
 				}
 			}
 			static_cast<void>(core::record_tour_activity(TourAgent, *TourRun, application::tour_transcript_of(aResult.ToolActivity, TourWorkspacePath)));
@@ -996,7 +1019,11 @@ namespace bpr::app {
 		if (Closing || !Window || !TourSession || !writing_agent() || tour_native_agent().empty() || tour_native_scope(aThread).empty()) {
 			return;
 		}
-		TourHistoryKey = tour_native_agent() + ":" + tour_native_scope(aThread);
+		const auto key = tour_native_agent() + ":" + tour_native_scope(aThread);
+		if (aChoice || TourHistoryKey != key) {
+			TourContinuation.reset();
+		}
+		TourHistoryKey = key;
 		TourSession->restore_native(*writing_agent(), tour_native_agent(), tour_native_scope(aThread), std::move(aChoice));
 	}
 	void github_application::implementation::present_tour_native_history(const application::native_agent_history_projection& aView)
@@ -1027,7 +1054,11 @@ namespace bpr::app {
 			Window->tour_editor()->show_writing_notice(QString::fromStdString(aView.Failure));
 			return;
 		}
-		const auto key                 = tour_native_agent() + ":" + aView.Scope;
+		const auto key = tour_native_agent() + ":" + aView.Scope;
+		if (TourSelectedConversations[key] != aView.Selected || aView.Replay || aView.Selected.empty()) {
+			TourNativeSessions.erase(key);
+			TourContinuation.reset();
+		}
 		TourSelectedConversations[key] = aView.Selected;
 		if (const auto found = std::ranges::find(aView.Entries, aView.Selected, &application::native_agent_history_entry::Id); found != aView.Entries.end()) {
 			TourConversationBindings[key] = found->Binding;
@@ -1610,6 +1641,64 @@ namespace bpr::app {
 		}
 	}
 
+	auto github_application::implementation::tour_observed_binding() const -> std::optional<core::agent_revision_binding>
+	{
+		if (!EpochHost) {
+			return std::nullopt;
+		}
+		const auto& state = EpochHost->state();
+		if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
+			return std::nullopt;
+		}
+		return core::agent_revision_binding{ .Host = state.Authority->Host, .Repository = state.Authority->Repository, .PullRequest = state.Authority->PullRequest, .BaseOid = state.AcceptedRevision->Base, .HeadOid = state.AcceptedRevision->Head, .LeftEpoch = state.AcceptedComparison->Left.Identity.Epoch, .RightEpoch = state.AcceptedComparison->Right.Identity.Epoch };
+	}
+
+	auto github_application::implementation::continued_tour_session(const core::tour_thread& aThread) const -> std::optional<core::agent_session>
+	{
+		const auto key      = tour_native_agent() + ":" + tour_native_scope(aThread);
+		const auto selected = TourSelectedConversations.find(key);
+		const auto session  = TourNativeSessions.find(key);
+		if (TourContinuation && TourContinuation->Scope == key && selected != TourSelectedConversations.end()
+			&& TourContinuation->Conversation == selected->second && session != TourNativeSessions.end() && TourContinuation->Session == session->second
+			&& tour_observed_binding() == std::optional{ TourContinuation->Observed }) {
+			return session->second;
+		}
+		return std::nullopt;
+	}
+
+	void github_application::implementation::choose_tour_continuation(const core::tour_thread& aThread)
+	{
+		const auto key      = tour_native_agent() + ":" + tour_native_scope(aThread);
+		const auto selected = TourSelectedConversations.find(key);
+		const auto session  = TourNativeSessions.find(key);
+		const auto observed = tour_observed_binding();
+		if (!Closing && tour_session_idle() && selected != TourSelectedConversations.end() && !selected->second.empty()
+			&& session != TourNativeSessions.end() && observed) {
+			const auto offer = core::offer_agent_continuations(session->second, *observed);
+			if (offer.Required && offer.Status.Staleness != core::agent_session_staleness::different_review) {
+				TourContinuation = tour_continuation{ key, selected->second, session->second, *observed };
+			}
+		}
+		present_tour_continuation();
+	}
+
+	void github_application::implementation::present_tour_continuation()
+	{
+		if (!Window) {
+			return;
+		}
+		auto*      chat     = Window->tour_editor()->side_chat();
+		const auto thread   = chat->current();
+		const auto observed = tour_observed_binding();
+		if (TourContinuation && observed != std::optional{ TourContinuation->Observed }) {
+			TourContinuation.reset();
+		}
+		const auto key     = thread ? tour_native_agent() + ":" + tour_native_scope(*thread) : std::string{ };
+		const auto session = TourNativeSessions.find(key);
+		const auto offer   = session != TourNativeSessions.end() && observed ? std::optional{ core::offer_agent_continuations(session->second, *observed) } : std::nullopt;
+		chat->present_revision_continuation(offer, observed ? observed->HeadOid : core::git_commit_oid{ }, thread && continued_tour_session(*thread).has_value());
+	}
+
 	void github_application::implementation::present_tour_session()
 	{
 		if (Window != nullptr) {
@@ -1626,6 +1715,7 @@ namespace bpr::app {
 				});
 			}
 			Window->tour_editor()->present_tour_session(shown, TourProposal);
+			present_tour_continuation();
 			present_tour_reset();
 		}
 	}

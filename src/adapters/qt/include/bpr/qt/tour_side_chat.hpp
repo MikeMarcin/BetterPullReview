@@ -217,6 +217,9 @@ namespace bpr::qt {
 		void               select(int aIndex);
 		void               set_history_dispatch(std::function<void(const core::tour_thread&, std::optional<std::string>)> aDispatch) { HistoryDispatch = std::move(aDispatch); }
 		void               present_native_history(const application::native_agent_history_projection&);
+		/// \brief Projects the core's revision choice without submitting a question.
+		void               present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, core::git_commit_oid aObservedHead, bool aContinued);
+		void               set_continuation_dispatch(std::function<void(const core::tour_thread&)> aDispatch) { ContinuationDispatch = std::move(aDispatch); }
 		[[nodiscard]] auto new_session_button() const noexcept -> QToolButton* { return NewSession; }
 		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return Sessions; }
 
@@ -273,10 +276,14 @@ namespace bpr::qt {
 
 	private:
 		std::function<void(const core::tour_thread&, std::optional<std::string>)> HistoryDispatch;
-		QMenu*                                                                    SessionMenu    = nullptr;
-		QToolButton*                                                              Sessions       = nullptr;
-		QToolButton*                                                              NewSession     = nullptr;
-		bool                                                                      HistoryLoading = false;
+		std::function<void(const core::tour_thread&)>                             ContinuationDispatch;
+		QToolButton*                                                              ContinueOld            = nullptr;
+		QLabel*                                                                   RevisionStatus         = nullptr;
+		bool                                                                      RevisionChoiceRequired = false;
+		QMenu*                                                                    SessionMenu            = nullptr;
+		QToolButton*                                                              Sessions               = nullptr;
+		QToolButton*                                                              NewSession             = nullptr;
+		bool                                                                      HistoryLoading         = false;
 		void                                                                      rebuild();
 		void                                                                      changed();
 		/// [[BPR-1914]] v004. The file inline code in a chat is coloured as:

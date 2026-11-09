@@ -2194,16 +2194,29 @@ namespace bpr::app {
 		std::optional<core::tour_draft_id>                  TourConversationDraft;
 		std::map<std::string, std::string>                  TourSelectedConversations;
 		std::map<std::string, core::agent_revision_binding> TourConversationBindings;
-		application::native_agent_history_projection        TourHistory;
-		std::string                                         TourHistoryKey;
-		std::string                                         TourRunScope;
-		application::native_agent_history_projection        AgentNativeHistory;
-		void                                                present_agent_native_history(const application::native_agent_history_projection&);
-		void                                                observe_agent_native_history(std::optional<std::string> aChoice = std::nullopt);
-		void                                                observe_tour_native_history(const core::tour_thread&, std::optional<std::string> aChoice = std::nullopt);
-		void                                                present_tour_native_history(const application::native_agent_history_projection&);
-		[[nodiscard]] auto                                  tour_native_scope(const core::tour_thread&) const -> std::string;
-		[[nodiscard]] auto                                  tour_native_agent() const -> std::string;
+		std::map<std::string, core::agent_session>          TourNativeSessions;
+		struct tour_continuation
+		{
+			std::string                  Scope;
+			std::string                  Conversation;
+			core::agent_session          Session;
+			core::agent_revision_binding Observed;
+		};
+		std::optional<tour_continuation>             TourContinuation;
+		[[nodiscard]] auto                           tour_observed_binding() const -> std::optional<core::agent_revision_binding>;
+		[[nodiscard]] auto                           continued_tour_session(const core::tour_thread&) const -> std::optional<core::agent_session>;
+		void                                         choose_tour_continuation(const core::tour_thread&);
+		void                                         present_tour_continuation();
+		application::native_agent_history_projection TourHistory;
+		std::string                                  TourHistoryKey;
+		std::string                                  TourRunScope;
+		application::native_agent_history_projection AgentNativeHistory;
+		void                                         present_agent_native_history(const application::native_agent_history_projection&);
+		void                                         observe_agent_native_history(std::optional<std::string> aChoice = std::nullopt);
+		void                                         observe_tour_native_history(const core::tour_thread&, std::optional<std::string> aChoice = std::nullopt);
+		void                                         present_tour_native_history(const application::native_agent_history_projection&);
+		[[nodiscard]] auto                           tour_native_scope(const core::tour_thread&) const -> std::string;
+		[[nodiscard]] auto                           tour_native_agent() const -> std::string;
 
 		/// [[BPR-1914]] v003. When the run in flight started, for "Worked for Ns".
 		std::chrono::steady_clock::time_point TourRunStarted;

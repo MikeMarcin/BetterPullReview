@@ -308,6 +308,11 @@ auto main(int argc, char** argv) -> int
 	editor.present_tour_session(session, std::nullopt);
 	settle();
 	expect(chat->send_button()->text() == QStringLiteral("Stop") && chat->send_button()->isEnabled(), "a running turn is stopped from Send");
+	auto revisionChoice     = core::agent_continuation_offer{ };
+	revisionChoice.Required = true;
+	chat->present_revision_continuation(revisionChoice, { }, false);
+	expect(chat->send_button()->isEnabled(), "a head change still permits Stop while the authorized turn is running");
+	chat->present_revision_continuation(std::nullopt, { }, false);
 	// [[BPR-1941]] AC1. The run's events, as the host relays them: the
 	// workspace, then thinking, then writing; the time counts by itself.
 	{

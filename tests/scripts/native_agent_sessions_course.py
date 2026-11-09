@@ -27,7 +27,7 @@ def main():
                 return 1
         if args.evidence_dir:
             args.evidence_dir.mkdir(parents=True, exist_ok=True)
-            for name in ('native-agent-tab.png', 'native-reopen.png', 'native-tour.png', 'native-tour-reopen.png', 'transcript-replay.png', 'transcript-replay-reopen.png', 'transcript-replay-tour.png'):
+            for name in ('native-agent-tab.png', 'native-reopen.png', 'native-tour.png', 'native-tour-reopen.png', 'transcript-replay.png', 'transcript-replay-reopen.png', 'transcript-replay-tour.png', 'tour-old-revision.png'):
                 shutil.copyfile(parent / name, args.evidence_dir / name)
     print('native-agent-sessions-course:pass')
     return 0

@@ -56,6 +56,13 @@ keeps the previous session selected. **Other tour chats and detached history**
 opens retained chats for reading, including removed stops and drafts left behind
 by Reset tour. It does not make them the current draft's conversation.
 
+When the head changes, the chat shows its saved revision and the current head.
+Choose **Continue old revision** to keep its exact native conversation and
+workspace, or **New session** to work at the current revision. Choosing sends
+no question. Changing the selected chat/history or the observed revision requires
+choosing again. A continued answer and any source proposal retain the revision
+the agent actually read; current tour facts still accompany the next question.
+
 Starting or reopening a session preserves accepted tour text, sources, focus,
 notes and comment drafts. **Reset tour** is separate: its existing confirmation
 clears the active tour and proposal associations; **Undo reset** restores them.

@@ -737,6 +737,18 @@ namespace {
 					answer = "accepted-update-confirmed process=" + process;
 				}
 			}
+			if (line.find("verify-stale-native") != std::string::npos || line.find("verify-current-native") != std::string::npos) {
+				auto head  = std::string{ };
+				auto input = std::ifstream{ std::filesystem::current_path() / ".git" / "HEAD" };
+				std::getline(input, head);
+				const auto hasFact  = [&line](const std::string& aFact) { const auto once = json_escape(aFact); return line.find(once) != std::string::npos || line.find(json_escape(once)) != std::string::npos; };
+				const auto stale    = line.find("verify-stale-native") != std::string::npos;
+				const auto pinned   = !head.empty() && hasFact("\"pinned_head\":\"" + head + "\"");
+				const auto current  = hasFact("\"observed_head\":\"" + head + "\"");
+				const auto readOnly = protocol == protocol::codex_app_server && line.find("\"sandboxPolicy\":{\"type\":\"readOnly\",\"networkAccess\":false}") != std::string::npos;
+				const auto valid    = pinned && readOnly && hasFact(stale ? "\"head_changed\":true" : "\"head_changed\":false") && (stale ? !current : current);
+				answer              = (valid ? (stale ? "stale-native-validated head=" : "current-native-validated head=") + head : "native-revision-context-failed") + std::string{ " process=" } + process;
+			}
 			if (line.find("bpr.tour-ask.v1") != std::string::npos || line.find("bpr.tour-revise.v1") != std::string::npos) {
 				answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"" + answer + "\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[]}");
 				if (line.find("update-source-explanation") != std::string::npos) {

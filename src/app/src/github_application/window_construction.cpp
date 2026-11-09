@@ -1353,6 +1353,7 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1900]]. The tour session's gestures: Draft the tour, Stop,
 		// and each proposed field's or stop's Accept and Discard.
+		Window->tour_editor()->side_chat()->set_continuation_dispatch([this](const core::tour_thread& aThread) { choose_tour_continuation(aThread); });
 		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) { observe_tour_native_history(aThread, std::move(aChoice)); });
 		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) { request_tour_ask(aAsk.Thread, aAsk.Passage, aAsk.Question, aAsk.Update); });
 		// [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour and its Undo.

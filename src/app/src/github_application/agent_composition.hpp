@@ -182,7 +182,14 @@ namespace bpr::app {
 	{
 	public:
 		std::function<void(const application::native_agent_history_projection&)> NativeHistory;
-		void                                                                     present_native_history(const application::native_agent_history_projection& aView) override
+		std::function<void(const core::agent_session&)>                          NativeSession;
+		void                                                                     restore_native_session(const core::agent_session& aSession) override
+		{
+			if (NativeSession) {
+				NativeSession(aSession);
+			}
+		}
+		void present_native_history(const application::native_agent_history_projection& aView) override
 		{
 			if (NativeHistory) {
 				NativeHistory(aView);

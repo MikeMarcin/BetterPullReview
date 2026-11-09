@@ -397,6 +397,7 @@ namespace bpr::app {
 			state.ApplicationSession, authority, observedBinding);
 		if (TourSession) {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);
+			present_tour_continuation();
 		}
 		if (AgentSetup) {
 			// [[BPR-1749]]. Setup's rows carry this review's host
@@ -670,7 +671,9 @@ namespace bpr::app {
 		// review is already doing, and a gesture that waited for it would
 		// freeze the window for seconds. The reviewer's send returns here;
 		// the dispatch follows the answer.
-		if (continuing) {
+		// Tour turns carry their own complete snapshot, not a finding alignment.
+		// Keep their read-only launch context when continuing a retained revision.
+		if (continuing && !aWritingOnly) {
 			return begin_continuation_realignment(
 				aProfile,
 				authority,
@@ -693,7 +696,7 @@ namespace bpr::app {
 			state.ApplicationSession,
 			std::move(observation),
 			aExistingCheckoutChosen,
-			std::nullopt,
+			aWritingOnly ? aTurnSession : std::nullopt,
 			aWritingOnly ? std::vector<core::agent_finding_snapshot_file>{ } : frozen_snapshot_files(), aWritingOnly, aTour);
 	}
 
