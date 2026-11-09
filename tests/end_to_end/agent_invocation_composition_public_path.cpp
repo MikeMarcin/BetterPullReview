@@ -1082,16 +1082,43 @@ auto main(int argc, char** argv) -> int
 				if (!capacityRefused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts || !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {
 					return fail(*application, "storage-pressure-protected-refusal");
 				}
-				const auto held = std::filesystem::path{ workspace.string() + ".course-held" };
-				std::filesystem::rename(workspace, held);
+				// The persistent backend still uses this directory between turns.
+				// Windows therefore refuses to rename its live working directory.
+				// Withhold the required ownership evidence instead: the same
+				// retained-workspace inspection must refuse before any launch.
+				const auto marker = workspace / ".git" / "bpr-owned-workspace";
+				auto       held   = marker;
+				held += ".course-held";
+				auto markerError = std::error_code{ };
+				if (!std::filesystem::is_regular_file(marker, markerError) || markerError
+					|| std::filesystem::exists(held, markerError) || markerError) {
+					return fail(*application, "missing-native-marker-owned", markerError.message());
+				}
+				std::filesystem::rename(marker, held, markerError);
+				if (markerError) {
+					return fail(*application, "missing-native-marker-held", markerError.message());
+				}
+				const auto restoreMarker = [&] {
+					if (std::filesystem::exists(marker, markerError)) {
+						markerError = std::make_error_code(std::errc::file_exists);
+						return false;
+					}
+					if (markerError) {
+						return false;
+					}
+					std::filesystem::rename(held, marker, markerError);
+					return !markerError;
+				};
 				window.side_chat()->composer()->setPlainText(QStringLiteral("failed request must not be replayed"));
 				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
-					std::filesystem::rename(held, workspace);
-					return fail(*application, "missing-native-send-ready");
+					const auto restored = restoreMarker();
+					return fail(*application, restored ? "missing-native-send-ready" : "missing-native-marker-restore", markerError.message());
 				}
 				tab->ask_button()->click();
 				const auto refused = wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("private_storage_failure")); }, extended_agent_budget);
-				std::filesystem::rename(held, workspace);
+				if (!restoreMarker()) {
+					return fail(*application, "missing-native-marker-restore", markerError.message());
+				}
 				if (!refused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
 					return fail(*application, "missing-native-no-retry", panel->status_text().toStdString());
 				}
