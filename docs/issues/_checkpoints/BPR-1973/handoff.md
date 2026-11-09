@@ -52,12 +52,25 @@ External evidence root:
 
 ## Integration and remaining obligation
 
-Source is privately prepared; main integration deliberately waits for the
-BPR-1971 source owner's actual Windows proof and normal main handback.
-No ancestor correction is published early. Reconcile authoritative main and
-counter/cards, then intentionally integrate/push this slice, finish the card
-and update this checkpoint. The preserved BPR-1971 Mac proof branch remains
-clean and unchanged. No task-owned command/review server is active.
+BPR-1971's final main handback is
+`63711bb35cdc99eacea89bddbd9c645120e74d3d`. It is merged normally into the
+private BPR-1973 branch, preserving all seven tested readiness-source hashes,
+its Done/proof metadata and NEXT1974. Only the five authorized BPR-1973 paths
+differ against that authoritative main. Composed documentation, scoped board
+validation and `git diff --check` pass. Canonical main fast-forwards and
+normally pushes source revision
+`7312e89352027f86237beee572ca14833dae1869`; `ls-remote` verifies that exact
+remote main. Private implementation commit is
+`a8804fa5d392cc4555eeb1db31ab074ba2111490`. The subsequent shared Done/docs
+closeout changes no proven source; its exact final main is in the external
+final handoff receipt. No source from the other implementer is published early.
+
+The exact actual helper also rejects an omitted `DEBUG_TIMEOUT` value under
+the consumer's CMake4.4.2 policy. Original source hashes and all generated
+cache/command metadata are sealed; the four task-owned disposable graph/cache
+directories have been removed. Full JSON/raw graph/log evidence remains.
+The preserved BPR-1971 Mac proof branch is unchanged. All owned commands are
+terminal; no review server or native job remains.
 
 Windows semantic execution with the supported 120-second bound remains the
 final common-source preflight obligation. Mac configured graphs and isolated
@@ -65,3 +78,23 @@ helper probes supply no Windows execution or full release qualification
 credit. Root owns protected R, frozen previews and all release operations;
 the Windows implementer owns the shared PC. No producer source or PC command
 is touched by this slice.
+
+## Exact Debug-only opt-ins
+
+- `application_device_authorization_panel_course`
+- `application_device_authorization_browser_handoff`
+- `application_device_authorization_registered_course`
+- `application_device_authorization_panel_absent`
+- `application_device_authorization_browser_absent`
+- `application_device_authorization_release_contract`
+- `application_device_authorization_unavailable`
+- `application_device_authorization_public_path`
+- `application_render`
+- `application_anonymous_public_preview_enabled_probe`
+- `application_anonymous_public_preview_live_candidate_wiring`
+- `application_anonymous_public_preview_unavailable`
+- `application_anonymous_public_preview_release_contract`
+- `application_public_path`
+- `application_device_authorization_ghes_refusal`
+- `application_composition_capabilities_product_run`
+- `application_composition_capabilities_inside_boundary`
