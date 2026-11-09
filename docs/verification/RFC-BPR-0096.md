@@ -2,7 +2,7 @@
 
 Mandate `native-agent-sessions-r1` implements the reviewed pack. Immutable
 RFC_BASE_SHA: `bebea27edf44fd63a7308307227035bf33391c5c`. Import `819ff2708`;
-BPR-1951 claim `f8eaca5be`. The [live plan](../rfcs/plans/native-agent-sessions-v1/milestone-plan.json)
+BPR-1951 claim `f8eaca5be`. Product candidate `26fdce665d7ff09f9ecd52e0df6765ce569b21ff` (the tested source tree promoted unchanged). The [live plan](../rfcs/plans/native-agent-sessions-v1/milestone-plan.json)
 retains all five milestones. This ledger records completed first-milestone functional
 engineering; it does not accept the whole RFC or later tour/history/replay work.
 

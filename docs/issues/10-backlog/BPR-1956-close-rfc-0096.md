@@ -27,7 +27,29 @@ native, human, release or security obligation.
 
 ## Execution checkpoint
 
-RFC_BASE_SHA: `bebea27edf44fd63a7308307227035bf33391c5c`. Mandate `native-agent-sessions-r1` implements the reviewed pack, superseding its authoring-only stop boundary. All twelve criteria remain pending. Initial milestone: native-agent-tab, BPR-1951; no passing product evidence yet. External continuation: `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m1-handoff.md`. No task-owned background commands or attended candidate.
+RFC_BASE_SHA: `bebea27edf44fd63a7308307227035bf33391c5c`.
+Mandate `native-agent-sessions-r1` implements the reviewed pack, superseding its
+authoring-only stop boundary. First milestone `native-agent-tab`, BPR-1951,
+completed scoped functional engineering at product candidate
+`26fdce665d7ff09f9ecd52e0df6765ce569b21ff`. The [ledger](../../verification/RFC-BPR-0096.md)
+records passing visible Agent-tab/native continuation and restart, actual installed
+Codex resume, retained Git object/edit recovery, storage/CAS/refusal and focused
+architecture/format/tidy/documentation evidence, with prior failures preserved.
+All twelve full-RFC criteria remain pending their complete cross-surface scope.
+
+Next eligible milestone: `tour-sessions`, BPR-1952. It owns tour/per-agent scopes,
+New session, reopenable history and Reset tour associations. BPR-1954/1955 retain
+legacy migration, both-direction shared quota/protected transcript/save-failure
+handling, labelled replay, installed Claude (currently signed out), permission,
+resume-only and Release usage/resource qualification. Existing Clear's destructive
+history control is replaced by BPR-1952; no completed New session/history UI or full
+AC03/AC11 claim is made here. Native Windows/Linux qualification is not inferred.
+
+External continuation:
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m1-handoff.md` and bound
+`m1-checkpoint.json`. First-milestone commands are draining for handoff; no attended
+candidate, review server, task worktree, remote mutation or push. Original pack and
+adopted five-milestone grouping remain unchanged.
 
 ## Closeout checklist
 
