@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1965"
 title: "Saving agent history preserves live thread reply context"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
