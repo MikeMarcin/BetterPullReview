@@ -3,7 +3,7 @@
 Arguments: the built `bpr`, the fixture CLI (`test_tour_cli_composition`, which stands in for `bpr`
 with a read-only fixture provider and, with `--desktop-services`, prints what the core and
 application functions the desktop composition calls decide for the same input), and the pack's
-`parser-cases.json`.
+`parser-cases.json`, then `1` if the graph links diagnostic logging or `0` if it does not.
 
 The course checks that the CLI and the desktop give the same catalog, annotations, label edits and
 counts; that the catalog and parse open no profile and every command keeps no store of its own;
@@ -13,8 +13,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import select as readiness
 import signal
+import stat
 import subprocess
 import sys
 
@@ -24,12 +26,72 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 URL = "https://github.com/o/r/pull/7"
 ALL_TWELVE = "praise,nitpick,suggestion,issue,todo,question,thought,chore,note,typo,polish,quibble"
 ANNOTATION_FIELDS = ("status", "label", "expectation", "guidance", "diagnostics", "body_sha256")
+DIAGNOSTIC_KEYS = frozenset((
+    "v event category severity utc_ms elapsed_us session sequence build op outcome request "
+    "http_status summary dropped detail epoch_stage failure_domain failure pack_failure "
+    "page_operation window_session relationship_detail transport_source git_step request_label "
+    "window_label capture_privacy capture_detail event_detail"
+).split())
+DIAGNOSTIC_NUMBERS = frozenset("v utc_ms elapsed_us sequence request http_status dropped window_session".split())
+
+
+def check_count_effects(root, before, after, count_calls, diagnostics, private_words):
+    """[[BPR-1950]]. Counts keep no tour store: only defaults and BPR-1830's closed log events."""
+    before, after = set(before), set(after)
+    assert before <= after, "counting removed nothing"
+    settings = str(Path("state") / "v1" / "workbench-settings.sqlite3")
+    additions = after - before - {settings}
+    assert len(additions) == (count_calls if diagnostics else 0), "only the configured count sessions may appear"
+
+    def unique_object(pairs):
+        record = dict(pairs)
+        assert len(record) == len(pairs), "diagnostics have no duplicate fields hiding content"
+        return record
+
+    sessions = set()
+    total_bytes = 0
+    for relative in sorted(additions):
+        name = re.fullmatch(r"logs/session-([0-9a-f]{32})-00000001\.jsonl", Path(relative).as_posix())
+        assert name is not None, "counting created an unexpected file"
+        path = root / relative
+        info = path.lstat()
+        assert stat.S_ISREG(info.st_mode) and info.st_nlink == 1, "diagnostic session is regular and unlinked"
+        if os.name == "posix":
+            assert info.st_uid == os.geteuid() and info.st_mode & 0o077 == 0, "diagnostic session is owner-private"
+        else:
+            assert not info.st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT, "diagnostic session is not a reparse entry"
+        assert 0 < info.st_size <= 5 * 1024 * 1024, "diagnostic session stays within the segment bound"
+        payload = path.read_bytes()
+        assert len(payload) == info.st_size and payload.endswith(b"\n"), "diagnostic session is complete and stable"
+        lines = payload.splitlines()
+        assert len(lines) == 1, "one read-only count command records only its completion"
+        record = json.loads(lines[0], object_pairs_hook=unique_object)
+        assert isinstance(record, dict) and set(record) == DIAGNOSTIC_KEYS, "only the closed diagnostic schema is admitted"
+        assert all(type(record[key]) is int and record[key] >= 0 for key in DIAGNOSTIC_NUMBERS), "diagnostic counters have their unsigned integer types"
+        assert all(isinstance(record[key], str) for key in DIAGNOSTIC_KEYS - DIAGNOSTIC_NUMBERS), "diagnostic metadata has no nested private payload"
+        assert record["v"] == 3 and record["session"] == name[1] and record["sequence"] == 1, "versioned session identity agrees with its file"
+        assert record["op"] == "tour.operation" and record["event"] == "tour.operation.succeeded", "only the expected tour completion is logged"
+        assert record["category"] == "tour" and record["outcome"] == "succeeded" and record["severity"] == "info", "the count completion has its typed outcome"
+        assert re.fullmatch(r"action=tour_counts failure=none process=none exit=none duration_ms=[0-9]+ count=1 written=0 read_back=0", record["detail"]), "the count detail contains only the closed operation facts"
+        assert record["capture_privacy"] == "anonymized" and record["request"] == 0 and record["window_session"] == 0, "default logs omit concrete identities"
+        assert record["summary"] == "sanitized" and record["capture_detail"] == record["event_detail"] == "standard", "counts keep only their standard sanitized facts"
+        assert all(record[key] == "none" for key in ("epoch_stage", "failure_domain", "failure", "pack_failure", "page_operation", "relationship_detail", "transport_source", "git_step", "request_label", "window_label")), "a count adds no unrelated operation or identity facts"
+        assert record["http_status"] == record["dropped"] == 0 and record["utc_ms"] > 0, "one local fixture completion is recorded without loss"
+        values = " ".join(value for value in record.values() if isinstance(value, str))
+        assert all(word not in values for word in private_words), "count diagnostics omit fixture paths, targets and prose"
+        assert "/" not in record["build"] and "\\" not in record["build"], "build identity contains no local path"
+        sessions.add(record["session"])
+        total_bytes += len(payload)
+    assert len(sessions) == len(additions) and total_bytes <= 50 * 1024 * 1024, "sessions are distinct and stay within aggregate retention"
+    return len(sessions)
 
 
 def main():
     bpr = str(Path(sys.argv[1]).resolve())
     fixture = str(Path(sys.argv[2]).resolve())
     cases = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))["cases"]
+    assert sys.argv[4] in ("0", "1"), "the graph supplies its logging capability"
+    diagnostics = sys.argv[4] == "1"
     environment = dict(os.environ, QT_QPA_PLATFORM="bpr-no-display", NO_COLOR="1")
     environment.pop("DISPLAY", None)
     environment.pop("WAYLAND_DISPLAY", None)
@@ -157,9 +219,11 @@ def main():
         assert tree() == before
 
         # Counts: the fixture provider's one read, against the desktop window's counting, in every coverage.
+        count_calls = 0
         for feedback in ("threads", "rest", "partial"):
             for mode, columns in (("open", "none"), ("open", "issue,question"), ("all", "question,issue,todo"), ("all", ALL_TWELVE)):
                 result = run(fixture, "labels", "counts", *select, "--mode", mode, "--columns", columns, "--json", feedback=feedback)
+                count_calls += 1
                 assert result.returncode == 0, (feedback, mode, columns, result)
                 envelope = document(result)
                 counts = envelope["data"]["counts"]
@@ -181,11 +245,15 @@ def main():
                 if feedback == "rest" and mode == "open":
                     assert "resolution_unknown" in counts["limits"] and whole["uncertain"] != "0"
         partial = run(fixture, "labels", "counts", *select, feedback="partial")
+        count_calls += 1
         assert partial.returncode == 0 and b"not exact" in partial.stdout and b"not a clean zero" in partial.stderr, partial
         # The defaults come from the profile's own settings store, which the desktop and `hooks show`
-        # share; reading it the first time creates it with defaults. Nothing else appears or goes.
-        assert set(tree()) - set(before) <= {str(Path("state") / "v1" / "workbench-settings.sqlite3")}, sorted(set(tree()) ^ set(before))
-        assert set(before) <= set(tree()), "counting removed nothing"
+        # share; reading it the first time creates it with defaults. BPR-1830
+        # also records each count in its own session where the graph links logging.
+        recorded = check_count_effects(root, before, tree(), count_calls, diagnostics,
+                                       (str(root), str(temp), URL, "github.com/o/r", "src/a.cpp",
+                                        "The cache outlives the view.", "quoted first"))
+        print(f"tour-cli-labels-diagnostics:pass enabled={int(diagnostics)} calls={count_calls} sessions={recorded}")
 
         if os.name != "nt":
             owner_race(fixture, bpr, root, select, run, document, stop_body, revision)
