@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1957"
+  ],
+  "reserve_for": "go-to-line-columns",
+  "purpose": "Owner amendment: compact Go to line panel and optional line:column caret navigation",
+  "created": "2026-11-09T02:55:42.639408+00:00",
+  "base": "fba210806f7277039d0214d132211ff022de1902"
+}
