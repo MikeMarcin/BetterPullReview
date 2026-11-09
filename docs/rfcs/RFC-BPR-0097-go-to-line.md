@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0097"
 title: "Go to a source line in the main diff"
-status: "In Progress"
+status: "Auto-Verified"
 depends_on: []
 metadata: {"origin":"owner request, 2026-11-08","inspected_revision":"663137a9ed38","authoring":"author-rfc; frontend-design:frontend-design and desktop guidance loaded","milestone_plan":{"id":"go-to-line-v1","path":"docs/rfcs/plans/go-to-line-v1/milestone-plan.json"}}
 ---
@@ -134,6 +134,12 @@ remains open in this draft; internal API and widget choices belong to implementa
 
 ## Execution record
 
-One milestone, [BPR-1948](../issues/30-in-progress/BPR-1948-close-rfc-0097.md), implements all four criteria.
+One milestone, [BPR-1948](../issues/60-done/BPR-1948-close-rfc-0097.md), implements all four criteria.
 RFC_BASE_SHA: `663137a9ed3825c87934c93926d414725f8bee22`.
 [Milestone plan](plans/go-to-line-v1/MILESTONES.md).
+
+Accepted on the isolated implementation branch at test candidate `e3e600c9f5483bcec66b140d0473d232b4ae7564`;
+product candidate `52c8469b6a1c9d5fd9fc0fe7a6c39469abc73841` is unchanged.
+All AC01–AC04 pass. [Verification](../verification/RFC-BPR-0097.md) records
+13-row integration, strengthened three-scale checks, falsification and limits.
+Main integration remains with the coordinator while its other writer is active.
