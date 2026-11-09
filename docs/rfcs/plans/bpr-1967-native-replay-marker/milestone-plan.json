@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1967-native-replay-marker",
+  "scope": {
+    "issues": [
+      "BPR-1967"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "portable-workspace-fault",
+      "outcome": "The native replay fixture reaches the retained-workspace refusal portably, completes its unchanged wrapper and lands on main.",
+      "work": [
+        {
+          "issue": "BPR-1967",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Only the required owned workspace marker is withheld and restored on every path; no live backend, guard or production policy is bypassed.",
+        "Original six-course400/180limits and semantic oracles pass on the corrected native image; an irrelevant-marker negative control fails the unchanged refusal oracle.",
+        "Focused verification, exact candidate evidence and main integration are complete; every owned command is quiescent and unrelated failures remain explicit."
+      ],
+      "boundary": "BPR-1967 single-TU fixture repair only; no full native qualification or source1964 containment claim."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
