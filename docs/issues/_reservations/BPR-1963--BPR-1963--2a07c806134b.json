@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1963"
+  ],
+  "reserve_for": "release-v042-tour-fixture-lifetime",
+  "purpose": "Own first StopRange value before vector growth in Tour session fixture",
+  "created": "2026-11-09T08:33:02.916980+00:00",
+  "base": "88a9e060e752efec2eb25c102df9d29d09cafae9"
+}
