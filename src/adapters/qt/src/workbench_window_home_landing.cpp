@@ -1310,6 +1310,7 @@ namespace bpr::qt {
 
 	void workbench_window::update_source_find_actions()
 	{
+		update_go_to_line_action();
 		if (!SourceFindActions[0] || !ComparisonSurface) {
 			return;
 		}

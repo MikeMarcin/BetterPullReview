@@ -14,6 +14,9 @@ def construction() -> dict:
     context = ''.join(f'// unchanged source row {line:04d}\n' for line in range(1100))
     context += 'offscreen needle\nneedle again\n𝄞 café Σσς\r\nStraße K𐐀\r\nliteral a+b(c)[d]?\n'
     nested.FILES = (
+        ('src/added.cpp', None, 'added first\nadded last\n'),
+        ('src/empty.cpp', None, ''),
+        ('src/emptied.cpp', 'base first\nbase last\n', ''),
         ('src/find.cpp', 'earlier only\nremoved bridge\n'+context, 'later only\nadded bridge\n'+context),
         ('src/other.cpp', 'old\n', 'new\n'),
     )

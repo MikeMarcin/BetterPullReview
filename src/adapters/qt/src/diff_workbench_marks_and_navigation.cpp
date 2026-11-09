@@ -372,6 +372,72 @@ namespace bpr::qt {
 		return Unified;
 	}
 
+	auto diff_workbench::source_line_destination() const -> std::optional<core::source_line_ref>
+	{
+		if (!CurrentResult || !SemanticIndex || !isVisible()) {
+			return std::nullopt;
+		}
+		const auto count = [this](const core::diff_side aSide) {
+			const auto& document = aSide == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
+			return document ? document->Lines.size() : 0U;
+		};
+		auto side = core::diff_side::right;
+		if (OnePaneEnabled && Interaction.Selection) {
+			side = Interaction.Selection->PreferredLine.Side;
+		} else if (!OnePaneEnabled && Left->hasFocus()) {
+			side = core::diff_side::left;
+		} else if (!OnePaneEnabled && Right->hasFocus()) {
+			side = core::diff_side::right;
+		} else if (!OnePaneEnabled && RecentSourceContext == CurrentContext) {
+			side = RecentSourceSide;
+		}
+		if (count(side) == 0U) {
+			side = side == core::diff_side::left ? core::diff_side::right : core::diff_side::left;
+		}
+		if (count(side) == 0U) {
+			return std::nullopt;
+		}
+		const auto line = Interaction.Selection && Interaction.Selection->PreferredLine.Side == side
+			? Interaction.Selection->PreferredLine.Line
+			: 0U;
+		return core::source_line_ref{ CurrentResult->Alignment.Digest, side, line };
+	}
+
+	auto diff_workbench::go_to_source_line(const core::source_line_ref aLine) -> bool
+	{
+		if (!CurrentResult || !SemanticIndex || aLine.Comparison != CurrentResult->Alignment.Digest
+			|| !core::select_line(*SemanticIndex, aLine)) {
+			return false;
+		}
+		const auto row = OnePaneEnabled ? unified_row_for(aLine.Side, aLine.Line) : std::optional{ aLine.Line };
+		if (!row) {
+			return false;
+		}
+		const auto material = CurrentResult;
+		const auto context  = CurrentContext;
+		for (auto* const source : { Left, Right, Unified }) {
+			const auto current = static_cast<std::uint32_t>(source->textCursor().blockNumber());
+			place_line_cursor(source, current, current);
+		}
+		auto* const editor = OnePaneEnabled ? Unified : aLine.Side == core::diff_side::left ? Left
+																							: Right;
+		place_line_cursor(editor, *row, *row);
+		if (!select_line(aLine.Side, aLine.Line, true) || CurrentResult != material || CurrentContext != context || !Interaction.Selection) {
+			return false;
+		}
+		PresentationReadingLine.reset();
+		RestoredReadingLine.reset();
+		HeldLine.reset();
+		ConversationAnchor = aLine;
+		// A resize or gutter change may still be remeasuring. The geometry
+		// owner consumes this exact anchor when its shared axis is ready.
+		GeometryRevealPending = !reveal_exact_line(*Interaction.Selection, aLine);
+		update_selection_paint();
+		focus_source(aLine.Side);
+		announce_line_selection();
+		return true;
+	}
+
 	void diff_workbench::focus_source()
 	{
 		(OnePaneEnabled ? Unified : Right)->setFocus(Qt::ShortcutFocusReason);
@@ -1070,6 +1136,11 @@ namespace bpr::qt {
 			}
 			// Option+C and Option+R stay Comment and Compose review in the pane;
 			// only the find query claims them for its options.
+		}
+		if (CurrentResult && (aWatched == Left || aWatched == Right)
+			&& (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut)) {
+			RecentSourceContext = CurrentContext;
+			RecentSourceSide    = aWatched == Left ? core::diff_side::left : core::diff_side::right;
 		}
 		if (Find && (aWatched == Left || aWatched == Right || aWatched == Unified) && aEvent->type() == QEvent::FocusIn) {
 			Find->Recent = static_cast<QPlainTextEdit*>(aWatched);

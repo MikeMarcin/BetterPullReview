@@ -181,6 +181,10 @@ namespace bpr::qt {
 		counterpart->setShortcuts(shortcut_keys(shortcut_command::header_source));
 		counterpart->setStatusTip(QStringLiteral("Open a review window to go to a matching header or source file."));
 		counterpart->setEnabled(false);
+		auto* const goToLine = ViewMenu->addAction(tr("Go to line…"));
+		goToLine->setObjectName(QStringLiteral("desktopGoToLineAction"));
+		goToLine->setShortcuts(shortcut_keys(shortcut_command::go_to_line));
+		goToLine->setEnabled(false);
 		ViewMenu->addSeparator();
 		auto* const lineNumbers = ViewMenu->addAction(QStringLiteral("&Line numbers"));
 		lineNumbers->setObjectName(QStringLiteral("desktopToggleLineNumbersAction"));

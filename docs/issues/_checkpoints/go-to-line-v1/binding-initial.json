@@ -1,0 +1,83 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "go-to-line-v1",
+  "segment_id": "implementation-1",
+  "mandate_revision": "go-to-line-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:6a3e244394aeed7652d24753f6588c0a9408080bd24ddad0dcfc5198d5369fe4",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0096",
+  "binding": {
+    "plan_id": "go-to-line-v1",
+    "plan_path": "docs/rfcs/plans/go-to-line-v1/milestone-plan.json",
+    "milestone_id": "exact-source-line",
+    "definition_fingerprint": "sha256:d523a51bd597a9f24439f6e266e42594a11cda7ccc784e93a477715bc4a0ebc1",
+    "obligations": [
+      {
+        "id": "BPR-1948:*",
+        "source": "BPR-1948",
+        "selector": null,
+        "source_fingerprint": "sha256:6dc350ceac20fba4c00657d7a29bd2db471a294a9b2ad22242faf5677135314f"
+      },
+      {
+        "id": "RFC-BPR-0096:*",
+        "source": "RFC-BPR-0096",
+        "selector": null,
+        "source_fingerprint": "sha256:c46c0895bcae245ca802a21f0c9cdae099ec25c3577ce178938690f3bbe2cc49"
+      }
+    ],
+    "obligation_fingerprint": "sha256:e9779a538716fcde7018b05448c1e85d28cab33040aefe45c31b71b1c2390d71",
+    "exit_criteria": [
+      {
+        "id": "exact-source-line:exit:1",
+        "text": "AC01\u2013AC03 pass through the composed main diff in split and unified presentations."
+      },
+      {
+        "id": "exact-source-line:exit:2",
+        "text": "AC04 passes keyboard/menu, accessible focus, minimum-size full-window scale renders and bounded-work checks through installed Git/cache."
+      },
+      {
+        "id": "exact-source-line:exit:3",
+        "text": "Documentation checks pass; exact candidate, evidence and quiescent command state are recorded."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "exact-source-line"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/1567/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/1567/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/go-to-line",
+    "source_revision": "4544d31fccc6f4845e0491447cda6deb87e3fc9b",
+    "workflow_branch": "codex/go-to-line",
+    "workflow_revision": "4544d31fccc6f4845e0491447cda6deb87e3fc9b"
+  }
+}

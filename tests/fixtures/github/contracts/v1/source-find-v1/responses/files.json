@@ -1,6 +1,33 @@
 [
 	{
 		"additions": 2,
+		"changes": 2,
+		"deletions": 0,
+		"filename": "src/added.cpp",
+		"patch": "@@ -0,0 +1,2 @@\n+added first\n+added last",
+		"sha": "a29d977d065d7e08438cc76263cd7ff60f0b697a",
+		"status": "added"
+	},
+	{
+		"additions": 0,
+		"changes": 0,
+		"deletions": 0,
+		"filename": "src/empty.cpp",
+		"patch": "",
+		"sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+		"status": "added"
+	},
+	{
+		"additions": 0,
+		"changes": 2,
+		"deletions": 2,
+		"filename": "src/emptied.cpp",
+		"patch": "@@ -1,2 +0,0 @@\n-base first\n-base last",
+		"sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+		"status": "modified"
+	},
+	{
+		"additions": 2,
 		"changes": 4,
 		"deletions": 2,
 		"filename": "src/find.cpp",

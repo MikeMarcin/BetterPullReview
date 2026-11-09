@@ -1799,8 +1799,12 @@ namespace {
 
 	void test_nontext_publication_status()
 	{
-		auto       workbench = qt::diff_workbench{ };
-		const auto publish   = [&](const core::computed_file_diff& aDiff, const bool aCached) {
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(900, 500);
+		workbench.show();
+		process_events();
+		expect(!workbench.source_line_destination(), "empty workbench offers no Go to line destination");
+		const auto publish = [&](const core::computed_file_diff& aDiff, const bool aCached) {
 			const auto selected = context(aDiff, 1U, 1U);
 			workbench.set_loading(selected);
 			workbench.publish(bpr::qt::test::prepare_publication({ .Context  = selected,
@@ -1823,12 +1827,14 @@ namespace {
 			expect(!workbench.selection() && workbench.left_pane()->toPlainText().isEmpty()
 					   && workbench.right_pane()->toPlainText().isEmpty(),
 				   "unavailable result clears prior source and selection");
+			expect(!workbench.source_line_destination(), "refused comparison offers no line destination");
 		}
 		const auto binary  = bytes(std::string_view{ "a\0b", 3U });
 		const auto nontext = bpr::tests::product_file_diff({ .Key = key({ }, 72U), .Options = { }, .LeftBytes = binary, .RightBytes = right });
 		expect(nontext.Result && nontext.Reason == core::diff_reason_code::binary_file, "real binary result available");
 		publish(*nontext.Result, false);
 		expect(workbench.status_text() == QStringLiteral("Binary file comparison"), "binary content is distinct from equal text and unavailable content");
+		expect(!workbench.source_line_destination(), "binary comparison offers no line destination");
 		publish(computed("same\n", "same\n", { }, 73U), false);
 		expect(workbench.status_text() == QStringLiteral("Diff ready — 0 semantic changes")
 				   && workbench.left_pane()->toPlainText() == QStringLiteral("same\n"),
@@ -1838,6 +1844,18 @@ namespace {
 				   && label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse)
 				   && label->accessibleDescription() == label->text(),
 			   "comparison messages remain copyable and accessible");
+		publish(computed("base first\nbase last\n", "", { }, 74U), false);
+		expect(workbench.source_line_destination() && workbench.source_line_destination()->Side == core::diff_side::left,
+			   "an empty Head falls back to sole navigable Base");
+		const auto beforeInvalid = workbench.selection();
+		auto       invalid       = *workbench.source_line_destination();
+		invalid.Line             = 2U;
+		expect(!workbench.go_to_source_line(invalid) && workbench.selection() == beforeInvalid, "out-of-range semantic jump is refused without selection change");
+		publish(computed("", "head only\n", { }, 75U), false);
+		expect(workbench.source_line_destination() && workbench.source_line_destination()->Side == core::diff_side::right,
+			   "an empty Base offers Head");
+		workbench.set_loading(context(changed, 3U, 3U));
+		expect(!workbench.source_line_destination(), "loading comparison offers no line destination");
 	}
 
 	void test_semantic_selection_callback_tracks_both_panes_and_clear()

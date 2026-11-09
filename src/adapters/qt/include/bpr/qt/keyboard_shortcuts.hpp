@@ -49,6 +49,7 @@ namespace bpr::qt {
 		first_change,
 		last_change,
 		header_source,
+		go_to_line,
 		next_new_comment,
 		home,
 		next_tab,

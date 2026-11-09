@@ -2311,6 +2311,8 @@ namespace bpr::qt {
 		void               apply_focus_order();
 		void               update_action_state();
 		void               update_header_source_action();
+		void               update_go_to_line_action();
+		void               show_go_to_line();
 		void               build_menu_bar();
 		void               dispatch_line_numbers_toggle();
 		/// [[BPR-1334]]. View > Line Details: dispatches the profile's
@@ -2806,6 +2808,8 @@ namespace bpr::qt {
 		std::function<void(core::code_zoom_step)> CodeZoomDispatch;
 		std::function<void()>                     HeaderSourceDispatch;
 		QAction*                                  HeaderSourceAction = nullptr;
+		QAction*                                  GoToLineAction     = nullptr;
+		std::function<void()>                     RefreshGoToLineDialog;
 		std::array<QAction*, 3>                   SourceFindActions{ };
 		std::array<QAction*, 3>                   SourceFilesActions{ };
 		source_search_panel*                      SearchPanel    = nullptr;

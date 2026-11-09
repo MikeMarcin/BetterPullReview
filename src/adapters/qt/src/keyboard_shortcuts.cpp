@@ -53,6 +53,11 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::first_change, .Group = navigation, .Binding = bound, .Title = "First change in the file", .Keys = "Alt+Shift+Up", .Conditional = true, .StepsAsideWhileTyping = true, .Objects = "firstWorkbenchChangeAction;desktopFirstWorkbenchChangeAction" },
 			shortcut_entry{ .Command = command::last_change, .Group = navigation, .Binding = bound, .Title = "Last change in the file", .Keys = "Alt+Shift+Down", .Conditional = true, .StepsAsideWhileTyping = true, .Objects = "lastWorkbenchChangeAction;desktopLastWorkbenchChangeAction" },
 			shortcut_entry{ .Command = command::header_source, .Group = navigation, .Binding = bound, .Title = "Go to header/source", .Keys = "Alt+O", .Objects = "goToHeaderSourceAction;desktopGoToHeaderSourceAction" },
+#if defined(Q_OS_MACOS)
+			shortcut_entry{ .Command = command::go_to_line, .Group = navigation, .Binding = bound, .Title = "Go to line…", .Keys = "Meta+G", .StepsAsideWhileTyping = true, .Objects = "goToLineAction;desktopGoToLineAction" },
+#else
+			shortcut_entry{ .Command = command::go_to_line, .Group = navigation, .Binding = bound, .Title = "Go to line…", .Keys = "Ctrl+G", .StepsAsideWhileTyping = true, .Objects = "goToLineAction;desktopGoToLineAction" },
+#endif
 			shortcut_entry{ .Command = command::next_new_comment, .Group = navigation, .Binding = bound, .Title = "Next new comment", .Keys = "Alt+N", .Objects = "nextNewCommentAction" },
 			shortcut_entry{ .Command = command::home, .Group = navigation, .Binding = bound, .Title = "Home, or back to the review", .Keys = "Ctrl+Shift+H", .Objects = "workbenchHomeAction" },
 #if defined(Q_OS_MACOS)

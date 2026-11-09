@@ -164,6 +164,7 @@ add_library(
         src/workbench_window_github_presentation.cpp
         src/workbench_window_header_and_queue_settings.cpp
         src/workbench_window_home_landing.cpp
+        src/workbench_window_line_navigation.cpp
         src/workbench_window_home_views.cpp
         src/workbench_window_queue_controls_and_menus.cpp
         src/workbench_window_replies_and_review_composition.cpp
