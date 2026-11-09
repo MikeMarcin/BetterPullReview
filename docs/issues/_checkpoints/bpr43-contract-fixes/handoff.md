@@ -4,7 +4,7 @@ Mandate: latest accepted main, implementer-owned fixes upstream, Mac preview fir
 
 ## Candidate and source identity
 
-Code source `f992a1d1b85c21c1a169f222a19533f3d9402246` on `codex/bpr43-contract-fixes`, based on accepted canonical mainbea6b6bad plus allocation-only main93766efd. Source tree97729cf6e69d865bb28485c31e05b84d9095dd08; tests treef4e7249bef49cabb6d184886758e0a5b471a92e4. Later closeout commits affect documentation only. Normal authoritative main integration/push is the next action; report its actual full hash externally after verifying origin.
+Code source `f992a1d1b85c21c1a169f222a19533f3d9402246` on `codex/bpr43-contract-fixes`, based on accepted canonical mainbea6b6bad plus allocation-only main93766efd. Source tree97729cf6e69d865bb28485c31e05b84d9095dd08; tests treef4e7249bef49cabb6d184886758e0a5b471a92e4. Later closeout commits affect documentation only. Proven source and this handoff were normally integrated and pushed as authoritative main d84cde4d80164207d388ce41c63857a309eadff6. All seven cards are Done at ae8c4483148f79875e66122722498aadb8952579; the final documentation-only closeout push and remote hash verification follow.
 
 Changed source/test paths:
 
@@ -30,3 +30,7 @@ Raw frozen43 failures are retained in coordinator logs/diagnostic-failure-sectio
 All task-owned native/diagnostic commands completed; source copies restored byte-for-byte. No attended session is needed for these test-only corrections. No owner desktop/browser/profile access. Mac releaseR/source97db and both PC producer trees were never mutated. Windows PC remains the Windows diagnosis leaf's exclusive lease; this leaf ran no PC operation.
 
 After final docs/board/finish, normally reconcile canonical main (preserving any newer allocations/accepted changes), integrate/push without force and verify remote full hash. Coordinator may then refresh Mac preview. Final stable still needs its actual common frozen source, all native graphs/suites/security/package/trust gates. In particular latest native-session wrapper's Windows contained measurement/registry pin is owned by the Windows leaf and is NOT waived; old43images cannot measure that new course. No Windows causal conclusion follows merely from Mac ASan. All release/signing/publication authority remains coordinator-owned.
+
+## Logical closeout
+
+All four authored plans resolve complete obligations/exits and milestone_checkpoint reports report-closeout. Target-only discovery still refuses an unrelated historical plan field; explicit scoped public plan resolution preserves every selected binding/check guard and the refusal/recovery receipts remain external. Post-Done documentation/board gates pass. No helper result substitutes for the engineering/native evidence or grants release approval.
