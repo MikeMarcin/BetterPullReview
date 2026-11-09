@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1967"
 title: "Make the native replay workspace fault portable"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
