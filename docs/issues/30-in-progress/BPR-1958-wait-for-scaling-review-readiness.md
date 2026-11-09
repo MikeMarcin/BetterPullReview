@@ -29,7 +29,7 @@ metadata: {"kind":"test","found_by":"Rejected v0.4.2 build43 native Windows qual
 
 Only `tests/end_to_end/application_scaling_tests.cpp` changes product-test
 behavior. The rejected frozen43 producer and its images remain immutable.
-The eight Debug rows that could not start have a separate damaged-image
+The nine Debug rows that could not start have a separate damaged-image
 cause; startup, other Review readiness, notification and optimized timing
 failures remain separate qualification obligations.
 
