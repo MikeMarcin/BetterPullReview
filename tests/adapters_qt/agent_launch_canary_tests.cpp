@@ -1291,6 +1291,37 @@ namespace {
 		}
 	}
 
+	void uuidless_native_turns_resume_exactly_on_fresh_transports()
+	{
+		const auto directory = tests::make_scratch_directory("bpr-native-uuidless");
+		const auto owned     = tests::scratch_guard{ directory };
+		auto       launch    = request(core::agent_protocol::claude_stream_json);
+		launch.Arguments.insert(launch.Arguments.begin(), { "--native-session-fixture", "--uuidless-native-results" });
+		launch.WorkingDirectory   = directory.string();
+		launch.NativeConversation = "uuidless-exact-resume";
+		auto launcher             = adapters::agent::agent_process_launcher{ };
+		auto priorProcess         = std::string{ };
+		auto handle               = std::string{ };
+		for (std::uint64_t turn = 2U; turn <= 4U; ++turn) {
+			launch.NativeTurn   = turn;
+			launch.NativeHandle = handle;
+			if (turn > 2U) {
+				launch.Input = "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"remember-tool-observation\"}}\n";
+			}
+			const auto result = launcher.run(launch, 5000);
+			expect(result.Outcome == application::agent_run_outcome::success && !result.Events.empty() && !result.NativeHandle.empty(), "a valid UUID-less result still completes its sole transport turn");
+			const auto& answer  = result.Events.front().Text;
+			const auto  process = answer.substr(answer.find("process="));
+			if (turn > 2U) {
+				expect(result.NativeHandle == handle && process != priorProcess && answer.find("tool-observation-7f13") != std::string::npos, "immediate explicit next send exact-resumes the same native handle/workspace on a different process without losing its decision");
+			}
+			handle       = result.NativeHandle;
+			priorProcess = process;
+		}
+		// Every fixture terminal has exactly the same UUID-less result text.
+		// It is legal on each fresh transport; no content-hash deduplication is used.
+	}
+
 	void native_idle_cache_eviction_keeps_resume_identity()
 	{
 		const auto directory = tests::make_scratch_directory("bpr-native-cache-bound");
@@ -1438,6 +1469,7 @@ try {
 		run_parent_death_course(argv[1], std::filesystem::canonical(argv[2]));
 		return EXIT_SUCCESS;
 	}
+	uuidless_native_turns_resume_exactly_on_fresh_transports();
 	native_connections_keep_the_process_and_exact_handle();
 	native_idle_cache_eviction_keeps_resume_identity();
 	test_input_budget_refuses_before_real_child_effect();

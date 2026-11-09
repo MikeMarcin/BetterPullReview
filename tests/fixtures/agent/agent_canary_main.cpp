@@ -690,6 +690,10 @@ namespace {
 			auto input = std::ifstream{ state };
 			std::getline(input, saved);
 		}
+		const auto uuidless = has_argument(aCount, aArguments, "--uuidless-native-results");
+		if (uuidless && !saved.empty() && handle.empty()) {
+			return 24;
+		}
 		if (handle.empty()) {
 			handle = saved.empty() ? "native-fixture-session" : saved;
 		}
@@ -763,7 +767,11 @@ namespace {
 				}
 				std::cout << "{\"type\":\"user\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"read\",\"content\":\"tool-observation-7f13\"}]}}\n";
 				std::cout << "{\"type\":\"assistant\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"assistant\",\"id\":\"m" << turn << "\",\"content\":[{\"type\":\"text\",\"text\":\"" << answer << "\"}]}}\n";
-				std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"" << handle << "\",\"is_error\":false,\"result\":\"done\"}\n"
+				std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"" << handle << "\",\"is_error\":false,\"result\":\"done\"";
+				if (!uuidless) {
+					std::cout << ",\"uuid\":\"result-" << process << '-' << turn << "\"";
+				}
+				std::cout << "}\n"
 						  << std::flush;
 			} else {
 				const auto start  = line.find("\"id\":") + 5U;

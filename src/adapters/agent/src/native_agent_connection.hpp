@@ -40,7 +40,7 @@ namespace bpr::adapters::agent::detail {
 
 		[[nodiscard]] auto matches(const application::agent_launch_request& aRequest) const -> bool
 		{
-			return Template.Protocol == aRequest.Protocol && Template.Executable == aRequest.Executable
+			return !Stopping.load() && Template.Protocol == aRequest.Protocol && Template.Executable == aRequest.Executable
 				&& Template.Arguments == aRequest.Arguments && Template.Environment == aRequest.Environment
 				&& Template.WorkingDirectory == aRequest.WorkingDirectory && Template.ReadOnlyTools == aRequest.ReadOnlyTools
 				&& Template.RunChecks == aRequest.RunChecks && Template.Metadata.Requested == aRequest.Metadata.Requested
@@ -53,6 +53,7 @@ namespace bpr::adapters::agent::detail {
 			return Current || Pending;
 		}
 		void stop() noexcept { Stopping = true; }
+		void retire() noexcept override { stop(); }
 
 		[[nodiscard]] auto submit(const application::agent_launch_request& aRequest, const int aTimeout,
 								  const application::agent_output_sink& aSink, const std::stop_token aStop)

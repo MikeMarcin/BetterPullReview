@@ -1110,7 +1110,7 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			bool&                  aSawAssistant,
-			std::string& aSession, bool aWritingOnly, const bool aReadOnly, held_tool_uses* aHeld, const agent_run_checks aChecks, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const std::uint64_t aNativeTurn)
+			std::string& aSession, bool aWritingOnly, const bool aReadOnly, held_tool_uses* aHeld, const agent_run_checks aChecks, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const std::uint64_t aNativeTurn, const bool aConnectedNative, bool& aIdentifiedResult)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto  relaxed = aChecks == agent_run_checks::relaxed;
@@ -1331,7 +1331,12 @@ namespace bpr::application {
 			if (*type == "result") {
 				// Modern Claude results carry an envelope UUID. Keep its fence even
 				// when a later turn has already emitted a fresh assistant message.
-				if (const auto* uuid = string_member(aRoot, "uuid")) {
+				const auto* uuid = string_member(aRoot, "uuid");
+				if ((member(aRoot, "uuid") && uuid == nullptr) || (aConnectedNative && uuid == nullptr)) {
+					return std::unexpected(agent_protocol_failure::invalid_runtime_metadata);
+				}
+				aIdentifiedResult = uuid != nullptr;
+				if (uuid != nullptr) {
 					const auto identity = "result:" + *uuid;
 					const auto found    = std::ranges::find_if(aFrameTurns, [&](const auto& aEntry) { return aEntry.first == identity; });
 					if (uuid->empty() || identity.size() > core::maximum_remote_run_id_bytes || found != aFrameTurns.end() || aFrameTurns.size() >= 4096U) {
@@ -1830,7 +1835,7 @@ namespace bpr::application {
 			std::string&                  aThread,
 			std::string&                  aTurn,
 			core::agent_runtime_metadata& aMetadata,
-			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks, const std::uint64_t aTurnResponse, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns)
+			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks, const std::uint64_t aTurnResponse, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const bool aConnectedNative, bool& aIdentifiedResult)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
@@ -1876,7 +1881,7 @@ namespace bpr::application {
 				break;
 			case core::agent_protocol::claude_stream_json:
 				events = decode_claude_frame(
-					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks, aFrameTurns, aTurnResponse);
+					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks, aFrameTurns, aTurnResponse, aConnectedNative, aIdentifiedResult);
 				break;
 			case core::agent_protocol::external_terminal: break;
 			}
@@ -3315,6 +3320,7 @@ namespace bpr::application {
 		NativeFrameTurns     = std::move(identities);
 		ExpectedNativeHandle = aHandle;
 		NativeTurn           = aTurn;
+		ConnectedNative      = true;
 		if (Protocol == core::agent_protocol::claude_stream_json) {
 			RemoteSession = std::move(aHandle);
 			Phase         = 1U;
@@ -3327,6 +3333,11 @@ namespace bpr::application {
 	auto agent_protocol_decoder::turn_complete() const noexcept -> bool
 	{
 		return !Failed && Pending.empty() && ((Protocol == core::agent_protocol::claude_stream_json && Phase == 2U) || (Protocol == core::agent_protocol::codex_app_server && Phase == 6U) || (Protocol == core::agent_protocol::codex_jsonl_exec && Phase == 3U));
+	}
+
+	auto agent_protocol_decoder::native_connection_reusable() const noexcept -> bool
+	{
+		return turn_complete() && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
 	}
 
 	auto agent_protocol_decoder::native_handle() const noexcept -> const std::string&
@@ -3411,7 +3422,7 @@ namespace bpr::application {
 				SawAssistant,
 				RemoteSession,
 				RemoteThread,
-				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks, NativeTurn, NativeFrameTurns);
+				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks, NativeTurn, NativeFrameTurns, ConnectedNative, IdentifiedResult);
 			if (!decoded) {
 				reject_line(frame);
 				Failed = true;

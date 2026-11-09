@@ -942,7 +942,7 @@ namespace {
 																							  "\n"
 																							  R"({"type":"assistant","session_id":"idle","message":{"role":"assistant","id":"one","content":[{"type":"text","text":"complete"}]}})"
 																							  "\n"
-																							  R"({"type":"result","subtype":"success","session_id":"idle","is_error":false,"result":"done"})"
+																							  R"({"type":"result","subtype":"success","session_id":"idle","is_error":false,"result":"done","uuid":"idle-result"})"
 																							  "\n" });
 			wire.Output.push_back({ });
 			for (std::size_t chunk = 0; chunk < 16U; ++chunk) {
@@ -968,7 +968,7 @@ namespace {
 		const auto result = [](std::string_view aUuid) {
 			return std::string{ R"({"type":"result","subtype":"success","session_id":"same-native","is_error":false,"result":"done","uuid":")" } + std::string{ aUuid } + "\"}\n";
 		};
-		for (const auto scenario : { 0U, 1U, 2U, 3U, 4U, 5U }) {
+		for (const auto scenario : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }) {
 			class connection final : public application::agent_native_connection_port
 			{
 			public:
@@ -1001,10 +1001,11 @@ namespace {
 			if (scenario == 5U) {
 				oldMessage = std::string{ R"({"type":"assistant","session_id":"same-native","message":{"role":"assistant","id":"old-tool","content":[{"type":"tool_use","id":"old-use","name":"Read","input":{}}]}})" } + "\n";
 			}
-			port.Followup = scenario == 0U         ? message("fresh-message", "NEW ANSWER") + result("new-result")
-				: scenario == 1U || scenario >= 4U ? oldMessage + result("old-result")
-				: scenario == 2U                   ? message("fresh-message", "NEW ANSWER") + result("old-result")
-												   : result("old-result");
+			port.Followup = scenario == 0U                           ? message("fresh-message", "NEW ANSWER") + result("new-result")
+				: scenario == 1U || scenario == 4U || scenario == 5U ? oldMessage + result("old-result")
+				: scenario == 2U                                     ? message("fresh-message", "NEW ANSWER") + result("old-result")
+				: scenario >= 6U                                     ? message("fresh-message", "NEW TURN STILL WORKING") + std::string{ R"({"type":"result","subtype":"success","session_id":"same-native","is_error":false,"result":")" } + (scenario == 6U ? "OLD ANSWER" : "a legitimate but uncorrelated result") + "\"}\n"
+																	 : result("old-result");
 			wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = std::string{ R"({"type":"system","subtype":"init","session_id":"same-native"})" } + "\n" + oldMessage + result("old-result") });
 			auto initial               = request(core::agent_protocol::claude_stream_json);
 			initial.NativeConversation = "same-conversation";
@@ -1016,6 +1017,40 @@ namespace {
 								  : port.Results.back().Outcome == application::agent_run_outcome::protocol_failure,
 				   "same-session late assistant/result frames cannot complete a later turn");
 			expect(wire.CloseInputCount == 0U, "native connection keeps input open through its normal turns");
+		}
+	}
+
+	void test_uuidless_terminal_retires_before_selecting_another_question()
+	{
+		for (const auto identity : { std::string_view{ }, std::string_view{ ",\"uuid\":null" }, std::string_view{ ",\"uuid\":7" }, std::string_view{ ",\"uuid\":\"\"" } }) {
+			class connection final : public application::agent_native_connection_port
+			{
+			public:
+				std::size_t                                NextCalls{ };
+				bool                                       Retired = false;
+				std::vector<application::agent_run_result> Results;
+				auto                                       next() -> std::optional<application::agent_launch_request> override
+				{
+					++NextCalls;
+					return request(core::agent_protocol::claude_stream_json);
+				}
+				void retire() noexcept override { Retired = true; }
+				void complete(application::agent_run_result aResult) override
+				{
+					expect(Retired, "retirement precedes releasing the terminal to a caller which may immediately send again");
+					Results.push_back(std::move(aResult));
+				}
+				auto timeout_milliseconds() const -> int override { return 1000; }
+				auto cancelled() const noexcept -> bool override { return false; }
+			} port;
+			auto wire = fake_transport{ };
+			wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = std::string{ R"({"type":"system","subtype":"init","session_id":"legacy"})" } + "\n" + R"({"type":"assistant","session_id":"legacy","message":{"role":"assistant","id":"first","content":[{"type":"text","text":"answer"}]}})" + "\n" + R"({"type":"result","subtype":"success","session_id":"legacy","is_error":false,"result":"done")" + std::string{ identity } + "}\n" });
+			auto initial               = request(core::agent_protocol::claude_stream_json);
+			initial.NativeConversation = "legacy";
+			initial.NativeConnection   = &port;
+			static_cast<void>(run_agent_protocol_loop(initial, { }, wire));
+			expect(port.NextCalls == 0U && wire.Writes.size() == 1U && wire.TerminateCount == 1U && port.Results.size() == 1U, "an unidentified terminal cannot cause a second send on its transport");
+			expect(port.Results.front().Outcome == (identity.empty() ? application::agent_run_outcome::success : application::agent_run_outcome::protocol_failure), "absent identity is legacy single-turn compatibility; malformed reported identity is refused");
 		}
 	}
 
@@ -1043,7 +1078,7 @@ namespace {
 		first.SaveNativeHandle   = std::make_shared<std::function<bool(const std::string&)>>([&savedHandle](const std::string& aHandle) { savedHandle = aHandle; return true; });
 		auto wire                = fake_transport{ };
 		wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data,
-								.Bytes  = "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"native-a\"}\n{\"type\":\"assistant\",\"session_id\":\"native-a\",\"message\":{\"role\":\"assistant\",\"id\":\"one\",\"content\":[{\"type\":\"text\",\"text\":\"first answer\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-a\",\"is_error\":false,\"result\":\"done\"}\n" });
+								.Bytes  = "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"native-a\"}\n{\"type\":\"assistant\",\"session_id\":\"native-a\",\"message\":{\"role\":\"assistant\",\"id\":\"one\",\"content\":[{\"type\":\"text\",\"text\":\"first answer\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-a\",\"is_error\":false,\"result\":\"done\",\"uuid\":\"native-result\"}\n" });
 		const auto firstResult = run_agent_protocol_loop(first, { }, wire);
 		if (firstResult.Outcome != application::agent_run_outcome::success) {
 			std::cerr << application::name(firstResult.Outcome) << " protocol=" << (firstResult.ProtocolFailure ? application::name(*firstResult.ProtocolFailure) : "none") << " line=" << firstResult.RejectedOutputLine << "\n";
@@ -1058,13 +1093,13 @@ namespace {
 		second              = *application::prepare_native_agent_turn(std::move(second), true);
 		auto followup       = fake_transport{ };
 		followup.Output.push_back({ .Status = agent_protocol_pipe_read_status::data,
-									.Bytes  = "{\"type\":\"assistant\",\"session_id\":\"native-a\",\"message\":{\"role\":\"assistant\",\"id\":\"two\",\"content\":[{\"type\":\"text\",\"text\":\"tool memory absent from replay\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-a\",\"is_error\":false,\"result\":\"done\"}\n" });
+									.Bytes  = "{\"type\":\"assistant\",\"session_id\":\"native-a\",\"message\":{\"role\":\"assistant\",\"id\":\"two\",\"content\":[{\"type\":\"text\",\"text\":\"tool memory absent from replay\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-a\",\"is_error\":false,\"result\":\"done\",\"uuid\":\"native-result\"}\n" });
 		const auto result = run_agent_protocol_loop(second, { }, followup);
 		expect(result.Outcome == application::agent_run_outcome::success && result.NativeHandle == firstResult.NativeHandle, "later turn uses initialized Claude session without another init");
 		expect(followup.CloseInputCount == 0U && followup.TerminateCount == 0U, "second turn preserves its connection");
 		auto wrong = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
 		wrong.continue_native("native-a", 3U);
-		expect(!wrong.push("{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-b\",\"is_error\":false,\"result\":\"done\"}\n"), "other native session cannot supply this turn");
+		expect(!wrong.push("{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-b\",\"is_error\":false,\"result\":\"done\",\"uuid\":\"native-result\"}\n"), "other native session cannot supply this turn");
 		auto late = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
 		late.continue_native("thread-a", 7U);
 		expect(late.push("{\"method\":\"remoteControl/status/changed\",\"params\":{}}\n").has_value(), "installed connection status notification cannot complete a turn");
@@ -1079,6 +1114,7 @@ namespace {
 
 int main()
 {
+	test_uuidless_terminal_retires_before_selecting_another_question();
 	test_connection_identity_capacity_never_forgets_old_turns();
 	test_connected_turns_retain_claude_frame_fences();
 	test_native_turns_leave_the_stream_open_and_fence_the_prior_turn();

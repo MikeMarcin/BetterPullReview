@@ -135,6 +135,8 @@ namespace bpr::adapters::agent::detail {
 				return true;
 			}
 
+			[[nodiscard]] auto reusable() const noexcept -> bool { return Decoder.native_connection_reusable(); }
+
 			[[nodiscard]] auto accepts_next_turn() const noexcept -> bool { return Decoder.turn_complete(); }
 
 			[[nodiscard]] auto release_decoder() -> application::agent_protocol_decoder { return std::move(Decoder); }
@@ -575,12 +577,21 @@ namespace bpr::adapters::agent::detail {
 		auto        last       = application::agent_run_result{ };
 		auto        decoder    = std::optional<application::agent_protocol_decoder>{ };
 		while (true) {
-			auto loop          = protocol_loop{ request, aSink, aTransport, std::move(decoder) };
-			last               = loop.run();
-			const auto success = last.Outcome == application::agent_run_outcome::success;
-			const auto handle  = last.NativeHandle;
+			auto loop           = protocol_loop{ request, aSink, aTransport, std::move(decoder) };
+			last                = loop.run();
+			const auto success  = last.Outcome == application::agent_run_outcome::success;
+			const auto handle   = last.NativeHandle;
+			const auto reusable = loop.reusable();
+			if (!success || !reusable) {
+				// An uncorrelated terminal is safe only as this transport's sole
+				// turn. Retire before releasing its caller, never select/resend work.
+				connection->retire();
+				if (success) {
+					static_cast<void>(aTransport.terminate());
+				}
+			}
 			connection->complete(last);
-			if (!success) {
+			if (!success || !reusable) {
 				return last;
 			}
 			aTransport.begin_turn(std::numeric_limits<int>::max());

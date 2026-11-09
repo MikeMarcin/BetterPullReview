@@ -753,6 +753,8 @@ namespace bpr::application {
 		void continue_native(std::string aHandle, std::uint64_t aTurn);
 		/// \brief Complete result frame received, independently of process exit.
 		[[nodiscard]] auto turn_complete() const noexcept -> bool;
+		/// A UUID-less Claude terminal cannot fence another turn on this stream.
+		[[nodiscard]] auto native_connection_reusable() const noexcept -> bool;
 		[[nodiscard]] auto native_handle() const noexcept -> const std::string&;
 		void               expect_native_handle(std::string aHandle) { ExpectedNativeHandle = std::move(aHandle); }
 		void               expect_response(std::uint64_t aTurn) { NativeTurn = aTurn; }
@@ -802,10 +804,12 @@ namespace bpr::application {
 		/// what it was asked, named once the result says what Claude did.
 		std::vector<std::pair<std::string, std::string>> HeldTools;
 		std::string                                      Pending;
-		std::size_t                                      TotalBytes   = 0U;
-		bool                                             Failed       = false;
-		std::uint8_t                                     Phase        = 0U;
-		bool                                             SawAssistant = false;
+		std::size_t                                      TotalBytes       = 0U;
+		bool                                             Failed           = false;
+		std::uint8_t                                     Phase            = 0U;
+		bool                                             SawAssistant     = false;
+		bool                                             ConnectedNative  = false;
+		bool                                             IdentifiedResult = false;
 		std::string                                      RemoteSession;
 		std::string                                      RemoteThread;
 		std::string                                      RemoteTurn;
@@ -923,8 +927,10 @@ namespace bpr::application {
 		virtual ~agent_native_connection_port()                                  = default;
 		[[nodiscard]] virtual auto next() -> std::optional<agent_launch_request> = 0;
 		virtual void               complete(agent_run_result aResult)            = 0;
-		[[nodiscard]] virtual auto timeout_milliseconds() const -> int           = 0;
-		[[nodiscard]] virtual auto cancelled() const noexcept -> bool            = 0;
+		/// Retire before publishing a terminal so the next explicit send reconnects.
+		virtual void               retire() noexcept { }
+		[[nodiscard]] virtual auto timeout_milliseconds() const -> int = 0;
+		[[nodiscard]] virtual auto cancelled() const noexcept -> bool  = 0;
 	};
 
 	/// \brief Process effect boundary used by the agent application host.
