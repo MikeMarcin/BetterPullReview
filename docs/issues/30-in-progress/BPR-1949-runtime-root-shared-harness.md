@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1949"
 title: "Runtime-root tests adopt shared containment and explicit skip reporting"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
