@@ -155,3 +155,58 @@ under 200 logical pixels high with no empty validation row. This verifies layout
 and interaction, not native system appearance. No dedicated Debug timing course was selected.
 
 The fresh frozen review is recorded in the post-review checkpoint.
+
+## Owner appearance revision r3
+
+The owner rejected exact v003 at handback8 and requested a dedicated Astra max
+design pass. The supplied screenshot showed a path heading controlling width,
+isolated range text and a separate button footer. Frontend-design and its
+desktop guidance informed the replacement: one aligned control row and one
+quiet file/range row. Native buttons and their platform order, exclusive side
+chips, line validation and navigation dispatch are retained. Long paths elide
+without changing the panel width; full identity remains accessible and in the
+tooltip. [Current candidate and handoff](../issues/_checkpoints/go-to-line-v1/post-review.md#appearance-r3-design-pass).
+
+The initial real-composition dark preview exposed that top-level dialogs do not
+inherit a workbench's explicit profile palette by default. The panel now uses
+the repository's existing `Qt::WA_WindowPropagation` convention to inherit
+font and palette. The composed course checks construction in a dark profile
+and a subsequent light-profile publication while the dialog stays open.
+
+The final source/test candidate passes the complete existing Go to line and
+source Find public course at 100/125/200%: **3/3**, 24.45/21.61/22.95 seconds,
+69.05 seconds total. Its keyboard, exact target, cancellation, stale-request,
+exclusive-side, unavailable-side and bounded-work checks are unchanged. It
+now also retains panel rasters and requires the valid dialog to remain below
+110 logical pixels in height. The preceding layout-only four-row integration,
+including `architecture_boundaries`, passed in 88.11 seconds; adding window
+palette propagation changes no dependency boundary. Existing unchanged
+architecture-contract and Find in Files evidence is reused.
+
+Format22.1.8, focused clang-tidy22, documentation structure and all 67
+documentation controls pass. The only source owner is the Qt dialog; the
+shared side chip, application and core are unchanged. No dedicated Debug
+timing course was selected; these durations are functional-course observations.
+
+External evidence is under
+`/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-go-to-line-r3-mrxgnanc`:
+`palette-integration.log`, `palette-tidy.log`, `documentation-tests.log` and
+`docs.log`. A disposable renderer links the current production composition
+and opens the same committed `inline-drawer-v1` fixture and 1,557-line file as
+the owner look. It performs the actual Go to line to608, then captures the
+reopened dialog in dark/light and invalid states. It runs with network denied,
+an owner-private temporary profile and `QT_QPA_PLATFORM=offscreen`; its only
+position adjustment centers the modal because the offscreen platform has no
+window manager. It leaves no product seam or tracked output.
+All four final views were inspected: the valid panel is427×72 logical pixels,
+and validation expands it to95 pixels. Full path and range fit together on
+the actual 1,557-line fixture. Final images are in `inline-drawer-renders-final`
+under that external root.
+
+The final full-window and panel previews are layout evidence. A diagnostic
+macOS-style offscreen run passed the interaction course but failed to draw
+native edit/button chrome; that raster is not used as visual evidence. Native
+system appearance remains for the owner to judge in the new frozen candidate.
+No owner desktop or personal browser data was accessed, and no remote mutation,
+push or release occurred. Prior v002 navigation acceptance and v003 rejection
+remain bound to their exact frozen builds.

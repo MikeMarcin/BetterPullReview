@@ -52,10 +52,13 @@ navigation, file switching, columns, relative offsets and configurable shortcuts
 
 ### A compact dialog with an explicit source side
 
-Open a compact window-modal **Go to line** dialog showing the current file,
-an exclusive **Left** / **Right** side picker (Base / Head), a labelled **Line** input, the chosen
-side's valid range **1–N**, and **Go** and **Cancel** buttons. Size the dialog to its content and show
-validation only when needed. Reuse Find in Files’ side chips and the app's
+Open a compact window-modal **Go to line** dialog with an exclusive **Left** /
+**Right** side picker (Base / Head), a labelled **Line** input, and **Go** and
+**Cancel** buttons on one row. A quiet second row shows the current file and
+the chosen side's valid range **1–N**. Long paths elide within this row and
+remain complete in the tooltip and accessible name. Size the dialog to its
+controls, without a separate button footer, and show validation only when
+needed. Reuse Find in Files’ side chips and the app's
 theme, dialog controls and focus treatment. The dialog adds no permanent row
 and does not resize the diff. All controls and validation messages have
 accessible names or associations and remain usable at supported scaling and
@@ -115,6 +118,13 @@ Base/Head dropdown with exclusive Left/Right chips inspired by Find in Files
 and removes wasted dialog space. Navigation and focus were accepted for the
 exact v002 frozen candidate. The revised appearance needs a fresh owner look;
 all AC01–AC04 and source-side semantics remain unchanged.
+
+Owner amendment `go-to-line-appearance-r3` (v003 handback8, 2026-11-08)
+rejects the revised appearance as still an inefficient use of space and
+requests a dedicated design pass. The two-row composition above replaces
+v003's file heading, separated range and bottom buttons. Original automated
+acceptance and the exact v002 navigation verdict remain unchanged; the new
+appearance requires its own frozen candidate and owner judgment.
 
 ## Acceptance criteria
 

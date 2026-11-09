@@ -1,5 +1,8 @@
 # Go to line appearance revision
 
+The latest frontier is [appearance r3](#appearance-r3-design-pass), below.
+The r2 record is retained for its exact rejected v003 candidate.
+
 Assignment `/root/go_to_line_revision`, mandate `go-to-line-r1` with owner
 amendment `go-to-line-appearance-r2` from attended handback 37. Source, tracker
 and runtime roots remain this checkout on `codex/go-to-line`.
@@ -77,3 +80,50 @@ Any interpretation or correction after the review belongs to a fresh engineering
 round. Main integration also remains with the coordinator. Revised appearance
 acceptance is pending; original automated AC01–AC04 and v002 navigation acceptance
 are preserved with their exact candidates.
+
+## Appearance r3 design pass
+
+Assignment `/root/go_to_line_design`, mandate amendment
+`go-to-line-appearance-r3`. The owner explicitly requested an Astra max
+subagent to design the panel after rejecting v003 as still ugly and an
+inefficient use of space. Frontend-design and its desktop guidance were loaded.
+The owner's supplied screenshot was inspected; no live desktop was accessed.
+
+Session `97887edd2075de347dcc15e45da4be9c` and fingerprint
+`71751f6ea9a273ce5127f904c9ff1aeb9687464315c1f200ea58aca5a210694c`
+match the recorded candidate. Rejection and handback8 were reconciled and
+consumed8 persisted before engineering. The browser verdict has no note;
+the design reason comes from the owner's chat and screenshot. The scoped
+conflict query found only v003. Explicit resume-development released it at9;
+the frozen source/build and recorded rejection remain intact. Navigation's
+accepted v002 candidate remains unchanged.
+
+The composition places the existing exclusive Left/Right pair, labelled
+number input and native Cancel/Go button box on one baseline. A second quiet
+row contains file identity and range. Native button order is retained; the
+button box's footer margins are removed. A long path elides without widening
+or wrapping the panel, while its tooltip and accessible name retain the full
+identity. Validation appears below only when needed. Selection, validation,
+focus restoration and exact-line dispatch are unchanged.
+The dialog propagates the window's font and palette, including live profile
+changes, through Qt's existing window-inheritance attribute.
+
+The new segment is bound in [binding-appearance-r3.json](binding-appearance-r3.json).
+Selected-plan binding avoids the previously recorded unrelated legacy-plan
+discovery incompatibility. Source ownership is limited to the dialog and its
+existing composed course; the shared Find chips are unchanged.
+
+The final three-scale composed course passes **3/3**, 69.05 seconds, including
+dark construction and a light-profile change while the dialog remains open.
+The preceding architecture/layout integration passed **4/4**, 88.11 seconds.
+Format22.1.8, focused tidy22, documentation structure and 67 documentation
+controls pass. Full-window and panel renders of the actual 1,557-line file
+were inspected in light/dark and invalid states. The default offscreen panel
+is427×72 logical pixels, growing to95 pixels only for validation; the complete
+path fits this actual fixture. Native style metrics are narrower; native
+chrome cannot be judged under the offscreen platform.
+
+Current frontier: source/checks and visual inspection complete; exact frozen
+review preparation is in progress. External evidence root:
+`/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-go-to-line-r3-mrxgnanc`.
+No owner desktop, browser profile, remote mutation or publication is involved.

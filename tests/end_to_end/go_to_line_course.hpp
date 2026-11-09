@@ -136,6 +136,7 @@ namespace go_to_line_course {
 		if (aDialog) {
 			auto painter = QPainter{ &raster };
 			painter.drawPixmap(aDialog->mapToGlobal(QPoint{ }) - aWindow.mapToGlobal(QPoint{ }), aDialog->grab());
+			expect(aDialog->grab().save(root + QLatin1Char('/') + aName + QStringLiteral("-panel.png")), "Go to line panel raster saved at course scale");
 		}
 		expect(raster.save(root + QLatin1Char('/') + aName + QStringLiteral(".png")), "full production-window Go to line raster saved");
 	}
@@ -217,7 +218,7 @@ namespace go_to_line_course {
 				expect(number(*first)->text() == QStringLiteral("2"), "changing side retains the number");
 				expect(first->findChild<QLabel*>(QStringLiteral("goToLineValidation"))->isHidden(), "valid input reserves no empty validation row");
 				QApplication::processEvents();
-				expect(first->height() < 200, "valid dialog uses a compact content-sized layout");
+				expect(first->height() < 110, "valid dialog uses two compact rows without a button footer");
 				render(window, first, unified ? QStringLiteral("line-unified-dialog") : QStringLiteral("line-split-dialog"));
 				for (auto* control : { static_cast<QWidget*>(number(*first)), static_cast<QWidget*>(side(*first, 0)), static_cast<QWidget*>(side(*first, 1)), static_cast<QWidget*>(go(*first)) }) {
 					expect(first->rect().contains(QRect{ control->mapTo(first, QPoint{ }), control->size() }), "dialog controls fit minimum-size window at course scale");
@@ -357,6 +358,23 @@ namespace go_to_line_course {
 		}
 		surface.focus_source();
 		QApplication::processEvents();
+		auto* const appearance   = window.appearance_settings();
+		const auto  originalMode = appearance->adopted().Mode;
+		appearance->choose_mode(core::appearance_mode::dark);
+		aWait([&] { return appearance->resolved_variant() == core::appearance_variant::dark; }, "dark profile reaches the workbench before dialog construction");
+		auto* themed = dialog(window, false);
+		expect(themed->palette().color(QPalette::Window) == window.palette().color(QPalette::Window)
+				   && number(*themed)->palette().color(QPalette::Text) == window.palette().color(QPalette::Text),
+			   "dialog and input inherit the selected dark workbench palette");
+		render(window, themed, QStringLiteral("line-dark-dialog"));
+		appearance->choose_mode(core::appearance_mode::light);
+		aWait([&] { return appearance->resolved_variant() == core::appearance_variant::light; }, "profile changes while line dialog remains open");
+		expect(themed->palette().color(QPalette::Window) == window.palette().color(QPalette::Window)
+				   && number(*themed)->palette().color(QPalette::Text) == window.palette().color(QPalette::Text),
+			   "open dialog follows a changed workbench palette");
+		cancel(*themed);
+		appearance->choose_mode(originalMode);
+		aWait([&] { return appearance->adopted().Mode == originalMode; }, "original appearance mode restored");
 		std::cout << "GO_TO_LINE_PUBLIC_PATH_OK minimum=" << window.minimumWidth() << "x" << window.minimumHeight()
 				  << " scale=" << window.devicePixelRatioF() << " source_lines=1107 presentations=split,unified\n";
 	}

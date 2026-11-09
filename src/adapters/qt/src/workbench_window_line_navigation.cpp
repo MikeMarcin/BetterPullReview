@@ -14,6 +14,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QPointer>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -22,6 +23,29 @@
 #include <memory>
 
 namespace bpr::qt {
+	namespace {
+		/// \brief Keeps the full file identity accessible without sizing the command panel to its path.
+		class line_file_label final : public QLabel
+		{
+		public:
+			explicit line_file_label(QWidget* aParent)
+				: QLabel{ aParent }
+			{
+				setTextFormat(Qt::PlainText);
+				setForegroundRole(QPalette::PlaceholderText);
+				setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			}
+
+		protected:
+			void paintEvent(QPaintEvent*) override
+			{
+				auto painter = QPainter{ this };
+				painter.setPen(palette().color(foregroundRole()));
+				painter.drawText(contentsRect(), Qt::AlignLeft | Qt::AlignVCenter, fontMetrics().elidedText(text(), Qt::ElideMiddle, contentsRect().width()));
+			}
+		};
+	}
+
 	void workbench_window::set_go_to_line_colours(const QColor& aLeft, const QColor& aRight, const QColor& aText)
 	{
 		GoToLineLeftFill  = aLeft;
@@ -80,23 +104,17 @@ namespace bpr::qt {
 		dialog->setAccessibleName(tr("Go to line"));
 		dialog->setWindowModality(Qt::WindowModal);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
+		dialog->setAttribute(Qt::WA_WindowPropagation);
 		auto* const column = new QVBoxLayout{ dialog };
+		column->setContentsMargins(16, 12, 16, 12);
+		column->setSpacing(8);
 		column->setSizeConstraint(QLayout::SetFixedSize);
-		auto* const file = new QLabel{ dialog };
-		file->setObjectName(QStringLiteral("goToLineFile"));
-		file->setTextFormat(Qt::PlainText);
-		file->setWordWrap(true);
-		file->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		if (DocumentTabs) {
-			const auto found = std::ranges::find_if(DocumentTabs->tabs(), [](const auto& aTab) { return aTab.Active; });
-			if (found != DocumentTabs->tabs().end()) {
-				file->setText(found->Path);
-			}
-		}
-		file->setAccessibleName(tr("File: %1").arg(file->text()));
-		column->addWidget(file);
 		auto* const row = new QHBoxLayout;
+		row->setSpacing(8);
 		column->addLayout(row);
+		auto* const picker = new QHBoxLayout;
+		picker->setSpacing(2);
+		row->addLayout(picker);
 		auto* const side = new QButtonGroup{ dialog };
 		side->setExclusive(true);
 		const auto counts = std::array{ material->LeftDocument ? material->LeftDocument->Lines.size() : 0U,
@@ -114,38 +132,54 @@ namespace bpr::qt {
 			auto* const chip = chips[static_cast<std::size_t>(index)];
 			chip->setEnabled(counts[static_cast<std::size_t>(index)] != 0U);
 			side->addButton(chip, index);
-			row->addWidget(chip);
+			picker->addWidget(chip);
 		}
 		side->button(initial->Side == core::diff_side::left ? 0 : 1)->setChecked(true);
-		row->addStretch();
+		row->addSpacing(4);
 		auto* const line = new QLineEdit{ QString::number(initial->Line + 1U), dialog };
 		line->setObjectName(QStringLiteral("goToLineNumber"));
 		line->setAccessibleName(tr("Line"));
 		line->setMaxLength(32);
-		line->setMaximumWidth(line->fontMetrics().horizontalAdvance(QStringLiteral("0000000000")));
 		auto* const label = new QLabel{ tr("&Line"), dialog };
 		label->setBuddy(line);
 		row->addWidget(label);
 		row->addWidget(line);
+		auto* const buttons = new QDialogButtonBox{ QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog };
+		buttons->layout()->setContentsMargins(0, 0, 0, 0);
+		auto* const go = buttons->button(QDialogButtonBox::Ok);
+		go->setText(tr("Go"));
+		go->setObjectName(QStringLiteral("goToLineGo"));
+		go->setAccessibleName(tr("Go"));
+		go->setDefault(true);
+		row->addWidget(buttons);
+		auto* const contextRow = new QHBoxLayout;
+		contextRow->setSpacing(12);
+		column->addLayout(contextRow);
+		auto* const file = new line_file_label{ dialog };
+		file->setObjectName(QStringLiteral("goToLineFile"));
+		if (DocumentTabs) {
+			const auto found = std::ranges::find_if(DocumentTabs->tabs(), [](const auto& aTab) { return aTab.Active; });
+			if (found != DocumentTabs->tabs().end()) {
+				file->setText(found->Path);
+			}
+		}
+		file->setToolTip(file->text());
+		file->setAccessibleName(tr("File: %1").arg(file->text()));
+		contextRow->addWidget(file, 1);
 		auto* const range = new QLabel{ dialog };
 		range->setObjectName(QStringLiteral("goToLineRange"));
 		range->setAlignment(Qt::AlignRight);
-		column->addWidget(range);
+		range->setForegroundRole(QPalette::PlaceholderText);
+		contextRow->addWidget(range);
 		auto* const reason = new QLabel{ dialog };
 		reason->setObjectName(QStringLiteral("goToLineValidation"));
 		reason->setTextFormat(Qt::PlainText);
 		reason->setWordWrap(true);
 		reason->hide();
 		column->addWidget(reason);
-		auto* const buttons = new QDialogButtonBox{ QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog };
-		auto* const go      = buttons->button(QDialogButtonBox::Ok);
-		go->setText(tr("Go"));
-		go->setObjectName(QStringLiteral("goToLineGo"));
-		go->setAccessibleName(tr("Go"));
-		go->setDefault(true);
-		column->addWidget(buttons);
 		const auto stale   = std::make_shared<bool>(false);
 		const auto refresh = [this, material, context, tab, activeTab, counts, side, chips, line, range, reason, go, stale] {
+			line->setMaximumWidth(line->fontMetrics().horizontalAdvance(QStringLiteral("0000000000")));
 			chips[0]->Fill = GoToLineLeftFill;
 			chips[1]->Fill = GoToLineRightFill;
 			for (auto* chip : chips) {
@@ -155,7 +189,7 @@ namespace bpr::qt {
 			*stale = *stale || ComparisonSurface->current_result() != material || ComparisonSurface->current_context() != context
 				|| activeTab() != tab || showing_home() || LocalCycleShown || CompositionPage || current_modality() != review_modality::review;
 			const auto count = counts[static_cast<std::size_t>(side->checkedId())];
-			range->setText(count == 0U ? tr("No source lines on this side") : tr("Range: 1–%1").arg(count));
+			range->setText(count == 0U ? tr("No source lines on this side") : tr("Lines 1–%1").arg(count));
 			const auto text        = line->text();
 			const auto decimal     = !text.isEmpty() && std::ranges::all_of(text, [](const QChar aCharacter) { return aCharacter >= QLatin1Char('0') && aCharacter <= QLatin1Char('9'); });
 			bool       converted   = false;
