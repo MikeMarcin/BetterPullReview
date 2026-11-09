@@ -46,3 +46,26 @@ This engineering measurement cannot qualify build43, the Mac-only build44
 preview, any final native graph, signing, trust or publication. Preserve all
 other failed and unreached Windows courses. The owner's separate Qt decision
 changes no first-party functional or containment requirement.
+
+## Native result and main integration
+
+The fresh current-main candidate `8396d01c3` (accepted 8f plus BPR-1967)
+passes the original six-course wrapper in 45.94 seconds. The same image and
+wrapper fail at the first settings-store prerequisite inside the AppContainer;
+later contained checks are unreached. A separate exact-token/handle probe
+records WinError 5 opening the first retained storage ancestor with the
+production attributes/control flags. The data handle itself resolves in
+both DOS and NT form, so the pin names `ancestor-control-denied`.
+
+The normal Windows manifest gate rejects the original unmeasured marker
+(CTest 8 / 1.71 seconds) and passes with the measured entry (0 / 1.71 seconds).
+The explicit Windows registration, all other pins and every course argument,
+oracle, environment entry and 400/180-second limit remain. Source `fd39ea354`
+and the evidence packet are pushed through main `107d34683`, preserving all
+allocations. Format 22, 74 isolation contracts, 67 documentation contracts,
+documentation structure and scoped board validation pass.
+
+The [shared handback](../_checkpoints/bpr1964-1967-native-windows/handoff.md)
+binds exact sources/images, retained failures, streams and operator guard
+reconciliations. This is measured engineering evidence and a registry repair;
+full common-source native qualification and other release obligations remain.

@@ -45,3 +45,28 @@ retained native state and explicit successful transcript replay afterward.
 No cached backend is killed to permit the fault. Frozen producers remain
 untouched. BPR-1964's containment measurement and all other release failures
 remain separate obligations.
+
+## Native result and main integration
+
+Source `3dc816125` changes only this test TU. The corrected file SHA is
+`b6061e0bf6d3074922b69e3d3948f477c75b2705527c99c7c4fd0840b74d8a27`.
+On current accepted 8f code, the normal six-course wrapper passes in 45.94
+seconds with all original assertions and limits. The negative changes only
+the withheld file to the canary's unrelated state marker. The ownership
+marker then remains valid, native continuation succeeds, and the unchanged
+`missing-native-no-retry` oracle rejects it (CTest 8 / 84.49 seconds).
+
+The operator postcheck mistakenly matched CTest's printed pass-regex header;
+the raw assertion and exact-line reconciliation are retained. The corrected
+source is restored and normally rebuilt. About's normal dirty-source build
+identity causes one composition-library hash change during the variants;
+there is no all-libraries-unchanged claim or reused pass for the restored
+image. The passing and negative image/PDB evidence remains separately bound.
+
+Source and evidence are pushed through main `107d34683`, preserving every
+allocation. Format 22, 74 isolation contracts, 67 documentation contracts,
+documentation structure and scoped board validation pass. The
+[shared handback](../_checkpoints/bpr1964-1967-native-windows/handoff.md)
+retains the original abort, later c4 failure, exact corrected/native controls,
+ownership and limits. BPR-1964 containment registration is separate; no
+full-release qualification is supplied by this fixture correction.

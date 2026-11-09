@@ -6,6 +6,11 @@ Assignment `/root/windows_native_diagnosis`, mandate
 (`portable-workspace-fault`). The coordinator allocated both IDs and approved
 the exact source scopes and native engineering operations.
 
+Source and this evidence packet are integrated and pushed through authoritative
+main `107d346834f7ad2c316580c634fccbce314d6ad0`, with origin/main verified at
+the same revision. The normal merge preserves main 7321, the BPR-1968
+reservation and `NEXT_ID` BPR-1969. Card closeout is metadata only.
+
 ## Changes and exact candidate
 
 - BPR-1967 source `3dc816125b7c7b82b1c2113f9067f57ee795d0c9` changes only
