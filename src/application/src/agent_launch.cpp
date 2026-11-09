@@ -2383,6 +2383,17 @@ namespace bpr::application {
 			if (!aSupplement.TourPrompt.empty()) {
 				append_field(aResult, "tour_prompt", aSupplement.TourPrompt);
 			}
+			if (aSupplement.Replay) {
+				append_field(aResult, "transcript_replay.mode", "Transcript replay: saved questions and replies only; prior tools and workspace changes are absent. Current BPR context is authoritative.");
+				append_number(aResult, "transcript_replay.omitted", aSupplement.Replay->Omitted);
+				append_number(aResult, "transcript_replay.cut_bytes", aSupplement.Replay->CutBytes);
+				append_number(aResult, "transcript_replay.turn.count", aSupplement.Replay->Turns.size());
+				for (std::size_t index = 0; index < aSupplement.Replay->Turns.size(); ++index) {
+					const auto prefix = "transcript_replay.turn." + std::to_string(index);
+					append_field(aResult, prefix + ".asked", aSupplement.Replay->Turns[index].Asked);
+					append_field(aResult, prefix + ".answered", aSupplement.Replay->Turns[index].Answered);
+				}
+			}
 			// BPR-0533: the one position the asked-for comment-workshop operation
 			// occupies. Written unconditionally and empty when the launch is not a
 			// workshop request, for the reason the message above is: a reader must
@@ -2795,6 +2806,9 @@ namespace bpr::application {
 		if (!core::valid(aProfile) || core::stable_name(aProfile.Protocol).empty()) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
+		if (aSupplement.Replay && !core::valid_transcript_replay(*aSupplement.Replay)) {
+			return std::unexpected(agent_launch_failure::input_too_large);
+		}
 		if (aProfile.Id != aSupplement.Session.Profile) {
 			return std::unexpected(agent_launch_failure::profile_session_mismatch);
 		}
@@ -2825,6 +2839,9 @@ namespace bpr::application {
 			auto counter = input_counter{ .Json = aProfile.Protocol == core::agent_protocol::codex_app_server || aProfile.Protocol == core::agent_protocol::claude_stream_json };
 			encode_supplement_into(counter, aSupplement);
 			encode_private_into(counter, aOptions);
+			if (!aSupplement.TourPrompt.empty() && aSupplement.Replay && counter.Bytes > core::maximum_tour_prompt_bytes) {
+				throw input_limit{ };
+			}
 			if (input_overhead(aProfile.Protocol, metadata) > maximum_agent_input_bytes - counter.Bytes) {
 				throw input_limit{ };
 			}

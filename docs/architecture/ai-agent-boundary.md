@@ -245,28 +245,38 @@ changed files with their status, the review threads (64 KiB in all, unresolved
 first, omissions counted), the workspace's kind (`linked_clone_history`,
 `private_copy` or `private_snapshot`, set once it is made), the diff named
 rather than copied (`git diff BASE...HEAD`, none for a snapshot), and the
-review skill's text. It also carries the conversation so far about the pull
-request ([[BPR-1753]], owner decision (b), 2026-10-23): the earlier
-questions and answers, oldest first (`brief.conversation.N.asked` and
-`.answered`), each side cut to 8 KiB, the newest 50 turns within 48 KiB and
-the older ones counted (`brief.conversation.omitted`). The application
-carries this prose replay for external one-shot integrations. Native Agent-tab
-Claude stream-json and Codex App Server instead continue the selected agent's
-durable native conversation, without replaying earlier assistant prose as its
-memory. Codex JSONL reconnects by exact native ID with a process per turn. The
-turns are kept, as the
-Agent tab shows them, in the profile's `agent-setup.sqlite3` for each pull
-request (host, owner, name and number; at most 50 turns, 64 KiB per text and
-500 conversation records across both surfaces and generations). Native
-**New session** retains the previous generation in scoped History; it is neither
-deletion nor profile purge. Native admission protects existing ownership and
-refuses at capacity. The separate legacy projection writer still needs its
-shared admission/save-failure reconciliation in BPR-1954; no global-capacity
-qualification is inferred here. Settings resets remove the file. They are the reviewer's
-questions and the agent's prose, and no credential. Its lines follow every
-version-two field and are written only when present, so a launch without a
-brief differs from version two only in its `schema` line. The agent may still
-read GitHub through its own tools.
+review skill's text. Native Agent-tab Claude stream-json and Codex App Server continue the selected
+agent's durable conversation, without replaying shortened prose as native memory.
+Codex JSONL reconnects by exact native ID with a process per turn. The retained
+BPR display keeps at most 50 turns and 64 KiB per text; it is not a complete
+native transcript viewer.
+
+**Transcript replay** is an explicit alternative for unsupported backends or
+unavailable native state. Choosing it creates a separate generation at the shown
+revision and keeps the source history, native handle and owned workspace intact.
+It sends saved answered questions/replies in `transcript_replay.*`, counting
+omitted turns and cut bytes. Agent replay takes the newest 50 within 48 KiB,
+with 8 KiB per field; tour replay takes the newest 12 answered turns within
+48 KiB. Prior tool observations and workspace changes are absent. Each replay
+turn gets a new private workspace and the same authority/tool/network checks.
+A failed native turn never automatically resends through replay. Legacy numeric
+slots remain labelled unknown identities, readable without sending; using them
+requires an explicit replay destination, even if today's agent uses that slot.
+Earlier storage omissions that were never recorded remain unknown.
+
+**New session** keeps earlier generations in scoped History and sends nothing.
+An unused empty generation is reused. Native-capable entries start native;
+unsupported entries select a visibly labelled empty replay generation. New session
+is neither deletion nor profile purge. Both legacy and native writers share the
+500-record admission bound across surfaces/generations. Admission refuses safely
+instead of pruning protected records or owned workspaces; an existing record can
+still be saved at capacity. A failed legacy or native save is visible. The
+128-entry invocation metadata catalog does not own resume state. BPR metadata and
+saved prose live in the profile's `agent-setup.sqlite3`; agent-owned transcripts
+and retained workspaces have separate ownership and cleanup. Settings resets
+remove the setup file; they do not delete agent-owned transcripts or establish
+safe retained-workspace reclamation.
+
 
 **A question about one conversation ([[BPR-1773]]).** The eighth entry
 point, `ask_about_conversation`, is a chat turn whose subject is the review

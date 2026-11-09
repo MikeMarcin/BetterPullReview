@@ -304,15 +304,19 @@ namespace bpr::app {
 		const auto  profile     = *Window->agent_panel()->selected_profile();
 		const auto  preferences = AgentSetup->projection().Preferences;
 		const auto* entry       = core::entry_of_profile(preferences.Agents, profile);
-		if (!entry || entry->Protocol == core::agent_protocol::external_terminal) {
+		if (!entry) {
 			AgentNativeHistory = { };
 			return;
 		}
-		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
+		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice), AgentConversation ? AgentConversation->projection().Key : std::nullopt);
 	}
 	void github_application::implementation::present_agent_native_history(const application::native_agent_history_projection& aView)
 	{
 		if (Closing || !Window) {
+			return;
+		}
+		if (aView.ReadOnly) {
+			Window->agent_tab()->present_native_history(aView);
 			return;
 		}
 		AgentNativeHistory = aView;
@@ -351,7 +355,7 @@ namespace bpr::app {
 			if (AgentHost && AgentSetup && Window && Window->agent_panel()->selected_profile()) {
 				const auto profile     = *Window->agent_panel()->selected_profile();
 				const auto preferences = AgentSetup->projection().Preferences;
-				if (const auto* const entry = core::entry_of_profile(preferences.Agents, profile); entry != nullptr && entry->Protocol != core::agent_protocol::external_terminal) {
+				if (const auto* const entry = core::entry_of_profile(preferences.Agents, profile); entry != nullptr) {
 					AgentHost->restore_native(profile, entry->Identity, "agent-tab");
 				}
 			}
@@ -668,9 +672,12 @@ namespace bpr::app {
 		if (Closing || Window == nullptr) {
 			return;
 		}
+		if (aView.SaveFailed) {
+			present_agent_refusal("history storage", "This conversation could not be saved. Existing histories were kept. Free storage before starting another conversation.");
+		}
 		if (Window->agent_panel()->selected_profile() && AgentSetup) {
 			const auto preferences = AgentSetup->projection().Preferences;
-			if (const auto* entry = core::entry_of_profile(preferences.Agents, *Window->agent_panel()->selected_profile()); entry && entry->Protocol != core::agent_protocol::external_terminal) {
+			if (const auto* entry = core::entry_of_profile(preferences.Agents, *Window->agent_panel()->selected_profile()); entry) {
 				observe_agent_native_history();
 				return;
 			}

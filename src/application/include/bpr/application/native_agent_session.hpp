@@ -24,7 +24,9 @@ namespace bpr::application {
 		std::uint64_t                        Turn     = 2U;
 		std::uint64_t                        Revision = 0U;
 		/// Written before submission; a crash here is uncertain, never a retry.
-		bool Pending = false;
+		bool        Pending = false;
+		bool        Replay  = false;
+		std::string ReplaySource;
 	};
 
 	enum class native_agent_storage_failure { unavailable,
@@ -45,8 +47,11 @@ namespace bpr::application {
 		/// Explicit selection/admission. Empty ID starts fresh; unused generations are reused.
 		[[nodiscard]] virtual auto choose(const std::string&, const std::string&, const core::agent_revision_binding&, const std::string&)
 			-> std::expected<native_agent_session, native_agent_storage_failure> { return std::unexpected(native_agent_storage_failure::unavailable); }
-		[[nodiscard]] virtual auto history(const std::string&, const std::string&, const std::string& = { })
+		[[nodiscard]] virtual auto history(const std::string&, const std::string&, const std::string& = { }, const std::optional<agent_conversation_key>& = std::nullopt)
 			-> std::expected<native_agent_history_projection, native_agent_storage_failure> { return std::unexpected(native_agent_storage_failure::unavailable); }
+		/// Explicit prose-only generation. Source identity and original state are preserved.
+		[[nodiscard]] virtual auto replay(const std::string&, const std::string&, const core::agent_revision_binding&, const std::string&, const std::optional<agent_conversation_key>& = std::nullopt)
+			-> std::expected<native_agent_session, native_agent_storage_failure> { return std::unexpected(native_agent_storage_failure::unavailable); }
 		/// Appends only to the originating generation, independently of the selected pointer.
 		[[nodiscard]] virtual auto append(const std::string&, const agent_conversation_turn&) -> bool { return false; }
 		/// Updates the caller's revision on success; failure preserves its prior identity.

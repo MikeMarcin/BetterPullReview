@@ -453,6 +453,7 @@ namespace bpr::qt {
 		std::function<void(std::optional<std::string>)> NativeHistoryDispatch;
 		application::native_agent_history_projection    NativeHistoryView;
 		QMenu*                                          NativeHistoryMenu = nullptr;
+		QLabel*                                         ContinuationMode  = nullptr;
 		/// Paints each glyph again in the current palette's ink.
 		void repaint_glyphs();
 		void rebuild_findings();

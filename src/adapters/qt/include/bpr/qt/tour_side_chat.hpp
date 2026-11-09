@@ -328,8 +328,9 @@ namespace bpr::qt {
 		QLabel*                                                                     FocusLine     = nullptr;
 		std::function<void(core::tour_agent_run_id)>                                FocusUndoDispatch;
 		[[nodiscard]] auto                                                          takes_feedback() const -> bool;
-		bool                                                                        Mine  = false;
-		bool                                                                        Ready = true;
+		bool                                                                        Mine             = false;
+		bool                                                                        Ready            = true;
+		QLabel*                                                                     ContinuationMode = nullptr;
 		QString                                                                     Why;
 		std::size_t                                                                 Shown = 0U;
 		bool                                                                        Stick = false;

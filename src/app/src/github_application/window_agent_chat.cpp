@@ -607,17 +607,8 @@ namespace bpr::app {
 		// request, bounded, and the review skill's text (Q9 A). A comment
 		// workshop press and a writing request are not review requests.
 		if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
-			auto        brief              = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
-			const auto* entry              = AgentSetup ? core::entry_of_profile(AgentSetup->projection().Preferences.Agents, aProfile) : nullptr;
-			const auto  nativeConversation = !aExistingCheckoutChosen && entry && !entry->Identity.empty() && entry->Protocol != core::agent_protocol::external_terminal;
-			// [[BPR-1753]], owner decision (b). The conversation so
-			// far about this pull request, so a follow-up continues it.
-			if (AgentConversation && !nativeConversation) {
-				const auto earlier = AgentConversation->projection().Turns;
-				for (const auto& turn : earlier) {
-					brief.Conversation.push_back({ .Asked = turn.Asked, .Answered = turn.Answered });
-				}
-			}
+			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
+
 			observation.Brief = core::bound_review_brief(std::move(brief));
 		}
 		// Which file, and where in it. The two are told apart because
@@ -830,9 +821,11 @@ namespace bpr::app {
 			if (!aTour.NativeScope.empty() && AgentSetup) {
 				const auto preferences = AgentSetup->projection().Preferences;
 				if (const auto* entry = core::entry_of_profile(preferences.Agents, aProfile); entry) {
-					invocation.NativeAgentIdentity = entry->Identity;
-					invocation.NativeScope         = aTour.NativeScope;
-					invocation.NativeQuestion      = aTour.NativeQuestion;
+					invocation.NativeAgentIdentity  = entry->Identity;
+					invocation.NativeScope          = aTour.NativeScope;
+					invocation.NativeQuestion       = aTour.NativeQuestion;
+					invocation.TranscriptReplay     = TourHistory.Scope == aTour.NativeScope && TourHistory.Replay;
+					invocation.SelectedConversation = TourHistory.Scope == aTour.NativeScope ? TourHistory.Selected : std::string{ };
 				}
 			}
 			TourSession->dispatch(std::move(invocation));
@@ -840,9 +833,11 @@ namespace bpr::app {
 		}
 		if (AgentSetup && !aExistingCheckoutChosen) {
 			const auto preferences = AgentSetup->projection().Preferences;
-			if (const auto* const entry = core::entry_of_profile(preferences.Agents, aProfile); entry != nullptr && entry->Protocol != core::agent_protocol::external_terminal) {
+			if (const auto* const entry = core::entry_of_profile(preferences.Agents, aProfile); entry != nullptr) {
 				invocation.NativeAgentIdentity          = entry->Identity;
 				invocation.NativeScope                  = "agent-tab";
+				invocation.TranscriptReplay             = AgentNativeHistory.Replay;
+				invocation.SelectedConversation         = AgentNativeHistory.Selected;
 				invocation.NativeStartAtCurrentRevision = NativeFreshAtCurrentRevision && NativeFreshAtCurrentRevision->Profile == aProfile
 					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
 			}

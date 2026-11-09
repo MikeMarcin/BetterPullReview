@@ -668,6 +668,15 @@ namespace {
 		{
 			return Records.contains(aScope) ? std::optional{ Records.at(aScope) } : std::nullopt;
 		}
+		auto history(const std::string& aScope, const std::string&, const std::string&, const std::optional<application::agent_conversation_key>&) -> std::expected<application::native_agent_history_projection, application::native_agent_storage_failure> override
+		{
+			auto view = application::native_agent_history_projection{ };
+			if (Records.contains(aScope)) {
+				view.Selected = Records.at(aScope).Id;
+				view.Replay   = Records.at(aScope).Replay;
+			}
+			return view;
+		}
 		auto append(const std::string&, const application::agent_conversation_turn&) -> bool override { return !FailStore; }
 		auto store(application::native_agent_session& aSession) -> bool override
 		{
@@ -731,6 +740,21 @@ namespace {
 			expect(Effects.empty() && Decisions.empty(), "the test host settles");
 		}
 	};
+
+	void test_reopened_replay_uncertainty_is_visible_without_native_workspace()
+	{
+		auto       test = harness{ };
+		const auto host = core::git_host_id{ 1U };
+		test.Host.observe(core::application_session_id{ 1U }, authority(host), binding(host));
+		const auto scope = application::native_scope_key(authority(host), "incarnation", "agent-tab");
+		auto       saved = test.NativeSessions.select(scope, "claude", binding(host));
+		saved->Replay    = true;
+		saved->Pending   = true;
+		expect(test.NativeSessions.store(*saved), "seed crash-uncertain replay without native handle or workspace");
+		test.Host.restore_native(core::claude_stream_json_profile_id, "incarnation", "agent-tab");
+		test.settle();
+		expect(!test.Projection.Refusals.empty() && test.Projection.Refusals.back().find("It was not resent") != std::string::npos && test.Processes.Starts == 0U && test.Workspaces.Starts == 0U, "reopened replay exposes uncertain send before native-only restoration and performs no inference");
+	}
 
 	void test_explicit_settings_cross_the_existing_invocation_host()
 	{
@@ -1894,6 +1918,7 @@ auto main() -> int
 {
 	native_workspace_and_identity_survive_window_activation();
 	test_explicit_settings_cross_the_existing_invocation_host();
+	test_reopened_replay_uncertainty_is_visible_without_native_workspace();
 	test_session_admission_answers_later_and_admits_one_turn();
 	test_ghes_policy_refuses_codex_before_effects();
 	test_context_refusal_precedes_durable_admission();

@@ -18,8 +18,8 @@ def main():
         parent = Path(temporary).resolve()
         os.chmod(parent, 0o700)
         data = parent / 'data'
-        for course in ('native-session', 'native-session-reopen', 'tour-native', 'tour-native-reopen'):
-            result = subprocess.run([str(args.executable.resolve()), course, str(args.canary.resolve()), str(data)],
+        for course in ('native-session', 'native-session-reopen', 'tour-native', 'tour-native-reopen', 'transcript-replay', 'transcript-replay-reopen'):
+            result = subprocess.run([str(args.executable.resolve()), course, str(args.canary.resolve()), str(parent / 'replay-data' if course.startswith('transcript-replay') else data)],
                                     text=True, capture_output=True, timeout=180)
             print(result.stdout, end='')
             print(result.stderr, end='')
@@ -27,7 +27,7 @@ def main():
                 return 1
         if args.evidence_dir:
             args.evidence_dir.mkdir(parents=True, exist_ok=True)
-            for name in ('native-agent-tab.png', 'native-reopen.png', 'native-tour.png', 'native-tour-reopen.png'):
+            for name in ('native-agent-tab.png', 'native-reopen.png', 'native-tour.png', 'native-tour-reopen.png', 'transcript-replay.png', 'transcript-replay-reopen.png'):
                 shutil.copyfile(parent / name, args.evidence_dir / name)
     print('native-agent-sessions-course:pass')
     return 0

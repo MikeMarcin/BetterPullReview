@@ -24,6 +24,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDateTime>
+#include <QDialog>
 #include <QEnterEvent>
 #include <QEvent>
 #include <QGuiApplication>
@@ -533,6 +534,11 @@ namespace bpr::qt {
 		connect(ClearSession, &QToolButton::clicked, this, [this] { clear_session(); });
 		row->addWidget(ClearSession);
 		column->addWidget(context);
+		ContinuationMode = new QLabel{ tr("Native continuation"), this };
+		ContinuationMode->setObjectName(QStringLiteral("agentContinuationMode"));
+		ContinuationMode->setWordWrap(true);
+		ContinuationMode->setTextFormat(Qt::PlainText);
+		column->addWidget(ContinuationMode);
 
 		Pages = new QStackedWidget{ this };
 		column->addWidget(Pages, 1);
@@ -1694,15 +1700,59 @@ namespace bpr::qt {
 
 	void agent_tab_view::present_native_history(const application::native_agent_history_projection& aView)
 	{
+		if (aView.ReadOnly) {
+			auto* dialog = new QDialog{ this };
+			dialog->setAttribute(Qt::WA_DeleteOnClose);
+			dialog->setWindowTitle(tr("Legacy history (agent identity unknown)"));
+			auto* column = new QVBoxLayout{ dialog };
+			auto* text   = new QPlainTextEdit{ dialog };
+			text->setReadOnly(true);
+			auto body = tr("Legacy saved questions and replies. Native tool observations and workspace state were not retained. Viewing sends no question. Choose an explicit replay destination in History to continue.\n\n");
+			for (const auto& turn : aView.Turns) {
+				body += QString::fromStdString(turn.Asked) + QStringLiteral("\n\n") + QString::fromStdString(turn.Answered) + QStringLiteral("\n\n");
+			}
+			text->setPlainText(body);
+			column->addWidget(text);
+			dialog->resize(600, 480);
+			dialog->show();
+			return;
+		}
 		NativeHistoryView = aView;
 		ClearSession->setEnabled(!aView.Loading && State != agent_tab_state::working);
 		if (aView.Loading) {
 			return;
 		}
 		NativeHistoryMenu->clear();
+		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool observations and workspace changes are absent.") : aView.NativeSupported ? tr("Native continuation")
+																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
+		ContinuationMode->setToolTip(tr("Replay uses at most 50 retained turns, 8 KiB per field and 48 KiB total; older turns and cut text are omitted. The source history stays. New session starts empty and sends no question."));
+		ContinuationMode->setText(ContinuationMode->text() + tr(" Replay omits %1 retained turns and cuts %2 text bytes; earlier storage omissions are unknown.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
+		auto* replay = NativeHistoryMenu->addAction(tr("Use Transcript replay with selected agent"));
+		replay->setObjectName(QStringLiteral("agentTranscriptReplay"));
+		replay->setToolTip(ContinuationMode->toolTip());
+		if (!aView.ReplaySource.empty()) {
+			ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" Source history: %1").arg(QString::fromStdString(aView.ReplaySource)));
+		}
+		replay->setEnabled(State != agent_tab_state::working);
+		connect(replay, &QAction::triggered, this, [this, id = aView.Selected] {
+			if (NativeHistoryDispatch) {
+				NativeHistoryDispatch("replay:" + id);
+			} });
+		if (!aView.Legacy.empty()) {
+			auto* legacy = NativeHistoryMenu->addMenu(tr("Legacy histories (agent identity unknown)"));
+			for (const auto& entry : aView.Legacy) {
+				auto* inspect = legacy->addAction(tr("View %1").arg(QString::fromStdString(entry.Title)));
+				connect(inspect, &QAction::triggered, this, [this, id = entry.Id] {if(NativeHistoryDispatch) {NativeHistoryDispatch("view:"+id);} });
+				auto* action = legacy->addAction(tr("Replay %1 with selected agent (%2 turns)").arg(QString::fromStdString(entry.Title)).arg(entry.Turns));
+				action->setData(QString::fromStdString(entry.Id));
+				action->setEnabled(State != agent_tab_state::working);
+				connect(action, &QAction::triggered, this, [this, id = entry.Id] {if(NativeHistoryDispatch) {NativeHistoryDispatch("replay:"+id);} });
+			}
+		}
+		NativeHistoryMenu->addSeparator();
 		for (const auto& entry : aView.Entries) {
 			auto  title = QString::fromStdString(entry.Title).simplified().left(72);
-			auto* item  = NativeHistoryMenu->addAction(tr("%1 (%2 turns)").arg(title).arg(entry.Turns));
+			auto* item  = NativeHistoryMenu->addAction(tr("%1: %2 (%3 turns)").arg(entry.Replay ? tr("Transcript replay") : tr("Native"), title).arg(entry.Turns));
 			item->setData(QString::fromStdString(entry.Id));
 			item->setProperty("turns", QVariant::fromValue<qulonglong>(entry.Turns));
 			item->setCheckable(true);
@@ -1710,7 +1760,7 @@ namespace bpr::qt {
 			item->setEnabled(State != agent_tab_state::working);
 			connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (NativeHistoryDispatch) { NativeHistoryDispatch(id); } });
 		}
-		NativeHistoryMenu->setEnabled(!aView.Entries.empty());
+		NativeHistoryMenu->setEnabled(true);
 	}
 
 	void agent_tab_view::set_suggestion_context(std::function<agent_suggestion_context()> aContext)

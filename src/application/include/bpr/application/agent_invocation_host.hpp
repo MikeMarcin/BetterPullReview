@@ -101,6 +101,8 @@ namespace bpr::application {
 		std::string NativeScope;
 		bool        NativeStartAtCurrentRevision = false;
 		std::string NativeQuestion;
+		std::string SelectedConversation;
+		bool        TranscriptReplay = false;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -226,7 +228,7 @@ namespace bpr::application {
 			core::pull_request_authority aAuthority,
 			core::agent_revision_binding aBinding);
 		/// \brief Loads only the selected native binding; viewing never starts a process.
-		void restore_native(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice = std::nullopt);
+		void restore_native(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice = std::nullopt, std::optional<agent_conversation_key> aLegacy = std::nullopt);
 		void clear();
 		void dispatch(agent_invocation_request aRequest);
 		void cancel();

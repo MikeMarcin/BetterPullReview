@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement         = core::agent_context_supplement;
-		const auto whole         = supplement{ };
+		using supplement                 = core::agent_context_supplement;
+		const auto whole                 = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -238,8 +238,11 @@ namespace {
 					 brief,
 					 conversation,
 					 skills,
-					 tourPrompt] = whole;
+					 tourPrompt, replay] = whole;
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
+		static_assert(std::is_same_v<decltype(replay), const std::optional<core::transcript_replay>>);
+		[[maybe_unused]] const auto& [replayTurns, replayOmitted, replayCuts, replayTour] = core::transcript_replay{ };
+		static_assert(std::is_same_v<decltype(replayTurns), const std::vector<core::brief_turn>>);
 		static_assert(std::is_same_v<
 					  decltype(applicationSession),
 					  const core::application_session_id>);
@@ -713,6 +716,25 @@ namespace {
 			!core::build_agent_supplement(request),
 			"a selected semantic segment absent from the permitted set is refused");
 	}
+	void test_replay_bounds_and_omissions()
+	{
+		auto       turns    = std::vector<core::brief_turn>(51U, { "q", "a" });
+		const auto ordinary = core::bound_transcript_replay(turns, false);
+		expect(ordinary.Turns.size() == 50U && ordinary.Omitted == 1U && core::valid_transcript_replay(ordinary), "Agent replay newest50 with counted omission");
+		const auto tour = core::bound_transcript_replay(turns, true);
+		expect(tour.Turns.size() == 12U && tour.Omitted == 39U, "tour replay keeps only newest12 within48KiB");
+		turns          = { { "q", std::string(8192U, 'a') + "\xc3\xa9" } };
+		const auto cut = core::bound_transcript_replay(turns, false);
+		expect(cut.CutBytes == 2U && cut.Turns.front().Answered.size() == 8192U, "Agent perfield cuts count actual UTF8 bytes");
+		turns            = { { "q", std::string(48U * 1024U, 'a') } };
+		const auto large = core::bound_transcript_replay(turns, true);
+		expect(large.Turns.empty() && large.Omitted == 1U, "oversized tour replay turn omitted whole without truncating its prose");
+		auto invalid  = core::transcript_replay{ };
+		invalid.Turns = turns;
+		invalid.Tour  = true;
+		expect(!core::valid_transcript_replay(invalid), "unbounded replay cannot bypass core admission");
+	}
+
 } // namespace
 
 namespace {
@@ -844,6 +866,7 @@ namespace {
 
 auto main() -> int
 {
+	test_replay_bounds_and_omissions();
 	test_a_minimal_supplement_preserves_absence();
 	test_every_required_local_and_semantic_field_travels_exactly();
 	test_absent_and_present_empty_source_text_are_different();

@@ -1663,6 +1663,18 @@ namespace {
 		expect(application::build_agent_context_supplement(typed, session()).has_value(), "a typed message at its bound still builds");
 	}
 
+	void test_replay_keeps_permissions_and_whole_tour_bound()
+	{
+		auto supplement            = built_supplement();
+		supplement.Replay          = core::bound_transcript_replay({ { "previous question", "previous answer" } }, true);
+		supplement.Session.Profile = profile(core::agent_protocol::external_terminal).Id;
+		expect(!application::build_agent_launch(profile(core::agent_protocol::external_terminal), supplement, reader(), { .ReadOnlyTools = true }), "explicit replay cannot admit a read-only unsupported backend");
+		supplement.Session.Profile = profile(core::agent_protocol::claude_stream_json).Id;
+		supplement.TourPrompt      = std::string(core::maximum_tour_prompt_bytes, 'x');
+		const auto oversized       = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement, reader(), { .ReadOnlyTools = true });
+		expect(!oversized && oversized.error() == application::agent_launch_failure::input_too_large, "tour snapshot plus replay refuses whole oversized carrier before any launch");
+	}
+
 	void test_read_only_tour_drafting()
 	{
 		const auto claude   = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
@@ -2309,6 +2321,7 @@ auto main() -> int
 	test_claude_takes_only_a_model_as_one_argument();
 	test_claude_writing_argv_reads_the_account_sign_in();
 	test_read_only_tour_drafting();
+	test_replay_keeps_permissions_and_whole_tour_bound();
 	test_a_tour_prompt_crosses_only_on_a_read_only_tour_run();
 	test_skill_references_reach_the_run();
 	test_workspace_line_counts();

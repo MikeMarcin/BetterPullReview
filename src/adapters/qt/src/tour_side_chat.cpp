@@ -359,6 +359,11 @@ namespace bpr::qt {
 		sessionRow->addStretch();
 		sessionRow->addWidget(NewSession);
 		column->addLayout(sessionRow);
+		ContinuationMode = new QLabel{ tr("Native continuation"), this };
+		ContinuationMode->setObjectName(QStringLiteral("tourContinuationMode"));
+		ContinuationMode->setWordWrap(true);
+		ContinuationMode->setTextFormat(Qt::PlainText);
+		column->addWidget(ContinuationMode);
 		connect(SessionMenu, &QMenu::aboutToShow, this, [this] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,std::nullopt); } });
 		connect(NewSession, &QToolButton::clicked, this, [this] { if (!Running && !HistoryLoading) { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,std::string{}); } } });
 		// The composer: the passage it quotes, the words, Send.
@@ -602,8 +607,21 @@ namespace bpr::qt {
 		NewSession->setEnabled(!Running && !HistoryLoading);
 		if (!aView.Loading) {
 			SessionMenu->clear();
+			ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tools and workspace changes are absent.") : aView.NativeSupported ? tr("Native continuation")
+																																												 : tr("Native continuation unavailable. Choose Transcript replay or New session."));
+			ContinuationMode->setToolTip(tr("Replay keeps at most the newest 12 answered turns within 48 KiB. Older or unanswered turns are omitted. The source history stays. Tour tool and network restrictions still apply."));
+			ContinuationMode->setText(ContinuationMode->text() + tr(" Replay omits %1 retained turns and cuts %2 text bytes; earlier storage omissions are unknown.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
+			auto* replay = SessionMenu->addAction(tr("Use Transcript replay with selected agent"));
+			replay->setObjectName(QStringLiteral("tourTranscriptReplay"));
+			replay->setEnabled(!Running);
+			replay->setToolTip(ContinuationMode->toolTip());
+			if (!aView.ReplaySource.empty()) {
+				ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" Source history: %1").arg(QString::fromStdString(aView.ReplaySource)));
+			}
+			connect(replay, &QAction::triggered, this, [this, id = aView.Selected] {if (auto thread=current();thread && HistoryDispatch) {HistoryDispatch(*thread,"replay:"+id);} });
+			SessionMenu->addSeparator();
 			for (const auto& entry : aView.Entries) {
-				auto* item = SessionMenu->addAction(tr("%1 (%2 turns)").arg(QString::fromStdString(entry.Title).simplified().left(72)).arg(entry.Turns));
+				auto* item = SessionMenu->addAction(tr("%1: %2 (%3 turns)").arg(entry.Replay ? tr("Transcript replay") : tr("Native"), QString::fromStdString(entry.Title).simplified().left(72)).arg(entry.Turns));
 				item->setData(QString::fromStdString(entry.Id));
 				item->setProperty("turns", QVariant::fromValue<qulonglong>(entry.Turns));
 				item->setCheckable(true);

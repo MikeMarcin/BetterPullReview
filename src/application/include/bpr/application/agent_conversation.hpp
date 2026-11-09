@@ -54,6 +54,8 @@ namespace bpr::application {
 		std::string                  Scope;
 		std::size_t                  Turns   = 0U;
 		bool                         Pending = false;
+		bool                         Replay  = false;
+		std::string                  ReplaySource;
 	};
 	struct native_agent_history_projection
 	{
@@ -61,7 +63,13 @@ namespace bpr::application {
 		std::string                             Selected;
 		std::vector<native_agent_history_entry> Entries;
 		std::vector<native_agent_history_entry> OtherChats;
-		bool                                    ReadOnly = false;
+		bool                                    ReadOnly        = false;
+		bool                                    Replay          = false;
+		bool                                    NativeSupported = true;
+		std::string                             ReplaySource;
+		std::vector<native_agent_history_entry> Legacy;
+		std::size_t                             ReplayTurnsOmitted = 0U;
+		std::size_t                             ReplayTextCutBytes = 0U;
 		std::vector<agent_conversation_turn>    Turns;
 		bool                                    Loading = false;
 		std::string                             Failure;

@@ -723,6 +723,12 @@ namespace {
 			}
 			++turn;
 			auto answer = (line.find("remember-tool-observation") == std::string::npos ? std::string{ "First answer omits the tool observation" } : std::string{ "tool-observation-7f13 retained-file=yes" }) + " process=" + process;
+			if (line.find("verify-replay") != std::string::npos) {
+				const auto replay  = line.find("Transcript replay") != std::string::npos;
+				const auto prior   = line.find("native source question") != std::string::npos || line.find("legacy replay canary") != std::string::npos || line.find("conversation_so_far") != std::string::npos;
+				const auto retried = line.find("failed request must not be replayed") != std::string::npos;
+				answer             = (replay && prior && !retried && saved.empty() && argument_after(aCount, aArguments, "--resume").empty() ? "transcript-replay-ok prior-workspace=no" : "replay-contract-failed") + std::string{ " process=" } + process;
+			}
 			if (line.find("explain-source-status") != std::string::npos) {
 				const auto hasFact   = [&line](const std::string& aFact) {const auto once=json_escape(aFact);return line.find(once)!=std::string::npos || line.find(json_escape(once))!=std::string::npos; };
 				const bool bootstrap = line.find("bpr.tour-context.v1") != std::string::npos && line.find("bpr.tour-guide.v1") != std::string::npos;
@@ -886,6 +892,12 @@ auto main(int argc, char** argv) -> int
 	}
 	const auto input = read_input(
 		protocol, has_argument(argc, argv, "--preemptive-app-server"));
+	if (has_argument(argc, argv, "--nonresuming-replay-fixture")) {
+		const auto permitted = input.find("Transcript replay") != std::string::npos && argument_after(argc, argv, "--resume").empty();
+		std::cout << (permitted ? "nonresuming-replay-ok" : "unlabelled-replay-refused") << '\n';
+		return permitted ? 0 : 19;
+	}
+
 	// Deliberately not `write_partial` and deliberately ahead of
 	// `begin_output`: the whole refused exchange has to reach the pipe in one
 	// write and be followed immediately by exit, so that the parent reads it in

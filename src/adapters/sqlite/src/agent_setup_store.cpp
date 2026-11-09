@@ -125,6 +125,7 @@ namespace bpr::adapters::sqlite {
 									"workspace TEXT NOT NULL, parent TEXT NOT NULL, marker TEXT NOT NULL, application INTEGER NOT NULL, session INTEGER NOT NULL,"
 									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, PRIMARY KEY(conversation,ordinal)) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_replays(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), source TEXT NOT NULL) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
@@ -732,7 +733,7 @@ namespace bpr::adapters::sqlite {
 			{
 				return read(aScope, aConfiguration, aBinding, false, false);
 			}
-			auto read(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const bool aCreate, const bool aStartAtCurrentRevision, const std::optional<std::string>& aChoice = std::nullopt)
+			auto read(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const bool aCreate, const bool aStartAtCurrentRevision, const std::optional<std::string>& aChoice = std::nullopt, const std::optional<application::agent_conversation_key>& aLegacy = std::nullopt)
 				-> std::expected<std::optional<application::native_agent_session>, application::native_agent_storage_failure>
 			{
 				using failure = application::native_agent_storage_failure;
@@ -749,12 +750,88 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(failure::unavailable);
 				}
 				bind_text(row->Value, 1, aScope);
-				auto status = sqlite3_step(row->Value);
-				if (aChoice) {
-					if (status == SQLITE_ROW && sqlite3_column_int(row->Value, 8) != 0) {
-						return std::unexpected(failure::conflict);
+				auto       status       = sqlite3_step(row->Value);
+				const auto replaying    = aChoice && aChoice->starts_with("replay:");
+				auto       replayTurns  = std::vector<application::agent_conversation_turn>{ };
+				auto       replaySource = std::string{ };
+				if (replaying) {
+					replaySource    = aChoice->substr(7U);
+					auto reuseEmpty = false;
+					if (replaySource.empty() && status == SQLITE_ROW && sqlite3_column_int(row->Value, 8) == 0 && sqlite3_column_int64(row->Value, 7) == 2) {
+						auto unused = detail::prepare(db, "SELECT 1 FROM native_agent_replays WHERE conversation=?1 AND source='' AND NOT EXISTS(SELECT 1 FROM native_agent_turns WHERE conversation=?1)");
+						if (!unused) {
+							return std::unexpected(failure::unavailable);
+						}
+						bind_text(unused->Value, 1, column_text(row->Value, 0).value_or(""));
+						const auto unusedStatus = sqlite3_step(unused->Value);
+						if (unusedStatus != SQLITE_ROW && unusedStatus != SQLITE_DONE) {
+							return std::unexpected(failure::unavailable);
+						}
+						reuseEmpty = unusedStatus == SQLITE_ROW;
 					}
+					auto source = decltype(detail::prepare(db, "")){ std::unexpected(detail::failure::unavailable) };
+					if (replaySource.starts_with("legacy:") && aLegacy && application::valid(*aLegacy)) {
+						source = detail::prepare(db, "SELECT t.asked,t.answered,t.ending,o.outcome FROM agent_conversation_turns t LEFT JOIN agent_conversation_outcomes o USING(host,owner,name,number,agent,position) WHERE t.host=?1 AND t.owner=?2 AND t.name=?3 AND t.number=?4 AND 'legacy:'||t.agent=?5 ORDER BY t.position LIMIT 50");
+						if (source) {
+							bind_text(source->Value, 1, aLegacy->Host);
+							bind_text(source->Value, 2, aLegacy->Owner);
+							bind_text(source->Value, 3, aLegacy->Name);
+							sqlite3_bind_int64(source->Value, 4, static_cast<sqlite3_int64>(aLegacy->Number));
+							bind_text(source->Value, 5, replaySource);
+						}
+					} else if (!replaySource.empty()) {
+						auto origin = detail::prepare(db, "SELECT 1 FROM native_agent_sessions WHERE id=?1 AND scope=?2 AND configuration=?3");
+						if (!origin) {
+							return std::unexpected(failure::unavailable);
+						}
+						bind_text(origin->Value, 1, replaySource);
+						bind_text(origin->Value, 2, aScope);
+						bind_text(origin->Value, 3, aConfiguration);
+						if (sqlite3_step(origin->Value) != SQLITE_ROW) {
+							return std::unexpected(failure::conflict);
+						}
+						source = detail::prepare(db, "SELECT asked,answered,ending,outcome FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal LIMIT 50");
+						if (source) {
+							bind_text(source->Value, 1, replaySource);
+						}
+					}
+					if (!replaySource.empty()) {
+						if (!source) {
+							return std::unexpected(failure::unavailable);
+						}
+						auto sourceStatus = SQLITE_ROW;
+						while ((sourceStatus = sqlite3_step(source->Value)) == SQLITE_ROW) {
+							auto turn          = application::agent_conversation_turn{ };
+							turn.Asked         = column_text(source->Value, 0).value_or("");
+							turn.Answered      = column_text(source->Value, 1).value_or("");
+							turn.Ending        = column_text(source->Value, 2).value_or("");
+							const auto outcome = sqlite3_column_type(source->Value, 3) == SQLITE_NULL ? std::optional{ core::legacy_agent_turn_outcome(turn.Ending) } : core::agent_turn_outcome_of(static_cast<std::uint8_t>(sqlite3_column_int(source->Value, 3)));
+							if (!outcome) {
+								return std::unexpected(failure::unavailable);
+							}
+							turn.Outcome = *outcome;
+							replayTurns.push_back(std::move(turn));
+						}
+						if (sourceStatus != SQLITE_DONE || !application::valid(replayTurns) || (replaySource.starts_with("legacy:") && replayTurns.empty())) {
+							return std::unexpected(failure::conflict);
+						}
+					}
+					status = reuseEmpty ? SQLITE_ROW : SQLITE_DONE;
+				} else if (aChoice) {
 					if (aChoice->empty()) {
+						if (status == SQLITE_ROW) {
+							auto used = detail::prepare(db, "SELECT (SELECT count(*) FROM native_agent_turns WHERE conversation=?1)+(SELECT count(*) FROM native_agent_replays WHERE conversation=?1)");
+							if (!used) {
+								return std::unexpected(failure::unavailable);
+							}
+							bind_text(used->Value, 1, column_text(row->Value, 0).value_or(""));
+							if (sqlite3_step(used->Value) != SQLITE_ROW) {
+								return std::unexpected(failure::unavailable);
+							}
+							if (sqlite3_column_int64(used->Value, 0) > 0) {
+								status = SQLITE_DONE;
+							}
+						}
 						// No handle/workspace means no inference has used this generation.
 						if (status == SQLITE_ROW && (!column_text(row->Value, 6).value_or("").empty() || !column_text(row->Value, 9).value_or("").empty() || column_text(row->Value, 2) != std::optional{ std::string{ core::canonical_hex(aBinding.BaseOid).view() } } || column_text(row->Value, 3) != std::optional{ std::string{ core::canonical_hex(aBinding.HeadOid).view() } } || sqlite3_column_int64(row->Value, 4) != aBinding.LeftEpoch.value() || sqlite3_column_int64(row->Value, 5) != aBinding.RightEpoch.value())) {
 							status = SQLITE_DONE;
@@ -827,6 +904,18 @@ namespace bpr::adapters::sqlite {
 						value.Workspace         = std::move(workspace);
 					}
 					value.Revision = static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 18));
+					auto mode      = detail::prepare(db, "SELECT source FROM native_agent_replays WHERE conversation=?1");
+					if (!mode) {
+						return std::unexpected(failure::unavailable);
+					}
+					bind_text(mode->Value, 1, value.Id);
+					const auto modeStatus = sqlite3_step(mode->Value);
+					if (modeStatus == SQLITE_ROW) {
+						value.Replay       = true;
+						value.ReplaySource = column_text(mode->Value, 0).value_or("");
+					} else if (modeStatus != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
 					if (value.Id.size() != 32U || value.Handle.size() > core::maximum_remote_run_id_bytes || value.Turn < 2U || value.Revision == 0U) {
 						return std::unexpected(failure::unavailable);
 					}
@@ -858,6 +947,34 @@ namespace bpr::adapters::sqlite {
 					sqlite3_bind_int64(created->Value, 7, static_cast<sqlite3_int64>(aBinding.RightEpoch.value()));
 					if (sqlite3_step(created->Value) != SQLITE_DONE) {
 						return std::unexpected(failure::unavailable);
+					}
+					if (replaying) {
+						auto mode = detail::prepare(db, "INSERT INTO native_agent_replays VALUES(?1,?2)");
+						if (!mode) {
+							return std::unexpected(failure::unavailable);
+						}
+						bind_text(mode->Value, 1, value.Id);
+						bind_text(mode->Value, 2, replaySource);
+						if (sqlite3_step(mode->Value) != SQLITE_DONE) {
+							return std::unexpected(failure::unavailable);
+						}
+						for (std::size_t index = 0; index < replayTurns.size(); ++index) {
+							auto turn = detail::prepare(db, "INSERT INTO native_agent_turns VALUES(?1,?2,?3,?4,?5,?6)");
+							if (!turn) {
+								return std::unexpected(failure::unavailable);
+							}
+							bind_text(turn->Value, 1, value.Id);
+							sqlite3_bind_int64(turn->Value, 2, static_cast<sqlite3_int64>(index) + 1);
+							bind_text(turn->Value, 3, replayTurns[index].Asked);
+							bind_text(turn->Value, 4, replayTurns[index].Answered);
+							bind_text(turn->Value, 5, replayTurns[index].Ending);
+							sqlite3_bind_int(turn->Value, 6, static_cast<int>(replayTurns[index].Outcome));
+							if (sqlite3_step(turn->Value) != SQLITE_DONE) {
+								return std::unexpected(failure::unavailable);
+							}
+						}
+						value.Replay       = true;
+						value.ReplaySource = replaySource;
 					}
 					value.Revision = 1U;
 					auto selected  = detail::prepare(db, "INSERT OR REPLACE INTO native_agent_selection VALUES(?1,?2)");
@@ -900,7 +1017,16 @@ namespace bpr::adapters::sqlite {
 				}
 				return std::move(**selected);
 			}
-			auto history(const std::string& aScope, const std::string& aConfiguration, const std::string& aView)
+			auto replay(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const std::string& aSource, const std::optional<application::agent_conversation_key>& aLegacy)
+				-> std::expected<application::native_agent_session, application::native_agent_storage_failure> override
+			{
+				auto value = read(aScope, aConfiguration, aBinding, true, false, "replay:" + aSource, aLegacy);
+				if (!value) {
+					return std::unexpected(value.error());
+				}
+				return std::move(**value);
+			}
+			auto history(const std::string& aScope, const std::string& aConfiguration, const std::string& aView, const std::optional<application::agent_conversation_key>& aLegacy)
 				-> std::expected<application::native_agent_history_projection, application::native_agent_storage_failure> override
 			{
 				using failure   = application::native_agent_storage_failure;
@@ -944,10 +1070,46 @@ namespace bpr::adapters::sqlite {
 					entry.Pending            = sqlite3_column_int(rows->Value, 5) != 0;
 					entry.Turns              = static_cast<std::size_t>(sqlite3_column_int64(rows->Value, 6));
 					entry.Title              = column_text(rows->Value, 7).value_or("New session");
+					auto mode                = detail::prepare(db, "SELECT source FROM native_agent_replays WHERE conversation=?1");
+					if (!mode) {
+						return std::unexpected(failure::unavailable);
+					}
+					bind_text(mode->Value, 1, entry.Id);
+					const auto modeStatus = sqlite3_step(mode->Value);
+					if (modeStatus == SQLITE_ROW) {
+						entry.Replay       = true;
+						entry.ReplaySource = column_text(mode->Value, 0).value_or("");
+					} else if (modeStatus != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					if (entry.Id == view.Selected) {
+						view.Replay       = entry.Replay;
+						view.ReplaySource = entry.ReplaySource;
+					}
 					view.Entries.push_back(std::move(entry));
 				}
 				if (status != SQLITE_DONE) {
 					return std::unexpected(failure::unavailable);
+				}
+				if (aLegacy && application::valid(*aLegacy)) {
+					auto legacy = detail::prepare(db, "SELECT agent,(SELECT count(*) FROM agent_conversation_turns t WHERE t.host=c.host AND t.owner=c.owner AND t.name=c.name AND t.number=c.number AND t.agent=c.agent) FROM agent_conversations c WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 ORDER BY agent LIMIT 65");
+					if (!legacy) {
+						return std::unexpected(failure::unavailable);
+					}
+					bind_text(legacy->Value, 1, aLegacy->Host);
+					bind_text(legacy->Value, 2, aLegacy->Owner);
+					bind_text(legacy->Value, 3, aLegacy->Name);
+					sqlite3_bind_int64(legacy->Value, 4, static_cast<sqlite3_int64>(aLegacy->Number));
+					while ((status = sqlite3_step(legacy->Value)) == SQLITE_ROW) {
+						auto entry  = application::native_agent_history_entry{ };
+						entry.Id    = "legacy:" + std::to_string(sqlite3_column_int64(legacy->Value, 0));
+						entry.Title = "Legacy agent slot " + std::to_string(sqlite3_column_int64(legacy->Value, 0)) + " (identity unknown)";
+						entry.Turns = static_cast<std::size_t>(sqlite3_column_int64(legacy->Value, 1));
+						view.Legacy.push_back(std::move(entry));
+					}
+					if (status != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
 				}
 				const auto tour = aScope.find(":tour:");
 				if (tour != std::string::npos) {
@@ -970,6 +1132,37 @@ namespace bpr::adapters::sqlite {
 					if (status != SQLITE_DONE) {
 						return std::unexpected(failure::unavailable);
 					}
+				}
+				if (!aView.empty() && aView.starts_with("legacy:")) {
+					if (!aLegacy || std::ranges::none_of(view.Legacy, [&](const auto& aEntry) { return aEntry.Id == aView; })) {
+						return std::unexpected(failure::conflict);
+					}
+					auto legacyTurns = detail::prepare(db, "SELECT t.asked,t.answered,t.ending,o.outcome FROM agent_conversation_turns t LEFT JOIN agent_conversation_outcomes o USING(host,owner,name,number,agent,position) WHERE t.host=?1 AND t.owner=?2 AND t.name=?3 AND t.number=?4 AND 'legacy:'||t.agent=?5 ORDER BY position LIMIT 50");
+					if (!legacyTurns) {
+						return std::unexpected(failure::unavailable);
+					}
+					bind_text(legacyTurns->Value, 1, aLegacy->Host);
+					bind_text(legacyTurns->Value, 2, aLegacy->Owner);
+					bind_text(legacyTurns->Value, 3, aLegacy->Name);
+					sqlite3_bind_int64(legacyTurns->Value, 4, static_cast<sqlite3_int64>(aLegacy->Number));
+					bind_text(legacyTurns->Value, 5, aView);
+					while ((status = sqlite3_step(legacyTurns->Value)) == SQLITE_ROW) {
+						auto turn          = application::agent_conversation_turn{ };
+						turn.Asked         = column_text(legacyTurns->Value, 0).value_or("");
+						turn.Answered      = column_text(legacyTurns->Value, 1).value_or("");
+						turn.Ending        = column_text(legacyTurns->Value, 2).value_or("");
+						const auto outcome = sqlite3_column_type(legacyTurns->Value, 3) == SQLITE_NULL ? std::optional{ core::legacy_agent_turn_outcome(turn.Ending) } : core::agent_turn_outcome_of(static_cast<std::uint8_t>(sqlite3_column_int(legacyTurns->Value, 3)));
+						if (!outcome) {
+							return std::unexpected(failure::unavailable);
+						}
+						turn.Outcome = *outcome;
+						view.Turns.push_back(std::move(turn));
+					}
+					if (status != SQLITE_DONE || !application::valid(view.Turns) || !detail::execute(db, "COMMIT")) {
+						return std::unexpected(failure::unavailable);
+					}
+					view.ReadOnly = true;
+					return view;
 				}
 				if (!aView.empty()) {
 					if (std::ranges::none_of(view.OtherChats, [&](const auto& aEntry) { return aEntry.Id == aView; })) {
@@ -1138,8 +1331,23 @@ namespace bpr::adapters::sqlite {
 						aBind(row->Value);
 						return sqlite3_step(row->Value) == SQLITE_DONE;
 					};
-					const auto key       = [&](sqlite3_stmt* aRow) { bind_key(aRow, aKey); };
-					auto       committed = run("DELETE FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key)
+					const auto key = [&](sqlite3_stmt* aRow) { bind_key(aRow, aKey); };
+					if (!aTurns.empty()) {
+						auto existing = detail::prepare(db, "SELECT 1 FROM agent_conversations WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5");
+						if (!existing) {
+							return false;
+						}
+						bind_key(existing->Value, aKey);
+						const auto exists = sqlite3_step(existing->Value);
+						if (exists != SQLITE_ROW && exists != SQLITE_DONE) {
+							return false;
+						}
+						const auto count = detail::scalar_integer(db, "SELECT (SELECT count(*) FROM native_agent_sessions)+(SELECT count(*) FROM agent_conversations)");
+						if (!count || (exists == SQLITE_DONE && *count >= static_cast<std::int64_t>(application::maximum_conversations))) {
+							return false;
+						}
+					}
+					auto committed = run("DELETE FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key)
 						&& run("DELETE FROM agent_conversation_outcomes WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key)
 						&& run("DELETE FROM agent_conversations WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key);
 					if (committed && !aTurns.empty()) {
@@ -1158,23 +1366,6 @@ namespace bpr::adapters::sqlite {
 											sqlite3_bind_int64(aRow, 7, static_cast<std::int64_t>(aTurns[index].Outcome));
 										});
 						}
-						// The least recently written go past the bound.
-						committed = committed
-							&& detail::execute(db,
-											   "DELETE FROM agent_conversation_outcomes WHERE (host,owner,name,number,agent) IN (SELECT host,owner,name,number,agent FROM agent_conversations "
-											   "ORDER BY written DESC LIMIT -1 OFFSET "
-												   + std::to_string(application::maximum_conversations) + ")")
-								   .has_value()
-							&& detail::execute(db,
-											   "DELETE FROM agent_conversation_turns WHERE (host,owner,name,number,agent) IN (SELECT host,owner,name,number,agent FROM agent_conversations "
-											   "ORDER BY written DESC LIMIT -1 OFFSET "
-												   + std::to_string(application::maximum_conversations) + ")")
-								   .has_value()
-							&& detail::execute(db,
-											   "DELETE FROM agent_conversations WHERE (host,owner,name,number,agent) IN (SELECT host,owner,name,number,agent FROM agent_conversations "
-											   "ORDER BY written DESC LIMIT -1 OFFSET "
-												   + std::to_string(application::maximum_conversations) + ")")
-								   .has_value();
 					}
 					if (!committed) {
 						static_cast<void>(detail::execute(db, "ROLLBACK"));

@@ -42,6 +42,9 @@ namespace {
 		[[nodiscard]] auto store(const application::agent_conversation_key& aKey, const turns& aTurns) -> bool override
 		{
 			++Writes;
+			if (RefuseWrites) {
+				return false;
+			}
 			Kept[aKey] = aTurns;
 			return true;
 		}
@@ -68,7 +71,8 @@ namespace {
 
 		std::map<application::agent_conversation_key, turns>         Kept;
 		std::map<application::agent_conversation_key, std::uint32_t> Chosen;
-		int                                                          Writes = 0;
+		int                                                          Writes       = 0;
+		bool                                                         RefuseWrites = false;
 	};
 
 	struct fixture
@@ -199,6 +203,20 @@ namespace {
 			   "after Reset agents a pull request opens on the agent asked for, and its turns are kept");
 	}
 
+	void test_failed_save_is_visible()
+	{
+		auto test = fixture{ };
+		test.Host->open(seven());
+		test.settle();
+		test.Store.RefuseWrites = true;
+		test.Host->record({ { "unsaved question", "unsaved answer", "" } });
+		test.settle();
+		expect(test.Host->projection().SaveFailed && test.Host->projection().Turns.size() == 1U && test.Store.Kept.empty(), "failed save stays visible without pretending durable retention");
+		test.Store.RefuseWrites = false;
+		test.Host->record(test.Host->projection().Turns);
+		test.settle();
+		expect(!test.Host->projection().SaveFailed && test.Store.Kept[seven()].size() == 1U, "successful explicit later record clears save failure");
+	}
 	void test_the_thread_is_bounded()
 	{
 		auto many = turns(application::maximum_conversation_turns + 3U);
@@ -221,6 +239,7 @@ auto main() -> int
 	test_one_write_at_a_time();
 	test_one_conversation_per_agent();
 	test_the_thread_is_bounded();
+	test_failed_save_is_visible();
 	std::cout << "agent-conversation-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }
