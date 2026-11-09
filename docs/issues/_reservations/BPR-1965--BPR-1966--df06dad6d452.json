@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1965",
+    "BPR-1966"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Mac prerelease focused failures: agent chat draft reply and native-session wording contracts",
+  "created": "2026-11-09T15:32:56.489097+00:00",
+  "base": "9ff6d131d1f821a912c1400b2216aefd0a8e6612"
+}
