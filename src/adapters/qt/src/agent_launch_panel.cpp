@@ -32,6 +32,13 @@ namespace bpr::qt {
 		{
 			using reason = application::agent_workspace_unavailable_reason;
 			switch (aReason) {
+			case reason::retained_unavailable:
+			case reason::retained_objects_missing:
+				return QStringLiteral("The retained workspace or required Git objects are unavailable. Start a new session; its transcript and files are kept.");
+			case reason::inspection_output_limit:
+				return QStringLiteral("The retained workspace check reached its output limit. Its transcript and files are kept.");
+			case reason::inspection_timed_out:
+				return QStringLiteral("The retained workspace check reached its time limit. Its transcript and files are kept.");
 			case reason::copy_failed:
 				return QStringLiteral("The agent's copy of this pull request could not be made. Reopen the pull request, then resend.");
 			// [[BPR-1873]]. The agent's workspace borrows the linked clone and
@@ -539,10 +546,13 @@ namespace bpr::qt {
 				LastModel = QString::fromStdString(*report.Settings.Model);
 			}
 		}
-		LastCost   = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
-		StopReason = aResult.Outcome == application::agent_run_outcome::workspace_unavailable
-			? workspace_stop_reason(aResult.WorkspaceReason.value_or(application::agent_workspace_unavailable_reason::copy_failed))
-			: QString{ };
+		LastCost = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
+		StopReason.clear();
+		if (!aResult.RefusalReason.empty()) {
+			StopReason = QString::fromStdString(aResult.RefusalReason);
+		} else if (aResult.Outcome == application::agent_run_outcome::workspace_unavailable) {
+			StopReason = workspace_stop_reason(aResult.WorkspaceReason.value_or(application::agent_workspace_unavailable_reason::copy_failed));
+		}
 		// Owner decision 2026-10-23: a run the time limit ended says so.
 		if (aResult.Outcome == application::agent_run_outcome::timeout) {
 			StopReason = RunLimitMinutes == 0U ? tr("Stopped: the run took longer than the process allows.")

@@ -58,6 +58,10 @@ namespace bpr::application {
 			return "too_large";
 		case agent_workspace_unavailable_reason::clone_needed:
 			return "clone_needed";
+		case agent_workspace_unavailable_reason::retained_unavailable:     return "retained_unavailable";
+		case agent_workspace_unavailable_reason::retained_objects_missing: return "retained_objects_missing";
+		case agent_workspace_unavailable_reason::inspection_output_limit:  return "inspection_output_limit";
+		case agent_workspace_unavailable_reason::inspection_timed_out:     return "inspection_timed_out";
 		}
 		return { };
 	}

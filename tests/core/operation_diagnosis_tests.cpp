@@ -66,6 +66,14 @@ namespace {
 
 	void test_refusals()
 	{
+		for (const auto why : { operation_failure::object_unavailable, operation_failure::size_limit, operation_failure::timed_out,
+								operation_failure::storage_failed, operation_failure::unavailable, operation_failure::unsupported,
+								operation_failure::outcome_unknown, operation_failure::changed_candidate, operation_failure::stale }) {
+			const auto diagnosis = operation_diagnosis{ .Action = operation_action::native_continuation, .Failure = why };
+			expect(family(diagnosis.Action) == operation_diagnosis_family::agent_workspace && parse_operation_diagnosis(describe(diagnosis)) == diagnosis,
+				   "native pre-dispatch refusals round-trip as exportable workspace diagnostics with stable failure names");
+		}
+
 		expect(describe({ .Action = operation_action::resolve_thread, .Failure = operation_failure::not_signed_in }).empty(), "a failure from another family is no line");
 		expect(describe({ .Action = operation_action::workspace_cleanup, .Failure = operation_failure::refused_by_server }).empty(), "a mutation failure on a workspace is no line");
 		expect(describe({ .Action = operation_action::resolve_thread, .Process = operation_process::success }).empty(), "only a setup check names a process");

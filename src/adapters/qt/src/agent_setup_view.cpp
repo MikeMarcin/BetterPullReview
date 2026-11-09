@@ -364,6 +364,13 @@ namespace bpr::qt {
 	{
 		using reason = application::agent_workspace_unavailable_reason;
 		switch (aReason) {
+		case reason::retained_unavailable:
+		case reason::retained_objects_missing:
+			return QStringLiteral("The retained workspace or required Git objects are unavailable. Start a new session; its transcript and files are kept.");
+		case reason::inspection_output_limit:
+			return QStringLiteral("The retained workspace check reached its output limit. Its transcript and files are kept.");
+		case reason::inspection_timed_out:
+			return QStringLiteral("The retained workspace check reached its time limit. Its transcript and files are kept.");
 		case reason::copy_failed:
 			return QObject::tr("The agent's copy of this pull request could not be made. Reopen the pull request, then check again.");
 		// [[BPR-1873]]. Only what the linked clone lacks is fetched; nothing

@@ -1115,7 +1115,7 @@ auto main(int argc, char** argv) -> int
 					return fail(*application, restored ? "missing-native-send-ready" : "missing-native-marker-restore", markerError.message());
 				}
 				tab->ask_button()->click();
-				const auto refused = wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("private_storage_failure")); }, extended_agent_budget);
+				const auto refused = wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("workspace_unavailable")); }, extended_agent_budget);
 				if (!restoreMarker()) {
 					return fail(*application, "missing-native-marker-restore", markerError.message());
 				}
@@ -1235,8 +1235,9 @@ auto main(int argc, char** argv) -> int
 			if (original.Stops.empty()) {
 				return fail(*application, "tour-native-restored-stop");
 			}
-			const auto stop            = original.Stops.front().Id;
-			auto       scopedProcesses = std::set<std::string>{ };
+			const auto stop                  = original.Stops.front().Id;
+			auto       scopedProcesses       = std::set<std::string>{ };
+			auto       retainedTourWorkspace = std::filesystem::path{ };
 			for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
 				const auto profile = core::entry_profile_id(protocol, protocol == core::agent_protocol::claude_stream_json ? 1U : 2U);
 				if (!window.agent_tab()->choose_agent(profile.value())) {
@@ -1247,7 +1248,14 @@ auto main(int argc, char** argv) -> int
 					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-history-loaded");
 					}
-					const auto prior = chat->turn_count();
+					const auto prior              = chat->turn_count();
+					auto       previousWorkspaces = std::set<std::filesystem::path>{ };
+					const auto workspaceRoot      = dataRoot.parent_path();
+					for (const auto& item : std::filesystem::recursive_directory_iterator(workspaceRoot)) {
+						if (item.path().filename() == ".bpr-native-fixture-state") {
+							previousWorkspaces.insert(item.path().parent_path());
+						}
+					}
 					chat->composer()->setPlainText(thread.Kind == core::tour_thread_kind::stop ? QStringLiteral("explain-source-status") : QStringLiteral("Review this tour part"));
 					if (!wait_until([&] { return chat->send_button()->isVisible() && chat->send_button()->isEnabled(); })) {
 						return fail(*application, "tour-native-composer-ready");
@@ -1270,6 +1278,19 @@ auto main(int argc, char** argv) -> int
 						return fail(*application, "tour-native-followup", chat->chat_text().toStdString());
 					}
 					const auto second = chat->reply(chat->turn_count() - 1U)->original_body();
+					if (course == "tour-native") {
+						auto createdWorkspaces = std::set<std::filesystem::path>{ };
+						for (const auto& item : std::filesystem::recursive_directory_iterator(workspaceRoot)) {
+							if (item.path().filename() == ".bpr-native-fixture-state" && !previousWorkspaces.contains(item.path().parent_path())) {
+								createdWorkspaces.insert(item.path().parent_path());
+							}
+						}
+						if (createdWorkspaces.size() != 1U || std::filesystem::exists(*createdWorkspaces.begin() / ".git" / "shallow")) {
+							return fail(*application, "tour-native-complete-retained-workspace", "new-workspaces=" + std::to_string(createdWorkspaces.size()));
+						}
+						retainedTourWorkspace = *createdWorkspaces.begin();
+					}
+
 					if (first.substr(first.find("process=")) != second.substr(second.find("process="))) {
 						return fail(*application, "tour-native-process-continuity");
 					}
@@ -1450,6 +1471,32 @@ auto main(int argc, char** argv) -> int
 				}
 				if (!wait_until([&] { const auto* action = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision")); return action && action->isVisible() && !chat->history_button()->property("loading").toBool(); }) || chat->send_button()->isEnabled()) {
 					return fail(*application, "tour-history-rechecks-old-choice");
+				}
+			}
+			if (course == "tour-native") {
+				// Withhold only this session's required marker. A failed continuation
+				// must explain the workspace in the visible chat before any dispatch.
+				const auto      marker = retainedTourWorkspace / ".git" / "bpr-owned-workspace";
+				const auto      held   = retainedTourWorkspace / ".git" / "bpr-owned-workspace-held";
+				std::error_code markerError;
+				std::filesystem::rename(marker, held, markerError);
+				if (markerError) {
+					return fail(*application, "tour-native-marker-held", markerError.message());
+				}
+				const auto beforeRefusal = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
+				chat->composer()->setPlainText(QStringLiteral("this must refuse before the agent"));
+				chat->send_button()->click();
+				const auto refused = wait_until([&] { return chat->new_session_button()->isEnabled() && chat->chat_text().contains(QStringLiteral("retained native workspace")); }, extended_agent_budget);
+				std::filesystem::rename(held, marker, markerError);
+				if (markerError) {
+					return fail(*application, "tour-native-marker-restored", markerError.message());
+				}
+				if (!refused || chat->chat_text().contains(QStringLiteral("Private history couldn't record"))
+					|| app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations != beforeRefusal) {
+					return fail(*application, "tour-native-workspace-refusal", chat->chat_text().toStdString());
+				}
+				if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "native-tour-refusal.png").u16string()))) {
+					return fail(*application, "tour-native-refusal-raster");
 				}
 			}
 			const auto raster = dataRoot.parent_path() / (course == "tour-native" ? "native-tour.png" : "native-tour-reopen.png");

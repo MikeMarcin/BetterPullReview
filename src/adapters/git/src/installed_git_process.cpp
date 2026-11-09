@@ -5053,22 +5053,39 @@ namespace bpr::adapters::git {
 					|| !absent(path / ".git" / "objects" / "info" / "http-alternates")) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
+				if (!aWorkspace.Workspace.Shallow) {
+					// Continuation needs the pinned commits and their root trees, not
+					// an inventory of every object in their history. Agent edits stay intact.
+					auto arguments = workspace_git_arguments(path, HooksRoot);
+					append_arguments(arguments, "cat-file", "--batch-check=%(objecttype)");
+					auto input    = head + "^{commit}\n" + head + "^{tree}\n";
+					auto expected = std::string{ "commit\ntree\n" };
+					if (aWorkspace.RequiredBase) {
+						const auto base = std::string{ core::canonical_hex(*aWorkspace.RequiredBase).view() };
+						input += base + "^{commit}\n" + base + "^{tree}\n";
+						expected += "commit\ntree\n";
+					}
+					const auto checked = submit(process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(input) }, .StandardOutputLimit = 1024U }, aStop);
+					if (!checked) {
+						return std::unexpected(checked.error());
+					}
+					if (checked->StandardOutput != expected) {
+						return std::unexpected(git_process_failure::object_unavailable);
+					}
+					return { };
+				}
 				auto arguments = workspace_git_arguments(path, HooksRoot);
 				append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", head);
-				if (!aWorkspace.Workspace.Shallow && aWorkspace.RequiredBase) {
-					arguments.emplace_back(core::canonical_hex(*aWorkspace.RequiredBase).view());
-				}
 				auto checked = submit(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
 				if (!checked) {
-					return std::unexpected(checked ? git_process_error{ git_process_failure::object_unavailable } : checked.error());
+					return std::unexpected(checked.error());
 				}
 				const auto hashBytes = head.size();
 				const auto missing   = workspace_missing_objects(checked->StandardOutput, hashBytes);
-				const auto permitted = aWorkspace.Workspace.Shallow && aWorkspace.SparseMissingObjects
+				const auto permitted = aWorkspace.SparseMissingObjects
 					? workspace_missing_objects(*aWorkspace.SparseMissingObjects, hashBytes)
-					: std::optional{ std::set<std::string>{ } };
-				if (!missing || !permitted || (aWorkspace.Workspace.Shallow && !aWorkspace.SparseMissingObjects)
-					|| !std::includes(permitted->begin(), permitted->end(), missing->begin(), missing->end())) {
+					: std::nullopt;
+				if (!missing || !permitted || !std::includes(permitted->begin(), permitted->end(), missing->begin(), missing->end())) {
 					return std::unexpected(git_process_failure::object_unavailable);
 				}
 				return { };

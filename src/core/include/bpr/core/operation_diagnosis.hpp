@@ -196,6 +196,8 @@ namespace bpr::core {
 		/// [[BPR-1884]]. The kept clone brought up to a pull request before a
 		/// question; a clone-scan line.
 		clone_refresh,
+		/// A native question refused before process dispatch.
+		native_continuation,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set

@@ -753,7 +753,7 @@ namespace bpr::app {
 				}
 				return qEnvironmentVariable(aName.c_str()).toStdString();
 			},
-			TourAgentEffects, DecisionLane, *TourProjection, nullptr, NativeAgentSessions.get());
+			TourAgentEffects, DecisionLane, *TourProjection, nullptr, NativeAgentSessions.get(), DiagnosticLog.get());
 		TourProjection->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_tour_native_history(aView); };
 		TourProjection->NativeSession = [this](const core::agent_session& aSession) {
 			if (Closing || !Window) {
@@ -937,7 +937,7 @@ namespace bpr::app {
 		if (Closing || Window == nullptr) {
 			return;
 		}
-		const auto words = qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(aIdentity.Session.Profile));
+		const auto words = aResult.RefusalReason.empty() ? qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(aIdentity.Session.Profile)) : QString::fromStdString(aResult.RefusalReason);
 		if (TourRun) {
 			if (!aResult.Conversation.empty()) {
 				TourSelectedConversations[TourRunScope] = aResult.Conversation;

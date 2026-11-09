@@ -4784,9 +4784,14 @@ namespace bpr::adapters::git {
 					};
 				}
 				if (!cleaned.has_value()) {
-					return std::unexpected{
-						State->process_failure(cleaned.error())
-					};
+					auto error            = State->process_failure(cleaned.error());
+					using failure         = application::git_process_failure;
+					using reason          = application::agent_workspace_unavailable_reason;
+					error.WorkspaceReason = cleaned.error() == failure::standard_output_limit || cleaned.error() == failure::standard_error_limit ? reason::inspection_output_limit
+						: cleaned.error() == failure::timeout                                                                                     ? reason::inspection_timed_out
+						: cleaned.error() == failure::object_unavailable                                                                          ? reason::retained_objects_missing
+																																				  : reason::retained_unavailable;
+					return std::unexpected(std::move(error));
 				}
 				return { };
 			}

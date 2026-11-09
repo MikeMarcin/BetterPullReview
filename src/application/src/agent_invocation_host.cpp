@@ -1,5 +1,6 @@
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/agent_conversation_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/tour_agent_conversation.hpp"
 
 #include <algorithm>
@@ -187,7 +188,7 @@ namespace bpr::application {
 			effect_executor&                     aEffects,
 			decision_executor&                   aDecisionLane,
 			agent_invocation_projection_port&    aProjection,
-			private_agent_run_port* aPrivateRuns, native_agent_session_store_port* aNativeSessions)
+			private_agent_run_port* aPrivateRuns, native_agent_session_store_port* aNativeSessions, diagnostic_log_port* aLog)
 			: Profiles{ std::move(aProfiles) }
 			, Policies{ std::move(aPolicies) }
 			, WorkspaceParent{ std::move(aWorkspaceParent) }
@@ -200,6 +201,7 @@ namespace bpr::application {
 			, Projection{ aProjection }
 			, PrivateRuns{ aPrivateRuns }
 			, NativeSessions{ aNativeSessions }
+			, Log{ aLog }
 		{
 		}
 
@@ -815,12 +817,15 @@ namespace bpr::application {
 				}
 				const auto native = NativeSessions != nullptr && !aRequest.NativeAgentIdentity.empty() && !aRequest.NativeScope.empty()
 					&& !aRequest.WritingOnly && !aRequest.ExistingCheckoutChosen;
-				const auto refuseNative = [&](const std::string& aReason) {
-					finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = agent_run_outcome::private_storage_failure, .StandardError = aReason }, aInvocation);
+				const auto refuseNative = [&](const std::string& aReason, const core::operation_failure aFailure,
+											  const agent_run_outcome                                 aOutcome         = agent_run_outcome::private_storage_failure,
+											  const std::optional<agent_workspace_unavailable_reason> aWorkspaceReason = std::nullopt) {
+					record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = aFailure });
+					finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = aOutcome, .StandardError = aReason, .WorkspaceReason = aWorkspaceReason, .RefusalReason = aReason }, aInvocation);
 				};
 				if (native) {
 					if (!native_workspace_budget_available(WorkspaceParent)) {
-						refuseNative("Retained workspace storage reached its 16 GiB or 262144-entry bound, or could not be verified. Existing work was kept; no question was sent.");
+						refuseNative("Retained workspace storage reached its 16 GiB or 262144-entry bound, or could not be verified. Existing work was kept; no question was sent.", core::operation_failure::size_limit);
 						return;
 					}
 					// Application/window and invocation IDs are deliberately absent.
@@ -828,32 +833,32 @@ namespace bpr::application {
 					auto       selected = NativeSessions->select(scope, std::to_string(static_cast<unsigned>(aProfile.Protocol)) + ":" + aRequest.NativeAgentIdentity + (aRequest.ReadOnlyTools ? ":read-only" : ""),
 																 aInvocation->Identity.Session.Binding, aRequest.NativeStartAtCurrentRevision);
 					if (!selected) {
-						refuseNative("Native session storage is unavailable, full, or changed in another window. No question was sent.");
+						refuseNative("Native session storage is unavailable, full, or changed in another window. No question was sent.", core::operation_failure::storage_failed);
 						return;
 					}
 					if ((!aRequest.SelectedConversation.empty() && selected->Id != aRequest.SelectedConversation) || selected->Replay != aRequest.TranscriptReplay) {
-						refuseNative("The selected continuation changed. Open History and choose it again; no question was sent.");
+						refuseNative("The selected continuation changed. Open History and choose it again; no question was sent.", core::operation_failure::changed_candidate);
 						return;
 					}
 					if (aProfile.Protocol == core::agent_protocol::external_terminal && !selected->Replay) {
-						refuseNative("This backend has no qualified native continuation. Choose Transcript replay or New session in History; no question was sent.");
+						refuseNative("This backend has no qualified native continuation. Choose Transcript replay or New session in History; no question was sent.", core::operation_failure::unsupported);
 						return;
 					}
 					if (selected->Pending) {
-						refuseNative("The previous question may have been sent before interruption. It was not resent. Start a new session or inspect the native history before continuing.");
+						refuseNative("The previous question may have been sent before interruption. It was not resent. Start a new session or inspect the native history before continuing.", core::operation_failure::outcome_unknown);
 						return;
 					}
 					auto bound    = aInvocation->Identity.Session;
 					bound.Binding = selected->Binding;
 					if (!core::may_treat_as_current(bound, aInvocation->Identity.Session.Binding)) {
-						refuseNative("This native session is pinned to an earlier revision. Explicitly continue that revision or start a new session.");
+						refuseNative("This native session is pinned to an earlier revision. Explicitly continue that revision or start a new session.", core::operation_failure::stale);
 						return;
 					}
 					aInvocation->Native = std::move(*selected);
 					if (aInvocation->Native->Replay) {
 						const auto history = NativeSessions->history(scope, aInvocation->Native->Configuration);
 						if (!history || history->Selected != aInvocation->Native->Id) {
-							refuseNative("Replay history changed or is unavailable. No question was sent.");
+							refuseNative("Replay history changed or is unavailable. No question was sent.", core::operation_failure::storage_failed);
 							return;
 						}
 						aSupplement.Replay = prose_replay(*history, aRequest.ReadOnlyTools);
@@ -872,8 +877,20 @@ namespace bpr::application {
 					auto retained               = *aInvocation->Native->Workspace;
 					retained.Authority          = aRequest.Authority;
 					retained.ApplicationSession = aRequest.ApplicationSession;
-					if (!Workspaces.inspect_agent_workspace(retained, aInvocation->Stop->get_token())) {
-						refuseNative("The retained native workspace or required Git objects are unavailable. Its transcript is kept; no clean replacement or question was sent.");
+					const auto inspected        = Workspaces.inspect_agent_workspace(retained, aInvocation->Stop->get_token());
+					if (!inspected) {
+						if (inspected.error().Code == agent_workspace_failure::cancelled) {
+							refuseNative("The retained workspace check was stopped. No question was sent.", core::operation_failure::cancelled, agent_run_outcome::cancelled);
+							return;
+						}
+						using reason      = agent_workspace_unavailable_reason;
+						const auto why    = inspected.error().Code == agent_workspace_failure::unavailable ? inspected.error().Reason : reason::retained_unavailable;
+						const auto detail = why == reason::inspection_output_limit ? "The retained workspace check reached its output limit. No question was sent; its transcript and files are kept."
+							: why == reason::inspection_timed_out                  ? "The retained workspace check reached its time limit. No question was sent; its transcript and files are kept."
+							: why == reason::retained_objects_missing              ? "The retained workspace is missing a required Git commit or tree. Start a new session to continue; its transcript and files are kept."
+																				   : "The retained native workspace or required Git objects could not be verified. Start a new session to continue; its transcript and files are kept.";
+						refuseNative(detail, operation_failure_of(agent_workspace_error{ agent_workspace_failure::unavailable, { }, why }),
+									 agent_run_outcome::workspace_unavailable, why);
 						return;
 					}
 					workspace                    = retained.Workspace;
@@ -951,7 +968,7 @@ namespace bpr::application {
 					auto& session   = *aInvocation->Native;
 					session.Pending = true;
 					if (!NativeSessions->store(session)) {
-						refuseNative("The native session could not be saved. No question was sent.");
+						refuseNative("The native session could not be saved. No question was sent.", core::operation_failure::storage_failed);
 						return;
 					}
 					if (!session.Replay) {
@@ -966,7 +983,7 @@ namespace bpr::application {
 						if (launch->Protocol == core::agent_protocol::codex_jsonl_exec) {
 							auto prepared = prepare_native_agent_turn(std::move(*launch), false);
 							if (!prepared) {
-								refuseNative("Native resume is unavailable for this configuration. No replay was attempted.");
+								refuseNative("Native resume is unavailable for this configuration. No replay was attempted.", core::operation_failure::unsupported);
 								return;
 							}
 							launch = std::move(*prepared);
@@ -1556,6 +1573,7 @@ namespace bpr::application {
 		std::atomic_bool      HasDeferredNativeHistory = false;
 
 		native_agent_session_store_port* NativeSessions;
+		diagnostic_log_port*             Log;
 
 		mutable std::mutex                          StateMutex;
 		std::optional<core::application_session_id> ApplicationSession;
@@ -1602,7 +1620,7 @@ namespace bpr::application {
 		effect_executor&                     aEffects,
 		decision_executor&                   aDecisionLane,
 		agent_invocation_projection_port&    aProjection,
-		private_agent_run_port* aPrivateRuns, native_agent_session_store_port* aNativeSessions)
+		private_agent_run_port* aPrivateRuns, native_agent_session_store_port* aNativeSessions, diagnostic_log_port* aLog)
 		: Implementation{ std::make_shared<implementation>(
 			  std::move(aProfiles),
 			  std::move(aPolicies),
@@ -1613,7 +1631,7 @@ namespace bpr::application {
 			  std::move(aEnvironment),
 			  aEffects,
 			  aDecisionLane,
-			  aProjection, aPrivateRuns, aNativeSessions) }
+			  aProjection, aPrivateRuns, aNativeSessions, aLog) }
 	{
 	}
 

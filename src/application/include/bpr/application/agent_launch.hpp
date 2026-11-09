@@ -865,6 +865,8 @@ namespace bpr::application {
 		std::optional<agent_protocol_failure> ProtocolFailure;
 		/// [[BPR-1738]]. Why, when `Outcome` is `workspace_unavailable`.
 		std::optional<agent_workspace_unavailable_reason> WorkspaceReason;
+		/// Fixed host-authored pre-dispatch explanation safe to show in chat.
+		std::string RefusalReason;
 		/// The turn's decoded findings, before any verdict. Absent when the
 		/// turn returned none. Unlike `Events` this survives a stale
 		/// finalization, because a payload the reviewer can no longer act on
