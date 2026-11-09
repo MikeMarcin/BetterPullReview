@@ -3326,8 +3326,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# copy in window_agent_chat.cpp. Same writing-only exclusion, explicit
 	# intent priority, fallback, move and dispatch. No source inventory,
 	# production mutation branch or authority changes.
+	# [[BPR-1961]] reviewed9c3936cb5..52e5e27d2: accepted Go to line
+	# appearance, native Agent/Tour sessions and explicit revision
+	# continuation, current Tour preparation context/proposal guards, and
+	# publication presentation extraction; [[BPR-1962]] only waits for its
+	# refreshed accepted Snapshot in the test-build fixture/header. The
+	# unchanged142-file manifest and complete source inventory, plus the
+	# full-app/mutation pins, are preserved. Complete per-file/commit review
+	# is on BPR-1961; no native/independent acceptance is inferred.
 	set(bpr_expected_production_app_manifest_digest
-        "913e8b38770b835ddb1aa6a8e7fca85d363764901c4ce608a930113824e9ef26"
+        "4420e34793a02ffd48f0901f44797e9fdf8e2348747ed11826f0d9778118505b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

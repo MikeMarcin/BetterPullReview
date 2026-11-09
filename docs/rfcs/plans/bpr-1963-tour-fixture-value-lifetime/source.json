@@ -1,0 +1,6 @@
+{
+  "schema": "implement-rfc.plan-source.v1",
+  "kind": "engineer-authored",
+  "reason": "Coordinator-approved concrete vector lifetime defect discovered during Windows43 diagnosis.",
+  "source_basis": "93766efd210b2b8ab255711d1fb04e6d90cdf7bc"
+}

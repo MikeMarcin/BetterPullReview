@@ -36,7 +36,8 @@ if(BPR_BUILD_TOUR_CLI)
     bpr_add_network_isolated_test(NAME tour_cli_labels WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_labels_tests.py" "$<TARGET_FILE:app_bpr>"
         "$<TARGET_FILE:test_tour_cli_composition>"
-        "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1/fixtures/parser-cases.json")
+        "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1/fixtures/parser-cases.json"
+        "$<TARGET_EXISTS:BetterPullReview::AdapterLogging>")
     set_tests_properties(tour_cli_labels PROPERTIES TIMEOUT 300 PASS_REGULAR_EXPRESSION "tour-cli-labels:pass")
     # [[BPR-1302]]. The real `bpr` through the real remote reader against a
     # loopback GitHub: one CONNECT proxy and TLS origin at 127.0.0.1 under a

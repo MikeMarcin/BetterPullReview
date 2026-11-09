@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1962-threaded-refresh-readiness",
+  "scope": {
+    "issues": [
+      "BPR-1962"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "await-accepted-refresh",
+      "outcome": "The reaction fixture checks reconciliation only after its exact refresh has been accepted.",
+      "work": [
+        {
+          "issue": "BPR-1962",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Capture the accepted provider snapshot before the single existing Refresh; require a changed accepted snapshot and no pending pull-request read before the unchanged complete reaction oracle. Original40s budget and all gestures/provider/verdicts remain.",
+        "Existing Release and Debug registered threaded course pass; explicit pre-completion readiness negative control proves the old request-start condition insufficient.",
+        "Review/reseal the exact two test-only app-file changes under1961, format/tidy/docs/board/main integration; preserve43raw functional failure and pending final native qualification."
+      ],
+      "boundary": "Two test-build fixture/header paths plus plan/card/checkpoint. No production host/policy, gesture replay, timeout/budget change or protected producer mutation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

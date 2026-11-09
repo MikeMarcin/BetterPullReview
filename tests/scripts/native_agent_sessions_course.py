@@ -5,7 +5,10 @@ from pathlib import Path
 import os
 import shutil
 import subprocess
-import tempfile
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def main():
@@ -14,7 +17,7 @@ def main():
     parser.add_argument('--canary', required=True, type=Path)
     parser.add_argument('--evidence-dir', type=Path)
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix='bpr-native-session-') as temporary:
+    with contained_temporary_directory(prefix='bpr-native-session-') as temporary:
         parent = Path(temporary).resolve()
         os.chmod(parent, 0o700)
         data = parent / 'data'

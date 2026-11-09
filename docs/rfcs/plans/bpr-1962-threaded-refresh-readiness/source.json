@@ -1,0 +1,6 @@
+{
+  "schema": "implement-rfc.plan-source.v1",
+  "kind": "engineer-authored",
+  "reason": "Coordinator approved exact current-read readiness repair from frozen43Debug phase15 actual functional failure.",
+  "source_basis": "88a9e060e752efec2eb25c102df9d29d09cafae9"
+}
