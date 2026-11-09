@@ -509,7 +509,13 @@ namespace {
 			   "Guidance text opens Agents & context on the Review feedback hook");
 		expect(scope->isVisibleTo(hooks) && scope->text() == QStringLiteral("On. Sent with each comment workshop request: Comments › Comment workshop."),
 			   "whose line says it is sent and where that is decided");
-		expect(hooks->findChildren<QCheckBox*>().isEmpty(), "the writing hooks panel has no switch of its own");
+		// [[BPR-1959]]. The separately adopted Review skill page keeps its
+		// copy-before-reset choice; it is not the feedback prompt's switch.
+		auto* const feedbackPage = scope->parentWidget();
+		auto* const keepCopy     = hooks->findChild<QCheckBox*>(QStringLiteral("reviewSkillKeepCopy"));
+		expect(keepCopy != nullptr && !feedbackPage->isAncestorOf(keepCopy) && !keepCopy->isVisibleTo(hooks),
+			   "the separate Review skill page keeps its hidden copy-before-reset choice");
+		expect(feedbackPage->findChildren<QCheckBox*>().isEmpty(), "the feedback hook page has no switch of its own");
 		save_render(*hooks, "writing-hooks-pointer-on");
 		f.publish({ });
 		expect(scope->text() == QStringLiteral("Off. Not sent with comment workshop requests; turn it on in Comments › Comment workshop."), "and when it is not");
