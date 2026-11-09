@@ -95,16 +95,82 @@ This is offscreen functional/render evidence, not native system-appearance or
 installed-agent qualification. The guidance correction removes New session as a
 false remedy for a missing canonical shared tree, since it reuses that same tree.
 
-## Required independent critical review — pending
+## Independent critical review and test follow-up
 
-The user requested `rfc-review-critical` before finish. The coordinator launched
-`/root/shared_workspace_critical` against the frozen product above. Source paths
-remain frozen while the independent reviewer attempts to falsify the claims.
-No final acceptance or Done transition is authorized yet; AC5 and the added
-milestone exit remain pending. The review includes source authority, lease and
-lifecycle, durability, legacy migration, currentHEAD handling, replay isolation,
-and internal core-session restoration identities. Any finding returns to the
-same engineering owner for repair and renewed focused verification.
+Independent reviewer `/root/shared_workspace_critical` reviewed product
+`d8b79055c7ca3448ce651785958e7883b6a660f3`, independently passed host/SQLite
+and the public native course22.22s, and reported no blocking implementation
+finding. It examined restored numeric core-session aliases and found no concrete
+cross-chat dispatch/proposal failure with the invocation/run/native-selection
+fences. This is bounded acceptance evidence, not a new uniqueness guarantee for
+that internal numeric identity.
+
+The reviewer identified a nonblocking P2 evidence gap: the previous fixture
+inferred one native handle from its cwd marker, so distinct conversations in the
+shared tree could falsely pass if a handle were copied. The coordinator required
+that gap resolved before finish. Test-only commit `7fbddb918` addresses it without
+changing production source from `d8b79055c`:
+
+- Each fresh native backend gets its own random handle and hidden tool-memory
+  record. Claude `--resume` and Codex `thread/resume` load only the exact requested
+  identity; a missing/invalid identity refuses. The common workspace file marker
+  carries no backend identity. Public-course memory files live separately inside
+  that course's private temporary parent and are removed with the course.
+- The Agent-tab course sends through a real New session, checks its distinct
+  handle/memory, returns to the original history and verifies exact native memory.
+  Expected identities persist across restart. Tour courses verify every provider
+  and whole/problem/solution/stop scope, return to native after replay, then
+  switch back across all scopes/providers after cache eviction and verify the
+  expected native memory in the current typed run and visible reply. These
+  routes exercise restoration while workspace-owner numeric session IDs alias.
+- The corrected final serial six-course wrapper passes29.62s at test candidate
+  `476d09fb3`, recorded in external `critical-pid-premise-tests.log` (the earlier
+  `7fbddb918` passing29.97s run is `critical-fixture-ready-tests.log`). The Qt launcher native,
+  UUID-less and eviction course passes22.32s with this same fixture. Both changed
+  C++ files pass clang-format22 and `git diff --check`. Production source and
+  earlier relevant passing evidence are unchanged.
+- Two controls distinguish the new evidence: compiling the old d8 fixture and
+  running the new course fails `native-followup-continuity`; separately, seeding
+  two valid conversations then copying agent A's real fixture handle into agent
+  B's catalog row inside an owned temporary root makes reopening fail the same
+  identity assertion. The latter control reports
+  `copied-native-handle-negative:expected-failure`. Neither expected failure is
+  reported as successful application behavior.
+
+Initial test attempts were corrected: a fresh-turn wait read empty nonterminal
+UI; another waited for Send before entering text. Longer history also proved
+that a valid newly answered turn can keep the visible count unchanged (`before9`,
+`after9`) because the global retained-run bound prunes older entries. The final
+wait binds a new typed run, its unique question, answered state and matching
+visible reply, independent of bubble growth. Two test-only string-type compile
+errors and an incorrect first database path in the fault script were corrected.
+An accidentally launched old-binary course after a failed build was interrupted
+by its exact task-owned CTest PID; its descendants finished. A preliminary
+positive/control invocation overlapped briefly; the final positive wrapper was
+run serially afterward. All actual failure/interruption logs are retained, with
+no failure relabelled as a pass. No product defect was established by these
+fixture corrections, so production paths remain frozen and unchanged.
+
+The updated source/binary manifests and control reproduction scripts are in the
+external state. The consumed standalone old fixture source/binary were removed;
+Git retains the original source. The targeted reviewer confirmed the P2 fixture gap resolved at `7fbddb918`,
+then its independent course failed22.95s at `tour-old-native-process-kept`.
+The return sweep had ended on whole-tour, so the displayed stop PID could refer
+to a connection evicted by the existing four-entry idle cache. Exact native
+resumption permits that reconnect; the old PID comparison lacked its original
+premise. Test-only correction `476d09fb3` finishes the return pass with an actual
+answered stop turn, establishing its current process before Reset/Undo/refresh.
+Those gestures submit no inference. The original process-kept assertion and all
+backend/memory assertions remain unchanged, and the complete course passes29.62s.
+Final independent reconciliation at `476d09fb38d4102d8dc1723cde2c33332ccf8c27`
+passes the six-course wrapper29.18s (total29.20s). The reviewer verified all16source
+and5binary hashes, confirmed production source unchanged from `d8b79055c`, and
+reported the original P2 handle-evidence gap and subsequent AC4 PID-premise
+finding both resolved, with no unresolved blocker or nonblocking finding. It
+recommends bounded acceptance. The exact prior independent22.95s failure at
+`7fbddb918` remains historical above; it is not represented as a pass. AC5 and
+the fourth milestone exit are satisfied by this supplied independent result,
+not by the implementer's own tests.
 
 ## Ownership and continuation
 
@@ -123,8 +189,9 @@ repository-state helper supply the checkpoint without editing historical plans.
 The corporate machine, Windows/Linux native runs, installed Claude/Codex and
 release/trust acceptance are outside this bounded behavior fix. No owner-only
 judgment is required by this card, so no attended server or protected human
-candidate exists. Required independent acceptance remains explicit above.
+candidate exists. Required independent acceptance is supplied and reconciled above.
 Foreign `.codex-attachments/` is preserved and excluded from commits. No remote
 mutation, push, credentials or live desktop access occurred. All task-owned build, test, render, format, documentation and tidy commands
 have finished; no review server or engineering writer is handed off. Next:
-receive critical review and reconcile findings before acceptance.
+complete the acceptance-driven card transition and final checkpoint. All five
+criteria and four exits are accepted; no required decision remains pending.
