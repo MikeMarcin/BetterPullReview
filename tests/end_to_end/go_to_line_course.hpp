@@ -24,6 +24,7 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QTabBar>
+#include <QTextBlock>
 #include <QThread>
 #include <QToolButton>
 #include <QTreeWidget>
