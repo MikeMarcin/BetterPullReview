@@ -1,93 +1,152 @@
-# BPR-1971 native launch admission checkpoint
+# BPR-1971 combined agent-history readiness
 
-Mandate: coordinator's release-blocker diagnosis, amended to pure-public
-causal trace r2 on 2026-11-09. Operator `/root/windows_native_diagnosis`.
-Own branch `codex/bpr1971-native-admission` in the existing exclusive managed
-worktree. Allocation `ad032464a`, plan/claim `b8a7ef564` / `010968227`,
-authorized amendment `7503ed4cc`. No production correction is made.
+Mandate: coordinator release-blocker diagnosis and approved correction r4,
+2026-11-09. Source owner `/root/windows_native_diagnosis`; independent
+read-only review and Mac mechanical operator `/root/release_fixes_main`.
+Own branch `codex/bpr1971-native-admission`. Actual allocation `ad032464a`.
+Accepted1972 source/policy and both1972/1973 reservations are preserved;
+NEXT_ID remains1974. No active BPR-1932 mandate is resumed.
 
-## Exact candidate and original failure
+## Outcome and exact source
 
-Native private checkout source `aa7d2395cab140f7317162dce986d9477425b572`.
-Original invocation test TU SHA256
-`c5599dd821db11fcb35b3d13cf048d2b9061d84efc349b075fa79b6482dbd24f`.
-Normal VS18 x64 Release build of thirteen selected targets and normal
-transitive dependencies passes in 571.63 seconds. Required selected image
-MZ/PE/AMD64/header/hash checks pass. Eleven of twelve registered functional
-rows pass once, including the six residual representatives, Git contract,
-invocation host, epoch host and two diagnostic rows.
+A profile change starts independent native-history and legacy-history loads.
+The old native callback enabled Send before the legacy host was loaded;
+the unchanged launch guard then refused the question. Both callbacks now
+publish combined loading and call the existing refresh. Its working state
+keeps Stop available; a legacy completion also refreshes if the native
+observation coalesces. Native body/session projection keeps its original
+native Loading condition. The1965 storage_status return still preserves
+live body metadata. A const/noexcept is_loaded accessor reads the host's
+existing Boolean without copying its saved turns or caching Qt policy.
 
-The original native-session wrapper fails in 86.01 seconds: first four
-courses pass; transcript replay fails `unsupported-no-silent-fallback` with
-`Not started: side chat refused: launch_refused`. Sixth course is unreached.
-Original 400-second registered watchdog and 180-second child-course limits
-remain unchanged. This actual functional failure remains unresolved and
-gating. No diagnosis pass replaces it.
+Tested source candidate:
+`970812bfe2a1107625c788a2e87d2a220e4ba93d`, over accepted main
+`c76340d4ebd6cfbe44bfc708888be827e9275c31`. Seven source paths: the two
+readiness callbacks in window_agent_setup.cpp; agent_conversation_host.hpp/
+.cpp scalar accessor; existing fixture-access header/CPP with the bounded
+Workbench hold and optional actual Loaded observation; the existing
+invocation TU's deterministic regression; the reviewed142-file content pin.
+Inventories, full-application/mutation pins, launch guard and unsupported/
+private_storage_failure/no-start/no-fallback oracles remain unchanged.
 
-## Bounded observations
+The current owner amendment removing profile-wide retained byte/entry
+admission and its sparse-success/additional-turn/history2 expectations are
+preserved. This patch adds no retained-workspace admission rule.
 
-The failure-detail-only r1 diagnostic passes all six courses in 45.41
-seconds, leaving its failure getters unreached. R2 captures pre/post public
-snapshots around the same synchronous send. Its single instrumented image
-has SHA recorded in the external receipt; exactly three authorized attempts
-pass in 46.30, 45.31 and 45.74 seconds. No fourth attempt is executed.
+Source is merged/pushed as main
+`2d0c3265d2262f713c60c58af70e29f01c6eeb57`; all seven source hashes match
+the tested candidate. Main's tracked files are clean; the owner's untracked
+.codex-attachments/ is preserved. Final proof/Done bookkeeping follows that
+source commit without changing product bytes.
 
-All three pre/post snapshots show native loading false, Send enabled, three
-process starts and the explicit native-continuation-unavailable mode.
-Immediately after send, refusal is false and both refusal strings are empty.
-Legacy conversation Loaded is not publicly exposed and is recorded as
-`unexposed`, never as an inferred Boolean. No failed-admission reason was
-captured. The suspected independent legacy/native-load race is unproven.
-A unique loading refusal maps to `window_agent_chat.cpp` lines 502–503,
-file SHA `e0081f25cef5511b5c49867b57a929da57d1fddae1178e90b6cf479b25dd4584`,
-but that reason was not observed. No unrelated executor hold is repurposed.
+## Distinguishing native verification
 
-Both temporary diagnostics are retired by restoring exact source bytes and
-normal target rebuilds. Final r2 restoration passes in 66.11 seconds. No
-restored-image course is rerun or given pass credit. Own native source is
-clean at aa7; guarded source/cache/images and frozen producer hashes remain
-unchanged. The normal About dirty/clean build identity rebuilds
-`about_desktop.cpp` and changes the composition-library hash; all build logs
-and original/diagnostic/restored images and PDBs are separately retained.
+All rows use the normal registered Release graph, commands, environment,
+properties and predicates. The native wrapper retains400s outer/180s per
+child. Durations below are the observed guarded-stage wall seconds, with
+CTest/XML timing separately retained.
 
-## Evidence and remaining work
+| Native observation | Exit | Seconds | Result |
+|---|---:|---:|---|
+| Mac old-UI negative |8|21.073|Exact readiness assertion rejects old presentation; no standalone wrapper PASS|
+| Mac corrected original wrapper |0|21.420|All six course markers plus anchored standalone wrapper PASS|
+| Windows corrected original wrapper |0|46.953|All six course markers plus anchored standalone wrapper PASS|
+| Windows current host default |0|0.312|Actual pass, including Windows sparse-file path|
+| Windows real entry-limit course |0|140.377|Actual263169-entry fixture/cleanup, original180s watchdog, native-large-entry-project:pass|
+| Windows old-UI negative |8|41.635|Exact readiness assertion rejects old presentation; no standalone wrapper PASS|
+
+The negative changes only original window_agent_setup.cpp production
+behavior and its matching reviewed source-content pin. Both variants retain
+the same cheap accessor, test helpers, controlled regression and1972 policy.
+The late Workbench hold observes native-ready/current custom profile while
+actual legacy Loaded is false, types the original question once, and requires
+Send disabled/no new process. Explicit release precedes every fail/shutdown;
+a local RAII guard backs it up. After release, both histories genuinely
+settle before the original single unsupported send and its original oracle.
+No artificial sleeps, fake counts, fallback or larger watchdog are used.
+
+Windows positive source/images stay unchanged through all three courses;
+all XMLs show run/pass, not skipped. PE integrity validates required selected
+MZ/PE/AMD64 images and hashes. Final seven source hashes match the clean
+candidate. Windows normal restoration build exits0/87.03s; Mac final normal
+build exits0 and restores exact positive hashes. No extra restored course is
+run or given pass credit. Normal dirty/clean About identity and selected
+builds change composition/logging library hashes; every variant's source,
+EXE/PDB, manifest and library evidence is retained, with no all-libraries-
+unchanged claim. Windows known SDK auxiliary cleanup uses only held exact
+PID/creation/path identities; raw guard assertions and empty forests remain.
+
+## Source review and local gates
+
+Peer review of exact preseal7d4b4dbe reports no blocking findings. Coordinator
+review confirms both completion orders, cheap scalar access and unchanged
+body projection/guard. The seventh file binds positive142 digest
+`a4754fecedde79f0a6f7463e99cf04827ae5f67b97621629fa22580e329271a0`;
+the controlled old-UI negative binds
+`6cbc8b34c1bea9af05370cf8351e781c6281b45b2d8ed84e3976e461ed571b7e`.
+Full-application/mutation pins and142/197 inventories remain exact.
+
+- Clang-format22.1.8 checks all six changed C++ files; diff check passes.
+- Mac scoped LLVM22 tidy passes window_agent_setup.cpp and
+  agent_conversation_host.cpp, exit0/22.88s.
+- Existing normal provider/app-source audit passes
+  ASYNC_MUTATION_HOST_INVENTORY_OK; print-only recomputation is separately
+  retained and is not a passing gate.
+- Architecture source gate passes application/provider/Qt boundaries.
+- Documentation gate passes; explicit current plan binding resolves all
+  three criteria. Generic historical-plan discovery is not used to alter
+  the unrelated existing release-v041 amendments field.
+- Frontend-design is read at the verified installed Claude marketplace
+  SKILL.md. It contains no desktop reference. Existing Qt palette/type/layout,
+  focus and Send/Stop names are retained; verification is offscreen and
+  functional. No owner desktop is driven or captured.
+
+## Original failures and causal history retained
+
+The normal aa7 twelve-row engineering pass has eleven passing rows. Native
+first/reopen and tour first/reopen pass; transcript replay fails
+unsupported-no-silent-fallback with generic side-chat launch_refused in
+86.01s; sixth course is unreached. The same label in earlierc4 is not assumed
+to have the same cause. Failure-only getter r1 passes45.41s with getters
+unreached. R2's maximum three public traces all pass46.30/45.31/45.74s and
+provide no failed-admission reason; no fourth uncontrolled attempt is run.
+
+The same sealed controlled r3 patch then reproduces actual legacy Loadedfalse,
+native-ready mode, Send enabled and unchangedthree process starts on both
+hosts. Windows held38ms/wrapper exit8/86.16s; Mac held15ms/exit8/65.59s.
+Immediate public refusal uniquely says saved conversation is still loading,
+matching window_agent_chat.cpp lines502–503, SHA
+`e0081f25cef5511b5c49867b57a929da57d1fddae1178e90b6cf479b25dd4584`.
+The gate is released before the original outcome wait; all four temporary
+sources are restored and normally rebuilt on both hosts. Those diagnostic
+failures remain failures; the later product controls supply the correction.
+
+Old aa7 source/libs/images/PDBs/graphs/cache and all completed native proof
+inputs are archived before candidate update:14705 members,3003402240 bytes,
+SHA `a42ffe69cbca9ece51aaeed2507a012fe7d7bb6cba034693b0ede9eb91ac0795`.
+Earlier8396 inputs also retain their verified archive6c9735e5,14384members.
+
+## Durable evidence, ownership and continuation
 
 External root:
 `/Users/jaeger/.codex/release-runs/v0.4.2-20261104/candidate43/windows-native-diagnosis-r1/BPR-1971/`.
-It contains sealed inputs, both receipts, the unique-branch source binding,
-all attempts' XML and both streams, target manifests, source/EXE/PDB copies,
-plan binding and durable checkpoint. The sibling `prefreeze-aa7-windows-r1`
-retains the original twelve-row failure and normal build/PE evidence.
-Prior 8396 inputs are archived and member-verified before aa7 reconciliation:
-14,384 members, 2,194,370,560 bytes, SHA256
-`6c9735e58413d7b5c4cb189fa4ff85ec3d362875f3c6eaac88c87c583207b664`.
+product-r4/sealed-inputs.json binds all original/positive/negative file hashes
+and patch4d5169c9. proof-receipt.json and macos-product-proof/receipt.json bind
+native source/images, commands, both streams, XML, manifests and restoration.
+The unique-branch binding, earlier controls and original failure packets
+remain in sibling directories. No transient logs/build outputs are tracked.
 
-AC1's bounded observations and AC2's restoration are supplied. AC3's actual
-cause/classification remains pending; the card stays In Progress. No source
-fix, oracle broadening, timing waiver, full-suite qualification or new
-acceptance is claimed. Further native attempts need a new bounded causal
-control/scope from the coordinator. Final common-source compilation,
-Windows/Linux native suites, optimized close/resource and release/trust gates
-remain separate. Mac46 and Windows43 frozen sources were not mutated.
+Every owned command has ended; no review server or human decision remains.
+Windows archive/product tasks are verified Ready/result0, then removed by
+exact action/principal/name, with original43 task XML unchanged. Native idle
+probe reports no build processes. Frozen Windows43 source/cache/images and
+releaseR are not edited; recorded protected hashes are unchanged. Private
+native candidate remains clean at970812 for the coordinator; no object store
+or source root is deleted.
 
-## Superseding controlled evidence and approved correction
-
-The exact sealed r3 control captures the actual unique refusal on both hosts.
-Windows wrapper exit8/86.16 seconds, held38ms; Mac exit8/65.59 seconds,
-held15ms. Both report legacy composed/Loadedfalse, native loadingfalse,
-Sendenabled and unchangedthree process starts. The immediate public refusal
-names saved conversation still loading; the gate is explicitly released
-before the unchanged original outcome wait. This identifies the shared
-readiness mismatch on exactoldAA7 app bytes, without relabelling earlier
-inconclusive attempts. Both operators restore allfour original source hashes
-and normally rebuild; raw/XML/images/PDB/manifests remain external. Windows
-r3 library deltas include logging and composition; no all-libraries-unchanged
-or About-only claim applies to that phase.
-
-Current correction mandate r4 is approved, source reconciled to
-c76340d4ebd6cfbe44bfc708888be827e9275c31 including accepted1972large-project
-policy andNEXT1974. The seven-path scope and three acceptance criteria are
-recorded in the live plan/card. Product preseal v3 is independently reviewed
-before content reseal; focused positive/negative native proofs and normal
-main integration remain pending. The earlier AC3-pending text describes
-that earlier checkpoint, not the now-confirmed controlled reason.
+The coordinator receives PC/canonical writer ownership after final metadata
+handback so1973 can integrate and the final common47 source can freeze.
+Final all-nine compilation, Linux/Windows full native qualification, Debug
+functional completion, optimized close/resource and release/trust gates are
+separate and still required. These focused passes are not reused as final
+release qualification or installed-agent coverage.
