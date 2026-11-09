@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1972"
 title: "Diagnose retained-workspace storage admission refusals precisely"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1969"]
 priority: "P1"
