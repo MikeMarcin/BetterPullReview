@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1976"
+  ],
+  "reserve_for": "tour-publish-unavailable",
+  "purpose": "Diagnose and repair author tour publication refusal",
+  "created": "2026-11-09T23:04:17.442195+00:00",
+  "base": "9df93875a9091682011255370012a9d638444af5"
+}
