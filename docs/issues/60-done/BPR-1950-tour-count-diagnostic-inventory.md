@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1950"
 title: "Tour labels inventory validates intended count diagnostics"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"test-correctness","found_by":"frozen43 full qualification","related_cards":["BPR-1092","BPR-1830"],"milestone_plan":{"id":"bpr-1949-1950-release-test-contracts","path":"docs/rfcs/plans/bpr-1949-1950-release-test-contracts/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Graph-derived capability selects strict13closed-name/private/bounded/single-v3-record count sessions or0disabled; all original domain/store/refusal/removal oracles preserved.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC2","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"22strict controlsPASS; readonly frozen43CLI proofPASS13sessions; fresh current-main normal labelsPASS3.90s; exact graph delta only labels physical/logical capability arg and all other nodes/properties identical.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC3","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Format22/focused tidy22, documentation and scoped board gatesPASS. Proven source intentionally integrated and ACTUALLY pushed authoritative main d84cde4d80164207d388ce41c63857a309eadff6. All protected producers unchanged, native/diagnostic commands ended/source copies restored. Final release/native trust and Windows new-wrapper measurement/pin remain coordinator/sibling obligations, not waived.","artifact_root":"candidate43/implementer-contract-fixes"}}]
 ---
 
 # BPR-1950: Tour labels inventory validates intended count diagnostics
