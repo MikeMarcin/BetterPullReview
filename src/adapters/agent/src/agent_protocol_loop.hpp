@@ -79,7 +79,10 @@ namespace bpr::adapters::agent::detail {
 		[[nodiscard]] virtual auto write(std::string_view aBytes)
 			-> agent_protocol_write_status
 			= 0;
-		virtual void               close_input() noexcept = 0;
+		virtual void close_input() noexcept = 0;
+		/// \brief Resets only the active turn deadline, on the transport thread.
+		virtual void               begin_turn(int) { }
+		[[nodiscard]] virtual auto process_identity() const noexcept -> std::uint64_t { return 0U; }
 		[[nodiscard]] virtual auto read_standard_output(std::span<char> aBuffer)
 			-> agent_protocol_pipe_read_result
 			= 0;

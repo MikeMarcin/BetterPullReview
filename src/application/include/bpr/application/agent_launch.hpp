@@ -234,6 +234,8 @@ namespace bpr::application {
 		model_catalog,
 	};
 
+	class agent_native_connection_port;
+
 	/// \brief What one agent process is started with.
 	struct agent_launch_request
 	{
@@ -265,6 +267,16 @@ namespace bpr::application {
 		bool ReadOnlyTools = false;
 		/// [[BPR-1918]]. How the decoder treats what a wrapper can trip.
 		agent_run_checks RunChecks = agent_run_checks::strict;
+		/// Durable host identity; empty keeps the one-shot protocol contract.
+		std::string NativeConversation;
+		/// Exact backend handle, never a most-recent lookup or diagnostic field.
+		std::string   NativeHandle;
+		std::uint64_t NativeTurn      = 2U;
+		bool          NativeConnected = false;
+		/// Adapter-owned exchange on its process thread; never supplied by Qt.
+		agent_native_connection_port* NativeConnection = nullptr;
+		/// Durably stores a newly observed handle before the question is written.
+		std::shared_ptr<std::function<bool(const std::string&)>> SaveNativeHandle;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -393,6 +405,10 @@ namespace bpr::application {
 	/// else is added to what the profile already launches with.
 	[[nodiscard]] auto build_round_launch(const core::agent_profile& aProfile, std::string_view aDocument, const std::optional<std::string>& aContinue, std::string aWorkingDirectory,
 										  const environment_reader& aParent) -> std::expected<agent_launch_request, agent_launch_failure>;
+
+	/// \brief Configures one native turn or an exact-ID reconnect without replay.
+	[[nodiscard]] auto prepare_native_agent_turn(agent_launch_request aRequest, bool aConnected)
+		-> std::expected<agent_launch_request, agent_launch_failure>;
 
 	/// \brief Renders every supplement field with explicit count/presence data.
 	[[nodiscard]] auto encode_agent_supplement(
@@ -733,6 +749,14 @@ namespace bpr::application {
 	public:
 		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false, agent_launch_purpose aPurpose = agent_launch_purpose::conversation, bool aReadOnlyTools = false, agent_run_checks aChecks = agent_run_checks::strict);
 
+		/// \brief Starts a turn on an already initialized native connection.
+		void continue_native(std::string aHandle, std::uint64_t aTurn);
+		/// \brief Complete result frame received, independently of process exit.
+		[[nodiscard]] auto turn_complete() const noexcept -> bool;
+		[[nodiscard]] auto native_handle() const noexcept -> const std::string&;
+		void               expect_native_handle(std::string aHandle) { ExpectedNativeHandle = std::move(aHandle); }
+		void               expect_response(std::uint64_t aTurn) { NativeTurn = aTurn; }
+
 		[[nodiscard]] auto push(std::string_view aBytes)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
 		[[nodiscard]] auto finish()
@@ -783,6 +807,8 @@ namespace bpr::application {
 		std::string                                      RemoteSession;
 		std::string                                      RemoteThread;
 		std::string                                      RemoteTurn;
+		std::string                                      ExpectedNativeHandle;
+		std::uint64_t                                    NativeTurn = 2U;
 	};
 
 	/// \brief Every terminal condition the host exposes distinctly.
@@ -877,11 +903,26 @@ namespace bpr::application {
 		/// could not read, bounded by `maximum_agent_rejected_line_bytes`, for
 		/// the reviewer's own log only.
 		std::string RejectedOutputLine;
+		/// Host-owned opaque native identity; excluded from ordinary diagnostics.
+		std::string NativeHandle;
+		/// Process-local supervised connection identity, for lifecycle observations.
+		std::uint64_t NativeProcess = 0U;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};
 
 	using agent_output_sink = std::function<void(const agent_stream_event&)>;
+
+	/// \brief Adapter-owned serialized turn exchange for one supervised process.
+	class agent_native_connection_port
+	{
+	public:
+		virtual ~agent_native_connection_port()                                  = default;
+		[[nodiscard]] virtual auto next() -> std::optional<agent_launch_request> = 0;
+		virtual void               complete(agent_run_result aResult)            = 0;
+		[[nodiscard]] virtual auto timeout_milliseconds() const -> int           = 0;
+		[[nodiscard]] virtual auto cancelled() const noexcept -> bool            = 0;
+	};
 
 	/// \brief Process effect boundary used by the agent application host.
 	class agent_process_port
@@ -895,6 +936,8 @@ namespace bpr::application {
 			const agent_output_sink&    aSink = { },
 			std::stop_token             aStop = { }) -> agent_run_result = 0;
 		virtual void cancel() noexcept                                   = 0;
+		/// \brief Whether all requested native connection shutdowns have settled.
+		[[nodiscard]] virtual auto native_connections_quiescent() const noexcept -> bool { return true; }
 	};
 
 	/// \brief Applies the core's immutable session decision to a process result.

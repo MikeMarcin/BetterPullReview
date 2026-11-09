@@ -127,9 +127,11 @@ the launching shell.
 
 The profile runtime owns private storage roots,
 authentication, provider capabilities, queue refresh, preferences, logging,
-epoch cache actors, shared drafts and workspace recovery. A window session owns
+epoch cache actors, shared drafts, durable native agent conversation records and
+workspace recovery. A window session owns
 its read host, epoch and diff state, selected review, navigation, Qt surface,
-mutation jobs and agent session. Closing a window drains its consumers; quitting
+mutation jobs and agent activation/turn state. Native Agent-tab conversation
+identity and retained workspace ownership survive that activation. Closing a window drains its consumers; quitting
 drains all windows before profile services. The first window has no special
 ownership of shared services or projection delivery.
 

@@ -2110,8 +2110,9 @@ namespace bpr::app {
 		std::unique_ptr<application::review_skill_store_port> ReviewSkillStore;
 		std::unique_ptr<application::review_skill_host>       ReviewSkill;
 		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
-		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
-		std::unique_ptr<application::agent_conversation_host>       AgentConversation;
+		std::unique_ptr<application::native_agent_session_store_port> NativeAgentSessions;
+		std::unique_ptr<application::agent_conversation_store_port>   AgentConversationStore;
+		std::unique_ptr<application::agent_conversation_host>         AgentConversation;
 		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
@@ -2261,6 +2262,7 @@ namespace bpr::app {
 		/// promoted finding a proposal nobody workshopped.
 		std::optional<pending_comment_workshop>             PendingWorkshopOperation;
 		std::optional<core::agent_session>                  LatestAgentSession;
+		std::optional<core::agent_session>                  NativeFreshAtCurrentRevision;
 		std::size_t                                         FindingRefusalsPresented = 0U;
 		std::size_t                                         SideChatIntents          = 0U;
 		std::size_t                                         SideChatPresentations    = 0U;

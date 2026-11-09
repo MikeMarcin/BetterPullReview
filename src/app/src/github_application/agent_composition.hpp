@@ -83,6 +83,8 @@ namespace bpr::app {
 
 		[[nodiscard]] auto invocations() const noexcept -> std::size_t;
 
+		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Launcher.native_connections_quiescent(); }
+
 	private:
 		adapters::agent::agent_process_launcher& Launcher;
 		std::atomic_size_t                       Invocations = 0U;
@@ -266,6 +268,7 @@ namespace bpr::app {
 			const application::agent_invocation_projection_identity& aIdentity,
 			const application::agent_finding_delivery&               aDelivery) override;
 
+		void restore_native_session(const core::agent_session& aSession) override;
 		void present_session_catalog(
 			const application::agent_session_catalog_projection& aProjection)
 			override;

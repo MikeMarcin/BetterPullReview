@@ -4,6 +4,7 @@
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/clone_link_host.hpp"
+#include "bpr/application/native_agent_session.hpp"
 #include "bpr/application/review_skill_host.hpp"
 
 #include <filesystem>
@@ -42,6 +43,8 @@ namespace bpr::adapters::sqlite {
 	/// recently written going first. A conversation that does not read back
 	/// whole is reported as none. Settings resets remove it with the file.
 	[[nodiscard]] auto make_agent_conversation_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_conversation_store_port>;
+	/// \brief Native ownership in the same private profile catalog, with no environment or credential fields.
+	[[nodiscard]] auto make_native_agent_session_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::native_agent_session_store_port>;
 } // namespace bpr::adapters::sqlite
 
 #endif

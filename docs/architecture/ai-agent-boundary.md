@@ -184,7 +184,7 @@ Git hosts map to allowed or required agent profiles. A corporate GHES profile ca
 ## Workspaces
 
 - Existing checkout: deliberate user selection for repository-wide context.
-- Disposable review workspace: default for bounded AI review, pinned to the exact review head and isolated from the active worktree.
+- Private review workspace: default for bounded AI review, pinned to the exact review head and isolated from the active worktree. Native Agent-tab conversations retain it for later turns; one-shot requests dispose of it after completion.
 
 The disposable destination is owner-private and outside the retained cache.
 The cache actor initializes a new repository, transfers the exact requested head
@@ -192,10 +192,21 @@ through Git pack plumbing, checks it out detached, and validates that no
 remote, alternate, hook, or linked-worktree topology crossed. It creates no
 cache ref and no hardlink. Cleanup requires the marker and the opaque directory
 identity captured at creation; a same-path, same-marker substitute is not
-authorized. Cleanup runs only after terminal delivery, and cancellation,
+authorized. One-shot cleanup runs only after terminal delivery, and cancellation,
 staleness, and orderly shutdown use the same bounded path. The child working
 directory is assigned only after materialization. Existing-checkout mode
 remains a per-invocation choice and discloses dirty or unknown state.
+
+[RFC-BPR-0096](../rfcs/RFC-BPR-0096-native-agent-sessions-and-tour-context.md)
+adds retained native Agent-tab workspaces. A durable session owns its original
+workspace and guard identities and journal phase 7. Startup recovery preserves
+that state even with no live process. Resume checks the marker, captured directory
+and guard identities, pinned HEAD and available required object closure; it never
+cleans allowed edits to make a resume succeed. Before retention, borrowed objects
+are packed locally and the alternates file is removed, so removing the linked
+clone does not invalidate a retained tree. A missing or unverifiable tree refuses
+input and is preserved for repair. Retention and safe admission bounds are recorded
+in the [RFC-0096 ledger](../verification/RFC-BPR-0096.md).
 
 **A linked clone's history ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md), Q7, Q8 A).**
 When the pull request's repository is linked to the reviewer's own clone, the
@@ -239,8 +250,11 @@ request ([[BPR-1753]], owner decision (b), 2026-10-23): the earlier
 questions and answers, oldest first (`brief.conversation.N.asked` and
 `.answered`), each side cut to 8 KiB, the newest 50 turns within 48 KiB and
 the older ones counted (`brief.conversation.omitted`). The application
-carries the conversation rather than a harness's own resumable session, so a
-follow-up continues it in whichever agent answers. The turns are kept, as the
+carries this prose replay for external one-shot integrations. Native Agent-tab
+Claude stream-json and Codex App Server instead continue the selected agent's
+durable native conversation, without replaying earlier assistant prose as its
+memory. Codex JSONL reconnects by exact native ID with a process per turn. The
+turns are kept, as the
 Agent tab shows them, in the profile's `agent-setup.sqlite3` for each pull
 request (host, owner, name and number; at most 50 turns, 64 KiB per text and
 500 pull requests, the least recently written going first); Clear session
@@ -503,7 +517,16 @@ The application composition follows one public route: the workbench panel emits
 an intent; `agent_invocation_host` reruns core legality and validates the full
 current context, durably admits an immutable session, then materializes the
 workspace through the retained cache actor, starts the adapter, serializes
-stream/terminal projection, and cleans the owned workspace. A core/context
+stream/terminal projection, and cleans a one-shot owned workspace. Native
+Agent-tab sessions retain the workspace and opaque backend handle in private
+SQLite storage, separately from the bounded invocation catalog. Selection alone
+restores metadata and cannot send input. Each explicit send saves a pending marker
+under an optimistic revision check before launch/input; an uncertain previous
+submission refuses automatic retry. Claude and Codex App Server connections remain
+open after successful turns, with independent per-turn budgets and correlation.
+Stop/shutdown drain those supervised connections without deleting durable history.
+Native context already received by the agent survives a later removal from the
+BPR context selection. A core/context
 refusal performs no session write. A session-store refusal is typed and visible
 before workspace, environment, executable, or process work. Workspace and
 parent-root cleanup each require their originally captured directory identity;

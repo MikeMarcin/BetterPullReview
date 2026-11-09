@@ -4754,6 +4754,43 @@ namespace bpr::adapters::git {
 				return *materialized;
 			}
 
+			[[nodiscard]] auto inspect_agent_workspace(
+				const application::owned_agent_workspace& aWorkspace,
+				const std::stop_token                     aStop)
+				-> application::git_cache_result<void> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				if (
+					!application::valid(aWorkspace)
+					|| aWorkspace.ApplicationSession
+						!= State->Request.ApplicationSession
+					|| aWorkspace.Authority != State->Request.Authority
+					|| aWorkspace.Workspace.PinnedHead->algorithm()
+						!= State->Request.ObjectFormat
+					|| !State->validated_inventory(aStop, false).has_value()) {
+					return std::unexpected{
+						application::git_cache_failure::invalid_authority
+					};
+				}
+				const auto cleaned = State->Process->inspect_agent_workspace(
+					aWorkspace,
+					aStop);
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{
+						application::git_cache_failure::repair_required
+					};
+				}
+				if (!cleaned.has_value()) {
+					return std::unexpected{
+						State->process_failure(cleaned.error())
+					};
+				}
+				return { };
+			}
+
 			[[nodiscard]] auto cleanup_agent_workspace(
 				const application::owned_agent_workspace& aWorkspace,
 				const std::stop_token                     aStop)

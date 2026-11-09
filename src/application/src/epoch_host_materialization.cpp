@@ -966,7 +966,7 @@ namespace bpr::application {
 
 	auto epoch_application_host::implementation::cleanup_agent_workspace(
 		const owned_agent_workspace& aWorkspace,
-		const std::stop_token        aStop)
+		const std::stop_token aStop, const bool aInspect)
 		-> std::expected<void, agent_workspace_error>
 	{
 		if (!Consumer->active() || aWorkspace.ApplicationSession != WindowApplicationSession) {
@@ -1025,7 +1025,7 @@ namespace bpr::application {
 		try {
 			enqueue_actor_work(
 				actor,
-				[this, actor, expected, aWorkspace, aStop, waiter, control] {
+				[this, actor, expected, aWorkspace, aStop, waiter, control, aInspect] {
 					auto result = std::expected<void, agent_workspace_error>{ };
 					try {
 						auto forwardCallerStop = std::stop_callback{
@@ -1040,9 +1040,8 @@ namespace bpr::application {
 								agent_workspace_failure::cleanup_failed
 							};
 						} else {
-							const auto cleaned = actor->Cache->cleanup_agent_workspace(
-								aWorkspace,
-								control->Stop.get_token());
+							const auto cleaned = aInspect ? actor->Cache->inspect_agent_workspace(aWorkspace, control->Stop.get_token())
+														  : actor->Cache->cleanup_agent_workspace(aWorkspace, control->Stop.get_token());
 							if (!cleaned.has_value()) {
 								result = std::unexpected{ agent_workspace_error{
 									cleaned.error() == git_cache_failure::cancelled

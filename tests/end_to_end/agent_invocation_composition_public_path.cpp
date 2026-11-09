@@ -15,6 +15,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QAction>
@@ -631,6 +632,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto course              = std::string_view{ argv[1] };
+	const auto nativeCourse        = course == "native-session" || course == "native-session-reopen";
 	const auto setupWrapper        = course == "setup-wrapper";
 	const auto workspaceDiagnostic = course == "workspace-diagnostic" || setupWrapper;
 	const auto crashMaterializing  = course == "crash-materializing-init" || course == "crash-materializing-checkout" || course == "cancel-materializing-checkout";
@@ -647,7 +649,7 @@ auto main(int argc, char** argv) -> int
 		&& course != "launcher-construction-cut"
 		&& course != "gesture-cut" && course != "cancellation"
 		&& course != "staleness" && course != "cleanup-retry"
-		&& !workspaceDiagnostic && !crashMaterializing) {
+		&& !workspaceDiagnostic && !crashMaterializing && !nativeCourse) {
 		return EXIT_FAILURE;
 	}
 	if (course == "cancellation" && !cancellation_diagnostic_controls_pass()) {
@@ -773,6 +775,25 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 	}
+	if (course == "native-session") {
+		auto preferences        = application::agent_setup_preferences{ };
+		preferences.AgentsMoved = true;
+		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
+			auto entry      = core::agent_entry{ };
+			entry.Id        = static_cast<std::uint32_t>(preferences.Agents.size() + 1U);
+			entry.Name      = "Native fixture " + std::to_string(entry.Id);
+			entry.Protocol  = protocol;
+			entry.Program   = externalExecutable.string();
+			entry.Arguments = { "--native-session-fixture" };
+			entry.Identity  = std::string(32U, static_cast<char>('a' + entry.Id));
+			preferences.Agents.push_back(std::move(entry));
+		}
+		preferences.PreferredAgent = 1U;
+		if (!adapters::sqlite::make_agent_setup_store(dataRoot)->store(preferences)) {
+			return EXIT_FAILURE;
+		}
+	}
+
 	if (setupWrapper) {
 		auto preferences        = application::agent_setup_preferences{ };
 		preferences.Chosen      = core::setup_agent::claude_code;
@@ -945,6 +966,112 @@ auto main(int argc, char** argv) -> int
 			? sharedCutEvidence && !evidence.AgentProcessLauncherComposed
 			: sharedCutEvidence && evidence.AgentProcessLauncherComposed;
 		if (!shutdown(*application) || !passed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-invocation-" << course << ":pass\n";
+		return EXIT_SUCCESS;
+	}
+
+	if (nativeCourse) {
+		window.choose_modality(qt::review_modality::review);
+		if (!window.ai_tools_action()->isChecked()) {
+			window.ai_tools_action()->trigger();
+		}
+		window.tray_tabs()->setCurrentIndex(3);
+		if (!wait_until([&] { return window.files_drawer()->contents_view()->model()->rowCount() > 0 && panel->profile_selector()->count() >= 2; })) {
+			return fail(*application, "native-open");
+		}
+		auto* const files = window.files_drawer()->contents_view();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		if (!wait_until([&] { return window.comparison_surface()->current_result() != nullptr; }, extended_agent_budget)
+			|| !window.comparison_surface()->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop)
+			|| !wait_until([&] { return window.comparison_surface()->selection().has_value(); })) {
+			return fail(*application, "native-semantic-selection");
+		}
+		auto* const setup = window.agent_setup();
+		if (!wait_until([&] { return setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck")) != nullptr; })) {
+			return fail(*application, "native-setup-check", setup->step_text().toStdString());
+		}
+		setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"))->click();
+		if (!wait_until([&] { return !setup->needed() && window.agent_tab()->state() != qt::agent_tab_state::setting_up; }, extended_agent_budget)) {
+			return fail(*application, "native-setup-ready", setup->step_text().toStdString());
+		}
+		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
+			const auto entryId = protocol == core::agent_protocol::claude_stream_json ? 1U : 2U;
+			const auto profile = core::entry_profile_id(protocol, entryId);
+			const auto index   = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(profile.value()));
+			if (index < 0) {
+				return fail(*application, "native-profile");
+			}
+			if (!window.agent_tab()->choose_agent(profile.value())) {
+				return fail(*application, "native-visible-agent-choice");
+			}
+			QApplication::processEvents();
+			const auto before         = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+			const auto previousStarts = (entryId - 1U) * 2U;
+			if (before.Statistics.ProcessStarts != previousStarts) {
+				return fail(*application, "native-view-does-not-infer");
+			}
+			// The ordinary Agent-tab launch action traverses the production
+			// profile/authority/private-run/workspace/process composition.
+			window.side_chat()->composer()->setPlainText(QStringLiteral("Review this pull request"));
+			if (!wait_until([&] { return window.agent_tab()->ask_button()->isVisible() && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-launch-ready", panel->status_text().toStdString());
+			}
+			window.agent_tab()->ask_button()->click();
+			if (!wait_until([&] {
+					const auto evidence = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+					return evidence.Quiescent && evidence.Statistics.ProcessStarts == previousStarts + 1U && panel->status_text().contains(QStringLiteral("success"));
+				},
+							extended_agent_budget)) {
+				return fail(*application, "native-first-turn", panel->status_text().toStdString());
+			}
+			const auto first = panel->output_text().toStdString();
+			if (first.find("process=") == std::string::npos
+				|| (course == "native-session" && first.find("First answer omits the tool observation") == std::string::npos)) {
+				return fail(*application, "native-first-output");
+			}
+			if (!wait_until([&] {
+					const auto count = window.agent_tab()->turn_count();
+					return count > 0U && window.agent_tab()->turn_outcome(count - 1U) == core::agent_turn_outcome::answered
+						&& window.agent_tab()->turn_answer(count - 1U) == QString::fromStdString(first).trimmed();
+				})) {
+				const auto count = window.agent_tab()->turn_count();
+				return fail(*application, "native-visible-first-answer", "entry=" + std::to_string(entryId) + " count=" + std::to_string(count) + " expected=" + first + " actual=" + (count ? window.agent_tab()->turn_answer(count - 1U).toStdString() : "none"));
+			}
+			window.side_chat()->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+			if (!window.agent_tab()->ask_button()->isEnabled()) {
+				return fail(*application, "native-followup-ready");
+			}
+			window.agent_tab()->ask_button()->click();
+			if (!wait_until([&] {
+					const auto evidence = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+					return evidence.Quiescent && evidence.Statistics.ProcessStarts == previousStarts + 2U && panel->status_text().contains(QStringLiteral("success"));
+				},
+							extended_agent_budget)) {
+				return fail(*application, "native-followup", panel->status_text().toStdString());
+			}
+			const auto followup = panel->output_text().toStdString();
+			if (followup.find("tool-observation-7f13 retained-file=yes") == std::string::npos
+				|| first.substr(first.find("process=")) != followup.substr(followup.find("process="))) {
+				return fail(*application, "native-followup-continuity");
+			}
+			if (!wait_until([&] {
+					const auto count = window.agent_tab()->turn_count();
+					return count >= 2U && window.agent_tab()->turn_answer(count - 1U).contains(QStringLiteral("tool-observation-7f13"));
+				})) {
+				return fail(*application, "native-visible-answer");
+			}
+			const auto after = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+			if (after.Statistics.WorkspaceStarts != (course == "native-session-reopen" ? 0U : entryId)) {
+				return fail(*application, "native-retained-workspace");
+			}
+		}
+		const auto renderPath = dataRoot.parent_path() / (course == "native-session-reopen" ? "native-reopen.png" : "native-agent-tab.png");
+		if (!window.grab().save(QString::fromStdU16String(renderPath.u16string()))) {
+			return fail(*application, "native-render");
+		}
+		if (!shutdown(*application) || application->status().AgentWorkspaceCleanupFailed) {
 			return EXIT_FAILURE;
 		}
 		std::cout << "agent-invocation-" << course << ":pass\n";

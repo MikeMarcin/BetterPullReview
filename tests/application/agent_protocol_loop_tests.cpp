@@ -208,7 +208,7 @@ namespace {
 	void test_app_server_phases_follow_successful_writes_only()
 	{
 		const auto initialized = std::string{
-			"{\"id\":0,\"result\":{}}\n"
+			"{\"id\":0,\"result\":{}}\n{\"method\":\"remoteControl/status/changed\",\"params\":{}}\n"
 		};
 		for (const auto& [status, expected] : {
 				 std::pair{ agent_protocol_write_status::cancelled,
@@ -908,8 +908,52 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	void test_native_turns_leave_the_stream_open_and_fence_the_prior_turn()
+	{
+		auto first               = request(core::agent_protocol::claude_stream_json);
+		first.NativeConversation = "durable-conversation";
+		auto savedHandle         = std::string{ };
+		first.SaveNativeHandle   = std::make_shared<std::function<bool(const std::string&)>>([&savedHandle](const std::string& aHandle) { savedHandle = aHandle; return true; });
+		auto wire                = fake_transport{ };
+		wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data,
+								.Bytes  = "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"native-a\"}\n{\"type\":\"assistant\",\"session_id\":\"native-a\",\"message\":{\"role\":\"assistant\",\"id\":\"one\",\"content\":[{\"type\":\"text\",\"text\":\"first answer\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-a\",\"is_error\":false,\"result\":\"done\"}\n" });
+		const auto firstResult = run_agent_protocol_loop(first, { }, wire);
+		if (firstResult.Outcome != application::agent_run_outcome::success) {
+			std::cerr << application::name(firstResult.Outcome) << " protocol=" << (firstResult.ProtocolFailure ? application::name(*firstResult.ProtocolFailure) : "none") << " line=" << firstResult.RejectedOutputLine << "\n";
+		}
+		expect(firstResult.Outcome == application::agent_run_outcome::success && firstResult.NativeHandle == "native-a", "native result ends the first turn and captures its handle");
+		expect(wire.CloseInputCount == 0U && wire.TerminateCount == 0U, "native result neither closes input nor terminates its process");
+		expect(savedHandle == "native-a", "Claude initialization durably announces its native handle before terminal delivery");
+
+		auto second         = first;
+		second.NativeHandle = firstResult.NativeHandle;
+		second.NativeTurn   = 3U;
+		second              = *application::prepare_native_agent_turn(std::move(second), true);
+		auto followup       = fake_transport{ };
+		followup.Output.push_back({ .Status = agent_protocol_pipe_read_status::data,
+									.Bytes  = "{\"type\":\"assistant\",\"session_id\":\"native-a\",\"message\":{\"role\":\"assistant\",\"id\":\"two\",\"content\":[{\"type\":\"text\",\"text\":\"tool memory absent from replay\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-a\",\"is_error\":false,\"result\":\"done\"}\n" });
+		const auto result = run_agent_protocol_loop(second, { }, followup);
+		expect(result.Outcome == application::agent_run_outcome::success && result.NativeHandle == firstResult.NativeHandle, "later turn uses initialized Claude session without another init");
+		expect(followup.CloseInputCount == 0U && followup.TerminateCount == 0U, "second turn preserves its connection");
+		auto wrong = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		wrong.continue_native("native-a", 3U);
+		expect(!wrong.push("{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"native-b\",\"is_error\":false,\"result\":\"done\"}\n"), "other native session cannot supply this turn");
+		auto late = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
+		late.continue_native("thread-a", 7U);
+		expect(late.push("{\"method\":\"remoteControl/status/changed\",\"params\":{}}\n").has_value(), "installed connection status notification cannot complete a turn");
+		expect(!late.push("{\"id\":2,\"result\":{\"turn\":{\"id\":\"old\",\"status\":\"inProgress\"}}}\n"), "late RPC reply cannot initialize a later turn");
+		auto reconnect            = second;
+		reconnect.NativeConnected = false;
+		reconnect.Arguments       = { "-p" };
+		reconnect                 = *application::prepare_native_agent_turn(std::move(reconnect), false);
+		expect(reconnect.Arguments == std::vector<std::string>{ "-p", "--resume", "native-a" }, "reconnect uses the exact native ID");
+	}
+}
+
 int main()
 {
+	test_native_turns_leave_the_stream_open_and_fence_the_prior_turn();
 	test_a_catalog_run_lists_the_harness_models();
 	test_claude_help_names_its_efforts();
 	test_complete_assistant_items_and_claims();

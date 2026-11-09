@@ -11,6 +11,7 @@
 #include <deque>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -245,6 +246,17 @@ namespace {
 			return result;
 		}
 
+		std::size_t Inspections  = 0U;
+		bool        InspectFails = false;
+		auto        inspect_agent_workspace(const application::owned_agent_workspace&, std::stop_token) -> std::expected<void, application::agent_workspace_error> override
+		{
+			++Inspections;
+			if (InspectFails) {
+				return std::unexpected(application::agent_workspace_failure::unavailable);
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const application::owned_agent_workspace& aWorkspace,
 			const std::stop_token)
@@ -307,11 +319,12 @@ namespace {
 				aSink(event);
 			}
 			return {
-				.Session  = aRequest.Session,
-				.Outcome  = application::agent_run_outcome::success,
-				.Events   = { event },
-				.ExitCode = 0,
-				.Findings = Payload,
+				.Session      = aRequest.Session,
+				.Outcome      = application::agent_run_outcome::success,
+				.Events       = { event },
+				.ExitCode     = 0,
+				.Findings     = Payload,
+				.NativeHandle = aRequest.NativeConversation.empty() ? std::string{ } : "native-test-handle",
 			};
 		}
 
@@ -631,6 +644,42 @@ namespace {
 		bool                  ThrowFinish = false;
 	};
 
+	class native_store_spy final : public application::native_agent_session_store_port
+	{
+	public:
+		std::map<std::string, application::native_agent_session> Records;
+		bool                                                     FailStore = false;
+		auto                                                     select(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, bool = false)
+			-> std::expected<application::native_agent_session, application::native_agent_storage_failure> override
+		{
+			if (!Records.contains(aScope)) {
+				auto value          = application::native_agent_session{ };
+				value.Id            = "native-" + std::to_string(Records.size());
+				value.Scope         = aScope;
+				value.Configuration = aConfiguration;
+				value.Binding       = aBinding;
+				value.Revision      = 1U;
+				Records.emplace(aScope, value);
+			}
+			return Records.at(aScope);
+		}
+		auto find(const std::string& aScope, const std::string&, const core::agent_revision_binding&)
+			-> std::expected<std::optional<application::native_agent_session>, application::native_agent_storage_failure> override
+		{
+			return Records.contains(aScope) ? std::optional{ Records.at(aScope) } : std::nullopt;
+		}
+		auto store(application::native_agent_session& aSession) -> bool override
+		{
+			auto& stored = Records.at(aSession.Scope);
+			if (FailStore || stored.Revision != aSession.Revision) {
+				return false;
+			}
+			++aSession.Revision;
+			stored = aSession;
+			return true;
+		}
+	};
+
 	struct harness
 	{
 		queued_executor                    Effects;
@@ -639,6 +688,7 @@ namespace {
 		process_spy                        Processes;
 		projection_spy                     Projection;
 		session_catalog_spy                Sessions{ &Decisions };
+		native_store_spy                   NativeSessions;
 		std::size_t                        EnvironmentReads = 0U;
 		application::agent_invocation_host Host{
 			core::built_in_agent_profiles(),
@@ -667,6 +717,8 @@ namespace {
 			Effects,
 			Decisions,
 			Projection,
+			nullptr,
+			&NativeSessions,
 		};
 
 		void settle()
@@ -1794,8 +1846,52 @@ namespace {
 	}
 }
 
+namespace {
+	void native_workspace_and_identity_survive_window_activation()
+	{
+		auto       test           = harness{ };
+		const auto hostId         = core::git_host_id{ 1 };
+		auto       input          = request(hostId, core::claude_stream_json_profile_id);
+		input.NativeAgentIdentity = "incarnation-a";
+		input.NativeScope         = "agent-tab";
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		expect(test.Processes.Starts == 0U, "observing a review submits no native question");
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 1U && test.Workspaces.Starts == 1U && test.Workspaces.LastRequest->RetainForSession,
+			   "first native question makes a session-owned workspace");
+		expect(test.Workspaces.Cleanups == 0U && test.Host.is_quiescent(), "turn completion retains workspace while invocation quiesces");
+		const auto identity = test.Processes.LastRequest->NativeConversation;
+		test.Host.clear();
+		input.ApplicationSession         = core::application_session_id{ 2 };
+		input.Context.ApplicationSession = input.ApplicationSession;
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 2U && test.Workspaces.Starts == 1U && test.Workspaces.Inspections == 1U
+				   && test.Processes.LastRequest->NativeConversation == identity && test.Processes.LastRequest->NativeHandle == "native-test-handle",
+			   "new window activation reuses exact durable identity, handle and validated workspace");
+		auto& saved       = test.NativeSessions.Records.begin()->second;
+		saved.Pending     = true;
+		const auto starts = test.Processes.Starts;
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == starts && test.Projection.Finished.back().Outcome == application::agent_run_outcome::private_storage_failure,
+			   "uncertain send is visible and never automatically retransmitted");
+		saved.Pending                = false;
+		test.Workspaces.InspectFails = true;
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == starts && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 0U,
+			   "missing retained objects refuse without replacing or deleting changed workspace state");
+	}
+}
+
 auto main() -> int
 {
+	native_workspace_and_identity_survive_window_activation();
 	test_explicit_settings_cross_the_existing_invocation_host();
 	test_session_admission_answers_later_and_admits_one_turn();
 	test_ghes_policy_refuses_codex_before_effects();

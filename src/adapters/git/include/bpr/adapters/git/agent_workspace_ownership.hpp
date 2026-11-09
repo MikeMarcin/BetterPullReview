@@ -95,7 +95,7 @@ namespace bpr::adapters::git {
 		virtual ~installed_agent_workspace_ownership()                                                = default;
 		[[nodiscard]] virtual auto layout() const noexcept -> const installed_agent_workspace_layout& = 0;
 		/// \brief Requires the expected Git ownership marker before allowing agent launch.
-		[[nodiscard]] virtual auto mark_ready() -> bool = 0;
+		[[nodiscard]] virtual auto mark_ready(bool aRetained = false) -> bool = 0;
 		/// \brief Exclusive, journaled cleanup; false preserves unresolved ownership.
 		[[nodiscard]] virtual auto cleanup() -> bool = 0;
 	};

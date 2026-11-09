@@ -1254,7 +1254,7 @@ namespace bpr::application {
 
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
-			const std::stop_token        aStop)
+			const std::stop_token aStop, bool aInspect = false)
 			-> std::expected<void, agent_workspace_error>;
 
 		void accept(accepted_pull_request_handoff aHandoff);

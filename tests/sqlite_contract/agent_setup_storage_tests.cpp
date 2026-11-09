@@ -163,7 +163,8 @@ try {
 	listed.RunLimitMinutes = 45U;
 	listed.PreferredAgent  = 2U;
 	// Owner look v004: the Agent tab's Suggestions toggle is kept.
-	listed.SuggestionsHidden = true;
+	listed.SuggestionsHidden  = true;
+	listed.Agents[0].Identity = std::string(32U, 'a');
 	expect(store->store(listed), "an agent list is stored");
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");
@@ -183,6 +184,55 @@ try {
 	struct stat status{ };
 	expect(::stat(path.c_str(), &status) == 0 && (status.st_mode & 0077) == 0, "the file is owner-private");
 #endif
+
+	// Native identity is independent of application/window and invocation catalogs.
+	auto natives        = adapters::sqlite::make_native_agent_session_store(scratch.path());
+	auto binding        = core::agent_revision_binding{ };
+	binding.Host        = core::git_host_id{ 1 };
+	binding.Repository  = core::repository_id{ 2 };
+	binding.PullRequest = core::pull_request_id{ 3 };
+	binding.BaseOid     = *core::parse_git_commit_oid(std::string(40U, '1'));
+	binding.HeadOid     = *core::parse_git_commit_oid(std::string(40U, '2'));
+	binding.LeftEpoch   = core::epoch_ordinal{ 1 };
+	binding.RightEpoch  = core::epoch_ordinal{ 2 };
+	auto native         = natives->select("authority:agent-a:agent-tab", "claude", binding);
+	expect(native.has_value(), "native conversation is admitted durably");
+	native->Handle  = "exact-native-id";
+	native->Pending = true;
+	expect(natives->store(*native), "pending send is stored before submission");
+	auto competing = *native;
+	natives        = adapters::sqlite::make_native_agent_session_store(scratch.path());
+	auto restored  = natives->select("authority:agent-a:agent-tab", "claude", binding);
+	expect(restored && restored->Id == native->Id && restored->Handle == native->Handle && restored->Pending,
+		   "restart restores exact native identity and uncertain submission, without inference");
+	restored->Pending = false;
+	++restored->Turn;
+	expect(natives->store(*restored) && !natives->store(competing), "revision CAS permits one writer and rejects stale activation");
+	expect(!natives->select("authority:agent-a:agent-tab", "changed-runtime", binding), "runtime identity mismatch never relabels a saved native session");
+	auto otherNative = natives->select("authority:agent-b:agent-tab", "claude", binding);
+	expect(otherNative && otherNative->Id != restored->Id, "another agent incarnation gets a distinct native conversation");
+	const auto missing = natives->find("unopened-scope", "claude", binding);
+	expect(missing && !*missing, "viewing absent native history admits nothing");
+	auto changedBinding    = binding;
+	changedBinding.HeadOid = *core::parse_git_commit_oid(std::string(40U, '3'));
+	const auto stale       = natives->select("authority:agent-a:agent-tab", "claude", changedBinding);
+	expect(stale && stale->Id == restored->Id && stale->Binding == binding, "head movement never silently retargets native ownership");
+	const auto fresh = natives->select("authority:agent-a:agent-tab", "claude", changedBinding, true);
+	expect(fresh && fresh->Id != restored->Id && fresh->Binding == changedBinding && fresh->Handle.empty()
+			   && natives->store(*restored),
+		   "explicit new revision creates a distinct generation while old native provenance stays stored");
+	auto refusedAt = std::size_t{ 0U };
+	for (auto index = 0U; index <= application::maximum_conversations; ++index) {
+		const auto admitted = natives->select("capacity-" + std::to_string(index), "claude", binding);
+		if (!admitted) {
+			expect(admitted.error() == application::native_agent_storage_failure::capacity, "full native catalog reports capacity");
+			refusedAt = index;
+			break;
+		}
+	}
+	expect(refusedAt > 0U && refusedAt < application::maximum_conversations, "combined native/legacy catalog refuses at its shared bound");
+	const auto protectedHistory = natives->find("authority:agent-b:agent-tab", "claude", binding);
+	expect(protectedHistory && *protectedHistory && (**protectedHistory).Id == otherNative->Id, "capacity refusal never prunes protected native history");
 
 	{
 		sqlite3* database = nullptr;

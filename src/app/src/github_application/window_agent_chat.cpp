@@ -413,12 +413,14 @@ namespace bpr::app {
 		} else {
 			present_side_chat(observedBinding);
 		}
+		observe_conversation_agent();
 		Window->agent_panel()->disclose_scope(
 			QStringLiteral(
 				"The selected agent receives the exact accepted PR/diff identities, "
 				"durable defects, current semantic selection, and only private notes or "
-				"the current draft checked for this invocation. It runs in a disposable exact-head workspace "
-				"outside the Git cache.%1")
+				"the current draft checked for this invocation. Native conversations retain their exact-head workspace "
+				"and earlier agent context outside the Git cache. Removing context from a later turn does not erase "
+				"what the agent already received.%1")
 				.arg(ExistingCheckout.has_value()
 						 ? QStringLiteral(
 							   " Choose the working-copy option only for this invocation; its state is disclosed as unknown.")
@@ -494,6 +496,10 @@ namespace bpr::app {
 	{
 		if (Closing || AgentHost == nullptr || EpochHost == nullptr
 			|| Window == nullptr) {
+			return false;
+		}
+		if (!aWritingOnly && !aExistingCheckoutChosen && AgentConversation && !AgentConversation->projection().Loaded) {
+			Window->agent_panel()->refuse("Saved conversation is still loading. No question was sent.");
 			return false;
 		}
 		const auto& state = EpochHost->state();
@@ -601,10 +607,12 @@ namespace bpr::app {
 		// request, bounded, and the review skill's text (Q9 A). A comment
 		// workshop press and a writing request are not review requests.
 		if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
-			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
+			auto        brief              = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
+			const auto* entry              = AgentSetup ? core::entry_of_profile(AgentSetup->projection().Preferences.Agents, aProfile) : nullptr;
+			const auto  nativeConversation = !aExistingCheckoutChosen && entry && !entry->Identity.empty() && entry->Protocol != core::agent_protocol::external_terminal;
 			// [[BPR-1753]], owner decision (b). The conversation so
 			// far about this pull request, so a follow-up continues it.
-			if (AgentConversation) {
+			if (AgentConversation && !nativeConversation) {
 				const auto earlier = AgentConversation->projection().Turns;
 				for (const auto& turn : earlier) {
 					brief.Conversation.push_back({ .Asked = turn.Asked, .Answered = turn.Answered });
@@ -821,6 +829,15 @@ namespace bpr::app {
 			invocation.Context.Skills = aTour.Skills.Inline;
 			TourSession->dispatch(std::move(invocation));
 			return true;
+		}
+		if (AgentSetup && !aExistingCheckoutChosen) {
+			const auto preferences = AgentSetup->projection().Preferences;
+			if (const auto* const entry = core::entry_of_profile(preferences.Agents, aProfile); entry != nullptr && entry->Protocol != core::agent_protocol::external_terminal) {
+				invocation.NativeAgentIdentity          = entry->Identity;
+				invocation.NativeScope                  = "agent-tab";
+				invocation.NativeStartAtCurrentRevision = NativeFreshAtCurrentRevision && NativeFreshAtCurrentRevision->Profile == aProfile
+					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
+			}
 		}
 		AgentHost->dispatch(std::move(invocation));
 		return true;
@@ -1557,12 +1574,11 @@ namespace bpr::app {
 		}
 		const auto& choice
 			= std::get<qt::choose_chat_continuation_intent>(aIntent);
-		static_cast<void>(
-			ChatHost->choose(application::agent_chat_continuation_choice{
-				.Session        = choice.Session,
-				.Choice         = choice.Choice,
-				.OfferedBinding = choice.OfferedBinding,
-			}));
+		const auto outcome = ChatHost->choose(application::agent_chat_continuation_choice{
+			.Session = choice.Session, .Choice = choice.Choice, .OfferedBinding = choice.OfferedBinding });
+		if (outcome.Started && choice.Choice == core::agent_continuation::start_new_session) {
+			NativeFreshAtCurrentRevision = outcome.Started;
+		}
 	}
 
 	/// \brief Says on the panel what one chat gesture produced.

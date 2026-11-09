@@ -87,6 +87,8 @@ namespace bpr::application {
 							   std::stop_token aStop = { }) -> agent_run_result override;
 		void               cancel() noexcept override;
 
+		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Inner.native_connections_quiescent(); }
+
 	private:
 		agent_process_port&                         Inner;
 		std::shared_ptr<const agent_program_source> Source;
@@ -127,6 +129,8 @@ namespace bpr::application {
 		[[nodiscard]] auto run(const agent_launch_request& aRequest, int aTimeoutMilliseconds, const agent_output_sink& aSink = { },
 							   std::stop_token aStop = { }) -> agent_run_result override;
 		void               cancel() noexcept override;
+
+		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Direct.native_connections_quiescent(); }
 
 	private:
 		agent_process_port&                       Direct;

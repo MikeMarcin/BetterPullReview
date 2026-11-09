@@ -361,7 +361,7 @@ namespace {
 				"{\"method\":\"turn/completed\",\"params\":{"
 				"\"threadId\":\"canary-thread\",\"turn\":{"
 				"\"id\":\"canary-turn\",\"items\":[],"
-				"\"status\":\"completed\"}}}\n"
+				"\"status\":\"completed\",\"items\":[]}}}\n"
 			};
 			std::cout.write(
 				preemptive.data(), static_cast<std::streamsize>(preemptive.size()));
@@ -678,10 +678,79 @@ namespace {
 		std::cout << out;
 		std::cout.flush();
 	}
+	// Native fixture memory lives behind the protocol, never in the first
+	// assistant answer. Its file also represents allowed retained workspace work.
+	auto native_session_fixture(const int aCount, char** const aArguments) -> int
+	{
+		const auto protocol = selected_protocol(aCount, aArguments);
+		const auto state    = std::filesystem::current_path() / ".bpr-native-fixture-state";
+		auto       handle   = argument_after(aCount, aArguments, "--resume");
+		auto       saved    = std::string{ };
+		{
+			auto input = std::ifstream{ state };
+			std::getline(input, saved);
+		}
+		if (handle.empty()) {
+			handle = saved.empty() ? "native-fixture-session" : saved;
+		}
+		if (!saved.empty() && saved != handle) {
+			return 23;
+		}
+		{
+			auto output = std::ofstream{ state };
+			output << handle << '\n';
+		}
+#if defined(_WIN32)
+		const auto process = std::to_string(_getpid());
+#else
+		const auto process = std::to_string(::getpid());
+#endif
+		auto turn = 0U;
+		auto line = std::string{ };
+		while (std::getline(std::cin, line)) {
+			if (protocol == protocol::codex_app_server && line.find("\"method\":\"initialize\"") != std::string::npos) {
+				std::cout << "{\"id\":0,\"result\":{}}\n"
+						  << std::flush;
+				continue;
+			}
+			if (protocol == protocol::codex_app_server && (line.find("\"method\":\"thread/start\"") != std::string::npos || line.find("\"method\":\"thread/resume\"") != std::string::npos)) {
+				std::cout << "{\"id\":1,\"result\":{\"thread\":{\"id\":\"" << handle << "\"}}}\n"
+						  << std::flush;
+				continue;
+			}
+			if (protocol == protocol::codex_app_server && line.find("\"method\":\"turn/start\"") == std::string::npos) {
+				continue;
+			}
+			++turn;
+			const auto answer = (line.find("remember-tool-observation") == std::string::npos ? std::string{ "First answer omits the tool observation" } : std::string{ "tool-observation-7f13 retained-file=yes" }) + " process=" + process;
+			if (protocol == protocol::claude_stream_json) {
+				if (turn == 1U) {
+					std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"" << handle << "\"}\n";
+				}
+				std::cout << "{\"type\":\"user\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"read\",\"content\":\"tool-observation-7f13\"}]}}\n";
+				std::cout << "{\"type\":\"assistant\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"assistant\",\"id\":\"m" << turn << "\",\"content\":[{\"type\":\"text\",\"text\":\"" << answer << "\"}]}}\n";
+				std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"" << handle << "\",\"is_error\":false,\"result\":\"done\"}\n"
+						  << std::flush;
+			} else {
+				const auto start  = line.find("\"id\":") + 5U;
+				const auto id     = line.substr(start, line.find(',', start) - start);
+				const auto turnId = "turn-" + std::to_string(turn);
+				std::cout << "{\"id\":" << id << ",\"result\":{\"turn\":{\"id\":\"" << turnId << "\",\"status\":\"inProgress\",\"items\":[]}}}\n";
+				std::cout << "{\"method\":\"item/completed\",\"params\":{\"threadId\":\"" << handle << "\",\"turnId\":\"" << turnId << "\",\"item\":{\"id\":\"answer-" << turn << "\",\"type\":\"agentMessage\",\"text\":\"" << answer << "\"}}}\n";
+				std::cout << "{\"method\":\"turn/completed\",\"params\":{\"threadId\":\"" << handle << "\",\"turn\":{\"id\":\"" << turnId << "\",\"status\":\"completed\",\"items\":[]}}}\n"
+						  << std::flush;
+			}
+		}
+		return 0;
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
+	if (has_argument(argc, argv, "--native-session-fixture") && selected_protocol(argc, argv) != protocol::external_terminal) {
+		return native_session_fixture(argc, argv);
+	}
 #if defined(_WIN32)
 	// Every raw-protocol fixture in this tree selects binary standard streams
 	// first: the CRT's default text mode rewrites each protocol '\n' as

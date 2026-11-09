@@ -61,6 +61,8 @@ namespace bpr::core {
 		/// ending on it (`application::agent_run_checks::relaxed`). A popular
 		/// agent keeps strict checks: only a custom agent may turn them off.
 		bool StrictRunChecks = true;
+		/// Host-minted incarnation; replacement/reset never inherits a reused slot.
+		std::string Identity;
 
 		auto operator<=>(const agent_entry&) const = default;
 	};

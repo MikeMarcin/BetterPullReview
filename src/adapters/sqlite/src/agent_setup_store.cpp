@@ -6,9 +6,11 @@
 #include <sqlite3.h>
 
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/core/review_composition.hpp"
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -115,6 +117,14 @@ namespace bpr::adapters::sqlite {
 									"check_arguments TEXT NOT NULL CHECK(length(CAST(check_arguments AS BLOB)) <= 4200)) STRICT")
 				// [[BPR-1918]]. The custom agents whose strict run checks are
 				// off, by entry id; an entry with no row keeps them on.
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS agent_entry_identity(id INTEGER PRIMARY KEY, identity TEXT NOT NULL CHECK(length(identity)=32)) STRICT")
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS native_agent_sessions("
+									"id TEXT PRIMARY KEY, scope TEXT NOT NULL, configuration TEXT NOT NULL, base TEXT NOT NULL, head TEXT NOT NULL,"
+									"left_epoch INTEGER NOT NULL, right_epoch INTEGER NOT NULL, handle TEXT NOT NULL, turn INTEGER NOT NULL, pending INTEGER NOT NULL,"
+									"workspace TEXT NOT NULL, parent TEXT NOT NULL, marker TEXT NOT NULL, application INTEGER NOT NULL, session INTEGER NOT NULL,"
+									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
 									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64)) STRICT")
@@ -196,7 +206,7 @@ namespace bpr::adapters::sqlite {
 		/// The most repository links one profile keeps.
 		constexpr std::int64_t maximum_repository_links = 1'000;
 
-		void bind(sqlite3_stmt* const aRow, const int aIndex, const std::string& aText)
+		void bind_text(sqlite3_stmt* const aRow, const int aIndex, const std::string& aText)
 		{
 			sqlite3_bind_text(aRow, aIndex, aText.data(), static_cast<int>(aText.size()), SQLITE_TRANSIENT);
 		}
@@ -239,7 +249,7 @@ namespace bpr::adapters::sqlite {
 			if (!detail::execute(aDatabase, "BEGIN IMMEDIATE")) {
 				return false;
 			}
-			auto committed = detail::execute(aDatabase, "DELETE FROM agent_entries").has_value();
+			auto committed = detail::execute(aDatabase, "DELETE FROM agent_entries").has_value() && detail::execute(aDatabase, "DELETE FROM agent_entry_identity").has_value();
 			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
 				const auto& entry = aPreferences.Agents[index];
 				auto        row   = detail::prepare(aDatabase, "INSERT INTO agent_entries VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)");
@@ -247,17 +257,26 @@ namespace bpr::adapters::sqlite {
 				if (committed) {
 					sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(index));
 					sqlite3_bind_int64(row->Value, 2, entry.Id);
-					bind(row->Value, 3, entry.Name);
+					bind_text(row->Value, 3, entry.Name);
 					sqlite3_bind_int64(row->Value, 4, static_cast<std::int64_t>(entry.Protocol));
-					bind(row->Value, 5, entry.Program);
+					bind_text(row->Value, 5, entry.Program);
 					const auto arguments = join_arguments(entry.Arguments);
-					bind(row->Value, 6, arguments);
-					bind(row->Value, 7, entry.Model);
-					bind(row->Value, 8, entry.Effort);
+					bind_text(row->Value, 6, arguments);
+					bind_text(row->Value, 7, entry.Model);
+					bind_text(row->Value, 8, entry.Effort);
 					sqlite3_bind_int64(row->Value, 9, entry.Preset ? static_cast<std::int64_t>(*entry.Preset) : -1);
 					const auto check = join_arguments(entry.CheckArguments);
-					bind(row->Value, 10, check);
+					bind_text(row->Value, 10, check);
 					committed = sqlite3_step(row->Value) == SQLITE_DONE;
+					if (committed && !entry.Identity.empty()) {
+						auto identity = detail::prepare(aDatabase, "INSERT INTO agent_entry_identity VALUES(?1,?2)");
+						committed     = identity.has_value();
+						if (committed) {
+							sqlite3_bind_int64(identity->Value, 1, entry.Id);
+							bind_text(identity->Value, 2, entry.Identity);
+							committed = sqlite3_step(identity->Value) == SQLITE_DONE;
+						}
+					}
 				}
 			}
 			if (committed) {
@@ -355,7 +374,7 @@ namespace bpr::adapters::sqlite {
 						committed = row.has_value();
 						if (committed) {
 							sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(index));
-							bind(row->Value, 2, aFolders[index]);
+							bind_text(row->Value, 2, aFolders[index]);
 							committed = sqlite3_step(row->Value) == SQLITE_DONE;
 						}
 					}
@@ -427,12 +446,12 @@ namespace bpr::adapters::sqlite {
 					if (!row) {
 						return false;
 					}
-					bind(row->Value, 1, aLink.Host);
+					bind_text(row->Value, 1, aLink.Host);
 					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(aLink.Repository));
-					bind(row->Value, 3, aLink.Owner);
-					bind(row->Value, 4, aLink.Name);
-					bind(row->Value, 5, aLink.Path);
-					bind(row->Value, 6, aLink.Remote);
+					bind_text(row->Value, 3, aLink.Owner);
+					bind_text(row->Value, 4, aLink.Name);
+					bind_text(row->Value, 5, aLink.Path);
+					bind_text(row->Value, 6, aLink.Remote);
 					sqlite3_bind_int64(row->Value, 7, aLink.PrivateCopy ? 1 : 0);
 					return sqlite3_step(row->Value) == SQLITE_DONE;
 				} catch (...) {
@@ -451,10 +470,10 @@ namespace bpr::adapters::sqlite {
 					if (!row) {
 						return false;
 					}
-					bind(row->Value, 1, aHost);
+					bind_text(row->Value, 1, aHost);
 					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(aRepository));
-					bind(row->Value, 3, aOwner);
-					bind(row->Value, 4, aName);
+					bind_text(row->Value, 3, aOwner);
+					bind_text(row->Value, 4, aName);
 					return sqlite3_step(row->Value) == SQLITE_DONE;
 				} catch (...) {
 					return false;
@@ -519,7 +538,7 @@ namespace bpr::adapters::sqlite {
 					if (!row) {
 						return false;
 					}
-					bind(row->Value, 1, aSkill.Text);
+					bind_text(row->Value, 1, aSkill.Text);
 					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(aSkill.Record.BaseVersion));
 					sqlite3_bind_blob(row->Value, 3, aSkill.Record.BaseDigest.data(), static_cast<int>(aSkill.Record.BaseDigest.size()), SQLITE_TRANSIENT);
 					if (aSkill.Record.KeptVersion) {
@@ -613,6 +632,13 @@ namespace bpr::adapters::sqlite {
 								entry.Preset = static_cast<core::setup_agent>(preset);
 							}
 							entry.CheckArguments = split_arguments(column_text(rows->Value, 8).value_or(std::string{ }));
+							auto identity        = detail::prepare(store->Database.get(), "SELECT identity FROM agent_entry_identity WHERE id=?1");
+							if (identity) {
+								sqlite3_bind_int64(identity->Value, 1, entry.Id);
+								if (sqlite3_step(identity->Value) == SQLITE_ROW) {
+									entry.Identity = column_text(identity->Value, 0).value_or(std::string{ });
+								}
+							}
 							loaded.Agents.push_back(std::move(entry));
 						}
 					}
@@ -666,9 +692,9 @@ namespace bpr::adapters::sqlite {
 					if (!runtime) {
 						return false;
 					}
-					bind(runtime->Value, 1, aPreferences.ClaudeEffort);
-					bind(runtime->Value, 2, aPreferences.CodexModel);
-					bind(runtime->Value, 3, aPreferences.CodexEffort);
+					bind_text(runtime->Value, 1, aPreferences.ClaudeEffort);
+					bind_text(runtime->Value, 2, aPreferences.CodexModel);
+					bind_text(runtime->Value, 3, aPreferences.CodexEffort);
 					if (sqlite3_step(runtime->Value) != SQLITE_DONE) {
 						return false;
 					}
@@ -682,6 +708,193 @@ namespace bpr::adapters::sqlite {
 			std::filesystem::path Root;
 		};
 		/// [[BPR-1753]], owner decision (b) 2026-10-23. Each pull
+		class native_agent_session_store final : public application::native_agent_session_store_port
+		{
+		public:
+			explicit native_agent_session_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+			auto select(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const bool aStartAtCurrentRevision)
+				-> std::expected<application::native_agent_session, application::native_agent_storage_failure> override
+			{
+				auto loaded = read(aScope, aConfiguration, aBinding, true, aStartAtCurrentRevision);
+				if (!loaded) {
+					return std::unexpected(loaded.error());
+				}
+				if (!*loaded) {
+					return std::unexpected(application::native_agent_storage_failure::unavailable);
+				}
+				return std::move(**loaded);
+			}
+			auto find(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding)
+				-> std::expected<std::optional<application::native_agent_session>, application::native_agent_storage_failure> override
+			{
+				return read(aScope, aConfiguration, aBinding, false, false);
+			}
+			auto read(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const bool aCreate, const bool aStartAtCurrentRevision)
+				-> std::expected<std::optional<application::native_agent_session>, application::native_agent_storage_failure>
+			{
+				using failure = application::native_agent_storage_failure;
+				if (aScope.empty() || aScope.size() > 4096U || aConfiguration.size() > 16384U) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto* db  = connection->Database.get();
+				auto  row = detail::prepare(db, "SELECT id,configuration,base,head,left_epoch,right_epoch,handle,turn,pending,workspace,parent,marker,application,session,directory,guard,guard_identity,shallow,revision FROM native_agent_sessions WHERE id=(SELECT conversation FROM native_agent_selection WHERE scope=?1)");
+				if (!row) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind_text(row->Value, 1, aScope);
+				auto status = sqlite3_step(row->Value);
+				if (status == SQLITE_ROW && aStartAtCurrentRevision) {
+					const auto changed = column_text(row->Value, 2) != std::optional{ std::string{ core::canonical_hex(aBinding.BaseOid).view() } }
+						|| column_text(row->Value, 3) != std::optional{ std::string{ core::canonical_hex(aBinding.HeadOid).view() } }
+						|| sqlite3_column_int64(row->Value, 4) != aBinding.LeftEpoch.value()
+						|| sqlite3_column_int64(row->Value, 5) != aBinding.RightEpoch.value();
+					if (changed) {
+						if (sqlite3_column_int(row->Value, 8) != 0) {
+							return std::unexpected(failure::conflict);
+						}
+						status = SQLITE_DONE;
+					}
+				}
+				auto value          = application::native_agent_session{ };
+				value.Scope         = aScope;
+				value.Configuration = aConfiguration;
+				value.Binding       = aBinding;
+				if (status == SQLITE_ROW) {
+					if (column_text(row->Value, 1) != std::optional{ aConfiguration }) {
+						return std::unexpected(failure::conflict);
+					}
+					value.Id        = column_text(row->Value, 0).value_or(std::string{ });
+					const auto base = core::parse_git_commit_oid(column_text(row->Value, 2).value_or(std::string{ }));
+					const auto head = core::parse_git_commit_oid(column_text(row->Value, 3).value_or(std::string{ }));
+					if (!base || !head) {
+						return std::unexpected(failure::unavailable);
+					}
+					value.Binding.BaseOid    = *base;
+					value.Binding.HeadOid    = *head;
+					value.Binding.LeftEpoch  = core::epoch_ordinal{ sqlite3_column_int64(row->Value, 4) };
+					value.Binding.RightEpoch = core::epoch_ordinal{ sqlite3_column_int64(row->Value, 5) };
+					value.Handle             = column_text(row->Value, 6).value_or(std::string{ });
+					value.Turn               = static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 7));
+					value.Pending            = sqlite3_column_int(row->Value, 8) != 0;
+					const auto path          = column_text(row->Value, 9).value_or(std::string{ });
+					if (!path.empty()) {
+						auto workspace                 = application::owned_agent_workspace{ };
+						workspace.Workspace.Path       = path;
+						workspace.Workspace.PinnedHead = *head;
+						workspace.Workspace.Shallow    = sqlite3_column_int(row->Value, 17) != 0;
+						workspace.RequiredBase         = *base;
+						workspace.ParentDirectory      = column_text(row->Value, 10).value_or(std::string{ });
+						workspace.OwnershipMarker      = column_text(row->Value, 11).value_or(std::string{ });
+						workspace.ApplicationSession   = core::application_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 12)) };
+						workspace.Session              = core::agent_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 13)) };
+						if (sqlite3_column_bytes(row->Value, 14) != 32 || sqlite3_column_bytes(row->Value, 16) != 32) {
+							return std::unexpected(failure::unavailable);
+						}
+						std::memcpy(workspace.DirectoryIdentity.Opaque.data(), sqlite3_column_blob(row->Value, 14), 32U);
+						auto guard = application::agent_workspace_lifetime_guard{ };
+						guard.Path = column_text(row->Value, 15).value_or(std::string{ });
+						std::memcpy(guard.FileIdentity.data(), sqlite3_column_blob(row->Value, 16), 32U);
+						workspace.LifetimeGuard = std::move(guard);
+						value.Workspace         = std::move(workspace);
+					}
+					value.Revision = static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 18));
+					if (value.Id.size() != 32U || value.Handle.size() > core::maximum_remote_run_id_bytes || value.Turn < 2U || value.Revision == 0U) {
+						return std::unexpected(failure::unavailable);
+					}
+				} else if (status == SQLITE_DONE) {
+					if (!aCreate) {
+						return std::optional<application::native_agent_session>{ };
+					}
+					// Count legacy projections conservatively as separate records until
+					// they are explicitly migrated. Never prune native ownership here.
+					const auto count = detail::scalar_integer(db, "SELECT (SELECT count(*) FROM native_agent_sessions)+(SELECT count(*) FROM agent_conversations)");
+					if (!count || *count >= static_cast<std::int64_t>(application::maximum_conversations)) {
+						return std::unexpected(failure::capacity);
+					}
+					auto random = detail::prepare(db, "SELECT lower(hex(randomblob(16)))");
+					if (!random || sqlite3_step(random->Value) != SQLITE_ROW) {
+						return std::unexpected(failure::unavailable);
+					}
+					value.Id     = column_text(random->Value, 0).value_or(std::string{ });
+					auto created = detail::prepare(db, "INSERT INTO native_agent_sessions VALUES(?1,?2,?3,?4,?5,?6,?7,'',2,0,'','','',0,0,zeroblob(32),'',zeroblob(32),0,1)");
+					if (!created) {
+						return std::unexpected(failure::unavailable);
+					}
+					bind_text(created->Value, 1, value.Id);
+					bind_text(created->Value, 2, aScope);
+					bind_text(created->Value, 3, aConfiguration);
+					bind_text(created->Value, 4, std::string{ core::canonical_hex(aBinding.BaseOid).view() });
+					bind_text(created->Value, 5, std::string{ core::canonical_hex(aBinding.HeadOid).view() });
+					sqlite3_bind_int64(created->Value, 6, static_cast<sqlite3_int64>(aBinding.LeftEpoch.value()));
+					sqlite3_bind_int64(created->Value, 7, static_cast<sqlite3_int64>(aBinding.RightEpoch.value()));
+					if (sqlite3_step(created->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					value.Revision = 1U;
+					auto selected  = detail::prepare(db, "INSERT OR REPLACE INTO native_agent_selection VALUES(?1,?2)");
+					if (!selected) {
+						return std::unexpected(failure::unavailable);
+					}
+					bind_text(selected->Value, 1, aScope);
+					bind_text(selected->Value, 2, value.Id);
+					if (sqlite3_step(selected->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+				} else {
+					return std::unexpected(failure::unavailable);
+				}
+				if (!detail::execute(db, "COMMIT")) {
+					return std::unexpected(failure::unavailable);
+				}
+				return value;
+			}
+			auto store(application::native_agent_session& aSession) -> bool override
+			{
+				if (aSession.Id.size() != 32U || aSession.Handle.size() > core::maximum_remote_run_id_bytes || aSession.Turn < 2U
+					|| aSession.Turn > static_cast<std::uint64_t>(std::numeric_limits<sqlite3_int64>::max()) || aSession.Revision == 0U) {
+					return false;
+				}
+				auto connection = open(Root);
+				if (!connection) {
+					return false;
+				}
+				auto row = detail::prepare(connection->Database.get(), "UPDATE native_agent_sessions SET handle=?1,turn=?2,pending=?3,workspace=?4,parent=?5,marker=?6,application=?7,session=?8,directory=?9,guard=?10,guard_identity=?11,shallow=?12,revision=revision+1 WHERE id=?13 AND revision=?14");
+				if (!row) {
+					return false;
+				}
+				auto       workspace = aSession.Workspace.value_or(application::owned_agent_workspace{ });
+				const auto guard     = workspace.LifetimeGuard.value_or(application::agent_workspace_lifetime_guard{ });
+				bind_text(row->Value, 1, aSession.Handle);
+				sqlite3_bind_int64(row->Value, 2, static_cast<sqlite3_int64>(aSession.Turn));
+				sqlite3_bind_int(row->Value, 3, aSession.Pending ? 1 : 0);
+				bind_text(row->Value, 4, workspace.Workspace.Path);
+				bind_text(row->Value, 5, workspace.ParentDirectory.string());
+				bind_text(row->Value, 6, workspace.OwnershipMarker);
+				sqlite3_bind_int64(row->Value, 7, static_cast<sqlite3_int64>(workspace.ApplicationSession.value()));
+				sqlite3_bind_int64(row->Value, 8, static_cast<sqlite3_int64>(workspace.Session.value()));
+				sqlite3_bind_blob(row->Value, 9, workspace.DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+				bind_text(row->Value, 10, guard.Path);
+				sqlite3_bind_blob(row->Value, 11, guard.FileIdentity.data(), 32, SQLITE_TRANSIENT);
+				sqlite3_bind_int(row->Value, 12, workspace.Workspace.Shallow ? 1 : 0);
+				bind_text(row->Value, 13, aSession.Id);
+				sqlite3_bind_int64(row->Value, 14, static_cast<sqlite3_int64>(aSession.Revision));
+				if (sqlite3_step(row->Value) != SQLITE_DONE || sqlite3_changes(connection->Database.get()) != 1) {
+					return false;
+				}
+				++aSession.Revision;
+				return true;
+			}
+
+		private:
+			std::filesystem::path Root;
+		};
+
 		/// request's conversation, so it survives closing the pull request and
 		/// the application; Clear session stores none.
 		class agent_conversation_store final : public application::agent_conversation_store_port
@@ -765,9 +978,9 @@ namespace bpr::adapters::sqlite {
 							committed = run("INSERT INTO agent_conversation_turns VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)", [&](sqlite3_stmt* aRow) {
 											bind_key(aRow, aKey);
 											sqlite3_bind_int64(aRow, 6, static_cast<std::int64_t>(index));
-											bind(aRow, 7, aTurns[index].Asked);
-											bind(aRow, 8, aTurns[index].Answered);
-											bind(aRow, 9, aTurns[index].Ending);
+											bind_text(aRow, 7, aTurns[index].Asked);
+											bind_text(aRow, 8, aTurns[index].Answered);
+											bind_text(aRow, 9, aTurns[index].Ending);
 										})
 								&& run("INSERT INTO agent_conversation_outcomes VALUES(?1,?2,?3,?4,?5,?6,?7)", [&](sqlite3_stmt* aRow) {
 											bind_key(aRow, aKey);
@@ -806,9 +1019,9 @@ namespace bpr::adapters::sqlite {
 		private:
 			static void bind_key(sqlite3_stmt* const aRow, const application::agent_conversation_key& aKey)
 			{
-				bind(aRow, 1, aKey.Host);
-				bind(aRow, 2, aKey.Owner);
-				bind(aRow, 3, aKey.Name);
+				bind_text(aRow, 1, aKey.Host);
+				bind_text(aRow, 2, aKey.Owner);
+				bind_text(aRow, 3, aKey.Name);
 				sqlite3_bind_int64(aRow, 4, static_cast<std::int64_t>(aKey.Number));
 				sqlite3_bind_int64(aRow, 5, static_cast<std::int64_t>(aKey.Agent));
 			}
@@ -892,5 +1105,9 @@ namespace bpr::adapters::sqlite {
 	auto make_review_skill_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::review_skill_store_port>
 	{
 		return std::make_unique<review_skill_store>(aRoot);
+	}
+	auto make_native_agent_session_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::native_agent_session_store_port>
+	{
+		return std::make_unique<native_agent_session_store>(aRoot);
 	}
 } // namespace bpr::adapters::sqlite

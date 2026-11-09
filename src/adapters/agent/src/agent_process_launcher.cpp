@@ -1,6 +1,10 @@
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 
 #include "agent_protocol_loop.hpp"
+#include "native_agent_connection.hpp"
+
+#include <map>
+#include <mutex>
 
 #include <QDir>
 #include <QTemporaryDir>
@@ -48,8 +52,48 @@
 namespace bpr::adapters::agent {
 	struct agent_process_launcher::implementation
 	{
-		std::atomic_uint64_t CancellationGeneration = 0U;
-		std::atomic_bool     Running                = false;
+		std::atomic_uint64_t                                                    CancellationGeneration = 0U;
+		std::atomic_bool                                                        Running                = false;
+		std::mutex                                                              NativeMutex;
+		std::map<std::string, std::shared_ptr<detail::native_agent_connection>> Native;
+		auto                                                                    native_run(const application::agent_launch_request& aRequest, const int aTimeout, const application::agent_output_sink& aSink, const std::stop_token aStop) -> application::agent_run_result
+		{
+			auto connection = std::shared_ptr<detail::native_agent_connection>{ };
+			{
+				const auto lock  = std::scoped_lock{ NativeMutex };
+				auto       found = Native.find(aRequest.NativeConversation);
+				if (found != Native.end() && (found->second->done() || !found->second->matches(aRequest))) {
+					if (found->second->busy()) {
+						return { .Session = aRequest.Session, .Outcome = application::agent_run_outcome::failed_to_start, .Run = aRequest.Run };
+					}
+					found->second->stop();
+					Native.erase(found);
+				}
+				if (!Native.contains(aRequest.NativeConversation)) {
+					// Idle processes may be released; durable sessions do not depend
+					// on keeping one process for every retained history generation.
+					if (Native.size() >= 4U) {
+						const auto idle = std::ranges::find_if(Native, [](const auto& aEntry) { return !aEntry.second->busy(); });
+						if (idle == Native.end()) {
+							return { .Session = aRequest.Session, .Outcome = application::agent_run_outcome::failed_to_start, .Run = aRequest.Run };
+						}
+						idle->second->stop();
+						Native.erase(idle);
+					}
+					Native.emplace(aRequest.NativeConversation, std::make_shared<detail::native_agent_connection>(aRequest));
+				}
+				connection = Native.at(aRequest.NativeConversation);
+			}
+			return connection->submit(aRequest, aTimeout, aSink, aStop);
+		}
+		void stop_native() noexcept
+		{
+			const auto lock = std::scoped_lock{ NativeMutex };
+			for (const auto& [identity, connection] : Native) {
+				static_cast<void>(identity);
+				connection->stop();
+			}
+		}
 	};
 
 	namespace {
@@ -203,7 +247,7 @@ namespace bpr::adapters::agent {
 		public:
 			qt_agent_protocol_transport(
 				process_state&               aState,
-				const QElapsedTimer&         aElapsed,
+				QElapsedTimer&               aElapsed,
 				const int                    aTimeoutMilliseconds,
 				const std::function<bool()>& aCancelled)
 				: State{ aState }
@@ -247,6 +291,13 @@ namespace bpr::adapters::agent {
 					}
 				}
 				return detail::agent_protocol_write_status::success;
+			}
+
+			[[nodiscard]] auto process_identity() const noexcept -> std::uint64_t override { return static_cast<std::uint64_t>(State.Process.processId()); }
+			void               begin_turn(const int aTimeout) override
+			{
+				Elapsed.restart();
+				TimeoutMilliseconds = aTimeout;
 			}
 
 			void close_input() noexcept override
@@ -332,7 +383,7 @@ namespace bpr::adapters::agent {
 			}
 
 			process_state&               State;
-			const QElapsedTimer&         Elapsed;
+			QElapsedTimer&               Elapsed;
 			int                          TimeoutMilliseconds;
 			const std::function<bool()>& Cancelled;
 			qint64                       StandardOutputBatchRemaining = 0;
@@ -349,6 +400,7 @@ namespace bpr::adapters::agent {
 
 	agent_process_launcher::~agent_process_launcher()
 	{
+		Implementation->stop_native();
 		Implementation->CancellationGeneration.fetch_add(
 			1U,
 			std::memory_order_acq_rel);
@@ -361,6 +413,10 @@ namespace bpr::adapters::agent {
 		const std::stop_token                    aStop)
 		-> application::agent_run_result
 	{
+		if (!aGiven.NativeConversation.empty() && aGiven.NativeConnection == nullptr
+			&& aGiven.Protocol != core::agent_protocol::codex_jsonl_exec) {
+			return Implementation->native_run(aGiven, aTimeoutMilliseconds, aSink, aStop);
+		}
 		// [[BPR-1375]]. A tool-free writing request runs in an empty folder of
 		// its own, made here and removed when the run ends, rather than in the
 		// review workspace: nothing in the reviewed repository (a CLAUDE.md, a
@@ -388,7 +444,7 @@ namespace bpr::adapters::agent {
 		const auto cancellationGeneration = control.CancellationGeneration.load(
 			std::memory_order_acquire);
 		const auto cancelled = [&] {
-			return aStop.stop_requested()
+			return (aRequest.NativeConnection ? aRequest.NativeConnection->cancelled() : aStop.stop_requested())
 				|| control.CancellationGeneration.load(std::memory_order_acquire)
 				!= cancellationGeneration;
 		};
@@ -570,9 +626,16 @@ namespace bpr::adapters::agent {
 
 	void agent_process_launcher::cancel() noexcept
 	{
+		Implementation->stop_native();
 		Implementation->CancellationGeneration.fetch_add(
 			1U,
 			std::memory_order_acq_rel);
+	}
+
+	auto agent_process_launcher::native_connections_quiescent() const noexcept -> bool
+	{
+		const auto lock = std::scoped_lock{ Implementation->NativeMutex };
+		return std::ranges::all_of(Implementation->Native, [](const auto& aEntry) { return aEntry.second->done(); });
 	}
 
 	auto inspect_claude_process_wrapper(const std::string_view aPath) -> std::optional<core::agent_wrapper_refusal>

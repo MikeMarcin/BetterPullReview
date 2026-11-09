@@ -902,6 +902,9 @@ namespace bpr::application {
 		}
 
 		/// \brief Removes only the exact workspace this session materialized.
+		/// \brief Checks the exact retained workspace through the same serialized Git owner.
+		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, std::stop_token)
+			-> git_cache_result<void> { return std::unexpected(git_cache_failure::invalid_authority); }
 		[[nodiscard]] virtual auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop) -> git_cache_result<void>

@@ -300,6 +300,13 @@ namespace bpr::app {
 	{
 		if (!Closing && AgentConversation) {
 			AgentConversation->switch_agent(current_conversation_agent());
+			if (AgentHost && AgentSetup && Window && Window->agent_panel()->selected_profile()) {
+				const auto profile     = *Window->agent_panel()->selected_profile();
+				const auto preferences = AgentSetup->projection().Preferences;
+				if (const auto* const entry = core::entry_of_profile(preferences.Agents, profile); entry != nullptr && entry->Protocol != core::agent_protocol::external_terminal) {
+					AgentHost->restore_native(profile, entry->Identity, "agent-tab");
+				}
+			}
 		}
 		// Send to Agent defaults to the agent the pull request's session uses.
 		if (!Closing && CycleDesktop && Window != nullptr) {
@@ -613,6 +620,9 @@ namespace bpr::app {
 		if (Closing || Window == nullptr) {
 			return;
 		}
+		// A late history load must settle before a new visible turn starts;
+		// otherwise presenting the loaded thread can replace that live turn.
+		Window->agent_tab()->ask_button()->setProperty("conversationLoading", !aView.Loaded);
 		auto shown = std::vector<qt::agent_thread_turn>{ };
 		shown.reserve(aView.Turns.size());
 		for (const auto& turn : aView.Turns) {
