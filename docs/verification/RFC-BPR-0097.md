@@ -253,3 +253,14 @@ The actual `inline-drawer-v1` composition renders in `columns-renders` show
 No owner desktop was accessed. Native appearance remains pending the exact
 v005 frozen owner review; neither prior rejection nor v002 navigation acceptance
 is transferred to the new candidate.
+
+
+Final source/test change: `996aa30696978004f6b0f0bb0b17dd206b606088`;
+frozen revision `dd968668313c5abe343273de960ea9f00bfefae1` differs only by
+claim bookkeeping. The exact self-contained v005 build passed its own launcher
+check at the expected file and fixture head. AC05 passes; AC06 appearance is
+pending in short session `9827b9b1187675faf91e0e097db5a23f`, consumed cursor 4.
+The [handoff](../issues/_checkpoints/go-to-line-v1/review-session-v005.json)
+records binary hash, protected fingerprint, external state and host ownership;
+no authenticated URL is tracked. The earlier unused v004 freeze completed,
+was superseded before init/serve, and was removed through the freeze helper.

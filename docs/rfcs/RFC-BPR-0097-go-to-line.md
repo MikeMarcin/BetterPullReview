@@ -139,7 +139,7 @@ native UTF-16 positions; it does not claim all VS Code Go to line behavior.
 In particular, current VS Code converts visible columns through tab stops and
 clamps some values ([primary implementation](https://github.com/microsoft/vscode/blob/main/src/vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess.ts));
 this command retains its explicit refusal contract. The follow-up
-[BPR-1957](../issues/30-in-progress/BPR-1957-go-to-line-columns.md) owns AC05–AC06.
+[BPR-1957](../issues/40-parked/BPR-1957-go-to-line-columns.md) owns AC05–AC06.
 Previously accepted criteria and frozen verdicts retain their producing revisions.
 
 ## Acceptance criteria

@@ -1,0 +1,41 @@
+{
+  "schema": "betterpullreview.attended-handoff.v1",
+  "repo_root": "/Users/jaeger/.codex/worktrees/1567/BetterPullReview",
+  "state": "/Users/jaeger/.codex/attended-review-sessions/bpr1957-go-to-line-v005-mz3ztqd7",
+  "registry": "/Users/jaeger/.mask/attended-review-resources",
+  "helper": "/Users/jaeger/.mask/store/v1/9781ac9f67acb2b9aa9dcf53895fb73be527a05c9f1bcffec62168b19dec2c32/payload/attended-review/scripts/attended_review.py",
+  "python": "/opt/homebrew/bin/python3.14",
+  "session": "9827b9b1187675faf91e0e097db5a23f",
+  "consumed_cursor": 4,
+  "candidate": {
+    "id": "BPR-1957-go-to-line-panel-v005",
+    "revision": "dd9686683-v005-d16532fb9fca631e",
+    "fingerprint": "130b758e3524f698d848e79d95122de62a834b222bcf07c7f0aec76e21cefc24",
+    "phase": "ready",
+    "protected": true,
+    "decision": null
+  },
+  "source_revision": "dd968668313c5abe343273de960ea9f00bfefae1",
+  "source_test_revision": "996aa30696978004f6b0f0bb0b17dd206b606088",
+  "frozen_root": "/Users/jaeger/.codex/attended-builds/bpr1957-go-to-line-v005.ypd5afat",
+  "executable_sha256": "d16532fb9fca631e4f54f8339c5a6c532bb60938ee4e893e556942d2801e9765",
+  "launch_command": "/opt/homebrew/bin/python3.14 /Users/jaeger/.codex/attended-builds/bpr1957-go-to-line-v005.ypd5afat/launch.py",
+  "server": {
+    "pid": 31773,
+    "exec_session": 87256,
+    "port": 50298,
+    "tailscale_pid": 31780,
+    "foreground_session": "d910e5abc6f25b48",
+    "stopped": false
+  },
+  "capability_location": "/Users/jaeger/.codex/attended-review-sessions/bpr1957-go-to-line-v005-mz3ztqd7/served.json",
+  "owning_driver": "/root",
+  "preparing_implementer": "/root/go_to_line_design",
+  "mandate_revision": "go-to-line-columns-r4",
+  "lifecycle": "Ready and protected; authenticated private HTTPS verified. AC05 automated checks pass; AC06 exact appearance pending. Engineering commands quiescent; only transferred review server remains.",
+  "waiter": "None; root owns subsequent status reconciliation and qualified handback-only wait.",
+  "prior_session": "97887edd2075de347dcc15e45da4be9c",
+  "prior_consumed_cursor": 9,
+  "prior_frozen_v004": "Superseded by owner steering before init/serve; completed then removed through freeze helper.",
+  "prior_navigation_acceptance": "Original line navigation accepted for exact v002 binary; no acceptance transferred to new columns or appearance."
+}

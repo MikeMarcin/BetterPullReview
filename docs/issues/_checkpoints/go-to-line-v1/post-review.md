@@ -143,7 +143,7 @@ invalid/half-surrogate positions refused. This is a syntax convention, not
 full VS Code Go to line behavior. Frontend-design's desktop guidance continues
 to govern the design; all renders use actual offscreen Qt widgets.
 
-[BPR-1957](../../30-in-progress/BPR-1957-go-to-line-columns.md) and the new
+[BPR-1957](../../40-parked/BPR-1957-go-to-line-columns.md) and the new
 `line-column-panel` milestone own AC05–AC06. Main allocation `2e178b953` and
 feature import `cc5130d02` contain only the counter and immutable receipt;
 the concurrent main native-agent writer's edits were preserved. The
@@ -183,10 +183,49 @@ The first composed run caught a test expectation miscounting the fixture's
 UTF-16 length; the expected maximum was corrected from 11 to 12. No product
 change was needed for that failure.
 
-Current frontier: source/checks and final visual inspection complete; preparing
-the new exact v005 frozen appearance candidate. No previous appearance verdict
-applies to it. The old v003 host and Tailscale child are stopped, and its scoped
+Source/test change: `996aa30696978004f6b0f0bb0b17dd206b606088`.
+Frozen candidate after the bookkeeping-only claim:
+`dd968668313c5abe343273de960ea9f00bfefae1`. Source/checks, visual inspection and
+freeze/launcher verification are complete. No previous appearance verdict
+applies to this candidate. The old v003 host and Tailscale child are stopped, and its scoped
 mutable protections are released at consumed cursor 9. Frozen v002 navigation
 acceptance and v003 rejection remain intact. The unused v004 draft state was
 never initialized or served. No owner desktop, personal browser data, remote
 mutation, push or release was used.
+
+
+## V005 review and command handoff
+
+Fresh short session **9827b9b1187675faf91e0e097db5a23f** has one ready,
+protected candidate, `BPR-1957-go-to-line-panel-v005`, asking Accept/Reject for
+AC06 appearance. The external state is
+`/Users/jaeger/.codex/attended-review-sessions/bpr1957-go-to-line-v005-mz3ztqd7`.
+Events 1–4 (candidate, preparing, ready, observation) were reconciled and
+consumed **4** persisted before handoff. There is no human verdict yet.
+[Exact machine-readable handoff](review-session-v005.json).
+
+The self-contained frozen root is
+`/Users/jaeger/.codex/attended-builds/bpr1957-go-to-line-v005.ypd5afat`.
+Source and build are read-only. The launcher's own `--check` passed
+`ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp`, fixture head
+`89df5e592e5db97a526a05a445735733395e4832`. Binary SHA-256:
+`d16532fb9fca631e4f54f8339c5a6c532bb60938ee4e893e556942d2801e9765`.
+It is a tests-enabled Release development look, not a signed release.
+The exact source, build and fixtures stay inside this root.
+
+Authenticated private HTTPS status matched the session, candidate fingerprint,
+ready phase and protection. The capability URL remains only in external
+`served.json` and was sent directly to coordinator `/root` for presentation.
+Server PID **31773**, exec **87256**, owns Tailscale child **31780**,
+foreground session `d910e5abc6f25b48`, HTTPS port **50298**. No leaf decision
+waiter was started. All engineering, verification, rendering and freeze commands
+have completed. Only this transferred review host remains running.
+
+Coordinator `/root` owns intake and subsequent integration. Read `status --after 4`
+with the exact state/registry, verify session and fingerprint, reconcile any
+already-recorded handback and persist its consumed cursor before dispatch.
+When human input is the sole remaining dependency, use the companion's qualified
+handback-only wait. AC05 passes automatically; AC06 appearance remains pending
+for this exact build. BPR-1957 parks for that question, while BPR-1948 and prior
+frozen verdicts remain historical. Product/test paths remain identical to the
+frozen revision; final commits only update acceptance and continuation records.
