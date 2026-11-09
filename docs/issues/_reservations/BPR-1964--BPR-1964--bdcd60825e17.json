@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1964"
+  ],
+  "reserve_for": "release-v042-native-wrapper-isolation",
+  "purpose": "Measure current native-session Windows containment and qualify exact registration",
+  "created": "2026-11-09T14:24:14.166853+00:00",
+  "base": "c4f1de0b0b1c3ee940d5ae08be5f02e34c2ee46b"
+}
