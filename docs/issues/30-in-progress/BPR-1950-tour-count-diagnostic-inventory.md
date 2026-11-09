@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1950"
 title: "Tour labels inventory validates intended count diagnostics"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
