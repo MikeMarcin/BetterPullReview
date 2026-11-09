@@ -1,5 +1,6 @@
 #include "bpr/application/review_submission_application_host.hpp"
 
+#include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/review_submission_recovery_port.hpp"
 #include "review_submission_execution_authority.hpp"
 
@@ -132,22 +133,23 @@ namespace bpr::application {
 			std::stop_source                         Stop;
 			std::string                              Key;
 		};
-		review_submission_provider_factory Factory;
-		review_submission_live_binding     Binding;
-		core::application_session_id       Session;
-		core::request_generation           Generation;
-		effect_executor&                   Effects;
-		decision_executor&                 Decisions;
-		review_submission_projection_port& Projection;
-		insights_review_capture            Insights;
-		mutable std::mutex                 Mutex;
-		std::shared_ptr<record>            Active;
-		std::uint64_t                      Next    = 0U;
-		bool                               Closing = false;
+		review_submission_provider_factory   Factory;
+		review_submission_live_binding       Binding;
+		core::application_session_id         Session;
+		core::request_generation             Generation;
+		effect_executor&                     Effects;
+		decision_executor&                   Decisions;
+		review_submission_projection_port&   Projection;
+		insights_review_capture              Insights;
+		std::shared_ptr<diagnostic_log_port> Log;
+		mutable std::mutex                   Mutex;
+		std::shared_ptr<record>              Active;
+		std::uint64_t                        Next    = 0U;
+		bool                                 Closing = false;
 
 		implementation(review_submission_provider_factory aFactory, review_submission_live_binding aBinding,
 					   core::application_session_id aSession, core::request_generation aGeneration,
-					   effect_executor& aEffects, decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights)
+					   effect_executor& aEffects, decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights, std::shared_ptr<diagnostic_log_port> aLog)
 			: Factory{ std::move(aFactory) }
 			, Binding{ std::move(aBinding) }
 			, Session{ aSession }
@@ -156,15 +158,20 @@ namespace bpr::application {
 			, Decisions{ aDecisions }
 			, Projection{ aProjection }
 			, Insights{ std::move(aInsights) }
+			, Log{ std::move(aLog) }
 		{ }
 
+		static auto tour(const record& aRecord) -> bool
+		{
+			return aRecord.Operation == operation::discover_tours || (aRecord.Plan && !aRecord.Plan->ConversationReply);
+		}
 		static auto refused(const record& aRecord, review_mutation_failure aFailure, bool aBeforeEffect) -> review_submission_host_terminal
 		{
 			if (aRecord.Operation == operation::discover_tours || aRecord.Operation == operation::discover_conversation_replies) {
 				return { aRecord.Context, staged_review_discovery{ std::unexpected(aFailure) } };
 			}
 			if (aRecord.Plan) {
-				return { aRecord.Context, staged_publication_result{ } };
+				return { aRecord.Context, staged_publication_result{ .State = aBeforeEffect ? staged_publication_state::unavailable : staged_publication_state::outcome_unknown, .Failure = aFailure, .Diagnosis = aBeforeEffect ? std::optional{ staged_publication_diagnosis{ staged_publication_step::authority, { }, { } } } : std::nullopt } };
 			}
 			if (aRecord.Operation == operation::discover) {
 				return { aRecord.Context, review_submission_discovery{ std::unexpected(aFailure) } };
@@ -183,6 +190,33 @@ namespace bpr::application {
 				}
 				Active.reset();
 			}
+			if (tour(*aRecord)) {
+				const auto* result  = std::get_if<staged_publication_result>(&aTerminal.Outcome);
+				auto        failure = core::operation_failure::none;
+				if (const auto* discovered = std::get_if<staged_review_discovery>(&aTerminal.Outcome); discovered && !*discovered) {
+					failure = operation_failure_of(discovered->error());
+				}
+				if (result && result->Diagnosis) {
+					using stage  = core::tour_publication_stage;
+					auto stopped = stage::admission;
+					switch (result->Diagnosis->Step) {
+					case staged_publication_step::authority:           stopped = stage::admission; break;
+					case staged_publication_step::plan_validation:     stopped = stage::plan_validation; break;
+					case staged_publication_step::recovery_open:       stopped = stage::recovery_open; break;
+					case staged_publication_step::lease:               stopped = stage::lease; break;
+					case staged_publication_step::configuration:       stopped = stage::configuration; break;
+					case staged_publication_step::binding:             stopped = stage::binding; break;
+					case staged_publication_step::journal_read:        stopped = stage::journal_read; break;
+					case staged_publication_step::credential_scope:    stopped = stage::credential_scope; break;
+					case staged_publication_step::journal_save:        stopped = stage::journal_save; break;
+					case staged_publication_step::identity_check:      stopped = stage::identity_check; break;
+					case staged_publication_step::request_preparation: stopped = stage::request_preparation; break;
+					case staged_publication_step::baseline_read:       stopped = stage::baseline_read; break;
+					}
+					record_tour_publication(Log.get(), stopped, aRecord->Plan ? &*aRecord->Plan : nullptr, result);
+				}
+				record_tour_publication(Log.get(), core::tour_publication_stage::terminal, aRecord->Plan ? &*aRecord->Plan : nullptr, result, false, failure);
+			}
 			// Accepted work still terminates during shutdown. The owner keeps
 			// the projection alive and rejects retired session/generation first.
 			try {
@@ -198,14 +232,26 @@ namespace bpr::application {
 		}
 		auto perform(const std::shared_ptr<record>& aRecord) -> review_submission_host_terminal
 		{
+			if (tour(*aRecord)) {
+				const auto stage = aRecord->Operation == operation::discover_tours ? core::tour_publication_stage::discovery : aRecord->Operation == operation::reconcile_tour ? core::tour_publication_stage::recovery
+																																											   : core::tour_publication_stage::publish;
+				record_tour_publication(Log.get(), stage, aRecord->Plan ? &*aRecord->Plan : nullptr, nullptr, true);
+			}
 			if (aRecord->Stop.stop_requested() || (aRecord->Grant && !aRecord->Grant->active())) {
 				return refused(*aRecord, review_mutation_failure::cancelled, true);
 			}
 			// Each operation opens and closes its provider on this effect lane.
 			// Recovery is durable; no storage destructor runs on the UI lane.
+			if (tour(*aRecord)) {
+				record_tour_publication(Log.get(), core::tour_publication_stage::factory, aRecord->Plan ? &*aRecord->Plan : nullptr, nullptr, true);
+			}
 			auto created = Factory();
+			if (tour(*aRecord)) {
+				record_tour_publication(Log.get(), core::tour_publication_stage::factory, aRecord->Plan ? &*aRecord->Plan : nullptr, nullptr, false, !created ? operation_failure_of(created.error()) : !*created ? core::operation_failure::unavailable
+																																																				  : core::operation_failure::none);
+			}
 			if (!created || !*created) {
-				return refused(*aRecord, review_mutation_failure::unavailable, true);
+				return refused(*aRecord, created ? review_mutation_failure::unavailable : created.error(), true);
 			}
 			auto provider = std::move(*created);
 			if (aRecord->Stop.stop_requested() || (aRecord->Grant && !aRecord->Grant->active())) {
@@ -289,37 +335,46 @@ namespace bpr::application {
 		}
 		auto enqueue(operation aOperation, const review_submission_request* aRequest, review_submission_execution_grant aGrant, const staged_review_plan* aPlan = nullptr, std::string aKey = { }) -> std::optional<review_submission_host_context>
 		{
+			const auto admissionRefused = [&]() -> std::optional<review_submission_host_context> {
+				if (aPlan && !aPlan->ConversationReply) {
+					record_tour_publication(Log.get(), core::tour_publication_stage::admission, aPlan, nullptr, false, core::operation_failure::refused);
+				}
+				return std::nullopt;
+			};
+			if (aPlan && !aPlan->ConversationReply) {
+				record_tour_publication(Log.get(), core::tour_publication_stage::admission, aPlan, nullptr, true);
+			}
 			std::shared_ptr<record> request;
 			{
 				std::scoped_lock lock{ Mutex };
 				if (Closing || Active || !Factory || Session.value() == 0U || Generation.value() == 0U
 					|| !valid(Binding) || Next == std::numeric_limits<std::uint64_t>::max()) {
-					return std::nullopt;
+					return admissionRefused();
 				}
 				if (aOperation == operation::lookup
 					&& (aKey.empty() || aKey.size() > maximum_review_submission_idempotency_key_bytes
 						|| !std::ranges::all_of(aKey, [](const char aValue) { return aValue > ' ' && aValue < '\x7f'; }))) {
-					return std::nullopt;
+					return admissionRefused();
 				}
 				if (aPlan) {
 					if (!valid(*aPlan) || (aOperation == operation::publish_tour ? *aPlan->Submission.LiveBinding != Binding : !same_review_submission_identity(*aPlan->Submission.LiveBinding, Binding))) {
-						return std::nullopt;
+						return admissionRefused();
 					}
 					if (aOperation == operation::publish_tour && (!aGrant || !aGrant->consume(Session, Generation, *aPlan))) {
-						return std::nullopt;
+						return admissionRefused();
 					}
 				}
 				if (aRequest) {
 					if (!aRequest->LiveBinding
 						|| (aOperation == operation::submit ? *aRequest->LiveBinding != Binding : !same_review_submission_identity(*aRequest->LiveBinding, Binding))) {
-						return std::nullopt;
+						return admissionRefused();
 					}
 					if (aOperation == operation::submit) {
 						if (!aGrant || !aGrant->consume(Session, Generation, *aRequest)) {
-							return std::nullopt;
+							return admissionRefused();
 						}
 					} else if (!valid(*aRequest)) {
-						return std::nullopt;
+						return admissionRefused();
 					}
 				}
 				request            = std::make_shared<record>();
@@ -334,6 +389,9 @@ namespace bpr::application {
 				request->Grant = std::move(aGrant);
 				request->Key   = std::move(aKey);
 				Active         = request;
+			}
+			if (aPlan && !aPlan->ConversationReply) {
+				record_tour_publication(Log.get(), core::tour_publication_stage::admission, aPlan);
 			}
 			auto self = shared_from_this();
 			try {
@@ -352,8 +410,8 @@ namespace bpr::application {
 	};
 	review_submission_application_host::review_submission_application_host(review_submission_provider_factory aFactory,
 																		   review_submission_live_binding aBinding, core::application_session_id aSession, core::request_generation aGeneration,
-																		   effect_executor& aEffects, decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights)
-		: Implementation{ std::make_shared<implementation>(std::move(aFactory), std::move(aBinding), aSession, aGeneration, aEffects, aDecisions, aProjection, std::move(aInsights)) }
+																		   effect_executor& aEffects, decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights, std::shared_ptr<diagnostic_log_port> aLog)
+		: Implementation{ std::make_shared<implementation>(std::move(aFactory), std::move(aBinding), aSession, aGeneration, aEffects, aDecisions, aProjection, std::move(aInsights), std::move(aLog)) }
 	{ }
 	review_submission_application_host::~review_submission_application_host() { shutdown(); }
 	auto review_submission_application_host::discover() -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::discover, nullptr, { }); }

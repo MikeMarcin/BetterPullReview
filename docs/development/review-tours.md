@@ -28,6 +28,13 @@ Reading or collapsing the stop withholds that action; no code is copied.
 - Not yet tested against live GitHub: file-level stops, stops outside the
   diff, edits to the **Start here** comment, and GitHub Enterprise Server.
 
+If publication stops, its status says which preparation or server read failed
+and preserves your draft. A status saying this attempt sent nothing applies to
+that attempt; earlier staged or published work is retained. **Check status**
+reconciles a possibly sent operation, and **Resume** requires a fresh preview.
+Use **Help > Export anonymized diagnostics…** to inspect the publication stages
+and classified failure without including your Problem, Solution or stop text.
+
 ## Updating a published tour
 
 Reopening a tour reads it back from GitHub. If someone edited it on the

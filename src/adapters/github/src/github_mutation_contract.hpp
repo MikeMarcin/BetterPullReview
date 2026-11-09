@@ -169,7 +169,8 @@ namespace bpr::adapters::github::detail {
 		-> std::optional<review_mutation_exchange>;
 	/// \brief [[BPR-1538]]. The largest response body one operation's
 	/// exchange may carry: a page of the review list or of the review comment
-	/// collection may carry `maximum_review_mutation_list_response_bytes`,
+	/// collection, including all three staged tour list operations, may carry
+	/// `maximum_review_mutation_list_response_bytes`,
 	/// everything else `maximum_review_mutation_response_bytes`.
 	[[nodiscard]] auto maximum_review_mutation_wire_response_bytes(
 		review_mutation_operation aOperation) noexcept -> std::size_t;

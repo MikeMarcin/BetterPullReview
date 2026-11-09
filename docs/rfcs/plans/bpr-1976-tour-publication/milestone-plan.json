@@ -17,7 +17,8 @@
             "AC1",
             "AC2",
             "AC3",
-            "AC4"
+            "AC4",
+            "AC5"
           ]
         }
       ],
@@ -26,9 +27,10 @@
         "Real adapter and composed publication paths reproduce the confirmed failure and distinguish success from refusal without inferring a corporate-machine cause.",
         "Valid compatibility publication retains exact source, actor, head, one-use grants and durable no-blind-retry behavior; recovery text reflects confirmed state.",
         "Changed-surface verification, truthful documentation, explicit-path commits and command quiescence are recorded.",
-        "Independent critical review is supplied for material publication safety changes and every actionable finding is reconciled."
+        "Independent critical review is supplied for material publication safety changes and every actionable finding is reconciled.",
+        "The owner-prioritized publication lifecycle trace is observed in real app logs and safe diagnostic export, including pre-provider refusal and per-operation failure."
       ],
-      "boundary": "Mandate tour-publish-unavailable-r1; no corporate-machine access, live desktop, arbitrary host enablement or mutation outside designated BPR-Test."
+      "boundary": "Mandate tour-publication-diagnostics-r2; no corporate-machine access, live desktop, arbitrary host enablement or mutation outside designated BPR-Test."
     }
   ],
   "coverage": "complete",

@@ -173,7 +173,7 @@ namespace bpr::app {
 	public:
 		using grant_factory = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::staged_review_plan&)>;
 		using receipt_sink  = std::function<void(const application::staged_publication_record&)>;
-		review_tour_publication_workflow(application::effect_executor&, application::decision_executor&, qt::review_tour_editor&, grant_factory, review_submission_workflow::publication_admission = { }, receipt_sink = { });
+		review_tour_publication_workflow(application::effect_executor&, application::decision_executor&, qt::review_tour_editor&, grant_factory, review_submission_workflow::publication_admission = { }, receipt_sink = { }, std::shared_ptr<application::diagnostic_log_port> = { });
 		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, std::string aDescription, bool aQualified = false, application::insights_review_capture = { });
 		void               observe(const application::tour_presentation&);
 		void               dispatch(qt::tour_editor_action);
@@ -186,6 +186,7 @@ namespace bpr::app {
 
 	private:
 		void                                                                          prepare();
+		std::shared_ptr<application::diagnostic_log_port>                             Log;
 		void                                                                          present();
 		application::effect_executor&                                                 Effects;
 		application::decision_executor&                                               Decisions;

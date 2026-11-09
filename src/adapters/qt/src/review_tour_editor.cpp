@@ -2367,11 +2367,11 @@ namespace bpr::qt {
 				}
 				if (plan->Plan.IncompatibleBody) {
 					body += "Publication requires a native line subject for this suggestion.\n\n";
-				} else if (plan->Plan.RequiresCompatibility) {
+				} else if (plan->Plan.RequiresCompatibility && !plan->Plan.NeedsQualification) {
 					body += "This destination requires an explicit compatibility publication plan. It cannot join one pending review.\n\n";
 				}
 				if (plan->Plan.NeedsQualification) {
-					body += "Publication support for this exact source and operation is not yet qualified.\n\n";
+					body += "Preview publication to check the available destination for this source.\n\n";
 				}
 			}
 			for (const auto& related : stop.Related) {

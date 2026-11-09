@@ -1,4 +1,7 @@
 #include "bpr/application/operation_diagnostics.hpp"
+#include "bpr/application/review_submission_recovery_port.hpp"
+#include "bpr/core/hex.hpp"
+#include "bpr/core/sha256.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -53,6 +56,74 @@ namespace bpr::application {
 		}
 	}
 
+	auto tour_stage(const staged_review_operation aOperation) noexcept -> core::tour_publication_stage
+	{
+		using stage = core::tour_publication_stage;
+		switch (aOperation) {
+		case staged_review_operation::list_reviews:           return stage::list_reviews;
+		case staged_review_operation::read_review:            return stage::read_review;
+		case staged_review_operation::list_comments:          return stage::list_comments;
+		case staged_review_operation::create_pending:         return stage::create_pending;
+		case staged_review_operation::update_comment:         return stage::update_comment;
+		case staged_review_operation::update_summary:         return stage::update_summary;
+		case staged_review_operation::submit_comment:         return stage::submit_comment;
+		case staged_review_operation::discard_pending:        return stage::discard_pending;
+		case staged_review_operation::update_description:     return stage::update_description;
+		case staged_review_operation::list_issue_comments:    return stage::list_issue_comments;
+		case staged_review_operation::create_issue_comment:   return stage::create_issue_comment;
+		case staged_review_operation::update_issue_comment:   return stage::update_issue_comment;
+		case staged_review_operation::update_pending_comment: return stage::update_pending_comment;
+		}
+		return stage::request_preparation;
+	}
+	void record_tour_publication(diagnostic_log_port* aLog, core::tour_publication_stage aStage, const staged_review_plan* aPlan, const staged_publication_result* aResult,
+								 bool aStarted, core::operation_failure aFailure, std::uint16_t aHttpStatus, bool aWritten) noexcept
+	{
+		if (!aLog) {
+			return;
+		}
+		try {
+			auto trace = core::tour_publication_trace{ .Stage = aStage, .HttpStatus = aHttpStatus };
+			if (aPlan && aPlan->Submission.LiveBinding) {
+				auto hash = core::sha256_stream{ };
+				hash.update(review_submission_authority_fingerprint(*aPlan->Submission.LiveBinding));
+				const auto& key = aPlan->Submission.IdempotencyKey;
+				hash.update({ reinterpret_cast<const std::uint8_t*>(key.data()), key.size() });
+				trace.Attempt = core::lower_hex(hash.finish());
+			}
+			if (aResult) {
+				using state    = staged_publication_state;
+				using observed = core::tour_publication_trace_state;
+				switch (aResult->State) {
+				case state::unavailable:           trace.State = observed::unavailable; break;
+				case state::ready:                 trace.State = observed::ready; break;
+				case state::staged:                trace.State = observed::staged; break;
+				case state::outcome_unknown:       trace.State = observed::outcome_unknown; break;
+				case state::conflict:              trace.State = observed::conflict; break;
+				case state::published:             trace.State = observed::published; break;
+				case state::description_attention: trace.State = observed::description_attention; break;
+				case state::partial:               trace.State = observed::partial; break;
+				}
+				if (aResult->Failure) {
+					aFailure = operation_failure_of(*aResult->Failure);
+				} else if (aResult->State == state::outcome_unknown) {
+					aFailure = core::operation_failure::outcome_unknown;
+				} else if (aResult->State == state::conflict) {
+					aFailure = core::operation_failure::conflict;
+				} else if (aResult->State == state::unavailable) {
+					aFailure = core::operation_failure::unavailable;
+				}
+				if (aResult->Diagnosis && aResult->Diagnosis->HttpStatus) {
+					trace.HttpStatus = *aResult->Diagnosis->HttpStatus;
+				}
+			}
+			if (trace.HttpStatus < 100U || trace.HttpStatus > 599U) {
+				trace.HttpStatus = 0;
+			}
+			record_operation(aLog, { .Action = aStage == core::tour_publication_stage::preview ? core::operation_action::tour_preview : core::operation_action::tour_publish, .Failure = aFailure, .Written = aWritten, .ReadBack = aResult && aResult->Record && aResult->Record->Published, .Tour = std::move(trace) }, aStarted);
+		} catch (...) { /* Diagnostics never change publication. */
+		}
+	}
 	auto operation_stopwatch::milliseconds() const noexcept -> std::uint32_t
 	{
 		const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - Started).count();

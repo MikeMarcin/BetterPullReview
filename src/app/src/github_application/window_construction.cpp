@@ -235,7 +235,7 @@ namespace bpr::app {
                 reread_after_publication();
                 if(!TourHost){return;}const auto draft=TourHost->presentation().Draft;
                 if(!draft){return;}
-                if(auto published=application::published_tour(aRecord,*draft)){TourHost->observe_publication(std::move(*published));} });
+                if(auto published=application::published_tour(aRecord,*draft)){TourHost->observe_publication(std::move(*published));} }, DiagnosticLog);
 		Window->set_review_submission_dispatch([this](qt::review_submission_editor_intent aIntent) {
 			if (!Closing && ReviewSubmission) {
 				ReviewSubmission->dispatch(std::move(aIntent));

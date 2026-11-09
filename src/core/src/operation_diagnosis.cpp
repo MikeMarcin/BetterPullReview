@@ -33,6 +33,8 @@ namespace bpr::core {
 																   "refresh_failed" };
 		constexpr std::array<std::string_view, 10>  process_names{ "none", "success", "private_storage_failure", "failed_to_start", "workspace_unavailable", "nonzero_exit", "protocol_failure", "cancelled", "timeout", "stale_result" };
 
+		constexpr auto tour_stage_names = std::array<std::string_view, 34>{ "preview", "admission", "discovery", "recovery", "publish", "factory", "identity_check", "request_preparation", "baseline_read", "journal", "verification", "terminal", "stop", "list_reviews", "read_review", "list_comments", "create_pending", "update_comment", "update_summary", "submit_comment", "discard_pending", "update_description", "list_issue_comments", "create_issue_comment", "update_issue_comment", "update_pending_comment", "plan_validation", "recovery_open", "lease", "configuration", "binding", "journal_read", "credential_scope", "journal_save" };
+		constexpr auto tour_state_names = std::array<std::string_view, 9>{ "none", "unavailable", "ready", "staged", "outcome_unknown", "conflict", "published", "description_attention", "partial" };
 		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::native_continuation) + 1U);
 		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::refresh_failed) + 1U);
 
@@ -151,7 +153,7 @@ namespace bpr::core {
 			// [[BPR-1830]].
 			case operation_diagnosis_family::mcp_helper: return within(aFailure, operation_failure::no_helper, operation_failure::helper_failed) || aFailure == operation_failure::failed_to_start || aFailure == operation_failure::timed_out;
 			case operation_diagnosis_family::tour:
-				return within(aFailure, operation_failure::invalid_input, operation_failure::refused) || aFailure == operation_failure::busy || aFailure == operation_failure::unavailable || aFailure == operation_failure::conflict;
+				return within(aFailure, operation_failure::invalid_input, operation_failure::refused) || aFailure == operation_failure::busy || aFailure == operation_failure::unavailable || aFailure == operation_failure::conflict || within(aFailure, operation_failure::refused_by_server, operation_failure::not_confirmed) || aFailure == operation_failure::preview_stale;
 			case operation_diagnosis_family::cycle_round:
 				return within(aFailure, operation_failure::wrong_profile, operation_failure::read_failed) || aFailure == operation_failure::corrupt || aFailure == operation_failure::schema_mismatch || aFailure == operation_failure::invalid_bundle
 					|| aFailure == operation_failure::unavailable || aFailure == operation_failure::conflict || aFailure == operation_failure::refused || aFailure == operation_failure::malformed_response;
@@ -256,7 +258,15 @@ namespace bpr::core {
 		if (storage != aDiagnosis.Store.has_value() || (aDiagnosis.Store && name(*aDiagnosis.Store).empty()) || (!storage && aDiagnosis.Schema != 0U)) {
 			return false;
 		}
-		return kind == operation_diagnosis_family::review_mutation || (!aDiagnosis.Written && !aDiagnosis.ReadBack);
+		if (aDiagnosis.Tour) {
+			const auto& trace  = *aDiagnosis.Tour;
+			const auto  digest = trace.Attempt.size() == 64U && std::ranges::all_of(trace.Attempt, [](char aByte) { return (aByte >= '0' && aByte <= '9') || (aByte >= 'a' && aByte <= 'f'); });
+			if ((aDiagnosis.Action != operation_action::tour_preview && aDiagnosis.Action != operation_action::tour_publish) || named(tour_stage_names, trace.Stage).empty() || named(tour_state_names, trace.State).empty()
+				|| (!digest && trace.Attempt != "none") || (trace.HttpStatus != 0U && (trace.HttpStatus < 100U || trace.HttpStatus > 599U))) {
+				return false;
+			}
+		}
+		return kind == operation_diagnosis_family::review_mutation || aDiagnosis.Tour || (!aDiagnosis.Written && !aDiagnosis.ReadBack);
 	}
 
 	auto describe(const operation_diagnosis& aDiagnosis) -> std::string
@@ -280,6 +290,14 @@ namespace bpr::core {
 			text += " store=";
 			text += name(*aDiagnosis.Store);
 			text += " schema=" + std::to_string(aDiagnosis.Schema);
+		}
+		if (aDiagnosis.Tour) {
+			text += " tour_stage=";
+			text += named(tour_stage_names, aDiagnosis.Tour->Stage);
+			text += " tour_state=";
+			text += named(tour_state_names, aDiagnosis.Tour->State);
+			text += " tour_attempt=" + aDiagnosis.Tour->Attempt;
+			text += " tour_http=" + std::to_string(aDiagnosis.Tour->HttpStatus);
 		}
 		return text;
 	}
@@ -308,7 +326,16 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 		// [[BPR-1831]]. A storage line's store and schema version.
-		if (!aText.empty()) {
+		if (aText.starts_with("tour_stage=")) {
+			const auto stage   = enumerated<tour_publication_stage>(aText, "tour_stage", tour_stage_names);
+			const auto state   = stage ? enumerated<tour_publication_trace_state>(aText, "tour_state", tour_state_names) : std::nullopt;
+			const auto attempt = state ? word(aText, "tour_attempt") : std::nullopt;
+			const auto http    = attempt ? number(aText, "tour_http") : std::nullopt;
+			if (!http || *http > 599U || !aText.empty()) {
+				return std::nullopt;
+			}
+			result.Tour = tour_publication_trace{ *stage, *state, std::string{ *attempt }, static_cast<std::uint16_t>(*http) };
+		} else if (!aText.empty()) {
 			result.Store      = enumerated<operation_store>(aText, "store", store_names);
 			const auto schema = result.Store ? number(aText, "schema") : std::nullopt;
 			if (!schema || !aText.empty()) {

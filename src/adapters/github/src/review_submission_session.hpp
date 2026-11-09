@@ -94,7 +94,12 @@ namespace bpr::adapters::github::detail {
 		/// \brief [[BPR-1367]]. Every page of the pull request's review comment
 		/// collection, at most `maximum_review_comment_collection_pages`.
 		[[nodiscard]] auto observe_comment_collection(std::stop_token aStop) -> review_mutation_parse_result<std::vector<review_comment_collection_entry>>;
-		[[nodiscard]] auto observe_staged(application::staged_review_request aRequest, std::stop_token aStop) -> review_mutation_parse_result<application::staged_review_observation>;
+		struct staged_read_failure
+		{
+			application::review_mutation_failure Failure;
+			std::optional<std::uint16_t>         HttpStatus = std::nullopt;
+		};
+		[[nodiscard]] auto observe_staged(application::staged_review_request aRequest, std::stop_token aStop) -> std::expected<application::staged_review_observation, staged_read_failure>;
 		/// \brief [[BPR-1367]]. A tour review's comments as GitHub lists them,
 		/// and whether that list reports their lines.
 		struct staged_comments
@@ -127,6 +132,7 @@ namespace bpr::adapters::github::detail {
 		std::shared_ptr<application::diagnostic_log_port>             Log;
 		std::function<std::int64_t()>                                 Clock;
 		std::mutex                                                    Mutex;
+		const application::staged_review_plan*                        ActiveTourTrace = nullptr;
 	};
 }
 #endif

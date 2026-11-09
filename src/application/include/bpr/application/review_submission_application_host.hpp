@@ -11,6 +11,7 @@
 #include <variant>
 
 namespace bpr::application {
+	class diagnostic_log_port;
 	class review_submission_execution_authority;
 	using review_submission_execution_grant = std::shared_ptr<review_submission_execution_authority>;
 	using staged_review_discovery           = std::expected<std::vector<staged_review_plan>, review_mutation_failure>;
@@ -66,7 +67,7 @@ namespace bpr::application {
 		review_submission_application_host(review_submission_provider_factory aFactory,
 										   review_submission_live_binding aBinding, core::application_session_id aSession,
 										   core::request_generation aGeneration, effect_executor& aEffects,
-										   decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights = { });
+										   decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights = { }, std::shared_ptr<diagnostic_log_port> aLog = { });
 		~review_submission_application_host();
 		review_submission_application_host(const review_submission_application_host&)                    = delete;
 		auto operator=(const review_submission_application_host&) -> review_submission_application_host& = delete;

@@ -405,10 +405,10 @@ namespace bpr::adapters::github::detail {
 	using diagnostic_json_object = std::map<std::string, glz::raw_json_view, std::less<>>;
 
 	template <typename T>
-	[[nodiscard]] auto document(const review_mutation_wire_response& aResponse, const std::size_t aLimit = maximum_review_mutation_response_bytes) -> std::optional<T>
+	[[nodiscard]] auto document(const review_mutation_wire_response& aResponse, const std::size_t aLimit = maximum_review_mutation_response_bytes, const json_preflight_limits aPreflight = { }) -> std::optional<T>
 	{
 		if (aResponse.Body.empty() || aResponse.Body.size() > aLimit
-			|| !json_preflight{ aResponse.Body }.run()) {
+			|| !json_preflight{ aResponse.Body, aPreflight }.run()) {
 			return std::nullopt;
 		}
 		auto parsed = T{ };

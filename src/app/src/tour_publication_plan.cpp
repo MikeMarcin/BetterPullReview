@@ -4,6 +4,47 @@
 #include "review_comment_permalink.hpp"
 #include <algorithm>
 namespace bpr::app {
+	auto tour_publication_failure_text(const application::staged_publication_result& aResult) -> std::string
+	{
+		using failure = application::review_mutation_failure;
+		using step    = application::staged_publication_step;
+		if (!aResult.Failure || !aResult.Diagnosis || aResult.State == application::staged_publication_state::outcome_unknown || (aResult.Record && aResult.Record->Published)) {
+			return { };
+		}
+		std::string result;
+		switch (aResult.Diagnosis->Step) {
+		case step::authority:           result = "Publication could not start"; break;
+		case step::plan_validation:     result = "The captured publication plan is invalid"; break;
+		case step::recovery_open:       result = "Publication recovery is unavailable in this profile"; break;
+		case step::lease:               result = "The publishing connection is no longer active"; break;
+		case step::configuration:       result = "The publishing connection configuration is invalid"; break;
+		case step::binding:             result = "The publication does not match this account and pull request"; break;
+		case step::journal_read:        result = "Could not read publication recovery in this profile"; break;
+		case step::journal_save:        result = "Could not save publication recovery in this profile"; break;
+		case step::credential_scope:    result = "Could not open the publishing credential operation"; break;
+		case step::identity_check:      result = "Could not confirm the publishing account and pull request revision"; break;
+		case step::request_preparation: result = "Could not prepare this publication operation"; break;
+		case step::baseline_read:
+			result = aResult.Diagnosis->Operation == application::staged_review_operation::list_issue_comments ? "Could not read existing pull request comments" : "Could not read existing pull request reviews";
+			break;
+		}
+		if (const auto status = aResult.Diagnosis->HttpStatus; status && *status >= 100U && *status <= 599U) {
+			result += " (HTTP " + std::to_string(*status) + ")";
+		}
+		result += ". ";
+		switch (*aResult.Failure) {
+		case failure::refused_by_server:   result += "The server refused the request. Check account access and server limits, then Preview again. "; break;
+		case failure::target_unavailable:  result += "The server did not expose this target. Check account access, refresh the pull request, then Preview again. "; break;
+		case failure::malformed_response:  result += "The response could not be validated. Check the connection and server compatibility, then Preview again. "; break;
+		case failure::undesignated_target:
+		case failure::target_moved:
+		case failure::stale_head:          result += "Refresh the pull request and confirm the current account before a new preview. "; break;
+		case failure::unsupported:         result += "This connection does not support the operation. Keep the draft locally or use a supported connection. "; break;
+		case failure::cancelled:           result += "The check was cancelled. Preview again to retry. "; break;
+		default:                           result += (aResult.Diagnosis->Step == step::journal_read || aResult.Diagnosis->Step == step::journal_save || aResult.Diagnosis->Step == step::recovery_open) ? "Check local profile storage, then Preview again. " : "Check the connection, then Preview again. "; break;
+		}
+		return result + "This attempt sent nothing; your private draft is kept.";
+	}
 	auto prepare_tour_plan(const core::review_tour& aDraft, const application::review_submission_live_binding& aBinding, std::string_view aDescription, tour_publication_options aOptions, bool aQualified) -> tour_plan_preparation
 	{
 		tour_plan_preparation                      result;

@@ -34,6 +34,9 @@ namespace bpr::app::detail {
 		std::optional<std::string>                          MergeAssessment, ReviewRequests, BranchRules, BranchProtection, ReviewHistory, ConversationComments;
 		std::optional<std::string>                          AttendedCommentReview;
 		std::size_t                                         StagedWrites = 0, StagedCreates = 0, StagedSubmits = 0;
+		std::optional<application::review_mutation_failure> TourFactoryFailure;
+		int                                                 StagedBaselineStatus    = 0;
+		bool                                                StagedMalformedBaseline = false, StagedLargeBaseline = false;
 		bool                                                StagedQualified = true, StagedConflict = false, StagedRejectDescription = false, StagedBlockNext = false, StagedBlocked = false;
 		std::vector<application::review_submission_request> Reviews;
 		bool                                                LoseNextResponse = false;
@@ -83,7 +86,7 @@ namespace bpr::app::detail {
 		/// Native POSTs at such a line, answered or not.
 		std::size_t OffHunkNativePosts = 0U;
 	};
-	[[nodiscard]] auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state>, std::unique_ptr<application::review_submission_recovery_port>, application::review_submission_live_binding, std::string) -> std::unique_ptr<application::review_submission_port>;
+	[[nodiscard]] auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state>, std::unique_ptr<application::review_submission_recovery_port>, application::review_submission_live_binding, std::string, std::shared_ptr<application::diagnostic_log_port> = { }) -> std::unique_ptr<application::review_submission_port>;
 	[[nodiscard]] auto make_review_submission_fixture_provider(
 		std::shared_ptr<review_submission_fixture_state>              aState,
 		std::unique_ptr<application::review_submission_recovery_port> aStore,

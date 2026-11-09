@@ -399,7 +399,20 @@ namespace bpr::app::detail {
 						}
 					}
 					if (w.Path == issuePath + "?per_page=100&page=1") {
-						return success(comments_json(State->CompatibilityComments));
+						if (State->StagedBaselineStatus != 0) {
+							return wire::github_mutation_wire_success{ .Response = { .Status = State->StagedBaselineStatus, .Body = "{}" } };
+						}
+						if (State->StagedMalformedBaseline) {
+							return success("[not valid JSON]");
+						}
+						auto comments = State->CompatibilityComments;
+						if (State->StagedLargeBaseline) {
+							for (std::uint64_t index = 0; index < 96U; ++index) {
+								const auto id = 9000U + index;
+								comments.push_back({ .Id = id, .NodeId = "IC_baseline_" + std::to_string(id), .WebUrl = root() + "#issuecomment-" + std::to_string(id), .Actor = actor(), .Body = std::string(4000U, 'x') });
+							}
+						}
+						return success(comments_json(comments));
 					}
 					if (pending_comment(w.Path)) {
 						return not_found();
@@ -602,9 +615,9 @@ namespace bpr::app::detail {
 		public:
 			staged_fixture_wire             Wire;
 			wire::review_submission_session Session;
-			staged_fixture_provider(std::shared_ptr<review_submission_fixture_state> aState, std::unique_ptr<application::review_submission_recovery_port> aStore, application::review_submission_live_binding aBinding, std::string aDescription)
+			staged_fixture_provider(std::shared_ptr<review_submission_fixture_state> aState, std::unique_ptr<application::review_submission_recovery_port> aStore, application::review_submission_live_binding aBinding, std::string aDescription, std::shared_ptr<application::diagnostic_log_port> aLog)
 				: Wire{ std::move(aState), aBinding, std::move(aDescription) }
-				, Session{ Wire, { .CredentialContext = { .Request = core::request_id{ 1 }, .ApplicationSession = core::application_session_id{ 1 }, .Authority = { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = aBinding.Target.Semantic.Host, .Hostname = aBinding.Target.Hostname, .Account = aBinding.ActingIdentity.Account, .ServerContract = aBinding.Target.ServerContract }, .IdentityGeneration = core::github_identity_generation{ 1 } }, .Target = aBinding.Target, .ActingIdentity = aBinding.ActingIdentity }, std::make_shared<staged_fixture_lease>(), std::move(aStore) }
+				, Session{ Wire, { .CredentialContext = { .Request = core::request_id{ 1 }, .ApplicationSession = core::application_session_id{ 1 }, .Authority = { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = aBinding.Target.Semantic.Host, .Hostname = aBinding.Target.Hostname, .Account = aBinding.ActingIdentity.Account, .ServerContract = aBinding.Target.ServerContract }, .IdentityGeneration = core::github_identity_generation{ 1 } }, .Target = aBinding.Target, .ActingIdentity = aBinding.ActingIdentity }, std::make_shared<staged_fixture_lease>(), std::move(aStore), std::move(aLog) }
 			{ }
 			auto pending(std::stop_token) -> application::review_submission_discovery override { return std::vector<application::review_submission_request>{ }; }
 			auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token) -> application::review_submission_result override { return { .Request = aRequest }; }
@@ -616,7 +629,7 @@ namespace bpr::app::detail {
 			auto reconcile_tour(const application::staged_review_plan& aPlan, std::stop_token aStop) -> application::staged_publication_result override { return Session.reconcile_tour(aPlan, aStop); }
 		};
 	}
-	auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state> aState, std::unique_ptr<application::review_submission_recovery_port> aStore, application::review_submission_live_binding aBinding, std::string aDescription) -> std::unique_ptr<application::review_submission_port> { return std::make_unique<staged_fixture_provider>(std::move(aState), std::move(aStore), std::move(aBinding), std::move(aDescription)); }
+	auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state> aState, std::unique_ptr<application::review_submission_recovery_port> aStore, application::review_submission_live_binding aBinding, std::string aDescription, std::shared_ptr<application::diagnostic_log_port> aLog) -> std::unique_ptr<application::review_submission_port> { return std::make_unique<staged_fixture_provider>(std::move(aState), std::move(aStore), std::move(aBinding), std::move(aDescription), std::move(aLog)); }
 	namespace {
 		/// [[BPR-1345]]. The ordinary provider's store, lent to the session.
 		class borrowed_recovery final : public application::review_submission_recovery_port

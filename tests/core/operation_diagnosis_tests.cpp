@@ -39,6 +39,23 @@ namespace {
 			   "each action belongs to its family");
 	}
 
+	void test_tour_publication_trace()
+	{
+		auto       line = operation_diagnosis{ .Action = operation_action::tour_publish, .Failure = operation_failure::refused_by_server, .Tour = tour_publication_trace{ .Stage = tour_publication_stage::baseline_read, .State = tour_publication_trace_state::unavailable, .Attempt = std::string(64U, 'a'), .HttpStatus = 403 } };
+		const auto text = describe(line);
+		expect(!text.empty() && parse_operation_diagnosis(text) == line, "publication stage failure status and full attempt digest round-trip through export classifier grammar");
+		for (const auto& unsafe : { std::string{ "private prose" }, std::string(64U, 'g'), std::string(63U, 'a') }) {
+			line.Tour->Attempt = unsafe;
+			expect(describe(line).empty(), "unclassified strings cannot enter publication trace");
+		}
+		line.Tour->Attempt    = "none";
+		line.Tour->HttpStatus = 999;
+		expect(describe(line).empty(), "invalid HTTP status is not a classified trace");
+		line.Tour->HttpStatus = 0;
+		line.Action           = operation_action::publish_comment;
+		expect(describe(line).empty(), "tour metadata belongs only to tour lifecycle actions");
+		expect(!parse_operation_diagnosis(text + " body=private"), "unknown trace suffix is rejected");
+	}
 	// [[BPR-1829]]. Sign-in, credential vault and updater lines.
 	void test_account_and_update_lines()
 	{
@@ -200,6 +217,7 @@ namespace {
 int main()
 {
 	test_line();
+	test_tour_publication_trace();
 	test_refusals();
 	test_account_and_update_lines();
 	test_storage_and_host_lines();

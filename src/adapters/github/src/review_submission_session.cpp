@@ -1,4 +1,5 @@
 #include "review_submission_session.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -220,13 +221,43 @@ namespace bpr::adapters::github::detail {
 	}
 	auto review_submission_session::perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion
 	{
-		if (aStop.stop_requested()) {
-			return github_mutation_wire_cancelled{ };
+		const auto* staged = std::get_if<application::staged_review_request>(&aWire.Semantic);
+		const auto  stage  = staged ? application::tour_stage(staged->Operation) : core::tour_publication_stage::identity_check;
+		if (ActiveTourTrace) {
+			application::record_tour_publication(Log.get(), stage, ActiveTourTrace, nullptr, true);
 		}
-		if (!Lease || !Lease->active() || !valid(Configuration) || !validate_outbound_review_mutation_request(aWire)) {
-			return github_mutation_wire_error{ };
+		const auto write    = static_cast<bool>(aWitness);
+		auto       dispatch = [&]() -> github_mutation_wire_completion {
+			if (aStop.stop_requested()) {
+				return github_mutation_wire_cancelled{ };
+			}
+			if (!Lease || !Lease->active() || !valid(Configuration) || !validate_outbound_review_mutation_request(aWire)) {
+				return github_mutation_wire_error{ };
+			}
+			return Transport->perform_review_mutation({ .Context = Configuration.CredentialContext, .Wire = std::move(aWire) }, aStop, std::move(aWitness));
+		};
+		auto completion = dispatch();
+		if (ActiveTourTrace) {
+			auto          failure = core::operation_failure::none;
+			std::uint16_t status  = 0;
+			bool          written = false;
+			if (const auto* success = std::get_if<github_mutation_wire_success>(&completion)) {
+				written = write;
+				status  = success->Response.Status >= 100 && success->Response.Status <= 599 ? static_cast<std::uint16_t>(success->Response.Status) : 0;
+				if (success->Response.Status >= 300) {
+					failure = core::operation_failure::refused_by_server;
+				}
+			} else if (const auto* error = std::get_if<github_mutation_wire_error>(&completion)) {
+				written = write && error->Transmission != github_mutation_transmission::definitely_not_sent;
+				failure = application::operation_failure_of(error->Failure);
+				status  = error->HttpStatus;
+			} else {
+				written = write && std::get<github_mutation_wire_cancelled>(completion).Transmission != github_mutation_transmission::definitely_not_sent;
+				failure = core::operation_failure::cancelled;
+			}
+			application::record_tour_publication(Log.get(), stage, ActiveTourTrace, nullptr, false, failure, status, written);
 		}
-		return Transport->perform_review_mutation({ .Context = Configuration.CredentialContext, .Wire = std::move(aWire) }, aStop, std::move(aWitness));
+		return completion;
 	}
 	auto review_submission_session::observe_exact(std::stop_token aStop, bool aHistorical, bool aLeftLine) -> std::expected<void, application::review_mutation_failure>
 	{

@@ -2,6 +2,7 @@
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/application/release_maintenance_application_host.hpp"
 #include "bpr/application/release_profile_cleanup.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_cycle_zip.hpp"
 
@@ -462,6 +463,29 @@ namespace {
 		return line;
 	}
 
+	void test_tour_publication_trace_export()
+	{
+		const auto attempt   = std::string(64U, 'c');
+		const auto diagnosis = core::operation_diagnosis{ .Action = core::operation_action::tour_publish, .Failure = core::operation_failure::refused_by_server, .Tour = core::tour_publication_trace{ .Stage = core::tour_publication_stage::baseline_read, .State = core::tour_publication_trace_state::unavailable, .Attempt = attempt, .HttpStatus = 403 } };
+		const auto detail    = core::describe(diagnosis);
+		auto       input     = std::string{ };
+		for (unsigned sequence = 1; sequence <= 2; ++sequence) {
+			auto line = event_line(sequence, 1780000000000ULL + sequence, "tour.operation", "failed", 0U, "none", "none", detail);
+			line.replace(line.find("\"category\":\"github\""), std::string_view{ "\"category\":\"github\"" }.size(), "\"category\":\"tour\"");
+			input += line;
+		}
+		const application::diagnostic_export_capture capture{ std::string{ session }, 2U, { }, { } };
+		const auto                                   anonymous  = application::prepare_diagnostic_export(input, core::release_maintenance_revision{ 1 }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		const auto                                   other      = application::prepare_diagnostic_export(input, core::release_maintenance_revision{ 1 }, { core::diagnostic_export_policy::anonymized }, capture, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+		const auto                                   identified = application::prepare_diagnostic_export(input, core::release_maintenance_revision{ 1 }, { core::diagnostic_export_policy::identifying }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(anonymous && other && identified && anonymous->Descriptor.Records == 2U, "publication lifecycle records survive either export policy");
+		expect(!anonymous->Bytes.contains(attempt) && identified->Bytes.contains(attempt), "anonymized exports remap the stable local attempt while identifying exports retain it");
+		const auto prefix = std::string{ "tour_attempt=" };
+		const auto start  = anonymous->Bytes.find(prefix) + prefix.size();
+		const auto mapped = anonymous->Bytes.substr(start, 64U);
+		expect(anonymous->Bytes.find(prefix + mapped, start + 64U) != std::string::npos && !other->Bytes.contains(mapped), "an export preserves cross-record correlation in its own fresh namespace");
+		expect(anonymous->Bytes.contains("tour_stage=baseline_read") && anonymous->Bytes.contains("tour_http=403") && !anonymous->Bytes.contains("omitted:unclassified-content"), "failure stage and bounded HTTP status remain classified");
+	}
 	/// [[BPR-1722]]. A review's known ending exports as exactly its
 	/// line of enums and counts; one with anything else in it is omitted.
 	void test_review_submission_ending_export()
@@ -1005,6 +1029,7 @@ auto main() -> int
 	test_rich_export();
 	test_export_keeps_newest();
 	test_export_keeps_running_session_through_clock_rollback();
+	test_tour_publication_trace_export();
 	test_review_submission_ending_export();
 	test_export_keeps_long_session();
 	test_export_archive_compresses();

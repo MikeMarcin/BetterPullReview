@@ -1627,7 +1627,7 @@ namespace bpr::app {
 		TourProposal = std::move(decided);
 		if (std::ranges::none_of(TourProposal->Items, [](const core::tour_proposal_item& aItem) { return aItem.Decision == core::tour_proposal_decision::pending; })) {
 			TourProposal.reset();
-			Window->tour_editor()->show_writing_notice(QStringLiteral("Proposal done. Visit each accepted stop and confirm its lines in the code, then mark it Ready."));
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Proposal applied. Stop readiness is shown in the tour list."));
 		}
 		present_tour_session();
 	}

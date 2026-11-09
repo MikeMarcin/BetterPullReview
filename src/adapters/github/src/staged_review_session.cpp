@@ -1,3 +1,4 @@
+#include "bpr/application/operation_diagnostics.hpp"
 #include "review_submission_session.hpp"
 #include <algorithm>
 #include <atomic>
@@ -6,6 +7,22 @@ namespace bpr::adapters::github::detail {
 		using record    = application::staged_publication_record;
 		using state     = application::staged_publication_state;
 		using operation = application::staged_review_operation;
+		using failure   = application::review_mutation_failure;
+		using step      = application::staged_publication_step;
+		auto refused(step aStep, failure aFailure, std::optional<operation> aOperation = { }, std::optional<std::uint16_t> aStatus = { }) -> application::staged_publication_result
+		{
+			return { .Failure = aFailure, .Diagnosis = application::staged_publication_diagnosis{ aStep, aOperation, aStatus } };
+		}
+		auto read_status_failure(int aStatus) -> failure
+		{
+			return aStatus == 404 ? failure::target_unavailable : aStatus >= 400 ? failure::refused_by_server
+																				 : failure::malformed_response;
+		}
+		struct tour_trace_reset
+		{
+			const application::staged_review_plan*& Slot;
+			~tour_trace_reset() { Slot = nullptr; }
+		};
 		auto status(const record& aRecord) -> state
 		{
 			if (aRecord.PossiblyTransmitted) {
@@ -96,7 +113,7 @@ namespace bpr::adapters::github::detail {
 			return result;
 		}
 	}
-	auto review_submission_session::observe_staged(application::staged_review_request aRequest, std::stop_token aStop) -> review_mutation_parse_result<application::staged_review_observation>
+	auto review_submission_session::observe_staged(application::staged_review_request aRequest, std::stop_token aStop) -> std::expected<application::staged_review_observation, staged_read_failure>
 	{
 		application::staged_review_observation result;
 		std::size_t                            bytes = 0;
@@ -104,30 +121,33 @@ namespace bpr::adapters::github::detail {
 			aRequest.Page   = page;
 			const auto wire = compile_staged_review_request(aRequest);
 			if (!wire) {
-				return std::unexpected(wire.error());
+				return std::unexpected(staged_read_failure{ failure::unsupported, { } });
 			}
 			const auto  completion = perform(*wire, aStop);
 			const auto* success    = std::get_if<github_mutation_wire_success>(&completion);
 			if (!success) {
-				return std::unexpected(review_mutation_contract_failure::invalid_status);
+				if (const auto* error = std::get_if<github_mutation_wire_error>(&completion)) {
+					return std::unexpected(staged_read_failure{ error->Failure == failure::unavailable && error->HttpStatus ? read_status_failure(error->HttpStatus) : error->Failure, error->HttpStatus ? std::optional{ error->HttpStatus } : std::nullopt });
+				}
+				return std::unexpected(staged_read_failure{ failure::cancelled, { } });
 			}
 			bytes += success->Response.Body.size();
-			if (bytes > maximum_review_mutation_response_bytes * application::maximum_staged_review_pages) {
-				return std::unexpected(review_mutation_contract_failure::response_limit);
+			if (bytes > maximum_review_mutation_list_response_bytes * application::maximum_staged_review_pages) {
+				return std::unexpected(staged_read_failure{ failure::malformed_response, static_cast<std::uint16_t>(success->Response.Status) });
 			}
 			auto parsed = parse_staged_review_response(success->Response, aRequest);
 			if (!parsed) {
-				return std::unexpected(parsed.error());
+				return std::unexpected(staged_read_failure{ success->Response.Status >= 300 ? read_status_failure(success->Response.Status) : failure::malformed_response, static_cast<std::uint16_t>(success->Response.Status) });
 			}
 			for (auto& review : parsed->Reviews) {
 				if (std::ranges::any_of(result.Reviews, [&](const auto& aRow) { return aRow.Id == review.Id || aRow.NodeId == review.NodeId; })) {
-					return std::unexpected(review_mutation_contract_failure::identity_mismatch);
+					return std::unexpected(staged_read_failure{ failure::malformed_response, static_cast<std::uint16_t>(success->Response.Status) });
 				}
 				result.Reviews.push_back(std::move(review));
 			}
 			for (auto& comment : parsed->Comments) {
 				if (std::ranges::any_of(result.Comments, [&](const auto& aComment) { return aComment.Id == comment.Id || aComment.NodeId == comment.NodeId; })) {
-					return std::unexpected(review_mutation_contract_failure::identity_mismatch);
+					return std::unexpected(staged_read_failure{ failure::malformed_response, static_cast<std::uint16_t>(success->Response.Status) });
 				}
 				result.Comments.push_back(std::move(comment));
 			}
@@ -135,7 +155,7 @@ namespace bpr::adapters::github::detail {
 				return result;
 			}
 		}
-		return std::unexpected(review_mutation_contract_failure::response_limit);
+		return std::unexpected(staged_read_failure{ failure::malformed_response, { } });
 	}
 	auto review_submission_session::observe_staged_comments(const record& aRecord, const application::staged_review_entity& aReview, std::stop_token aStop, std::optional<std::vector<review_comment_collection_entry>>* aCollection) -> review_mutation_parse_result<staged_comments>
 	{
@@ -147,7 +167,7 @@ namespace bpr::adapters::github::detail {
 			// (MikeMarcin/BPR-Test#45): the collection has none of them.
 			auto observed = observe_staged(read, aStop);
 			if (!observed) {
-				return std::unexpected(observed.error());
+				return std::unexpected(review_mutation_contract_failure::malformed_response);
 			}
 			return staged_comments{ .Comments = std::move(observed->Comments), .Lines = false };
 		}
@@ -490,15 +510,38 @@ namespace bpr::adapters::github::detail {
 	auto review_submission_session::execute_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, bool aWrite, application::staged_child_authorizer aAuthorize) -> application::staged_publication_result
 	{
 		std::scoped_lock lock{ Mutex };
-		try {
-			if ((aWrite && !aAuthorize) || !application::valid(aPlan) || !Recovery || !Lease || !Lease->active() || !valid(Configuration)
-				|| !application::same_review_submission_identity(*aPlan.Submission.LiveBinding, { Configuration.Target, Configuration.ActingIdentity })) {
-				return { };
+		ActiveTourTrace       = aPlan.ConversationReply ? nullptr : &aPlan;
+		const auto resetTrace = tour_trace_reset{ ActiveTourTrace };
+		const auto trace      = [&](core::tour_publication_stage aStage, bool aStarted = false, core::operation_failure aFailure = core::operation_failure::none) {
+			if (!aPlan.ConversationReply) {
+				application::record_tour_publication(Log.get(), aStage, &aPlan, nullptr, aStarted, aFailure);
 			}
+		};
+		try {
+			if (aWrite && !aAuthorize) {
+				return refused(step::authority, failure::unavailable);
+			}
+			if (!application::valid(aPlan)) {
+				return refused(step::plan_validation, failure::undesignated_target);
+			}
+			if (!Recovery) {
+				return refused(step::recovery_open, failure::unavailable);
+			}
+			if (!Lease || !Lease->active()) {
+				return refused(step::lease, failure::unavailable);
+			}
+			if (!valid(Configuration)) {
+				return refused(step::configuration, failure::undesignated_target);
+			}
+			if (!application::same_review_submission_identity(*aPlan.Submission.LiveBinding, { Configuration.Target, Configuration.ActingIdentity })) {
+				return refused(step::binding, failure::undesignated_target);
+			}
+			trace(core::tour_publication_stage::journal_read, true);
 			auto loaded = Recovery->load_staged(aPlan.Submission.IdempotencyKey);
 			if (!loaded) {
-				return { };
+				return refused(step::journal_read, failure::unavailable);
 			}
+			trace(core::tour_publication_stage::journal_read);
 			record current;
 			if (*loaded) {
 				current = **loaded;
@@ -509,12 +552,15 @@ namespace bpr::adapters::github::detail {
 			if (current.Drafting && !aWrite) {
 				return { state::ready, current };
 			}
+			trace(core::tour_publication_stage::credential_scope, true);
 			github_mutation_operation_scope operation{ Transport, aStop };
 			if (!operation.valid()) {
-				return { .State   = current.PossiblyTransmitted ? state::outcome_unknown : (*loaded ? status(current) : state::unavailable),
-						 .Record  = *loaded ? std::optional{ current } : std::nullopt,
-						 .Failure = operation.failure() };
+				return { .State     = current.PossiblyTransmitted ? state::outcome_unknown : (*loaded ? status(current) : state::unavailable),
+						 .Record    = *loaded ? std::optional{ current } : std::nullopt,
+						 .Failure   = operation.failure(),
+						 .Diagnosis = application::staged_publication_diagnosis{ step::credential_scope } };
 			}
+			trace(core::tour_publication_stage::credential_scope);
 			// [[BPR-1560]]. A plan with a stop on a LEFT line asks GitHub's
 			// merge base before every write, the first and every resumed one:
 			// its LEFT coordinates are numbered in the merge base it was
@@ -524,8 +570,16 @@ namespace bpr::adapters::github::detail {
 				if (!aWrite) {
 					return current.Drafting ? application::staged_publication_result{ state::ready, current } : application::staged_publication_result{ state::outcome_unknown, { } };
 				}
-				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !observe_exact(aStop, false, leftLine)) {
-					return { aStop.stop_requested() ? state::unavailable : state::conflict, { } };
+				if (aPlan.Submission.LiveBinding->Target != Configuration.Target) {
+					auto result  = refused(step::binding, failure::target_moved);
+					result.State = state::conflict;
+					return result;
+				}
+				const auto identity = observe_exact(aStop, false, leftLine);
+				if (!identity) {
+					auto result  = refused(step::identity_check, aStop.stop_requested() ? failure::cancelled : identity.error());
+					result.State = aStop.stop_requested() ? state::unavailable : state::conflict;
+					return result;
 				}
 				const auto drafting = current.Drafting ? std::optional{ current } : std::nullopt;
 				current.Plan        = aPlan;
@@ -533,14 +587,18 @@ namespace bpr::adapters::github::detail {
 				if (drafting) {
 					++current.Revision;
 				}
+				trace(core::tour_publication_stage::request_preparation, true);
 				current.Pending = application::staged_initial_request(aPlan);
 				if (!current.Pending || !compile_staged_review_request(*current.Pending)) {
-					return { };
+					return refused(step::request_preparation, failure::unsupported);
 				}
+				trace(core::tour_publication_stage::request_preparation);
+				trace(core::tour_publication_stage::baseline_read, true);
 				const auto baseline = observe_staged(request(current, aPlan.Compatibility ? operation::list_issue_comments : operation::list_reviews), aStop);
 				if (!baseline) {
-					return { };
+					return refused(step::baseline_read, baseline.error().Failure, aPlan.Compatibility ? operation::list_issue_comments : operation::list_reviews, baseline.error().HttpStatus);
 				}
+				trace(core::tour_publication_stage::baseline_read);
 				for (const auto& comment : baseline->Comments) {
 					current.BaselineIds.push_back(comment.Id);
 				}
@@ -551,10 +609,12 @@ namespace bpr::adapters::github::detail {
 					current.BaselineIds.push_back(review.Id.value());
 				}
 				std::ranges::sort(current.BaselineIds);
+				trace(core::tour_publication_stage::journal_save, true);
 				const auto admitted = Recovery->advance_staged(drafting, current);
 				if (!admitted || *admitted != current) {
-					return { };
+					return refused(step::journal_save, failure::unavailable);
 				}
+				trace(core::tour_publication_stage::journal_save);
 			}
 			for (std::size_t step = 0; step < 2 * aPlan.Stops.size() + (aPlan.Update ? aPlan.Update->Stops.size() + aPlan.Update->Retired.size() + 8 : 4); ++step) {
 				// [[BPR-1378]]. Stop keeps the journal's confirmed prefix or its
@@ -582,17 +642,22 @@ namespace bpr::adapters::github::detail {
 					auto next    = current;
 					next.Pending = *nextRequest;
 					++next.Revision;
+					trace(core::tour_publication_stage::journal_save, true);
 					const auto saved = Recovery->advance_staged(current, next);
 					if (!saved || *saved != next) {
 						return { state::outcome_unknown, current };
 					}
+					trace(core::tour_publication_stage::journal_save);
 					current = next;
 				}
+				trace(core::tour_publication_stage::verification, true);
 				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !verify_staged(current, aStop, leftLine)) {
+					trace(core::tour_publication_stage::verification, false, aStop.stop_requested() ? core::operation_failure::cancelled : core::operation_failure::conflict);
 					return { aStop.stop_requested() ? status(current) : current.Published ? state::description_attention
 																						  : state::conflict,
 							 current };
 				}
+				trace(core::tour_publication_stage::verification);
 				const auto wire = compile_staged_review_request(*current.Pending);
 				if (!wire) {
 					return { state::conflict, current };
@@ -603,12 +668,16 @@ namespace bpr::adapters::github::detail {
 				try {
 					completion = perform(*wire, aStop, [&, used, before] {
 						if (used->exchange(true) || aStop.stop_requested() || !Lease->active() || !aAuthorize(before)) {
+							trace(core::tour_publication_stage::admission, false, core::operation_failure::refused);
 							return false;
 						}
+						trace(core::tour_publication_stage::admission);
 						auto next                = before;
 						next.PossiblyTransmitted = true;
 						++next.Revision;
+						trace(core::tour_publication_stage::journal_save, true);
 						const auto saved = Recovery->advance_staged(before, next);
+						trace(core::tour_publication_stage::journal_save, false, saved && *saved == next ? core::operation_failure::none : core::operation_failure::storage_unavailable);
 						return saved && *saved == next;
 					});
 				} catch (...) { /* Durable witness decides whether a write may have escaped. */
