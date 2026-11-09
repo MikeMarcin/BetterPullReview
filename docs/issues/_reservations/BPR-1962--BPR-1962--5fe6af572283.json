@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1962"
+  ],
+  "reserve_for": "release-v042-threaded-readiness",
+  "purpose": "Threaded reaction fixture waits for accepted refreshed snapshot before original oracle",
+  "created": "2026-11-09T08:12:03.605612+00:00",
+  "base": "62a29da30960e81742052db3703f1adbe43f2d9c"
+}
