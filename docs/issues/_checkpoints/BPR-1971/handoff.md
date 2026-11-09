@@ -69,3 +69,25 @@ acceptance is claimed. Further native attempts need a new bounded causal
 control/scope from the coordinator. Final common-source compilation,
 Windows/Linux native suites, optimized close/resource and release/trust gates
 remain separate. Mac46 and Windows43 frozen sources were not mutated.
+
+## Superseding controlled evidence and approved correction
+
+The exact sealed r3 control captures the actual unique refusal on both hosts.
+Windows wrapper exit8/86.16 seconds, held38ms; Mac exit8/65.59 seconds,
+held15ms. Both report legacy composed/Loadedfalse, native loadingfalse,
+Sendenabled and unchangedthree process starts. The immediate public refusal
+names saved conversation still loading; the gate is explicitly released
+before the unchanged original outcome wait. This identifies the shared
+readiness mismatch on exactoldAA7 app bytes, without relabelling earlier
+inconclusive attempts. Both operators restore allfour original source hashes
+and normally rebuild; raw/XML/images/PDB/manifests remain external. Windows
+r3 library deltas include logging and composition; no all-libraries-unchanged
+or About-only claim applies to that phase.
+
+Current correction mandate r4 is approved, source reconciled to
+c76340d4ebd6cfbe44bfc708888be827e9275c31 including accepted1972large-project
+policy andNEXT1974. The seven-path scope and three acceptance criteria are
+recorded in the live plan/card. Product preseal v3 is independently reviewed
+before content reseal; focused positive/negative native proofs and normal
+main integration remain pending. The earlier AC3-pending text describes
+that earlier checkpoint, not the now-confirmed controlled reason.

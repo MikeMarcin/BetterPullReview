@@ -8,8 +8,8 @@
   },
   "milestones": [
     {
-      "id": "classify-exact-refusal",
-      "outcome": "The exact current-source Windows unsupported-native negative failure has a bound public refusal reason, retired diagnostic image and concrete next scope without weakened oracles.",
+      "id": "correct-combined-readiness",
+      "outcome": "Send stays blocked until both selected native history and legacy conversation have settled, with unchanged launch refusal semantics and current-source distinguishing native evidence on main.",
       "work": [
         {
           "issue": "BPR-1971",
@@ -22,11 +22,11 @@
       ],
       "depends_on": [],
       "exit_criteria": [
-        "The original aa7 failure, source/image/graph/context and public failure getters are bound at original400/180limits.",
-        "The temporary single-TU diagnostic is retired through exact source restoration and normal target rebuild, with every owned command quiescent.",
-        "The underlying reason and evidence support a concrete fixture/product classification and minimal coordinator-approved next scope; no functional failure is waived or declared pass."
+        "Controlled Windows and Mac evidence binds the premature Send state to the unique legacy-load launch guard, retaining every original failure and unreached course.",
+        "Both callbacks project combined readiness using existing refresh and a cheap host scalar; current-source controlled regression rejects old UI and passes corrected original six-course wrappers without weakening storage-status, Stop, unsupported or no-fallback behavior.",
+        "Reviewed source pins, focused native/format/tidy/source/docs evidence, exact restoration and normal main integration are complete; final release qualification remains separate."
       ],
-      "boundary": "BPR-1971 coordinator amendment r3: TEMP exact4-file controlled probe only: existing Workbench hold+optional actual LegacyLoaded test access in2existingappfiles, same invocation TU, reviewed142pin. One originalwrapper per explicit Windows/Macmechanicallease; holdlate aftersetup/replays, releaseimmediatelyafteronesend beforeallfail/outcomewait/shutdown, exact4restore+normalrebuild. R2MAX3 exhausted; no more uncontrolled attempts. No product fix/oracle/budget/inventory/otherpin change; frozen43/Mac46 protected."
+      "boundary": "Coordinator amendment r4: seven source paths only: window_agent_setup.cpp; existing fixture access header/CPP; agent_conversation_host header/CPP scalar is_loaded accessor; existing invocation TU controlled regression; reviewed142 content pin. Preserve1972large-project owner amendment/NEXT1974 and1965storage_status/hostlaunchguard. Current-source Windows/Mac Release positive+oldUI negative; Windows host default+real entry-limit180s once. No sourceR mutation or qualification reuse."
     }
   ],
   "coverage": "complete",

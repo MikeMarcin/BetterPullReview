@@ -12,20 +12,22 @@ metadata: {"kind":"diagnosis","found_by":"aa7 Windows original native-session wr
 
 # BPR-1971: Classify native replay launch admission
 
-- AC1. Bind the original aa7 source/image/registered graph and failure at
-  `unsupported-no-silent-fallback`. The initial failure-only getter diagnostic is retained. Under coordinator
-  amendment r2, capture pure-public native-loading, send-enabled, mode,
-  process starts and immediate send refusal before/after the synchronous
-  gesture. Legacy Loaded is unexposed; never fabricate its value. Preserve
-  the condition, wait, original 400/180-second limits and every assertion.
-- AC2. Archive exact original source/image/PDB before the diagnostic. Build
-  normally, execute the same original wrapper once, then restore the exact
-  source and normally rebuild without an additional restored course. All
-  task-owned processes are quiescent and protected producers are unchanged.
-- AC3. Record the actual refusal reason and fixture/product classification
-  supported by the evidence, with a minimal next scope agreed by the
-  coordinator. Keep this functional failure and later unreached checks
-  explicit; this diagnosis supplies no waiver or release qualification.
+- AC1. Bind the original failure and controlled Windows/Mac counterexample:
+  selected native history is settled while the actual legacy conversation
+  is not loaded, yet Send is enabled and the unique loading guard refuses it.
+  Retain original failures, all observations and unreached courses.
+- AC2. Project combined readiness from both callbacks with the existing
+  refresh path and a cheap host Loaded accessor. Preserve Stop, the 1965
+  storage-status return and existing launch guard. A late controlled hold
+  rejects the old UI; corrected code waits for genuine readiness, then runs
+  the original single unsupported request with its unchanged private-storage,
+  no-process-start and no-fallback oracles and 400/180-second limits.
+- AC3. Reconcile the current 1972 large-project owner amendment, review and
+  reseal only the unchanged-inventory 142-file content binding, complete
+  focused Windows/Mac positive/negative proofs plus required Windows host
+  and real entry-limit course at original 180 seconds, format/tidy/source/docs
+  gates and normal main integration. Commands finish and temporary variants
+  are restored. Final release qualification remains separate.
 
 The normal aa7 twelve-row engineering pass has eleven passing rows. Native
 first/reopen and tour first/reopen pass; transcript replay reports `Not
@@ -85,3 +87,22 @@ The same four-file variant has one Windows and one separately authorized Mac
 mechanical execution, each with exact restoration and normal rebuild. These
 are controlled engineering observations, not a correction or qualification.
 Actual results and cause/classification remain pending.
+
+## Confirmed counterexample and product amendment r4
+
+The same sealed controlled patch reproduces the premature Send state on
+Windows (held 38 ms) and Mac (held 15 ms). Both capture actual legacy Loaded
+false, native-ready mode, Send enabled and unchanged three process starts;
+synchronous send reports the unique saved-conversation-still-loading reason.
+The existing unsupported outcome oracle fails afterward, as expected for the
+counterexample. All four temporary sources are restored and normally rebuilt
+on both hosts. No uncontrolled fourth attempt is run.
+
+The coordinator approves the seven-path product correction in the plan.
+Both readiness callbacks refresh the same combined flag. Native body/session
+projection still follows its original native Loading condition, so a later
+coalesced observation cannot leave an old session visible. A scalar host
+accessor avoids copying saved turns; no launch policy or cached Qt decision
+state changes. Current owner policy allowing large native workspaces and its
+additional successful turn/history expectations are preserved from c763.
+Native positive/old-UI negative evidence and main integration remain pending.
