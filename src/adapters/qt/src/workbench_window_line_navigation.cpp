@@ -3,7 +3,9 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "find_button.hpp"
 #include "side_chip.hpp"
+#include "source_column.hpp"
 #include "workbench_window_support.hpp"
 
 #include <QAction>
@@ -14,9 +16,9 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPainter>
 #include <QPointer>
 #include <QPushButton>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -24,26 +26,23 @@
 
 namespace bpr::qt {
 	namespace {
-		/// \brief Keeps the full file identity accessible without sizing the command panel to its path.
-		class line_file_label final : public QLabel
+		struct line_input_state
 		{
-		public:
-			explicit line_file_label(QWidget* aParent)
-				: QLabel{ aParent }
-			{
-				setTextFormat(Qt::PlainText);
-				setForegroundRole(QPalette::PlaceholderText);
-				setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-			}
-
-		protected:
-			void paintEvent(QPaintEvent*) override
-			{
-				auto painter = QPainter{ this };
-				painter.setPen(palette().color(foregroundRole()));
-				painter.drawText(contentsRect(), Qt::AlignLeft | Qt::AlignVCenter, fontMetrics().elidedText(text(), Qt::ElideMiddle, contentsRect().width()));
-			}
+			std::optional<core::source_line_ref> CachedLine;
+			QString                              CachedText;
+			std::uint32_t                        Line   = 0U;
+			std::uint32_t                        Column = 0U;
 		};
+
+		[[nodiscard]] auto positive_decimal(const QStringView aText) -> std::optional<std::uint32_t>
+		{
+			if (aText.isEmpty() || !std::ranges::all_of(aText, [](const QChar aCharacter) { return aCharacter >= QLatin1Char('0') && aCharacter <= QLatin1Char('9'); })) {
+				return std::nullopt;
+			}
+			bool       converted = false;
+			const auto number    = aText.toUInt(&converted);
+			return converted && number > 0U ? std::optional{ number } : std::nullopt;
+		}
 	}
 
 	void workbench_window::set_go_to_line_colours(const QColor& aLeft, const QColor& aRight, const QColor& aText)
@@ -139,12 +138,14 @@ namespace bpr::qt {
 		auto* const line = new QLineEdit{ QString::number(initial->Line + 1U), dialog };
 		line->setObjectName(QStringLiteral("goToLineNumber"));
 		line->setAccessibleName(tr("Line"));
+		line->setPlaceholderText(tr("line:column"));
+		line->setToolTip(tr("Enter a line or line:column. Columns count UTF-16 positions; a tab counts as one. The position after the last character is allowed."));
 		line->setMaxLength(32);
 		auto* const label = new QLabel{ tr("&Line"), dialog };
 		label->setBuddy(line);
 		row->addWidget(label);
 		row->addWidget(line);
-		auto* const buttons = new QDialogButtonBox{ QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog };
+		auto* const buttons = new QDialogButtonBox{ QDialogButtonBox::Ok, dialog };
 		buttons->layout()->setContentsMargins(0, 0, 0, 0);
 		auto* const go = buttons->button(QDialogButtonBox::Ok);
 		go->setText(tr("Go"));
@@ -152,25 +153,16 @@ namespace bpr::qt {
 		go->setAccessibleName(tr("Go"));
 		go->setDefault(true);
 		row->addWidget(buttons);
-		auto* const contextRow = new QHBoxLayout;
-		contextRow->setSpacing(12);
-		column->addLayout(contextRow);
-		auto* const file = new line_file_label{ dialog };
-		file->setObjectName(QStringLiteral("goToLineFile"));
-		if (DocumentTabs) {
-			const auto found = std::ranges::find_if(DocumentTabs->tabs(), [](const auto& aTab) { return aTab.Active; });
-			if (found != DocumentTabs->tabs().end()) {
-				file->setText(found->Path);
-			}
-		}
-		file->setToolTip(file->text());
-		file->setAccessibleName(tr("File: %1").arg(file->text()));
-		contextRow->addWidget(file, 1);
+		auto* const close = new find_button{ dialog, find_glyph::close };
+		close->setObjectName(QStringLiteral("goToLineClose"));
+		close->setAccessibleName(tr("Close"));
+		close->setToolTip(tr("Close (Escape)"));
+		close->setMinimumSize(24, 24);
+		row->addWidget(close);
 		auto* const range = new QLabel{ dialog };
 		range->setObjectName(QStringLiteral("goToLineRange"));
-		range->setAlignment(Qt::AlignRight);
 		range->setForegroundRole(QPalette::PlaceholderText);
-		contextRow->addWidget(range);
+		column->addWidget(range);
 		auto* const reason = new QLabel{ dialog };
 		reason->setObjectName(QStringLiteral("goToLineValidation"));
 		reason->setTextFormat(Qt::PlainText);
@@ -178,8 +170,9 @@ namespace bpr::qt {
 		reason->hide();
 		column->addWidget(reason);
 		const auto stale   = std::make_shared<bool>(false);
-		const auto refresh = [this, material, context, tab, activeTab, counts, side, chips, line, range, reason, go, stale] {
-			line->setMaximumWidth(line->fontMetrics().horizontalAdvance(QStringLiteral("0000000000")));
+		const auto input   = std::make_shared<line_input_state>();
+		const auto refresh = [this, material, context, tab, activeTab, counts, side, chips, line, range, reason, go, stale, input] {
+			line->setMaximumWidth(line->fontMetrics().horizontalAdvance(QStringLiteral("000000:000000")) + 8);
 			chips[0]->Fill = GoToLineLeftFill;
 			chips[1]->Fill = GoToLineRightFill;
 			for (auto* chip : chips) {
@@ -189,37 +182,57 @@ namespace bpr::qt {
 			*stale = *stale || ComparisonSurface->current_result() != material || ComparisonSurface->current_context() != context
 				|| activeTab() != tab || showing_home() || LocalCycleShown || CompositionPage || current_modality() != review_modality::review;
 			const auto count = counts[static_cast<std::size_t>(side->checkedId())];
-			range->setText(count == 0U ? tr("No source lines on this side") : tr("Lines 1–%1").arg(count));
-			const auto text        = line->text();
-			const auto decimal     = !text.isEmpty() && std::ranges::all_of(text, [](const QChar aCharacter) { return aCharacter >= QLatin1Char('0') && aCharacter <= QLatin1Char('9'); });
-			bool       converted   = false;
-			const auto number      = decimal ? text.toUInt(&converted) : 0U;
-			const auto valid       = converted && number > 0U && number <= count;
-			const auto explanation = *stale ? tr("The tab, file or comparison changed. Close this dialog and open Go to line again.")
-				: count == 0U               ? tr("This side has no navigable source lines.")
-				: !valid                    ? tr("Enter a whole line number from 1 to %1.").arg(count)
-											: QString{ };
+			range->setText(count == 0U ? tr("No source lines on this side") : tr("Lines 1–%1 · add :column").arg(count));
+			const auto text         = line->text();
+			const auto colon        = text.indexOf(QLatin1Char(':'));
+			const auto number       = positive_decimal(QStringView{ text }.first(colon < 0 ? text.size() : colon));
+			const auto columnNumber = colon < 0 ? std::optional<std::uint32_t>{ 1U } : positive_decimal(QStringView{ text }.sliced(colon + 1));
+			auto       explanation  = *stale ? tr("The tab, file or comparison changed. Close this dialog and open Go to line again.")
+				: count == 0U                ? tr("This side has no navigable source lines.")
+				: !number || *number > count ? tr("Enter a line from 1 to %1, optionally followed by :column.").arg(count)
+											 : QString{ };
+			if (explanation.isEmpty() && colon >= 0) {
+				const auto target = core::source_line_ref{ material->Alignment.Digest, side->checkedId() == 0 ? core::diff_side::left : core::diff_side::right, *number - 1U };
+				if (input->CachedLine != target) {
+					const auto& document = target.Side == core::diff_side::left ? *material->LeftDocument : *material->RightDocument;
+					const auto  span     = document.Lines[target.Line].Content;
+					input->CachedText    = QString::fromUtf8(reinterpret_cast<const char*>(document.Bytes.data() + span.Begin), static_cast<qsizetype>(span.End - span.Begin));
+					input->CachedLine    = target;
+				}
+				const auto maximum = input->CachedText.size() + 1;
+				range->setText(tr("Lines 1–%1 · columns 1–%2").arg(count).arg(maximum));
+				if (!columnNumber || *columnNumber > maximum) {
+					explanation = tr("Enter a column from 1 to %1.").arg(maximum);
+				} else if (!valid_source_column(input->CachedText, *columnNumber - 1U)) {
+					explanation = tr("Column %1 is inside a Unicode character.").arg(*columnNumber);
+				}
+			}
+			const auto valid = explanation.isEmpty();
+			if (valid) {
+				input->Line   = *number - 1U;
+				input->Column = *columnNumber - 1U;
+			}
 			reason->setText(explanation);
 			reason->setVisible(!explanation.isEmpty());
 			reason->setAccessibleName(explanation);
-			line->setAccessibleDescription(range->text() + QLatin1Char(' ') + explanation);
+			line->setAccessibleDescription(range->text() + QLatin1Char(' ') + line->toolTip() + QLatin1Char(' ') + explanation);
 			go->setEnabled(!*stale && valid);
 		};
 		RefreshGoToLineDialog = refresh;
 		connect(line, &QLineEdit::textChanged, dialog, refresh);
 		connect(side, &QButtonGroup::idClicked, dialog, refresh);
-		connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
-		connect(buttons, &QDialogButtonBox::accepted, dialog, [this, dialog, refresh, go, line, side, initial] {
+		connect(close, &QToolButton::clicked, dialog, &QDialog::reject);
+		connect(buttons, &QDialogButtonBox::accepted, dialog, [this, dialog, refresh, go, side, initial, input] {
 			refresh();
 			if (!go->isEnabled()) {
 				return;
 			}
 			auto target = *initial;
 			target.Side = side->checkedId() == 0 ? core::diff_side::left : core::diff_side::right;
-			target.Line = line->text().toUInt() - 1U;
+			target.Line = input->Line;
 			// Close before focusing the source: a modal child still owns focus.
 			dialog->accept();
-			static_cast<void>(ComparisonSurface->go_to_source_line(target));
+			static_cast<void>(ComparisonSurface->go_to_source_line(target, input->Column));
 		});
 		connect(dialog, &QDialog::finished, this, [this, invokingFocus](const int aResult) {
 			RefreshGoToLineDialog = { };

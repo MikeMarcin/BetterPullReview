@@ -4,6 +4,7 @@
 #include "bpr/qt/type_preview.hpp"
 #include "diff_workbench_support.hpp"
 #include "line_details_splitter.hpp"
+#include "source_column.hpp"
 
 #include <QAbstractScrollArea>
 #include <QAbstractSlider>
@@ -403,7 +404,7 @@ namespace bpr::qt {
 		return core::source_line_ref{ CurrentResult->Alignment.Digest, side, line };
 	}
 
-	auto diff_workbench::go_to_source_line(const core::source_line_ref aLine) -> bool
+	auto diff_workbench::go_to_source_line(const core::source_line_ref aLine, const std::uint32_t aColumn) -> bool
 	{
 		if (!CurrentResult || !SemanticIndex || aLine.Comparison != CurrentResult->Alignment.Digest
 			|| !core::select_line(*SemanticIndex, aLine)) {
@@ -413,15 +414,25 @@ namespace bpr::qt {
 		if (!row) {
 			return false;
 		}
+		auto* const editor = OnePaneEnabled ? Unified : aLine.Side == core::diff_side::left ? Left
+																							: Right;
+		const auto  block  = editor->document()->findBlockByNumber(static_cast<int>(*row));
+		if (!block.isValid() || !valid_source_column(block.text(), aColumn)) {
+			return false;
+		}
 		const auto material = CurrentResult;
 		const auto context  = CurrentContext;
+		const auto shared   = Controller->position();
 		for (auto* const source : { Left, Right, Unified }) {
 			const auto current = static_cast<std::uint32_t>(source->textCursor().blockNumber());
 			place_line_cursor(source, current, current);
 		}
-		auto* const editor = OnePaneEnabled ? Unified : aLine.Side == core::diff_side::left ? Left
-																							: Right;
-		place_line_cursor(editor, *row, *row);
+		auto cursor = QTextCursor{ block };
+		cursor.setPosition(block.position() + static_cast<int>(aColumn));
+		editor->setTextCursor(cursor);
+		if (!OnePaneEnabled) {
+			static_cast<void>(Controller->set_position(shared));
+		}
 		if (!select_line(aLine.Side, aLine.Line, true) || CurrentResult != material || CurrentContext != context || !Interaction.Selection) {
 			return false;
 		}
@@ -431,7 +442,14 @@ namespace bpr::qt {
 		ConversationAnchor = aLine;
 		// A resize or gutter change may still be remeasuring. The geometry
 		// owner consumes this exact anchor when its shared axis is ready.
-		GeometryRevealPending = !reveal_exact_line(*Interaction.Selection, aLine);
+		GeometryRevealPending  = !reveal_exact_line(*Interaction.Selection, aLine);
+		const auto  caret      = editor->cursorRect(cursor);
+		auto* const horizontal = editor->horizontalScrollBar();
+		if (caret.left() < 0) {
+			horizontal->setValue(horizontal->value() + caret.left());
+		} else if (caret.right() > editor->viewport()->width()) {
+			horizontal->setValue(horizontal->value() + caret.right() - editor->viewport()->width());
+		}
 		update_selection_paint();
 		focus_source(aLine.Side);
 		announce_line_selection();

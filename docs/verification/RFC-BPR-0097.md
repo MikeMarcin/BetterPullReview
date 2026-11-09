@@ -158,7 +158,7 @@ The fresh frozen review is recorded in the post-review checkpoint.
 
 ## Owner appearance revision r3
 
-The owner rejected exact v003 at handback8 and requested a dedicated Astra max
+The owner rejected exact v003 at handback 8 and requested a dedicated Astra max
 design pass. The supplied screenshot showed a path heading controlling width,
 isolated range text and a separate button footer. Frontend-design and its
 desktop guidance informed the replacement: one aligned control row and one
@@ -173,6 +173,7 @@ the repository's existing `Qt::WA_WindowPropagation` convention to inherit
 font and palette. The composed course checks construction in a dark profile
 and a subsequent light-profile publication while the dialog stays open.
 
+Source/test candidate: `fed02076b58d210b2a7ad09ad069364aac555ecb`.
 The final source/test candidate passes the complete existing Go to line and
 source Find public course at 100/125/200%: **3/3**, 24.45/21.61/22.95 seconds,
 69.05 seconds total. Its keyboard, exact target, cancellation, stale-request,
@@ -193,13 +194,13 @@ External evidence is under
 `palette-integration.log`, `palette-tidy.log`, `documentation-tests.log` and
 `docs.log`. A disposable renderer links the current production composition
 and opens the same committed `inline-drawer-v1` fixture and 1,557-line file as
-the owner look. It performs the actual Go to line to608, then captures the
+the owner look. It performs the actual Go to line to line 608, then captures the
 reopened dialog in dark/light and invalid states. It runs with network denied,
 an owner-private temporary profile and `QT_QPA_PLATFORM=offscreen`; its only
 position adjustment centers the modal because the offscreen platform has no
 window manager. It leaves no product seam or tracked output.
-All four final views were inspected: the valid panel is427×72 logical pixels,
-and validation expands it to95 pixels. Full path and range fit together on
+All four final views were inspected: the valid panel is 427×72 logical pixels,
+and validation expands it to 95 pixels. Full path and range fit together on
 the actual 1,557-line fixture. Final images are in `inline-drawer-renders-final`
 under that external root.
 
@@ -210,3 +211,45 @@ system appearance remains for the owner to judge in the new frozen candidate.
 No owner desktop or personal browser data was accessed, and no remote mutation,
 push or release occurred. Prior v002 navigation acceptance and v003 rejection
 remain bound to their exact frozen builds.
+
+
+## Column and compact-panel amendment (BPR-1957)
+
+Owner mandate `go-to-line-columns-r4` adds RFC AC05–AC06. Original BPR-1948
+acceptance remains bound to its earlier producing revisions. The new panel
+reuses Find's exact close control, removes filename and Cancel, and accepts
+plain lines or one-based native UTF-16 `line:column`. Tabs count once,
+supplementary characters twice, CRLF does not count, and end-of-line is allowed.
+Invalid and half-surrogate positions are refused rather than clamped. The
+current line's column range is visible and accessible. Column navigation
+preserves the exact single-source-line comment anchor.
+
+The final integration passes **4/4, 139.48 s**: `architecture_boundaries` and
+`application_source_find`, `application_source_find_scale_1_25`,
+`application_source_find_scale_2_0`. These composed checks exercise menu and
+physical key, both presentations/sides, valid and invalid column syntax,
+side-dependent column limits, CRLF/supplementary Unicode, exact native caret,
+subsequent draft, cancellation, stale material, accessible Close and range,
+light/dark propagation, minimum-size layout and unchanged bounded-work counters.
+Their durations are 47.29/21.46/23.22 s; no dedicated performance course ran.
+
+The production Qt workbench's `--go-to-line-only` course passes at
+100/125/200%, using each registered scale's network-denied command and environment.
+It covers an empty source line's sole caret position, tabs, surrogate boundaries,
+zero-based native offsets corresponding to one-based input, CRLF, end-of-line,
+invalid-input nonmutation and horizontally overflowing line visibility, as well
+as the original unavailable/nontext states. These are native widget observations,
+not parser-only assertions. The first composed run failed a test-only expected
+maximum of 11 for an 11-unit UTF-16 fixture line; the correct maximum is 12.
+After fixing that assertion, all final courses pass without a product correction.
+
+Format 22.1.8 and tidy 22 on all three changed translation units pass;
+documentation structure and all 67 documentation controls pass. Logs are under
+the external r3 evidence root above, named `columns-integration.log`,
+`columns-native-focused.log`, `columns-native-125.log`, `columns-native-200.log`,
+`columns-format.log`, `columns-tidy.log` and `columns-doc-controls.log`.
+The actual `inline-drawer-v1` composition renders in `columns-renders` show
+400×72 logical-pixel valid panels and 400×95 invalid panels in light/dark.
+No owner desktop was accessed. Native appearance remains pending the exact
+v005 frozen owner review; neither prior rejection nor v002 navigation acceptance
+is transferred to the new candidate.

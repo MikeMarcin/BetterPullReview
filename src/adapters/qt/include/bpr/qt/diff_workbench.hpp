@@ -447,7 +447,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto source_line_destination() const -> std::optional<core::source_line_ref>;
 		/// \brief Selects, focuses and reveals one core-validated exact source line.
 		/// \details Replaces native ranges and reveals even a repeated selection.
-		[[nodiscard]] auto go_to_source_line(core::source_line_ref aLine) -> bool;
+		/// Column is a zero-based UTF-16 caret offset, including end of line;
+		/// out-of-range offsets and positions inside surrogate pairs are refused.
+		[[nodiscard]] auto go_to_source_line(core::source_line_ref aLine, std::uint32_t aColumn = 0U) -> bool;
 		void               focus_source();
 		/// \brief Returns source focus to the exact side selected by an external occurrence.
 		void focus_source(core::diff_side aSide);

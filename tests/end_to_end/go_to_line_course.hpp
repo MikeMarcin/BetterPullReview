@@ -14,7 +14,6 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
-#include <QDialogButtonBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QLabel>
@@ -61,7 +60,7 @@ namespace go_to_line_course {
 	{
 		const auto owner = QPointer<QWidget>{ aDialog.parentWidget() };
 		if (aButton) {
-			aDialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Cancel)->click();
+			aDialog.findChild<QToolButton*>(QStringLiteral("goToLineClose"))->click();
 		} else {
 			tests::window_system_key(aDialog, Qt::Key_Escape);
 		}
@@ -103,11 +102,11 @@ namespace go_to_line_course {
 			   "native line cursor reads the exact requested source content and source number");
 	}
 
-	inline void submit(qt::workbench_window& aWindow, QDialog& aDialog, const core::diff_side aSide, const std::uint32_t aLine)
+	inline void submit(qt::workbench_window& aWindow, QDialog& aDialog, const core::diff_side aSide, const std::uint32_t aLine, const std::optional<std::uint32_t> aColumn = std::nullopt)
 	{
 		side(aDialog, aSide == core::diff_side::left ? 0 : 1)->click();
-		number(aDialog)->setText(QString::number(aLine + 1U));
-		expect(go(aDialog)->isEnabled(), "valid whole source line enables Go");
+		number(aDialog)->setText(QString::number(aLine + 1U) + (aColumn ? QLatin1Char(':') + QString::number(*aColumn + 1U) : QString{ }));
+		expect(go(aDialog)->isEnabled(), "valid source line and optional column enable Go");
 		number(aDialog)->setFocus();
 		const auto guarded = QPointer<QDialog>{ &aDialog };
 		tests::window_system_key(aDialog, Qt::Key_Return);
@@ -122,6 +121,10 @@ namespace go_to_line_course {
 			QThread::msleep(1);
 		}
 		expect_target(*aWindow.comparison_surface(), aSide, aLine);
+		auto&       surface = *aWindow.comparison_surface();
+		const auto* editor  = surface.one_pane_enabled() ? surface.unified_pane() : aSide == core::diff_side::left ? surface.left_pane()
+																												   : surface.right_pane();
+		expect(editor->textCursor().positionInBlock() == static_cast<int>(aColumn.value_or(0U)), "native caret lands at the exact UTF-16 column or the plain line's start");
 		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 	}
 
@@ -189,8 +192,14 @@ namespace go_to_line_course {
 				expect(chosen_side(*first) == (expected == core::diff_side::left ? 0 : 1), "split focus and unified semantic side choose dialog default");
 				expect(number(*first)->hasFocus() && number(*first)->selectedText() == number(*first)->text(), "Line starts focused and wholly selected");
 				expect(first->windowModality() == Qt::WindowModal && first->parentWidget() == &window, "dialog belongs to opening window");
+				expect(!first->findChild<QLabel*>(QStringLiteral("goToLineFile")), "compact panel does not repeat the active file name");
 				const auto* accessible = QAccessible::queryAccessibleInterface(number(*first));
 				expect(accessible && accessible->text(QAccessible::Name) == QStringLiteral("Line") && !accessible->text(QAccessible::Description).isEmpty(), "accessible line name and valid range");
+				auto* const close           = first->findChild<QToolButton*>(QStringLiteral("goToLineClose"));
+				const auto* closeAccessible = QAccessible::queryAccessibleInterface(close);
+				expect(closeAccessible && closeAccessible->text(QAccessible::Name) == QStringLiteral("Close") && close->toolTip().contains(QStringLiteral("Escape"))
+						   && close->width() >= 24 && close->height() >= 24,
+					   "compact Close has a named accessible button and a usable click target");
 				tests::window_system_key(*first, Qt::Key_Backtab, Qt::ShiftModifier);
 				expect(side(*first, 0)->hasFocus() || side(*first, 1)->hasFocus(), "keyboard traversal reaches the source-side picker");
 				tests::window_system_key(*first, Qt::Key_Left);
@@ -206,12 +215,20 @@ namespace go_to_line_course {
 				const auto selection  = surface.selection();
 				const auto frame      = surface.scroll_controller()->current_frame();
 				const auto unifiedTop = surface.unified_pane()->verticalScrollBar()->value();
-				for (const auto& bad : { QString{ }, QStringLiteral("0"), QStringLiteral("-1"), QStringLiteral("1.5"), QStringLiteral(" 2"), QStringLiteral("99999999999999999999"), QStringLiteral("1108") }) {
+				for (const auto& bad : { QString{ }, QStringLiteral("0"), QStringLiteral("-1"), QStringLiteral("1.5"), QStringLiteral(" 2"), QStringLiteral("99999999999999999999"), QStringLiteral("1108"),
+										 QStringLiteral("1:"), QStringLiteral(":1"), QStringLiteral("1:0"), QStringLiteral("1:-1"), QStringLiteral("1:1.5"), QStringLiteral("1:1:2"), QStringLiteral("1:999999999999"), QStringLiteral("1105:2") }) {
 					number(*first)->setText(bad);
 					expect(!go(*first)->isEnabled() && !first->findChild<QLabel*>(QStringLiteral("goToLineValidation"))->text().isEmpty(), "invalid and overflowing values disable Go with readable reason");
 					expect(surface.selection() == selection && surface.scroll_controller()->current_frame() == frame && surface.unified_pane()->verticalScrollBar()->value() == unifiedTop, "typing never previews navigation");
 				}
 				render(window, first, unified ? QStringLiteral("line-unified-invalid") : QStringLiteral("line-split-invalid"));
+				number(*first)->setText(QStringLiteral("1:12"));
+				side(*first, 0)->click();
+				expect(go(*first)->isEnabled(), "column fits the longer Base source line");
+				side(*first, 1)->click();
+				expect(!go(*first)->isEnabled() && number(*first)->text() == QStringLiteral("1:12")
+						   && first->findChild<QLabel*>(QStringLiteral("goToLineRange"))->text().contains(QStringLiteral("columns 1–11")),
+					   "side change retains input and revalidates against the shorter Head line");
 				number(*first)->setText(QStringLiteral("2"));
 				side(*first, 1 - chosen_side(*first))->click();
 				expect(side(*first, 0)->isChecked() != side(*first, 1)->isChecked(), "clicking the other side preserves one active side");
@@ -220,7 +237,7 @@ namespace go_to_line_course {
 				QApplication::processEvents();
 				expect(first->height() < 110, "valid dialog uses two compact rows without a button footer");
 				render(window, first, unified ? QStringLiteral("line-unified-dialog") : QStringLiteral("line-split-dialog"));
-				for (auto* control : { static_cast<QWidget*>(number(*first)), static_cast<QWidget*>(side(*first, 0)), static_cast<QWidget*>(side(*first, 1)), static_cast<QWidget*>(go(*first)) }) {
+				for (auto* control : { static_cast<QWidget*>(number(*first)), static_cast<QWidget*>(side(*first, 0)), static_cast<QWidget*>(side(*first, 1)), static_cast<QWidget*>(go(*first)), static_cast<QWidget*>(close) }) {
 					expect(first->rect().contains(QRect{ control->mapTo(first, QPoint{ }), control->size() }), "dialog controls fit minimum-size window at course scale");
 				}
 				cancel(*first, sourceSide == core::diff_side::right);
@@ -229,6 +246,16 @@ namespace go_to_line_course {
 					auto* request = dialog(window, false);
 					submit(window, *request, sourceSide, line);
 				}
+				for (const std::uint32_t offset : { 0U, 2U, 11U }) {
+					auto* request = dialog(window, false);
+					submit(window, *request, sourceSide, 1104U, offset);
+				}
+				auto* columnRequest = dialog(window, false);
+				number(*columnRequest)->setText(QStringLiteral("1105:3"));
+				expect(columnRequest->findChild<QLabel*>(QStringLiteral("goToLineRange"))->text().contains(QStringLiteral("columns 1–12")), "column hint excludes CRLF and counts the supplementary character as two UTF-16 units");
+				submit(window, *columnRequest, sourceSide, 500U, 8U);
+				auto* lastLine = dialog(window, false);
+				submit(window, *lastLine, sourceSide, 1106U);
 				// A repeated selected target must be revealed after ordinary scrolling.
 				if (unified) {
 					surface.unified_pane()->verticalScrollBar()->setValue(0);
@@ -250,7 +277,7 @@ namespace go_to_line_course {
 			window.line_numbers_action()->trigger();
 			aWait([&] { return !window.line_numbers_action()->isChecked(); }, "line numbers hidden through profile command");
 			auto* hidden = dialog(window, false);
-			submit(window, *hidden, core::diff_side::right, 500U);
+			submit(window, *hidden, core::diff_side::right, 500U, 8U);
 			render(window, nullptr, unified ? QStringLiteral("line-unified-target") : QStringLiteral("line-split-target"));
 			window.line_numbers_action()->trigger();
 			aWait([&] { return window.line_numbers_action()->isChecked() && !surface.geometry_pending(); }, "line numbers restored through profile command");

@@ -1,7 +1,7 @@
 # Go to line appearance revision
 
-The latest frontier is [appearance r3](#appearance-r3-design-pass), below.
-The r2 record is retained for its exact rejected v003 candidate.
+The latest frontier is [columns r4](#columns-r4-and-final-compact-panel), below.
+Earlier appearance records retain their exact candidates and verdicts.
 
 Assignment `/root/go_to_line_revision`, mandate `go-to-line-r1` with owner
 amendment `go-to-line-appearance-r2` from attended handback 37. Source, tracker
@@ -91,10 +91,10 @@ The owner's supplied screenshot was inspected; no live desktop was accessed.
 
 Session `97887edd2075de347dcc15e45da4be9c` and fingerprint
 `71751f6ea9a273ce5127f904c9ff1aeb9687464315c1f200ea58aca5a210694c`
-match the recorded candidate. Rejection and handback8 were reconciled and
-consumed8 persisted before engineering. The browser verdict has no note;
+match the recorded candidate. Rejection and handback 8 were reconciled and
+consumed 8 persisted before engineering. The browser verdict has no note;
 the design reason comes from the owner's chat and screenshot. The scoped
-conflict query found only v003. Explicit resume-development released it at9;
+conflict query found only v003. Explicit resume-development released it at 9;
 the frozen source/build and recorded rejection remain intact. Navigation's
 accepted v002 candidate remains unchanged.
 
@@ -119,11 +119,74 @@ The preceding architecture/layout integration passed **4/4**, 88.11 seconds.
 Format22.1.8, focused tidy22, documentation structure and 67 documentation
 controls pass. Full-window and panel renders of the actual 1,557-line file
 were inspected in light/dark and invalid states. The default offscreen panel
-is427×72 logical pixels, growing to95 pixels only for validation; the complete
-path fits this actual fixture. Native style metrics are narrower; native
-chrome cannot be judged under the offscreen platform.
+is 427×72 logical pixels, growing to 95 pixels only for validation; the complete
+path fits this actual fixture. Native chrome cannot be judged under the offscreen platform.
 
-Current frontier: source/checks and visual inspection complete; exact frozen
-review preparation is in progress. External evidence root:
+Source/test candidate: `fed02076b58d210b2a7ad09ad069364aac555ecb`.
+The v004 freeze completed and passed its launcher check, but was superseded
+by the owner's X/no-filename/column request before any session was initialized
+or served. Its binary hash was
+`86b2ebdbd615b4c245b1271c5378c7f764071c08eb7b3b1fcfcb8929d39d7fd7`.
+The unused root
+`/Users/jaeger/.codex/attended-builds/bpr1948-go-to-line-v004.qv6svaou`
+was removed using the freeze helper after exec 7659 completed. External evidence root:
 `/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-go-to-line-r3-mrxgnanc`.
 No owner desktop, browser profile, remote mutation or publication is involved.
+
+
+## Columns r4 and final compact panel
+
+Owner amendment `go-to-line-columns-r4` asks for Find's existing close ×,
+no filename, and optional `line:column`. The coordinator confirms one-based
+native UTF-16 columns, including end-of-line, with tabs counting once and
+invalid/half-surrogate positions refused. This is a syntax convention, not
+full VS Code Go to line behavior. Frontend-design's desktop guidance continues
+to govern the design; all renders use actual offscreen Qt widgets.
+
+[BPR-1957](../../20-ready/BPR-1957-go-to-line-columns.md) and the new
+`line-column-panel` milestone own AC05–AC06. Main allocation `2e178b953` and
+feature import `cc5130d02` contain only the counter and immutable receipt;
+the concurrent main native-agent writer's edits were preserved. The
+[amendment record](amendment-columns-r4.json) documents the explicit expanded
+mandate and the helper's same-scope limitation. The selected plan's structure
+and references resolve with no diagnostics in
+[binding-columns-r4.json](binding-columns-r4.json). Original BPR-1948 and its
+AC01–AC04 producing acceptance remain unchanged.
+
+The exact Find button class is shared through an internal header. Go to line
+uses its close glyph, hover and focus treatment, with a minimum 24×24 logical
+click target and an accessible Close name/Escape tooltip. The input, side
+chips, native Go and close share one row. The second row gives the selected
+side's line range and optional column syntax, changing to the requested line's
+column range when a colon is entered. There is no filename or button footer.
+The actual fixture panel measures 400×72 logical pixels; invalid input adds
+one explanation row (400×95). Dark/light full-window and panel previews in
+`columns-renders` were inspected.
+
+Column validation decodes only the requested source line and caches it for
+subsequent column edits. The native destination is revalidated before any
+cursor or scroll change. The existing semantic selection remains one source
+line; the split shared controller and unified row mapping retain vertical
+reveal ownership, while the native caret is made visible horizontally.
+No new core infrastructure, effect, acquisition, search or diff run is added.
+
+The four-row final integration passes **4/4, 139.48 s**: architecture boundaries
+and composed Go to line/source Find at 100/125/200% (47.29/21.46/23.22 s).
+Focused native column checks pass at all three scales, covering tabs,
+supplementary Unicode, CRLF, empty source lines, end-of-line, rejected
+half-surrogates and overflowing columns, single-line drafts and horizontal
+reveal. The composed flow additionally checks parser refusals, side-dependent
+column limits, exact native columns, Close/Escape, profile propagation and
+unchanged bounded work. Format 22.1.8, tidy 22 on all three touched translation
+units, documentation structure and all 67 documentation controls pass.
+The first composed run caught a test expectation miscounting the fixture's
+UTF-16 length; the expected maximum was corrected from 11 to 12. No product
+change was needed for that failure.
+
+Current frontier: source/checks and final visual inspection complete; preparing
+the new exact v005 frozen appearance candidate. No previous appearance verdict
+applies to it. The old v003 host and Tailscale child are stopped, and its scoped
+mutable protections are released at consumed cursor 9. Frozen v002 navigation
+acceptance and v003 rejection remain intact. The unused v004 draft state was
+never initialized or served. No owner desktop, personal browser data, remote
+mutation, push or release was used.

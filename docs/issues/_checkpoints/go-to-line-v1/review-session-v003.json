@@ -30,9 +30,10 @@
     "exec_session": 71483,
     "port": 63778,
     "tailscale_pid": 90615,
-    "foreground_session": "62aa1344a0daceca"
+    "foreground_session": "62aa1344a0daceca",
+    "stopped": true
   },
-  "lifecycle": "Handback 8 reconciled and rejected; scoped development release at 9. Exact frozen v003 and recorded verdict preserved.",
+  "lifecycle": "Stopped after reconciled handback 8 and scoped development release 9. Exact rejected frozen v003 remains intact.",
   "owning_driver": "/root",
   "preparing_implementer": "/root/go_to_line_revision",
   "waiter": "None started by this leaf; coordinator owns subsequent intake and handback-only wait.",

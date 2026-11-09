@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0097"
 title: "Go to a source line in the main diff"
-status: "Auto-Verified"
+status: "In Progress"
 depends_on: []
 metadata: {"origin":"owner request, 2026-11-08","inspected_revision":"663137a9ed38","authoring":"author-rfc; frontend-design:frontend-design and desktop guidance loaded","milestone_plan":{"id":"go-to-line-v1","path":"docs/rfcs/plans/go-to-line-v1/milestone-plan.json"}}
 ---
@@ -48,15 +48,15 @@ preserving its draft.
 This proposal covers split and unified presentations of the main diff.
 [Review Cycles](../../src/adapters/qt/include/bpr/qt/review_cycle_view.hpp)
 uses a separate source/comparison view and is deferred, along with comment-body
-navigation, file switching, columns, relative offsets and configurable shortcuts.
+navigation, file switching, relative offsets and configurable shortcuts.
 
 ### A compact dialog with an explicit source side
 
 Open a compact window-modal **Go to line** dialog with an exclusive **Left** /
-**Right** side picker (Base / Head), a labelled **Line** input, and **Go** and
-**Cancel** buttons on one row. A quiet second row shows the current file and
-the chosen side's valid range **1–N**. Long paths elide within this row and
-remain complete in the tooltip and accessible name. Size the dialog to its
+**Right** side picker (Base / Head), a labelled **Line** input, **Go**, and
+Find's existing **×** close control on one row. Do not repeat the filename.
+A quiet second row shows the chosen side's valid line range **1–N**, the
+optional **:column** syntax, or the requested line's column range. Size the dialog to its
 controls, without a separate button footer, and show validation only when
 needed. Reuse Find in Files’ side chips and the app's
 theme, dialog controls and focus treatment. The dialog adds no permanent row
@@ -73,18 +73,24 @@ comparison's endpoints, including in an older tab.
 
 Seed Line with the current source line on the chosen side, otherwise **1**.
 Focus and select the number for immediate replacement. Changing Side retains
-the entered number and updates its range and validation. Accept one whole
-decimal line number within that range, using the same one-based numbering as
-the gutter. An empty, malformed, overflowing or out-of-range value leaves Go
-disabled with a readable reason; never clamp it to a nearby line. Enter/Return
-submits valid input and Escape/Cancel dismisses the dialog. Typing and changing
+the entered number and updates its range and validation. Accept a whole
+decimal line number, optionally followed by **:column**, using the same
+one-based line numbering as the gutter. A plain line targets its first column.
+Columns are one-based native UTF-16 caret positions: a tab counts as one,
+a supplementary Unicode character counts as two, and a line of length N has
+an end-of-line position N+1. CRLF terminators do not count. A position inside
+a surrogate pair is invalid. An empty, malformed, overflowing or out-of-range
+value leaves Go disabled with a readable reason; never clamp it to a nearby
+line or column. Enter/Return submits valid input and Escape/× dismisses the dialog.
+The close control retains a readable accessible name and tooltip. Typing and changing
 Side do not preview navigation. Cancellation restores the invoking focus and
 leaves the reading position and selection intact.
 
 ### Reveal the exact line
 
 On Go, close the dialog, reveal the requested source row and put keyboard focus
-and the existing line cursor on that exact side and line. Replace any previous
+and the existing native caret on that exact side, line and column. Reveal the
+caret horizontally when needed. Replace any previous
 source range with that single-line target so subsequent keyboard navigation or
 commenting starts there. A request inside a changed group must land on the
 requested line rather than the group's first line. A repeated request reveals
@@ -119,12 +125,22 @@ and removes wasted dialog space. Navigation and focus were accepted for the
 exact v002 frozen candidate. The revised appearance needs a fresh owner look;
 all AC01–AC04 and source-side semantics remain unchanged.
 
-Owner amendment `go-to-line-appearance-r3` (v003 handback8, 2026-11-08)
+Owner amendment `go-to-line-appearance-r3` (v003 handback 8, 2026-11-08)
 rejects the revised appearance as still an inefficient use of space and
 requests a dedicated design pass. The two-row composition above replaces
 v003's file heading, separated range and bottom buttons. Original automated
 acceptance and the exact v002 navigation verdict remain unchanged; the new
 appearance requires its own frozen candidate and owner judgment.
+
+Owner amendment `go-to-line-columns-r4` (chat, 2026-11-08) replaces Cancel
+with the existing Find close control, removes the filename and adds the
+familiar `line:column` syntax. The chosen column convention follows Qt's
+native UTF-16 positions; it does not claim all VS Code Go to line behavior.
+In particular, current VS Code converts visible columns through tab stops and
+clamps some values ([primary implementation](https://github.com/microsoft/vscode/blob/main/src/vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess.ts));
+this command retains its explicit refusal contract. The follow-up
+[BPR-1957](../issues/20-ready/BPR-1957-go-to-line-columns.md) owns AC05–AC06.
+Previously accepted criteria and frozen verdicts retain their producing revisions.
 
 ## Acceptance criteria
 
@@ -146,16 +162,28 @@ appearance requires its own frozen candidate and owner judgment.
   in both presentations. Full-window renders at minimum supported size and
   supported scaling show usable controls and a visible target; navigation
   retains the shared scroll geometry and the stated bounded-work behavior.
+- **AC05:** Plain line and `line:column` requests place the exact native caret
+  in split and unified views, including ASCII, tabs, supplementary Unicode,
+  CRLF, empty lines and end-of-line positions. Invalid columns refuse without
+  moving selection or scroll. Long-line carets are visible horizontally;
+  subsequent comments still anchor exactly one source line. The current line's
+  column range is readable and accessible, with no new source acquisition or
+  diff/search computation.
+- **AC06:** The compact panel has the shared Find close control, no filename
+  or Cancel footer, and usable keyboard, accessible, light/dark and supported
+  scale states. The owner accepts the exact frozen panel's appearance.
 
 ## Execution record
 
-One milestone, [BPR-1948](../issues/60-done/BPR-1948-close-rfc-0097.md), implements all four criteria.
+The original milestone, [BPR-1948](../issues/60-done/BPR-1948-close-rfc-0097.md), implements AC01–AC04.
+The `line-column-panel` follow-up implements AC05–AC06 without rewriting that
+completed card's historical acceptance.
 RFC_BASE_SHA: `663137a9ed3825c87934c93926d414725f8bee22`.
 [Milestone plan](plans/go-to-line-v1/MILESTONES.md).
 
 Accepted on the isolated implementation branch at test candidate `e3e600c9f5483bcec66b140d0473d232b4ae7564`;
 product candidate `52c8469b6a1c9d5fd9fc0fe7a6c39469abc73841` is unchanged.
-All AC01–AC04 pass. [Verification](../verification/RFC-BPR-0097.md) records
+All original AC01–AC04 pass at that revision. [Verification](../verification/RFC-BPR-0097.md) records
 13-row integration, strengthened three-scale checks, falsification and limits.
 Main integration remains with the coordinator while its other writer is active.
 

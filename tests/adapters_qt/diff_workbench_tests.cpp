@@ -1858,6 +1858,57 @@ namespace {
 		expect(!workbench.source_line_destination(), "loading comparison offers no line destination");
 	}
 
+	void test_go_to_line_columns()
+	{
+		const auto longLine  = std::string(400, 'x');
+		const auto diff      = computed("base\n\t𝄞x\r\n\n" + longLine + "\n", "new first\nextra\n\t𝄞x\r\n\n" + longLine + "\n", { }, 76U);
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(900, 500);
+		workbench.show();
+		const auto selected = context(diff, 1U, 1U);
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		process_events();
+		for (const bool unified : { false, true }) {
+			workbench.set_one_pane_enabled(unified);
+			process_events();
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				auto* const editor = unified ? workbench.unified_pane() : side == core::diff_side::left ? workbench.left_pane()
+																										: workbench.right_pane();
+				const auto  line   = side == core::diff_side::left ? 1U : 2U;
+				auto        target = core::source_line_ref{ diff.Alignment.Digest, side, line };
+				for (const auto column : { 0U, 1U, 3U, 4U }) {
+					expect(workbench.go_to_source_line(target, column), "tab and supplementary Unicode columns navigate in either presentation");
+					process_events();
+					expect(editor->textCursor().block().text() == QStringLiteral("\t𝄞x") && editor->textCursor().positionInBlock() == static_cast<int>(column) && !editor->textCursor().hasSelection(), "native caret counts tab once and supplementary Unicode twice, without CRLF");
+					const auto range = workbench.line_draft_range();
+					expect(range && range->first == target && range->second == target, "column navigation retains exactly one source-line draft anchor");
+				}
+				const auto selection = workbench.selection();
+				const auto cursor    = editor->textCursor();
+				const auto top       = editor->verticalScrollBar()->value();
+				const auto left      = editor->horizontalScrollBar()->value();
+				for (const auto column : { 2U, 5U, 4'294'967'295U }) {
+					expect(!workbench.go_to_source_line(target, column) && workbench.selection() == selection
+							   && editor->textCursor().position() == cursor.position() && editor->textCursor().anchor() == cursor.anchor()
+							   && editor->verticalScrollBar()->value() == top && editor->horizontalScrollBar()->value() == left,
+						   "inside-surrogate and out-of-range columns refuse before changing selection, cursor or scroll");
+				}
+				target.Line = line + 1U;
+				expect(workbench.go_to_source_line(target, 0U) && editor->textCursor().block().text().isEmpty()
+						   && editor->textCursor().positionInBlock() == 0 && !workbench.go_to_source_line(target, 1U),
+					   "an empty source line has exactly one caret position");
+				target.Line = line + 2U;
+				expect(workbench.go_to_source_line(target, 400U), "end-of-line column is valid on a horizontally overflowing line");
+				process_events();
+				expect(editor->textCursor().positionInBlock() == 400 && editor->horizontalScrollBar()->value() > 0
+						   && editor->cursorRect().left() >= 0 && editor->cursorRect().right() <= editor->viewport()->width(),
+					   "exact long-line caret is horizontally visible");
+				expect(workbench.go_to_source_line(target) && editor->textCursor().positionInBlock() == 0 && editor->cursorRect().left() >= 0, "plain line navigation returns to the visible line start");
+			}
+		}
+	}
+
 	void test_semantic_selection_callback_tracks_both_panes_and_clear()
 	{
 		const auto [leftText, rightText] = representative_text();
@@ -6591,6 +6642,11 @@ auto main(int argc, char** argv) -> int
 		test_source_overlay_scrollbar_keeps_viewport_extent();
 		return EXIT_SUCCESS;
 	}
+	if (argc > 1 && std::string_view{ argv[1] } == "--go-to-line-only") {
+		test_nontext_publication_status();
+		test_go_to_line_columns();
+		return EXIT_SUCCESS;
+	}
 	test_source_overlay_scrollbar_keeps_viewport_extent();
 	test_an_opened_file_waits_by_name();
 
@@ -6619,6 +6675,7 @@ auto main(int argc, char** argv) -> int
 	test_tinted_numbers_and_the_add_button();
 	test_selected_composition();
 	test_nontext_publication_status();
+	test_go_to_line_columns();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();
 	test_prepared_semantic_index_adoption();
