@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1971"
 title: "Wait for both agent history loads before enabling Send"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win", "mac", "linux"]
 metadata: {"kind":"bug","found_by":"aa7 Windows original native-session wrapper engineering","mandate":"Coordinator amendment r4 approves the confirmed seven-path readiness correction, unchanged guards/oracles and current-source Windows/Mac distinguishing proofs on2026-11-09.","milestone_plan":{"id":"bpr-1971-native-launch-admission","path":"docs/rfcs/plans/bpr-1971-native-launch-admission/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"970812bfe2a1107625c788a2e87d2a220e4ba93d","evidence":{"kind":"artifact","detail":"Same sealed controlled r3 counterexample on Windows and Mac: actual legacy Loaded false, native ready, Send enabled, unchanged process starts, immediate unique saved-conversation-still-loading refusal. Holds released after38/15ms before original failing outcome waits; original failures/inconclusive attempts/unreached sixth retained. Exact temporary sources restored normally."}},{"criterion":"AC2","outcome":"pass","revision":"970812bfe2a1107625c788a2e87d2a220e4ba93d","evidence":{"kind":"artifact","detail":"Both callbacks combine readiness through existing refresh; scalar is_loaded avoids history copying, original body condition/1965 return/Stop/host guard preserved. Exact current1972-inclusive source: Mac six-course positive0/21.420s, old-UI negative8/21.073s; Windows positive0/46.953s, old-UI negative8/41.635s at exact deterministic readiness assertion, no standalone negative wrapperPASS. Original400/180 limits and unsupported/private_storage_failure/no-start/no-fallback oracles unchanged."}},{"criterion":"AC3","outcome":"pass","revision":"2d0c3265d2262f713c60c58af70e29f01c6eeb57","evidence":{"kind":"artifact","detail":"Seven tested code hashes merged and origin verified on main2d0; c763/owner1972 policy and NEXT1974 preserved. Windows host default0/0.312s and real263169-entry course0/140.377s at original180s, all XMLs actual pass not skip. Format22, two production TU tidy22, architecture, normal reviewed142 source audit, documentation and explicit three-criterion binding pass. Both platform variants restored/normal rebuilt; all forests empty, exact owned tasks Ready/result0 removed, native PC idle and original43 task unchanged. Separate final common release gates remain explicit."}}]
 ---
 
 # BPR-1971: Wait for both agent history loads before enabling Send
