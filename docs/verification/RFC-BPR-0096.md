@@ -518,7 +518,7 @@ was an invalid-plan diagnostic rather than a usable generated view.
 | Amended M4 obligation/exit | Judgment and evidence |
 |---|---|
 | BPR-1954 and exit1: explicit replay/New session, provenance and permission/submission fences | Accepted unchanged: product `2de6a3336a02b7aae5a62700d17b620eff98451d`, public6, core/host/SQLite and negative-control evidence above. |
-| BPR-1955: installed Codex, composition, resource, usage and operator documentation | Accepted with the scoped Claude waiver: unchanged passing AppServer native/replay/exact-resume/Stop, JSONL, explanation, resource5/public6 and seven rasters; actual Release metrics above. Documentation is checked after this amendment. |
+| BPR-1955: installed Codex, composition, resource, usage and operator documentation | Accepted with the scoped Claude waiver: unchanged passing AppServer native/replay/exact-resume/Stop, JSONL, explanation, resource5/public6 and seven rasters; actual Release metrics above. Fresh amendment-round documentation gate passes (`m4-waiver-documentation.log`). |
 | Amended exit2: actual available-scope evidence plus explicit Claude limitation | Accepted on those observations and the owner's acceptance amendment. The amendment is applied; installed Claude is not reported as passing. |
 
 Wizard session `94eafb5d-7d90-4146-9de5-f8802d8bade4`, external state
@@ -531,7 +531,9 @@ the lifecycle disposition is recorded separately in external
 remaining review server, scheduled retry or automatic inference.
 
 M4 `qualified-continuation` is accepted under the amended requirements. BPR-1955
-can finish and BPR-1956 can become Ready for a fresh `accepted-scope` owner. This
+is Done at `5106dd472bd4312bd6c060d9bbb3559656ed0128`; BPR-1956 is Ready for a
+fresh `accepted-scope` owner. The live amendment is committed at
+`af1ab6d61c17bb1602e4d5bb1a004a9d9494f622`. This
 does not close the RFC: the final AC01–AC12 audit remains with BPR-1956. Existing
 Windows/Linux/system-appearance, forced-compaction, entry-count boundary, actual
 five-minute expiry, original all-stops sequence and release/vault/crash/security

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1956"
 title: "Verify and close RFC-BPR-0096"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0096"]
 metadata: {"mandate_revision":"native-agent-sessions-r1","reservation":"docs/issues/_reservations/BPR-1951--BPR-1956--ed8ca44cbe3b.json","milestone_plan":{"id":"native-agent-sessions-v1","path":"docs/rfcs/plans/native-agent-sessions-v1/milestone-plan.json"}}
 depends_on: ["BPR-1951", "BPR-1952", "BPR-1953", "BPR-1954", "BPR-1955"]
@@ -89,8 +89,10 @@ History is retained in external state
 `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-weekly-pnwqk34v/state`.
 No review server, retry or inference remains active.
 
-M4 is accepted under the amended requirements. After BPR-1955 finishes this card
-is dependency-eligible for Ready and belongs to the fresh `accepted-scope` owner.
+M4 is accepted under the amended requirements. BPR-1955 finished at
+`5106dd472bd4312bd6c060d9bbb3559656ed0128`, and this card is Ready for the fresh
+`accepted-scope` owner. Live acceptance amendment commit:
+`af1ab6d61c17bb1602e4d5bb1a004a9d9494f622`.
 Recovery is
 `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-waiver-handoff.md`.
 The full criterion-by-criterion closeout below remains that owner's work; the RFC
