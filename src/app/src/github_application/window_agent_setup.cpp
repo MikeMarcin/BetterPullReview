@@ -675,6 +675,11 @@ namespace bpr::app {
 		if (aView.SaveFailed) {
 			present_agent_refusal("history storage", "This conversation could not be saved. Existing histories were kept. Free storage before starting another conversation.");
 		}
+		// [[BPR-1965]]. Saving the visible turn reports durability, not a
+		// restored transcript: rebuilding it would lose About and DraftTarget.
+		if (aView.Update == application::agent_conversation_update::storage_status) {
+			return;
+		}
 		if (Window->agent_panel()->selected_profile() && AgentSetup) {
 			const auto preferences = AgentSetup->projection().Preferences;
 			if (const auto* entry = core::entry_of_profile(preferences.Agents, *Window->agent_panel()->selected_profile()); entry) {
