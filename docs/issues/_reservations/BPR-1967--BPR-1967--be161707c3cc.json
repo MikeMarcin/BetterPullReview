@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1967"
+  ],
+  "reserve_for": "windows-native-diagnosis",
+  "purpose": "Portable native-session missing-workspace fixture without Windows open-directory rename abort",
+  "created": "2026-11-09T15:37:26.941872+00:00",
+  "base": "72e938be2e10ac070b5cd77bcdf8b45157c4233d"
+}
