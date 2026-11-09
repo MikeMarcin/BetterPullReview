@@ -1,0 +1,32 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-1955"
+title: "Qualify native conversations and document their ownership"
+status: "Parked"
+rfcs: ["RFC-BPR-0096"]
+metadata: {"mandate_revision":"native-agent-sessions-r1","reservation":"docs/issues/_reservations/BPR-1951--BPR-1956--ed8ca44cbe3b.json","milestone_plan":{"id":"native-agent-sessions-v1","path":"docs/rfcs/plans/native-agent-sessions-v1/milestone-plan.json"}}
+depends_on: ["BPR-1951", "BPR-1952", "BPR-1953", "BPR-1954"]
+parked_on: "human-review"
+acceptance: [{"criterion":"AC10-Codex","outcome":"pass","revision":"f98e14cd604a251a32e8cfeb9c33a5b0614a489a","evidence":{"kind":"observation","detail":"Installed0.164 AppServer native/replay3, exact reconnect and explicit interruption; JSONL exact handle3; actual full BPR guide explanations and offscreen/public controls on macOS arm64.","references":["docs/verification/RFC-BPR-0096.md","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-final-resource-check.log","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-qualification-public-raster.log","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-usage-summary.json","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-cause-driver.log"]}},{"criterion":"AC10-Claude","outcome":"pending","revision":"f98e14cd604a251a32e8cfeb9c33a5b0614a489a","evidence":{"kind":"observation","detail":"Authenticated Claude2.1.310 requests fail HTTP429; native/replay/exact resume/interruption acceptance must be supplied by actual later courses after availability returns. Wizard session e5378f2a-8c51-4e65-81e2-c08ac10cb8a9 is handed off at consumedrevision1.","references":["docs/verification/RFC-BPR-0096.md","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-final-resource-check.log","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-qualification-public-raster.log","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-usage-summary.json","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-cause-driver.log"]}},{"criterion":"AC11-available-scope","outcome":"pass","revision":"f98e14cd604a251a32e8cfeb9c33a5b0614a489a","evidence":{"kind":"observation","detail":"Actual Release AppServer native/replay metrics reported with cost/model/platform limits; functional idle64KiB,+1,cache4eviction,16GiB sparse pressure/shared500/refusal and retained ownership courses pass. No all-platform/automatic-reclamation/fixed-savings claim.","references":["docs/verification/RFC-BPR-0096.md","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-final-resource-check.log","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-qualification-public-raster.log","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-usage-summary.json","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-cause-driver.log"]}},{"criterion":"AC12-documentation","outcome":"pass","revision":"f98e14cd604a251a32e8cfeb9c33a5b0614a489a","evidence":{"kind":"observation","detail":"Live operator/product/architecture and scoped RFC0011/0012/0092 amendment updated; immutable packs/Done verdicts preserved, documentation gate passes and67unchanged script tests remain passing.","references":["docs/verification/RFC-BPR-0096.md","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-final-resource-check.log","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-qualification-public-raster.log","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-usage-summary.json","/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-cause-driver.log"]}}]
+---
+
+# Qualify native conversations and document their ownership
+
+## Scope and acceptance
+
+Run the [RFC's](../../rfcs/RFC-BPR-0096-native-agent-sessions-and-tour-context.md)
+focused composition and installed-agent courses with exact backend version,
+protocol and platform identity. Exercise crash/reconnect, per-turn and idle
+bounds, storage pressure, retained-context privacy and permission revalidation.
+Obtain rendered offscreen evidence for the
+changed controls and warning reasons. Compare equivalent Release native and
+replay conversations using actually available usage and reuse metrics, with
+Debug timing nongating. Reconcile the
+[proposed amendment](../../rfcs/assets/native-agent-sessions-v1/proposed-session-amendment.md) and operator disclosures
+through authorized live documentation changes. This completes
+`qualified-continuation` in the [plan](../../rfcs/plans/native-agent-sessions-v1/milestone-plan.json).
+
+Cover AC10, AC11 and the substantive documentation portion of AC12; integrate
+the distinguishing functional evidence from the preceding cards. Missing
+installed/native/human observations remain explicit; no authoring validation
+or old fixture pass is substituted.

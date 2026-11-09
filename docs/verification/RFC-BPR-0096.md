@@ -294,7 +294,7 @@ not implemented: exact unverifiable/modified ownership is preserved and capacity
 refuses new admission.
 
 Evidence is external under `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/`.
-`m4-functional3.log` passes5 focused/public checks, including all6 seed/reopen
+`m4-functional3.log` passes 5 focused/public checks, including all 6 seed/reopen
 courses with actual composers. Missing native workspace refuses before a process
 or retry; explicit replay gets a fresh workspace, preserves the source tree and
 omits the unsent failed question. Unknown legacy slot selection and replay survive
@@ -305,21 +305,21 @@ boundaries. Final candidate checks/static/gates and revisions are recorded below
 when complete. Prior scoped M1–M3 installed/platform limitations remain open on
 BPR-1955. No full AC10/AC11 or RFC acceptance is inferred from this migration.
 
-Final migration evidence: `m4-integration-final.log` passes10/11 checks, including
+Final migration evidence: `m4-integration-final.log` passes 10/11 checks, including
 architecture contract, launch/loop, Qt, storage and composition contracts. The
 public driver's new unsupported-New action initially clicked while its asynchronous
 history load disabled the button; the test now waits for the public enabled state.
-`m4-public-raster.log` then passes all6 production seed/reopen courses under network
+`m4-public-raster.log` then passes all 6 production seed/reopen courses under network
 denial and saves the offscreen-m4 rasters. Agent replay/reopen and native tour
 rasters were inspected. `m4-uncertain-check.log` passes a final replay restart
 regression: uncertainty is visible even without native handle/workspace, with zero
 process/workspace starts. Native-only early return previously hid that notice and
 was corrected. No automatic resend was added.
 
-Clang-format22 passes23 changed C++ files. Scoped tidy passes all9 implementation
+Clang-format22 passes 23 changed C++ files. Scoped tidy passes all 9 implementation
 units (final affected6 in `m4-tidy2.log`, final uncertainty host in
 `m4-tidy3.log`, unchanged3 in `m4-tidy.log`); a SQLite cast-placement diagnostic was
-corrected. Documentation structure passes and67 documentation script tests pass.
+corrected. Documentation structure passes and 67 documentation script tests pass.
 Earlier build failures (target spellings, statement expected/optional, tooltip
 insertion, and structural test field count) remain in the external logs; none was
 accepted as functional evidence. Core-only replay/dependency/architecture3/3 pass.
@@ -328,3 +328,116 @@ Frontend-design was loaded before Qt changes. This is scoped BPR-1954 acceptance
 BPR-1955 and qualified-continuation remain active for installed/Release qualification.
 
 BPR-1954 product candidate: `2de6a3336a02b7aae5a62700d17b620eff98451d` (tested source promoted unchanged).
+
+
+## Installed qualification and operator reconciliation (BPR-1955, partial)
+
+The exact installed scope is macOS 26.6.2 / Darwin arm64, Qt 6.12.0, tests-enabled
+optimized Release, Codex CLI 0.164.0 and Claude Code 2.1.310. No Windows/Linux native
+or system-appearance acceptance is inferred. Opt-in installed courses use the
+production protocol/launch builders, actual BPR guide/snapshots and a disposable
+repository containing `src/item.cpp`; the agent receives no BPR source access.
+A test-only transparent stdio wrapper counts reported numeric usage and fixture
+read commands. It is not a product Python dependency or an OS sandbox.
+
+| Actual installed course | Result |
+|---|---|
+| Codex App Server native, three questions | Pass: first two turns keep one runtime process, third resumes the exact handle in a new process; one preserved fixture workspace. Follow-up recalls a random tool-read value absent from the first prose answer, with no second read. |
+| Codex App Server explicit replay, same three logical questions | Pass after the EOF correction below; three new fixture workspaces/processes and three fixture read commands. Every turn carries full current BPR context and bounded saved prose only. |
+| Codex JSONL native, three questions | Pass by exact handle with one workspace and a process per turn. No persistent-process claim. |
+| Codex App Server explicit interruption | Pass: READY, an authorized long turn cancelled on its first streamed output, then exact-ID reconnect answers only the explicit AFTER_INTERRUPTION question. The stopped question is not automatically continued or resent. This later course reports model `gpt-6.1-sol`. |
+| Claude Code 2.1.310 | Pending. Earlier attempts were signed out. A later normal and exact-materialized-environment CLI status reports loggedIn=true/authMethod=claude.ai, including USER. Actual read-only native, replay and interruption attempts still fail before a usable answer. Sanitized own-protocol diagnostics identify authenticated HTTP429. This is no longer a sign-in diagnosis; no native acceptance or usage credit is assigned. |
+
+The installed Codex answers were inspected. They distinguish unconfirmed Stop 1
+from Stop 2 with the identical path/range confirmed but unfinished prose, name
+Show in code, Edit stop, Use selected lines and Ready, next, and keep publication
+separate. The updated same-revision/reconnect snapshot is authoritative. Its
+confirmed author-selected Stop 1 still has missing mapped evidence, so the model
+correctly explains the independent source_unavailable reason; this does not claim
+to reproduce the owner's original all-stops sequence or invent absent evidence.
+M3's distinguishing source/core/UI cases remain unchanged.
+
+Equivalent App Server Release observations, one three-question sample per mode:
+
+| Observed metric | Native | Transcript replay |
+|---|---:|---:|
+| Elapsed total | 56.984s | 78.772s |
+| Fixture workspace starts | 1 | 3 |
+| Runtime process starts | 2 (includes exact reconnect) | 3 |
+| Fixture read commands | 1 | 3 |
+| Reported input tokens | 101047 | 177476 |
+| Reported cached input tokens | 51456 | 124416 |
+| Reported output tokens | 2133 | 2448 |
+| Reported USD cost | unavailable | unavailable |
+
+The usage totals retain App Server's final cumulative thread counters; replay
+has three observed resets and three serial processes. Cache counts are reported,
+not converted into a price or a fixed savings percentage. Actual model IDs were
+not captured in this first comparison; identical configured built-in read-only
+profiles were used. The separately observed interruption model is not imputed to
+those earlier turns. Workspace-start counts here describe the installed harness;
+production-host reuse/admission is independently exercised by public courses.
+JSONL reports input/cached/output counters of 43696/28800/747,
+71266/51200/990 and 104954/78848/1779 for its three invocations; these are retained
+as reported, with no sum across potentially cumulative resume counters. Claude
+usage and its equivalent comparison remain unqualified. Single-course elapsed
+values are not universal performance promises. Dedicated Debug timing/performance
+courses were not selected and receive no timing credit.
+
+Installed qualification exposed two causal issues. One-shot App Server previously
+closed stdin immediately after turn/start; installed 0.164.0 treated EOF as
+cancellation and replay returned incomplete_frame. It now closes only after the
+decoded terminal, preserving native persistent streams. Catalog close bookkeeping
+still closes once. Tour persistence also now saves the terminal assistant item
+consumed by the public tour, excluding preliminary narration that could corrupt
+restored structured answers. The initial qualifier itself concatenated commentary
+and terminal JSON; it was aligned with the existing public consumer without
+relaxing the answer validator.
+
+Final functional evidence is external in
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/`:
+
+- `m4-final-resource-check.log`:5/5 pass, covering architecture, isolation manifest,
+  protocol loop, invocation host and real process canary. Exact64KiB idle output
+  fits; the next byte closes before another turn is selected. Four idle process
+  slots evict at the fifth session without losing exact native resume/workspace.
+  Active output/frame/input and cancellation cases remain passing. Five-minute
+  idle expiry is a configured ceiling; no wall-clock expiry claim is added.
+- `m4-qualification-public-raster.log`:all 6 production Agent/tour native/replay
+  seed/reopen courses pass under network denial. A sparse logical 16 GiB+1 file in
+  the owned fixture refuses admission before process start and preserves the
+  original history/workspace; only that test-owned file is removed. Shared 500
+  catalog/protected-save and failure courses remain passing. The 262144-entry
+  ceiling is documented rather than claimed as separately boundary-exhausted.
+- Seven offscreen rasters in `offscreen-m4-qualification`, including active Agent
+  and tour Transcript replay, were retained; both replay rasters were inspected.
+  Controls and provenance/omission disclosures are visible. This is offscreen
+  layout evidence, not target-native system appearance acceptance.
+- `m4-qualification-tidy.log` passes both changed production implementation units;
+  changed-file clang-format22 and documentation gates pass. Earlier67 passing
+  documentation script tests remain applicable and unchanged.
+- Installed guard receipts for Codex native/replay/JSONL/interruption pass and
+  selected live declaration bytes remain unchanged. Claude failure receipts also
+  preserve those bytes. These are cooperative comparisons of selected files,
+  not complete filesystem containment. No credential, personal browser/profile
+  data, API-key workaround, live GitHub mutation or extra reviewer was used.
+
+Actual failed attempts remain explicit: initial EOF replay cancellation, helper
+commentary concatenation and const-array/cancel-method fixture build diagnostics,
+synthetic idle framing, catalog double-close, and one stale-helper launch stopped
+by its exact task-owned wrapper PID. Corrected narrow checks pass. Native engine
+transcripts remain engine-owned; BPR metadata, New session, Reset tour and purge
+are distinct. Automatic retained-workspace reclamation is not implemented:
+modified/unverifiable ownership is kept and admission refuses safely. This work
+does not close M8/M9 vault, crash, vulnerability, package trust or full-removal gaps;
+profile purge excludes shared updater/registry state and is not uninstall.
+
+Live operator/product/architecture contracts and RFC0011/0012/0092 carry the scoped
+RFC0096 amendment while historical Done-card verdicts and immutable source packs
+remain unchanged. BPR-1955 and qualified-continuation stay pending for actual
+Claude request availability and subsequent native qualification. The full RFC
+remains Proposed; BPR-1956 is not dependency-eligible.
+
+Fresh availability wizard session `e5378f2a-8c51-4e65-81e2-c08ac10cb8a9`; external state `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-availability-fepjjjg6/state`; lifecycle serving/awaiting owner, consumed revision1. Acknowledging availability does not accept product behavior. Authenticated URLs are retained only in external runtime state.
+
+BPR-1955 available-scope product candidate `f98e14cd604a251a32e8cfeb9c33a5b0614a489a`; the source tested above was promoted unchanged. Required Claude acceptance remains pending.
