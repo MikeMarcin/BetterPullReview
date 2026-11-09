@@ -69,7 +69,7 @@ function(bpr_bound_automated_run bpr_test_name)
         1
         arg
         ""
-        "TIMEOUT;BUDGET_MS;RUNS;RESERVE_MS"
+        "TIMEOUT;DEBUG_TIMEOUT;BUDGET_MS;RUNS;RESERVE_MS"
         ""
     )
     foreach(required IN ITEMS TIMEOUT BUDGET_MS RUNS RESERVE_MS)
@@ -106,7 +106,19 @@ function(bpr_bound_automated_run bpr_test_name)
         "bpr: ${bpr_test_name} bounds itself at ${bpr_worst_case_ms} ms inside "
         "a ${bpr_harness_ms} ms timeout (${bpr_headroom_ms} ms headroom)"
     )
-    set_tests_properties("${bpr_test_name}" PROPERTIES TIMEOUT ${arg_TIMEOUT})
+    # [[BPR-1973]]. A bounded Debug functional watchdog changes no
+    # application run budget or optimized timing requirement.
+    set(bpr_test_timeout "${arg_TIMEOUT}")
+    if(DEFINED arg_DEBUG_TIMEOUT)
+        if(NOT arg_DEBUG_TIMEOUT MATCHES "^[1-9][0-9]*$")
+            message(FATAL_ERROR "${bpr_test_name}: DEBUG_TIMEOUT must be a positive integer")
+        endif()
+        if(arg_DEBUG_TIMEOUT LESS arg_TIMEOUT)
+            message(FATAL_ERROR "${bpr_test_name}: DEBUG_TIMEOUT must not shorten TIMEOUT")
+        endif()
+        set(bpr_test_timeout "$<IF:$<CONFIG:Debug>,${arg_DEBUG_TIMEOUT},${arg_TIMEOUT}>")
+    endif()
+    set_tests_properties("${bpr_test_name}" PROPERTIES TIMEOUT "${bpr_test_timeout}")
 endfunction()
 
 # Sizing and failure-reporting rule: docs/development/build-and-test-reference.md,
@@ -177,6 +189,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_public_path
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -235,6 +248,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_public_path
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -273,6 +287,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_unavailable
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -324,6 +339,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_registered_course
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -485,6 +501,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_browser_handoff
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -521,6 +538,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_browser_absent
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -585,6 +603,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_composition_capabilities_inside_boundary
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -619,6 +638,7 @@ set_property(
 bpr_bound_automated_run(
     application_composition_capabilities_product_run
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -663,6 +683,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_panel_course
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -692,6 +713,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_panel_absent
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -729,6 +751,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_ghes_refusal
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -768,6 +791,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_device_authorization_release_contract
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -813,6 +837,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_anonymous_public_preview_unavailable
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -843,6 +868,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_anonymous_public_preview_release_contract
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -875,6 +901,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_anonymous_public_preview_enabled_probe
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -921,6 +948,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_anonymous_public_preview_live_candidate_wiring
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000
@@ -3370,6 +3398,7 @@ set_tests_properties(
 bpr_bound_automated_run(
     application_render
     TIMEOUT 15
+    DEBUG_TIMEOUT 120
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
     RESERVE_MS 2000

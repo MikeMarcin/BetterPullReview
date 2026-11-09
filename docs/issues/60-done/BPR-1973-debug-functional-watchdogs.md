@@ -1,0 +1,42 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-1973"
+title: "Bound Debug functional application watchdogs"
+status: "Done"
+rfcs: []
+depends_on: []
+priority: "P1"
+metadata: {"kind":"tooling","found_by":"build43 Windows Debug short outer watchdog failures","mandate":"Coordinator-approved bounded 120-second Debug-only watchdogs under the permanent owner policy; Release timing and all inner budgets unchanged.","milestone_plan":{"id":"bpr-1973-debug-functional-watchdogs","path":"docs/rfcs/plans/bpr-1973-debug-functional-watchdogs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7312e89352027f86237beee572ca14833dae1869","evidence":{"kind":"observation","detail":"Actual optional helper validates positive integers and refuses malformed abc, shorter10 and omitted values; exactly17 approved opt-ins. All inner8000 and optimized15 bounds preserved. Exact actual helper equals probed proposal; old43 cutoffs15.07–15.32 retained without pass credit."}},{"criterion":"AC2","outcome":"pass","revision":"7312e89352027f86237beee572ca14833dae1869","evidence":{"kind":"observation","detail":"Five normal configured965-node graphs: singleRelease/Debug and multiDebug/Release/RelWithDebInfo. Only exact17 Debug TIMEOUT15→120; all other fields/physical+logical commands/environment/predicates unchanged after backtrace-only canonicalization. Raw generated CTest command/property files independently agree."}},{"criterion":"AC3","outcome":"pass","revision":"7312e89352027f86237beee572ca14833dae1869","evidence":{"kind":"observation","detail":"Composed documentation, scoped shared board and diff checks0; normal merge preserves final1971main63711 and NEXT1974. Canonical main source7312e89352027f86237beee572ca14833dae1869 normally pushed and ls-remote verified. Owned commands terminal and disposable graph/cache outputs cleaned; final native Windows semantic preflight remains separate, no native execution credit."}}]
+---
+
+# BPR-1973: Bound Debug functional application watchdogs
+
+- AC1. Add validated optional `DEBUG_TIMEOUT` to the existing run-bound helper
+  and opt in exactly the seventeen approved short functional application rows.
+  Debug outer timeouts are 120 seconds; optimized outer timeouts remain
+  15 seconds and application budgets remain 8000 ms. Invalid or shortening
+  values refuse configuration. No domain assertion or timing waiver changes.
+- AC2. Capture before/after normal single Release/Debug and multi-config
+  Release/Debug/RelWithDebInfo graphs. After backtrace-only canonicalization,
+  exactly seventeen Debug `TIMEOUT` values change and every other command,
+  environment, label, lock, path, predicate and property stays identical.
+- AC3. Complete focused helper controls, documentation/scoped board checks,
+  explicit-path commits and intentional main integration after BPR-1971 lands.
+  Preserve source/counters and raw old failures. Final Windows semantic checks
+  at the supported 120-second bound remain a common-source qualification
+  obligation; graph evidence is not native execution credit.
+
+The owner permanently omits dedicated Debug timings and permits a larger bounded
+Debug functional watchdog. Actual hangs and semantic failures still require
+investigation. The build43 15-second cutoffs and unreached assertions remain
+raw diagnostic evidence; no passing result is inferred from a timeout.
+
+## Verification frontier
+
+All three criteria pass for this bounded tooling slice. Source revision
+`7312e89352027f86237beee572ca14833dae1869` is normally integrated and
+pushed to authoritative main after BPR-1971 final handback63711; remote main
+is verified exact. The [durable checkpoint](../_checkpoints/BPR-1973/handoff.md)
+binds the exact graphs, helper refusals, raw old cutoffs and native limitations.
+No native execution pass or completion margin is inferred.

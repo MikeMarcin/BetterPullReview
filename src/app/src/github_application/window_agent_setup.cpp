@@ -322,9 +322,12 @@ namespace bpr::app {
 		AgentNativeHistory = aView;
 		auto* tab          = Window->agent_tab();
 		tab->present_native_history(aView);
-		tab->ask_button()->setProperty("conversationLoading", aView.Loading);
+		// Native history and the legacy conversation settle independently.
+		// Both must be ready before the existing launch guard can admit Send.
+		const auto loading = aView.Loading || (AgentConversation && !AgentConversation->is_loaded());
+		tab->ask_button()->setProperty("conversationLoading", loading);
+		tab->refresh();
 		if (aView.Loading) {
-			tab->ask_button()->setEnabled(false);
 			return;
 		}
 		if (!aView.Failure.empty()) {
@@ -683,6 +686,11 @@ namespace bpr::app {
 		if (Window->agent_panel()->selected_profile() && AgentSetup) {
 			const auto preferences = AgentSetup->projection().Preferences;
 			if (const auto* entry = core::entry_of_profile(preferences.Agents, *Window->agent_panel()->selected_profile()); entry) {
+				// Refresh here too: an identical native-history observation can
+				// coalesce without publishing another completion.
+				auto* tab = Window->agent_tab();
+				tab->ask_button()->setProperty("conversationLoading", !aView.Loaded || AgentNativeHistory.Loading);
+				tab->refresh();
 				observe_agent_native_history();
 				return;
 			}

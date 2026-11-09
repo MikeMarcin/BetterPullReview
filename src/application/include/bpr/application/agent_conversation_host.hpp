@@ -81,6 +81,9 @@ namespace bpr::application {
 		/// last asked with; the conversations themselves stay.
 		void forget_agent_choices();
 
+		/// \brief Whether the current legacy history load has settled, without
+		/// copying its saved turns into a presentation readiness check.
+		[[nodiscard]] auto is_loaded() const noexcept -> bool;
 		[[nodiscard]] auto projection() const -> agent_conversation_projection;
 		void               shutdown() noexcept;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
