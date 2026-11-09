@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1976"
 title: "Make author tour publication failures actionable"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0041"]
 depends_on: []
 priority: "P1"
