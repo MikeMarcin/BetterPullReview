@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1970"
 title: "Review retained workspace composition source binding"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1969"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind": "source-contract", "reservation": "docs/issues/_reservations/BPR-1970--BPR-1970--bcc519d8ab33.json", "milestone_plan": {"id": "bpr-1970-composition-reseal", "path": "docs/rfcs/plans/bpr-1970-composition-reseal/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"05914a39d994fd3e5ba3ba23629e03464c893f1f","evidence":{"kind":"observation","detail":"Reviewed only pinned commit ea290c639 in7e742..b906: two appfiles plus supporting host/workspace/typed refusal/log/fixture flow. Ordered142manifest/197inventory and actualsource tree unchanged; independent normalized old/new recomputation before maintainedprinter agrees."}},{"criterion":"AC2","outcome":"pass","revision":"05914a39d994fd3e5ba3ba23629e03464c893f1f","evidence":{"kind":"observation","detail":"OriginalsourcepinFAIL1 retained; only manifest/comment resealed7d99e0..., strictsourceaudit0 and existing direct-bypass adversarial0. Fullapp/mutationpins unchanged."}},{"criterion":"AC3","outcome":"pass","revision":"05914a39d994fd3e5ba3ba23629e03464c893f1f","evidence":{"kind":"observation","detail":"Cheap docs/scopedboard/gitdiffcheck0; intentionallyintegrated/pushed authoritative main05914a39d994fd3e5ba3ba23629e03464c893f1f and remoteverified. NoCppchange/noheavybuild/nativeacceptance. Commandsquiet;1968privatebranch preserved and PCleaseotherleaf."}}]
 ---
 
 # BPR-1970: Review retained workspace composition source binding
