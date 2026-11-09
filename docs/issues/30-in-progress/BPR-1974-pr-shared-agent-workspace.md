@@ -7,7 +7,7 @@ rfcs: []
 depends_on: ["BPR-1972"]
 priority: "P1"
 platforms: ["mac", "linux", "win"]
-metadata: {"mandate_revision": "pr-shared-workspace-r1", "reservation": "docs/issues/_reservations/BPR-1974--BPR-1974--b363004b8b8b.json", "milestone_plan": {"id": "bpr-1974-shared-workspace", "path": "docs/rfcs/plans/bpr-1974-shared-workspace/milestone-plan.json"}}
+metadata: {"mandate_revision":"pr-shared-workspace-critical-r2","reservation":"docs/issues/_reservations/BPR-1974--BPR-1974--b363004b8b8b.json","milestone_plan":{"id":"bpr-1974-shared-workspace","path":"docs/rfcs/plans/bpr-1974-shared-workspace/milestone-plan.json"},"original_mandate":"pr-shared-workspace-r1","required_review":"independent-critical"}
 ---
 
 # Share one PR workspace across agent conversations
@@ -25,3 +25,14 @@ Mandate `pr-shared-workspace-r1` amends RFC-BPR-0096's per-generation mutable tr
 - AC3. Legacy sessions adopt their existing tree only when no shared tree exists; a conflicting legacy tree refuses native resume with files/transcript preserved and an explicit New session path. Git commits in the shared tree survive reuse while pinned source objects and ownership remain validated.
 
 - AC4. Focused host, SQLite, real-Git and public native/tour/replay composition checks distinguish shared workdir behavior. Contracts, migration limits, evidence and tracker state are committed with commands quiescent.
+
+## Required acceptance amendment, 2026-11-09
+
+The user requires `rfc-review-critical` before finish. Mandate amendment
+`pr-shared-workspace-critical-r2` preserves every r1 implementation obligation
+and adds independent acceptance. Product remains frozen at `d8b79055c` pending
+review by coordinator-launched `/root/shared_workspace_critical`; source evidence
+is not a self-certified substitute.
+
+- AC5. An independent critical review of the exact shared-workspace candidate is
+  supplied and every actionable finding is reconciled before final acceptance.

@@ -17,7 +17,8 @@
             "AC1",
             "AC2",
             "AC3",
-            "AC4"
+            "AC4",
+            "AC5"
           ]
         }
       ],
@@ -25,7 +26,8 @@
       "exit_criteria": [
         "Shared workspace identity and turn exclusion are exercised across separate conversation scopes and providers through direct and composed paths.",
         "Legacy, changed-source, ownership, cancellation and storage failures preserve work and refuse unsafe dispatch.",
-        "Design amendment, tested candidate, evidence and board state are committed; no task-owned commands remain."
+        "Design amendment, tested candidate, evidence and board state are committed; no task-owned commands remain.",
+        "The user-required independent critical review of the exact shared-workspace candidate is supplied and every actionable finding is reconciled before acceptance."
       ],
       "boundary": "User mandate pr-shared-workspace-r1; no remote mutations, desktop access or new visual layout."
     }

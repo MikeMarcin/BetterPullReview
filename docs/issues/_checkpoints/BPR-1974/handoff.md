@@ -1,0 +1,32 @@
+# BPR-1974 independent-review checkpoint
+
+Assignment `/root/shared_pr_workspace`, main; original mandate
+`pr-shared-workspace-r1`, explicit user-required critical-review amendment
+`pr-shared-workspace-critical-r2`. Plan/import fd94f951d, claim7a0ca3528,
+implementation aa0eacdbd, final product d8b79055c. Product paths are frozen
+for coordinator-launched `/root/shared_workspace_critical`.
+
+Shared PR authority/base/head source ownership spans Agent tabs, tour stops,
+agents/providers, New session and replay. Conversations/handles remain separate.
+A profile-owned catalog excludes overlapping BPR turns for one tree with an
+explicit busy refusal/manual retry. No automatic queue or retry is claimed.
+Legacy different trees refuse native resume and preserve files/history; New
+session joins the canonical tree. Changed base/head retains an independent
+source binding; agent commits/branches in the shared tree survive inspection.
+
+Evidence: [verification ledger](../../../verification/BPR-1974-pr-shared-workspace.md).
+External state `/Users/jaeger/.codex/tmp/bpr-1974-shared-workspace/` includes
+resolved selection, r1/r2 plan bindings, candidate source/binary manifests,
+command logs and handoff. Exact final host/native2of2 pass24.88s; realGit and
+public2of2 pass48.85s; SQLite, Qt3of3, both architecture gates, format22,
+scoped tidy8production/composition units and final2unit recheck, documentation
+and67script tests pass. Offscreen replay wording was rendered and inspected.
+
+AC5 and the new fourth milestone exit remain pending independent critical
+review and reconciliation. No Done transition or complete milestone is claimed.
+All task-owned commands finished; no child engineering writer, background
+command, review server or protected human candidate is handed off. Foreign
+`.codex-attachments/` remains untouched. No push, remote mutation, owner desktop,
+corporate machine, installed-agent or native Windows/Linux qualification occurred.
+Next action: coordinator supplies critical findings; resume this same implementer
+for repair/retest or final acceptance/upkeep once the reviewer is satisfied.
