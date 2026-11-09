@@ -93,6 +93,11 @@ namespace go_to_line_course {
 			std::cerr << "LINE_FOCUS side=" << static_cast<int>(aSide) << " line=" << aLine << " unified=" << aSurface.one_pane_enabled() << " selection=" << editor->textCursor().hasSelection() << " focus=" << (QApplication::focusWidget() ? QApplication::focusWidget()->objectName().toStdString() : "none") << " expected=" << editor->objectName().toStdString() << '\n';
 		}
 		expect(editor->hasFocus() && !editor->textCursor().hasSelection(), "exact source receives focus and range is replaced");
+		const auto& document     = aSide == core::diff_side::left ? *aSurface.current_result()->LeftDocument : *aSurface.current_result()->RightDocument;
+		const auto  content      = document.Lines[aLine].Content;
+		const auto  expectedText = QString::fromUtf8(reinterpret_cast<const char*>(document.Bytes.data() + content.Begin), static_cast<qsizetype>(content.End - content.Begin));
+		expect(editor->textCursor().block().text() == expectedText && (aSurface.one_pane_enabled() || editor->textCursor().blockNumber() == static_cast<int>(aLine)),
+			   "native line cursor reads the exact requested source content and source number");
 	}
 
 	inline void submit(qt::workbench_window& aWindow, QDialog& aDialog, const core::diff_side aSide, const std::uint32_t aLine)
@@ -186,12 +191,13 @@ namespace go_to_line_course {
 				expect(side(*first)->hasFocus(), "keyboard traversal reaches the labelled source side");
 				tests::window_system_key(*first, Qt::Key_Tab);
 				expect(number(*first)->hasFocus(), "keyboard traversal returns to the line input");
-				const auto selection = surface.selection();
-				const auto frame     = surface.scroll_controller()->current_frame();
+				const auto selection  = surface.selection();
+				const auto frame      = surface.scroll_controller()->current_frame();
+				const auto unifiedTop = surface.unified_pane()->verticalScrollBar()->value();
 				for (const auto& bad : { QString{ }, QStringLiteral("0"), QStringLiteral("-1"), QStringLiteral("1.5"), QStringLiteral(" 2"), QStringLiteral("99999999999999999999"), QStringLiteral("1108") }) {
 					number(*first)->setText(bad);
 					expect(!go(*first)->isEnabled() && !first->findChild<QLabel*>(QStringLiteral("goToLineValidation"))->text().isEmpty(), "invalid and overflowing values disable Go with readable reason");
-					expect(surface.selection() == selection && surface.scroll_controller()->current_frame() == frame, "typing never previews navigation");
+					expect(surface.selection() == selection && surface.scroll_controller()->current_frame() == frame && surface.unified_pane()->verticalScrollBar()->value() == unifiedTop, "typing never previews navigation");
 				}
 				render(window, first, unified ? QStringLiteral("line-unified-invalid") : QStringLiteral("line-split-invalid"));
 				number(*first)->setText(QStringLiteral("2"));
@@ -202,7 +208,7 @@ namespace go_to_line_course {
 					expect(first->rect().contains(QRect{ control->mapTo(first, QPoint{ }), control->size() }), "dialog controls fit minimum-size window at course scale");
 				}
 				cancel(*first, sourceSide == core::diff_side::right);
-				expect(surface.selection() == selection && surface.scroll_controller()->current_frame() == frame, "Escape preserves reading selection and scroll");
+				expect(surface.selection() == selection && surface.scroll_controller()->current_frame() == frame && surface.unified_pane()->verticalScrollBar()->value() == unifiedTop, "Escape preserves reading selection and scroll");
 				for (const std::uint32_t line : { 1U, 500U, 1106U }) {
 					auto* request = dialog(window, false);
 					submit(window, *request, sourceSide, line);
