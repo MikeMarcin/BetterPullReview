@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1963"
 title: "Tour fixture owns the source it copies while growing its stop vector"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
