@@ -58,8 +58,8 @@ External continuation:
 `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m2-handoff.md` and bound
 `m2-checkpoint.json`. M1 product `26fdce665`, finish `3a4c055f0` and Ready
 `9fe9be9f1` remain prior evidence. Unrelated ID-reservation ancestor `2e178b953`
-was preserved; it changed no product inputs. M2 commands are completing their
-final bookkeeping; no attended candidate, review server, task worktree, remote
+was preserved; it changed no product inputs. BPR-1952 finish commit `1fae95d03e2336cd3a61e5856370071cb1b9ebdf`;
+BPR-1953 is Ready. M2 build/test/render/static-analysis commands have completed; no attended candidate, review server, task worktree, remote
 mutation or push exists.
 
 ## Closeout checklist
