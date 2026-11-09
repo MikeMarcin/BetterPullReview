@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1958"
+  ],
+  "reserve_for": "release-v042-windows-readiness",
+  "purpose": "Windows scaling course waits for current composed Review readiness",
+  "created": "2026-11-09T08:03:45.392379+00:00",
+  "base": "bea6b6baddb03eebac1603e19ac0e9d7f92fc24a"
+}
