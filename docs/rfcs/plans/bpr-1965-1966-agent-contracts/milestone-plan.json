@@ -1,0 +1,43 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1965-1966-agent-contracts",
+  "scope": {
+    "issues": [
+      "BPR-1965",
+      "BPR-1966"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "retain-live-reply-context",
+      "outcome": "Saving agent history preserves the live reply context, and wording inventory recognizes exact accepted native-session descriptions.",
+      "work": [
+        {
+          "issue": "BPR-1965",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        },
+        {
+          "issue": "BPR-1966",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Boolean-only causal trace confirms the metadata-loss boundary before product changes; distinguish storage-status from actual content restore, preserve clear/history load and all reply/no-mutation assertions.",
+        "Exact object+phrase wording exemptions admit only two accepted native-session tooltips/accessibility descriptions; wrong-owner and appended-review-sentence controls remain negative.",
+        "Focused host/Qt/composed paths, format/tidy/docs/board and reviewed app-content binding pass; intentionally land latestmain, return Mac lease promptly with no broad matrix or producer mutation."
+      ],
+      "boundary": "Owning agent_conversation_host.hpp/.cpp +host test, window_agent_setup.cpp, app-content pin review/reseal; setup_destination_public_path_tests.cpp. Temporary boolean-only diagnostic ownW copies restored. No producer source changes, budget/oracle relaxation, broad history schema changes or publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
