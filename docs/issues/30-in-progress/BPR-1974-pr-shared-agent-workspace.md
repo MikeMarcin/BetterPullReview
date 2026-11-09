@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1974"
 title: "Share one PR workspace across agent conversations"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1972"]
 priority: "P1"
