@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1963-tour-fixture-value-lifetime",
+  "scope": {
+    "issues": [
+      "BPR-1963"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "own-fixture-source-value",
+      "outcome": "The Tour fixture owns its source template across vector growth.",
+      "work": [
+        {
+          "issue": "BPR-1963",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Copy the initial Original source by value before growing tour.Stops; preserve every stop/content/gesture/oracle and production behavior.",
+        "One-TU ASan engineering negative/positive control demonstrates the original lifetime defect and corrected path, with normal Release/Debug registered qt_tour_agent_session_view passing afterward; no inferred Windows causal attribution.",
+        "Focused format/tidy/docs/board/main integration pass, exact artifacts and protected-producer/command ownership remain explicit."
+      ],
+      "boundary": "Only tests/adapters_qt/tour_agent_session_view_tests.cpp plus plan/card/checkpoint; isolated ASan compile/link outputs external, normal flags otherwise preserved, no product/timeout/producer changes or matrix."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
