@@ -125,7 +125,8 @@ acceptance remain with their dependent milestones. Native Windows/Linux acceptan
 
 ## Tour sessions and nondestructive history
 
-BPR-1952, milestone `tour-sessions`, adds native conversations for the whole tour,
+BPR-1952, milestone `tour-sessions`, product candidate `5ecd7583dd45e7a3cbf0780a3416fe89ae7cd09e`
+(the tested source promoted unchanged), adds native conversations for the whole tour,
 Problem, Solution and stable stop IDs, separately per entry incarnation and
 accepted authority. Draft Tour shares the whole-tour generation. The existing
 read-only tools remain separate from small one-shot writing hooks. Native tour

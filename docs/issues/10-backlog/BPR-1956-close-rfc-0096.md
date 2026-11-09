@@ -37,19 +37,30 @@ Codex resume, retained Git object/edit recovery, storage/CAS/refusal and focused
 architecture/format/tidy/documentation evidence, with prior failures preserved.
 All twelve full-RFC criteria remain pending their complete cross-surface scope.
 
-Next eligible milestone: `tour-sessions`, BPR-1952. It owns tour/per-agent scopes,
-New session, reopenable history and Reset tour associations. BPR-1954/1955 retain
-legacy migration, both-direction shared quota/protected transcript/save-failure
-handling, labelled replay, installed Claude (currently signed out), permission,
-resume-only and Release usage/resource qualification. Existing Clear's destructive
-history control is replaced by BPR-1952; no completed New session/history UI or full
-AC03/AC11 claim is made here. Native Windows/Linux qualification is not inferred.
+Second milestone `tour-sessions`, BPR-1952, completed functional engineering
+at product candidate `5ecd7583dd45e7a3cbf0780a3416fe89ae7cd09e`. Native conversations
+are scoped by agent, tour draft/reset generation, whole/Problem/Solution/stable
+stop; Draft Tour shares whole-tour native ownership. Nondestructive New session,
+exact generation history, read-only detached inspection and Reset/Undo preserve
+accepted state and proposal origin. Four production seed/reopen courses and
+inspected offscreen windows, 12 functional/integration checks, core-only checks,
+changed workbench, format/tidy and documentation gates pass. See the ledger for
+actual intermediate failures and scoped limits. All twelve full-RFC criteria
+remain pending their complete cross-surface/installed/qualification scope.
+
+Next eligible milestone: `tour-context`, BPR-1953. BPR-1954/1955 retain legacy
+migration, both-direction shared quota/projection failure handling, labelled
+replay, installed Claude (currently signed out), installed permissions, resource,
+resume-only and Release usage qualification. Native Windows/Linux acceptance is
+not inferred. The adopted five groups and immutable original pack are unchanged.
 
 External continuation:
-`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m1-handoff.md` and bound
-`m1-checkpoint.json`. BPR-1951 finish commit `3a4c055f063a79c3f2f3f19208a95ee3c23f5e0a`; BPR-1952 is Ready. First-milestone build/test/runtime commands have completed for handoff; no attended
-candidate, review server, task worktree, remote mutation or push. Original pack and
-adopted five-milestone grouping remain unchanged.
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m2-handoff.md` and bound
+`m2-checkpoint.json`. M1 product `26fdce665`, finish `3a4c055f0` and Ready
+`9fe9be9f1` remain prior evidence. Unrelated ID-reservation ancestor `2e178b953`
+was preserved; it changed no product inputs. M2 commands are completing their
+final bookkeeping; no attended candidate, review server, task worktree, remote
+mutation or push exists.
 
 ## Closeout checklist
 
