@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1974"
+  ],
+  "reserve_for": "pr-shared-workspace-r1",
+  "purpose": "",
+  "created": "2026-11-09T21:42:05.699564+00:00",
+  "base": "34a7c91f1fa91202c02f4314d70536fd3f9d1eae"
+}
