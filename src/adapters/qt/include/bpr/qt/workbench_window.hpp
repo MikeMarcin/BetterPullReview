@@ -1379,6 +1379,8 @@ namespace bpr::qt {
 		/// mark style the reviewer chose on Settings › Comments, they reach every
 		/// surface in this window that draws a label mark.
 		void set_label_tints(const feedback_label_tints& aTints);
+		/// \brief Applies the composed source-side chip colours to Go to line.
+		void set_go_to_line_colours(const QColor& aLeft, const QColor& aRight, const QColor& aText);
 		/// \brief [[BPR-1085]]. The theme's attention amber (`state_attention`),
 		/// for Approve's dot while my blocking feedback is open.
 		void set_attention_colour(const QColor& aColour);
@@ -2810,6 +2812,9 @@ namespace bpr::qt {
 		QAction*                                  HeaderSourceAction = nullptr;
 		QAction*                                  GoToLineAction     = nullptr;
 		std::function<void()>                     RefreshGoToLineDialog;
+		QColor                                    GoToLineLeftFill;
+		QColor                                    GoToLineRightFill;
+		QColor                                    GoToLineInk;
 		std::array<QAction*, 3>                   SourceFindActions{ };
 		std::array<QAction*, 3>                   SourceFilesActions{ };
 		source_search_panel*                      SearchPanel    = nullptr;

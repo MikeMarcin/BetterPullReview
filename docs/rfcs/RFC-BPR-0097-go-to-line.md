@@ -53,8 +53,9 @@ navigation, file switching, columns, relative offsets and configurable shortcuts
 ### A compact dialog with an explicit source side
 
 Open a compact window-modal **Go to line** dialog showing the current file,
-a **Side** choice of **Base** or **Head**, a labelled **Line** input, the chosen
-side's valid range **1–N**, and **Go** and **Cancel** buttons. Reuse the app's
+an exclusive **Left** / **Right** side picker (Base / Head), a labelled **Line** input, the chosen
+side's valid range **1–N**, and **Go** and **Cancel** buttons. Size the dialog to its content and show
+validation only when needed. Reuse Find in Files’ side chips and the app's
 theme, dialog controls and focus treatment. The dialog adds no permanent row
 and does not resize the diff. All controls and validation messages have
 accessible names or associations and remain usable at supported scaling and
@@ -108,8 +109,12 @@ acquisition, search or diff computation and introduces no per-line widgets or
 whole-document navigation scans. Ordinary reading-state observation continues
 through its existing owner. The command grants no publication authority.
 
-These are proposed defaults, not recorded owner answers. No material question
-remains open in this draft; internal API and widget choices belong to implementation.
+The original defaults were adopted for implementation. Owner amendment
+`go-to-line-appearance-r2` (attended handback37, 2026-11-08) replaces the
+Base/Head dropdown with exclusive Left/Right chips inspired by Find in Files
+and removes wasted dialog space. Navigation and focus were accepted for the
+exact v002 frozen candidate. The revised appearance needs a fresh owner look;
+all AC01–AC04 and source-side semantics remain unchanged.
 
 ## Acceptance criteria
 
@@ -143,3 +148,6 @@ product candidate `52c8469b6a1c9d5fd9fc0fe7a6c39469abc73841` is unchanged.
 All AC01–AC04 pass. [Verification](../verification/RFC-BPR-0097.md) records
 13-row integration, strengthened three-scale checks, falsification and limits.
 Main integration remains with the coordinator while its other writer is active.
+
+The post-review appearance revision and its pending attended candidate are
+tracked in the [post-review checkpoint](../issues/_checkpoints/go-to-line-v1/post-review.md).

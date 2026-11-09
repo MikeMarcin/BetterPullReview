@@ -9,6 +9,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
 
+#include <QAbstractButton>
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -52,7 +53,8 @@ namespace go_to_line_course {
 	}
 
 	inline auto number(QDialog& aDialog) -> QLineEdit* { return aDialog.findChild<QLineEdit*>(QStringLiteral("goToLineNumber")); }
-	inline auto side(QDialog& aDialog) -> QComboBox* { return aDialog.findChild<QComboBox*>(QStringLiteral("goToLineSide")); }
+	inline auto side(QDialog& aDialog, const int aIndex) -> QAbstractButton* { return aDialog.findChild<QAbstractButton*>(aIndex == 0 ? QStringLiteral("goToLineSideLeft") : QStringLiteral("goToLineSideRight")); }
+	inline auto chosen_side(QDialog& aDialog) -> int { return side(aDialog, 0)->isChecked() ? 0 : 1; }
 	inline auto go(QDialog& aDialog) -> QPushButton* { return aDialog.findChild<QPushButton*>(QStringLiteral("goToLineGo")); }
 
 	inline void cancel(QDialog& aDialog, const bool aButton = false)
@@ -103,7 +105,7 @@ namespace go_to_line_course {
 
 	inline void submit(qt::workbench_window& aWindow, QDialog& aDialog, const core::diff_side aSide, const std::uint32_t aLine)
 	{
-		side(aDialog)->setCurrentIndex(aSide == core::diff_side::left ? 0 : 1);
+		side(aDialog, aSide == core::diff_side::left ? 0 : 1)->click();
 		number(aDialog)->setText(QString::number(aLine + 1U));
 		expect(go(aDialog)->isEnabled(), "valid whole source line enables Go");
 		number(aDialog)->setFocus();
@@ -183,13 +185,21 @@ namespace go_to_line_course {
 				QApplication::processEvents();
 				auto*      first    = dialog(window, true);
 				const auto expected = unified && surface.selection() ? surface.selection()->PreferredLine.Side : sourceSide;
-				expect(side(*first)->currentIndex() == (expected == core::diff_side::left ? 0 : 1), "split focus and unified semantic side choose dialog default");
+				expect(chosen_side(*first) == (expected == core::diff_side::left ? 0 : 1), "split focus and unified semantic side choose dialog default");
 				expect(number(*first)->hasFocus() && number(*first)->selectedText() == number(*first)->text(), "Line starts focused and wholly selected");
 				expect(first->windowModality() == Qt::WindowModal && first->parentWidget() == &window, "dialog belongs to opening window");
 				const auto* accessible = QAccessible::queryAccessibleInterface(number(*first));
 				expect(accessible && accessible->text(QAccessible::Name) == QStringLiteral("Line") && !accessible->text(QAccessible::Description).isEmpty(), "accessible line name and valid range");
 				tests::window_system_key(*first, Qt::Key_Backtab, Qt::ShiftModifier);
-				expect(side(*first)->hasFocus(), "keyboard traversal reaches the labelled source side");
+				expect(side(*first, 0)->hasFocus() || side(*first, 1)->hasFocus(), "keyboard traversal reaches the source-side picker");
+				tests::window_system_key(*first, Qt::Key_Left);
+				expect(side(*first, 0)->hasFocus() && side(*first, 0)->isChecked() && !side(*first, 1)->isChecked(), "Left arrow selects only the left source side");
+				tests::window_system_key(*first, Qt::Key_Right);
+				expect(side(*first, 1)->hasFocus() && !side(*first, 0)->isChecked() && side(*first, 1)->isChecked(), "Right arrow selects only the right source side");
+				tests::window_system_key(*first, Qt::Key_Space);
+				expect(side(*first, 1)->isChecked(), "active side cannot be switched off");
+				const auto* sideAccessible = QAccessible::queryAccessibleInterface(side(*first, 1));
+				expect(sideAccessible && sideAccessible->state().checked && sideAccessible->text(QAccessible::Name) == QStringLiteral("Right side (Head)"), "accessible picker names and reports the selected comparison endpoint");
 				tests::window_system_key(*first, Qt::Key_Tab);
 				expect(number(*first)->hasFocus(), "keyboard traversal returns to the line input");
 				const auto selection  = surface.selection();
@@ -202,10 +212,14 @@ namespace go_to_line_course {
 				}
 				render(window, first, unified ? QStringLiteral("line-unified-invalid") : QStringLiteral("line-split-invalid"));
 				number(*first)->setText(QStringLiteral("2"));
-				side(*first)->setCurrentIndex(1 - side(*first)->currentIndex());
+				side(*first, 1 - chosen_side(*first))->click();
+				expect(side(*first, 0)->isChecked() != side(*first, 1)->isChecked(), "clicking the other side preserves one active side");
 				expect(number(*first)->text() == QStringLiteral("2"), "changing side retains the number");
+				expect(first->findChild<QLabel*>(QStringLiteral("goToLineValidation"))->isHidden(), "valid input reserves no empty validation row");
+				QApplication::processEvents();
+				expect(first->height() < 200, "valid dialog uses a compact content-sized layout");
 				render(window, first, unified ? QStringLiteral("line-unified-dialog") : QStringLiteral("line-split-dialog"));
-				for (auto* control : { static_cast<QWidget*>(number(*first)), static_cast<QWidget*>(side(*first)), static_cast<QWidget*>(go(*first)) }) {
+				for (auto* control : { static_cast<QWidget*>(number(*first)), static_cast<QWidget*>(side(*first, 0)), static_cast<QWidget*>(side(*first, 1)), static_cast<QWidget*>(go(*first)) }) {
 					expect(first->rect().contains(QRect{ control->mapTo(first, QPoint{ }), control->size() }), "dialog controls fit minimum-size window at course scale");
 				}
 				cancel(*first, sourceSide == core::diff_side::right);
@@ -312,7 +326,7 @@ namespace go_to_line_course {
 			surface.focus_source();
 			auto*      soleSide = dialog(window, false);
 			const auto chosen   = available == core::diff_side::left ? 0 : 1;
-			expect(side(*soleSide)->currentIndex() == chosen && !(side(*soleSide)->model()->flags(side(*soleSide)->model()->index(1 - chosen, 0)) & Qt::ItemIsEnabled),
+			expect(chosen_side(*soleSide) == chosen && !side(*soleSide, 1 - chosen)->isEnabled(),
 				   "sole loaded nonempty side is default and unavailable side cannot be chosen");
 			submit(window, *soleSide, available, 1U);
 		}
@@ -327,7 +341,7 @@ namespace go_to_line_course {
 		QApplication::processEvents();
 		if (!surface.one_pane_enabled()) {
 			auto* chrome = dialog(window, true);
-			expect(side(*chrome)->currentIndex() == 0, "chrome invocation keeps most recently focused source side for this comparison");
+			expect(chosen_side(*chrome) == 0, "chrome invocation keeps most recently focused source side for this comparison");
 			cancel(*chrome);
 		}
 		for (const auto modality : { qt::review_modality::overview, qt::review_modality::discuss, qt::review_modality::threads }) {

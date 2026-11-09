@@ -14,7 +14,10 @@ acceptance: [{"criterion":"AC01","outcome":"pass","revision":"e3e600c9f5483bcec6
 # BPR-1948: Implement and close Go to line
 
 Implement [RFC-BPR-0097](../../rfcs/RFC-BPR-0097-go-to-line.md) as one milestone.
-All AC01–AC04 and the behavior they name remain unchanged. No human criterion.
+All AC01–AC04 and the behavior they name remain unchanged. The original RFC
+has no human criterion. The owner’s additional appearance review and requested
+revision are tracked in the [post-review checkpoint](../_checkpoints/go-to-line-v1/post-review.md);
+its fresh appearance verdict remains pending.
 
 ## Acceptance
 
