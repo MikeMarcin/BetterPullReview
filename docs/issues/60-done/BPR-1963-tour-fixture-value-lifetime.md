@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1963"
 title: "Tour fixture owns the source it copies while growing its stop vector"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind": "test-correctness", "found_by": "Windows43 diagnosis", "reservation": "docs/issues/_reservations/BPR-1963--BPR-1963--2a07c806134b.json", "milestone_plan": {"id": "bpr-1963-tour-fixture-value-lifetime", "path": "docs/rfcs/plans/bpr-1963-tour-fixture-value-lifetime/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Own initial source template value before vector growth; same stops/content/gestures/oracles, no product change.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC2","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"ASan original actualexit250 heap-use-after-free in whole_tour/vector reallocation, corrected compile/link/run0/no finding; initial ASan Fortify macro compiler1 retained and corrected with effective originalFortify3. Normal ReleasePASS0.75s/DebugPASS0.78s; no Windows causal claim.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC3","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Format22/focused tidy22, documentation and scoped board gatesPASS. Proven source intentionally integrated and ACTUALLY pushed authoritative main d84cde4d80164207d388ce41c63857a309eadff6. All protected producers unchanged, native/diagnostic commands ended/source copies restored. Final release/native trust and Windows new-wrapper measurement/pin remain coordinator/sibling obligations, not waived.","artifact_root":"candidate43/implementer-contract-fixes"}}]
 ---
 
 # BPR-1963: Tour fixture owns its source across vector growth
