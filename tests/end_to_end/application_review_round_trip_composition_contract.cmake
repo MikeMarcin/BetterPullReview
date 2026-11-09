@@ -3338,8 +3338,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# keeps live turn About/DraftTarget when only its history save settles.
 	# Real history/agent restoration and clear still replace content; no
 	# provider, grant, mutation, inventory or other content-pin change.
+	# [[BPR-1970]] reviewed7e7422033..b906b4f6f, pinned commit ea290c639:
+	# window_construction.cpp/window_tours.cpp pass the existing diagnostic
+	# log to invocation hosts; tour chat displays fixed host-authored refusal
+	# reasons. Reviewed retained ownership/marker/journal checks, bounded
+	# commit/tree inspection, exact sparse allowlist, typed refusal/storage
+	# split and composed continuation/refusal fixtures. Same provider/grant/
+	# mutation boundary, process admission and materialization ownership;
+	# unchanged142/197inventories and full-app/mutation pins. Source review
+	# and independent recomputation are on BPR-1970; no native credit added.
 	set(bpr_expected_production_app_manifest_digest
-        "568258e6162ad6de3bea79a1b4ce7204bf03a0d49ecbcce182129735f6005049"
+        "7d99e0d9f5336661687915bb8b73e94751c1643138333431ca6319b64c235869"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
