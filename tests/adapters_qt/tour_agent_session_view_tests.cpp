@@ -223,8 +223,9 @@ namespace {
 	/// here: every gesture is dispatched.
 	void whole_tour(const std::string& aPrefix)
 	{
-		auto        tour  = tests::review_tour_fixture();
-		const auto& first = *tour.Stops.front().Original;
+		auto tour = tests::review_tour_fixture();
+		// [[BPR-1963]]. Pushing more stops can relocate the first stop.
+		const auto first = *tour.Stops.front().Original;
 		for (std::uint64_t id = 2U; id <= 4U; ++id) {
 			auto source       = first;
 			source.First.Line = static_cast<std::uint32_t>(id * 10U);
