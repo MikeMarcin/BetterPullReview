@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1971-native-launch-admission",
+  "scope": {
+    "issues": [
+      "BPR-1971"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "classify-exact-refusal",
+      "outcome": "The exact current-source Windows unsupported-native negative failure has a bound public refusal reason, retired diagnostic image and concrete next scope without weakened oracles.",
+      "work": [
+        {
+          "issue": "BPR-1971",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The original aa7 failure, source/image/graph/context and public failure getters are bound at original400/180limits.",
+        "The temporary single-TU diagnostic is retired through exact source restoration and normal target rebuild, with every owned command quiescent.",
+        "The underlying reason and evidence support a concrete fixture/product classification and minimal coordinator-approved next scope; no functional failure is waived or declared pass."
+      ],
+      "boundary": "BPR-1971 approved single-TU failure-detail diagnostic only. Product changes and oracle changes require distinct explicit coordination; frozen43/Mac46 producers remain untouched."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
