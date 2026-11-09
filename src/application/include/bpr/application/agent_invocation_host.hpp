@@ -4,6 +4,7 @@
 #include "bpr/application/agent_finding_delivery.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/native_agent_session.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/private_review_application_host.hpp"
@@ -216,7 +217,7 @@ namespace bpr::application {
 			effect_executor&                     aEffects,
 			decision_executor&                   aDecisionLane,
 			agent_invocation_projection_port&    aProjection,
-			private_agent_run_port* aPrivateRuns = nullptr, native_agent_session_store_port* aNativeSessions = nullptr);
+			private_agent_run_port* aPrivateRuns = nullptr, native_agent_session_store_port* aNativeSessions = nullptr, diagnostic_log_port* aLog = nullptr);
 		~agent_invocation_host();
 
 		agent_invocation_host(const agent_invocation_host&) = delete;

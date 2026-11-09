@@ -2,6 +2,7 @@
 /// \brief Focused legality, effect-ordering, stale-result, and cleanup proofs.
 
 #include "bpr/application/agent_invocation_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <algorithm>
 #include <array>
@@ -252,7 +253,7 @@ namespace {
 		{
 			++Inspections;
 			if (InspectFails) {
-				return std::unexpected(application::agent_workspace_failure::unavailable);
+				return std::unexpected(application::agent_workspace_error{ application::agent_workspace_failure::unavailable, "PRIVATE_CANARY /private/path", InspectReason });
 			}
 			return { };
 		}
@@ -284,6 +285,7 @@ namespace {
 		std::optional<application::agent_workspace_error>                   MaterializationFailure;
 		bool                                                                FailNextCleanup = false;
 		bool                                                                BorrowsHistory  = false;
+		application::agent_workspace_unavailable_reason                     InspectReason   = application::agent_workspace_unavailable_reason::retained_unavailable;
 		bool                                                                Shallow         = false;
 	};
 
@@ -650,10 +652,15 @@ namespace {
 	{
 	public:
 		std::map<std::string, application::native_agent_session> Records;
-		bool                                                     FailStore = false;
+		bool                                                     FailStore  = false;
+		bool                                                     FailSelect = false;
+		bool                                                     FailAppend = false;
 		auto                                                     select(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, bool = false)
 			-> std::expected<application::native_agent_session, application::native_agent_storage_failure> override
 		{
+			if (FailSelect) {
+				return std::unexpected(application::native_agent_storage_failure::unavailable);
+			}
 			if (!Records.contains(aScope)) {
 				auto value          = application::native_agent_session{ };
 				value.Id            = "native-" + std::to_string(Records.size());
@@ -683,7 +690,7 @@ namespace {
 		auto                                              append(const std::string&, const application::agent_conversation_turn& aTurn) -> bool override
 		{
 			Appended.push_back(aTurn);
-			return !FailStore;
+			return !FailAppend && !FailStore;
 		}
 		auto store(application::native_agent_session& aSession) -> bool override
 		{
@@ -697,6 +704,18 @@ namespace {
 		}
 	};
 
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+		auto                                       status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+		std::vector<application::diagnostic_event> Events;
+	};
+
 	struct harness
 	{
 		queued_executor                    Effects;
@@ -706,6 +725,7 @@ namespace {
 		projection_spy                     Projection;
 		session_catalog_spy                Sessions{ &Decisions };
 		native_store_spy                   NativeSessions;
+		recording_log                      Log;
 		std::size_t                        EnvironmentReads = 0U;
 		application::agent_invocation_host Host{
 			core::built_in_agent_profiles(),
@@ -736,6 +756,7 @@ namespace {
 			Projection,
 			nullptr,
 			&NativeSessions,
+			&Log,
 		};
 
 		void settle()
@@ -1902,6 +1923,29 @@ namespace {
 		expect(test.Processes.Starts == 1U && test.NativeSessions.Appended.size() == 1U && test.NativeSessions.Appended.front().Answered == test.Processes.AssistantItems.back(), "durable tour history stores the same terminal item the public tour consumes, excluding preliminary narration");
 	}
 
+	void native_storage_failures_remain_private()
+	{
+		for (const auto mode : { 0, 1, 2, 3 }) {
+			auto test                      = harness{ };
+			auto input                     = request(core::git_host_id{ 1 }, core::claude_stream_json_profile_id);
+			input.NativeAgentIdentity      = "storage-incarnation";
+			input.NativeScope              = "agent-tab";
+			test.NativeSessions.FailSelect = mode == 0;
+			test.NativeSessions.FailStore  = mode == 1;
+			test.NativeSessions.FailAppend = mode == 2;
+			if (mode == 3) {
+				test.Processes.AfterStart = [&test] { test.NativeSessions.FailStore = true; };
+			}
+			test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+			test.settle();
+			test.Host.dispatch(input);
+			test.settle();
+			expect(test.Projection.Finished.size() == 1U && test.Projection.Finished.back().Outcome == application::agent_run_outcome::private_storage_failure,
+				   "native select, pre-send store, append and post-send store failures retain private_storage_failure");
+			expect(test.Processes.Starts == (mode < 2 ? 0U : 1U), "storage fault's submission boundary stays truthful");
+		}
+	}
+
 	void native_workspace_and_identity_survive_window_activation()
 	{
 		auto       test           = harness{ };
@@ -1937,16 +1981,37 @@ namespace {
 			   "uncertain send is visible and never automatically retransmitted");
 		saved.Pending                = false;
 		test.Workspaces.InspectFails = true;
-		test.Host.dispatch(input);
-		test.settle();
-		expect(test.Processes.Starts == starts && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 0U,
-			   "missing retained objects refuse without replacing or deleting changed workspace state");
+		for (const auto why : { application::agent_workspace_unavailable_reason::retained_unavailable,
+								application::agent_workspace_unavailable_reason::retained_objects_missing,
+								application::agent_workspace_unavailable_reason::inspection_output_limit,
+								application::agent_workspace_unavailable_reason::inspection_timed_out }) {
+			test.Workspaces.InspectReason = why;
+			test.Log.Events.clear();
+			test.Host.dispatch(input);
+			test.settle();
+			const auto& result = test.Projection.Finished.back();
+			expect(test.Processes.Starts == starts && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 0U,
+				   "missing retained objects refuse without replacing or deleting changed workspace state");
+			expect(result.Outcome == application::agent_run_outcome::workspace_unavailable && result.WorkspaceReason == why
+					   && result.RefusalReason == result.StandardError && result.RefusalReason.find("workspace") != std::string::npos
+					   && result.RefusalReason.find("PRIVATE_CANARY") == std::string::npos,
+				   "retained inspection refuses with a safe visible workspace explanation, never private storage or raw Git text");
+			expect(test.Log.Events.size() == 1U && test.Log.Events.front().Operation == application::diagnostic_operation::agent_workspace
+					   && test.Log.Events.front().Outcome == application::diagnostic_outcome::failed
+					   && test.Log.Events.front().Summary.State == application::diagnostic_summary_state::sanitized,
+				   "every refused continuation leaves exactly one sanitized workspace terminal diagnostic");
+			const auto diagnosis = core::parse_operation_diagnosis(test.Log.Events.front().Summary.text());
+			expect(diagnosis && diagnosis->Action == core::operation_action::native_continuation
+					   && diagnosis->Failure == application::operation_failure_of(application::agent_workspace_error{ application::agent_workspace_failure::unavailable, { }, why }),
+				   "exportable stable diagnostic distinguishes missing objects, output limits and time limits");
+		}
 	}
 }
 
 auto main() -> int
 {
 	native_workspace_and_identity_survive_window_activation();
+	native_storage_failures_remain_private();
 	test_tour_history_keeps_the_terminal_answer_item();
 	test_explicit_settings_cross_the_existing_invocation_host();
 	test_reopened_replay_uncertainty_is_visible_without_native_workspace();

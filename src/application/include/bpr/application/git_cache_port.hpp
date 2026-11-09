@@ -707,6 +707,8 @@ namespace bpr::application {
 	{
 		git_cache_failure Code = git_cache_failure::invalid_request;
 		std::string       Detail;
+		/// Present only for a retained-workspace inspection refusal.
+		std::optional<agent_workspace_unavailable_reason> WorkspaceReason;
 
 		git_cache_error() = default;
 

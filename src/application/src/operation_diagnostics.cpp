@@ -86,12 +86,16 @@ namespace bpr::application {
 		case agent_workspace_failure::unavailable:     break;
 		}
 		switch (aError.Reason) {
-		case agent_workspace_unavailable_reason::copy_failed:       return failure::copy_failed;
-		case agent_workspace_unavailable_reason::download_failed:   return failure::download_failed;
-		case agent_workspace_unavailable_reason::connection_failed: return failure::connection_failed;
-		case agent_workspace_unavailable_reason::sign_in_refused:   return failure::sign_in_refused;
-		case agent_workspace_unavailable_reason::too_large:         return failure::too_large;
-		case agent_workspace_unavailable_reason::clone_needed:      return failure::clone_needed;
+		case agent_workspace_unavailable_reason::copy_failed:              return failure::copy_failed;
+		case agent_workspace_unavailable_reason::download_failed:          return failure::download_failed;
+		case agent_workspace_unavailable_reason::connection_failed:        return failure::connection_failed;
+		case agent_workspace_unavailable_reason::sign_in_refused:          return failure::sign_in_refused;
+		case agent_workspace_unavailable_reason::too_large:                return failure::too_large;
+		case agent_workspace_unavailable_reason::clone_needed:             return failure::clone_needed;
+		case agent_workspace_unavailable_reason::retained_unavailable:     return failure::unavailable;
+		case agent_workspace_unavailable_reason::retained_objects_missing: return failure::object_unavailable;
+		case agent_workspace_unavailable_reason::inspection_output_limit:  return failure::size_limit;
+		case agent_workspace_unavailable_reason::inspection_timed_out:     return failure::timed_out;
 		}
 		return failure::copy_failed;
 	}

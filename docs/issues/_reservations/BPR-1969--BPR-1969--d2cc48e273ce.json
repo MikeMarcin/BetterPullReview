@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1969"
+  ],
+  "reserve_for": "retained-workspace-continuation",
+  "purpose": "",
+  "created": "2026-11-09T16:49:09.332979+00:00",
+  "base": "7e74220335d90d7520a566df529742f676a3691f"
+}

@@ -9,7 +9,7 @@
 
 namespace bpr::core {
 	namespace {
-		constexpr std::array<std::string_view, 72>  action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply",
+		constexpr std::array<std::string_view, 73>  action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply",
 																  // [[BPR-1831]].
 																  "storage_open", "storage_migrate", "storage_read", "storage_write", "storage_statement", "clone_scan", "clone_verify", "clone_load", "source_search", "image_fetch", "avatar_fetch", "notification_deliver", "notification_permission", "notification_activate",
 																  // [[BPR-1830]].
@@ -21,7 +21,7 @@ namespace bpr::core {
 																  // [[BPR-1879]].
 																  "clone_keep",
 																  // [[BPR-1884]].
-																  "clone_refresh" };
+																  "clone_refresh", "native_continuation" };
 		constexpr std::array<std::string_view, 139> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "clone_needed", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict", "authorization_denied", "authorization_expired", "device_flow_disabled", "device_flow_unavailable", "network_unavailable", "certificate_rejected", "redirect_rejected", "response_too_large", "vault_unavailable", "refresh_absent", "refresh_rejected", "transport_failed", "storage_failed", "no_session", "locked", "access_denied", "corrupt", "operation_failed", "allocation_failure", "policy_refused", "access_required", "unauthenticated", "forbidden", "inaccessible", "offline", "rate_limited", "malformed_release", "invalid_version", "unstable_release", "no_compatible_asset", "ambiguous_asset", "invalid_digest", "size_limit", "unsafe_archive", "invalid_bundle", "wrong_architecture", "wrong_signer", "digest_mismatch", "changed_candidate", "busy", "stale_completion", "invalid_progress", "identity_exhausted", "installer_unavailable", "flush_failed", "quit_refused", "recovery_required", "shutdown",
 																   // [[BPR-1831]].
 																   "invalid_path", "invalid_permissions", "schema_mismatch", "integrity_failure", "quota_exceeded", "platform_unsupported", "io_error", "read_only", "constraint", "not_a_database", "cannot_open", "sql_error", "not_a_clone", "no_matching_remote", "scan_failed", "store_unreadable", "search_failed", "resource_limit", "fetch_failed", "blocked", "over_limit", "permission_refused", "unattributable_activation",
@@ -33,7 +33,7 @@ namespace bpr::core {
 																   "refresh_failed" };
 		constexpr std::array<std::string_view, 10>  process_names{ "none", "success", "private_storage_failure", "failed_to_start", "workspace_unavailable", "nonzero_exit", "protocol_failure", "cancelled", "timeout", "stale_result" };
 
-		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::clone_refresh) + 1U);
+		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::native_continuation) + 1U);
 		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::refresh_failed) + 1U);
 
 		// [[BPR-1831]]. The store names, by each store file's fixed name.
@@ -119,7 +119,10 @@ namespace bpr::core {
 			}
 			switch (aFamily) {
 			case operation_diagnosis_family::agent_setup:     return within(aFailure, operation_failure::agent_not_found, operation_failure::workspace_unavailable);
-			case operation_diagnosis_family::agent_workspace: return within(aFailure, operation_failure::invalid_request, operation_failure::clone_needed);
+			case operation_diagnosis_family::agent_workspace: return within(aFailure, operation_failure::invalid_request, operation_failure::clone_needed)
+				|| aFailure == operation_failure::object_unavailable || aFailure == operation_failure::size_limit || aFailure == operation_failure::timed_out
+				|| aFailure == operation_failure::storage_failed || aFailure == operation_failure::unavailable || aFailure == operation_failure::unsupported
+				|| aFailure == operation_failure::outcome_unknown || aFailure == operation_failure::changed_candidate;
 			case operation_diagnosis_family::review_mutation: return aFailure == operation_failure::unavailable || within(aFailure, operation_failure::refused_by_server, operation_failure::conflict);
 			// [[BPR-1829]].
 			case operation_diagnosis_family::sign_in: return aFailure == operation_failure::timed_out || aFailure == operation_failure::malformed_response || within(aFailure, operation_failure::authorization_denied, operation_failure::no_session);
@@ -162,6 +165,9 @@ namespace bpr::core {
 		// [[BPR-1879]]. Appended after the activity lines, but a clone line.
 		if (aAction == operation_action::clone_keep || aAction == operation_action::clone_refresh) {
 			return operation_diagnosis_family::clone_scan;
+		}
+		if (aAction == operation_action::native_continuation) {
+			return operation_diagnosis_family::agent_workspace;
 		}
 		// [[BPR-1850]]. Activity notifications are notification lines.
 		if (aAction >= operation_action::activity_poll_changed) {

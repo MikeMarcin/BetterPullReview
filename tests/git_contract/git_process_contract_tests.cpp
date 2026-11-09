@@ -744,6 +744,23 @@ namespace {
 			std::cout << "git version 2.50.1\n";
 			return 0;
 		}
+		const auto retainedProbe = aExecutable.parent_path() / "retained-inspection-input";
+		if (std::filesystem::exists(retainedProbe)) {
+			if (aArguments.contains("rev-list")) {
+				// The old full-history command exceeds its unchanged 64 MiB bound.
+				const auto chunk = std::string(1024U * 1024U, 'a');
+				for (unsigned index = 0U; index < 65U; ++index) {
+					std::cout << chunk;
+				}
+				return 0;
+			}
+			const auto input = std::string{ std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ } };
+			if (!aArguments.contains("cat-file") || !aArguments.contains("--batch-check=%(objecttype)") || input != read_text(retainedProbe)) {
+				return 128;
+			}
+			std::cout << "commit\ntree\ncommit\ntree\n";
+			return 0;
+		}
 		if (aArguments.contains("init")) {
 			const auto repository = std::filesystem::path{ aArguments.back().toStdString() };
 			std::filesystem::create_directories(repository / "objects");
@@ -4446,6 +4463,29 @@ namespace {
 			missing.RequiredBase = oid(std::string(40U, 'f'));
 			require(!adapter->inspect_agent_workspace(missing, { }), "missing required base objects refuse even with a valid head");
 			require(read_text(tree / "untracked-agent-note") == "kept across restart\n", "refused inspection preserves agent work");
+			// Exercise the production command with a history-size adversary. A
+			// rev-list would emit 65 MiB; the named object check emits four types.
+			const auto boundedGit     = make_fake_git_executable(root.Path);
+			auto       boundedAdapter = make_adapter(boundedGit, cacheIsolation, registry);
+			write_text(boundedGit.parent_path() / "retained-inspection-input", head + "^{commit}\n" + head + "^{tree}\n" + base + "^{commit}\n" + base + "^{tree}\n");
+			require(!owned->Workspace.Shallow && boundedAdapter->inspect_agent_workspace(*owned, { }).has_value(),
+					"complete retained inspection never requests history-sized output even when rev-list would overflow 64 MiB");
+			const auto probeLog = read_text(cacheIsolation / "invocations.log");
+			require(probeLog.find("arg=--batch-check=%(objecttype)\n") != std::string::npos && probeLog.find("arg=rev-list\n") == std::string::npos,
+					"retained inspection pins a fixed named-object command, not a history walk");
+			for (const auto& entry : std::filesystem::directory_iterator{ tree / ".git" / "objects" / "pack" }) {
+				std::filesystem::rename(entry.path(), tree / entry.path().filename());
+			}
+			for (const auto suffix : { ".pack", ".idx" }) {
+				std::filesystem::copy_file(headOnlyPack.string() + "-" + headOnlyHash + suffix, tree / ".git" / "objects" / "pack" / (std::string{ "head-only" } + suffix));
+			}
+			require(run_fixture_git(tree / ".git", { "cat-file", "-t", head }) == "commit", "missing-tree control retains the head commit");
+			auto missingHeadTree = *owned;
+			missingHeadTree.RequiredBase.reset();
+			const auto missingTree = adapter->inspect_agent_workspace(missingHeadTree, { });
+			require(!missingTree && missingTree.error() == application::git_process_failure::object_unavailable,
+					"a retained complete workspace with no head root tree refuses even while its commit is present");
+
 			require(!adapter->cleanup_agent_workspace(*owned, { }) && std::filesystem::exists(tree / "untracked-agent-note"),
 					"a restarted adapter cannot reclaim retained work through an old in-memory cleanup capability");
 			return;

@@ -52,3 +52,14 @@ bound plan checkpoint is `m1-checkpoint.json` there. No attended candidate exist
 M2 owns tour integration and New session/history controls. BPR-1954/1955 retain
 legacy migration, bidirectional shared quota/projection failure handling and
 full installed/resource/permission qualifications before AC03/AC11 acceptance.
+
+## Retained inspection follow-up — BPR-1969
+
+The accepted historical evidence above is unchanged. The follow-up
+[BPR-1969 ledger](../../verification/BPR-1969-retained-workspace.md) corrects the
+continuation check: a complete workspace verifies the pinned head/base commits and
+root trees with a fixed named-object probe, without enumerating their history.
+Sparse sessions retain their original missing-object allowlist check. An unusable
+retained workspace refuses as `workspace_unavailable`, carries a safe explanation
+to the chat and writes one sanitized native-continuation diagnostic. Native-session
+catalog/storage failures remain `private_storage_failure`; no files are replaced.

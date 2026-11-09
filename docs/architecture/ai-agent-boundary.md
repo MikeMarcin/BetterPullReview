@@ -201,12 +201,24 @@ remains a per-invocation choice and discloses dirty or unknown state.
 adds retained native workspaces for the Agent tab and per-agent tour chats. A durable session owns its original
 workspace and guard identities and journal phase 7. Startup recovery preserves
 that state even with no live process. Resume checks the marker, captured directory
-and guard identities, pinned HEAD and available required object closure; it never
+and guard identities, pinned HEAD and required pinned objects; it never
 cleans allowed edits to make a resume succeed. Before retention, borrowed objects
 are packed locally and the alternates file is removed, so removing the linked
 clone does not invalidate a retained tree. A missing or unverifiable tree refuses
 input and is preserved for repair. Retention and safe admission bounds are recorded
 in the [RFC-0096 ledger](../verification/RFC-BPR-0096.md).
+
+A refused retained inspection finishes as `workspace_unavailable`, with a fixed
+host-authored explanation in the Agent tab or tour side chat. Required objects
+missing, an output-limit refusal, a time-limit refusal and unverifiable ownership
+remain distinct typed reasons; raw Git text, paths and native handles do not enter
+the chat or its diagnostic summary. Every native pre-dispatch refusal records one
+sanitized `agent.workspace` event with `action=native_continuation` and a stable
+failure name, retained by diagnostic export. Native catalog `select`, `append` and
+`store` failures remain `private_storage_failure`. The transcript and owned files
+remain available; an inspection refusal neither launches an agent nor makes a clean
+replacement. [BPR-1969](../verification/BPR-1969-retained-workspace.md) records the
+bounded probe and composed continuation evidence.
 
 **A linked clone's history ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md), Q7, Q8 A).**
 When the pull request's repository is linked to the reviewer's own clone, the
@@ -272,8 +284,13 @@ A retained sparse workspace records its original missing object IDs in private
 conversation metadata, atomically with the session revision. Resume permits those
 original unselected blob holes, but refuses a newly missing selected blob or head
 tree. The bounded object walk admits at most 262,144 entries and 64 MiB of output.
-Complete workspaces also check required base closure; an advertised head-only sparse
-workspace does not claim to hold unfetched base history. Older sparse records without
+For a complete workspace, continuation instead runs one `cat-file
+--batch-check=%(objecttype)` on the pinned head commit and its root tree, plus the
+required base commit and its root tree when one is recorded. At most four named
+objects, 1 KiB of output and a 30-second process deadline are admitted; neither the
+command nor its output enumerates history. This verifies the pinned commits/root
+trees, not the complete historical object closure or every checkout blob. An
+advertised head-only sparse workspace does not claim to hold unfetched base history. Older sparse records without
 this evidence refuse resume and preserve their files; BPR never reconstructs the
 allowlist from an agent-editable index or configuration. New session or explicitly
 chosen Transcript replay remains available under its usual checks.

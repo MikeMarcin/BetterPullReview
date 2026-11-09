@@ -822,7 +822,7 @@ namespace bpr::app {
 				},
 				AgentEffects,
 				DecisionLane,
-				*AgentProjections, PrivateReview.get(), NativeAgentSessions.get());
+				*AgentProjections, PrivateReview.get(), NativeAgentSessions.get(), DiagnosticLog.get());
 			AgentProjections->NativeSession = [this](const core::agent_session& aSession) { if (!Closing && ChatHost) { LatestAgentSession=aSession; ChatHost->admitted(aSession,true); } };
 			AgentProjections->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_agent_native_history(aView); };
 			compose_tour_session(agentProfiles, agentPolicies);

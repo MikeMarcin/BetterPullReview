@@ -1834,6 +1834,17 @@ namespace {
 			return std::unexpected{ application::git_cache_failure::invalid_request };
 		}
 
+		[[nodiscard]] auto inspect_agent_workspace(const application::owned_agent_workspace&, const std::stop_token)
+			-> application::git_cache_result<void> override
+		{
+			if (State.WorkspaceCleanupFailure) {
+				auto failure = std::move(*State.WorkspaceCleanupFailure);
+				State.WorkspaceCleanupFailure.reset();
+				return std::unexpected(std::move(failure));
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const application::owned_agent_workspace&,
 			const std::stop_token aStop) -> application::git_cache_result<void> override
@@ -3984,6 +3995,11 @@ namespace {
 			value.Effects.pending() == 1U,
 			"and one scheduled actor drain still owns all three: a released "
 			"wait cancels no job");
+		const auto inspected = value.Host->inspect_agent_workspace(workspace, { });
+		expect(!inspected && inspected.error().Code == application::agent_workspace_failure::unavailable
+				   && inspected.error().Reason == application::agent_workspace_unavailable_reason::inspection_timed_out
+				   && value.Host->queued_actor_work() == 4U,
+			   "a retained inspection's actor wait reports its own time limit, distinct from missing objects and cleanup failure");
 	}
 
 	/// BPR-0397. The other exit, and the one that has to stay distinguishable
@@ -8058,6 +8074,20 @@ namespace {
 					== application::agent_workspace_failure::cleanup_failed
 				&& cleaned->error().Detail == diagnostic,
 			"workspace cleanup maps the code and preserves cache detail exactly");
+		for (const auto why : { application::agent_workspace_unavailable_reason::inspection_output_limit,
+								application::agent_workspace_unavailable_reason::inspection_timed_out,
+								application::agent_workspace_unavailable_reason::retained_objects_missing }) {
+			value.State.WorkspaceCleanupFailure                  = application::git_cache_error{ application::git_cache_failure::process_failure, diagnostic };
+			value.State.WorkspaceCleanupFailure->WorkspaceReason = why;
+			auto inspected                                       = std::optional<std::expected<void, application::agent_workspace_error>>{ };
+			auto caller                                          = std::jthread{ [&] { inspected = value.Host->inspect_agent_workspace(owned_workspace_for(value.Host->state()), { }); } };
+			value.Effects.wait_for_pending();
+			value.Effects.run_next();
+			caller.join();
+			expect(inspected && !*inspected && inspected->error().Code == application::agent_workspace_failure::unavailable
+					   && inspected->error().Reason == why && inspected->error().Detail == diagnostic,
+				   "the retained cache actor preserves typed inspection limits and missing-object reasons for the invocation host");
+		}
 	}
 
 	/// [[BPR-1873]]. A sparse review's cache holds the head's commit and

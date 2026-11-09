@@ -1046,8 +1046,10 @@ namespace bpr::application {
 								result = std::unexpected{ agent_workspace_error{
 									cleaned.error() == git_cache_failure::cancelled
 										? agent_workspace_failure::cancelled
-										: agent_workspace_failure::cleanup_failed,
-									std::move(cleaned.error().Detail) } };
+										: aInspect ? agent_workspace_failure::unavailable
+												   : agent_workspace_failure::cleanup_failed,
+									std::move(cleaned.error().Detail),
+									cleaned.error().WorkspaceReason.value_or(agent_workspace_unavailable_reason::retained_unavailable) } };
 							}
 						}
 					} catch (...) {
@@ -1095,6 +1097,9 @@ namespace bpr::application {
 		// Abandoning this one leaves nothing behind: the removal still runs
 		// on the actor, and only its outcome goes unread. So the caller is
 		// told what released it and nothing else needs undoing. BPR-0397.
+		if (aInspect && !waiter->Abandoned) {
+			return std::unexpected(agent_workspace_error{ agent_workspace_failure::unavailable, { }, agent_workspace_unavailable_reason::inspection_timed_out });
+		}
 		return std::unexpected{ waiter->Abandoned
 									? agent_workspace_failure::cancelled
 									: agent_workspace_failure::cleanup_failed };

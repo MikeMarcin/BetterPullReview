@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1970"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Reconcile reviewed production composition source manifest after accepted retained-workspace fix BPR-1969",
+  "created": "2026-11-09T17:15:54.533647+00:00",
+  "base": "b906b4f6feaf778680c9c05f8170d3c36ab8dfd0"
+}

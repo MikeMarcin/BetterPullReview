@@ -216,6 +216,11 @@ namespace bpr::application {
 		/// is linked, so there is nothing for the workspace to borrow: the head
 		/// is never downloaded whole.
 		clone_needed,
+		/// Retained ownership or pinned objects could not be verified.
+		retained_unavailable,
+		retained_objects_missing,
+		inspection_output_limit,
+		inspection_timed_out,
 	};
 
 	[[nodiscard]] auto stable_name(agent_workspace_unavailable_reason aReason) noexcept
