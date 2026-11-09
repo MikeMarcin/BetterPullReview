@@ -1,0 +1,67 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "go-to-line-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0097"
+    ],
+    "issues": [
+      "BPR-1948",
+      "BPR-1957"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "exact-source-line",
+      "outcome": "The active main PR diff offers accessible Go to line with exact source identity, guarded input and platform shortcuts.",
+      "work": [
+        {
+          "issue": "BPR-1948"
+        },
+        {
+          "rfc": "RFC-BPR-0097",
+          "criteria": [
+            "AC01",
+            "AC02",
+            "AC03",
+            "AC04"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01\u2013AC03 pass through the composed main diff in split and unified presentations.",
+        "AC04 passes keyboard/menu, accessible focus, minimum-size full-window scale renders and bounded-work checks through installed Git/cache.",
+        "Documentation checks pass; exact candidate, evidence and quiescent command state are recorded."
+      ],
+      "boundary": "Main PR diff only, Qt-local dialog and input mechanics using existing core semantic validation and shared reveal geometry."
+    },
+    {
+      "id": "line-column-panel",
+      "outcome": "Go to line has a compact accepted panel and exact optional native columns without changing source-line comment identity.",
+      "work": [
+        {
+          "issue": "BPR-1957"
+        },
+        {
+          "rfc": "RFC-BPR-0097",
+          "criteria": [
+            "AC05",
+            "AC06"
+          ]
+        }
+      ],
+      "depends_on": [
+        "exact-source-line"
+      ],
+      "exit_criteria": [
+        "AC05 passes composed split/unified column navigation and focused native Unicode, tab, empty-line and horizontal-reveal checks.",
+        "AC06 passes keyboard/accessibility/theme/scale checks and has owner acceptance for the exact frozen appearance candidate.",
+        "Documentation checks pass; original BPR-1948 acceptance and all previous frozen verdicts are preserved."
+      ],
+      "boundary": "Existing Qt dialog, Find close control and native caret/reveal mechanics; no new core infrastructure, effects or source acquisition."
+    }
+  ],
+  "unplanned_work": []
+}

@@ -12,6 +12,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "go_to_line_course.hpp"
 #include "private_data_root.hpp"
 #include <QAction>
 #include <QApplication>
@@ -250,6 +251,8 @@ try {
 	auto* nextAction     = window.findChild<QAction*>(QStringLiteral("sourceFindNextAction"));
 	auto* previousAction = window.findChild<QAction*>(QStringLiteral("sourceFindPreviousAction"));
 	expect(findAction && nextAction && previousAction && !findAction->isEnabled(), "Home cannot Find hidden PR source");
+	const auto* goToLine = window.findChild<QAction*>(QStringLiteral("goToLineAction"));
+	expect(goToLine && !goToLine->isEnabled(), "Home cannot go to hidden PR source");
 	for (const auto* action : { findAction, nextAction, previousAction }) {
 		for (const auto& shortcut : action->shortcuts()) {
 			int owners = 0;
@@ -265,6 +268,7 @@ try {
 	window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/source-find#77"));
 	window.home_open_action()->trigger();
 	wait_for([&] { return window.showing_overview() && window.overview_page()->projection().has_value(); }, "PR opens on Overview");
+	expect(!goToLine->isEnabled(), "Overview cannot go to a retained hidden source");
 	auto entry  = app::detail::course_modality_step{ };
 	entry.Needs = app::detail::course_surfaces{ .Comparison = true, .FilesDrawer = true };
 	wait_for([&] { return access::enter_course_modality(*application, entry) != app::detail::course_modality_result::pending; }, "normal Review entry");
@@ -274,6 +278,7 @@ try {
 	open(*application, "src/find.cpp");
 	auto* surface = window.comparison_surface();
 	auto* bar     = surface->source_find();
+	go_to_line_course::run(*application, [](const std::function<bool()>& aCondition, const char* aMessage) { wait_for(aCondition, aMessage); }, [](app::github_application& aApplication, const std::string_view aPath) { open(aApplication, aPath); });
 	surface->right_pane()->setFocus();
 	QApplication::processEvents();
 	expect(findAction->isEnabled(), "ready source Find available");

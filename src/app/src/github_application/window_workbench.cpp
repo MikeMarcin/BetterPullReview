@@ -1305,6 +1305,8 @@ namespace bpr::app {
 		// `QPalette::Highlight` - the selection colour BPR-0117 fitted for
 		// contrast and which, until now, nothing applied.
 		AppearanceProfile->apply_to(*Window);
+		Window->set_go_to_line_colours(AppearanceProfile->color(core::appearance_role::diff_intraline_removed_background),
+									   AppearanceProfile->color(core::appearance_role::diff_intraline_added_background), AppearanceProfile->color(core::appearance_role::application_text));
 		if (Profile->Insights && Profile->InsightsOwner == DraftWindow) {
 			AppearanceProfile->apply_to(*Profile->Insights);
 			Profile->Insights->set_chart_colors(AppearanceProfile->color(core::appearance_role::state_accepted), AppearanceProfile->color(core::appearance_role::state_unread));

@@ -1603,6 +1603,15 @@ namespace bpr::qt {
 		HeaderSourceAction->setShortcutContext(Qt::WindowShortcut);
 		addAction(HeaderSourceAction);
 		ViewMenu->addAction(HeaderSourceAction);
+		GoToLineAction = new QAction{ tr("Go to line…"), this };
+		GoToLineAction->setObjectName(QStringLiteral("goToLineAction"));
+		GoToLineAction->setShortcutContext(Qt::WindowShortcut);
+		GoToLineAction->setShortcuts(shortcut_keys(shortcut_command::go_to_line));
+		GoToLineAction->setEnabled(false);
+		addAction(GoToLineAction);
+		ViewMenu->addAction(GoToLineAction);
+		connect(GoToLineAction, &QAction::triggered, this, [this] { show_go_to_line(); });
+		connect(ViewMenu, &QMenu::aboutToShow, this, [this] { update_go_to_line_action(); });
 		ViewMenu->addSeparator();
 		connect(HeaderSourceAction, &QAction::triggered, this, [this] {
 			if (HeaderSourceAction->isEnabled() && HeaderSourceDispatch) {

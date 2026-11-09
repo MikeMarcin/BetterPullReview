@@ -1799,8 +1799,12 @@ namespace {
 
 	void test_nontext_publication_status()
 	{
-		auto       workbench = qt::diff_workbench{ };
-		const auto publish   = [&](const core::computed_file_diff& aDiff, const bool aCached) {
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(900, 500);
+		workbench.show();
+		process_events();
+		expect(!workbench.source_line_destination(), "empty workbench offers no Go to line destination");
+		const auto publish = [&](const core::computed_file_diff& aDiff, const bool aCached) {
 			const auto selected = context(aDiff, 1U, 1U);
 			workbench.set_loading(selected);
 			workbench.publish(bpr::qt::test::prepare_publication({ .Context  = selected,
@@ -1823,12 +1827,14 @@ namespace {
 			expect(!workbench.selection() && workbench.left_pane()->toPlainText().isEmpty()
 					   && workbench.right_pane()->toPlainText().isEmpty(),
 				   "unavailable result clears prior source and selection");
+			expect(!workbench.source_line_destination(), "refused comparison offers no line destination");
 		}
 		const auto binary  = bytes(std::string_view{ "a\0b", 3U });
 		const auto nontext = bpr::tests::product_file_diff({ .Key = key({ }, 72U), .Options = { }, .LeftBytes = binary, .RightBytes = right });
 		expect(nontext.Result && nontext.Reason == core::diff_reason_code::binary_file, "real binary result available");
 		publish(*nontext.Result, false);
 		expect(workbench.status_text() == QStringLiteral("Binary file comparison"), "binary content is distinct from equal text and unavailable content");
+		expect(!workbench.source_line_destination(), "binary comparison offers no line destination");
 		publish(computed("same\n", "same\n", { }, 73U), false);
 		expect(workbench.status_text() == QStringLiteral("Diff ready — 0 semantic changes")
 				   && workbench.left_pane()->toPlainText() == QStringLiteral("same\n"),
@@ -1838,6 +1844,87 @@ namespace {
 				   && label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse)
 				   && label->accessibleDescription() == label->text(),
 			   "comparison messages remain copyable and accessible");
+		publish(computed("base first\nbase last\n", "", { }, 74U), false);
+		expect(workbench.source_line_destination() && workbench.source_line_destination()->Side == core::diff_side::left,
+			   "an empty Head falls back to sole navigable Base");
+		const auto beforeInvalid = workbench.selection();
+		auto       invalid       = *workbench.source_line_destination();
+		invalid.Line             = 2U;
+		expect(!workbench.go_to_source_line(invalid) && workbench.selection() == beforeInvalid, "out-of-range semantic jump is refused without selection change");
+		publish(computed("", "head only\n", { }, 75U), false);
+		expect(workbench.source_line_destination() && workbench.source_line_destination()->Side == core::diff_side::right,
+			   "an empty Base offers Head");
+		workbench.set_loading(context(changed, 3U, 3U));
+		expect(!workbench.source_line_destination(), "loading comparison offers no line destination");
+	}
+
+	void test_go_to_line_columns()
+	{
+		const auto longLine  = std::string(400, 'x');
+		const auto diff      = computed("\uFEFFbase\n\t𝄞x\r\n\n" + longLine + "\n\uFEFFz\n", "\uFEFFnew first\nextra\n\t𝄞x\r\n\n" + longLine + "\n\uFEFFz\n", { }, 76U);
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(900, 500);
+		workbench.show();
+		const auto selected = context(diff, 1U, 1U);
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		process_events();
+		for (const bool unified : { false, true }) {
+			workbench.set_one_pane_enabled(unified);
+			process_events();
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				auto* const editor = unified ? workbench.unified_pane() : side == core::diff_side::left ? workbench.left_pane()
+																										: workbench.right_pane();
+				const auto  line   = side == core::diff_side::left ? 1U : 2U;
+				auto        target = core::source_line_ref{ diff.Alignment.Digest, side, line };
+				for (const auto column : { 0U, 1U, 3U, 4U }) {
+					expect(workbench.go_to_source_line(target, column), "tab and supplementary Unicode columns navigate in either presentation");
+					process_events();
+					expect(editor->textCursor().block().text() == QStringLiteral("\t𝄞x") && editor->textCursor().positionInBlock() == static_cast<int>(column) && !editor->textCursor().hasSelection(), "native caret counts tab once and supplementary Unicode twice, without CRLF");
+					const auto range = workbench.line_draft_range();
+					expect(range && range->first == target && range->second == target, "column navigation retains exactly one source-line draft anchor");
+				}
+				const auto selection = workbench.selection();
+				const auto cursor    = editor->textCursor();
+				const auto top       = editor->verticalScrollBar()->value();
+				const auto left      = editor->horizontalScrollBar()->value();
+				for (const auto column : { 2U, 5U, 4'294'967'295U }) {
+					expect(!workbench.go_to_source_line(target, column) && workbench.selection() == selection
+							   && editor->textCursor().position() == cursor.position() && editor->textCursor().anchor() == cursor.anchor()
+							   && editor->verticalScrollBar()->value() == top && editor->horizontalScrollBar()->value() == left,
+						   "inside-surrogate and out-of-range columns refuse before changing selection, cursor or scroll");
+				}
+				target.Line = line + 1U;
+				expect(workbench.source_line_text(target) == std::optional{ QString{ } }, "empty native line text is available, distinct from an invalid target");
+				expect(workbench.go_to_source_line(target, 0U) && editor->textCursor().block().text().isEmpty()
+						   && editor->textCursor().positionInBlock() == 0 && !workbench.go_to_source_line(target, 1U),
+					   "an empty source line has exactly one caret position");
+				target.Line = line + 2U;
+				expect(workbench.go_to_source_line(target, 400U), "end-of-line column is valid on a horizontally overflowing line");
+				process_events();
+				expect(editor->textCursor().positionInBlock() == 400 && editor->horizontalScrollBar()->value() > 0
+						   && editor->cursorRect().left() >= 0 && editor->cursorRect().right() <= editor->viewport()->width(),
+					   "exact long-line caret is horizontally visible");
+				expect(workbench.go_to_source_line(target) && editor->textCursor().positionInBlock() == 0 && editor->cursorRect().left() >= 0, "plain line navigation returns to the visible line start");
+				target.Line             = line + 3U;
+				const auto beforeText   = workbench.selection();
+				const auto beforeCursor = editor->textCursor();
+				const auto beforeTop    = editor->verticalScrollBar()->value();
+				const auto nativeText   = unified ? QStringLiteral("z") : QStringLiteral("\uFEFFz");
+				expect(workbench.source_line_text(target) == std::optional{ nativeText }
+						   && workbench.selection() == beforeText && editor->textCursor() == beforeCursor && editor->verticalScrollBar()->value() == beforeTop,
+					   "reading a later BOM line uses the exact native presentation without navigating");
+				expect(workbench.go_to_source_line(target, static_cast<std::uint32_t>(nativeText.size()))
+						   && editor->textCursor().positionInBlock() == nativeText.size(),
+					   "native BOM line text and caret validation share the same end-of-line position");
+				target.Line = 0U;
+				expect(workbench.source_line_text(target) == std::optional{ side == core::diff_side::left ? QStringLiteral("base") : QStringLiteral("new first") }, "a document-initial BOM is absent from the native line");
+				target.Line = 999U;
+				expect(!workbench.source_line_text(target), "out-of-range native line text is unavailable");
+			}
+		}
+		workbench.set_loading(context(diff, 2U, 2U));
+		expect(!workbench.source_line_text({ diff.Alignment.Digest, core::diff_side::right, 0U }), "loading replacement refuses retired native line text");
 	}
 
 	void test_semantic_selection_callback_tracks_both_panes_and_clear()
@@ -6573,6 +6660,11 @@ auto main(int argc, char** argv) -> int
 		test_source_overlay_scrollbar_keeps_viewport_extent();
 		return EXIT_SUCCESS;
 	}
+	if (argc > 1 && std::string_view{ argv[1] } == "--go-to-line-only") {
+		test_nontext_publication_status();
+		test_go_to_line_columns();
+		return EXIT_SUCCESS;
+	}
 	test_source_overlay_scrollbar_keeps_viewport_extent();
 	test_an_opened_file_waits_by_name();
 
@@ -6601,6 +6693,7 @@ auto main(int argc, char** argv) -> int
 	test_tinted_numbers_and_the_add_button();
 	test_selected_composition();
 	test_nontext_publication_status();
+	test_go_to_line_columns();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();
 	test_prepared_semantic_index_adoption();

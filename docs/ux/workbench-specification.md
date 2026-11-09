@@ -1739,6 +1739,7 @@ never invents enabled state.
 | Previous file ([[BPR-1328]]) | `Ctrl+Alt+Up` (⌥⌘↑) |
 | Next file ([[BPR-1328]]) | `Ctrl+Alt+Down` (⌥⌘↓) |
 | View > Go to header/source ([[BPR-1416]]) | `Alt+O` (⌥O) |
+| View > Go to line… ([[BPR-1948]]) | Physical Control-G on macOS; Ctrl+G on Windows/Linux |
 | View > Find > Find ([[BPR-1422]]); on Home, Filter Home ([[BPR-1865]]) | `Ctrl+F` (⌘F) |
 | Filter Home from one of its lists ([[BPR-1865]]) | `/`, or start typing |
 | View > Find > Next / Previous Match ([[BPR-1422]]) | `F3` / `Shift+F3`; macOS also ⌘G / ⌘⇧G |
@@ -1815,6 +1816,23 @@ and composers disable the native menu equivalent while they have focus, keeping
 their ordinary Option/Alt input. Home, local Review Cycles, Overview, Discuss
 and Threads cannot navigate a hidden retained source. The resident desktop menu
 mirrors the item disabled when no window is open.
+
+View > Go to line… opens a compact window-modal dialog for the active tab's
+loaded text comparison in PR Review, including historical and public-preview
+comparisons. It names the file, Base or Head and that side's one-based source
+range. Split focus or the last focused side selects the default; unified uses
+the selected source line's side, otherwise Head or the sole navigable side.
+The number starts selected. Side changes retain it, and malformed, overflowing
+or out-of-range input disables Go without previewing a jump. Cancel restores
+the invoking focus and leaves reading state intact. Go replaces a source range
+with the exact single line, reveals it through the shared geometry and focuses
+its source pane, including an already selected offscreen line. A changed tab,
+file or immutable comparison retires the request. Empty, binary, loading and
+unavailable material, Home and other modalities offer no command. Editable
+fields keep the hotkey while the explicit menu remains available in Review;
+macOS Command-G and Command-Shift-G retain Find navigation. The resident menu
+shows the same item and binding disabled without a window. Review Cycles is
+outside this command's scope.
 
 View > Find searches the complete accepted source in PR Review. Focused split
 source chooses Earlier or Later; Review chrome recalls the most recently focused

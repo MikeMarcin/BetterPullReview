@@ -1258,6 +1258,7 @@ namespace bpr::qt {
 	void workbench_window::publish(const application::document_tabs_projection& aProjection)
 	{
 		TabsProjection = aProjection;
+		update_go_to_line_action();
 		present_document_tabs();
 		update_older_pair_notice();
 		update_comment_target();

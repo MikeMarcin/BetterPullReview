@@ -1,0 +1,8 @@
+docs/issues/_checkpoints/go-to-line-v1/binding-appearance-r3.json
+docs/issues/_checkpoints/go-to-line-v1/changed-paths-appearance-r3.txt
+docs/issues/_checkpoints/go-to-line-v1/post-review.md
+docs/issues/_checkpoints/go-to-line-v1/review-session-v003.json
+docs/rfcs/RFC-BPR-0097-go-to-line.md
+docs/verification/RFC-BPR-0097.md
+src/adapters/qt/src/workbench_window_line_navigation.cpp
+tests/end_to_end/go_to_line_course.hpp
