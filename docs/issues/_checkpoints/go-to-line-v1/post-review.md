@@ -143,7 +143,7 @@ invalid/half-surrogate positions refused. This is a syntax convention, not
 full VS Code Go to line behavior. Frontend-design's desktop guidance continues
 to govern the design; all renders use actual offscreen Qt widgets.
 
-[BPR-1957](../../20-ready/BPR-1957-go-to-line-columns.md) and the new
+[BPR-1957](../../30-in-progress/BPR-1957-go-to-line-columns.md) and the new
 `line-column-panel` milestone own AC05–AC06. Main allocation `2e178b953` and
 feature import `cc5130d02` contain only the counter and immutable receipt;
 the concurrent main native-agent writer's edits were preserved. The
