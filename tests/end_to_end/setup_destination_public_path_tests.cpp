@@ -1355,6 +1355,16 @@ namespace {
 			if (word.Where.startsWith(QStringLiteral("QPushButton agentHistoryBack ("))) {
 				text.remove(QStringLiteral("Back to the conversation"));
 			}
+			// [[BPR-1966]]. Native Agent/Tour sessions describe their own
+			// retained context, not a pull request's review threads.
+			if (word.Where == QStringLiteral("QToolButton agentClearSession (tooltip)")
+				|| word.Where == QStringLiteral("QToolButton agentClearSession (accessible tree description)")) {
+				text.remove(QStringLiteral("New session: retain this conversation in history and start fresh"));
+			}
+			if (word.Where == QStringLiteral("QToolButton tourChatNewSession (tooltip)")
+				|| word.Where == QStringLiteral("QToolButton tourChatNewSession (accessible tree description)")) {
+				text.remove(QStringLiteral("Keep this conversation in history and start fresh. Accepted tour work stays. Context sent earlier remains in the old conversation even after its selection is removed."));
+			}
 			if (word.Where.startsWith(QStringLiteral("QLabel overviewNewConversationText ("))
 				|| word.Where.startsWith(QStringLiteral("QToolButton overviewGoToNewConversation ("))) {
 				text.remove(QStringLiteral("new comments in the conversation"));
@@ -1424,8 +1434,12 @@ namespace {
 			{ QStringLiteral("QAbstractButton pullRequestCommentsChip (accessible name)"), QStringLiteral("Pull request conversation: 1 comment. Resolve this conversation.") },
 			{ QStringLiteral("QToolButton agentConversationChipClose (tooltip)"), QStringLiteral("Stop asking about this conversation. Resolve this conversation.") },
 			{ QStringLiteral("QMainWindow workbenchWindow (accessible tree description)"), QStringLiteral("Agent conversations about this pull request. Nothing here is published. Resolve the conversation.") },
+			{ QStringLiteral("QToolButton agentClearSession (tooltip)"), QStringLiteral("New session: retain this conversation in history and start fresh. Resolve this conversation.") },
+			{ QStringLiteral("QToolButton tourChatNewSession (accessible tree description)"), QStringLiteral("Keep this conversation in history and start fresh. Accepted tour work stays. Context sent earlier remains in the old conversation even after its selection is removed. Resolve this conversation.") },
+			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("New session: retain this conversation in history and start fresh") },
+			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("Keep this conversation in history and start fresh. Accepted tour work stays. Context sent earlier remains in the old conversation even after its selection is removed.") },
 		});
-		expect(bad.size() == 9U, "accepted surface wording exceptions still reject unrelated or extra review-thread conversation wording");
+		expect(bad.size() == 13U, "accepted surface wording exceptions still reject unrelated or extra review-thread conversation wording");
 		expect(review_thread_conversation_words({
 													{ QStringLiteral("QAbstractButton pullRequestCommentsChip (text)"), QStringLiteral("Pull request conversation") },
 													{ QStringLiteral("QWidget tourSessionTranscript (window title)"), QStringLiteral("Tour conversation") },
@@ -1435,6 +1449,10 @@ namespace {
 													{ QStringLiteral("QTabBar overviewStatusTabs (tab tooltip)"), QStringLiteral("Agent\nAgent conversations about this pull request. Nothing here is published.") },
 													{ QStringLiteral("QMainWindow workbenchWindow (accessible tree description)"), QStringLiteral("Agent\nAgent conversations about this pull request. Nothing here is published.\nComments\nThe pull request's conversation: its comments and reviews, newest last, and a new comment") },
 													{ QStringLiteral("QToolButton agentConversationChipClose (accessible name)"), QStringLiteral("Stop asking about this conversation") },
+													{ QStringLiteral("QToolButton agentClearSession (tooltip)"), QStringLiteral("New session: retain this conversation in history and start fresh") },
+													{ QStringLiteral("QToolButton agentClearSession (accessible tree description)"), QStringLiteral("New session: retain this conversation in history and start fresh") },
+													{ QStringLiteral("QToolButton tourChatNewSession (tooltip)"), QStringLiteral("Keep this conversation in history and start fresh. Accepted tour work stays. Context sent earlier remains in the old conversation even after its selection is removed.") },
+													{ QStringLiteral("QToolButton tourChatNewSession (accessible tree description)"), QStringLiteral("Keep this conversation in history and start fresh. Accepted tour work stays. Context sent earlier remains in the old conversation even after its selection is removed.") },
 												})
 				   .empty(),
 			   "the exact accepted pull-request and Agent conversation surfaces keep their words");
