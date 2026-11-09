@@ -268,3 +268,63 @@ understanding. BPR-1954 retains explicit replay/legacy migration plus bidirectio
 shared quota, protected history and save-failure reconciliation. BPR-1955 retains
 installed Claude sign-in, installed read-only/resume/compaction/platform/resource
 and Release reuse/cost qualification. The RFC remains Proposed.
+
+
+## Explicit replay and legacy history migration
+
+BPR-1954 adds a separately identified **Transcript replay** generation with a
+source-history link. The original native handle, transcript and owned workspace
+remain intact. Native failure sends no replay automatically; choosing replay
+itself submits no inference. Replay uses only selected-generation answered prose,
+new private workspaces and the existing provider/authority/read-only checks.
+Legacy slots have unknown entry identity and require an explicit destination;
+they remain readable without selection or inference. New session is the empty
+alternative, labelled replay for unsupported backends, with unused-empty reuse.
+
+Core replay bounds retain Agent newest50/8KiB-fields/48KiB or tour newest12/48KiB.
+Actual retained-turn omissions and cut bytes enter the prompt and presentation;
+unknown earlier storage omissions remain labelled unknown. Unanswered/interrupted
+turns are excluded. The whole tour snapshot plus replay is refused before launch
+when its carrier exceeds160KiB. Native/legacy500 admission is now bidirectional
+and transactional: no protected record is pruned; failed admission keeps the
+prior selection, and existing records remain savable at capacity. Legacy save
+failure is projected visibly rather than claiming durable retention. The128-entry
+invocation catalog remains independent. Automatic retained-tree reclamation is
+not implemented: exact unverifiable/modified ownership is preserved and capacity
+refuses new admission.
+
+Evidence is external under `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/`.
+`m4-functional3.log` passes5 focused/public checks, including all6 seed/reopen
+courses with actual composers. Missing native workspace refuses before a process
+or retry; explicit replay gets a fresh workspace, preserves the source tree and
+omits the unsent failed question. Unknown legacy slot selection and replay survive
+restart. Both native fixture protocols exercise read-only tour replay. A custom
+plain harness cannot silently acquire native continuation and works after explicit
+labelled replay. `m4-core-check.log` passes core replay, dependency and architecture
+boundaries. Final candidate checks/static/gates and revisions are recorded below
+when complete. Prior scoped M1–M3 installed/platform limitations remain open on
+BPR-1955. No full AC10/AC11 or RFC acceptance is inferred from this migration.
+
+Final migration evidence: `m4-integration-final.log` passes10/11 checks, including
+architecture contract, launch/loop, Qt, storage and composition contracts. The
+public driver's new unsupported-New action initially clicked while its asynchronous
+history load disabled the button; the test now waits for the public enabled state.
+`m4-public-raster.log` then passes all6 production seed/reopen courses under network
+denial and saves the offscreen-m4 rasters. Agent replay/reopen and native tour
+rasters were inspected. `m4-uncertain-check.log` passes a final replay restart
+regression: uncertainty is visible even without native handle/workspace, with zero
+process/workspace starts. Native-only early return previously hid that notice and
+was corrected. No automatic resend was added.
+
+Clang-format22 passes23 changed C++ files. Scoped tidy passes all9 implementation
+units (final affected6 in `m4-tidy2.log`, final uncertainty host in
+`m4-tidy3.log`, unchanged3 in `m4-tidy.log`); a SQLite cast-placement diagnostic was
+corrected. Documentation structure passes and67 documentation script tests pass.
+Earlier build failures (target spellings, statement expected/optional, tooltip
+insertion, and structural test field count) remain in the external logs; none was
+accepted as functional evidence. Core-only replay/dependency/architecture3/3 pass.
+Debug timing/performance courses were not selected and receive no timing credit.
+Frontend-design was loaded before Qt changes. This is scoped BPR-1954 acceptance;
+BPR-1955 and qualified-continuation remain active for installed/Release qualification.
+
+BPR-1954 product candidate: `2de6a3336a02b7aae5a62700d17b620eff98451d` (tested source promoted unchanged).
