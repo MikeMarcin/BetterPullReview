@@ -251,6 +251,23 @@ Codex JSONL reconnects by exact native ID with a process per turn. The retained
 BPR display keeps at most 50 turns and 64 KiB per text; it is not a complete
 native transcript viewer.
 
+A persistent connection keeps bounded Claude assistant-envelope identities across
+turns, including tool-only messages and exact envelope digests when older messages
+omit an ID. Reported result UUIDs are fenced separately. Reusing an earlier turn's
+identity refuses the turn; the 4,096-identity connection bound refuses rather than
+forgetting old fences. Each turn still resets its output budget. An incomplete idle
+frame finishes under its original decoder before another question can be selected.
+
+A retained sparse workspace records its original missing object IDs in private
+conversation metadata, atomically with the session revision. Resume permits those
+original unselected blob holes, but refuses a newly missing selected blob or head
+tree. The bounded object walk admits at most 262,144 entries and 64 MiB of output.
+Complete workspaces also check required base closure; an advertised head-only sparse
+workspace does not claim to hold unfetched base history. Older sparse records without
+this evidence refuse resume and preserve their files; BPR never reconstructs the
+allowlist from an agent-editable index or configuration. New session or explicitly
+chosen Transcript replay remains available under its usual checks.
+
 **Transcript replay** is an explicit alternative for unsupported backends or
 unavailable native state. Choosing it creates a separate generation at the shown
 revision and keeps the source history, native handle and owned workspace intact.

@@ -6,9 +6,11 @@ BPR-1951 claim `f8eaca5be`. Product candidate `26fdce665d7ff09f9ecd52e0df6765ce5
 retains all five milestones. This ledger preserves each milestone's observations
 and the final criterion-by-criterion engineering audit.
 
-Current frontier: implementation and the M5 engineering audit are complete for
-independent critical review. The owner's new required critical review of the
-whole pack is pending; BPR-1956 stays In Progress and the RFC stays Proposed.
+Current frontier: the required independent critical review found three blocking
+counterexamples at `bf09db0a3c73836587a4d6a0ea6e447b18b79829`. All three were
+reproduced and repaired at `c66ed2166501da03026301f80f1285800ac56e47`; a fresh independent critical
+review of that repaired candidate remains required before closeout. BPR-1956
+stays In Progress and the RFC stays Proposed.
 M4 remains accepted under its narrow
 [installed Claude waiver](#owner-claude-verification-waiver-and-m4-acceptance).
 Earlier milestone sections retain their historical frontiers and actual failures;
@@ -666,3 +668,67 @@ External continuation and reviewer packet:
 `m5-critical-review-handoff.md`, with exact candidate, scoped path inventory,
 commands, criterion audit and checkpoint beside them. Final documentation/board
 checks and command quiescence are recorded in that external handoff.
+
+
+## M5 critical-review repairs — follow-up review pending
+
+Mandate `native-agent-sessions-r1`, assignment `accepted-scope`/BPR-1956,
+owner `/root/native_sessions_critical_repairs`, segment
+`accepted-scope-critical-repairs-3`. Adopted clean HEAD
+`7dbc2853acc86635cd5488f1709cdd0a08049dd2`; immutable baseline
+`bebea27edf44fd63a7308307227035bf33391c5c`. Product repair candidate
+`c66ed2166501da03026301f80f1285800ac56e47` changes fourteen explicit C++ paths. The original independent
+review and original external probes remain unmodified. These repairs and
+self-review do not constitute the required independent follow-up approval.
+
+| Finding | Reproduction before repair | Final distinguishing result |
+|---|---|---|
+| P1 AC05: completed Claude identities were lost at each new turn | Production loop wrote two questions and returned two successful OLD ANSWER terminals when the prior same-session assistant/result arrived after the next send. | Same original probe writes each question once; first success, second protocol_failure with no assistant answer. Production-loop tests also cover normal second answers, idless exact repeats, tool-only identities, a repeated result UUID after a fresh assistant, result-only late output and 4,096 identities plus one refusal without eviction. |
+| P1 AC03: Shallow skipped every missing-object marker | A real retained sparse workspace validated after deletion of its selected src/main.cpp Git blob. | Same original probe validates before deletion and refuses after it. Original unselected holes remain allowed; new missing selected blob/tree, old records without trusted evidence and full-workspace missing-base refuse. Allowed tracked/untracked edits survive inspection and refusal. Private SQLite evidence survives restart and shares the session CAS transaction. |
+| P2 AC08/09: Ready projection treated an empty source-reason list as eligibility | A valid imported-style Remote/Destination/Mapped unchanged-material stop without Original/ReaffirmedHead projected Ready=true/zero blockers, while complete refused incomplete. | Same original probe reports Ready=false/one blocker and no Ready action, matching core refusal. Shared core source_readiness preserves ready() semantics. Imported/remapped tests keep confirmed lines separate from explanation reaffirmation; actual author reaffirmation enables Ready. A valid-source invariant matrix and serialized snapshot regression compare the command and projection. |
+
+The stronger sparse test exposed an additional incidental cache write: Git
+pack-objects used the source cache as its Git directory and changed its pack
+directory timestamp through temporary files. Sparse packing now runs in the
+owned workspace with the existing quoted source-alternate environment. Final
+real-Git inventory checks prove both source cache and linked clone unchanged.
+A separate sparse ownership registry keeps that course independent of the
+existing complete-workspace startup-recovery count.
+
+Final frozen-source evidence is external under
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/`:
+
+- `m5-critical-repair-final-probe-{frames,sparse,status}.log`: all three original
+  probes distinguish the repaired behavior; frames has success then protocol
+  failure, sparse has before=1/after=0, status has projected_ready=0/blockers=1.
+- `m5-critical-repair-final-focused-public.log`: five ctests pass, including
+  core_review_tour_destination, application_agent_protocol_loop,
+  application_tour_agent_conversation, sqlite_agent_setup_storage and
+  application_native_agent_sessions (six production native/replay courses).
+- `m5-critical-repair-final-retained.log`: GIT_NATIVE_RETAINED_WORKSPACE_OK,
+  including missing selected blob/tree, allowed holes/edits, source/clone
+  inventories and unchanged complete-workspace/required-base/alternate recovery.
+- `m5-critical-repair-core-check.log`: four core-only checks pass: core_review_tour,
+  core_review_tour_destination, architecture_boundaries and
+  test_network_isolation_manifest. Both preset builds pass.
+- `m5-critical-repair-final-tidy.log`: six changed production units pass tidy22.
+  All fourteen changed C++ files pass clang-format22.1.8 and git diff --check.
+
+Intermediate evidence remains: wrong initial build target, corrected compiler
+signature/test namespace errors, incomplete-line idle fixture, a fixture helper
+used for nonidentity output, and the source-cache timestamp failure. The final
+idle fixture uses a complete ignored line at exactly64KiB; its extra byte still
+refuses before selecting another request. Partial idle framing stays with the
+completed decoder. An early tidy sampled a file during formatting and failed
+with a truncated parse; only the settled six-unit rerun supplies static evidence.
+
+Frontend-design was loaded before the status work; no Qt/layout/palette change
+was needed. Existing offscreen appearance evidence is reused, and final public
+composition is functional fixture evidence. No owner desktop or personal profile
+was accessed. No installed Claude/API/auth/inference call, retry or wizard was
+made. The narrow Claude waiver, actual HTTP429/unreached courses, other-platform,
+forced-compaction, wall-clock expiry, broader resource and cost limitations above
+are unchanged. Debug timing remains nongating; no timing course was run or given
+functional credit. Required independent critical follow-up is the next action,
+not terminal RFC or card closeout. The durable current handoff is
+`m5-critical-repair-handoff.md` beside the external logs.
