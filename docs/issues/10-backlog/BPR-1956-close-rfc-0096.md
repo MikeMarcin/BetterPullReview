@@ -47,7 +47,7 @@ AC03/AC11 claim is made here. Native Windows/Linux qualification is not inferred
 
 External continuation:
 `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m1-handoff.md` and bound
-`m1-checkpoint.json`. First-milestone commands are draining for handoff; no attended
+`m1-checkpoint.json`. BPR-1951 finish commit `3a4c055f063a79c3f2f3f19208a95ee3c23f5e0a`; BPR-1952 is Ready. First-milestone build/test/runtime commands have completed for handoff; no attended
 candidate, review server, task worktree, remote mutation or push. Original pack and
 adopted five-milestone grouping remain unchanged.
 
