@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1968"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Diagnose Windows conversation read reply editor state across delayed discovery completion",
+  "created": "2026-11-09T16:05:02.978116+00:00",
+  "base": "8f7e8caf50c7eda2714fa747339ba5e87548cd92"
+}
