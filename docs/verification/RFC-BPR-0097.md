@@ -1,5 +1,7 @@
 # RFC-BPR-0097 verification
 
+The final amended result is [accepted columns closeout](#accepted-columns-closeout-bpr-1957). Earlier sections retain their producing revisions and historical pending states.
+
 Mandate `go-to-line-r1`: implement the supplied RFC-DRAFT-0030 unchanged,
 all AC01–AC04, as milestone `exact-source-line` / BPR-1948. There is no
 required human, native or independent acceptance criterion.
@@ -264,3 +266,76 @@ The [handoff](../issues/_checkpoints/go-to-line-v1/review-session-v005.json)
 records binary hash, protected fingerprint, external state and host ownership;
 no authenticated URL is tracked. The earlier unused v004 freeze completed,
 was superseded before init/serve, and was removed through the freeze helper.
+
+
+## Accepted columns closeout (BPR-1957)
+
+Assignment `/root/go_to_line_closeout`, mandate `go-to-line-columns-r4`,
+milestone `line-column-panel`. Final source/test candidate:
+`bb06010ffe29011cf3529fb6c3efff4b89130f00`. AC05–AC06 and all milestone exits pass;
+BPR-1948's AC01–AC04 acceptance remains historical and unchanged.
+Frontend-design and its desktop guidance were loaded.
+
+The exact v005 appearance was **accepted** without notes at decision6,
+handback7, session `9827b9b1187675faf91e0e097db5a23f`. Fingerprint:
+`130b758e3524f698d848e79d95122de62a834b222bcf07c7f0aec76e21cefc24`.
+Frozen source: `dd968668313c5abe343273de960ea9f00bfefae1`; binary SHA-256:
+`d16532fb9fca631e4f54f8339c5a6c532bb60938ee4e893e556942d2801e9765`.
+Intake7 was persisted before further engineering. Scoped mutable protections
+were released at8 for the authorized correction, with the verdict and frozen
+source/build retained. The host was stopped by the authenticated helper and
+both process IDs are absent. The frozen binary's hash was rechecked unchanged.
+
+A later source line starting with U+FEFF exposed a functional AC05 edge:
+`QString::fromUtf8` stripped it during isolated-line validation, while the
+native split document retained it. The maximum column was one short. A small
+bounded accessor now reads the existing native block used by jump validation;
+the dialog caches it by exact source-line identity and presentation. No new
+source acquisition, scan, diff/search computation or rendering policy is added.
+The existing unified line decoder's treatment is preserved; validation and
+caret use that presentation's actual text. The accepted layout, controls,
+close glyph and styling are unchanged, so appearance acceptance stays on v005.
+
+The final serial composed integration passes **4/4, 125.40 s**:
+`application_source_find` (41.22 s), its `_scale_1_25` (45.70 s) and
+`_scale_2_0` (24.26 s) variants, plus `application_source_pr_find` (14.13 s).
+All original course assertions remain, including menu/key, both endpoints and
+presentations, parser/stale/cancellation guards, exact caret and one-line draft,
+horizontal reveal, native Close, accessibility, minimum layout, light/dark and
+unchanged bounded-work counters. New checks exercise the later BOM through the
+installed Git/cache source, exact end-of-line positions, and a presentation
+change with the same line cached in an open dialog. The subsequent composed
+draft targets that exact new line. No dedicated Debug timing course ran.
+
+The native workbench's `--go-to-line-only` course passes at100/125/200% using
+the registered network-denied commands/environments. It now covers initial and
+later BOMs, reads without navigation, empty versus unavailable text and retired
+material, in addition to tabs, CRLF, Unicode/surrogates and long-line carets.
+The later-BOM negative control removes U+FEFF from the cached native text;
+the composed course fails its precise column-limit assertion (4.36 s).
+The source was restored byte-for-byte before rebuilding and the final pass.
+
+Architecture boundaries, architecture negative-control contract and served
+fixture security pass **3/3, 286.29 s**. The source Find fixture regenerates
+exactly, including ambient `core.autocrlf=true`, and its pack reproduces every
+source blob. Format22.1.8 and tidy22 on the three changed production translation
+units pass. Documentation structure and all67 documentation controls pass.
+Focused fixture validation also corrected its stale expected file count from2
+to5; the three existing added/emptied/empty files are retained.
+
+Retained diagnostics: the first new run stopped before navigation because the
+regenerated pack's fixture OIDs were not yet updated. The first restored course
+reached the correct BOM caret, then its older draft assertion still expected
+line500; it now checks the exact newly selected BOM line501. Extraction of the
+new regression into a named helper briefly misnamed a key helper; that compile
+error was corrected before the final build. These were fixture/test repairs.
+
+External evidence root: `/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1957-closeout-2k3_e_ax`.
+It retains native checks, negative/restored build/course logs, final integration,
+fixture, architecture/security, format/tidy, documentation and sanitized intake.
+No capability-bearing URL, credential, raster, log or build output is tracked.
+The [closeout](../issues/_checkpoints/go-to-line-v1/closeout.md) inventories paths
+and command ownership. Native system appearance is accepted only for the exact
+frozen look; VoiceOver, Windows/Linux execution, Release performance, signing,
+installation and package trust are not claimed. No owner desktop, browser
+profile, live GitHub mutation, push, release or publication was used.

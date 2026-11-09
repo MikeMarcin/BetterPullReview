@@ -1,5 +1,7 @@
 # Additional Go to line owner review
 
+The final accepted result is recorded in [closeout.md](closeout.md). All requested branch-local work is complete, with no pending owner decision or running review host. The remaining text is historical preparation and acceptance evidence.
+
 The owner requested an attended look after automated closeout. This is a new,
 short session for the implemented dialog and navigation UX. BPR-1948 remains
 Done and its existing AC01–AC04 acceptance is unchanged. No product, fixture or

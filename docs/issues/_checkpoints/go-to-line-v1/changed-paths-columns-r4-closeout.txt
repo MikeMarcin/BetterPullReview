@@ -1,0 +1,11 @@
+scripts/build_source_find_fixture.py
+src/adapters/qt/include/bpr/qt/diff_workbench.hpp
+src/adapters/qt/src/diff_workbench_marks_and_navigation.cpp
+src/adapters/qt/src/workbench_window_line_navigation.cpp
+src/app/src/github_public_path_fixture.cpp
+tests/adapters_qt/diff_workbench_tests.cpp
+tests/end_to_end/go_to_line_course.hpp
+tests/fixtures/github/contracts/v1/source-find-v1/responses/files.json
+tests/fixtures/github/pull-requests/source-find-v1/construction.json
+tests/fixtures/github/pull-requests/source-find-v1/objects.pack
+tests/scripts/recorded_pull_request_fixture_tests.py

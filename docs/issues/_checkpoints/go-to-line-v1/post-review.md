@@ -1,6 +1,6 @@
 # Go to line appearance revision
 
-The latest frontier is [columns r4](#columns-r4-and-final-compact-panel), below.
+The latest frontier is the completed [final closeout](closeout.md). The v005 appearance is accepted and the bounded column correction is verified.
 Earlier appearance records retain their exact candidates and verdicts.
 
 Assignment `/root/go_to_line_revision`, mandate `go-to-line-r1` with owner
@@ -143,7 +143,7 @@ invalid/half-surrogate positions refused. This is a syntax convention, not
 full VS Code Go to line behavior. Frontend-design's desktop guidance continues
 to govern the design; all renders use actual offscreen Qt widgets.
 
-[BPR-1957](../../30-in-progress/BPR-1957-go-to-line-columns.md) and the new
+[BPR-1957](../../60-done/BPR-1957-go-to-line-columns.md) and the new
 `line-column-panel` milestone own AC05–AC06. Main allocation `2e178b953` and
 feature import `cc5130d02` contain only the counter and immutable receipt;
 the concurrent main native-agent writer's edits were preserved. The
@@ -251,3 +251,14 @@ cache by source identity and presentation, and add split/unified regressions.
 Then run the composed public course, focused native checks, format/tidy and
 documentation; finish BPR-1957 and RFC closeout with exact producing revisions.
 No new appearance judgment is needed for this logic correction.
+
+
+## Final completed frontier
+
+Source/test candidate `bb06010ffe29011cf3529fb6c3efff4b89130f00` corrects the native BOM column limit and
+adds split/unified cache-refresh regressions. Composed integration passes4/4
+(125.40 s); native columns pass100/125/200%; fixture/pack, architecture/security
+3/3, format22, tidy22 and documentation pass. Exact v005 appearance is accepted;
+no question remains. [Closeout](closeout.md) retains exact revisions, changed
+paths, commands, failures, evidence and continuation. All commands and review
+hosts are stopped; branch integration remains with the coordinator.

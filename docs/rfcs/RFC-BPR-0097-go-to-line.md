@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0097"
 title: "Go to a source line in the main diff"
-status: "In Progress"
+status: "Auto-Verified"
 depends_on: []
 metadata: {"origin":"owner request, 2026-11-08","inspected_revision":"663137a9ed38","authoring":"author-rfc; frontend-design:frontend-design and desktop guidance loaded","milestone_plan":{"id":"go-to-line-v1","path":"docs/rfcs/plans/go-to-line-v1/milestone-plan.json"}}
 ---
@@ -139,7 +139,7 @@ native UTF-16 positions; it does not claim all VS Code Go to line behavior.
 In particular, current VS Code converts visible columns through tab stops and
 clamps some values ([primary implementation](https://github.com/microsoft/vscode/blob/main/src/vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess.ts));
 this command retains its explicit refusal contract. The follow-up
-[BPR-1957](../issues/30-in-progress/BPR-1957-go-to-line-columns.md) owns AC05–AC06.
+[BPR-1957](../issues/60-done/BPR-1957-go-to-line-columns.md) owns AC05–AC06.
 Previously accepted criteria and frozen verdicts retain their producing revisions.
 
 ## Acceptance criteria
@@ -187,5 +187,10 @@ All original AC01–AC04 pass at that revision. [Verification](../verification/R
 13-row integration, strengthened three-scale checks, falsification and limits.
 Main integration remains with the coordinator while its other writer is active.
 
-The post-review appearance revision and its pending attended candidate are
-tracked in the [post-review checkpoint](../issues/_checkpoints/go-to-line-v1/post-review.md).
+The `line-column-panel` milestone is complete at source/test revision
+`bb06010ffe29011cf3529fb6c3efff4b89130f00`. AC05 includes the native BOM-column correction;
+AC06 appearance was accepted for exact frozen v005, with its composition
+unchanged by that correction. Original BPR-1948 acceptance and all historical
+frozen verdicts retain their producing revisions. The
+[final closeout](../issues/_checkpoints/go-to-line-v1/closeout.md) records evidence,
+review intake, command quiescence and the coordinator's integration boundary.

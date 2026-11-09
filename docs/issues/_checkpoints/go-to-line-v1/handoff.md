@@ -1,5 +1,7 @@
 # Go to line checkpoint
 
+The final accepted result is recorded in [closeout.md](closeout.md). All requested branch-local work is complete, with no pending owner decision or running review host. The remaining text is historical preparation and acceptance evidence.
+
 The latest frontier is the owner-requested [appearance revision](post-review.md).
 The original automated closeout below is preserved; additional appearance
 acceptance is pending for its fresh candidate.
