@@ -108,3 +108,10 @@ BPR-2048), its counter and receipt
 this lane and the main checkout restored (`6bc29a5b3`). Main then reserved
 BPR-2050 (`085cf45db`) without this lane's receipt and reads BPR-2051; the
 lane's counter follows it. Nothing is imported and nothing collides.
+
+The Enhance round (2026-11-10) allocated BPR-2051 against main the same way:
+the allocator ran in the main checkout at `809d0296a` (counter BPR-2051), its
+counter and receipt
+`docs/issues/_reservations/BPR-2051--BPR-2051--efa66a8a01d3.json` moved to
+this lane and the main checkout restored. The lane's counter reads BPR-2052;
+main's reads BPR-2051 until this lane integrates. Nothing collides.
