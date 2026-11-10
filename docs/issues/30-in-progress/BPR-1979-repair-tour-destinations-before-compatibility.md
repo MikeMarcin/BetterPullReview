@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1979"
 title: "A tour with one stale-head stop and one stop a line outside its hunk can only publish as compatibility comments, although both stops can be fixed and the other eight are valid line comments"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-1980"]
 priority: "P2"
