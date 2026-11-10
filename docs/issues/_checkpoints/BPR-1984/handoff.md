@@ -22,3 +22,40 @@ archive/build/test is dispatched yet. Root owns Mac; this leaf owns bounded
 PC preparation/native calibration and canonical1984 writer after1983handoff.
 No review server. Exact sealed task/rows/archive proof go to coordinator
 before course dispatch. Original49/Linux1978 remains unresolved.
+
+## Active archive and approved next stage
+
+Archive-only R2 is approved and dispatched ONCE as
+BPR-1984-owned-archive-r1. Native evidence root is
+C:/Users/mikem/AppData/Local/BetterPullReviewRelease/v042-20261104/BPR-1984-tour-containment-r1.
+Archive Python SHAfb69c895e5d2f90bb043d1559b4cc7965a31e1bdee4602bc145ab852e0b0c8e6,
+PSb5ad716fecbd916d23d37737dc3620f4b366eda745f72dd5c3c1d49c94f71254.
+It archives ALL own regular build files/generated inputs, with explicit
+junction/sharedcache pruning and references. Bundle/create+verify commands
+exit0/empty forests; tar/member/current-byte verification is still active.
+Owned PythonPID133512/creation2026-11-10T05:08:15.028442Z/exact archive-owned.py
+command identity verified. At05:14UTC it has written3.80GB and read11.61GB;
+progress is real. No source update/build/course has occurred.
+
+Root separately approves build/manifest-only Pythona194132d14c2c4434b2cf081200c7710ef6986db6aa5abddacc8d8e5d67582e0
+and PS923be28300a1d02110797ee3a8cbc7a1b138cdc7f8ad8fb85fc53b855e35ff06.
+Source bundle SHA22270c488fc211ff8f9da22398330d4ecb4d0ecbb6f0234dbe31b9ef10f08cc2
+contains only frozen product/1983 pin plus1984 allocation metadata; checkout
+MUST exact4eab682639a399243ffb3dc921716b434e6f8be2. Before dispatch, archive
+must complete/verify/result0 with no children; compile-temp must already
+exist as own nonreparse directory or fail without speculative creation.
+Then normal windows-dev configure and windows-qualification-release owning
+target+sandbox build, PE integrity and full actual3row capture; NO courses.
+Actual three rows and contained variant delta require coordinator review
+before separate six-course task.
+
+Canonical writer/allocator is temporarily RELEASED to release_fixes_main
+for root-authorized1985 two-test compile fix. Its allocation15942dcb705366de45225d1df168ebfdd6e013f6
+preserves1984 and NEXT1986. This leaf holds M writes until exact handback.
+It continues own privateW/PC work; no later external product main ingestion.
+Mac is separately owned by root/fmain, no overlap. No review server.
+
+Local external packet: /Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer1984-windows-tour-containment-r1.
+Next: reconcile existing archive task/receipt FIRST (never redispatch),
+collect actual archive seal/quiescence, then approved normal build-only task.
+OriginalLinux49/BPR1978 remains unresolved; no native qualification credit.
