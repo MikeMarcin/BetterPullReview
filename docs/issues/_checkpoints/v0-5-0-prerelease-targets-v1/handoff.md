@@ -345,3 +345,71 @@ then finish BPR-2010 and BPR-1992, stop host 36810 and remove
 host 95022, remove `home-next-move-v003.ozia7rab` and
 `home-next-move-live-v002.s9ny7rtj`. Disposable BPR-Test leftovers: #152 and
 its `-next` branch.
+
+## agent-work-visible (2026-11-10)
+
+Engineered on the same lane; nothing pushed. Frontend-design was loaded before
+the Qt work. Record: [RFC-BPR-0103](../../../verification/RFC-BPR-0103.md).
+Owner amendments in force as above.
+
+| Commit | What |
+|---|---|
+| `df1701992` | BPR-2043 (refused update-lifetime start shows the profile recovery dialog) and BPR-2044 (owned unwritable update control folder treated as busy) reserved against main as Backlog; not implemented |
+| `cc3a11407`, `fc24c151a` | Counter to main's BPR-2047; ready and claim BPR-2004 |
+| `12e9c6fb4` | Activity core, decoders (Claude helpers and later parts, Codex App Server sub-agents), loop activity and heartbeats, `helpers_unfinished`, diagnosis fields, Codex foreground instruction, Agent tab and tour side chat running block, quiet notice and folded line, recorded traces, unit/Qt/composed courses, live `agent-helpers` course, `--attended-agent-helpers` look, RFC-BPR-0096 amended, app pin resealed. Product candidate |
+| `aec356af6` | Counter to main's BPR-2048 (main had reserved BPR-2047) |
+| `8e531521e` | BPR-2004 Done (AC01 to AC04, AC07) |
+| `274ee1144`, `807d5ae67` | Ready and claim BPR-2005 |
+| `0fe6d1357` | BPR-2005 parked `human-review` (AC05, AC06, AC08 pass; AC09 pending) |
+
+Facts established (AC01): installed Claude Code 2.1.319 on stream JSON reports
+helpers (`system/task_started|task_progress|task_updated|task_notification`,
+`background_tasks_changed`, helper frames by `parent_tool_use_id`), writes its
+message's `result` while they run, then answers each report in a further part
+of the turn (`system/init` … `result`); with input closed it holds the results
+until the helpers finish. Codex 0.167.0 reports sub-agents on the App Server
+(`subAgentActivity` items, helper threads) but never answers them on its own,
+reports nothing on `exec --json`, and no flag of that version removes its
+sub-agent tools; Codex runs are asked to keep helpers in the foreground. The
+reported silent failure is reproduced on the frames (first result ended the
+turn; the idle drain ended the connection under the helpers).
+
+State: both exits have passing evidence except the owner's look (AC09). Live
+AC07 passed with both installed agents on BPR-Test #40 (read only).
+
+Runs at the candidate: `core_agent_activity`, `application_agent_helper_turn`,
+`application_agent_chat_helpers{,_unfinished}_public_path` (stable over
+repeated runs), `qt_agent_activity_view`, `qt_tour_side_chat`, an
+integration pass of 105 agent/tour/diagnosis/composition/boundary rows (only
+the baseline `application_agent_chat_custom_agent_contract` fails; one
+regression found there, `application_agent_launch`'s stale App Server
+terminal, fixed and rerun), `application_composition_source_contract`,
+`architecture_boundaries`, `test_network_isolation_manifest`,
+`coding-format-check`, clang-tidy on the touched sources (only two findings,
+both pre-existing in `agent_tab_view` lines this change did not touch),
+documentation gate and its tests. Live course commands are in the record.
+
+Observed, not changed: in the live course an added agent can leave the Agent
+tab on its setup, so the tab's clock (started on entering `working`) reads
+0:00 although the run proceeds; a native-history redraw stores a turn's ending
+as the outcome's name ("success"), which this change now overrides for turns
+this window saw end; Codex App Server answers render each delta on its own
+line, as before.
+
+Filed, awaiting the owner (not waited on; the URL stays in the session state):
+session `d2cc338937915480c469bdbd1ffd7f89`, state
+`/Users/jaeger/.attended-review-state/agent-work-visible-v001-2026-11-10/state`,
+cursor 9, host PID 29030 (its `tailscale serve` child 29040), candidates
+`BPR-2005-running`, `BPR-2005-quiet`, `BPR-2005-ended`, ready and protected;
+frozen build `/Users/jaeger/agent-work-visible-v001.9any75gt` from `12e9c6fb4`
+(executable SHA-256 `9eca0ba356b2…`, launcher `--check` passed).
+
+Not touched: sessions `26d89bac…` (36810/36892) and `bb8c24c5…`
+(95022/95034), host 74692, BPR-Test #151/#152 and the `-next` branch.
+
+Next: read session `d2cc3389…` after hand-back. On Accept of all three,
+finish BPR-2005, stop host 29030 and remove the root with
+`freeze_attended_build.py remove`. A Reject goes to a fresh implementer with
+the decision. BPR-2006 (RFC-BPR-0103 closeout) belongs to `accepted-scope`.
+Next eligible milestones in plan order: `agent-scratch` (depends on this
+milestone's acceptance), `tour-stops`.
