@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1984"
+  ],
+  "reserve_for": "bpr1984-windows-tour-containment",
+  "purpose": "",
+  "created": "2026-11-10T05:00:29.259025+00:00",
+  "base": "4eab682639a399243ffb3dc921716b434e6f8be2"
+}

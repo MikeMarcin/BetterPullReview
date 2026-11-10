@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1985"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Repair exhaustive GitHub fixture operation handling for staged file-comment operations exposed by frozen release compile",
+  "created": "2026-11-10T05:12:09.804004+00:00",
+  "base": "6b9000a22d23029f854dc655b37c267d302ed3e1"
+}
