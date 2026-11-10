@@ -291,3 +291,22 @@ no credentials, rasters or transient build output are tracked. No push occurred.
 Next action after guarded finish/check: coordinator reports the authorized pack
 complete; no engineering milestone remains. Exact live/native follow-ups retain
 their existing independent scope and status.
+
+### Final guarded closeout
+
+- Guarded finish `788dab8e175e2ff28e40f0716866f0728db0bf0c` moved BPR-1979
+  to `docs/issues/60-done/BPR-1979-repair-tour-destinations-before-compatibility.md`
+  with seven passing records against source candidate
+  `aeed86510165247bb877136ff996fe584cfbe346`. Original AC1–AC7 text is intact.
+- Scoped board validation for BPR-1979/BPR-1980/BPR-1737 and the post-move
+  documentation gate pass (`mixed-board-final.json`, `mixed-finished-docs.log`).
+- `check_mixed.py` returns `report-closeout` with disposition `pack-complete`,
+  accepted predecessors, no next milestone and no selected-scope pending item.
+  Its `engineering_acceptance: not-evaluated` correctly means the helper checks
+  consistency; the engineering decisions/evidence are the criterion ledger above.
+  The final current-HEAD observation/check are external at
+  `/tmp/bpr-tour-repair-run/mixed-publication-{observation,check}.json`.
+- All task-owned command results, including initial failed runs, were consumed.
+  No owned command, writer, server, review protection or worktree remains active.
+  The only untracked repository item is the preserved foreign
+  `.codex-attachments/`. No push or remote mutation occurred.
