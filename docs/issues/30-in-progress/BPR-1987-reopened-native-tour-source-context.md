@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1987"
 title: "Preserve authoritative source context on native tour reopen"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
