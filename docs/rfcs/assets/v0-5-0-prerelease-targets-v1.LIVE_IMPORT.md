@@ -1,0 +1,54 @@
+# 0.5.0 prerelease targets v1: live import
+
+Mandate `v0-5-0-prerelease-targets-r1`, 2026-11-10: the owner asked to
+implement this pack from its implementation entrypoint, starting with
+`dependable-session` and following the plan's order. RFC_BASE_SHA:
+`dc5453afa3ba0e1620fe30bf97b17211e09ba4bd`. Imported on lane
+`claude/v0-5-0-prerelease-targets-52265d`. The original pack bytes are kept
+under [v0-5-0-prerelease-targets-v1](v0-5-0-prerelease-targets-v1/README.md)
+with their provisional IDs; its [design round](../../design/v0-5-0-targets-v1/index.html)
+moved with it, unchanged.
+
+## Mapping
+
+RFC-DRAFT-0001 to 0015 map to RFC-BPR-0098 to 0112 in order (draft number
+plus 97). DRAFT-0001 to 0047 map to BPR-1989 to 2035 in order (draft number
+plus 1988), allocated by `scripts/allocate_issue_id.py`; receipt
+`docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json`. The full
+map is [v0-5-0-prerelease-targets-v1.id-map.json](v0-5-0-prerelease-targets-v1.id-map.json)
+and [the plan's source record](../plans/v0-5-0-prerelease-targets-v1/source.json).
+
+The allocator refuses a non-`main` branch. Under the coordinator's instruction
+it ran once against the main checkout, whose counter and receipt were moved to
+this lane and the main checkout restored to its clean state; `main`'s counter
+still reads BPR-1989 until this lane integrates. RFC numbers have no counter:
+0098 to 0112 were free on every branch at import. The integrator renumbers on
+a collision.
+
+Closeout cards take the board's required name and title (`BPR-NNNN-close-rfc-NNNN`,
+"Verify and close RFC-BPR-NNNN"); the draft title is kept in card metadata as
+`draft_title`. Each closeout carries a pending checklist with every canonical
+criterion. RFC acceptance sections are renamed "Acceptance criteria" for the
+documentation gate; their text is unchanged. The absorbed RFCs' and cards'
+`origin`/`absorbed_from` metadata keep the local PR drafts pack's own former IDs
+verbatim, since those name that pack, not this one.
+
+## Lanes and plan
+
+BPR-2010 and BPR-2011 (`dependable-session`) are Ready; every other card is
+Backlog. The authored sixteen-milestone grouping is adopted without scope or
+exit changes under [plans/v0-5-0-prerelease-targets-v1](../plans/v0-5-0-prerelease-targets-v1/MILESTONES.md).
+
+## Drift
+
+The pack inspected `b12269ea9ad1ff07afe8ec31812875b89d870e5a`. Between it and
+the baseline only agent guides (`AGENTS.md` files), `.mask.lock.json`, the
+issue counter and one reservation changed; no source the RFCs cite moved.
+
+## Exclusions
+
+No credentials, logs, screenshots or build output were imported. The enterprise
+overview the pack left outside the repository stays out. Amendments the drafts
+make to RFC-BPR-0011, 0012, 0034, 0041, 0042, 0043, 0066, 0070 and 0096 are
+not applied at import; each owning milestone reconciles its live text.
+Adoption is not implementation acceptance.

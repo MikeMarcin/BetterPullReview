@@ -1,0 +1,448 @@
+{
+ "repository_revision": "b12269ea9ad1ff07afe8ec31812875b89d870e5a",
+ "first_observed_revision": "154d307d765a87917c805fe1d4ac024eef0fd6c5",
+ "kind": "source observations only",
+ "note": "Anchors re-observed at repository_revision on 2026-11-10; S15-S18 added then. Verify with supporting/check_pack.py --repository.",
+ "observations": [
+  {
+   "source": "S1",
+   "path": "src/core/include/bpr/core/agent_entry.hpp",
+   "line": 21,
+   "sha256": "3c7749a21b94d8436b766cbd2f78b12bb5855b5bf06237b3edee6ee9124f62b5",
+   "excerpt_start": 20,
+   "excerpt": "\t/// agent list.\n\tinline constexpr std::size_t   maximum_agent_entries              = 16U;\n\tinline constexpr std::uint32_t maximum_agent_entry_id             = 64U;\n\tinline constexpr std::size_t   maximum_agent_entry_name_bytes     = 64U;\n\tinline constexpr std::size_t   maximum_agent_entry_arguments      = 16U;\n\tinline constexpr std::size_t   maximum_agent_entry_argument_bytes = 256U;"
+  },
+  {
+   "source": "S1",
+   "path": "src/core/include/bpr/core/agent_entry.hpp",
+   "line": 38,
+   "sha256": "3c7749a21b94d8436b766cbd2f78b12bb5855b5bf06237b3edee6ee9124f62b5",
+   "excerpt_start": 37,
+   "excerpt": "\t/// before. No field could hold a credential.\n\tstruct agent_entry\n\t{\n\t\t/// Stable while the entry exists, from 1 to `maximum_agent_entry_id`.\n\t\tstd::uint32_t            Id = 0U;\n\t\tstd::string              Name;"
+  },
+  {
+   "source": "S1",
+   "path": "src/core/include/bpr/core/agent_entry.hpp",
+   "line": 63,
+   "sha256": "3c7749a21b94d8436b766cbd2f78b12bb5855b5bf06237b3edee6ee9124f62b5",
+   "excerpt_start": 62,
+   "excerpt": "\t\t/// agent keeps strict checks: only a custom agent may turn them off.\n\t\tbool StrictRunChecks = true;\n\t\t/// Host-minted incarnation; replacement/reset never inherits a reused slot.\n\t\tstd::string Identity;\n\n\t\tauto operator<=>(const agent_entry&) const = default;"
+  },
+  {
+   "source": "S1",
+   "path": "src/application/include/bpr/application/agent_setup_preferences.hpp",
+   "line": 17,
+   "sha256": "636f7692cf0ba50ff32bd7cfb70e593c691140f4d2bd8f5ce338f89c21fe5a12",
+   "excerpt_start": 16,
+   "excerpt": "\t/// credential, token or environment value could occupy.\n\tstruct agent_setup_preferences\n\t{\n\t\t/// The agent the reviewer chose, or setup chose and checked.\n\t\tstd::optional<core::setup_agent> Chosen;\n\t\t/// Q5: the program a Codex launch runs in place of the shipped bare"
+  },
+  {
+   "source": "S2",
+   "path": "docs/development/settings.md",
+   "line": 122,
+   "sha256": "2d4a1482bc1d1d5cd6b5470736c3bfd5bda401e6e0c2b4ac5f77088f04fcedbd",
+   "excerpt_start": 121,
+   "excerpt": "\n### Review preparation writing hooks\n\n**AI assistance > Writing instructions** holds the instructions an agent\nfollows when it helps write a Review Tour's Problem, Solution, outline and\nstop comments. **Test saved hook** tries one on a sample without publishing."
+  },
+  {
+   "source": "S2",
+   "path": "src/adapters/qt/src/agent_setup_settings.cpp",
+   "line": 552,
+   "sha256": "63af5ccdfadcb115555bc5def72adbaadc8c8ab35f2aecfabca8869f1b5086d2",
+   "excerpt_start": 551,
+   "excerpt": "\n\treview_skill_panel::review_skill_panel(QWidget* aParent)\n\t\t: QWidget{ aParent }\n\t{\n\t\tsetObjectName(QStringLiteral(\"reviewSkillPanel\"));\n\t\tauto* const column = new QVBoxLayout{ this };"
+  },
+  {
+   "source": "S2",
+   "path": "src/adapters/sqlite/src/agent_setup_store.cpp",
+   "line": 491,
+   "sha256": "a5e97e524a15e50c714b62ee4c2ba8f59f01af94b1ea41b0dd07ff2ed687eb69",
+   "excerpt_start": 490,
+   "excerpt": "\n\t\tclass review_skill_store final : public application::review_skill_store_port\n\t\t{\n\t\tpublic:\n\t\t\texplicit review_skill_store(std::filesystem::path aRoot)\n\t\t\t\t: Root{ std::move(aRoot) }"
+  },
+  {
+   "source": "S2",
+   "path": "docs/rfcs/RFC-BPR-0092-agent-first-run-setup.md",
+   "line": 1194,
+   "sha256": "059c9223b391f6b048654e77a3f3b8e57913654f1e76f4d8e8c5f30d01cefd8d",
+   "excerpt_start": 1193,
+   "excerpt": "\n### Amendment [[BPR-1916]] and [[BPR-1917]] (2026-11-06): skills in prompts, and the prompt editor\n\nThe owner, 2026-11-06: \"I wonder if I can't have a hook to let me reference a\ncustom skill in my prompts if the skill is available in as a personal user\nskill or a skill in the repo being reviewed\", and \"the settings agent tab"
+  },
+  {
+   "source": "S3",
+   "path": "docs/architecture/ai-agent-boundary.md",
+   "line": 1841,
+   "sha256": "784eaaa3d5f9e898e1002100a22be4d2f87cd61d17e74e364daca9073183b664",
+   "excerpt_start": 1840,
+   "excerpt": "\n### Skills a prompt names (BPR-1916)\n\nA prompt the person writes or edits can name a skill as `/skill-name`: a\nbuilt-in prompt in Settings (the tour's Problem, Solution, outline and stop\ncomment, used by Draft from PR context, Suggest an outline, Enhance and"
+  },
+  {
+   "source": "S3",
+   "path": "src/core/include/bpr/core/skill_references.hpp",
+   "line": 40,
+   "sha256": "fc4157b927ad97eaebb91d64fd2ce7b79764c701ca7377a2eab4f2fce48fbba6",
+   "excerpt_start": 39,
+   "excerpt": "\t/// \\brief The most skills one prompt brings in; the rest are noted.\n\tinline constexpr std::size_t maximum_referenced_skills = 4U;\n\t/// \\brief The most catalog entries kept from one source.\n\tinline constexpr std::size_t maximum_catalog_skills = 128U;\n\t/// \\brief The qualifier that picks the repository's skill over a\n\t/// personal one of the same name: `/repo:name`."
+  },
+  {
+   "source": "S4",
+   "path": "docs/rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md",
+   "line": 25,
+   "sha256": "21f255f8795278182d2ee32b58ff63e7d08ebdcd5bf56127affe5c3df2e913f0",
+   "excerpt_start": 24,
+   "excerpt": "\nIntroduce Review Cycles as a first-class local review subject, independent of a PR and of an agent session. A cycle owns exact captured source revisions, versioned feedback, frozen rounds and reviewer judgments. A linked PR is a provider association, not the required root of every record.\n\nReuse the bounded material/diff interfaces and shared application architecture. Existing PR IDs, authentication and epoch scope stay unchanged. Local authoring must not depend on a fabricated account or on loading authenticated PR caches after their authority has expired. Introduce explicit local profile/workspace scope and typed source subjects at the seam; do not broadly make all old authority fields optional.\n\nThe host owns paged durable history and content pins. The core owns finite transitions, strong identities and stale-result decisions. SQLite/content-store recovery must install a complete immutable revision or leave none visible. Freeze, disclosure, implementation authorization, recipient response, reviewer verification and publication are separate state transitions even when the UI combines convenient preparation actions."
+  },
+  {
+   "source": "S4",
+   "path": "docs/ux/review-cycles-workflow.md",
+   "line": 11,
+   "sha256": "b474821b8013fa81ac4d70795806401b280697cf5da87dac3551eac4b64809a9",
+   "excerpt_start": 10,
+   "excerpt": "\n## How a cycle works\n\n- **Captures.** A capture (`R1`, `R2`, …) records the files as they are on\n  disk, uncommitted work included. Ignored files, tool folders and common\n  credential stores are left out. Opening the same folder again resumes its"
+  },
+  {
+   "source": "S4",
+   "path": "docs/rfcs/RFC-BPR-0061-native-review-cycles-workbench-and-usability.md",
+   "line": 18,
+   "sha256": "58d56300d69f0d2cb7500914260316cf5f7c3bbfc803d033e241da2d01489c54",
+   "excerpt_start": 17,
+   "excerpt": "\nFull source is the initial and persistent mode. Inline notes, exact suggestions, related references and the ordinary composer build one feedback round. Share feedback exposes first-class Copy and Save; the optional external-skill and integrated routes add convenience without controlling lifecycle. A user never has to rewrite an already-authored review into a second prompt.\n\nCapture revision and reviewer verification form the return path even without recipient reports. Per-tab material identity, review receipts, history and ambiguity remain visible. Publication preview shows the actual outgoing candidate, not a misleading local-only diff, and keeps local conversations private unless selected.\n\nUse existing native keyboard/accessibility/editor behavior and conduct bounded attended design decisions where genuinely unresolved. This pack does not assert approval of new art or override the accepted scaffolding. Validate usability on actual supported platforms and measure human steering/reconstruction savings without assuming token or quality improvements from batching alone."
+  },
+  {
+   "source": "S5",
+   "path": "docs/rfcs/RFC-BPR-0054-workspace-source-capture-and-revision-material.md",
+   "line": 28,
+   "sha256": "cf5b7f405636fa7c03b87979c38f4f238d0a1e59ad220919d1efb527edf61b0c",
+   "excerpt_start": 27,
+   "excerpt": "\nProvide source material directly from a chosen local checkout, linked worktree, folder or file. Preserve the exact bytes observed, including uncommitted changes; a commit ID is optional provenance, not a substitute for those bytes. The original revision R0 is a real captured source state, not a synthetic all-added diff.\n\nCapture is read-only against the user's source and index. Root/descendant identities, no-follow traversal, bounded chunking and explicit exclusions prevent an innocent review operation from executing repository code or escaping its selected scope. Unsupported encodings, LFS/filter transformations, sparse objects, symlinks, gitlinks and cross-platform name collisions receive truthful handling rather than a lossy fallback.\n\nA regular recursive copy can observe a stable handoff but cannot prove a simultaneous filesystem snapshot against arbitrary writers. Record observed_stable versus immutable_source accurately, retry detected instability finitely, and never show a half-captured revision as Latest. Store raw byte hashes separately from algorithm-tagged Git object identities."
+  },
+  {
+   "source": "S5",
+   "path": "src/core/include/bpr/core/review_cycle_workspace.hpp",
+   "line": 127,
+   "sha256": "1a5a74acf33e1b15d1605058d125d063dbbd5411b22c1b5ec95d1659a335e1d4",
+   "excerpt_start": 126,
+   "excerpt": "\t/// to a project bound on this machine.\n\tstruct workspace_import_mapping\n\t{\n\t\tworkspace_project_id Imported;\n\t\tworkspace_project_id Local;\n\t\tauto                 operator<=>(const workspace_import_mapping&) const = default;"
+  },
+  {
+   "source": "S5",
+   "path": "docs/rfcs/assets/bpr-review-cycles-v1/specs/PUBLICATION.md",
+   "line": 18,
+   "sha256": "b527dfb0b080b8adc9e1ae9e3d7a8da2648c4d55ecf50d76add96ef793e69df4",
+   "excerpt_start": 17,
+   "excerpt": "\n## Three different baselines\n\n`R0` is the exact source first inspected, potentially dirty/uncommitted/partial.\n`Rn` is the selected final local source revision.\n`P` is a selected immutable Git parent/base used for an outgoing candidate, associated"
+  },
+  {
+   "source": "S6",
+   "path": "src/core/include/bpr/core/review_tour.hpp",
+   "line": 22,
+   "sha256": "89b65a4ce3f7fb65f0aea57b755e6c676308639db8b37943a3a2369aa9d16327",
+   "excerpt_start": 21,
+   "excerpt": "\t/// \\brief Durable owner; runtime window and request generations are separate.\n\tstruct tour_owner\n\t{\n\t\tbpr_profile_id             Profile;\n\t\tgit_host_id                Host;\n\t\thost_authority_fingerprint HostAuthority;"
+  },
+  {
+   "source": "S6",
+   "path": "src/core/include/bpr/core/review_tour.hpp",
+   "line": 36,
+   "sha256": "89b65a4ce3f7fb65f0aea57b755e6c676308639db8b37943a3a2369aa9d16327",
+   "excerpt_start": 35,
+   "excerpt": "\t/// A historical or unchanged source remains representable without granting a write subject.\n\tstruct tour_source_range\n\t{\n\t\tsource_line_ref             First;\n\t\tsource_line_ref             Last;\n\t\tgit_commit_oid              Commit;"
+  },
+  {
+   "source": "S6",
+   "path": "src/core/include/bpr/core/review_tour.hpp",
+   "line": 15,
+   "sha256": "89b65a4ce3f7fb65f0aea57b755e6c676308639db8b37943a3a2369aa9d16327",
+   "excerpt_start": 14,
+   "excerpt": "\tusing tour_stop_id                                        = strong_id<struct tour_stop_id_tag>;\n\tinline constexpr std::size_t maximum_tour_stops           = 256U;\n\tinline constexpr std::size_t maximum_tour_field_bytes     = 64U * 1024U;\n\tinline constexpr std::size_t maximum_tour_bytes           = 4U * 1024U * 1024U;\n\tinline constexpr std::size_t maximum_tour_related_sources = 32U;\n\tinline constexpr std::size_t maximum_tour_path_bytes      = 4096U;"
+  },
+  {
+   "source": "S7",
+   "path": "docs/development/tour-cli.md",
+   "line": 202,
+   "sha256": "a3bfc7679005d0ee143aff835446a12cefa8efd2cec0a5ae54e1f8165ff26d2a",
+   "excerpt_start": 201,
+   "excerpt": "\n## Publication and read-first recovery\n\n`publish` refreshes the exact profile/account/PR and previews the shared desktop\nplan. As on the desktop, Problem and Solution go in the PR description by\ndefault and the tour comment lists only the route; `--no-description` keeps them"
+  },
+  {
+   "source": "S7",
+   "path": "docs/architecture/ai-agent-boundary.md",
+   "line": 1837,
+   "sha256": "784eaaa3d5f9e898e1002100a22be4d2f87cd61d17e74e364daca9073183b664",
+   "excerpt_start": 1836,
+   "excerpt": "its keys: a reply of at most 16 KiB, and changes the core anchors and proposes\n(`core::propose_tour_changes`). The conversation is replayed, never resumed:\nno agent keeps a session for it, and it is held only in the app's memory for\nthe review.\n\n### Skills a prompt names (BPR-1916)"
+  },
+  {
+   "source": "S7",
+   "path": "docs/architecture/review-tours.md",
+   "line": 169,
+   "sha256": "ce3ca11c8af5307125ca8de3a1c49e00cb149e6210043aa0b1f3086f38c2ca36",
+   "excerpt_start": 168,
+   "excerpt": "\nSince [[BPR-1900]] (owner, 2026-11-06: \"the tour itself is much more of a\nsecond agent session, separate and mostly background from my main agent chat\nsession\", and \"then it can fill its tour stops and problem and solution from\nall that context\") tour authoring is its own agent session, separate from the\nAgent tab's chat: tour runs are not chat turns and chat turns are not tour"
+  },
+  {
+   "source": "S8",
+   "path": "docs/rfcs/RFC-BPR-0059-clean-pr-publication-and-cycle-continuity.md",
+   "line": 16,
+   "sha256": "29f580f5cdc4d13fff3d9fade96f34a086218fc6cf62db4d514b6516aee22a67",
+   "excerpt_start": 15,
+   "excerpt": "\nAllow a finished cycle to become a real PR through explicit clean publication. The native v1 output is one squashed commit on a new branch, not destructive manipulation of the developer's branch or a rewrite of the cycle's local evidence. Inspection baseline R0, final local Rn and outgoing Git parent/target are separate identities.\n\nConstruct a complete outgoing candidate over the verified base tree, incorporating only selected content. Show preexisting work, chosen cycle improvements, omitted/unavailable scope and any preparation transformations. Module-only capture must never become implicit deletion of the rest of a repository. Changed LFS/filter/signature requirements without a qualified native path remain a visible capability limitation.\n\nAdd a narrow GitHub Git-data REST object/tree/commit/new-ref publisher and PR-creation capability over existing admitted HTTPS authority; the credential-free installed Git adapter remains local plumbing. The exact plan, permissions, target and attribution are previewed and separately authorized. Do not bypass native/enterprise policy with arbitrary git/gh commands."
+  },
+  {
+   "source": "S8",
+   "path": "src/adapters/qt/src/review_cycle_publish_sheet.cpp",
+   "line": 360,
+   "sha256": "5cd0e34a91c53f43942e1304e704f11a9174eac70bb339e5e8b573afc1504eaf",
+   "excerpt_start": 359,
+   "excerpt": "\t\ttext->addRow(QStringLiteral(\"Solution\"), Solution);\n\t\tDraft = new QCheckBox{ QStringLiteral(\"Open as a draft\"), Form };\n\t\tDraft->setObjectName(QStringLiteral(\"cyclePublishDraft\"));\n\t\ttext->addRow(QString{ }, Draft);\n\t\tauto* const author = new QHBoxLayout{ };\n\t\tAuthorName         = line_edit(Form, QStringLiteral(\"cyclePublishAuthorName\"), QStringLiteral(\"Commit author name\"), QStringLiteral(\"name\"));"
+  },
+  {
+   "source": "S8",
+   "path": "src/core/include/bpr/core/review_cycle_publication.hpp",
+   "line": 62,
+   "sha256": "bab93bd06fe7db82c1e5d4104a6afae8bdcd24acd0c8e863125ea83da4314848",
+   "excerpt_start": 61,
+   "excerpt": "\t/// \\brief One finite publication: exactly what goes out, where, as whom.\n\tstruct publication_plan\n\t{\n\t\tcycle_source_revision_id              Start;\n\t\tcycle_source_revision_id              Final;\n\t\toutgoing_selection_mode               Mode   = outgoing_selection_mode::starting_work_and_improvements;"
+  },
+  {
+   "source": "S8",
+   "path": "src/application/include/bpr/application/review_cycle_publishing.hpp",
+   "line": 34,
+   "sha256": "6137f4abbefe610141af6b4d0232018e6d81c37ca9b26df0a42254020b64fa67",
+   "excerpt_start": 33,
+   "excerpt": "/// under the account authenticated now, sends anything, and then only the\n/// plan's objects, branch and pull request. Linking an externally published\n/// pull request reads exactly that pull request and records what was read.\n/// No step uploads a note, round, response or verification, and none writes\n/// a GitHub comment or review.\nnamespace bpr::application {"
+  },
+  {
+   "source": "S9",
+   "path": "docs/architecture/defect-workflow.md",
+   "line": 11,
+   "sha256": "ab502ceb1a90b6058418c991fe1c8058dbb9c4bb49b67886ba4ba279bec5e265",
+   "excerpt_start": 10,
+   "excerpt": "\n**A fix claim is not a verification.** An author saying \"fixed in abc123\", code\nmoving beneath the defect, and someone resolving the thread in GitHub are all\n*evidence*. Each produces `needs verification`. None produces `verified`.\n\nOnly an explicit reviewer intent verifies, and that rule is enforced"
+  },
+  {
+   "source": "S9",
+   "path": "docs/ux/review-cycles-workflow.md",
+   "line": 30,
+   "sha256": "b474821b8013fa81ac4d70795806401b280697cf5da87dac3551eac4b64809a9",
+   "excerpt_start": 29,
+   "excerpt": "  else.\n- **Replies** are the recipient's claims. \"Addressed\" still needs your\n  verification; you decide each note yourself, and a later change to the note\n  or its code asks you to check again.\n\n> [!WARNING]"
+  },
+  {
+   "source": "S9",
+   "path": "docs/rfcs/RFC-BPR-0012-ai-review-chat-findings-mcp.md",
+   "line": 44,
+   "sha256": "d25de133de5a600b01175633c0e333f688b21943601edaf8b935a09390e1f03f",
+   "excerpt_start": 43,
+   "excerpt": "\n## Structured findings\n\nFindings contain severity, confidence, category, path, line range, claim, evidence, consequence, suggested comment, required context, provider, and analyzed OIDs. BetterPullReview validates anchors against the frozen snapshot and marks invalid or stale results explicitly.\n\n## Side chat"
+  },
+  {
+   "source": "S11",
+   "path": "src/adapters/qt/src/workbench_window_central_surface.cpp",
+   "line": 2019,
+   "sha256": "8d68364073587e6c1776a8061dab1e59df3efb52836cf0f7689b4c2787fe99ca",
+   "excerpt_start": 2018,
+   "excerpt": "\t\t\tauto* const cyclesHeader = new QHBoxLayout{ };\n\t\t\tauto* const cyclesTitle  = new QLabel{ QStringLiteral(\"Review Cycles\"), HomeCycles };\n\t\t\tcyclesTitle->setObjectName(QStringLiteral(\"homeReviewCyclesTitle\"));\n\t\t\tauto cyclesFont = cyclesTitle->font();\n\t\t\tcyclesFont.setWeight(QFont::DemiBold);\n\t\t\tcyclesTitle->setFont(cyclesFont);"
+  },
+  {
+   "source": "S11",
+   "path": "src/adapters/qt/src/workbench_window_queue_controls_and_menus.cpp",
+   "line": 1481,
+   "sha256": "859ae2a038843365f68fa7aebd1ce4d4edb1bc762dc4f4de85c835f1d8421da2",
+   "excerpt_start": 1480,
+   "excerpt": "\t\t// [[BPR-1157]]. The local Review Cycles entry, before Quit.\n\t\tOpenProjectAction = fileMenu->addAction(QStringLiteral(\"Open Project…\"));\n\t\tOpenProjectAction->setObjectName(QStringLiteral(\"openProjectAction\"));\n\t\tOpenProjectAction->setToolTip(QStringLiteral(\"Review a local folder or file as a Review Cycle\"));\n\t\tOpenProjectAction->setEnabled(false);\n\t\tconnect(OpenProjectAction, &QAction::triggered, this, [this] {"
+  },
+  {
+   "source": "S11",
+   "path": "src/adapters/qt/src/workbench_window_home_landing.cpp",
+   "line": 735,
+   "sha256": "574e4f97b4dd77d67263806fbfe95963cc5fd1c4611d45c54feb77aa5c35baeb",
+   "excerpt_start": 734,
+   "excerpt": "\n\tvoid workbench_window::present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents)\n\t{\n\t\tCycleRecents = aRecents;\n\t\tif (HomeCyclesList == nullptr) {\n\t\t\treturn;"
+  },
+  {
+   "source": "S12",
+   "path": "docs/architecture/product-contract.md",
+   "line": 129,
+   "sha256": "9dc64fc9d70a85d79b3fc2a834e8fc63a5b78f19149df47b7e7bb77710659a73",
+   "excerpt_start": 128,
+   "excerpt": "\n## Application architecture invariant\n\nBetterPullReview is implemented as a deterministic functional core inside an imperative shell containing an application host and a Qt presentation adapter. The governing rule is **The core decides. The host performs. Qt presents.**\n\n- The Qt-free core owns compact interaction state, semantic policy, transitions,"
+  },
+  {
+   "source": "S12",
+   "path": "docs/architecture/system-architecture.md",
+   "line": 1951,
+   "sha256": "cee6f5a35fc4e2cb14743c7df9ae19349690ec91f7ea5a9996e8c7dbb151e0e9",
+   "excerpt_start": 1950,
+   "excerpt": "\n## Testing contract\n\n- **Core:** no `QApplication`; table-driven transitions, invariants, property tests, replay, fuzzing, and deterministic benchmarks.\n- **Host:** fake/in-memory ports, manual executor, completion ordering, cancellation, stale rejection, cache invalidation, persistence, failure, recovery, and shutdown tests.\n- **Qt adapter:** event-to-intent translation, `QAction` projection, incremental model notifications, selection synchronization, focus, keyboard, accessibility, high-DPI, and rendered interaction tests."
+  },
+  {
+   "source": "S12",
+   "path": "src/adapters/qt/AGENTS.md",
+   "line": 37,
+   "sha256": "e8da6bca9a1f66775a4ae1bceb8f549e79b244a7a9be2aa8dfc1fd03ee4f77dd",
+   "excerpt_start": 36,
+   "excerpt": "  state, and the absence of whole-model resets.\n- Inherit the application and operating-system palette, style, and font. Do\n  not force a palette or style, and do not add QSS. Refresh derived\n  presentation values when Qt reports application palette, font, style, or\n  theme changes.\n- Keep connection, locator, pull-request, and conversation hierarchy compact"
+  },
+  {
+   "source": "S13",
+   "path": "src/adapters/git/include/bpr/adapters/git/installed_git_publication.hpp",
+   "line": 18,
+   "sha256": "d262c2675c3bd94ad19b6d46d6385edc19ae755571f4f4a44a7081f8a90dc840",
+   "excerpt_start": 17,
+   "excerpt": "/// isolation root with its own home, configuration, empty templates and\n/// hooks, no system configuration, no credential helper, no protocol and no\n/// lazy fetch — driving a separate catalog of plumbing commands against a\n/// BPR-owned store. It shares no repository or operation with the cache.\nnamespace bpr::adapters::git {\n\tstruct installed_git_publication_configuration"
+  },
+  {
+   "source": "S13",
+   "path": "docs/rfcs/RFC-BPR-0059-clean-pr-publication-and-cycle-continuity.md",
+   "line": 20,
+   "sha256": "29f580f5cdc4d13fff3d9fade96f34a086218fc6cf62db4d514b6516aee22a67",
+   "excerpt_start": 19,
+   "excerpt": "\nAdd a narrow GitHub Git-data REST object/tree/commit/new-ref publisher and PR-creation capability over existing admitted HTTPS authority; the credential-free installed Git adapter remains local plumbing. The exact plan, permissions, target and attribution are previewed and separately authorized. Do not bypass native/enterprise policy with arbitrary git/gh commands.\n\nJournal the non-atomic sequence and recover read-first after uncertainty. Verify branch/PR identity and actual head/base; no duplicate creation, blind retry, force push or pretend rollback. Preserve private cycle history, associate the actual PR and continue with GitHub as shared authority. Optional Review Tours reuse ordinary GitHub comments; local feedback history is not automatically published.\n\n## Normative contracts"
+  },
+  {
+   "source": "S14",
+   "path": "docs/architecture/review-tours.md",
+   "line": 176,
+   "sha256": "ce3ca11c8af5307125ca8de3a1c49e00cb149e6210043aa0b1f3086f38c2ca36",
+   "excerpt_start": 175,
+   "excerpt": "the agent, in the background, to read the pull request in the review's\nworkspace with read-only tools and propose the Problem, the Solution and the\nstops (files, lines, order and explanations). While it runs the button says\n**Stop drafting** and stops it; the author keeps writing, and leaving the\nwindow does not stop it. **Draft from PR context** and **Suggest an outline**\nread the repository the same way and say **Stop drafting** on their own"
+  },
+  {
+   "source": "S14",
+   "path": "docs/architecture/ai-agent-boundary.md",
+   "line": 1827,
+   "sha256": "784eaaa3d5f9e898e1002100a22be4d2f87cd61d17e74e364daca9073183b664",
+   "excerpt_start": 1826,
+   "excerpt": "\nAn ask turn of the tour conversation ([[BPR-1914]]) is a read-only run on the\nsame terms: the same tools, allowlist, workspace and line counts. Its request\n(`application::build_tour_ask_prompt`, at most `core::maximum_tour_prompt_bytes`,\n160 KiB, with the skill directive, and carried as the tour prompt, not the\ntyped message) gives the pull"
+  },
+  {
+   "source": "S14",
+   "path": "docs/issues/60-done/BPR-1934-tour-chat-suggested-prompts.md",
+   "line": 35,
+   "sha256": "12764046a2335f58442c92c9563db5463571a5657fc8dfe08cb616d5d849252d",
+   "excerpt_start": 34,
+   "excerpt": "  Keep the prompt lists in one place in the app layer, not in widgets, so\n  Agent settings can later make them editable.\n- They are offered only when the agent is set up (BPR-1881's gate), in the\n  agent accent.\n\n## Acceptance"
+  },
+  {
+   "source": "S15",
+   "path": "src/core/include/bpr/core/agent_entry.hpp",
+   "line": 65,
+   "sha256": "3c7749a21b94d8436b766cbd2f78b12bb5855b5bf06237b3edee6ee9124f62b5",
+   "excerpt_start": 64,
+   "excerpt": "\t\t/// Host-minted incarnation; replacement/reset never inherits a reused slot.\n\t\tstd::string Identity;\n\n\t\tauto operator<=>(const agent_entry&) const = default;\n\t};\n"
+  },
+  {
+   "source": "S15",
+   "path": "src/application/src/agent_setup_host.cpp",
+   "line": 532,
+   "sha256": "604cec183797d7f450d8197ded09fe597b759559cc6c598792e749270f3382be",
+   "excerpt_start": 531,
+   "excerpt": "\t\tif (original != host.Projection.Preferences.Agents.end()) {\n\t\t\taEntry.Identity = original->Protocol == aEntry.Protocol && original->Program == aEntry.Program && original->Arguments == aEntry.Arguments\n\t\t\t\t\t&& original->StrictRunChecks == aEntry.StrictRunChecks\n\t\t\t\t? original->Identity\n\t\t\t\t: mint_agent_identity();\n\t\t}"
+  },
+  {
+   "source": "S15",
+   "path": "docs/rfcs/RFC-BPR-0096-native-agent-sessions-and-tour-context.md",
+   "line": 219,
+   "sha256": "8fbeb43e1584639d95f99f1f321d7e51bf83c7d4b9f1023dff68e71431c77809",
+   "excerpt_start": 218,
+   "excerpt": "Recheck authority, agent configuration and permissions before every send and\nresume. A replaced/reset agent entry cannot acquire a conversation by reusing\nits numeric slot. Model/effort changes may use a supported native control or\nexact-ID reconnect; they do not justify relabelling a different session.\n\n### Session scope, workspace and history"
+  },
+  {
+   "source": "S16",
+   "path": "docs/rfcs/RFC-BPR-0096-native-agent-sessions-and-tour-context.md",
+   "line": 223,
+   "sha256": "8fbeb43e1584639d95f99f1f321d7e51bf83c7d4b9f1023dff68e71431c77809",
+   "excerpt_start": 222,
+   "excerpt": "\n### Session scope, workspace and history\n\n| Surface | Independent conversation scope |\n|---|---|\n| Agent tab | Profile/account authority, PR identity and agent entry |"
+  },
+  {
+   "source": "S16",
+   "path": "docs/architecture/review-tours.md",
+   "line": 687,
+   "sha256": "ce3ca11c8af5307125ca8de3a1c49e00cb149e6210043aa0b1f3086f38c2ca36",
+   "excerpt_start": 686,
+   "excerpt": "\n## Retained native tour conversations (RFC-BPR-0096)\n\nThe native catalog separates the whole tour, Problem, Solution and stable stop\nIDs per agent, under the accepted profile/account/host/repository/PR authority.\nDraft Tour shares the whole-tour session. Reordering changes no chat identity."
+  },
+  {
+   "source": "S16",
+   "path": "docs/architecture/ai-agent-boundary.md",
+   "line": 184,
+   "sha256": "784eaaa3d5f9e898e1002100a22be4d2f87cd61d17e74e364daca9073183b664",
+   "excerpt_start": 183,
+   "excerpt": "\n## Workspaces\n\n- Existing checkout: deliberate user selection for repository-wide context.\n- Private review workspace: default for bounded AI review, pinned to the exact review head and isolated from the active worktree. Native Agent-tab conversations retain it for later turns; one-shot requests dispose of it after completion.\n"
+  },
+  {
+   "source": "S16",
+   "path": "docs/architecture/ai-agent-boundary.md",
+   "line": 789,
+   "sha256": "784eaaa3d5f9e898e1002100a22be4d2f87cd61d17e74e364daca9073183b664",
+   "excerpt_start": 788,
+   "excerpt": "\n### The dangerous workspace mode needs a choice, not a setting\n\n`application::prepare_agent_workspace` refuses `existing_checkout` without an\nexplicit choice for **this invocation**. A profile cannot opt itself into the\nreviewer's uncommitted work. `checkout_cleanliness` has three states because"
+  },
+  {
+   "source": "S17",
+   "path": "src/core/include/bpr/core/clone_discovery.hpp",
+   "line": 15,
+   "sha256": "4e63953cad365a66808494f6715024efefa23572751430b76bcd6447a75e6a8d",
+   "excerpt_start": 14,
+   "excerpt": "\t/// a `.git/config` the discovery reads.\n\tinline constexpr std::size_t maximum_clone_config_bytes = 64U * 1024U;\n\t/// \\brief The most remotes one clone's configuration is read for.\n\tinline constexpr std::size_t maximum_clone_remotes = 64U;\n\t/// \\brief The longest remote URL or name kept.\n\tinline constexpr std::size_t maximum_remote_text_bytes = 1024U;"
+  },
+  {
+   "source": "S17",
+   "path": "src/core/include/bpr/core/clone_discovery.hpp",
+   "line": 48,
+   "sha256": "4e63953cad365a66808494f6715024efefa23572751430b76bcd6447a75e6a8d",
+   "excerpt_start": 47,
+   "excerpt": "\t/// line continuations or other keys.\n\t[[nodiscard]] auto parse_git_config_remotes(std::string_view aConfig) -> std::vector<git_remote>;\n\n\t/// \\brief Where a remote URL points, without any user information.\n\tstruct remote_location\n\t{"
+  },
+  {
+   "source": "S17",
+   "path": "docs/development/cycle-cli.md",
+   "line": 154,
+   "sha256": "7483a5632a2df47eca8c9e66dc30ea9817b3fda32dac42e387774b397fc04a86",
+   "excerpt_start": 153,
+   "excerpt": "\n## Working while the desktop is open\n\nA profile has one writer at a time. If the desktop (or another BetterPullReview\nprocess) holds the profile, the command is sent to that process over a same-user\nchannel (protocol 6), and gives the same answers. Prompts, the editor and output"
+  },
+  {
+   "source": "S17",
+   "path": "docs/development/tour-cli.md",
+   "line": 338,
+   "sha256": "a3bfc7679005d0ee143aff835446a12cefa8efd2cec0a5ae54e1f8165ff26d2a",
+   "excerpt_start": 337,
+   "excerpt": "\n## Working while the desktop is open\n\nThe profile has one owner. When the desktop owns it, `status`, `show`, `edit`,\n`move`, `remove`, `ready`, `undo`, `redo` and `labels edit` are forwarded over a same-user local\nsocket beside the desktop's activation endpoint; the CLI never opens the store,"
+  },
+  {
+   "source": "S18",
+   "path": "docs/architecture/system-architecture.md",
+   "line": 688,
+   "sha256": "cee6f5a35fc4e2cb14743c7df9ae19349690ec91f7ea5a9996e8c7dbb151e0e9",
+   "excerpt_start": 687,
+   "excerpt": "\n- Approved pinned libraries are glaze, utf8proc, zlib, fmt,\n  sha1collisiondetection, HACL* generated SHA-2, rapidfuzz-cpp, dtl, RE2/Abseil\n  and Git xdiff. Approval of one use does not admit arbitrary APIs from a\n  library or its transitive dependencies.\n- zlib 1.3.2 is built from its pinned archive with `Z_PREFIX`, and only"
+  },
+  {
+   "source": "S18",
+   "path": "src/core/include/bpr/core/review_preparation.hpp",
+   "line": 16,
+   "sha256": "5f4e93b039fa4564f59e0bf48456b416467bee3baa3f62c868df7333e3515110",
+   "excerpt_start": 15,
+   "excerpt": "\t/// only while the label helper is on.\n\tenum class writing_hook : std::uint8_t { problem,\n\t\t\t\t\t\t\t\t\t\t\t solution,\n\t\t\t\t\t\t\t\t\t\t\t outline,\n\t\t\t\t\t\t\t\t\t\t\t comment,\n\t\t\t\t\t\t\t\t\t\t\t feedback };"
+  },
+  {
+   "source": "S18",
+   "path": "src/core/include/bpr/core/review_preparation.hpp",
+   "line": 24,
+   "sha256": "5f4e93b039fa4564f59e0bf48456b416467bee3baa3f62c868df7333e3515110",
+   "excerpt_start": 23,
+   "excerpt": "\tinline constexpr std::size_t review_preparation_hook_count     = 4;\n\tinline constexpr std::size_t maximum_writing_instruction_bytes = 8192;\n\t/// \\brief Profile-owned text overrides; empty selects the shipped version.\n\tstruct writing_hook_settings\n\t{\n\t\tstd::array<std::string, writing_hook_count> Overrides;"
+  },
+  {
+   "source": "S18",
+   "path": "src/core/include/bpr/core/review_skill.hpp",
+   "line": 17,
+   "sha256": "9c35a7db852d1fc6c633dcb7992f69463e13bf4beff36701e84786098b793960",
+   "excerpt_start": 16,
+   "excerpt": "\t/// \\brief The most a review skill's `SKILL.md` may hold.\n\tinline constexpr std::size_t maximum_review_skill_bytes = 64U * 1024U;\n\n\t/// \\brief What a review skill's front matter says about it.\n\tstruct review_skill_facts\n\t{"
+  }
+ ]
+}
