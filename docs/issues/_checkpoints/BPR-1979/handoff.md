@@ -6,7 +6,7 @@
 - Source: `docs/rfcs/assets/tour-destination-repairs-v1/card-tour-compatibility-forced-by-repairable-stops.md` (immutable).
 - Live parent: BPR-1979. Core prerequisite: BPR-1980.
 - Plan: repair-policy, editor-repairs, mixed-publication. All original AC1–AC7 remain on parent.
-- Current frontier: repair-policy accepted; finish BPR-1980 bookkeeping, then release to a fresh editor-repairs implementer.
+- Current frontier: repair-policy accepted and BPR-1980 Done at `21b108dbc25ba68af91d8d1c3fbf1d0273647f14`; BPR-1979 is Ready for a fresh editor-repairs implementer.
 - Independent writers: none dispatched; foreign `.codex-attachments/` remains untouched.
 - Commands: all task commands and descendants quiescent. No task worktrees/servers; no desktop or live GitHub effects. Foreign `.codex-attachments/` remains untouched.
 - Required skills: implement-rfc loaded; frontend-design loaded from pinned MASK store, desktop reference read.
