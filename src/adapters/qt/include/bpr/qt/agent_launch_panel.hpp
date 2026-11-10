@@ -176,6 +176,17 @@ namespace bpr::qt {
 		/// \brief [[BPR-1999]]. The last run's cost, as the core accounted
 		/// it, and its conversation's total once known.
 		[[nodiscard]] auto last_turn_cost() const noexcept -> std::optional<core::agent_cost> { return LastTurnCost; }
+		/// \brief [[BPR-2005]]. What the running (or last) turn did, as its
+		/// runtime reported it, timed from `activity_started_ms`.
+		[[nodiscard]] auto activity() const noexcept -> const core::agent_turn_activity& { return Activity; }
+		[[nodiscard]] auto activity_started_ms() const noexcept -> qint64 { return ActivityStartedMs; }
+		/// \brief Whether the runtime reported anything the block shows.
+		[[nodiscard]] auto activity_reported() const noexcept -> bool { return ActivityReported; }
+		/// \brief [[BPR-2004]]. The text that arrived before a turn was
+		/// stopped or its runtime ended under its helpers: kept.
+		[[nodiscard]] auto kept_text() const -> QString { return KeptText; }
+		[[nodiscard]] auto last_failure() const noexcept -> std::optional<application::agent_protocol_failure> { return LastFailure; }
+		[[nodiscard]] auto unfinished_helpers() const -> const std::vector<std::string>& { return LastUnfinished; }
 		[[nodiscard]] auto last_session_cost() const noexcept -> std::optional<core::agent_cost> { return LastSessionCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
@@ -239,6 +250,12 @@ namespace bpr::qt {
 		QString                                                 LastModel;
 		QString                                                 LastCost;
 		std::optional<core::agent_cost>                         LastTurnCost;
+		core::agent_turn_activity                               Activity;
+		qint64                                                  ActivityStartedMs = 0;
+		bool                                                    ActivityReported  = false;
+		QString                                                 KeptText;
+		std::optional<application::agent_protocol_failure>      LastFailure;
+		std::vector<std::string>                                LastUnfinished;
 		std::optional<core::agent_cost>                         LastSessionCost;
 		phase                                                   Phase = phase::idle;
 		std::vector<std::function<void()>>                      ProgressObservers;

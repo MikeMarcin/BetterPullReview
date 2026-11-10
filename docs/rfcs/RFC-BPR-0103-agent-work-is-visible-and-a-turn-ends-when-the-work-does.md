@@ -118,6 +118,24 @@ past, so a report like this one can be explained from a diagnostic export.
 - The foreground-only fallback is a property of an agent and its transport,
   shown in that agent's run details. It is not a reviewer setting.
 
+## Implementation notes (2026-11-10)
+
+Established, not assumed ([verification](../verification/RFC-BPR-0103.md)):
+Claude Code 2.1.319 reports helpers on stream JSON and answers each helper's
+report in a further part of the same turn, so it runs with helpers visible.
+Codex 0.167.0 reports sub-agents on the App Server but never answers them by
+itself, and reports nothing on `exec --json`; no flag of that version removes
+its sub-agent tools. Codex runs are therefore asked to keep helpers in the
+foreground (an instruction, not an enforcement), and on the App Server the
+turn also stays open until every reported helper has completed.
+
+**Stop** is the Agent tab's and the side chat's own Stop (the Send control
+while a turn runs) and the quiet notice's **Stop and keep what arrived**; the
+block adds no third control. A turn's folded line and how it ended are kept
+when this window draws the thread again from its history; they are not saved
+with the history, so a restarted application shows the history's answer
+without them.
+
 ## Acceptance criteria
 
 - **AC01:** For each installed agent and transport BPR supports, a recorded

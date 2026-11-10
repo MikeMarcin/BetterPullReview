@@ -726,6 +726,19 @@ namespace bpr::qt {
 				line->present(*Live, LiveClock);
 			}
 		}
+		if (LiveActivity != nullptr && Live->Activity) {
+			LiveActivity->present(agent_short_name(Live->Agent), *Live->Activity, Live->ActivityStartedMs);
+		}
+	}
+
+	void tour_side_chat::record_run_activity(const core::tour_agent_run_id aRun, core::agent_turn_activity aActivity, const qint64 aSeconds)
+	{
+		RunActivity[aRun.value()] = { std::move(aActivity), aSeconds };
+	}
+
+	auto tour_side_chat::activity_view(const std::size_t aTurn) const -> agent_activity_view*
+	{
+		return aTurn < ActivityViews.size() ? ActivityViews[aTurn] : nullptr;
 	}
 
 	auto tour_side_chat::live_status() const -> agent_run_status
@@ -1288,6 +1301,8 @@ namespace bpr::qt {
 		Bubbles.clear();
 		Replies.clear();
 		Endings.clear();
+		ActivityViews.clear();
+		LiveActivity = nullptr;
 		Copies.clear();
 		Resends.clear();
 		Deletes.clear();
@@ -1378,6 +1393,16 @@ namespace bpr::qt {
 			ending->setObjectName(QStringLiteral("tourSideChatStatus"));
 			small(ending);
 			Endings.push_back(ending);
+			// [[BPR-2005]], RFC-BPR-0103. The Agent tab's running block, and
+			// its folded line once the turn ended.
+			auto* const activity = new agent_activity_view{ answer };
+			activity->setObjectName(QStringLiteral("tourSideChatActivity"));
+			activity->set_stop([this] {
+				if (StopDispatch) {
+					StopDispatch();
+				}
+			});
+			ActivityViews.push_back(activity);
 			auto* said = static_cast<markdown_body_view*>(nullptr);
 			if (running) {
 				Mine = true;
@@ -1387,6 +1412,11 @@ namespace bpr::qt {
 				ending->present(live_status(), LiveClock);
 				LiveLine = ending;
 				column->addWidget(ending);
+				LiveActivity = activity;
+				if (Live && Live->Activity) {
+					activity->present(agent_short_name(Live->Agent), *Live->Activity, Live->ActivityStartedMs);
+				}
+				column->addWidget(activity);
 			} else {
 				auto failure = QString{ };
 				if (run->State == core::tour_agent_run_state::answered) {
@@ -1486,6 +1516,10 @@ namespace bpr::qt {
 					row->addWidget(remove);
 				}
 				column->addLayout(row);
+				if (const auto worked = RunActivity.find(id); worked != RunActivity.end()) {
+					activity->fold(worked->second.first, worked->second.second);
+				}
+				column->addWidget(activity);
 				Copies.push_back(copy);
 				Resends.push_back(resend);
 				Deletes.push_back(remove);

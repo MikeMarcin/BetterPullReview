@@ -728,7 +728,7 @@ namespace bpr::app {
 		/// Agent tab's live line says them: its workspace made, then the first
 		/// output, which is when it writes.
 		void               tour_run_started(const application::agent_invocation_projection_identity& aIdentity, const application::prepared_workspace& aWorkspace);
-		void               tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity);
+		void               tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event& aEvent);
 		void               present_tour_live(std::optional<qt::agent_run_status> aStatus);
 		[[nodiscard]] auto tour_answer_words(const application::agent_run_result& aResult) const -> std::string;
 		void               request_tour_draft();

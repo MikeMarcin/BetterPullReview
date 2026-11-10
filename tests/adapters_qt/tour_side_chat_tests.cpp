@@ -11,6 +11,7 @@
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/tour_chat_prompts.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -349,6 +350,39 @@ auto main(int argc, char** argv) -> int
 		settle();
 		expect(chat->status_line(0)->text() == QStringLiteral("● Claude Code is writing, 0:01."), "the chat drawn again keeps its time");
 		render(*chat, prefix, "side-chat-running");
+		// [[BPR-2005]] AC08. The Agent tab's running block: what it does,
+		// its helpers, the quiet notice, on a clock the test holds.
+		auto now = qint64{ 5'000'000 };
+		qt::set_agent_activity_clock([&now] { return now; });
+		auto activity          = core::agent_turn_activity{ };
+		auto reading           = core::agent_activity_update{ };
+		reading.Kind           = core::agent_activity_kind::doing;
+		reading.Doing          = core::agent_doing::reading;
+		reading.Subject        = "src/item.cpp";
+		activity               = core::apply_agent_activity(activity, reading, 1'000U);
+		auto helper            = core::agent_activity_update{ };
+		helper.Kind            = core::agent_activity_kind::helper_started;
+		helper.Helper          = "h1";
+		helper.Subject         = "Callers of present";
+		activity               = core::apply_agent_activity(activity, helper, 2'000U);
+		live.Activity          = activity;
+		live.ActivityStartedMs = now - 3'000;
+		editor.present_run_status(live);
+		settle();
+		auto* const block = chat->activity_view(0);
+		expect(block != nullptr && block->live() && block->helper_rows() == 1 && block->helper_row_text(0).startsWith(QStringLiteral("Callers of present\trunning")), "AC08 the side chat shows the helper's row");
+		expect(chat->status_line(0)->text().contains(QStringLiteral("is reading item.cpp")) && chat->status_line(0)->text().contains(QStringLiteral("last activity 1 s ago")), "AC08 and what it is doing: " + chat->status_line(0)->text().toStdString());
+		now += 121'000;
+		block->tick();
+		expect(block->quiet_shown(), "AC08 and the quiet notice");
+		render(*chat, prefix, "side-chat-quiet");
+		block->keep_waiting_button()->click();
+		expect(!block->quiet_shown(), "Keep waiting puts it away");
+		static_cast<void>(session);
+		chat->record_run_activity(*first, core::end_agent_activity(activity, 130'000U), 130);
+		qt::set_agent_activity_clock({ });
+		live.Activity.reset();
+		editor.present_run_status(live);
 	}
 	static_cast<void>(core::record_tour_activity(session, *first, { { core::tour_transcript_kind::read, "src/item.cpp" }, { core::tour_transcript_kind::searched, "rg -n lock src" } }));
 	static_cast<void>(core::answer_tour_ask(session, *first, "It is the frame window:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n\n```nosuchlanguage\nauto lock = plain_text{ };\n```\n", { }));
@@ -367,6 +401,7 @@ auto main(int argc, char** argv) -> int
 	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
 	expect(!chat->status_line(0)->live() && chat->status_line(0)->text() == QStringLiteral("Claude Code answered in 0:07.") && !chat->status_line(0)->font().italic(), "AC2 its ending says who answered and how long it took, as the Agent tab's does: " + chat->status_line(0)->text().toStdString());
 	expect(chat->status_line(0)->geometry().top() >= chat->reply(0)->geometry().bottom(), "under the reply");
+	expect(chat->activity_view(0) != nullptr && chat->activity_view(0)->summary_text() == QStringLiteral("Worked for 2 min: 1 helper, 1 file read"), "AC08 the block folds under the ended turn: " + (chat->activity_view(0) != nullptr ? chat->activity_view(0)->summary_text().toStdString() : std::string{ }));
 	expect(chat->resend_button(0) == nullptr && chat->delete_button(0) == nullptr, "an answer offers no Resend or Delete");
 	auto* const clipboard = QGuiApplication::clipboard();
 	chat->copy_reply_button(0)->click();

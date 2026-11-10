@@ -161,6 +161,10 @@ namespace bpr::qt {
 		/// the tour session's run events, as the Agent tab's turn says it;
 		/// none once it ends. Its time is counted from the run's start here.
 		void present_run_status(std::optional<agent_run_status> aStatus);
+		/// \brief [[BPR-2005]]. What an ended run did, for its folded line.
+		void record_run_activity(core::tour_agent_run_id aRun, core::agent_turn_activity aActivity, qint64 aSeconds);
+		/// \brief The running turn's block, or an ended turn's folded block; null for none.
+		[[nodiscard]] auto activity_view(std::size_t aTurn) const -> agent_activity_view*;
 		/// \brief [[BPR-1941]]. Delete on a turn that ended without an answer.
 		void set_delete_dispatch(std::function<void(core::tour_agent_run_id)> aDelete) { DeleteDispatch = std::move(aDelete); }
 		void set_available(bool aReady, const QString& aWhy);
@@ -375,6 +379,9 @@ namespace bpr::qt {
 		std::vector<QWidget*>                                                       Bubbles;
 		std::vector<markdown_body_view*>                                            Replies;
 		std::vector<agent_run_status_line*>                                         Endings;
+		std::vector<agent_activity_view*>                                           ActivityViews;
+		std::map<std::uint64_t, std::pair<core::agent_turn_activity, qint64>>       RunActivity;
+		QPointer<agent_activity_view>                                               LiveActivity;
 		std::vector<QToolButton*>                                                   Copies;
 		std::vector<QPushButton*>                                                   Resends;
 		std::vector<QPushButton*>                                                   Deletes;

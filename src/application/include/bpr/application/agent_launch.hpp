@@ -4,6 +4,7 @@
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/agent_workspace_lifetime_guard.hpp"
 #include "bpr/application/review_ledger_port.hpp"
+#include "bpr/core/agent_activity.hpp"
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_cost.hpp"
@@ -273,6 +274,11 @@ namespace bpr::application {
 		bool ReadOnlyTools = false;
 		/// [[BPR-1918]]. How the decoder treats what a wrapper can trip.
 		agent_run_checks RunChecks = agent_run_checks::strict;
+		/// [[BPR-2004]], RFC-BPR-0103. The sink is told what the agent is
+		/// doing and that frames arrive (`agent_stream_kind::activity` and
+		/// `heartbeat`), for a running block. Off, it hears answer text
+		/// only. The turn's helpers are tracked either way.
+		bool ReportActivity = false;
 		/// Durable host identity; empty keeps the one-shot protocol contract.
 		std::string NativeConversation;
 		/// Exact backend handle, never a most-recent lookup or diagnostic field.
@@ -577,17 +583,22 @@ namespace bpr::application {
 		/// network, an MCP tool, or a shell command that is not a plain
 		/// read-only pipeline). The run ends there.
 		tool_refused,
+		/// [[BPR-2004]], RFC-BPR-0103. The runtime ended (it exited, or
+		/// closed its output) while helpers it reported were still running.
+		/// What arrived is kept; `agent_run_result::UnfinishedHelpers`
+		/// names them.
+		helpers_unfinished,
 	};
 
 	/// \brief The number of declared protocol failures.
 	///
 	/// \details Exists so a sweep over the causes can be exhaustive rather than
 	/// a sample: a new failure that nothing distinguishes fails the count.
-	inline constexpr std::size_t agent_protocol_failure_count = 16U;
+	inline constexpr std::size_t agent_protocol_failure_count = 17U;
 
 	static_assert(
 		static_cast<std::size_t>(
-			agent_protocol_failure::tool_refused)
+			agent_protocol_failure::helpers_unfinished)
 				+ 1U
 			== agent_protocol_failure_count,
 		"agent_protocol_failure_count must cover every declared failure");
@@ -634,6 +645,10 @@ namespace bpr::application {
 		/// (`relaxed_check_name`), never what tripped it. Counted for the
 		/// diagnostic.
 		check_relaxed,
+		/// [[BPR-2004]], RFC-BPR-0103. What the agent or one of its helpers
+		/// is doing, in `Activity`. For the running block only: never the
+		/// answer.
+		activity,
 	};
 
 	struct agent_protocol_event
@@ -642,6 +657,8 @@ namespace bpr::application {
 		std::string               Text;
 		std::string               Item;
 		bool                      CompleteItem = true;
+		/// Set for `activity` only.
+		std::optional<core::agent_activity_update> Activity;
 
 		auto operator<=>(const agent_protocol_event&) const = default;
 	};
@@ -750,6 +767,30 @@ namespace bpr::application {
 		-> std::expected<std::string, agent_protocol_failure>;
 
 	/// \brief Incrementally decodes one selected protocol's stdout frames.
+	/// \brief [[BPR-2004]], RFC-BPR-0103. What a decoder knows of a turn's
+	/// helpers: the sub-agents and background tasks its runtime reported.
+	struct agent_helper_tracking
+	{
+		/// Helpers still running: the runtime's identity and description.
+		std::vector<std::pair<std::string, std::string>> Running;
+		/// Every helper identity reported this turn, ended or not, with the
+		/// identity its frames name it by (Claude: the `tool_use` that
+		/// started it; Codex App Server: its own thread).
+		std::vector<std::pair<std::string, std::string>> Known;
+		/// Claude: a helper reported back since the agent last began a part
+		/// of the turn (`system/init`). Claude answers each report in a part
+		/// of its own, so the turn goes on until that part's result.
+		bool NotifiedSinceInit = false;
+		/// Claude: a later part of the turn began after text was written; its
+		/// first text starts a new paragraph of the answer.
+		bool                     SeparateNext = false;
+		core::agent_helper_tally Tally;
+		/// Frame types read past, first seen first, at most sixteen.
+		std::vector<std::string> ReadPast;
+
+		auto operator<=>(const agent_helper_tracking&) const = default;
+	};
+
 	class agent_protocol_decoder final
 	{
 	public:
@@ -764,6 +805,9 @@ namespace bpr::application {
 		[[nodiscard]] auto native_handle() const noexcept -> const std::string&;
 		void               expect_native_handle(std::string aHandle) { ExpectedNativeHandle = std::move(aHandle); }
 		void               expect_response(std::uint64_t aTurn) { NativeTurn = aTurn; }
+		/// \brief [[BPR-2004]]. Whether `activity` events are returned; off,
+		/// they are dropped where they are decoded.
+		void report_activity(bool aReport) noexcept { ReportActivity = aReport; }
 
 		[[nodiscard]] auto push(std::string_view aBytes)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
@@ -786,6 +830,9 @@ namespace bpr::application {
 
 		/// \brief [[BPR-1827]]. Every standard-output byte pushed so far.
 		[[nodiscard]] auto pushed_bytes() const noexcept -> std::size_t { return TotalBytes; }
+
+		/// \brief [[BPR-2004]]. The turn's helpers as reported so far.
+		[[nodiscard]] auto helpers() const noexcept -> const agent_helper_tracking& { return Helpers; }
 
 	private:
 		[[nodiscard]] auto retain_output(std::vector<agent_protocol_event>&) -> bool;
@@ -810,6 +857,8 @@ namespace bpr::application {
 		/// what it was asked, named once the result says what Claude did.
 		std::vector<std::pair<std::string, std::string>> HeldTools;
 		std::string                                      Pending;
+		agent_helper_tracking                            Helpers;
+		bool                                             ReportActivity   = false;
 		std::size_t                                      TotalBytes       = 0U;
 		bool                                             Failed           = false;
 		std::uint8_t                                     Phase            = 0U;
@@ -850,12 +899,24 @@ namespace bpr::application {
 	/// \brief [[BPR-1827]]. The failure's stable name, for logs and diagnostics.
 	[[nodiscard]] auto name(agent_protocol_failure aFailure) noexcept -> std::string_view;
 
+	/// \brief [[BPR-2004]]. What one stream event carries.
+	enum class agent_stream_kind : std::uint8_t {
+		/// Answer text, in `Text`.
+		text,
+		/// What the agent or a helper is doing, in `Activity`.
+		activity,
+		/// A frame arrived and said nothing shown: "last activity" restarts.
+		heartbeat,
+	};
+
 	struct agent_stream_event
 	{
-		core::agent_session_id Session;
-		std::uint64_t          Sequence = 0U;
-		std::string            Text;
-		core::agent_run_id     Run;
+		core::agent_session_id                     Session;
+		std::uint64_t                              Sequence = 0U;
+		std::string                                Text;
+		core::agent_run_id                         Run;
+		agent_stream_kind                          Kind = agent_stream_kind::text;
+		std::optional<core::agent_activity_update> Activity;
 
 		auto operator<=>(const agent_stream_event&) const = default;
 	};
@@ -927,6 +988,17 @@ namespace bpr::application {
 		std::string Conversation;
 		/// Process-local supervised connection identity, for lifecycle observations.
 		std::uint64_t NativeProcess = 0U;
+		/// [[BPR-2004]], RFC-BPR-0103. The helpers the runtime reported, by
+		/// how they ended; those still running when the turn ended are
+		/// abandoned.
+		core::agent_helper_tally Helpers;
+		/// The descriptions of the helpers still running when the runtime
+		/// ended, for `helpers_unfinished`; at most eight.
+		std::vector<std::string> UnfinishedHelpers;
+		/// The longest time between two frames from the runtime.
+		std::uint64_t LongestSilenceMs = 0U;
+		/// The frame types the decoder read past, comma separated, bounded.
+		std::string ReadPast;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};

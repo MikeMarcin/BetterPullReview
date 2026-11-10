@@ -989,6 +989,9 @@ namespace bpr::application {
 				}
 				launch->WorkingDirectory       = workspace->Path;
 				launch->WorkspaceLifetimeGuard = std::move(lifetimeGuard);
+				// [[BPR-2004]], RFC-BPR-0103. A run that shows a turn shows
+				// what it is doing; a writing run shows no turn.
+				launch->ReportActivity = !aRequest.WritingOnly;
 				if (aInvocation->Stop->stop_requested()) {
 					finish_run(
 						{ .Session = aInvocation->Identity.Session.Id,

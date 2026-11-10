@@ -144,6 +144,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_chat_custom_agent_contract": "private-test-root-refused",
     # [[BPR-2002]]. The question-subject course, same private test root.
     "application_agent_chat_subject_contract": "unmeasured (registered on macOS)",
+    "application_agent_chat_helpers_public_path": "unmeasured (registered on macOS)",
+    "application_agent_chat_helpers_unfinished_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1800]]. Source a74c9a875, native Release/Debug on 2026-10-29:
     # same-image direct baselines pass; contained runs fail the exact first
     # predicate "fixture application starts". No Win32 cause was sampled.

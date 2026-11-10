@@ -46,6 +46,24 @@ namespace bpr::application {
 			return value;
 		}
 
+		/// [[BPR-2004]]. Frame types only: letters, digits and `/_.:-`,
+		/// comma separated, at most sixteen.
+		[[nodiscard]] auto read_past_list(const std::string_view aText) -> bool
+		{
+			auto names = std::size_t{ 1U };
+			for (const auto character : aText) {
+				if (character == ',') {
+					++names;
+					continue;
+				}
+				const auto plain = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9') || character == '/' || character == '_' || character == '.' || character == ':' || character == '-';
+				if (!plain) {
+					return false;
+				}
+			}
+			return !aText.empty() && names <= 16U && !aText.starts_with(',') && !aText.ends_with(',') && aText.find(",,") == std::string_view::npos;
+		}
+
 		/// [[BPR-1918]]. A relaxed run's counts, for its line.
 		[[nodiscard]] auto relaxed_counts(const agent_launch_request& aRequest, const agent_run_result& aResult) -> std::optional<std::array<std::uint64_t, relaxed_check_count>>
 		{
@@ -89,6 +107,16 @@ namespace bpr::application {
 			for (std::size_t check = 0U; check < relaxed_check_count; ++check) {
 				text += " relaxed_" + std::string{ relaxed_check_name(static_cast<relaxed_check>(check)) } + "=" + std::to_string((*aDiagnosis.Relaxed)[check]);
 			}
+		}
+		if (aDiagnosis.Helpers) {
+			text += " helpers_started=" + std::to_string(aDiagnosis.Helpers->Started) + " helpers_finished=" + std::to_string(aDiagnosis.Helpers->Finished) + " helpers_failed=" + std::to_string(aDiagnosis.Helpers->Failed)
+				+ " helpers_abandoned=" + std::to_string(aDiagnosis.Helpers->Abandoned);
+		}
+		if (aDiagnosis.LongestSilenceMs) {
+			text += " longest_silence_ms=" + std::to_string(*aDiagnosis.LongestSilenceMs);
+		}
+		if (!aDiagnosis.ReadPast.empty()) {
+			text += " read_past=" + aDiagnosis.ReadPast;
 		}
 		return text;
 	}
@@ -179,6 +207,33 @@ namespace bpr::application {
 					return std::nullopt;
 				}
 				result.Thinking = true;
+			} else if (key.starts_with("helpers_")) {
+				const auto count = read_number<std::uint32_t>(value);
+				if (!count) {
+					return std::nullopt;
+				}
+				auto& helpers = result.Helpers ? *result.Helpers : result.Helpers.emplace();
+				if (key == "helpers_started") {
+					helpers.Started = *count;
+				} else if (key == "helpers_finished") {
+					helpers.Finished = *count;
+				} else if (key == "helpers_failed") {
+					helpers.Failed = *count;
+				} else if (key == "helpers_abandoned") {
+					helpers.Abandoned = *count;
+				} else {
+					return std::nullopt;
+				}
+			} else if (key == "longest_silence_ms") {
+				result.LongestSilenceMs = read_number<std::uint64_t>(value);
+				if (!result.LongestSilenceMs) {
+					return std::nullopt;
+				}
+			} else if (key == "read_past") {
+				if (!read_past_list(value)) {
+					return std::nullopt;
+				}
+				result.ReadPast = std::string{ value };
 			} else {
 				return std::nullopt;
 			}
@@ -227,6 +282,9 @@ namespace bpr::application {
 				   .Thinking            = result.ReportedThinking,
 				   .OutsideList         = aRequest.ReadOnlyTools && aRequest.Protocol == core::agent_protocol::claude_stream_json ? std::optional<std::uint64_t>{ result.OutsideListCommands } : std::nullopt,
 				   .Relaxed             = relaxed_counts(aRequest, result),
+				   .Helpers             = result.Helpers.Started > 0U ? std::optional{ result.Helpers } : std::nullopt,
+				   .LongestSilenceMs    = result.LongestSilenceMs > 0U ? std::optional{ result.LongestSilenceMs } : std::nullopt,
+				   .ReadPast            = read_past_list(result.ReadPast) ? result.ReadPast : std::string{ },
 			   });
 		return result;
 	}

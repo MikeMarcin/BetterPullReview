@@ -748,7 +748,7 @@ namespace bpr::app {
 			},
 			[this](const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult) { tour_run_finished(aIdentity, aResult); },
 			[this](const std::string_view aReason) { tour_run_refused(aReason); },
-			[this](const application::agent_invocation_projection_identity& aIdentity) { tour_run_streamed(aIdentity); });
+			[this](const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event& aEvent) { tour_run_streamed(aIdentity, aEvent); });
 		TourSession = std::make_unique<application::agent_invocation_host>(
 			aProfiles, aPolicies, AgentWorkspaceNeighbourhood, *this, *EpochHost, *TourDiagnosedProcess,
 			[](const std::string& aName) -> std::optional<std::string> {
@@ -877,21 +877,32 @@ namespace bpr::app {
 		if (Closing || Window == nullptr || TourInvocation != std::optional{ aIdentity }) {
 			return;
 		}
-		auto live      = TourLive.value_or(qt::agent_run_status{ });
-		live.Agent     = agent_display_name(aIdentity.Session.Profile);
-		live.Stage     = qt::agent_run_stage::thinking;
-		live.FilesOnly = aWorkspace.Shallow;
+		auto live              = TourLive.value_or(qt::agent_run_status{ });
+		live.Agent             = agent_display_name(aIdentity.Session.Profile);
+		live.Stage             = qt::agent_run_stage::thinking;
+		live.FilesOnly         = aWorkspace.Shallow;
+		live.Activity          = std::nullopt;
+		live.ActivityStartedMs = qt::agent_activity_clock_ms();
 		present_tour_live(std::move(live));
 	}
 
-	void github_application::implementation::tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity)
+	void github_application::implementation::tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event& aEvent)
 	{
-		// Only a change of what it does is said; each event is not.
-		if (Closing || Window == nullptr || TourInvocation != std::optional{ aIdentity } || !TourLive || TourLive->Stage == qt::agent_run_stage::writing) {
+		if (Closing || Window == nullptr || TourInvocation != std::optional{ aIdentity } || !TourLive) {
 			return;
 		}
-		auto live  = *TourLive;
-		live.Stage = qt::agent_run_stage::writing;
+		auto live = *TourLive;
+		// [[BPR-2005]], RFC-BPR-0103. The side chat's running block hears
+		// what the agent and its helpers do, and every frame.
+		const auto at = static_cast<std::uint64_t>(std::max<qint64>(0, qt::agent_activity_clock_ms() - live.ActivityStartedMs));
+		if (aEvent.Kind == application::agent_stream_kind::activity && aEvent.Activity) {
+			live.Activity = core::apply_agent_activity(live.Activity.value_or(core::agent_turn_activity{ }), *aEvent.Activity, at);
+		} else if (aEvent.Kind == application::agent_stream_kind::heartbeat || live.Activity) {
+			live.Activity = core::note_agent_frame(live.Activity.value_or(core::agent_turn_activity{ }), at);
+		}
+		if (aEvent.Kind == application::agent_stream_kind::text) {
+			live.Stage = qt::agent_run_stage::writing;
+		}
 		present_tour_live(std::move(live));
 	}
 
@@ -941,7 +952,11 @@ namespace bpr::app {
 		if (Closing || Window == nullptr) {
 			return;
 		}
-		const auto words = aResult.RefusalReason.empty() ? qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(aIdentity.Session.Profile)) : QString::fromStdString(aResult.RefusalReason);
+		auto words = aResult.RefusalReason.empty() ? qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(aIdentity.Session.Profile)) : QString::fromStdString(aResult.RefusalReason);
+		// [[BPR-2004]]. A runtime that ended under its helpers says so.
+		if (aResult.ProtocolFailure == application::agent_protocol_failure::helpers_unfinished) {
+			words = QStringLiteral("%1 stopped before its %2 remaining helpers finished. What arrived is kept.").arg(qt::agent_short_name(agent_display_name(aIdentity.Session.Profile))).arg(aResult.UnfinishedHelpers.size());
+		}
 		if (TourRun) {
 			if (!aResult.Conversation.empty()) {
 				TourSelectedConversations[TourRunScope] = aResult.Conversation;
@@ -975,6 +990,11 @@ namespace bpr::app {
 			static_cast<void>(core::time_tour_run(TourAgent, *run, static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - TourRunStarted).count())));
 			// [[BPR-1999]]. What it cost, and its conversation's total.
 			static_cast<void>(core::cost_tour_run(TourAgent, *run, aResult.TurnCost, aResult.SessionCost));
+			// [[BPR-2005]]. The block folds under the turn's ending.
+			if (TourLive && TourLive->Activity) {
+				const auto at = static_cast<std::uint64_t>(std::max<qint64>(0, qt::agent_activity_clock_ms() - TourLive->ActivityStartedMs));
+				Window->tour_editor()->side_chat()->record_run_activity(*run, core::end_agent_activity(*TourLive->Activity, at), static_cast<qint64>(at / 1000U));
+			}
 		}
 		TourRun.reset();
 		TourInvocation.reset();

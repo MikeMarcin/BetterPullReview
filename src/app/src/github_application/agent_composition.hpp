@@ -199,10 +199,12 @@ namespace bpr::app {
 		using start_sink    = std::function<void(const application::agent_invocation_projection_identity&, const application::prepared_workspace&)>;
 		using run_sink      = std::function<void(const application::agent_invocation_projection_identity&, const application::agent_run_result&)>;
 		using refuse_sink   = std::function<void(std::string_view)>;
+		using stream_sink   = std::function<void(const application::agent_invocation_projection_identity&, const application::agent_stream_event&)>;
 
-		/// \brief [[BPR-1941]]. `aStream` hears each output event of the run
-		/// in flight, for the tour chat's live line; none ignores them.
-		tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse, identity_sink aStream = { });
+		/// \brief [[BPR-1941]]. `aStream` hears each event of the run in
+		/// flight, for the tour chat's live line and ([[BPR-2005]]) its
+		/// running block; none ignores them.
+		tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse, stream_sink aStream = { });
 		void offer(std::span<const core::agent_profile>) override;
 		void refuse(const std::string_view aReason) override;
 		void admit(const application::agent_invocation_projection_identity& aIdentity) override;
@@ -216,7 +218,7 @@ namespace bpr::app {
 		start_sink    Start;
 		run_sink      Finish;
 		refuse_sink   Refuse;
-		identity_sink Stream;
+		stream_sink   Stream;
 	};
 
 	/// \brief Carries every invocation projection onward, findings included.

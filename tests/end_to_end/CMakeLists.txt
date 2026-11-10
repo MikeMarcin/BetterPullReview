@@ -1771,6 +1771,54 @@ bpr_enable_warnings(
     test_better_pull_review_agent_chat_composition_public_path
 )
 
+# [[BPR-2004]], [[BPR-2005]], RFC-BPR-0103. A scripted Claude replaying the
+# installed runtime's own frames for a turn with three background helpers; the
+# second copy ends after its message's first result with two still out.
+foreach(script_mode IN ITEMS complete unfinished attended)
+    set(script_target "test_better_pull_review_scripted_claude_helpers_${script_mode}")
+    bpr_add_executable("${script_target}" scripted_claude_helpers_main.cpp)
+    target_compile_definitions(
+        "${script_target}"
+        PRIVATE
+            "BPR_AGENT_TRACE_DIR=\"${PROJECT_SOURCE_DIR}/tests/fixtures/agent/traces\""
+            $<$<STREQUAL:${script_mode},unfinished>:BPR_SCRIPT_UNFINISHED=1>
+            $<$<STREQUAL:${script_mode},attended>:BPR_SCRIPT_ATTENDED=1>
+    )
+    bpr_enable_hardening("${script_target}")
+    bpr_enable_warnings("${script_target}")
+    add_dependencies(test_better_pull_review_agent_chat_composition_public_path "${script_target}")
+endforeach()
+bpr_add_network_isolated_test(
+    NAME application_agent_chat_helpers_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        test_better_pull_review_agent_chat_composition_public_path
+        helpers
+        $<TARGET_FILE:test_better_pull_review_scripted_claude_helpers_complete>
+)
+bpr_add_network_isolated_test(
+    NAME application_agent_chat_helpers_unfinished_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        test_better_pull_review_agent_chat_composition_public_path
+        helpers-unfinished
+        $<TARGET_FILE:test_better_pull_review_scripted_claude_helpers_unfinished>
+)
+set_tests_properties(
+    application_agent_chat_helpers_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+        PASS_REGULAR_EXPRESSION "agent-chat-helpers:pass"
+        TIMEOUT 180
+)
+set_tests_properties(
+    application_agent_chat_helpers_unfinished_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+        PASS_REGULAR_EXPRESSION "agent-chat-helpers-unfinished:pass"
+        TIMEOUT 180
+)
+
 foreach(
     course
     IN ITEMS

@@ -271,6 +271,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-agent-picker" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-agent-helpers", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
 		bpr::app::command_line_option{ .Name = "attended-skill-home", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-prompt-editor" },
@@ -5611,6 +5612,7 @@ namespace {
 	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
+	void schedule_attended_agent_helpers_look(bpr::app::github_application& aApplication);
 	void schedule_attended_repository_look(bpr::app::github_application& aApplication);
 	#endif
 
@@ -5710,6 +5712,8 @@ namespace {
 	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
+					} else if (look == "agent-helpers") {
+						schedule_attended_agent_helpers_look(aApplication);
 					} else if (look == "repository") {
 						schedule_attended_repository_look(aApplication);
 	#endif
@@ -7280,6 +7284,64 @@ namespace {
 				static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent.png"), "PNG"));
 			}
 			done(QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count()));
+		});
+		timer->start();
+	}
+	#endif
+
+	#if defined(BPR_AGENT_INTEGRATIONS)
+	// [[BPR-2005]], RFC-BPR-0103 AC09. `--attended-agent-helpers PATH`: once the
+	// file shows, the Agent tab asks Review this pull request of the scripted
+	// Claude named here, which replays installed Claude's own frames for a turn
+	// with three background helpers, slowly, and goes quiet for over two
+	// minutes before its last part, so the person sees the running block, the
+	// quiet notice and the folded line. Nothing reaches GitHub.
+	void schedule_attended_agent_helpers_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(100);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto done   = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 1'200) {
+				done(QStringLiteral("ATTENDED_AGENT_HELPERS_FAILED:timeout:step=%1").arg(*step));
+				return;
+			}
+			auto* const panel = window.agent_panel();
+			auto* const tab   = window.agent_tab();
+			if (*step == 0) {
+				const auto claude = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(bpr::core::claude_stream_json_profile_id.value()));
+				if (claude < 0) {
+					return;
+				}
+				panel->profile_selector()->setCurrentIndex(claude);
+				window.open_agent_action()->trigger();
+				*step = 1;
+				return;
+			}
+			if (*step == 1) {
+				if (tab->state() == bpr::qt::agent_tab_state::working) {
+					return;
+				}
+				tab->send_prompt(QStringLiteral("Review this pull request"));
+				*step = 2;
+				return;
+			}
+			auto* const block = tab->turn_count() > 0U ? tab->turn_activity(tab->turn_count() - 1U) : nullptr;
+			if (block == nullptr || block->helper_rows() == 0) {
+				return;
+			}
+			done(QStringLiteral("ATTENDED_AGENT_HELPERS_SHOWN:rows=%1").arg(block->helper_rows()));
 		});
 		timer->start();
 	}
@@ -11596,6 +11658,9 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1594]]. After the file, the Agent tab and one review by the
 		// fixture agent named here.
 		const auto attendedAgentLook = launch.value("--attended-agent-look");
+		// [[BPR-2005]]. After the file, the Agent tab and one turn of the
+		// scripted Claude named here, with its helpers.
+		const auto attendedAgentHelpers = launch.value("--attended-agent-helpers");
 		// [[BPR-1879]]. The Agent tab's Repository step, for a look at it.
 		const auto attendedRepositoryLook = launch.has("--attended-repository-look");
 		// [[BPR-1916]], [[BPR-1917]]. A fixture home of skills that stands in
@@ -11612,6 +11677,9 @@ auto main(int argc, char** argv) -> int
 		}
 		if (attendedAgentLook.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentLook } };
+		}
+		if (attendedAgentHelpers.has_value()) {
+			fixtureOptions.ClaudeAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentHelpers } };
 		}
 		if (attendedWorkshopAgent.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedWorkshopAgent } };
@@ -12190,6 +12258,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedAgentLook.has_value()) {
 						look = std::string{ "agent" };
+					}
+					if (attendedAgentHelpers.has_value()) {
+						look = std::string{ "agent-helpers" };
 					}
 					if (attendedRepositoryLook) {
 						look = std::string{ "repository" };

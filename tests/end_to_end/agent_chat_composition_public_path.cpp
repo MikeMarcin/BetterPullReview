@@ -44,6 +44,7 @@
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
@@ -388,6 +389,143 @@ namespace {
 		std::cout << (passed ? "agent-chat-live-claude:pass\n" : "agent-chat-live-claude:fail\n");
 		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 	}
+
+	/// [[BPR-2004]], [[BPR-2005]], RFC-BPR-0103 AC02, AC03, AC05, AC06. The
+	/// Agent tab's turn on a scripted Claude replaying the installed runtime's
+	/// own frames: three background helpers, a message's result while they
+	/// run, then the parts of the turn that answer them. `aUnfinished`: the
+	/// runtime ends after that first result, with two helpers out.
+	[[nodiscard]] auto helpers_course(const char* const aClaude, const bool aUnfinished) -> int
+	{
+		const auto marker = std::string{ aUnfinished ? "agent-chat-helpers-unfinished" : "agent-chat-helpers" };
+		auto       data   = QTemporaryDir{ };
+		const auto root   = data.isValid() ? e2e::private_data_root(data) : std::nullopt;
+		if (!root) {
+			return EXIT_FAILURE;
+		}
+		{
+			auto preferences        = application::agent_setup_preferences{ };
+			preferences.AgentsMoved = true;
+			auto entry              = core::agent_entry{ };
+			entry.Id                = 1U;
+			entry.Name              = "Claude Code";
+			entry.Protocol          = core::agent_protocol::claude_stream_json;
+			entry.Program           = aClaude;
+			entry.Identity          = std::string(32U, 'c');
+			preferences.Agents.push_back(std::move(entry));
+			preferences.PreferredAgent = 1U;
+			if (!adapters::sqlite::make_agent_setup_store(*root)->store(preferences)) {
+				return EXIT_FAILURE;
+			}
+		}
+		std::unique_ptr<app::github_application> application;
+		auto                                     terminal = false;
+		auto                                     startup  = app::detail::github_application_fixture_access::start(
+			app::detail::github_public_path_fixture::nested_folders_v1,
+			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			[&](auto aResult) {
+				terminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+		const auto seconds = [](const int aSeconds) { return std::chrono::milliseconds{ aSeconds * 1'000 }; };
+		if (!e2e::wait_until_plain([&] { return terminal && startup && startup->is_quiescent(); }, seconds(60)) || !application) {
+			return EXIT_FAILURE;
+		}
+		application->show();
+		auto& window = application->window();
+		window.resize(1'280, 860);
+		window.github_connect_action()->trigger();
+		if (!e2e::wait_until_plain([&] { return window.github_open_action()->isEnabled(); }, seconds(60))) {
+			return fail(*application, "helpers-connect");
+		}
+		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+		window.home_open_action()->trigger();
+		auto* const panel = window.agent_panel();
+		if (!e2e::wait_until_plain([&] { return window.files_drawer()->contents_view()->model()->rowCount() >= 5 && panel->profile_selector()->count() > 0; }, seconds(60))) {
+			return fail(*application, "helpers-open");
+		}
+		const auto claude = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U).value()));
+		if (claude < 0) {
+			return fail(*application, "helpers-offered");
+		}
+		panel->profile_selector()->setCurrentIndex(claude);
+		auto* const files = window.files_drawer()->contents_view();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		window.choose_modality(qt::review_modality::review);
+		window.tray_tabs()->setCurrentIndex(3);
+		auto* const tab = window.agent_tab();
+		// The saved conversation loads first; a send before it is refused.
+		static_cast<void>(e2e::wait_until_plain([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent; }, seconds(60)));
+		if (!e2e::wait_until_plain(
+				[&] {
+					if (tab->turn_count() == 0U && tab->state() != qt::agent_tab_state::working) {
+						tab->send_prompt(QStringLiteral("Review this pull request"));
+					}
+					return tab->turn_count() == 1U;
+				},
+				seconds(30))) {
+			return fail(*application, "helpers-sent", tab->send_refusal_text().toStdString());
+		}
+		// While it runs: the rows, and the line naming what it does.
+		auto       most       = 0;
+		auto       waiting    = false;
+		auto       reading    = false;
+		auto       lastActive = false;
+		auto       midRows    = QStringList{ };
+		const auto done       = e2e::wait_until_plain(
+			[&] {
+				if (auto* const block = tab->turn_activity(0U); block != nullptr && block->live()) {
+					if (block->helper_rows() > most) {
+						most = block->helper_rows();
+						// For a look at the running block: BPR_HELPERS_RENDER names a folder.
+						if (const auto folder = qEnvironmentVariable("BPR_HELPERS_RENDER"); !folder.isEmpty() && most == 3) {
+							static_cast<void>(window.grab().save(folder + QStringLiteral("/agent-helpers-running.png")));
+						}
+						midRows.clear();
+						for (int row = 0; row < block->helper_rows(); ++row) {
+							midRows << block->helper_row_text(row);
+						}
+					}
+					const auto line = tab->turn_footer(0U);
+					waiting         = waiting || line.contains(QStringLiteral("is waiting on 2 helpers"));
+					reading         = reading || line.contains(QStringLiteral("is reading a.txt"));
+					lastActive      = lastActive || line.contains(QStringLiteral("last activity"));
+				}
+				return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(0U).has_value();
+			},
+			seconds(90));
+		auto* const block  = tab->turn_activity(0U);
+		const auto  answer = tab->turn_answer(0U);
+		if (const auto folder = qEnvironmentVariable("BPR_HELPERS_RENDER"); !folder.isEmpty() && block != nullptr) {
+			block->summary_button()->click();
+			QApplication::processEvents();
+			static_cast<void>(window.grab().save(folder + (aUnfinished ? QStringLiteral("/agent-helpers-unfinished.png") : QStringLiteral("/agent-helpers-ended.png"))));
+		}
+		const auto outcome = tab->turn_outcome(0U);
+		std::cout << marker << ": turns=" << tab->turn_count() << " outcome=" << (outcome ? core::stable_name(*outcome) : std::string_view{ "none" }) << " most-rows=" << most << " waiting-line=" << waiting
+				  << " last-activity=" << lastActive << " footer=\"" << tab->turn_footer(0U).toStdString() << "\" summary=\"" << (block != nullptr ? block->summary_text().toStdString() : std::string{ }) << "\"\n";
+		for (const auto& row : midRows) {
+			std::cout << marker << " row: " << row.toStdString() << '\n';
+		}
+		std::cout << marker << " answer: " << answer.left(1200).toStdString() << "\n";
+		auto passed = done && tab->turn_count() == 1U && most == 3 && lastActive;
+		if (aUnfinished) {
+			// AC03. An error that names the unfinished helpers and keeps what arrived.
+			passed = passed && outcome && *outcome != core::agent_turn_outcome::answered && answer.contains(QStringLiteral("I started three reviewers")) && answer.contains(QStringLiteral("stopped before its 2 remaining helpers finished"))
+				&& answer.contains(QStringLiteral("Count lines in b.txt")) && answer.contains(QStringLiteral("Count lines in c.txt")) && answer.contains(QStringLiteral("What arrived is kept"));
+		} else {
+			// AC02. One turn, the closing message in it, one duration and one cost.
+			passed = passed && outcome == core::agent_turn_outcome::answered && waiting && answer.contains(QStringLiteral("I started three reviewers")) && answer.contains(QStringLiteral("a.txt: 25 lines | b.txt: 23 lines | c.txt: 31 lines"))
+				&& panel->last_reported_cost() == QStringLiteral("0.016330895") && block != nullptr && block->summary_text().contains(QStringLiteral("3 helpers")) && tab->turn_footer(0U).count(QStringLiteral("answered in")) == 1;
+		}
+		if (!shutdown(*application)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << marker << (passed ? ":pass\n" : ":fail\n");
+		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -405,6 +543,9 @@ auto main(int argc, char** argv) -> int
 	// explicit run of `live-claude` reaches it.
 	if (course == "live-claude") {
 		return live_claude_course(argv[2]);
+	}
+	if (course == "helpers" || course == "helpers-unfinished") {
+		return helpers_course(argv[2], course == "helpers-unfinished");
 	}
 	if (
 		course != "positive" && course != "stale" && course != "continued"

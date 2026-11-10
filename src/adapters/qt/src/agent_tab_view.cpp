@@ -1160,6 +1160,16 @@ namespace bpr::qt {
 		auto* const footer = new agent_run_status_line{ reply };
 		footer->setObjectName(QStringLiteral("agentTurnFooter"));
 		replyColumn->addWidget(footer);
+		// [[BPR-2005]], RFC-BPR-0103. Under the line: its helpers, the quiet
+		// notice, and after the turn the folded line.
+		auto* const activity = new agent_activity_view{ reply };
+		activity->setObjectName(QStringLiteral("agentTurnActivity"));
+		activity->set_stop([this] {
+			if (auto* const stop = Launch.cancel_action(); stop != nullptr && stop->isEnabled()) {
+				stop->trigger();
+			}
+		});
+		replyColumn->addWidget(activity);
 		auto* const footerRow = new QHBoxLayout{ };
 		footerRow->setSpacing(2);
 		auto* const copy = make_drawer_tool(reply, drawer_icon(drawer_glyph::copy, palette()), tr("Copy the response as Markdown"), QStringLiteral("agentTurnCopy"));
@@ -1212,6 +1222,7 @@ namespace bpr::qt {
 		aTurn.Widget       = box;
 		aTurn.Answer       = answer;
 		aTurn.Footer       = footer;
+		aTurn.Activity     = activity;
 		aTurn.SaveNote     = save;
 		aTurn.CardColumn   = cards;
 		aTurn.Copy         = copy;
@@ -1532,6 +1543,29 @@ namespace bpr::qt {
 			auto& kept = Turns.back();
 			set_answer(kept, shown.Answer);
 			kept.Footer->setText(shown.Footer);
+			// [[BPR-2005]]. A turn this window saw end keeps its line and its
+			// folded block when the thread is drawn again.
+			// The same question in the same order: the latest such turn not
+			// already matched.
+			const auto asked   = std::ranges::count_if(Turns, [&kept](const turn& aEarlier) { return aEarlier.Question == kept.Question; });
+			auto       seen    = EndedTurns.end();
+			auto       matched = decltype(asked){ 0 };
+			for (auto at = EndedTurns.begin(); at != EndedTurns.end(); ++at) {
+				if (at->Question == kept.Question && ++matched == asked) {
+					seen = at;
+				}
+			}
+			if (seen != EndedTurns.end()) {
+				if (!shown.Footer.contains(QLatin1Char{ ' ' })) {
+					kept.Footer->setText(seen->Footer);
+				}
+				if (!seen->Ending.isEmpty()) {
+					set_answer(kept, seen->Ending);
+				}
+				if (kept.Activity != nullptr) {
+					kept.Activity->fold(seen->Activity, seen->Seconds);
+				}
+			}
 			settle_reply_footer(kept);
 		}
 		Finished = false;
@@ -1840,6 +1874,14 @@ namespace bpr::qt {
 			status.Stage     = written.isEmpty() ? agent_run_stage::thinking : agent_run_stage::writing;
 			status.Latest    = written.isEmpty() ? Launch.latest_output_line() : QString{ };
 			status.FilesOnly = Launch.pull_request_files_only();
+			// [[BPR-2005]]. What the runtime says it is doing, when it says.
+			if (Launch.activity_reported()) {
+				status.Activity          = Launch.activity();
+				status.ActivityStartedMs = Launch.activity_started_ms();
+				if (current.Activity != nullptr) {
+					current.Activity->present(agent_short_name(agent), Launch.activity(), Launch.activity_started_ms());
+				}
+			}
 			current.Footer->present(status, Started);
 			return;
 		}
@@ -1852,8 +1894,25 @@ namespace bpr::qt {
 		const auto succeeded  = Launch.last_outcome() == application::agent_run_outcome::success;
 		current.Outcome       = application::turn_outcome(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start));
 		const auto stopReason = Launch.stop_reason_text();
+		// [[BPR-2005]]. The block folds under the answer.
+		if (current.Activity != nullptr) {
+			current.Activity->fold(Launch.activity(), seconds);
+		}
+		const auto kept       = Launch.kept_text().trimmed();
+		const auto unfinished = Launch.last_failure() == application::agent_protocol_failure::helpers_unfinished;
 		if (succeeded) {
 			set_answer(current, written.isEmpty() ? tr("%1 finished without writing an answer.").arg(agent) : written);
+		} else if (unfinished || (Launch.last_outcome() == application::agent_run_outcome::cancelled && !kept.isEmpty())) {
+			// [[BPR-2004]], RFC-BPR-0103. Stopped, or the runtime ended under
+			// its helpers: what arrived is kept, and the ending is said
+			// under it, never as an answer that promises more.
+			auto names = QStringList{ };
+			for (const auto& name : Launch.unfinished_helpers()) {
+				names << (name.empty() ? tr("a helper") : QStringLiteral("“%1”").arg(QString::fromStdString(name)));
+			}
+			const auto ending = unfinished ? (names.size() == 1 ? tr("%1 stopped before its remaining helper finished").arg(agent_short_name(agent)) : tr("%1 stopped before its %2 remaining helpers finished").arg(agent_short_name(agent)).arg(names.size())) + (names.isEmpty() ? QString{ } : QStringLiteral(": ") + names.join(QStringLiteral(", "))) + QStringLiteral(". ") + tr("What arrived is kept.")
+										   : tr("Stopped. What arrived is kept.");
+			set_answer(current, (kept.isEmpty() ? QString{ } : kept + QStringLiteral("\n\n")) + QStringLiteral("*") + ending + QStringLiteral("*"));
 		} else {
 			// [[BPR-1817]]. A run that ended without an answer is an error
 			// entry in the thread: what happened in words, then the tail of
@@ -1916,6 +1975,10 @@ namespace bpr::qt {
 		}
 		current.Footer->settle(footer, succeeded);
 		current.Footer->setToolTip(detail);
+		EndedTurns.push_back({ .Question = current.Question, .Ending = succeeded ? QString{ } : current.AnswerText, .Footer = footer, .Activity = Launch.activity(), .Seconds = seconds });
+		if (EndedTurns.size() > 32U) {
+			EndedTurns.erase(EndedTurns.begin());
+		}
 		current.AnsweredAt = QDateTime::currentDateTime();
 		settle_reply_footer(current);
 		if (succeeded && FindingsPresented != FindingsAtTurn) {
@@ -2171,6 +2234,11 @@ namespace bpr::qt {
 	}
 
 	auto agent_tab_view::turn_question(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].Question : QString{ }; }
+
+	auto agent_tab_view::turn_activity(const std::size_t aTurn) const -> agent_activity_view*
+	{
+		return aTurn < Turns.size() ? Turns[aTurn].Activity.data() : nullptr;
+	}
 
 	auto agent_tab_view::turn_footer(const std::size_t aTurn) const -> QString
 	{

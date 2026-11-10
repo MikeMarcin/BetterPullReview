@@ -630,10 +630,221 @@ namespace bpr::application {
 			return std::pair{ *id, *status };
 		}
 
+		/// [[BPR-2004]]. What a Codex run is asked about helpers.
+		constexpr auto codex_foreground_helpers = std::string_view{
+			"Run any sub-agent or background task you start in the foreground: wait until every one has finished before you end your turn, and put what they found in your answer. Work still running when your turn ends is lost."
+		};
+
 		[[nodiscard]] auto no_protocol_events()
 			-> std::vector<agent_protocol_event>
 		{
 			return { };
+		}
+
+		// [[BPR-2004]], RFC-BPR-0103. A turn's activity and its helpers.
+		// Activity events are for the running block only; they are never the
+		// answer and decide nothing about it.
+
+		/// Past this many helpers in one turn the runtime is refused.
+		constexpr auto maximum_tracked_helpers = std::size_t{ 4096U };
+		constexpr auto maximum_read_past_types = std::size_t{ 16U };
+
+		void note_read_past(agent_helper_tracking& aHelpers, std::string aType)
+		{
+			if (aHelpers.ReadPast.size() < maximum_read_past_types && !aType.empty() && aType.size() <= 64U && std::ranges::find(aHelpers.ReadPast, aType) == aHelpers.ReadPast.end()) {
+				aHelpers.ReadPast.push_back(std::move(aType));
+			}
+		}
+
+		/// The first line of `aText`, as a subject.
+		[[nodiscard]] auto first_line(const std::string_view aText) -> std::string
+		{
+			const auto start = aText.find_first_not_of(" \t\r\n");
+			if (start == std::string_view::npos) {
+				return { };
+			}
+			const auto rest = aText.substr(start);
+			return std::string{ rest.substr(0U, std::min(rest.find('\n'), core::maximum_agent_activity_subject_bytes)) };
+		}
+
+		[[nodiscard]] auto activity_event(const core::agent_activity_kind aKind, const core::agent_doing aDoing, std::string aSubject, std::string aHelper = { },
+										  const core::agent_helper_state aEnded = core::agent_helper_state::finished) -> agent_protocol_event
+		{
+			auto update    = core::agent_activity_update{ };
+			update.Kind    = aKind;
+			update.Doing   = aDoing;
+			update.Subject = std::move(aSubject);
+			update.Helper  = std::move(aHelper);
+			update.Ended   = aEnded;
+			auto event     = agent_protocol_event{ };
+			event.Kind     = agent_protocol_event_kind::activity;
+			event.Activity = std::move(update);
+			return event;
+		}
+
+		[[nodiscard]] auto doing_event(const core::agent_doing aDoing, std::string aSubject = { }) -> agent_protocol_event
+		{
+			return activity_event(core::agent_activity_kind::doing, aDoing, std::move(aSubject));
+		}
+
+		enum class helper_start : std::uint8_t {
+			added,
+			known,
+			refused,
+		};
+
+		/// Records a helper the runtime reported started. A helper already
+		/// known is not started twice, though what names its frames is kept
+		/// when this report is the first to say it. Refused past the bound.
+		[[nodiscard]] auto start_helper(agent_helper_tracking& aHelpers, const std::string& aId, const std::string& aFramedBy, const std::string& aDescription) -> helper_start
+		{
+			if (const auto known = std::ranges::find(aHelpers.Known, aId, &std::pair<std::string, std::string>::first); known != aHelpers.Known.end()) {
+				if (known->second.empty()) {
+					known->second = aFramedBy;
+				}
+				return helper_start::known;
+			}
+			if (aHelpers.Known.size() >= maximum_tracked_helpers) {
+				return helper_start::refused;
+			}
+			aHelpers.Known.emplace_back(aId, aFramedBy);
+			aHelpers.Running.emplace_back(aId, aDescription);
+			++aHelpers.Tally.Started;
+			return helper_start::added;
+		}
+
+		/// Ends a running helper; false when it was not running.
+		auto end_helper(agent_helper_tracking& aHelpers, const std::string_view aId, const core::agent_helper_state aState) -> bool
+		{
+			const auto found = std::ranges::find(aHelpers.Running, aId, &std::pair<std::string, std::string>::first);
+			if (found == aHelpers.Running.end()) {
+				return false;
+			}
+			aHelpers.Running.erase(found);
+			if (aState == core::agent_helper_state::finished) {
+				++aHelpers.Tally.Finished;
+			} else {
+				++aHelpers.Tally.Failed;
+			}
+			return true;
+		}
+
+		/// The helper whose frames name it `aFramedBy`; null for none.
+		[[nodiscard]] auto helper_framed_by(const agent_helper_tracking& aHelpers, const std::string_view aFramedBy) -> const std::string*
+		{
+			const auto found = std::ranges::find(aHelpers.Known, aFramedBy, &std::pair<std::string, std::string>::second);
+			return found == aHelpers.Known.end() ? nullptr : &found->first;
+		}
+
+		/// What a Claude tool use does, from its name and input.
+		[[nodiscard]] auto claude_tool_doing(const std::string& aTool, const json_value* aInput) -> std::pair<core::agent_doing, std::string>
+		{
+			const auto text = [aInput](const std::string_view aKey) {
+				const auto* value = aInput == nullptr ? nullptr : string_member(*aInput, aKey);
+				return value == nullptr ? std::string{ } : first_line(*value);
+			};
+			if (aTool == "Read") {
+				return { core::agent_doing::reading, text("file_path") };
+			}
+			if (aTool == "Bash") {
+				return { core::agent_doing::running, text("command") };
+			}
+			if (aTool == "Grep" || aTool == "Glob") {
+				return { core::agent_doing::searching, text("pattern") };
+			}
+			if (aTool == "Edit" || aTool == "Write" || aTool == "MultiEdit" || aTool == "NotebookEdit") {
+				return { core::agent_doing::editing, text("file_path") };
+			}
+			return { core::agent_doing::using_tool, first_line(aTool) };
+		}
+
+		/// A helper's ending, as a Claude task status says it.
+		[[nodiscard]] auto claude_task_ending(const std::string* aStatus) -> std::optional<core::agent_helper_state>
+		{
+			if (aStatus == nullptr || *aStatus == "running" || *aStatus == "pending") {
+				return std::nullopt;
+			}
+			return *aStatus == "completed" ? core::agent_helper_state::finished : core::agent_helper_state::failed;
+		}
+
+		/// [[BPR-2004]]. One Claude `system` frame that reports a helper:
+		/// `task_started`, `task_progress`, `task_updated`,
+		/// `task_notification` or `background_tasks_changed` (Claude Code
+		/// 2.1.319, established 2026-11-10; see
+		/// `docs/verification/RFC-BPR-0103.md`). Empty for any other frame.
+		[[nodiscard]] auto decode_claude_helper_frame(const json_value& aRoot, const std::string& aSubtype, agent_helper_tracking& aHelpers)
+			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
+		{
+			using kind        = core::agent_activity_kind;
+			const auto* task  = string_member(aRoot, "task_id");
+			const auto  named = task != nullptr && !task->empty() && task->size() <= core::maximum_remote_run_id_bytes;
+			if (aSubtype == "task_started") {
+				const auto* description = string_member(aRoot, "description");
+				const auto* toolUse     = string_member(aRoot, "tool_use_id");
+				if (!named) {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				const auto words   = description == nullptr ? std::string{ } : first_line(*description);
+				const auto started = start_helper(aHelpers, *task, toolUse == nullptr ? std::string{ } : *toolUse, words);
+				if (started == helper_start::refused) {
+					return std::unexpected(agent_protocol_failure::output_too_large);
+				}
+				if (started == helper_start::known) {
+					return no_protocol_events();
+				}
+				return std::vector<agent_protocol_event>{ activity_event(kind::helper_started, core::agent_doing::thinking, words, *task) };
+			}
+			if (aSubtype == "task_progress") {
+				const auto* description = string_member(aRoot, "description");
+				const auto* tool        = string_member(aRoot, "last_tool_name");
+				if (!named) {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				const auto doing = tool == nullptr ? core::agent_doing::thinking : claude_tool_doing(*tool, nullptr).first;
+				return std::vector<agent_protocol_event>{ activity_event(kind::helper_progress, doing, description == nullptr ? std::string{ } : first_line(*description), *task) };
+			}
+			if (aSubtype == "task_updated" || aSubtype == "task_notification") {
+				const auto* patch  = object_member(aRoot, "patch");
+				const auto* status = aSubtype == "task_updated" ? (patch == nullptr ? nullptr : string_member(*patch, "status")) : string_member(aRoot, "status");
+				if (!named) {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				// A report back starts a part of the turn that answers it.
+				if (aSubtype == "task_notification") {
+					aHelpers.NotifiedSinceInit = true;
+				}
+				const auto ending = claude_task_ending(status);
+				if (!ending || !end_helper(aHelpers, *task, *ending)) {
+					return no_protocol_events();
+				}
+				return std::vector<agent_protocol_event>{ activity_event(kind::helper_ended, core::agent_doing::thinking, { }, *task, *ending) };
+			}
+			if (aSubtype == "background_tasks_changed") {
+				// The runtime's own list of what is still out: a helper it
+				// names that was never reported started is started now.
+				const auto* tasks  = member(aRoot, "tasks");
+				auto        events = std::vector<agent_protocol_event>{ };
+				if (tasks == nullptr || tasks->Kind != json_kind::array_value) {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				for (const auto& entry : tasks->Elements) {
+					const auto* id          = string_member(entry, "task_id");
+					const auto* description = string_member(entry, "description");
+					if (id == nullptr || id->empty() || id->size() > core::maximum_remote_run_id_bytes) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					if (std::ranges::find(aHelpers.Known, *id, &std::pair<std::string, std::string>::first) != aHelpers.Known.end()) {
+						continue;
+					}
+					const auto words = description == nullptr ? std::string{ } : first_line(*description);
+					if (start_helper(aHelpers, *id, { }, words) == helper_start::refused) {
+						return std::unexpected(agent_protocol_failure::output_too_large);
+					}
+					events.push_back(activity_event(kind::helper_started, core::agent_doing::thinking, words, *id));
+				}
+				return events;
+			}
+			return no_protocol_events();
 		}
 
 		/// \brief Lifts one result frame's finding payload out, undecoded.
@@ -714,7 +925,7 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			std::string&           aThread,
-			std::string& aTurn, const std::uint64_t aTurnResponse)
+			std::string& aTurn, const std::uint64_t aTurnResponse, agent_helper_tracking& aHelpers)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto turnResponse = std::to_string(aTurnResponse);
@@ -780,6 +991,97 @@ namespace bpr::application {
 			if (method == nullptr || params == nullptr) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
+			// [[BPR-2004]], RFC-BPR-0103. Codex 0.167.0 runs each sub-agent on
+			// a thread of its own and reports it on the agent's thread as a
+			// `subAgentActivity` item. A helper thread's frames say what it
+			// does; they are never the answer and never end the turn.
+			if (const auto* frameThread = string_member(*params, "threadId"); frameThread != nullptr && !aThread.empty() && *frameThread != aThread) {
+				const auto* helper = helper_framed_by(aHelpers, *frameThread);
+				if (helper == nullptr) {
+					// A sub-agent's thread can speak before the agent's
+					// thread reports it (Codex 0.167.0, live on 2026-11-10:
+					// `thread/status/changed` first). Its frames are never
+					// the answer and never end the turn, so they are read
+					// past; a terminal for a thread no helper is still names
+					// a stale identity, and is refused.
+					if (*method == "turn/completed") {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					note_read_past(aHelpers, "unreported:" + *method);
+					return no_protocol_events();
+				}
+				if (*method == "item/started" || *method == "item/completed") {
+					const auto* item = object_member(*params, "item");
+					const auto* type = item == nullptr ? nullptr : string_member(*item, "type");
+					if (type != nullptr && *type == "commandExecution" && *method == "item/started") {
+						const auto* command = string_member(*item, "command");
+						return std::vector<agent_protocol_event>{ activity_event(core::agent_activity_kind::helper_progress, core::agent_doing::running, command == nullptr ? std::string{ } : first_line(*command), *helper) };
+					}
+					if (type != nullptr && *type == "agentMessage" && *method == "item/completed") {
+						const auto* text = string_member(*item, "text");
+						return std::vector<agent_protocol_event>{ activity_event(core::agent_activity_kind::helper_progress, core::agent_doing::writing, text == nullptr ? std::string{ } : first_line(*text), *helper) };
+					}
+				}
+				note_read_past(aHelpers, "helper:" + *method);
+				return no_protocol_events();
+			}
+			if ((*method == "item/started" || *method == "item/completed") && aPhase >= 5U) {
+				const auto* item = object_member(*params, "item");
+				const auto* type = item == nullptr ? nullptr : string_member(*item, "type");
+				if (type != nullptr && *type == "subAgentActivity" && *method == "item/completed") {
+					const auto* kind  = string_member(*item, "kind");
+					const auto* agent = string_member(*item, "agentThreadId");
+					const auto* path  = string_member(*item, "agentPath");
+					if (kind == nullptr || agent == nullptr || agent->empty() || agent->size() > core::maximum_remote_run_id_bytes) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					// "/root/count_a" is the helper Codex named "count a".
+					auto words = path == nullptr ? std::string{ } : first_line(path->substr(path->rfind('/') == std::string::npos ? 0U : path->rfind('/') + 1U));
+					std::ranges::replace(words, '_', ' ');
+					if (*kind == "started") {
+						const auto started = start_helper(aHelpers, *agent, *agent, words);
+						if (started == helper_start::refused) {
+							return std::unexpected(agent_protocol_failure::output_too_large);
+						}
+						if (started == helper_start::known) {
+							return no_protocol_events();
+						}
+						return std::vector<agent_protocol_event>{ activity_event(core::agent_activity_kind::helper_started, core::agent_doing::thinking, words, *agent) };
+					}
+					if (*kind == "completed" || *kind == "interrupted") {
+						const auto ending = *kind == "completed" ? core::agent_helper_state::finished : core::agent_helper_state::failed;
+						auto       events = std::vector<agent_protocol_event>{ };
+						if (end_helper(aHelpers, *agent, ending)) {
+							events.push_back(activity_event(core::agent_activity_kind::helper_ended, core::agent_doing::thinking, { }, *agent, ending));
+						}
+						// The agent's own turn ended earlier; the last helper ends it.
+						if (aPhase == 7U && aHelpers.Running.empty()) {
+							aPhase = 6U;
+						}
+						return events;
+					}
+					return no_protocol_events();
+				}
+				if (type != nullptr && *method == "item/started" && aPhase == 5U) {
+					if (*type == "commandExecution") {
+						const auto* command = string_member(*item, "command");
+						return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::running, command == nullptr ? std::string{ } : first_line(*command)) };
+					}
+					if (*type == "reasoning") {
+						return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::thinking) };
+					}
+					if (*type == "agentMessage") {
+						return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::writing) };
+					}
+					if (*type == "fileChange") {
+						return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::editing) };
+					}
+					if (*type == "mcpToolCall" || *type == "dynamicToolCall") {
+						const auto* tool = string_member(*item, "tool");
+						return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::using_tool, tool == nullptr ? std::string{ } : first_line(*tool)) };
+					}
+				}
+			}
 			if (*method == "item/agentMessage/delta") {
 				const auto* thread = string_member(*params, "threadId");
 				const auto* turn   = string_member(*params, "turnId");
@@ -833,8 +1135,14 @@ namespace bpr::application {
 				if (parsed->second != "completed") {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
-				aPhase = 6U;
-				return payload_events(*turn, aFrame);
+				// [[BPR-2004]]. Phase 7: the agent's turn ended with helpers
+				// out; the last of them ends it.
+				aPhase      = aHelpers.Running.empty() ? 6U : 7U;
+				auto events = payload_events(*turn, aFrame);
+				if (aPhase == 7U) {
+					events.push_back(doing_event(core::agent_doing::waiting));
+				}
+				return events;
 			}
 			if (*method == "error") {
 				return std::unexpected(agent_protocol_failure::remote_failed);
@@ -874,6 +1182,7 @@ namespace bpr::application {
 				std::string_view{ "item/completed" },
 			};
 			if (std::ranges::find(ignored, *method) != ignored.end()) {
+				note_read_past(aHelpers, *method);
 				return no_protocol_events();
 			}
 			return std::unexpected(agent_protocol_failure::malformed_frame);
@@ -918,7 +1227,7 @@ namespace bpr::application {
 			const json_value&      aRoot,
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
-			std::string& aThread, const bool aReadOnly = false)
+			std::string& aThread, const bool aReadOnly, agent_helper_tracking& /*aHelpers*/)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto* type = string_member(aRoot, "type");
@@ -963,21 +1272,31 @@ namespace bpr::application {
 						return std::unexpected(
 							agent_protocol_failure::malformed_frame);
 					}
-					return std::vector<agent_protocol_event>{ {
-						.Kind = agent_protocol_event_kind::output,
-						.Text = *text,
-						.Item = *itemId,
-					} };
+					return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::writing), {
+																										   .Kind = agent_protocol_event_kind::output,
+																										   .Text = *text,
+																										   .Item = *itemId,
+																									   } };
+				}
+				// [[BPR-2004]]. What it is doing, for the running block.
+				auto events = std::vector<agent_protocol_event>{ };
+				if (*type == "item.started" && *itemType == "command_execution") {
+					const auto* command = string_member(*item, "command");
+					events.push_back(doing_event(core::agent_doing::running, command == nullptr ? std::string{ } : first_line(*command)));
+				} else if (*type == "item.started" && *itemType == "reasoning") {
+					events.push_back(doing_event(core::agent_doing::thinking));
+				} else if (*type == "item.started" && *itemType == "file_change") {
+					events.push_back(doing_event(core::agent_doing::editing));
 				}
 				// [[BPR-1900]]. A read-only tour run's commands, for its
 				// transcript. Codex's own read-only sandbox is what holds
 				// them to reading; the command is shown as Codex wrote it.
 				if (aReadOnly && *type == "item.started" && *itemType == "command_execution") {
 					if (const auto* command = string_member(*item, "command"); command != nullptr) {
-						return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::tool_activity, .Text = "Bash", .Item = command->substr(0U, maximum_agent_tool_activity_bytes) } };
+						events.push_back({ .Kind = agent_protocol_event_kind::tool_activity, .Text = "Bash", .Item = command->substr(0U, maximum_agent_tool_activity_bytes) });
 					}
 				}
-				return no_protocol_events();
+				return events;
 			}
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
@@ -1110,7 +1429,8 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			bool&                  aSawAssistant,
-			std::string& aSession, bool aWritingOnly, const bool aReadOnly, held_tool_uses* aHeld, const agent_run_checks aChecks, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const std::uint64_t aNativeTurn, const bool aConnectedNative, bool& aIdentifiedResult)
+			std::string& aSession, bool aWritingOnly, const bool aReadOnly, held_tool_uses* aHeld, const agent_run_checks aChecks, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const std::uint64_t aNativeTurn, const bool aConnectedNative, bool& aIdentifiedResult,
+			agent_helper_tracking& aHelpers)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto  relaxed = aChecks == agent_run_checks::relaxed;
@@ -1136,6 +1456,21 @@ namespace bpr::application {
 				// Under the session once it is known; before init any.
 				if (aPhase != 0U && session != nullptr && *session != aSession) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				// [[BPR-2004]]. A helper's start, progress and end are read;
+				// every other frame is read past and named for the diagnosis.
+				if (*type == "system" && subtype != nullptr) {
+					// RFC-BPR-0103 AC04. A helper started when no turn is open
+					// belongs to none, and is refused as any late frame is.
+					if (*subtype == "task_started" && aPhase == 2U) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					if (*subtype == "task_started" || *subtype == "task_progress" || *subtype == "task_updated" || *subtype == "task_notification" || *subtype == "background_tasks_changed") {
+						return decode_claude_helper_frame(aRoot, *subtype, aHelpers);
+					}
+					note_read_past(aHelpers, *type + "/" + *subtype);
+				} else {
+					note_read_past(aHelpers, *type);
 				}
 				return no_protocol_events();
 			}
@@ -1191,13 +1526,52 @@ namespace bpr::application {
 				// [[BPR-1827]]. A wrapper that starts Claude again, or a
 				// Claude that re-initializes, repeats init under the same
 				// session; it changes nothing.
+				// [[BPR-2004]]. Claude begins a part of the open turn with
+				// init when a helper reports back: that part's frames are
+				// this turn's, and the report is answered by it.
 				if (*session == aSession) {
+					if (aPhase == 1U || aPhase == 3U) {
+						aHelpers.NotifiedSinceInit = false;
+						aHelpers.SeparateNext      = aHelpers.SeparateNext || aSawAssistant;
+					}
+					if (aPhase == 3U) {
+						aPhase = 1U;
+						reported.push_back(doing_event(core::agent_doing::thinking));
+					}
 					return reported;
 				}
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
-			if (aPhase != 1U || *session != aSession) {
+			// [[BPR-2004]]. Phase 3: the agent's message ended with helpers
+			// out, and the turn goes on.
+			if ((aPhase != 1U && aPhase != 3U) || *session != aSession) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			// [[BPR-2004]]. A helper's own frames name the tool use that
+			// started it. They say what it does and are never the answer.
+			if (const auto* parent = string_member(aRoot, "parent_tool_use_id"); parent != nullptr && !parent->empty() && (*type == "assistant" || *type == "user") && !aWritingOnly && !aReadOnly) {
+				const auto* message = object_member(aRoot, "message");
+				const auto* content = message == nullptr ? nullptr : member(*message, "content");
+				const auto* helper  = helper_framed_by(aHelpers, *parent);
+				auto        events  = std::vector<agent_protocol_event>{ };
+				if (helper == nullptr || *type == "user" || content == nullptr || content->Kind != json_kind::array_value) {
+					return events;
+				}
+				for (const auto& block : content->Elements) {
+					const auto* blockType = string_member(block, "type");
+					if (blockType != nullptr && *blockType == "tool_use") {
+						const auto* tool = string_member(block, "name");
+						if (tool != nullptr) {
+							auto [doing, subject] = claude_tool_doing(*tool, object_member(block, "input"));
+							events.push_back(activity_event(core::agent_activity_kind::helper_progress, doing, std::move(subject), *helper));
+						}
+					} else if (blockType != nullptr && *blockType == "text") {
+						if (const auto* text = string_member(block, "text"); text != nullptr && !first_line(*text).empty()) {
+							events.push_back(activity_event(core::agent_activity_kind::helper_progress, core::agent_doing::writing, first_line(*text), *helper));
+						}
+					}
+				}
+				return events;
 			}
 			// [[BPR-1918]]. Relaxed, a writing run's tool results (user
 			// frames) are read past; a payload is still refused.
@@ -1310,9 +1684,16 @@ namespace bpr::application {
 							return std::unexpected(
 								agent_protocol_failure::malformed_frame);
 						}
+						// [[BPR-2004]]. A later part of the turn is its own
+						// paragraph of the one answer.
+						auto said = *text;
+						if (aHelpers.SeparateNext && !said.empty()) {
+							said                  = "\n\n" + said;
+							aHelpers.SeparateNext = false;
+						}
 						events.push_back({
 							.Kind = agent_protocol_event_kind::output,
-							.Text = *text,
+							.Text = std::move(said),
 							.Item = identity + ":" + std::to_string(blockIndex),
 						});
 					}
@@ -1320,6 +1701,26 @@ namespace bpr::application {
 				}
 				if (thought) {
 					events.push_back({ .Kind = agent_protocol_event_kind::thinking_reported });
+				}
+				// [[BPR-2004]]. What the agent itself is doing, block by block.
+				if (*type == "assistant") {
+					for (const auto& block : content->Elements) {
+						const auto* blockType = string_member(block, "type");
+						if (blockType == nullptr) {
+							continue;
+						}
+						if (*blockType == "thinking" || *blockType == "redacted_thinking") {
+							events.push_back(doing_event(core::agent_doing::thinking));
+						} else if (*blockType == "text") {
+							events.push_back(doing_event(core::agent_doing::writing));
+						} else if (*blockType == "tool_use") {
+							// A helper's start is said by its own report.
+							if (const auto* tool = string_member(block, "name"); tool != nullptr && *tool != "Agent" && *tool != "Task") {
+								auto [doing, subject] = claude_tool_doing(*tool, object_member(block, "input"));
+								events.push_back(doing_event(doing, std::move(subject)));
+							}
+						}
+					}
 				}
 				// [[BPR-1899]]. A writing frame that holds only thinking is
 				// no answer: a run with no text still fails at its result.
@@ -1356,8 +1757,15 @@ namespace bpr::application {
 				if (!aSawAssistant || string_member(aRoot, "result") == nullptr) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
-				aPhase      = 2U;
-				auto events = payload_events(aRoot, aFrame);
+				// [[BPR-2004]], RFC-BPR-0103. The turn ends when the runtime
+				// says its message is done and no helper it reported is still
+				// out, nor has reported back unanswered.
+				const auto open = !aHelpers.Running.empty() || aHelpers.NotifiedSinceInit;
+				aPhase          = open ? 3U : 2U;
+				auto events     = payload_events(aRoot, aFrame);
+				if (open) {
+					events.push_back(doing_event(core::agent_doing::waiting));
+				}
 				// [[BPR-1753]]. The turn's cost, when Claude says it: a
 				// plain non-negative decimal only, never a value it did not write.
 				if (const auto* cost = member(aRoot, "total_cost_usd"); cost != nullptr && cost->Kind == json_kind::number_value && !cost->Text.empty() && cost->Text.size() <= 24U
@@ -1835,7 +2243,8 @@ namespace bpr::application {
 			std::string&                  aThread,
 			std::string&                  aTurn,
 			core::agent_runtime_metadata& aMetadata,
-			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks, const std::uint64_t aTurnResponse, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const bool aConnectedNative, bool& aIdentifiedResult)
+			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks, const std::uint64_t aTurnResponse, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const bool aConnectedNative, bool& aIdentifiedResult,
+			agent_helper_tracking& aHelpers)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
@@ -1874,14 +2283,14 @@ namespace bpr::application {
 			};
 			switch (aProtocol) {
 			case core::agent_protocol::codex_app_server:
-				events = decode_app_server_frame(*parsed, aFrame, aPhase, aThread, aTurn, aTurnResponse);
+				events = decode_app_server_frame(*parsed, aFrame, aPhase, aThread, aTurn, aTurnResponse, aHelpers);
 				break;
 			case core::agent_protocol::codex_jsonl_exec:
-				events = decode_codex_jsonl_frame(*parsed, aFrame, aPhase, aThread, aReadOnly);
+				events = decode_codex_jsonl_frame(*parsed, aFrame, aPhase, aThread, aReadOnly, aHelpers);
 				break;
 			case core::agent_protocol::claude_stream_json:
 				events = decode_claude_frame(
-					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks, aFrameTurns, aTurnResponse, aConnectedNative, aIdentifiedResult);
+					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks, aFrameTurns, aTurnResponse, aConnectedNative, aIdentifiedResult, aHelpers);
 				break;
 			case core::agent_protocol::external_terminal: break;
 			}
@@ -2944,6 +3353,14 @@ namespace bpr::application {
 		}
 		auto payload = encode_agent_supplement(aSupplement);
 		encode_private_into(payload, aOptions);
+		// [[BPR-2004]], RFC-BPR-0103. Codex 0.167.0 reports no sub-agent on
+		// `exec --json` and ends there, and on the App Server never answers
+		// its sub-agents' results by itself; no flag of that version takes the
+		// tools away (established 2026-11-10). So a Codex run is asked to
+		// keep its helpers in the foreground: a result is the work done.
+		if ((aProfile.Protocol == core::agent_protocol::codex_jsonl_exec || aProfile.Protocol == core::agent_protocol::codex_app_server) && !aOptions.WritingOnly) {
+			append_field(payload, "helpers", codex_foreground_helpers);
+		}
 		auto request = agent_launch_request{
 			.Protocol    = aProfile.Protocol,
 			.Session     = aSupplement.Session.Id,
@@ -3304,7 +3721,8 @@ namespace bpr::application {
 		case agent_protocol_event_kind::model_catalog:
 		case agent_protocol_event_kind::tool_activity:
 		case agent_protocol_event_kind::outside_list_ran:
-		case agent_protocol_event_kind::check_relaxed:        break;
+		case agent_protocol_event_kind::check_relaxed:
+		case agent_protocol_event_kind::activity:             break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}
@@ -3346,12 +3764,14 @@ namespace bpr::application {
 	void agent_protocol_decoder::continue_native(std::string aHandle, const std::uint64_t aTurn)
 	{
 		// Preserve connection identities, but reset every bounded turn carrier.
-		auto identities      = std::move(NativeFrameTurns);
-		*this                = agent_protocol_decoder{ Protocol, WritingOnly, Purpose, ReadOnlyTools, Checks };
-		NativeFrameTurns     = std::move(identities);
-		ExpectedNativeHandle = aHandle;
-		NativeTurn           = aTurn;
-		ConnectedNative      = true;
+		auto       identities = std::move(NativeFrameTurns);
+		const auto reporting  = ReportActivity;
+		*this                 = agent_protocol_decoder{ Protocol, WritingOnly, Purpose, ReadOnlyTools, Checks };
+		NativeFrameTurns      = std::move(identities);
+		ReportActivity        = reporting;
+		ExpectedNativeHandle  = aHandle;
+		NativeTurn            = aTurn;
+		ConnectedNative       = true;
 		if (Protocol == core::agent_protocol::claude_stream_json) {
 			RemoteSession = std::move(aHandle);
 			Phase         = 1U;
@@ -3453,7 +3873,7 @@ namespace bpr::application {
 				SawAssistant,
 				RemoteSession,
 				RemoteThread,
-				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks, NativeTurn, NativeFrameTurns, ConnectedNative, IdentifiedResult);
+				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks, NativeTurn, NativeFrameTurns, ConnectedNative, IdentifiedResult, Helpers);
 			if (!decoded) {
 				reject_line(frame);
 				Failed = true;
@@ -3471,6 +3891,9 @@ namespace bpr::application {
 			if (!ExpectedNativeHandle.empty() && !native_handle().empty() && ExpectedNativeHandle != native_handle()) {
 				Failed = true;
 				return std::unexpected(agent_protocol_failure::invalid_runtime_metadata);
+			}
+			if (!ReportActivity) {
+				std::erase_if(*decoded, [](const agent_protocol_event& aEvent) { return aEvent.Kind == agent_protocol_event_kind::activity; });
 			}
 			if (!retain_output(*decoded)) {
 				reject_line(frame);
@@ -3581,12 +4004,19 @@ namespace bpr::application {
 			events.front().CompleteItem = true;
 			return events;
 		}
+		// [[BPR-2004]], RFC-BPR-0103. A Claude that ended after a result with
+		// no helper out answered every report it had: the turn is done.
 		const auto complete
 			= (Protocol == core::agent_protocol::codex_app_server && Phase == 6U)
 			|| (Protocol == core::agent_protocol::codex_jsonl_exec && Phase == 3U)
-			|| (Protocol == core::agent_protocol::claude_stream_json && Phase == 2U);
+			|| (Protocol == core::agent_protocol::claude_stream_json && (Phase == 2U || (Phase == 3U && Helpers.Running.empty())));
 		if (!complete) {
 			Failed = true;
+			// The runtime ended under helpers it reported: said as that, and
+			// what arrived is kept.
+			if (!Helpers.Running.empty() && Pending.empty()) {
+				return std::unexpected(agent_protocol_failure::helpers_unfinished);
+			}
 			return std::unexpected(agent_protocol_failure::incomplete_frame);
 		}
 		return std::vector<agent_protocol_event>{ };
@@ -3672,6 +4102,7 @@ namespace bpr::application {
 		case agent_protocol_failure::input_too_large:               return "input_too_large";
 		case agent_protocol_failure::not_signed_in:                 return "not_signed_in";
 		case agent_protocol_failure::tool_refused:                  return "tool_refused";
+		case agent_protocol_failure::helpers_unfinished:            return "helpers_unfinished";
 		}
 		return "unknown";
 	}

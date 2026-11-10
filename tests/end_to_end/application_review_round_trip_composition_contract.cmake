@@ -3430,8 +3430,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# path fixture serves them and an authored alias's review threads in
 	# Home's batched answer. No production read, grant, admission or
 	# publication boundary changes; full-app and mutation pins unchanged.
+	# [[RFC-BPR-0103]] ([[BPR-2004]], [[BPR-2005]]): the tour session's
+	# projection relays each stream event (activity and heartbeats as well as
+	# text) to the tour chat's running block, and an ended run's activity is
+	# kept for its folded line; a run ended under its helpers says so. Main
+	# adds the test-only --attended-agent-helpers look (a scripted Claude in
+	# the fixture build). No read, grant, admission or publication boundary
+	# changes; full-app and mutation pins unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "9e9a782f39691e7149d077700ee45ca3a9100112a0cb1a0f0906db511cb16067"
+        "f0ac3c6df9889ec3962a05cea16fdf60c3b06703e9a98694a9466188315a9c91"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

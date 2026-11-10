@@ -260,6 +260,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto turn_answer(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_question(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_footer(std::size_t aTurn) const -> QString;
+		/// \brief [[BPR-2005]]. A turn's running block, or its folded line;
+		/// null past the last turn.
+		[[nodiscard]] auto turn_activity(std::size_t aTurn) const -> agent_activity_view*;
 		/// \brief [[BPR-1753]], owner decision (b). Shows a pull
 		/// request's kept thread in place of the one shown (none: an empty
 		/// thread), and says each finished turn to `set_thread_observer`'s
@@ -543,13 +546,16 @@ namespace bpr::qt {
 			QPointer<markdown_body_view>    Answer;
 			QString                         AnswerText;
 			QPointer<agent_run_status_line> Footer;
-			QPointer<QPushButton>           SaveNote;
-			QPointer<QVBoxLayout>           CardColumn;
-			QPointer<QToolButton>           Copy;
-			QPointer<QLabel>                AskedTime;
-			QPointer<QLabel>                AnsweredTime;
-			QDateTime                       AskedAt;
-			QDateTime                       AnsweredAt;
+			/// [[BPR-2005]]. Its helpers and the quiet notice while it runs;
+			/// the folded line after.
+			QPointer<agent_activity_view> Activity;
+			QPointer<QPushButton>         SaveNote;
+			QPointer<QVBoxLayout>         CardColumn;
+			QPointer<QToolButton>         Copy;
+			QPointer<QLabel>              AskedTime;
+			QPointer<QLabel>              AnsweredTime;
+			QDateTime                     AskedAt;
+			QDateTime                     AnsweredAt;
 			/// Names the answer's body, so its code is coloured as its own.
 			std::uint64_t Serial = 0U;
 			/// The note Save as note made; 0 for none.
@@ -581,6 +587,20 @@ namespace bpr::qt {
 			QPointer<QPushButton> Delete;
 		};
 		std::vector<turn> Turns;
+		/// [[BPR-2005]]. How the turns this window saw end: their line and
+		/// what they did, so a thread drawn again from its saved history
+		/// keeps them. Not saved with the history; the last 32.
+		struct ended_turn
+		{
+			QString Question;
+			/// What the turn said when it ended without an answer: the text
+			/// that arrived and how it ended, which its history does not keep.
+			QString                   Ending;
+			QString                   Footer;
+			core::agent_turn_activity Activity;
+			qint64                    Seconds = 0;
+		};
+		std::vector<ended_turn> EndedTurns;
 		/// The question and the answer as shown, their references links.
 		void         show_question(turn& aTurn);
 		void         show_answer(turn& aTurn);

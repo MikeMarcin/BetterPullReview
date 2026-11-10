@@ -1,4 +1,5 @@
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 
 #include "bpr/core/agent_entry.hpp"
 
@@ -79,6 +80,7 @@ namespace bpr::qt {
 			case failure::input_too_large:               return QStringLiteral("The question and its context are larger than an agent may be sent.");
 			case failure::not_signed_in:                 return QStringLiteral("It isn't signed in.");
 			case failure::tool_refused:                  return QStringLiteral("It tried a tool a drafting run may not use, so the run was stopped.");
+			case failure::helpers_unfinished:            return QStringLiteral("It stopped before the helpers it started finished.");
 			}
 			return QStringLiteral("Its output couldn't be read.");
 		}
@@ -462,6 +464,12 @@ namespace bpr::qt {
 		ActiveInvocation = aIdentity;
 		Output->clear();
 		StopReason.clear();
+		KeptText.clear();
+		LastFailure.reset();
+		LastUnfinished.clear();
+		Activity          = { };
+		ActivityReported  = false;
+		ActivityStartedMs = agent_activity_clock_ms();
 		Status->setText(QStringLiteral("Preparing agent invocation"));
 		Phase = phase::preparing;
 		set_running(true);
@@ -502,6 +510,9 @@ namespace bpr::qt {
 				.arg(QString::fromStdString(aWorkspace.Path)));
 		PullRequestFilesOnly = aWorkspace.Shallow;
 		Phase                = phase::running;
+		// [[BPR-2005]]. The block's times count from the agent's start.
+		Activity          = { };
+		ActivityStartedMs = agent_activity_clock_ms();
 		set_running(true);
 		progressed();
 	}
@@ -515,7 +526,21 @@ namespace bpr::qt {
 			|| aEvent.Session != aIdentity.Session.Id) {
 			return;
 		}
-		Output->appendPlainText(QString::fromStdString(aEvent.Text));
+		// [[BPR-2005]]. Every event is a frame; an activity says what the
+		// agent or a helper is doing. Neither is the answer.
+		const auto at = static_cast<std::uint64_t>(qMax(qint64{ 0 }, agent_activity_clock_ms() - ActivityStartedMs));
+		if (aEvent.Kind == application::agent_stream_kind::activity && aEvent.Activity) {
+			Activity         = core::apply_agent_activity(std::move(Activity), *aEvent.Activity, at);
+			ActivityReported = true;
+		} else {
+			Activity = core::note_agent_frame(std::move(Activity), at);
+			if (aEvent.Kind == application::agent_stream_kind::heartbeat) {
+				ActivityReported = true;
+			}
+		}
+		if (aEvent.Kind == application::agent_stream_kind::text) {
+			Output->appendPlainText(QString::fromStdString(aEvent.Text));
+		}
 		progressed();
 	}
 
@@ -528,6 +553,12 @@ namespace bpr::qt {
 			|| aResult.Session != aIdentity.Session.Id) {
 			return;
 		}
+		// [[BPR-2004]]. Stopped, or ended under its helpers: what arrived is
+		// kept for the turn.
+		LastFailure    = aResult.Outcome == application::agent_run_outcome::protocol_failure ? aResult.ProtocolFailure : std::nullopt;
+		LastUnfinished = aResult.UnfinishedHelpers;
+		KeptText       = aResult.Outcome == application::agent_run_outcome::cancelled || LastFailure == application::agent_protocol_failure::helpers_unfinished ? Output->toPlainText() : QString{ };
+		Activity       = core::end_agent_activity(std::move(Activity), static_cast<std::uint64_t>(qMax(qint64{ 0 }, agent_activity_clock_ms() - ActivityStartedMs)));
 		if (aResult.Outcome != application::agent_run_outcome::success) {
 			Output->clear();
 			// [[BPR-1827]]. A run that read nothing still says what it

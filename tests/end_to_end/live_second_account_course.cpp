@@ -53,8 +53,21 @@
 //       and what the editor says before Publish, into
 //       DIR/whole-pr-comment.jsonl. It then waits at `at-post` while the
 //       operator publishes exactly those placements.
+//   --course agent-helpers --root DIR --pull N --path PROGRAM [--author claude|codex]
+//       [[BPR-2004]], RFC-BPR-0103 AC07. Opens MikeMarcin/BPR-Test#N, adds the
+//       installed agent at PROGRAM (Claude Code unless `--author codex`) as a
+//       reviewer adds it, and asks it from the Agent tab to review with three
+//       background helpers and end its message without waiting. It writes
+//       what the running block showed and how the one turn ended into
+//       DIR/agent-helpers.jsonl, with renders. It spends the account of the
+//       installed agent; nothing is written to GitHub.
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/core/agent_entry.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_status.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -66,6 +79,7 @@
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/server_card.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -185,10 +199,10 @@ namespace {
 			}
 		}
 		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
-			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment")
+			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment" && result.Course != "agent-helpers")
 			|| result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))
-			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment") && result.Path.empty())) {
+			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment" || result.Course == "agent-helpers") && result.Path.empty())) {
 			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push|filtered-comment|whole-pr-comment --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
@@ -281,6 +295,104 @@ namespace {
 		wait_for([] { return false; }, "a reader's dwell (expected)", std::chrono::seconds{ 20 });
 		dump(aWindow);
 		checkpoint(aOptions.Root, "read", "{\"status\":\"" + aWindow.github_status_text() + "\"}");
+	}
+
+	/// [[BPR-2004]] AC07. One request that makes the installed agent start
+	/// helpers, from the Agent tab, on the live pull request.
+	void agent_helpers_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		const auto codex = aOptions.Author == "codex";
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		aWindow.agent_programs()->set_editor([&](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry    = aStart;
+			entry.Program = aOptions.Path;
+			if (!codex) {
+				entry.Model = "haiku";
+			}
+			return entry;
+		});
+		const auto protocol = codex ? core::agent_protocol::codex_app_server : core::agent_protocol::claude_stream_json;
+		auto*      panel    = aWindow.agent_panel();
+		const auto id       = QVariant::fromValue<qulonglong>(core::entry_profile_id(protocol, 1U).value());
+		require([&] {
+			if (panel->profile_selector()->findData(id) < 0) {
+				aWindow.agent_programs()->add_agent(codex ? core::setup_agent::codex : core::setup_agent::claude_code);
+			}
+			return panel->profile_selector()->findData(id) >= 0;
+		},
+				"the installed agent is offered", std::chrono::seconds{ 60 });
+		panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
+		aWindow.settings()->hide();
+		aWindow.choose_modality(qt::review_modality::review);
+		aWindow.tray_tabs()->setCurrentIndex(3);
+		auto* const tab    = aWindow.agent_tab();
+		const auto  before = tab->turn_count();
+		// As a person sends: once the setup has given way to the conversation.
+		wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
+		say("agent-tab-state-before-send:" + std::to_string(static_cast<int>(tab->state())));
+		tab->send_prompt(QStringLiteral("Review this pull request. Start three sub-agents in the background, one for each of three different areas of the change, and do not wait for them: "
+										"tell me you started three reviewers and end your message. When their results arrive, combine them into a short review."));
+		require([&] { return tab->turn_count() == before + 1U; }, "the turn starts", std::chrono::seconds{ 120 });
+		auto       most     = 0;
+		auto       rows     = QStringList{ };
+		auto       heads    = QStringList{ };
+		auto       rendered = false;
+		auto       states   = std::string{ };
+		const auto watch    = [&] {
+			if (const auto state = std::to_string(static_cast<int>(tab->state())) + ":" + std::to_string(static_cast<int>(panel->current_phase())) + ":" + tab->turn_footer(before).section(QStringLiteral(" · "), 0, 0).right(12).toStdString(); !states.ends_with(state) && states.size() < 1500U) {
+				states += (states.empty() ? "" : "|") + state;
+			}
+			auto* const block = tab->turn_activity(before);
+			if (block != nullptr && block->live()) {
+				if (block->helper_rows() > most) {
+					most = block->helper_rows();
+					rows.clear();
+					for (int row = 0; row < block->helper_rows(); ++row) {
+						rows << block->helper_row_text(row);
+					}
+				}
+				if (const auto head = tab->turn_footer(before).section(QStringLiteral(", "), 0, 0); !heads.contains(head) && heads.size() < 40) {
+					heads << head;
+				}
+				if (!rendered && block->helper_rows() > 0) {
+					rendered = true;
+					aWindow.grab().save(QString::fromStdString((aOptions.Root / "agent-helpers-running.png").string()));
+				}
+			}
+			return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value();
+		};
+		require(watch, "the one turn ends", std::chrono::seconds{ 900 });
+		aWindow.grab().save(QString::fromStdString((aOptions.Root / "agent-helpers-ended.png").string()));
+		auto* const block = tab->turn_activity(before);
+		const auto  quote = [](const QString& aText) {
+			auto escaped = aText.toStdString();
+			auto out     = std::string{ };
+			for (const auto character : escaped) {
+				if (character == '"' || character == '\\') {
+					out += '\\';
+				}
+				out += character == '\n' || character == '\t' ? ' ' : character;
+			}
+			return "\"" + out + "\"";
+		};
+		auto facts = std::string{ "{\"agent\":" } + quote(codex ? QStringLiteral("codex") : QStringLiteral("claude")) + ",\"turns\":" + std::to_string(tab->turn_count() - before)
+			+ ",\"outcome\":" + quote(QString::fromUtf8(core::stable_name(*tab->turn_outcome(before)).data())) + ",\"footer\":" + quote(tab->turn_footer(before))
+			+ ",\"most_helper_rows\":" + std::to_string(most) + ",\"summary\":" + quote(block != nullptr ? block->summary_text() : QString{ }) + ",\"rows\":[";
+		for (qsizetype row = 0; row < rows.size(); ++row) {
+			facts += (row == 0 ? "" : ",") + quote(rows[row]);
+		}
+		facts += "],\"heads\":[";
+		for (qsizetype head = 0; head < heads.size(); ++head) {
+			facts += (head == 0 ? "" : ",") + quote(heads[head]);
+		}
+		facts += "],\"answer_head\":" + quote(tab->turn_answer(before).left(500)) + ",\"reported_cost\":" + quote(panel->last_reported_cost()) + "}";
+		std::ofstream{ aOptions.Root / "agent-helpers.jsonl", std::ios::app } << facts << '\n';
+		say("agent-helpers:" + facts);
+		say("agent-helpers-states:" + states);
+		if (tab->turn_count() != before + 1U) {
+			fail("more than one turn");
+		}
 	}
 
 	/// Drags through the window, as a pointer is delivered, so whatever sits
@@ -1208,6 +1320,8 @@ try {
 		filtered_comment_course(chosen, *window);
 	} else if (chosen.Course == "whole-pr-comment") {
 		whole_pr_comment_course(chosen, *window);
+	} else if (chosen.Course == "agent-helpers") {
+		agent_helpers_course(chosen, *window);
 	} else {
 		reader_course(chosen, *window);
 	}

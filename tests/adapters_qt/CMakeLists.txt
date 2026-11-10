@@ -2703,6 +2703,13 @@ set_tests_properties(qt_pull_request_activity_notifications PROPERTIES
     PASS_REGULAR_EXPRESSION "pull-request-activity-notifications:pass"
     TIMEOUT 60
 )
+# [[BPR-2005]], RFC-BPR-0103. The running block, its helpers, the quiet notice and the folded line.
+bpr_add_executable(test_agent_activity_view agent_activity_view_tests.cpp)
+target_link_libraries(test_agent_activity_view PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_agent_activity_view)
+bpr_enable_warnings(test_agent_activity_view)
+bpr_add_network_isolated_test(NAME qt_agent_activity_view COMMAND test_agent_activity_view)
+set_tests_properties(qt_agent_activity_view PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-activity-view:pass" TIMEOUT 30)
 # [[BPR-1914]] v003, [[BPR-1919]]. Side chats on the tour's parts, and the agent's code highlighted.
 bpr_add_executable(test_tour_side_chat tour_side_chat_tests.cpp)
 target_link_libraries(test_tour_side_chat PRIVATE BetterPullReview::AdapterQt BetterPullReview::AdapterSyntax)

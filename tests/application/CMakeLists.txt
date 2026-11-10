@@ -570,6 +570,40 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "agent-protocol-loop-tests:pass"
 )
 
+# [[BPR-2004]], RFC-BPR-0103. A turn with helpers, on the installed runtimes'
+# own recorded frames.
+bpr_add_executable(
+    test_better_pull_review_agent_helper_turn_tests
+    agent_helper_turn_tests.cpp
+    "${PROJECT_SOURCE_DIR}/src/adapters/agent/src/agent_protocol_loop.cpp"
+)
+target_include_directories(
+    test_better_pull_review_agent_helper_turn_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/agent/src"
+)
+target_compile_definitions(
+    test_better_pull_review_agent_helper_turn_tests
+    PRIVATE
+        "BPR_AGENT_TRACE_DIR=\"${PROJECT_SOURCE_DIR}/tests/fixtures/agent/traces\""
+)
+target_link_libraries(
+    test_better_pull_review_agent_helper_turn_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_agent_helper_turn_tests)
+bpr_enable_warnings(test_better_pull_review_agent_helper_turn_tests)
+bpr_add_network_isolated_test(
+    NAME application_agent_helper_turn
+    COMMAND test_better_pull_review_agent_helper_turn_tests
+)
+set_tests_properties(
+    application_agent_helper_turn
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-helper-turn-tests:pass"
+)
+
 bpr_add_executable(
     test_better_pull_review_agent_finding_protocol_tests
     agent_finding_protocol_tests.cpp
