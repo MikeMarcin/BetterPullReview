@@ -317,13 +317,17 @@ namespace {
 				++priority;
 			}
 		}
+		// With the consumer still stopped, all873 fixed75-byte frames leave
+		// only61bytes. This one extra priority enqueue MUST fail upstream,
+		// exercising the production charge rollback without a retry or wait.
+		const auto overflow = log.record({ .Outcome = application::diagnostic_outcome::failed, .Request = 30000U });
 		restart.restart();
 		log.close();
 		const auto records           = tests::diagnostic_json_records(tests::read_diagnostic_logs(aRoot));
 		const auto priorityPersisted = std::ranges::count_if(records, [](const auto& aRecord) { return aRecord.value("severity").toString() == "error"; });
-		expect(normalRefused && normal >= 128U && priority == 512U && records.size() == normal + priority && priorityPersisted == 512, "paused physical queue preserves all512 priority slots after factual normal refusal");
-		expect(log.status() == status::available && log.capture_state().Dropped == 1U, "priority reserve needs no consumer progress or retry and close has no residual charge");
-		std::print(stderr, "physical-priority-reserve:pass normal={} priority={} persisted={} frame_bytes={} reserved_bytes={} queue_bytes=65536\n", normal, priority, records.size(), adapters::logging::detail::queued_record_frame_bytes(), 512U * adapters::logging::detail::queued_record_frame_bytes());
+		expect(normalRefused && normal >= 128U && priority == 512U && overflow == status::dropped && records.size() == normal + priority && priorityPersisted == 512, "paused physical queue preserves all512 priority slots after factual normal refusal");
+		expect(log.status() == status::available && log.capture_state().Dropped == 2U, "priority reserve needs no consumer progress or retry and close has no residual charge");
+		std::print(stderr, "physical-priority-reserve:pass normal={} priority={} persisted={} frame_bytes={} reserved_bytes={} queue_bytes=65536 overflow_refused=1 dropped_counter=2\n", normal, priority, records.size(), adapters::logging::detail::queued_record_frame_bytes(), 512U * adapters::logging::detail::queued_record_frame_bytes());
 	}
 
 	void below_budget_tour_burst(const std::filesystem::path& aRoot)
