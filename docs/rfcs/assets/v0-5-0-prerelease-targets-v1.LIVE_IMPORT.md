@@ -70,5 +70,8 @@ receipt moved to this lane, and the main checkout restored. BPR-2038 and
 BPR-2039 (receipt `docs/issues/_reservations/BPR-2038--BPR-2039--0af453354534.json`,
 `481096d5b`) take the lane's counter to BPR-2040, which is what main's would
 read after the same allocation. Main's own counter still reads BPR-2038 until
-this lane integrates; its allocator sees the lane's high water and refuses
-2038 meanwhile, as it did before `ec70790bc`.
+this lane integrates. Its allocator reads every branch's counter history, so
+until main's counter is raised to BPR-2040 it refuses every allocation
+("BPR-2038 rewinds historical high water BPR-2040", checked from the main
+checkout), as it did before `ec70790bc`. Raising main's counter is the main
+integrator's step; this lane does not write to main.
