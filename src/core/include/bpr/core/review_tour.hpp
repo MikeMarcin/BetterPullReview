@@ -150,6 +150,9 @@ namespace bpr::core {
 		tour_completion_origin               CompletionOrigin     = tour_completion_origin::unspecified;
 		bool                                 FileCommentRequested = false;
 	};
+	/// \brief Confirmed remote subject, including legacy retarget receipts whose Original replaced Mapped.
+	/// Does not use a proposed mapping or change retained source ranges.
+	[[nodiscard]] auto published_tour_destination(const tour_stop& aStop) -> std::optional<tour_code_destination>;
 
 	enum class tour_conflict_field : std::uint8_t { problem,
 													solution,

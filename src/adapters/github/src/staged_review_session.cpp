@@ -296,8 +296,7 @@ namespace bpr::adapters::github::detail {
 			if (found == comments.end() || !commentMatches(*found, *stop->Remote) || found->Body != expected(*stop->Remote, stop->Baseline->Raw)) {
 				return false;
 			}
-			auto source = stop->Destination ? stop->Destination : stop->Original ? std::optional{ core::destination_of(*stop->Original) }
-																				 : std::nullopt;
+			auto source = core::published_tour_destination(*stop);
 			if (source) {
 				source->Blob.reset();
 				if (stop->Remote->Kind == core::tour_remote_kind::file_comment) {

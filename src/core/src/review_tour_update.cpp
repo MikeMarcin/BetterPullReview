@@ -155,8 +155,7 @@ namespace bpr::core {
 	}
 	auto needs_tour_destination(const tour_stop& aStop) -> bool
 	{
-		const auto published = aStop.Destination ? aStop.Destination : aStop.Original ? std::optional{ destination_of(*aStop.Original) }
-																					  : std::nullopt;
+		const auto published = published_tour_destination(aStop);
 		return !aStop.Remote || (aStop.Mapping == tour_mapping::author_selected && aStop.Mapped && published != std::optional{ destination_of(*aStop.Mapped) });
 	}
 	auto plan_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>

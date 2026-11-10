@@ -6,8 +6,7 @@ namespace bpr::core {
 	namespace {
 		auto source_of(const tour_stop& aStop) -> std::optional<tour_code_destination>
 		{
-			auto source = aStop.Destination ? aStop.Destination : aStop.Original ? std::optional{ destination_of(*aStop.Original) }
-																				 : std::nullopt;
+			auto source = published_tour_destination(aStop);
 			if (source) {
 				source->Blob.reset();
 			}

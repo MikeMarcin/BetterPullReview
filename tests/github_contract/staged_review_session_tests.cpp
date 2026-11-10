@@ -1,5 +1,6 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include "cli_account_wrapper_support.hpp"
@@ -1191,6 +1192,83 @@ namespace {
 		expect(result.State == publication_state::published && remote.Creates == 1 && remote.Submits == 1 && remote.Writes == initialWrites + 3, "conversation overview with colliding review ID is maintained after its two review stops");
 		expect(remote.IssueBodies.front().find("/files#r602") < remote.IssueBodies.front().find("/files#r601"), "conversation overview receives the final ordered route");
 	}
+	void test_saved_legacy_retarget_receipt()
+	{
+		for (const bool legacy : { true, false }) {
+			scratch    root;
+			server     remote;
+			auto       provider = session(remote, root.Path);
+			const auto initial  = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(initial.State == publication_state::published && initial.Record, "saved retarget course publishes its actual remote fixture");
+			auto update = maintenance_plan(*initial.Record);
+			std::swap(update.Update->Stops[0], update.Update->Stops[1]);
+			std::array<std::uint8_t, 32> digestBytes{ };
+			digestBytes[0] = 1;
+			const core::file_comparison_digest digest{ digestBytes };
+			const auto                         actual = plan();
+			for (std::size_t i = 0; i < update.Update->Stops.size(); ++i) {
+				auto&                         stop   = update.Update->Stops[i];
+				const auto&                   source = actual.Stops[i].Source;
+				const core::tour_source_range confirmed{ { digest, source.Side, source.FirstLine }, { digest, source.Side, source.LastLine }, source.Commit, source.Blob, source.Path };
+				stop.Original = confirmed;
+				if (legacy) {
+					// Pre-upgrade published_tour moved Mapped into Original but
+					// retained an imported stop's previous Destination verbatim.
+					stop.Destination->Path = "before-retarget.cpp";
+					stop.Mapping           = core::tour_mapping::exact_original;
+				} else {
+					stop.Original->Path = "before-retarget.cpp";
+					stop.Mapped         = confirmed;
+					stop.Mapping        = core::tour_mapping::author_selected;
+				}
+			}
+			const auto receipt = *update.Update;
+			scratch    tourDisk;
+			auto       store = adapters::sqlite::make_review_tour_store(tourDisk.Path, receipt.Owner.Profile);
+			expect(store->save(receipt, 0, { }).has_value(), "real SQLite saves the published retarget receipt");
+			store.reset();
+			store               = adapters::sqlite::make_review_tour_store(tourDisk.Path, receipt.Owner.Profile);
+			const auto reopened = store->load(receipt.Owner, receipt.Id, { });
+			expect(reopened && *reopened && **reopened == receipt, "SQLite reopen retains the exact stale Destination and Original/Mapped bytes");
+			update.Update = **reopened;
+			update.Update->Stops[0].Body += " Maintained after upgrade.";
+			++update.Update->Revision;
+			update.Generation  = update.Update->Revision;
+			remote.Maintenance = true;
+			const auto before  = remote.Writes;
+			for (int mismatch = 0; mismatch < 7; ++mismatch) {
+				auto refused                      = update;
+				refused.Submission.IdempotencyKey = "saved-retarget-mismatch-" + std::to_string(mismatch);
+				auto& stop                        = refused.Update->Stops[0];
+				switch (mismatch) {
+				case 0: stop.Remote->Entity = "PRRC_wrong"; break;
+				case 1: stop.Remote->Actor = "other"; break;
+				case 2: stop.Remote->WebUrl += "wrong"; break;
+				case 3: stop.Remote->Review = "999"; break;
+				case 4: stop.Remote->Kind = core::tour_remote_kind::file_comment; break;
+				case 5:
+					if (legacy) {
+						stop.Original->Path = stop.Destination->Path;
+					} else {
+						stop.Destination->Path = "wrong-confirmed.cpp";
+						stop.Mapped->Path      = stop.Destination->Path;
+					}
+					break;
+				case 6:  remote.WrongLine = true; break;
+				default: expect(false, "every saved receipt mismatch is explicit"); break;
+				}
+				expect(application::valid(refused), "saved receipt mismatch remains structurally valid");
+				const auto result = provider->publish_tour(refused, { }, [](const auto&) { return true; });
+				expect(result.State == publication_state::conflict && remote.Writes == before, "saved receipt mismatches still refuse before any write");
+				remote.WrongLine = false;
+			}
+			update.Submission.IdempotencyKey = "saved-retarget-maintenance";
+			const auto result                = provider->publish_tour(update, { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::published && result.Record && remote.Writes == before + 1 && remote.Creates == 1 && remote.Submits == 1, "reopened legacy and modern receipts maintain the confirmed replacement with exactly one body edit");
+			const auto maintained = application::published_tour(*result.Record, *update.Update);
+			expect(maintained && maintained->Stops[0].Original == receipt.Stops[0].Original && maintained->Stops[0].Mapped == receipt.Stops[0].Mapped && maintained->Stops[0].Remote == receipt.Stops[0].Remote, "maintenance preserves source ranges and the exact remote discussion");
+		}
+	}
 	void test_maintenance_sessions()
 	{
 		for (const std::size_t writes : { 0U, 1U, 6U }) {
@@ -1995,6 +2073,7 @@ try {
 		test_compatibility_sessions();
 		test_mixed_sessions();
 		test_conversation_overview_namespace();
+		test_saved_legacy_retarget_receipt();
 		test_maintenance_sessions();
 		test_description_only_update();
 		std::cout << "staged-review-session-tests:pass\n";
