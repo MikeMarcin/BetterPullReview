@@ -70,9 +70,20 @@ maintained-printer, actual verification commands and final guarded receipt.
 
 ## Integration frontier
 
-Next: explicit source/checkpoint commit and guarded normal main push including
-only accepted5fd plus owned1983 allocation/fix; then shared Done/docs closeout.
-Canonical main is currently expectedd900 and tracked-clean. Foreign attachments
-remain untouched. All own commands finish before writer/Mac lease return.
-No PC, app/native build/test, producer or protected release source is touched.
-Root owns successor freeze/publication and final common-source qualification.
+Source/checkpoint commit
+`cb32ffdb17265af721086d47b158a560080f7094` fast-forwards canonical main
+and normally pushes origin cf9413 to that exact revision. The canonical guard
+observes expected owned allocationd900 before integration; no later product
+main is fetched or merged. Frozen5fd production/registry source remains byte-
+identical; the sole tests delta is reviewed manifest/comment. Actual1983
+allocation and NEXT1984 are preserved. `ls-remote` verifies exact remote main.
+Docs/scoped board/diff checks pass. Shared Done/docs closeout changes no
+proven source; external final-handoff.json binds final main.
+
+Foreign `.codex-attachments/` is preserved; canonical tracked state and own
+worktree are clean at handback. All task-owned commands are terminal; no
+review server exists. Main-writer/Mac engineering lease returns to root. No
+PC, app/native build/test, producer or protected release source is touched.
+Root owns the frozen successor and Windows native three-course calibration,
+actual1978failure correction and final common-source qualification. Further
+external main product changes remain outside the owner-frozen candidate.
