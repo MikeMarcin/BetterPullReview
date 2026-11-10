@@ -227,6 +227,18 @@ try {
 	const auto summary = window->home_list()->state_panel(qt::home_group::my_pull_requests)->summary();
 	expect(summary == QStringLiteral("2 returned, 1 ready to merge"), "My pull requests' header: " + summary.toStdString());
 
+	// `--attended`: the owner's look (RFC-BPR-0098 AC06). The same composed
+	// window, every assertion above already passed, stays open on Home until
+	// the person closes it.
+	if (arguments.contains(QStringLiteral("--attended"))) {
+		window->resize(1100, 900);
+		window->show();
+		window->raise();
+		QApplication::setQuitOnLastWindowClosed(true);
+		std::cout << "HOME_NEXT_MOVE_ATTENDED_READY: fixture account; no live GitHub reads\n"
+				  << std::flush;
+		QApplication::exec();
+	}
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
 	desktop.reset();

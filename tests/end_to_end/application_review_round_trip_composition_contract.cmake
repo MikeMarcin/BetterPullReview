@@ -3428,12 +3428,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# requires --attended-home-look); the fixture accessors gain
 	# home_next_move_fixture_rows and per-row next-move facts, and the public
 	# path fixture serves them and an authored alias's review threads in
-	# Home's batched answer; with --attended-home-moves the home look refreshes
-	# once, so every row of mine is read before it says it is ready. No
-	# production read, grant, admission or
+	# Home's batched answer. No production read, grant, admission or
 	# publication boundary changes; full-app and mutation pins unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "86b66f61dd48d6fb7478047bd06d04e22dc662513827b02d38437809c147a3d4"
+        "9e9a782f39691e7149d077700ee45ca3a9100112a0cb1a0f0906db511cb16067"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

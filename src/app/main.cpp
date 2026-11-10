@@ -12,7 +12,6 @@
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
-#include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
@@ -5739,8 +5738,7 @@ namespace {
 		bpr::app::github_application&                                aApplication,
 		QString                                                      aPullRequest,
 		std::shared_ptr<bpr::app::detail::github_read_delay_fixture> aDelay,
-		const std::uint32_t                                          aMilliseconds,
-		const bool                                                   aRefreshOnce = false)
+		const std::uint32_t                                          aMilliseconds)
 	{
 		enum class step : std::uint8_t {
 			connect,
@@ -5748,20 +5746,16 @@ namespace {
 			opened,
 			save,
 			saved,
-			// [[RFC-BPR-0098]]. A search reads no reviews: one refresh reads
-			// them, so every row of mine shows its move when the look is ready.
-			refreshed,
 		};
 		struct look_state
 		{
 			step                        Step = step::connect;
 			automated_clock::time_point Started;
-			bool                        Refreshing = false;
 		};
 		auto        state = std::make_shared<look_state>(look_state{ .Started = automated_clock::now() });
 		auto* const timer = new QTimer{ &aApplication.window() };
 		timer->setInterval(50);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, pullRequest = std::move(aPullRequest), delay = std::move(aDelay), aMilliseconds, aRefreshOnce, alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, pullRequest = std::move(aPullRequest), delay = std::move(aDelay), aMilliseconds, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -5819,27 +5813,9 @@ namespace {
 					window.settings()->hide();
 					window.home_action()->trigger();
 					delay->Milliseconds = aMilliseconds;
-					if (aRefreshOnce) {
-						state->Step = step::refreshed;
-						return;
-					}
 					finish(QStringLiteral("ATTENDED_HOME_SHOWN:rows=%1:delay=%2ms").arg(rows()).arg(aMilliseconds));
 				}
 				return;
-			case step::refreshed: {
-				auto* const mine    = window.home_list()->state_model(bpr::qt::home_group::my_pull_requests);
-				auto        unknown = mine == nullptr || mine->rowCount() == 0;
-				for (auto row = 0; mine != nullptr && row < mine->rowCount(); ++row) {
-					unknown = unknown || mine->index(row, 0).data(bpr::qt::home_row_role::reason_word).toString() == QStringLiteral("Unknown");
-				}
-				if (!unknown) {
-					finish(QStringLiteral("ATTENDED_HOME_SHOWN:rows=%1:delay=%2ms").arg(rows()).arg(aMilliseconds));
-				} else if (!state->Refreshing && window.queue_refresh_action()->isEnabled()) {
-					state->Refreshing = true;
-					window.queue_refresh_action()->trigger();
-				}
-				return;
-			}
 			}
 		});
 		timer->start();
@@ -12265,7 +12241,7 @@ auto main(int argc, char** argv) -> int
 						QTextStream{ stdout } << (stop ? "ATTENDED_TOUR_STOP_STAGED\n" : "ATTENDED_TOUR_STOP_FAILED\n");
 					}
 					if (attendedHomeLook) {
-						schedule_attended_home_look(*application, attendedPullRequest, readDelayFixture ? readDelayFixture : std::make_shared<bpr::app::detail::github_read_delay_fixture>(), readDelay.value_or(0U), attendedHomeMoves);
+						schedule_attended_home_look(*application, attendedPullRequest, readDelayFixture ? readDelayFixture : std::make_shared<bpr::app::detail::github_read_delay_fixture>(), readDelay.value_or(0U));
 					} else {
 						schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look),
 												 attendedReadState ? std::optional<std::string>{ fixtureName } : std::nullopt, attendedOpenOnGithub);
