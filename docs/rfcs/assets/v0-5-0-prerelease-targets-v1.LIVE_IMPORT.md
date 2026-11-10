@@ -52,3 +52,23 @@ overview the pack left outside the repository stays out. Amendments the drafts
 make to RFC-BPR-0011, 0012, 0034, 0041, 0042, 0043, 0066, 0070 and 0096 are
 not applied at import; each owning milestone reconciles its live text.
 Adoption is not implementation acceptance.
+
+## Reconciled with main, 2026-11-10
+
+The owner made `main` the tracker's source of truth. Since the base, main
+finished BPR-1988 and reserved and finished BPR-2036 and BPR-2037; after
+seeing this lane's counter history it set its own counter to BPR-2036
+(`ec70790bc`), then BPR-2038. None of main's IDs collides with this pack:
+main holds no card, reservation or RFC in BPR-1989..2035 or
+RFC-BPR-0098..0112, so nothing was renumbered. Main was merged into the lane
+at `78ad5391b` (a clean merge; main's source arrives with its tracker), after
+which both counters read BPR-2038.
+
+Further IDs were allocated against main the same way as at import: the
+allocator ran in the clean main checkout at `1513d4a85`, its counter and
+receipt moved to this lane, and the main checkout restored. BPR-2038 and
+BPR-2039 (receipt `docs/issues/_reservations/BPR-2038--BPR-2039--0af453354534.json`,
+`481096d5b`) take the lane's counter to BPR-2040, which is what main's would
+read after the same allocation. Main's own counter still reads BPR-2038 until
+this lane integrates; its allocator sees the lane's high water and refuses
+2038 meanwhile, as it did before `ec70790bc`.
