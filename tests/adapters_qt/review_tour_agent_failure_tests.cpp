@@ -98,7 +98,8 @@ auto main(int argc, char** argv) -> int
 	expect(below >= 0 && below <= 16, "it sits right under the helper's row");
 	expect(!editor.agent_failure_notice(core::writing_hook::solution)->isVisible() && !editor.agent_failure_notice(core::writing_hook::outline)->isVisible(), "the other controls say nothing");
 	auto* const show = child<QPushButton>(*notice, "tourAgentFailureOpen");
-	expect(show->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()) && !show->icon().isNull(), "the way to the Agent tab wears the agent accent and spark");
+	// [[BPR-2000]]: showing the run starts none, so it is ordinary; the spark says agent.
+	expect(show->palette().color(QPalette::Active, QPalette::ButtonText) != qt::agent_accent(editor.palette()) && !show->icon().isNull(), "the way to the Agent tab is ordinary and keeps the spark");
 	render(editor, prefix, "failure-light");
 
 	// AC2, [[BPR-1900]] AC5. The run is the tour session's: Show the run
@@ -140,7 +141,9 @@ auto main(int argc, char** argv) -> int
 
 	QApplication::setPalette(dark_palette(QApplication::palette()));
 	QApplication::processEvents();
-	expect(child<QPushButton>(*outline, "tourAgentFailureOpen")->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()), "the accent follows the palette");
+	expect(child<QPushButton>(*outline, "tourAgentFailureOpen")->palette().color(QPalette::Active, QPalette::ButtonText) == editor.palette().color(QPalette::Active, QPalette::ButtonText),
+		   "the ordinary way to the run follows the palette");
+	expect(suggest->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()), "Suggest an outline, which starts a run, keeps the accent in the new palette");
 	render(editor, prefix, "outline-failure-dark");
 	suggest->click();
 	expect(!outline->isVisible(), "asking again clears it");

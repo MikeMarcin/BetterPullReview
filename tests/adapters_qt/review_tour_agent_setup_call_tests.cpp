@@ -78,16 +78,20 @@ namespace {
 		const auto accent = qt::agent_accent(ground);
 		expect(contrast(accent, ground.color(QPalette::Active, QPalette::Window)) >= 4.5 && contrast(accent, ground.color(QPalette::Active, QPalette::Base)) >= 4.5,
 			   std::string{ aWhen } + ": the accent reads at 4.5:1 on the window and base");
+		// [[BPR-2000]], RFC-BPR-0101: a feature control wears the accent
+		// exactly when pressing it starts a run; the others (Insert skeleton
+		// stops, the agent picker) are ordinary and keep the spark.
 		for (auto* const feature : aEditor.agent_features()) {
-			expect(feature->palette().color(QPalette::Active, QPalette::WindowText) == accent && feature->palette().color(QPalette::Active, QPalette::ButtonText) == accent,
-				   std::string{ aWhen } + ": " + feature->objectName().toStdString() + " wears the agent accent");
+			const auto worn = feature->palette().color(QPalette::Active, QPalette::ButtonText) == accent;
+			expect(worn == qt::agent_run_control(*feature) && (!qt::agent_run_control(*feature) || feature->palette().color(QPalette::Active, QPalette::WindowText) == accent),
+				   std::string{ aWhen } + ": " + feature->objectName().toStdString() + (worn ? " wears the agent accent" : " wears the ordinary roles") + " as its run says");
 			if (auto* const button = qobject_cast<QPushButton*>(feature); button != nullptr) {
 				expect(!button->icon().isNull(), std::string{ aWhen } + ": " + feature->objectName().toStdString() + " carries the agent's spark, so colour is not the only sign");
 			}
 		}
 		auto* const open = child<QPushButton>(aEditor, "tourAgentSetupOpen");
-		expect(open->palette().color(QPalette::Active, QPalette::ButtonText) == accent && child<QLabel>(aEditor, "tourAgentSetupTitle")->palette().color(QPalette::Active, QPalette::WindowText) == accent,
-			   std::string{ aWhen } + ": the call to action wears the same accent");
+		expect(open->palette().color(QPalette::Active, QPalette::ButtonText) != accent && child<QLabel>(aEditor, "tourAgentSetupTitle")->palette().color(QPalette::Active, QPalette::WindowText) == accent,
+			   std::string{ aWhen } + ": the call's title wears the accent; Set up the agent starts no run and is ordinary");
 		// The ordinary controls keep the palette's own words.
 		auto* const map = child<QPushButton>(aEditor, "tourProblemMap");
 		expect(map->palette().color(QPalette::Active, QPalette::ButtonText) != accent, std::string{ aWhen } + ": an ordinary control does not wear the accent");
