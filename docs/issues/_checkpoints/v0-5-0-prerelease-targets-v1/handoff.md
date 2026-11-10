@@ -149,7 +149,7 @@ publication courses together at `-j6`; boundary and manifest tests; app source
 contracts; documentation gate. Baseline failure kept:
 `application_review_tour_cold_import_public_path` (also on `60d427a08`). The
 shadowed local reported in `agent_reference.cpp` did not reproduce under
-clang 17 `-Wshadow` or clang-tidy 22; left as is.
+the build's `-Wshadow` or clang-tidy 22; left as is.
 
 Disk: a scratch baseline build filled the shared disk for a while (since
 removed). Builds by other agents during that window may have failed with
