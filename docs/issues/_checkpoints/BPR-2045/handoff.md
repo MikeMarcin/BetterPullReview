@@ -19,13 +19,27 @@ compile/link flags,1742producer and26candidate seals and empty forests. The
 125expects one fringe pixel at clip edge23 and detects none; cause unresolved.
 No125oracle change or Qt attribution is authorized by this card.
 
-Current state: authored Ready plan; production/test source unchanged. Root
-approved pure visible-interval point correction and one corrected100/200course
-each. Plan adoption, claim, source edit and exact-candidate native proof pending.
-Native tasksR2Ready2/R3Ready2/R4Ready0; actual idle/emptyforests observed.
-PC lease remains exclusively this implementer for the approved point slice;
-Mac work belongs the separate peer. No human review or publication is implied.
+Current state: plan4f739d799db672e1951891406aeeba7d89ddd33f;
+claim8098ed97ddff5bc6e8de9d11d0c889a6ce467a5f; source
+5a9a503f74bb72d53b0ff3a94acc252a84dc1dc7. Exact uninstrumented100/200
+courses pass once each:12.8275101s/19.2971174s, nativeCTest0. Source899 and1742
+producer inputs remain exact, candidate unchanged, all guarded forests empty.
+Format22passes. Generic checkpoint discovery hits the known unrelated legacy
+`amendments` field error; explicit current-plan binding resolves all3ACs/exits.
+No shared tooling repair is included.
 
-Next: adopt/check/bind plan, claim, correct only the test point, compile/link the
-sealed private candidate and run100/200once; stop on new failure/drift and retain
-unreached checks. Finish scoped gates, integrate own commits and return leases.
+Canonical allocator window returned at58c42952/NEXT2046. Later foreign
+2046PR-body-link product/main4bdfcbf9/NEXT2047 is preserved and excluded from
+this frozen-source proof/release intake. Integrate only own plan/claim/source
+and proof docs; never merge foreign ancestors into the release source.
+
+Canonical source is now4baf8e0d86c997b412b39fb10b90e7e4eeee9802.
+Native compiler/WX, LLVM22format, original-assertion/gesture audit and pinned
+process-local PYTHONPATHdocumentation gate pass. Point-owned commands are
+terminal; the root explicitly continues the PC lease for separate125work.
+Next: acceptance-driven Done and actual-next125allocation; preserve main
+foreign2046and NEXTmax, and return the canonical writer to the Mac peer. The separate approved
+original899richer125diagnostic remains outside this card; it may run only after
+point block terminal/quiet, with no permanent125oracle change before root review.
+The PC lease is explicitly continued by root for that bounded investigation;
+point-owned native commands are terminal. No owner desktop or publication work.
