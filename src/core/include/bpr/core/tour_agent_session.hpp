@@ -446,6 +446,10 @@ namespace bpr::core {
 		off_change,
 	};
 	[[nodiscard]] auto place_tour_stop(const proposed_tour_stop& aStop, const tour_anchor_file& aFile) -> tour_stop_placement;
+	/// \brief Clamp a one-based range to the nearest provider hunk, including
+	/// its context. Ties use provider order; preserve length when it fits.
+	/// Unknown, empty or malformed hunk evidence yields no destination.
+	[[nodiscard]] auto nearest_tour_hunk(tour_line_span aSource, const tour_anchor_file& aFile) -> std::optional<tour_line_span>;
 
 	enum class tour_anchor_verdict : std::uint8_t {
 		/// The lines are real lines of a head file of the pull request.

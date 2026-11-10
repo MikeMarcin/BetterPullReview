@@ -382,6 +382,9 @@ namespace bpr::core {
 				aTour.Revision           = revision;
 				aTour.LastStopId         = highWater;
 				aTour.LastChatGeneration = chatHighWater;
+				if (std::ranges::find(aTour.Stops, aCommand.Stop, &tour_stop::Id) != aTour.Stops.end()) {
+					aSelected = aCommand.Stop;
+				}
 				return tour_refusal::none;
 			}
 			default: return edit_stop(aTour, aCommand, aSelected);

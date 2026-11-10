@@ -332,6 +332,9 @@ namespace bpr::core {
 			if (aObservation.StandaloneFile == support::supported) {
 				return { representation::file_permalink, false, true, false, false };
 			}
+			if (aObservation.StandaloneFile == support::unsupported && aObservation.Conversation == support::supported) {
+				return { representation::conversation_permalink, false, true, false, false };
+			}
 			return { .RequiresCompatibility = true };
 		}
 		if (aObservation.Conversation == support::supported) {

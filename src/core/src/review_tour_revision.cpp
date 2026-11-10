@@ -1,6 +1,7 @@
 #include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
 #include <algorithm>
+#include <span>
 namespace bpr::core {
 	namespace {
 		auto source_of(const tour_stop& aStop) -> std::optional<tour_code_destination>
@@ -39,6 +40,20 @@ namespace bpr::core {
 				}
 			}
 			return mapped;
+		}
+		auto identical_line_bytes(const diff_semantic_index& aIndex, const source_line_ref aFrom, const source_line_ref aTo) -> bool
+		{
+			const auto& from = aFrom.Side == diff_side::left ? *aIndex.diff().LeftDocument : *aIndex.diff().RightDocument;
+			const auto& to   = aTo.Side == diff_side::left ? *aIndex.diff().LeftDocument : *aIndex.diff().RightDocument;
+			if (aFrom.Line >= from.Lines.size() || aTo.Line >= to.Lines.size()) {
+				return false;
+			}
+			const auto& first  = from.Lines[aFrom.Line];
+			const auto& second = to.Lines[aTo.Line];
+			// Equal semantic lines may hide whitespace or line-ending changes.
+			// Re-pinning requires the original bytes, including the terminator.
+			return std::ranges::equal(std::span{ from.Bytes }.subspan(first.Content.Begin, std::max(first.Content.End, first.Terminator.End) - first.Content.Begin),
+									  std::span{ to.Bytes }.subspan(second.Content.Begin, std::max(second.Content.End, second.Terminator.End) - second.Content.Begin));
 		}
 	}
 	auto map_tour_revision(const review_tour& aTour, const diff_semantic_index& aIndex, const tour_code_destination& aLeft, const tour_code_destination& aRight) -> review_tour
@@ -101,7 +116,7 @@ namespace bpr::core {
 					first = mapped.Counterpart;
 				}
 				last    = mapped.Counterpart;
-				changed = changed || mapped.Kind != line_mapping_kind::exact_line;
+				changed = changed || mapped.Kind != line_mapping_kind::exact_line || !identical_line_bytes(aIndex, { digest, from->Side, static_cast<std::uint32_t>(original->FirstLine + n) }, *mapped.Counterpart);
 			}
 			if (!failed && first && last) {
 				stop.Mapped  = tour_source_range{ *first, *last, to.Commit, to.Blob, to.Path };

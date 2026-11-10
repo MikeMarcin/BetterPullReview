@@ -2,6 +2,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/core/review_tour_repair.hpp"
 #include <stdexcept>
 namespace {
 	using namespace bpr;
@@ -40,6 +41,40 @@ namespace {
 }
 int main()
 {
+	{
+		// [[BPR-1980]]. Accepted-source repairs use the real local host's
+		// history and autosave, not a separate untracked edit mechanism.
+		auto seed                           = tests::review_tour_fixture();
+		seed.Stops[0].Original->Blob        = *core::parse_git_blob_oid("3333333333333333333333333333333333333333");
+		seed.Stops[0].Preparation           = core::tour_preparation::ready;
+		auto                          saved = std::make_shared<store_state>();
+		application::manual_executor  repairEffects, repairDecisions;
+		application::review_tour_host repairHost{ seed, std::make_unique<store>(saved), repairEffects, repairDecisions, { } };
+		repairHost.start();
+		repairEffects.drain();
+		repairDecisions.drain();
+		const auto source            = *core::publication_source(seed.Stops[0]);
+		auto       observed          = core::publication_observation(source, seed.Head, seed.Base, seed.Stops[0].Body, false, true);
+		observed.PendingOffHunkBatch = core::tour_operation_support::unsupported;
+		observed.PendingFileThread   = core::tour_operation_support::unsupported;
+		observed.StandaloneFile      = core::tour_operation_support::unsupported;
+		const auto files             = std::vector<core::tour_anchor_file>{ { source.Path, true, 30U, std::vector<core::tour_line_span>{ { 10U, 16U } } } };
+		const auto command           = core::prepare_tour_source_repair(seed, seed.Stops[0].Id, core::tour_source_repair_kind::nearest_hunk, observed, files);
+		expect(command.has_value(), "ordinary accepted stop has a previewable repair");
+		repairHost.dispatch(*command);
+		const auto repaired = *repairHost.presentation().Draft;
+		expect(repairHost.presentation().CanUndo && repairHost.presentation().Selected == seed.Stops[0].Id && repaired.Stops[0].Mapped->First.Line == 9U && repaired.Stops[0].Mapped->Last.Line == 11U, "repair preserves selection and range length in real undo lane");
+		repairHost.undo();
+		expect(repairHost.presentation().Draft->Stops == seed.Stops && repairHost.presentation().CanRedo, "one Undo restores exact accepted stop");
+		repairHost.redo();
+		expect(repairHost.presentation().Draft->Stops == repaired.Stops && repairHost.presentation().Selected == seed.Stops[0].Id, "one Redo restores exact repaired source and selection");
+		repairHost.shutdown();
+		repairEffects.drain();
+		repairDecisions.drain();
+		repairEffects.drain();
+		repairDecisions.drain();
+		expect(repairHost.is_quiescent() && saved->Draft && saved->Draft->Stops == repaired.Stops, "shutdown drains repaired draft to ordinary autosave store");
+	}
 	auto                          shared = std::make_shared<store_state>();
 	application::manual_executor  effects, decisions;
 	unsigned                      publications = 0;

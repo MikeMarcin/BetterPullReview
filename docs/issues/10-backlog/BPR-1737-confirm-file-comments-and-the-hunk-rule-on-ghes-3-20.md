@@ -40,3 +40,19 @@ Only the owner can reach that host. The owner's own course on the new build
 (the review refused on 2026-10-21: publish its held comment as a file comment,
 then submit the other eight) answers AC1; the diagnostics export of that run
 records the file child's status class.
+
+## Owner probe — 2026-11-09
+
+AC2 is answered by the owner-supplied probe imported with [[BPR-1979]]. On
+GitHub Enterprise Server **3.20.8**, the owner created pending reviews at the
+pull request's exact head, deleted each immediately, and submitted none. If
+`L` is the hunk's first changed line, `L` and `L-3` returned 200; `L-4` and
+`L-13` returned 422. Both refusals said that the review-thread line must be
+part of the diff and the diff hunk cannot be blank. The response reported
+`X-GitHub-Enterprise-Version: 3.20.8`.
+
+This is the owner's observed REST pending-line boundary, not a newly executed
+agent course. It grants no broader off-hunk capability. **AC1 remains open:**
+file-comment creation was not probed, because it cannot be staged as a private
+pending item on that route. The card remains Backlog and no GHES file-comment
+or application-build acceptance is inferred.
