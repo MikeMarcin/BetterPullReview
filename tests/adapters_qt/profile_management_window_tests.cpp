@@ -564,18 +564,18 @@ namespace {
 		expect(fileActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
 				   && pullRequestActions[8]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
 				   && pullRequestActions[9]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
-				   && pullRequestActions[6]->shortcut().isEmpty() && viewActions[18]->shortcut().isEmpty(),
+				   && pullRequestActions[6]->shortcut().isEmpty() && viewActions[19]->shortcut().isEmpty(),
 			   "Close Tab and composition retain their keys, and Updates Line claims none");
 #if defined(Q_OS_MACOS)
-		expect(viewActions[24]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
-				   && viewActions[25]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
+		expect(viewActions[25]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
+				   && viewActions[26]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
 			   "tab navigation keeps the physical Control key on macOS");
 #else
-		expect(viewActions[24]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
-				   && viewActions[25]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
+		expect(viewActions[25]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
+				   && viewActions[26]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[3], fileActions[4], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[12], viewActions[13], viewActions[14], viewActions[18], viewActions[20], viewActions[21], viewActions[22], viewActions[24], viewActions[25], pullRequestActions[0], pullRequestActions[1], pullRequestActions[6], pullRequestActions[8], pullRequestActions[9], pullRequestActions[10], pullRequestActions[11], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
+		for (auto* const action : { fileActions[3], fileActions[4], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[9], viewActions[13], viewActions[14], viewActions[15], viewActions[19], viewActions[21], viewActions[22], viewActions[23], viewActions[25], viewActions[26], pullRequestActions[0], pullRequestActions[1], pullRequestActions[6], pullRequestActions[8], pullRequestActions[9], pullRequestActions[10], pullRequestActions[11], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,
