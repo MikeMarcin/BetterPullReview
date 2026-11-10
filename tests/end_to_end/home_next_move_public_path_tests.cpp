@@ -148,6 +148,12 @@ try {
 	wait_for([&] { return shown() == listed; }, "Home lists every discovered pull request");
 	wait_for([&] { return discovery().Status.State != application::queue_discovery_state::refreshing && discovery().Quiescent; }, "Home's first refresh settles");
 
+	// The search that found them read titles and requests, not reviews,
+	// decisions or checks: nothing is claimed Quiet before they are read.
+	for (const auto& first : rows_of(*window, qt::home_group::my_pull_requests)) {
+		expect(first.Word != QStringLiteral("Quiet") && (first.Word != QStringLiteral("Unknown") || first.Why == QStringLiteral("Its reviews and checks have not been read yet.")),
+			   "a row whose reviews are unread is not called Quiet:\n" + described(rows_of(*window, qt::home_group::my_pull_requests)));
+	}
 	// A refresh reads every listed pull request again, mine in the batch
 	// that carries their conversations. It is logged.
 	auto before = std::size_t{ 0U };

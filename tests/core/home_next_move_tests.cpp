@@ -190,7 +190,7 @@ namespace {
 		auto unreviewed                        = mine();
 		unreviewed.Facts.Waiting.LatestReviews = { };
 		unreviewed.Facts.Waiting.ReviewsKnown  = false;
-		expect(core::next_move_for(unreviewed) == move::quiet, "reviews not read are never Unassigned");
+		expect(core::next_move_for(unreviewed) == move::unknown, "reviews not read are never Unassigned, nor Quiet");
 		unreviewed.Facts.Waiting.ReviewsKnown = true;
 		unreviewed.Facts.Waiting.Requests     = std::nullopt;
 		expect(core::next_move_for(unreviewed) == move::quiet, "requests not read are never Unassigned");

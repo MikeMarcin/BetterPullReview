@@ -180,7 +180,10 @@ namespace bpr::core {
 		if (approved(facts) && running) {
 			return authored_next_move::checking;
 		}
-		return authored_next_move::quiet;
+		// Quiet is a claim that nobody is waiting, which needs the reviews to
+		// have been read: a pull request a search just found has a title and
+		// requests, not yet its reviews, decision or checks.
+		return facts.ReviewsKnown ? authored_next_move::quiet : authored_next_move::unknown;
 	}
 
 	auto home_row_quiet(const queue_item& aItem) noexcept -> bool

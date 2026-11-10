@@ -316,7 +316,8 @@ namespace bpr::qt {
 				clauses.push_back(QStringLiteral("Nothing here is waiting on anyone"));
 				break;
 			case core::authored_next_move::unknown:
-				clauses.push_back(QStringLiteral("Nothing about it has been read yet"));
+				clauses.push_back(aItem.Bucket == core::attention_bucket::detail_unknown ? QStringLiteral("Nothing about it has been read yet")
+																						 : QStringLiteral("Its reviews and checks have not been read yet"));
 				break;
 			}
 			if (aMove != core::authored_next_move::unread && unseen > 0U) {
@@ -444,7 +445,7 @@ namespace bpr::qt {
 			if (const auto ready = moved(core::authored_next_move::ready); ready > 0) {
 				parts.push_back(QStringLiteral("%1 ready to merge").arg(QString::number(ready)));
 			}
-			const auto unknown = std::ranges::count(aRows, core::attention_bucket::detail_unknown, &core::queue_item::Bucket);
+			const auto unknown = moved(core::authored_next_move::unknown);
 			if (unknown > 0) {
 				parts.push_back(QStringLiteral("%1 unknown").arg(QString::number(unknown)));
 			}

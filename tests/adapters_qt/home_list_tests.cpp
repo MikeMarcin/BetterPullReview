@@ -640,17 +640,19 @@ namespace {
 	void test_authored_sections_in_every_home_arrangement(const QString& aRenderPath)
 	{
 		home_fixture home;
-		auto         mine           = item(1, bucket::new_comments_or_author_replies, 3U);
-		mine.Membership.Authored    = true;
-		auto waiting                = item(2, bucket::authored_awaiting_reviewer_action);
-		waiting.Membership.Role     = core::github_role::author;
-		auto quiet                  = item(3, bucket::quiet);
-		quiet.Membership.Role       = core::github_role::author;
-		auto unknown                = item(4, bucket::detail_unknown);
-		unknown.Membership.Authored = true;
-		auto other                  = item(1, bucket::new_comments_or_author_replies, 2U);
-		other.Ref.Account           = "another-account";
-		const auto queue            = core::ordered_queue(std::array{ mine, waiting, quiet, unknown, other });
+		auto         mine        = item(1, bucket::new_comments_or_author_replies, 3U);
+		mine.Membership.Authored = true;
+		auto waiting             = item(2, bucket::authored_awaiting_reviewer_action);
+		waiting.Membership.Role  = core::github_role::author;
+		auto quiet               = item(3, bucket::quiet);
+		quiet.Membership.Role    = core::github_role::author;
+		// [[RFC-BPR-0098]]. Quiet once its reviews were read and none waits.
+		quiet.Facts.Waiting.ReviewsKnown = true;
+		auto unknown                     = item(4, bucket::detail_unknown);
+		unknown.Membership.Authored      = true;
+		auto other                       = item(1, bucket::new_comments_or_author_replies, 2U);
+		other.Ref.Account                = "another-account";
+		const auto queue                 = core::ordered_queue(std::array{ mine, waiting, quiet, unknown, other });
 		home.Source.apply(queue);
 		home.List.set_queue_status(true, true);
 		home.List.show();

@@ -402,7 +402,8 @@ namespace bpr::core {
 		checking,
 		quiet,
 		/// Nothing about the pull request has been read yet
-		/// (`attention_bucket::detail_unknown`).
+		/// (`attention_bucket::detail_unknown`), or none of the above holds
+		/// and its reviews have not been read, so it is not known to be quiet.
 		unknown,
 	};
 

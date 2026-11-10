@@ -81,7 +81,11 @@ first, is Blocked whatever else is pending. "Required checks passed" is every
 check of the head's rollup passed or skipped, since the rollup does not say
 which are required. Unassigned needs the requests and the reviews to have been
 read; a row whose activity was never read keeps the Unknown word it has today
-and sorts after Quiet. A pull request Failing, Blocked, Ready or Unassigned
+and sorts after Quiet. Quiet itself needs the reviews to have been read: a
+pull request a search has just found has its title, draft status and
+requests but not yet its reviews, decision or checks, so until the next
+refresh reads them (one query, as for every listed pull request) it is
+Unknown, "Its reviews and checks have not been read yet.", never Quiet. A pull request Failing, Blocked, Ready or Unassigned
 while reviewers are also awaited is mine to act on, so it sits in My pull
 requests; only Waiting rows sit in Waiting on others.
 
