@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2036-cold-import-preview",
+  "scope": {
+    "issues": [
+      "BPR-2036"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "reconcile-preparation-preview-contract",
+      "outcome": "Cold-import public course verifies absence of pending-write authority and the accepted authoritative-publication guidance rather than obsolete qualification copy.",
+      "work": [
+        {
+          "issue": "BPR-2036",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Retain frozen53 actual failure and trace exact obsolete oracle to accepted BPR1976 emitter/contract; establish one test-only correction scope.",
+        "One testTU explicitly asserts actualNeedsQualification/unresolved/noPendingJoin and acceptedPreviewinstruction/noobsoleteclaim; all other oracles/gestures/budgets preserved. Static gates and original focused course with meaningful bounded negative control pass when nativelease available.",
+        "Land onlyowned test/tracker slice main preservinghighwater/foreignassets/frozen5fd; exactsource and evidence handback accounts commands/pendingnative obligations."
+      ],
+      "boundary": "Only tests/end_to_end/review_tour_composition_public_path.cpp and owntracker. No production/UIcopy/policy/sourcepin changes; no nativeexecutionuntilrootlease, no foreignmainproduct into candidate."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
