@@ -85,8 +85,8 @@ in the handoff.
 ## Owner fix round: BPR-2048 and BPR-2049 (2026-11-10)
 
 Two owner-reported Home defects on the same lane, each its own card
-([BPR-2048](../issues/30-in-progress/BPR-2048-one-oversized-pull-request-fails-no-home-refresh.md),
-[BPR-2049](../issues/30-in-progress/BPR-2049-seen-and-approve-again-for-an-approval-with-new-commits.md)).
+([BPR-2048](../issues/40-parked/BPR-2048-one-oversized-pull-request-fails-no-home-refresh.md),
+[BPR-2049](../issues/40-parked/BPR-2049-seen-and-approve-again-for-an-approval-with-new-commits.md)).
 Frontend-design was loaded before the Qt work.
 
 ### BPR-2048: one oversized pull request

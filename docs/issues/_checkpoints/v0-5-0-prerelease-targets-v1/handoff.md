@@ -413,3 +413,70 @@ finish BPR-2005, stop host 29030 and remove the root with
 the decision. BPR-2006 (RFC-BPR-0103 closeout) belongs to `accepted-scope`.
 Next eligible milestones in plan order: `agent-scratch` (depends on this
 milestone's acceptance), `tour-stops`.
+
+## Owner fix round: BPR-2048 and BPR-2049 (2026-11-10)
+
+Owner-requested, on the same lane; nothing pushed. Frontend-design was loaded
+before the Qt work. Record:
+[RFC-BPR-0098, owner fix round](../../../verification/RFC-BPR-0098.md#owner-fix-round-bpr-2048-and-bpr-2049-2026-11-10).
+Owner amendments in force as above.
+
+| Commit | What |
+|---|---|
+| `6bc29a5b3` | BPR-2048 and BPR-2049 reserved against main (allocator in the main checkout at `243dddcbb`, counter and receipt `BPR-2048--BPR-2049--1f6f243721c8.json` moved here, main restored; lane counter BPR-2050) and readied |
+| `262959cf9`, `ba951deb4` | Claim BPR-2048, BPR-2049 |
+| `146bc2b35` | Oversized row fails no refresh (state before roster bound, closed alias on state, row mark, roster limit keeps the row); too-large card with Open on GitHub and Retry; Seen (core decision, facts v5, row and Pull Request menu); Approve again opens the review with Approve focused; fixture knobs, two composed courses, unit/host/adapter tests, app pin resealed. Product candidate |
+| `6f12ae3f9` | The course's `--attended` look stops before any gesture |
+
+Root cause (BPR-2048): a retained read too large for one pull request was a
+failure of the whole refresh in `personal_discovery_host` (stale with an
+error, and every search answer marked incomplete so nothing was withdrawn),
+and the REST retained read bounded requested reviewers (over 100) before
+reading the state, so a closed pull request with a large request roster never
+left Needs me and failed every refresh. The owner's actual pull request is not
+reachable from this machine's `gh` accounts (review requests in every state,
+read only); limits were measured on public nodejs/node pull requests (Home
+batch with conversations at most 170 KB for ten of the busiest; opening trips
+on `changed_files` over 3,000). The `home-next-move` review-thread read cannot
+cross the limit. No live mutation was made.
+
+Runs: `core_pull_request_refusal`, `core_review_queue_attention`,
+`application_review_queue_enrollment`, `github_paged_read`,
+`application_home_{oversized,approve_again}_public_path`,
+`application_composition{,_source}_contract`,
+`application_review_round_trip_composition_contract`, and a 36-row Home
+regression set (`qt_composed_home_refusal_scale_100`,
+`application_setup_destination_public_path`, `qt_review_landing_model`,
+`qt_home_list_scale_100`, `qt_home_filter`, `qt_review_queue`, the Home
+public paths, `application_personal_discovery_public_path`,
+`application_home_open_host`, `github_read_contract`,
+`sqlite_queue_enrollment_storage`, `application_review_queue_*`,
+`core_github*`, `core_home_*`, `core_review_queue*`, `qt_composed_github*`,
+`architecture_boundaries`, `test_network_isolation_manifest`): all pass.
+Full dev build; formatted with clang-format 22; documentation gate.
+
+Counter: main reserved BPR-2050 meanwhile and reads BPR-2051; the lane
+follows (LIVE_IMPORT). Both cards parked `human-review`.
+
+Filed, awaiting the owner (not waited on; the URL stays in the session state):
+session `9ed1f1a047a56e4d35f43e92d4f9d70b`, state
+`/Users/jaeger/.attended-review-state/home-oversized-seen-v001-2026-11-10/state`,
+cursor 12, host PID 74660 (its `tailscale serve` child 74677), four
+candidates ready and protected: `BPR-2048-oversized-row`,
+`BPR-2048-too-large-card`, `BPR-2049-seen`, `BPR-2049-approve-again`
+(Accept keeps Approve again opening the review with Approve focused; Reject
+asks for approving straight from the row). Frozen composed course of
+`6f12ae3f9`: `/Users/jaeger/home-oversized-seen-v001.9rw9vr9h` (course
+SHA-256 `2766916cba0e…`, launched with `--attended`, and `--attended
+--approve-again` for the last candidate; app `f4309598a892…`, launcher
+`--check` passed on nested-folders-v1 README.md).
+
+Not touched: sessions `d2cc3389…` (29030/29040), `26d89bac…`
+(36810/36892), `bb8c24c5…` (95022/95034), host 74692, BPR-Test #151/#152
+and the `-next` branch.
+
+Next: read session `9ed1f1a0…` after hand-back. Accept of all four: finish
+BPR-2048 and BPR-2049 (`issue_board.py finish`), stop host 74660 and remove
+the root with `freeze_attended_build.py remove`. A Reject of Approve again
+asks for a row-level approval, which needs a Home-side review submission
+(no window); a Reject of Seen's hover-only button asks for it always shown.
