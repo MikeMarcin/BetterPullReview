@@ -64,3 +64,32 @@ All owned build, CTest, tidy and documentation sessions have exited, and their
 results are consumed. Only scoped tracker finish/check/documentation upkeep
 remains before final handoff. No server, worktree, protection, mount, remote
 mutation or other writer exists. Foreign `.codex-attachments/` is untouched.
+
+## Final guarded closeout
+
+- Guarded finish `6cd05529e4490539b6df285e7b04ff27c85a9c73` moved BPR-1981
+  to Done with three passing records against source/test
+  `b5644f4a98cb3850ce50722262dad396d87cd5e4`. Allocation/plan and claim commits
+  remain recorded above. No push occurred.
+- Final board validation for BPR-1981/BPR-1979 and the post-move documentation
+  gate pass (`board-final.json`, `docs-after-finish.log`). The documentation
+  regression suite remains 67/67; its code/inputs are unchanged.
+- The first completion consistency check detected the card's appended evidence
+  prose as a requirement fingerprint change. The binding was renewed through
+  the same target-scoped helper against the finished card; all original AC1–AC3,
+  plan work and exit text are unchanged. The initial binding is preserved in
+  the guarded finish commit. The renewed check returns `report-closeout`,
+  disposition `pack-complete`, no next milestone and no required pending item.
+  `engineering_acceptance: not-evaluated` correctly means the helper checks
+  consistency; the engineering judgment is the verified criterion ledger.
+- Current-HEAD observations/checks are external at
+  `/tmp/bpr-tour-maintenance-fixes/{observation,check}.json`. No authenticated
+  URL, credential or transient build output is tracked.
+- Every task-owned command, including baseline failures, interim test/tidy
+  failures and final passing checks, has exited and its result was consumed.
+  No task-owned server, writer, worktree, review session/protection or mount
+  remains. The only untracked item is preserved foreign `.codex-attachments/`.
+
+Next action: coordinator reports both fixes complete for the exact mandate and
+source candidate above. No selected-scope correction or owner decision remains.
+Separate live/native qualification gaps retain their previous scope/status.
