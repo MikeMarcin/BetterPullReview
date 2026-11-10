@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2046--BPR-2046--bcefddc2b10b.json","source_commit":"3a8cc1374"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3a8cc1374","evidence":{"kind":"test","detail":"qt_composed_markdown and qt_composed_github_scale courses click a description link, answer Cancel/Open/Escape/Return and check the recording browser."}},{"criterion":"AC2","outcome":"pass","revision":"3a8cc1374","evidence":{"kind":"test","detail":"application_github_window_read_host covers file:, javascript:, no-browser, stale and missing-body addresses; refused schemes raise no question."}},{"criterion":"AC3","outcome":"pass","revision":"3a8cc1374","evidence":{"kind":"test","detail":"Composed Qt course clicks a description link while the pull request loads and sees the explanatory status message."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3a8cc1374","evidence":{"kind":"command","detail":"qt_composed_markdown and qt_composed_github_scale courses click a description link, answer Cancel/Open/Escape/Return and check the recording browser."}},{"criterion":"AC2","outcome":"pass","revision":"3a8cc1374","evidence":{"kind":"command","detail":"application_github_window_read_host covers file:, javascript:, no-browser, stale and missing-body addresses; refused schemes raise no question."}},{"criterion":"AC3","outcome":"pass","revision":"3a8cc1374","evidence":{"kind":"command","detail":"Composed Qt course clicks a description link while the pull request loads and sees the explanatory status message."}}]
 ---
 
 # Ask before opening a PR body link; explain links while loading
