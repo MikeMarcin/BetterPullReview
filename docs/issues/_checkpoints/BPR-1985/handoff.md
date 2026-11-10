@@ -52,17 +52,26 @@ Scoped LLVM22 tidy analyzes both TUs: the contract TU is clean; the overall
 command exits1 for one unrelated pre-existing string concatenation at live
 provider test2460. Its expression is byte-identical baseline15942:2458, blame
 6427286876 (2026-10-28). This TU's only edits are the two explicit names near577.
-No changed-line finding exists. Raw1, exact baseline/blame and classification
+No changed-line finding exists. Coordinator explicitly accepts this bounded
+pre-existing classification, preserving raw1 and forbidding unrelated cleanup
+or suppression. Raw1, exact baseline/blame and classification
 remain in tidy.log/tidy-classification.json; no global tidy pass, suppression,
 unrelated cleanup or redundant baseline analyzer run is claimed.
 
 ## Integration frontier
 
-Next: commit this exact tested fixture slice; normally integrate/push under the
-held canonical writer window, preserving1984 reservation and NEXT maximum.
-Complete shared Done/docs acceptance with the unchanged static baseline stated
-explicitly, then return exact main and all owned command results. Canonical
-foreign advances, attachments and the user freeze must remain intact.
+Exact source/checkpoint commit
+`86e7a87ac7948572a1b13d6af45548090ad85b57` normally fast-forwards canonical
+main and pushes from4eab to the exact verified remote revision. Expected
+canonical15942 guard is observed before integration. Only the two named test
+TUs contain code changes; frozen5fd production/registry/pins stay exact.
+Existing1984 reservation and NEXT1986 are preserved. No later external product
+main is fetched/merged. Shared Done/docs closeout changes no proven fixture
+source; external final-handoff.json records its exact final main.
+
+Coordinator accepts the scoped static baseline disposition above; it is not
+a whole-TU tidy pass. Main-writer/Mac engineering lease returns after final
+push, with the source/finalmetadata hashes and exact allowed paths supplied.
 
 All build/test/format/tidy/source/docs commands are terminal and results consumed.
 No review server, source overlay, desktop action, live mutation or PC work exists.
