@@ -2,6 +2,36 @@
 #include <algorithm>
 #include <limits>
 namespace bpr::application {
+	auto staged_stop_order(const staged_review_plan& aPlan) -> std::vector<std::size_t>
+	{
+		std::vector<std::size_t> order;
+		for (std::size_t i = 0; i < aPlan.Stops.size(); ++i) {
+			if (!aPlan.Mixed || aPlan.Stops[i].Representation == core::tour_representation::native_line) {
+				order.push_back(i);
+			}
+		}
+		if (aPlan.Mixed) {
+			for (std::size_t i = 0; i < aPlan.Stops.size(); ++i) {
+				if (aPlan.Stops[i].Representation != core::tour_representation::native_line) {
+					order.push_back(i);
+				}
+			}
+		}
+		return order;
+	}
+	auto staged_stop(const staged_review_plan& aPlan, std::size_t aIndex) -> const staged_tour_stop&
+	{
+		return aPlan.Stops[staged_stop_order(aPlan)[aIndex]];
+	}
+	auto staged_review_comments(const staged_publication_record& aRecord) -> std::vector<staged_review_comment>
+	{
+		auto comments = aRecord.Comments;
+		if (aRecord.Plan.Mixed) {
+			std::erase_if(comments, [&](const auto& aComment) { return !aRecord.Review || aComment.Review != aRecord.Review->Id; });
+		}
+		return comments;
+	}
+
 	namespace {
 		auto initial_navigation(const staged_review_plan& aPlan) -> std::vector<core::tour_markdown_link>
 		{
@@ -36,6 +66,12 @@ namespace bpr::application {
 	auto valid(const staged_review_plan& aPlan) -> bool
 	{
 		if (!valid(aPlan.Submission) || !aPlan.Submission.LiveBinding || !core::valid(aPlan.Owner) || !aPlan.Generation || (aPlan.Stops.empty() && !aPlan.Update && !aPlan.ConversationReply) || aPlan.Stops.size() > maximum_staged_review_comments || aPlan.Submission.Proposal.Disposition != core::review_disposition::comment) {
+			return false;
+		}
+		if (!aPlan.Mixed && !aPlan.Compatibility && std::ranges::any_of(aPlan.Stops, [](const auto& aStop) { return aStop.Representation != core::tour_representation::native_line; })) {
+			return false;
+		}
+		if (aPlan.Mixed && (aPlan.Compatibility || aPlan.ConversationReply || !std::ranges::any_of(aPlan.Stops, [](const auto& aStop) { return aStop.Representation == core::tour_representation::native_line; }) || !std::ranges::any_of(aPlan.Stops, [](const auto& aStop) { return aStop.Representation != core::tour_representation::native_line; }) || std::ranges::any_of(aPlan.Stops, [](const auto& aStop) { return aStop.Representation != core::tour_representation::native_line && aStop.Representation != core::tour_representation::conversation_permalink && aStop.Representation != core::tour_representation::file_permalink; }))) {
 			return false;
 		}
 		if (aPlan.ConversationReply && core::render_conversation_reply(aPlan.ReplyDraft) != std::optional{ aPlan.Submission.Proposal.Body }) {
@@ -76,9 +112,12 @@ namespace bpr::application {
 			if (!stop.Id.value() || !core::valid(stop.Source) || stop.Title.empty() || stop.Narrative.empty() || stop.SourceLink.empty() || std::ranges::find(ids, stop.Id) != ids.end()) {
 				return false;
 			}
+			if (aPlan.Mixed && stop.Representation == core::tour_representation::file_permalink && (stop.Source.Commit != target.Semantic.ExpectedHead || stop.Source.Side != core::diff_side::right || core::classify_review_body(stop.Narrative) != core::review_body_compatibility::portable)) {
+				return false;
+			}
 			ids.push_back(stop.Id);
 			bytes += stop.Title.size() + stop.Narrative.size() + stop.SourceLink.size();
-			if (bytes > core::maximum_tour_field_bytes || (!aPlan.Compatibility && stop.Source.Commit != (stop.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : application::comparison_base(target)))) {
+			if (bytes > core::maximum_tour_field_bytes || (!aPlan.Compatibility && (!aPlan.Mixed || stop.Representation == core::tour_representation::native_line) && stop.Source.Commit != (stop.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : application::comparison_base(target)))) {
 				return false;
 			}
 			const auto noNavigation = initial_navigation(aPlan);
@@ -107,9 +146,13 @@ namespace bpr::application {
 			return staged_review_request{ .Binding = *aPlan.Submission.LiveBinding, .Operation = staged_review_operation::create_issue_comment, .Body = *initial_stop_body(aPlan, 0) };
 		}
 		staged_review_request result{ .Binding = *aPlan.Submission.LiveBinding, .Operation = staged_review_operation::create_pending, .Body = "Tour preparation is incomplete.\n\n" + aPlan.Submission.Proposal.Body };
-		for (const auto& stop : aPlan.Stops) {
+		for (std::size_t i = 0; i < aPlan.Stops.size(); ++i) {
+			const auto& stop = aPlan.Stops[i];
+			if (aPlan.Mixed && stop.Representation != core::tour_representation::native_line) {
+				continue;
+			}
 			const auto noNavigation = initial_navigation(aPlan);
-			const auto body         = core::render_tour_stop(stop.Title, result.Lines.size() + 1, stop.Narrative, noNavigation, stop.SourceLink);
+			const auto body         = core::render_tour_stop(stop.Title, i + 1, stop.Narrative, noNavigation, stop.SourceLink);
 			if (!body) {
 				return std::nullopt;
 			}
@@ -127,8 +170,9 @@ namespace bpr::application {
 				return { };
 			}
 			std::vector<std::string> created;
-			for (const auto& stop : aRecord.Plan.Stops) {
-				const auto found = std::ranges::find(aRecord.Plan.Update->Stops, stop.Id, &core::tour_stop::Id);
+			for (std::size_t i = 0; i < aRecord.Plan.Stops.size(); ++i) {
+				const auto& stop  = staged_stop(aRecord.Plan, i);
+				const auto  found = std::ranges::find(aRecord.Plan.Update->Stops, stop.Id, &core::tour_stop::Id);
 				if (found == aRecord.Plan.Update->Stops.end()) {
 					return { };
 				}
@@ -140,19 +184,21 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		std::vector<core::tour_markdown_link> entries;
-		entries.reserve(aRecord.Comments.size());
+		entries.resize(aRecord.Comments.size());
+		const auto order = staged_stop_order(aRecord.Plan);
 		for (std::size_t i = 0; i < aRecord.Comments.size(); ++i) {
 			// [[BPR-1222]]. Only an admitted HTTPS comment URL is rewritten to
 			// its Files changed anchor; the core reads the path alone.
-			const auto& web = aRecord.Comments[i].WebUrl;
-			entries.push_back({ aRecord.Plan.Stops[i].Title, web.starts_with("https://") ? core::tour_stop_link(web) : web });
+			const auto& web   = aRecord.Comments[i].WebUrl;
+			entries[order[i]] = { staged_stop(aRecord.Plan, i).Title, web.starts_with("https://") ? core::tour_stop_link(web) : web };
 		}
 		const auto index = core::render_tour_index(entries);
 		if (!index) {
 			return std::nullopt;
 		}
 		std::pair<std::string, std::vector<std::string>> result{ aRecord.Plan.Submission.Proposal.Body + "\n\n" + *index, { } };
-		for (std::size_t i = 0; i < entries.size(); ++i) {
+		for (std::size_t position = 0; position < entries.size(); ++position) {
+			const auto                            i = order[position];
 			std::vector<core::tour_markdown_link> navigation;
 			if (i) {
 				navigation.push_back({ "Previous", entries[i - 1].Destination });
@@ -186,6 +232,18 @@ namespace bpr::application {
 		if (!aRecord.Review && !aRecord.Plan.Compatibility && !aRecord.Plan.Stops.empty()) {
 			return staged_initial_request(aRecord.Plan);
 		}
+		if (aRecord.Plan.Mixed && aRecord.Comments.size() < aRecord.Plan.Stops.size()) {
+			const auto            ordinal = staged_stop_order(aRecord.Plan)[aRecord.Comments.size()];
+			staged_review_request request{ .Binding = *aRecord.Plan.Submission.LiveBinding, .Operation = staged_review_operation::create_issue_comment, .Body = *initial_stop_body(aRecord.Plan, ordinal) };
+			if (aRecord.Plan.Stops[ordinal].Representation == core::tour_representation::file_permalink) {
+				request.Operation  = staged_review_operation::create_file_comment;
+				request.FileSource = aRecord.Plan.Stops[ordinal].Source;
+				request.FileSource->Blob.reset();
+				request.FileSource->FirstLine = 0;
+				request.FileSource->LastLine  = 0;
+			}
+			return request;
+		}
 		if (aRecord.Plan.Update) {
 			return staged_update_request(aRecord);
 		}
@@ -198,10 +256,10 @@ namespace bpr::application {
 			result.Operation = staged_review_operation::create_issue_comment;
 			result.Body      = bodies->first;
 		} else if (aRecord.Patched < aRecord.Comments.size()) {
-			if (!aRecord.Plan.Compatibility) {
+			if (!aRecord.Plan.Compatibility && (!aRecord.Plan.Mixed || staged_stop(aRecord.Plan, aRecord.Patched).Representation == core::tour_representation::native_line)) {
 				return staged_pending_edit(aRecord, bodies->second[aRecord.Patched]);
 			}
-			result.Operation = staged_review_operation::update_issue_comment;
+			result.Operation = aRecord.Plan.Mixed && staged_stop(aRecord.Plan, aRecord.Patched).Representation == core::tour_representation::file_permalink ? staged_review_operation::update_comment : staged_review_operation::update_issue_comment;
 			result.Comment   = aRecord.Comments[aRecord.Patched].Id;
 			result.Body      = bodies->second[aRecord.Patched];
 		} else if (!aRecord.Published) {
@@ -243,6 +301,67 @@ namespace bpr::application {
 			return true;
 		}
 		if (aRecord.Drafting) {
+			return false;
+		}
+		if (aRecord.Plan.Mixed) {
+			if (aRecord.FileBaselineIds.size() > maximum_staged_review_pages * 100U || !std::ranges::is_sorted(aRecord.FileBaselineIds) || std::ranges::adjacent_find(aRecord.FileBaselineIds) != aRecord.FileBaselineIds.end() || std::ranges::find(aRecord.FileBaselineIds, 0U) != aRecord.FileBaselineIds.end()) {
+				return false;
+			}
+			if (aRecord.Index || !std::ranges::is_sorted(aRecord.ConversationBaselineIds) || std::ranges::adjacent_find(aRecord.ConversationBaselineIds) != aRecord.ConversationBaselineIds.end() || aRecord.ConversationBaselineIds.size() > maximum_staged_review_pages * 100U || std::ranges::find(aRecord.ConversationBaselineIds, 0U) != aRecord.ConversationBaselineIds.end()) {
+				return false;
+			}
+			if (!aRecord.Review) {
+				return aRecord.Comments.empty() && !aRecord.Patched && !aRecord.Updated && !aRecord.Published && !aRecord.DestinationsPublished && (!aRecord.Pending || aRecord.Pending == staged_initial_request(aRecord.Plan));
+			}
+			const auto                initial = staged_initial_request(aRecord.Plan);
+			const auto&               binding = *aRecord.Plan.Submission.LiveBinding;
+			const staged_review_actor actor{ binding.ActingIdentity.DatabaseId, binding.ActingIdentity.NodeId, binding.ActingIdentity.Login };
+			if (!initial || !aRecord.Review->Id.value() || aRecord.Review->NodeId.empty() || aRecord.Review->WebUrl.empty() || aRecord.Review->Actor != actor || aRecord.Review->Commit != binding.Target.Semantic.ExpectedHead || aRecord.Comments.size() < initial->Lines.size()) {
+				return false;
+			}
+			const auto bodies    = staged_final_bodies(aRecord);
+			const bool submitted = aRecord.Plan.Update ? aRecord.DestinationsPublished : aRecord.Published;
+			if (submitted && !bodies) {
+				return false;
+			}
+			if (aRecord.Review->State != (submitted ? staged_review_state::commented : staged_review_state::pending) || aRecord.Review->Body != (submitted ? (aRecord.Plan.Update ? "Additional stops for [Review tour](" + aRecord.Plan.Update->Remote->WebUrl + ")." : bodies->first) : initial->Body)) {
+				return false;
+			}
+			if ((!bodies && (aRecord.Patched || submitted || aRecord.Updated || aRecord.Published)) || (!aRecord.Plan.Update && (aRecord.Updated || aRecord.DestinationsPublished)) || (submitted && aRecord.Patched != aRecord.Comments.size())) {
+				return false;
+			}
+			const auto root = "https://" + std::string{ binding.Target.Hostname.value() } + "/" + binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name + "/pull/" + std::to_string(binding.Target.Number.value());
+			for (std::size_t i = 0; i < aRecord.Comments.size(); ++i) {
+				const auto& c       = aRecord.Comments[i];
+				const bool  native  = i < initial->Lines.size();
+				const bool  file    = staged_stop(aRecord.Plan, i).Representation == core::tour_representation::file_permalink;
+				const auto  ordinal = staged_stop_order(aRecord.Plan)[i];
+				if (!c.Id || c.NodeId.empty() || c.Reply || c.Actor != actor || c.WebUrl != root + (native || file ? "#discussion_r" : "#issuecomment-") + std::to_string(c.Id) || c.Body != (i < aRecord.Patched ? bodies->second[i] : *initial_stop_body(aRecord.Plan, ordinal))) {
+					return false;
+				}
+				auto fileSource = staged_stop(aRecord.Plan, i).Source;
+				fileSource.Blob.reset();
+				fileSource.FirstLine = 0;
+				fileSource.LastLine  = 0;
+				if (native ? (c.Review != aRecord.Review->Id || c.Source != std::optional{ initial->Lines[i].Source }) : file ? (!c.Review.value() || c.Review == aRecord.Review->Id || c.Source != std::optional{ fileSource } || std::ranges::binary_search(aRecord.FileBaselineIds, c.Id))
+																															  : (c.Review.value() || c.Source || std::ranges::binary_search(aRecord.ConversationBaselineIds, c.Id))) {
+					return false;
+				}
+				for (std::size_t j = 0; j < i; ++j) {
+					if (aRecord.Comments[j].Id == c.Id && aRecord.Comments[j].Review == c.Review) {
+						return false;
+					}
+				}
+			}
+			if (aRecord.Plan.Update && bodies) {
+				const auto update = staged_update_bodies(aRecord);
+				if (!update || aRecord.Updated > update->Edits.size() || aRecord.Published != (aRecord.Updated == update->Edits.size() && aRecord.Patched == aRecord.Comments.size() && submitted)) {
+					return false;
+				}
+			}
+			return !aRecord.Pending || aRecord.Pending == staged_next_request(aRecord);
+		}
+		if (!aRecord.ConversationBaselineIds.empty() || !aRecord.FileBaselineIds.empty()) {
 			return false;
 		}
 		if (aRecord.Plan.Update) {
@@ -331,7 +450,7 @@ namespace bpr::application {
 		if (!aBefore) {
 			return aAfter.Revision == 1 && !aAfter.Review && !aAfter.Index && aAfter.Comments.empty() && !aAfter.PossiblyTransmitted && !aAfter.Updated && !aAfter.DestinationsPublished && aAfter.Pending == staged_initial_request(aAfter.Plan);
 		}
-		if (!valid(*aBefore) || aBefore->Plan != aAfter.Plan || aBefore->Revision == std::numeric_limits<std::uint64_t>::max() || aAfter.Revision != aBefore->Revision + 1 || aBefore->BaselineIds != aAfter.BaselineIds || aBefore->Patched > aAfter.Patched || aAfter.Patched > aBefore->Patched + 1 || (aBefore->Published && !aAfter.Published) || (aBefore->DescriptionDone && !aAfter.DescriptionDone)) {
+		if (!valid(*aBefore) || aBefore->Plan != aAfter.Plan || aBefore->Revision == std::numeric_limits<std::uint64_t>::max() || aAfter.Revision != aBefore->Revision + 1 || aBefore->BaselineIds != aAfter.BaselineIds || aBefore->ConversationBaselineIds != aAfter.ConversationBaselineIds || aBefore->FileBaselineIds != aAfter.FileBaselineIds || aBefore->Patched > aAfter.Patched || aAfter.Patched > aBefore->Patched + 1 || (aBefore->Published && !aAfter.Published) || (aBefore->DescriptionDone && !aAfter.DescriptionDone)) {
 			return false;
 		}
 		if (aBefore->Review && (!aAfter.Review || aBefore->Review->Id != aAfter.Review->Id || aBefore->Review->NodeId != aAfter.Review->NodeId || aBefore->Review->WebUrl != aAfter.Review->WebUrl)) {
@@ -351,7 +470,7 @@ namespace bpr::application {
 			expected.Revision++;
 			expected.Pending.reset();
 			expected.PossiblyTransmitted = false;
-			if (aBefore->Plan.Update && aBefore->Pending->Operation != staged_review_operation::create_pending && aBefore->Pending->Operation != staged_review_operation::create_issue_comment) {
+			if (aBefore->Plan.Update && aBefore->Pending->Operation != staged_review_operation::create_pending && aBefore->Pending->Operation != staged_review_operation::create_issue_comment && aBefore->Pending->Operation != staged_review_operation::create_file_comment) {
 				expected = confirm_staged_update(*aBefore);
 				expected.Revision++;
 				expected.Pending.reset();
@@ -366,8 +485,9 @@ namespace bpr::application {
 				expected.Review   = aAfter.Review;
 				expected.Comments = aAfter.Comments;
 				break;
+			case staged_review_operation::create_file_comment:
 			case staged_review_operation::create_issue_comment:
-				if (!expected.Plan.Compatibility) {
+				if (!expected.Plan.Compatibility && !expected.Plan.Mixed) {
 					return false;
 				}
 				if (expected.Plan.ConversationReply) {
@@ -386,12 +506,12 @@ namespace bpr::application {
 				}
 				break;
 			case staged_review_operation::update_issue_comment:
-				if (!expected.Plan.Compatibility) {
+				if (!expected.Plan.Compatibility && !expected.Plan.Mixed) {
 					return false;
 				}
 				expected.Comments[expected.Patched].Body = aBefore->Pending->Body;
 				++expected.Patched;
-				expected.Published = expected.Patched == expected.Comments.size();
+				expected.Published = expected.Plan.Compatibility && expected.Patched == expected.Comments.size();
 				break;
 			case staged_review_operation::update_comment:
 			case staged_review_operation::update_pending_comment:
@@ -415,13 +535,22 @@ namespace bpr::application {
 		if (aPlan.ConversationReply) {
 			return { "The reply" };
 		}
-		auto stages = std::vector<std::string>{ aPlan.Update ? "The tour's updated comments" : aPlan.Compatibility ? "The index comment"
-																												   : "The tour comment" };
+		auto stages = std::vector<std::string>{ aPlan.Mixed ? "One pending review (mixed tour, non-atomic)" : aPlan.Update ? "The tour's updated comments"
+													: aPlan.Compatibility                                                  ? "The index comment"
+																														   : "The tour comment" };
 		if (!aPlan.Update) {
-			for (std::size_t index = 0; index < aPlan.Stops.size(); ++index) {
+			for (const auto index : staged_stop_order(aPlan)) {
 				// The presentation consumes UTF-8 on every host, including MSVC.
 				stages.push_back("Stop " + std::to_string(index + 1) + ", \xE2\x80\x9C" + aPlan.Stops[index].Title + "\xE2\x80\x9D");
+				if (aPlan.Mixed) {
+					stages.back() += aPlan.Stops[index].Representation == core::tour_representation::native_line ? " (in the pending review)" : aPlan.Stops[index].Representation == core::tour_representation::file_permalink ? " (standalone file comment)"
+																																																							   : " (conversation comment)";
+				}
 			}
+		}
+		if (aPlan.Mixed) {
+			stages.emplace_back("Cross-kind navigation");
+			stages.emplace_back("One COMMENT submission");
 		}
 		if (aPlan.Description) {
 			stages.emplace_back("The description link");

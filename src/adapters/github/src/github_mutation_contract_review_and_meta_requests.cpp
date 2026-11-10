@@ -493,7 +493,7 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto staged_list(staged_operation aOperation) -> bool
 		{
-			return aOperation == staged_operation::list_reviews || aOperation == staged_operation::list_comments || aOperation == staged_operation::list_issue_comments;
+			return aOperation == staged_operation::list_reviews || aOperation == staged_operation::list_comments || aOperation == staged_operation::list_issue_comments || aOperation == staged_operation::list_file_comments;
 		}
 
 		[[nodiscard]] auto staged_next(const review_mutation_wire_response& aResponse, const application::staged_review_request& aExpected, const review_mutation_wire_request& aWire) -> std::optional<bool>
@@ -556,6 +556,7 @@ namespace bpr::adapters::github::detail {
 		if (!application::valid(aRequest.Binding) || !valid_server(target.ServerContract) || !utf8_round_trip(aRequest.Body)
 			|| aRequest.Body.size() > maximum_review_mutation_body_bytes || aRequest.Page == 0 || aRequest.Page > application::maximum_staged_review_pages
 			|| (aRequest.Operation != staged_operation::create_pending && !aRequest.Lines.empty())
+			|| (aRequest.Operation != staged_operation::create_file_comment && aRequest.FileSource)
 			|| (!staged_list(aRequest.Operation) && aRequest.Page != 1)
 			|| (aRequest.Operation != staged_operation::update_pending_comment && !aRequest.CommentNode.empty())) {
 			return failed(review_mutation_contract_failure::invalid_request);
@@ -618,6 +619,27 @@ namespace bpr::adapters::github::detail {
 			}
 			body = std::move(*bytes);
 			path += "/reviews";
+			break;
+		}
+		case staged_operation::list_file_comments:
+			operation = review_mutation_operation::staged_list_file_comments;
+			path += "/comments" + staged_page_suffix(aRequest.Page);
+			break;
+		case staged_operation::create_file_comment: {
+			operation = review_mutation_operation::staged_create_file_comment;
+			if (!aRequest.FileSource || !core::valid(*aRequest.FileSource) || aRequest.FileSource->Blob || aRequest.FileSource->Commit != target.Semantic.ExpectedHead || aRequest.FileSource->Side != core::diff_side::right || aRequest.FileSource->FirstLine || aRequest.FileSource->LastLine || aRequest.Body.empty()) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			file_comment_submission_json value;
+			value.Body       = aRequest.Body;
+			value.CommitId   = std::string{ core::canonical_hex(aRequest.FileSource->Commit).view() };
+			value.Path       = aRequest.FileSource->Path;
+			const auto bytes = glz::write<review_json_options{ }>(value);
+			if (!bytes) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			body = *bytes;
+			path += "/comments";
 			break;
 		}
 		case staged_operation::update_comment:
@@ -716,6 +738,35 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
 		application::staged_review_observation result{ .HasNext = *next };
+		if (aExpected.Operation == staged_operation::list_file_comments) {
+			const auto page = parse_review_comment_collection(aResponse, aExpected.Binding.Target, aExpected.Page);
+			if (!page) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			result.HasNext = page->HasNext;
+			for (const auto& entry : page->Comments) {
+				if (!entry.OnFile || entry.Reply || entry.CommitId != core::canonical_hex(aExpected.Binding.Target.Semantic.ExpectedHead).view()) {
+					continue;
+				}
+				const auto& target = aExpected.Binding.Target;
+				const auto  source = core::tour_code_destination{ .Commit = target.Semantic.ExpectedHead, .Path = entry.Path };
+				if (!entry.Review || !entry.Author || entry.AuthorNodeId.empty() || entry.Login.empty() || !core::valid(source) || entry.PullRequestUrl != staged_api_origin(target) + pull_request_path(target, target.ServerContract) || entry.WebUrl != staged_web_root(target) + "#discussion_r" + std::to_string(entry.Id)) {
+					return failed(review_mutation_contract_failure::identity_mismatch);
+				}
+				result.Comments.push_back({ entry.Id, entry.NodeId, entry.WebUrl, { entry.Author, entry.AuthorNodeId, entry.Login }, application::review_database_id{ entry.Review }, source, entry.Body, false });
+			}
+			return result;
+		}
+		if (aExpected.Operation == staged_operation::create_file_comment) {
+			const auto  object = document<staged_comment_json>(aResponse, limit, preflight);
+			const auto  value  = object ? staged_comment_entity(*object, aExpected) : std::nullopt;
+			const auto& who    = aExpected.Binding.ActingIdentity;
+			if (!value || object->Subject != std::optional<std::string>{ "file" } || value->Source != aExpected.FileSource || value->Body != aExpected.Body || value->Actor != application::staged_review_actor{ who.DatabaseId, who.NodeId, who.Login }) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			result.Comments.push_back(*value);
+			return result;
+		}
 		if (aExpected.Operation == staged_operation::update_description) {
 			const auto target = parse_target_observation(aResponse, aExpected.Binding.Target);
 			const auto body   = document<staged_body_json>(aResponse, limit, preflight);
@@ -846,11 +897,13 @@ namespace bpr::adapters::github::detail {
 		case operation::staged_list_reviews:
 		case operation::staged_read_review:
 		case operation::staged_list_comments:
+		case operation::staged_list_file_comments:
 		case operation::staged_list_issue_comments:
 			return review_mutation_exchange{ };
 		case operation::staged_create_pending:
 		case operation::staged_submit_comment:
 			return review_mutation_exchange{ .Method = http_method::post, .Witnessed = true };
+		case operation::staged_create_file_comment:
 		case operation::staged_create_issue_comment:
 			return review_mutation_exchange{ .Method = http_method::post, .SuccessfulStatus = 201, .Witnessed = true };
 		case operation::staged_update_summary:

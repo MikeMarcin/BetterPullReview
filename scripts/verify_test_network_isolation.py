@@ -880,6 +880,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_tour_publication_maintenance": "dos-volume-name",
     "application_review_tour_publication_manual": "dos-volume-name",
     "application_review_tour_publication_native": "dos-volume-name",
+    "application_review_tour_publication_file": "unmeasured (registered on macOS)",
+    "application_review_tour_publication_mixed": "unmeasured (registered on macOS)",
     "application_review_tour_publication_repairs": "unmeasured (registered on macOS)",
     "application_review_tour_publication_reconciliation": "dos-volume-name",
     "application_review_tour_publication_stop": "dos-volume-name",

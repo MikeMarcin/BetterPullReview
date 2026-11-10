@@ -38,6 +38,15 @@ namespace bpr::application {
 		review_submission_refusal Refusal = review_submission_refusal::none;
 	};
 
+	struct tour_destination_facts
+	{
+		core::tour_owner                                Owner;
+		core::tour_draft_id                             Draft;
+		std::uint64_t                                   Revision = 0;
+		core::git_commit_oid                            Head;
+		std::vector<core::tour_destination_observation> Observations;
+	};
+	using tour_destination_observations = std::expected<tour_destination_facts, review_mutation_failure>;
 	/// \brief Executes or reconciles one immutable whole-review attempt.
 	class review_submission_port
 	{
@@ -50,6 +59,15 @@ namespace bpr::application {
 		review_submission_port(review_submission_port&&)                         = delete;
 		auto operator=(review_submission_port&&) -> review_submission_port&      = delete;
 
+		/// Exact operation observations, acquired by the provider on the effect lane.
+		/// Unknown is the production default; a caller cannot populate its cache.
+		[[nodiscard]] virtual auto tour_destinations(const core::review_tour& aTour, std::stop_token aStop = { }) -> tour_destination_observations
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(review_mutation_failure::cancelled);
+			}
+			return tour_destination_facts{ aTour.Owner, aTour.Id, aTour.Revision, aTour.ObservedHead.value_or(aTour.Head), { } };
+		}
 		/// Local draft operations share the staged journal; they never perform a request.
 		[[nodiscard]] virtual auto save_conversation_reply(const staged_review_plan& aPlan) -> staged_publication_result
 		{

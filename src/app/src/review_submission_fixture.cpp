@@ -285,7 +285,9 @@ namespace bpr::app::detail {
 						const auto& source = *c.Source;
 						const auto  side   = source.Side == core::diff_side::left ? "LEFT" : "RIGHT";
 						result += ",\"pull_request_url\":" + json_text(api() + pull()) + ",\"pull_request_review_id\":" + std::to_string(c.Review.value()) + ",\"commit_id\":" + json_text(std::string{ core::canonical_hex(Binding.Target.Semantic.ExpectedHead).view() }) + ",\"path\":" + json_text(source.Path);
-						if (aLines) {
+						if (aLines && c.Review.value() == 901) {
+							result += ",\"subject_type\":\"file\",\"line\":null,\"side\":null";
+						} else if (aLines) {
 							result += ",\"subject_type\":\"line\",\"side\":" + json_text(side) + ",\"line\":" + std::to_string(std::uint64_t{ source.LastLine } + 1);
 							if (source.FirstLine != source.LastLine) {
 								result += ",\"start_line\":" + std::to_string(std::uint64_t{ source.FirstLine } + 1) + ",\"start_side\":" + json_text(side);
@@ -372,6 +374,13 @@ namespace bpr::app::detail {
 							}
 							all += review_json(*State->StagedReview);
 						}
+						if (!State->FileComments.empty()) {
+							const application::staged_review_entity standalone{ application::review_database_id{ 901 }, "PRR_901", root() + "#pullrequestreview-901", actor(), Binding.Target.Semantic.ExpectedHead, "", application::staged_review_state::commented };
+							if (all.size() > 1) {
+								all += ",";
+							}
+							all += review_json(standalone);
+						}
 						return success(all + "]");
 					}
 					if (State->StagedReview) {
@@ -434,6 +443,7 @@ namespace bpr::app::detail {
 						if (State->StagedReview && submitted(*State->StagedReview)) {
 							listed.insert(listed.end(), State->StagedComments.begin(), State->StagedComments.end());
 						}
+						listed.insert(listed.end(), State->FileComments.begin(), State->FileComments.end());
 						const auto page  = static_cast<std::size_t>(std::stoul(w.Path.substr(collection.size())));
 						const auto first = std::min(listed.size(), (page - 1U) * 100U);
 						const auto last  = std::min(listed.size(), first + 100U);
@@ -545,6 +555,12 @@ namespace bpr::app::detail {
 					if (!found) {
 						return wire::github_mutation_wire_error{ };
 					}
+				} else if (w.Method == wire::http_method::post && w.Path == pull() + "/comments") {
+					if (!State->StagedFileQualified || object.size() != 4 || object["subject_type"] != "file" || object["path"] != "secondary.cpp" || object["commit_id"].toString().toStdString() != core::canonical_hex(Binding.Target.Semantic.ExpectedHead).view()) {
+						return wire::github_mutation_wire_error{ };
+					}
+					const auto id = 801 + State->FileComments.size();
+					State->FileComments.push_back({ id, "FILE_" + std::to_string(id), root() + "#discussion_r" + std::to_string(id), actor(), application::review_database_id{ 901 }, core::tour_code_destination{ .Commit = Binding.Target.Semantic.ExpectedHead, .Path = "secondary.cpp" }, body, false });
 				} else if (w.Method == wire::http_method::post && w.Path == issuePath) {
 					const auto id = 701 + State->CompatibilityComments.size();
 					State->CompatibilityComments.push_back({ id, "IC_" + std::to_string(id), root() + "#issuecomment-" + std::to_string(id), actor(), { }, { }, body, false });
@@ -585,6 +601,12 @@ namespace bpr::app::detail {
 							found  = true;
 						}
 					}
+					for (auto& c : State->FileComments) {
+						if (w.Path == repository() + "/pulls/comments/" + std::to_string(c.Id)) {
+							c.Body = body;
+							found  = true;
+						}
+					}
 					for (auto& c : State->CompatibilityComments) {
 						if (w.Path == repository() + "/issues/comments/" + std::to_string(c.Id)) {
 							c.Body = body;
@@ -620,6 +642,31 @@ namespace bpr::app::detail {
 				: Wire{ std::move(aState), aBinding, std::move(aDescription) }
 				, Session{ Wire, { .CredentialContext = { .Request = core::request_id{ 1 }, .ApplicationSession = core::application_session_id{ 1 }, .Authority = { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = aBinding.Target.Semantic.Host, .Hostname = aBinding.Target.Hostname, .Account = aBinding.ActingIdentity.Account, .ServerContract = aBinding.Target.ServerContract }, .IdentityGeneration = core::github_identity_generation{ 1 } }, .Target = aBinding.Target, .ActingIdentity = aBinding.ActingIdentity }, std::make_shared<staged_fixture_lease>(), std::move(aStore), std::move(aLog) }
 			{ }
+			auto tour_destinations(const core::review_tour& aTour, std::stop_token aStop) -> application::tour_destination_observations override
+			{
+				if (aStop.stop_requested()) {
+					return std::unexpected(application::review_mutation_failure::cancelled);
+				}
+				const auto lock = std::scoped_lock{ Wire.State->Mutex };
+				if (aTour.Owner.Host != Wire.Binding.Target.Semantic.Host || aTour.Owner.Account != Wire.Binding.ActingIdentity.Account || aTour.Owner.Repository != Wire.Binding.Target.Semantic.Repository || aTour.Owner.PullRequest != Wire.Binding.Target.Semantic.PullRequest || aTour.ObservedHead.value_or(aTour.Head) != Wire.Binding.Target.Semantic.ExpectedHead) {
+					return std::unexpected(application::review_mutation_failure::target_moved);
+				}
+				application::tour_destination_facts facts{ aTour.Owner, aTour.Id, aTour.Revision, aTour.ObservedHead.value_or(aTour.Head), { } };
+				for (const auto& stop : aTour.Stops) {
+					const auto source = core::publication_source(stop);
+					if (!source) {
+						continue;
+					}
+					auto observed = core::publication_observation(*source, facts.Head, aTour.Base, stop.Body, false, Wire.State->StagedQualified);
+					if (Wire.State->StagedFileQualified && source->Commit == facts.Head && source->Side == core::diff_side::right && source->Path == "secondary.cpp" && source->FirstLine == 1 && source->LastLine == 1) {
+						observed.PendingOffHunkBatch = core::tour_operation_support::unsupported;
+						observed.PendingFileThread   = core::tour_operation_support::unsupported;
+						observed.StandaloneFile      = core::tour_operation_support::supported;
+					}
+					facts.Observations.push_back(observed);
+				}
+				return facts;
+			}
 			auto pending(std::stop_token) -> application::review_submission_discovery override { return std::vector<application::review_submission_request>{ }; }
 			auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token) -> application::review_submission_result override { return { .Request = aRequest }; }
 			auto reconcile(const application::review_submission_request& aRequest, std::stop_token) -> application::review_submission_result override { return { .Request = aRequest }; }

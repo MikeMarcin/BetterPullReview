@@ -2076,6 +2076,12 @@ namespace bpr::app {
 		if (Closing || !draft || !TourPublication || !current(DraftWindow) || !TourRepairDraft || TourRepairDraft->Owner != draft->Owner || TourRepairDraft->ObservedHead.value_or(TourRepairDraft->Head) != draft->ObservedHead.value_or(draft->Head)) {
 			return;
 		}
+		if (aAction == qt::tour_repair_action::file_comment) {
+			if (const auto command = TourPublication->file_comment_edit(*draft, aStop)) {
+				TourHost->dispatch(*command);
+			}
+			return;
+		}
 		if (aAction == qt::tour_repair_action::apply_relocation) {
 			if (TourRepairCommand && TourRepairCommand->Stop == aStop) {
 				const auto command = std::exchange(TourRepairCommand, std::nullopt);

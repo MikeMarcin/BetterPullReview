@@ -146,7 +146,8 @@ namespace bpr::core {
 		std::optional<tour_code_destination> Destination;
 		std::optional<git_commit_oid>        ReaffirmedHead = std::nullopt;
 		std::optional<tour_suggestion>       Suggestion;
-		tour_completion_origin               CompletionOrigin = tour_completion_origin::unspecified;
+		tour_completion_origin               CompletionOrigin     = tour_completion_origin::unspecified;
+		bool                                 FileCommentRequested = false;
 	};
 
 	enum class tour_conflict_field : std::uint8_t { problem,

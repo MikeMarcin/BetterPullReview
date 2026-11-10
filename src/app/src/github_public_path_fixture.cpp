@@ -1268,10 +1268,16 @@ namespace bpr::app::detail {
 			if (aState.StagedReview && aState.StagedReview->State == application::staged_review_state::commented) {
 				reviews.push_back(*aState.StagedReview);
 			}
+
+			if (!aState.FileComments.empty()) {
+				const auto& actor = aState.FileComments.front().Actor;
+				reviews.push_back({ application::review_database_id{ 901 }, "PRR_901", aState.FileComments.front().WebUrl.substr(0, aState.FileComments.front().WebUrl.find('#')) + "#pullrequestreview-901", actor, aState.FileComments.front().Source->Commit, "", application::staged_review_state::commented });
+			}
 			auto comments = aState.PreviousComments;
 			if (aState.StagedReview && aState.StagedReview->State == application::staged_review_state::commented) {
 				comments.insert(comments.end(), aState.StagedComments.begin(), aState.StagedComments.end());
 			}
+			comments.insert(comments.end(), aState.FileComments.begin(), aState.FileComments.end());
 			const auto text = [](std::string_view aValue) { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); };
 			if (aOperation == read_operation::list_checks && aState.CheckRuns) {
 				document = QJsonDocument::fromJson(QByteArray::fromStdString(*aState.CheckRuns));
@@ -1294,6 +1300,14 @@ namespace bpr::app::detail {
 				}
 				search.insert("items", items);
 				document = QJsonDocument{ search };
+
+			} else if (aOperation == read_operation::list_issue_comments) {
+				auto nodes = document.array();
+				for (const auto& comment : aState.CompatibilityComments) {
+					QJsonObject value{ { "id", static_cast<qint64>(comment.Id) }, { "node_id", text(comment.NodeId) }, { "html_url", text(comment.WebUrl) }, { "body", text(comment.Body) }, { "user", QJsonObject{ { "id", static_cast<qint64>(comment.Actor.DatabaseId) }, { "node_id", text(comment.Actor.NodeId) }, { "login", text(comment.Actor.Login) } } }, { "created_at", "2026-11-09T12:00:00Z" }, { "updated_at", "2026-11-09T12:00:00Z" } };
+					nodes.append(value);
+				}
+				document = QJsonDocument{ nodes };
 			} else if (aOperation == read_operation::list_reviews) {
 				auto       nodes = document.array();
 				const auto seed  = nodes.first().toObject();
@@ -1379,7 +1393,20 @@ namespace bpr::app::detail {
 					thread.insert("line", static_cast<int>(source.LastLine + 1));
 					thread.insert("originalLine", static_cast<int>(source.LastLine + 1));
 					thread.insert("diffSide", source.Side == core::diff_side::right ? "RIGHT" : "LEFT");
-					thread.insert("subjectType", "LINE");
+
+					if (comment.Review.value() == 901) {
+						value.insert("line", QJsonValue::Null);
+						value.insert("originalLine", QJsonValue::Null);
+						value.insert("startLine", QJsonValue::Null);
+						value.insert("originalStartLine", QJsonValue::Null);
+						connection.insert("nodes", QJsonArray{ value });
+						thread.insert("comments", connection);
+						thread.insert("line", QJsonValue::Null);
+						thread.insert("originalLine", QJsonValue::Null);
+						thread.insert("subjectType", "FILE");
+					} else {
+						thread.insert("subjectType", "LINE");
+					}
 					thread.insert("isOutdated", false);
 					thread.insert("isResolved", false);
 					nodes.append(thread);

@@ -49,6 +49,7 @@ namespace bpr::core {
 	/// correspond one-for-one to stops; absent/mismatched entries stay unavailable.
 	[[nodiscard]] auto tour_destination_repairs(const review_tour&                            aTour,
 												std::span<const tour_destination_observation> aObservations, std::span<const tour_anchor_file> aFiles) -> std::vector<tour_destination_repair>;
+	[[nodiscard]] auto prepare_tour_file_comment(const review_tour&, tour_stop_id, const tour_destination_observation&, std::span<const tour_anchor_file>) -> std::optional<tour_command>;
 	/// \brief Prepare one ordinary revision-bound restore edit, suitable for the
 	/// tour host's existing undo/autosave lane. Recomputes the repair from current
 	/// evidence. It preserves prose, identity and remote discussion; line-number

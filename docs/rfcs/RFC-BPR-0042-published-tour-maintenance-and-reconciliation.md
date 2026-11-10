@@ -52,6 +52,30 @@ Substantive text changes may use a short visible correction/update note when exi
 
 PR-description edits are narrow body-only operations. Read just before writing, map/merge the requested sections, retain the baseline and proposed complete body, then reconcile the result. Do not invent ETag/If-Match or expected-body compare-and-swap support for a write endpoint that does not document it. Without an evidenced conditional write, disclose the residual concurrent-writer race; local preflight and post-read detection reduce risk but cannot eliminate it. Detected conflict preserves the author's proposed text and never triggers an automatic restoration that might overwrite a newer edit.
 
+## Mixed representation amendment — 2026-11-09
+
+Owner mandate `tour-destination-repairs-r1` ([[BPR-1979]]) extends the same
+published tour identity across native line/file comments and permalink
+conversation comments. The original submitted review remains the overview root
+for a mixed publication. Preserve each stop's actual remote kind, numeric/node
+identity, review association, URL and body baseline; a standalone file comment
+has its own association and is never relabeled as a pending member.
+
+Reorder, text edits, retirement and later insertion use the existing minimal
+body-update plan. Read both review and conversation collections, match each
+object by its own kind and actor, patch only affected navigation/ordinals, then
+update the original overview last. Previous/Next links cross representations in
+route order. A file subject compares its immutable commit/path as a file,
+independently of the selected snippet retained in the draft. Local source edits
+cannot retarget its existing remote discussion.
+
+Every creation and edit remains witnessed and resumable. A partial mixed
+publication/update keeps confirmed identities of both kinds; read-only restart
+reconciles them before an explicit preview/Resume. No repost, automatic rollback
+or conversion of a previously published compatibility route is authorized.
+Recorded mixed-session and composed editor courses qualify this implementation;
+existing live-server/native follow-ups retain their original evidence boundaries.
+
 ## Revision awareness
 
 A tour is authored against an exact comparison/head. Keep original source identity separate from a mapping onto a later revision. Mapping outcomes include Exact original, Moved with unchanged material, Changed material, Ambiguous, Missing and Source unavailable. Symbol/fingerprint heuristics are suggestions, not authority to silently move a public thread.

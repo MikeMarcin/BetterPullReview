@@ -214,7 +214,7 @@ namespace bpr::core {
 		}
 		return unique;
 	}
-	auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility) noexcept -> tour_publication_readiness
+	auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility, bool aMixed) noexcept -> tour_publication_readiness
 	{
 		using state      = tour_publication_readiness;
 		const auto blank = [](std::string_view aValue) { return aValue.find_first_not_of(" \r\n\t") == std::string_view::npos; };
@@ -225,6 +225,11 @@ namespace bpr::core {
 			return state::unavailable;
 		}
 		const bool fallback = std::ranges::any_of(aDestinations, [](const auto& aD) { return aD.RequiresCompatibility || !aD.JoinsPendingReview; });
+		if (aMixed) {
+			const bool native  = std::ranges::any_of(aDestinations, [](const auto& aD) { return aD.JoinsPendingReview && aD.Representation == tour_representation::native_line; });
+			const bool allowed = std::ranges::all_of(aDestinations, [](const auto& aD) { return (aD.JoinsPendingReview && aD.Representation == tour_representation::native_line) || (!aD.JoinsPendingReview && (aD.Representation == tour_representation::conversation_permalink || aD.Representation == tour_representation::file_permalink)); });
+			return !aCompatibility && fallback && native && allowed ? state::mixed_comments : state::unavailable;
+		}
 		if (fallback && !aCompatibility) {
 			return state::compatibility_choice;
 		}
@@ -240,7 +245,7 @@ namespace bpr::core {
 		return state::single_review;
 	}
 
-	auto assess_tour_update(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility, tour_operation_support aBodyEdits) -> tour_publication_readiness
+	auto assess_tour_update(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility, tour_operation_support aBodyEdits, bool aMixed) -> tour_publication_readiness
 	{
 		using state = tour_publication_readiness;
 		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || aDestinations.size() != aTour.Stops.size()) {
@@ -268,7 +273,7 @@ namespace bpr::core {
 				return state::incomplete;
 			}
 		}
-		return fresh.Stops.empty() ? (aCompatibility ? state::compatibility_comments : state::single_review) : assess_tour_publication(fresh, destinations, aCompatibility);
+		return fresh.Stops.empty() ? (aCompatibility ? state::compatibility_comments : state::single_review) : assess_tour_publication(fresh, destinations, aCompatibility, aMixed);
 	}
 	auto publication_source(const tour_stop& aStop) -> std::optional<tour_code_destination>
 	{

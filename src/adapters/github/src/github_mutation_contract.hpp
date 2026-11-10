@@ -83,6 +83,8 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1368]]. GraphQL: a tour stop edited while its review is
 		/// pending, where the REST edit answers 404.
 		staged_update_pending_comment,
+		staged_create_file_comment,
+		staged_list_file_comments,
 		/// [[BPR-1560]]. REST compare: the merge base GitHub numbers a LEFT
 		/// line in now, asked before anything on a LEFT line is published.
 		observe_merge_base,
@@ -818,6 +820,7 @@ namespace bpr::adapters::github::detail {
 		std::string                  Login;
 		/// A comment on a line or range, not on the file.
 		bool OnLine = false;
+		bool OnFile = false;
 		bool Reply  = false;
 
 		auto operator==(const review_comment_collection_entry&) const -> bool = default;

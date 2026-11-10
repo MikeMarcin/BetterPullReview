@@ -124,15 +124,16 @@ auto main(int argc, char** argv) -> int
 	auto          currentDataRoot      = dataRoot;
 	auto          server               = std::make_shared<app::detail::review_submission_fixture_state>();
 	server->CliStrictCourse            = cliMode;
-	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};options.ViewerAuthors=mode=="compat";options.TourDestinationRepairsCourse=mode=="repairs";cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto aResult){terminal=true;if(aResult){started=std::move(*aResult);
+	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};options.ViewerAuthors=mode=="compat";options.TourDestinationRepairsCourse=mode=="repairs" || mode=="mixed" || mode=="file";cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto aResult){terminal=true;if(aResult){started=std::move(*aResult);
 }});wait([&]{return terminal && startup && startup->is_quiescent();},"publication app starts");expect(started!=nullptr,"publication startup accepted");return started; };
 	const std::string originalTemplate = "# Existing template\r\n\r\nKeep [the ticket](https://example.invalid/123) and this checklist.\r\n- [ ] Original check\r\n";
 	if (mode != "description") {
 		server->StagedDescription = originalTemplate;
 	}
-	server->DraftPullRequest = mode == "manual";
-	server->StagedQualified  = mode != "unsupported";
-	auto application         = make();
+	server->DraftPullRequest    = mode == "manual";
+	server->StagedQualified     = mode != "unsupported";
+	server->StagedFileQualified = mode == "file";
+	auto application            = make();
 	try {
 		open(*application, cli);
 		auto&      window = application->window();
@@ -150,11 +151,184 @@ auto main(int argc, char** argv) -> int
 		editor.stop_title()->setPlainText(QStringLiteral("Capture the original"));
 		editor.stop_body()->setPlainText(QStringLiteral("Retain this exact source interval."));
 		select_file(window, "secondary.cpp");
-		select_range(window, core::diff_side::right, 1, 3);
+		select_range(window, core::diff_side::right, mode == "mixed" ? 2U : 1U, mode == "mixed" ? 4U : 3U);
 		window.add_tour_stop_action()->trigger();
 		editor.stop_title()->setPlainText(QStringLiteral("Use the retained source"));
 		editor.stop_body()->setPlainText(QStringLiteral("Connect the explanation to the original decision."));
 		saved(editor);
+
+		if (mode == "file") {
+			auto       fixtureDraft                    = *editor.shown().Draft;
+			const auto expected                        = fixtureDraft.Revision;
+			fixtureDraft.Stops[1].Original->First.Line = 1;
+			fixtureDraft.Stops[1].Original->Last.Line  = 1;
+			++fixtureDraft.Revision;
+			shutdown(*application);
+			application.reset();
+			{
+				auto store = adapters::sqlite::make_review_tour_store(*dataRoot, fixtureDraft.Owner.Profile);
+				expect(store->save(fixtureDraft, expected, { }).has_value(), "file choice fixture saves");
+			}
+			application = make();
+			open(*application, cli);
+			auto& fileWindow = application->window();
+			auto& fileEditor = *fileWindow.tour_editor();
+			wait([&] { return fileEditor.shown().Draft && fileEditor.shown().Draft->Stops.size() == 2; }, "file draft opens");
+			select_file(fileWindow, "review.cpp");
+			fileWindow.open_tour_page(true);
+			fileWindow.resize(1200, 760);
+			fileEditor.roadmap()->setCurrentIndex(fileEditor.roadmap()->count() - 1);
+			auto find = [&](const char* aName) { return fileEditor.findChild<QPushButton*>(QString::fromUtf8(aName)); };
+			// Unknown exact operation facts do not expose a file choice, even though ordinary tour publishing is qualified.
+			server->StagedFileQualified = false;
+			find("tourPreparePublication")->click();
+			wait([&] { return fileEditor.findChild<QLabel*>(QStringLiteral("tourRepairReason2")); }, "unknown operations project reason");
+			expect(!fileEditor.findChild<QPushButton*>(QStringLiteral("tourFileComment2")) && !find("tourPublish")->isEnabled() && server->StagedWrites == 0, "general qualification grants no file operation");
+			// A fresh revision asks the provider again. Only this exact commit/path/range has recorded support.
+			server->StagedFileQualified = true;
+			fileEditor.outline()->setCurrentRow(0);
+			fileEditor.findChild<QToolButton*>(QStringLiteral("tourStopEdit"))->click();
+			fileEditor.stop_title()->setPlainText("Exact file capability course");
+			saved(fileEditor);
+			find("tourPreparePublication")->click();
+			wait([&] { return find("tourFileComment2"); }, "exact standalone support exposes explicit file choice");
+			find("tourFileComment2")->click();
+			expect(fileEditor.shown().Draft->Stops[1].FileCommentRequested, "file choice is an ordinary local edit");
+			fileEditor.findChild<QAction*>(QStringLiteral("tourUndo"))->trigger();
+			expect(!fileEditor.shown().Draft->Stops[1].FileCommentRequested, "file choice can be undone");
+			fileEditor.findChild<QAction*>(QStringLiteral("tourRedo"))->trigger();
+			expect(fileEditor.shown().Draft->Stops[1].FileCommentRequested, "file choice can be redone");
+			saved(fileEditor);
+			fileEditor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode"))->setCurrentIndex(1);
+			fileEditor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
+			find("tourPreparePublication")->click();
+			wait([&] { return find("tourPublish")->isEnabled(); }, "explicit file mixed preview is ready");
+			expect(fileEditor.publication_preview()->original_body().contains("standalone file comment, a separate visible write outside the pending review"), "file preview states true membership and visible sequence");
+			fileEditor.outline()->setCurrentRow(1);
+			QApplication::processEvents();
+			expect(fileEditor.publication_preview()->height() >= 160, "file plan retains a readable viewport");
+			if (argc > 2) {
+				expect(fileWindow.grab().save(QString::fromUtf8(argv[2]) + "-file.png"), "file full-window render");
+			}
+			// Interrupt the separate file write after its durable receipt, reopen, and resume only by command.
+			{
+				const auto lock  = std::scoped_lock{ server->Mutex };
+				server->Boundary = [state = server.get()](std::size_t aIndex, std::string_view aBoundary) {if(aIndex==1 && aBoundary=="applied"){state->StagedBlockNext=true;} };
+			}
+			find("tourPublish")->click();
+			wait([&] {const auto lock=std::scoped_lock{server->Mutex};return server->StagedBlocked; }, "file write is interrupted after transmission");
+			find("tourStop")->click();
+			wait([&] { return !find("tourStop")->isEnabled(); }, "file stop drains");
+			shutdown(*application);
+			application.reset();
+			{
+				const auto lock         = std::scoped_lock{ server->Mutex };
+				server->Boundary        = { };
+				server->StagedBlockNext = false;
+			}
+			application = make();
+			open(*application, cli);
+			auto& resumed = *application->window().tour_editor();
+			auto  rb      = [&](const char* aName) { return resumed.findChild<QPushButton*>(QString::fromUtf8(aName)); };
+			wait([&] { return resumed.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains("Partially published") || resumed.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains("Staged"); }, "file restart reconciles read-only");
+			{
+				const auto lock = std::scoped_lock{ server->Mutex };
+				expect(server->StagedWrites == 2 && server->FileComments.size() == 1 && server->StagedComments.size() == 1, "standalone file is retained separately from pending membership");
+			}
+			rb("tourPreparePublication")->click();
+			expect(rb("tourResume")->isEnabled(), "file recovery needs explicit Resume");
+			rb("tourResume")->click();
+			wait([&] { return resumed.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().startsWith("Published:"); }, "file mixed Resume completes");
+			saved(resumed);
+			expect(resumed.shown().Draft->Stops[1].Remote->Kind == core::tour_remote_kind::file_comment, "file binding keeps its remote kind");
+			resumed.outline()->setCurrentRow(1);
+			resumed.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
+			saved(resumed);
+			rb("tourPreparePublication")->click();
+			wait([&] { return rb("tourPublish")->isEnabled(); }, "file maintenance preview");
+			rb("tourPublish")->click();
+			wait([&] { return resumed.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().startsWith("Published:"); }, "file maintenance completes");
+			{
+				const auto lock = std::scoped_lock{ server->Mutex };
+				expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->FileComments.size() == 1 && server->CompatibilityComments.empty(), "file recovery and maintenance never repost or pretend it joined the pending batch");
+			}
+			shutdown(*application);
+			std::cout << "review-tour-publication:file:pass\n";
+			return EXIT_SUCCESS;
+		}
+		if (mode == "mixed") {
+			auto       fixtureDraft         = *editor.shown().Draft;
+			const auto expected             = fixtureDraft.Revision;
+			auto       historical           = fixtureDraft.Stops.front();
+			historical.Id                   = core::tour_stop_id{ 3 };
+			historical.Title                = "Keep the historical discussion";
+			historical.Original->Commit     = *core::parse_git_commit_oid("d7d2f5c3e8762bbddc4e9e3444aa21a2fa74c3b7");
+			historical.Original->First.Line = 4U;
+			historical.Original->Last.Line  = 5U;
+			fixtureDraft.Stops.insert(fixtureDraft.Stops.begin() + 1, historical);
+			fixtureDraft.LastStopId = 3;
+			++fixtureDraft.Revision;
+			shutdown(*application);
+			application.reset();
+			{
+				auto store = adapters::sqlite::make_review_tour_store(*dataRoot, fixtureDraft.Owner.Profile);
+				expect(store->save(fixtureDraft, expected, { }).has_value(), "mixed fixture saves through ordinary store");
+			}
+			application = make();
+			open(*application, cli);
+			auto& mixedWindow = application->window();
+			auto& mixedEditor = *mixedWindow.tour_editor();
+			wait([&] { return mixedEditor.shown().Draft && mixedEditor.shown().Draft->Stops.size() == 3; }, "mixed fixture opens");
+			select_file(mixedWindow, "review.cpp");
+			mixedWindow.open_tour_page(true);
+			mixedWindow.resize(1200, 760);
+			mixedEditor.roadmap()->setCurrentIndex(mixedEditor.roadmap()->count() - 1);
+			auto find = [&](const char* aName) { return mixedEditor.findChild<QPushButton*>(QString::fromUtf8(aName)); };
+			find("tourPreparePublication")->click();
+			wait([&] { return mixedEditor.findChild<QPushButton*>(QStringLiteral("tourRepin3")); }, "repair remains the first offered option");
+			expect(!find("tourPublish")->isEnabled(), "mixed outcome is never selected silently");
+			auto* modes = mixedEditor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode"));
+			expect(modes->count() == 3 && modes->itemText(1).contains("mixed") && modes->itemText(2).contains("compatibility"), "explicit outcome ordering is repair mixed compatibility");
+			modes->setCurrentIndex(1);
+			mixedEditor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
+			find("tourPreparePublication")->click();
+			wait([&] { return find("tourPublish")->isEnabled(); }, "explicit mixed preview is publishable");
+			const auto preview = mixedEditor.publication_preview()->original_body();
+			expect(preview.contains("non-atomic") && preview.contains("Stops outside Files changed:") && preview.contains("Stop 2: Keep the historical discussion") && preview.contains("one COMMENT submission"), "preview identifies exact outside-diff stops and visible sequence");
+			expect(server->StagedWrites == 0, "mixed preview sends nothing");
+			mixedEditor.outline()->setCurrentRow(1);
+			QApplication::processEvents();
+			expect(mixedEditor.publication_preview()->height() >= 160, "mixed plan retains a readable viewport");
+			if (argc > 2) {
+				expect(mixedWindow.grab().save(QString::fromUtf8(argv[2]) + "-mixed.png"), "mixed full-window render");
+			}
+			find("tourPublish")->click();
+			wait([&] { return mixedEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains("Published:"); }, "mixed tour publishes");
+			saved(mixedEditor);
+			{
+				const auto lock = std::scoped_lock{ server->Mutex };
+				expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedComments.size() == 2 && server->CompatibilityComments.size() == 1 && server->StagedWrites == 6, "mixed route creates exactly one review and only its one conversation remainder");
+				expect(server->StagedReview->Body.find("/files#r601") < server->StagedReview->Body.find("#issuecomment-701") && server->StagedReview->Body.find("#issuecomment-701") < server->StagedReview->Body.find("/files#r602"), "mixed overview follows original interleaved order");
+				expect(server->CompatibilityComments.front().Body.contains("/files#r601") && server->CompatibilityComments.front().Body.contains("/files#r602"), "cross-kind previous and next use returned identities");
+			}
+			const auto original = *mixedEditor.shown().Draft;
+			expect(original.Remote && original.Stops[1].Remote->Kind == core::tour_remote_kind::conversation_comment && original.Stops[2].Remote->DatabaseId == 602, "composed receipt binds one tour in route order");
+			mixedEditor.outline()->setCurrentRow(1);
+			mixedEditor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
+			saved(mixedEditor);
+			find("tourPreparePublication")->click();
+			expect(find("tourPublish")->isEnabled(), "mixed tour can later preview ordinary maintenance");
+			find("tourPublish")->click();
+			wait([&] { return mixedEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains("Published:"); }, "mixed maintenance completes");
+			saved(mixedEditor);
+			{
+				const auto lock = std::scoped_lock{ server->Mutex };
+				expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->CompatibilityComments.size() == 1 && server->StagedWritePaths.back().ends_with("/reviews/501"), "maintenance retains all cross-kind identities and writes original overview last");
+			}
+			shutdown(*application);
+			std::cout << "review-tour-publication:mixed:pass\n";
+			return EXIT_SUCCESS;
+		}
 		if (mode == "repairs") {
 			// Fixture preparation uses the same admitted store. The running
 			// course below obtains all mapping/material itself through Git.
@@ -258,7 +432,7 @@ auto main(int argc, char** argv) -> int
 		}
 		editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
 		if (mode == "compat") {
-			editor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode"))->setCurrentIndex(1);
+			editor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode"))->setCurrentIndex(2);
 		}
 		// [[BPR-1787]]. The brief goes in the description by default; the stop
 		// course keeps it in the tour comment instead.
@@ -269,7 +443,7 @@ auto main(int argc, char** argv) -> int
 		button("tourPreparePublication")->click();
 		if (mode == "unsupported") {
 			expect(!button("tourPublish")->isEnabled() && status->text().contains(QStringLiteral("unavailable")), "unqualified batching cannot authorize publication");
-			editor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode"))->setCurrentIndex(1);
+			editor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode"))->setCurrentIndex(2);
 			button("tourPreparePublication")->click();
 			expect(!button("tourPublish")->isEnabled(), "explicit fallback choice cannot manufacture operation support");
 			{

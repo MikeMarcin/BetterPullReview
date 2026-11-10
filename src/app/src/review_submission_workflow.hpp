@@ -177,6 +177,7 @@ namespace bpr::app {
 		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, std::string aDescription, bool aQualified = false, application::insights_review_capture = { });
 		void               observe(const application::tour_presentation&);
 		void               observe_anchors(core::git_commit_oid, std::vector<core::tour_anchor_file>);
+		[[nodiscard]] auto file_comment_edit(const core::review_tour&, core::tour_stop_id) const -> std::optional<core::tour_command>;
 		void               dispatch(qt::tour_editor_action);
 		void               invalidate();
 		void               shutdown();
@@ -202,6 +203,7 @@ namespace bpr::app {
 		application::tour_presentation                                                Draft;
 		core::git_commit_oid                                                          AnchorHead;
 		std::vector<core::tour_anchor_file>                                           AnchorFiles;
+		std::optional<application::tour_destination_facts>                            DestinationFacts;
 		bool                                                                          DestinationsChecked = false;
 		std::optional<application::staged_review_plan>                                Plan;
 		std::optional<application::staged_publication_record>                         Record;

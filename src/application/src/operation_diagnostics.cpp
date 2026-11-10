@@ -72,6 +72,8 @@ namespace bpr::application {
 		case staged_review_operation::list_issue_comments:    return stage::list_issue_comments;
 		case staged_review_operation::create_issue_comment:   return stage::create_issue_comment;
 		case staged_review_operation::update_issue_comment:   return stage::update_issue_comment;
+		case staged_review_operation::create_file_comment:    return stage::create_file_comment;
+		case staged_review_operation::list_file_comments:     return stage::list_file_comments;
 		case staged_review_operation::update_pending_comment: return stage::update_pending_comment;
 		}
 		return stage::request_preparation;

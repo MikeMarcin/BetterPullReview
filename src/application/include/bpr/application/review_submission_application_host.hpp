@@ -34,8 +34,8 @@ namespace bpr::application {
 	};
 	struct review_submission_host_terminal
 	{
-		review_submission_host_context                                                                                                                    Context;
-		std::variant<review_submission_discovery, review_submission_result, staged_review_discovery, staged_publication_result, review_submission_lookup> Outcome;
+		review_submission_host_context                                                                                                                                                   Context;
+		std::variant<review_submission_discovery, review_submission_result, staged_review_discovery, staged_publication_result, review_submission_lookup, tour_destination_observations> Outcome;
 		/// [[BPR-1541]]. With a discovery: why each discovered attempt was
 		/// last left unknown, by its key, as its record keeps it.
 		std::map<std::string, core::review_submission_unknown_diagnosis> Unknown = { };
@@ -77,6 +77,7 @@ namespace bpr::application {
 		[[nodiscard]] auto reconcile(const review_submission_request& aRequest) -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto discover_conversation_replies() -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto save_conversation_reply(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context>;
+		[[nodiscard]] auto observe_tour_destinations(const core::review_tour&) -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto discover_tours() -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto publish_tour(const staged_review_plan& aPlan, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto reconcile_tour(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context>;

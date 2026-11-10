@@ -42,7 +42,8 @@ namespace bpr::qt {
 	class tour_agent_panel;
 	enum class tour_repair_action : std::uint8_t { repin,
 												   preview_relocation,
-												   apply_relocation };
+												   apply_relocation,
+												   file_comment };
 	enum class tour_editor_action : std::uint8_t { import_selected,
 												   retry_save,
 												   use_saved_copy,
@@ -125,6 +126,7 @@ namespace bpr::qt {
 		void               set_repair_dispatch(std::function<void(core::tour_stop_id, tour_repair_action)>);
 		void               present_repair_preview(core::tour_stop_id, const core::tour_source_range&, std::string_view, std::uint64_t);
 		[[nodiscard]] auto compatibility_publication() const -> bool;
+		[[nodiscard]] auto mixed_publication() const -> bool;
 		[[nodiscard]] auto description_publication() const -> bool;
 		void               show_problem();
 		void               present_outline(const std::vector<core::tour_outline_entry>& aEntries);

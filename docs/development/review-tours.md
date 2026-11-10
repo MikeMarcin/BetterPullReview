@@ -57,24 +57,40 @@ title and reason. Select its linked title to open and scroll to that stop.
   edit the draft before applying it.
 
 Repairing every blocker keeps **Keep single-review publication**: preview again
-and publish every stop in one COMMENT review. **Publish with compatibility
-comments (non-atomic)** remains an explicit last choice; it publishes the whole
-route as visible conversation comments. Previewing or repairing sends nothing.
+and publish every stop in one COMMENT review. Previewing or repairing sends
+nothing.
 
-File-comment support is a separate operation capability. A standalone file
-comment cannot be represented as a private pending item in the current publisher.
-An unknown or denied operation never enables it, and a painted file or line does
-not prove support. The mixed/file publication extension is still under development.
+If you keep a historical or other incompatible destination, explicitly choose
+**Publish a mixed tour (non-atomic)**. Eligible stops go into one pending review;
+only the remainder become conversation comments opening with source permalinks.
+The review body lists the complete route, and Previous/Next crosses between both
+kinds. The preview names exactly which stops will be outside Files changed.
+Those conversation comments become visible before the final review submission,
+so interruption can leave a partial tour.
+
+**Publish with compatibility comments (non-atomic)** is the last explicit
+choice. It publishes the entire route as visible conversation comments.
+
+**Publish as file comment** appears only when the provider has exact supported
+file-operation facts for that source and scope. It is an ordinary undoable choice;
+then preview the mixed outcome explicitly. A standalone file comment is a separate
+visible write, with its own discussion identity, outside the pending review.
+General tour support, a painted file or a line never proves this capability.
+Unknown or denied operations leave the action unavailable. Current production
+providers keep these file facts Unknown pending separate live qualification;
+the positive recorded fixture is implementation evidence, not server enablement.
 
 ## Updating a published tour
 
 Reopening a tour reads it back from GitHub. If someone edited it on the
 website, you choose between your version and theirs. Removing a stop leaves
-its old comment and replies on GitHub.
+its old comment and replies on GitHub. Mixed tours keep their original review
+overview and both comment kinds through updates; the overview is changed last.
 
 > [!WARNING]
-> If a publish ends with an unknown result, choose **Resume** rather than
-> publishing again, or comments may be posted twice.
+> If publication ends with an unknown result, use **Check status**, then
+> preview the captured plan and explicitly **Resume**. Confirmed comments keep
+> their identities; an unresolved write is never repeated blindly.
 
 ## Writing assistance
 

@@ -36,6 +36,7 @@ namespace bpr::app {
 		case step::verification:
 		case step::recovery:
 			switch (aResult.Diagnosis->Operation.value_or(application::staged_review_operation::discard_pending)) {
+			case application::staged_review_operation::list_file_comments:  reason = "Could not check file comments"; break;
 			case application::staged_review_operation::list_issue_comments: reason = "Could not check pull request comments"; break;
 			case application::staged_review_operation::list_reviews:        reason = "Could not check pull request reviews"; break;
 			case application::staged_review_operation::read_review:         reason = "Could not check the captured review"; break;
@@ -74,7 +75,22 @@ namespace bpr::app {
 		}
 		return result + "This attempt sent nothing; your private draft is kept.";
 	}
-	auto prepare_tour_plan(const core::review_tour& aDraft, const application::review_submission_live_binding& aBinding, std::string_view aDescription, tour_publication_options aOptions, bool aQualified, std::span<const core::tour_anchor_file> aFiles) -> tour_plan_preparation
+	auto tour_operation_observation(const core::review_tour& aTour, const core::tour_stop& aStop, bool aCompatibility, bool aQualified, std::span<const core::tour_destination_observation> aFacts) -> core::tour_destination_observation
+	{
+		const auto source = core::publication_source(aStop);
+		if (!source) {
+			return { };
+		}
+		auto       observed = core::publication_observation(*source, aTour.ObservedHead.value_or(aTour.Head), aTour.Base, aStop.Body, aCompatibility, aQualified);
+		const auto fact     = std::ranges::find(aFacts, *source, &core::tour_destination_observation::Source);
+		if (fact != aFacts.end()) {
+			observed.PendingOffHunkBatch = fact->PendingOffHunkBatch;
+			observed.PendingFileThread   = fact->PendingFileThread;
+			observed.StandaloneFile      = fact->StandaloneFile;
+		}
+		return observed;
+	}
+	auto prepare_tour_plan(const core::review_tour& aDraft, const application::review_submission_live_binding& aBinding, std::string_view aDescription, tour_publication_options aOptions, bool aQualified, std::span<const core::tour_anchor_file> aFiles, std::span<const core::tour_destination_observation> aFacts) -> tour_plan_preparation
 	{
 		tour_plan_preparation                      result;
 		const auto&                                draft         = aDraft;
@@ -87,14 +103,17 @@ namespace bpr::app {
 				decisions.push_back({ });
 				continue;
 			}
-			const auto observed = core::publication_observation(*source, draft.ObservedHead.value_or(draft.Head), draft.Base, stop.Body, compatibility, aQualified);
+			const auto observed = tour_operation_observation(draft, stop, compatibility, aQualified, aFacts);
 			decisions.push_back(core::plan_tour_stop_repair(draft, stop, observed, aFiles).Destination);
+			if (decisions.back().Representation == core::tour_representation::file_permalink && (!stop.FileCommentRequested || decisions.back().JoinsPendingReview)) {
+				decisions.back() = { };
+			}
 			const auto link = adapters::github::detail::compile_tour_permalink({ std::string{ aBinding.Target.Hostname.value() }, aBinding.Target.Repository }, *source);
-			stops.push_back({ stop.Id, *source, stop.Title, stop.Body, link.value_or(std::string{ }) });
+			stops.push_back({ stop.Id, *source, stop.Title, stop.Body, link.value_or(std::string{ }), decisions.back().Representation });
 		}
-		const auto readiness = draft.Remote ? core::assess_tour_update(draft, decisions, compatibility, aQualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown) : core::assess_tour_publication(draft, decisions, compatibility);
-		if (readiness != core::tour_publication_readiness::single_review && readiness != core::tour_publication_readiness::compatibility_comments) {
-			result.Status = readiness == core::tour_publication_readiness::incomplete ? "Complete Problem, Solution and every stop with an exact available source before publishing." : readiness == core::tour_publication_readiness::compatibility_choice ? "Repair incompatible destinations to keep one review. Compatibility comments remain an explicit last choice."
+		const auto readiness = draft.Remote ? core::assess_tour_update(draft, decisions, compatibility, aQualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown, aOptions.Mixed) : core::assess_tour_publication(draft, decisions, compatibility, aOptions.Mixed);
+		if (readiness != core::tour_publication_readiness::single_review && readiness != core::tour_publication_readiness::compatibility_comments && readiness != core::tour_publication_readiness::mixed_comments) {
+			result.Status = readiness == core::tour_publication_readiness::incomplete ? "Complete Problem, Solution and every stop with an exact available source before publishing." : readiness == core::tour_publication_readiness::compatibility_choice ? "Repair incompatible destinations to keep one review, or explicitly choose a mixed tour. Compatibility comments remain an explicit last choice."
 																																																															: "Publication is unavailable for these destinations. Move each stop to a line GitHub can comment on, or keep preparing locally.";
 			return result;
 		}
@@ -112,10 +131,13 @@ namespace bpr::app {
 		submission.Proposal.Disposition = core::review_disposition::comment;
 		submission.IdempotencyKey       = "tour-" + std::to_string(draft.Owner.Profile.value()) + "-" + std::to_string(draft.Id.value()) + "-" + std::to_string(draft.Revision);
 		submission.LiveBinding          = aBinding;
-		application::staged_review_plan value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility };
+		application::staged_review_plan value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility, .Mixed = aOptions.Mixed };
 		if (draft.Remote) {
 			value.Update = draft;
 			std::erase_if(value.Stops, [&](const auto& aStop) {const auto found=std::ranges::find(draft.Stops,aStop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
+		}
+		if (value.Update && value.Stops.empty()) {
+			value.Mixed = false;
 		}
 		if (briefInDescription) {
 			const auto desired = core::propose_tour_description(draft, aDescription);
@@ -144,15 +166,30 @@ namespace bpr::app {
 			}
 		}
 		result.Plan   = std::move(value);
-		result.Status = draft.Remote ? "Preview ready: non-atomic update; new destinations first, affected comments next, original index last. Concurrent website changes may conflict." : compatibility ? "Preview ready: visible compatibility comments, then index and navigation; non-atomic."
-																																																		 : "Preview ready: one pending review, verified navigation, then one COMMENT submission.";
+		result.Status = draft.Remote ? "Preview ready: non-atomic update; new destinations first, affected comments next, original index last. Concurrent website changes may conflict." : aOptions.Mixed ? "Preview ready: one pending review, then visible conversation comments for the remaining stops, cross-kind navigation, and one COMMENT submission; non-atomic."
+			: compatibility                                                                                                                                                                               ? "Preview ready: visible compatibility comments, then index and navigation; non-atomic."
+																																																		  : "Preview ready: one pending review, verified navigation, then one COMMENT submission.";
 		return result;
 	}
 	auto tour_plan_markdown(const application::staged_review_plan& aPlan) -> std::string
 	{
-		std::string result = "### " + std::string{ aPlan.Update ? "Update existing tour — non-atomic" : aPlan.Compatibility ? "Compatibility comments — non-atomic"
-																															: "One COMMENT review" }
+		std::string result = "### " + std::string{ aPlan.Update ? "Update existing tour — non-atomic" : aPlan.Mixed ? "Mixed tour — non-atomic"
+													   : aPlan.Compatibility                                        ? "Compatibility comments — non-atomic"
+																													: "One COMMENT review" }
 			+ "\n\nHost: " + std::string{ aPlan.Submission.LiveBinding->Target.Hostname.value() } + " · Repository: " + aPlan.Submission.LiveBinding->Target.Repository.Owner + "/" + aPlan.Submission.LiveBinding->Target.Repository.Name + " · Actor: " + aPlan.Submission.LiveBinding->ActingIdentity.Login + " · PR #" + std::to_string(aPlan.Submission.LiveBinding->Target.Number.value()) + "\n\nHead: `" + std::string{ core::canonical_hex(aPlan.Submission.LiveBinding->Target.Semantic.ExpectedHead).view() } + "`\n\n" + aPlan.Submission.Proposal.Body;
+		if (aPlan.Mixed) {
+			for (std::size_t i = 0; i < aPlan.Stops.size(); ++i) {
+				if (aPlan.Stops[i].Representation == core::tour_representation::file_permalink) {
+					result += "\n\nStop " + std::to_string(i + 1) + ": " + aPlan.Stops[i].Title + " publishes as a standalone file comment, a separate visible write outside the pending review.";
+				}
+			}
+			result += "\n\nOne pending review is created first. Conversation comments become visible one at a time, then navigation is patched, followed by one COMMENT submission. Interrupted publication can remain partial.\n\nStops outside Files changed:";
+			for (std::size_t i = 0; i < aPlan.Stops.size(); ++i) {
+				if (aPlan.Stops[i].Representation == core::tour_representation::conversation_permalink) {
+					result += "\n- Stop " + std::to_string(i + 1) + ": " + aPlan.Stops[i].Title;
+				}
+			}
+		}
 		for (const auto& stop : aPlan.Stops) {
 			result += "\n\n### " + stop.Title + "\n\n" + stop.SourceLink + "\n\n" + stop.Narrative;
 		}

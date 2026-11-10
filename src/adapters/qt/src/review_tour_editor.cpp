@@ -1909,6 +1909,8 @@ namespace bpr::qt {
 		publication->addWidget(onGithub);
 		PublicationPreview = new markdown_body_view{ PublicationPanel };
 		PublicationPreview->setObjectName(QStringLiteral("tourPublicationPreview"));
+		PublicationPreview->setAccessibleName(tr("Captured publication plan"));
+		PublicationPreview->setMinimumHeight(160);
 		publication->addWidget(PublicationPreview, 1);
 		// [[BPR-1782]]. A publication under way, or one that did not finish, is
 		// said in Compose review's waiting panel: the mark, a plain title, what
@@ -2004,7 +2006,7 @@ namespace bpr::qt {
 		publication->addWidget(RepairPreview);
 		PublicationMode = new QComboBox{ PublicationPanel };
 		PublicationMode->setObjectName(QStringLiteral("tourPublicationMode"));
-		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish with compatibility comments (non-atomic)") });
+		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish a mixed tour (non-atomic)"), tr("Publish with compatibility comments (non-atomic)") });
 		publication->addWidget(PublicationMode);
 		DescriptionEdit = new QCheckBox{ tr("Update PR description after publishing"), PublicationPanel };
 		DescriptionEdit->setObjectName(QStringLiteral("tourDescriptionEdit"));
@@ -2182,7 +2184,8 @@ namespace bpr::qt {
 		ApplyRepair->setFocus();
 		reveal_focus(RepairPreview);
 	}
-	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
+	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 2; }
+	auto review_tour_editor::mixed_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
 	auto review_tour_editor::description_publication() const -> bool { return DescriptionEdit->isChecked(); }
 	void review_tour_editor::present_publication(const application::tour_publication_presentation& aProjection)
 	{
@@ -2245,14 +2248,15 @@ namespace bpr::qt {
 					addRepair(tr("Move to nearest change…"), QStringLiteral("tourRelocate"), tour_repair_action::preview_relocation);
 				}
 				if (repair.FileComment) {
-					repairLayout->addWidget(paragraph(tr("A file comment is qualified, but this publisher cannot stage it in one review yet. Keep preparing or choose compatibility comments."), group));
+					addRepair(tr("Publish as file comment"), QStringLiteral("tourFileComment"), tour_repair_action::file_comment);
+					repairLayout->addWidget(paragraph(tr("A standalone file comment is a separate visible write. Preview a mixed tour to keep the other stops in one review."), group));
 				}
 				actions->addStretch(1);
 				repairLayout->addLayout(actions);
 				repairContents->layout()->addWidget(group);
 			}
 		}
-		RepairList->setVisible(!ShownRepairs.empty());
+		RepairList->setVisible(!ShownRepairs.empty() && aProjection.Markdown.empty());
 		if (!Shown.Draft || Shown.Draft->Revision != PreviewRepairRevision || aProjection.Stop) {
 			RepairPreview->hide();
 		}
@@ -2262,6 +2266,9 @@ namespace bpr::qt {
 		// [[BPR-1593]]. What a prepared publication sends; until then the
 		// tour's own preview shows what GitHub will show.
 		PublicationPreview->setVisible(!aProjection.Markdown.empty());
+		if (Preview->parentWidget() == PublicationPanel) {
+			Preview->setVisible(aProjection.Markdown.empty());
+		}
 		// [[BPR-1782]]. As Compose review waits for GitHub: the panel says it,
 		// the status line steps aside, and nothing that would change what is
 		// being sent can be used meanwhile. Stop stays.
@@ -4807,6 +4814,7 @@ namespace bpr::qt {
 			PreviewPublish->show();
 			if (auto* const previewPage = Roadmap->widget(Roadmap->count() - 1); previewPage != nullptr && Preview->parentWidget() != previewPage) {
 				static_cast<QVBoxLayout*>(previewPage->layout())->addWidget(Preview, 1);
+				Preview->show();
 			}
 		} else {
 			auto* const left = static_cast<QVBoxLayout*>(PageLeft->layout());
@@ -4834,6 +4842,7 @@ namespace bpr::qt {
 			PageColumns->show();
 			PreviewPublish->hide();
 			static_cast<QVBoxLayout*>(PublicationPanel->layout())->insertWidget(1, Preview, 1);
+			Preview->setVisible(PublicationPreview->isHidden());
 			refresh_preview();
 			if (BriefOpen >= 0) {
 				Roadmap->setCurrentIndex(BriefOpen);

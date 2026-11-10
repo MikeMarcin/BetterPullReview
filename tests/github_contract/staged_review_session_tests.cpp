@@ -170,6 +170,7 @@ namespace {
 	struct server final : github_mutation_wire_transport
 	{
 		bool               Maintenance   = false;
+		bool               Mixed         = false;
 		bool               PagedComments = false, FailSecondPage = false, ForeignNext = false;
 		std::size_t        PageTwoReads = 0;
 		std::optional<int> BaselineStatus;
@@ -447,17 +448,17 @@ namespace {
 			const auto  json   = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
 			std::string answer = "{}";
 			if (wire.Method == http_method::post && wire.Path == "/repos/MikeMarcin/BPR-Test/issues/1/comments") {
-				expect(!Created && json.size() == 1, "explicit compatibility never creates a native review");
+				expect((Mixed || !Created) && json.size() == 1, "only explicit mixed publication combines a review and conversation comments");
 				const auto body = json["body"].toString().toStdString();
 				if (IssueBodies.size() == 2) {
 					expect(body.contains("#issuecomment-701") && body.contains("#issuecomment-702"), "compatibility index follows actual returned stop identities");
 				}
 				IssueBodies.push_back(body);
 			} else if (wire.Method == http_method::patch && (wire.Path == "/repos/MikeMarcin/BPR-Test/issues/comments/701" || wire.Path == "/repos/MikeMarcin/BPR-Test/issues/comments/702")) {
-				expect(IssueBodies.size() == 3 && json.size() == 1, "compatibility links wired after index exists");
+				expect((Mixed ? IssueBodies.size() == 1 : IssueBodies.size() == 3) && json.size() == 1, "compatibility links wired after index exists");
 				const std::size_t i    = wire.Path.ends_with("701") ? 0 : 1;
 				const auto        body = json["body"].toString().toStdString();
-				expect(body.contains("#issuecomment-703") && body.contains(i ? "#issuecomment-701" : "#issuecomment-702"), "compatibility navigation uses real returned IDs");
+				expect(Mixed ? body.contains("/files#r601") && (Maintenance || body.contains("/files#r602")) : body.contains("#issuecomment-703") && body.contains(i ? "#issuecomment-701" : "#issuecomment-702"), "compatibility navigation uses real returned IDs");
 				IssueBodies[i] = body;
 			} else if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews") {
 				expect(!Created && !json.contains("event") && json["commit_id"] == "1111111111111111111111111111111111111111", "batch creates one exact pending review without event");
@@ -482,7 +483,7 @@ namespace {
 				expect(Created && Submitted && Maintenance && json.size() == 1, "only a submitted owned body is edited through REST, under the exact maintenance plan");
 				const std::size_t i    = wire.Path.ends_with("601") ? 0 : 1;
 				const auto        body = json["body"].toString().toStdString();
-				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "/files#r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation to the Files changed tab");
+				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + (Mixed ? (Maintenance ? "" : "#issuecomment-701") : "/files#r" + std::string{ i ? "601" : "602" })), "actual returned review/comment URLs wire navigation to the Files changed tab");
 				Bodies[i] = body;
 			} else if (wire.Method == http_method::post && wire.Path == "/graphql") {
 				// [[BPR-1368]]. The pending stop edit: the fixed mutation, by
@@ -492,13 +493,13 @@ namespace {
 				expect(Created && !Submitted && json.size() == 2 && variables.size() == 2 && json["query"].toString().startsWith("mutation UpdateReviewComment($comment:ID!,$body:String!){updatePullRequestReviewComment(") && (node == "PRRC_601" || node == "PRRC_602"), "a pending stop is edited only by the fixed GraphQL mutation, by its node ID");
 				const std::size_t i    = node == "PRRC_601" ? 0 : 1;
 				const auto        body = variables["body"].toString().toStdString();
-				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "/files#r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation to the Files changed tab");
+				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + (Mixed ? (Maintenance ? "" : "#issuecomment-701") : "/files#r" + std::string{ i ? "601" : "602" })), "actual returned review/comment URLs wire navigation to the Files changed tab");
 				Bodies[i] = body;
 				++GraphqlEdits;
 				answer = edit_json(i);
 			} else if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews/501/events") {
 				expect(Created && !Submitted && json["event"] == "COMMENT" && json.size() == 2, "only exact review receives COMMENT once");
-				expect(Bodies[0].contains("/files#r602") && Bodies[1].contains("/files#r601"), "all navigation edits precede submit");
+				expect(Mixed ? Bodies[0].contains("#issuecomment-701") && Bodies[1].contains("#issuecomment-701") : Bodies[0].contains("/files#r602") && Bodies[1].contains("/files#r601"), "all navigation edits precede submit");
 				Summary = json["body"].toString().toStdString();
 				expect(Summary.contains("/files#r601") && Summary.contains("/files#r602") && !Summary.contains("#discussion_r") && !Summary.contains("incomplete"), "final index replaces incomplete warning");
 				Submitted = true;
@@ -1047,6 +1048,76 @@ namespace {
 		result.Update = draft;
 		expect(application::valid(result), "maintenance plan retains exact root and original stop identities");
 		return result;
+	}
+	void test_mixed_sessions()
+	{
+		for (const bool lost : { false, true }) {
+			for (std::size_t boundary = 0; boundary < 7; ++boundary) {
+				scratch root;
+				server  remote;
+				remote.Mixed              = true;
+				auto input                = plan();
+				input.Mixed               = true;
+				auto historical           = input.Stops.front();
+				historical.Id             = core::tour_stop_id{ 3 };
+				historical.Source.Commit  = commit(0x09);
+				historical.Title          = "Historical conversation destination";
+				historical.Representation = core::tour_representation::conversation_permalink;
+				input.Stops.insert(input.Stops.begin() + 1, historical);
+				expect(application::valid(input), "explicit mixed plan preserves historical source and route order");
+				auto malformed  = input;
+				malformed.Mixed = false;
+				expect(!application::valid(malformed), "mixed destinations cannot hide inside a single-review plan");
+				const auto stages = application::staged_publication_stages(input);
+				expect(stages[1].contains("Stop 1") && stages[2].contains("Stop 3") && stages[3].contains("Stop 2") && stages[3].contains("conversation comment"), "progress stages follow actual pending-first publication order with original route numbers");
+
+				std::stop_source stop;
+				if (lost) {
+					remote.LoseAt = boundary;
+				} else {
+					remote.Stop   = &stop;
+					remote.StopAt = boundary;
+				}
+				auto       provider = session(remote, root.Path);
+				const auto partial  = provider->publish_tour(input, stop.get_token(), [](const auto&) { return true; });
+				expect(partial.Record && remote.Writes == boundary + 1, "every mixed step retains its durable boundary");
+				remote.Stop        = nullptr;
+				remote.LoseAt      = 999;
+				remote.ReadFailure = false;
+				provider.reset();
+				provider            = session(remote, root.Path);
+				const auto observed = provider->reconcile_tour(input);
+				expect(observed.Record && !observed.Record->PossiblyTransmitted && remote.Writes == boundary + 1, "mixed restart reconciles each receipt read-only");
+				const auto result = provider->publish_tour(input, { }, [](const auto&) { return true; });
+				if (result.State != publication_state::published) {
+					std::cerr << "mixed boundary=" << boundary << " lost=" << lost << " state=" << static_cast<int>(result.State) << " writes=" << remote.Writes << " valid=" << (result.Record && application::valid(*result.Record)) << " patched=" << (result.Record ? result.Record->Patched : 999) << " pending=" << (result.Record && result.Record->Pending ? static_cast<int>(result.Record->Pending->Operation) : -1) << "\n";
+				}
+				expect(result.State == publication_state::published && result.Record && remote.Writes == 7 && remote.Creates == 1 && remote.Submits == 1 && remote.IssueBodies.size() == 1, "mixed Resume never reposts any kind or submits another review");
+				const auto& comments = result.Record->Comments;
+				expect(comments.size() == 3 && comments[0].Id == 601 && comments[1].Id == 602 && comments[2].Id == 701, "journal creation order retains both returned identity kinds");
+				expect(remote.Summary.find("/files#r601") < remote.Summary.find("#issuecomment-701") && remote.Summary.find("#issuecomment-701") < remote.Summary.find("/files#r602"), "overview restores original interleaved route order");
+				core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = input.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Problem = "Problem", .Solution = "Solution", .Revision = input.Generation, .LastStopId = 3 };
+				for (const auto& item : input.Stops) {
+					draft.Stops.push_back({ .Id = item.Id, .Title = item.Title, .Body = item.Narrative, .Destination = item.Source });
+				}
+				const auto published = application::published_tour(*result.Record, draft);
+				expect(published && published->Remote->Kind == core::tour_remote_kind::review && published->Stops[1].Remote->Kind == core::tour_remote_kind::conversation_comment && published->Stops[1].Remote->DatabaseId == 701 && published->Stops[2].Remote->DatabaseId == 602, "one local tour retains exact cross-kind bindings in route order");
+				auto desired = *published;
+				std::swap(desired.Stops[0], desired.Stops[1]);
+				++desired.Revision;
+				auto update  = input;
+				update.Mixed = false;
+				update.Stops.clear();
+				update.Description.reset();
+				update.Generation                  = desired.Revision;
+				update.Submission.Proposal.Attempt = core::review_submission_attempt_id{ desired.Revision };
+				update.Submission.IdempotencyKey   = "mixed-maintenance";
+				update.Update                      = desired;
+				remote.Maintenance                 = true;
+				const auto updated                 = provider->publish_tour(update, { }, [](const auto&) { return true; });
+				expect(updated.State == publication_state::published && remote.Creates == 1 && remote.Submits == 1 && remote.IssueBodies.size() == 1 && remote.Summary.find("#issuecomment-701") < remote.Summary.find("/files#r601"), "maintenance reorders and updates both kinds while preserving every discussion identity");
+			}
+		}
 	}
 	void test_maintenance_sessions()
 	{
@@ -1850,6 +1921,7 @@ try {
 		test_recovery_read_refusals_keep_unknown_writes();
 		test_baseline_refusal_diagnoses();
 		test_compatibility_sessions();
+		test_mixed_sessions();
 		test_maintenance_sessions();
 		test_description_only_update();
 		std::cout << "staged-review-session-tests:pass\n";

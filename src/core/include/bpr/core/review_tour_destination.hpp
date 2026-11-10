@@ -97,9 +97,10 @@ namespace bpr::core {
 														   unavailable,
 														   compatibility_choice,
 														   single_review,
+														   mixed_comments,
 														   compatibility_comments };
-	[[nodiscard]] auto assess_tour_update(const review_tour&, std::span<const tour_destination_plan>, bool, tour_operation_support) -> tour_publication_readiness;
-	[[nodiscard]] auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility) noexcept -> tour_publication_readiness;
+	[[nodiscard]] auto assess_tour_update(const review_tour&, std::span<const tour_destination_plan>, bool, tour_operation_support, bool aMixed = false) -> tour_publication_readiness;
+	[[nodiscard]] auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility, bool aMixed = false) noexcept -> tour_publication_readiness;
 	[[nodiscard]] auto plan_tour_destination(const tour_destination_observation& aObservation) noexcept -> tour_destination_plan;
 	/// \brief The source a stop publishes from: the author's replacement, its
 	/// original selection, or its remote address; nothing when it has none.

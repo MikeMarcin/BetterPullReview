@@ -47,7 +47,8 @@ namespace {
 
 	struct provider_state
 	{
-		bool                                                        InEffect = false;
+		bool                                                        InEffect      = false;
+		bool                                                        MisboundFacts = false;
 		std::optional<application::review_mutation_failure>         FactoryFailure;
 		std::size_t                                                 Created = 0U, Destroyed = 0U, Submitted = 0U, Reconciled = 0U, Tours = 0U;
 		std::vector<application::review_submission_request>         Pending;
@@ -71,6 +72,15 @@ namespace {
 		{
 			expect(State->InEffect, "provider/storage teardown runs off decision lane");
 			++State->Destroyed;
+		}
+		auto tour_destinations(const core::review_tour& aTour, std::stop_token aStop) -> application::tour_destination_observations override
+		{
+			expect(State->InEffect, "destination operation facts are obtained off the decision lane");
+			auto result = application::review_submission_port::tour_destinations(aTour, aStop);
+			if (result && State->MisboundFacts) {
+				++result->Revision;
+			}
+			return result;
 		}
 		auto publish_tour(const application::staged_review_plan& aPlan, std::stop_token, application::staged_child_authorizer aAuthorize) -> application::staged_publication_result override
 		{
@@ -198,6 +208,32 @@ namespace {
 			drain();
 		}
 	};
+	void test_exact_destination_observations()
+	{
+		fixture    f;
+		const auto input       = request();
+		auto       fingerprint = std::array<std::uint8_t, 32>{ };
+		fingerprint.fill(1);
+		core::review_tour query{ .Id = core::tour_draft_id{ 1 }, .Owner = { core::bpr_profile_id{ 1 }, input.Proposal.Target.Host, core::host_authority_fingerprint{ fingerprint }, input.Proposal.ActingAccount, input.Proposal.Target.Repository, input.Proposal.Target.PullRequest }, .Base = input.Proposal.Target.ExpectedHead, .Head = input.Proposal.Target.ExpectedHead };
+		const auto        read = f.Host.observe_tour_destinations(query);
+		expect(read && f.Projection.Terminals.empty(), "destination read is queued without inline provider access");
+		f.drain();
+		const auto& facts = std::get<application::tour_destination_observations>(f.Projection.Terminals.back().Outcome);
+		expect(facts && facts->Owner == query.Owner && facts->Revision == query.Revision && facts->Observations.empty(), "production default grants no operation facts");
+		f.State->MisboundFacts = true;
+		expect(f.Host.observe_tour_destinations(query).has_value(), "misbound provider response course queued");
+		f.drain();
+		expect(!std::get<application::tour_destination_observations>(f.Projection.Terminals.back().Outcome), "facts for another revision cannot reach the editor");
+		const auto before    = f.Projection.Terminals.size();
+		const auto cancelled = f.Host.observe_tour_destinations(query);
+		expect(cancelled.has_value(), "cancellable exact source read queued");
+		f.Host.cancel(*cancelled);
+		f.drain();
+		expect(f.Projection.Terminals.size() == before + 1 && !std::get<application::tour_destination_observations>(f.Projection.Terminals.back().Outcome), "cancelled observation emits one decision-lane terminal without facts");
+		query.Owner.Account = core::github_account_id{ 999 };
+		expect(!f.Host.observe_tour_destinations(query), "another account cannot query this provider scope");
+		expect(f.State->Submitted == 0 && f.State->Tours == 0, "observing operations creates no remote effects");
+	}
 	void test_insights_confirmed_publication_only()
 	{
 		fixture f;
@@ -457,6 +493,7 @@ auto main() -> int
 {
 	static_assert(!std::is_convertible_v<bpr::application::review_mutation_execution_grant, bpr::application::review_submission_execution_grant>);
 	static_assert(!std::is_default_constructible_v<bpr::application::review_submission_execution_authority>);
+	test_exact_destination_observations();
 	test_insights_confirmed_publication_only();
 	test_staged_authority();
 	test_exact_authority_and_async_delivery();

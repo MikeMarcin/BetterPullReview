@@ -123,6 +123,17 @@ namespace {
 		auto observation           = fixture.observation(fixture.Tour.Stops[8U]);
 		observation.StandaloneFile = tour_operation_support::supported;
 		expect(plan_tour_stop_repair(fixture.Tour, fixture.Tour.Stops[8U], observation, fixture.Files).FileComment, "qualified standalone file choice is reported separately");
+		const auto fileChoice = prepare_tour_file_comment(fixture.Tour, fixture.Tour.Stops[8U].Id, observation, fixture.Files);
+		expect(fileChoice && fileChoice->Restore->Stops[8U].FileCommentRequested && !fixture.Tour.Stops[8U].FileCommentRequested, "qualified file choice prepares one ordinary restore without touching source");
+		const auto chosen = apply(fixture.Tour, *fileChoice);
+		expect(chosen.Changed && chosen.Accepted.Stops[8U].Original == fixture.Tour.Stops[8U].Original && chosen.Accepted.Stops[8U].Body == fixture.Tour.Stops[8U].Body, "file preference preserves original selection and prose");
+		expect(!apply(chosen.Accepted, *fileChoice).Changed, "stale file choice refuses a replaced revision");
+		for (const auto support : { tour_operation_support::unknown, tour_operation_support::denied, tour_operation_support::rate_limited, tour_operation_support::indeterminate }) {
+			auto unknown           = observation;
+			unknown.StandaloneFile = support;
+			expect(!prepare_tour_file_comment(fixture.Tour, fixture.Tour.Stops[8U].Id, unknown, fixture.Files), "unqualified standalone file operation supplies no edit");
+		}
+
 		for (const auto support : { tour_operation_support::unknown, tour_operation_support::denied, tour_operation_support::rate_limited, tour_operation_support::indeterminate }) {
 			observation.PendingOffHunkBatch = support;
 			const auto repair               = plan_tour_stop_repair(fixture.Tour, fixture.Tour.Stops[8U], observation, fixture.Files);

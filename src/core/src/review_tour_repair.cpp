@@ -180,6 +180,20 @@ namespace bpr::core {
 		return result;
 	}
 
+	auto prepare_tour_file_comment(const review_tour& aTour, tour_stop_id aStop, const tour_destination_observation& aObservation, std::span<const tour_anchor_file> aFiles) -> std::optional<tour_command>
+	{
+		const auto found = std::ranges::find(aTour.Stops, aStop, &tour_stop::Id);
+		if (aTour.ReadOnly || aTour.Remote || validate(aTour) != tour_refusal::none || found == aTour.Stops.end() || found->Remote || found->FileCommentRequested) {
+			return { };
+		}
+		const auto repair = plan_tour_stop_repair(aTour, *found, aObservation, aFiles);
+		if (!repair.FileComment || aObservation.PendingFileThread != tour_operation_support::unsupported || aObservation.StandaloneFile != tour_operation_support::supported) {
+			return { };
+		}
+		auto candidate                                                                              = aTour;
+		candidate.Stops[static_cast<std::size_t>(found - aTour.Stops.begin())].FileCommentRequested = true;
+		return tour_command{ .Draft = aTour.Id, .Owner = aTour.Owner, .ExpectedRevision = aTour.Revision, .Kind = tour_command_kind::restore, .Stop = aStop, .Restore = std::move(candidate) };
+	}
 	auto prepare_tour_source_repair(const review_tour& aTour, const tour_stop_id aStop, const tour_source_repair_kind aKind, const tour_destination_observation& aObservation, const std::span<const tour_anchor_file> aFiles) -> std::optional<tour_command>
 	{
 		const auto found = std::ranges::find(aTour.Stops, aStop, &tour_stop::Id);

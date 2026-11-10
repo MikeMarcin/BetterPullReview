@@ -24,7 +24,9 @@ namespace bpr::application {
 		/// comment (MikeMarcin/BPR-Test#45), so this is the fixed GraphQL
 		/// `updatePullRequestReviewComment` mutation, addressed by the
 		/// comment's node ID. A submitted comment keeps `update_comment`.
-		update_pending_comment
+		update_pending_comment,
+		create_file_comment,
+		list_file_comments
 	};
 	inline constexpr std::size_t   maximum_staged_review_comments = 100;
 	inline constexpr std::uint32_t maximum_staged_review_pages    = 10;
@@ -43,11 +45,12 @@ namespace bpr::application {
 		review_database_id             Review;
 		std::uint64_t                  Comment = 0;
 		/// [[BPR-1368]]. The node ID of `Comment`, for `update_pending_comment` only.
-		std::string                     CommentNode;
-		std::uint32_t                   Page = 1;
-		std::string                     Body;
-		std::vector<staged_review_line> Lines;
-		auto                            operator==(const staged_review_request&) const -> bool = default;
+		std::string                                CommentNode;
+		std::uint32_t                              Page = 1;
+		std::string                                Body;
+		std::vector<staged_review_line>            Lines;
+		std::optional<core::tour_code_destination> FileSource;
+		auto                                       operator==(const staged_review_request&) const -> bool = default;
 	};
 	enum class staged_review_state : std::uint8_t { pending,
 													commented,

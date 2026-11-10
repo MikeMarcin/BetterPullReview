@@ -119,6 +119,7 @@ namespace bpr::application {
 							   discover,
 							   submit,
 							   reconcile,
+							   observe_tour_destinations,
 							   discover_tours,
 							   publish_tour,
 							   reconcile_tour,
@@ -129,6 +130,7 @@ namespace bpr::application {
 			operation                                Operation = operation::discover;
 			std::optional<review_submission_request> Request;
 			std::optional<staged_review_plan>        Plan;
+			std::optional<core::review_tour>         DestinationQuery;
 			review_submission_execution_grant        Grant;
 			std::stop_source                         Stop;
 			std::string                              Key;
@@ -167,6 +169,9 @@ namespace bpr::application {
 		}
 		static auto refused(const record& aRecord, review_mutation_failure aFailure, bool aBeforeEffect) -> review_submission_host_terminal
 		{
+			if (aRecord.Operation == operation::observe_tour_destinations) {
+				return { aRecord.Context, tour_destination_observations{ std::unexpected(aFailure) } };
+			}
 			if (aRecord.Operation == operation::discover_tours || aRecord.Operation == operation::discover_conversation_replies) {
 				return { aRecord.Context, staged_review_discovery{ std::unexpected(aFailure) } };
 			}
@@ -259,6 +264,14 @@ namespace bpr::application {
 			if (aRecord->Stop.stop_requested() || (aRecord->Grant && !aRecord->Grant->active())) {
 				return refused(*aRecord, review_mutation_failure::cancelled, true);
 			}
+			if (aRecord->Operation == operation::observe_tour_destinations) {
+				auto        observed = provider->tour_destinations(*aRecord->DestinationQuery, aRecord->Stop.get_token());
+				const auto& query    = *aRecord->DestinationQuery;
+				if (observed && (observed->Owner != query.Owner || observed->Draft != query.Id || observed->Revision != query.Revision || observed->Head != query.ObservedHead.value_or(query.Head) || observed->Observations.size() > query.Stops.size())) {
+					observed = std::unexpected(review_mutation_failure::target_moved);
+				}
+				return { aRecord->Context, std::move(observed) };
+			}
 			if (aRecord->Operation == operation::discover_tours || aRecord->Operation == operation::discover_conversation_replies) {
 				auto pending = aRecord->Operation == operation::discover_tours ? provider->pending_tours(aRecord->Stop.get_token()) : provider->conversation_replies();
 				if (pending && (pending->size() > maximum_review_mutation_recovery_records || std::ranges::any_of(*pending, [&](const auto& aP) { return !valid(aP) || !same_review_submission_identity(*aP.Submission.LiveBinding, Binding); }))) {
@@ -335,7 +348,7 @@ namespace bpr::application {
 			}
 			return { aRecord->Context, std::move(result) };
 		}
-		auto enqueue(operation aOperation, const review_submission_request* aRequest, review_submission_execution_grant aGrant, const staged_review_plan* aPlan = nullptr, std::string aKey = { }) -> std::optional<review_submission_host_context>
+		auto enqueue(operation aOperation, const review_submission_request* aRequest, review_submission_execution_grant aGrant, const staged_review_plan* aPlan = nullptr, std::string aKey = { }, const core::review_tour* aDestinationQuery = nullptr) -> std::optional<review_submission_host_context>
 		{
 			const auto admissionRefused = [&]() -> std::optional<review_submission_host_context> {
 				if (aPlan && !aPlan->ConversationReply) {
@@ -356,6 +369,9 @@ namespace bpr::application {
 				if (aOperation == operation::lookup
 					&& (aKey.empty() || aKey.size() > maximum_review_submission_idempotency_key_bytes
 						|| !std::ranges::all_of(aKey, [](const char aValue) { return aValue > ' ' && aValue < '\x7f'; }))) {
+					return admissionRefused();
+				}
+				if (aDestinationQuery && (core::validate(*aDestinationQuery) != core::tour_refusal::none || aDestinationQuery->Stops.size() > maximum_staged_review_comments || aDestinationQuery->Owner.Host != Binding.Target.Semantic.Host || aDestinationQuery->Owner.Repository != Binding.Target.Semantic.Repository || aDestinationQuery->Owner.PullRequest != Binding.Target.Semantic.PullRequest || aDestinationQuery->Owner.Account != Binding.ActingIdentity.Account)) {
 					return admissionRefused();
 				}
 				if (aPlan) {
@@ -387,6 +403,9 @@ namespace bpr::application {
 				}
 				if (aPlan) {
 					request->Plan = *aPlan;
+				}
+				if (aDestinationQuery) {
+					request->DestinationQuery = *aDestinationQuery;
 				}
 				request->Grant = std::move(aGrant);
 				request->Key   = std::move(aKey);
@@ -421,6 +440,7 @@ namespace bpr::application {
 	auto review_submission_application_host::reconcile(const review_submission_request& aRequest) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::reconcile, &aRequest, { }); }
 	auto review_submission_application_host::discover_conversation_replies() -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::discover_conversation_replies, nullptr, { }); }
 	auto review_submission_application_host::save_conversation_reply(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::save_conversation_reply, nullptr, { }, &aPlan); }
+	auto review_submission_application_host::observe_tour_destinations(const core::review_tour& aQuery) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::observe_tour_destinations, nullptr, { }, nullptr, { }, &aQuery); }
 	auto review_submission_application_host::discover_tours() -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::discover_tours, nullptr, { }); }
 	auto review_submission_application_host::publish_tour(const staged_review_plan& aPlan, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::publish_tour, nullptr, std::move(aGrant), &aPlan); }
 	auto review_submission_application_host::reconcile_tour(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::reconcile_tour, nullptr, { }, &aPlan); }
