@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2048"
 title: "One oversized pull request fails no Home refresh, and opening it offers GitHub"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0098"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2048--BPR-2049--1f6f243721c8.json","origin":"owner report, 2026-11-10"}
 depends_on: []
