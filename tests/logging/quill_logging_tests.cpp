@@ -1,3 +1,4 @@
+#include "../../src/adapters/logging/src/queued_diagnostic_record.hpp"
 #include "../support/capability_error_content_canaries.hpp"
 #include "../support/diagnostic_files.hpp"
 #include "../support/diagnostic_json.hpp"
@@ -24,12 +25,45 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <print>
+#include <quill/Backend.h>
+#include <quill/Frontend.h>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
 #if !defined(_WIN32)
 	#include <unistd.h>
 #endif
+// Deliberately throwing test value exercises Quill13's REAL deferred-decode
+// catch/placeholder, while the production owning handle remains noexcept.
+struct failed_deferred_record
+{
+	static inline bool                                       FailMove = false;
+	bpr::adapters::logging::detail::queued_diagnostic_record Record;
+	failed_deferred_record()                                       = default;
+	failed_deferred_record(const failed_deferred_record&) noexcept = default;
+	failed_deferred_record(failed_deferred_record&& aOther) noexcept(false)
+	{
+		if (FailMove) {
+			throw std::runtime_error{ "Synthetic deferred decode failure" };
+		}
+		Record = std::move(aOther.Record);
+	}
+};
+template <>
+struct fmtquill::formatter<failed_deferred_record> : fmtquill::formatter<bpr::adapters::logging::detail::queued_diagnostic_record>
+{
+	auto format(const failed_deferred_record& aRecord, format_context& aContext) const
+	{
+		return fmtquill::formatter<bpr::adapters::logging::detail::queued_diagnostic_record>::format(aRecord.Record, aContext);
+	}
+};
+
+template <>
+struct quill::Codec<failed_deferred_record> : quill::DeferredFormatCodec<failed_deferred_record>
+{ };
+
 namespace {
 	using bpr::tests::expect;
 	auto private_root(const std::filesystem::path& aPath) -> std::filesystem::path
@@ -67,6 +101,334 @@ namespace {
 		std::cout << "diagnostic-content-audit credential_retained=" << credentialRetained
 				  << " content_retained=" << contentRetained << " export_retained=" << exportRetained << '\n';
 		return credentialRetained || contentRetained || exportRetained ? EXIT_FAILURE : EXIT_SUCCESS;
+	}
+
+	void deferred_record_ownership()
+	{
+		using namespace bpr::adapters::logging::detail;
+		const std::string                            transport  = "1|{\"schema\":3}";
+		const auto                                   charge     = encode_record_charge(transport.size());
+		const auto                                   chargeView = std::string_view{ charge.data(), charge.size() };
+		quill::detail::SizeCacheVector               cache;
+		std::array<std::byte, 256U>                  queue{ };
+		std::weak_ptr<const diagnostic_record_bytes> weak;
+		pending_diagnostic_records                   pending;
+		expect(pending.reserve(transport.size(), false), "logical transport charge reserved once");
+		auto*         output = queue.data();
+		std::uint32_t index  = 0U;
+		{
+			auto record = queued_diagnostic_record{ std::make_shared<const diagnostic_record_bytes>(transport) };
+			weak        = record.Bytes;
+			expect(record.Bytes->Size == transport.size(), "owned buffer requests exact logical capacity");
+			quill::Codec<std::string_view>::encode(output, cache, index, chargeView);
+			quill::Codec<queued_diagnostic_record>::encode(output, cache, index, std::move(record));
+			expect(weak.use_count() == 1 && !weak.expired(), "committed queue exclusively owns the moved record");
+		}
+		auto*                        input = queue.data();
+		quill::DynamicFormatArgStore store;
+		quill::Codec<std::string_view>::decode_and_store_arg(input, &store);
+		quill::Codec<queued_diagnostic_record>::decode_and_store_arg(input, &store);
+		expect(!weak.expired(), "decoded argument store owns the record after queue destruction");
+		const auto statement = fmtquill::vformat("{}{}", fmtquill::basic_format_args<fmtquill::format_context>{ store.data(), store.size() });
+		store.clear();
+		expect(weak.expired() && pending.Events == 1U && pending.Bytes == transport.size(), "arg-store clear destroys ownership WITHOUT releasing the pending transit message");
+		const auto decodedCharge = decode_record_charge(statement);
+		expect(decodedCharge && *decodedCharge == transport.size() && statement.substr(charge.size()) == transport, "ordinary first codec and deferred body preserve charge and canonical transport");
+		const auto sinkStatement = statement + "\n";
+		const auto consumed      = consume_queued_record(pending, sinkStatement);
+		expect(consumed.Statement && *consumed.Statement == transport + "\n" && consumed.Released && pending.Events == 0U && pending.Bytes == 0U && !pending.release(*decodedCharge), "sink releases known charge exactly once without underflow");
+
+		output = queue.data();
+		index  = 0U;
+		expect(pending.reserve(transport.size(), false), "decode failure retains an admitted logical charge");
+		{
+			failed_deferred_record record;
+			record.Record.Bytes = std::make_shared<const diagnostic_record_bytes>(transport);
+			weak                = record.Record.Bytes;
+			quill::Codec<std::string_view>::encode(output, cache, index, chargeView);
+			quill::DeferredFormatCodec<failed_deferred_record>::encode(output, cache, index, record);
+		}
+		failed_deferred_record::FailMove = true;
+		input                            = queue.data();
+		quill::Codec<std::string_view>::decode_and_store_arg(input, &store);
+		quill::DeferredFormatCodec<failed_deferred_record>::decode_and_store_arg(input, &store);
+		failed_deferred_record::FailMove = false;
+		expect(weak.expired(), "failed deferred decode destroys its queued ownership exactly once");
+		const auto fallback = fmtquill::vformat("{}{}", fmtquill::basic_format_args<fmtquill::format_context>{ store.data(), store.size() });
+		store.clear();
+		const auto fallbackCharge = decode_record_charge(fallback);
+		expect(fallbackCharge && *fallbackCharge == transport.size() && fallback.substr(charge.size()) == "[Quill deferred decode failed]", "actual upstream fallback preserves FIRST ordinary codec charge without custom format error");
+		expect(!consume_queued_record(pending, fallback + "\n").Statement && pending.Events == 0U && pending.Bytes == 0U, "actual fallback fails closed and releases original charge rather than placeholder size");
+		expect(pending.reserve(transport.size(), false), "fatal whole-format case holds its admitted charge");
+		expect(!consume_queued_record(pending, "[Could not format log statement]\n").Statement && pending.Events == 1U && pending.Bytes == transport.size(), "missing charge fails closed WITHOUT resetting live accounting");
+		expect(pending.release(transport.size()), "test retires its sole owned value after the fatal-format observation");
+		expect(!decode_record_charge("") && !decode_record_charge("[Could not format log statement]") && !decode_record_charge("0000000000000000") && !decode_record_charge("000000000000FFFF") && !decode_record_charge("000000000000ffff"), "missing noncanonical zero and over-bound charges fail closed");
+		{
+			auto refused = queued_diagnostic_record{ std::make_shared<const diagnostic_record_bytes>(transport) };
+			weak         = refused.Bytes;
+			expect(pending.reserve(transport.size(), false) && pending.release(transport.size()), "false-enqueue rollback releases the captured logical charge");
+		}
+		expect(weak.expired() && pending.Events == 0U && pending.Bytes == 0U, "refused uncommitted owning value releases its exact buffer");
+		std::size_t normal = 0U;
+		while (pending.reserve(1U, false)) {
+			++normal;
+		}
+		expect(normal == 3584U, "normal pending event bound is unchanged");
+		std::size_t priority = 0U;
+		while (pending.reserve(1U, true)) {
+			++priority;
+		}
+		expect(priority == 512U && pending.Events == 4096U, "priority event reserve and total bound are unchanged");
+		while (pending.Events != 0U) {
+			expect(pending.release(1U), "bounded pending record drains once");
+		}
+		std::size_t normalBytes = 0U;
+		while (pending.reserve(maximum_queued_record_bytes, false)) {
+			normalBytes += maximum_queued_record_bytes;
+		}
+		expect(normalBytes <= 7U * 1024U * 1024U && normalBytes + maximum_queued_record_bytes > 7U * 1024U * 1024U, "normal pending byte bound is unchanged");
+		std::size_t priorityBytes = normalBytes;
+		while (pending.reserve(maximum_queued_record_bytes, true)) {
+			priorityBytes += maximum_queued_record_bytes;
+		}
+		expect(priorityBytes <= 8U * 1024U * 1024U && priorityBytes + maximum_queued_record_bytes > 8U * 1024U * 1024U, "priority pending byte bound is unchanged");
+		while (pending.Events != 0U) {
+			expect(pending.release(maximum_queued_record_bytes), "bounded byte accounting drains once");
+		}
+		const auto frame = 4U * sizeof(std::uint64_t) + quill::Codec<std::string_view>::compute_encoded_size(cache, chargeView) + quill::Codec<queued_diagnostic_record>::compute_encoded_size(cache, queued_diagnostic_record{ });
+		std::print(stderr, "deferred-record:pass frame_bytes={} inline_handle_bytes={} holder_bytes={} framing_bytes={} owned_capacity={} normal_events={} priority_reserve={} normal_bytes={} priority_bytes={} actual_fallback=1\n", frame, sizeof(queued_diagnostic_record), sizeof(diagnostic_record_bytes), charge.size(), transport.size(), normal, priority, normalBytes, priorityBytes);
+	}
+
+	struct accounting_frontend_options : quill::FrontendOptions
+	{
+		static constexpr auto        queue_type             = quill::QueueType::BoundedDropping;
+		static constexpr std::size_t initial_queue_capacity = 64U * 1024U;
+	};
+	class accounting_sink final : public quill::Sink
+	{
+	public:
+		bpr::adapters::logging::detail::pending_diagnostic_records Pending;
+		std::atomic<std::uint64_t>                                 Dropped{ 0U };
+		std::atomic<bool>                                          Unavailable{ false };
+		std::atomic<std::size_t>                                   Callbacks{ 0U };
+
+	protected:
+		void write_log(const quill::MacroMetadata*, std::uint64_t, std::string_view, std::string_view, const std::string&, std::string_view, quill::LogLevel, std::string_view, std::string_view, const std::vector<std::pair<std::string, std::string>>*, std::string_view, std::string_view aStatement) override
+		{
+			++Callbacks;
+			if (!bpr::adapters::logging::detail::consume_record_for_sink(Pending, Dropped, aStatement)) {
+				Unavailable = true;
+			}
+		}
+		void flush_sink() override { }
+		void run_periodic_tasks() override { }
+	};
+	void sink_failure_retirement_conservation()
+	{
+		using namespace bpr::adapters::logging::detail;
+		using frontend = quill::FrontendImpl<accounting_frontend_options>;
+		std::atomic<std::size_t> backendErrors{ 0U };
+		quill::BackendOptions    options;
+		options.check_backend_singleton_instance = false;
+		options.error_notifier                   = [&](const std::string&) { ++backendErrors; };
+		quill::Backend::start(options);
+		struct backend_guard
+		{
+			~backend_guard() { quill::Backend::stop(); }
+		} guard;
+		const std::string transport = "1|{\"schema\":3}";
+		const auto        charge    = encode_record_charge(transport.size());
+		const auto        field     = std::string_view{ charge.data(), charge.size() };
+		for (const bool known : { true, false }) {
+			const auto name   = known ? "bpr1988.known-charge" : "bpr1988.unknown-charge";
+			auto       sink   = std::static_pointer_cast<accounting_sink>(frontend::create_or_get_sink<accounting_sink>(name));
+			auto*      logger = frontend::create_or_get_logger(name, sink, quill::PatternFormatterOptions{ "%(message)" });
+			expect(sink->Pending.reserve(transport.size(), false), "real sink probe owns exactly one pending logical record");
+			bool submitted = false;
+			if (known) {
+				static constexpr quill::MacroMetadata metadata{ "", "", "{}{}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
+				failed_deferred_record                record;
+				record.Record.Bytes              = std::make_shared<const diagnostic_record_bytes>(transport);
+				failed_deferred_record::FailMove = true;
+				submitted                        = logger->log_statement<false>(&metadata, field, record);
+			} else {
+				// The pinned backend catches this REAL whole-format error and
+				// replaces the entire message, losing its charge prefix.
+				static constexpr quill::MacroMetadata metadata{ "", "", "{:b}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
+				submitted = logger->log_statement<false>(&metadata, std::string_view{ "synthetic" });
+			}
+			logger->flush_log();
+			failed_deferred_record::FailMove = false;
+			const auto beforeEvents          = sink->Pending.Events.load();
+			const auto beforeBytes           = sink->Pending.Bytes.load();
+			const auto beforeDropped         = sink->Dropped.load();
+			const auto callbacks             = sink->Callbacks.load();
+			const auto unavailable           = sink->Unavailable.load();
+			frontend::remove_logger_blocking(logger);
+			// Only NOW has the real backend proved no callback can remain.
+			const auto retired = retire_queued_records(sink->Pending, sink->Dropped);
+			expect(submitted && callbacks == 1U && unavailable, "real Quill sink receives and refuses each exact malformed record");
+			expect(known ? beforeEvents == 0U && beforeBytes == 0U && beforeDropped == 1U && !retired : beforeEvents == 1U && beforeBytes == transport.size() && beforeDropped == 0U && retired, "known charge counts once at sink; unknown charge stays held and uncounted until callback retirement");
+			expect(sink->Pending.Events == 0U && sink->Pending.Bytes == 0U && sink->Dropped == 1U && !retire_queued_records(sink->Pending, sink->Dropped) && sink->Dropped == 1U, "real sink plus blocking retirement conserves one drop and zero residual without double count");
+		}
+		expect(backendErrors == 1U, "only actual whole-format failure reaches backend error notifier");
+		std::print(stderr, "sink-retirement:pass known_drops=1 unknown_drops=1 residual_events=0 residual_bytes=0 real_backend=1\n");
+	}
+
+	void physical_priority_reserve(const std::filesystem::path& aRoot)
+	{
+		using namespace bpr;
+		using status = application::diagnostic_log_status;
+		adapters::logging::quill_log log{ aRoot };
+		expect(log.status() == status::available, "sole priority-reserve logger pair is open");
+		struct restart_guard
+		{
+			bool Paused = true;
+			void restart()
+			{
+				quill::Backend::start();
+				Paused = false;
+			}
+			~restart_guard() noexcept
+			{
+				if (Paused) {
+					try {
+						quill::Backend::start();
+					} catch (...) {
+						std::terminate();
+					}
+				}
+			}
+		} restart;
+		quill::Backend::stop();
+		std::size_t normal = 0U, priority = 0U;
+		bool        normalRefused = false;
+		for (std::size_t index = 0U; index < 4096U; ++index) {
+			const auto result = log.record({ .Request = 10000U + index });
+			if (result == status::available) {
+				++normal;
+			} else {
+				normalRefused = result == status::dropped;
+				break;
+			}
+		}
+		for (std::size_t index = 0U; index < 512U; ++index) {
+			if (log.record({ .Outcome = application::diagnostic_outcome::failed, .Request = 20000U + index }) == status::available) {
+				++priority;
+			}
+		}
+		restart.restart();
+		log.close();
+		const auto records           = tests::diagnostic_json_records(tests::read_diagnostic_logs(aRoot));
+		const auto priorityPersisted = std::ranges::count_if(records, [](const auto& aRecord) { return aRecord.value("severity").toString() == "error"; });
+		expect(normalRefused && normal >= 128U && priority == 512U && records.size() == normal + priority && priorityPersisted == 512, "paused physical queue preserves all512 priority slots after factual normal refusal");
+		expect(log.status() == status::available && log.capture_state().Dropped == 1U, "priority reserve needs no consumer progress or retry and close has no residual charge");
+		std::print(stderr, "physical-priority-reserve:pass normal={} priority={} persisted={} frame_bytes={} reserved_bytes={} queue_bytes=65536\n", normal, priority, records.size(), adapters::logging::detail::queued_record_frame_bytes(), 512U * adapters::logging::detail::queued_record_frame_bytes());
+	}
+
+	void below_budget_tour_burst(const std::filesystem::path& aRoot)
+	{
+		using namespace bpr;
+		constexpr std::size_t                         burstCount = 128U;
+		std::array<application::diagnostic_event, 4U> events;
+		std::size_t                                   prepared = 0U;
+		for (const auto stage : { core::tour_publication_stage::update_issue_comment, core::tour_publication_stage::update_description }) {
+			for (const auto started : { true, false }) {
+				auto diagnosis    = core::operation_diagnosis{ };
+				diagnosis.Action  = core::operation_action::tour_publish;
+				diagnosis.Written = !started;
+				auto trace        = core::tour_publication_trace{ };
+				trace.Stage       = stage;
+				trace.Attempt.assign(64U, 'a');
+				trace.HttpStatus = started ? 0U : 200U;
+				diagnosis.Tour   = std::move(trace);
+				const auto text  = core::describe(diagnosis);
+				expect(!text.empty() && core::parse_operation_diagnosis(text).has_value(), "burst target diagnosis is valid");
+				auto& event     = events[prepared++];
+				event.Operation = application::diagnostic_operation::tour_operation;
+				event.Outcome   = started ? application::diagnostic_outcome::started : application::diagnostic_outcome::succeeded;
+				std::ranges::copy(text, event.Summary.Text.begin());
+				event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+				event.Summary.State = application::diagnostic_summary_state::sanitized;
+			}
+		}
+		adapters::logging::quill_log log{ aRoot };
+		expect(log.status() == application::diagnostic_log_status::available, "sole burst logger is open");
+		const auto generation = log.context_generation();
+		struct restart_guard
+		{
+			bool Paused = true;
+			void restart()
+			{
+				quill::Backend::start();
+				Paused = false;
+			}
+			~restart_guard() noexcept
+			{
+				if (Paused) {
+					try {
+						quill::Backend::start();
+					} catch (...) {
+						std::terminate();
+					}
+				}
+			}
+		} restart;
+		quill::Backend::stop();
+		std::size_t admitted = 0U, dropped = 0U, other = 0U;
+		for (std::size_t index = 0U; index < burstCount; ++index) {
+			const auto status = log.record(events[index % events.size()]);
+			if (status == application::diagnostic_log_status::available) {
+				++admitted;
+			} else if (status == application::diagnostic_log_status::dropped) {
+				++dropped;
+			} else {
+				++other;
+			}
+		}
+		restart.restart();
+		const auto state = log.capture_state();
+		log.close();
+		const auto  bytes                = tests::read_diagnostic_logs(aRoot);
+		const auto  records              = tests::diagnostic_json_records(bytes);
+		std::size_t acceptedEncodedBytes = 0U, minimumFrame = static_cast<std::size_t>(-1), maximumFrame = 0U;
+		for (std::string_view remaining{ bytes }; !remaining.empty();) {
+			const auto                     end       = remaining.find('\n');
+			const auto                     transport = std::to_string(generation) + "|" + std::string{ remaining.substr(0U, end) };
+			quill::detail::SizeCacheVector cache;
+			// Pinned Quill13 encodes four uint64 header words before its arguments.
+			const auto encoded = 4U * sizeof(std::uint64_t) + quill::Codec<std::string_view>::compute_encoded_size(cache, std::string_view{ transport });
+			acceptedEncodedBytes += encoded;
+			minimumFrame = std::min(minimumFrame, encoded);
+			maximumFrame = std::max(maximumFrame, encoded);
+			remaining.remove_prefix(end + 1U);
+		}
+		// Only bounded numeric fields and the four fixed diagnosis forms vary.
+		// 128bytes conservatively exceeds their entire possible width variation.
+		const auto                     encodedBurstLowerBound = burstCount * (minimumFrame > 128U ? minimumFrame - 128U : 0U);
+		const auto                     logicalBurstUpperBound = burstCount * (16U * 1024U - 1U + 21U);
+		quill::detail::SizeCacheVector compactCache;
+		const auto                     compactCharge = adapters::logging::detail::encode_record_charge(maximumFrame - 32U);
+		const auto                     compactFrame  = 4U * sizeof(std::uint64_t) + quill::Codec<std::string_view>::compute_encoded_size(compactCache, std::string_view{ compactCharge.data(), compactCharge.size() }) + quill::Codec<adapters::logging::detail::queued_diagnostic_record>::compute_encoded_size(compactCache, adapters::logging::detail::queued_diagnostic_record{ });
+		std::print(stderr, "tour-compact-queue frame_bytes={} burst_queue_bytes={} handle_bytes={} holder_bytes={} bounded_holders=4096\n", compactFrame, burstCount * compactFrame, sizeof(adapters::logging::detail::queued_diagnostic_record), sizeof(adapters::logging::detail::diagnostic_record_bytes));
+		std::print(stderr, "tour-queue-pressure burst={} admitted={} dropped={} other={} persisted={} dropped_counter={} accepted_old_frame_bytes_exact={} old_frame_min={} old_frame_max={} burst_old_frame_lower_bound={} logical_burst_upper_bound={}\n", burstCount, admitted, dropped, other, records.size(), state.Dropped, acceptedEncodedBytes, minimumFrame, maximumFrame, encodedBurstLowerBound, logicalBurstUpperBound);
+		expect(other == 0U && records.size() == admitted, "burst persistence binds every admitted record");
+		expect(encodedBurstLowerBound > 64U * 1024U && logicalBurstUpperBound < 7U * 1024U * 1024U && burstCount < 3584U, "controlled burst exceeds upstream queue bytes while below unchanged global budgets");
+		expect(log.status() == application::diagnostic_log_status::available, "paused backend restarts and drains before assertions");
+		expect(admitted == burstCount && dropped == 0U && records.size() == burstCount, "below-global-budget burst retains every target lifecycle record");
+		for (const auto stage : { core::tour_publication_stage::update_issue_comment, core::tour_publication_stage::update_description }) {
+			for (const auto started : { true, false }) {
+				std::size_t count = 0U;
+				for (const auto& record : records) {
+					const auto diagnosis = core::parse_operation_diagnosis(record.value("detail").toString().toStdString());
+					if (diagnosis && diagnosis->Tour && diagnosis->Tour->Stage == stage && record.value("outcome").toString() == (started ? "started" : "succeeded")) {
+						++count;
+					}
+				}
+				expect(count == burstCount / 4U, "every exact target start and success persists once");
+			}
+		}
+		std::print(stderr, "tour-queue-pressure:pass records=128\n");
 	}
 
 	void structured_record_contract(const std::filesystem::path& aRoot)
@@ -309,6 +671,10 @@ try {
 	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--audit-content-policy") {
 		return audit_content_policy(root);
 	}
+	deferred_record_ownership();
+	sink_failure_retirement_conservation();
+	physical_priority_reserve(private_root(root / "physical-priority-reserve"));
+	below_budget_tour_burst(private_root(root / "tour-queue-burst"));
 	structured_record_contract(private_root(root / "structured"));
 	hostile_summary_limits(private_root(root / "limits"));
 	stress_loss_reporting(private_root(root / "stress"));
