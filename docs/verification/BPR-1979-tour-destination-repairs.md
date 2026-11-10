@@ -135,3 +135,86 @@ All rows bind source candidate `91830ea7edde0002c7d7a23f05903dbef0fe52df`.
 The three editor milestone exits pass through this composition, guide and scoped
 verification. These selected records do not accept AC5, all of AC7, or the
 remaining supplied file-comment control. The parent stays In Progress.
+
+## Final mixed-publication and pack result
+
+Mandate `tour-destination-repairs-r1`; exact final source/test/RFC/guide candidate
+`aeed86510165247bb877136ff996fe584cfbe346` (44 explicit paths), descended from
+immutable RFC_BASE_SHA above. This supersedes the earlier parent-incomplete
+boundary records, preserving their accepted evidence and limitations.
+
+The explicit outcome order is repair, mixed, compatibility. A mixed plan retains
+route order and each stop's representation, creates one pending review for native
+members, then the conversation remainder, wires returned cross-kind links and
+submits that exact review once as COMMENT. Its overview stays the review body.
+Separate complete baseline collections and typed identities protect review,
+conversation and standalone-file writes. Stop, lost response and restart retain
+confirmed receipts; reconciliation reads first, and only explicit preview/Resume
+continues. Maintenance edits both kinds and updates the original overview last.
+
+The mandatory file choice is implemented as an ordinary core restore edit with
+Undo/Redo and persistence. The provider observes exact operation facts on the
+effect lane; the host binds owner, draft, revision and head, and the planner binds
+the source. General tour support supplies no file fact. Unknown/denied/uncertain
+facts remain unavailable. A supported standalone file choice uses a separate
+witnessed REST operation and baseline; it never joins the pending review, and
+its preview states that separate visible write. The production provider's default
+is Unknown until exact operations are separately qualified; the positive recorded
+fixture is not a live-host qualification or permission to enable the operation.
+The provider-owned `review_submission_port::tour_destinations` seam is where such
+separately qualified facts must originate; no caller-populated production cache
+is accepted. Pending-file staging remains unavailable without its own catalog
+and live evidence. BPR-1737 AC1 and existing live/native follow-ups remain open.
+
+The authorized amendments are published in RFC-BPR-0041 Compatibility publication
+and RFC-BPR-0042 Mixed representation amendment. No already-published
+compatibility route is converted. No source whose bytes changed is silently
+reanchored. No owner desktop or live GitHub target was driven or mutated.
+
+| Original criterion | Final acceptance and direct evidence |
+|---|---|
+| AC1 | Pass: accepted M2 per-stop findings/selection and final repaired course; exact supported-file course exposes the named file choice, while Unknown exposes none. |
+| AC2 | Pass: accepted exact-byte mapping/re-pin negatives and composed repair course; final core repair/destination checks pass in dev and core-only. |
+| AC3 | Pass: accepted nearest-provider-hunk source preview, ordinary history and stale-command refusal; final repaired course passes. |
+| AC4 | Pass: final composed ten-stop repair course retains one pending creation, one COMMENT submission, ten native comments and zero compatibility comments. |
+| AC5 | Pass: mixed session courses interrupt/reopen every one of seven writes under Stop and lost-response cases, then maintain both kinds without repost; composed mixed course verifies zero-write preview, exact outside-diff stop, returned route links, one root identity and later reorder. File course adds exact/Unknown facts, Undo/Redo, interrupted standalone file write, read-only restart, explicit Resume and file maintenance. |
+| AC6 | Pass: three explicit choices put compatibility last; native and compatibility composed baselines pass, and the mixed course refuses implicit selection. |
+| AC7 | Pass: scoped integration, final affected courses, architecture/network boundaries, core-only checks, LLVM22 format/tidy and documentation checks below. |
+
+Verification on macOS arm64, Debug, Qt 6.12.0, offscreen synthetic fixtures:
+
+- The 12-course integration passed in 23.37s: core destination/repair, application
+  submission host, both SQLite stores, staged session/restart, and composed
+  native/compatibility/repairs/mixed/file publication. The host course additionally
+  refuses misbound/cancelled operation observations and proves effect/decision
+  lane separation and zero writes.
+- Final affected Qt preview/mixed/file courses passed 3/3 in 9.88s after layout,
+  status and scoped-fact invalidation refinements. The preceding final staged
+  session and repaired courses passed in 2.57s and 5.37s; their inputs are unchanged.
+- Four boundary courses passed in 23.34s: `core_dependency_boundary`,
+  `core_boundary_contract`, `architecture_boundaries`,
+  `test_network_isolation_manifest`. The unchanged negative architecture contract
+  reuses its accepted M1 evidence; no boundary verifier was changed.
+- Core-only builds pass; destination/repair pass 2/2 in 0.61s. LLVM22 format passes
+  all 38 changed C++ paths. Tidy passed 23 translation units initially, then all
+  three affected units after correcting test parameter names; all 24 changed
+  translation units have passing evidence. Documentation gate and 67 regression
+  tests pass; the final board-closeout documentation observation is in the handoff.
+- Full-window mixed and file previews at 1200×760 logical were inspected. The
+  captured plan replaces the superseded local preview and repair list and retains
+  a readable viewport; the Qt and composed courses assert that geometry. This is
+  deterministic offscreen layout evidence, not native appearance. M2's unchanged
+  repair typography/scaling evidence is reused; no new scale/native matrix or
+  Debug timing course is claimed.
+
+Retained initial failures and corrections: stale-preview parentheses and lambda
+shadow warnings; post-confirmation description checking the old baseline;
+fixture assertions assuming unchanged neighbors; a fixture native selection
+accidentally outside its hunk; preview wording/partial-status selectors; remote
+fixture overlay omitting conversation/file collections on refresh; collapsed
+captured preview; test parameter naming. All affected functional and static
+checks were rerun successfully. No failed functional obligation remains.
+
+Runtime-only logs and rasters remain external; exact commands, candidate,
+command quiescence and guarded closeout are bound in the existing checkpoint.
+No human, independent-review, native-system or live-server verdict is inferred.

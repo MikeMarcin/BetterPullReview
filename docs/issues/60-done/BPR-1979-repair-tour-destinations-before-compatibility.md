@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1979"
 title: "A tour with one stale-head stop and one stop a line outside its hunk can only publish as compatibility comments, although both stops can be fixed and the other eight are valid line comments"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-1980"]
 priority: "P2"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"enhancement","found_by":"owner, 2026-11-09: a 10-stop tour on a GitHub Enterprise Server 3.20.8 pull request offered only 'This route needs visible compatibility comments.' The owner chose compatibility, the whole tour went out as conversation comments, and it then had to be rebuilt by hand as one review","related_cards":["BPR-1715","BPR-1735","BPR-1737"],"related_rfcs":["RFC-BPR-0022","RFC-BPR-0041","RFC-BPR-0042"],"milestone_plan":{"id":"tour-destination-repairs-v1","path":"docs/rfcs/plans/tour-destination-repairs-v1/milestone-plan.json"},"mandate_revision":"tour-destination-repairs-r1","reservation":"docs/issues/_reservations/BPR-1979--BPR-1980--d8b8b8649256.json"}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"aeed86510165247bb877136ff996fe584cfbe346","evidence":{"kind":"artifact","detail":"Typed per-stop repair reasons and selection compose in accepted M2 and final repaired course; exact file-support course exposes explicit file choice, Unknown exposes none.","path":"docs/verification/BPR-1979-tour-destination-repairs.md"}},{"criterion":"AC2","outcome":"pass","revision":"aeed86510165247bb877136ff996fe584cfbe346","evidence":{"kind":"artifact","detail":"Exact-byte historical mapping and one-action re-pin: accepted M1/M2 evidence, final dev/core-only repair and destination checks plus ten-stop public course.","path":"docs/verification/BPR-1979-tour-destination-repairs.md"}},{"criterion":"AC3","outcome":"pass","revision":"aeed86510165247bb877136ff996fe584cfbe346","evidence":{"kind":"artifact","detail":"Nearest provider-commentable range and actual source preview use one ordinary undoable edit, preserve prose and reject stale previews; accepted M2 evidence and final public repair course.","path":"docs/verification/BPR-1979-tour-destination-repairs.md"}},{"criterion":"AC4","outcome":"pass","revision":"aeed86510165247bb877136ff996fe584cfbe346","evidence":{"kind":"artifact","detail":"Final composed ten-stop course proves one pending creation, one COMMENT submission, ten native stops and zero compatibility comments.","path":"docs/verification/BPR-1979-tour-destination-repairs.md"}},{"criterion":"AC5","outcome":"pass","revision":"aeed86510165247bb877136ff996fe584cfbe346","evidence":{"kind":"artifact","detail":"Authorized RFC0041/0042 amendments; mixed session interrupts every one of seven writes under Stop/lost response, reopens read-only, resumes without repost and maintains both kinds. Composed mixed/file courses verify overview/order/cross-kind links, one root identity, explicit exact file choice and standalone membership separation, Undo/Redo and recovery/maintenance.","path":"docs/verification/BPR-1979-tour-destination-repairs.md"}},{"criterion":"AC6","outcome":"pass","revision":"aeed86510165247bb877136ff996fe584cfbe346","evidence":{"kind":"artifact","detail":"Repair, mixed and compatibility are explicit in that order; mixed cannot be selected silently, and compatibility public baseline passes with compatibility last.","path":"docs/verification/BPR-1979-tour-destination-repairs.md"}},{"criterion":"AC7","outcome":"pass","revision":"aeed86510165247bb877136ff996fe584cfbe346","evidence":{"kind":"artifact","detail":"12-course integration, final affected 3-course Qt/mixed/file run, staged restart, dev/core-only focused tests, four boundary gates, LLVM22 format/tidy, documentation gate and 67 documentation regressions pass. Exact command/failure history in ledger/checkpoint.","path":"docs/verification/BPR-1979-tour-destination-repairs.md"}}]
 ---
 
 # BPR-1979: A tour with one stale-head stop and one stop a line outside its hunk can only publish as compatibility comments, although both stops can be fixed and the other eight are valid line comments
@@ -223,3 +223,20 @@ maintenance/recovery, and the supplied file-comment choice wherever exact
 scope facts allow it. A standalone file comment is not a pending-review item.
 Unknown or denied operations remain unavailable. No native/live-host verdict
 or parent completion is inferred from these fixture results.
+
+## Final acceptance
+
+Source/test/RFC/guide candidate `aeed86510165247bb877136ff996fe584cfbe346`
+completes mandate `tour-destination-repairs-r1`, including the mandatory explicit
+file choice where exact operation facts support it. The final criterion table,
+composed mixed/file recovery and maintenance courses, preserved M1/M2 evidence,
+required gates and actual limitations are in the
+[verification record](../../verification/BPR-1979-tour-destination-repairs.md).
+The [checkpoint](../_checkpoints/BPR-1979/handoff.md) records the final guarded
+board/plan closeout and command state. Every original criterion above is retained.
+
+The file-operation production default remains Unknown pending separate exact
+qualification. A standalone file comment is a separate visible write, never a
+pending-review member. BPR-1737 AC1 and the existing live/native follow-ups are
+not accepted by these fixture results. No attended or independent decision was
+required by this card's automated acceptance, and none is invented.

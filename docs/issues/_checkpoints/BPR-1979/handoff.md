@@ -190,3 +190,104 @@ final acceptance must reconcile every original criterion and M2 evidence.
 No attended session is needed for this milestone's automated criteria; no human,
 other-station or live-host evidence is supplied. Prepare the configured attended
 review or wizard only if the successor reaches an actual required human boundary.
+
+## Mixed-publication implementation checkpoint (active)
+
+Owner `/root/tour_mixed`, assignment `mixed-publication`, mandate
+`tour-destination-repairs-r1`, adopted at `e93300932bdb8425df95fc8030930622b6cb8b99`.
+`mixed-publication-binding.json` resolves AC5/AC7 and all three exits through
+the existing target-scoped helper. M1/M2 accepted evidence is retained.
+
+Active source changes add an explicit mixed outcome, immutable per-stop
+representations, original-order route rendering over a pending-first creation
+order, separate review/conversation baseline identities and kind-filtered
+verification/recovery. Version 6 of the staged payload reads older versions.
+The editor ranks repair, mixed and compatibility, and previews the visible
+sequence and exact stops outside Files changed. No operation is enabled by a
+missing capability. Foreign `.codex-attachments/` remains untouched.
+
+The first build found an operator-parentheses warning in the stale-preview
+check; corrected. The first production-session course reached all seven
+writes, then exposed a description verification comparison using its baseline
+after confirmation; corrected to verify the desired confirmed body. The first
+composed mixed fixture accidentally placed an intended native stop outside its
+new fixture hunk; its selection is corrected. These initial runs failed and
+supply no acceptance. Build/test reruns are underway. Logs are external under
+`/tmp/bpr-tour-repair-run/mixed-*`.
+
+Remaining before acceptance: pass and inspect composed mixed flow, all-step
+interruption/reopen and both-kind maintenance; implement the mandatory honest
+qualified file-comment choice without pending-membership confusion; amend both
+RFCs and guide; self-review/gates/intentional commits and finish the parent only
+against all original criteria. No human/native/live-server verdict is supplied.
+No review server or protection exists. All command identities/results will be
+reconciled in the final checkpoint before handoff.
+
+## Accepted final mixed-publication checkpoint
+
+Assignment `mixed-publication`, owner `/root/tour_mixed`, mandate
+`tour-destination-repairs-r1`; adopted source `e93300932bdb8425df95fc8030930622b6cb8b99`.
+Final source/test/RFC/guide candidate: `aeed86510165247bb877136ff996fe584cfbe346`
+(44 intentional explicit paths). Its commit includes the authorized RFC0041/0042
+amendments, guide, core/host/provider/journal/Qt changes and focused courses.
+`mixed-publication-binding.json` binds AC5/AC7 and all three exits; accepted
+repair-policy and editor-repairs records above are reused. Every original
+BPR-1979 AC1–AC7 is reconciled in the final verification ledger.
+
+Direct outcome: one pending review for admitted native stops, only the remainder
+as permalink conversation comments, exact returned cross-kind Previous/Next and
+original-order review overview. One stable tour identity persists both kinds.
+Stop/lost-response/reopen at each of seven writes reuses receipts; subsequent
+maintenance preserves discussion IDs and updates the original overview last.
+The mandatory explicit file preference is ordinary, undoable and persisted.
+Its separately witnessed standalone file write remains outside pending membership;
+exact/Unknown observations, Stop/restart/Resume and maintenance are composed.
+Provider-owned operation observations run off-lane, bind exact source/owner/head/
+draft/revision, reject stale results and clear on authority replacement. General
+tour qualification never grants file support. Production facts remain Unknown
+until separately qualified; no live capability or pending-file primitive is
+newly enabled. BPR-1737 AC1 and existing live/native follow-ups remain open.
+
+Final verification (all commands exited; complete external logs retained):
+
+- `cmake --build --preset dev --target test_staged_review_session test_review_tour_publication_public_path test_better_pull_review_review_submission_application_host_tests test_review_tour_destination test_review_tour_repair test_review_tour_storage test_better_pull_review_review_submission_recovery_storage_tests -j 6`: pass (`mixed-final-focused-build.log`). Later focused relinks in `mixed-last-build*.log` and `mixed-visible-build.log` pass, including `test_review_tour_publication_working`.
+- Twelve-course integration: 12/12, 23.37s (`mixed-integration-1.log`), including
+  native/compatibility/repaired/mixed/file, core repair/destination, submission
+  host negatives, both SQLite stores and staged session/restart.
+- Final affected Qt preview/mixed/file: 3/3, 9.88s
+  (`mixed-accepted-courses.log`). Unchanged final session/repairs evidence:
+  2.57s/5.37s (`mixed-final-courses.log`, whose later file row initially waited
+  for the old status wording and failed; corrected selector is fully rerun).
+- Boundaries: 4/4, 23.34s (`mixed-boundaries.log`): core dependency/boundary,
+  architecture and network isolation manifest. Unchanged architecture negative
+  contract reuses accepted M1 evidence; no repeated exhaustive matrix.
+- Core-only focused build: pass (`mixed-core-build.log`); destination/repair
+  2/2, 0.61s (`mixed-core-tests.log`). No Debug timing course used.
+- LLVM22 format: all 38 changed C++ paths pass (`mixed-format.log`). Tidy:
+  23/24 initial TUs pass, test parameter naming corrected; final three-TU
+  recheck passes (`mixed-last-tidy.log`), covering all 24 changed TUs.
+- Documentation gate: pass (`mixed-docs-1.log`); documentation regression
+  67/67 pass (`mixed-doc-tests.log`). Final board/documentation closeout below.
+- Offscreen macOS arm64, Debug, Qt 6.12.0, 1200×760 logical: mixed/file source
+  and captured publication previews inspected. The collapsed duplicate-preview
+  layout is corrected and its readable viewport asserted by Qt and composed
+  courses. Latest rasters are under `build/dev/tests/end_to_end/` with names
+  `review-tour-publication-{mixed,file}.png-{mixed,file}.png`. This is offscreen
+  layout evidence only; unchanged M2 scaling evidence is reused.
+
+Earlier failures are retained in the final ledger with corrections; no unresolved
+functional or static failure remains. Self-review covered no silent route
+fallback, preserved original/changed sources, source-bound file facts, independent
+review/issue/file identity namespaces, durable witness transitions, original route
+versus creation order, exact pending membership, Resume-only authority, old payload
+reading, minimal maintenance and actual visible preview. No independent reviewer
+or human/native criterion was required or claimed.
+
+All owned build, CTest, tidy and documentation processes are drained before final
+return. No server, writer, worktree, mount, review session/protection or remote
+mutation was created. Foreign `.codex-attachments/` is untouched. Runtime logs,
+selection and final helper observations remain in `/tmp/bpr-tour-repair-run`;
+no credentials, rasters or transient build output are tracked. No push occurred.
+Next action after guarded finish/check: coordinator reports the authorized pack
+complete; no engineering milestone remains. Exact live/native follow-ups retain
+their existing independent scope and status.
