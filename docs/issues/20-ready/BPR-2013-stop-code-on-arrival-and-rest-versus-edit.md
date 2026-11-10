@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2013"
 title: "Show a stop's code on arrival and separate reading a stop from editing it"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0106"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0025-stop-code-on-arrival-and-rest-versus-edit.md"}
 depends_on: ["BPR-1991"]
