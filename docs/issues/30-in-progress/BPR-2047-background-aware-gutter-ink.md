@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2047"
 title: "Normalize gutter ink against its reference background"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-2045"]
 priority: "P1"
