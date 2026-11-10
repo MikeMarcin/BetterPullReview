@@ -16,9 +16,11 @@
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_window_read.hpp"
 
+#include <expected>
 #include <functional>
 #include <memory>
 #include <span>
+#include <string>
 
 namespace bpr::application {
 	class device_authorization_browser_port;
@@ -122,6 +124,13 @@ namespace bpr::application {
 		/// Share one immutable accepted server observation with bounded sibling
 		/// readers. Does not fetch, move comparisons, or hand off another epoch.
 		void share_snapshot(std::span<const std::shared_ptr<github_window_read_host>> aWindows, std::uint64_t aSequence);
+		/// \brief The exact address a displayed body gesture would open, or why it would not.
+		/// \details The same admission `open_markdown_link` makes, with no
+		/// effect, so the window can show the reviewer the full address before anything
+		/// opens. A confirmed gesture goes back through `open_markdown_link`, which admits
+		/// it again: a publication that replaced the body meanwhile makes it stale.
+		[[nodiscard]] auto markdown_link_address(const core::markdown_link_intent& aIntent, const device_authorization_browser_port* aBrowser) const
+			-> std::expected<std::string, core::markdown_link_result>;
 		/// \brief Revalidates a displayed body gesture on the decision lane before the browser handoff.
 		[[nodiscard]] auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		/// \brief [[BPR-1338]]. Opens the accepted pull request's own page for a gesture against

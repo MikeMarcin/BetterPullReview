@@ -19,6 +19,7 @@
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/usage_ring.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "external_link_confirmation.hpp"
 #include "github_presentation_text.hpp"
 
 #include <QAbstractButton>
@@ -31,6 +32,7 @@
 #include <QByteArrayView>
 #include <QChar>
 #include <QComboBox>
+#include <QDialog>
 #include <QFormLayout>
 #include <QKeySequence>
 #include <QLabel>
@@ -65,6 +67,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <expected>
 #include <functional>
 #include <initializer_list>
 #include <map>
@@ -77,6 +80,19 @@
 
 namespace bpr::qt {
 	namespace {
+		/// What the status line says after a body or check link gesture.
+		[[nodiscard]] auto markdown_link_message(const core::markdown_link_result aResult) -> QString
+		{
+			switch (aResult) {
+			case core::markdown_link_result::opened:      return QStringLiteral("Opened in your browser.");
+			case core::markdown_link_result::stale:       return QStringLiteral("This body is no longer current. Reopen the link from the current content.");
+			case core::markdown_link_result::unavailable: return QStringLiteral("Opening links is unavailable until the pull request is accepted.");
+			case core::markdown_link_result::refused:     return QStringLiteral("This link cannot be opened safely. Its destination remains available in the source.");
+			case core::markdown_link_result::failed:      return QStringLiteral("The browser could not open this link.");
+			}
+			return { };
+		}
+
 		/// [[BPR-1575]]. What a refresh compares of one accepted read; defined below.
 		[[nodiscard]] auto refresh_observation_of(const application::github_pull_request_projection& aPullRequest) -> core::pull_request_refresh_observation;
 
@@ -258,16 +274,11 @@ namespace bpr::qt {
 		MarkdownAuthority   = authority;
 		PageContext         = aPullRequest.MarkdownContext;
 		const auto dispatch = [this, context = aPullRequest.MarkdownContext](const std::string& aBody, const std::string& aDestination) {
-			const auto result = context && MarkdownDispatch ? MarkdownDispatch({ *context, aBody, aDestination }) : core::markdown_link_result::unavailable;
-			QString    message;
-			switch (result) {
-			case core::markdown_link_result::opened:      message = QStringLiteral("Opened in your browser."); break;
-			case core::markdown_link_result::stale:       message = QStringLiteral("This body is no longer current. Reopen the link from the current content."); break;
-			case core::markdown_link_result::unavailable: message = QStringLiteral("Opening links is unavailable until the pull request is accepted."); break;
-			case core::markdown_link_result::refused:     message = QStringLiteral("This link cannot be opened safely. Its destination remains available in the source."); break;
-			case core::markdown_link_result::failed:      message = QStringLiteral("The browser could not open this link."); break;
+			if (!context) {
+				statusBar()->showMessage(markdown_link_message(core::markdown_link_result::unavailable), 8000);
+				return;
 			}
-			statusBar()->showMessage(message, 8000);
+			confirm_markdown_link({ *context, aBody, aDestination });
 		};
 		OverviewPage->body_view()->set_link_dispatch([dispatch](const std::string& aDestination) { dispatch({ }, aDestination); });
 		// RFC-BPR-0084. Images ask under this publication's context; a new
@@ -446,6 +457,35 @@ namespace bpr::qt {
 			aDiagnostic.RateLimitCause,
 			true,
 			aDiagnostic.BootstrapStage, aDiagnostic.CapabilityDetail, aDiagnostic.AccountMismatch);
+	}
+
+	void workbench_window::confirm_markdown_link(const core::markdown_link_intent& aIntent)
+	{
+		// The address comes from the same admission the open repeats, so what
+		// the question shows is what would open; nothing opens until Open.
+		const auto address = MarkdownAddressDispatch ? MarkdownAddressDispatch(aIntent) : std::expected<std::string, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::unavailable) };
+		if (!address) {
+			statusBar()->showMessage(markdown_link_message(address.error()), 8000);
+			return;
+		}
+		// One question at a time: a second link replaces the first.
+		if (LinkConfirmation != nullptr) {
+			LinkConfirmation->close();
+		}
+		LinkConfirmation = detail::show_external_link_confirmation(*this, QString::fromStdString(*address), [this, intent = aIntent] {
+			const auto result = MarkdownDispatch ? MarkdownDispatch(intent) : core::markdown_link_result::unavailable;
+			statusBar()->showMessage(markdown_link_message(result), 8000);
+		});
+	}
+
+	void workbench_window::set_markdown_link_address_dispatch(std::function<std::expected<std::string, core::markdown_link_result>(const core::markdown_link_intent&)> aDispatch)
+	{
+		MarkdownAddressDispatch = std::move(aDispatch);
+	}
+
+	auto workbench_window::external_link_confirmation() const noexcept -> QDialog*
+	{
+		return LinkConfirmation.data();
 	}
 
 	void workbench_window::set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch)
@@ -805,7 +845,16 @@ namespace bpr::qt {
 	{
 		MarkdownAuthority.clear();
 		PageContext.reset();
-		OverviewPage->body_view()->set_link_dispatch({ });
+		// A question about a link of the pull request leaving goes with it.
+		if (LinkConfirmation != nullptr) {
+			LinkConfirmation->close();
+		}
+		// [[BPR-1842]] shows a pull request's description while the review is
+		// still loading, before any body may open a link. A link pressed then
+		// says so rather than doing nothing.
+		OverviewPage->body_view()->set_link_dispatch([this](const std::string&) {
+			statusBar()->showMessage(QStringLiteral("Links open once the pull request finishes loading."), 8000);
+		});
 		ConversationPanel->set_link_dispatch({ });
 		OverviewPage->body_view()->set_permalink_repository(std::nullopt);
 		ConversationPanel->set_permalink_repository(std::nullopt);

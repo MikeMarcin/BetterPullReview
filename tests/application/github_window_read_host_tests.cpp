@@ -4,6 +4,7 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/reference_page.hpp"
 #include <cstdlib>
+#include <expected>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -1483,6 +1484,17 @@ namespace {
 			   "acceptance preserves exact source and performs no browser effect");
 		const auto old     = *projected->MarkdownContext;
 		const auto gesture = core::markdown_link_intent{ old, { }, "./guide.md" };
+		// The address the window shows before opening is the one the open
+		// would hand over, and naming it opens nothing.
+		expect(host.markdown_link_address(gesture, &opener) == std::expected<std::string, core::markdown_link_result>{ "https://github.com/owner/repo/blob/2222222222222222222222222222222222222222/guide.md" }
+				   && host.markdown_link_address({ old, { }, "https://example.invalid/a?b=c#d" }, &opener) == std::expected<std::string, core::markdown_link_result>{ "https://example.invalid/a?b=c#d" }
+				   && opener.Opened.empty(),
+			   "naming a current link's exact address performs no browser effect");
+		expect(host.markdown_link_address({ old, { }, "file:///tmp/secret" }, &opener) == std::expected<std::string, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::refused) }
+				   && host.markdown_link_address({ old, { }, "javascript:alert(1)" }, &opener) == std::expected<std::string, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::refused) }
+				   && host.markdown_link_address(gesture, nullptr) == std::expected<std::string, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::unavailable) }
+				   && host.markdown_link_address({ old, "absent", "https://example.invalid" }, &opener) == std::expected<std::string, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::stale) },
+			   "a non-web scheme, a missing browser and an absent body name no address");
 		expect(host.open_markdown_link(gesture, &opener) == core::markdown_link_result::opened
 				   && opener.Opened.back() == "https://github.com/owner/repo/blob/2222222222222222222222222222222222222222/guide.md",
 			   "current explicit gesture reaches browser with exact accepted revision");
@@ -1508,6 +1520,8 @@ namespace {
 		call.Complete(application::github_pull_request_success{ call.Request, data });
 		lane.drain();
 		expect(projected->MarkdownContext != old && host.open_markdown_link(gesture, &opener) == core::markdown_link_result::stale, "fresh body publication invalidates gestures even if provider reuses snapshot id");
+		expect(host.markdown_link_address(gesture, &opener) == std::expected<std::string, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::stale) },
+			   "a link asked about before a fresh publication names no address afterwards");
 		expect(host.open_markdown_link(checkGesture, &checkOpener) == core::markdown_link_result::stale && checkOpener.Opened.size() == 1, "old check result loses navigation authority on accepted refresh");
 		opener.Succeeds = false;
 		expect(host.open_markdown_link({ *projected->MarkdownContext, { }, "http://example.invalid/doc" }, &opener) == core::markdown_link_result::failed, "browser failure remains explicit");

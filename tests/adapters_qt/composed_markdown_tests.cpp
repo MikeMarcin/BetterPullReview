@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QContextMenuEvent>
+#include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QKeyEvent>
@@ -23,9 +24,11 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QStatusBar>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -195,6 +198,22 @@ Final content: Ω 日本語 🦊
 		auto* accessible = QAccessible::queryAccessibleInterface(aReader.rendered_view());
 		expect(accessible && accessible->textInterface() && !accessible->text(QAccessible::Name).isEmpty(), "native read-only text and accessible naming are exposed");
 	}
+	// The window's open-link question, if one is up: Open or Cancel it.
+	auto answer_link_question(const bool aOpen) -> QString
+	{
+		for (auto* const widget : QApplication::topLevelWidgets()) {
+			auto* const window = dynamic_cast<qt::workbench_window*>(widget);
+			auto* const asked  = window != nullptr ? window->external_link_confirmation() : nullptr;
+			if (asked == nullptr) {
+				continue;
+			}
+			const auto address = asked->findChild<QPlainTextEdit*>(QStringLiteral("externalLinkAddress"))->toPlainText();
+			asked->findChild<QPushButton*>(aOpen ? QStringLiteral("externalLinkOpen") : QStringLiteral("externalLinkCancel"))->click();
+			settle();
+			return address;
+		}
+		return { };
+	}
 	void activate(qt::markdown_body_view& aReader, const QString& aTarget)
 	{
 		auto* view = aReader.rendered_view();
@@ -207,6 +226,31 @@ Final content: Ω 日本語 🦊
 					view->setTextCursor(cursor);
 					view->setFocus();
 					key(view, Qt::Key_Return);
+					answer_link_question(true);
+					return;
+				}
+			}
+		}
+		expect(false, "required composed link exists");
+	}
+	// A real pointer click on the link's own glyphs, as the reviewer makes it.
+	void click(qt::markdown_body_view& aReader, const QString& aTarget)
+	{
+		auto* view = aReader.rendered_view();
+		for (auto block = view->document()->begin(); block.isValid(); block = block.next()) {
+			for (auto it = block.begin(); !it.atEnd(); ++it) {
+				const auto fragment = it.fragment();
+				if (fragment.charFormat().anchorHref() == aTarget) {
+					auto cursor = QTextCursor{ view->document() };
+					cursor.setPosition(fragment.position() + 1);
+					view->ensureCursorVisible();
+					const auto point = view->cursorRect(cursor).center();
+					expect(view->anchorAt(point) == aTarget, "the pointer rests on the composed link");
+					auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, view->viewport()->mapToGlobal(QPointF{ point }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+					QApplication::sendEvent(view->viewport(), &press);
+					auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, view->viewport()->mapToGlobal(QPointF{ point }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+					QApplication::sendEvent(view->viewport(), &release);
+					settle();
 					return;
 				}
 			}
@@ -324,6 +368,7 @@ int main(int argc, char** argv)
 	hostPtr = &host;
 	std::optional<core::markdown_link_intent> lastGesture;
 	window.set_markdown_link_dispatch([&](const auto& aIntent) { lastGesture = aIntent; return host.open_markdown_link(aIntent, &opener); });
+	window.set_markdown_link_address_dispatch([&](const auto& aIntent) { return host.markdown_link_address(aIntent, &opener); });
 	// [[BPR-1338]]. Open on GitHub through the same real read host.
 	std::optional<core::markdown_context> lastPage;
 	window.set_pull_request_page_dispatch([&](const application::pull_request_page_intent& aIntent) {
@@ -345,6 +390,17 @@ int main(int argc, char** argv)
 	window.home_open_bar()->setFocus();
 	key(window.home_open_bar(), Qt::Key_Return);
 	expect(static_cast<bool>(reads.Complete), "Open gesture reaches provider through the accepted read host");
+	// While the review loads, a description link (shown early since
+	// [[BPR-1842]]) says why it does not open yet instead of doing nothing.
+	{
+		auto* const early = window.overview_page()->body_view();
+		early->set_body("[Early](https://example.invalid/early)", "description");
+		settle();
+		click(*early, QStringLiteral("https://example.invalid/early"));
+		expect(window.external_link_confirmation() == nullptr && opener.Addresses.empty()
+				   && window.statusBar()->currentMessage() == QStringLiteral("Links open once the pull request finishes loading."),
+			   "a link pressed while the review loads says it will open once loaded");
+	}
 	auto       accepted      = snapshot(reads.Request);
 	const auto discussBodies = QCoreApplication::arguments().contains(QStringLiteral("--discuss-bodies"));
 	if (discussBodies) {
@@ -404,6 +460,18 @@ int main(int argc, char** argv)
 	settle();
 	expect(reader->height() > 700, "expanded overview fills the workbench without a six-line cap");
 	expect(opener.Addresses.empty(), "rendering, layout and native accessibility perform no browser effect");
+	// A pointer click on the description's web link asks first, showing the
+	// whole address, and opens nothing until Open.
+	click(*reader, QStringLiteral("https://example.invalid/review"));
+	expect(opener.Addresses.empty() && window.external_link_confirmation() != nullptr && window.external_link_confirmation()->isVisible(), "a clicked description link asks before opening");
+	expect(answer_link_question(false) == QStringLiteral("https://example.invalid/review") && opener.Addresses.empty(), "Cancel opens nothing");
+	click(*reader, QStringLiteral("https://example.invalid/review"));
+	expect(answer_link_question(true) == QStringLiteral("https://example.invalid/review") && opener.Addresses.size() == 1 && opener.Addresses.back() == "https://example.invalid/review",
+		   "Open hands exactly the shown address to the browser");
+	// A refused link asks nothing: no question can open a local file.
+	click(*reader, QStringLiteral("file:///tmp/markdown-canary"));
+	expect(window.external_link_confirmation() == nullptr && opener.Addresses.size() == 1 && window.statusBar()->currentMessage().contains(QStringLiteral("cannot be opened safely")),
+		   "a refused scheme raises no question, opens nothing and says why");
 	activate(*reader, QStringLiteral("./docs/guide.md"));
 	expect(opener.Addresses.back() == "https://ghe.example.invalid/owner/repo/blob/2222222222222222222222222222222222222222/docs/guide.md", "real composed keyboard gesture binds repository link to accepted head");
 	const auto stale = *lastGesture;
