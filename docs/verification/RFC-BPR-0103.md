@@ -94,7 +94,7 @@ records the amendment to its late-frame rule.
 | AC06 | `qt_agent_activity_view`: "is reading frame_pool.cpp", "is running git diff --stat", "last activity 4 s ago" then "0 s ago" after a frame; the composed course saw "last activity" on the live line | Pass |
 | AC07 | Live, below | See below |
 | AC08 | `qt_tour_side_chat`: the side chat's running turn shows the helper's row, "is reading item.cpp · last activity 1 s ago", the quiet notice and Keep waiting, and folds to "Worked for 2 min: 1 helper, 1 file read" after; the tour session's projection now relays every stream event to it | Pass |
-| AC09 | The owner's look at the running, quiet and ended states on a frozen build | Pending: owner-attended, filed (below) |
+| AC09 | The owner's look at the running, quiet and ended states on a frozen build | Pass: owner accepted all three candidates (below) |
 
 ## Live course (AC07)
 
@@ -160,7 +160,11 @@ AC07: Pass for both installed agents.
 
 ## AC09: the owner's look
 
-Pending; filed for the owner and not waited on (owner, 2026-11-10: "Continue
+Passed. The owner accepted `BPR-2005-running` (decision `eead98a1`),
+`BPR-2005-quiet` (`25cac43a`) and `BPR-2005-ended` (`d19d4d2d`) with no note.
+Host 29030/29040 stopped; root `agent-work-visible-v001.9any75gt` removed.
+
+As filed (for the owner and not waited on (owner, 2026-11-10: "Continue
 working unattended, you can file reviews but dont block on their results").
 Session `d2cc338937915480c469bdbd1ffd7f89`, state
 `/Users/jaeger/.attended-review-state/agent-work-visible-v001-2026-11-10/state`,
