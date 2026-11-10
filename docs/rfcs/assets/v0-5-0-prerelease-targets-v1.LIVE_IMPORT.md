@@ -98,4 +98,5 @@ refuses until then.
 Main then recorded this lane's reservation as observed high water
 (`555c15ccb`, counter BPR-2045) and reserved BPR-2045 and BPR-2046; it reads
 BPR-2047. The lane's counter now reads BPR-2047, main's own; nothing is
-imported and nothing collides.
+imported and nothing collides. Main then reserved BPR-2047 and reads BPR-2048;
+the lane's counter follows it.
