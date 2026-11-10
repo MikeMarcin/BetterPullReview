@@ -29,3 +29,13 @@ Exact source/test candidate `4e21d72a50135e7226e4c0a3ab389cebff03bf20`. Changed 
 Final core-only run passes all seven courses, including both architecture boundaries (`core-tests-final.log`). All task-owned build, CTest, tidy and documentation commands have exited; results consumed. No writer/server/protection/worktree or external/desktop effect remains. Foreign `.codex-attachments/` is untouched. All AC1–AC3 and milestone exits pass against this candidate; no additional independent/human/native acceptance is required or claimed. Historical terminal acceptance and unrelated live/native gaps remain intact.
 
 Next: guarded tracker finish with verification/checkpoint/binding, post-move docs/board/consistency check, then coordinator report.
+
+## Final guarded closeout
+
+Guarded finish `98268c729b82e5a3628d7a8c9d87b7a095f200f1` moved BPR-1982 to Done with passing AC1–AC3 records against source/test `4e21d72a50135e7226e4c0a3ab389cebff03bf20`; no card requirement or historical acceptance was rewritten. Allocation/plan `7762afb61` and claim `b99ec8da26016b7839955228c2c0944d2189ae8c` precede it.
+
+Core-only7/7 passed195.14seconds, including architecture_boundaries20.07seconds and architecture_boundary_contract173.36seconds. The13dev courses have passing evidence across the twelve-course integration successes and final2.39second session recheck. All six changed TUs pass LLVM22 tidy, all seven changed C++ files pass format, docs pass and documentation regressions remain67/67. Actual failed commands and exact selectors are in `docs/verification/BPR-1982-legacy-tour-destination.md`.
+
+The consistency helper returns `report-closeout`; `engineering_acceptance: not-evaluated` means it checks consistency, with actual engineering judgment in the criterion ledger. Current-HEAD observation and check are external at `/tmp/bpr-legacy-destination-fix/{observation,check}.json`. All build/test/tidy and failed interim commands exited and results were consumed. Only final documentation/board/checkpoint upkeep follows this entry and is completed before return. No source writer, review server/session/protection, task worktree, mount or remote mutation remains; foreign `.codex-attachments/` is unchanged.
+
+Next action: coordinator reports this bounded P2 repair complete. No selected-scope correction, owner decision or new review round remains. Separate live/native gaps retain their original scope/status.

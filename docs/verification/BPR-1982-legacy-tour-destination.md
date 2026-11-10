@@ -51,7 +51,7 @@ No credential, raw transport log, build tree or authenticated URL is tracked.
 - After rebuilding that test (`session-build-final.log`), `ctest --preset dev -R '^staged_review_session$' --output-on-failure` passes, 2.39seconds (`session-tests-final.log`). This includes both SQLite reopen modes, fourteen zero-write negatives, exact one-edit maintenance and existing mixed namespace/restart/session controls. The other twelve passing integration courses have unchanged relevant inputs and are reused.
 - Final LLVM22 format passes all seven changed C++ files (`format-final.log`). All six TUs pass warnings-as-errors tidy; unchanged source successes are in `tidy.log`, final core/session test successes in `core-tidy-final.log` and `session-tidy-final.log`. `git diff --check` passes.
 - `python3 scripts/verify_documentation.py --root .` passes (`docs.log`); `python3 tests/scripts/verify_documentation_tests.py` passes 67/67 (`doc-tests.log`).
-- `ctest --preset core-only -R '^(core_review_tour(|_import|_destination|_repair|_update)|architecture_boundaries|architecture_boundary_contract)$' --output-on-failure`: all seven pass (`core-tests-final.log`); no timing acceptance is inferred.
+- `ctest --preset core-only -R '^(core_review_tour(|_import|_destination|_repair|_update)|architecture_boundaries|architecture_boundary_contract)$' --output-on-failure`: all seven pass, 195.14seconds (`core-tests-final.log`); no timing acceptance is inferred.
 
 No independent/human/native acceptance is required by this correction mandate
 or claimed by these checks. Existing separate live/native qualification gaps
