@@ -493,7 +493,11 @@ namespace bpr::qt {
 	void workbench_window::refresh_home_open()
 	{
 		auto open = home_row_open{ };
-		if (HomeOpen.has_value() && HomeOpen->State.has_value()) {
+		// [[BPR-2048]]. Too large to open is said on Home's card, with what was
+		// too large and Open on GitHub; the row says nothing of it twice.
+		const auto tooLarge = HomeOpen.has_value() && HomeOpen->State.has_value() && HomeOpen->State->Phase == core::home_open_phase::failed
+			&& HomeOpen->State->Reason == core::github_reason_code::response_too_large;
+		if (HomeOpen.has_value() && HomeOpen->State.has_value() && !tooLarge) {
 			const auto& state = *HomeOpen->State;
 			open.Identity     = QStringLiteral("%1/%2#%3")
 									.arg(QString::fromStdString(state.Repository.Owner), QString::fromStdString(state.Repository.Name))
@@ -1521,6 +1525,19 @@ namespace bpr::qt {
 			const auto followed = item && item->Membership.Followed;
 			QueueFollowDispatch(application::queue_follow_intent{ .Ref = *ref, .Title = OpenQueueTitle, .Follow = !followed });
 			// The check mark is the queue's to decide.
+			update_pull_request_queue_actions();
+		});
+		// [[BPR-2049]]. The row's Seen, from the pull request itself: offered
+		// while my approval stands and commits followed it.
+		SeenPullRequest = PullRequestMenu->addAction(QStringLiteral("Mark New Commits &Seen"));
+		SeenPullRequest->setObjectName(QStringLiteral("seenPullRequestAction"));
+		SeenPullRequest->setEnabled(false);
+		connect(SeenPullRequest, &QAction::triggered, this, [this] {
+			const auto ref  = open_queue_ref();
+			const auto item = ref ? QueueLanding->item_for(*ref) : std::nullopt;
+			if (item) {
+				dispatch_home_followup(*item);
+			}
 			update_pull_request_queue_actions();
 		});
 		SavePullRequestRepository = PullRequestMenu->addAction(QStringLiteral("&Save Repository"));

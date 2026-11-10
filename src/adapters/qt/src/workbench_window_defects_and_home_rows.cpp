@@ -1214,6 +1214,31 @@ namespace bpr::qt {
 		case core::pull_request_refusal_action::use_another_account:
 			open_sign_in(SessionPanel != nullptr ? SessionPanel->active_host_text() : std::string{ });
 			return;
+		case core::pull_request_refusal_action::open_on_github: {
+			// [[BPR-2048]]. The refused pull request's page, admitted as a Home
+			// row's is: under this account on this host.
+			if (!PullRequestRefusal || SessionPanel == nullptr) {
+				return;
+			}
+			const auto session = SessionPanel->session();
+			open_pull_request_page(core::pull_request_ref{
+				.Host       = SessionPanel->active_host_text(),
+				.Account    = session ? session->Login : std::string{ },
+				.Repository = PullRequestRefusal->Repository.Owner + "/" + PullRequestRefusal->Repository.Name,
+				.Number     = static_cast<std::int64_t>(PullRequestRefusal->Number.value()),
+			});
+			return;
+		}
+		case core::pull_request_refusal_action::retry:
+			// [[BPR-2048]]. The opening Home follows asks again, as its row's
+			// Retry does; one named in the bar is named again.
+			if (HomeOpen.has_value() && HomeOpen->State.has_value() && HomeOpen->State->Phase == core::home_open_phase::failed && HomeOpen->Retryable && HomeOpenDispatch) {
+				HomeOpenDispatch(application::retry_home_open{ HomeOpen->State->Request });
+			} else if (PullRequestRefusal && SetupDestinationDispatch) {
+				SetupDestinationDispatch(application::submit_setup_destination{ PullRequestRefusal->Repository.Owner + "/" + PullRequestRefusal->Repository.Name + "#"
+																				+ std::to_string(PullRequestRefusal->Number.value()) });
+			}
+			return;
 		}
 	}
 
@@ -1238,7 +1263,11 @@ namespace bpr::qt {
 		const auto refusal = home_refusal_text();
 		const auto passive = !HomeRestorationNotice.isEmpty() ? HomeRestorationNotice : refusal;
 		// [[BPR-1357]]. A failure a row already says is said there, not twice.
-		const auto rowSaysFailure = failed && HomeOpenOnRow && HomeRestorationNotice.isEmpty();
+		// [[BPR-2048]]. A pull request too large to open is said on its card
+		// whatever opened it: the row has no room for what was too large or
+		// for Open on GitHub.
+		const auto tooLarge       = failed && state->Reason == core::github_reason_code::response_too_large;
+		const auto rowSaysFailure = failed && HomeOpenOnRow && HomeRestorationNotice.isEmpty() && !tooLarge;
 		const auto spoken         = HomeSetupNotice.isEmpty() && !passive.isEmpty()
 			&& passive != DismissedHomeRefusal && !rowSaysFailure;
 		const auto refused = spoken && HomeRestorationNotice.isEmpty();

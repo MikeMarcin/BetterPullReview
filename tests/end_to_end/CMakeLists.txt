@@ -5126,6 +5126,24 @@ set_tests_properties(application_home_next_move_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "home-next-move-public-path:pass")
 
+# [[BPR-2048]] [[BPR-2049]]. One pull request too large to read fails no
+# refresh and opens to a card naming what was too large; an approval with
+# new commits after it offers Seen, which moves it to Following at once.
+bpr_add_executable(test_home_oversized_public_path home_oversized_public_path_tests.cpp)
+target_link_libraries(test_home_oversized_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_home_oversized_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_home_oversized_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_home_oversized_public_path)
+bpr_enable_warnings(test_home_oversized_public_path)
+bpr_add_network_isolated_test(NAME application_home_oversized_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path)
+set_tests_properties(application_home_oversized_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
+bpr_add_network_isolated_test(NAME application_home_approve_again_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path --approve-again)
+set_tests_properties(application_home_approve_again_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
+
 # [[BPR-1575]]. Refresh made visible on the pull request and on Home, through
 # the composed application with slow, changed, unchanged, offline and
 # rate-limited refreshes on the fixture network.

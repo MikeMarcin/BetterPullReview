@@ -551,7 +551,10 @@ namespace bpr::adapters::github::detail {
 				|| !author.Valid || !json_is_array(users) || !json_is_array(teams)) {
 				return execution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
-			if (json_array(users).size() + json_array(teams).size() > limits.MaximumPageRecords) {
+			// [[BPR-2048]]. A closed pull request leaves Home whatever else it
+			// holds, so its state is taken before any of its lists is bounded.
+			const auto closed = text(json_member(object, "state")) == "closed";
+			if (!closed && json_array(users).size() + json_array(teams).size() > limits.MaximumPageRecords) {
 				return execution.terminal_failure(application::github_provider_failure::response_limit);
 			}
 			const auto base = json_member(object, "base");
@@ -569,7 +572,7 @@ namespace bpr::adapters::github::detail {
 			if (application::detail::validate_author(author.Actor, budget, limits.Records) != application::github_read_validation_error::none) {
 				return execution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
-			for (const auto& user : json_array(users)) {
+			for (const auto& user : closed ? page_json_array{ } : json_array(users)) {
 				const auto reviewer = optional_rest_actor(user);
 				if (!reviewer.Valid || !reviewer.Actor
 					|| application::detail::validate_author(reviewer.Actor, budget, limits.Records) != application::github_read_validation_error::none) {
@@ -586,7 +589,7 @@ namespace bpr::adapters::github::detail {
 				.Detailed         = true,
 				.ReviewersAwaited = static_cast<std::uint32_t>(json_array(users).size() + json_array(teams).size()),
 				.HeadOid          = application::commit_oid{ text(json_member(json_object(head), "sha")) },
-				.Closed           = text(json_member(object, "state")) == "closed",
+				.Closed           = closed,
 				.Draft            = json_is_bool(draft) ? std::optional<bool>{ json_bool(draft) } : std::nullopt,
 			};
 			row.AuthorIdentity = author.Actor ? std::optional{ author.Actor->Actor } : std::nullopt;
@@ -837,6 +840,12 @@ namespace bpr::adapters::github::detail {
 			row.AuthorIdentity = author.Actor ? std::optional{ author.Actor->Actor } : std::nullopt;
 			row.Repository     = aRequest.Context.Repository;
 			auto result        = home_batch_row{ };
+			// [[BPR-2048]]. A closed or merged one leaves Home on its state
+			// alone: nothing else it holds can keep it there.
+			if (row.Closed) {
+				result.Row = std::move(row);
+				return result;
+			}
 
 			const auto reviews  = parse_home_connection(json_member(aPull, "reviews"));
 			const auto requests = parse_home_connection(json_member(aPull, "reviewRequests"));
@@ -1112,8 +1121,12 @@ namespace bpr::adapters::github::detail {
 					rows.push_back(std::move(row));
 				}
 			}
-			// Nothing read at all fails as the one read would have.
-			if (rows.empty() && firstFailure) {
+			// Nothing read at all fails as the one read would have, unless
+			// every one was too large to read: [[BPR-2048]] each is then its
+			// own row's condition, said by the host, not the read's.
+			const auto allTooLarge = !unread.empty() && unread.size() == restNumbers.size()
+				&& std::ranges::all_of(unread, [](const application::personal_discovery_unread& aUnread) { return aUnread.Error.Failure == application::github_provider_failure::response_limit; });
+			if (rows.empty() && firstFailure && !allTooLarge) {
 				return { .Read = std::unexpected{ *firstFailure }, .Unsupported = unsupported };
 			}
 			std::ranges::sort(rows, { }, &application::personal_discovery_row::Number);
@@ -1274,10 +1287,14 @@ namespace bpr::adapters::github::detail {
 					const auto read = read_discovery_membership(aTransport, aProfile, aRequest, context, numbers, *server, aStop, aLimits, rates, recoveryBudget, &work.RosterRecoveries);
 					if (!read) {
 						const auto* error = std::get_if<application::github_provider_error>(&read.error());
+						// [[BPR-2048]]. One pull request with more requests than
+						// a roster read takes is read on its own below, so it
+						// does not fail the search of the rest.
+						if (error && error->Failure == application::github_provider_failure::response_limit) {
+							note(core::discovery_completeness_reason::roster_limit);
+							break;
+						}
 						if (!error || error->Failure != application::github_provider_failure::unsupported_capability) {
-							if (error && error->Failure == application::github_provider_failure::response_limit) {
-								note(core::discovery_completeness_reason::roster_limit);
-							}
 							return std::unexpected{ read.error() };
 						}
 						// A server without the narrow schema uses the existing
@@ -1338,10 +1355,18 @@ namespace bpr::adapters::github::detail {
 					parsed = recover_discovery_reviewers(aTransport, aProfile, aRequest, requested_reviewers_parent(rowContext, row.Number), *server, aStop, aLimits, rates, recoveryBudget);
 					if (!parsed) {
 						const auto* recoveryError = std::get_if<application::github_provider_error>(&parsed.error());
-						if (recoveryError && recoveryError->Failure == application::github_provider_failure::response_limit) {
-							note(core::discovery_completeness_reason::roster_limit);
+						if (!recoveryError || recoveryError->Failure != application::github_provider_failure::response_limit) {
+							return std::unexpected{ parsed.error() };
 						}
-						return std::unexpected{ parsed.error() };
+						// [[BPR-2048]]. Its roster is too large to read: the
+						// search's own qualifier names the viewer, so the row
+						// stays, its waiting unknown, and the rest are read.
+						note(core::discovery_completeness_reason::roster_limit);
+						if (!requested) {
+							kept.push_back(std::move(row));
+							continue;
+						}
+						parsed = requested_reviewers{ .NamesViewer = true, .Awaited = 0U };
 					}
 				}
 				// Asked of a team the viewer belongs to is not asked of the

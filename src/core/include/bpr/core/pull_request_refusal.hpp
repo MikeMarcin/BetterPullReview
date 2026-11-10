@@ -30,6 +30,10 @@ namespace bpr::core {
 		use_github_cli,
 		/// Replace the refused account with another.
 		use_another_account,
+		/// [[BPR-2048]]. Open the pull request on GitHub, in the browser.
+		open_on_github,
+		/// [[BPR-2048]]. Ask GitHub for it again.
+		retry,
 	};
 
 	/// \brief The window's facts the wording needs beside the refusal itself.
@@ -61,9 +65,11 @@ namespace bpr::core {
 
 	/// \brief Decides the words and steps of a refused first read.
 	///
-	/// \details Only a permission refusal is worded here: it is the one whose
-	/// remedy is a different connection. Every other reason keeps its
-	/// diagnostic sentence and yields nothing.
+	/// \details A permission refusal is worded here: its remedy is a
+	/// different connection. [[BPR-2048]]. So is a pull request too large to
+	/// read: it names what was too large and offers Open on GitHub, then
+	/// Retry. Every other reason keeps its diagnostic sentence and yields
+	/// nothing.
 	[[nodiscard]] auto word_pull_request_refusal(
 		const pull_request_refusal&         aRefusal,
 		const pull_request_refusal_context& aContext)

@@ -3438,7 +3438,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# the fixture build). No read, grant, admission or publication boundary
 	# changes; full-app and mutation pins unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "f0ac3c6df9889ec3962a05cea16fdf60c3b06703e9a98694a9466188315a9c91"
+        "a0b60b547ba97df871c1971cf7ea13f449dd5d5e793224f79acb3f06ac4e89ce"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -1883,6 +1883,82 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	/// [[BPR-2048]]. One retained pull request too large to read marks its
+	/// own row and fails nothing: the other rows load, the refresh is current,
+	/// and the next read that answers clears the mark.
+	void test_too_large_row_does_not_fail_the_refresh()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } }, { .Ref = ref(18), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		while (fixture.Provider.Answered < fixture.Provider.Requests.size()) {
+			const auto number = fixture.Provider.next().Number->value();
+			fixture.Provider.answer(number == 17U ? fixture.Provider.failure(application::github_provider_failure::response_limit) : fixture.Provider.rows({ metadata_row(number) }));
+			fixture.settle();
+		}
+		expect(fixture.item(17) && fixture.item(17)->Facts.TooLarge && fixture.item(17)->Bucket == core::attention_bucket::initial_review_requested,
+			   "the oversized row stays in Needs me, marked too large");
+		expect(fixture.item(18) && fixture.item(18)->Facts.Title == "Pull request 18" && !fixture.item(18)->Facts.TooLarge, "the other row loads");
+		// No repository is saved here, so a refresh that failed nothing ends as
+		// "no saved repository", never stale.
+		expect(fixture.Discovery.status().State != application::queue_discovery_state::stale && fixture.Discovery.status().Problem == application::queue_discovery_problem::no_saved_repository,
+			   "the refresh is not failed: state " + std::to_string(static_cast<int>(fixture.Discovery.status().State)) + " problem " + std::to_string(static_cast<int>(fixture.Discovery.status().Problem)));
+		expect(fixture.Discovery.statistics().TooLarge == 1U && fixture.Discovery.statistics().Failed == 0U, "it is counted as too large, not as a failed read");
+
+		fixture.Discovery.refresh();
+		while (fixture.Provider.Answered < fixture.Provider.Requests.size()) {
+			fixture.Provider.answer(fixture.Provider.rows({ metadata_row(fixture.Provider.next().Number->value()) }));
+			fixture.settle();
+		}
+		expect(!fixture.item(17)->Facts.TooLarge && fixture.item(17)->Facts.Title == "Pull request 17", "a read that answers clears the mark");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	/// [[BPR-2049]]. Approved, then commits: Seen moves the row to Following at
+	/// once, survives the store, and a later push brings it back.
+	void test_seen_moves_an_approved_row_back_to_following()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		auto approved = metadata_row(17U, true);
+		fixture.Provider.answer(fixture.Provider.rows({ approved }));
+		fixture.settle();
+		fixture.Discovery.refresh();
+		auto moved = metadata_row(17U, true, true);
+		fixture.Provider.answer(fixture.Provider.rows({ moved }));
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review && core::review_followup_for(*fixture.item(17)) == core::review_followup::seen,
+			   "an approval with commits after it needs me and offers Seen");
+		const auto head = std::string(40U, 'b');
+		fixture.Queue.apply(application::queue_seen_intent{ .Ref = ref(17), .Head = std::string(40U, 'c') });
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review, "Seen on a head the row no longer shows is refused");
+		fixture.Queue.apply(application::queue_seen_intent{ .Ref = ref(17), .Head = head });
+		fixture.settle();
+		expect(fixture.item(17)->Bucket != core::attention_bucket::changed_since_my_review && core::home_section_for(*fixture.item(17)) == core::home_queue_section::following
+				   && !fixture.item(17)->Facts.MyReview.NewCommits && core::review_followup_for(*fixture.item(17)) == core::review_followup::none,
+			   "Seen moves it to Following at once, with no new commits said");
+		expect(fixture.Provider.Answered == fixture.Provider.Requests.size(), "Seen reads and writes nothing on GitHub");
+		const auto durable = fixture.record(17);
+		const auto encoded = durable ? application::encode_queue_facts(durable->LastFacts) : std::nullopt;
+		const auto decoded = encoded ? application::decode_queue_facts(*encoded) : std::nullopt;
+		expect(encoded && encoded->starts_with("5;") && decoded && decoded->SeenHead == head, "the seen head is kept and survives the store as version 5");
+		expect(!application::decode_queue_facts(encoded->substr(0U, encoded->size() - 43U) + "0:"), "an empty seen head is refused");
+
+		fixture.Discovery.refresh();
+		fixture.Provider.answer(fixture.Provider.rows({ moved }));
+		fixture.settle();
+		expect(core::home_section_for(*fixture.item(17)) == core::home_queue_section::following, "a refresh of the same head keeps it in Following");
+		fixture.Discovery.refresh();
+		auto pushed    = moved;
+		pushed.HeadOid = application::commit_oid{ head.substr(0U, 39U) + "d" };
+		fixture.Provider.answer(fixture.Provider.rows({ pushed }));
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review, "a later push is news again");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	void test_my_review_codec_refuses_malformed_version_three()
 	{
 		auto facts         = core::queue_item_facts{ .Title = "Mine", .Author = "octocat" };
@@ -3446,6 +3522,8 @@ auto main() -> int
 	test_change_facts_merge_and_persist();
 	test_change_facts_codec_reads_version_one();
 	test_my_review_verdict_from_retained_reads();
+	test_too_large_row_does_not_fail_the_refresh();
+	test_seen_moves_an_approved_row_back_to_following();
 	test_my_review_codec_refuses_malformed_version_three();
 	test_retained_review_survives_request_withdrawal();
 	test_retained_metadata_preserves_local_attention_and_rejects_late_results();

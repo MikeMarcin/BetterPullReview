@@ -68,6 +68,7 @@
 #include <functional>
 #include <initializer_list>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -378,6 +379,9 @@ namespace bpr::qt {
 		HasGithubPullRequest = true;
 		HasCachedOverview    = false;
 		update_pull_request_queue_actions();
+		if (PendingApproveAgain) {
+			QTimer::singleShot(0, this, [this] { take_pending_approve_again(); });
+		}
 		if (!PendingReviewPath.isEmpty()) {
 			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
 		}
@@ -721,6 +725,57 @@ namespace bpr::qt {
 			.Ref    = aItem.Ref,
 			.Action = aItem.Ignored ? core::home_ignore_action::unignore : core::home_ignore_action::ignore,
 		});
+	}
+
+	void workbench_window::dispatch_home_followup(const core::queue_item& aItem)
+	{
+		const auto name = QStringLiteral("%1#%2").arg(QString::fromStdString(aItem.Ref.Repository)).arg(aItem.Ref.Number);
+		switch (core::review_followup_for(aItem)) {
+		case core::review_followup::seen:
+			if (HomeSeenDispatch) {
+				HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head });
+				statusBar()->showMessage(QStringLiteral("Marked the new commits on %1 seen; it moves to Following. Nothing changed on GitHub.").arg(name), 8000);
+			}
+			return;
+		case core::review_followup::approve_again:
+			// The approval is submitted from the pull request's own review, so
+			// what it holds (a summary, saved comments) is seen before it goes.
+			PendingApproveAgain = aItem.Ref;
+			open_pull_request_item(aItem);
+			return;
+		case core::review_followup::none:
+			return;
+		}
+	}
+
+	void workbench_window::take_pending_approve_again()
+	{
+		if (!PendingApproveAgain || !HasGithubPullRequest || ReviewSubmissionEditor == nullptr) {
+			return;
+		}
+		const auto ref = std::exchange(PendingApproveAgain, std::nullopt);
+		if (QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository) != QString::fromStdString(ref->Repository) || IdentityNumber != QString::number(ref->Number)) {
+			return;
+		}
+		open_review_sheet(true);
+		// The review's controls show once its draft is read; Approve takes the
+		// keyboard then, so Return submits it and nothing else.
+		const auto focusApprove = std::make_shared<std::function<void(int)>>();
+		*focusApprove           = [this, editor = QPointer{ ReviewSubmissionEditor }, weak = std::weak_ptr{ focusApprove }](const int aTries) {
+			auto* const approve = editor ? editor->disposition_button(core::review_disposition::approve) : nullptr;
+			if (approve != nullptr && approve->isVisible()) {
+				approve->setFocus(Qt::OtherFocusReason);
+			} else if (const auto again = weak.lock(); again && aTries > 0) {
+				QTimer::singleShot(100, this, [again, aTries] { (*again)(aTries - 1); });
+			}
+		};
+		(*focusApprove)(50);
+		statusBar()->showMessage(QStringLiteral("GitHub dismissed your approval when commits were pushed. Approve submits a new one for the current commits."), 10000);
+	}
+
+	void workbench_window::set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch)
+	{
+		HomeSeenDispatch = std::move(aDispatch);
 	}
 
 	void workbench_window::set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch)
@@ -1640,6 +1695,14 @@ namespace bpr::qt {
 			: QStringLiteral("Open a pull request signed in to follow it.");
 		FollowPullRequest->setToolTip(followTip);
 		FollowPullRequest->setStatusTip(followTip);
+		if (SeenPullRequest != nullptr) {
+			const auto seen = item && core::review_followup_for(*item) == core::review_followup::seen && static_cast<bool>(HomeSeenDispatch);
+			SeenPullRequest->setEnabled(seen);
+			const auto seenTip = seen ? QStringLiteral("My approval still stands: marks the new commits seen and moves it to Following on Home. Nothing changes on GitHub.")
+									  : QStringLiteral("Offered when commits follow my standing approval.");
+			SeenPullRequest->setToolTip(seenTip);
+			SeenPullRequest->setStatusTip(seenTip);
+		}
 		const auto saved = ref.has_value() && std::ranges::any_of(QueueProjection.SavedRepositories, [&ref](const application::saved_repository& aSaved) {
 							   return aSaved.Host == ref->Host && aSaved.Account == ref->Account && aSaved.Repository == ref->Repository;
 						   });

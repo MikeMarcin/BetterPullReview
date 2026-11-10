@@ -81,3 +81,88 @@ At the product candidate: `core_home_next_move`, `core_review_queue`,
 `qt_review_landing_model`, `qt_home_list_scale_{100,125,200}`,
 `application_home_next_move_public_path`, and the Home regression set listed
 in the handoff.
+
+## Owner fix round: BPR-2048 and BPR-2049 (2026-11-10)
+
+Two owner-reported Home defects on the same lane, each its own card
+([BPR-2048](../issues/30-in-progress/BPR-2048-one-oversized-pull-request-fails-no-home-refresh.md),
+[BPR-2049](../issues/30-in-progress/BPR-2049-seen-and-approve-again-for-an-approval-with-new-commits.md)).
+Frontend-design was loaded before the Qt work.
+
+### BPR-2048: one oversized pull request
+
+The offending pull request was looked for read-only with `gh`: the owner's
+review requests in every state (`is:pr review-requested:@me`,
+`user-review-requested:@me`, with and without `is:closed`), the
+`review_requested` notifications, and every pull request involving the owner
+that the owner did not author. Only BPR-Test #151 is requested of the owner,
+and nothing reachable from this machine's accounts is large; the pull request
+the owner saw is not reachable from here. The limits a large pull request can
+trip were measured instead:
+
+- Home's batched query (`ListHomePullRequests` with `HomeConversations`) for
+  the ten nodejs/node pull requests with the most review comments (up to 352
+  review threads and 511 reviews each) is 170,602 bytes, at most 25 KB per
+  alias, against a 4 MiB page; ten of the largest nodejs/node V8 updates (up
+  to 8,161 changed files) are 46 KB. The review-thread read is bounded by
+  `reviewThreads(last:50)` with `comments(last:1)` and cannot cross the
+  limit; a thread connection that is not that shape sends the batch to the
+  REST reads, which fail nothing.
+- Opening a pull request bounds only its changed files on its own page:
+  `changed_files` over 3,000 (GitHub lists at most 3,000) is
+  `response_limit`. nodejs/node#65161 (8,161 files) trips it.
+- Home's own retained read bounded a pull request's requested reviewers
+  (users and teams over one page, 100) before it looked at the state, and
+  Home's search failed whole when one row's review-request roster could not
+  be read.
+
+Root cause of "every Home refresh errors": a retained read that failed for
+one pull request with `response_limit` reached `personal_discovery_host` as a
+failure of the refresh (`fail(failed)` for a single read, `reject` for a row of
+a batch). That set `CycleFailed` (the refresh ended stale and Home showed an
+error) and `MetadataFailed` (every search answer of that refresh was marked
+incomplete, so nothing it no longer found was withdrawn). The read failed the
+same way on every refresh. A closed pull request stayed in Needs me because
+it leaves Home only through its own retained read, and that read bounded the
+requested reviewers before it read the state: one with more requests than a
+page, as a large CODEOWNERS-requested pull request has, failed before it
+could be seen closed.
+
+Fixed: the REST retained read takes the state first and a closed or merged
+batched alias returns on its state alone; a retained read too large for one
+pull request marks that row (`TooLarge`: "too large to load here; open it on
+GitHub") and fails nothing, leaving the refresh current; a search whose
+roster read is too large for one row keeps the row (the search named the
+viewer) and reads the rest; opening a pull request too large to read shows
+Home's card naming what was too large (files, commits, reviews and comments,
+checks, or a part) with Open on GitHub and Retry, and the row does not repeat
+it.
+
+### BPR-2049: Seen and Approve again
+
+The core decides the follow-up (`review_followup_for`): a reviewed row back
+in Needs me for new commits offers Seen while the reviewer's approval stands,
+Approve again when GitHub dismissed it, and nothing on the reviewer's own pull
+request or for a change request. Seen records the current head locally
+(`queue_item_facts::SeenHead`, stored as facts version 5); the row moves to
+Following at once with nothing read or written on GitHub, and a later push
+brings it back. Pull Request > Mark New Commits Seen offers the same from the
+pull request. Approve again opens the pull request with its review sheet and
+Approve ready: the approval goes through the existing confirmed submission,
+so a summary or saved comments the review holds are seen before it is
+submitted, and the row moves when the return to Home reads it. No Unapprove.
+
+### Evidence
+
+- `core_pull_request_refusal` (too-large wording and actions),
+  `core_review_queue_attention` (Seen, Approve again, a later push),
+  `application_review_queue_enrollment` (an oversized row fails no refresh
+  and its mark clears; Seen moves the row and survives the store),
+  `github_paged_read` (a closed pull request with more requests than a page
+  is read closed; an open one is too large).
+- `application_home_oversized_public_path`: the composed application on the
+  fixture: every row listed and the refresh current with an oversized row in
+  it; the row's sentence; Seen moves #18 to Following asking GitHub for
+  nothing; opening #17 shows the card with Open on GitHub and Retry; Retry is
+  refused the same way. `application_home_approve_again_public_path`: Approve
+  again opens the pull request with its review and Approve.

@@ -247,6 +247,7 @@ namespace bpr::qt {
 	using workbench_queue_follow_dispatch = std::function<void(application::queue_follow_intent)>;
 	/// \brief [[BPR-1683]]. Home's Ignore or Unignore of one queue row.
 	using workbench_home_ignore_dispatch = std::function<void(core::home_ignore_intent)>;
+	using workbench_home_seen_dispatch   = std::function<void(application::queue_seen_intent)>;
 	/// \brief [[BPR-0990]]. Home's activation and its explicit Refresh.
 	using workbench_queue_discovery_dispatch = std::function<void(application::queue_discovery_intent)>;
 	/// \brief [[BPR-0660]]. One remember or forget gesture for an enterprise server.
@@ -864,6 +865,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1683]]. Where Home's Ignore and Unignore go: the
 		/// profile's queue, never a provider.
 		void set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch);
+		/// \brief [[BPR-2049]]. Where a Home row's Seen goes: the profile's
+		/// queue, never a provider.
+		void set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch);
 		/// \brief [[BPR-1683]]. The row menu's Ignore, named Unignore on an ignored row.
 		[[nodiscard]] auto home_ignore_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
@@ -2467,6 +2471,11 @@ namespace bpr::qt {
 		void popup_home_row_menu(const QPoint& aGlobal);
 		/// \brief [[BPR-1683]]. Ignores a queue row, or unignores an ignored one.
 		void dispatch_home_ignore(const core::queue_item& aItem);
+		/// \brief [[BPR-2049]]. A row's Seen or Approve again, as the core offers it.
+		void dispatch_home_followup(const core::queue_item& aItem);
+		/// \brief [[BPR-2049]]. The pull request Approve again opened, once it
+		/// is shown: its review with Approve ready.
+		void take_pending_approve_again();
 		void open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.
 		void build_repositories_page();
@@ -3185,11 +3194,15 @@ namespace bpr::qt {
 		QAction*                                           QueueRefreshAction        = nullptr;
 		QMenu*                                             PullRequestMenu           = nullptr;
 		QAction*                                           FollowPullRequest         = nullptr;
+		QAction*                                           SeenPullRequest           = nullptr;
 		QAction*                                           SavePullRequestRepository = nullptr;
 		workbench_queue_follow_dispatch                    QueueFollowDispatch;
 		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
-		QAction*                                           HomeIgnoreAction = nullptr;
-		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
+		workbench_home_seen_dispatch                       HomeSeenDispatch;
+		/// [[BPR-2049]]. The pull request a row's Approve again is opening.
+		std::optional<core::pull_request_ref> PendingApproveAgain;
+		QAction*                              HomeIgnoreAction = nullptr;
+		workbench_queue_discovery_dispatch    QueueDiscoveryDispatch;
 		/// [[BPR-1867]]. Coming back in front on the pull request shown.
 		std::function<void(std::int64_t)>                  PullRequestReturnDispatch;
 		std::function<void(const core::pull_request_ref&)> HomeReturnDispatch;

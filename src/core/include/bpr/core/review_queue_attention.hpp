@@ -333,6 +333,14 @@ namespace bpr::core {
 		queue_change_facts  Change;
 		/// [[BPR-1718]]. My standing verdict, from the last retained read.
 		queue_my_review MyReview;
+		/// [[BPR-2048]]. The last read of this pull request alone exceeded the
+		/// response limits, so its facts are what was last read, if anything.
+		/// Home says so on its row; the rest of the refresh is unaffected.
+		bool TooLarge = false;
+		/// [[BPR-2049]]. The head the reviewer said Seen on, with their
+		/// approval standing: commits up to it are not news to them. Local
+		/// only; nothing is written to GitHub. Empty when never said.
+		std::string SeenHead;
 
 		auto operator<=>(const queue_item_facts&) const = default;
 	};
@@ -480,6 +488,37 @@ namespace bpr::core {
 		const queue_membership&           aMembership,
 		const queue_activity_observation& aActivity) noexcept
 		-> attention_bucket;
+
+	/// \brief [[BPR-2049]]. Whether the reviewer said Seen on exactly the
+	/// current head while their approval still stands.
+	///
+	/// \details A later push is news again: the head no longer matches. A
+	/// verdict other than approved is never seen away.
+	[[nodiscard]] auto head_seen(const queue_item_facts& aFacts) noexcept -> bool;
+
+	/// \brief [[BPR-2049]]. The activity a pull request shows once the
+	/// reviewer's Seen is taken into account: commits seen are not commits
+	/// that moved since their review.
+	[[nodiscard]] auto seen_activity(queue_activity_observation aActivity, const queue_item_facts& aFacts) noexcept -> queue_activity_observation;
+
+	/// \brief [[BPR-2049]]. What a row back in Needs me for new commits
+	/// offers the reviewer who already reviewed it.
+	///
+	/// \details The owner, 2026-11-10: "if I approved something already and
+	/// it gets new commits it moves back to needs me which makes sense but
+	/// then I don't know how to say okay I still accept it so it clears new
+	/// commits and moves back to following." While GitHub still holds the
+	/// approval, `seen` records the new commits as seen here and writes
+	/// nothing. When GitHub dismissed it (a stale-review dismissal),
+	/// `approve_again` submits a new approval. Never on a pull request of
+	/// mine, and there is deliberately no way to withdraw an approval here.
+	enum class review_followup : std::uint8_t {
+		none,
+		seen,
+		approve_again,
+	};
+
+	[[nodiscard]] auto review_followup_for(const queue_item& aItem) noexcept -> review_followup;
 
 	/// \brief The deterministic priority relation used by complete and incremental projections.
 	///

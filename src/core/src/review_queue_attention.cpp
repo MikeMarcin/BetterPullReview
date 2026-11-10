@@ -331,6 +331,34 @@ namespace bpr::core {
 		return "Nothing here is waiting on anyone.";
 	}
 
+	auto head_seen(const queue_item_facts& aFacts) noexcept -> bool
+	{
+		return !aFacts.SeenHead.empty() && aFacts.SeenHead == aFacts.Waiting.Head && aFacts.MyReview.Verdict == my_review_verdict::approved;
+	}
+
+	auto seen_activity(queue_activity_observation aActivity, const queue_item_facts& aFacts) noexcept -> queue_activity_observation
+	{
+		if (head_seen(aFacts)) {
+			aActivity.HeadMovedSinceMyReview = false;
+		}
+		return aActivity;
+	}
+
+	auto review_followup_for(const queue_item& aItem) noexcept -> review_followup
+	{
+		if (aItem.Membership.authored() || aItem.Bucket != attention_bucket::changed_since_my_review) {
+			return review_followup::none;
+		}
+		switch (aItem.Facts.MyReview.Verdict) {
+		case my_review_verdict::approved:          return aItem.Facts.Waiting.Head.empty() ? review_followup::none : review_followup::seen;
+		case my_review_verdict::dismissed:         return review_followup::approve_again;
+		case my_review_verdict::none:
+		case my_review_verdict::commented:
+		case my_review_verdict::changes_requested: break;
+		}
+		return review_followup::none;
+	}
+
 	auto bucket_for(
 		const queue_membership&           aMembership,
 		const queue_activity_observation& aActivity) noexcept -> attention_bucket

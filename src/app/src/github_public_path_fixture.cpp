@@ -2344,6 +2344,17 @@ namespace bpr::app::detail {
 							{ QStringLiteral("submitted_at"), QStringLiteral("2026-10-14T16:20:00Z") },
 						});
 					}
+					if (!found->ViewerVerdictBefore.empty()) {
+						reviews.append(QJsonObject{
+							{ QStringLiteral("id"), 74000 + static_cast<qint64>(found->Number) },
+							{ QStringLiteral("node_id"), QStringLiteral("R_home_before_%1").arg(found->Number) },
+							{ QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QStringLiteral("octo-reviewer") }, { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") } } },
+							{ QStringLiteral("state"), QString::fromUtf8(found->ViewerVerdictBefore.data(), static_cast<qsizetype>(found->ViewerVerdictBefore.size())) },
+							{ QStringLiteral("commit_id"), QString{ 40, QLatin1Char('b') } },
+							{ QStringLiteral("body"), QString{ } },
+							{ QStringLiteral("submitted_at"), QStringLiteral("2026-11-02T10:00:00Z") },
+						});
+					}
 					if (const auto reply = found->ViewerReply ? found->ViewerReply->load() : 0; reply != 0) {
 						reviews.append(QJsonObject{
 							{ QStringLiteral("id"), 73000 + static_cast<qint64>(found->Number) },
@@ -2367,7 +2378,7 @@ namespace bpr::app::detail {
 					users.append(QJsonObject{ { QStringLiteral("login"), QString::fromStdString(login) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(login) } });
 				}
 				auto teams = QJsonArray{ };
-				for (std::size_t team = 0U; team < (requestsPresent ? found->RequestedTeams : 0U); ++team) {
+				for (std::size_t team = 0U; team < (requestsPresent ? found->RequestedTeams + (found->OversizedRequests ? 120U : 0U) : 0U); ++team) {
 					teams.append(QJsonObject{ { QStringLiteral("slug"), QStringLiteral("team-%1").arg(team) } });
 				}
 				const auto number = QString::number(found->Number);
@@ -2419,7 +2430,7 @@ namespace bpr::app::detail {
 					for (const auto& login : found->RequestedUsers) {
 						users.append(QJsonObject{ { QStringLiteral("login"), QString::fromStdString(login) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(login) } });
 					}
-					for (std::size_t team = 0U; team < found->RequestedTeams; ++team) {
+					for (std::size_t team = 0U; team < found->RequestedTeams + (found->OversizedRequests ? 120U : 0U); ++team) {
 						teams.append(QJsonObject{ { QStringLiteral("slug"), QStringLiteral("team-%1").arg(team) }, { QStringLiteral("node_id"), QStringLiteral("T_%1").arg(team) } });
 					}
 				}
@@ -2497,6 +2508,9 @@ namespace bpr::app::detail {
 				if (known && found->ReviewedByViewer && found->ReviewedByViewer->load()) {
 					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "submittedAt", "2026-10-14T16:20:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
 				}
+				if (known && !found->ViewerVerdictBefore.empty()) {
+					reviews.append(QJsonObject{ { "databaseId", 74000 + static_cast<qint64>(number) }, { "state", QString::fromUtf8(found->ViewerVerdictBefore.data(), static_cast<qsizetype>(found->ViewerVerdictBefore.size())) }, { "submittedAt", "2026-11-02T10:00:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", QString{ 40, QLatin1Char('b') } } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+				}
 				// [[BPR-1866]]. The viewer's own reply, a month old.
 				if (const auto reply = known && found->ViewerReply ? found->ViewerReply->load() : 0; reply != 0) {
 					reviews.append(QJsonObject{ { "databaseId", 73000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "submittedAt", "2026-10-04T15:12:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", reply == 1 ? head(waiting) : QString{ 40, QLatin1Char('b') } } } }, { "comments", QJsonObject{ { "totalCount", 1 } } } });
@@ -2518,7 +2532,7 @@ namespace bpr::app::detail {
 					for (const auto& user : found->RequestedUsers) {
 						requests.append(QJsonObject{ { "id", QStringLiteral("RR_") + QString::fromStdString(user) }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", QStringLiteral("U_") + QString::fromStdString(user) }, { "login", QString::fromStdString(user) } } } });
 					}
-					for (std::size_t team = 0U; team < found->RequestedTeams; ++team) {
+					for (std::size_t team = 0U; team < found->RequestedTeams + (found->OversizedRequests ? 120U : 0U); ++team) {
 						requests.append(QJsonObject{ { "id", QStringLiteral("RR_team_%1").arg(team) }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("T_%1").arg(team) }, { "slug", QStringLiteral("team-%1").arg(team) }, { "name", QStringLiteral("team-%1").arg(team) }, { "organization", QJsonObject{ { "login", QString::fromUtf8(aState.Descriptor.Owner.data(), static_cast<qsizetype>(aState.Descriptor.Owner.size())) } } } } } });
 					}
 				}
@@ -2623,7 +2637,7 @@ namespace bpr::app::detail {
 					for (const auto& login : found->RequestedUsers) {
 						nodes.append(QJsonObject{ { "id", "RR_" + QString::fromStdString(login) }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", login == "octo-reviewer" ? QStringLiteral("U_fixture_viewer") : "U_" + QString::fromStdString(login) }, { "login", QString::fromStdString(login) } } } });
 					}
-					for (std::size_t team = 0; team < found->RequestedTeams; ++team) {
+					for (std::size_t team = 0; team < found->RequestedTeams + (found->OversizedRequests ? 120U : 0U); ++team) {
 						nodes.append(QJsonObject{ { "id", QStringLiteral("RR_team_%1").arg(team) }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("T_%1").arg(team) } } } });
 					}
 				}
@@ -3730,6 +3744,10 @@ namespace bpr::app::detail {
 					}
 					object.insert(QStringLiteral("requested_reviewers"), QJsonArray{ });
 					object.insert(QStringLiteral("requested_teams"), QJsonArray{ });
+					// [[BPR-2048]]. More changed files than GitHub lists.
+					if (found != State->PersonalDiscovery->OpenPullRequests.end() && found->OversizedFiles) {
+						object.insert(QStringLiteral("changed_files"), 3001);
+					}
 					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (State->ViewerAuthors && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {

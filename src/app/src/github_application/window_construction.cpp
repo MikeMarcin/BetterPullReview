@@ -509,6 +509,13 @@ namespace bpr::app {
 					QueueHost->apply(std::move(aIntent));
 				}
 			});
+		// [[BPR-2049]]. Seen is the queue's, and local.
+		Window->set_home_seen_dispatch(
+			[this](application::queue_seen_intent aIntent) {
+				if (!Closing && QueueHost != nullptr) {
+					QueueHost->apply(std::move(aIntent));
+				}
+			});
 		// [[BPR-1407]]. Home's row ages are measured to discovery's clock.
 		Window->set_home_clock([this]() -> std::optional<std::int64_t> {
 			return DiscoveryClock != nullptr ? std::optional{ DiscoveryClock->now_seconds() } : std::nullopt;

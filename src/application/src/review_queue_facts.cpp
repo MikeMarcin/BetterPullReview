@@ -164,17 +164,23 @@ namespace bpr::application {
 	// [[RFC-BPR-0098]]. Version 4 always writes the verdict, then appends
 	// the review decision, merge state, pending checks, other reviewers'
 	// verdicts and conversations awaiting a reply; a row with none of those
-	// keeps its version 2 or 3 bytes.
+	// keeps its version 2 or 3 bytes. [[BPR-2049]]. Version 5 is version 4
+	// with the head the reviewer said Seen on appended; written only for one.
 	auto encode_queue_facts(const core::queue_item_facts& aFacts) -> std::optional<std::string>
 	{
-		const auto& next     = aFacts.Waiting;
-		const auto  moved    = next.Decision || next.Merge != core::queue_merge_state::unknown || next.PendingChecks > 0U || next.ReviewsKnown || next.AwaitingReply;
-		const auto  verdict  = moved || aFacts.MyReview.Verdict != core::my_review_verdict::none;
-		auto        output   = std::string{ moved ? "4;" : verdict ? "3;"
-																   : "2;" };
-		const auto  text     = [&output](std::string_view aText) { output += std::to_string(aText.size()) + ":"; output.append(aText); };
-		const auto  number   = [&text](std::uint64_t aNumber) { text(std::to_string(aNumber)); };
-		const auto  optional = [&number](const auto& aValue) { number(aValue ? static_cast<std::uint64_t>(*aValue) + 1 : 0); };
+		const auto& next    = aFacts.Waiting;
+		const auto  seen    = !aFacts.SeenHead.empty();
+		const auto  moved   = seen || next.Decision || next.Merge != core::queue_merge_state::unknown || next.PendingChecks > 0U || next.ReviewsKnown || next.AwaitingReply;
+		const auto  verdict = moved || aFacts.MyReview.Verdict != core::my_review_verdict::none;
+		auto        output  = std::string{ seen ? "5;" : moved ? "4;"
+											   : verdict       ? "3;"
+															   : "2;" };
+		if (aFacts.SeenHead.size() > MaximumNameBytes) {
+			return std::nullopt;
+		}
+		const auto text     = [&output](std::string_view aText) { output += std::to_string(aText.size()) + ":"; output.append(aText); };
+		const auto number   = [&text](std::uint64_t aNumber) { text(std::to_string(aNumber)); };
+		const auto optional = [&number](const auto& aValue) { number(aValue ? static_cast<std::uint64_t>(*aValue) + 1 : 0); };
 		text(aFacts.Title);
 		text(aFacts.Author);
 		optional(aFacts.Authored);
@@ -244,6 +250,9 @@ namespace bpr::application {
 			optional(next.AwaitingReply);
 			number(next.MoreConversations ? 1U : 0U);
 		}
+		if (seen) {
+			text(aFacts.SeenHead);
+		}
 		return output.size() <= MaximumFactsBytes ? std::optional{ std::move(output) } : std::nullopt;
 	}
 	auto decode_queue_facts(std::string_view aBytes) -> std::optional<core::queue_item_facts>
@@ -251,7 +260,7 @@ namespace bpr::application {
 		if (aBytes.empty()) {
 			return core::queue_item_facts{ };
 		}
-		if (aBytes.size() > MaximumFactsBytes || (!aBytes.starts_with("1;") && !aBytes.starts_with("2;") && !aBytes.starts_with("3;") && !aBytes.starts_with("4;"))) {
+		if (aBytes.size() > MaximumFactsBytes || (!aBytes.starts_with("1;") && !aBytes.starts_with("2;") && !aBytes.starts_with("3;") && !aBytes.starts_with("4;") && !aBytes.starts_with("5;"))) {
 			return std::nullopt;
 		}
 		const auto version = aBytes.front();
@@ -356,7 +365,7 @@ namespace bpr::application {
 			}
 			facts.MyReview = { .Verdict = static_cast<core::my_review_verdict>(std::min<std::uint64_t>(verdict, static_cast<std::uint64_t>(core::my_review_verdict::dismissed))), .SubmittedAt = at, .NewCommits = moved == 1U };
 		}
-		if (version == '4') {
+		if (version >= '4') {
 			// Written as the value plus one, zero for absent, as the
 			// optional fields of version 1 are.
 			const auto shifted  = [](std::uint64_t aValue) { return aValue == 0U ? std::nullopt : std::optional{ aValue - 1U }; };
@@ -388,6 +397,12 @@ namespace bpr::application {
 			}
 			waiting.AwaitingReply     = awaiting.transform([](std::uint64_t aValue) { return static_cast<std::uint32_t>(std::min<std::uint64_t>(aValue, core::maximum_queue_review_threads)); });
 			waiting.MoreConversations = more == 1U;
+		}
+		if (version == '5') {
+			facts.SeenHead = text();
+			if (facts.SeenHead.empty() || facts.SeenHead.size() > MaximumNameBytes) {
+				okay = false;
+			}
 		}
 		waiting.RequestsStale      = waiting.Requests.has_value();
 		waiting.AssessmentStale    = waiting.RequiredReview.has_value() || waiting.MergeBlocked.has_value() || waiting.Decision.has_value() || waiting.Merge != core::queue_merge_state::unknown;

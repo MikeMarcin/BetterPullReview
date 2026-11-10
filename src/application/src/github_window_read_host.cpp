@@ -285,6 +285,38 @@ namespace bpr::application {
 			return core::github_failure::malformed_response;
 		}
 
+		/// [[BPR-2048]]. What a read that exceeded the response limits was
+		/// reading when it stopped. A pull request's own page is bounded only
+		/// by its changed files.
+		[[nodiscard]] constexpr auto response_limit_of(const std::optional<diagnostic_paged_operation> aOperation) noexcept
+			-> core::github_response_limit
+		{
+			if (!aOperation) {
+				return core::github_response_limit::unknown;
+			}
+			switch (*aOperation) {
+			case diagnostic_paged_operation::get_pull_request:
+			case diagnostic_paged_operation::list_pull_request_files:     return core::github_response_limit::files;
+			case diagnostic_paged_operation::list_pull_request_commits:   return core::github_response_limit::commits;
+			case diagnostic_paged_operation::list_reviews:
+			case diagnostic_paged_operation::list_review_threads:
+			case diagnostic_paged_operation::list_issue_comments:
+			case diagnostic_paged_operation::list_review_comments:
+			case diagnostic_paged_operation::list_pull_request_timeline:  return core::github_response_limit::conversation;
+			case diagnostic_paged_operation::list_checks:                 return core::github_response_limit::checks;
+			case diagnostic_paged_operation::none:
+			case diagnostic_paged_operation::get_viewer_identity:
+			case diagnostic_paged_operation::get_repository:
+			case diagnostic_paged_operation::search_pull_requests:
+			case diagnostic_paged_operation::get_merge_base:
+			case diagnostic_paged_operation::list_requested_reviewers:
+			case diagnostic_paged_operation::list_home_pull_requests:
+			case diagnostic_paged_operation::list_home_review_membership:
+			case diagnostic_paged_operation::list_review_requests:        break;
+			}
+			return core::github_response_limit::unknown;
+		}
+
 		[[nodiscard]] constexpr auto
 		valid_rate_limit_resources(const github_rate_limit_state& aState,
 								   const bool                     aAllowCore,
@@ -1572,6 +1604,7 @@ namespace bpr::application {
 					.Failure = errorValid
 						? mapped_failure(error->Error.Failure)
 						: core::github_failure::malformed_response,
+					.Limit   = response_limit_of(error->LastReadOperation),
 				});
 				return;
 			}

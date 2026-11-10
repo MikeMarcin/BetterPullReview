@@ -378,6 +378,21 @@ namespace bpr::application {
 			fail(queue_discovery_problem::failed, false);
 		}
 
+		/// [[BPR-2048]]. \p aNumber of \p aJob could not be read within the
+		/// response limits: logged as that row's failure, its row marked, and
+		/// the refresh neither failed nor made partial by it.
+		void too_large(const job& aJob, const core::pull_request_number aNumber, const github_provider_error& aError)
+		{
+			++Statistics.TooLarge;
+			auto diagnosis      = read_diagnosis(aJob);
+			diagnosis.Rejection = core::discovery_rejection::missing_row;
+			diagnosis.Row       = row_of(aJob, aNumber);
+			record(diagnostic_outcome::failed, diagnosis, diagnostic_detail::standard, aError.Failure, { }, &aError);
+			if (still_enrolled(aJob.Repository, aNumber)) {
+				Queue.apply(queue_too_large_answer{ .Session = Session->Queue, .Ref = queue_ref(aJob.Repository, aNumber) });
+			}
+		}
+
 		/// [[BPR-1874]]. \p aNumber's place among the pull requests \p aJob
 		/// asked for, from 1.
 		[[nodiscard]] static auto row_of(const job& aJob, const core::pull_request_number aNumber) -> std::uint32_t
@@ -1116,6 +1131,15 @@ namespace bpr::application {
 						if (refused && finished.Request.Reason != personal_discovery_reason::retained && finished.Repositories.size() == 1U) {
 							RefusedAlone.insert(finished.Repository);
 						}
+						// [[BPR-2048]]. One pull request too large to read is
+						// that row's condition, not the refresh's: the row says
+						// so and the rest of the refresh stands.
+						if (finished.Request.Reason == personal_discovery_reason::retained && aResult.Error.Failure == github_provider_failure::response_limit) {
+							for (const auto number : numbers_of(finished)) {
+								too_large(finished, number, aResult.Error);
+							}
+							return;
+						}
 						++Statistics.Failed;
 						const auto problem = problem_of(aResult.Error);
 						if (aResult.Error.Failure == github_provider_failure::rate_limit) {
@@ -1222,6 +1246,10 @@ namespace bpr::application {
 				const auto row = std::ranges::find(aResult.Rows, number, &personal_discovery_row::Number);
 				if (row == aResult.Rows.end()) {
 					const auto unread = std::ranges::find(aResult.Unread, number, &personal_discovery_unread::Number);
+					if (unread != aResult.Unread.end() && unread->Error.Failure == github_provider_failure::response_limit) {
+						too_large(aJob, number, unread->Error);
+						continue;
+					}
 					reject(aJob, core::discovery_rejection::missing_row, row_of(aJob, number), unread == aResult.Unread.end() ? nullptr : &unread->Error);
 					continue;
 				}
@@ -1280,7 +1308,11 @@ namespace bpr::application {
 				}
 				mine.push_back({ .State = my_review_verdict_of(review.State), .SubmittedAt = review.SubmittedAt, .OnHead = comparable ? std::optional{ *commit == *head } : std::nullopt });
 			}
-			auto waiting          = row.Waiting;
+			auto waiting = row.Waiting;
+			// [[BPR-2049]]. The head the row shows is the head this read saw.
+			if (waiting.Head.empty()) {
+				waiting.Head = row.HeadOid->value();
+			}
 			waiting.LatestReviews = core::latest_reviewer_states(theirs);
 			waiting.ReviewsKnown  = true;
 			waiting.ReviewsStale  = false;

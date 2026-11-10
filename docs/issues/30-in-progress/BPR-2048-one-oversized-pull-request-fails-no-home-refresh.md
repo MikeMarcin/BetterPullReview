@@ -32,3 +32,26 @@ recovery. Possibly suggesting opening it on GitHub."
 
 Evidence: a fixture reproducing the oversized responses; a live check on
 BPR-Test only if safe. Load frontend-design before the Qt work.
+
+## Evidence
+
+Record: [RFC-BPR-0098 verification, owner fix round](../../verification/RFC-BPR-0098.md#owner-fix-round-bpr-2048-and-bpr-2049-2026-11-10).
+Frontend-design was loaded before the Qt work.
+
+1. Not found from this machine: the owner's review requests in every state
+   and every pull request involving the owner that the owner did not author
+   (read only, `gh`) hold nothing large; only BPR-Test #151 is requested.
+   Measured instead: Home's batched query stays far under its page limit
+   (170 KB for ten of nodejs/node's busiest pull requests); opening trips at
+   `changed_files` over 3,000; Home's own retained read tripped at more
+   requested reviewers than one page, before reading the state.
+2. Root cause and fix in the record. `application_review_queue_enrollment`,
+   `github_paged_read`, `application_home_oversized_public_path` — pass.
+3. The card: `core_pull_request_refusal`, `application_home_oversized_public_path` — pass.
+4. The review-thread read cannot cross the limit (measured, bounded by
+   `reviewThreads(last:50)` and `comments(last:1)`).
+
+No live mutation was needed: the failure is reproduced on the fixture, and
+BPR-Test cannot hold a pull request over 3,000 files or 100 review requests
+without a disproportionate live setup. The owner's look is filed (see the
+handoff), not waited on.

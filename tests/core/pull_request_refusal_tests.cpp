@@ -115,12 +115,39 @@ namespace {
 		}
 	}
 
+	/// [[BPR-2048]]. Too large to open names what was too large, the place
+	/// it can still be read, and offers Open on GitHub, then Retry, signed in
+	/// or out alike.
+	void test_too_large_names_what_and_offers_github()
+	{
+		for (const auto connection : { core::refused_connection::signed_out, core::refused_connection::account }) {
+			auto files        = refusal(connection, core::github_reason_code::response_too_large);
+			files.Limit       = core::github_response_limit::files;
+			const auto worded = core::word_pull_request_refusal(files, core::pull_request_refusal_context{ .Login = "octo-reviewer", .GithubCliOffered = true });
+			expect(worded.has_value() && worded->Heading == "octo-org/private-repository#17 is too large to open here",
+				   "the heading names the pull request and says it is too large to open here");
+			expect(worded.has_value() && contains(worded->Explanation, "3,000") && contains(worded->Explanation, "files")
+					   && contains(worded->Explanation, "GitHub shows all of it"),
+				   "too many files is said as files, with GitHub's own bound");
+			expect(worded.has_value() && worded->Actions == std::vector{ action::open_on_github, action::retry },
+				   "Open on GitHub comes first, then Retry; no sign-in is offered for size");
+		}
+		auto       unknown = refusal(core::refused_connection::account, core::github_reason_code::response_too_large);
+		const auto said    = core::word_pull_request_refusal(unknown, { });
+		expect(said.has_value() && contains(said->Explanation, "Part of it is larger"), "an unnamed part is said as a part");
+		unknown.Limit = core::github_response_limit::conversation;
+		expect(contains(core::word_pull_request_refusal(unknown, { })->Explanation, "reviews and comments"), "a conversation too large is said as reviews and comments");
+		unknown.Limit = core::github_response_limit::commits;
+		expect(contains(core::word_pull_request_refusal(unknown, { })->Explanation, "commits"), "commits too many is said as commits");
+	}
+
 	void test_every_action_has_a_verb_and_a_consequence()
 	{
 		expect(core::label(action::sign_in) == "Sign in" && core::label(action::use_github_cli) == "Use GitHub CLI"
 				   && core::label(action::use_another_account) == "Use another account",
 			   "each step is a verb, in the words the rest of Home uses");
-		for (const auto step : { action::sign_in, action::use_github_cli, action::use_another_account }) {
+		expect(core::label(action::open_on_github) == "Open on GitHub" && core::label(action::retry) == "Retry", "the size steps are named as Home names them");
+		for (const auto step : { action::sign_in, action::use_github_cli, action::use_another_account, action::open_on_github, action::retry }) {
 			expect(!core::consequence(step).empty() && core::consequence(step).back() == '.',
 				   "each step says what it does in a sentence");
 		}
@@ -132,6 +159,7 @@ auto main() -> int
 	test_signed_out_says_sign_in_and_names_the_pull_request();
 	test_an_account_is_named_and_offered_another();
 	test_only_a_permission_refusal_is_worded();
+	test_too_large_names_what_and_offers_github();
 	test_every_action_has_a_verb_and_a_consequence();
 	std::cout << "All pull request refusal wording tests passed\n";
 	return EXIT_SUCCESS;

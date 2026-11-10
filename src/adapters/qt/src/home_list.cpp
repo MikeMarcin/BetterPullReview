@@ -561,6 +561,11 @@ namespace bpr::qt {
 		option.font   = View.font();
 		option.widget = &View;
 		setText(index.data(Role).toString());
+		// [[BPR-2049]]. A row's labelled action says what it does.
+		if (const auto tip = index.data(home_row_role::row_action_tip).toString(); Role == home_row_role::row_action && !tip.isEmpty()) {
+			setToolTip(tip);
+			setAccessibleDescription(tip);
+		}
 		setAccessibleName(QStringLiteral("%1 %2").arg(text(), index.data(home_row_role::identity).toString()));
 		setGeometry(home_row_delegate::action_rect(option, index));
 		show();
@@ -872,6 +877,20 @@ namespace bpr::qt {
 				PageDispatch(*item);
 			}
 		});
+		// [[BPR-2049]]. Seen or Approve again on a reviewed row back for new
+		// commits; the ignored list's own action is its Unignore.
+		if (&aView != IgnoredView) {
+			auto* const followup = new home_row_action{ aView, QString{ } };
+			followup->setObjectName(QStringLiteral("homeRowFollowupButton"));
+			followup->set_trigger([this, view = &aView](const int aRow) {
+				if (!FollowupDispatch || view->model() == nullptr) {
+					return;
+				}
+				if (const auto item = item_of(*view, view->model()->index(aRow, 0, view->rootIndex())); item.has_value()) {
+					FollowupDispatch(*item);
+				}
+			});
+		}
 		aView.setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(&aView, &QWidget::customContextMenuRequested, this, [this, view = &aView](const QPoint& aPosition) {
 			const auto index = view->indexAt(aPosition);
@@ -898,6 +917,11 @@ namespace bpr::qt {
 	auto home_list::selection_shown() const noexcept -> bool
 	{
 		return SelectionShown;
+	}
+
+	void home_list::set_followup_dispatch(std::function<void(const core::queue_item&)> aDispatch)
+	{
+		FollowupDispatch = std::move(aDispatch);
 	}
 
 	void home_list::set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch)

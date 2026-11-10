@@ -29,3 +29,21 @@ row moves at once after Seen, not at the next refresh. No Unapprove action
 
 Load frontend-design before the Qt work; the owner's look on a frozen build
 is filed, not waited on.
+
+## Evidence
+
+Record: [RFC-BPR-0098 verification, owner fix round](../../verification/RFC-BPR-0098.md#owner-fix-round-bpr-2048-and-bpr-2049-2026-11-10).
+Frontend-design was loaded before the Qt work.
+
+- Core decision and Seen arithmetic: `core_review_queue_attention` — pass.
+- Seen moves the row at once, writes nothing, survives the store (facts
+  version 5), a later push brings it back: `application_review_queue_enrollment` — pass.
+- Composed: Seen on #18 moves it to Following asking GitHub for nothing
+  (`application_home_oversized_public_path`); Approve again opens the pull
+  request with its review and Approve, focused
+  (`application_home_approve_again_public_path`) — pass.
+
+Decision for the owner's look: Approve again opens the pull request's review
+with Approve ready rather than submitting from the row, so a summary or saved
+comments the review holds go with it knowingly; GitHub's confirmation and the
+return to Home move the row. Asked as Accept or Reject in the look.

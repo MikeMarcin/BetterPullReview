@@ -228,6 +228,13 @@ namespace bpr::app::detail {
 			/// current head, 2 on an earlier commit (the author pushed after).
 			std::shared_ptr<std::atomic<int>> ViewerReply;
 			std::optional<next_move_facts>    NextMove;
+			/// [[BPR-2048]]. More requested reviewers than one page: Home's own
+			/// read of it is too large. With `OversizedFiles`, opening it reads
+			/// more changed files than GitHub lists.
+			bool OversizedRequests = false, OversizedFiles = false;
+			/// [[BPR-2049]]. The viewer's own review on an earlier commit, as
+			/// GitHub records it ("APPROVED", "DISMISSED"); empty for none.
+			std::string_view ViewerVerdictBefore;
 		};
 		std::vector<pull_request> OpenPullRequests;
 		/// [[BPR-1681]]. While set, a personal search of any saved

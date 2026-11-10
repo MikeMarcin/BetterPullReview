@@ -375,6 +375,11 @@ namespace bpr::application {
 			membership = core::queue_membership_with_activity(membership, facts.Authored, activity.ReviewedByMe);
 			// [[BPR-1780]]. The bucket reads the draft status the facts carry.
 			activity.Draft = facts.Draft;
+			// [[BPR-2049]]. Commits the reviewer said Seen on are not news.
+			activity = core::seen_activity(activity, facts);
+			if (core::head_seen(facts)) {
+				facts.MyReview.NewCommits = false;
+			}
 			// [[BPR-1866]]. A verdict restored or read for a pull request I
 			// authored is my own reply, never a verdict.
 			facts.MyReview = core::my_review_shown(membership, facts.MyReview);
@@ -1450,10 +1455,14 @@ namespace bpr::application {
 		[[nodiscard]] auto observed_item(const enrollment_record& aRecord, const queue_activity_report& aReport) const -> core::queue_item
 		{
 			const auto membership = core::queue_membership_with_activity(aRecord.Membership, aReport.Facts.Authored, aReport.Observation.ReviewedByMe);
-			auto       activity   = aReport.Observation;
-			activity.Draft        = aReport.Facts.Draft;
-			auto facts            = aReport.Facts;
-			facts.MyReview        = core::my_review_shown(membership, facts.MyReview);
+			// [[BPR-2049]]. Commits the reviewer said Seen on are not news.
+			auto activity  = core::seen_activity(aReport.Observation, aReport.Facts);
+			activity.Draft = aReport.Facts.Draft;
+			auto facts     = aReport.Facts;
+			if (core::head_seen(facts)) {
+				facts.MyReview.NewCommits = false;
+			}
+			facts.MyReview = core::my_review_shown(membership, facts.MyReview);
 			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, activity), .Facts = std::move(facts), .Ignored = Ignored.contains(aRecord.Ref) };
 		}
 
@@ -1483,6 +1492,33 @@ namespace bpr::application {
 				return;
 			}
 			persist_ignores({ *delta }, std::move(prior));
+		}
+
+		void apply(const queue_seen_intent& aIntent)
+		{
+			++Statistics.SeenIntents;
+			if (Closing || !Restored) {
+				++Statistics.Failures;
+				return;
+			}
+			const auto existing = Enrollments.record_for(aIntent.Ref);
+			const auto position = ActivityIndex.find(aIntent.Ref);
+			if (!existing || !existing->present() || position == ActivityIndex.end()) {
+				return;
+			}
+			auto& report = Activity[position->second];
+			if (aIntent.Head.empty() || report.Facts.Waiting.Head != aIntent.Head
+				|| core::review_followup_for(observed_item(*existing, report)) != core::review_followup::seen) {
+				return;
+			}
+			auto prior              = Enrollments;
+			report.Facts.SeenHead   = aIntent.Head;
+			const auto factsChanged = Enrollments.observe_facts(aIntent.Ref, report.Facts, Scheduler.session().ViewerAccount);
+			if (factsChanged) {
+				persist_record(aIntent.Ref, std::move(prior), true);
+			} else {
+				publish();
+			}
 		}
 
 		/// \brief [[BPR-1683]]. Prunes ignores whose pull request the queue
@@ -1809,7 +1845,8 @@ namespace bpr::application {
 			const auto position     = ActivityIndex.find(aAnswer.Ref);
 			if (position == ActivityIndex.end()) {
 				ActivityIndex.emplace(aAnswer.Ref, Activity.size());
-				aAnswer.Facts.Waiting = aAnswer.Activity.Waiting;
+				aAnswer.Facts.Waiting  = aAnswer.Activity.Waiting;
+				aAnswer.Facts.SeenHead = existing->LastFacts.SeenHead;
 				Activity.push_back({ .Ref = aAnswer.Ref, .Observation = aAnswer.Activity, .Facts = std::move(aAnswer.Facts) });
 			} else {
 				auto& report = Activity[position->second];
@@ -1822,6 +1859,7 @@ namespace bpr::application {
 				// [[BPR-1718]]. A retained read reads every submitted
 				// review, so its verdict replaces the one kept.
 				report.Facts.MyReview = aAnswer.Facts.MyReview;
+				report.Facts.TooLarge = false;
 				if (aAnswer.Facts.Draft) {
 					report.Facts.Draft = aAnswer.Facts.Draft;
 				}
@@ -1854,6 +1892,31 @@ namespace bpr::application {
 			} else {
 				publish();
 			}
+		}
+
+		void apply(const queue_too_large_answer& aAnswer)
+		{
+			if (Closing || !Restored || aAnswer.Session != Scheduler.session()
+				|| aAnswer.Ref.Host != aAnswer.Session.Host || aAnswer.Ref.Account != aAnswer.Session.Account) {
+				return;
+			}
+			const auto existing = Enrollments.record_for(aAnswer.Ref);
+			if (!existing || !existing->present()) {
+				return;
+			}
+			const auto position = ActivityIndex.find(aAnswer.Ref);
+			if (position == ActivityIndex.end()) {
+				// Never read: what is known is what the record kept.
+				ActivityIndex.emplace(aAnswer.Ref, Activity.size());
+				auto facts     = existing->LastFacts;
+				facts.TooLarge = true;
+				Activity.push_back({ .Ref = aAnswer.Ref, .Observation = { .Known = false }, .Facts = std::move(facts) });
+			} else if (Activity[position->second].Facts.TooLarge) {
+				return;
+			} else {
+				Activity[position->second].Facts.TooLarge = true;
+			}
+			publish();
 		}
 
 		void apply(queue_follow_intent aIntent)
@@ -2162,6 +2225,11 @@ namespace bpr::application {
 		Implementation->apply(std::move(aIntent));
 	}
 
+	void review_queue_application_host::apply(queue_seen_intent aIntent)
+	{
+		Implementation->apply(aIntent);
+	}
+
 	auto review_queue_application_host::ignored() const noexcept -> const core::home_ignore_list&
 	{
 		return Implementation->Ignored;
@@ -2170,6 +2238,11 @@ namespace bpr::application {
 	void review_queue_application_host::apply(queue_metadata_answer aAnswer)
 	{
 		Implementation->apply(std::move(aAnswer));
+	}
+
+	void review_queue_application_host::apply(queue_too_large_answer aAnswer)
+	{
+		Implementation->apply(aAnswer);
 	}
 
 	void review_queue_application_host::present_discovery(queue_discovery_status aStatus)

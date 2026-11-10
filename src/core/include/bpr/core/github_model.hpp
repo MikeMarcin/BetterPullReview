@@ -279,10 +279,25 @@ namespace bpr::core {
 	};
 
 	/// \brief Describes the pull request load failed event record.
+	/// \brief [[BPR-2048]]. What part of a pull request exceeded the response
+	/// limits, as far as the read can say.
+	enum class github_response_limit : std::uint8_t {
+		/// The read did not say which part.
+		unknown,
+		/// More changed files than GitHub lists (3,000).
+		files,
+		commits,
+		/// Reviews, review threads or comments.
+		conversation,
+		checks,
+	};
+
 	struct pull_request_load_failed_event
 	{
 		pull_request_request_context Context;
 		github_failure               Failure = github_failure::network;
+		/// [[BPR-2048]]. With `response_too_large`, what was too large.
+		github_response_limit Limit = github_response_limit::unknown;
 
 		auto operator<=>(const pull_request_load_failed_event&) const = default;
 	};
@@ -454,6 +469,8 @@ namespace bpr::core {
 		refused_connection  Connection = refused_connection::account;
 		repository_locator  Repository;
 		pull_request_number Number;
+		/// [[BPR-2048]]. With `response_too_large`, what was too large.
+		github_response_limit Limit = github_response_limit::unknown;
 
 		auto operator<=>(const pull_request_refusal&) const = default;
 	};

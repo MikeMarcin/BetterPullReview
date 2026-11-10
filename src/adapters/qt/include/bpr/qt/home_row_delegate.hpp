@@ -97,6 +97,12 @@ namespace bpr::qt {
 			/// [[RFC-BPR-0098]]. `int(home_row_tone)` for a row whose colour is
 			/// its next move's rather than its state's; absent otherwise.
 			tone,
+			/// [[BPR-2049]]. What the row's labelled action does, as its
+			/// tooltip says it; empty for none.
+			row_action_tip,
+			/// [[BPR-2049]]. `int(core::review_followup)` the row offers;
+			/// absent for none.
+			followup,
 		};
 	} // namespace home_row_role
 

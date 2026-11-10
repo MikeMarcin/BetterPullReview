@@ -811,6 +811,7 @@ namespace bpr::qt {
 			}
 		});
 		HomeList->set_ignore_dispatch([this](const core::queue_item& aItem) { dispatch_home_ignore(aItem); });
+		HomeList->set_followup_dispatch([this](const core::queue_item& aItem) { dispatch_home_followup(aItem); });
 		// [[BPR-1865]]. The filter decides nothing: the core ranks, the list
 		// shows what it found, and these keys move through it.
 		if (HomeFilter != nullptr) {

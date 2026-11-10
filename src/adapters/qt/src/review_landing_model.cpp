@@ -62,7 +62,7 @@ namespace bpr::qt {
 
 	auto reason_for(const core::queue_item& aItem) -> QString
 	{
-		auto reason = core::next_move_for(aItem) || core::review_waiting(aItem.Facts.Waiting) || core::merge_blocked(aItem.Facts.Waiting) ? home_why_sentence(aItem) : text(core::explanation(aItem.Bucket));
+		auto reason = aItem.Facts.TooLarge || core::next_move_for(aItem) || core::review_waiting(aItem.Facts.Waiting) || core::merge_blocked(aItem.Facts.Waiting) ? home_why_sentence(aItem) : text(core::explanation(aItem.Bucket));
 		// The rule is named only when it is why the item is here at all. Saying
 		// "you watch src/parser" about a review someone asked for would bury
 		// the fact that they were asked.
@@ -342,7 +342,7 @@ namespace bpr::qt {
 		// [[RFC-BPR-0098]]. A pull request of mine says its next move; the
 		// section says it is mine.
 		if (const auto move = core::next_move_for(aItem); move) {
-			return move_sentence(aItem, *move);
+			return aItem.Facts.TooLarge ? move_sentence(aItem, *move) + QStringLiteral(" Too large to load here; open it on GitHub.") : move_sentence(aItem, *move);
 		}
 		const auto unseen  = static_cast<std::uint64_t>(aItem.Facts.UnseenComments);
 		auto       clauses = QStringList{ };
@@ -384,6 +384,11 @@ namespace bpr::qt {
 		case core::attention_bucket::detail_unknown:
 			lead(QStringLiteral("Nothing about it has been read yet"));
 			break;
+		}
+		// [[BPR-2048]]. Its own read was too large: what the row says beyond
+		// this is what was last read, and GitHub has the rest.
+		if (aItem.Facts.TooLarge) {
+			lead(QStringLiteral("Too large to load here; open it on GitHub"));
 		}
 		// [[BPR-1405]]. Who or what is awaited, said once and bounded; the
 		// whole roster is in Overview.
@@ -808,7 +813,33 @@ namespace bpr::qt {
 			return home_verdict_sentence(item->Facts.MyReview);
 		case home_row_role::row_action:
 			// [[BPR-1683]]. An ignored row's own action, on hover and focus.
-			return item->Ignored ? home_unignore_text() : QString{ };
+			// [[BPR-2049]]. A reviewed row back for new commits: Seen while my
+			// approval stands, Approve again once GitHub dismissed it.
+			if (item->Ignored) {
+				return home_unignore_text();
+			}
+			switch (core::review_followup_for(*item)) {
+			case core::review_followup::seen:          return QStringLiteral("Seen");
+			case core::review_followup::approve_again: return QStringLiteral("Approve again");
+			case core::review_followup::none:          break;
+			}
+			return QString{ };
+		case home_row_role::row_action_tip:
+			if (item->Ignored) {
+				return QStringLiteral("Puts this pull request back in its section; nothing changes on GitHub");
+			}
+			switch (core::review_followup_for(*item)) {
+			case core::review_followup::seen:
+				return QStringLiteral("My approval still stands: marks the new commits seen here and moves it to Following. Nothing changes on GitHub.");
+			case core::review_followup::approve_again:
+				return QStringLiteral("GitHub dismissed my approval when commits were pushed: opens it to approve the current commits on GitHub.");
+			case core::review_followup::none: break;
+			}
+			return QString{ };
+		case home_row_role::followup: {
+			const auto followup = core::review_followup_for(*item);
+			return item->Ignored || followup == core::review_followup::none ? QVariant{ } : QVariant{ static_cast<int>(followup) };
+		}
 		case home_row_role::time:
 		case home_row_role::progress:
 			return QString{ };

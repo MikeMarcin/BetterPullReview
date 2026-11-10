@@ -5583,6 +5583,32 @@ namespace {
 			expect(result && result->Rows.size() == 1 && result->Rows.front().WaitingLimited && result->Rows.front().Waiting.Requests == 2 && transport.Requests.size() == 2 && work.Completeness == core::discovery_completeness_reason::summary_limit,
 				   "retained optional summary exhaustion is explicit and sends no extra page; complete metadata request count remains usable");
 		}
+		for (const auto closed : { true, false }) {
+			// [[BPR-2048]]. More requested reviewers than a page: a closed pull
+			// request still leaves Home on its state; an open one is too large.
+			auto transport     = discovery_fixture_transport{ };
+			transport.Metadata = [closed](const auto&) {
+				auto metadata = retained_metadata();
+				auto many     = fixture_array{ };
+				for (std::uint64_t index = 0U; index < 101U; ++index) {
+					many.emplace_back(rest_actor("U_many" + std::to_string(index), "many" + std::to_string(index)));
+				}
+				metadata.insert_or_assign("requested_reviewers", many);
+				if (closed) {
+					metadata.insert_or_assign("state", "closed");
+				}
+				return success_response(fixture_json(metadata));
+			};
+			transport.Reviews = [](const auto&) { return success_response("[]"); };
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
+			if (closed) {
+				expect(result && result->Rows.size() == 1U && result->Rows.front().Closed && transport.count(read_operation::list_reviews) == 0U,
+					   "a closed pull request is read closed before any of its lists is bounded");
+			} else {
+				expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::response_limit,
+					   "an open one with more requests than a page is too large to read");
+			}
+		}
 		for (const auto violation : { 0, 1, 2, 3 }) {
 			auto transport     = discovery_fixture_transport{ };
 			transport.Metadata = [violation](const auto&) {
