@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1980"
 title: "Plan and apply exact tour destination repairs in the core"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0041"]
 depends_on: []
 priority: "P2"
