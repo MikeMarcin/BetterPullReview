@@ -94,7 +94,7 @@ records the amendment to its late-frame rule.
 | AC06 | `qt_agent_activity_view`: "is reading frame_pool.cpp", "is running git diff --stat", "last activity 4 s ago" then "0 s ago" after a frame; the composed course saw "last activity" on the live line | Pass |
 | AC07 | Live, below | See below |
 | AC08 | `qt_tour_side_chat`: the side chat's running turn shows the helper's row, "is reading item.cpp · last activity 1 s ago", the quiet notice and Keep waiting, and folds to "Worked for 2 min: 1 helper, 1 file read" after; the tour session's projection now relays every stream event to it | Pass |
-| AC09 | The owner's look at the running, quiet and ended states on a frozen build | Pending: owner-attended |
+| AC09 | The owner's look at the running, quiet and ended states on a frozen build | Pending: owner-attended, filed (below) |
 
 ## Live course (AC07)
 
@@ -157,3 +157,17 @@ The Codex answer's spacing ("I ’m  using") comes from the App Server's deltas,
 each appended as its own line, as before this change.
 
 AC07: Pass for both installed agents.
+
+## AC09: the owner's look
+
+Pending; filed for the owner and not waited on (owner, 2026-11-10: "Continue
+working unattended, you can file reviews but dont block on their results").
+Session `d2cc338937915480c469bdbd1ffd7f89`, state
+`/Users/jaeger/.attended-review-state/agent-work-visible-v001-2026-11-10/state`,
+three candidates, one question each: `BPR-2005-running`, `BPR-2005-quiet`,
+`BPR-2005-ended`. Frozen tests-on build `/Users/jaeger/agent-work-visible-v001.9any75gt`
+from `12e9c6fb4` (executable SHA-256 `9eca0ba356b2…`; its launcher `--check`
+passed: `ATTENDED_AGENT_HELPERS_SHOWN`). It opens nested-folders#21 on
+README.md and the Agent tab asks Review this pull request of the scripted
+Claude (`--attended-agent-helpers`), which replays the recorded Claude trace
+slowly and goes silent for 130 seconds before its last part.
