@@ -734,13 +734,13 @@ namespace bpr::qt {
 		refusal->hide();
 		askCol->addWidget(refusal);
 		askCol->addWidget(field);
-		// [[BPR-2002]]. What is true about what the agent reads, said once.
-		ReadsLine = new QLabel{ tr("The agent can read the whole pull request; attached lines only tell it where you are looking."), ask };
-		ReadsLine->setObjectName(QStringLiteral("agentReadsLine"));
-		ReadsLine->setWordWrap(true);
-		ReadsLine->setTextFormat(Qt::PlainText);
-		ReadsLine->setForegroundRole(QPalette::PlaceholderText);
-		// [[BPR-1999]]. The session's cost, when the agent reported any.
+		// [[BPR-2002]]. What is true about what the agent reads, said once:
+		// [[BPR-2038]], owner look on RFC-BPR-0101 AC08 ("this agent can read
+		// whole PR thing is way too long ... needs to be a tooltip"), in the
+		// field's tooltip, which its chips and buttons override with their own.
+		field->setToolTip(tr("The agent can read the whole pull request; attached lines only tell it where you are looking."));
+		// [[BPR-1999]]. The session's cost, when the agent reported any, on
+		// one line at the right under the composer.
 		SessionCostLine = new QLabel{ ask };
 		SessionCostLine->setObjectName(QStringLiteral("agentSessionCost"));
 		SessionCostLine->setTextFormat(Qt::PlainText);
@@ -749,7 +749,7 @@ namespace bpr::qt {
 		SessionCostLine->hide();
 		auto* const underRow = new QHBoxLayout{ };
 		underRow->setContentsMargins(0, 0, 0, 0);
-		underRow->addWidget(ReadsLine, 1);
+		underRow->addStretch(1);
 		underRow->addWidget(SessionCostLine, 0, Qt::AlignTop | Qt::AlignRight);
 		askCol->addLayout(underRow);
 		talk->addWidget(ask);
@@ -1879,26 +1879,34 @@ namespace bpr::qt {
 			}
 		}
 		// [[BPR-1999]], RFC-BPR-0101. The turn's cost after its duration, in
-		// dollars and cents: "Claude answered in 1 min 12 s · $0.41". None
-		// when the agent reported none.
-		auto       footer = succeeded ? agent_run_answered_words(ran, seconds) : agent_run_stopped_words(seconds);
-		const auto cost   = Launch.last_turn_cost();
-		auto       more   = QStringList{ };
-		if (succeeded && Launch.pull_request_files_only()) {
-			more << tr("It saw only this pull request's files.");
-		}
-		if (succeeded && findings > 0U && FindingsPresented != FindingsAtTurn) {
-			more << (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
-		}
+		// dollars and cents: "Claude answered in 1:12 · $0.41". None when the
+		// agent reported none. [[BPR-2038]], owner look on AC08: "one line
+		// for both turn and session status lines at this default width".
+		// The line names the agent short and counts the findings; the model
+		// and what the agent could see are in its tooltip.
+		const auto cost      = Launch.last_turn_cost();
+		const auto spent     = cost ? QString::fromStdString(core::agent_cost_words(*cost)) : QString{ };
+		const auto delivered = succeeded && findings > 0U && FindingsPresented != FindingsAtTurn;
+		auto       parts     = QStringList{ succeeded ? agent_run_answered_words(agent_short_name(agent), seconds) : agent_run_stopped_words(seconds) };
+		auto       tip       = QStringList{ succeeded ? agent_run_answered_words(ran, seconds) : parts.front() };
 		if (cost) {
-			footer += QStringLiteral(" · ") + QString::fromStdString(core::agent_cost_words(*cost));
-			if (!more.isEmpty()) {
-				footer += QStringLiteral(". ");
-			}
-		} else {
-			footer += more.isEmpty() ? QStringLiteral(".") : QStringLiteral(". ");
+			parts << spent;
+			tip << spent;
 		}
-		footer += more.join(QLatin1Char{ ' ' });
+		if (delivered) {
+			parts << (findings == 1U ? tr("1 finding") : tr("%1 findings").arg(findings));
+		}
+		auto footer = parts.join(QStringLiteral(" · "));
+		if (parts.size() == 1) {
+			footer += QLatin1Char{ '.' };
+		}
+		auto detail = tip.join(QStringLiteral(" · ")) + QLatin1Char{ '.' };
+		if (succeeded && Launch.pull_request_files_only()) {
+			detail += QLatin1Char{ ' ' } + tr("It saw only this pull request's files.");
+		}
+		if (delivered) {
+			detail += QLatin1Char{ ' ' } + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
+		}
 		// The session's total: the conversation's own, when kept with it,
 		// else this thread's turns added up.
 		if (const auto total = Launch.last_session_cost()) {
@@ -1907,6 +1915,7 @@ namespace bpr::qt {
 			present_session_cost(SessionTotal.value_or(0U) + *cost);
 		}
 		current.Footer->settle(footer, succeeded);
+		current.Footer->setToolTip(detail);
 		current.AnsweredAt = QDateTime::currentDateTime();
 		settle_reply_footer(current);
 		if (succeeded && FindingsPresented != FindingsAtTurn) {

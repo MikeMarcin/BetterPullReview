@@ -347,8 +347,9 @@ namespace bpr::qt {
 		/// \brief Attaches the selected lines again (Ask the agent about
 		/// these lines).
 		void attach_lines();
-		/// \brief The line under the field that says what the agent can read.
-		[[nodiscard]] auto reads_line() const noexcept -> QLabel* { return ReadsLine; }
+		/// \brief The question field, whose tooltip says what the agent can
+		/// read ([[BPR-2038]]: a tooltip, no longer a line under it).
+		[[nodiscard]] auto question_field() const noexcept -> QWidget* { return Field; }
 		/// \brief [[BPR-2002]]. The question the last send carried, as the
 		/// core decided it; none before any.
 		[[nodiscard]] auto last_question() const noexcept -> const std::optional<core::agent_question>& { return LastQuestion; }
@@ -668,7 +669,6 @@ namespace bpr::qt {
 		QWidget*     LinesChip  = nullptr;
 		QLabel*      LinesText  = nullptr;
 		QToolButton* LinesClose = nullptr;
-		QLabel*      ReadsLine  = nullptr;
 		/// [[BPR-1999]]. The session's cost under the composer.
 		QLabel*                         SessionCostLine = nullptr;
 		std::optional<core::agent_cost> SessionTotal;

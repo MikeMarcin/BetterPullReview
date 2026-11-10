@@ -41,7 +41,7 @@ namespace bpr::core {
 	{
 		constexpr auto cent = agent_cost{ 10'000'000U };
 		if (aCost != 0U && aCost < cent / 2U) {
-			return "under $0.01";
+			return "< $0.01";
 		}
 		const auto cents   = (aCost + cent / 2U) / cent;
 		const auto dollars = cents / 100U;

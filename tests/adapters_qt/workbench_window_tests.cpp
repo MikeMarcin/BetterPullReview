@@ -11,6 +11,7 @@
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
@@ -14183,8 +14184,23 @@ namespace {
 		expect(last().contains(QStringLiteral(" answered in ")) && last().endsWith(QStringLiteral(" · $0.41")), "a turn's footer gives its cost after its duration: " + last().toStdString());
 		expect(agent->session_cost_line()->isVisible() && agent->session_cost_line()->text() == QStringLiteral("$0.41 this session"), "and the session line the conversation's total");
 		turn(22U, core::parse_agent_cost("0.004"), std::nullopt);
-		expect(last().endsWith(QStringLiteral(" · under $0.01")) && agent->session_cost_line()->text() == QStringLiteral("$0.42 this session"),
+		expect(last().endsWith(QStringLiteral(" · < $0.01")) && agent->session_cost_line()->text() == QStringLiteral("$0.42 this session"),
 			   "a turn under half a cent says so; the session adds it up: " + agent->session_cost_line()->text().toStdString());
+		// [[BPR-2038]], owner look on RFC-BPR-0101 AC08: "one line for both
+		// turn and session status lines at this default width".
+		{
+			const auto  footers = agent->conversation_thread()->findChildren<QLabel*>(QStringLiteral("agentTurnFooter"));
+			auto* const footer  = footers.isEmpty() ? nullptr : footers.back();
+			const auto  oneLine = [](const QLabel* aLabel) { return aLabel != nullptr && aLabel->fontMetrics().horizontalAdvance(aLabel->text()) <= aLabel->contentsRect().width() && aLabel->height() < 2 * aLabel->fontMetrics().lineSpacing(); };
+			expect(oneLine(footer) && oneLine(agent->session_cost_line()) && agent->findChild<QLabel*>(QStringLiteral("agentReadsLine")) == nullptr,
+				   "the turn's footer and the session line each take one line, with no line beside the session's: " + (footer != nullptr ? footer->text().toStdString() + " in " + std::to_string(footer->contentsRect().width()) : std::string{ "no footer" }));
+			expect(footer != nullptr && footer->toolTip().startsWith(QStringLiteral("Fixture agent answered in ")) && footer->toolTip().contains(QStringLiteral(" · < $0.01.")), "the tooltip keeps the whole sentence: " + (footer != nullptr ? footer->toolTip().toStdString() : std::string{ }));
+			expect(qt::agent_short_name(QStringLiteral("Claude Code")) == QStringLiteral("Claude") && qt::agent_short_name(QStringLiteral("Codex")) == QStringLiteral("Codex") && qt::agent_short_name(QStringLiteral(" Code")) == QStringLiteral(" Code"),
+				   "a turn names Claude Code as Claude and every other agent as it is called");
+			if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
+				expect(window.grab().save(QStringLiteral("%1/agent-footers-window.png").arg(root), "PNG") && agent->grab().save(QStringLiteral("%1/agent-footers-tab.png").arg(root), "PNG"), "the footers render is saved");
+			}
+		}
 		turn(23U, core::parse_agent_cost("12"), core::parse_agent_cost("12.5"));
 		expect(last().endsWith(QStringLiteral(" · $12.00")) && agent->session_cost_line()->text() == QStringLiteral("$12.50 this session"), "the conversation's own total is said when known");
 		turn(24U, std::nullopt, std::nullopt);
@@ -15125,9 +15141,9 @@ namespace {
 		// chip, and its close detaches them until a new selection.
 		{
 			auto* const field = agent->findChild<QWidget*>(QStringLiteral("agentQuestion"));
-			expect(field != nullptr && !field->isAncestorOf(window.side_chat()->scope_selector()) && agent->reads_line()->isVisible()
-					   && agent->reads_line()->text() == QStringLiteral("The agent can read the whole pull request; attached lines only tell it where you are looking."),
-				   "no scope list is shown, and one line says what the agent can read");
+			expect(field != nullptr && !field->isAncestorOf(window.side_chat()->scope_selector()) && agent->findChild<QLabel*>(QStringLiteral("agentReadsLine")) == nullptr
+					   && agent->question_field()->toolTip() == QStringLiteral("The agent can read the whole pull request; attached lines only tell it where you are looking."),
+				   "no scope list is shown, and the field's tooltip says what the agent can read (BPR-2038: no line under it)");
 			expect(agent->lines_chip()->isVisible() && agent->lines_chip_text() == QStringLiteral("renderer.cpp 440–447") && agent->lines_attached(), "selected lines show as an attached chip");
 			agent->lines_chip_close()->click();
 			process_events();
@@ -15210,7 +15226,7 @@ namespace {
 			window.finding_queue()->present(delivery);
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();
-			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).contains(QStringLiteral("1 finding, above")),
+			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).endsWith(QStringLiteral(" · 1 finding")),
 				   "finished, the turn says what came of it rather than going quiet");
 			static_cast<void>(title);
 

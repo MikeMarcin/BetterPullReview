@@ -97,10 +97,20 @@ descriptions) keep Ctrl or Cmd with Return. They are not chats.
 ### Cost
 
 - **Format.** Dollars and cents, rounded half up: `$0.41`. A nonzero amount
-  under half a cent reads `under $0.01`. No cost is shown when the runtime
+  under half a cent reads `< $0.01`. No cost is shown when the runtime
   reported none; `$0.00` is never invented.
 - **Per turn.** A turn's footer gives that turn's cost after its duration:
-  "Claude answered in 1 min 12 s · $0.41".
+  "Claude answered in 1:12 · $0.41".
+- **Owner amendment, 2026-11-10 ([[BPR-2038]]).** On the frozen build the
+  owner rejected the Agent tab's footers: "It's taking up too much space. We
+  might need things to go in tooltips or shorten. Like just 'Claude answered
+  in'. Maybe 'under' becomes '<'. My goal is one line for both turn and
+  session status lines at this default width." So a sub-cent amount reads
+  `< $0.01` (it read `under $0.01`, and AC04 is amended to match); at the
+  default window width a turn's footer and the session line each take one
+  line. The footer names the agent short (Claude Code is "Claude") and
+  counts the findings it delivered; the model, what the agent could see and
+  where its findings are go in the footer's tooltip.
 - **Per session.** The session line under the composer gives the session's
   total: "$2.37 this session". It persists with the session's history and
   restarts at New session.
@@ -184,7 +194,8 @@ accent.
   the selected-lines side chat; Return during input-method composition does
   not send; a comment composer still requires Ctrl or Cmd with Return.
 - **AC04:** Reported costs of 0.4123567, 0.004 and 12 are shown as `$0.41`,
-  `under $0.01` and `$12.00`; a run with no reported cost shows none.
+  `< $0.01` (amended 2026-11-10 from `under $0.01`, [[BPR-2038]]) and
+  `$12.00`; a run with no reported cost shows none.
 - **AC05:** After three turns in one native session with an installed
   Claude, each turn's footer shows a cost, the session line shows their sum,
   and the record states how the runtime's figure was interpreted.

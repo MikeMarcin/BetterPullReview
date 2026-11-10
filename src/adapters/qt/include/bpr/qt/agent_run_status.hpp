@@ -45,6 +45,10 @@ namespace bpr::qt {
 	/// 0:12", or "Stopped after 0:12".
 	[[nodiscard]] auto agent_run_answered_words(const QString& aAgent, qint64 aSeconds) -> QString;
 	[[nodiscard]] auto agent_run_stopped_words(qint64 aSeconds) -> QString;
+	/// \brief [[BPR-2038]]. The agent's name as a turn's ending line says
+	/// it: the product, without its "Code" ("Claude Code" is "Claude").
+	/// Any other name is said as it is.
+	[[nodiscard]] auto agent_short_name(const QString& aAgent) -> QString;
 
 	/// \brief [[BPR-1941]], owner 2026-11-08: "the '<agent> is thinking
 	/// <elapsed time>' ... is much better than the tour side chat's little

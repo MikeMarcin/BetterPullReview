@@ -86,7 +86,7 @@ starts at none. Costs are billionths of a dollar, so turns sum exactly.
 
 | Criterion | Evidence | Result |
 |---|---|---|
-| AC04 | `core_agent_cost`: 0.4123567 → `$0.41`, 0.004 → `under $0.01`, 12 → `$12.00`; no figure, no cost. `qt_workbench_agent_send_refusal`: the footers and the session line | Pass |
+| AC04 | `core_agent_cost`: 0.4123567 → `$0.41`, 0.004 → `< $0.01` (amended from `under $0.01`, [[BPR-2038]]), 12 → `$12.00`; no figure, no cost. `qt_workbench_agent_send_refusal`: the footers and the session line | Pass (re-run at the BPR-2038 candidate) |
 | AC05 | [Installed Claude course](#installed-claude-course): three native turns, each footer a cost, the session line their sum, the interpretation recorded above | Pass |
 | AC06 | The tour side chat's ending line gives the run's cost after its time and the open chat's session line its total (`tour_thread_cost`); tour runs take the same accounted figures | Pass (unit and composed path; no installed tour run) |
 

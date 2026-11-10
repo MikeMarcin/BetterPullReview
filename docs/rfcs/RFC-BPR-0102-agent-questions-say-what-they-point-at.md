@@ -78,8 +78,11 @@ The scope list and its tooltip are removed. In their place:
 - The chip's ✕ detaches the lines from this question without changing the
   diff's selection. A new selection attaches again.
 - With no chip, the question's subject is the pull request.
-- One line under the composer says what is true: the agent can read the
-  whole pull request; attached lines only tell it where you are looking.
+- The composer's tooltip says what is true: the agent can read the whole
+  pull request; attached lines only tell it where you are looking. (Owner
+  amendment, 2026-11-10, [[BPR-2038]]: it was one line under the composer,
+  and "this agent can read whole PR thing is way too long ... needs to be a
+  tooltip message instead".)
 
 Private notes and drafts are still added only by their own explicit
 actions.

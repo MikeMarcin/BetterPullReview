@@ -23,7 +23,7 @@ namespace {
 	{
 		// AC04.
 		expect(core::agent_cost_words(*core::parse_agent_cost("0.4123567")) == "$0.41", "0.4123567 is $0.41");
-		expect(core::agent_cost_words(*core::parse_agent_cost("0.004")) == "under $0.01", "0.004 is under $0.01");
+		expect(core::agent_cost_words(*core::parse_agent_cost("0.004")) == "< $0.01", "0.004 is < $0.01");
 		expect(core::agent_cost_words(*core::parse_agent_cost("12")) == "$12.00", "12 is $12.00");
 		expect(core::agent_cost_words(*core::parse_agent_cost("0.005")) == "$0.01", "half a cent rounds up");
 		expect(core::agent_cost_words(*core::parse_agent_cost("1.995")) == "$2.00", "and carries");

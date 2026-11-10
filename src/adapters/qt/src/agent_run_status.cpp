@@ -32,6 +32,12 @@ namespace bpr::qt {
 
 	auto agent_run_answered_words(const QString& aAgent, const qint64 aSeconds) -> QString { return QObject::tr("%1 answered in %2").arg(aAgent, agent_elapsed_words(aSeconds)); }
 
+	auto agent_short_name(const QString& aAgent) -> QString
+	{
+		const auto suffix = QStringLiteral(" Code");
+		return aAgent.size() > suffix.size() && aAgent.endsWith(suffix) ? aAgent.chopped(suffix.size()) : aAgent;
+	}
+
 	auto agent_run_stopped_words(const qint64 aSeconds) -> QString { return QObject::tr("Stopped after %1").arg(agent_elapsed_words(aSeconds)); }
 
 	agent_run_status_line::agent_run_status_line(QWidget* aParent)

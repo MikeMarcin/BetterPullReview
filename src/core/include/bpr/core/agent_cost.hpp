@@ -21,7 +21,8 @@ namespace bpr::core {
 	[[nodiscard]] auto parse_agent_cost(std::string_view aDecimal) -> std::optional<agent_cost>;
 
 	/// \brief Dollars and cents, rounded half up: `$0.41`; a nonzero amount
-	/// under half a cent is `under $0.01`.
+	/// under half a cent is `< $0.01` ([[BPR-2038]], owner look on
+	/// RFC-BPR-0101 AC08: "Maybe 'under' becomes '<'").
 	[[nodiscard]] auto agent_cost_words(agent_cost aCost) -> std::string;
 
 	/// \brief What one conversation has cost so far.
