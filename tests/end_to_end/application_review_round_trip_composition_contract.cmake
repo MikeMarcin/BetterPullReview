@@ -3391,8 +3391,19 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Ordered142/complete197 inventory and full-app/mutation pins are unchanged.
 	# Source binding adds no native acceptance; three new Windows rows remain
 	# truthfully unmeasured pending contained native calibration.
+	# [[BPR-2040]] reviewed frozen899 and app-surface27cb01f1: the existing
+	# Tour host idle predicate is a separate presentation capability, not the
+	# answer's Running/Stop state. Exact host/editor/generation identities bind
+	# one <=10Hz observation through retirement/probe drain; old observers
+	# cannot update replacement editors or survive owner destruction. Test-only
+	# late cleanup holds reuse the existing bounded queue and expose its actual
+	# waiting state; all hooks are under BPR_BUILD_TESTING. Root reviewed all
+	# four app paths (three in this142content list; the test-access header is
+	# covered by the complete197 inventory and tests-disabled guards). Provider,
+	# actor/head/grant/mutation policy is unchanged; inventories and the
+	# full-app/mutation pins remain exact. No native credit is added here.
 	set(bpr_expected_production_app_manifest_digest
-        "b08d76eb245608e7f0c5e44e86ce660150258e69c8622953e9a788e43510bc24"
+        "44ec961f0767c4cd2243bc9cd153d1030ad3262ccec50047674911d71344c926"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

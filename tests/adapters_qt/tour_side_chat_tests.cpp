@@ -218,8 +218,9 @@ auto main(int argc, char** argv) -> int
 	auto asked   = std::vector<qt::tour_ask>{ };
 	auto decided = std::vector<std::tuple<std::size_t, core::tour_proposal_decision, QString>>{ };
 	auto shown   = std::vector<bool>{ };
+	auto stops   = std::size_t{ 0U };
 	editor.set_tour_ask_dispatch([&asked](const qt::tour_ask& aAsk) { asked.push_back(aAsk); });
-	editor.set_tour_session_dispatch([] { }, [] { }, [&decided](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decided.emplace_back(aIndex, aDecision, aText); });
+	editor.set_tour_session_dispatch([] { }, [&stops] { ++stops; }, [&decided](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decided.emplace_back(aIndex, aDecision, aText); });
 	editor.set_side_chat_visibility_dispatch([&shown](const bool aShown) { shown.push_back(aShown); });
 	editor.resize(380, 1200);
 	editor.show();
@@ -304,10 +305,17 @@ auto main(int argc, char** argv) -> int
 	// Copy on it and on the whole chat.
 	auto       session = core::tour_agent_session{ };
 	const auto first   = core::begin_tour_ask(session, asked[0].Thread, asked[0].Passage, "What does this mean?");
+	editor.set_tour_host_idle(false);
 	editor.set_tour_running(std::nullopt, false, true);
 	editor.present_tour_session(session, std::nullopt);
 	settle();
 	expect(chat->send_button()->text() == QStringLiteral("Stop") && chat->send_button()->isEnabled(), "a running turn is stopped from Send");
+	chat->send_button()->click();
+	expect(stops == 1U && asked.size() == 1U, "a non-idle host preserves the existing Stop gesture and sends no question");
+	editor.set_tour_host_idle(true);
+	expect(chat->send_button()->text() == QStringLiteral("Stop") && chat->send_button()->isEnabled() && !chat->new_session_button()->isEnabled(),
+		   "an idle observation cannot turn a newer running request into New session or hide Stop");
+	editor.set_tour_host_idle(false);
 	auto revisionChoice     = core::agent_continuation_offer{ };
 	revisionChoice.Required = true;
 	chat->present_revision_continuation(revisionChoice, { }, false);
@@ -357,6 +365,25 @@ auto main(int argc, char** argv) -> int
 	editor.set_tour_running(std::nullopt, false, false);
 	editor.present_tour_session(session, std::nullopt);
 	settle();
+	// [[BPR-2040]]. A final reply is not a promise that cleanup retired.
+	const auto retainedReply = chat->reply(0)->original_body();
+	chat->composer()->setPlainText(QStringLiteral("Follow up after retirement"));
+	expect(!chat->send_button()->isEnabled() && !chat->new_session_button()->isEnabled() && !chat->update_button()->isEnabled()
+			   && !chat->status_line(0)->live(),
+		   "a final reply does not offer another request before host retirement");
+	QApplication::sendEvent(chat->composer(), &enter);
+	expect(asked.size() == 1U && chat->composer()->toPlainText() == QStringLiteral("Follow up after retirement") && chat->reply(0)->original_body() == retainedReply,
+		   "retirement withholds Return without replacing final text or the next question");
+	chat->present_revision_continuation(revisionChoice, { }, false);
+	auto* const continueOld = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision"));
+	expect(continueOld && !continueOld->isEnabled(), "retirement withholds continuation of the saved revision");
+	editor.set_tour_host_idle(true);
+	expect(continueOld->isEnabled(), "the idle host permits the existing revision choice");
+	chat->present_revision_continuation(std::nullopt, { }, false);
+	editor.set_tour_host_idle(true);
+	expect(chat->send_button()->isEnabled() && chat->new_session_button()->isEnabled() && chat->update_button()->isEnabled(),
+		   "the observed idle host enables the existing request capabilities");
+	chat->composer()->clear();
 	// [[BPR-1925]]. Its glyph counts its turns.
 	expect(glyph->text() == QStringLiteral("1") && chat->turns_about(core::tour_thread{ .Kind = core::tour_thread_kind::solution }) == 1U, "the Solution's toggle counts its one turn");
 	expect(glyph->isChecked() && glyph->accessibleName() == QStringLiteral("Close the chat about the Solution"), "pressed, it says it closes the chat");
@@ -601,6 +628,20 @@ auto main(int argc, char** argv) -> int
 		expect(chat->resend_button(0) != nullptr && chat->resend_button(0)->isVisibleTo(chat) && chat->delete_button(0) != nullptr && chat->delete_button(0)->isVisibleTo(chat), "AC2 Resend and Delete");
 		render(*chat, prefix, "side-chat-failed");
 		const auto before = asked.size();
+		editor.set_tour_host_idle(false);
+		expect(!chat->resend_button(0)->isEnabled() && chat->delete_button(0)->isEnabled(), "retirement withholds Resend and keeps Delete");
+		chat->resend_button(0)->click();
+		expect(asked.size() == before, "a retiring host receives no recovery request");
+		editor.set_tour_host_idle(true);
+		auto pendingHistory    = application::native_agent_history_projection{ };
+		pendingHistory.Loading = true;
+		chat->present_native_history(pendingHistory);
+		expect(!chat->resend_button(0)->isEnabled() && chat->delete_button(0)->isEnabled(), "native history loading withholds Resend and keeps Delete");
+		chat->resend_button(0)->click();
+		expect(asked.size() == before, "pending history admits no recovery request even after retirement");
+		pendingHistory.Loading = false;
+		chat->present_native_history(pendingHistory);
+		expect(chat->resend_button(0)->isEnabled(), "settled history restores the existing recovery request");
 		chat->resend_button(0)->click();
 		expect(asked.size() == before + 1U && asked.back().Thread == problem && asked.back().Question == QStringLiteral("Is the Problem right?") && !asked.back().Update, "AC2 Resend asks the same again in the same chat");
 		chat->delete_button(0)->click();
@@ -614,6 +655,7 @@ auto main(int argc, char** argv) -> int
 	// tab's notice say it with the same live line.
 	{
 		chat->open(core::tour_thread{ });
+		editor.set_tour_host_idle(false);
 		editor.set_tour_running(std::nullopt, true);
 		auto live  = qt::agent_run_status{ };
 		live.Agent = QStringLiteral("Claude Code");
@@ -622,9 +664,16 @@ auto main(int argc, char** argv) -> int
 		settle();
 		expect(chat->draft_status_line() != nullptr && chat->draft_status_line()->isVisibleTo(chat) && chat->draft_status_line()->text() == QStringLiteral("● Claude Code is thinking, 0:00."), "the tour's chat says the draft runs");
 		expect(editor.draft_status_line()->isVisibleTo(&editor) && editor.draft_status_line()->text() == chat->draft_status_line()->text(), "the tab's notice says it the same way");
+		chat->composer()->setPlainText(QStringLiteral("Keep the draft focused"));
+		const auto beforeFeedback = asked.size();
+		expect(chat->send_button()->isEnabled(), "the existing queued-draft feedback exception does not require an idle host");
+		chat->send_button()->click();
+		expect(asked.size() == beforeFeedback + 1U && asked.back().Thread.Kind == core::tour_thread_kind::tour && !asked.back().Update,
+			   "draft feedback keeps its one existing dispatch while the host runs");
 		render(*chat, prefix, "side-chat-drafting");
 		editor.present_run_status(std::nullopt);
 		editor.set_tour_running(std::nullopt, false);
+		editor.set_tour_host_idle(true);
 		settle();
 		expect(chat->draft_status_line() == nullptr && !editor.draft_status_line()->isVisibleTo(&editor), "both go when it ends");
 	}

@@ -163,6 +163,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1941]]. Delete on a turn that ended without an answer.
 		void set_delete_dispatch(std::function<void(core::tour_agent_run_id)> aDelete) { DeleteDispatch = std::move(aDelete); }
 		void set_available(bool aReady, const QString& aWhy);
+		/// rief [[BPR-2040]]. Observed host retirement, independent of the
+		/// answer's Running state. Stop and queued draft feedback keep theirs.
+		void set_host_idle(bool aIdle);
 		/// \brief [[BPR-1934]]. Where an empty chat's suggested prompts come
 		/// from. Without one, an empty chat offers none.
 		void set_prompt_source(prompt_source aSource);
@@ -337,6 +340,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto                                                          takes_feedback() const -> bool;
 		bool                                                                        Mine             = false;
 		bool                                                                        Ready            = true;
+		bool                                                                        HostIdle         = true;
 		QLabel*                                                                     ContinuationMode = nullptr;
 		QString                                                                     Why;
 		std::size_t                                                                 Shown = 0U;

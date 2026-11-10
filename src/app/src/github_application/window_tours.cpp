@@ -457,6 +457,72 @@ namespace bpr::app {
 #endif
 	}
 
+	/// [[BPR-2040]]. The answer can be final before the host retires its
+	/// cleanup/probes. Present that existing capability without making the
+	/// answer Running again. One editor-bound observer does no effect work.
+	void github_application::implementation::refresh_tour_host_idle()
+	{
+#if defined(BPR_AGENT_INTEGRATIONS)
+		if (Closing || !Window || !TourSession) {
+			if (TourIdleObservation) {
+				TourIdleObservation->stop();
+			}
+			return;
+		}
+		const auto host   = TourSession.get();
+		const auto editor = QPointer{ Window->tour_editor() };
+		if (!editor) {
+			if (TourIdleObservation) {
+				TourIdleObservation->stop();
+			}
+			return;
+		}
+		const auto projectedGeneration = TourIdleObservationGeneration;
+		const auto idle                = tour_session_idle();
+		editor->set_tour_host_idle(idle);
+		// A presentation callback can replace either identity or an observer.
+		// Never let the older refresh overwrite that reentrant observation.
+		if (Closing || !Window || !editor || Window->tour_editor() != editor.data()
+			|| TourSession.get() != host || projectedGeneration != TourIdleObservationGeneration) {
+			return;
+		}
+		if (idle || TourRun) {
+			++TourIdleObservationGeneration;
+			if (TourIdleObservation) {
+				TourIdleObservation->stop();
+			}
+			return;
+		}
+		if (TourIdleObservation && TourIdleObservation->isActive() && TourIdleObservedHost == host && TourIdleObservedEditor == editor) {
+			return;
+		}
+		const auto generation  = ++TourIdleObservationGeneration;
+		TourIdleObservation    = std::make_unique<QTimer>();
+		TourIdleObservedHost   = host;
+		TourIdleObservedEditor = editor;
+		const auto observer    = QPointer{ TourIdleObservation.get() };
+		observer->setTimerType(Qt::PreciseTimer);
+		observer->setInterval(100);
+		QObject::connect(editor.data(), &QObject::destroyed, observer.data(), &QTimer::stop);
+		QObject::connect(observer.data(), &QTimer::timeout, editor.data(), [this, observer, editor, host, generation] {
+			if (Closing || !Window || !editor || Window->tour_editor() != editor.data()
+				|| TourSession.get() != host || generation != TourIdleObservationGeneration || TourRun) {
+				if (observer) {
+					observer->stop();
+				}
+				return;
+			}
+			const auto ready = tour_session_idle();
+			editor->set_tour_host_idle(ready);
+			// Reentrant presentation may have deleted this exact observer.
+			if (ready && observer) {
+				observer->stop();
+			}
+		});
+		observer->start();
+#endif
+	}
+
 	void github_application::implementation::cancel_writing()
 	{
 		WritingState.cancel();
@@ -726,6 +792,13 @@ namespace bpr::app {
 	/// ports the Agent tab's launches use, and its own projection.
 	void github_application::implementation::compose_tour_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies)
 	{
+		// Invalidate even a same-address replacement before any owned port dies.
+		++TourIdleObservationGeneration;
+		if (TourIdleObservation) {
+			TourIdleObservation->stop();
+		}
+		TourIdleObservedHost = nullptr;
+		TourIdleObservedEditor.clear();
 		TourProcess = std::make_unique<adapters::agent::agent_process_launcher>();
 	#if defined(BPR_BUILD_TESTING)
 		// Counted as the Agent tab's launcher is, so a course sees a tour
@@ -844,6 +917,7 @@ namespace bpr::app {
 				}
 			}
 		}
+		refresh_tour_host_idle();
 		Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour, aKind == core::tour_agent_request::ask);
 		present_tour_session();
 		if (!dispatch_agent_invocation(aAgent, { }, { }, false, aPrompt, continued, core::agent_entry_point::ask_about_selection, { }, true, launch)) {
@@ -977,6 +1051,7 @@ namespace bpr::app {
 		TourRun.reset();
 		TourInvocation.reset();
 		present_tour_live(std::nullopt);
+		refresh_tour_host_idle();
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
 		if (TourDraftPending) {
 			TourDraftPending = false;
@@ -997,6 +1072,11 @@ namespace bpr::app {
 			finish_writing(aIdentity, aResult);
 		}
 		present_tour_session();
+	#if defined(BPR_BUILD_TESTING)
+		if (auto before = std::exchange(BeforeTourRetirementFixture, { }); before) {
+			before();
+		}
+	#endif
 	}
 
 	/// [[BPR-1914]], owner 2026-11-06: "I want to ask questions, get back
@@ -1719,6 +1799,7 @@ namespace bpr::app {
 				});
 			}
 			Window->tour_editor()->present_tour_session(shown, TourProposal);
+			refresh_tour_host_idle();
 			present_tour_continuation();
 			present_tour_reset();
 		}

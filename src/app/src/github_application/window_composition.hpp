@@ -134,6 +134,7 @@
 #include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
+#include <QPointer>
 #include <QString>
 #include <QTimer>
 
@@ -611,6 +612,7 @@ namespace bpr::app {
 		[[nodiscard]] auto skill_run_for(core::writing_hook aHook) const -> skill_run;
 		[[nodiscard]] auto agent_idle() const -> bool;
 		[[nodiscard]] auto tour_session_idle() const -> bool;
+		void               refresh_tour_host_idle();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto locate_claude() const -> application::claude_locator;
 
@@ -2179,6 +2181,9 @@ namespace bpr::app {
 		std::unique_ptr<adapters::agent::agent_process_launcher> TourProcess;
 	#if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<composition_agent_process_launcher_probe> TourProcessProbe;
+		/// Test builds only: arm the existing effect-queue hold after result
+		/// projection, before the host queues its cleanup. No distribution hook.
+		std::function<void()> BeforeTourRetirementFixture;
 	#endif
 		std::unique_ptr<application::wrapped_claude_process>  TourClaudeProcess;
 		std::unique_ptr<application::located_agent_process>   TourLocatedProcess;
@@ -2186,6 +2191,12 @@ namespace bpr::app {
 		std::unique_ptr<application::diagnosed_agent_process> TourDiagnosedProcess;
 		std::unique_ptr<tour_session_projection>              TourProjection;
 		std::unique_ptr<application::agent_invocation_host>   TourSession;
+		/// [[BPR-2040]]. An editor-context observation, destroyed before its
+		/// host. It observes retirement; it never changes run or effect policy.
+		std::unique_ptr<QTimer>                   TourIdleObservation;
+		std::uint64_t                             TourIdleObservationGeneration = 0U;
+		const application::agent_invocation_host* TourIdleObservedHost          = nullptr;
+		QPointer<qt::review_tour_editor>          TourIdleObservedEditor;
 		/// [[BPR-1900]]. The session's runs and transcript, the run in
 		/// flight with its invocation, the workspace it ran in, and the
 		/// whole-tour proposal waiting on the author.

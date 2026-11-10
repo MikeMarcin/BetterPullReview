@@ -3320,6 +3320,11 @@ namespace bpr::qt {
 		refresh_agent_features();
 	}
 
+	void review_tour_editor::set_tour_host_idle(const bool aIdle)
+	{
+		SideChat->set_host_idle(aIdle);
+	}
+
 	void review_tour_editor::present_run_status(std::optional<agent_run_status> aStatus)
 	{
 		SideChat->present_run_status(aStatus);
