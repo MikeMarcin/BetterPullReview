@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2040-tour-host-retirement-readiness",
+  "scope": {
+    "issues": [
+      "BPR-2040"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "repair-owning-readiness",
+      "outcome": "The Tour composer offers follow-ups only after host retirement.",
+      "work": [
+        {
+          "issue": "BPR-2040",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Retain actual frozen54 failure and identify the result-projection/cleanup readiness window without changing fixture waits or budgets.",
+        "Project the existing tour_session_idle observation as a separate capability. Preserve early final text, Running and Stop; gate only New session, Update, Continue and non-Stop Send. Use an idempotent identity/generation/editor-lifetime-owned mechanical observation at most10Hz, stopping on idle, Closing, destruction, host replacement or new run. Add no timeout/refusal/effect/business policy.",
+        "Deterministic test-only late cleanup gate proves old public enabled-before-retirement and candidate disabled-before/ready-after. Preserve one original follow-up/backend-memory oracle; include Stop/cancel/close/new-generation guards and original deadlines. Test gates compile out of tests-disabled distribution.",
+        "Review/recompute only the142 content pin with inventories/full-app/mutation pins preserved; static/focused gates pass, intentionally land only owned release-fix source/tracker slice on main, and return exact source/evidence/command state without final release qualification credit."
+      ],
+      "boundary": "Only src/app/src/github_application/window_tours.cpp, src/app/src/github_application/window_composition.hpp, src/adapters/qt/include/bpr/qt/tour_side_chat.hpp, src/adapters/qt/src/tour_side_chat.cpp, src/adapters/qt/include/bpr/qt/review_tour_editor.hpp, src/adapters/qt/src/review_tour_editor.cpp, tests/end_to_end/agent_invocation_composition_public_path.cpp, tests/adapters_qt/tour_side_chat_tests.cpp, src/app/src/github_application_fixture_access.hpp, src/app/src/github_application/fixture_effect_holds_and_agent_evidence.cpp, tests/end_to_end/application_review_round_trip_composition_contract.cmake and own tracker. No frozen producer changes, external product main intake, PC work, native execution without coordinator lease, release publication or budget relaxation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
