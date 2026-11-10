@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2038",
+    "BPR-2039"
+  ],
+  "reserve_for": "v0-5-0-prerelease-targets",
+  "purpose": "Owner look on RFC-BPR-0101 AC08: BPR-2038 Agent tab footers on one line (footers rejected); BPR-2039 Colours filter box blends into its description (follow-up note on the accepted accent)",
+  "created": "2026-11-10T16:41:52.399299+00:00",
+  "base": "1513d4a8527b4d6f78ee8781d5b9a9586760d9a1"
+}
