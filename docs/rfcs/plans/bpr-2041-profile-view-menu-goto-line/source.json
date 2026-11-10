@@ -1,0 +1,11 @@
+{
+  "frozen_source": "899056e7de7187edc0ee206a7dc499a1f5487af4",
+  "mandate_revision": "frozen54-functional-fixes-r1",
+  "baseline_sha256": {
+    "tests/adapters_qt/profile_management_window_tests.cpp": "b36dc46b78f982967c90dc7828485a616e3dca80964760c597f9bf1f69d41f99"
+  },
+  "external_evidence": "/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-pathological-release-triage-r1",
+  "native_lease": "pending",
+  "design_authority": "coordinator approved exact2040 separate capability/no Running change/lifecycle observer/test-only late hold;2041 test-only menu correction",
+  "recorded_utc": "2026-11-10T18:33:51.949899+00:00"
+}
