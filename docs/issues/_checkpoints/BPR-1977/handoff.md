@@ -57,9 +57,19 @@ maintained printer, commands/results, plan binding and final closeout receipt.
 
 ## Integration frontier
 
-Next: commit the bounded source/checkpoint slice, fast-forward/push accepted1976
-plus actual1977 allocation/fix to canonical main, complete shared Done closeout
-and return exact final hash. Foreign attachments must remain untouched. No PC,
-application build/test, exhaustive native suite or producer mutation is part of
-this issue. Root owns successor freeze/publication/final common-source native
-qualification. All task-owned commands finish before lease handback.
+Source/checkpoint commit
+`292fa4ed1aa219bb921029fe5f1c6d19f76d6956` fast-forwards canonical main
+and normally pushes all accepted1976, actual1977 allocation and this reviewed
+source fix from origin9df. `ls-remote` verifies that exact revision. Product
+source remains byte-identical accepted54be/8ac5; only the reviewed tests
+manifest/comment changes. NEXT1978 and all acceptance/tracker history remain.
+Pre-integration docs/scoped board/diff checks pass. The shared Done/docs
+closeout changes no proven source; external final-handoff.json binds final main.
+
+Foreign `.codex-attachments/` is preserved; canonical tracked state and own
+worktree are clean at handback. All task-owned commands are terminal; no review
+server exists. No PC operation, application build/test, exhaustive native suite
+or producer mutation occurs. Main-writer and Mac engineering lease return to
+root for successor freeze/publication/final common-source native qualification.
+Accepted1976 corporate/native unknowns and the corrected P1 history remain
+explicit; this source reseal adds no native qualification or new safety waiver.
