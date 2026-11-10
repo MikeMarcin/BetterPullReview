@@ -213,3 +213,67 @@ conversation comment for stop 2, the tour comment and the description. Then
 finish BPR-2038, BPR-2010 and BPR-1992, and remove the roots with
 `freeze_attended_build.py remove`. Disposable BPR-Test leftovers: #152, its
 `-next` branch.
+
+## home-next-move (2026-11-10)
+
+Engineered on the same lane; nothing pushed. Frontend-design was loaded before
+the Qt work. Record: [RFC-BPR-0098](../../../verification/RFC-BPR-0098.md).
+Owner amendment during the round: "Continue working unattended, you can file
+reviews but dont block on their results".
+
+| Commit | What |
+|---|---|
+| `013250aa4`, `477ec1713` | Ready and claim BPR-1989 |
+| `5018fe6aa` | Next move in the core; decision, merge state, running checks, reviewers' verdicts and conversations carried (queue facts v4); `HomeConversations` fragment on authored aliases of Home's batch; word, sentence, tone, order, header, Hide quiet; fixture rows, composed course, unit and contract tests; app pin resealed |
+| `58db13bb5` | A pull request of mine whose reviews were never read is Unknown, never Quiet. Product candidate |
+| `2f772b6f0` | The composed course takes `--attended` (the look); the app's home look refresh step withdrawn; pin back to `5018fe6aa`'s |
+| this commit | Counter to main's BPR-2042 (LIVE_IMPORT); BPR-1989 parked `human-review` |
+
+State: both exits have passing public-path evidence (AC01 to AC05). The
+milestone is not accepted while AC06 (the owner's look) is pending.
+
+Runs at the candidate: `core_home_next_move`, `core_review_queue{,_attention}`,
+`core_home_ignore`, `core_home_{discovery,filter,open}`, `github_read_contract`,
+`github_paged_read`, `application_review_queue_{enrollment,refresh,notification}`,
+`application_notification_delivery`, `application_home_open_host`,
+`sqlite_queue_enrollment_storage`, `qt_review_landing_model`,
+`qt_home_list_scale_{100,125,200}`, `qt_home_filter`, `qt_review_queue`,
+`qt_composed_home_sign_in`, `qt_workbench_home_discovery_scale_100`,
+`qt_workbench_open_review_from_home_scale_100`,
+`qt_surface_capture_course_scale_100`, `qt_home_card_fit_scale_100`,
+`qt_pull_request_activity_notifications`, `github_notifications_read`,
+`application_home_next_move_public_path`, `application_personal_discovery{,_cli}_public_path`,
+`application_home_{waiting,waiting_cli,own_activity,open_feedback,return,filter}_public_path`,
+`application_attended_recent_replay`, `application_queue_composition_contract`,
+`application_composition{,_source}_contract`,
+`application_review_round_trip_composition_contract`, `architecture_boundaries`,
+`test_network_isolation_manifest`, `coding-format-check`, clang-tidy on the
+touched sources, documentation gate. The `HomeConversations` fragment was run
+against github.com with `gh api graphql` on BPR-Test #151 (read only).
+
+Filed, awaiting the owner (not waited on; the URL stays in the session state):
+session `bb8c24c5f3cb7ed97777f4e3f1a70a78`, state
+`/Users/jaeger/.attended-review-state/home-next-move-v001-2026-11-10/state`,
+cursor 9, host PID 95022 (its `tailscale serve` child 95034), three
+candidates, ready and protected:
+
+- `BPR-1989-home-moves`: the rows on the frozen composed course of
+  `2f772b6f0`, root `/Users/jaeger/home-next-move-v003.ozia7rab` (course
+  binary SHA-256 `55c9296fb8f8…`; launcher `--check` passed).
+- `BPR-1989-word-place`: keep the move's word after the sentence (Accept) or
+  lead every Home row with it (Reject).
+- `BPR-1989-own-pull-requests`: the owner's own open pull requests on the
+  tests-off live build `/Users/jaeger/home-next-move-live-v001.krnex__w`
+  (`58db13bb5`, product as `2f772b6f0`; SHA-256 `a56c1ba56992…`).
+
+Observed, not changed here: signed in through the window's connect action
+(the app's attended home look), Home's refresh action stays disabled, so that
+look can never read reviews a search did not; the composed course signs in
+from Home and is used instead.
+
+Next: read the session after hand-back. On Accept of all three, finish
+BPR-1989 (`issue_board.py finish`), stop host 95022 and remove both roots
+with `freeze_attended_build.py remove`. A Reject of the word place moves every
+Home row's word to the front (`home_row_delegate`), a new candidate. The
+closeout card for RFC-BPR-0098 belongs to `accepted-scope`. Next eligible
+milestones in plan order: `agent-work-visible`, `tour-stops`.

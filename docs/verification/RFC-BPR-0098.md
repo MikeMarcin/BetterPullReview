@@ -49,7 +49,26 @@ timing claim.
 
 Pending; filed for the owner and not waited on (owner, 2026-11-10: "Continue
 working unattended, you can file reviews but dont block on their results").
-Session details are in the milestone handoff.
+Session `bb8c24c5f3cb7ed97777f4e3f1a70a78`, state
+`/Users/jaeger/.attended-review-state/home-next-move-v001-2026-11-10/state`:
+
+- `BPR-1989-home-moves`: the rows, on the frozen composed course of
+  `2f772b6f0` (`/Users/jaeger/home-next-move-v003.ozia7rab`, course binary
+  SHA-256 `55c9296fb8f8…`), which passes every assertion above and then
+  stays open on Home (`--attended`). The freeze's own launcher `--check` passed
+  (`ATTENDED_HOME_SHOWN:rows=13`, app SHA-256 `9dc6988c3032…`).
+- `BPR-1989-word-place`: the move's word stays after the sentence, where Home
+  draws every row's word, or leads the line as the design round drew it.
+- `BPR-1989-own-pull-requests`: AC06's own pull requests, on the tests-off
+  live build of `58db13bb5` (`/Users/jaeger/home-next-move-live-v001.krnex__w`,
+  SHA-256 `a56c1ba56992…`; self-test and launch checks passed), whose product
+  sources equal `2f772b6f0`'s.
+
+The attended home look of the app (`--attended-home-look
+--attended-home-moves`) lists the rows but cannot refresh them: signed in
+through the window's connect action, Home's refresh stays disabled, so the
+reviews a search does not read are never read in that look. The course is
+the look for that reason.
 
 ## Runs
 

@@ -75,3 +75,10 @@ until main's counter is raised to BPR-2040 it refuses every allocation
 ("BPR-2038 rewinds historical high water BPR-2040", checked from the main
 checkout), as it did before `ec70790bc`. Raising main's counter is the main
 integrator's step; this lane does not write to main.
+
+`home-next-move` (2026-11-10) allocated nothing. By then main had reserved
+BPR-2040 (`26e8ca1b4`) and BPR-2041 (`8a3b9704f`) and reads BPR-2042, so the
+lane's counter at BPR-2040 rewound the high water and the board helpers
+refused to move a card. The lane's counter now reads BPR-2042, main's own;
+no reservation is imported, and none collides with the lane's BPR-2038 and
+BPR-2039.
