@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2037"
+  ],
+  "reserve_for": "bpr53-agent-finding-native-retention",
+  "purpose": "",
+  "created": "2026-11-10T14:47:07.500578+00:00",
+  "base": "06e87366c873d0bedeff920b104a286af567ffef"
+}

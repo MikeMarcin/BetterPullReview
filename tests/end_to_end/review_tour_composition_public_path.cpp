@@ -1195,7 +1195,18 @@ auto main(int argc, char** argv) -> int
 			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
 			wait([&] {const auto* surface=window.comparison_surface();return surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("review.cpp") && surface->selected_source_range() && surface->selected_source_range()->first.Line==1 && surface->selected_source_range()->second.Line==3; }, "file-level fallback range navigates canonical pinned source");
 			editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
-			expect(editor.preview()->original_body().find("not yet qualified") != std::string::npos, "real preview never treats loaded code as pending-operation support");
+			{
+				// [[BPR-2036]]. BPR-1976 separates this preparation view's
+				// absent operation evidence from authoritative publication support.
+				const auto& shown = editor.shown();
+				expect(shown.Destinations.size() == shown.Draft->Stops.size() && std::ranges::all_of(shown.Destinations, [](const auto& aDestination) {
+						   return aDestination.Plan.NeedsQualification && !aDestination.Plan.JoinsPendingReview && aDestination.Plan.Representation == core::tour_representation::unresolved;
+					   }),
+					   "loaded code supplies no qualified pending-review destination");
+				const auto& preview = editor.preview()->original_body();
+				expect(preview.find("Preview publication to check the available destination for this source.") != std::string::npos && preview.find("not yet qualified") == std::string::npos,
+					   "local preview directs the authoritative publication check without inventing a qualification failure");
+			}
 			expect(editor.preview()->original_body().find("entirely-unchanged.md?plain=1#L1-L2") != std::string::npos, "unavailable historical source keeps a visible canonical code link");
 			const auto historical = editor.shown().Draft->Stops[2];
 			editor.show_stops();

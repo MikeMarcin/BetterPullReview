@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1988-tour-log-retention",
+  "scope": {
+    "issues": [
+      "BPR-1988"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "resolve-compatibility-log-retention",
+      "outcome": "The exact Windows52 compatibility lifecycle-log failure has an evidenced cause and minimal distinguishing correction on main with original publication and logging contracts preserved.",
+      "work": [
+        {
+          "issue": "BPR-1988",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Retain original Windows52 CTest8/63pass1fail and exact source/images/inputs; one approved original compatibility diagnostic reports fixed missing-stage, JSON/counter and owned-file-read metadata without raw content or changed oracle/budget. A passing diagnostic supplies no cause/fix claim.",
+        "Establish actual cause and separately approve minimal correction/control; preserve all ten relevant lifecycle stages, classified/private logging and publication/no-duplicate semantics, original gestures, networking, guards and90s. Run meaningful negative/positive and focused native/source/static checks.",
+        "Land only the release-owned correction and tracker on main rooted frozen5fd plus accepted ownchain. Preserve foreign edits/counters, restore temporary variants, finish own commands and hand back leases; final release qualification remains separate."
+      ],
+      "boundary": "Initial authorization is one temporary failure-only metadata diagnostic in tests/end_to_end/review_tour_publication_public_path.cpp; own private source/build only, exact52producer immutable. Broader product/test correction requires causal findings and coordinator scope review. No external product main ingestion, relaxed log oracle, blanket Qt/timing attribution or retries to green."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

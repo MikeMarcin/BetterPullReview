@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2036"
+  ],
+  "reserve_for": "codex-cold-tour-import-53",
+  "purpose": "Reconcile cold Tour import preview evidence with accepted BPR-1976 publication contract",
+  "created": "2026-11-10T14:38:30.703138+00:00",
+  "base": "fc278b7b3367eec0d702343a7d6c1644957469d8"
+}

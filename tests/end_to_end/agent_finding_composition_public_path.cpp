@@ -21,6 +21,7 @@
 #include "bpr/core/agent_entry.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -39,6 +40,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMenu>
+#include <QMetaObject>
 #include <QObject>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -857,7 +860,7 @@ auto main(int argc, char** argv) -> int
 	auto delivered = wait_terms{ };
 	if (!wait_until_reporting(
 			delivered,
-			[&application](wait_terms& aTerms) {
+			[&application, codexFound](wait_terms& aTerms) {
 				const auto invocation = app::detail::
 					github_application_fixture_access::agent_invocation_evidence(
 						*application);
@@ -867,6 +870,9 @@ auto main(int argc, char** argv) -> int
 						invocation.Statistics.ProcessStarts));
 				// [[BPR-0840]]. A turn that ended without launching never
 				// satisfies this wait, so the report names how it ended.
+				aTerms.note("workspaces", invocation.Statistics.WorkspaceStarts);
+				aTerms.note("cleanups", invocation.Statistics.WorkspaceCleanups);
+				aTerms.note("cleanup-failures", invocation.Statistics.WorkspaceCleanupFailures);
 				aTerms.note_identifier(
 					"panel",
 					app::detail::github_application_fixture_access::
@@ -877,8 +883,11 @@ auto main(int argc, char** argv) -> int
 						   invocation.Quiescent
 							   && invocation.Statistics.ProcessStarts == 1U)
 					&& aTerms.require(
-						"cleanups-is-one",
-						invocation.Statistics.WorkspaceCleanups == 1U);
+						codexFound ? "retained-cleanups-is-zero" : "cleanups-is-one",
+						invocation.Statistics.WorkspaceCleanups == (codexFound ? 0U : 1U))
+					&& (!codexFound
+						|| (aTerms.require("native-workspaces-is-one", invocation.Statistics.WorkspaceStarts == 1U)
+							&& aTerms.require("native-cleanup-failures-is-zero", invocation.Statistics.WorkspaceCleanupFailures == 0U)));
 			},
 			extended_agent_budget)) {
 		const auto finding = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
@@ -1729,6 +1738,50 @@ auto main(int argc, char** argv) -> int
 					  << "\npanel-status:" << evidence.AgentPanelStatusText << '\n';
 		}
 		if (course == "positive") {
+			if (codexFound) {
+				// An added agent uses the retained native-session workspace. Reading
+				// History submits no question; the original finding/draft assertions
+				// above have already judged the one completed invocation.
+				QMetaObject::invokeMethod(window.agent_tab()->history_button()->menu(), "aboutToShow");
+				auto retained = wait_terms{ };
+				if (!wait_until_reporting(retained, [&application, &window](wait_terms& aTerms) {
+						const auto invocation = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+						const auto& root = invocation.WorkspaceRoot;
+						auto error = std::error_code{ };
+						const auto ownedTree = !root.empty()
+							&& std::filesystem::is_directory(std::filesystem::symlink_status(root, error))
+							&& std::filesystem::is_directory(std::filesystem::symlink_status(root / "workspace", error))
+							&& std::filesystem::is_directory(std::filesystem::symlink_status(root / "workspace" / ".git", error))
+							&& std::filesystem::is_regular_file(std::filesystem::symlink_status(root / "workspace" / ".git" / "bpr-owned-workspace", error));
+						auto* const histories = window.agent_tab()->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
+						const auto actions = histories != nullptr ? histories->actions() : QList<QAction*>{ };
+						const auto entries = std::ranges::count_if(actions, [](const QAction* aAction) { return aAction->isCheckable(); });
+						const auto selectedOneTurn = std::ranges::any_of(actions, [](const QAction* aAction) {
+							return aAction->isCheckable() && aAction->isChecked() && !aAction->data().toString().isEmpty()
+								&& aAction->text().startsWith(QStringLiteral("Native: ")) && aAction->property("turns").toULongLong() == 1U;
+						});
+						aTerms.note("process", invocation.Statistics.ProcessStarts);
+						aTerms.note("workspaces", invocation.Statistics.WorkspaceStarts);
+						aTerms.note("cleanups", invocation.Statistics.WorkspaceCleanups);
+						aTerms.note("cleanup-failures", invocation.Statistics.WorkspaceCleanupFailures);
+						aTerms.note("native-history-entries", static_cast<std::uint64_t>(entries));
+						return aTerms.require("native-quiescent", invocation.Quiescent)
+							&& aTerms.require("native-process-is-one", invocation.Statistics.ProcessStarts == 1U)
+							&& aTerms.require("native-workspaces-is-one", invocation.Statistics.WorkspaceStarts == 1U)
+							&& aTerms.require("native-cleanups-is-zero", invocation.Statistics.WorkspaceCleanups == 0U)
+							&& aTerms.require("native-cleanup-failures-is-zero", invocation.Statistics.WorkspaceCleanupFailures == 0U)
+							&& aTerms.require("owned-retained-workspace-present", ownedTree)
+							&& aTerms.require("native-history-is-one", entries == 1)
+							&& aTerms.require("selected-native-history-one-turn", selectedOneTurn); }, extended_agent_budget)) {
+					return fail(*application, "native-retention", retained.render());
+				}
+				const auto invocation = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+				std::cout << "agent-finding-native-retention:process=" << invocation.Statistics.ProcessStarts
+						  << " workspaces=" << invocation.Statistics.WorkspaceStarts << " cleanups=" << invocation.Statistics.WorkspaceCleanups
+						  << " cleanup-failures=" << invocation.Statistics.WorkspaceCleanupFailures
+						  << " owned-retained-workspace=1 selected-native-history-one-turn=1 old-cleanups-is-one="
+						  << (invocation.Statistics.WorkspaceCleanups == 1U) << '\n';
+			}
 			if (!shutdown(*application) || !exact) {
 				return EXIT_FAILURE;
 			}
