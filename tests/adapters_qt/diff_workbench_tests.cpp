@@ -5370,6 +5370,19 @@ namespace {
 		return std::abs(aActual.first - aFirst) <= 1 && std::abs(aActual.second - aLast) <= 1;
 	}
 
+	[[nodiscard]] auto visible_reference_ink_span(const std::vector<int>& aRows, const qreal aShift, const int aClipTop, const int aClipEnd) -> std::pair<int, int>
+	{
+		auto span = std::pair{ aClipEnd, -1 };
+		for (const auto row : aRows) {
+			const auto translated = qRound(row + aShift);
+			if (translated >= aClipTop && translated < aClipEnd) {
+				span.first  = std::min(span.first, translated);
+				span.second = std::max(span.second, translated);
+			}
+		}
+		return span;
+	}
+
 	void test_number_ink_reference_normalization()
 	{
 		const auto pen                 = QColor{ 91, 101, 112 };
@@ -5417,6 +5430,28 @@ namespace {
 		expect(number_ink_tracks_native({ 23, 25 }, 24, 26) && number_ink_tracks_native({ 25, 27 }, 24, 26)
 				   && !number_ink_tracks_native({ 22, 24 }, 24, 26) && !number_ink_tracks_native({ 26, 28 }, 24, 26),
 			   "number geometry retains exactly the original one-device-pixel tolerance");
+
+		const auto sparse100 = visible_reference_ink_span({ 24, 32 }, -8.0, 18, 40);
+		const auto sparse125 = visible_reference_ink_span({ 30, 40 }, -10.0, 23, 50);
+		expect(sparse100 == std::pair{ 24, 24 } && sparse125 == std::pair{ 30, 30 },
+			   "clipping the actual sparse reference mask never invents ink inside its bounding box");
+		expect(visible_reference_ink_span({ 24, 25, 26, 27, 28, 29, 30, 31, 32 }, -8.0, 18, 40) == std::pair{ 18, 24 }
+				   && visible_reference_ink_span({ 24, 32 }, 0.0, 18, 40) == std::pair{ 24, 32 },
+			   "dense and unclipped reference masks keep their exact original spans");
+		expect(visible_reference_ink_span({ 24, 25, 26 }, -3.75, 21, 40) == std::pair{ 21, 22 },
+			   "fractional native displacement rounds and clips each actual reference ink row");
+		expect(visible_reference_ink_span({ }, -8.0, 18, 40).second < 0
+				   && visible_reference_ink_span({ 24 }, -8.0, 18, 40).second < 0,
+			   "an empty or fully clipped reference mask fabricates no visible ink");
+		expect(!number_ink_tracks_native({ 40, -1 }, sparse100.first, sparse100.second)
+				   && !number_ink_tracks_native({ 50, -1 }, sparse125.first, sparse125.second),
+			   "missing the sole visible reference ink row remains a failure");
+		expect(number_ink_tracks_native({ 23, 23 }, sparse100.first, sparse100.second)
+				   && number_ink_tracks_native({ 25, 25 }, sparse100.first, sparse100.second)
+				   && !number_ink_tracks_native({ 22, 22 }, sparse100.first, sparse100.second)
+				   && !number_ink_tracks_native({ 26, 26 }, sparse100.first, sparse100.second)
+				   && !number_ink_tracks_native({ 20, 24 }, 18, 24),
+			   "clipped reference geometry allows one pixel but rejects two-pixel displacement or loss");
 	}
 
 	void test_one_pane_rows_anchors_and_link_map()
@@ -5590,7 +5625,7 @@ namespace {
 			const auto headingPixels = qRound(heading * rasterRatio);
 			const auto headingImage  = referenceImage.copy(0, 0, referenceImage.width(), headingPixels);
 			auto       originalTops  = std::vector<int>{ };
-			const auto inkSpan       = [&](const QImage& aImage, const int aRow, const int aSide, const std::optional<qreal> aPixelShift = std::nullopt) {
+			const auto inkSpan       = [&](const QImage& aImage, const int aRow, const int aSide, const std::optional<qreal> aPixelShift = std::nullopt, std::vector<int>* const aInkRows = nullptr) {
 				const auto column = aImage.width() / 2;
 				const auto y      = nativeY(aRow);
 				const auto height = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(aRow) }).height();
@@ -5623,12 +5658,16 @@ namespace {
 							lastInk  = std::max(lastInk, py);
 						}
 					}
+					if (aInkRows != nullptr && lastInk == py) {
+						aInkRows->push_back(py);
+					}
 				}
 				return std::pair{ firstInk, lastInk };
 			};
-			auto originalInk = std::vector<std::array<std::pair<int, int>, 2>>{ };
+			auto originalInk     = std::vector<std::array<std::pair<int, int>, 2>>{ };
+			auto originalInkRows = std::vector<std::array<std::vector<int>, 2>>(rows.size());
 			for (auto rowIndex = 0; rowIndex < static_cast<int>(rows.size()); ++rowIndex) {
-				originalInk.push_back({ inkSpan(referenceImage, rowIndex, 0), inkSpan(referenceImage, rowIndex, 1) });
+				originalInk.push_back({ inkSpan(referenceImage, rowIndex, 0, std::nullopt, &originalInkRows[static_cast<std::size_t>(rowIndex)][0]), inkSpan(referenceImage, rowIndex, 1, std::nullopt, &originalInkRows[static_cast<std::size_t>(rowIndex)][1]) });
 				originalTops.push_back(nativeY(rowIndex));
 			}
 			const auto beforeScroll = workbench.statistics();
@@ -5657,9 +5696,12 @@ namespace {
 						if (original.second < 0 || original.second + shift < headingPixels) {
 							continue;
 						}
-						const auto actual   = inkSpan(image, rowIndex, side, shift);
-						const auto firstInk = std::max(headingPixels, qRound(original.first + shift));
-						expect(number_ink_tracks_native(actual, firstInk, qRound(original.second + shift)),
+						const auto actual = inkSpan(image, rowIndex, side, shift);
+						// A sparse raster mask can have empty rows inside its bounding box.
+						// Clip its actual qualifying rows before computing the expected span.
+						const auto expected = visible_reference_ink_span(originalInkRows[static_cast<std::size_t>(rowIndex)][static_cast<std::size_t>(side)], shift, headingPixels, image.height());
+						expect(expected.second >= 0, "the visible clipped reference retains actual qualifying ink");
+						expect(number_ink_tracks_native(actual, expected.first, expected.second),
 							   "painted base/head numbers follow native text rows within one device pixel, including the clipped first row");
 					}
 					const auto& row    = rows[static_cast<std::size_t>(rowIndex)];
