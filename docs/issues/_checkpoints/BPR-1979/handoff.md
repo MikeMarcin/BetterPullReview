@@ -2,11 +2,11 @@
 
 - Assignment: import and implement the supplied card; mandate `tour-destination-repairs-r1`.
 - Baseline/RFC_BASE_SHA: `cf9413b9f76dd34e299bc46518a52127b18b175c` on `main`.
-- Owner: `/root/tour_repair`, nondelegating implementer; main/tracker authority from coordinator.
+- Owner: `/root/tour_editor`, nondelegating implementer for editor-repairs; main/tracker authority from coordinator.
 - Source: `docs/rfcs/assets/tour-destination-repairs-v1/card-tour-compatibility-forced-by-repairable-stops.md` (immutable).
 - Live parent: BPR-1979. Core prerequisite: BPR-1980.
 - Plan: repair-policy, editor-repairs, mixed-publication. All original AC1–AC7 remain on parent.
-- Current frontier: repair-policy accepted and BPR-1980 Done at `21b108dbc25ba68af91d8d1c3fbf1d0273647f14`; BPR-1979 is Ready for a fresh editor-repairs implementer.
+- Current frontier: repair-policy and editor-repairs accepted; BPR-1980 is Done, BPR-1979 remains In Progress for a fresh mixed-publication implementer.
 - Independent writers: none dispatched; foreign `.codex-attachments/` remains untouched.
 - Commands: all task commands and descendants quiescent. No task worktrees/servers; no desktop or live GitHub effects. Foreign `.codex-attachments/` remains untouched.
 - Required skills: implement-rfc loaded; frontend-design loaded from pinned MASK store, desktop reference read.
@@ -116,3 +116,77 @@ The exact current-HEAD completion observation/check is external at
 `/tmp/bpr-tour-repair-run/repair-policy-check.json`; the tracked baseline,
 source candidate, plan binding, card acceptance and this checkpoint are the
 durable recovery basis.
+
+## Accepted editor-repairs checkpoint
+
+- Assignment `editor-repairs`, owner `/root/tour_editor`, mandate
+  `tour-destination-repairs-r1`, accepted prerequisite `repair-policy`.
+- Claim `14842636322b156acf0dabceb700dcd75193c3d3`; exact source/test/guide
+  candidate `91830ea7edde0002c7d7a23f05903dbef0fe52df` (23 explicit paths).
+  Binding: `editor-repairs-binding.json`, obtained with the documented same
+  target-scoped discovery workaround; all five obligations and three exits
+  resolve without diagnostics. The binding's claim revision is preserved.
+- Changed surfaces: typed Qt repair rows and inert repair projection, exact
+  pinned comparison materializer, serialized composition reads, core-driven
+  preview planning and revision-bound dispatch, real host mapping observation,
+  ten-stop production-composition course, committed three-commit fixture and
+  generator, tour guide, focused test registration and isolation inventory.
+- The editor names every affected stop; its link selects/scrolls to that stop.
+  Exact re-pin is one ordinary edit. Relocation previews actual head text,
+  selects its stop, preserves explanation, and applies one ordinary edit.
+  Undo/Redo re-plan the list. An intervening edit hides/refuses the captured
+  preview. Original source remains immutable. Changed/unknown mapping and
+  unsupported/unknown operation facts grant no replacement or write.
+- The composed course proves one pending review creation, one COMMENT submit,
+  ten native comments, zero ordinary-review shortcuts and zero compatibility
+  comments. Explicit compatibility remains the last current choice. Native,
+  compatibility and unqualified-publication baseline courses passed 3/3 in
+  8.67s; unchanged evidence is reused.
+- Final 1× source-candidate course: pass, 4.47s (`editor-last-course.log`).
+  Core repair + real host: 2/2 pass; their combined earlier composed run 3/3
+  passed in 5.06s (`repair-course-4.log`). Architecture, network manifest and
+  destination passed (`editor-integration.log`); two unbuilt dev executables
+  in that first integration invocation were then built and passed above.
+- Source target build passes (`editor-last-build.log`). LLVM22 format passes
+  for all 17 changed C++ paths; tidy passed seven changed TUs plus the two
+  composition/fixture TUs, with final six-TU and initializer-only source
+  rechecks (`editor-{tidy,final-tidy,last-tidy}.log`). Documentation gate
+  passes; documentation regression 67/67 passes. No Debug timing course used.
+- Offscreen full-window repair and relocation renders were inspected at
+  1200×760 logical, macOS arm64, Debug, Qt 6.12.0, scales 1×/1.25×/2×. Scaled
+  composed runs pass 3.48s/3.59s. Source text, Apply/Cancel, blocker reasons
+  and the affected selected stop remain readable. These are deterministic
+  offscreen layout observations, not native system appearance or performance.
+  Latest default rasters: `build/dev/tests/end_to_end/review-tour-publication-repairs.png-{repairs,relocation}.png`;
+  scaled relocation copies: `/tmp/bpr-tour-repair-run/relocation-{125,200}.png`.
+- Corrected failures retained: initial capture-shadow/signed-iterator build
+  warnings; first course clicked before reopened Git comparison readiness;
+  terminal assertion initially searched lowercase published, then used the
+  ordinary submission counter instead of staged counters. Each was corrected
+  and the complete affected course rerun. No unresolved product failure remains.
+- Final command logs are external under `/tmp/bpr-tour-repair-run`. Every owned
+  build, CTest, tidy and documentation process has exited and its result was
+  consumed. No task-owned server, writer, worktree, mount or protection remains.
+  No live GitHub mutation or owner desktop control/capture occurred. Foreign
+  `.codex-attachments/` remains untouched. No human/native claim is self-certified.
+
+## Next milestone and retained obligations
+
+Coordinator starts a fresh nondelegating implementer for `mixed-publication`
+under this same mandate and adopted plan. BPR-1979 stays In Progress; its
+original acceptance text and supplied source remain intact. Complete the mixed
+review/conversation sequence, returned cross-kind navigation/overview,
+interruption reconciliation and published maintenance, with the authorized
+RFC-BPR-0041/0042 amendments. No already-published compatibility conversion.
+
+The supplied **Publish as file comment** control is still mandatory where exact
+operation/scope facts allow it. M2 preserves unknown facts and explicitly refuses
+to mislabel standalone file creation as pending-review staging. The successor
+must connect and retain exactly qualified facts, implement the honest supported
+file route/choice and its tests, or leave a concrete unmet obligation. Do not
+accept the parent by silently dropping this requirement. AC5/AC7 remain open;
+final acceptance must reconcile every original criterion and M2 evidence.
+
+No attended session is needed for this milestone's automated criteria; no human,
+other-station or live-host evidence is supplied. Prepare the configured attended
+review or wizard only if the successor reaches an actual required human boundary.

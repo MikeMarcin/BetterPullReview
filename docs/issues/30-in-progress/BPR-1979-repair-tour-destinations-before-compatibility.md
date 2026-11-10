@@ -206,3 +206,20 @@ any of them silently.
   head. It still needs the author's judgment.
 - Converting an already-published compatibility tour into a review. The
   owner did that by hand. A tool for it would be a separate card.
+
+## Verification and execution record
+
+Mandate `tour-destination-repairs-r1`; editor-repairs source candidate
+`91830ea7edde0002c7d7a23f05903dbef0fe52df` is accepted for this milestone's
+selected criteria and exits. The [verification record](../../verification/BPR-1979-tour-destination-repairs.md)
+and [checkpoint](../_checkpoints/BPR-1979/handoff.md) bind the composed ten-stop
+course, source preview, ordinary history, stale-preview refusal, one pending
+creation/one COMMENT submission/ten native comments/zero compatibility comments,
+render inspection and scoped gates. `frontend-design` desktop guidance was used.
+
+This parent remains In Progress. The successor must deliver the explicitly
+chosen mixed publication, both RFC amendments, cross-kind navigation and
+maintenance/recovery, and the supplied file-comment choice wherever exact
+scope facts allow it. A standalone file comment is not a pending-review item.
+Unknown or denied operations remain unavailable. No native/live-host verdict
+or parent completion is inferred from these fixture results.

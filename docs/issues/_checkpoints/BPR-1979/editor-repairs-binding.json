@@ -1,0 +1,103 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "bpr-tour-repair-run",
+  "segment_id": "editor-repairs",
+  "mandate_revision": "tour-destination-repairs-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:6a3e244394aeed7652d24753f6588c0a9408080bd24ddad0dcfc5198d5369fe4",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1979",
+  "binding": {
+    "plan_id": "tour-destination-repairs-v1",
+    "plan_path": "docs/rfcs/plans/tour-destination-repairs-v1/milestone-plan.json",
+    "milestone_id": "editor-repairs",
+    "definition_fingerprint": "sha256:f5be8c5f43e6b510abc36fd9376f41ef29c5a2014f2514dfed8c0119d70b23c1",
+    "obligations": [
+      {
+        "id": "BPR-1979:AC1",
+        "source": "BPR-1979",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:4fe0c62dc7683cd8d7d7d5fc9ee3cf77428c0806c5b8ff80d62ce48b4b2e5581"
+      },
+      {
+        "id": "BPR-1979:AC2",
+        "source": "BPR-1979",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:4fe0c62dc7683cd8d7d7d5fc9ee3cf77428c0806c5b8ff80d62ce48b4b2e5581"
+      },
+      {
+        "id": "BPR-1979:AC3",
+        "source": "BPR-1979",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:4fe0c62dc7683cd8d7d7d5fc9ee3cf77428c0806c5b8ff80d62ce48b4b2e5581"
+      },
+      {
+        "id": "BPR-1979:AC4",
+        "source": "BPR-1979",
+        "selector": "AC4",
+        "source_fingerprint": "sha256:4fe0c62dc7683cd8d7d7d5fc9ee3cf77428c0806c5b8ff80d62ce48b4b2e5581"
+      },
+      {
+        "id": "BPR-1979:AC6",
+        "source": "BPR-1979",
+        "selector": "AC6",
+        "source_fingerprint": "sha256:4fe0c62dc7683cd8d7d7d5fc9ee3cf77428c0806c5b8ff80d62ce48b4b2e5581"
+      }
+    ],
+    "obligation_fingerprint": "sha256:b84b2fe98c1d75fa19687915d0c9cc0d25369f7747782d018834266d8045810b",
+    "exit_criteria": [
+      {
+        "id": "editor-repairs:exit:1",
+        "text": "Composed editor shows per-stop reasons, selects the affected stop, offers exact re-pin and previewed relocation, and replans after each undoable edit."
+      },
+      {
+        "id": "editor-repairs:exit:2",
+        "text": "A repaired tour publishes all stops in one COMMENT review with zero compatibility writes; compatibility remains an explicit last choice."
+      },
+      {
+        "id": "editor-repairs:exit:3",
+        "text": "The tour guide explains stale-head and off-hunk fixes; focused public composition, offscreen rendered output and gates verify the exact candidate."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:bc93c717967257699c8cdc8ca0f9d81eab27a0e2b9246c623a14cf71594f9c6c",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "repair-policy",
+    "editor-repairs",
+    "mixed-publication"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "14842636322b156acf0dabceb700dcd75193c3d3",
+    "workflow_branch": "main",
+    "workflow_revision": "14842636322b156acf0dabceb700dcd75193c3d3"
+  }
+}
