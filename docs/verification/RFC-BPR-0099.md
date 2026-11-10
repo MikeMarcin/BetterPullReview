@@ -49,10 +49,22 @@ are nongating; nothing below is a timing claim.
 | AC05 | `qt_review_tour_publication_working`: the banner names the step, the reason, what is and is not on GitHub, with Resume primary and Check status after it; the failed row carries "Refused by GitHub (422)"; no failure text in the placeholder colour; the head is stopped too. `application_review_tour_publication_conflict` and `_description`: banners with Check status; `_stop`: the restarted banner "Publishing stopped at step 2 of 4" with Resume | Pass |
 | AC06 | `application_review_tour_publication_unsupported`: on an unqualified connection Preview shows "This connection cannot publish this tour", "Stops 1 and 2 need review comments on their lines, and this connection cannot create them.", "Nothing was sent.", Move those stops and Use another connection, with zero writes and no status line | Pass |
 | AC07 | `qt_workbench_window_scale_{100,125,200}` (Overview's Tour tab): Problem renders as Markdown, the row has "item.cpp, lines 4–6" and its first sentence, the row opens its stop in Review's Tour tab, and the state line and actions equal the head's. `core_tour_publication_head`: rows carry one-based lines and the first sentence | Pass |
-| AC08 | Live mixed tour on MikeMarcin/BPR-Test | Pending: see [AC08](#ac08-the-live-course) |
+| AC08 | Live mixed tour on MikeMarcin/BPR-Test | Pending: owner pressed Accept but GitHub holds no published tour; see [AC08](#ac08-the-live-course) |
 | AC09 | The owner's look at the Tour tab, the running and stopped panel and Overview on a frozen build (the running and stopped panel as renders of the candidate's own test, since a fixture build cannot publish) | Pass: the owner accepted all four candidates in attended session `5127270e92b1b77ceae8f9df8356c1f6` (frozen build of `bce0d0eba`, handed back 2026-11-10 16:43 UTC): `BPR-1991-tour-tab-head` (decision `2aee010d`), `BPR-1992-publication-running` (`a2474ee8`), `BPR-1992-publication-stopped` (`d5357557`), `BPR-1993-overview-tour` (`918d6411`, note: "It's weird that you didn't set it up to load a fixture that included a tour to look at.", recorded as a rule in `AGENTS.md`) |
 
 ## AC08: the live course
+
+Owner's answer, 2026-11-10 (session `26d89bac1f89acd7841ee451d1e5ffd1`): the
+owner pressed Accept on `RFC-BPR-0099-AC08-live-mixed-tour` (decision
+`ec9e4113`, 19:47:01Z) and on `RFC-BPR-0105-AC08-approve-151` (decision
+`e5e3d58e`, 19:47:09Z), both with no note. The public-path evidence those
+candidates ask for does not exist on GitHub. Read with `gh` (read only) by the
+coordinator and again here: BPR-Test #151 has no reviews (its timeline holds
+only MikeMarcin's review request); #152 has no reviews, no review comments
+and no conversation comments, and its head is still `6c94a03c0` (the prepared
+push was not applied). Neither AC08 is marked passed and neither BPR-2010 nor
+BPR-1992 is finished; the coordinator is asking the owner. Host 36810/36892
+and root `bpr-live-v002.nnhzt2pb` are left in place.
 
 Prepared 2026-11-10, awaiting the owner. `scripts/freeze_attended_build.py
 freeze --live` now freezes a tests-off build (no fixture, its own profile

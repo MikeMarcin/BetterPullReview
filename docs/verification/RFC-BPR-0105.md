@@ -50,7 +50,7 @@ the baseline, not a defect.
 | AC05 | Course step 5 reads the normal diagnostic log: `review_submit_request`, `review_submit_wait` with `submit_subject` and `duration_ms`, `review_submit_send`, `review_submit_drop submit_subject=retired`, `review_submit_end` with `published` and `wait_expired` | Pass |
 | AC06 | Course step 6: #17 left on the Tour tab with the tour side chat open; #18 opens on Comments with no side chat and no tour page; the same again when #18 is reopened from Home | Pass from Home (side chat opened through its own widget entry point, not an agent run). Links and restored reviews take the same signalled path; a notification's open was not exercised |
 | AC07 | Course step 6: `view_filters()` and the Comments drawer width are equal before and after | Pass |
-| AC08 | Owner's approval on BPR-Test from a frozen build after five or more pull requests with agent and tour use | Pending: owner-attended |
+| AC08 | Owner's approval on BPR-Test from a frozen build after five or more pull requests with agent and tour use | Pending: owner pressed Accept but #151 holds no review; see RFC-BPR-0099 AC08 |
 
 Focused unit evidence: `core_operation_diagnosis` (new submission lines and
 their refusals), `application_review_submission_application_host` (abandon
@@ -80,6 +80,12 @@ milestone's own first designs (see BPR-2011).
 `application_composition_source_contract` was resealed for the reviewed
 production app sources, and `test_network_isolation_manifest` received the new
 course's unmeasured Windows pin.
+
+Owner's answer, 2026-11-10: Accept on `RFC-BPR-0105-AC08-approve-151`
+(session `26d89bac…`, decision `e5e3d58e`, no note), but BPR-Test #151 holds
+no review (read with `gh`, read only). AC08 is not marked passed and BPR-2010
+is not finished; the discrepancy is recorded under RFC-BPR-0099 AC08 and the
+coordinator is asking the owner.
 
 Prepared 2026-11-10, awaiting the owner: the tests-off frozen build
 `/Users/jaeger/bpr-live-v001.wpvoqim9` (`freeze_attended_build.py freeze
