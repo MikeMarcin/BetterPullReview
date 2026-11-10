@@ -308,9 +308,10 @@ namespace bpr::app::detail {
 			std::string_view          HeadOneBlob;
 			std::string_view          HeadTwoBlob;
 			fixture_pack_source       Packs;
-			bool                      Paged          = false;
-			bool                      WindowReading  = false;
-			bool                      OrdinaryUpdate = false;
+			bool                      Paged           = false;
+			bool                      WindowReading   = false;
+			bool                      OrdinaryUpdate  = false;
+			bool                      TourRepairHunks = false;
 			/// [[BPR-1331]]. A one-head fixture's next push: under an epoch
 			/// phase it is served as `HeadTwoOid` from `NextPushPack`, which
 			/// holds every object reachable from it. Outside a phase the
@@ -1124,6 +1125,16 @@ namespace bpr::app::detail {
 				QJsonArray files;
 				files.append(QJsonObject{ { QStringLiteral("filename"), QStringLiteral("review.cpp") }, { QStringLiteral("status"), QStringLiteral("modified") }, { QStringLiteral("additions"), 6 }, { QStringLiteral("deletions"), 6 } });
 				files.append(QJsonObject{ { QStringLiteral("filename"), QStringLiteral("secondary.cpp") }, { QStringLiteral("status"), QStringLiteral("modified") }, { QStringLiteral("additions"), 6 }, { QStringLiteral("deletions"), 6 } });
+				if (aDescriptor.TourRepairHunks) {
+					for (qsizetype i = 0; i < files.size(); ++i) {
+						auto       file   = files[i].toObject();
+						const auto prefix = i == 0 ? QStringLiteral("review") : QStringLiteral("secondary");
+						file.insert(QStringLiteral("patch"), QStringLiteral("@@ -3,7 +3,7 @@\n int %1_line_3 = 0;\n int %1_line_4 = 0;\n int %1_line_5 = 0;\n-int %1_line_6 = 0;\n+int %1_line_6 = 1;\n int %1_line_7 = 0;\n int %1_line_8 = 0;\n int %1_line_9 = 0;").arg(prefix));
+						file.insert(QStringLiteral("additions"), 1);
+						file.insert(QStringLiteral("deletions"), 1);
+						files[i] = file;
+					}
+				}
 				document = QJsonDocument{ files };
 			} else if (aOperation == read_operation::list_review_threads) {
 				auto body       = document.object();
@@ -5917,6 +5928,18 @@ namespace bpr::app::detail {
 			const auto distinctAccount = aOptions.DistinctProfileAccounts && aOptions.Profile != core::default_bpr_profile_id;
 			if (distinctAccount) {
 				served.AccountId = core::github_account_id{ 1000U + aOptions.Profile.value() };
+			}
+			if (aOptions.TourDestinationRepairsCourse) {
+				if (aFixture != github_public_path_fixture::profile_window_restoration_v1) {
+					throw std::runtime_error{ "Tour repairs require the reading fixture" };
+				}
+				served.BaseOid         = "2edbb6f66482a02e3c5337fdac39e342900a58c0";
+				served.HeadOneOid      = "972c0ac4526308e959de4a2fd398d4d4e3d5d54e";
+				served.HeadTwoOid      = "";
+				served.BaseBlob        = "";
+				served.HeadOneBlob     = "";
+				served.Packs           = { .File = "tour-repairs-v1/objects.pack" };
+				served.TourRepairHunks = true;
 			}
 			if (aOptions.ModifiedMissingEndpointCourse) {
 				if (aFixture != github_public_path_fixture::profile_window_restoration_v1

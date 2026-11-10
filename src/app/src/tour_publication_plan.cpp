@@ -74,7 +74,7 @@ namespace bpr::app {
 		}
 		return result + "This attempt sent nothing; your private draft is kept.";
 	}
-	auto prepare_tour_plan(const core::review_tour& aDraft, const application::review_submission_live_binding& aBinding, std::string_view aDescription, tour_publication_options aOptions, bool aQualified) -> tour_plan_preparation
+	auto prepare_tour_plan(const core::review_tour& aDraft, const application::review_submission_live_binding& aBinding, std::string_view aDescription, tour_publication_options aOptions, bool aQualified, std::span<const core::tour_anchor_file> aFiles) -> tour_plan_preparation
 	{
 		tour_plan_preparation                      result;
 		const auto&                                draft         = aDraft;
@@ -87,13 +87,14 @@ namespace bpr::app {
 				decisions.push_back({ });
 				continue;
 			}
-			decisions.push_back(core::plan_tour_destination(core::publication_observation(*source, draft.ObservedHead.value_or(draft.Head), draft.Base, stop.Body, compatibility, aQualified)));
+			const auto observed = core::publication_observation(*source, draft.ObservedHead.value_or(draft.Head), draft.Base, stop.Body, compatibility, aQualified);
+			decisions.push_back(core::plan_tour_stop_repair(draft, stop, observed, aFiles).Destination);
 			const auto link = adapters::github::detail::compile_tour_permalink({ std::string{ aBinding.Target.Hostname.value() }, aBinding.Target.Repository }, *source);
 			stops.push_back({ stop.Id, *source, stop.Title, stop.Body, link.value_or(std::string{ }) });
 		}
 		const auto readiness = draft.Remote ? core::assess_tour_update(draft, decisions, compatibility, aQualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown) : core::assess_tour_publication(draft, decisions, compatibility);
 		if (readiness != core::tour_publication_readiness::single_review && readiness != core::tour_publication_readiness::compatibility_comments) {
-			result.Status = readiness == core::tour_publication_readiness::incomplete ? "Complete Problem, Solution and every stop with an exact available source before publishing." : readiness == core::tour_publication_readiness::compatibility_choice ? "This route needs visible compatibility comments. Keep one review by relocating destinations, or explicitly choose compatibility comments."
+			result.Status = readiness == core::tour_publication_readiness::incomplete ? "Complete Problem, Solution and every stop with an exact available source before publishing." : readiness == core::tour_publication_readiness::compatibility_choice ? "Repair incompatible destinations to keep one review. Compatibility comments remain an explicit last choice."
 																																																															: "Publication is unavailable for these destinations. Move each stop to a line GitHub can comment on, or keep preparing locally.";
 			return result;
 		}

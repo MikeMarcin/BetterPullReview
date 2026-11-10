@@ -35,6 +35,37 @@ reconciles a possibly sent operation, and **Resume** requires a fresh preview.
 Use **Help > Export anonymized diagnostics…** to inspect the publication stages
 and classified failure without including your Problem, Solution or stop text.
 
+## Repairing a destination before publication
+
+**Preview** lists each stop that cannot join the review, with its number,
+title and reason. Select its linked title to open and scroll to that stop.
+
+- **Re-pin to current head** is available for an earlier revision only when
+  the exact Git mapping proves the selected bytes unchanged at the current
+  head and the whole range fits a current diff hunk. It keeps the explanation.
+  Changed, ambiguous, missing or unavailable source needs your own inspection
+  and **Use selected lines**; BPR does not choose a replacement for it.
+- **Move to nearest change…** previews the new line range and actual pinned
+  source text. **Apply destination** makes one ordinary edit; **Cancel** keeps
+  the original. The range can include the hunk's context: GitHub.com and the
+  observed GHES 3.20.8 course accept up to three context lines from a change.
+  A line four away is outside that hunk. BPR uses the provider's hunk bounds,
+  rather than guessing them from the painted comparison.
+- **Undo** and **Redo** restore the destination and update the blocker list.
+  Explanations with explicit references to line numbers that moved need
+  reaffirmation; other prose stays ready. The source preview expires if you
+  edit the draft before applying it.
+
+Repairing every blocker keeps **Keep single-review publication**: preview again
+and publish every stop in one COMMENT review. **Publish with compatibility
+comments (non-atomic)** remains an explicit last choice; it publishes the whole
+route as visible conversation comments. Previewing or repairing sends nothing.
+
+File-comment support is a separate operation capability. A standalone file
+comment cannot be represented as a private pending item in the current publisher.
+An unknown or denied operation never enables it, and a painted file or line does
+not prove support. The mixed/file publication extension is still under development.
+
 ## Updating a published tour
 
 Reopening a tour reads it back from GitHub. If someone edited it on the

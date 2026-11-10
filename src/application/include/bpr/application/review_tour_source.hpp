@@ -1,11 +1,20 @@
 #ifndef BPR_APPLICATION_REVIEW_TOUR_SOURCE_HPP
 #define BPR_APPLICATION_REVIEW_TOUR_SOURCE_HPP
+#include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/review_tour.hpp"
 #include <expected>
 namespace bpr::application {
 	class epoch_application_host;
+	/// Exact pinned comparison for repair analysis, never a selected diff or a write grant.
+	struct tour_source_comparison
+	{
+		core::diff_semantic_index   Index;
+		core::tour_code_destination Left, Right;
+	};
+	[[nodiscard]] auto materialize_tour_source_comparison(epoch_application_host&, diff_line_matcher_port&,
+														  const workbench_selected_diff_request&, std::stop_token) -> std::optional<tour_source_comparison>;
 	/// Decision-lane admission of one pinned commit, including a file absent on the other PR side.
 	[[nodiscard]] auto review_tour_source_context(epoch_application_host&, const workbench_pull_request_authority&, const core::tour_code_destination&) -> std::optional<workbench_selected_diff_context>;
 	struct review_tour_source_material

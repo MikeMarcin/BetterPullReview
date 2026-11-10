@@ -2,6 +2,7 @@
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/diagnostic_files.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -123,7 +124,7 @@ auto main(int argc, char** argv) -> int
 	auto          currentDataRoot      = dataRoot;
 	auto          server               = std::make_shared<app::detail::review_submission_fixture_state>();
 	server->CliStrictCourse            = cliMode;
-	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};options.ViewerAuthors=mode=="compat";cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto aResult){terminal=true;if(aResult){started=std::move(*aResult);
+	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};options.ViewerAuthors=mode=="compat";options.TourDestinationRepairsCourse=mode=="repairs";cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto aResult){terminal=true;if(aResult){started=std::move(*aResult);
 }});wait([&]{return terminal && startup && startup->is_quiescent();},"publication app starts");expect(started!=nullptr,"publication startup accepted");return started; };
 	const std::string originalTemplate = "# Existing template\r\n\r\nKeep [the ticket](https://example.invalid/123) and this checklist.\r\n- [ ] Original check\r\n";
 	if (mode != "description") {
@@ -154,6 +155,99 @@ auto main(int argc, char** argv) -> int
 		editor.stop_title()->setPlainText(QStringLiteral("Use the retained source"));
 		editor.stop_body()->setPlainText(QStringLiteral("Connect the explanation to the original decision."));
 		saved(editor);
+		if (mode == "repairs") {
+			// Fixture preparation uses the same admitted store. The running
+			// course below obtains all mapping/material itself through Git.
+			auto       fixtureDraft                         = *editor.shown().Draft;
+			const auto expected                             = fixtureDraft.Revision;
+			fixtureDraft.Stops.front().Original->Commit     = *core::parse_git_commit_oid("d7d2f5c3e8762bbddc4e9e3444aa21a2fa74c3b7");
+			fixtureDraft.Stops.front().Original->First.Line = 4U;
+			fixtureDraft.Stops.front().Original->Last.Line  = 5U;
+			fixtureDraft.Stops.back().Original->First.Line  = 1U;
+			fixtureDraft.Stops.back().Original->Last.Line   = 1U;
+			fixtureDraft.Stops.back().Title                 = "Inspect the off-hunk source";
+			const auto ordinary                             = fixtureDraft.Stops.front();
+			for (std::uint64_t number = 3U; number <= 10U; ++number) {
+				auto stop             = ordinary;
+				stop.Id               = core::tour_stop_id{ number };
+				stop.Title            = "Explain valid destination " + std::to_string(number);
+				stop.Original->Commit = fixtureDraft.Head;
+				fixtureDraft.Stops.push_back(std::move(stop));
+			}
+			fixtureDraft.LastStopId = 10U;
+			++fixtureDraft.Revision;
+			shutdown(*application);
+			application.reset();
+			{
+				auto store = adapters::sqlite::make_review_tour_store(*dataRoot, fixtureDraft.Owner.Profile);
+				expect(store->save(fixtureDraft, expected, { }).has_value(), "repair fixture persists without a UI backdoor");
+			}
+			application = make();
+			open(*application, cli);
+			auto& repairedWindow = application->window();
+			auto& repairedEditor = *repairedWindow.tour_editor();
+			auto  find           = [&](const char* aName) -> QPushButton* {
+				for (auto* control : repairedEditor.findChildren<QPushButton*>(QString::fromUtf8(aName))) {
+					if (control->isVisible()) {
+						return control;
+					}
+				}
+				return nullptr;
+			};
+			wait([&] { return repairedEditor.shown().Draft && repairedEditor.shown().Draft->Stops.size() == 10U; }, "ten-stop saved fixture loads");
+			select_file(repairedWindow, "review.cpp");
+			repairedWindow.open_tour_page(true);
+			repairedWindow.resize(1200, 760);
+			find("tourPreparePublication")->click();
+			wait([&] { return find("tourRepin1") && find("tourRelocate2"); }, "public preview reads exact historical mapping and off-hunk range");
+			expect(repairedEditor.findChild<QLabel*>(QStringLiteral("tourRepairReason1"))->text().contains(QStringLiteral("byte-identical")), "historical exact reason is visible");
+			expect(repairedEditor.findChild<QLabel*>(QStringLiteral("tourRepairReason2"))->text().contains(QStringLiteral("Outside")), "off-hunk reason is visible");
+			auto* reason = repairedEditor.findChild<QLabel*>(QStringLiteral("tourRepairReason2"));
+			expect(QMetaObject::invokeMethod(reason, "linkActivated", Q_ARG(QString, QStringLiteral("stop"))), "repair reason's public link activates");
+			expect(repairedEditor.selected_stop() && repairedEditor.selected_stop()->Id == core::tour_stop_id{ 2U }, "reason selects the affected stop");
+			repairedWindow.open_tour_page(true);
+			QApplication::processEvents();
+			if (argc > 2) {
+				expect(repairedWindow.grab().save(QString::fromUtf8(argv[2]) + QStringLiteral("-repairs.png")), "per-stop full-window capture");
+			}
+			find("tourRepin1")->click();
+			expect(repairedEditor.shown().Draft->Stops.front().Mapping == core::tour_mapping::author_selected && repairedEditor.shown().Draft->Stops.front().Body == ordinary.Body, "one re-pin preserves the explanation");
+			QApplication::processEvents();
+			find("tourRelocate2")->click();
+			auto* sourceText = repairedEditor.findChild<QPlainTextEdit*>(QStringLiteral("tourRepairSourceText"));
+			expect(sourceText->isVisible() && sourceText->toPlainText().contains(QStringLiteral("secondary_line_3 = 0")), "nearest accepted context is previewed from exact Git material");
+			expect(!repairedEditor.shown().Draft->Stops[1].Mapped, "preview changes no source");
+			QApplication::processEvents();
+			if (argc > 2) {
+				expect(repairedWindow.grab().save(QString::fromUtf8(argv[2]) + QStringLiteral("-relocation.png")), "relocation source capture");
+			}
+			// Editing after preview invalidates its captured ordinary command.
+			repairedEditor.findChild<QToolButton*>(QStringLiteral("tourStopEdit"))->click();
+			repairedEditor.stop_title()->setPlainText(QStringLiteral("Inspect the off-hunk source carefully"));
+			expect(!sourceText->isVisible(), "an intervening edit expires the source preview");
+			repairedEditor.findChild<QPushButton*>(QStringLiteral("tourApplyRepair"))->click();
+			expect(!repairedEditor.shown().Draft->Stops[1].Mapped, "expired preview cannot apply its captured source");
+			QApplication::processEvents();
+			find("tourRelocate2")->click();
+			find("tourApplyRepair")->click();
+			expect(repairedEditor.selected_stop() && repairedEditor.selected_stop()->Id == core::tour_stop_id{ 2U } && repairedEditor.shown().Draft->Stops[1].Mapped->First.Line == 2U, "apply keeps selection and clamps into three lines of context");
+			repairedEditor.findChild<QAction*>(QStringLiteral("tourUndo"))->trigger();
+			QApplication::processEvents();
+			expect(!repairedEditor.shown().Draft->Stops[1].Mapped && find("tourRelocate2"), "ordinary Undo restores the blocker and re-plans");
+			repairedEditor.findChild<QAction*>(QStringLiteral("tourRedo"))->trigger();
+			expect(repairedEditor.shown().Draft->Stops[1].Mapped.has_value(), "ordinary Redo restores the repair");
+			find("tourPreparePublication")->click();
+			wait([&] { return find("tourPublish")->isEnabled(); }, "both repairs re-plan as one review");
+			find("tourPublish")->click();
+			wait([&] { return repairedEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains(QStringLiteral("Published:")); }, "repaired tour publishes");
+			{
+				const auto lock = std::scoped_lock{ server->Mutex };
+				expect(server->StagedCreates == 1U && server->StagedSubmits == 1U && server->Submissions == 0U && server->StagedComments.size() == 10U && server->CompatibilityComments.empty(), "ten repaired stops publish in one COMMENT review with zero compatibility writes");
+			}
+			shutdown(*application);
+			std::cout << "review-tour-publication:repairs:pass\n";
+			return EXIT_SUCCESS;
+		}
 		if (mode == "manual") {
 			editor.outline()->setCurrentRow(1);
 			editor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();

@@ -35,7 +35,8 @@ namespace bpr::core {
 		tour_destination_problem         Problem = tour_destination_problem::none;
 		std::optional<tour_source_range> Repin;
 		std::optional<tour_source_range> Relocation;
-		bool                             FileComment = false;
+		bool                             FileComment                                              = false;
+		auto                             operator==(const tour_destination_repair&) const -> bool = default;
 	};
 
 	/// \brief Observe a stop against the exact current-head provider hunks, then
