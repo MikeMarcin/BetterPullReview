@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2051"
 title: "Enhance on draft comments and notes, each surface with its own editable prompt"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0106", "RFC-BPR-0107"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2051--BPR-2051--efa66a8a01d3.json","origin":"owner request, 2026-11-10"}
 depends_on: []
