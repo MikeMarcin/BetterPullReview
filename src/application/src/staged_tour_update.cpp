@@ -175,11 +175,7 @@ namespace bpr::application {
 					const auto ordinal  = static_cast<std::size_t>(created - aRecord.Plan.Stops.begin());
 					const auto position = static_cast<std::size_t>(std::ranges::find(order, ordinal) - order.begin());
 					stop.Remote         = remote(aRecord.Comments[position], aRecord.Plan.Compatibility || !aRecord.Comments[position].Review.value(), staged_stop(aRecord.Plan, position).Representation == core::tour_representation::file_permalink);
-					if (stop.Mapped) {
-						stop.Original = stop.Mapped;
-						stop.Mapped.reset();
-						stop.Mapping = core::tour_mapping::exact_original;
-					}
+					stop.Destination    = created->Source;
 				}
 				stop.Baseline = core::tour_field_baseline{ .Raw = bodies->StopBodies[i], .RemoteEntity = stop.Remote->Entity };
 			}
@@ -192,9 +188,10 @@ namespace bpr::application {
 			result.Remote        = aRecord.Index ? remote(*aRecord.Index, true) : core::tour_remote_binding{ .Kind = core::tour_remote_kind::review, .DatabaseId = aRecord.Review->Id.value(), .Entity = aRecord.Review->NodeId, .Actor = aRecord.Review->Actor.Login, .WebUrl = aRecord.Review->WebUrl, .Own = true };
 			result.IndexBaseline = core::tour_field_baseline{ .Raw = aRecord.Index ? aRecord.Index->Body : aRecord.Review->Body, .RemoteEntity = result.Remote->Entity };
 			for (std::size_t i = 0; i < result.Stops.size(); ++i) {
-				const auto ordinal             = staged_stop_order(aRecord.Plan)[i];
-				result.Stops[ordinal].Remote   = remote(aRecord.Comments[i], aRecord.Plan.Compatibility || !aRecord.Comments[i].Review.value(), staged_stop(aRecord.Plan, i).Representation == core::tour_representation::file_permalink);
-				result.Stops[ordinal].Baseline = core::tour_field_baseline{ .Raw = aRecord.Comments[i].Body, .RemoteEntity = aRecord.Comments[i].NodeId };
+				const auto ordinal                = staged_stop_order(aRecord.Plan)[i];
+				result.Stops[ordinal].Remote      = remote(aRecord.Comments[i], aRecord.Plan.Compatibility || !aRecord.Comments[i].Review.value(), staged_stop(aRecord.Plan, i).Representation == core::tour_representation::file_permalink);
+				result.Stops[ordinal].Destination = staged_stop(aRecord.Plan, i).Source;
+				result.Stops[ordinal].Baseline    = core::tour_field_baseline{ .Raw = aRecord.Comments[i].Body, .RemoteEntity = aRecord.Comments[i].NodeId };
 			}
 		}
 		if (aRecord.Plan.Description && aRecord.DescriptionDone) {

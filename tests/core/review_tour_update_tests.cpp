@@ -47,6 +47,30 @@ namespace {
 		draft.IndexBaseline = tour_field_baseline{ .Raw = "Preserve this custom orientation.\n\n" + *render_tour_index(entries) + "\nUnrelated tail.\n", .RemoteEntity = "review9" };
 		return draft;
 	}
+	void published_source_baseline()
+	{
+		auto       tour     = published();
+		auto&      stop     = tour.Stops.front();
+		const auto original = stop.Original;
+		stop.Mapped         = stop.Original;
+		stop.Mapped->Path   = "repaired.cpp";
+		stop.Mapping        = tour_mapping::author_selected;
+		expect(needs_tour_destination(stop) && !plan_tour_update(tour, { }), "an unpublished repair of a remote subject still requires replacement");
+		stop.Destination     = destination_of(*stop.Mapped);
+		const auto unchanged = plan_tour_update(tour, { });
+		expect(!needs_tour_destination(stop) && unchanged && unchanged->Edits.empty() && stop.Original == original, "the confirmed published repair supports zero-write maintenance without overwriting its original");
+		auto cold = tour;
+		cold.Stops.front().Original.reset();
+		cold.Stops.front().Mapped.reset();
+		cold.Stops.front().Mapping = tour_mapping::unavailable;
+		expect(observed_tour_changes(tour, cold).empty(), "cold imported published subject does not report the preserved original as a website source change");
+		stop.Mapped = stop.Original;
+		expect(needs_tour_destination(stop) && !plan_tour_update(tour, { }), "selecting the original again is a new retarget relative to the repaired remote subject");
+		stop.Mapped->Path = "another.cpp";
+		expect(needs_tour_destination(stop), "a subsequent explicit source change still needs a replacement");
+		stop.Remote.reset();
+		expect(needs_tour_destination(stop), "a copied local stop with retained source has no remote destination");
+	}
 	void legacy_stop_heading()
 	{
 		auto tour = published();
@@ -274,6 +298,7 @@ int main()
 		const auto reconciled = reconcile_tour(generated, remote);
 		expect(reconciled.Stops[1].Suggestion && reconciled.Stops[1].Preparation != tour_preparation::ready, "website narrative change clears local generated acknowledgement");
 	}
+	published_source_baseline();
 	legacy_stop_heading();
 	website_deltas();
 	reconciliation();

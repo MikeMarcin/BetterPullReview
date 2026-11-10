@@ -130,6 +130,7 @@ namespace bpr::core {
 	};
 
 	/// \brief A local thought with immutable original source and a separate current mapping.
+	/// Destination retains the confirmed remote subject independently of those local ranges.
 	struct tour_stop
 	{
 		tour_stop_id                         Id;

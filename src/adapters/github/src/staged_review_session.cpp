@@ -226,7 +226,7 @@ namespace bpr::adapters::github::detail {
 		if (!reviews) {
 			return std::unexpected(reviews.error());
 		}
-		std::vector<application::staged_review_comment>             comments;
+		std::vector<application::staged_review_comment>             reviewComments, conversationComments;
 		std::vector<const core::tour_stop*>                         stops;
 		std::optional<std::vector<review_comment_collection_entry>> collection;
 		for (const auto& stop : draft.Stops) {
@@ -241,7 +241,8 @@ namespace bpr::adapters::github::detail {
 			if (review.State == application::staged_review_state::pending && (!aRecord.Review || review.Id != aRecord.Review->Id)) {
 				return false;
 			}
-			const bool needed = std::ranges::any_of(stops, [&](const auto* aStopEntry) { return aStopEntry->Remote->Kind != core::tour_remote_kind::conversation_comment && (aStopEntry->Remote->Review == review.NodeId || aStopEntry->Remote->Review == std::to_string(review.Id.value())); });
+			const auto usesReview = [&](const core::tour_remote_binding& aRemote) { return aRemote.Kind != core::tour_remote_kind::conversation_comment && (aRemote.Review == review.NodeId || aRemote.Review == std::to_string(review.Id.value())); };
+			const bool needed     = usesReview(*draft.Remote) || std::ranges::any_of(stops, [&](const auto* aStopEntry) { return usesReview(*aStopEntry->Remote); });
 			if (!needed) {
 				continue;
 			}
@@ -249,24 +250,40 @@ namespace bpr::adapters::github::detail {
 			if (!observed) {
 				return std::unexpected(observed.error());
 			}
-			comments.insert(comments.end(), observed->Comments.begin(), observed->Comments.end());
+			reviewComments.insert(reviewComments.end(), observed->Comments.begin(), observed->Comments.end());
 		}
 		if (draft.Remote->Kind == core::tour_remote_kind::conversation_comment || std::ranges::any_of(stops, [](const auto* aStopEntry) { return aStopEntry->Remote->Kind == core::tour_remote_kind::conversation_comment; })) {
 			const auto observed = observe_staged(request(aRecord, operation::list_issue_comments), aStop);
 			if (!observed) {
 				return std::unexpected(observed.error());
 			}
-			comments.insert(comments.end(), observed->Comments.begin(), observed->Comments.end());
+			conversationComments = observed->Comments;
 		}
-		const auto matches = [&](const auto& aObserved, const core::tour_remote_binding& aRemote) { return aObserved.NodeId == aRemote.Entity && aObserved.WebUrl == aRemote.WebUrl && aObserved.Actor == actor(aRecord.Plan) && aRemote.Own && aRemote.Actor == aObserved.Actor.Login; };
+		const auto matches        = [&](const auto& aObserved, const core::tour_remote_binding& aRemote) { return aObserved.NodeId == aRemote.Entity && aObserved.WebUrl == aRemote.WebUrl && aObserved.Actor == actor(aRecord.Plan) && aRemote.Own && aRemote.Actor == aObserved.Actor.Login; };
+		const auto commentsFor    = [&](const core::tour_remote_binding& aRemote) -> const std::vector<application::staged_review_comment>& { return aRemote.Kind == core::tour_remote_kind::conversation_comment ? conversationComments : reviewComments; };
+		const auto commentMatches = [&](const application::staged_review_comment& aObserved, const core::tour_remote_binding& aRemote) {
+			if (!matches(aObserved, aRemote) || aObserved.Reply) {
+				return false;
+			}
+			if (aRemote.Kind == core::tour_remote_kind::conversation_comment) {
+				return !aObserved.Source && !aObserved.Review.value();
+			}
+			const auto review = std::ranges::find(reviews->Reviews, aObserved.Review, &application::staged_review_entity::Id);
+			if (review == reviews->Reviews.end() || (aRemote.Review != review->NodeId && aRemote.Review != std::to_string(review->Id.value())) || !collection) {
+				return false;
+			}
+			const auto subject = std::ranges::find(*collection, aObserved.Id, &review_comment_collection_entry::Id);
+			return subject != collection->end() && (aRemote.Kind == core::tour_remote_kind::file_comment ? subject->OnFile : subject->OnLine);
+		};
 		if (draft.Remote->Kind == core::tour_remote_kind::review) {
 			const auto found = std::ranges::find(reviews->Reviews, application::review_database_id{ draft.Remote->DatabaseId }, &application::staged_review_entity::Id);
 			if (found == reviews->Reviews.end() || !matches(*found, *draft.Remote) || found->State == application::staged_review_state::pending || found->Body != expected(*draft.Remote, draft.IndexBaseline->Raw)) {
 				return false;
 			}
 		} else {
-			const auto found = std::ranges::find(comments, draft.Remote->DatabaseId, &application::staged_review_comment::Id);
-			if (found == comments.end() || !matches(*found, *draft.Remote) || found->Reply || found->Body != expected(*draft.Remote, draft.IndexBaseline->Raw)) {
+			const auto& comments = commentsFor(*draft.Remote);
+			const auto  found    = std::ranges::find(comments, draft.Remote->DatabaseId, &application::staged_review_comment::Id);
+			if (found == comments.end() || !commentMatches(*found, *draft.Remote) || found->Body != expected(*draft.Remote, draft.IndexBaseline->Raw)) {
 				return false;
 			}
 		}
@@ -274,11 +291,13 @@ namespace bpr::adapters::github::detail {
 			if (!stop->Baseline) {
 				return false;
 			}
-			const auto found = std::ranges::find(comments, stop->Remote->DatabaseId, &application::staged_review_comment::Id);
-			if (found == comments.end() || !matches(*found, *stop->Remote) || found->Reply || found->Body != expected(*stop->Remote, stop->Baseline->Raw)) {
+			const auto& comments = commentsFor(*stop->Remote);
+			const auto  found    = std::ranges::find(comments, stop->Remote->DatabaseId, &application::staged_review_comment::Id);
+			if (found == comments.end() || !commentMatches(*found, *stop->Remote) || found->Body != expected(*stop->Remote, stop->Baseline->Raw)) {
 				return false;
 			}
-			auto source = stop->Original ? std::optional{ core::destination_of(*stop->Original) } : stop->Destination;
+			auto source = stop->Destination ? stop->Destination : stop->Original ? std::optional{ core::destination_of(*stop->Original) }
+																				 : std::nullopt;
 			if (source) {
 				source->Blob.reset();
 				if (stop->Remote->Kind == core::tour_remote_kind::file_comment) {

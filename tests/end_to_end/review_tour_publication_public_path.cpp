@@ -18,6 +18,7 @@
 #include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "bpr/core/review_tour_update.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -417,6 +418,32 @@ auto main(int argc, char** argv) -> int
 			{
 				const auto lock = std::scoped_lock{ server->Mutex };
 				expect(server->StagedCreates == 1U && server->StagedSubmits == 1U && server->Submissions == 0U && server->StagedComments.size() == 10U && server->CompatibilityComments.empty(), "ten repaired stops publish in one COMMENT review with zero compatibility writes");
+			}
+			saved(repairedEditor);
+			const auto published = *repairedEditor.shown().Draft;
+			for (std::size_t i = 0; i < 2; ++i) {
+				expect(!core::needs_tour_destination(published.Stops[i]), "published repairs are no longer pending retargets");
+				expect(published.Stops[i].Original == fixtureDraft.Stops[i].Original && published.Stops[i].Mapped && published.Stops[i].Mapped->Blob, "publication preserves original and repaired byte identities");
+				expect(published.Stops[i].Destination == core::publication_source(published.Stops[i]), "receipt retains the actual published source separately");
+			}
+			find("tourPreparePublication")->click();
+			expect(!find("tourPublish")->isEnabled() && repairedEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains("No published changes"), "second preview of repaired tour offers no duplicate destinations or writes");
+			repairedEditor.outline()->setCurrentRow(0);
+			repairedEditor.findChild<QToolButton*>(QStringLiteral("tourStopEdit"))->click();
+			repairedEditor.stop_body()->setPlainText(QStringLiteral("A maintained explanation at the repaired source."));
+			saved(repairedEditor);
+			find("tourPreparePublication")->click();
+			expect(find("tourPublish")->isEnabled(), "repaired discussion supports an explicit text maintenance preview");
+			find("tourPublish")->click();
+			wait([&] { return repairedEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().startsWith("Published:"); }, "repaired source maintenance completes");
+			saved(repairedEditor);
+			{
+				const auto lock = std::scoped_lock{ server->Mutex };
+				expect(server->StagedWrites == 14U && server->StagedCreates == 1U && server->StagedSubmits == 1U && server->StagedComments.size() == 10U && server->CompatibilityComments.empty(), "text maintenance adds only one edit after thirteen initial writes");
+				expect(server->StagedComments.front().Body.contains("A maintained explanation at the repaired source.") && server->StagedWritePaths.back().ends_with("/pulls/comments/601"), "maintenance edits the repaired discussion rather than replacing it");
+			}
+			for (std::size_t i = 0; i < published.Stops.size(); ++i) {
+				expect(repairedEditor.shown().Draft->Stops[i].Remote == published.Stops[i].Remote && repairedEditor.shown().Draft->Stops[i].Original == published.Stops[i].Original && repairedEditor.shown().Draft->Stops[i].Mapped == published.Stops[i].Mapped, "maintenance preserves every original, repaired range and remote identity");
 			}
 			shutdown(*application);
 			std::cout << "review-tour-publication:repairs:pass\n";
