@@ -1538,7 +1538,9 @@ namespace bpr::qt {
 		TourChatSplit = new QSplitter{ Qt::Horizontal, conversationShell };
 		TourChatSplit->setObjectName(QStringLiteral("workbenchTourChatSplit"));
 		TourChatSplit->setChildrenCollapsible(false);
-		TourChatSplit->addWidget(makeTabColumn(TourHolder, QStringLiteral("workbenchTourScroll")));
+		// [[BPR-1991]]. The tab's head and agent bar stay put; the editor
+		// scrolls its own route between them.
+		TourChatSplit->addWidget(TourHolder);
 		auto* const chat = TourEditor->side_chat();
 		// [[BPR-1934]]. An empty chat's suggested prompts, from the
 		// application's one list.
@@ -1653,6 +1655,18 @@ namespace bpr::qt {
 		// tray has, borrowed while Overview shows, and the tour's summary.
 		if (auto* const drawer = OverviewPage->status_drawer(); drawer != nullptr) {
 			drawer->tour_summary()->set_dispatch([this](const overview_tour_gesture aGesture) { follow_overview_tour(aGesture); });
+			// [[BPR-1993]]. A stop row opens its stop in Review; the head's
+			// actions do what the Tour tab head's do.
+			drawer->tour_summary()->set_stop_dispatch([this](const core::tour_stop_id aStop) {
+				open_review_tour();
+				TourEditor->go_to_stop(aStop);
+			});
+			drawer->tour_summary()->set_head_dispatch([this](const core::tour_head_action aAction) {
+				if (aAction == core::tour_head_action::resume) {
+					open_review_tour();
+				}
+				TourEditor->trigger_head(aAction);
+			});
 			drawer->set_tab_observer([this](const overview_drawer_tab aTab) {
 				if (!ConversationTabsLent) {
 					return;
@@ -1678,6 +1692,7 @@ namespace bpr::qt {
 			refresh_overview_tour();
 			refresh_tour_open_offer();
 		});
+		TourEditor->set_head_observer([this] { refresh_overview_tour(); });
 		// [[BPR-1806]]. A published tour stop's Open in tour.
 		ConversationPanel->cards()->set_tour_open_dispatch([this](const std::string& aPost, const core::published_tour_stop& aStop) {
 			if (TourStopDispatch) {

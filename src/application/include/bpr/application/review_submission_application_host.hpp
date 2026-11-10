@@ -49,6 +49,14 @@ namespace bpr::application {
 		/// effect lane: for a submission, sending has started. On the
 		/// decision lane, before its terminal; never after one.
 		virtual void started(const review_submission_host_context& aContext) { static_cast<void>(aContext); }
+		/// \brief [[BPR-1992]]. A tour publication's record before each of
+		/// its writes: what GitHub has confirmed so far and the write about to
+		/// be sent. On the decision lane, before the terminal; never after one.
+		virtual void progressed(const review_submission_host_context& aContext, const staged_publication_record& aRecord)
+		{
+			static_cast<void>(aContext);
+			static_cast<void>(aRecord);
+		}
 	};
 
 #if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)

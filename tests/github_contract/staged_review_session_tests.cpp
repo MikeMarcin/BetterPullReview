@@ -1071,7 +1071,7 @@ namespace {
 				malformed.Mixed = false;
 				expect(!application::valid(malformed), "mixed destinations cannot hide inside a single-review plan");
 				const auto stages = application::staged_publication_stages(input);
-				expect(stages[1].contains("Stop 1") && stages[2].contains("Stop 3") && stages[3].contains("Stop 2") && stages[3].contains("conversation comment"), "progress stages follow actual pending-first publication order with original route numbers");
+				expect(stages.size() == 7U && stages[6] == "The description link" && stages[0].contains("Stops 1 and 3") && stages[1].contains("Stop 2") && stages[1].contains("conversation comment") && stages[2] == "Links for stop 1" && stages[3] == "Links for stop 3" && stages[4] == "Links for stop 2", "progress steps follow actual pending-first publication order with original route numbers");
 
 				std::stop_source stop;
 				if (lost) {

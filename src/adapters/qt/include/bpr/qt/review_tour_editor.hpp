@@ -3,6 +3,7 @@
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/core/tour_agent_session.hpp"
+#include "bpr/core/tour_publication_head.hpp"
 #include "bpr/core/tour_steps.hpp"
 #include "bpr/core/tour_stop_view.hpp"
 #include "bpr/qt/agent_feature.hpp"
@@ -31,6 +32,7 @@ class QTextDocument;
 class QPlainTextEdit;
 class QTabWidget;
 class QLabel;
+class QScrollArea;
 class QPushButton;
 class QToolButton;
 class QBoxLayout;
@@ -40,6 +42,9 @@ namespace bpr::qt {
 	class markdown_body_view;
 	class stop_action_row;
 	class tour_agent_panel;
+	class tour_head_bar;
+	class tour_step_list;
+	class tour_publication_banner_view;
 	enum class tour_repair_action : std::uint8_t { repin,
 												   preview_relocation,
 												   apply_relocation,
@@ -64,6 +69,10 @@ namespace bpr::qt {
 												   resume_publication,
 												   reconcile_publication,
 												   stop_publication,
+												   /// [[BPR-1991]]. The published tour on GitHub.
+												   open_published,
+												   /// [[BPR-1992]]. A refusal's Use another connection.
+												   choose_connection,
 												   suggest_outline,
 												   insert_outline,
 												   /// [[BPR-1914]] v002. Ask about the open stop's code: the
@@ -114,8 +123,24 @@ namespace bpr::qt {
 		void open_step(core::tour_step aStep);
 		/// \brief [[BPR-1593]]. The publication column of the tour page.
 		[[nodiscard]] auto publication_panel() const noexcept -> QWidget* { return PublicationPanel; }
-		/// \brief [[BPR-1593]]. The private draft's state and Preview and publish.
+		/// \brief [[BPR-1593]]. The private draft's save state.
 		[[nodiscard]] auto foot() const noexcept -> QWidget* { return Foot; }
+		/// \brief [[BPR-1991]]. The head band: where the tour stands and its
+		/// one publication action; the route's scroll area; the agent bar.
+		[[nodiscard]] auto head_bar() const noexcept -> tour_head_bar* { return Head; }
+		[[nodiscard]] auto route_scroll() const noexcept -> QScrollArea* { return RouteScroll; }
+		[[nodiscard]] auto agent_bar() const noexcept -> QWidget* { return AgentBar; }
+		/// \brief [[BPR-1991]]. The head as last decided, which Overview shows too.
+		[[nodiscard]] auto head() const -> const core::tour_head&;
+		/// \brief [[BPR-1991]]. Told when the head's decision changes.
+		void set_head_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-1991]]. Does what the head's action does, from the head
+		/// or from Overview.
+		void trigger_head(core::tour_head_action aAction);
+		/// \brief [[BPR-1992]]. The publication panel's banner and checklist.
+		[[nodiscard]] auto publication_banner() const noexcept -> tour_publication_banner_view* { return Banner; }
+		[[nodiscard]] auto publication_steps() const noexcept -> tour_step_list* { return StepList; }
+		[[nodiscard]] auto publication_shown() const noexcept -> const application::tour_publication_presentation& { return ShownPublication; }
 		[[nodiscard]] auto excerpt() const noexcept -> QWidget* { return Excerpt; }
 		void               set_dispatch(std::function<void(core::tour_command)> aDispatch, std::function<void(tour_editor_action)> aAction);
 		void               present(const application::tour_presentation& aProjection);
@@ -125,8 +150,6 @@ namespace bpr::qt {
 		void               present_publication(const application::tour_publication_presentation& aProjection);
 		void               set_repair_dispatch(std::function<void(core::tour_stop_id, tour_repair_action)>);
 		void               present_repair_preview(core::tour_stop_id, const core::tour_source_range&, std::string_view, std::uint64_t);
-		[[nodiscard]] auto compatibility_publication() const -> bool;
-		[[nodiscard]] auto mixed_publication() const -> bool;
 		[[nodiscard]] auto description_publication() const -> bool;
 		void               show_problem();
 		void               present_outline(const std::vector<core::tour_outline_entry>& aEntries);
@@ -467,7 +490,6 @@ namespace bpr::qt {
 		void                                                        restyle_agent_features();
 		QWidget*                                                    Foot           = nullptr;
 		QLabel*                                                     FootState      = nullptr;
-		QPushButton*                                                PreviewPublish = nullptr;
 		QToolButton*                                                HeadChip       = nullptr;
 		QWidget*                                                    HeadConfirm    = nullptr;
 		QLabel*                                                     HeadQuestion   = nullptr;
@@ -484,14 +506,27 @@ namespace bpr::qt {
 		std::uint64_t                                               PreviewRepairRevision = 0U;
 		std::vector<core::tour_destination_repair>                  ShownRepairs;
 		std::function<void(core::tour_stop_id, tour_repair_action)> RepairDispatch;
-		QComboBox*                                                  PublicationMode    = nullptr;
-		QCheckBox*                                                  DescriptionEdit    = nullptr;
-		QLabel*                                                     PublicationStatus  = nullptr;
-		markdown_body_view*                                         PublicationPreview = nullptr;
-		QPushButton*                                                PublishTour        = nullptr;
-		QPushButton*                                                ResumeTour         = nullptr;
-		QPushButton*                                                ReconcileTour      = nullptr;
-		QPushButton*                                                StopTour           = nullptr;
+		/// [[BPR-1991]], [[BPR-1992]]. The head, the route's scroll area, and
+		/// the panel's banner, form sentence, one-review offer and steps.
+		tour_head_bar*                             Head              = nullptr;
+		QScrollArea*                               RouteScroll       = nullptr;
+		tour_publication_banner_view*              Banner            = nullptr;
+		QLabel*                                    FormSentence      = nullptr;
+		QPushButton*                               KeepOneReview     = nullptr;
+		QLabel*                                    KeepOneReviewList = nullptr;
+		QLabel*                                    StepCount         = nullptr;
+		tour_step_list*                            StepList          = nullptr;
+		application::tour_publication_presentation ShownPublication;
+		core::tour_head_progress                   HeadProgress;
+		std::function<void()>                      HeadObserver;
+		void                                       follow_remedy(application::tour_publication_remedy aRemedy, core::tour_stop_id aStop);
+		QCheckBox*                                 DescriptionEdit    = nullptr;
+		QLabel*                                    PublicationStatus  = nullptr;
+		markdown_body_view*                        PublicationPreview = nullptr;
+		QPushButton*                               PublishTour        = nullptr;
+		QPushButton*                               ResumeTour         = nullptr;
+		QPushButton*                               ReconcileTour      = nullptr;
+		QPushButton*                               StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;

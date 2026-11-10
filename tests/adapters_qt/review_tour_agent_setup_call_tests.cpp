@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QPalette>
 #include <QPushButton>
+#include <QScrollArea>
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -143,7 +144,8 @@ auto main(int argc, char** argv) -> int
 	editor.set_agent_readiness(qt::agent_setup_readiness::unfinished);
 	QApplication::processEvents();
 	expect(setupAsked == 0, "an unfinished setup never opens the setup by itself");
-	expect(call->isVisible() && top(call) == 0, "the call to action is the first thing on the tab");
+	// [[BPR-1991]]. Under the head, the route's first thing.
+	expect(call->isVisible() && call->mapTo(editor.route_scroll()->widget(), QPoint{ 0, 0 }).y() == 0 && top(call) >= top(editor.route_scroll()), "the call to action is the first thing on the tab's route");
 	expect(top(call) + call->height() <= top(child<QWidget>(editor, "tourSteps")), "the steps follow the call to action");
 	for (auto* const feature : editor.agent_features()) {
 		if (feature == child<QWidget>(editor, "tourAgentField")) {

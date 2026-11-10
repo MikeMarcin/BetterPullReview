@@ -489,18 +489,46 @@ namespace {
 	/// stages, in order, and the published tour's address once it is published.
 	void test_publication_stages_and_link()
 	{
+		using kind = application::staged_step_kind;
 		auto plan  = application::staged_review_plan{ };
 		plan.Stops = { { .Title = "First" }, { .Title = "Second" } };
-		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "The tour comment", "Stop 1, \xE2\x80\x9C"
-																											 "First\xE2\x80\x9D",
-																						 "Stop 2, \xE2\x80\x9CSecond\xE2\x80\x9D" },
-			   "native plan: the tour comment, then each stop");
+		// [[BPR-1992]]. The steps are the writes, in the order they are made.
+		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "Stops 1 and 2, in the pending review", "Links for stop 1", "Links for stop 2", "Submit the review as a comment" },
+			   "native plan: the pending review with its stops, each stop's links, the submission");
+		{
+			auto record = application::staged_publication_record{ .Plan = plan };
+			expect(application::staged_publication_confirmed(record) == 0U, "nothing confirmed before the review is created");
+			record.Review = application::staged_review_entity{ };
+			expect(application::staged_publication_confirmed(record) == 1U, "the created review confirms step 1");
+			record.Comments.resize(2U);
+			record.Patched = 1U;
+			expect(application::staged_publication_confirmed(record) == 2U, "one patched stop confirms step 2, not step 3");
+			record.Patched = 2U;
+			expect(application::staged_publication_confirmed(record) == 3U, "both stops' links confirmed");
+			record.Published = true;
+			expect(application::staged_publication_confirmed(record) == 4U, "the submission confirms the last step");
+		}
+		auto mixed  = plan;
+		mixed.Mixed = true;
+		mixed.Stops.push_back({ .Title = "Third", .Representation = core::tour_representation::file_permalink });
+		mixed.Stops[1].Representation = core::tour_representation::conversation_permalink;
+		const auto steps              = application::staged_publication_steps(mixed);
+		expect(steps.size() == 7U && steps[0].Kind == kind::review_create && steps[1].Kind == kind::stop_create && steps[1].Stop == 2U && steps[2].Stop == 3U && steps[2].Representation == core::tour_representation::file_permalink && steps[3].Kind == kind::stop_links && steps[3].Stop == 1U && steps[6].Kind == kind::review_submit,
+			   "mixed plan: the review, each standalone comment in order, every stop's links in publication order, the submission");
+		expect(application::staged_publication_stages(mixed)[0] == "Stop 1, in the pending review" && application::staged_publication_stages(mixed)[2] == "Stop 3, \xE2\x80\x9CThird\xE2\x80\x9D, as a file comment", "mixed plan: in the reader's words");
+		{
+			auto record     = application::staged_publication_record{ .Plan = mixed };
+			record.Review   = application::staged_review_entity{ };
+			record.Comments = { { }, { } };
+			expect(application::staged_publication_confirmed(record) == 2U, "the review's own stop and one standalone comment");
+		}
+		expect(application::staged_stop_list(std::vector<std::size_t>{ 4U }) == "stop 4" && application::staged_stop_list(std::vector<std::size_t>{ 4U, 8U }) == "stops 4 and 8" && application::staged_stop_list(std::vector<std::size_t>{ 1U, 2U, 3U, 5U, 9U }) == "stops 1 to 3, 5 and 9", "stop numbers in words");
 		plan.Compatibility = true;
 		plan.Description   = application::staged_description_edit{ };
-		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "The index comment", "Stop 1, \xE2\x80\x9C"
-																											  "First\xE2\x80\x9D",
-																						 "Stop 2, \xE2\x80\x9CSecond\xE2\x80\x9D", "The description link" },
-			   "compatibility plan: the index comment, each stop, the description link");
+		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "Stop 1, \xE2\x80\x9C"
+																						 "First\xE2\x80\x9D, as a conversation comment",
+																						 "Stop 2, \xE2\x80\x9CSecond\xE2\x80\x9D, as a conversation comment", "The tour's index comment", "Links for stop 1", "Links for stop 2", "The description link" },
+			   "compatibility plan: each stop, the index comment, the links, the description link");
 		auto record  = application::staged_publication_record{ .Plan = plan };
 		record.Index = application::staged_review_comment{ .WebUrl = "https://github.com/o/r/pull/1#issuecomment-7" };
 		expect(application::staged_published_link(record).empty(), "no address before the record is published");

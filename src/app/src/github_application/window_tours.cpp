@@ -1161,7 +1161,7 @@ namespace bpr::app {
 			context.PublicationAllowed = shown.Publish;
 			context.PublicationStatus  = shown.Status;
 			context.BodyEdits          = TourPublication->operation_support();
-			context.Compatibility      = Window->tour_editor()->compatibility_publication();
+			context.Compatibility      = TourPublication->compatibility_chosen();
 			context.Destinations.clear();
 			if (TourHost && TourHost->presentation().Draft) {
 				for (const auto& stop : TourHost->presentation().Draft->Stops) {
@@ -2148,6 +2148,17 @@ namespace bpr::app {
 			return;
 		case qt::tour_editor_action::preview_publication:
 			prepare_tour_repairs();
+			return;
+		case qt::tour_editor_action::open_published:
+			// [[BPR-1991]]. The head's On GitHub: the published tour's address,
+			// through the window's browser port.
+			if (const auto draft = TourHost->presentation().Draft; draft && draft->Remote && !draft->Remote->WebUrl.empty() && Profile->WindowBrowser != nullptr) {
+				static_cast<void>(Profile->WindowBrowser->open(draft->Remote->WebUrl));
+			}
+			return;
+		case qt::tour_editor_action::choose_connection:
+			// [[BPR-1992]]. A refusal's Use another connection.
+			Window->open_sign_in();
 			return;
 		case qt::tour_editor_action::publish_publication:
 		case qt::tour_editor_action::resume_publication:

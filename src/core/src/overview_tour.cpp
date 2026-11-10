@@ -1,5 +1,8 @@
 #include "bpr/core/overview_tour.hpp"
 
+#include "bpr/core/review_tour_destination.hpp"
+#include "bpr/core/tour_publication_head.hpp"
+
 namespace bpr::core {
 	namespace {
 		[[nodiscard]] auto begun(const review_tour& aTour) -> bool
@@ -13,7 +16,13 @@ namespace bpr::core {
 			result.Published = aTour.Remote.has_value();
 			result.Stops.reserve(aTour.Stops.size());
 			for (const auto& stop : aTour.Stops) {
-				result.Stops.push_back({ .Id = stop.Id, .Title = stop.Title, .Preparation = stop.Preparation });
+				auto row = overview_tour_stop{ .Id = stop.Id, .Title = stop.Title, .Preparation = stop.Preparation, .Lead = tour_lead_sentence(stop.Body) };
+				if (const auto source = publication_source(stop)) {
+					row.Path      = source->Path;
+					row.FirstLine = source->FirstLine + 1U;
+					row.LastLine  = source->LastLine + 1U;
+				}
+				result.Stops.push_back(std::move(row));
 			}
 			return result;
 		}

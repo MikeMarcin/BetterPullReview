@@ -244,9 +244,14 @@ namespace bpr::app {
 		[[nodiscard]] auto presentation() const -> application::tour_publication_presentation;
 		[[nodiscard]] auto operation_support() const noexcept -> core::tour_operation_support { return Qualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown; }
 		void               publish(const application::review_submission_host_terminal&) override;
+		void               progressed(const application::review_submission_host_context&, const application::staged_publication_record&) override;
+		/// \brief [[BPR-1992]]. The form the current plan chose is compatibility comments.
+		[[nodiscard]] auto compatibility_chosen() const noexcept -> bool { return Plan && Plan->Compatibility; }
 
 	private:
-		void                                                                          prepare();
+		void prepare();
+		/// [[BPR-1992]]. The steps, the count and the banner the panel and head show.
+		void                                                                          present_steps(application::tour_publication_presentation& aView) const;
 		std::shared_ptr<application::diagnostic_log_port>                             Log;
 		void                                                                          present();
 		application::effect_executor&                                                 Effects;
@@ -274,6 +279,14 @@ namespace bpr::app {
 		/// [[BPR-1782]]. The active effect is a Publish or Resume; a publication
 		/// answered since the last fresh preview without being published.
 		bool Publishing = false, Attempted = false;
+		/// [[BPR-1992]]. The running publication's record before its latest
+		/// write; the form the plan chose; a refusal before any write; and the
+		/// last publication result that failed.
+		std::optional<application::staged_publication_record>   Progress;
+		std::string                                             Form;
+		std::vector<std::pair<core::tour_stop_id, std::string>> KeepOneReview;
+		std::optional<application::tour_publication_banner>     Refusal;
+		std::optional<application::staged_publication_result>   LastFailure;
 	};
 	/// PR-level replies share the existing witnessed publication host and journal.
 	class conversation_reply_workflow final : public application::review_submission_projection_port

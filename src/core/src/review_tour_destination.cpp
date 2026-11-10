@@ -1,5 +1,6 @@
 #include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_update.hpp"
+#include "bpr/core/tour_publication_head.hpp"
 #include <algorithm>
 namespace bpr::core {
 	auto tour_reason_name(const tour_status_reason aReason) noexcept -> std::string_view
@@ -218,7 +219,7 @@ namespace bpr::core {
 	{
 		using state      = tour_publication_readiness;
 		const auto blank = [](std::string_view aValue) { return aValue.find_first_not_of(" \r\n\t") == std::string_view::npos; };
-		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.Remote || !aTour.Head.valid() || !aTour.Base.valid() || aTour.Stops.empty() || aTour.Stops.size() > 100 || blank(aTour.Problem) || blank(aTour.Solution) || std::ranges::any_of(aTour.Stops, [&](const auto& aS) { return !ready(aS) || (aS.Suggestion && aS.Preparation != tour_preparation::ready) || aS.Preparation == tour_preparation::needs_attention || (aTour.ObservedHead && aS.ReaffirmedHead != aTour.ObservedHead); })) {
+		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.Remote || !aTour.Head.valid() || !aTour.Base.valid() || aTour.Stops.empty() || aTour.Stops.size() > 100 || blank(aTour.Problem) || blank(aTour.Solution) || std::ranges::any_of(aTour.Stops, [&](const auto& aS) { return !tour_stop_publishable(aTour, aS); })) {
 			return state::incomplete;
 		}
 		if (aDestinations.size() != aTour.Stops.size() || std::ranges::any_of(aDestinations, [](const auto& aD) { return aD.NeedsQualification || aD.IncompatibleBody || aD.Representation == tour_representation::unresolved; })) {

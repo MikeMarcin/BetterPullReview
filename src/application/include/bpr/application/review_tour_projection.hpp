@@ -4,7 +4,9 @@
 #include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_repair.hpp"
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 namespace bpr::application {
 	enum class tour_store_failure : std::uint8_t { unavailable,
@@ -37,18 +39,61 @@ namespace bpr::application {
 	};
 	/// \brief [[BPR-1782]]. Where the tour's own publication stands, so Publish
 	/// can read as working from the press until GitHub answers.
+	/// [[BPR-1992]]: `stopped` is a publication left part-sent, which the
+	/// head and the panel say in the error role; `attention` is one that sent
+	/// nothing and did not finish.
 	enum class tour_publication_phase : std::uint8_t { idle,
 													   publishing,
 													   published,
-													   attention };
+													   attention,
+													   stopped };
+	/// \brief [[BPR-1992]]. RFC-BPR-0099, steps that advance: each write's state.
+	enum class tour_step_state : std::uint8_t { waiting,
+												sending,
+												sent,
+												failed,
+												not_sent };
+	struct tour_publication_step_view
+	{
+		std::string     Label;
+		tour_step_state State = tour_step_state::waiting;
+		/// The provider's short reason, on the step that failed.
+		std::string Reason;
+		auto        operator==(const tour_publication_step_view&) const -> bool = default;
+	};
+	/// \brief [[BPR-1992]]. What a failure banner offers; the first is primary.
+	enum class tour_publication_remedy : std::uint8_t { resume,
+														check_status,
+														preview_again,
+														move_stops,
+														other_connection };
+	/// \brief [[BPR-1992]]. RFC-BPR-0099, failures that read as failures: what
+	/// stopped and where, why, what is on GitHub and what is not, and the
+	/// actions that move forward.
+	struct tour_publication_banner
+	{
+		std::string                          Title, Why, OnGitHub;
+		std::vector<tour_publication_remedy> Actions;
+		/// The first stop Move… opens, for a refusal that names stops.
+		core::tour_stop_id MoveTo;
+		auto               operator==(const tour_publication_banner&) const -> bool = default;
+	};
 	struct tour_publication_presentation
 	{
 		std::string                                Status = "Saved locally. Prepare a publication preview when the tour is ready.";
 		std::string                                Markdown;
 		std::vector<core::tour_destination_repair> Repairs;
 		tour_publication_phase                     Phase = tour_publication_phase::idle;
-		/// While publishing: what the captured plan sends, in order.
-		std::vector<std::string> Stages;
+		/// [[BPR-1992]]. The captured plan's steps and where each stands, and
+		/// the one-based step under way or stopped at, of `Total`.
+		std::vector<tour_publication_step_view> Steps;
+		std::size_t                             Step = 0U, Total = 0U;
+		/// [[BPR-1992]]. The form the plan chose, in one sentence with the
+		/// stops that forced it; and, when that is not one review, the stops
+		/// to move to keep it to one.
+		std::string                                             Form;
+		std::vector<std::pair<core::tour_stop_id, std::string>> KeepOneReview;
+		std::optional<tour_publication_banner>                  Banner;
 		/// Once published: where GitHub shows the tour.
 		std::string Link;
 		bool        Publish = false, Resume = false, Reconcile = false, Stop = false;

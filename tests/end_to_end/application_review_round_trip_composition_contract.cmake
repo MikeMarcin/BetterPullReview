@@ -3414,8 +3414,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# widgets when it alone changed. window_tours records a tour run's cost.
 	# No grant, actor/head, admission or publication boundary is relaxed;
 	# full-app and mutation pins unchanged.
+	# [[RFC-BPR-0099]] reviewed 60d427a08..HEAD ([[BPR-1991]], [[BPR-1992]],
+	# [[BPR-1993]]): tour_publication_plan tries one review, a mixed tour and
+	# compatibility comments in that order with the existing per-form planner
+	# and says the choice; review_submission_workflow keeps the host's
+	# per-write record, derives each step's state, and Resume previews the
+	# captured plan before it resumes; window_tours opens the published tour
+	# through the window's browser port and the sign-in controls. No grant,
+	# actor/head, admission, publication or no-blind-retry boundary is
+	# relaxed; full-app and mutation pins unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "6801d7fd3ee0bdf79bd312bd5ecbaed5fc6a39182a9a7af3e3a0b7bc5f3cea6b"
+        "01890fe464898e1c066209f574080323d0ba3bc0ff72071cf9f9759ebbc7b38c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

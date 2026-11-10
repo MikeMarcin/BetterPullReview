@@ -150,6 +150,7 @@ add_library(
         src/conversation_mutation_lifecycle.cpp
         src/comment_edit.cpp
         src/overview_tour.cpp
+        src/tour_publication_head.cpp
         src/tour_steps.cpp
         src/tour_agent_session.cpp
         src/skill_references.cpp

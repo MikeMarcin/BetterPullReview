@@ -316,8 +316,8 @@ namespace bpr::qt {
 		const auto  author = OverviewPage->projection().has_value() && std::ranges::any_of(OverviewPage->projection()->Status.Roles.Roles, [](const core::review_role& aRole) { return aRole.Kind == core::review_role_kind::author; });
 		const auto  tour   = core::decide_overview_tour(shown.Draft.get(), shown.Offered.get(), author);
 		auto* const drawer = OverviewPage->status_drawer();
-		if (drawer->tour_summary()->shown() != tour) {
-			drawer->tour_summary()->present(tour);
+		if (drawer->tour_summary()->shown() != tour || drawer->tour_summary()->head() != TourEditor->head()) {
+			drawer->tour_summary()->present(tour, TourEditor->head());
 		}
 		drawer->set_tour_tab_shown(tour.Kind != core::overview_tour_kind::hidden);
 	}

@@ -29,6 +29,7 @@ add_library(
         src/drawer_parts.cpp
         src/overview_status_drawer.cpp
         src/overview_tour_summary.cpp
+        src/tour_publication_surfaces.cpp
         src/commit_filter_view.cpp
         src/generated_files_view.cpp
         src/compose_review_sheet.cpp

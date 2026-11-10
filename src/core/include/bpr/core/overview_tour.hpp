@@ -36,6 +36,12 @@ namespace bpr::core {
 		tour_stop_id     Id;
 		std::string      Title;
 		tour_preparation Preparation = tour_preparation::editing;
+		/// [[BPR-1993]]. Where the stop is (one-based lines; zero without a
+		/// source) and the first sentence of its explanation.
+		std::string   Path;
+		std::uint32_t FirstLine = 0U;
+		std::uint32_t LastLine  = 0U;
+		std::string   Lead;
 
 		auto operator==(const overview_tour_stop&) const -> bool = default;
 	};

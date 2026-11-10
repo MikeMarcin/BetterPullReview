@@ -1062,6 +1062,11 @@ namespace bpr::app {
 		Previewed  = false;
 		Publishing = false;
 		Attempted  = false;
+		Progress.reset();
+		Refusal.reset();
+		LastFailure.reset();
+		Form.clear();
+		KeepOneReview.clear();
 		AnchorFiles.clear();
 		DestinationFacts.reset();
 		AnchorHead          = { };
@@ -1173,10 +1178,16 @@ namespace bpr::app {
 			present();
 			return;
 		}
-		Attempted           = false;
-		const auto prepared = prepare_tour_plan(*Draft.Draft, *Binding, Description, { Editor.compatibility_publication(), Editor.description_publication(), Editor.mixed_publication() }, Qualified, AnchorHead == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_anchor_file>{ AnchorFiles } : std::span<const core::tour_anchor_file>{ }, factsCurrent ? std::span<const core::tour_destination_observation>{ DestinationFacts->Observations } : std::span<const core::tour_destination_observation>{ });
+		Attempted = false;
+		LastFailure.reset();
+		// [[BPR-1992]]. The plan chooses the form: one review, a mixed tour or
+		// compatibility comments, the first that carries every stop.
+		const auto prepared = choose_tour_plan(*Draft.Draft, *Binding, Description, Editor.description_publication(), Qualified, AnchorHead == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_anchor_file>{ AnchorFiles } : std::span<const core::tour_anchor_file>{ }, factsCurrent ? std::span<const core::tour_destination_observation>{ DestinationFacts->Observations } : std::span<const core::tour_destination_observation>{ });
 		DestinationsChecked = true;
 		Plan                = prepared.Plan;
+		Form                = prepared.Form;
+		KeepOneReview       = prepared.KeepOneReview;
+		Refusal             = prepared.Refusal;
 		Previewed           = Plan.has_value();
 		if (Plan) {
 			State = application::staged_publication_state::ready;
@@ -1207,6 +1218,11 @@ namespace bpr::app {
 			prepare();
 			return;
 		}
+		// [[BPR-1992]]. Resume from a stopped publication's banner or head
+		// previews the captured plan first; only that exact plan resumes.
+		if (aAction == action::resume_publication && Record && !Previewed && !Context) {
+			prepare();
+		}
 		if (Context || !Plan) {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, Plan ? &*Plan : nullptr, nullptr, false, Context ? core::operation_failure::busy : core::operation_failure::invalid_input);
 			return;
@@ -1224,7 +1240,7 @@ namespace bpr::app {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
-		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || Plan->Compatibility != Editor.compatibility_publication() || ((!Plan->Update || !Plan->Stops.empty()) && Plan->Mixed != Editor.mixed_publication()) || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
+		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
@@ -1248,6 +1264,8 @@ namespace bpr::app {
 		const auto grant = IssueGrant ? IssueGrant(Authority.ApplicationSession, Generation, *Plan) : application::review_submission_execution_grant{ };
 		Context          = Host->publish_tour(*Plan, grant);
 		Previewed        = false;
+		Progress.reset();
+		LastFailure.reset();
 		// [[BPR-1782]]. From the press until GitHub answers, Publish reads as
 		// working and names what the captured plan sends.
 		Publishing = Context.has_value();
@@ -1262,6 +1280,7 @@ namespace bpr::app {
 			return;
 		}
 		Context.reset();
+		Progress.reset();
 		const auto wasPublishing = std::exchange(Publishing, false);
 		if (const auto* facts = std::get_if<application::tour_destination_observations>(&aTerminal.Outcome)) {
 			if (*facts && Draft.Draft && (*facts)->Owner == Draft.Draft->Owner && (*facts)->Draft == Draft.Draft->Id && (*facts)->Revision == Draft.Draft->Revision && (*facts)->Head == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head)) {
@@ -1303,6 +1322,7 @@ namespace bpr::app {
 			if (result->Record || !result->Failure) {
 				Record = result->Record;
 			}
+			LastFailure = result->Failure ? std::optional{ *result } : std::nullopt;
 			if (Record && Record->Published && ReceiptSink) {
 				ReceiptSink(*Record);
 			}
@@ -1335,7 +1355,9 @@ namespace bpr::app {
 			if (const auto detail = tour_publication_failure_text(explanation); !detail.empty()) {
 				Status = detail;
 			}
-			if (result->Failure && Binding && State != state::outcome_unknown && !(Record && Record->Published)) {
+			// [[BPR-1992]]. "Does not support" is said only of a tour no form can
+			// carry, before anything is sent; a refused write keeps the tour's words.
+			if (result->Failure && *result->Failure != application::review_mutation_failure::unsupported && Binding && State != state::outcome_unknown && !(Record && Record->Published)) {
 				const auto status = qt::github_cli_publication_failure_text(*result->Failure, QString::fromStdString(Binding->ActingIdentity.Login), QString::fromStdString(std::string{ Binding->Target.Hostname.value() }), Record.has_value());
 				if (!status.isEmpty()) {
 					Status = status.toStdString();
@@ -1370,15 +1392,108 @@ namespace bpr::app {
 		view.Stop      = Context.has_value();
 		using phase    = application::tour_publication_phase;
 		if (Context && Publishing && Plan) {
-			view.Phase  = phase::publishing;
-			view.Stages = application::staged_publication_stages(*Plan);
+			view.Phase = phase::publishing;
 		} else if (Record && Record->Published && State == application::staged_publication_state::published) {
 			view.Phase = phase::published;
 			view.Link  = application::staged_published_link(*Record);
-		} else if (Attempted && !Context) {
+		} else if (Record) {
+			view.Phase = phase::stopped;
+		} else if ((Attempted && !Context) || Refusal) {
 			view.Phase = phase::attention;
 		}
+		view.Form          = Plan && !Record ? Form : std::string{ };
+		view.KeepOneReview = Plan && !Record ? KeepOneReview : decltype(KeepOneReview){ };
+		present_steps(view);
 		return view;
+	}
+	void review_tour_publication_workflow::progressed(const application::review_submission_host_context& aContext, const application::staged_publication_record& aRecord)
+	{
+		if (Closing || !Context || aContext != *Context || !Publishing) {
+			return;
+		}
+		Progress = aRecord;
+		present();
+	}
+	void review_tour_publication_workflow::present_steps(application::tour_publication_presentation& aView) const
+	{
+		using phase            = application::tour_publication_phase;
+		using step_state       = application::tour_step_state;
+		using remedy           = application::tour_publication_remedy;
+		const auto* const plan = Record && !(Context && Publishing) ? &Record->Plan : Plan ? &*Plan
+																						   : nullptr;
+		if (aView.Phase == phase::attention && Refusal) {
+			aView.Banner = Refusal;
+		}
+		if (plan == nullptr) {
+			return;
+		}
+		const auto labels    = application::staged_publication_stages(*plan);
+		const auto total     = labels.size();
+		const auto confirmed = std::min(total, Progress ? application::staged_publication_confirmed(*Progress) : Record ? application::staged_publication_confirmed(*Record)
+																														: std::size_t{ 0U });
+		const auto unknown   = State == application::staged_publication_state::outcome_unknown || (Record && Record->PossiblyTransmitted);
+		aView.Total          = total;
+		aView.Step           = aView.Phase == phase::published ? total : std::min(confirmed + 1U, total);
+		const auto failed    = aView.Phase == phase::stopped && LastFailure.has_value() && !unknown;
+		for (std::size_t i = 0U; i < total; ++i) {
+			auto row = application::tour_publication_step_view{ .Label = labels[i] };
+			switch (aView.Phase) {
+			case phase::publishing:
+				row.State = i < confirmed ? step_state::sent : i == confirmed ? step_state::sending
+																			  : step_state::waiting;
+				break;
+			case phase::published: row.State = step_state::sent; break;
+			case phase::stopped:
+				row.State = i < confirmed ? step_state::sent : i == confirmed && failed ? step_state::failed
+																						: step_state::not_sent;
+				break;
+			case phase::attention: row.State = step_state::not_sent; break;
+			case phase::idle:      row.State = step_state::waiting; break;
+			}
+			if (row.State == step_state::failed && LastFailure && LastFailure->Failure) {
+				row.Reason = tour_step_failure_reason(*LastFailure);
+			}
+			aView.Steps.push_back(std::move(row));
+		}
+		// Consecutive sent links read as one row: "Links for stops 1 to 7".
+		const auto linked = [](const application::tour_publication_step_view& aRow) { return aRow.State == step_state::sent && aRow.Label.starts_with("Links for stop "); };
+		for (std::size_t i = 0U; i < aView.Steps.size(); ++i) {
+			auto end = i;
+			while (end < aView.Steps.size() && linked(aView.Steps[end])) {
+				++end;
+			}
+			if (end > i + 1U) {
+				auto numbers = std::vector<std::size_t>{ };
+				for (auto k = i; k < end; ++k) {
+					numbers.push_back(static_cast<std::size_t>(std::stoull(aView.Steps[k].Label.substr(std::string_view{ "Links for stop " }.size()))));
+				}
+				std::ranges::sort(numbers);
+				aView.Steps[i].Label = "Links for " + application::staged_stop_list(numbers);
+				aView.Steps.erase(aView.Steps.begin() + static_cast<std::ptrdiff_t>(i) + 1, aView.Steps.begin() + static_cast<std::ptrdiff_t>(end));
+			}
+		}
+		if (aView.Phase == phase::stopped && confirmed < total) {
+			const auto step   = confirmed + 1U;
+			auto       label  = labels[confirmed];
+			auto       banner = application::tour_publication_banner{ .Title = "Publishing stopped at step " + std::to_string(step) + " of " + std::to_string(total) };
+			if (!label.empty() && label[0] >= 'A' && label[0] <= 'Z' && !label.starts_with("Stop") && !label.starts_with("Links") && !label.starts_with("Submit")) {
+				label[0] = static_cast<char>(label[0] - 'A' + 'a');
+			}
+			banner.Why = "Step " + std::to_string(step) + ", " + label + ", " + (LastFailure ? tour_step_failure_clause(*LastFailure) : std::string{ "was not sent" }) + ".";
+			if (unknown) {
+				banner.Why += " Whether it reached GitHub is not known.";
+			}
+			const auto words = [](const std::size_t aCount) { return aCount == 1U ? std::string{ "One step" } : std::to_string(aCount) + " steps"; };
+			banner.OnGitHub  = confirmed == 0U ? std::string{ "Nothing is on GitHub yet." } : words(confirmed) + (confirmed == 1U ? " is" : " are") + " on GitHub and stay" + (confirmed == 1U ? "s" : "") + " there.";
+			banner.OnGitHub += " " + words(total - confirmed) + (total - confirmed == 1U ? " is" : " are") + " not sent" + (unknown ? ", unless the last one reached GitHub; Check status finds out." : ".");
+			banner.Actions = unknown || State == application::staged_publication_state::conflict ? std::vector{ remedy::check_status } : std::vector{ remedy::resume, remedy::check_status };
+			aView.Banner   = std::move(banner);
+		} else if (aView.Phase == phase::attention && !aView.Banner) {
+			// Nothing was sent: a refusal before the first write, or a pending
+			// review on GitHub that this publication may not adopt.
+			const auto conflict = State == application::staged_publication_state::conflict;
+			aView.Banner        = application::tour_publication_banner{ .Title = "Not published", .Why = Status, .OnGitHub = "Nothing was sent. Your draft is kept.", .Actions = { conflict ? remedy::check_status : remedy::preview_again } };
+		}
 	}
 	void review_tour_publication_workflow::present()
 	{

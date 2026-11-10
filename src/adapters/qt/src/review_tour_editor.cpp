@@ -11,6 +11,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "waiting_panel.hpp"
@@ -1444,6 +1445,20 @@ namespace bpr::qt {
 			bool       DragFromHandle = false;
 			qulonglong Dragged        = 0;
 		};
+		/// \brief [[BPR-1991]]. The route between the head and the agent bar.
+		/// It asks no more width than the tab itself does (`minimumSizeHint`,
+		/// 280), as when the drawer's scroll area held the whole tab: a narrow
+		/// drawer narrows the route rather than scrolling it sideways.
+		class route_body final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				const auto natural = QWidget::minimumSizeHint();
+				return { std::min(natural.width(), 260), natural.height() };
+			}
+		};
 		auto paragraph(const QString& aText, QWidget* aParent) -> QLabel*
 		{
 			auto* label = new QLabel{ aText, aParent };
@@ -1626,9 +1641,29 @@ namespace bpr::qt {
 		// [[BPR-1593]]. RFC-BPR-0085 D4. One tour, two places: the route in
 		// the drawer (layout A) and the tour page (layout C). Every control
 		// is made once and moved between them, so both are the same tour.
-		auto* layout = new QVBoxLayout{ this };
+		// [[BPR-1991]]. RFC-BPR-0099, three bands: the head, which says where
+		// the tour stands and carries its one publication action; the route,
+		// the only part that scrolls; and the agent bar, at the bottom at
+		// every route length.
+		auto* const bands = new QVBoxLayout{ this };
+		bands->setContentsMargins(0, 0, 0, 0);
+		bands->setSpacing(0);
+		Head = new tour_head_bar{ QStringLiteral("tourHead"), this };
+		Head->set_dispatch([this](const core::tour_head_action aAction) { trigger_head(aAction); });
+		bands->addWidget(Head);
+		RouteScroll = new QScrollArea{ this };
+		// The name the drawer's own scroll area had, which the route now owns.
+		RouteScroll->setObjectName(QStringLiteral("workbenchTourScroll"));
+		RouteScroll->setWidgetResizable(true);
+		RouteScroll->setFrameShape(QFrame::NoFrame);
+		RouteScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		auto* const routeBody = new route_body{ RouteScroll };
+		routeBody->setObjectName(QStringLiteral("tourRouteBody"));
+		auto* layout = new QVBoxLayout{ routeBody };
 		layout->setContentsMargins(0, 0, 0, 0);
 		layout->setSpacing(0);
+		RouteScroll->setWidget(routeBody);
+		bands->addWidget(RouteScroll, 1);
 
 		// [[BPR-1881]], owner 2026-11-06. While the agent is not set up, the
 		// tab's top says so, and one click shows the Agent tab's setup. The
@@ -1907,6 +1942,46 @@ namespace bpr::qt {
 		heading.setWeight(QFont::DemiBold);
 		onGithub->setFont(heading);
 		publication->addWidget(onGithub);
+		// [[BPR-1992]]. A refusal or failure first, in the error role; then
+		// the form the plan chose, with the stops that forced it; then the
+		// steps, which advance as GitHub confirms each.
+		Banner = new tour_publication_banner_view{ PublicationPanel };
+		Banner->set_dispatch([this](const application::tour_publication_remedy aRemedy, const core::tour_stop_id aStop) { follow_remedy(aRemedy, aStop); });
+		publication->addWidget(Banner);
+		FormSentence = paragraph({ }, PublicationPanel);
+		FormSentence->setObjectName(QStringLiteral("tourPublicationForm"));
+		FormSentence->hide();
+		publication->addWidget(FormSentence);
+		KeepOneReview = new quiet_push_button{ tr("Keep it to one review instead"), PublicationPanel };
+		KeepOneReview->setObjectName(QStringLiteral("tourKeepOneReview"));
+		KeepOneReview->setToolTip(tr("Lists the stops to move onto lines this diff shows. Nothing changes until you move them."));
+		KeepOneReview->setCheckable(true);
+		KeepOneReview->hide();
+		publication->addWidget(KeepOneReview, 0, Qt::AlignLeft);
+		KeepOneReviewList = new QLabel{ PublicationPanel };
+		KeepOneReviewList->setObjectName(QStringLiteral("tourKeepOneReviewList"));
+		KeepOneReviewList->setWordWrap(true);
+		KeepOneReviewList->setTextFormat(Qt::RichText);
+		KeepOneReviewList->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		KeepOneReviewList->hide();
+		connect(KeepOneReviewList, &QLabel::linkActivated, this, [this](const QString& aLink) {
+			go_to_stop(core::tour_stop_id{ aLink.toULongLong() });
+		});
+		// Keep it to one review instead shows the stops to move and the moves
+		// each one has (Re-pin, Move to nearest change); nothing changes until
+		// the author uses one.
+		connect(KeepOneReview, &QPushButton::toggled, this, [this](const bool aShown) {
+			KeepOneReviewList->setVisible(aShown);
+			RepairList->setVisible(!ShownRepairs.empty() && (ShownPublication.Markdown.empty() || aShown));
+		});
+		publication->addWidget(KeepOneReviewList);
+		StepCount = paragraph({ }, PublicationPanel);
+		StepCount->setObjectName(QStringLiteral("tourPublicationStepCount"));
+		StepCount->hide();
+		publication->addWidget(StepCount);
+		StepList = new tour_step_list{ PublicationPanel };
+		StepList->hide();
+		publication->addWidget(StepList);
 		PublicationPreview = new markdown_body_view{ PublicationPanel };
 		PublicationPreview->setObjectName(QStringLiteral("tourPublicationPreview"));
 		PublicationPreview->setAccessibleName(tr("Captured publication plan"));
@@ -1975,7 +2050,8 @@ namespace bpr::qt {
 		repairScroll->setWidget(repairContents);
 		auto* const repairRows = new QVBoxLayout{ repairContents };
 		repairRows->setContentsMargins(0, 0, 0, 0);
-		publication->addWidget(RepairList);
+		// [[BPR-1992]]. Under Keep it to one review instead, the moves for each stop.
+		publication->insertWidget(publication->indexOf(KeepOneReviewList) + 1, RepairList);
 		RepairPreview = new QWidget{ PublicationPanel };
 		RepairPreview->setObjectName(QStringLiteral("tourRepairPreview"));
 		auto* const repairPreviewLayout = new QVBoxLayout{ RepairPreview };
@@ -2003,11 +2079,7 @@ namespace bpr::qt {
 		repairButtons->addStretch(1);
 		repairPreviewLayout->addLayout(repairButtons);
 		RepairPreview->hide();
-		publication->addWidget(RepairPreview);
-		PublicationMode = new QComboBox{ PublicationPanel };
-		PublicationMode->setObjectName(QStringLiteral("tourPublicationMode"));
-		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish a mixed tour (non-atomic)"), tr("Publish with compatibility comments (non-atomic)") });
-		publication->addWidget(PublicationMode);
+		publication->insertWidget(publication->indexOf(RepairList) + 1, RepairPreview);
 		DescriptionEdit = new QCheckBox{ tr("Update PR description after publishing"), PublicationPanel };
 		DescriptionEdit->setObjectName(QStringLiteral("tourDescriptionEdit"));
 		// [[BPR-1787]]. The brief is published in one place, the description
@@ -2049,7 +2121,6 @@ namespace bpr::qt {
 		StopTour->setToolTip(tr("Stop publication"));
 		recoverRow->addStretch(1);
 		publication->addLayout(recoverRow);
-		connect(PublicationMode, &QComboBox::currentIndexChanged, this, [this] { PublishTour->setEnabled(false); });
 		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 
@@ -2076,7 +2147,8 @@ namespace bpr::qt {
 		barRow->addStretch(1);
 		barColumn->addWidget(AgentField);
 		AgentBar->hide();
-		// The foot: the private draft's state, and Preview and publish.
+		// The foot: the private draft's save state. [[BPR-1991]]: Publish… is
+		// the head's; the bottom Preview and publish is gone.
 		Foot = new QWidget{ this };
 		Foot->setObjectName(QStringLiteral("tourFoot"));
 		auto* const footRow = new QHBoxLayout{ Foot };
@@ -2089,16 +2161,7 @@ namespace bpr::qt {
 		Status->setForegroundRole(QPalette::PlaceholderText);
 		Status->setAccessibleName(tr("Tour save status"));
 		footRow->addWidget(Status, 1);
-		FootState      = Status;
-		PreviewPublish = new QPushButton{ tr("Preview and publish"), Foot };
-		PreviewPublish->setObjectName(QStringLiteral("tourPreviewAndPublish"));
-		PreviewPublish->setToolTip(tr("Open the tour page with what GitHub will show. Nothing is sent until Publish."));
-		connect(PreviewPublish, &QPushButton::clicked, this, [this] {
-			if (ExpandDispatch) {
-				ExpandDispatch(true);
-			}
-		});
-		footRow->addWidget(PreviewPublish, 0, Qt::AlignTop);
+		FootState = Status;
 
 		// The route: the brief, then the stops, in the drawer.
 		RouteColumn = new QWidget{ this };
@@ -2142,8 +2205,8 @@ namespace bpr::qt {
 		rightColumn->addWidget(PublicationPanel, 1);
 		pageRow->addWidget(right);
 		layout->addWidget(PageColumns, 1);
-		layout->addWidget(Foot);
-		layout->addWidget(AgentBar);
+		bands->addWidget(Foot);
+		bands->addWidget(AgentBar);
 		restyle_agent_features();
 		refresh_agent_features();
 
@@ -2184,8 +2247,6 @@ namespace bpr::qt {
 		ApplyRepair->setFocus();
 		reveal_focus(RepairPreview);
 	}
-	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 2; }
-	auto review_tour_editor::mixed_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
 	auto review_tour_editor::description_publication() const -> bool { return DescriptionEdit->isChecked(); }
 	void review_tour_editor::present_publication(const application::tour_publication_presentation& aProjection)
 	{
@@ -2256,7 +2317,7 @@ namespace bpr::qt {
 				repairContents->layout()->addWidget(group);
 			}
 		}
-		RepairList->setVisible(!ShownRepairs.empty() && aProjection.Markdown.empty());
+		RepairList->setVisible(!ShownRepairs.empty() && (aProjection.Markdown.empty() || (KeepOneReview->isChecked() && !aProjection.KeepOneReview.empty())));
 		if (!Shown.Draft || Shown.Draft->Revision != PreviewRepairRevision || aProjection.Stop) {
 			RepairPreview->hide();
 		}
@@ -2273,20 +2334,41 @@ namespace bpr::qt {
 		// the status line steps aside, and nothing that would change what is
 		// being sent can be used meanwhile. Stop stays.
 		const auto publishing = aProjection.Phase == phase::publishing;
-		const auto attention  = aProjection.Phase == phase::attention;
-		WorkingTitle->setText(publishing ? tr("Publishing the tour to GitHub\u2026") : tr("Publishing didn't finish"));
-		auto stages = QStringList{ };
-		for (const auto& stage : aProjection.Stages) {
-			stages.push_back(QString::fromStdString(stage));
-		}
-		WorkingStages->setText(stages.isEmpty() ? QString{ } : tr("Sending, in order:") + QStringLiteral("\n") + stages.join(QStringLiteral("\n")));
-		WorkingStages->setVisible(publishing && !stages.isEmpty());
+		// [[BPR-1992]]. A refusal or failure is the banner, never the status
+		// line; while it runs, the waiting panel says so and the checklist
+		// advances step by step.
+		Banner->present(aProjection.Banner);
+		const auto banner = aProjection.Banner.has_value();
+		WorkingTitle->setText(tr("Publishing the tour to GitHub\u2026"));
+		WorkingStages->hide();
 		WorkingStatus->setText(status);
-		PublicationWorking->setVisible(publishing || attention);
+		PublicationWorking->setVisible(publishing);
 		PublicationWorking->setAccessibleName(WorkingTitle->text());
 		PublicationWorking->setAccessibleDescription(WorkingStatus->text());
 		PublicationStatus->setText(status);
-		PublicationStatus->setVisible(!publishing && !attention && !status.isEmpty());
+		PublicationStatus->setVisible(!publishing && !banner && !status.isEmpty());
+		FormSentence->setText(QString::fromStdString(aProjection.Form));
+		FormSentence->setVisible(!aProjection.Form.empty() && !publishing);
+		auto keep = QStringList{ };
+		for (const auto& [stop, title] : aProjection.KeepOneReview) {
+			keep.push_back(QStringLiteral("<a href=\"%1\">%2</a>").arg(stop.value()).arg(QString::fromStdString(title).toHtmlEscaped()));
+		}
+		KeepOneReviewList->setText(keep.isEmpty() ? QString{ } : tr("To keep one review, move these stops onto lines this diff shows, then preview again:") + QStringLiteral("<br/>") + keep.join(QStringLiteral("<br/>")));
+		KeepOneReview->setVisible(!keep.isEmpty() && !publishing);
+		if (keep.isEmpty() || publishing) {
+			KeepOneReview->setChecked(false);
+		}
+		KeepOneReviewList->setVisible(KeepOneReview->isVisibleTo(PublicationPanel) && KeepOneReview->isChecked());
+		const auto counted = aProjection.Total > 0U && (publishing || aProjection.Phase == phase::stopped);
+		StepCount->setText(counted ? tr("Step %1 of %2").arg(aProjection.Step).arg(aProjection.Total) : QString{ });
+		StepCount->setVisible(counted);
+		StepList->present(aProjection.Steps);
+		StepList->setVisible(!aProjection.Steps.empty());
+		ShownPublication = aProjection;
+		HeadProgress     = aProjection.Phase == phase::publishing ? core::tour_head_progress{ core::tour_publication_progress::publishing, aProjection.Step, aProjection.Total }
+			: aProjection.Phase == phase::stopped                 ? core::tour_head_progress{ core::tour_publication_progress::stopped, aProjection.Step, aProjection.Total }
+																  : core::tour_head_progress{ };
+		refresh_foot();
 		const auto link = QString::fromStdString(aProjection.Link);
 		PublicationLink->setText(link.isEmpty() ? QString{ } : tr("On GitHub: %1").arg(link));
 		PublicationLink->setVisible(aProjection.Phase == phase::published && !link.isEmpty());
@@ -2294,7 +2376,6 @@ namespace bpr::qt {
 																										 : tr("Publish tour"));
 		PublishTour->setEnabled(aProjection.Publish && !publishing);
 		PreparePublication->setEnabled(!publishing);
-		PublicationMode->setEnabled(!publishing);
 		DescriptionEdit->setEnabled(!publishing);
 		ResumeTour->setEnabled(aProjection.Resume);
 		ReconcileTour->setEnabled(aProjection.Reconcile);
@@ -3508,13 +3589,8 @@ namespace bpr::qt {
 	void review_tour_editor::hold_scroll()
 	{
 		// The scroll area the Tour tab sits in (the drawer's, or the page's).
-		QScrollArea* outer = nullptr;
-		for (auto* parent = parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
-			if (auto* const scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr && scroll->widget() != nullptr && scroll->widget()->isAncestorOf(this)) {
-				outer = scroll;
-				break;
-			}
-		}
+		// [[BPR-1991]]: the route's own, between the head and the agent bar.
+		QScrollArea* const outer = RouteScroll;
 		if (outer == nullptr) {
 			return;
 		}
@@ -4825,7 +4901,6 @@ namespace bpr::qt {
 			Outline->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 			RouteColumn->show();
 			PageColumns->hide();
-			PreviewPublish->show();
 			if (auto* const previewPage = Roadmap->widget(Roadmap->count() - 1); previewPage != nullptr && Preview->parentWidget() != previewPage) {
 				static_cast<QVBoxLayout*>(previewPage->layout())->addWidget(Preview, 1);
 				Preview->show();
@@ -4854,7 +4929,6 @@ namespace bpr::qt {
 			Outline->setMaximumHeight(QWIDGETSIZE_MAX);
 			RouteColumn->hide();
 			PageColumns->show();
-			PreviewPublish->hide();
 			static_cast<QVBoxLayout*>(PublicationPanel->layout())->insertWidget(1, Preview, 1);
 			Preview->setVisible(PublicationPreview->isHidden());
 			refresh_preview();
@@ -5164,7 +5238,59 @@ namespace bpr::qt {
 
 	void review_tour_editor::refresh_foot()
 	{
-		PreviewPublish->setEnabled(Shown.Draft != nullptr && !Shown.Loading);
+		// [[BPR-1991]]. The head: where the tour stands, from the draft and
+		// the publication's progress, the same decision Overview shows.
+		const auto head = core::decide_tour_head(Shown.Loading ? nullptr : Shown.Draft.get(), HeadProgress);
+		if (head == Head->shown()) {
+			return;
+		}
+		Head->present(head);
+		if (HeadObserver) {
+			HeadObserver();
+		}
+	}
+	auto review_tour_editor::head() const -> const core::tour_head&
+	{
+		return Head->shown();
+	}
+	void review_tour_editor::set_head_observer(std::function<void()> aObserver)
+	{
+		HeadObserver = std::move(aObserver);
+	}
+	void review_tour_editor::trigger_head(const core::tour_head_action aAction)
+	{
+		switch (aAction) {
+		case core::tour_head_action::publish:
+		case core::tour_head_action::update:
+			// The tour page with its preview already computed.
+			if (ExpandDispatch) {
+				ExpandDispatch(true);
+			}
+			trigger(tour_editor_action::preview_publication);
+			return;
+		case core::tour_head_action::details:
+			if (ExpandDispatch) {
+				ExpandDispatch(true);
+			}
+			return;
+		case core::tour_head_action::resume:    trigger(tour_editor_action::resume_publication); return;
+		case core::tour_head_action::on_github: trigger(tour_editor_action::open_published); return;
+		}
+	}
+	void review_tour_editor::follow_remedy(const application::tour_publication_remedy aRemedy, const core::tour_stop_id aStop)
+	{
+		using remedy = application::tour_publication_remedy;
+		switch (aRemedy) {
+		case remedy::resume:        trigger(tour_editor_action::resume_publication); return;
+		case remedy::check_status:  trigger(tour_editor_action::reconcile_publication); return;
+		case remedy::preview_again: trigger(tour_editor_action::preview_publication); return;
+		case remedy::move_stops:
+			if (aStop.value() != 0U) {
+				go_to_stop(aStop);
+			}
+			return;
+		case remedy::other_connection: trigger(tour_editor_action::choose_connection); return;
+		}
 	}
 
 	void review_tour_editor::resizeEvent(QResizeEvent* aEvent)

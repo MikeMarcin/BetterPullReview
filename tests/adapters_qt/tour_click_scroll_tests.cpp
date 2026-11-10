@@ -75,11 +75,11 @@ auto main(int argc, char** argv) -> int
 		draft.Stops.push_back(stop);
 	}
 	draft.LastStopId = 6U;
-	auto scroll      = QScrollArea{ };
-	scroll.setWidgetResizable(true);
-	scroll.resize(380, 700);
-	auto* const editor = new qt::review_tour_editor{ };
-	scroll.setWidget(editor);
+	// [[BPR-1991]]. The route scrolls inside the tab, between its head and
+	// its agent bar: the drawer's scroll area is the editor's own.
+	auto        tab    = qt::review_tour_editor{ };
+	auto* const editor = &tab;
+	editor->resize(380, 700);
 	// As the window answers: Show in code (navigate_stop) brings the stops
 	// step forward and the stop's lines into the code, and the host's
 	// presentation comes back with the stop selected.
@@ -92,28 +92,24 @@ auto main(int argc, char** argv) -> int
 			editor->show_problem();
 			editor->show_stops();
 			QTimer::singleShot(20, editor, [editor] {
-				for (auto* parent = editor->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
-					if (auto* const area = qobject_cast<QScrollArea*>(parent); area != nullptr) {
-						area->verticalScrollBar()->setValue(area->verticalScrollBar()->maximum());
-						return;
-					}
-				}
+				auto* const area = editor->route_scroll();
+				area->verticalScrollBar()->setValue(area->verticalScrollBar()->maximum());
 			});
 		} });
-	scroll.show();
+	editor->show();
 	editor->present({ .Draft = std::make_shared<const core::review_tour>(draft) });
 	editor->set_agent_readiness(qt::agent_setup_readiness::ready);
 	editor->show_stops();
 	settle();
 	auto* const outline = editor->findChild<QListWidget*>(QStringLiteral("tourOutline"));
 	expect(outline != nullptr && outline->count() == 6, "six stops on the route");
-	auto* const bar = scroll.verticalScrollBar();
+	auto* const bar = editor->route_scroll()->verticalScrollBar();
 	expect(bar->maximum() > 0, "the route is taller than the drawer");
 
 	// Each stop, clicked where it is shown: the drawer keeps its place.
 	for (int row = 0; row < outline->count(); ++row) {
 		// Bring the row into the middle of the drawer, as a person scrolls to it.
-		const auto rowTop = outline->mapTo(editor, outline->visualItemRect(outline->item(row)).topLeft()).y();
+		const auto rowTop = outline->mapTo(editor->route_scroll()->widget(), outline->visualItemRect(outline->item(row)).topLeft()).y();
 		bar->setValue(std::clamp(rowTop - 200, 0, bar->maximum()));
 		settle();
 		const auto before = bar->value();

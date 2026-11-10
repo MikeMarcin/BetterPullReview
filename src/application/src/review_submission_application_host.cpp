@@ -262,6 +262,30 @@ namespace bpr::application {
 			} catch (...) { }
 			return true;
 		}
+		/// [[BPR-1992]]. Consumes the grant for one write and, when it is
+		/// granted, tells the projection on the decision lane what GitHub has
+		/// confirmed before it.
+		auto authorize_child(const std::shared_ptr<record>& aRecord, const staged_publication_record& aChild) -> bool
+		{
+			if (!aRecord->Grant || !aRecord->Grant->consume_child(aChild)) {
+				return false;
+			}
+			auto self = shared_from_this();
+			try {
+				Decisions.post([self, aRecord, progress = aChild] {
+					{
+						std::scoped_lock lock{ self->Mutex };
+						if (self->Active != aRecord) {
+							return;
+						}
+					}
+					try {
+						self->Projection.progressed(aRecord->Context, progress);
+					} catch (...) { }
+				});
+			} catch (...) { }
+			return true;
+		}
 		/// [[RFC-BPR-0105]]. Ends accepted work that has not begun: it will
 		/// never run, and its one terminal (cancelled before any effect) is
 		/// delivered now.
@@ -333,7 +357,7 @@ namespace bpr::application {
 				return { aRecord->Context, std::move(pending) };
 			}
 			if (aRecord->Plan) {
-				auto result = aRecord->Operation == operation::save_conversation_reply ? provider->save_conversation_reply(*aRecord->Plan) : aRecord->Operation == operation::publish_tour ? provider->publish_tour(*aRecord->Plan, aRecord->Stop.get_token(), [grant = aRecord->Grant](const auto& aChild) { return grant && grant->consume_child(aChild); })
+				auto result = aRecord->Operation == operation::save_conversation_reply ? provider->save_conversation_reply(*aRecord->Plan) : aRecord->Operation == operation::publish_tour ? provider->publish_tour(*aRecord->Plan, aRecord->Stop.get_token(), [this, aRecord](const auto& aChild) { return authorize_child(aRecord, aChild); })
 																																														   : provider->reconcile_tour(*aRecord->Plan, aRecord->Stop.get_token());
 				if (result.Record && (!valid(*result.Record) || result.Record->Plan != *aRecord->Plan)) {
 					return refused(*aRecord, review_mutation_failure::unavailable, false);

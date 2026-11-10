@@ -135,7 +135,7 @@ auto main(int argc, char** argv) -> int
 	expect(field->mapTo(&editor, QPoint{ 0, 0 }).x() == 10 && editor.width() - (field->mapTo(&editor, QPoint{ 0, 0 }).x() + field->width()) == 10 && editor.height() - (top(field) + field->height()) == 10,
 		   "the bar's field sits as the Agent tab's question field does, 10 in from the sides and bottom");
 	expect(field->width() - (picker->mapTo(field, QPoint{ 0, 0 }).x() + picker->width()) <= 8, "the pill sits at the bar's right, as in the Agent tab");
-	expect(top(foot) + foot->height() <= top(bar) && top(foot) > top(next), "Preview and publish sits above the agent bar, below the steps");
+	expect(top(foot) + foot->height() <= top(bar) && top(foot) > top(next), "the save state sits above the agent bar, below the steps");
 	expect(picker->width() >= picker->sizeHint().width(), "the picker keeps its whole words in the drawer");
 	// It stays the bar whatever step is open.
 	next->click();

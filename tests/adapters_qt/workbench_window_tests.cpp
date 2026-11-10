@@ -45,6 +45,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -21238,11 +21239,29 @@ namespace {
 		window.publish(overview);
 		process_events();
 		expect(drawer->tour_tab_shown() && summary->shown().Kind == core::overview_tour_kind::prepare, "the author with no tour is offered Prepare");
-		auto draft = tests::review_tour_fixture();
+		auto draft    = tests::review_tour_fixture();
+		draft.Problem = "Crash when **deleted** data is read.";
 		editor->present({ .Draft = std::make_shared<const core::review_tour>(draft) });
 		process_events();
 		expect(summary->shown().Kind == core::overview_tour_kind::writer && summary->stop_titles().size() == static_cast<qsizetype>(draft.Stops.size()),
 			   "the author's draft shows its stops");
+		// [[BPR-1993]], RFC-BPR-0099 AC07. Problem and Solution are Markdown, as
+		// the Tour tab reads them; a stop row has its file, lines and first
+		// sentence and opens that stop in Review; the state line and actions
+		// are the Tour tab head's.
+		expect(summary->problem_view()->original_body() == draft.Problem && summary->problem_view()->rendered_available() && summary->problem_view()->rendered_view()->toPlainText().contains(QStringLiteral("Crash when deleted data is read.")),
+			   "Problem renders as Markdown, not as its source");
+		expect(summary->stop_places() == QStringList{ QStringLiteral("item.cpp, lines 4\u20136") } && summary->stop_leads() == QStringList{ QStringLiteral("Keep raw text <details>hidden</details>") },
+			   "a stop row has its file, its lines and its first sentence");
+		expect(summary->head() == editor->head() && summary->head_bar()->isVisibleTo(summary) && summary->head_bar()->state_label()->accessibleName() == editor->head_bar()->state_label()->accessibleName() && summary->head_bar()->shown_actions() == editor->head_bar()->shown_actions(),
+			   "the state line and actions are the Tour tab head's");
+		expect(summary->head_bar()->button(core::tour_head_action::publish) != nullptr && summary->head_bar()->button(core::tour_head_action::publish)->isEnabled() == editor->head_bar()->button(core::tour_head_action::publish)->isEnabled(), "Publish… is offered on Overview as in the Tour tab");
+		drawer->show_tab(qt::overview_drawer_tab::tour);
+		process_events();
+		summary->open_row(0U);
+		process_events();
+		expect(!window.showing_overview() && window.tray_tabs()->currentIndex() == 2 && editor->selected_stop() != nullptr && editor->selected_stop()->Id == draft.Stops.front().Id, "a stop row opens that stop in Review");
+		window.choose_modality(qt::review_modality::overview);
 		drawer->show_tab(qt::overview_drawer_tab::tour);
 		process_events();
 		summary->action()->click();
