@@ -61,8 +61,17 @@ plan checkpoint and final handoff receipt.
 
 ## Integration frontier
 
-Next: commit exact tested one-file source/checkpoint slice, guard expected
-canonicalfcc786fee, normal main integration/push, shared Done/docs closeout and
-return exact hashes and writer/Mac lease. Preserve1984PC work, all reservations,
-NEXT maximum and foreign attachments. All own commands finish before handoff.
-Full Mac/Windows/Linux/native qualification remains root-owned and separate.
+Exact source/checkpoint commit
+`74fc7df8ca502b53832e8c64133694b556080fd9` normally fast-forwards canonical
+main and is pushed from584a to that exact verified remote revision. Expected
+canonicalfcc786fee guard is observed before integration. Sole code delta is the
+two explicit names in live_review_submission_provider_tests.cpp. Frozen5fd
+production/registry/pins and1984/85receipts are preserved, with NEXT1987. No
+external product main is fetched/merged. Shared Done/docs closeout changes no
+proven source; external final-handoff.json records exact final main.
+
+All own command results are consumed and terminal; no review server or variant
+exists. Main-writer and Mac engineering lease return to root/Windows1984owner
+for their respective work. No PC, live mutation, desktop, full app or protected
+producer mutation occurs. Root owns final common-source native qualification;
+Windows1984measurement and original1978diagnosis remain separate obligations.
