@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1983-tour-repair-reseal",
+  "scope": {
+    "issues": [
+      "BPR-1983"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "review-tour-repair-composition",
+      "outcome": "Strict source verification binds accepted destination repair/mixed publication/maintenance composition, preserving source inventories, other tripwires and explicit Windows containment measurement obligations.",
+      "work": [
+        {
+          "issue": "BPR-1983",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Review all new pinned composition and supporting core/host/publication/legacy maintenance changes against accepted1979/1981/1982 handoffs, actual command quiescence/criteria and registry delta; independently verify ordered142/complete197 inventory and normalized digests.",
+        "Retain actual stale source failure, reseal only reviewed manifest/comment after maintained agreement, and pass strict source/adversarial/documentation/registry controls while preserving other pins.",
+        "Normally integrate and push all accepted source plus actual1983 allocation/counters; finish own commands and return writer/Mac lease with no PC/app/native/producer operation. New unmeasured Windows rows stay truthful and require separate native measurement before final qualification."
+      ],
+      "boundary": "Only tests/end_to_end/application_review_round_trip_composition_contract.cmake plus1983plan/card/checkpoint; registry reviewed/preserved, no product fix or unmeasured exception replacement. Reuse exact accepted product evidence; no exhaustive reruns."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
