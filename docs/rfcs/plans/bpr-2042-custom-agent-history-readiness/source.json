@@ -1,0 +1,8 @@
+{
+  "frozen_source": "899056e7de7187edc0ee206a7dc499a1f5487af4",
+  "baseline_sha256": {
+    "tests/end_to_end/agent_chat_composition_public_path.cpp": "aa651677fd2a01e5b7b162381217f3c42fb7747ba0dd4a765fdd508b38f56d1a"
+  },
+  "negative_evidence": "/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-pathological-release-triage-r1/custom-empty-diagnostic/receipt.json",
+  "authority": "Root approved after actual both-loading/disabled-click reproduction"
+}

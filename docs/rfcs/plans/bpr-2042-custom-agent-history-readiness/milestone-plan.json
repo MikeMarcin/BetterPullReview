@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2042-custom-agent-history-readiness",
+  "scope": {
+    "issues": [
+      "BPR-2042"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "wait-for-real-history-readiness",
+      "outcome": "The empty-message refusal gesture runs only after the chosen custom agent is ready.",
+      "work": [
+        {
+          "issue": "BPR-2042",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Retain frozen54 actual failure and the single old899 diagnostic reproduction: Ask disabled, both histories loading, no refusal and zero process starts;111 protected producer inputs unchanged.",
+        "Only the existing custom-agent test waits for the chosen profile, actual legacy Loaded, combined history loading false and actual Ask enabled under its unchanged default agent budget. Preserve the same clear, one empty Ask click, single original event pump, empty_message/visible Not sent/zeroStarts and all later oracles; no product or wording change.",
+        "Focused original custom-agent course and static/docs checks pass for the exact corrected test; deliberately land owned source/tracker slice on main, preserve frozen producer and foreign work, and return command/evidence state without release qualification credit."
+      ],
+      "boundary": "Only tests/end_to_end/agent_chat_composition_public_path.cpp and own tracker. No production/policy/wording changes, budget increases, producer mutations, external product intake or native execution without lease."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
