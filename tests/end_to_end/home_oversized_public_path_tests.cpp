@@ -124,7 +124,10 @@ try {
 	// `--approve-again`: the fixture's own recorded pull request (#17) is the
 	// one whose approval GitHub dismissed, so Approve again can open it.
 	const auto approveAgain = arguments.contains(QStringLiteral("--approve-again"));
-	auto       discovered   = app::detail::github_personal_discovery_fixture{ };
+	// `--attended`: the owner's look. Every check of the rows as listed runs;
+	// the gestures (Seen, Approve again, opening #17) are left to the person.
+	const auto attended   = arguments.contains(QStringLiteral("--attended"));
+	auto       discovered = app::detail::github_personal_discovery_fixture{ };
 	if (approveAgain) {
 		discovered.OpenPullRequests = {
 			{ .Number = 17U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" }, .ViewerVerdictBefore = "DISMISSED" },
@@ -183,6 +186,9 @@ try {
 		expect(dismissed.Group == qt::home_group::needs_you && dismissed.Index.data(qt::home_row_role::row_action).toString() == QStringLiteral("Approve again"),
 			   "a dismissed approval offers Approve again");
 		auto* const again = hovered_action(dismissed);
+		if (attended) {
+			goto attend;
+		}
 		expect(again != nullptr && again->toolTip().contains(QStringLiteral("dismissed")), "Approve again shows on the row and says GitHub dismissed the approval");
 		again->click();
 		wait_for([&] { return !window->showing_home() && window->review_sheet_open(); }, "Approve again opens the pull request with its review");
@@ -212,6 +218,9 @@ try {
 			window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/home-oversized-seen.png"));
 		}
 		auto* const seen = hovered_action(approved);
+		if (attended) {
+			goto attend;
+		}
 		expect(seen != nullptr && seen->text() == QStringLiteral("Seen") && seen->toolTip().contains(QStringLiteral("Nothing changes on GitHub")), "Seen shows on the row under the pointer, saying it writes nothing");
 		const auto reads = discovery().Statistics.Submitted;
 		seen->click();
@@ -250,7 +259,8 @@ try {
 		wait_for([&] { return window->session_panel()->status() == core::github_status::pull_request_failed && card->isVisible(); }, "Retry asks again and is refused the same way");
 	}
 
-	if (arguments.contains(QStringLiteral("--attended"))) {
+attend:
+	if (attended) {
 		window->resize(1100, 900);
 		window->show();
 		window->raise();
