@@ -43,11 +43,18 @@ timing claim.
 | AC03 | `application_home_next_move_public_path`: #4030 "alice requested changes; 3 conversations await my reply." (Needs me tone), #4032 "Approved by alice and bo; checks passed. Ready to merge." (confirmed tone), #4033 "build-linux failed; approved by alice." (error tone); no sentence says "My pull request"; header "2 returned, 1 ready to merge". `core_home_next_move`: an approved, mergeable pull request is never Quiet and Hide quiet keeps it | Pass |
 | AC04 | `core_home_next_move` (`test_absent_facts_claim_nothing`): conversations not read, a change request is still Returned and conversations alone never are; reviews not read are never Unassigned or Quiet, requests not read never Unassigned. `application_home_next_move_public_path`: as a search first lists them, no row of mine reads Quiet; checks or merge state not read are never Ready. `application_review_queue_enrollment` (`test_next_move_facts_codec_version_four`): conversations not read read back as not read, never zero; a read without them keeps an earlier count only as last known. `qt_review_landing_model`: a row with no count states none | Pass |
 | AC05 | `application_home_next_move_public_path`: a refresh of eleven pull requests (ten mine) is its two searches and two batched queries, exactly as before; no pull request is read alone and no review-thread read is added. `github_paged_read` (`test_retained_home_batch_reads_conversations`): only authored aliases ask for the fragment; the conversations cost no request; a batch of one of mine is one query; more than 50 threads is flagged; an authored number outside the batch, or a batch of one not mine, is refused before any request. The fragment reads at most `maximum_queue_review_threads` (50) threads and one comment each | Pass |
-| AC06 | The owner's look at the rows on a frozen build | Pending: see [AC06](#ac06-the-owners-look) |
+| AC06 | The owner's look at the rows on a frozen build | Pass: owner accepted all three candidates, see [AC06](#ac06-the-owners-look) |
 
 ## AC06: the owner's look
 
-Pending; filed for the owner and not waited on (owner, 2026-11-10: "Continue
+Passed. The owner accepted all three candidates with no note (session
+`bb8c24c5f3cb7ed97777f4e3f1a70a78`): `BPR-1989-home-moves` (decision
+`23a80fed`, fingerprint `d731515bac4f…`), `BPR-1989-own-pull-requests`
+(`cae206d9`, `34bcb3bb4613…`) and `BPR-1989-word-place` (`0b371105`: the
+word stays after the sentence). The host (95022/95034) was stopped and both
+roots removed with `freeze_attended_build.py remove`.
+
+As filed (for the owner and not waited on (owner, 2026-11-10: "Continue
 working unattended, you can file reviews but dont block on their results").
 Session `bb8c24c5f3cb7ed97777f4e3f1a70a78`, state
 `/Users/jaeger/.attended-review-state/home-next-move-v001-2026-11-10/state`:
@@ -85,7 +92,7 @@ in the handoff.
 ## Owner fix round: BPR-2048 and BPR-2049 (2026-11-10)
 
 Two owner-reported Home defects on the same lane, each its own card
-([BPR-2048](../issues/40-parked/BPR-2048-one-oversized-pull-request-fails-no-home-refresh.md),
+([BPR-2048](../issues/60-done/BPR-2048-one-oversized-pull-request-fails-no-home-refresh.md),
 [BPR-2049](../issues/40-parked/BPR-2049-seen-and-approve-again-for-an-approval-with-new-commits.md)).
 Frontend-design was loaded before the Qt work.
 
@@ -166,3 +173,12 @@ submitted, and the row moves when the return to Home reads it. No Unapprove.
   nothing; opening #17 shows the card with Open on GitHub and Retry; Retry is
   refused the same way. `application_home_approve_again_public_path`: Approve
   again opens the pull request with its review and Approve.
+
+## Owner fix round: the owner's look
+
+Passed. The owner accepted all four candidates of session
+`9ed1f1a047a56e4d35f43e92d4f9d70b` with no note: `BPR-2048-oversized-row`
+(decision `b441c298`), `BPR-2048-too-large-card` (`4fd937ca`),
+`BPR-2049-seen` (`c495f9e1`) and `BPR-2049-approve-again` (`3e464b5d`:
+Approve again keeps opening the review with Approve focused). Host
+74660/74677 stopped; root `home-oversized-seen-v001.9rw9vr9h` removed.
