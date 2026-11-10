@@ -1657,6 +1657,9 @@ namespace bpr::qt {
 		RouteScroll->setWidgetResizable(true);
 		RouteScroll->setFrameShape(QFrame::NoFrame);
 		RouteScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		// The wheel and the route's own controls scroll it; the area itself
+		// takes no keyboard focus, as the drawer's did not inside the tab.
+		RouteScroll->setFocusPolicy(Qt::NoFocus);
 		auto* const routeBody = new route_body{ RouteScroll };
 		routeBody->setObjectName(QStringLiteral("tourRouteBody"));
 		auto* layout = new QVBoxLayout{ routeBody };
@@ -4901,6 +4904,7 @@ namespace bpr::qt {
 			Outline->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 			RouteColumn->show();
 			PageColumns->hide();
+			RouteScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 			if (auto* const previewPage = Roadmap->widget(Roadmap->count() - 1); previewPage != nullptr && Preview->parentWidget() != previewPage) {
 				static_cast<QVBoxLayout*>(previewPage->layout())->addWidget(Preview, 1);
 				Preview->show();
@@ -4921,6 +4925,9 @@ namespace bpr::qt {
 				BriefHosts[field]->layout()->addWidget(BriefPanels[field]);
 			}
 			StopsSlot->hide();
+			// [[BPR-1991]]. The page's columns scroll themselves; the page
+			// fits the main pane as it did before the route had its own area.
+			RouteScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			static_cast<QVBoxLayout*>(StopsHost->layout())->insertWidget(2, StopFields, 0);
 			StopFields->show();
 			Outline->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);

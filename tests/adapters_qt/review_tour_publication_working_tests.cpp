@@ -232,8 +232,8 @@ namespace {
 		for (std::size_t sent = 0U; sent <= 2U; ++sent) {
 			auto rows = std::vector<application::tour_publication_step_view>{ };
 			for (std::size_t i = 0U; i < 3U; ++i) {
-				rows.push_back({ .Label = "Step " + std::to_string(i + 1U), .State = i < sent ? step::sent : i == sent ? step::sending
-																													   : step::waiting });
+				rows.push_back({ .Label = std::array{ "Stops 1 to 3, in the pending review", "Stop 4, \u201cDirty\u201d, as a file comment", "Links for stop 1" }[i], .State = i < sent ? step::sent : i == sent ? step::sending
+																																																				 : step::waiting });
 			}
 			editor.present_publication({ .Status = "Stop keeps what GitHub already has. Nothing will be sent twice.", .Phase = phase::publishing, .Steps = rows, .Step = sent + 1U, .Total = 3U, .Stop = true });
 			QApplication::processEvents();
