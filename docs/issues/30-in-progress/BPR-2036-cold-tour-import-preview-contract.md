@@ -26,3 +26,11 @@ metadata: {"mandate_revision":"frozen53-cold-preview-contract-r1","reservation":
 Root owns running Mac and Windows full53 qualification. Until an explicit lease,
 only source editing and light static checks in the isolated frozen53 checkout
 are authorized; no producer, cache, native binary or PC mutation occurs.
+
+## Current frontier
+
+Static cause and candidate are recorded in the
+[checkpoint](../_checkpoints/BPR-2036/handoff.md). Format22, one-TU static tidy22,
+strict source inventory, documentation and scoped board checks pass. The
+corrected public course has not run: root owns active full53 native qualification.
+This card remains In Progress; no runtime/native acceptance is inferred.
