@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1978"
 title: "Diagnose the Linux UUID-less native transport failure"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
