@@ -3368,8 +3368,19 @@ function(bpr_verify_app_source_tree app_source_root)
 	# grant, provider or publication path changes. Ordered142/complete197 source
 	# inventories and full-app/mutation pins stay exact; source binding alone
 	# adds no native or release qualification credit.
+	# [[BPR-1977]] reviewed 9df93875a..54be67bc5, accepted [[BPR-1976]]:
+	# window_construction/window_review_drafts and review_submission_workflow
+	# pass the existing diagnostic port through preview, admission and host;
+	# window_tours reports current stop readiness. The existing shared
+	# tour_publication_plan desktop/CLI helper preserves typed failed reads,
+	# captured prefix, known publication and unknown witnesses. Closed core
+	# stage/state/HTTP diagnosis and export correlation, finite list changes
+	# and the corrected verification/recovery flow are independently accepted
+	# at 8ac5e12cf. No grant, actor/head or no-blind-retry boundary is relaxed.
+	# Ordered142/complete197 inventories and full-app/mutation pins stay exact;
+	# all31 supplied source hashes match. No native/corporate success inferred.
 	set(bpr_expected_production_app_manifest_digest
-        "b2d1a15963dfc2fc74cebab812b2aca6309e1c89cd2ed45b3fe318cebb32d7da"
+        "597c9db010fa32bb7c0ce16fce8aacf01c517b80dc3ea9ee4d7145447b685b35"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
