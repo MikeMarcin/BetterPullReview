@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement                 = core::agent_context_supplement;
-		const auto whole                 = supplement{ };
+		using supplement                                     = core::agent_context_supplement;
+		const auto whole                                     = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -238,7 +238,15 @@ namespace {
 					 brief,
 					 conversation,
 					 skills,
-					 tourPrompt, replay] = whole;
+					 tourPrompt, replay, subject, lookingAt] = whole;
+		// [[BPR-2002]]. A question's subject and where the reviewer is
+		// looking: paths, lines and the lines' text; no argv, environment or
+		// token.
+		static_assert(std::is_same_v<decltype(subject), const std::optional<core::supplement_subject>>);
+		static_assert(std::is_same_v<decltype(lookingAt), const std::optional<core::supplement_looking_at>>);
+		[[maybe_unused]] const auto& [subjectKind, subjectPath, subjectFirst, subjectLast, subjectBefore, subjectText, subjectInScope] = core::supplement_subject{ };
+		static_assert(std::is_same_v<decltype(subjectInScope), const std::vector<std::string>>);
+		[[maybe_unused]] const auto& [lookingPath, lookingLine, lookingBefore] = core::supplement_looking_at{ };
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
 		static_assert(std::is_same_v<decltype(replay), const std::optional<core::transcript_replay>>);
 		[[maybe_unused]] const auto& [replayTurns, replayOmitted, replayCuts, replayTour] = core::transcript_replay{ };

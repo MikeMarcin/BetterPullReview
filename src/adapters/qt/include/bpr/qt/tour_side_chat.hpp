@@ -7,6 +7,7 @@
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
+#include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -196,6 +197,10 @@ namespace bpr::qt {
 		/// diff's comments do.
 		void set_code_style(const QFont& aFont, qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
 		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
+		/// \brief [[BPR-1998]], RFC-BPR-0101. Which files the replies'
+		/// references may name and where a link goes, as in the Agent tab; a
+		/// stop's chat reads a bare "line 12" as its stop's file.
+		void set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate, agent_reference_chooser aChoose = { });
 		/// \brief The agent accent, from `aGround`'s window.
 		void restyle(const QPalette& aGround);
 		/// \brief [[BPR-1916]]. The skills `/name` completion offers in the
@@ -312,6 +317,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto live_status() const -> agent_run_status;
 		[[nodiscard]] auto agent_of(core::tour_agent_run_id aRun) const -> QString;
 
+		agent_reference_files_source                                                ReferenceFiles;
+		agent_reference_navigation                                                  ReferenceNavigate;
+		agent_reference_chooser                                                     ReferenceChoose;
 		ask_dispatch                                                                AskDispatch;
 		std::function<void()>                                                       StopDispatch;
 		decide_dispatch                                                             DecideDispatch;

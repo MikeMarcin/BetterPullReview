@@ -509,6 +509,11 @@ namespace bpr::qt {
 		/// and scrolled back into view, so the gesture always shows that change.
 		/// Returns whether the selection changed.
 		[[nodiscard]] auto navigate_outermost_change(core::change_navigation_direction aDirection) -> bool;
+		/// \brief [[BPR-2002]], RFC-BPR-0102. Clears the line selection and
+		/// the panes' text selections, as Escape in a code pane does when no
+		/// find bar or editor in the diff has a use for it first. Returns
+		/// whether anything was selected.
+		auto               clear_line_selection() -> bool;
 		[[nodiscard]] auto shared_scrollbar() const noexcept -> QScrollBar*;
 		[[nodiscard]] auto comparison_splitter() const noexcept
 			-> diff_comparison_splitter*;

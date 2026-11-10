@@ -1008,13 +1008,19 @@ namespace bpr::app {
 
 		std::shared_ptr<private_review_workflow>       PrivateReview;
 		std::optional<application::private_run_intent> ExplicitPrivateRun;
-		core::agent_setting_facts                      PrivateRequested;
-		bool                                           PrivateDraftsReady           = false;
-		bool                                           PrivateDraftSelectionPending = false;
-		bool                                           PrivateDraftCommandPending   = false;
-		void                                           observe_private_review();
-		void                                           adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen);
-		[[nodiscard]] auto                             insights_capture(const application::accepted_pull_request_handoff& aHandoff) const -> application::insights_review_capture;
+		/// [[BPR-2002]]. The subject of the chat question being dispatched,
+		/// set only around that one dispatch.
+		std::optional<core::agent_question> ChatQuestion;
+		/// [[BPR-2002]]. Composes a chat question's subject and where the
+		/// reviewer is looking into `aObservation`.
+		void                      compose_question_subject(application::agent_context_observation& aObservation, const core::agent_question& aQuestion);
+		core::agent_setting_facts PrivateRequested;
+		bool                      PrivateDraftsReady           = false;
+		bool                      PrivateDraftSelectionPending = false;
+		bool                      PrivateDraftCommandPending   = false;
+		void                      observe_private_review();
+		void                      adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen);
+		[[nodiscard]] auto        insights_capture(const application::accepted_pull_request_handoff& aHandoff) const -> application::insights_review_capture;
 
 		void compose_review_ledger(
 			const application::accepted_pull_request_handoff& aHandoff);

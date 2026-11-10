@@ -1543,6 +1543,9 @@ namespace bpr::qt {
 		// [[BPR-1934]]. An empty chat's suggested prompts, from the
 		// application's one list.
 		chat->set_prompt_source(&application::tour_chat_prompts);
+		// [[BPR-1998]]. Its replies' references open as the Agent tab's do.
+		chat->set_reference_links([this] { return core::agent_reference_files{ .Changed = review_changed_files() }; },
+								  [this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(go_to_file_line(aPath, aFirst, aBefore, aLast)); });
 		TourChatSplit->addWidget(chat);
 		TourChatSplit->setStretchFactor(0, 9);
 		TourChatSplit->setStretchFactor(1, 11);

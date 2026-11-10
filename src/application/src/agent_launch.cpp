@@ -2116,6 +2116,8 @@ namespace bpr::application {
 			.Brief              = aObservation.Brief,
 			.Conversation       = aObservation.Conversation,
 			.Skills             = aObservation.Skills,
+			.Subject            = aObservation.Subject,
+			.LookingAt          = aObservation.LookingAt,
 		};
 		if (tourRun) {
 			request.TourPrompt = core::agent_tour_prompt{ .Session = aSession.Id, .Text = aObservation.TourPrompt };
@@ -2410,6 +2412,35 @@ namespace bpr::application {
 			// run keeps its exact bytes.
 			if (!aSupplement.TourPrompt.empty()) {
 				append_field(aResult, "tour_prompt", aSupplement.TourPrompt);
+			}
+			// [[BPR-2002]], RFC-BPR-0102: what the question is about, in the
+			// core's fixed words, and apart from it where the reviewer is
+			// looking. Written only for a question, so every other launch
+			// keeps its exact bytes.
+			if (aSupplement.Subject) {
+				const auto& subject = *aSupplement.Subject;
+				append_field(aResult, "subject", core::stable_name(subject.Subject));
+				append_field(aResult, "subject.statement", core::agent_question_statement(subject.Subject));
+				if (!subject.Path.empty()) {
+					append_field(aResult, "subject.path", subject.Path);
+				}
+				if (subject.Subject == core::agent_question_subject::lines) {
+					append_field(aResult, "subject.side", subject.Before ? "base" : "head");
+					append_number(aResult, "subject.first_line", subject.FirstLine);
+					append_number(aResult, "subject.last_line", subject.LastLine);
+					append_field(aResult, "subject.text", subject.Text);
+				}
+				if (subject.Subject == core::agent_question_subject::pull_request) {
+					append_number(aResult, "subject.file.count", subject.InScope.size());
+					for (auto index = std::size_t{ 0U }; index < subject.InScope.size(); ++index) {
+						append_field(aResult, "subject.file." + std::to_string(index), subject.InScope[index]);
+					}
+				}
+			}
+			if (aSupplement.LookingAt) {
+				append_field(aResult, "looking_at.path", aSupplement.LookingAt->Path);
+				append_field(aResult, "looking_at.side", aSupplement.LookingAt->Before ? "base" : "head");
+				append_field(aResult, "looking_at.line", aSupplement.LookingAt->Line ? std::to_string(*aSupplement.LookingAt->Line) : std::string{ });
 			}
 			if (aSupplement.Replay) {
 				append_field(aResult, "transcript_replay.mode", "Transcript replay: saved questions and replies only; prior tool memory is absent; PR files and Git are shared. Current BPR context is authoritative.");

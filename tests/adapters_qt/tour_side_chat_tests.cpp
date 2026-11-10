@@ -451,6 +451,32 @@ auto main(int argc, char** argv) -> int
 		settle();
 		syntax.deliver(editor);
 	}
+	// [[BPR-1998]], RFC-BPR-0101 AC01. The reply's references are links by
+	// the Agent tab's recogniser: prose, emphasis and a whole code span, not
+	// fenced code; a file the pull request does not change is plain; Copy
+	// keeps the reply as written.
+	{
+		auto went = std::vector<std::pair<QString, std::uint32_t>>{ };
+		chat->set_reference_links([] { return core::agent_reference_files{ .Changed = { "src/frame.cpp" } }; },
+								  [&went](const QString& aPath, const std::uint32_t aFirst, std::uint32_t, bool) { went.emplace_back(aPath, aFirst); });
+		auto       linked = session;
+		const auto run    = core::begin_tour_ask(linked, asked[0].Thread, std::nullopt, "Where?");
+		expect(run.has_value(), "start the references turn");
+		static_cast<void>(core::answer_tour_ask(linked, *run, "See src/frame.cpp:3-5, **frame.cpp line 7**, `frame.cpp:9` and other.cpp:2.\n\n```\nframe.cpp:11\n```\n", { }));
+		editor.present_tour_session(linked, changes);
+		settle();
+		auto* const view = chat->reply(chat->turn_count() - 1U);
+		const auto  body = view == nullptr ? QString{ } : QString::fromStdString(view->original_body());
+		expect(body.contains(QStringLiteral("[src/frame.cpp:3-5](src/frame.cpp#L3-L5)")) && body.contains(QStringLiteral("[frame.cpp line 7](src/frame.cpp#L7)"))
+				   && body.contains(QStringLiteral("[`frame.cpp:9`](src/frame.cpp#L9)")) && !body.contains(QStringLiteral("other.cpp#")) && body.contains(QStringLiteral("```\nframe.cpp:11\n```")),
+			   "AC01 the tour side chat's reply links each form, and not in fenced code: " + body.toStdString());
+		chat->copy_reply_button(chat->turn_count() - 1U)->click();
+		expect(QGuiApplication::clipboard()->text().startsWith(QStringLiteral("See src/frame.cpp:3-5, **frame.cpp line 7**")), "Copy keeps the reply as written");
+		chat->set_reference_links({ }, { });
+		editor.present_tour_session(session, changes);
+		settle();
+		syntax.deliver(editor);
+	}
 	// [[BPR-1914]] v004, owner look v003: "it seems like inline code isnt
 	// being highlighted only blocks". Inline code reads in the language of
 	// the chat's part (here the tour's stops, all C++).

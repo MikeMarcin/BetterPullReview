@@ -692,6 +692,22 @@ bpr_enable_warnings(test_better_pull_review_agent_turn_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_turn COMMAND test_better_pull_review_agent_turn_core_tests)
 set_tests_properties(core_agent_turn PROPERTIES PASS_REGULAR_EXPRESSION "agent-turn-tests:pass")
 
+# [[BPR-1998]]. The code reference recogniser every agent reply shares.
+bpr_add_executable(test_better_pull_review_agent_reference_core_tests agent_reference_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_reference_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_reference_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_reference_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_reference COMMAND test_better_pull_review_agent_reference_core_tests)
+set_tests_properties(core_agent_reference PROPERTIES PASS_REGULAR_EXPRESSION "agent-reference-tests:pass")
+
+# [[BPR-2002]]. A question's subject, decided from what the reviewer did.
+bpr_add_executable(test_better_pull_review_agent_question_core_tests agent_question_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_question_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_question_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_question_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_question COMMAND test_better_pull_review_agent_question_core_tests)
+set_tests_properties(core_agent_question PROPERTIES PASS_REGULAR_EXPRESSION "agent-question-tests:pass")
+
 bpr_add_executable(
     test_better_pull_review_agent_session_core_tests
     agent_session_tests.cpp

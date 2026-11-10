@@ -269,200 +269,6 @@ namespace bpr::qt {
 		return aModel.trimmed();
 	}
 
-	auto agent_line_link(const QString& aPath, const std::uint32_t aLine, const bool aBefore) -> QString
-	{
-		return aPath + (aBefore ? QStringLiteral("#B") : QStringLiteral("#L")) + QString::number(aLine);
-	}
-
-	auto agent_line_link_target(const QString& aLink) -> std::optional<std::pair<QString, std::pair<std::uint32_t, bool>>>
-	{
-		const auto hash = aLink.lastIndexOf(QLatin1Char{ '#' });
-		if (hash <= 0 || hash + 2 >= aLink.size() || (aLink[hash + 1] != QLatin1Char{ 'L' } && aLink[hash + 1] != QLatin1Char{ 'B' })) {
-			return std::nullopt;
-		}
-		auto       number = false;
-		const auto line   = aLink.mid(hash + 2).toUInt(&number);
-		if (!number || line == 0U || aLink.contains(QStringLiteral("://"))) {
-			return std::nullopt;
-		}
-		return std::pair{ aLink.left(hash), std::pair{ static_cast<std::uint32_t>(line), aLink[hash + 1] == QLatin1Char{ 'B' } } };
-	}
-
-	auto agent_line_references(const QString& aText, const agent_file_resolver& aResolve, const QString& aContextFile) -> std::vector<agent_line_reference>
-	{
-		auto found = std::vector<agent_line_reference>{ };
-		if (!aResolve) {
-			return found;
-		}
-		const auto taken = [&found](const qsizetype aBegin, const qsizetype aEnd) {
-			return std::ranges::any_of(found, [&](const agent_line_reference& aKnown) { return aBegin < aKnown.Begin + aKnown.Length && aKnown.Begin < aEnd; });
-		};
-		const auto add = [&](const QRegularExpressionMatch& aMatch, const QString& aPath, const int aFirst, const int aLast, const bool aBefore) {
-			auto       firstOk = false;
-			auto       lastOk  = false;
-			const auto first   = aMatch.captured(aFirst).toUInt(&firstOk);
-			const auto last    = aLast > 0 && aMatch.hasCaptured(aLast) ? aMatch.captured(aLast).toUInt(&lastOk) : first;
-			if (!firstOk || first == 0U || taken(aMatch.capturedStart(), aMatch.capturedEnd())) {
-				return;
-			}
-			found.push_back({ .Begin  = aMatch.capturedStart(),
-							  .Length = aMatch.capturedLength(),
-							  .Path   = aPath,
-							  .First  = static_cast<std::uint32_t>(first),
-							  .Last   = static_cast<std::uint32_t>(std::max(first, aLast > 0 && aMatch.hasCaptured(aLast) && lastOk ? last : first)),
-							  .Before = aBefore });
-		};
-		// A path: words of letters, digits, `.`, `_` and `-` between slashes,
-		// the last with an extension.
-		static const auto path  = QStringLiteral(R"((?<![\w./\\-])((?:[\w.-]+/)*[\w-][\w.-]*\.[A-Za-z0-9_+]+))");
-		static const auto named = QRegularExpression{ path + QStringLiteral(R"( ([Ll]ines?) (\d+)(?:\s*(?:[-–]|to)\s*(\d+))?( before the change)?(?!\d))") };
-		static const auto colon = QRegularExpression{ path + QStringLiteral(R"(:(\d+)(?:[-–](\d+))?(?![\d\w]))") };
-		static const auto bare  = QRegularExpression{ QStringLiteral(R"((?<![\w/.-])[Ll]ines? (\d+)(?:\s*(?:[-–]|to|and)\s*(\d+))?( before the change)?(?!\d))") };
-		for (auto it = named.globalMatch(aText); it.hasNext();) {
-			const auto match = it.next();
-			if (const auto resolved = aResolve(match.captured(1))) {
-				add(match, *resolved, 3, 4, match.hasCaptured(5));
-			}
-		}
-		for (auto it = colon.globalMatch(aText); it.hasNext();) {
-			const auto match = it.next();
-			if (const auto resolved = aResolve(match.captured(1))) {
-				add(match, *resolved, 2, 3, false);
-			}
-		}
-		if (!aContextFile.isEmpty()) {
-			for (auto it = bare.globalMatch(aText); it.hasNext();) {
-				const auto match = it.next();
-				add(match, aContextFile, 1, 2, match.hasCaptured(3));
-			}
-		}
-		std::ranges::sort(found, { }, &agent_line_reference::Begin);
-		return found;
-	}
-
-	namespace {
-		/// \brief Where inline code spans and existing links are in one line
-		/// of Markdown: a reference is never made a link inside either.
-		struct markdown_spans
-		{
-			/// Code spans: from the first backtick to after the last.
-			std::vector<std::pair<qsizetype, qsizetype>> Code;
-			std::vector<std::pair<qsizetype, qsizetype>> Links;
-		};
-
-		[[nodiscard]] auto spans_of(const QString& aLine) -> markdown_spans
-		{
-			auto spans = markdown_spans{ };
-			for (qsizetype at = 0; at < aLine.size();) {
-				if (aLine[at] != QLatin1Char{ '`' }) {
-					++at;
-					continue;
-				}
-				auto run = qsizetype{ 0 };
-				while (at + run < aLine.size() && aLine[at + run] == QLatin1Char{ '`' }) {
-					++run;
-				}
-				// The closing run is the next of exactly the same length.
-				auto close = at + run;
-				auto shut  = qsizetype{ -1 };
-				while (close < aLine.size()) {
-					if (aLine[close] != QLatin1Char{ '`' }) {
-						++close;
-						continue;
-					}
-					auto length = qsizetype{ 0 };
-					while (close + length < aLine.size() && aLine[close + length] == QLatin1Char{ '`' }) {
-						++length;
-					}
-					if (length == run) {
-						shut = close + length;
-						break;
-					}
-					close += length;
-				}
-				if (shut < 0) {
-					at += run;
-					continue;
-				}
-				spans.Code.emplace_back(at, shut);
-				at = shut;
-			}
-			static const auto links = QRegularExpression{ QStringLiteral(R"(\[[^\]]*\]\([^)]*\)|<[^>\s]+>|https?://\S+)") };
-			for (auto it = links.globalMatch(aLine); it.hasNext();) {
-				const auto match = it.next();
-				spans.Links.emplace_back(match.capturedStart(), match.capturedEnd());
-			}
-			return spans;
-		}
-
-		[[nodiscard]] auto inside(const std::vector<std::pair<qsizetype, qsizetype>>& aSpans, const qsizetype aBegin, const qsizetype aEnd) -> bool
-		{
-			return std::ranges::any_of(aSpans, [&](const auto& aSpan) { return aBegin < aSpan.second && aSpan.first < aEnd; });
-		}
-	} // namespace
-
-	auto agent_markdown_with_line_links(const QString& aMarkdown, const agent_file_resolver& aResolve, const QString& aContextFile) -> QString
-	{
-		if (!aResolve) {
-			return aMarkdown;
-		}
-		auto lines = aMarkdown.split(QLatin1Char{ '\n' });
-		auto fence = QString{ };
-		// A fence: up to three spaces, then three or more backticks or tildes.
-		const auto fenceOf = [](const QString& aLine) {
-			auto indent = qsizetype{ 0 };
-			while (indent < aLine.size() && aLine[indent] == QLatin1Char{ ' ' }) {
-				++indent;
-			}
-			if (indent > 3 || indent == aLine.size() || (aLine[indent] != QLatin1Char{ '`' } && aLine[indent] != QLatin1Char{ '~' })) {
-				return QString{ };
-			}
-			auto run = qsizetype{ 0 };
-			while (indent + run < aLine.size() && aLine[indent + run] == aLine[indent]) {
-				++run;
-			}
-			return run >= 3 ? aLine.mid(indent, run) : QString{ };
-		};
-		for (auto& line : lines) {
-			const auto marker = fenceOf(line);
-			if (!fence.isEmpty()) {
-				if (!marker.isEmpty() && marker[0] == fence[0] && marker.size() >= fence.size() && line.trimmed() == marker) {
-					fence.clear();
-				}
-				continue;
-			}
-			if (!marker.isEmpty()) {
-				fence = marker;
-				continue;
-			}
-			const auto spans = spans_of(line);
-			auto       edits = std::vector<std::pair<std::pair<qsizetype, qsizetype>, QString>>{ };
-			// A code span that is wholly one reference becomes a link around it.
-			for (const auto& [begin, end] : spans.Code) {
-				auto run = qsizetype{ 0 };
-				while (begin + run < end && line[begin + run] == QLatin1Char{ '`' }) {
-					++run;
-				}
-				const auto content = line.mid(begin + run, end - begin - 2 * run).trimmed();
-				const auto refs    = agent_line_references(content, aResolve, aContextFile);
-				if (refs.size() == 1U && refs.front().Begin == 0 && refs.front().Length == content.size() && !inside(spans.Links, begin, end)) {
-					edits.push_back({ { begin, end }, QStringLiteral("[") + line.mid(begin, end - begin) + QStringLiteral("](") + agent_line_link(refs.front().Path, refs.front().First, refs.front().Before) + QLatin1Char{ ')' } });
-				}
-			}
-			for (const auto& ref : agent_line_references(line, aResolve, aContextFile)) {
-				if (inside(spans.Code, ref.Begin, ref.Begin + ref.Length) || inside(spans.Links, ref.Begin, ref.Begin + ref.Length)) {
-					continue;
-				}
-				edits.push_back({ { ref.Begin, ref.Begin + ref.Length }, QStringLiteral("[") + line.mid(ref.Begin, ref.Length) + QStringLiteral("](") + agent_line_link(ref.Path, ref.First, ref.Before) + QLatin1Char{ ')' } });
-			}
-			std::ranges::sort(edits, std::ranges::greater{ }, [](const auto& aEdit) { return aEdit.first.first; });
-			for (const auto& [range, text] : edits) {
-				line.replace(range.first, range.second - range.first, text);
-			}
-		}
-		return lines.join(QLatin1Char{ '\n' });
-	}
-
 	agent_tab_view::agent_tab_view(agent_launch_panel& aLaunch, side_chat_panel& aChat, finding_queue_view& aFindings, QWidget& aHistory, QWidget* aParent)
 		: QWidget{ aParent }
 		, Launch{ aLaunch }
@@ -778,6 +584,28 @@ namespace bpr::qt {
 		chipRow->addWidget(ConversationClose, 0, Qt::AlignTop);
 		ConversationChip->hide();
 		fieldCol->addWidget(ConversationChip);
+		// [[BPR-2002]], RFC-BPR-0102. The selected lines, attached: the
+		// question is about them. Its close button detaches them from the
+		// next questions and leaves the diff's selection alone.
+		LinesChip = new rounded{ rounded::look::card, field };
+		LinesChip->setObjectName(QStringLiteral("agentLinesChip"));
+		auto* const linesRow = new QHBoxLayout{ LinesChip };
+		linesRow->setContentsMargins(8, 3, 2, 3);
+		linesRow->setSpacing(4);
+		LinesText = new QLabel{ LinesChip };
+		LinesText->setObjectName(QStringLiteral("agentLinesChipText"));
+		LinesText->setTextFormat(Qt::PlainText);
+		linesRow->addWidget(LinesText, 1);
+		LinesClose = make_drawer_tool(LinesChip, drawer_icon(drawer_glyph::close, palette()), tr("Don't attach these lines"), QStringLiteral("agentLinesChipClose"));
+		LinesClose->setAccessibleName(tr("Detach the selected lines"));
+		connect(LinesClose, &QToolButton::clicked, this, [this] {
+			LinesDetached = true;
+			refresh_suggestions();
+		});
+		linesRow->addWidget(LinesClose, 0, Qt::AlignTop);
+		LinesChip->setToolTip(tr("The question is about these lines. The agent can still read the whole pull request."));
+		LinesChip->hide();
+		fieldCol->addWidget(LinesChip);
 		auto* const composer = Chat.composer();
 		Borrowed.emplace_back(composer, composer->parentWidget());
 		composer->setParent(field);
@@ -800,9 +628,10 @@ namespace bpr::qt {
 		auto* const askRow = new QHBoxLayout{ };
 		AskRow             = askRow;
 		askRow->setSpacing(2);
-		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), Chat.add_context_action()->toolTip().isEmpty() ? tr("Add the lines selected in the code") : Chat.add_context_action()->toolTip(),
-								   QStringLiteral("agentAddContext"));
-		connect(Context, &QToolButton::clicked, Chat.add_context_action(), &QAction::trigger);
+		// [[BPR-2002]]. Attaches the lines selected in the code again, after
+		// the chip's close button detached them.
+		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), tr("Attach the lines selected in the code"), QStringLiteral("agentAddContext"));
+		connect(Context, &QToolButton::clicked, this, [this] { attach_lines(); });
 		askRow->addWidget(Context);
 		// Owner look v004 ("I would like the suggestions to come back where
 		// they were in the chat window... maybe turn the suggestion prompts
@@ -821,13 +650,8 @@ namespace bpr::qt {
 			}
 		});
 		askRow->addWidget(SuggestionsMenu);
-		auto* const scope = Chat.scope_selector();
-		Borrowed.emplace_back(scope, scope->parentWidget());
-		scope->setParent(field);
-		scope->setToolTip(tr("What the agent may read"));
-		scope->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-		scope->setFrame(false);
-		askRow->addWidget(scope);
+		// [[BPR-2002]], RFC-BPR-0102: no scope list. It bounded nothing; the
+		// lines chip is the one thing that differs between questions.
 		askRow->addStretch(1);
 		// Owner decision (c) and amendment 2026-10-23: the agent, model and
 		// effort as a pill in the field. [[BPR-1924]]: a row of its own under
@@ -908,6 +732,13 @@ namespace bpr::qt {
 		refusal->hide();
 		askCol->addWidget(refusal);
 		askCol->addWidget(field);
+		// [[BPR-2002]]. What is true about what the agent reads, said once.
+		ReadsLine = new QLabel{ tr("The agent can read the whole pull request; attached lines only tell it where you are looking."), ask };
+		ReadsLine->setObjectName(QStringLiteral("agentReadsLine"));
+		ReadsLine->setWordWrap(true);
+		ReadsLine->setTextFormat(Qt::PlainText);
+		ReadsLine->setForegroundRole(QPalette::PlaceholderText);
+		askCol->addWidget(ReadsLine);
 		talk->addWidget(ask);
 		Pages->addWidget(Conversation);
 
@@ -1515,7 +1346,8 @@ namespace bpr::qt {
 		}
 		// Owner look v004: the files and lines the answer names are links;
 		// Copy and Save as note keep the answer as the agent wrote it.
-		const auto shown = LineNavigate ? agent_markdown_with_line_links(aTurn.AnswerText, LineResolve, aTurn.ContextFile) : aTurn.AnswerText;
+		// [[BPR-1998]]: the core's one recogniser, for every agent reply.
+		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(aTurn.AnswerText, LineResolve(), aTurn.ContextFile) : aTurn.AnswerText;
 		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial));
 		aTurn.Answer->setVisible(!aTurn.AnswerText.isEmpty());
 		fit_answer(*aTurn.Answer);
@@ -1526,13 +1358,41 @@ namespace bpr::qt {
 		if (aTurn.QuestionLabel == nullptr) {
 			return;
 		}
-		const auto refs = LineNavigate ? agent_line_references(aTurn.Question, LineResolve) : std::vector<agent_line_reference>{ };
+		// [[BPR-1998]]. The question's references, by the same recogniser,
+		// each a link to what it opens; offsets are the text's UTF-8 bytes.
+		struct shown_reference
+		{
+			qsizetype              Begin  = 0;
+			qsizetype              Length = 0;
+			agent_reference_target Target;
+		};
+		auto refs = std::vector<shown_reference>{ };
+		if (LineNavigate && LineResolve) {
+			const auto files = LineResolve();
+			const auto bytes = aTurn.Question.toUtf8();
+			for (const auto& found : core::find_agent_references(std::string_view{ bytes.constData(), static_cast<std::size_t>(bytes.size()) }, false)) {
+				const auto paths = core::resolve_agent_reference(found.Path, files);
+				if (paths.empty()) {
+					continue;
+				}
+				auto target = agent_reference_target{ .First = found.First, .Last = found.Last, .Before = found.Before };
+				for (const auto& path : paths) {
+					target.Paths << QString::fromStdString(path);
+				}
+				const auto begin = QString::fromUtf8(bytes.left(static_cast<qsizetype>(found.Begin))).size();
+				refs.push_back({ .Begin = begin, .Length = QString::fromUtf8(bytes.mid(static_cast<qsizetype>(found.Begin), static_cast<qsizetype>(found.Length))).size(), .Target = std::move(target) });
+			}
+		}
 		// The one file the question names is where its answer's bare lines are.
 		aTurn.ContextFile.clear();
 		for (const auto& ref : refs) {
+			if (ref.Target.Paths.size() != 1) {
+				aTurn.ContextFile.clear();
+				break;
+			}
 			if (aTurn.ContextFile.isEmpty()) {
-				aTurn.ContextFile = ref.Path;
-			} else if (aTurn.ContextFile != ref.Path) {
+				aTurn.ContextFile = ref.Target.Paths.front();
+			} else if (aTurn.ContextFile != ref.Target.Paths.front()) {
 				aTurn.ContextFile.clear();
 				break;
 			}
@@ -1541,7 +1401,7 @@ namespace bpr::qt {
 		auto at   = qsizetype{ 0 };
 		for (const auto& ref : refs) {
 			html += aTurn.Question.mid(at, ref.Begin - at).toHtmlEscaped();
-			html += QStringLiteral("<a href=\"%1\">%2</a>").arg(agent_line_link(ref.Path, ref.First, ref.Before).toHtmlEscaped(), aTurn.Question.mid(ref.Begin, ref.Length).toHtmlEscaped());
+			html += QStringLiteral("<a href=\"%1\">%2</a>").arg(agent_reference_link_text(ref.Target).toHtmlEscaped(), aTurn.Question.mid(ref.Begin, ref.Length).toHtmlEscaped());
 			at = ref.Begin + ref.Length;
 		}
 		html += aTurn.Question.mid(at).toHtmlEscaped();
@@ -1555,13 +1415,8 @@ namespace bpr::qt {
 
 	void agent_tab_view::follow_link(const QString& aLink)
 	{
-		const auto target = agent_line_link_target(aLink);
-		if (!target || !LineNavigate || !LineResolve) {
-			return;
-		}
-		const auto path = LineResolve(target->first);
-		if (path) {
-			LineNavigate(*path, target->second.first, target->second.second);
+		if (LineNavigate && LineResolve) {
+			static_cast<void>(follow_agent_reference(this, aLink, LineNavigate, ReferenceChooser));
 		}
 	}
 
@@ -1596,7 +1451,7 @@ namespace bpr::qt {
 		refresh();
 	}
 
-	void agent_tab_view::set_line_links(agent_file_resolver aResolve, agent_line_navigation aNavigate)
+	void agent_tab_view::set_line_links(agent_reference_files_source aResolve, agent_reference_navigation aNavigate)
 	{
 		LineResolve  = std::move(aResolve);
 		LineNavigate = std::move(aNavigate);
@@ -1780,14 +1635,16 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
-		auto* const composer = Chat.composer();
-		const auto  draft    = composer->toPlainText();
-		const auto  press    = core::decide_agent_suggestion_press({
+		auto* const composer  = Chat.composer();
+		const auto  draft     = composer->toPlainText();
+		const auto  found     = SuggestionSubjects.find(aPrompt);
+		const auto  suggested = found != SuggestionSubjects.end() ? std::optional{ found->second } : std::nullopt;
+		const auto  press     = core::decide_agent_suggestion_press({
 			.EditFirst = aEditFirst,
 			.DraftHeld = !draft.trimmed().isEmpty(),
 			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
 		});
-		const auto  toEnd    = [composer] {
+		const auto  toEnd     = [composer] {
 			auto cursor = composer->textCursor();
 			cursor.movePosition(QTextCursor::End);
 			composer->setTextCursor(cursor);
@@ -1796,14 +1653,18 @@ namespace bpr::qt {
 		case core::agent_suggestion_press::ignored: return;
 		case core::agent_suggestion_press::send:
 			composer->setPlainText(aPrompt);
+			SendingSuggestion = suggested;
 			ask();
+			SendingSuggestion.reset();
 			return;
 		case core::agent_suggestion_press::send_keeping_draft:
 			// Sent alone, as if typed and sent; what the reviewer had typed
 			// is put back, and its turn's start leaves it there.
 			composer->setPlainText(aPrompt);
-			KeepingDraft = true;
+			KeepingDraft      = true;
+			SendingSuggestion = suggested;
 			ask();
+			SendingSuggestion.reset();
 			KeepingDraft = false;
 			composer->setPlainText(draft);
 			toEnd();
@@ -1828,8 +1689,16 @@ namespace bpr::qt {
 		// Owner decision (a): the pull request, the open file when one is
 		// open, what the change could break, and the selected lines when
 		// lines are selected.
-		const auto context = SuggestionContext ? SuggestionContext() : agent_suggestion_context{ };
-		auto       prompts = QStringList{ tr("Review this pull request") };
+		const auto context = current_suggestion_context();
+		present_lines_chip(context);
+		// [[BPR-2002]], RFC-BPR-0102. A suggestion is a subject and a text;
+		// one that could not be sent as it stands is not offered.
+		SuggestionSubjects.clear();
+		auto       prompts = QStringList{ };
+		const auto offer   = [this, &prompts](const QString& aText, const core::agent_suggested_subject aSubject, const bool aReview) {
+			prompts << aText;
+			SuggestionSubjects[aText] = { aSubject, aReview };
+		};
 		if (ConversationShown) {
 			// [[BPR-1773]]. While a conversation is attached the prompts are
 			// about it; a reply is offered only where one can be written.
@@ -1840,21 +1709,21 @@ namespace bpr::qt {
 				prompts << tr("Explain the code this note is on");
 			}
 		} else {
+			offer(tr("Review this pull request"), core::agent_suggested_subject::pull_request, true);
 			if (!context.OpenFile.isEmpty()) {
-				prompts << tr("Review %1").arg(context.OpenFile);
+				offer(tr("Review %1").arg(context.OpenFile), core::agent_suggested_subject::open_file, true);
 			}
-			prompts << tr("What could this change break?");
+			offer(tr("What could this change break?"), core::agent_suggested_subject::pull_request, false);
 			if (context.Lines) {
 				// Owner look v004 ("in an hour I wont remember which file line 34
 				// was in"): the prompt names the file, and the thread links it.
-				// Owner look v005 ("should change to explain selected block or
-				// something when there's a selection, especially a multi-line
-				// selection"): a block says so, and still names its file and lines.
+				// Owner look v005: a block says so, and still names its file and
+				// lines. Offered only while lines are selected.
 				const auto [first, last] = *context.Lines;
 				if (context.OpenFile.isEmpty()) {
-					prompts << (first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected block (lines %1–%2)").arg(first).arg(last));
+					offer(first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected block (lines %1–%2)").arg(first).arg(last), core::agent_suggested_subject::selected_lines, false);
 				} else {
-					prompts << (first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain the selected block (%1 lines %2–%3)").arg(context.OpenFile).arg(first).arg(last));
+					offer(first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain the selected block (%1 lines %2–%3)").arg(context.OpenFile).arg(first).arg(last), core::agent_suggested_subject::selected_lines, false);
 				}
 			}
 		}
@@ -2726,7 +2595,66 @@ namespace bpr::qt {
 			refuse_send(refused);
 			return;
 		}
+		// [[BPR-2002]], RFC-BPR-0102. The core decides what the question is
+		// about from what the reviewer did: a suggestion's own subject, the
+		// attached lines, or else the pull request.
+		const auto context = current_suggestion_context();
+		const auto facts   = core::agent_question_facts{
+			.LinesAttached        = lines_attached(),
+			.LinesSelected        = context.Lines.has_value(),
+			.ConversationAttached = ConversationShown.has_value(),
+			.Suggested            = SendingSuggestion ? std::optional{ SendingSuggestion->first } : std::nullopt,
+			.Review               = SendingSuggestion && SendingSuggestion->second,
+			.OpenFile             = context.OpenFile.toStdString(),
+		};
+		LastQuestion = core::decide_agent_question(facts);
+		if (!LastQuestion) {
+			// Not offered as it stands; sent as a question about the pull
+			// request rather than refused after the press.
+			LastQuestion = core::decide_agent_question(core::agent_question_facts{ .ConversationAttached = facts.ConversationAttached });
+		}
+		Chat.set_question(LastQuestion);
 		Chat.send_action()->trigger();
+	}
+
+	auto agent_tab_view::current_suggestion_context() const -> agent_suggestion_context
+	{
+		return SuggestionContext ? SuggestionContext() : agent_suggestion_context{ };
+	}
+
+	void agent_tab_view::present_lines_chip(const agent_suggestion_context& aContext)
+	{
+		if (LinesChip == nullptr || Context == nullptr) {
+			return;
+		}
+		// A new selection attaches again; the same one stays as it was left.
+		const auto seen = aContext.Lines ? std::optional{ std::pair{ aContext.OpenFile, *aContext.Lines } } : std::nullopt;
+		if (seen != LinesSeen) {
+			LinesSeen     = seen;
+			LinesDetached = false;
+		}
+		const auto shown = lines_attached();
+		if (shown) {
+			const auto [first, last] = LinesSeen->second;
+			const auto name          = LinesSeen->first.section(QLatin1Char{ '/' }, -1);
+			const auto range         = first == last ? QString::number(first) : QStringLiteral("%1–%2").arg(first).arg(last);
+			LinesText->setText(name.isEmpty() ? tr("Lines %1").arg(range) : QStringLiteral("%1 %2").arg(name, range));
+		}
+		LinesChip->setVisible(shown);
+		Context->setEnabled(LinesSeen.has_value() && LinesDetached && !ConversationShown);
+		if (!ConversationShown) {
+			Chat.composer()->setPlaceholderText(shown ? tr("Ask about these lines…") : tr("Ask about this pull request…"));
+		}
+	}
+
+	auto agent_tab_view::lines_attached() const -> bool { return LinesSeen.has_value() && !LinesDetached && !ConversationShown; }
+
+	auto agent_tab_view::lines_chip_text() const -> QString { return LinesChip->isHidden() ? QString{ } : LinesText->text(); }
+
+	void agent_tab_view::attach_lines()
+	{
+		LinesDetached = false;
+		refresh_suggestions();
 	}
 
 	auto agent_tab_view::send_facts(const bool aMessageEmpty) const -> core::agent_send_facts
@@ -3086,6 +3014,7 @@ namespace bpr::qt {
 		History->setIcon(drawer_icon(drawer_glyph::history, palette()));
 		ClearSession->setIcon(drawer_icon(drawer_glyph::new_session, palette()));
 		ConversationClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
+		LinesClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		Context->setIcon(drawer_icon(drawer_glyph::plus, palette()));
 		SuggestionsMenu->setIcon(drawer_icon(drawer_glyph::agent, palette()));
 		if (auto* const introIcon = EmptyIntro->findChild<QLabel*>(QStringLiteral("agentEmptyIcon"))) {

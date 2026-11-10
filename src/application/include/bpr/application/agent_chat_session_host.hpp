@@ -5,6 +5,7 @@
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_session.hpp"
 
 #include <compare>
@@ -32,6 +33,10 @@ namespace bpr::application {
 		/// The scope shown when the reviewer sent it, not one resolved later.
 		core::agent_chat_scope Scope;
 		std::string            Text;
+		/// [[BPR-2002]]. The subject the core decided for this question. A
+		/// question whose subject is not its lines is decided without the
+		/// selection: the selection is neither attached nor required.
+		std::optional<core::agent_question> Question;
 
 		auto operator<=>(const agent_chat_send&) const = default;
 	};
@@ -157,6 +162,8 @@ namespace bpr::application {
 		/// frame is `agent_launch`'s question and not this host's; nothing here
 		/// frames, escapes, or reframes anything.
 		std::string Message;
+		/// [[BPR-2002]]. The question's subject, as the send carried it.
+		std::optional<core::agent_question> Question;
 
 		auto operator<=>(const agent_chat_turn_request&) const = default;
 	};

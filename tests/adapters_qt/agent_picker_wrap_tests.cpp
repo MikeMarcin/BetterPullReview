@@ -167,8 +167,11 @@ namespace {
 			auto* const field    = picker->parentWidget();
 			auto* const composer = window.side_chat()->composer();
 			auto* const ask      = agent->ask_button();
-			auto* const scope    = window.side_chat()->scope_selector();
+			// [[BPR-2002]]: the scope list is gone from the field; the last
+			// tool before the picker is the suggestions toggle.
+			auto* const scope = agent->suggestions_toggle();
 			expect(field != nullptr && field->isAncestorOf(composer) && field->isVisible(), std::string{ "the question field shows, " } + name);
+			expect(!field->isAncestorOf(window.side_chat()->scope_selector()), std::string{ "no scope list in the question field, " } + name);
 			expect(picker->isVisible() && agent->run_settings_text() == QStringLiteral("Claude Code · Default model · high effort"), std::string{ "the picker names the agent, model and effort, " } + name);
 
 			auto fitted = false;
@@ -187,7 +190,9 @@ namespace {
 				expect(pickerBox.right() < field->width() - margins.right() + 1, "the picker stays inside the field" + at);
 				// The threshold: one row while every control fits it whole with
 				// the gap to spare.
-				const auto row  = scope->mapTo(field, QPoint{ 0, 0 }).x() + scope->sizeHint().width() + 12 + picker->sizeHint().width() + 2 + ask->sizeHint().width();
+				// Every control's whole width, the row's spacing between each
+				// and the 12 to spare before the picker.
+				const auto row  = scope->mapTo(field, QPoint{ 0, 0 }).x() + scope->sizeHint().width() + 2 + 12 + picker->sizeHint().width() + 2 + ask->sizeHint().width();
 				const auto fits = row <= field->width() - margins.right();
 				expect(agent->run_settings_wrapped() == !fits, "the picker wraps exactly when the row cannot hold it whole" + at);
 				if (agent->run_settings_wrapped()) {
@@ -196,7 +201,7 @@ namespace {
 					expect(!fitted, "once the picker fits beside Send as the drawer widens, it stays" + at);
 				} else {
 					expect(std::abs(pickerBox.center().y() - in(*ask, *field).center().y()) <= 2, "an unwrapped picker sits on Send's row" + at);
-					expect(pickerBox.left() >= in(*scope, *field).right() + 12, "an unwrapped picker keeps its gap from the scope menu" + at);
+					expect(pickerBox.left() >= in(*scope, *field).right() + 12, "an unwrapped picker keeps its gap from the tools" + at);
 					fitted = true;
 				}
 				expect_reads_as_picker(*picker, *field, at);

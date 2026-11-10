@@ -1017,11 +1017,14 @@ namespace bpr::app {
 				Window->go_to_private_note(aNote);
 			}
 		});
+		// [[BPR-1998]]. The changed files the core's recogniser resolves to;
+		// this application cannot show an unchanged file at a line, so such a
+		// reference is not a link.
 		tab->set_line_links(
-			[this](const QString& aPath) -> std::optional<QString> { return Closing || Window == nullptr ? std::nullopt : Window->review_file_named(aPath); },
-			[this](const QString& aPath, const std::uint32_t aLine, const bool aBefore) {
+			[this] { return core::agent_reference_files{ .Changed = Closing || Window == nullptr ? std::vector<std::string>{ } : Window->review_changed_files() }; },
+			[this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) {
 				if (!Closing && Window != nullptr) {
-					static_cast<void>(Window->go_to_file_line(aPath, aLine, aBefore));
+					static_cast<void>(Window->go_to_file_line(aPath, aFirst, aBefore, aLast));
 				}
 			});
 		// Owner look v006. The agent shown is asked what its harness

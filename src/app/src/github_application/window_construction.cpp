@@ -1030,7 +1030,11 @@ namespace bpr::app {
 						// the chat host validated, handed to the same
 						// launch path a start gesture uses. This is the
 						// only call site that passes a message.
-						return dispatch_agent_invocation(
+						// [[BPR-2002]]. A question carries its subject and
+						// the entry point the core decided for it; a turn
+						// without one asks about the selection, as before.
+						ChatQuestion    = aTurn.Question;
+						const auto sent = dispatch_agent_invocation(
 							aTurn.Session.Profile,
 							aTurn.IncludeNotes
 								? all_private_note_ids()
@@ -1040,9 +1044,12 @@ namespace bpr::app {
 							false,
 							aTurn.Message,
 							aTurn.Session,
-							aTurn.EntryPoint == core::agent_entry_point::ask_about_conversation ? core::agent_entry_point::ask_about_conversation
-																								: core::agent_entry_point::ask_about_selection,
+							aTurn.Question                                                            ? aTurn.Question->EntryPoint
+								: aTurn.EntryPoint == core::agent_entry_point::ask_about_conversation ? core::agent_entry_point::ask_about_conversation
+																									  : core::agent_entry_point::ask_about_selection,
 							std::nullopt);
+						ChatQuestion.reset();
+						return sent;
 					},
 					[this]() -> application::agent_chat_private_prose {
 						return current_chat_private_prose();

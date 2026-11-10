@@ -150,6 +150,17 @@ auto main() -> int
 		+ " version=" + field(fields, "feedback_guidance.version", "absent")
 		+ " bytes=" + std::to_string(guidanceText.size())
 		+ " head=" + guidanceText.substr(0U, 48U) + " end";
+	// [[BPR-2002]]. What the question was about, reported the same way: its
+	// subject, how many changed files it listed in scope, the attached
+	// lines, where the reviewer was looking, whether a selection and a
+	// single file rode along, and the entry point the brief records.
+	const auto subject = std::string{ " | BPR_SUBJECT_2002 subject=" } + field(fields, "subject", "absent")
+		+ " in_scope=" + field(fields, "subject.file.count", "absent")
+		+ " path=" + field(fields, "subject.path", "absent")
+		+ " lines=" + field(fields, "subject.first_line", "absent") + "-" + field(fields, "subject.last_line", "absent")
+		+ " looking=" + field(fields, "looking_at.path", "absent")
+		+ " selection=" + field(fields, "selection.present", "absent")
+		+ " files=" + field(fields, "file.count", "absent") + " end";
 	// BPR-0538. One of the six is this fixture's silent operation: asked to
 	// shorten, it completes its turn and proposes nothing. A real agent does
 	// this whenever it has nothing to say about the comment, and it is the
@@ -213,7 +224,7 @@ auto main() -> int
 	findings += ",\"claim\":\"BPR_FINDING_CLAIM_0504 the retry budget is not "
 				"reported to the caller"
 				" | BPR_CHAT_ECHO_0517 count="
-		+ echoed + " text=" + json_escaped(message) + json_escaped(sources) + json_escaped(guidance) + "\"";
+		+ echoed + " text=" + json_escaped(message) + json_escaped(sources) + json_escaped(guidance) + json_escaped(subject) + "\"";
 	findings += ",\"evidence\":\"BPR_FINDING_EVIDENCE_0504\"";
 	findings += ",\"consequence\":\"BPR_FINDING_CONSEQUENCE_0504\"";
 	findings += ",\"suggestedComment\":\"" + std::string{ suggested } + "\"";

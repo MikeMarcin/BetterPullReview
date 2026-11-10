@@ -289,11 +289,14 @@ namespace bpr::application {
 		//    host, in this session, with what the reviewer is pointing at. An
 		//    unknown profile is handed to the core as the invalid value it is,
 		//    so the refusal is still the core's rather than one written here.
-		const auto profile = profile_for(Session->Profile);
-		const auto verdict = core::decide_agent_action(
+		//    [[BPR-2002]]: a question whose subject is not its lines is
+		//    decided without them, so a selection is never required of it.
+		const auto profile    = profile_for(Session->Profile);
+		const auto aboutLines = !aSend.Question || aSend.Question->Subject == core::agent_question_subject::lines;
+		const auto verdict    = core::decide_agent_action(
 			profile.has_value() ? *profile : core::agent_profile{ },
 			core::policy_for_host(Policies, Session->Binding.Host),
-			Selection,
+			aboutLines ? Selection : std::nullopt,
 			*Session,
 			aSend.Action);
 		if (!verdict.Permitted) {
@@ -342,6 +345,7 @@ namespace bpr::application {
 			.IncludeNotes   = !admitted.Notes.empty(),
 			.IncludeDraft   = !admitted.Drafts.empty(),
 			.Message        = aSend.Text,
+			.Question       = aSend.Question,
 		};
 		if (!Dispatcher || !Dispatcher(request)) {
 			return refuse(aSend.Session, agent_chat_refusal::launch_refused, core::agent_send_refusal::launch_refused);

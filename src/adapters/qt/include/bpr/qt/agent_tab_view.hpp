@@ -12,9 +12,11 @@
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
@@ -155,44 +157,6 @@ namespace bpr::qt {
 
 	/// \brief Opens a private note the tab saved, in the Notes area.
 	using agent_note_navigation = std::function<void(std::uint64_t aNote)>;
-	/// \brief Owner look v004 ("This should be a link to the file and line I
-	/// can click"). A file of the pull request a reference names: the path
-	/// it is shown under, or nothing when the pull request has no such file.
-	using agent_file_resolver = std::function<std::optional<QString>(const QString& aPath)>;
-	/// \brief Opens a file of the pull request in Review at a one-based line
-	/// of its head (or, `aBefore`, of the change's base).
-	using agent_line_navigation = std::function<void(const QString& aPath, std::uint32_t aLine, bool aBefore)>;
-
-	/// \brief One place a text names a file and line of the pull request.
-	struct agent_line_reference
-	{
-		/// Where in the text, in UTF-16 units.
-		qsizetype Begin  = 0;
-		qsizetype Length = 0;
-		QString   Path;
-		/// One-based, first and last.
-		std::uint32_t First  = 0U;
-		std::uint32_t Last   = 0U;
-		bool          Before = false;
-
-		auto operator==(const agent_line_reference&) const -> bool = default;
-	};
-
-	/// \brief Every reference to a file and line in `aText`: `path:34`,
-	/// `path:34-36`, `path line 34`, `path lines 34–36` (either followed by
-	/// "before the change" for the base), each only when `aResolve` knows
-	/// the path; and, when `aContextFile` is not empty, a bare `line 34` or
-	/// `lines 34–36`, which names that file.
-	[[nodiscard]] auto agent_line_references(const QString& aText, const agent_file_resolver& aResolve, const QString& aContextFile = { }) -> std::vector<agent_line_reference>;
-	/// \brief `aMarkdown` with each reference outside code made a link, and
-	/// an inline code span that is wholly one made a link around it. Fenced
-	/// code is left as written.
-	[[nodiscard]] auto agent_markdown_with_line_links(const QString& aMarkdown, const agent_file_resolver& aResolve, const QString& aContextFile = { }) -> QString;
-	/// \brief The link a reference is opened by, and what it names: a path,
-	/// `#L` for the head or `#B` for the base, and the first line.
-	[[nodiscard]] auto agent_line_link(const QString& aPath, std::uint32_t aLine, bool aBefore) -> QString;
-	[[nodiscard]] auto agent_line_link_target(const QString& aLink) -> std::optional<std::pair<QString, std::pair<std::uint32_t, bool>>>;
-
 	/// \brief A change to the model, the effort, or both; empty is the
 	/// agent's own default. Answers whether the host took it.
 
@@ -364,6 +328,23 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_chip() const noexcept -> QWidget* { return ConversationChip; }
 		[[nodiscard]] auto conversation_chip_text() const -> QString;
 		[[nodiscard]] auto conversation_chip_close() const noexcept -> QToolButton* { return ConversationClose; }
+		/// \brief [[BPR-2002]], RFC-BPR-0102. The selected lines, as the chip
+		/// in the question field shows them while they are attached. The
+		/// chip's close button detaches them from the questions that follow
+		/// and leaves the diff's selection as it is; a new selection, or
+		/// `attach_lines`, attaches again.
+		[[nodiscard]] auto lines_chip() const noexcept -> QWidget* { return LinesChip; }
+		[[nodiscard]] auto lines_chip_text() const -> QString;
+		[[nodiscard]] auto lines_chip_close() const noexcept -> QToolButton* { return LinesClose; }
+		[[nodiscard]] auto lines_attached() const -> bool;
+		/// \brief Attaches the selected lines again (Ask the agent about
+		/// these lines).
+		void attach_lines();
+		/// \brief The line under the field that says what the agent can read.
+		[[nodiscard]] auto reads_line() const noexcept -> QLabel* { return ReadsLine; }
+		/// \brief [[BPR-2002]]. The question the last send carried, as the
+		/// core decided it; none before any.
+		[[nodiscard]] auto last_question() const noexcept -> const std::optional<core::agent_question>& { return LastQuestion; }
 		/// \brief [[BPR-1773]], owner look 2026-10-27. Draft comment on every
 		/// answer, beside Save as note: where a sent question's answer would
 		/// be drafted (asked when it is sent), where a press goes, and where
@@ -395,9 +376,12 @@ namespace bpr::qt {
 		/// clears the agents' settings and the setup starts again at Agent.
 		void set_reset_dispatch(std::function<void()> aReset, std::function<bool()> aConfirm = { });
 		void reset_agents();
-		/// \brief Which files references may name, and where a link to one
-		/// goes; references are links only when both are set.
-		void set_line_links(agent_file_resolver aResolve, agent_line_navigation aNavigate);
+		/// \brief [[BPR-1998]]. Which files references may name, and where a
+		/// link to one goes; references are links only when both are set. A
+		/// shared name is offered by `set_reference_chooser`'s chooser, or a
+		/// menu.
+		void set_line_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate);
+		void set_reference_chooser(agent_reference_chooser aChoose) { ReferenceChooser = std::move(aChoose); }
 		/// \brief Owner look v004 ("Not drawing inline comment with syntax
 		/// highlighing"): the file name the answers' inline code is
 		/// coloured as, such as `code.cpp` for a C++ pull request; empty
@@ -488,8 +472,9 @@ namespace bpr::qt {
 		std::function<void(std::uint64_t)> CatalogDispatch;
 		std::function<void()>              ResetDispatch;
 		std::function<bool()>              ResetConfirm;
-		agent_file_resolver                LineResolve;
-		agent_line_navigation              LineNavigate;
+		agent_reference_files_source       LineResolve;
+		agent_reference_navigation         LineNavigate;
+		agent_reference_chooser            ReferenceChooser;
 		QString                            InlineCodeFile;
 		void                               follow_link(const QString& aLink);
 		void                               present_banner();
@@ -667,16 +652,31 @@ namespace bpr::qt {
 		QToolButton*     Context         = nullptr;
 		QLabel*          Chips           = nullptr;
 		/// [[BPR-1773]]. The conversation chip and what it is now.
-		QWidget*                                   ConversationChip  = nullptr;
-		QLabel*                                    ConversationText  = nullptr;
-		QToolButton*                               ConversationClose = nullptr;
-		std::optional<agent_conversation_chip>     ConversationShown;
-		std::function<void()>                      ConversationDismiss;
-		std::function<agent_answer_draft_target()> DraftTargetSource;
-		agent_answer_draft_dispatch                DraftDispatch;
-		agent_answer_draft_navigation              DraftNavigate;
-		QLabel*                                    Log      = nullptr;
-		bool                                       LogShown = false;
+		QWidget*                               ConversationChip  = nullptr;
+		QLabel*                                ConversationText  = nullptr;
+		QToolButton*                           ConversationClose = nullptr;
+		std::optional<agent_conversation_chip> ConversationShown;
+		/// [[BPR-2002]]. The lines chip, the lines it last showed, and
+		/// whether the reviewer detached them.
+		QWidget*                                                                   LinesChip  = nullptr;
+		QLabel*                                                                    LinesText  = nullptr;
+		QToolButton*                                                               LinesClose = nullptr;
+		QLabel*                                                                    ReadsLine  = nullptr;
+		std::optional<std::pair<QString, std::pair<std::uint32_t, std::uint32_t>>> LinesSeen;
+		bool                                                                       LinesDetached = false;
+		/// The subject each suggested prompt carries, by its words.
+		std::map<QString, std::pair<core::agent_suggested_subject, bool>> SuggestionSubjects;
+		/// The suggestion being sent, while it is.
+		std::optional<std::pair<core::agent_suggested_subject, bool>> SendingSuggestion;
+		std::optional<core::agent_question>                           LastQuestion;
+		[[nodiscard]] auto                                            current_suggestion_context() const -> agent_suggestion_context;
+		void                                                          present_lines_chip(const agent_suggestion_context& aContext);
+		std::function<void()>                                         ConversationDismiss;
+		std::function<agent_answer_draft_target()>                    DraftTargetSource;
+		agent_answer_draft_dispatch                                   DraftDispatch;
+		agent_answer_draft_navigation                                 DraftNavigate;
+		QLabel*                                                       Log      = nullptr;
+		bool                                                          LogShown = false;
 		/// [[BPR-1876]]. The latest turn says its cause is fixed since, so
 		/// the stopped banner stands down.
 		bool LatestFixedSince = false;

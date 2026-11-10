@@ -1204,6 +1204,14 @@ namespace bpr::qt {
 		return best.empty() ? std::string{ } : "code" + best;
 	}
 
+	void tour_side_chat::set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate, agent_reference_chooser aChoose)
+	{
+		ReferenceFiles    = std::move(aFiles);
+		ReferenceNavigate = std::move(aNavigate);
+		ReferenceChoose   = std::move(aChoose);
+		rebuild();
+	}
+
 	auto tour_side_chat::reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity, const std::string& aInlineSelector, const bool aFramed) -> markdown_body_view*
 	{
 		auto* const view = new markdown_body_view{ aParent };
@@ -1345,8 +1353,16 @@ namespace bpr::qt {
 			} else {
 				auto failure = QString{ };
 				if (run->State == core::tour_agent_run_state::answered) {
-					said = reader(answer, run->Reply, "tour-side-chat:" + std::to_string(id), selector, true);
+					// [[BPR-1998]]. The reply's references are links, by the
+					// Agent tab's recogniser; Copy keeps the reply as written.
+					auto shown = run->Reply;
+					if (ReferenceFiles && ReferenceNavigate) {
+						const auto stop = current() && current()->Kind == core::tour_thread_kind::stop ? QString::fromStdString(selector) : QString{ };
+						shown           = agent_markdown_with_reference_links(QString::fromStdString(run->Reply), ReferenceFiles(), stop).toStdString();
+					}
+					said = reader(answer, shown, "tour-side-chat:" + std::to_string(id), selector, true);
 					said->setObjectName(QStringLiteral("tourSideChatReply"));
+					said->set_link_dispatch([this](const std::string& aLink) { static_cast<void>(follow_agent_reference(this, QString::fromStdString(aLink), ReferenceNavigate, ReferenceChoose)); });
 					column->addWidget(said);
 				} else {
 					const auto ended = std::ranges::find(run->Entries, core::tour_transcript_kind::ended, &core::tour_transcript_entry::Kind);

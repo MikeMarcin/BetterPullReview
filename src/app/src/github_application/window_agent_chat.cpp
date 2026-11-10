@@ -452,6 +452,77 @@ namespace bpr::app {
 			std::nullopt));
 	}
 
+	void github_application::implementation::compose_question_subject(application::agent_context_observation& aObservation, const core::agent_question& aQuestion)
+	{
+		auto subject = core::supplement_subject{ .Subject = aQuestion.Subject };
+		// Where the reviewer is looking: the open file, and the selected
+		// line in it. Not on Overview, where no file is open.
+		const auto* const surface   = Window != nullptr ? Window->comparison_surface() : nullptr;
+		const auto        reviewing = Window != nullptr && SelectedDiffPublication.has_value() && !Window->showing_overview();
+		const auto        current   = reviewing && surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+		const auto        openPath  = reviewing ? SelectedDiffPublication->Request.File.PresentationPath : std::string{ };
+		switch (aQuestion.Subject) {
+		case core::agent_question_subject::pull_request:
+			// Every changed file is in scope, and no one file is offered as
+			// the one the question is about.
+			aObservation.Files.clear();
+			if (aObservation.Brief) {
+				for (const auto& file : aObservation.Brief->Files) {
+					if (!file.Path.empty() && subject.InScope.size() < core::maximum_subject_files) {
+						subject.InScope.push_back(file.Path);
+					}
+				}
+			}
+			break;
+		case core::agent_question_subject::file:
+			subject.Path = aQuestion.File;
+			if (aQuestion.File != openPath) {
+				aObservation.Files.clear();
+			}
+			break;
+		case core::agent_question_subject::lines:
+			if (current) {
+				if (const auto range = surface->line_draft_range(); range && range->first.Side == range->second.Side) {
+					const auto first  = std::min(range->first.Line, range->second.Line);
+					const auto last   = std::max(range->first.Line, range->second.Line);
+					subject.Path      = openPath;
+					subject.Before    = range->first.Side == core::diff_side::left;
+					subject.FirstLine = first + 1U;
+					subject.LastLine  = last + 1U;
+					auto text         = std::string{ };
+					for (auto line = first; line <= last; ++line) {
+						const auto shown = surface->source_line_text(core::source_line_ref{ .Comparison = range->first.Comparison, .Side = range->first.Side, .Line = line });
+						auto       bytes = shown ? shown->toStdString() : std::string{ };
+						if (text.size() + bytes.size() + 1U > core::maximum_subject_text_bytes) {
+							break;
+						}
+						text += bytes;
+						text += '\n';
+					}
+					subject.Text = std::move(text);
+				}
+			}
+			if (subject.Path.empty()) {
+				// No lines to name: said as the pull request rather than
+				// sent as lines that are not there.
+				subject = core::supplement_subject{ };
+				aObservation.Selection.reset();
+				aObservation.Files.clear();
+			}
+			break;
+		case core::agent_question_subject::conversation: break;
+		}
+		aObservation.Subject = std::move(subject);
+		if (reviewing && aQuestion.Subject != core::agent_question_subject::lines && aQuestion.Subject != core::agent_question_subject::conversation && !openPath.empty()) {
+			auto looking = core::supplement_looking_at{ .Path = openPath };
+			if (current && surface->selection()) {
+				looking.Line   = surface->selection()->PreferredLine.Line + 1U;
+				looking.Before = surface->selection()->PreferredLine.Side == core::diff_side::left;
+			}
+			aObservation.LookingAt = std::move(looking);
+		}
+	}
+
 	/// \brief The one launch path, and there is deliberately no second.
 	///
 	/// \details Both the launch panel's start gesture and the side chat's
@@ -664,6 +735,17 @@ namespace bpr::app {
 					.Line = workbench->selection()->PreferredLine.Line,
 				};
 			}
+		}
+		// [[BPR-2002]], RFC-BPR-0102. A chat question states its subject.
+		// The open file and the reading position go as where the reviewer is
+		// looking, and only attached lines are sent as lines: a question
+		// about the pull request is never narrowed to the open file.
+		if (ChatQuestion && !aWritingOnly) {
+			if (ChatQuestion->Subject != core::agent_question_subject::lines && ChatQuestion->Subject != core::agent_question_subject::conversation) {
+				observation.Selection.reset();
+				pointedAt.reset();
+			}
+			compose_question_subject(observation, *ChatQuestion);
 		}
 		// A continuation asks for the old revision's alignment before it
 		// asks the agent anything, and asks for it off this gesture:
@@ -1525,10 +1607,11 @@ namespace bpr::app {
 					}
 					ExplicitPrivateRun = std::move(aPressed->Run);
 					static_cast<void>(ChatHost->send(application::agent_chat_send{
-						.Session = turn.Session,
-						.Action  = core::agent_action_intent{ core::agent_entry_point::ask_about_conversation },
-						.Scope   = turn.Scope,
-						.Text    = turn.Text,
+						.Session  = turn.Session,
+						.Action   = core::agent_action_intent{ core::agent_entry_point::ask_about_conversation },
+						.Scope    = turn.Scope,
+						.Text     = turn.Text,
+						.Question = core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation },
 					}));
 					ExplicitPrivateRun.reset();
 				});
@@ -1536,13 +1619,15 @@ namespace bpr::app {
 			}
 			// [[BPR-1773]]. With a conversation attached the turn is
 			// about it, whatever is selected.
-			const auto action = AskedConversation ? core::agent_action_intent{ core::agent_entry_point::ask_about_conversation } : send->Action;
+			const auto action   = AskedConversation ? core::agent_action_intent{ core::agent_entry_point::ask_about_conversation } : send->Action;
+			const auto question = AskedConversation ? std::optional{ core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation } } : send->Question;
 			static_cast<void>(
 				ChatHost->send(application::agent_chat_send{
-					.Session = send->Session,
-					.Action  = action,
-					.Scope   = send->Scope,
-					.Text    = send->Text,
+					.Session  = send->Session,
+					.Action   = action,
+					.Scope    = send->Scope,
+					.Text     = send->Text,
+					.Question = question,
 				}));
 			return;
 		}

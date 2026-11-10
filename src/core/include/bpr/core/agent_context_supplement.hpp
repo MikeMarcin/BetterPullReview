@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONTEXT_SUPPLEMENT_HPP
 
 #include "bpr/core/agent_chat_scope.hpp"
+#include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/diff_semantics.hpp"
@@ -516,6 +517,11 @@ namespace bpr::core {
 		std::vector<supplement_skill> Skills;
 		/// [[BPR-1935]]. A tour run's composed prompt; see `agent_tour_prompt`.
 		std::optional<agent_tour_prompt> TourPrompt;
+		/// [[BPR-2002]]. What a chat question is about, and where the
+		/// reviewer is looking; absent for a launch that is not a question.
+		/// One outside its bounds refuses the request whole.
+		std::optional<supplement_subject>    Subject;
+		std::optional<supplement_looking_at> LookingAt;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -570,6 +576,10 @@ namespace bpr::core {
 		/// request's `agent_tour_prompt`; empty for every other launch.
 		std::string                      TourPrompt;
 		std::optional<transcript_replay> Replay;
+		/// [[BPR-2002]]. Carried through unchanged; absent for every launch
+		/// that is not a question.
+		std::optional<supplement_subject>    Subject;
+		std::optional<supplement_looking_at> LookingAt;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

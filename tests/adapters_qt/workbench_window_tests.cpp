@@ -14913,6 +14913,29 @@ namespace {
 		expect(agent->suggestions().back() == QStringLiteral("Explain src/engine/renderer.cpp line 36"), "one selected line is named as the line of its file");
 		suggestionContext.Lines = std::pair{ 440U, 447U };
 		agent->refresh_suggestions();
+		process_events();
+		// [[BPR-2002]], RFC-BPR-0102. No scope list; the selected lines are a
+		// chip, and its close detaches them until a new selection.
+		{
+			auto* const field = agent->findChild<QWidget*>(QStringLiteral("agentQuestion"));
+			expect(field != nullptr && !field->isAncestorOf(window.side_chat()->scope_selector()) && agent->reads_line()->isVisible()
+					   && agent->reads_line()->text() == QStringLiteral("The agent can read the whole pull request; attached lines only tell it where you are looking."),
+				   "no scope list is shown, and one line says what the agent can read");
+			expect(agent->lines_chip()->isVisible() && agent->lines_chip_text() == QStringLiteral("renderer.cpp 440–447") && agent->lines_attached(), "selected lines show as an attached chip");
+			agent->lines_chip_close()->click();
+			process_events();
+			expect(!agent->lines_chip()->isVisible() && !agent->lines_attached() && agent->suggestions().size() == 4U, "its close detaches them; Explain still offers the selected lines");
+			agent->refresh_suggestions();
+			expect(!agent->lines_attached(), "the same selection stays detached");
+			suggestionContext.Lines = std::pair{ 441U, 447U };
+			agent->refresh_suggestions();
+			expect(agent->lines_attached() && agent->lines_chip_text() == QStringLiteral("renderer.cpp 441–447"), "a new selection attaches again");
+			suggestionContext.Lines = std::pair{ 440U, 447U };
+			agent->refresh_suggestions();
+			for (const auto& prompt : agent->suggestions()) {
+				expect(!prompt.startsWith(QStringLiteral("Not sent")), "no suggestion is a refusal");
+			}
+		}
 		// Owner look v005: the suggestions are in the conversation's scrolled
 		// thread, not docked to the question field.
 		expect(agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->widget()->isAncestorOf(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions")))
@@ -15401,8 +15424,8 @@ namespace {
 				agent->set_conversation_chip(std::nullopt);
 				process_events();
 				expect(!agent->conversation_chip()->isVisible() && agent->suggestions().front() == QStringLiteral("Review this pull request")
-						   && composer->placeholderText() == QStringLiteral("Ask about this pull request…"),
-					   "removed, the field and the prompts are about the pull request again");
+						   && composer->placeholderText() == QStringLiteral("Ask about these lines…") && agent->lines_chip()->isVisible(),
+					   "removed, the prompts are about the pull request again, and the selected lines are attached once more");
 				agent->set_conversation_chip(qt::agent_conversation_chip{ .Key = "note:7", .Text = QStringLiteral("Your note on src/engine/renderer.cpp line 34"), .Replies = false });
 				expect(agent->suggestions().back() == QStringLiteral("Explain the code this note is on"), "a note's prompts offer no reply, which a note cannot take");
 				agent->set_conversation_chip(std::nullopt);
@@ -15541,14 +15564,13 @@ namespace {
 			// that opens it in Review.
 			{
 				auto went = std::vector<std::tuple<QString, std::uint32_t, bool>>{ };
-				agent->set_line_links(
-					[](const QString& aPath) -> std::optional<QString> {
-						if (aPath == QStringLiteral("src/engine/renderer.cpp") || aPath == QStringLiteral("renderer.cpp")) {
-							return QStringLiteral("src/engine/renderer.cpp");
-						}
-						return std::nullopt;
-					},
-					[&went](const QString& aPath, const std::uint32_t aLine, const bool aBefore) { went.emplace_back(aPath, aLine, aBefore); });
+				auto last = std::uint32_t{ 0U };
+				// [[BPR-1998]]. The changed files the core's recogniser resolves to.
+				agent->set_line_links([] { return core::agent_reference_files{ .Changed = { "src/engine/renderer.cpp", "src/a/util.hpp", "src/b/util.hpp" } }; },
+									  [&went, &last](const QString& aPath, const std::uint32_t aLine, const std::uint32_t aLast, const bool aBefore) {
+										  went.emplace_back(aPath, aLine, aBefore);
+										  last = aLast;
+									  });
 				agent->present_thread({ { .Question = QStringLiteral("Explain src/engine/renderer.cpp line 34"),
 										  .Answer   = QStringLiteral("Line 34 returns early; see `renderer.cpp:36` and src/engine/other.cpp:5.\n\n```cpp\n// renderer.cpp:40 stays code\n```"),
 										  .Footer   = QStringLiteral("answered") } });
@@ -15561,9 +15583,10 @@ namespace {
 				}
 				expect(went.size() == 1U && went.back() == std::tuple{ QStringLiteral("src/engine/renderer.cpp"), 34U, false }, "clicking it opens the file at that line");
 				{
-					const auto block = qt::agent_line_references(QStringLiteral("Explain the selected block (src/engine/renderer.cpp lines 440–447)"),
-																 [](const QString& aPath) -> std::optional<QString> { return aPath == QStringLiteral("src/engine/renderer.cpp") ? std::optional{ aPath } : std::nullopt; });
-					expect(block.size() == 1U && block.front().First == 440U && block.front().Last == 447U && block.front().Path == QStringLiteral("src/engine/renderer.cpp"),
+					const auto block = core::find_agent_references("Explain the selected block (src/engine/renderer.cpp lines 440\xE2\x80\x93"
+																   "447)",
+																   false);
+					expect(block.size() == 1U && block.front().First == 440U && block.front().Last == 447U && block.front().Path == "src/engine/renderer.cpp",
 						   "the selected block's prompt names its file and lines as one link");
 				}
 				const auto shown = agent->turn_answer_view(0U) != nullptr ? QString::fromStdString(agent->turn_answer_view(0U)->original_body()) : QString{ };
@@ -15571,6 +15594,42 @@ namespace {
 						   && shown.contains(QStringLiteral("src/engine/other.cpp:5.")) && !shown.contains(QStringLiteral("other.cpp#")) && shown.contains(QStringLiteral("// renderer.cpp:40 stays code")),
 					   "in the answer, the question's bare line, a code span naming a file's line and only the pull request's files are links; fenced code is not");
 				expect(agent->turn_answer(0U).startsWith(QStringLiteral("Line 34 returns early; see `renderer.cpp:36`")), "Copy and Save as note keep the answer as written");
+				// [[BPR-1998]], RFC-BPR-0101 AC01, AC02. A range opens revealed
+				// whole; a name two files share offers both; nothing else links.
+				{
+					auto offered = QStringList{ };
+					agent->set_reference_chooser([&offered](const QStringList& aPaths) -> std::optional<QString> {
+						offered = aPaths;
+						return aPaths.back();
+					});
+					agent->present_thread({ { .Question = QStringLiteral("What about these?"),
+											  .Answer   = QStringLiteral("See src/engine/renderer.cpp#L12-L34, **util.hpp:7** and missing.cpp:3."),
+											  .Footer   = QStringLiteral("answered") } });
+					process_events();
+					const auto body = QString::fromStdString(agent->turn_answer_view(0U)->original_body());
+					expect(body.contains(QStringLiteral("[src/engine/renderer.cpp#L12-L34](src/engine/renderer.cpp#L12-L34)")) && body.contains(QStringLiteral("[util.hpp:7](src/a/util.hpp|src/b/util.hpp#L7)"))
+							   && !body.contains(QStringLiteral("missing.cpp#")),
+						   "a range, a shared name and a missing file each read as the core decides");
+					went.clear();
+					agent->turn_answer_view(0U)->set_link_dispatch({ });
+					qt::follow_agent_reference(agent, QStringLiteral("src/engine/renderer.cpp#L12-L34"), [&went, &last](const QString& aPath, std::uint32_t aLine, std::uint32_t aLast, bool aBefore) {
+						went.emplace_back(aPath, aLine, aBefore);
+						last = aLast;
+					});
+					expect(went.size() == 1U && std::get<1>(went.back()) == 12U && last == 34U, "a range opens at its first line with its last");
+					went.clear();
+					qt::follow_agent_reference(
+						agent, QStringLiteral("src/a/util.hpp|src/b/util.hpp#L7"), [&went, &last](const QString& aPath, std::uint32_t aLine, std::uint32_t aLast, bool aBefore) {
+							went.emplace_back(aPath, aLine, aBefore);
+							last = aLast; },
+						[&offered](const QStringList& aPaths) -> std::optional<QString> {
+							offered = aPaths;
+							return aPaths.back();
+						});
+					expect(offered == QStringList{ QStringLiteral("src/a/util.hpp"), QStringLiteral("src/b/util.hpp") } && went.size() == 1U && std::get<0>(went.back()) == QStringLiteral("src/b/util.hpp"),
+						   "a shared name offers both files and opens the one chosen");
+				}
+				agent->set_reference_chooser({ });
 				agent->set_line_links({ }, { });
 			}
 			// Owner look v004: the answer's last line was cut off; the answer is
@@ -19580,8 +19639,8 @@ namespace {
 		window.open_agent_action()->trigger();
 		process_events();
 		agent->refresh();
-		agent->set_line_links([&window](const QString& aPath) { return window.review_file_named(aPath); },
-							  [&window](const QString& aPath, const std::uint32_t aLine, const bool aBefore) { static_cast<void>(window.go_to_file_line(aPath, aLine, aBefore)); });
+		agent->set_line_links([&window] { return core::agent_reference_files{ .Changed = window.review_changed_files() }; },
+							  [&window](const QString& aPath, const std::uint32_t aLine, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(window.go_to_file_line(aPath, aLine, aBefore, aLast)); });
 		agent->present_thread({ { .Question = QStringLiteral("What could this change break?"),
 								  .Answer   = QStringLiteral("The clearest regression is at `src/big.cpp:2991`. The budget is set at src/big.cpp:401."),
 								  .Footer   = QStringLiteral("Claude Code answered in 0:09.") } });

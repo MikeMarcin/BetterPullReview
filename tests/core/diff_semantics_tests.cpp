@@ -738,6 +738,13 @@ namespace {
 					== reconcile_diff_interaction(wrapperState, diff)
 				&& indexedState == wrapperState,
 			"indexed interaction transitions and reconciliation match the fail-closed wrappers");
+		// [[BPR-2002]]. Escape's intent clears a selection, and clearing
+		// nothing changes nothing.
+		expect(indexedState.Selection.has_value()
+				   && transition(indexedState, *index, diff_interaction_intent{ clear_diff_selection_intent{ } })
+				   && !indexedState.Selection.has_value()
+				   && !transition(indexedState, *index, diff_interaction_intent{ clear_diff_selection_intent{ } }),
+			   "clearing the selection empties it once");
 
 		auto invalid = diff;
 		++invalid.Alignment.Segments.front().Left.End;

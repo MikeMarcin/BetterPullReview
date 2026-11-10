@@ -44,6 +44,8 @@ namespace bpr::core {
 					if (const auto selected = select_group(aIndex, aValue.Group)) {
 						replacement = selected;
 					}
+				} else if constexpr (std::is_same_v<intent_type, clear_diff_selection_intent>) {
+					replacement.reset();
 				} else if (aValue.Reach == change_navigation_reach::outermost) {
 					// [[BPR-1532]]. The end is reached from anywhere, and an end
 					// already selected is selected again: the gesture is the way

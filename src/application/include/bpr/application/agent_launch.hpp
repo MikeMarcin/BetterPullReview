@@ -131,6 +131,11 @@ namespace bpr::application {
 		/// `core::maximum_tour_prompt_bytes`), not in `ChatMessage`, whose
 		/// bound is for what a reviewer types. Empty for every other launch.
 		std::string TourPrompt;
+		/// [[BPR-2002]], RFC-BPR-0102. What a chat question is about, as the
+		/// core decided it, and where the reviewer is looking, named as such.
+		/// Absent for every launch that is not a chat question.
+		std::optional<core::supplement_subject>    Subject;
+		std::optional<core::supplement_looking_at> LookingAt;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};

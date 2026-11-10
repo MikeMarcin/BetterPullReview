@@ -454,10 +454,10 @@ namespace bpr::qt {
 		if (AgentTab == nullptr) {
 			return;
 		}
-		// The selected lines go with the question, through the chat's own
-		// Add context, which the core decides; nothing is sent.
-		if (aAsk && SideChat != nullptr && SideChat->add_context_action()->isEnabled()) {
-			SideChat->add_context_action()->trigger();
+		// [[BPR-2002]]. The selected lines are attached to the next
+		// question, as the chip shows; nothing is sent.
+		if (aAsk) {
+			AgentTab->attach_lines();
 		}
 		AgentTab->refresh();
 		AgentTab->focus_question();
@@ -648,14 +648,27 @@ namespace bpr::qt {
 		return found;
 	}
 
-	auto workbench_window::go_to_file_line(const QString& aPath, const std::uint32_t aLine, const bool aBefore) -> bool
+	auto workbench_window::review_changed_files() const -> std::vector<std::string>
+	{
+		auto        files = std::vector<std::string>{ };
+		const auto* model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+		if (model != nullptr) {
+			files.reserve(static_cast<std::size_t>(model->rowCount()));
+			for (int row = 0; row < model->rowCount(); ++row) {
+				files.push_back(model->data(model->index(row, 0), Qt::DisplayRole).toString().toStdString());
+			}
+		}
+		return files;
+	}
+
+	auto workbench_window::go_to_file_line(const QString& aPath, const std::uint32_t aLine, const bool aBefore, const std::uint32_t aLast) -> bool
 	{
 		const auto path = review_file_named(aPath);
 		if (!path || aLine == 0U) {
 			statusBar()->showMessage(tr("%1 is not in this pull request at its current head.").arg(aPath), 6000);
 			return false;
 		}
-		PendingLineGo      = pending_line_go{ .File = core::file_identity_of(path->toStdString()), .Side = aBefore ? core::diff_side::left : core::diff_side::right, .Line = aLine - 1U };
+		PendingLineGo      = pending_line_go{ .File = core::file_identity_of(path->toStdString()), .Side = aBefore ? core::diff_side::left : core::diff_side::right, .Line = aLine - 1U, .Last = std::max(aLine, aLast) - 1U };
 		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
 		if (!context.has_value() || context->Key.File != PendingLineGo->File || Modality == nullptr || Modality->current() != review_modality::review) {
 			if (!open_file_in_review(*path)) {
@@ -683,6 +696,10 @@ namespace bpr::qt {
 			PendingLineGo.reset();
 			if (!ComparisonSurface->reveal_conversation_line(go.Side, go.Line)) {
 				statusBar()->showMessage(tr("Line %1 is not in this file at the %2.").arg(go.Line + 1U).arg(go.Side == core::diff_side::left ? tr("base") : tr("head")), 6000);
+			} else if (go.Last > go.Line && ComparisonSurface->current_result() != nullptr) {
+				// [[BPR-1998]]. A range is selected whole, its first line in view.
+				const auto digest = ComparisonSurface->current_result()->Alignment.Digest;
+				static_cast<void>(ComparisonSurface->restore_source_range(core::source_line_ref{ .Comparison = digest, .Side = go.Side, .Line = go.Line }, core::source_line_ref{ .Comparison = digest, .Side = go.Side, .Line = go.Last }));
 			}
 			return;
 		}

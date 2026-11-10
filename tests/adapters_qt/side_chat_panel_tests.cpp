@@ -596,6 +596,7 @@ namespace {
 					 statistics,
 					 dispatch,
 					 shown,
+					 question,
 					 replies, replyBody, promote, promotionAvailable, promotionReason,
 					 provider,
 					 gitHost,
@@ -633,6 +634,7 @@ namespace {
 			std::is_same_v<
 				decltype(shown),
 				const std::optional<qt::side_chat_projection>>);
+		static_assert(std::is_same_v<decltype(question), const std::optional<core::agent_question>>);
 		static_assert(std::is_same_v<decltype(replies), QListWidget* const>);
 		static_assert(std::is_same_v<decltype(replyBody), QPlainTextEdit* const>);
 		static_assert(std::is_same_v<decltype(promote), QAction* const>);
@@ -663,7 +665,7 @@ namespace {
 		expect(
 			!applying && lastObservation == core::agent_observation_record{ }
 				&& statistics == qt::side_chat_panel_statistics{ }
-				&& !dispatch && !shown.has_value() && replies == nullptr && replyBody == nullptr && promote == nullptr && !promotionAvailable && promotionReason.isEmpty() && provider == nullptr
+				&& !dispatch && !shown.has_value() && !question && replies == nullptr && replyBody == nullptr && promote == nullptr && !promotionAvailable && promotionReason.isEmpty() && provider == nullptr
 				&& gitHost == nullptr && workspace == nullptr
 				&& epochPair == nullptr && headOid == nullptr
 				&& sessionState == nullptr && scope == nullptr

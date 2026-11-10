@@ -1101,7 +1101,11 @@ namespace bpr::qt {
 		/// the head or (`aBefore`) the base, once its comparison is shown.
 		/// False, and the status line says so, when the path is not one of the
 		/// pull request's files.
-		auto go_to_file_line(const QString& aPath, std::uint32_t aLine, bool aBefore) -> bool;
+		/// [[BPR-1998]]: with `aLast` after `aLine`, the range is selected
+		/// and revealed.
+		auto go_to_file_line(const QString& aPath, std::uint32_t aLine, bool aBefore, std::uint32_t aLast = 0U) -> bool;
+		/// \brief [[BPR-1998]]. Every changed file of the pull request, by path.
+		[[nodiscard]] auto review_changed_files() const -> std::vector<std::string>;
 		/// \brief Owner look v004 ("After save as note it should turn into Go
 		/// to note"): opens one private note in Notes, its file first when it
 		/// is on another; an open note stays open.
@@ -2722,9 +2726,11 @@ namespace bpr::qt {
 		struct pending_line_go
 		{
 			core::file_identity File;
-			core::diff_side     Side  = core::diff_side::right;
-			std::uint32_t       Line  = 0U;
-			int                 Tries = 0;
+			core::diff_side     Side = core::diff_side::right;
+			std::uint32_t       Line = 0U;
+			/// Zero-based last line of a range; equal to `Line` for one line.
+			std::uint32_t Last  = 0U;
+			int           Tries = 0;
 		};
 		std::optional<pending_line_go> PendingLineGo;
 		void                           resume_line_go();

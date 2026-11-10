@@ -50,14 +50,17 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -71,9 +74,11 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -253,7 +258,7 @@ auto main(int argc, char** argv) -> int
 	if (
 		course != "positive" && course != "stale" && course != "continued"
 		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation"
-		&& course != "custom-agent") {
+		&& course != "custom-agent" && course != "subject") {
 		return EXIT_FAILURE;
 	}
 	// The two courses that take `continue_against_old_revision` to a further
@@ -354,6 +359,171 @@ auto main(int argc, char** argv) -> int
 	};
 	if (!custom && !chooseJsonl()) {
 		return fail(*application, "agent-offerings-jsonl");
+	}
+
+	// [[BPR-2002]], RFC-BPR-0102. A question says what it points at, and a
+	// suggestion always sends: Review this pull request from Overview with
+	// nothing selected, and again with lines selected; the lines chip, its
+	// close, and Escape in the diff (after the find bar when it is open). The
+	// fixture agent reports the subject fields its frame carried.
+	if (course == "subject") {
+		auto* const tab  = window.agent_tab();
+		auto* const chat = app::detail::github_application_fixture_access::side_chat_panel(*application);
+		if (chat == nullptr || tab == nullptr) {
+			return fail(*application, "subject-panels");
+		}
+		auto ready = wait_terms{ };
+		if (!wait_until_reporting(ready, [&](wait_terms& aTerms) {
+				QApplication::processEvents();
+				return aTerms.require("overview", window.showing_overview()) && aTerms.require("send-enabled", chat->send_action()->isEnabled());
+			})) {
+			return fail(*application, "subject-overview", ready.render());
+		}
+		window.open_overview_tab(qt::overview_drawer_tab::agent);
+		QApplication::processEvents();
+		// AC06: no scope list anywhere in the Agent tab.
+		if (tab->isAncestorOf(window.side_chat()->scope_selector()) || window.side_chat()->scope_selector()->isVisible()) {
+			return fail(*application, "subject-scope-list-shown");
+		}
+		// One send and its delivered reply, read back as the fixture agent
+		// reported what it received.
+		auto       asked = std::size_t{ 0U };
+		const auto send  = [&](const std::function<void()>& aGesture, const std::string_view aStep) -> std::optional<std::string> {
+			const auto before = app::detail::github_application_fixture_access::agent_chat_evidence(*application).Statistics.Replies;
+			aGesture();
+			QApplication::processEvents();
+			auto terms = wait_terms{ };
+			if (!wait_until_reporting(terms, [&](wait_terms& aTerms) {
+					QApplication::processEvents();
+					const auto evidence = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+					const auto run      = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+					aTerms.note_identifier("panel", evidence.AgentPanelStatusText);
+					aTerms.note_identifier("refusal", tab->send_refusal_text().toStdString());
+					return aTerms.require("reply", evidence.Statistics.Replies == before + 1U) && aTerms.require("quiescent", run.Quiescent); }, extended_agent_budget)) {
+				std::cerr << "agent-chat-subject-step:" << aStep << ' ' << terms.render() << '\n';
+				return std::nullopt;
+			}
+			++asked;
+			const auto evidence = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+			const auto text     = evidence.Projection && !evidence.Projection->Replies.empty() ? evidence.Projection->Replies.back().Text : std::string{ };
+			const auto at       = text.find("BPR_SUBJECT_2002");
+			const auto subject  = at == std::string::npos ? std::string{ "absent" } : text.substr(at, text.find(" end", at) - at);
+			std::cout << "agent-chat-subject " << aStep << ": " << subject << " entry=" << (evidence.LastTurn && evidence.LastTurn->Question ? core::stable_name(evidence.LastTurn->Question->EntryPoint) : std::string_view{ "none" }) << '\n';
+			return subject;
+		};
+		const auto suggestion = [&](const QString& aWords) {
+			return [&, aWords] {
+				for (auto* const button : tab->suggestion_buttons()) {
+					if (button->text() == aWords && button->isVisible() && button->isEnabled()) {
+						button->click();
+						return;
+					}
+				}
+				// Not on screen (the toggle hid them): the press they make.
+				tab->send_prompt(aWords);
+			};
+		};
+		const auto typed = [&](const QString& aWords) {
+			return [&, aWords] {
+				chat->composer()->setPlainText(aWords);
+				tab->ask_button()->click();
+			};
+		};
+		const auto has   = [](const std::optional<std::string>& aSubject, const std::string_view aPart) { return aSubject && aSubject->find(aPart) != std::string::npos; };
+		const auto entry = [&] {
+			const auto evidence = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+			return evidence.LastTurn && evidence.LastTurn->Question ? evidence.LastTurn->Question->EntryPoint : core::agent_entry_point::ask_about_selection;
+		};
+		// AC01. From Overview with nothing selected.
+		const auto overview = send(suggestion(QStringLiteral("Review this pull request")), "overview-review");
+		if (!has(overview, "subject=pull_request") || has(overview, "in_scope=0 ") || has(overview, "in_scope=absent") || !has(overview, "selection=0") || !has(overview, "files=0")
+			|| !has(overview, "looking=absent") || entry() != core::agent_entry_point::run_ai_review) {
+			return fail(*application, "subject-overview-review", overview.value_or("not sent"));
+		}
+		// AC02. With lines selected, the same request.
+		auto* const files = window.files_drawer()->contents_view();
+		files->selectionModel()->setCurrentIndex(QModelIndex{ }, QItemSelectionModel::Clear);
+		QApplication::processEvents();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		window.choose_modality(qt::review_modality::review);
+		auto* const surface = window.comparison_surface();
+		auto        shown   = wait_terms{ };
+		if (!wait_until_reporting(shown, [&](wait_terms& aTerms) {
+				QApplication::processEvents();
+				return aTerms.require("comparison", surface->current_result() != nullptr && !window.showing_overview()); }, extended_agent_budget) || !surface->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop) || !e2e::select_right_side_of_change(*surface)) {
+			return fail(*application, "subject-selection", shown.render());
+		}
+		window.tray_tabs()->setCurrentIndex(3);
+		tab->refresh_suggestions();
+		QApplication::processEvents();
+		if (tab->lines_chip()->isHidden() || tab->lines_chip_text().isEmpty()) {
+			return fail(*application, "subject-chip-shown", "attached=" + std::to_string(tab->lines_attached()) + " text=" + tab->lines_chip_text().toStdString() + " suggestions=" + tab->suggestions().join(QStringLiteral("|")).toStdString());
+		}
+		const auto selected = send(suggestion(QStringLiteral("Review this pull request")), "selected-review");
+		if (!has(selected, "subject=pull_request") || has(selected, "in_scope=0 ") || !has(selected, "selection=0") || !has(selected, "files=0") || has(selected, "looking=absent")
+			|| entry() != core::agent_entry_point::run_ai_review || !surface->selection().has_value()) {
+			return fail(*application, "subject-selected-review", selected.value_or("not sent"));
+		}
+		// AC04. A typed question carries the attached lines; the chip's close
+		// sends the next with the pull request and leaves the selection.
+		const auto lines = send(typed(QStringLiteral("BPR_SUBJECT_TYPED what do these lines do?")), "typed-attached");
+		if (!has(lines, "subject=lines") || has(lines, "lines=absent") || !has(lines, "selection=1") || entry() != core::agent_entry_point::ask_about_selection) {
+			return fail(*application, "subject-typed-lines", lines.value_or("not sent"));
+		}
+		tab->lines_chip_close()->click();
+		QApplication::processEvents();
+		if (!tab->lines_chip()->isHidden() || !surface->selection().has_value()) {
+			return fail(*application, "subject-chip-detached");
+		}
+		const auto detached = send(typed(QStringLiteral("BPR_SUBJECT_TYPED and after detaching?")), "typed-detached");
+		if (!has(detached, "subject=pull_request") || !has(detached, "selection=0") || !surface->selection().has_value()) {
+			return fail(*application, "subject-typed-detached", detached.value_or("not sent"));
+		}
+		// AC05. With the find bar open, Escape closes it and the selection
+		// stays; then Escape clears the selection and the chip.
+		tab->attach_lines();
+		auto* const pane = surface->right_pane();
+		pane->setFocus(Qt::OtherFocusReason);
+		surface->open_source_find();
+		QApplication::processEvents();
+		const auto escape = [pane] {
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+			QApplication::sendEvent(pane, &press);
+			QApplication::processEvents();
+		};
+		if (surface->source_find() == nullptr || surface->source_find()->isHidden()) {
+			return fail(*application, "subject-find-open");
+		}
+		escape();
+		if (!surface->source_find()->isHidden() || !surface->selection().has_value()) {
+			return fail(*application, "subject-escape-find", "find-hidden=" + std::to_string(surface->source_find()->isHidden()) + " selection=" + std::to_string(surface->selection().has_value()));
+		}
+		escape();
+		tab->refresh_suggestions();
+		QApplication::processEvents();
+		if (surface->selection().has_value() || !tab->lines_chip()->isHidden()) {
+			return fail(*application, "subject-escape-clears");
+		}
+		// AC07. A typed question with nothing selected is sent and answered.
+		const auto none = send(typed(QStringLiteral("BPR_SUBJECT_TYPED with nothing selected?")), "typed-nothing");
+		if (!has(none, "subject=pull_request") || !has(none, "selection=0")) {
+			return fail(*application, "subject-typed-nothing", none.value_or("not sent"));
+		}
+		// AC06. No suggestion or enabled control ends in the old refusal.
+		for (auto* const button : tab->findChildren<QAbstractButton*>()) {
+			if (button->isEnabled() && button->text().contains(QStringLiteral("Select the lines to ask about"))) {
+				return fail(*application, "subject-refusing-control", button->text().toStdString());
+			}
+		}
+		if (tab->send_refusal() != core::agent_send_refusal::none || app::detail::github_application_fixture_access::agent_chat_evidence(*application).Statistics.Refusals != 0U) {
+			return fail(*application, "subject-refused", tab->send_refusal_text().toStdString());
+		}
+		const auto mutation = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
+		if (asked != 5U || mutation.Submissions != 0U || mutation.StoredComments != 0U || !shutdown(*application)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-chat-subject:pass\n";
+		return EXIT_SUCCESS;
 	}
 
 	auto* const files = window.files_drawer()->contents_view();

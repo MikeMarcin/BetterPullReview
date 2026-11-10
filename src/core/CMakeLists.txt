@@ -108,6 +108,8 @@ add_library(
         src/view_filter_memory.cpp
         src/pull_request_activity.cpp
         src/agent_chat_scope.cpp
+        src/agent_question.cpp
+        src/agent_reference.cpp
         src/agent_context_supplement.cpp
         src/agent_finding.cpp
         src/agent_finding_promotion.cpp
