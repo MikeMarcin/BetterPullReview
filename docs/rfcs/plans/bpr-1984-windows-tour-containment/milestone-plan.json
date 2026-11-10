@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1984-windows-tour-containment",
+  "scope": {
+    "issues": [
+      "BPR-1984"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "measure-and-bind",
+      "outcome": "The three accepted tour publication courses have actual native Windows contained measurements and truthful maintained registration/disposition, with normal positive courses and source gates landed on main.",
+      "work": [
+        {
+          "issue": "BPR-1984",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Archive the old owned native checkout inputs and preserve protected producers, bind exact1983 source and configured course commands/properties, then measure all three contained variants at unchanged90seconds and predicates.",
+        "Each registration reflects actual contained success or an exact proven refusal cause, without inferring adjacent reasons; original normal courses all run with unchanged arguments/environment/oracles.",
+        "Focused source/registry/documentation/format checks and normal main integration complete with frozen5fd production preserved, commands quiescent and leases returned; original1978 and fullrelease qualification remain open."
+      ],
+      "boundary": "Root release-owned freeze mandate2026-11-09. Accepted product cutoff5fd40876745bdd815b0c0ed16407826ca74753f1 plus1983 reviewed source pin; native baseline exact4eab682639a399243ffb3dc921716b434e6f8be2. Only application_review_tour_publication_file/mixed/repairs; target test_review_tour_publication_public_path and normal sandbox/deps. Source correction ownership limited to their three entries in scripts/verify_test_network_isolation.py and their registration in tests/end_to_end/CMakeLists.txt after measurement. No new product work, later external main ingest, fullsuite, signing/publication or frozenLinux49/Windows48 mutation. Prior own D:/bpr-native-session-main-r1 archived before incremental normal Release build; exact configured rows/task/proof coordinator-reviewed before courses."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
