@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Freezes a tests-on build for an attended look, and removes one.
+"""Freezes a tests-on build for an attended look, or a tests-off build for a
+live one, and removes one.
 
 A frozen attended build is a commit exported into its own root, built there,
 and opened by a launcher the owner runs. A tests-on build compiles absolute
@@ -23,7 +24,22 @@ rather than on a file freezes with `--open-pull-request` instead of
 `--open-file`; its launcher passes `--attended-open-pull-request` and waits for
 `ATTENDED_PULL_REQUEST_OPENED` (BPR-1350's look at the Overview heading).
 
+A look that must reach live GitHub (an approval that publishes, a tour
+published on MikeMarcin/BPR-Test) freezes with `--live` instead: the
+`app-release` preset with tests off, which is the only build that holds a
+publication grant, and no fixture. Its launcher gives the application its own
+home inside the root (`CFFIXED_USER_HOME`, which the macOS standard paths and
+preferences read), so the frozen build's profile, sign-in, review data and
+settings live in the root and never touch the person's own; `HOME` is kept,
+so `gh` still finds the person's sign-in. Its `--check` confirms the build
+is tests-off (no fixture option in the executable), runs the application's
+own `--self-test` offscreen, then starts it offscreen on a scratch home and
+waits until it has stayed up and written its data under that home. The
+owner's launch opens it on the root's home and leaves the window to them.
+
 Usage:
+    freeze_attended_build.py freeze --live --name NAME [--commit REV] [--title TEXT] [--parent DIR]
+        [--argument ARG]... [--target TARGET]... [--wait SECONDS]
     freeze_attended_build.py freeze --name NAME --fixture FIXTURE (--open-file PATH | --open-pull-request)
         [--commit REV] [--title TEXT] [--next-push] [--require RELPATH]... [--parent DIR]
         [--argument ARG]... [--target TARGET]... [--generate COMMAND]...
@@ -54,6 +70,10 @@ OPENED = "ATTENDED_PULL_REQUEST_OPENED"
 BUILD = "build/app-release-tests"
 EXECUTABLE = f"{BUILD}/src/app/better_pull_review.app/Contents/MacOS/better_pull_review"
 FIXTURE_TREES = ("tests/fixtures/github/contracts/v1", "tests/fixtures/github/pull-requests")
+LIVE_BUILD = "build/app-release"
+LIVE_EXECUTABLE = f"{LIVE_BUILD}/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+# A tests-only option name: a tests-off image carries none of them.
+TESTS_ONLY_OPTION = b"github-fixture"
 
 LAUNCHER = '''#!/usr/bin/env python3
 """Open the frozen build for the owner's look: {title}.
@@ -220,6 +240,163 @@ if __name__ == "__main__":
     sys.exit(main())
 '''
 
+LIVE_LAUNCHER = '''#!/usr/bin/env python3
+"""Open the frozen live build: {title}.
+
+Frozen from {commit} by scripts/freeze_attended_build.py with tests off, so it
+reaches live GitHub. It keeps its own profile in {root}/home: sign in there
+the first time (the gh account you are signed in with is offered); nothing of
+your own BetterPullReview profile is read or changed. Checks the build first
+and reports within seconds if the application exits.
+
+    --check     confirm the build is tests-off, run its self-test offscreen,
+                then open it offscreen on a scratch home until it is up and
+                close it (what the freeze ran)
+"""
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+SOURCE = ROOT / "src"
+EXECUTABLE = SOURCE / {executable!r}
+TESTS_ONLY_OPTION = {tests_only!r}
+EXTRA = [argument.replace("{{build}}", str(SOURCE / {build!r})) for argument in {extra!r}]
+SELF_TEST_LINES = {self_test_lines!r}
+WAIT_SECONDS = {wait}
+HOME = ROOT / "home"
+LOG = ROOT / "launch.log"
+DATA = Path("Library/Application Support/BetterPullReview")
+
+
+def preflight() -> bool:
+    if not EXECUTABLE.is_file():
+        print(f"BUILD_MISSING: {{EXECUTABLE}}")
+        return False
+    if TESTS_ONLY_OPTION in EXECUTABLE.read_bytes():
+        print(f"TESTS_ON_BUILD: {{EXECUTABLE}} carries the tests-only option {{TESTS_ONLY_OPTION.decode()}}")
+        return False
+    return True
+
+
+def private_directory(path):
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
+    return path
+
+
+def start(command, home, log_path, offscreen):
+    environment = dict(os.environ)
+    environment.pop("QT_QPA_PLATFORM", None)
+    environment.pop("QT_STYLE_OVERRIDE", None)
+    environment["CFFIXED_USER_HOME"] = str(private_directory(home))
+    if offscreen:
+        environment["QT_QPA_PLATFORM"] = "offscreen"
+    with log_path.open("w", encoding="utf-8") as log:
+        return subprocess.Popen(command, cwd=str(ROOT), env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+
+
+def stop(process):
+    if process.poll() is None:
+        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+
+
+def await_up(process, home, log_path):
+    """Returns an empty message once the application has stayed up with its
+    data under `home`, or why not."""
+    deadline = time.monotonic() + WAIT_SECONDS
+    up_since = None
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            return f"EXITED {{process.returncode}} within seconds; log {{log_path}}:\\n{{log_path.read_text(encoding='utf-8', errors='replace')}}"
+        if (home / DATA).is_dir():
+            up_since = up_since or time.monotonic()
+            if time.monotonic() - up_since >= 5:
+                return ""
+        time.sleep(0.25)
+    return f"Not up with its data under {{home}} after {{WAIT_SECONDS}} seconds (pid {{process.pid}}). Log: {{log_path}}"
+
+
+def check():
+    if not preflight():
+        return 1
+    scratch = Path(tempfile.mkdtemp(prefix="check.", dir=str(ROOT)))
+    try:
+        log_path = scratch / "self-test.log"
+        process = start([str(EXECUTABLE), "--self-test", *EXTRA], scratch / "self-test-home", log_path, offscreen=True)
+        try:
+            process.wait(timeout=WAIT_SECONDS)
+        except subprocess.TimeoutExpired:
+            stop(process)
+            print(f"CHECK_FAILED (self-test): no result after {{WAIT_SECONDS}} seconds")
+            return 1
+        said = log_path.read_text(encoding="utf-8", errors="replace")
+        missing = [line for line in SELF_TEST_LINES if line not in said.splitlines()]
+        if process.returncode != 0 or missing:
+            print(f"CHECK_FAILED (self-test): exit {{process.returncode}}, missing {{missing}}:\\n{{said}}")
+            return 1
+        print(f"CHECK_OK (self-test): exit 0 with {{', '.join(SELF_TEST_LINES) or 'no required line'}}")
+        home = scratch / "home"
+        log_path = scratch / "launch.log"
+        process = start([str(EXECUTABLE), *EXTRA], home, log_path, offscreen=True)
+        try:
+            message = await_up(process, home, log_path)
+        finally:
+            stop(process)
+        if message:
+            print(f"CHECK_FAILED (launch): {{message}}")
+            return 1
+        print(f"CHECK_OK (launch): up with its data under its own home")
+        return 0
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def main():
+    options = set(sys.argv[1:])
+    if not options <= {{"--check"}}:
+        print(__doc__)
+        return 2
+    if "--check" in options:
+        return check()
+    if not preflight():
+        return 1
+    process = start([str(EXECUTABLE), *EXTRA], HOME, LOG, offscreen=False)
+    message = await_up(process, HOME, LOG)
+    if message:
+        print(message)
+        return 1
+    print(f"The window is yours (pid {{process.pid}}). Its profile is {{HOME}}. Log: {{LOG}}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+# What a tests-off `--self-test` says on macOS when it passed (the CLI entry
+# offered; build-and-test-reference.md, tests-disabled self-test).
+LIVE_SELF_TEST_LINES = ("CLI_ENTRY_OFFERED_OK",)
+
+
+def render_live_launcher(*, root: Path, title: str, commit: str, extra: list[str] | None = None, wait: int = 60,
+                         self_test_lines: tuple[str, ...] = LIVE_SELF_TEST_LINES) -> str:
+    """The launcher for one frozen live root, from the one live template."""
+    return LIVE_LAUNCHER.format(title=title, commit=commit, root=root, executable=LIVE_EXECUTABLE, build=LIVE_BUILD,
+                                tests_only=TESTS_ONLY_OPTION, extra=list(extra or []), wait=wait,
+                                self_test_lines=list(self_test_lines))
+
+
 NEXT_PUSH_DOC = """
 Your marks are kept between launches. To see the pull request get its next
 push (only src/engine/renderer.cpp changes), close the window and run:
@@ -287,6 +464,14 @@ def set_writable(root: Path, writable: bool) -> None:
 
 
 def freeze(options: argparse.Namespace) -> int:
+    if options.live:
+        if options.fixture or options.open_file or options.open_pull_request or options.next_push or options.require \
+                or options.generate or options.ready:
+            return fail("--live freezes no fixture: it takes no --fixture, --open-file, --open-pull-request, "
+                        "--next-push, --require, --generate or --ready")
+        return freeze_live(options)
+    if not options.fixture or not (options.open_file or options.open_pull_request):
+        return fail("a fixture look needs --fixture and one of --open-file or --open-pull-request")
     if options.open_pull_request:
         if options.next_push or options.ready not in (None, OPENED):
             return fail("--open-pull-request waits for ATTENDED_PULL_REQUEST_OPENED and has no next push")
@@ -365,6 +550,56 @@ def freeze(options: argparse.Namespace) -> int:
     return 0
 
 
+def export(commit: str, parent: Path, name: str) -> tuple[Path, Path] | None:
+    root = Path(tempfile.mkdtemp(prefix=f"{name}.", dir=str(parent)))
+    source = root / "src"
+    source.mkdir()
+    print(f"FREEZING:{root} from {commit}", flush=True)
+    archive = subprocess.Popen(["git", "-C", str(REPOSITORY), "archive", "--format=tar", commit], stdout=subprocess.PIPE)
+    extracted = subprocess.run(["tar", "-x", "-C", str(source)], stdin=archive.stdout, check=False)
+    archive.stdout.close()
+    if archive.wait() != 0 or extracted.returncode != 0:
+        return None
+    return root, source
+
+
+def freeze_live(options: argparse.Namespace) -> int:
+    commit = git("rev-parse", "--verify", f"{options.commit}^{{commit}}")
+    exported = export(commit, Path(options.parent).expanduser().resolve(), options.name)
+    if exported is None:
+        return fail(f"git archive of {commit} did not extract")
+    root, source = exported
+    with (root / "configure.log").open("w") as log:
+        configured = subprocess.run(["cmake", "--preset", "app-release", "-B", LIVE_BUILD, "-DBUILD_TESTING=OFF"],
+                                    cwd=str(source), stdout=log, stderr=subprocess.STDOUT, check=False)
+    if configured.returncode != 0:
+        return fail(f"configure failed; see {root / 'configure.log'}")
+    with (root / "build.log").open("w") as log:
+        built = subprocess.run(["cmake", "--build", LIVE_BUILD, "--target", "app_better_pull_review", *options.target],
+                               cwd=str(source), stdout=log, stderr=subprocess.STDOUT, check=False)
+    if built.returncode != 0:
+        return fail(f"build failed; see {root / 'build.log'}")
+    executable = source / LIVE_EXECUTABLE
+    if not executable.is_file():
+        return fail(f"{LIVE_EXECUTABLE} is missing after the build")
+    launcher = root / "launch.py"
+    launcher.write_text(render_live_launcher(root=root, title=options.title, commit=commit, extra=options.argument,
+                                             wait=options.wait))
+    launcher.chmod(0o755)
+    digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    (root / MARKER).write_text(json.dumps({"commit": commit, "live": True, "executable_sha256": digest}, indent=1) + "\n")
+    checked = subprocess.run([sys.executable, str(launcher), "--check"], check=False, capture_output=True, text=True)
+    print(checked.stdout, end="")
+    if checked.returncode != 0:
+        return fail(f"the launcher's own check failed; the root is kept at {root}")
+    # The build is fixed; the home the owner signs in to stays writable.
+    set_writable(source, False)
+    print(f"EXECUTABLE_SHA256:{digest}")
+    print(f"FROZEN_ROOT:{root}")
+    print(f"LAUNCH:python3 {launcher}")
+    return 0
+
+
 def remove(root_text: str) -> int:
     root = Path(root_text).expanduser().resolve()
     if not (root / MARKER).is_file() and not (root / "launch.py").is_file():
@@ -381,8 +616,10 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     frozen = commands.add_parser("freeze")
     frozen.add_argument("--name", required=True)
-    frozen.add_argument("--fixture", required=True)
-    opening = frozen.add_mutually_exclusive_group(required=True)
+    frozen.add_argument("--live", action="store_true",
+                        help="a tests-off build that reaches live GitHub, with its own profile home in the root")
+    frozen.add_argument("--fixture")
+    opening = frozen.add_mutually_exclusive_group()
     opening.add_argument("--open-file", help="the fixture file the look opens in Review")
     opening.add_argument("--open-pull-request", action="store_true",
                          help="open the pull request on its own opening page (its Overview), no file")

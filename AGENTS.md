@@ -93,6 +93,11 @@ network, or process effects.
   and packs under `pull-requests`), so a freeze runs no
   `scripts/build_*_fixture.py`; a fixture that must be generated goes through
   `--generate`. Helpers a look launches are `--target`s and `--argument`s.
+  A look that must reach live GitHub freezes with `--live`: a tests-off
+  build, no fixture, its own profile home inside the root (the owner signs
+  in there; their own profile is untouched), and a `--check` that refuses a
+  tests-on image, runs the self-test and starts it offscreen on a scratch
+  home.
 - Freeze a look with a fixture that already holds the surface under review,
   and open the build on it: a look at a tour serves a pull request with a
   tour. The owner, accepting the tour-publishing look on 2026-11-10: "It's

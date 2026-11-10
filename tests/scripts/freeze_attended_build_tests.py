@@ -82,6 +82,30 @@ def frozen_root(directory: Path, name: str, *, required: list[str], next_push: b
     return root
 
 
+# A tests-off application: its self-test says the CLI entry was offered;
+# otherwise it makes its data where the macOS standard paths put it (under
+# CFFIXED_USER_HOME when set) and records the HOME it was given.
+LIVE_STAND_IN = """#!/bin/sh
+for argument in "$@"; do
+  if [ "$argument" = --self-test ]; then echo CLI_ENTRY_OFFERED_OK; exit 0; fi
+done
+home="${CFFIXED_USER_HOME:-$HOME}"
+mkdir -p "$home/Library/Application Support/BetterPullReview"
+echo "$HOME" > "$home/home-was"
+exec sleep 30
+"""
+
+
+def live_root(directory: Path, name: str, stand_in: str = LIVE_STAND_IN) -> Path:
+    root = directory / name
+    executable = root / "src" / freeze.LIVE_EXECUTABLE
+    executable.parent.mkdir(parents=True)
+    executable.write_text(stand_in)
+    executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
+    (root / "launch.py").write_text(freeze.render_live_launcher(root=root, title="test", commit="0" * 40, wait=15))
+    return root
+
+
 def launch(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     environment = {key: value for key, value in os.environ.items() if key != "QT_QPA_PLATFORM"}
     return subprocess.run([sys.executable, str(root / "launch.py"), *arguments], capture_output=True, text=True,
@@ -136,6 +160,51 @@ def main() -> int:
         expect(checked.returncode == 0 and "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED" in checked.stdout,
                f"a look on the pull request's Overview opens it with no file: {checked.stdout!r}")
         expect("on its Overview" in (overview / "launch.py").read_text(), "the Overview launcher says where it opens")
+
+    # The live freeze: tests off, its own home, the launcher's own check.
+    refused = subprocess.run([sys.executable, str(repository / "scripts/freeze_attended_build.py"), "freeze", "--live", "--name", "x",
+                              "--fixture", "conventional-comments-v1"], capture_output=True, text=True, check=False, timeout=60)
+    expect(refused.returncode == 1 and "FREEZE_FAILED:--live freezes no fixture" in refused.stdout,
+           f"a live freeze refuses a fixture before it exports anything: {refused.stdout!r}")
+    unopened = subprocess.run([sys.executable, str(repository / "scripts/freeze_attended_build.py"), "freeze", "--name", "x",
+                               "--fixture", "conventional-comments-v1"], capture_output=True, text=True, check=False, timeout=60)
+    expect(unopened.returncode == 1 and "FREEZE_FAILED:a fixture look needs" in unopened.stdout,
+           f"a fixture look still needs what it opens: {unopened.stdout!r}")
+    expect(freeze.LIVE_BUILD == "build/app-release" and "app-release-tests" not in freeze.LIVE_EXECUTABLE,
+           "a live freeze builds the tests-off app-release tree")
+    with contained_temporary_directory() as scratch:
+        directory = Path(scratch)
+        live = live_root(directory, "live")
+        checked = launch(live, "--check")
+        expect(checked.returncode == 0 and "CHECK_OK (self-test): exit 0 with CLI_ENTRY_OFFERED_OK" in checked.stdout
+               and "CHECK_OK (launch): up with its data under its own home" in checked.stdout,
+               f"a tests-off build passes its self-test and comes up on its own home: {checked.stdout!r}")
+        expect(not (live / "home").exists() and not list(live.glob("check.*")), "the check uses a scratch home and leaves none behind")
+        expect("CFFIXED_USER_HOME" in (live / "launch.py").read_text() and "--github-fixture" not in (live / "launch.py").read_text(),
+               "the live launcher gives the application its own home and passes no fixture")
+
+        tests_on = live_root(directory, "tests-on", stand_in=LIVE_STAND_IN.replace("exec sleep 30", "exec sleep 30 # --github-fixture"))
+        checked = launch(tests_on, "--check")
+        expect(checked.returncode == 1 and "TESTS_ON_BUILD:" in checked.stdout, f"a tests-on image is refused: {checked.stdout!r}")
+
+        silent = live_root(directory, "silent", stand_in=LIVE_STAND_IN.replace("echo CLI_ENTRY_OFFERED_OK; ", ""))
+        checked = launch(silent, "--check")
+        expect(checked.returncode == 1 and "CHECK_FAILED (self-test)" in checked.stdout and "CLI_ENTRY_OFFERED_OK" in checked.stdout,
+               f"a self-test that does not offer the CLI entry fails the check: {checked.stdout!r}")
+
+        shared = live_root(directory, "shared", stand_in=LIVE_STAND_IN.replace('home="${CFFIXED_USER_HOME:-$HOME}"', f'home="{directory}/elsewhere"'))
+        checked = launch(shared, "--check")
+        expect(checked.returncode == 1 and "CHECK_FAILED (launch): Not up with its data under" in checked.stdout,
+               f"an application that keeps its data outside the root's home fails the check: {checked.stdout!r}")
+
+        owner = launch(live)
+        expect(owner.returncode == 0 and "The window is yours" in owner.stdout and (live / "home/Library/Application Support/BetterPullReview").is_dir(),
+               f"the owner's launch opens on the root's own home: {owner.stdout!r}")
+        recorded = (live / "home/home-was").read_text().strip() if (live / "home/home-was").is_file() else ""
+        expect(recorded == os.environ.get("HOME", ""), f"HOME is kept, so gh finds the person's sign-in: {recorded!r}")
+        if "pid " in owner.stdout:
+            pid = int(owner.stdout.split("pid ", 1)[1].split(")", 1)[0])
+            os.killpg(pid, 15)
 
     if FAILURES:
         for failure in FAILURES:
