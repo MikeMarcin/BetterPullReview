@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2050"
+  ],
+  "reserve_for": "release55-diff-reference-mask",
+  "purpose": "Linux55 release blocker: clip exact retained gutter reference rows before comparing painted spans",
+  "created": "2026-11-10T21:37:22.147072+00:00",
+  "base": "293ecfecb63e558ecea8cb71964a1593c66096c5"
+}
