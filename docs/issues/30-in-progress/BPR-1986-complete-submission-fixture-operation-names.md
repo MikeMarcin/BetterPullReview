@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1986"
 title: "Complete submission fixture operation names and audit mutation switches"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1985"]
 priority: "P1"
