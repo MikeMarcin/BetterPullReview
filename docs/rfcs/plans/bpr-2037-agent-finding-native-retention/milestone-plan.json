@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2037-agent-finding-native-retention",
+  "scope": {
+    "issues": [
+      "BPR-2037"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "retained-finding-contract",
+      "outcome": "The added Codex finding course proves native workspace retention, while built-in finding courses still prove exact per-turn cleanup.",
+      "work": [
+        {
+          "issue": "BPR-2037",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Frozen53 failure and accepted native workspace retention are bound to a test-only conditional oracle with exact counts and concrete retained tree/history.",
+        "Corrected original codex-found and ordinary positive courses pass under unchanged original budgets and wrappers; the native result explicitly distinguishes the old cleanup-one predicate.",
+        "Only the owned release fix and workflow land main; commands are terminal, source53 stays frozen, and fresh successor release qualification remains separate."
+      ],
+      "boundary": "Release53 cleanup-accounting diagnosis mandate r1; only tests/end_to_end/agent_finding_composition_public_path.cpp plus own workflow; no production changes, external main product ingestion or native operation without coordinator lease."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
