@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1984"
 title: "Measure Windows containment for the new tour publication courses"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1983"]
 priority: "P1"
 platforms: ["win"]
 metadata: {"kind":"release-native-calibration","mandate_revision":"frozen-tour-windows-containment-r1","reservation":"docs/issues/_reservations/BPR-1984--BPR-1984--8c16d212f273.json","milestone_plan":{"id":"bpr-1984-windows-tour-containment","path":"docs/rfcs/plans/bpr-1984-windows-tour-containment/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c514eac7a34c5e2235eed6c8520fe0cd891d5ec9","evidence":{"kind":"artifact","detail":"Oldowned970812fullinput/gitbundle archive verified27165members/3.928GB; current4eabarchive142files/1.112GB. Exact3native configured rows/90s and reviewed contained deltas, source/PE/cache/protected/temp seals retained. Actual3containedCTest8/child1 are preserved without qualification credit."}},{"criterion":"AC2","outcome":"pass","revision":"3e3ca7016","evidence":{"kind":"artifact","detail":"All3original normal coursesCTest0+exact markers/JUnitrun/no failure/skip. Approvedfailure-only helper diagnostic identifies parent-owner-private for each containedcourse; no lower Windows/DOS cause inferred. Only3registry values+comment use existingprivate-test-root-refused; CMake/otherpins/productpolicy unchanged. Header/restoration exact and normalrebuild0."}},{"criterion":"AC3","outcome":"pass","revision":"c514eac7a34c5e2235eed6c8520fe0cd891d5ec9","evidence":{"kind":"artifact","detail":"Source pushed/originverifiedc514; strict/adversarial/74registry/67docs/diffpass. Actual923row Windows registration gate old3fails→new0, otherpins/CMakeexact. Owned1985/86/NEXT1987preserved/no externalproductingest. FourReady0tasks removed, sixexactemptyownedtemps removed, allforests empty/nativeidletrue/PClease returned. Original1978/finalnativequalification remainseparate."}}]
 ---
 
 # Measure Windows containment for the new tour publication courses
