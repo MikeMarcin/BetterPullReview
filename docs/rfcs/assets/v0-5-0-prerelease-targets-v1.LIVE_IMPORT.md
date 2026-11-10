@@ -86,3 +86,12 @@ BPR-2039.
 The live-freeze correction (2026-11-10) allocated nothing. Main had since
 reserved BPR-2042 (`1e82f86b2`) and reads BPR-2043; the lane's counter now
 reads BPR-2043, main's own. No reservation is imported and none collides.
+
+`agent-work-visible` (2026-11-10) allocated BPR-2043 and BPR-2044 against
+main the same way: the allocator ran in the main checkout at `1e82f86b2`
+(counter BPR-2043, history high water 2043), its counter and receipt
+`docs/issues/_reservations/BPR-2043--BPR-2044--459846f19aa3.json` moved to
+this lane and the main checkout restored. Both are Backlog product cards from
+the live-freeze diagnosis, not scheduled in the pack. The lane's counter reads
+BPR-2045; main's reads BPR-2043 until this lane integrates, and its allocator
+refuses until then.
