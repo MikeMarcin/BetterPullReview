@@ -575,6 +575,8 @@ namespace {
 		case review_mutation_operation::staged_create_issue_comment:        return "staged_create_issue_comment";
 		case review_mutation_operation::staged_update_issue_comment:        return "staged_update_issue_comment";
 		case review_mutation_operation::staged_update_pending_comment:      return "staged_update_pending_comment";
+		case review_mutation_operation::staged_create_file_comment:         return "staged_create_file_comment";
+		case review_mutation_operation::staged_list_file_comments:          return "staged_list_file_comments";
 		case review_mutation_operation::observe_merge_base:                 return "observe_merge_base";
 		case review_mutation_operation::observe_recorded_merge_base:        return "observe_recorded_merge_base";
 		case review_mutation_operation::observe_base_ancestry:              return "observe_base_ancestry";
