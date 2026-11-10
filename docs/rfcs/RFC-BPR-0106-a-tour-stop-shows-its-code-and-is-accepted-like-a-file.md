@@ -174,6 +174,28 @@ Head changed chip into the ring and the reason line. The owner answered for
 the mockup as a whole and not rule by rule, and has yet to see any of it
 running; the owner's look on a frozen build stays a criterion.
 
+## Implementation notes (2026-11-10)
+
+Engineered in milestone `tour-stops` ([[BPR-2013]], [[BPR-2014]]); evidence in
+the [verification record](../verification/RFC-BPR-0106.md). Decisions made
+within the stated behaviour:
+
+- What is accepted is recorded per range of code at the head it was accepted
+  at: the stop's own lines and each range a reference in its text names that
+  resolves to one changed file. A range at an earlier commit (a historical
+  stop) is pinned bytes and is not re-checked; references "before the change"
+  name the base and are not recorded.
+- At a new head, a stop whose recorded code has not yet been compared is
+  yellow, saying so ("not compared yet"), until the window's comparison of
+  that file arrives; publication never goes ahead on unread evidence.
+- Changed since accepted keeps a small mark on its ring so the two yellows
+  differ in any colours; the reason line says which.
+- Lines chosen with Use selected lines stay chosen across a new head.
+- The terminal walk's Ready, which shows the stop's code to the person,
+  accepts the stop; a relayed `bpr tour ready` and any agent do not.
+- Overview's stop rows say Accepted, Not accepted yet or Changed since
+  accepted, as the route does.
+
 ## Acceptance criteria
 
 - **AC01:** Each listed way of arriving at a stop, including choosing the

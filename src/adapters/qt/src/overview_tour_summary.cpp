@@ -37,13 +37,13 @@ namespace bpr::qt {
 			return dark(aPalette) ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 };
 		}
 
-		[[nodiscard]] auto readiness_words(const core::tour_preparation aPreparation) -> QString
+		/// [[BPR-2014]], RFC-BPR-0106. Review's words for a stop, as for a file.
+		[[nodiscard]] auto readiness_words(const core::tour_acceptance_state aState) -> QString
 		{
-			switch (aPreparation) {
-			case core::tour_preparation::ready:           return QObject::tr("Ready");
-			case core::tour_preparation::needs_attention: return QObject::tr("Needs attention");
-			case core::tour_preparation::suggested:       return QObject::tr("Suggested");
-			case core::tour_preparation::editing:         return QObject::tr("Editing");
+			switch (aState) {
+			case core::tour_acceptance_state::accepted:     return QObject::tr("Accepted");
+			case core::tour_acceptance_state::changed:      return QObject::tr("Changed since accepted");
+			case core::tour_acceptance_state::not_accepted: return QObject::tr("Not accepted yet");
 			}
 			return { };
 		}
@@ -67,11 +67,11 @@ namespace bpr::qt {
 				setMinimumHeight(ring_size + 8);
 			}
 
-			int                    Number      = 1;
-			bool                   First       = false;
-			bool                   Last        = false;
-			bool                   Writer      = true;
-			core::tour_preparation Preparation = core::tour_preparation::editing;
+			int                         Number     = 1;
+			bool                        First      = false;
+			bool                        Last       = false;
+			bool                        Writer     = true;
+			core::tour_acceptance_state Acceptance = core::tour_acceptance_state::not_accepted;
 
 		protected:
 			void paintEvent(QPaintEvent*) override
@@ -80,7 +80,6 @@ namespace bpr::qt {
 				painter.setRenderHint(QPainter::Antialiasing);
 				const auto amber  = route_amber(palette());
 				const auto base   = palette().color(QPalette::Active, QPalette::Base);
-				const auto faint  = palette().color(QPalette::Active, QPalette::PlaceholderText);
 				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
 				const auto centre = QPointF{ width() / 2.0, 4.0 + ring_size / 2.0 };
 				const auto ring   = QRectF{ centre.x() - ring_size / 2.0, centre.y() - ring_size / 2.0, static_cast<qreal>(ring_size), static_cast<qreal>(ring_size) };
@@ -98,9 +97,9 @@ namespace bpr::qt {
 				small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
 				painter.setFont(small);
 				const auto number = QString::number(Number);
-				// A reader's route has no readiness: every ring is amber.
-				const auto preparation = Writer ? Preparation : core::tour_preparation::editing;
-				if (preparation == core::tour_preparation::ready) {
+				// A reader's route has no acceptance: every ring is amber.
+				const auto accepted = Writer && Acceptance == core::tour_acceptance_state::accepted;
+				if (accepted) {
 					painter.setPen(QPen{ route_green(palette()), 1.6 });
 					painter.setBrush(base);
 					painter.drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
@@ -112,14 +111,6 @@ namespace bpr::qt {
 					painter.drawPath(tick);
 					return;
 				}
-				if (preparation == core::tour_preparation::suggested) {
-					painter.setPen(QPen{ faint, 1.4, Qt::DashLine });
-					painter.setBrush(base);
-					painter.drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
-					painter.setPen(faint);
-					painter.drawText(ring, Qt::AlignCenter, number);
-					return;
-				}
 				painter.setPen(QPen{ amber, 1.6 });
 				painter.setBrush(base);
 				painter.drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
@@ -127,7 +118,7 @@ namespace bpr::qt {
 				painter.setPen(QColor::fromRgbF(static_cast<float>(ink.redF() * keep + amber.redF() * (1.0 - keep)), static_cast<float>(ink.greenF() * keep + amber.greenF() * (1.0 - keep)),
 												static_cast<float>(ink.blueF() * keep + amber.blueF() * (1.0 - keep))));
 				painter.drawText(ring, Qt::AlignCenter, number);
-				if (preparation == core::tour_preparation::needs_attention) {
+				if (Writer && Acceptance == core::tour_acceptance_state::changed) {
 					auto       warn = QPainterPath{ };
 					const auto x    = ring.right() - 3.0;
 					const auto y    = ring.top() - 2.0;
@@ -435,14 +426,14 @@ namespace bpr::qt {
 	{
 		const auto writer = Shown.Kind == core::overview_tour_kind::writer;
 		for (std::size_t index = 0U; index < Rows.size() && index < Shown.Stops.size(); ++index) {
-			const auto& stop  = Shown.Stops[index];
-			auto&       row   = Rows[index];
-			auto* const ring  = static_cast<route_ring*>(row.Ring);
-			ring->Number      = static_cast<int>(index) + 1;
-			ring->First       = index == 0U;
-			ring->Last        = index + 1U == Rows.size();
-			ring->Writer      = writer;
-			ring->Preparation = stop.Preparation;
+			const auto& stop = Shown.Stops[index];
+			auto&       row  = Rows[index];
+			auto* const ring = static_cast<route_ring*>(row.Ring);
+			ring->Number     = static_cast<int>(index) + 1;
+			ring->First      = index == 0U;
+			ring->Last       = index + 1U == Rows.size();
+			ring->Writer     = writer;
+			ring->Acceptance = stop.Acceptance;
 			ring->update();
 			const auto title = stop.Title.empty() ? tr("Untitled stop") : text(stop.Title);
 			row.Title->setText(title);
@@ -461,7 +452,7 @@ namespace bpr::qt {
 			opener->setToolTip(opener->Opens ? tr("Open this stop in Review") : QString{ });
 			opener->setAttribute(Qt::WA_Hover, opener->Opens);
 			row.Title->setForegroundRole(stop.Title.empty() ? QPalette::PlaceholderText : QPalette::WindowText);
-			const auto readiness = writer ? readiness_words(stop.Preparation) : QString{ };
+			const auto readiness = writer ? readiness_words(stop.Acceptance) : QString{ };
 			row.Readiness->setText(readiness);
 			row.Readiness->setVisible(writer);
 			row.Row->setAccessibleName(writer ? tr("Stop %1, %2, %3").arg(index + 1U).arg(title, readiness) : tr("Stop %1, %2").arg(index + 1U).arg(title));
@@ -475,10 +466,10 @@ namespace bpr::qt {
 		// change redraws them.
 		for (std::size_t index = 0U; index < Rows.size() && index < Shown.Stops.size(); ++index) {
 			auto       colours = Rows[index].Readiness->palette();
-			const auto prep    = Shown.Stops[index].Preparation;
-			const auto colour  = prep == core::tour_preparation::ready ? route_green(palette())
-				: prep == core::tour_preparation::needs_attention      ? route_amber(palette())
-																	   : palette().color(QPalette::PlaceholderText);
+			const auto state   = Shown.Stops[index].Acceptance;
+			const auto colour  = state == core::tour_acceptance_state::accepted ? route_green(palette())
+				: state == core::tour_acceptance_state::changed                 ? route_amber(palette())
+																				: palette().color(QPalette::PlaceholderText);
 			colours.setColor(QPalette::WindowText, colour);
 			Rows[index].Readiness->setPalette(colours);
 		}

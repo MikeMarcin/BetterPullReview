@@ -137,6 +137,8 @@ namespace bpr::qt {
 		using prompt_source = std::function<std::span<const application::tour_chat_prompt>(core::tour_thread_kind)>;
 
 		explicit tour_side_chat(QWidget* aParent = nullptr);
+		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Accept all.
+		void set_own_accept_dispatch(std::function<void(core::tour_stop_id, const std::string&)> aDispatch) { OwnAcceptDispatch = std::move(aDispatch); }
 		void set_dispatch(ask_dispatch aAsk, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief Show: brings the tour to the chat's part, and a stop's code
 		/// into the diff.
@@ -330,6 +332,7 @@ namespace bpr::qt {
 		ask_dispatch                                                                AskDispatch;
 		std::function<void()>                                                       StopDispatch;
 		decide_dispatch                                                             DecideDispatch;
+		std::function<void(core::tour_stop_id, const std::string&)>                 OwnAcceptDispatch;
 		std::function<void(const core::tour_thread&)>                               RevealDispatch;
 		std::function<void(bool)>                                                   VisibilityDispatch;
 		std::function<void()>                                                       ChangeObserver;

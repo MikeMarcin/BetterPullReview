@@ -3,6 +3,7 @@
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 
 namespace bpr::application {
 	namespace {
@@ -50,7 +51,10 @@ namespace bpr::application {
 					actions.push_back(text(action));
 				}
 				result.push_back(value{ value::object{
-					{ "id", number(stop.Id.value()) }, { "number", number(result.size() + 1U) }, { "title", text(stop.Title) }, { "explanation", text(stop.Body) }, { "original_confirmed", source(stop.Original) }, { "mapped", source(stop.Mapped) }, { "suggested_destination", destination(stop.Destination) }, { "publication_source", destination(core::publication_source(stop)) }, { "related", value{ std::move(related) } }, { "mapping", text(core::tour_mapping_name(stop.Mapping)) }, { "confirmed_lines", value{ state.ConfirmedLines } }, { "source_attention", value{ state.SourceAttention } }, { "source_reasons", reasons(state.SourceReasons) }, { "confirmation_head", value{ } }, { "confirmation_head_evidence", text("not_recorded_separately_from_range_commit") }, { "preparation", text(preparation(stop.Preparation)) }, { "generated", value{ stop.Suggestion.has_value() } }, { "visited", stop.Suggestion ? value{ stop.Suggestion->Visited } : value{ } }, { "explanation_reaffirmed_head", oid(stop.ReaffirmedHead) }, { "explanation_current", value{ state.ExplanationCurrent } }, { "ready_eligible", value{ state.ReadyEligible } }, { "ready_blockers", reasons(state.ReadyReasons) }, { "publication_blockers", reasons(state.PublicationReasons) }, { "available_actions", value{ std::move(actions) } } } });
+					{ "id", number(stop.Id.value()) }, { "number", number(result.size() + 1U) }, { "title", text(stop.Title) }, { "explanation", text(stop.Body) }, { "original_confirmed", source(stop.Original) }, { "mapped", source(stop.Mapped) }, { "suggested_destination", destination(stop.Destination) }, { "publication_source", destination(core::publication_source(stop)) }, { "related", value{ std::move(related) } }, { "mapping", text(core::tour_mapping_name(stop.Mapping)) }, { "confirmed_lines", value{ state.ConfirmedLines } }, { "source_attention", value{ state.SourceAttention } }, { "source_reasons", reasons(state.SourceReasons) }, { "confirmation_head", value{ } }, { "confirmation_head_evidence", text("not_recorded_separately_from_range_commit") }, { "preparation", text(preparation(stop.Preparation)) }, { "generated", value{ stop.Suggestion.has_value() } }, { "visited", stop.Suggestion ? value{ stop.Suggestion->Visited } : value{ } }, { "explanation_reaffirmed_head", oid(stop.ReaffirmedHead) }, { "explanation_current", value{ state.ExplanationCurrent } }, { "ready_eligible", value{ state.ReadyEligible } }, { "ready_blockers", reasons(state.ReadyReasons) }, { "publication_blockers", reasons(state.PublicationReasons) }, { "available_actions", value{ std::move(actions) } },
+					// [[BPR-2014]]. The author's acceptance, which no agent can give.
+					{ "acceptance", text(core::stable_name(core::decide_tour_stop_acceptance(aDraft, stop).State)) },
+					{ "acceptance_reason", text(core::stable_name(core::decide_tour_stop_acceptance(aDraft, stop).Reason)) } } });
 			}
 			return value{ std::move(result) };
 		}

@@ -6554,7 +6554,7 @@ namespace {
 				QCoreApplication::processEvents();
 				auto* const outline = editor->outline();
 				auto* const card    = outline->currentItem() != nullptr ? outline->itemWidget(outline->currentItem()) : nullptr;
-				auto* const ready   = editor->findChild<QPushButton*>(QStringLiteral("tourComplete"));
+				auto* const ready   = editor->findChild<QPushButton*>(QStringLiteral("tourAccept"));
 				const auto  read    = editor->stop_view().Mode == bpr::core::tour_stop_view_mode::read;
 				draw(QStringLiteral("app-tour-card-read"));
 				QTextStream{ stdout } << "ATTENDED_TOUR_CARDS:wrapped=" << (wrapped ? 1 : 0) << ":read=" << (read ? 1 : 0) << ":card=" << (card != nullptr ? 1 : 0) << ":disabled_ready=" << (ready != nullptr && ready->isVisible() && !ready->isEnabled() ? 1 : 0)
@@ -7191,9 +7191,9 @@ namespace {
 				if (!idle) {
 					return;
 				}
-				// The first stop is ready; the second is the one being written.
+				// The first stop is accepted; the second is the one being written.
 				editor->outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
-				if (auto* const ready = editor->findChild<QPushButton*>(QStringLiteral("tourComplete")); ready != nullptr) {
+				if (auto* const ready = editor->findChild<QPushButton*>(QStringLiteral("tourAccept")); ready != nullptr) {
 					ready->click();
 				}
 				++*step;

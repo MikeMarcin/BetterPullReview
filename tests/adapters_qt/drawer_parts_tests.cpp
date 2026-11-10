@@ -414,7 +414,12 @@ namespace {
 
 	[[nodiscard]] auto stop(const std::uint64_t aId, const char* aTitle, const core::tour_preparation aPreparation) -> core::overview_tour_stop
 	{
-		return { .Id = core::tour_stop_id{ aId }, .Title = aTitle, .Preparation = aPreparation };
+		// [[BPR-2014]]. The route's words are acceptance now: a Ready stop
+		// reads Accepted, one needing attention Changed since accepted.
+		const auto acceptance = aPreparation == core::tour_preparation::ready ? core::tour_acceptance_state::accepted
+			: aPreparation == core::tour_preparation::needs_attention         ? core::tour_acceptance_state::changed
+																			  : core::tour_acceptance_state::not_accepted;
+		return { .Id = core::tour_stop_id{ aId }, .Title = aTitle, .Preparation = aPreparation, .Acceptance = acceptance };
 	}
 
 	/// [[BPR-1781]]. The Tour tab presents and routes: a writer's brief and
@@ -447,8 +452,8 @@ namespace {
 		settle();
 		expect(summary->stop_titles() == QStringList{ QStringLiteral("The cache"), QStringLiteral("Untitled stop"), QStringLiteral("Invalidation"), QStringLiteral("Tests") },
 			   "a writer sees every stop, in route order");
-		expect(summary->stop_readiness() == QStringList{ QStringLiteral("Ready"), QStringLiteral("Editing"), QStringLiteral("Needs attention"), QStringLiteral("Suggested") },
-			   "each with its readiness as the route shows it");
+		expect(summary->stop_readiness() == QStringList{ QStringLiteral("Accepted"), QStringLiteral("Not accepted yet"), QStringLiteral("Changed since accepted"), QStringLiteral("Not accepted yet") },
+			   "each with its acceptance as the route shows it");
 		expect(summary->state_label()->text().startsWith(QStringLiteral("A private draft")), "a private draft says so");
 		auto* const solution = summary->findChild<QLabel*>(QStringLiteral("overviewTourSolution"));
 		expect(solution != nullptr && solution->isVisible() && solution->text() == QStringLiteral("Not written yet"), "a writer sees an empty field as still to write");

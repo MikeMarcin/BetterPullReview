@@ -68,6 +68,8 @@ namespace bpr::qt {
 		using decide_dispatch = std::function<void(std::size_t, core::tour_proposal_decision, const QString&)>;
 
 		explicit tour_agent_panel(QWidget* aParent = nullptr);
+		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Accept all.
+		void set_own_accept_dispatch(std::function<void(core::tour_stop_id, const std::string&)> aDispatch) { OwnAcceptDispatch = std::move(aDispatch); }
 		void set_dispatch(std::function<void()> aDraft, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief [[BPR-1900]]. Move to nearest change on a stop off the change.
 		void set_relocate_dispatch(std::function<void(std::size_t)> aRelocate) { RelocateDispatch = std::move(aRelocate); }
@@ -195,24 +197,25 @@ namespace bpr::qt {
 		/// [[BPR-1925]]. Conversation and the tour's chat glyph sit at the
 		/// right of Draft the tour, or on their own row under it when the
 		/// drawer is too narrow for both at their own widths.
-		void                             fit_head();
-		QLayout*                         Head  = nullptr;
-		QWidget*                         Trail = nullptr;
-		void                             fit_readers();
-		void                             rebuild_proposal();
-		void                             rebuild_transcript();
-		void                             show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
-		void                             copy(const QString& aText, const QString& aSaid);
-		void                             append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
-		void                             style_transcript_code();
-		void                             refresh_toggle();
-		std::function<void()>            DraftDispatch;
-		std::function<void()>            StopDispatch;
-		decide_dispatch                  DecideDispatch;
-		std::function<void(std::size_t)> RelocateDispatch;
-		std::function<void()>            PlaceBegin;
-		proposal_placer                  Place;
-		QPushButton*                     AcceptAll = nullptr;
+		void                                                        fit_head();
+		QLayout*                                                    Head  = nullptr;
+		QWidget*                                                    Trail = nullptr;
+		void                                                        fit_readers();
+		void                                                        rebuild_proposal();
+		void                                                        rebuild_transcript();
+		void                                                        show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
+		void                                                        copy(const QString& aText, const QString& aSaid);
+		void                                                        append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
+		void                                                        style_transcript_code();
+		void                                                        refresh_toggle();
+		std::function<void()>                                       DraftDispatch;
+		std::function<void()>                                       StopDispatch;
+		decide_dispatch                                             DecideDispatch;
+		std::function<void(core::tour_stop_id, const std::string&)> OwnAcceptDispatch;
+		std::function<void(std::size_t)>                            RelocateDispatch;
+		std::function<void()>                                       PlaceBegin;
+		proposal_placer                                             Place;
+		QPushButton*                                                AcceptAll = nullptr;
 		/// [[BPR-1925]] v003. Each pending part's box, wherever it was placed.
 		std::map<std::size_t, QPointer<QWidget>>                                    Boxes;
 		std::map<std::size_t, markdown_body_view*>                                  Readers;

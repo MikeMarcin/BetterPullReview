@@ -29,7 +29,7 @@ namespace {
 		added.Body = "A second explanation.";
 		value.Stops.push_back(added);
 		value.LastStopId = 2U;
-		return value;
+		return tests::accept_tour_fixture(std::move(value));
 	}
 
 	void test_private_draft()
@@ -41,9 +41,10 @@ namespace {
 		auto draft = tour();
 		auto head  = core::decide_tour_head(&draft, { });
 		expect(head.State == state::publishable && head.Stops == 2U && head.ToAccept == 0U && head.Actions == std::vector{ action::publish } && !head.PublishDisabled, "a complete draft is publishable with Publish…");
-		draft.Stops[1].Preparation = core::tour_preparation::needs_attention;
-		head                       = core::decide_tour_head(&draft, { });
-		expect(head.State == state::not_publishable && head.ToAccept == 1U && head.Missing == core::tour_head_missing::acceptance && head.PublishDisabled, "a stop that needs attention is still to accept");
+		// [[BPR-2014]]. A stop not accepted is still to accept.
+		draft.Stops[1].Acceptance.reset();
+		head = core::decide_tour_head(&draft, { });
+		expect(head.State == state::not_publishable && head.ToAccept == 1U && head.Missing == core::tour_head_missing::acceptance && head.PublishDisabled, "a stop not accepted is still to accept");
 		draft.ObservedHead = *core::parse_git_commit_oid("2222222222222222222222222222222222222222");
 		expect(core::decide_tour_head(&draft, { }).ToAccept == 2U, "an explanation not current at the observed head is still to accept");
 		draft         = tour();

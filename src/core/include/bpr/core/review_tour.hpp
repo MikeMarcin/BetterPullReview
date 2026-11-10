@@ -17,6 +17,8 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_tour_bytes           = 4U * 1024U * 1024U;
 	inline constexpr std::size_t maximum_tour_related_sources = 32U;
 	inline constexpr std::size_t maximum_tour_path_bytes      = 4096U;
+	/// [[BPR-2014]]. The changed paths an `accept` may resolve references against.
+	inline constexpr std::size_t maximum_tour_file_count = 100000U;
 
 	/// \brief Durable owner; runtime window and request generations are separate.
 	struct tour_owner
@@ -129,6 +131,51 @@ namespace bpr::core {
 		bool                             SourceUnavailable = false;
 	};
 
+	/// \brief [[BPR-2014]], RFC-BPR-0106. What a push did to one range of
+	/// code a stop was accepted on, as last checked.
+	enum class tour_material_verdict : std::uint8_t {
+		/// Not compared at the pull request's current head.
+		unchecked,
+		/// Byte-identical at `CheckedAt`.
+		unchanged,
+		/// Found at `CheckedAt` with different bytes, or no longer contiguous.
+		changed,
+		/// No longer found at `CheckedAt`.
+		missing,
+	};
+	inline constexpr std::size_t maximum_tour_material             = maximum_tour_related_sources + 1U;
+	inline constexpr std::size_t maximum_tour_material_label_bytes = 256U;
+
+	/// \brief One range of code a stop was accepted on: its own lines, or the
+	/// lines a reference in its text names, at the head it was accepted at.
+	struct tour_material
+	{
+		tour_code_destination Range;
+		/// A reference in the text; false for the stop's own lines.
+		bool Reference = false;
+		/// The reference as written in the text, for the reason line.
+		std::string Written;
+		/// The head `Verdict` was observed at; invalid while never checked.
+		git_commit_oid        CheckedAt;
+		tour_material_verdict Verdict                                        = tour_material_verdict::unchecked;
+		auto                  operator==(const tour_material&) const -> bool = default;
+	};
+
+	/// \brief What the author accepted for a stop: its text, its destination,
+	/// and the code at the head then. Local and private; nothing of it is published.
+	struct tour_stop_acceptance
+	{
+		std::string                          Title;
+		std::string                          Body;
+		std::optional<tour_code_destination> Destination;
+		/// The pull request's head when it was accepted.
+		git_commit_oid Head;
+		/// Only ranges at `Head`: code at an earlier commit is pinned bytes
+		/// that no push can change.
+		std::vector<tour_material> Material;
+		auto                       operator==(const tour_stop_acceptance&) const -> bool = default;
+	};
+
 	/// \brief A local thought with immutable original source and a separate current mapping.
 	/// Destination retains the confirmed remote subject independently of those local ranges.
 	struct tour_stop
@@ -149,6 +196,8 @@ namespace bpr::core {
 		std::optional<tour_suggestion>       Suggestion;
 		tour_completion_origin               CompletionOrigin     = tour_completion_origin::unspecified;
 		bool                                 FileCommentRequested = false;
+		/// [[BPR-2014]]. Absent until the author accepts the stop.
+		std::optional<tour_stop_acceptance> Acceptance;
 	};
 	/// \brief Confirmed remote subject, including legacy retarget receipts whose Original replaced Mapped.
 	/// Does not use a proposed mapping or change retained source ranges.
@@ -225,7 +274,11 @@ namespace bpr::core {
 												  restore,
 												  reaffirm,
 												  insert_outline,
-												  visit };
+												  visit,
+												  /// [[BPR-2014]]. The author accepts one stop as it is now.
+												  accept,
+												  /// [[BPR-2014]]. Mark not accepted: forget what was accepted.
+												  unaccept };
 	/// \brief Exact revision command. Insert/split/duplicate allocate IDs from the draft high-water mark.
 	struct tour_command
 	{
@@ -247,6 +300,9 @@ namespace bpr::core {
 		/// Merge requires at least two adjacent stops; an empty set uses Stop.
 		std::vector<tour_stop_id> Selection;
 		tour_completion_origin    CompletionOrigin = tour_completion_origin::unspecified;
+		/// [[BPR-2014]]. For `accept`: the pull request's changed paths, to
+		/// resolve the references the stop's text makes.
+		std::vector<std::string> Files;
 	};
 	enum class tour_refusal : std::uint8_t { none,
 											 identity,

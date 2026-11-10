@@ -1,6 +1,8 @@
 #include "bpr/core/tour_publication_head.hpp"
 
+#include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_update.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 
 #include <algorithm>
 
@@ -31,8 +33,8 @@ namespace bpr::core {
 
 	auto tour_stop_publishable(const review_tour& aTour, const tour_stop& aStop) noexcept -> bool
 	{
-		return ready(aStop) && !(aStop.Suggestion && aStop.Preparation != tour_preparation::ready) && aStop.Preparation != tour_preparation::needs_attention
-			&& !(aTour.ObservedHead && aStop.ReaffirmedHead != aTour.ObservedHead);
+		// [[BPR-2014]], RFC-BPR-0106: every stop Accepted, with its words and lines.
+		return !blank(aStop.Title) && !blank(aStop.Body) && publication_source(aStop).has_value() && tour_stop_accepted(aTour, aStop);
 	}
 
 	auto tour_unpublished_changes(const review_tour& aTour) -> std::size_t

@@ -122,7 +122,7 @@ auto main(int argc, char** argv) -> int
 	draft.Solution = { };
 	qt::review_tour_editor editor;
 	auto                   actions = 0;
-	editor.set_dispatch([](core::tour_command) { }, [&actions](qt::tour_editor_action aAction) { actions += aAction == qt::tour_editor_action::suggest_outline ? 1 : 0; });
+	editor.set_dispatch([](core::tour_command) { }, [&actions](qt::tour_editor_action) { ++actions; });
 	auto asked = 0;
 	editor.set_writing_dispatch([&asked](core::writing_hook, qt::prose_capture) { ++asked; }, [] { });
 	auto setupAsked = 0;
@@ -185,8 +185,9 @@ auto main(int argc, char** argv) -> int
 	}
 	expect(magic->text() == QStringLiteral("Draft from PR context") && magic->toolTip().contains(QStringLiteral("drafting agent")), "the helper says what it does again");
 	magic->click();
-	child<QPushButton>(editor, "tourSuggestOutline")->click();
-	expect(asked == 1 && actions == 1, "set up, the helpers ask");
+	// [[BPR-2013]]. Suggest an outline left the application.
+	expect(editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline")) == nullptr, "no Suggest an outline");
+	expect(asked == 1 && actions == 0, "set up, the helper asks");
 	expect_accent(editor, "dark, after setup");
 	render(editor, prefix, "after-setup-dark");
 	QApplication::setPalette(light_palette(QApplication::palette()));

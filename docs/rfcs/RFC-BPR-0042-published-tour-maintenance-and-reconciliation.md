@@ -84,6 +84,20 @@ After head changes, identify potentially affected stops using existing line corr
 
 Returning reviewers can see locally evidenced changes since their last observed tour version: new/removed/reordered stops, changed text, changed source bindings, or unknown history. This is optional enhanced navigation over normal shared comments. It must not invent what a reviewer saw on another machine, imply unchanged means correct, or auto-mark changed stops read. Missing local history produces “No prior local tour version,” not “Nothing changed.”
 
+## Stop acceptance amendment (RFC-BPR-0106), 2026-11-10
+
+[RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) amends Revision awareness: the author's deliberate reaffirmation
+is the stop's **Accept**, and a stop needs it again only when its material
+changed. The application records what the author accepted (the stop's text,
+its destination, and the code at its lines and at each reference its text
+makes, at the head then) and compares that code with each new head. A stop
+whose ranges are byte-identical there stays Accepted; one whose lines or
+referenced lines changed or can no longer be found, or that moved, is
+Changed since accepted; text the author did not accept is Not accepted yet.
+Publication and update publication require every stop Accepted
+([[BPR-2014]]). Acceptance is local and private; nothing of it is published,
+and source mapping, repair and what GitHub receives are unchanged.
+
 ## Persistence and privacy
 
 Persist only bounded local drafts, canonical remote identifiers, relevant body baselines/desired updates and recovery step state under the correct profile/account. Document the extension from metadata-only ledger assumptions and include it in storage/privacy inventories, purge and retention behavior. Shared GitHub comments are never deleted by profile purge or uninstall. BPR local loss cannot damage them; local unsent work may be lost and must not be presented as server-backed.

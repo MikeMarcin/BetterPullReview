@@ -16,7 +16,7 @@ namespace bpr::core {
 			result.Published = aTour.Remote.has_value();
 			result.Stops.reserve(aTour.Stops.size());
 			for (const auto& stop : aTour.Stops) {
-				auto row = overview_tour_stop{ .Id = stop.Id, .Title = stop.Title, .Preparation = stop.Preparation, .Lead = tour_lead_sentence(stop.Body) };
+				auto row = overview_tour_stop{ .Id = stop.Id, .Title = stop.Title, .Preparation = stop.Preparation, .Acceptance = decide_tour_stop_acceptance(aTour, stop).State, .Lead = tour_lead_sentence(stop.Body) };
 				if (const auto source = publication_source(stop)) {
 					row.Path      = source->Path;
 					row.FirstLine = source->FirstLine + 1U;

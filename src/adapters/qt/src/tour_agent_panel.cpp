@@ -1523,9 +1523,13 @@ namespace bpr::qt {
 			buttons->addWidget(accept);
 			itemColumn->addLayout(buttons);
 			Accepts[index] = accept;
-			connect(accept, &QPushButton::clicked, this, [this, index, editor] {
+			connect(accept, &QPushButton::clicked, this, [this, index, editor, stop = item.Part == core::tour_proposal_part::stop_text ? item.StopId : core::tour_stop_id{ }] {
 				if (DecideDispatch) {
 					DecideDispatch(index, core::tour_proposal_decision::accepted, editor->toPlainText());
+					// [[BPR-2014]]. Accept on a stop's own proposal accepts the stop.
+					if (OwnAcceptDispatch && stop.value() != 0U) {
+						OwnAcceptDispatch(stop, editor->toPlainText().toStdString());
+					}
 				}
 			});
 			connect(discard, &QPushButton::clicked, this, [this, index] {

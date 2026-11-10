@@ -1,4 +1,5 @@
 #include "bpr/core/review_tour_update.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include <algorithm>
 #include <charconv>
 namespace bpr::core {
@@ -160,7 +161,7 @@ namespace bpr::core {
 	}
 	auto plan_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>
 	{
-		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || std::ranges::any_of(aTour.Stops, [](const auto& aStop) { return aStop.Suggestion && aStop.Preparation != tour_preparation::ready; })) {
+		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || std::ranges::any_of(aTour.Stops, [&aTour](const auto& aStop) { return !tour_stop_accepted(aTour, aStop); })) {
 			return { };
 		}
 		std::vector<tour_markdown_link> entries;

@@ -2,6 +2,7 @@
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_update.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include "product_diff.hpp"
 
 #include <algorithm>
@@ -826,6 +827,64 @@ namespace {
 			}
 		}
 	}
+	/// [[BPR-2014]], RFC-BPR-0106 AC04. A push that changes one stop's lines
+	/// and the lines another stop links to: exactly those two are Changed
+	/// since accepted, each with its reason, and every other stays Accepted.
+	void test_tour_acceptance_after_push()
+	{
+		const auto  oldHead = *parse_git_commit_oid("1111111111111111111111111111111111111111");
+		const auto  newHead = *parse_git_commit_oid("2222222222222222222222222222222222222222");
+		const auto  diff    = run("alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\n", "ALPHA\nbeta\ngamma\ndelta\nepsilon\nZETA\n");
+		auto        tour    = bpr::tests::review_tour_fixture();
+		const auto& a       = diff.Alignment.Key.Authority;
+		tour.Owner          = { tour.Owner.Profile, a.Host, a.HostAuthority, a.Account, a.Repository, a.PullRequest };
+		tour.Head           = oldHead;
+		tour.Base           = oldHead;
+		const auto at       = [&](std::uint32_t aFirst, std::uint32_t aLast) { return tour_source_range{ line(diff, diff_side::left, aFirst), line(diff, diff_side::left, aLast), oldHead, diff.Alignment.Key.LeftBlob, "src/a.cpp" }; };
+		auto       stop     = tour.Stops.front();
+		stop.Related.clear();
+		auto changed       = stop;
+		changed.Original   = at(0, 1);
+		changed.Title      = "Its own lines change";
+		changed.Body       = "Alpha and beta.";
+		auto linking       = stop;
+		linking.Id         = tour_stop_id{ 2 };
+		linking.Original   = at(3, 3);
+		linking.Title      = "It links to lines that change";
+		linking.Body       = "Delta reads `src/a.cpp:5-6`.";
+		auto untouched     = stop;
+		untouched.Id       = tour_stop_id{ 3 };
+		untouched.Original = at(2, 2);
+		untouched.Title    = "Nothing of it changes";
+		untouched.Body     = "Gamma, and `src/a.cpp:3`.";
+		tour.Stops         = { changed, linking, untouched };
+		tour.LastStopId    = 3;
+		const auto files   = std::vector<std::string>{ "src/a.cpp" };
+		for (const auto id : { 1U, 2U, 3U }) {
+			auto accept        = tour_command{ .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::accept, .Stop = tour_stop_id{ id } };
+			accept.Files       = files;
+			const auto outcome = apply(tour, accept);
+			expect(outcome.Refusal == tour_refusal::none, "each stop is accepted at the old head");
+			tour = outcome.Accepted;
+		}
+		tour = apply(tour, { .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::observe_head, .Head = newHead }).Accepted;
+		for (const auto& value : tour.Stops) {
+			expect(decide_tour_stop_acceptance(tour, value).Reason == tour_acceptance_reason::unchecked, "before the comparison every stop waits to be compared");
+		}
+		const auto index = build_diff_semantic_index(std::make_shared<const computed_file_diff>(diff));
+		expect(index.has_value(), "push comparison index");
+		const tour_code_destination left{ oldHead, diff.Alignment.Key.LeftBlob, "src/a.cpp", diff_side::left, 0, 0 }, right{ newHead, diff.Alignment.Key.RightBlob, "src/a.cpp", diff_side::right, 0, 0 };
+		tour              = map_tour_revision(tour, *index, left, right);
+		const auto first  = decide_tour_stop_acceptance(tour, tour.Stops[0]);
+		const auto second = decide_tour_stop_acceptance(tour, tour.Stops[1]);
+		const auto third  = decide_tour_stop_acceptance(tour, tour.Stops[2]);
+		expect(first.State == tour_acceptance_state::changed && first.Reason == tour_acceptance_reason::lines_changed, "the stop whose lines changed is Changed since accepted: its lines");
+		expect(second.State == tour_acceptance_state::changed && second.Reason == tour_acceptance_reason::reference_changed && second.Reference == "src/a.cpp:5-6", "the stop that links to changed lines is Changed since accepted: the link");
+		expect(third.State == tour_acceptance_state::accepted, "a stop whose lines and links are byte-identical stays Accepted");
+		// Accepting the changed stop again, at the new head, turns it green.
+		const auto again = apply(tour, { .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::accept, .Stop = tour.Stops[0].Id, .Files = files });
+		expect(again.Refusal == tour_refusal::none && tour_stop_accepted(again.Accepted, again.Accepted.Stops[0]), "Accept at the new head accepts the stop's new code");
+	}
 	void test_tour_revision_mapping()
 	{
 		const auto oldCommit = *parse_git_commit_oid("1111111111111111111111111111111111111111");
@@ -1000,6 +1059,7 @@ namespace {
 int main()
 {
 	test_tour_revision_mapping();
+	test_tour_acceptance_after_push();
 	test_exact_and_one_sided_mapping();
 	test_pair_span_and_unequal_tail_mapping();
 	test_projection_navigation_and_identity();

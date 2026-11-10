@@ -57,6 +57,8 @@ namespace {
 		value.Title       = std::move(aTitle);
 		value.Body        = "Keeps the snapshot. The rest follows.";
 		value.Preparation = core::tour_preparation::ready;
+		// [[BPR-2014]]. A stop ready to publish is accepted.
+		value.Acceptance = core::accept_tour_stop(tests::review_tour_fixture(), value, { });
 		return value;
 	}
 	auto steps(std::initializer_list<std::pair<const char*, step>> aRows) -> std::vector<application::tour_publication_step_view>
@@ -124,8 +126,8 @@ namespace {
 		editor.resize(420, 640);
 		editor.show();
 		auto draft = tests::review_tour_fixture();
-		// A stop that needs attention is still to accept.
-		draft.Stops.front().Preparation = core::tour_preparation::needs_attention;
+		// A stop not accepted is still to accept.
+		draft.Stops.front().Acceptance.reset();
 		draft.Stops.push_back(ready_stop(2U, "Second"));
 		draft.LastStopId = 2U;
 		editor.present({ .Draft = std::make_shared<const core::review_tour>(draft) });

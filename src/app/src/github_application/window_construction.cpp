@@ -113,6 +113,13 @@ namespace bpr::app {
 		Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
 			if (!Closing && TourHost && current(DraftWindow)) {
 				aCommand.Attention = current_tour_attention();
+				// [[BPR-2014]]. Accepting records the code at every reference
+				// the stop's text makes: the changed paths resolve them.
+				if (aCommand.Kind == core::tour_command_kind::accept && WindowRead->accepted_snapshot()) {
+					for (const auto& file : WindowRead->accepted_snapshot()->Files) {
+						aCommand.Files.push_back(file.Path);
+					}
+				}
 				static_cast<void>(TourHost->execute({ .Command = std::move(aCommand) }));
 			} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
 		Window->tour_editor()->set_repair_dispatch([this](core::tour_stop_id aStop, qt::tour_repair_action aAction) { dispatch_tour_repair(aStop, aAction); });
@@ -1096,6 +1103,9 @@ namespace bpr::app {
 				observe_selected_material(aPublication);
 				finish_tour_navigation();
 				observe_tour_comparison();
+				// [[BPR-2014]]. A comparison on screen is the epoch context the
+				// accepted code's comparisons with a new head need.
+				check_tour_material();
 				correlate_defects();
 				retain_reading_position();
 				schedule_reading_restoration();

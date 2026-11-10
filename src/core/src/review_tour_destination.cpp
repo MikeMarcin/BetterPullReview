@@ -1,6 +1,7 @@
 #include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_update.hpp"
 #include "bpr/core/tour_publication_head.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include <algorithm>
 namespace bpr::core {
 	auto tour_reason_name(const tour_status_reason aReason) noexcept -> std::string_view
@@ -35,6 +36,8 @@ namespace bpr::core {
 		case tour_status_reason::body_edits_unqualified:     return "body_edits_unqualified";
 		case tour_status_reason::stop_not_owned:             return "stop_not_owned";
 		case tour_status_reason::stop_baseline_missing:      return "stop_baseline_missing";
+		case tour_status_reason::not_accepted:               return "not_accepted";
+		case tour_status_reason::changed_since_accepted:     return "changed_since_accepted";
 		}
 		return "invalid_tour";
 	}
@@ -90,7 +93,6 @@ namespace bpr::core {
 				result.ReadyReasons.push_back(readiness == tour_source_readiness::reaffirmation_required ? reason::explanation_not_reaffirmed : reason::source_unavailable);
 			}
 		}
-		const auto sourceReadiness = result.ReadyReasons;
 		if (aTour.ReadOnly) {
 			result.ReadyReasons.push_back(reason::read_only);
 		}
@@ -99,17 +101,23 @@ namespace bpr::core {
 		}
 		result.ReadyEligible      = ready(aStop) && result.ReadyReasons.empty();
 		result.ExplanationCurrent = !aTour.ObservedHead || aStop.ReaffirmedHead == aTour.ObservedHead;
-		if ((!aTour.Remote || needs_tour_destination(aStop)) && !ready(aStop)) {
-			result.PublicationReasons = sourceReadiness;
+		// [[BPR-2014]], RFC-BPR-0106. One acknowledgement decides publication:
+		// the stop is Accepted. It replaces Ready, the head's reaffirmation and
+		// the separate confirmation of lines.
+		const auto acceptance = decide_tour_stop_acceptance(aTour, aStop);
+		if (!aTour.Remote || needs_tour_destination(aStop)) {
+			if (blank(aStop.Title)) {
+				result.PublicationReasons.push_back(reason::title_missing);
+			}
+			if (blank(aStop.Body)) {
+				result.PublicationReasons.push_back(reason::explanation_missing);
+			}
+			if (!publication_source(aStop)) {
+				result.PublicationReasons.push_back(reason::lines_unconfirmed);
+			}
 		}
-		if (aStop.Suggestion && aStop.Preparation != tour_preparation::ready) {
-			result.PublicationReasons.push_back(reason::generated_not_ready);
-		}
-		if (aStop.Preparation == tour_preparation::needs_attention) {
-			result.PublicationReasons.push_back(reason::preparation_attention);
-		}
-		if (!result.ExplanationCurrent && std::ranges::find(result.PublicationReasons, reason::explanation_not_reaffirmed) == result.PublicationReasons.end()) {
-			result.PublicationReasons.push_back(reason::explanation_not_reaffirmed);
+		if (acceptance.State != tour_acceptance_state::accepted) {
+			result.PublicationReasons.push_back(acceptance.State == tour_acceptance_state::changed ? reason::changed_since_accepted : reason::not_accepted);
 		}
 		if (aTour.Remote && !needs_tour_destination(aStop)) {
 			if (!aStop.Remote->Own) {
@@ -119,19 +127,13 @@ namespace bpr::core {
 				result.PublicationReasons.push_back(reason::stop_baseline_missing);
 			}
 		}
-		if (publication_source(aStop) || aStop.Mapped) {
-			result.AvailableActions.emplace_back("Show in code");
-		}
 		if (!aTour.ReadOnly) {
 			result.AvailableActions.emplace_back("Edit stop");
 			if (aAttention.Source && valid(*aAttention.Source)) {
 				result.AvailableActions.emplace_back("Use selected lines");
 			}
-			if (result.ReadyEligible && aStop.Preparation != tour_preparation::ready) {
-				result.AvailableActions.emplace_back("Ready, next");
-			}
-			if ((!result.ExplanationCurrent || std::ranges::find(result.ReadyReasons, reason::explanation_not_reaffirmed) != result.ReadyReasons.end()) && reaffirm_need(aStop) == tour_reaffirm_need::nothing) {
-				result.AvailableActions.emplace_back("Head changed");
+			if (acceptance.State != tour_acceptance_state::accepted && tour_stop_accept_need(aStop) == tour_accept_need::nothing) {
+				result.AvailableActions.emplace_back("Accept");
 			}
 		}
 		return result;
@@ -262,7 +264,7 @@ namespace bpr::core {
 		std::vector<tour_destination_plan> destinations;
 		for (std::size_t i = 0; i < aTour.Stops.size(); ++i) {
 			const auto& stop = aTour.Stops[i];
-			if ((stop.Suggestion && stop.Preparation != tour_preparation::ready) || (aTour.ObservedHead && stop.ReaffirmedHead != aTour.ObservedHead)) {
+			if (!tour_stop_accepted(aTour, stop)) {
 				return state::incomplete;
 			}
 			if (needs_tour_destination(stop)) {
@@ -270,7 +272,7 @@ namespace bpr::core {
 				added.Remote.reset();
 				fresh.Stops.push_back(added);
 				destinations.push_back(aDestinations[i]);
-			} else if (!stop.Remote->Own || !stop.Baseline || stop.Preparation == tour_preparation::needs_attention) {
+			} else if (!stop.Remote->Own || !stop.Baseline) {
 				return state::incomplete;
 			}
 		}

@@ -5,6 +5,7 @@
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/review_tour_source.hpp"
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
@@ -193,6 +194,9 @@ namespace bpr::app {
 	{
 		PendingTourSource.reset();
 		++TourRepairGeneration;
+		++TourMaterialGeneration;
+		TourMaterialRequests.clear();
+		TourMaterialReading = false;
 		TourRepairComparisons.clear();
 		TourRepairFiles.clear();
 		TourRepairCommand.reset();
@@ -396,6 +400,7 @@ namespace bpr::app {
 																	   }
 																	   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																	   observe_tour_head();
+																	   check_tour_material();
 																   });
 		TourHost->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 		TourHost->start();
@@ -460,10 +465,6 @@ namespace bpr::app {
 	void github_application::implementation::cancel_writing()
 	{
 		WritingState.cancel();
-		if (OutlineProposal) {
-			OutlineProposal.reset();
-			Window->tour_editor()->present_outline({ });
-		}
 		if (!PendingWriting) {
 			return;
 		}
@@ -1757,26 +1758,6 @@ namespace bpr::app {
 		}
 	}
 #endif
-	auto github_application::implementation::outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>
-	{
-		std::vector<core::tour_outline_entry> entries;
-		for (const auto& stop : aResult.Stops) {
-			const auto source = std::ranges::find(aOperation.Sources, stop.Anchor, &application::writing_source::Id);
-			if (source == aOperation.Sources.end()) {
-				return std::nullopt;
-			}
-			core::tour_outline_entry entry{ .Title = stop.Title, .Source = source->Source, .Suggestion = { stop.Anchor, stop.Reason, stop.Question } };
-			for (const auto& ref : stop.Related) {
-				const auto related = std::ranges::find(aOperation.Sources, ref, &application::writing_source::Id);
-				if (related == aOperation.Sources.end() || !related->Source) {
-					return std::nullopt;
-				}
-				entry.Related.push_back(*related->Source);
-			}
-			entries.push_back(std::move(entry));
-		}
-		return entries;
-	}
 
 	auto github_application::implementation::apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string
 	{
@@ -1792,19 +1773,6 @@ namespace bpr::app {
 		}
 		if (!Window->tour_editor()->writing_visible(hook)) {
 			return "The captured editor is no longer active. Your text is unchanged.";
-		}
-		if (hook == core::writing_hook::outline) {
-			const auto target = current_outline_target();
-			if (!target || !WritingState.complete_outline(aOperation.Request.Id, *target)) {
-				return "The captured tour changed. No skeletons were inserted.";
-			}
-			auto entries = outline_entries(aOperation, aResult);
-			if (!entries) {
-				return "An outline source or related destination is unavailable. No skeletons were inserted.";
-			}
-			Window->tour_editor()->present_outline(*entries);
-			OutlineProposal = tour_outline_proposal{ *target, std::move(*entries) };
-			return "Choose the skeletons to insert. Each starts empty and needs your individual completion.";
 		}
 		auto*      editor  = Window->tour_editor()->writing_editor(hook);
 		const auto capture = editor->capture();
@@ -1885,40 +1853,6 @@ namespace bpr::app {
 #endif
 			}
 		}
-	}
-
-	auto github_application::implementation::current_outline_target() const -> std::optional<core::writing_target>
-	{
-		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
-		if (!draft || draft->ReadOnly) {
-			return std::nullopt;
-		}
-		return writing_target(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
-	}
-
-	void github_application::implementation::insert_tour_outline()
-	{
-		const auto target = current_outline_target();
-		if (!OutlineProposal || !target || *target != OutlineProposal->Target || !Window->tour_editor()->writing_visible(core::writing_hook::outline)) {
-			cancel_writing();
-			Window->tour_editor()->show_writing_notice(QStringLiteral("The captured tour changed. Request a new outline before inserting stops."));
-			return;
-		}
-		const auto         draft = TourHost->presentation().Draft;
-		core::tour_command command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert_outline, .Position = draft->Stops.size() };
-		for (const auto index : Window->tour_editor()->retained_outline_entries()) {
-			if (index >= OutlineProposal->Entries.size()) {
-				return;
-			}
-			command.Outline.push_back(OutlineProposal->Entries[index]);
-		}
-		if (command.Outline.empty()) {
-			return;
-		}
-		OutlineProposal.reset();
-		Window->tour_editor()->present_outline({ });
-		TourHost->dispatch(command);
-		Window->tour_editor()->show_writing_notice(QStringLiteral("Skeleton stops inserted. Undo arrangement removes this insertion. Visit each stop, write or explicitly generate its comment, then choose Ready and next."));
 	}
 
 	void github_application::implementation::test_writing_hook(core::writing_hook aHook)
@@ -2088,6 +2022,116 @@ namespace bpr::app {
 		}
 	}
 
+	void github_application::implementation::check_tour_material()
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (Closing || !draft || draft->ReadOnly || TourMaterialReading || !EpochHost || !LastAcceptedHandoff || !WindowRead->accepted_snapshot() || !TourRepairRequests.empty()) {
+			return;
+		}
+		const auto head = core::tour_current_head(*draft);
+		if (TourHead != head) {
+			return;
+		}
+		const auto authority = workbench_authority(*LastAcceptedHandoff);
+		const auto current   = EpochHost->context(authority);
+		if (!current || current->Comparison.Right.Commit != head) {
+			return;
+		}
+		auto requests = std::vector<application::workbench_selected_diff_request>{ };
+		for (const auto& stop : draft->Stops) {
+			if (!stop.Acceptance) {
+				continue;
+			}
+			for (const auto& material : stop.Acceptance->Material) {
+				const auto& range = material.Range;
+				if (range.Commit == head || (material.CheckedAt == head && material.Verdict != core::tour_material_verdict::unchecked)) {
+					continue;
+				}
+				// One read per file, commit and head; a file asked once at a
+				// head is not asked again there, read or not.
+				auto key = std::tuple{ range.Commit, head, range.Path };
+				if (std::ranges::find(TourMaterialAsked, key) != TourMaterialAsked.end()) {
+					continue;
+				}
+				TourMaterialAsked.push_back(std::move(key));
+				if (TourMaterialAsked.size() > 4U * core::maximum_tour_stops) {
+					TourMaterialAsked.erase(TourMaterialAsked.begin());
+				}
+				const auto binding = core::agent_revision_binding{ .Host = authority.Host, .Repository = authority.Repository, .PullRequest = authority.PullRequest, .BaseOid = range.Commit, .HeadOid = head, .LeftEpoch = current->Comparison.Left.Identity.Epoch, .RightEpoch = current->Comparison.Right.Identity.Epoch };
+				const auto context = EpochHost->realignment_context(authority, binding);
+				if (!context) {
+					continue;
+				}
+				application::workbench_selected_diff_request request;
+				request.Context               = { core::request_id{ requests.size() + 1U }, authority.ApplicationSession, core::request_generation{ draft->Revision } };
+				request.WorkbenchAuthority    = authority;
+				request.Diff                  = *context;
+				request.File.File             = core::file_identity_of(range.Path);
+				request.File.PresentationPath = range.Path;
+				request.File.CurrentPath      = native_filesystem_path(QString::fromUtf8(range.Path));
+				request.File.Change           = application::workbench_file_change_kind::modified;
+				request.File.ContentKind      = application::workbench_file_content_kind::text;
+				requests.push_back(std::move(request));
+			}
+		}
+		if (requests.empty()) {
+			return;
+		}
+		++TourMaterialGeneration;
+		TourMaterialRequests = { requests.begin(), requests.end() };
+		TourMaterialReading  = true;
+		read_next_tour_material();
+	}
+
+	void github_application::implementation::read_next_tour_material()
+	{
+		if (Closing || !TourHost || TourMaterialRequests.empty()) {
+			TourMaterialReading = false;
+			TourMaterialRequests.clear();
+			return;
+		}
+		auto request = std::move(TourMaterialRequests.front());
+		TourMaterialRequests.pop_front();
+		// As a repair read: the epoch actor grants one realignment at a time,
+		// so each exact pair is authorized immediately before its read.
+		const auto context = EpochHost->realignment_context(request.WorkbenchAuthority,
+															{ .Host = request.WorkbenchAuthority.Host, .Repository = request.WorkbenchAuthority.Repository, .PullRequest = request.WorkbenchAuthority.PullRequest, .BaseOid = request.Diff.Comparison.Left.Commit, .HeadOid = request.Diff.Comparison.Right.Commit, .LeftEpoch = request.Diff.Comparison.Left.Identity.Epoch, .RightEpoch = request.Diff.Comparison.Right.Identity.Epoch });
+		if (!context) {
+			read_next_tour_material();
+			return;
+		}
+		request.Diff      = *context;
+		auto* const epoch = EpochHost.get();
+		auto* const lane  = &DecisionLane;
+		TourSourceReadsInFlight.fetch_add(1U, std::memory_order_acq_rel);
+		try {
+			DiffEffects.post([this, epoch, lane, matcher = LineMatcher, request, generation = TourMaterialGeneration, token = TourSourceStop.get_token()] {
+				auto comparison = std::optional<application::tour_source_comparison>{ };
+				try {
+					comparison = application::materialize_tour_source_comparison(*epoch, *matcher, request, token);
+				} catch (...) { }
+				try {
+					lane->post([this, generation, produced = std::move(comparison)]() mutable {
+						TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+						if (Closing || generation != TourMaterialGeneration) {
+							return;
+						}
+						if (produced && TourHost && produced->Left.Commit != produced->Right.Commit) {
+							TourHost->observe_comparison(produced->Index, produced->Left, produced->Right);
+						}
+						read_next_tour_material();
+					});
+				} catch (...) {
+					TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+				}
+			});
+		} catch (...) {
+			TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+			TourMaterialReading = false;
+			TourMaterialRequests.clear();
+		}
+	}
+
 	void github_application::implementation::dispatch_tour_repair(const core::tour_stop_id aStop, const qt::tour_repair_action aAction)
 	{
 		if (!Closing && TourHost && current(DraftWindow) && aAction == qt::tour_repair_action::preview_relocation) {
@@ -2158,14 +2202,6 @@ namespace bpr::app {
 			return;
 		}
 		switch (aAction) {
-		case qt::tour_editor_action::suggest_outline:
-			if (const auto draft = TourHost->presentation().Draft; draft && !draft->ReadOnly) {
-				request_writing(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
-			}
-			return;
-		case qt::tour_editor_action::insert_outline:
-			insert_tour_outline();
-			return;
 		case qt::tour_editor_action::preview_publication:
 			prepare_tour_repairs();
 			return;

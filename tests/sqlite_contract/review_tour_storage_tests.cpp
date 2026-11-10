@@ -5,6 +5,7 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/core/sha256.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include "scratch_root.hpp"
 #include <sqlite3.h>
 #if !defined(_WIN32)
@@ -33,7 +34,9 @@ namespace {
 #endif
 	void payload_versions()
 	{
-		auto                                 original = tests::review_tour_fixture();
+		auto original = tests::review_tour_fixture();
+		// [[BPR-2014]]. A version 1 payload holds no acceptance.
+		original.Stops.front().Acceptance.reset();
 		adapters::sqlite::detail::tour_codec legacy;
 		legacy.Version = 1;
 		legacy.tour(original);
@@ -41,6 +44,32 @@ namespace {
 		core::review_tour restored;
 		read.tour(restored);
 		expect(legacy.Good && read.Good && read.Input.empty() && restored == original, "v1 draft payload remains exactly readable by v3");
+		{
+			// [[BPR-2014]], RFC-BPR-0106 AC07. A version 10 draft carries across:
+			// its Ready stop is Accepted, an outline-suggested one is not yet.
+			auto saved = tests::review_tour_fixture();
+			saved.Stops.front().Acceptance.reset();
+			saved.Stops.front().Preparation = core::tour_preparation::ready;
+			auto suggested                  = saved.Stops.front();
+			suggested.Id                    = core::tour_stop_id{ 2 };
+			suggested.Preparation           = core::tour_preparation::suggested;
+			suggested.Suggestion            = core::tour_suggestion{ .AnchorRef = "selected-source", .Reason = "Private reason" };
+			saved.Stops.push_back(suggested);
+			saved.LastStopId = 2;
+			adapters::sqlite::detail::tour_codec version10;
+			version10.Version = 10;
+			version10.tour(saved);
+			auto              read10 = adapters::sqlite::detail::tour_codec{ .Input = version10.Bytes, .Reading = true };
+			core::review_tour carried;
+			read10.tour(carried);
+			expect(read10.Good && read10.Input.empty() && core::tour_stop_accepted(carried, carried.Stops[0]) && !carried.Stops[1].Acceptance, "a version 10 draft carries its Ready stop Accepted and its suggested stop Not accepted yet");
+			adapters::sqlite::detail::tour_codec current;
+			current.tour(carried);
+			auto              read11 = adapters::sqlite::detail::tour_codec{ .Input = current.Bytes, .Reading = true };
+			core::review_tour again;
+			read11.tour(again);
+			expect(read11.Good && read11.Input.empty() && again == carried, "version 11 keeps what was accepted exactly");
+		}
 		original.Remote          = core::tour_remote_binding{ .DatabaseId = 18446744073709551615ULL, .Entity = "node", .Actor = "author", .WebUrl = "https://github.com/o/r/pull/7#pullrequestreview-18446744073709551615", .Own = true };
 		original.IndexBaseline   = core::tour_field_baseline{ .Raw = "index\r\n", .RemoteEntity = "node" };
 		original.Stops[0].Remote = original.Remote;
@@ -162,7 +191,13 @@ namespace {
 		sql(path, "DROP TABLE targets; PRAGMA user_version=1");
 		store.reset();
 		store = adapters::sqlite::make_review_tour_store(scratch.path(), draft.Owner.Profile);
-		expect(store->load(draft.Owner, draft.Id, { }).value() == draft, "exact legacy schema migrates without rewriting tour payload");
+		// [[BPR-2014]]. A version 7 payload holds no acceptance; its stop was
+		// not Ready, so it carries across Not accepted yet.
+		auto carried = draft;
+		for (auto& stop : carried.Stops) {
+			stop.Acceptance.reset();
+		}
+		expect(store->load(draft.Owner, draft.Id, { }).value() == carried, "exact legacy schema migrates without rewriting tour payload");
 		application::tour_saved_target target{ .Owner = draft.Owner, .Draft = draft.Id, .HostProfile = core::host_profile_id{ 1 }, .Hostname = "github.com", .Repository = { "o", "r" }, .Number = core::pull_request_number{ 7 }, .Base = draft.Base, .Head = draft.Head };
 		expect(store->remember_target(target, { }).has_value(), "remember exact accepted target");
 		store.reset();
@@ -172,7 +207,7 @@ namespace {
 		expect(store->remember_target(target, { }).has_value() && store->targets({ })->size() == 2, "accounts retain separate lookup records");
 		sql(path, "UPDATE targets SET digest=zeroblob(32)");
 		expect(!store->targets({ }), "corrupt target catalog is not an empty profile");
-		expect(store->load(draft.Owner, draft.Id, { }).value() == draft, "lookup corruption does not rewrite retained draft");
+		expect(store->load(draft.Owner, draft.Id, { }).value() == carried, "lookup corruption does not rewrite retained draft");
 	}
 
 	void durable_history()

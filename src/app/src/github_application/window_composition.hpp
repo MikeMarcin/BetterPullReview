@@ -561,6 +561,15 @@ namespace bpr::app {
 		std::vector<application::tour_source_comparison>         TourRepairComparisons;
 		std::vector<core::tour_anchor_file>                      TourRepairFiles;
 		std::optional<core::tour_command>                        TourRepairCommand;
+		/// [[BPR-2014]]. Compares the code each stop was accepted on with the
+		/// pull request's current head, one file at a time, so a push turns
+		/// yellow only the stops whose material changed.
+		void                                                                             check_tour_material();
+		void                                                                             read_next_tour_material();
+		std::deque<application::workbench_selected_diff_request>                         TourMaterialRequests;
+		std::vector<std::tuple<core::git_commit_oid, core::git_commit_oid, std::string>> TourMaterialAsked;
+		std::uint64_t                                                                    TourMaterialGeneration = 0U;
+		bool                                                                             TourMaterialReading    = false;
 
 		void finish_tour_navigation();
 		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource);
@@ -589,14 +598,8 @@ namespace bpr::app {
 			/// answer is the agent's last message.
 			bool ReadOnly = false;
 		};
-		struct tour_outline_proposal
-		{
-			core::writing_target                  Target;
-			std::vector<core::tour_outline_entry> Entries;
-		};
-		std::optional<tour_outline_proposal> OutlineProposal;
-		core::scoped_writing_state           WritingState;
-		std::optional<writing_operation>     PendingWriting;
+		core::scoped_writing_state       WritingState;
+		std::optional<writing_operation> PendingWriting;
 		/// [[BPR-1916]]. The skills a prompt can name: the person's own and
 		/// the reviewed repository's at the pull request's base.
 		std::unique_ptr<application::skill_catalog_loader> SkillCatalog;
@@ -754,11 +757,8 @@ namespace bpr::app {
 		void undo_tour_reset();
 		void present_tour_reset();
 #endif
-		auto outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>;
 		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string;
 		void finish_writing(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
-		auto current_outline_target() const -> std::optional<core::writing_target>;
-		void insert_tour_outline();
 		void test_writing_hook(core::writing_hook aHook);
 
 		void dispatch_tour_action(qt::tour_editor_action aAction);

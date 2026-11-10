@@ -3437,8 +3437,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# adds the test-only --attended-agent-helpers look (a scripted Claude in
 	# the fixture build). No read, grant, admission or publication boundary
 	# changes; full-app and mutation pins unchanged.
+	# [[RFC-BPR-0106]] ([[BPR-2013]], [[BPR-2014]]): the window fills an accept
+	# command's changed paths from the accepted snapshot, compares the code
+	# each stop was accepted on with a new head through the tour repair's
+	# realignment and materialization (read only), and drops the in-app
+	# Suggest an outline delivery (the outline hook and `bpr tour outline`
+	# are unchanged). Main's tour looks press Accept where they pressed Ready,
+	# next. No grant, admission or publication boundary is relaxed:
+	# publication now also requires every stop accepted. Full-app and
+	# mutation pins unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "a0b60b547ba97df871c1971cf7ea13f449dd5d5e793224f79acb3f06ac4e89ce"
+        "dbbbf1c443411d850832d43e640002ed67bc118a28a4e761ad559acd9707f645"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

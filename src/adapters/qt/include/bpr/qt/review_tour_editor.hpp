@@ -5,6 +5,7 @@
 #include "bpr/core/tour_agent_session.hpp"
 #include "bpr/core/tour_publication_head.hpp"
 #include "bpr/core/tour_steps.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/core/tour_stop_view.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
@@ -73,8 +74,6 @@ namespace bpr::qt {
 												   open_published,
 												   /// [[BPR-1992]]. A refusal's Use another connection.
 												   choose_connection,
-												   suggest_outline,
-												   insert_outline,
 												   /// [[BPR-1914]] v002. Ask about the open stop's code: the
 												   /// lines selected in the code, or the stop's own.
 												   ask_code };
@@ -152,8 +151,6 @@ namespace bpr::qt {
 		void               present_repair_preview(core::tour_stop_id, const core::tour_source_range&, std::string_view, std::uint64_t);
 		[[nodiscard]] auto description_publication() const -> bool;
 		void               show_problem();
-		void               present_outline(const std::vector<core::tour_outline_entry>& aEntries);
-		[[nodiscard]] auto retained_outline_entries() const -> std::vector<std::size_t>;
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
@@ -281,6 +278,10 @@ namespace bpr::qt {
 		/// the editors hold text the draft has not taken. The text is saved in
 		/// the private draft as it is typed; Save closes the editor.
 		void finish_stop_edit();
+		/// \brief [[BPR-2014]]. Save: finishes the edit and accepts the stop.
+		void save_stop_edit();
+		/// \brief [[BPR-2014]]. Accept: the author accepts `aStop` as it is now.
+		void accept_stop(core::tour_stop_id aStop);
 		/// \brief [[BPR-1936]]. Cancel: the title and explanation go back to
 		/// what they were when the editor opened, and the stop reads again.
 		void cancel_stop_edit();
@@ -298,14 +299,12 @@ namespace bpr::qt {
 		/// [[BPR-1936]]. A wrapping editor: a long title stays whole while written.
 		[[nodiscard]] auto stop_title() const -> QPlainTextEdit* { return Title; }
 		[[nodiscard]] auto stop_body() const -> QPlainTextEdit* { return Body; }
-		/// [[BPR-1900]] follow-up, owner 2026-11-07. The open stop's "Head
-		/// changed" chip, beside its title and outside its explanation; a
-		/// click asks "Still accurate?" in place, with Confirm and Edit.
-		[[nodiscard]] auto head_chip() const -> QToolButton* { return HeadChip; }
-		[[nodiscard]] auto head_confirm() const -> QWidget* { return HeadConfirm; }
-		[[nodiscard]] auto head_question() const -> QLabel* { return HeadQuestion; }
-		[[nodiscard]] auto head_confirm_button() const -> QPushButton* { return HeadConfirmYes; }
-		[[nodiscard]] auto head_edit_button() const -> QPushButton* { return HeadEdit; }
+		/// [[BPR-2014]]. The open stop's Accept and its one-line reason,
+		/// shown while the stop is yellow and read.
+		[[nodiscard]] auto accept_button() const -> QPushButton* { return Complete; }
+		[[nodiscard]] auto accept_reason() const -> QLabel* { return AcceptReason; }
+		/// [[BPR-2013]]. The stop's context menu.
+		[[nodiscard]] auto stop_menu() const -> QMenu* { return StopMenu; }
 		[[nodiscard]] auto problem_editor() const -> QPlainTextEdit* { return Problem; }
 		[[nodiscard]] auto solution_editor() const -> QPlainTextEdit* { return Solution; }
 		[[nodiscard]] auto roadmap() const -> QTabWidget* { return Roadmap; }
@@ -346,8 +345,8 @@ namespace bpr::qt {
 		void                                                                       view_stop(core::tour_stop_view_event aEvent);
 		void                                                                       present_stop_view();
 		void                                                                       structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
-		void                                                                       reaffirm_stop(core::tour_stop_id aStop);
-		void                                                                       present_head_chip(const core::tour_stop& aStop);
+		void                                                                       accept_proposed_stop_text(core::tour_stop_id aStop, const std::string& aText);
+		[[nodiscard]] auto                                                         acceptance_reason(const core::tour_acceptance_decision& aDecision) const -> QString;
 		[[nodiscard]] auto                                                         selected_stops() const -> std::vector<core::tour_stop_id>;
 		void                                                                       select_stops(const std::vector<core::tour_stop_id>& aStops);
 		void                                                                       update_stop_actions();
@@ -403,7 +402,6 @@ namespace bpr::qt {
 		/// readiness; the helpers' labels, run again when it changes.
 		QWidget*                           AgentSetupCall   = nullptr;
 		QPushButton*                       AgentSetupButton = nullptr;
-		QPushButton*                       SuggestOutline   = nullptr;
 		std::function<void()>              AgentSetupDispatch;
 		std::function<void()>              ShownObserver;
 		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
@@ -475,8 +473,10 @@ namespace bpr::qt {
 		bool                                                        ShowsStopProposal = false;
 		QVBoxLayout*                                                StopFieldsLayout  = nullptr;
 		QPushButton*                                                Complete          = nullptr;
-		QPushButton*                                                ShowInCode        = nullptr;
-		std::optional<core::tour_stop_id>                           AdvanceFrom;
+		QLabel*                                                     AcceptReason      = nullptr;
+		QString                                                     SourceChip;
+		void                                                        paint_source_link();
+		QAction*                                                    MarkNotAccepted = nullptr;
 		void                                                        begin_proposals();
 		[[nodiscard]] auto                                          place_proposal(std::size_t aIndex, const core::tour_proposal_item& aItem, QWidget* aBox) -> bool;
 		void                                                        mark_proposed();
@@ -488,20 +488,15 @@ namespace bpr::qt {
 		auto                                                        add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
 		void                                                        refresh_agent_features();
 		void                                                        restyle_agent_features();
-		QWidget*                                                    Foot           = nullptr;
-		QLabel*                                                     FootState      = nullptr;
-		QToolButton*                                                HeadChip       = nullptr;
-		QWidget*                                                    HeadConfirm    = nullptr;
-		QLabel*                                                     HeadQuestion   = nullptr;
-		QPushButton*                                                HeadConfirmYes = nullptr;
-		QPushButton*                                                HeadEdit       = nullptr;
-		QPushButton*                                                Previous       = nullptr;
-		QPushButton*                                                Next           = nullptr;
-		QWidget*                                                    RepairList     = nullptr;
-		QWidget*                                                    RepairPreview  = nullptr;
-		QLabel*                                                     RepairRange    = nullptr;
-		QPlainTextEdit*                                             RepairText     = nullptr;
-		QPushButton*                                                ApplyRepair    = nullptr;
+		QWidget*                                                    Foot          = nullptr;
+		QLabel*                                                     FootState     = nullptr;
+		QPushButton*                                                Previous      = nullptr;
+		QPushButton*                                                Next          = nullptr;
+		QWidget*                                                    RepairList    = nullptr;
+		QWidget*                                                    RepairPreview = nullptr;
+		QLabel*                                                     RepairRange   = nullptr;
+		QPlainTextEdit*                                             RepairText    = nullptr;
+		QPushButton*                                                ApplyRepair   = nullptr;
 		core::tour_stop_id                                          PreviewRepairStop;
 		std::uint64_t                                               PreviewRepairRevision = 0U;
 		std::vector<core::tour_destination_repair>                  ShownRepairs;
@@ -538,8 +533,6 @@ namespace bpr::qt {
 		QPushButton*         PreparePublication = nullptr;
 		QComboBox*           Imports            = nullptr;
 		QPushButton*         Import             = nullptr;
-		QListWidget*         SuggestedOutline   = nullptr;
-		QPushButton*         InsertOutline      = nullptr;
 		QListWidget*         Outline            = nullptr;
 		QListWidget*         Related            = nullptr;
 		QPlainTextEdit*      Title              = nullptr;

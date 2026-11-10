@@ -73,6 +73,19 @@ Generating a comment requires another explicit magic-button invocation on **that
 
 The current generated text/destination must receive an author completion decision while visible, e.g. **Ready and next**. This is preparation acknowledgement, not an AI Apply/Dismiss UI. Visiting an empty placeholder before an asynchronous result arrives does not acknowledge the eventual text. Regeneration/retargeting invalidates readiness; deterministic ordinal/footer updates do not. No minimum dwell time, forced keystrokes or artificial edits are required. The mechanism creates a deliberate opportunity for scrutiny; it does not claim to prove comprehension.
 
+## Stop acceptance amendment (RFC-BPR-0106), 2026-11-10
+
+[RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) amends this section. The application no longer offers Suggest
+tour outline or Insert outline: Draft the tour is the one way to ask the
+agent for a route ([[BPR-2013]]); the `bpr tour outline` commands and the
+outline hook are unchanged, and a saved draft's outline-suggested stops are
+Not accepted yet. The author's completion decision is **Accept** on the
+current stop, **Save** of an edit, or **Accept** on that stop's own proposal
+([[BPR-2014]]); Ready and next is gone. There is still no bulk form: Accept
+all on a tour revision accepts no stop, and no agent can accept one. The
+terminal walk's Ready, which shows the stop's code to the person answering it,
+accepts the stop; a relayed `bpr tour ready` does not.
+
 ## Host and protocol boundary
 
 Reuse the existing explicit agent-launch/session/context-supplement path. The provider/profile determines local/cloud inference according to current BPR settings. Publish nothing from the agent; do not give it GitHub tokens, mutation ports, arbitrary URL fetch authority or executable repository hooks. All PR comments, source text, tickets pasted by the author and returned model text are untrusted data. Instructions in them do not override application scope or publication policy.

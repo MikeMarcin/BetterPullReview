@@ -1091,6 +1091,14 @@ bpr_enable_hardening(test_review_tour_core)
 bpr_enable_warnings(test_review_tour_core)
 bpr_add_network_isolated_test(NAME core_review_tour COMMAND test_review_tour_core)
 
+# [[BPR-2014]], RFC-BPR-0106. A tour stop is accepted the way a file is.
+bpr_add_executable(test_tour_stop_acceptance tour_stop_acceptance_tests.cpp)
+target_link_libraries(test_tour_stop_acceptance PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_tour_stop_acceptance)
+bpr_enable_warnings(test_tour_stop_acceptance)
+bpr_add_network_isolated_test(NAME core_tour_stop_acceptance COMMAND test_tour_stop_acceptance)
+set_tests_properties(core_tour_stop_acceptance PROPERTIES PASS_REGULAR_EXPRESSION "tour-stop-acceptance:pass")
+
 bpr_add_executable(test_review_tour_markdown review_tour_markdown_tests.cpp)
 target_link_libraries(test_review_tour_markdown PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_tour_markdown)

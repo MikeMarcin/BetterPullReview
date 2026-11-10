@@ -297,7 +297,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1936]]. Cancel and Save at the card's foot, Save at the right and
 	// the default, below the explanation, as the description editor has them.
 	expect(done->isDefault() && cancel->x() < done->x() && cancel->mapTo(&editor, QPoint{ }).y() > body->mapTo(&editor, QPoint{ }).y(), "Cancel then Save, at the foot below the explanation");
-	expect(!child<QPushButton>(editor, "tourComplete")->isVisible(), "while written, Save is the card's one primary action");
+	expect(!child<QPushButton>(editor, "tourAccept")->isVisible(), "while written, Save is the card's one primary action");
 	const auto before = draft.Stops.front();
 	body->moveCursor(QTextCursor::End);
 	body->insertPlainText(QStringLiteral(" Typed then cancelled."));

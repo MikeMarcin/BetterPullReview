@@ -45,7 +45,7 @@ namespace {
 			draft.Stops[i].Baseline = tour_field_baseline{ .Raw = *render_tour_stop(draft.Stops[i].Title, i + 1, draft.Stops[i].Body, nav), .RemoteEntity = draft.Stops[i].Remote->Entity };
 		}
 		draft.IndexBaseline = tour_field_baseline{ .Raw = "Preserve this custom orientation.\n\n" + *render_tour_index(entries) + "\nUnrelated tail.\n", .RemoteEntity = "review9" };
-		return draft;
+		return bpr::tests::accept_tour_fixture(std::move(draft));
 	}
 	void published_source_baseline()
 	{
@@ -56,7 +56,9 @@ namespace {
 		stop.Mapped->Path   = "repaired.cpp";
 		stop.Mapping        = tour_mapping::author_selected;
 		expect(needs_tour_destination(stop) && !plan_tour_update(tour, { }), "an unpublished repair of a remote subject still requires replacement");
-		stop.Destination     = destination_of(*stop.Mapped);
+		stop.Destination = destination_of(*stop.Mapped);
+		// [[BPR-2014]]. The stop moved to the repaired lines; the author accepts it there.
+		stop.Acceptance      = accept_tour_stop(tour, stop, { });
 		const auto unchanged = plan_tour_update(tour, { });
 		expect(!needs_tour_destination(stop) && unchanged && unchanged->Edits.empty() && stop.Original == original, "the confirmed published repair supports zero-write maintenance without overwriting its original");
 		auto cold = tour;
@@ -107,8 +109,9 @@ namespace {
 		}
 		const auto unchanged = plan_tour_update(tour, { });
 		expect(unchanged && unchanged->Edits.empty(), "reading a legacy tour does not rename published comments");
-		tour.Stops.front().Body = "A deliberate revised explanation.";
-		const auto revised      = plan_tour_update(tour, { });
+		tour.Stops.front().Body       = "A deliberate revised explanation.";
+		tour.Stops.front().Acceptance = accept_tour_stop(tour, tour.Stops.front(), { });
+		const auto revised            = plan_tour_update(tour, { });
 		expect(revised && revised->Edits.size() == 1 && revised->Edits.front().Remote == *tour.Stops.front().Remote
 				   && revised->Edits.front().Desired.starts_with("### PR Tour · 1 — Stop 1\n") && revised->Edits.front().Desired.contains(tour.Stops.front().Body),
 			   "an explicit legacy-comment update keeps its identity and writes PR Tour");
@@ -314,9 +317,12 @@ int main()
 		auto generated                 = published();
 		generated.Stops[0].Suggestion  = tour_suggestion{ "selected-source", "Private reason", "", true };
 		generated.Stops[0].Preparation = tour_preparation::editing;
+		// [[BPR-2014]]. What gates it now: the stop is not accepted.
+		generated.Stops[0].Acceptance.reset();
 		const std::vector<tour_destination_plan> destinations(generated.Stops.size(), { tour_representation::native_line, true, false, false, false });
 		expect(!plan_tour_update(generated, { }) && assess_tour_update(generated, destinations, false, tour_operation_support::supported) == tour_publication_readiness::incomplete, "published generated stop cannot bypass re-completion through update");
 		generated.Stops[0].Preparation = tour_preparation::ready;
+		generated                      = bpr::tests::accept_tour_fixture(std::move(generated));
 		std::swap(generated.Stops[0], generated.Stops[1]);
 		expect(plan_tour_update(generated, { }).has_value(), "derived numbering and footer changes retain generated completion");
 		auto       remote = generated;
@@ -361,6 +367,7 @@ int main()
 	draft.Stops[0].Mapping      = tour_mapping::author_selected;
 	auto replacement            = created;
 	replacement.Stop            = draft.Stops[0].Id;
+	draft                       = bpr::tests::accept_tour_fixture(std::move(draft));
 	plan                        = plan_tour_update(draft, std::vector{ replacement });
 	expect(plan && plan->StopBodies[0].contains("original discussion") && std::ranges::any_of(plan->Edits, [](const auto& aEdit) { return aEdit.Desired.contains("replacement stop"); }), "immutable remote subject gets visibly linked replacement and preserved original thread");
 	draft = published();
@@ -373,10 +380,12 @@ int main()
 	draft.Stops.front().Baseline->Raw.insert(draft.Stops.front().Baseline->Raw.find("[Next]"), "  ");
 	draft.Stops.front().Body                = draft.Stops.front().Baseline->Raw;
 	draft.Stops.front().Baseline->DraftText = draft.Stops.front().Body;
+	draft                                   = bpr::tests::accept_tour_fixture(std::move(draft));
 	plan                                    = plan_tour_update(draft, { });
 	expect(plan && plan->Edits.empty(), "unchanged route preserves exact website footer wording without normalization writes");
 	draft.Stops.front().Body += "\nExplicit whole-comment correction.";
-	plan = plan_tour_update(draft, { });
+	draft = bpr::tests::accept_tour_fixture(std::move(draft));
+	plan  = plan_tour_update(draft, { });
 	expect(plan && plan->Edits.size() == 1 && plan->Edits.front().Desired.ends_with("Explicit whole-comment correction."), "mapped whole-comment editor retains explicit custom-layout changes");
 	// [[BPR-1785]]. A tour published before the navigation note gains it on
 	// its next update, under the links, with every other byte kept.

@@ -2,6 +2,7 @@
 #define BPR_CORE_OVERVIEW_TOUR_HPP
 
 #include "bpr/core/review_tour.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -36,6 +37,9 @@ namespace bpr::core {
 		tour_stop_id     Id;
 		std::string      Title;
 		tour_preparation Preparation = tour_preparation::editing;
+		/// [[BPR-2014]]. What the ring and the words say: Accepted, Not
+		/// accepted yet or Changed since accepted.
+		tour_acceptance_state Acceptance = tour_acceptance_state::not_accepted;
 		/// [[BPR-1993]]. Where the stop is (one-based lines; zero without a
 		/// source) and the first sentence of its explanation.
 		std::string   Path;

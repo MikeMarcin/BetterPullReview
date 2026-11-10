@@ -10387,6 +10387,9 @@ namespace {
 		expect(fired.size() == 1U && stack->currentWidget() == start, "Option-Shift-U on a collapsed stop retargets nothing and opens no page");
 		window_key(window, Qt::Key_Space, Qt::NoModifier);
 		expect(!editor->stop_collapsed(), "Space on the outline reopens the stop");
+		// [[BPR-2013]]. Reopening the current stop shows its code, like any arrival.
+		expect(fired.size() == 2U && fired.back() == qt::tour_editor_action::navigate_stop, "reopening the stop shows its code");
+		fired.pop_back();
 		editSelected();
 		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
 		expect(fired == std::vector{ qt::tour_editor_action::retarget_stop, qt::tour_editor_action::retarget_stop } && stack->currentWidget() == start, "editing the reopened stop re-enables exactly one retarget per key press");
@@ -14035,11 +14038,15 @@ namespace {
 		// [[BPR-1776]], the owner's photograph of 2026-10-26 ("don't even
 		// appear to be buttons"): every stop action is the raised shared
 		// chip, and More is one sign that still opens its menu.
-		for (const auto* const name : { "tourStopMagic", "tourAddRelated", "tourRemoveRelated", "tourReturn", "tourSuggestOutline" }) {
+		// [[BPR-2013]]. Show in code and Suggest an outline left the
+		// application; More and its actions are offered while a stop is edited.
+		for (const auto* const name : { "tourStopMagic", "tourAddRelated", "tourRemoveRelated" }) {
 			const auto* const action = editor->findChild<QPushButton*>(QString::fromLatin1(name));
 			expect(action != nullptr && dynamic_cast<const qt::quiet_push_button*>(action) != nullptr && !action->isFlat(), std::string{ name } + " is a raised chip, not bare text");
 		}
 		{
+			editor->begin_stop_edit();
+			process_events();
 			auto* const more = editor->findChild<QToolButton*>(QStringLiteral("tourStopMore"));
 			expect(more != nullptr && more->menu() == nullptr && more->popupMode() != QToolButton::InstantPopup && !more->icon().isNull() && more->text().isEmpty(),
 				   "More is one glyph, with no menu arrow of Qt's beside it");
@@ -14050,6 +14057,8 @@ namespace {
 			if (menu != nullptr) {
 				menu->hide();
 			}
+			editor->cancel_stop_edit();
+			process_events();
 		}
 
 		window.findChild<QToolButton*>(QStringLiteral("workbenchExpandTourTool"))->click();

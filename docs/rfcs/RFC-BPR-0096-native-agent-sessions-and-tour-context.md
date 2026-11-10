@@ -107,6 +107,17 @@ reported helper is out ([[BPR-2004]]). A frame that belongs to no open turn,
 including a helper started after the turn ended, is still refused, and a second
 result is never accepted as the next turn.
 
+## Stop acceptance amendment (RFC-BPR-0106), 2026-11-10
+
+[RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) amends Preparation and eligibility in the tour agent's structured
+status: each stop reports its `acceptance` (`accepted`, `not_accepted`,
+`changed`) and `acceptance_reason`, and its publication blockers are
+`not_accepted` or `changed_since_accepted` in place of Ready, generated
+completion and explanation reaffirmation ([[BPR-2014]]). A stop is accepted
+again only when its material changed, and accepting an agent-proposed stop
+confirms the lines it shows. No agent can accept a stop: the owner channel
+refuses the accept command from a command client.
+
 ## Required final critical review — completed
 
 The owner requested “do an an rfc-review-critical before we closeout the whole

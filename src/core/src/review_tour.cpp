@@ -1,5 +1,7 @@
 #include "bpr/core/review_tour.hpp"
 
+#include "bpr/core/tour_stop_acceptance.hpp"
+
 #include <algorithm>
 #include <limits>
 #include <ranges>
@@ -43,10 +45,39 @@ namespace bpr::core {
 			for (const auto& related : aStop.Related) {
 				size += source_bytes(related);
 			}
+			if (aStop.Acceptance) {
+				size += 128U + aStop.Acceptance->Title.size() + aStop.Acceptance->Body.size() + (aStop.Acceptance->Destination ? 192U + aStop.Acceptance->Destination->Path.size() : 1U);
+				for (const auto& material : aStop.Acceptance->Material) {
+					size += 256U + material.Range.Path.size() + material.Written.size();
+				}
+			}
 			return size;
+		}
+		auto acceptance_refusal(const tour_stop_acceptance& aValue) noexcept -> tour_refusal
+		{
+			if (!field_ok(aValue.Title) || !field_ok(aValue.Body) || aValue.Material.size() > maximum_tour_material) {
+				return tour_refusal::bounds;
+			}
+			if (!aValue.Head.valid() || (aValue.Destination && !valid(*aValue.Destination))) {
+				return tour_refusal::invalid_source;
+			}
+			for (const auto& material : aValue.Material) {
+				if (material.Written.size() > maximum_tour_material_label_bytes || material.Written.find('\0') != std::string::npos || material.Verdict > tour_material_verdict::missing) {
+					return tour_refusal::bounds;
+				}
+				if (!valid(material.Range) || (material.CheckedAt.valid() && material.CheckedAt.algorithm() != material.Range.Commit.algorithm())) {
+					return tour_refusal::invalid_source;
+				}
+			}
+			return tour_refusal::none;
 		}
 		auto stop_refusal(const tour_stop& aStop) noexcept -> tour_refusal
 		{
+			if (aStop.Acceptance) {
+				if (const auto refusal = acceptance_refusal(*aStop.Acceptance); refusal != tour_refusal::none) {
+					return refusal;
+				}
+			}
 			if (aStop.Suggestion && (!field_ok(aStop.Suggestion->AnchorRef) || !field_ok(aStop.Suggestion->Reason) || !field_ok(aStop.Suggestion->Question) || aStop.Suggestion->AnchorRef.empty() || aStop.Suggestion->AnchorRef.size() > 128 || aStop.Suggestion->Reason.empty() || aStop.Suggestion->Reason.size() > 240 || aStop.Suggestion->Question.size() > 240)) {
 				return tour_refusal::bounds;
 			}
@@ -93,7 +124,8 @@ namespace bpr::core {
 			auto value        = aCommand.Value;
 			value.Id          = new_id(aTour);
 			value.Preparation = tour_preparation::editing;
-			aSelected         = value.Id;
+			value.Acceptance.reset();
+			aSelected = value.Id;
 			aTour.Stops.insert(aTour.Stops.begin() + static_cast<std::ptrdiff_t>(aCommand.Position), std::move(value));
 			return tour_refusal::none;
 		}
@@ -126,6 +158,7 @@ namespace bpr::core {
 			copy.Id   = new_id(aTour);
 			copy.Baseline.reset();
 			copy.Remote.reset();
+			copy.Acceptance.reset();
 			copy.Preparation = tour_preparation::editing;
 			if (copy.Suggestion) {
 				copy.Suggestion->Visited = false;
@@ -207,9 +240,13 @@ namespace bpr::core {
 				if (aCommand.Value.Id != found->Id || aCommand.Value.Original != found->Original || aCommand.Value.Baseline != found->Baseline || aCommand.Value.Remote != found->Remote || aCommand.Value.Destination != found->Destination || aCommand.Value.Suggestion != found->Suggestion || (found->Remote && !found->Remote->Own)) {
 					return tour_refusal::identity;
 				}
-				const auto published    = found->Remote ? published_tour_destination(*found) : found->Destination;
+				const auto published = found->Remote ? published_tour_destination(*found) : found->Destination;
+				// [[BPR-2014]]. What was accepted is the core's to keep: an edit
+				// never writes it, and its own Save accepts it explicitly.
+				auto acceptance         = std::move(found->Acceptance);
 				*found                  = aCommand.Value;
 				found->Destination      = published;
+				found->Acceptance       = std::move(acceptance);
 				found->Preparation      = tour_preparation::editing;
 				found->CompletionOrigin = tour_completion_origin::unspecified;
 				return tour_refusal::none;
@@ -264,6 +301,31 @@ namespace bpr::core {
 				}
 				found->CompletionOrigin = aCommand.CompletionOrigin == tour_completion_origin::unspecified && aCommand.Attention.EditorVisible ? tour_completion_origin::observed : aCommand.CompletionOrigin;
 				found->Preparation      = tour_preparation::ready;
+				// [[BPR-2014]]. The terminal walk's Ready shows the stop's code
+				// to the person who answers it: that is an accept. A relayed
+				// Ready (an agent, a script) accepts nothing.
+				if (found->CompletionOrigin == tour_completion_origin::observed && visible_tour_stop(*found, aCommand.Attention, true) && tour_stop_accept_need(*found) == tour_accept_need::nothing) {
+					found->Acceptance = accept_tour_stop(aTour, *found, aCommand.Files);
+				}
+				return tour_refusal::none;
+			case tour_command_kind::accept:
+				if (aCommand.Files.size() > maximum_tour_file_count || tour_stop_accept_need(*found) != tour_accept_need::nothing) {
+					return tour_refusal::incomplete;
+				}
+				found->Acceptance = accept_tour_stop(aTour, *found, aCommand.Files);
+				if (found->Suggestion) {
+					found->Suggestion->Visited = true;
+				}
+				// The older mark follows where it can still hold; acceptance decides.
+				if (ready(*found)) {
+					found->Preparation = tour_preparation::ready;
+				}
+				return tour_refusal::none;
+			case tour_command_kind::unaccept:
+				found->Acceptance.reset();
+				if (found->Preparation == tour_preparation::ready) {
+					found->Preparation = tour_preparation::editing;
+				}
 				return tour_refusal::none;
 			default: return tour_refusal::invalid_command;
 			}
@@ -372,7 +434,12 @@ namespace bpr::core {
 						}
 						stop.ReaffirmedHead.reset();
 						stop.Preparation = tour_preparation::needs_attention;
-						stop.Mapping     = tour_mapping::unavailable;
+						// [[BPR-2014]]. Lines the author chose stay chosen: a
+						// push checks the code under them, it does not move them.
+						if (stop.Mapping == tour_mapping::author_selected) {
+							continue;
+						}
+						stop.Mapping = tour_mapping::unavailable;
 						stop.Mapped.reset();
 					}
 				}
