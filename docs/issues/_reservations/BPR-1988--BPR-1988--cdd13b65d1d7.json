@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1988"
+  ],
+  "reserve_for": "bpr1988-tour-log",
+  "purpose": "Release52 Windows compatibility publication lifecycle log diagnosis and scoped repair",
+  "created": "2026-11-10T08:37:44.378741+00:00",
+  "base": "b12269ea9ad1ff07afe8ec31812875b89d870e5a"
+}
