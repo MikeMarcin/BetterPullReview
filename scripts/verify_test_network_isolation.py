@@ -880,9 +880,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_tour_publication_maintenance": "dos-volume-name",
     "application_review_tour_publication_manual": "dos-volume-name",
     "application_review_tour_publication_native": "dos-volume-name",
-    "application_review_tour_publication_file": "unmeasured (registered on macOS)",
-    "application_review_tour_publication_mixed": "unmeasured (registered on macOS)",
-    "application_review_tour_publication_repairs": "unmeasured (registered on macOS)",
+    # [[BPR-1984]]. JaegAW Windows Release, source4eab682639a, 2026-11-09:
+    # each unchanged normal course passes; its exact contained variant exits1.
+    # Failure-only helper metadata identifies parent-owner-private: the existing
+    # make_storage_root_owner_private(parent) guard refuses before child-root
+    # creation. This names the observed fixture predicate, not a DOS/Win32 cause.
+    "application_review_tour_publication_file": "private-test-root-refused",
+    "application_review_tour_publication_mixed": "private-test-root-refused",
+    "application_review_tour_publication_repairs": "private-test-root-refused",
     "application_review_tour_publication_reconciliation": "dos-volume-name",
     "application_review_tour_publication_stop": "dos-volume-name",
     "application_review_tour_publication_unsupported": "dos-volume-name",
