@@ -84,6 +84,20 @@ button is removed.
 The **agent bar** keeps the agent, model and effort pill and the Draft the
 tour action, at the bottom of the tab at every route length.
 
+**Established in implementation, 2026-11-10 ([[BPR-1991]]).** Until
+[RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md)
+lands, a stop counts as accepted when it passes the rule a first publication
+already applies to every stop (exact source, no attention, an accepted
+suggestion, an explanation current at the observed head); the core names it
+`tour_stop_publishable` and `assess_tour_publication` uses it. "Changes not on
+GitHub" counts each stop that is new or moved, each stop whose title or
+explanation differs from its published text, each published stop removed from
+the route, and Problem and Solution where their published text is known; a
+route only reordered counts the published comments its update would edit.
+The save state ("Saved locally", a refused edit) stays a quiet line just above
+the agent bar, outside the route. The head and the route's band are the same
+in the drawer and on the tour page.
+
 ### The plan chooses the form
 
 The publication mode list is removed. The plan uses the first of these that
@@ -101,6 +115,15 @@ offers **Keep it to one review instead**, which lists the stops to move and
 changes nothing until the author moves them. The description checkbox and
 its meaning are unchanged.
 
+**Established in implementation, 2026-11-10 ([[BPR-1992]]).** A stop outside
+the lines the diff shows is sent as a file comment whenever the connection's
+recorded facts allow one, without the author asking stop by stop; the per-stop
+Publish as file comment remains as an explicit request. Keep it to one review
+instead lists the stops to move, each opening its stop, and shows the moves
+each already has (Re-pin to current head, Move to nearest change). The `bpr
+tour` CLI keeps its explicit choice. An update chooses the same way for the
+stops it adds.
+
 ### Steps that advance
 
 The core's publication projection gives each step one state: waiting,
@@ -108,6 +131,18 @@ sending, sent, failed, or not sent. The panel shows the steps as a checklist
 in those states, and the head shows the same count. Consecutive sent steps
 of one kind may be summarised ("Stops 1 to 7"). A step is marked sent only
 after GitHub confirmed it.
+
+**Established in implementation, 2026-11-10 ([[BPR-1992]]).** The steps are
+the publication's writes in the order it makes them: the pending review with
+the stops it carries, each standalone comment, each stop's links, the
+submission, an update's edits to the published comments, and the description.
+The projection lives beside the staged plan and record it reads, in the
+application's pure publication module (`staged_publication_steps`,
+`staged_publication_confirmed`), because those types are the application's;
+it takes no effect. A step counts as sent only once the durable record holds
+GitHub's returned identity or confirmed edit. Before each write the host
+hands the projection the record it authorised, on the decision lane, so the
+next step reads as sending; consecutive sent link steps read as one row.
 
 ### Failures that read as failures
 
@@ -124,6 +159,15 @@ is shown before anything is sent and names the stops, the missing operation
 and both ways out: move those stops, or use another connection.
 
 Resume, Check status and Stop keep their RFC-BPR-0041 meanings.
+
+**Established in implementation, 2026-11-10 ([[BPR-1992]]).** A failure after
+part of the tour was sent, a stop, a restart that finds a part-sent record and
+a published tour whose description failed all say "Publishing stopped at step
+N of M"; Resume previews the captured plan and resumes it, and Check status
+comes first while a write's outcome is unknown or the record conflicts. A
+refusal before the first write reads "Not published", with what nothing was
+sent and Preview again (Check status for a conflicting pending review).
+"Does not support" no longer appears in the provider failure text.
 
 ### The tour on Overview
 
