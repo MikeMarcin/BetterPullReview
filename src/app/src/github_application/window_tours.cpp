@@ -192,6 +192,10 @@ namespace bpr::app {
 	void github_application::implementation::suspend_review_tour()
 	{
 		PendingTourSource.reset();
+		++TourRepairGeneration;
+		TourRepairComparisons.clear();
+		TourRepairFiles.clear();
+		TourRepairCommand.reset();
 		TourSourceRequest.reset();
 		PendingTourStart = false;
 		PendingTourStop.reset();
@@ -1935,6 +1939,197 @@ namespace bpr::app {
 #endif
 	}
 
+	void github_application::implementation::prepare_tour_repairs()
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (!draft || !TourPublication) {
+			return;
+		}
+		if (draft->Remote || !EpochHost || !LastAcceptedHandoff || !WindowRead->accepted_snapshot()) {
+			TourPublication->dispatch(qt::tour_editor_action::preview_publication);
+			return;
+		}
+		const auto authority = workbench_authority(*LastAcceptedHandoff);
+		const auto current   = EpochHost->context(authority);
+		if (!current || TourHead != draft->ObservedHead.value_or(draft->Head)) {
+			Window->tour_editor()->show_notice(QStringLiteral("The current source comparison is not ready. Wait for the pull request to load, then Preview again."));
+			TourPublication->dispatch(qt::tour_editor_action::preview_publication);
+			return;
+		}
+		auto files = std::vector<core::tour_anchor_file>{ };
+		for (const auto& file : WindowRead->accepted_snapshot()->Files) {
+			auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
+			if (file.HeadHunks) {
+				anchor.Hunks.emplace();
+				for (const auto& [first, last] : *file.HeadHunks) {
+					anchor.Hunks->push_back({ first, last });
+				}
+			}
+			files.push_back(std::move(anchor));
+		}
+		auto requests = std::vector<application::workbench_selected_diff_request>{ };
+		for (const auto& stop : draft->Stops) {
+			const auto source = core::publication_source(stop);
+			if (!source || std::ranges::any_of(requests, [&](const auto& aRequest) { return aRequest.File.PresentationPath == source->Path && aRequest.Diff.Comparison.Left.Commit == source->Commit; })) {
+				continue;
+			}
+			const auto observed = core::publication_observation(*source, draft->ObservedHead.value_or(draft->Head), draft->Base, stop.Body, false,
+																TourPublication->operation_support() == core::tour_operation_support::supported);
+			const auto repair   = core::plan_tour_stop_repair(*draft, stop, observed, files);
+			if (observed.Subject != core::tour_subject::historical && repair.Problem != core::tour_destination_problem::off_hunk) {
+				continue;
+			}
+			const auto binding = core::agent_revision_binding{ .Host = authority.Host, .Repository = authority.Repository, .PullRequest = authority.PullRequest, .BaseOid = source->Commit, .HeadOid = draft->ObservedHead.value_or(draft->Head), .LeftEpoch = current->Comparison.Left.Identity.Epoch, .RightEpoch = current->Comparison.Right.Identity.Epoch };
+			const auto context = EpochHost->realignment_context(authority, binding);
+			if (!context) {
+				continue;
+			}
+			application::workbench_selected_diff_request request;
+			request.Context               = { core::request_id{ requests.size() + 1U }, authority.ApplicationSession, core::request_generation{ draft->Revision } };
+			request.WorkbenchAuthority    = authority;
+			request.Diff                  = *context;
+			request.File.File             = core::file_identity_of(source->Path);
+			request.File.PresentationPath = source->Path;
+			request.File.CurrentPath      = native_filesystem_path(QString::fromUtf8(source->Path));
+			request.File.Change           = application::workbench_file_change_kind::modified;
+			request.File.ContentKind      = application::workbench_file_content_kind::text;
+			requests.push_back(std::move(request));
+		}
+		++TourRepairGeneration;
+		TourRepairDraft    = draft;
+		TourRepairRequests = { requests.begin(), requests.end() };
+		TourRepairFiles    = std::move(files);
+		TourRepairComparisons.clear();
+		TourRepairCommand.reset();
+		Window->tour_editor()->show_notice(QStringLiteral("Checking pinned sources and current diff hunks. No comments are sent."));
+		read_next_tour_repair();
+	}
+
+	void github_application::implementation::read_next_tour_repair()
+	{
+		const auto now = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (Closing || !TourRepairDraft || !now || now->Owner != TourRepairDraft->Owner || now->Id != TourRepairDraft->Id || now->Revision != TourRepairDraft->Revision) {
+			return;
+		}
+		if (TourRepairRequests.empty()) {
+			for (const auto& comparison : TourRepairComparisons) {
+				if (comparison.Left.Commit != comparison.Right.Commit) {
+					TourHost->observe_comparison(comparison.Index, comparison.Left, comparison.Right);
+				}
+			}
+			TourPublication->observe_anchors(TourRepairDraft->ObservedHead.value_or(TourRepairDraft->Head), TourRepairFiles);
+			TourPublication->dispatch(qt::tour_editor_action::preview_publication);
+			return;
+		}
+		auto request = std::move(TourRepairRequests.front());
+		TourRepairRequests.pop_front();
+		// The epoch actor grants one realignment at a time. Authorize each
+		// exact pair immediately before its read, on the decision lane.
+		const auto context = EpochHost->realignment_context(request.WorkbenchAuthority,
+															{ .Host = request.WorkbenchAuthority.Host, .Repository = request.WorkbenchAuthority.Repository, .PullRequest = request.WorkbenchAuthority.PullRequest, .BaseOid = request.Diff.Comparison.Left.Commit, .HeadOid = request.Diff.Comparison.Right.Commit, .LeftEpoch = request.Diff.Comparison.Left.Identity.Epoch, .RightEpoch = request.Diff.Comparison.Right.Identity.Epoch });
+		if (!context) {
+			read_next_tour_repair();
+			return;
+		}
+		request.Diff      = *context;
+		auto* const epoch = EpochHost.get();
+		auto* const lane  = &DecisionLane;
+		TourSourceReadsInFlight.fetch_add(1U, std::memory_order_acq_rel);
+		try {
+			DiffEffects.post([this, epoch, lane, matcher = LineMatcher, request, generation = TourRepairGeneration, token = TourSourceStop.get_token()] {
+				auto comparison = std::optional<application::tour_source_comparison>{ };
+				try {
+					comparison = application::materialize_tour_source_comparison(*epoch, *matcher, request, token);
+				} catch (...) { }
+				try {
+					lane->post([this, generation, produced = std::move(comparison)]() mutable {
+						TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+						if (Closing || generation != TourRepairGeneration) {
+							return;
+						}
+						if (produced) {
+							const auto found = std::ranges::find(TourRepairFiles, produced->Right.Path, &core::tour_anchor_file::Path);
+							if (found != TourRepairFiles.end() && produced->Index.diff().RightDocument) {
+								found->HeadLines = static_cast<std::uint32_t>(produced->Index.diff().RightDocument->Lines.size());
+							}
+							TourRepairComparisons.push_back(std::move(*produced));
+						}
+						read_next_tour_repair();
+					});
+				} catch (...) {
+					TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+				}
+			});
+		} catch (...) {
+			TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+			Window->tour_editor()->show_notice(QStringLiteral("The source check could not start. Keep preparing locally and preview again."));
+		}
+	}
+
+	void github_application::implementation::dispatch_tour_repair(const core::tour_stop_id aStop, const qt::tour_repair_action aAction)
+	{
+		if (!Closing && TourHost && current(DraftWindow) && aAction == qt::tour_repair_action::preview_relocation) {
+			Window->tour_editor()->go_to_stop(aStop);
+			Window->open_tour_page(true);
+		}
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (Closing || !draft || !TourPublication || !current(DraftWindow) || !TourRepairDraft || TourRepairDraft->Owner != draft->Owner || TourRepairDraft->ObservedHead.value_or(TourRepairDraft->Head) != draft->ObservedHead.value_or(draft->Head)) {
+			return;
+		}
+		if (aAction == qt::tour_repair_action::file_comment) {
+			if (const auto command = TourPublication->file_comment_edit(*draft, aStop)) {
+				TourHost->dispatch(*command);
+			}
+			return;
+		}
+		if (aAction == qt::tour_repair_action::apply_relocation) {
+			if (TourRepairCommand && TourRepairCommand->Stop == aStop) {
+				const auto command = std::exchange(TourRepairCommand, std::nullopt);
+				TourHost->dispatch(*command);
+			}
+			return;
+		}
+		const auto stop = std::ranges::find(draft->Stops, aStop, &core::tour_stop::Id);
+		if (stop == draft->Stops.end()) {
+			return;
+		}
+		const auto source = core::publication_source(*stop);
+		if (!source) {
+			return;
+		}
+		const auto observation = core::publication_observation(*source, draft->ObservedHead.value_or(draft->Head), draft->Base, stop->Body, false,
+															   TourPublication->operation_support() == core::tour_operation_support::supported);
+		const auto kind        = aAction == qt::tour_repair_action::repin ? core::tour_source_repair_kind::repin_head : core::tour_source_repair_kind::nearest_hunk;
+		const auto command     = core::prepare_tour_source_repair(*draft, aStop, kind, observation, TourRepairFiles);
+		if (!command) {
+			Window->tour_editor()->show_notice(QStringLiteral("This destination changed. Preview again to check its current repairs."));
+			return;
+		}
+		if (aAction == qt::tour_repair_action::repin) {
+			TourHost->dispatch(*command);
+			return;
+		}
+		const auto repair = core::plan_tour_stop_repair(*draft, *stop, observation, TourRepairFiles);
+		if (!repair.Relocation) {
+			return;
+		}
+		for (const auto& comparison : TourRepairComparisons) {
+			const auto& document = comparison.Index.diff().RightDocument;
+			const auto& range    = *repair.Relocation;
+			if (!document || comparison.Right.Commit != range.Commit || comparison.Right.Blob != range.Blob || comparison.Right.Path != range.Path || range.Last.Line >= document->Lines.size()) {
+				continue;
+			}
+			const auto  first = document->Lines[range.First.Line].Content.Begin;
+			const auto& last  = document->Lines[range.Last.Line];
+			const auto  end   = std::max(last.Content.End, last.Terminator.End);
+			const auto  text  = std::string{ document->Bytes.begin() + static_cast<std::ptrdiff_t>(first), document->Bytes.begin() + static_cast<std::ptrdiff_t>(end) };
+			TourRepairCommand = command;
+			Window->tour_editor()->present_repair_preview(aStop, range, text, draft->Revision);
+			return;
+		}
+		Window->tour_editor()->show_notice(QStringLiteral("The proposed source text is unavailable. Preview again before moving this destination."));
+	}
+
 	void github_application::implementation::dispatch_tour_action(qt::tour_editor_action aAction)
 	{
 		if (Closing || !TourHost || !current(DraftWindow)) {
@@ -1950,6 +2145,8 @@ namespace bpr::app {
 			insert_tour_outline();
 			return;
 		case qt::tour_editor_action::preview_publication:
+			prepare_tour_repairs();
+			return;
 		case qt::tour_editor_action::publish_publication:
 		case qt::tour_editor_action::resume_publication:
 		case qt::tour_editor_action::reconcile_publication:

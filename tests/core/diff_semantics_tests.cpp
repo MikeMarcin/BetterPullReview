@@ -867,6 +867,11 @@ namespace {
 		options.SimilarityThresholdPermille = 0;
 		check(run("abc\n", "xyz\n", options), 0, 0, tour_mapping::ambiguous, { });
 		check(run("retained\n", std::nullopt), 0, 0, tour_mapping::unavailable, { });
+		options.Whitespace = whitespace_policy::ignore_all;
+		check(run("same code\n", "same  code\n", options), 0, 0, tour_mapping::changed_material, 0);
+		options.Whitespace  = whitespace_policy::exact;
+		options.LineEndings = line_ending_policy::normalize;
+		check(run("same code\r\n", "same code\n", options), 0, 0, tour_mapping::changed_material, 0);
 	}
 
 	/// [[BPR-1334]]. Line details: the selected lines, base over head, with

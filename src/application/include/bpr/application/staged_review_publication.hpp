@@ -3,6 +3,7 @@
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/application/staged_review_contract.hpp"
 #include "bpr/core/conversation_reply.hpp"
+#include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_update.hpp"
 #include <functional>
 #include <string_view>
@@ -12,6 +13,7 @@ namespace bpr::application {
 		core::tour_stop_id          Id;
 		core::tour_code_destination Source;
 		std::string                 Title, Narrative, SourceLink;
+		core::tour_representation   Representation                                    = core::tour_representation::native_line;
 		auto                        operator==(const staged_tour_stop&) const -> bool = default;
 	};
 	struct staged_description_edit
@@ -30,6 +32,7 @@ namespace bpr::application {
 		std::uint64_t                          Generation = 0;
 		std::vector<staged_tour_stop>          Stops;
 		bool                                   Compatibility = false;
+		bool                                   Mixed         = false;
 		std::optional<staged_description_edit> Description;
 		/// Exact observed root/owned baselines and desired route for a non-atomic maintenance plan.
 		std::optional<core::review_tour> Update;
@@ -45,6 +48,8 @@ namespace bpr::application {
 		staged_review_plan                   Plan;
 		std::uint64_t                        Revision = 1;
 		std::vector<std::uint64_t>           BaselineIds;
+		std::vector<std::uint64_t>           ConversationBaselineIds;
+		std::vector<std::uint64_t>           FileBaselineIds;
 		std::optional<staged_review_entity>  Review;
 		std::optional<staged_review_comment> Index;
 		std::vector<staged_review_comment>   Comments;
@@ -97,6 +102,11 @@ namespace bpr::application {
 		std::optional<review_mutation_failure>      Failure   = std::nullopt;
 		std::optional<staged_publication_diagnosis> Diagnosis = std::nullopt;
 	};
+	/// Publication order is pending members first, then visible destinations.
+	/// The immutable plan retains the author's route order throughout recovery.
+	[[nodiscard]] auto staged_stop_order(const staged_review_plan&) -> std::vector<std::size_t>;
+	[[nodiscard]] auto staged_stop(const staged_review_plan&, std::size_t) -> const staged_tour_stop&;
+	[[nodiscard]] auto staged_review_comments(const staged_publication_record&) -> std::vector<staged_review_comment>;
 	[[nodiscard]] auto staged_update_bodies(const staged_publication_record&) -> std::optional<core::tour_update_bodies>;
 	[[nodiscard]] auto staged_update_request(const staged_publication_record&) -> std::optional<staged_review_request>;
 	[[nodiscard]] auto valid_staged_update(const staged_publication_record&) -> bool;

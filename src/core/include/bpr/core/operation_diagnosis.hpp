@@ -463,7 +463,9 @@ namespace bpr::core {
 		binding,
 		journal_read,
 		credential_scope,
-		journal_save
+		journal_save,
+		create_file_comment,
+		list_file_comments
 	};
 	/// \brief State observed by the publisher, never inferred from a failed request.
 	enum class tour_publication_trace_state : std::uint8_t { none,

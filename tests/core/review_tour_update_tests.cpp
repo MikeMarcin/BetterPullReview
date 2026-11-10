@@ -47,6 +47,57 @@ namespace {
 		draft.IndexBaseline = tour_field_baseline{ .Raw = "Preserve this custom orientation.\n\n" + *render_tour_index(entries) + "\nUnrelated tail.\n", .RemoteEntity = "review9" };
 		return draft;
 	}
+	void published_source_baseline()
+	{
+		auto       tour     = published();
+		auto&      stop     = tour.Stops.front();
+		const auto original = stop.Original;
+		stop.Mapped         = stop.Original;
+		stop.Mapped->Path   = "repaired.cpp";
+		stop.Mapping        = tour_mapping::author_selected;
+		expect(needs_tour_destination(stop) && !plan_tour_update(tour, { }), "an unpublished repair of a remote subject still requires replacement");
+		stop.Destination     = destination_of(*stop.Mapped);
+		const auto unchanged = plan_tour_update(tour, { });
+		expect(!needs_tour_destination(stop) && unchanged && unchanged->Edits.empty() && stop.Original == original, "the confirmed published repair supports zero-write maintenance without overwriting its original");
+		auto cold = tour;
+		cold.Stops.front().Original.reset();
+		cold.Stops.front().Mapped.reset();
+		cold.Stops.front().Mapping = tour_mapping::unavailable;
+		expect(observed_tour_changes(tour, cold).empty(), "cold imported published subject does not report the preserved original as a website source change");
+		stop.Mapped = stop.Original;
+		expect(needs_tour_destination(stop) && !plan_tour_update(tour, { }), "selecting the original again is a new retarget relative to the repaired remote subject");
+		stop.Mapped->Path = "another.cpp";
+		expect(needs_tour_destination(stop), "a subsequent explicit source change still needs a replacement");
+		stop.Remote.reset();
+		expect(needs_tour_destination(stop), "a copied local stop with retained source has no remote destination");
+	}
+	void legacy_published_source()
+	{
+		auto       tour                    = published();
+		auto&      stop                    = tour.Stops.front();
+		const auto original                = stop.Original;
+		stop.Destination                   = destination_of(*stop.Original);
+		stop.Destination->Path             = "before-retarget.cpp";
+		const auto stale                   = stop.Destination;
+		auto       observed                = tour;
+		observed.Stops.front().Destination = destination_of(*original);
+		expect(observed_tour_changes(tour, observed).empty(), "the stale imported Destination is not a website source change");
+		for (const bool returnToConfirmed : { false, true }) {
+			auto value   = stop;
+			value.Mapped = value.Original;
+			if (!returnToConfirmed) {
+				value.Mapped->Path = "next-retarget.cpp";
+			}
+			value.Mapping = tour_mapping::author_selected;
+			tour_command command{ .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::edit_stop, .Stop = stop.Id, .Value = value };
+			const auto   edited = apply(tour, command);
+			const auto&  next   = edited.Accepted.Stops.front();
+			expect(edited.Refusal == tour_refusal::none && edited.Changed && next.Destination == std::optional{ destination_of(*original) } && next.Original == original && next.Mapped == value.Mapped && needs_tour_destination(next) != returnToConfirmed, "a later legacy edit retains its confirmed subject before a new mapping, without changing source bytes");
+		}
+		tour_command observe{ .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::observe_head, .Head = *parse_git_commit_oid("4444444444444444444444444444444444444444") };
+		const auto   advanced = apply(tour, observe);
+		expect(advanced.Refusal == tour_refusal::none && advanced.Changed && advanced.Accepted.Stops.front().Destination == std::optional{ destination_of(*original) } && advanced.Accepted.Stops.front().Original == original && !advanced.Accepted.Stops.front().Mapped && stop.Destination == stale, "head observation retains the legacy confirmed subject before invalidating its mapping and leaves the input intact");
+	}
 	void legacy_stop_heading()
 	{
 		auto tour = published();
@@ -274,6 +325,8 @@ int main()
 		const auto reconciled = reconcile_tour(generated, remote);
 		expect(reconciled.Stops[1].Suggestion && reconciled.Stops[1].Preparation != tour_preparation::ready, "website narrative change clears local generated acknowledgement");
 	}
+	published_source_baseline();
+	legacy_published_source();
 	legacy_stop_heading();
 	website_deltas();
 	reconciliation();

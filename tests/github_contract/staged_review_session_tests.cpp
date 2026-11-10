@@ -1,5 +1,6 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include "cli_account_wrapper_support.hpp"
@@ -170,6 +171,7 @@ namespace {
 	struct server final : github_mutation_wire_transport
 	{
 		bool               Maintenance   = false;
+		bool               Mixed         = false;
 		bool               PagedComments = false, FailSecondPage = false, ForeignNext = false;
 		std::size_t        PageTwoReads = 0;
 		std::optional<int> BaselineStatus;
@@ -273,7 +275,8 @@ namespace {
 				if (i) {
 					result += ",";
 				}
-				const auto id = 701 + i;
+				// Review and issue comments have independent numeric namespaces.
+				const auto id = 601 + i;
 				result += "{\"id\":" + std::to_string(id) + ",\"node_id\":\"IC_" + std::to_string(id) + "\",\"html_url\":" + json_quote(std::string{ Web } + "#issuecomment-" + std::to_string(id)) + ",\"issue_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/issues/1\",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"body\":" + json_quote(IssueBodies[i]) + "}";
 			}
 			return result + "]";
@@ -447,17 +450,17 @@ namespace {
 			const auto  json   = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
 			std::string answer = "{}";
 			if (wire.Method == http_method::post && wire.Path == "/repos/MikeMarcin/BPR-Test/issues/1/comments") {
-				expect(!Created && json.size() == 1, "explicit compatibility never creates a native review");
+				expect((Mixed || !Created) && json.size() == 1, "only explicit mixed publication combines a review and conversation comments");
 				const auto body = json["body"].toString().toStdString();
 				if (IssueBodies.size() == 2) {
-					expect(body.contains("#issuecomment-701") && body.contains("#issuecomment-702"), "compatibility index follows actual returned stop identities");
+					expect(body.contains("#issuecomment-601") && body.contains("#issuecomment-602"), "compatibility index follows actual returned stop identities");
 				}
 				IssueBodies.push_back(body);
-			} else if (wire.Method == http_method::patch && (wire.Path == "/repos/MikeMarcin/BPR-Test/issues/comments/701" || wire.Path == "/repos/MikeMarcin/BPR-Test/issues/comments/702")) {
-				expect(IssueBodies.size() == 3 && json.size() == 1, "compatibility links wired after index exists");
-				const std::size_t i    = wire.Path.ends_with("701") ? 0 : 1;
+			} else if (wire.Method == http_method::patch && (wire.Path == "/repos/MikeMarcin/BPR-Test/issues/comments/601" || wire.Path == "/repos/MikeMarcin/BPR-Test/issues/comments/602")) {
+				expect((Mixed ? IssueBodies.size() == 1 : IssueBodies.size() == 3) && json.size() == 1, "compatibility links wired after index exists");
+				const std::size_t i    = wire.Path.ends_with("601") ? 0 : 1;
 				const auto        body = json["body"].toString().toStdString();
-				expect(body.contains("#issuecomment-703") && body.contains(i ? "#issuecomment-701" : "#issuecomment-702"), "compatibility navigation uses real returned IDs");
+				expect(Mixed ? body.contains("/files#r601") && (Maintenance || body.contains("/files#r602")) : body.contains("#issuecomment-603") && body.contains(i ? "#issuecomment-601" : "#issuecomment-602"), "compatibility navigation uses real returned IDs");
 				IssueBodies[i] = body;
 			} else if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews") {
 				expect(!Created && !json.contains("event") && json["commit_id"] == "1111111111111111111111111111111111111111", "batch creates one exact pending review without event");
@@ -482,7 +485,7 @@ namespace {
 				expect(Created && Submitted && Maintenance && json.size() == 1, "only a submitted owned body is edited through REST, under the exact maintenance plan");
 				const std::size_t i    = wire.Path.ends_with("601") ? 0 : 1;
 				const auto        body = json["body"].toString().toStdString();
-				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "/files#r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation to the Files changed tab");
+				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + (Mixed ? (Maintenance ? "" : "#issuecomment-601") : "/files#r" + std::string{ i ? "601" : "602" })), "actual returned review/comment URLs wire navigation to the Files changed tab");
 				Bodies[i] = body;
 			} else if (wire.Method == http_method::post && wire.Path == "/graphql") {
 				// [[BPR-1368]]. The pending stop edit: the fixed mutation, by
@@ -492,13 +495,13 @@ namespace {
 				expect(Created && !Submitted && json.size() == 2 && variables.size() == 2 && json["query"].toString().startsWith("mutation UpdateReviewComment($comment:ID!,$body:String!){updatePullRequestReviewComment(") && (node == "PRRC_601" || node == "PRRC_602"), "a pending stop is edited only by the fixed GraphQL mutation, by its node ID");
 				const std::size_t i    = node == "PRRC_601" ? 0 : 1;
 				const auto        body = variables["body"].toString().toStdString();
-				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "/files#r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation to the Files changed tab");
+				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + (Mixed ? (Maintenance ? "" : "#issuecomment-601") : "/files#r" + std::string{ i ? "601" : "602" })), "actual returned review/comment URLs wire navigation to the Files changed tab");
 				Bodies[i] = body;
 				++GraphqlEdits;
 				answer = edit_json(i);
 			} else if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews/501/events") {
 				expect(Created && !Submitted && json["event"] == "COMMENT" && json.size() == 2, "only exact review receives COMMENT once");
-				expect(Bodies[0].contains("/files#r602") && Bodies[1].contains("/files#r601"), "all navigation edits precede submit");
+				expect(Mixed ? Bodies[0].contains("#issuecomment-601") && Bodies[1].contains("#issuecomment-601") : Bodies[0].contains("/files#r602") && Bodies[1].contains("/files#r601"), "all navigation edits precede submit");
 				Summary = json["body"].toString().toStdString();
 				expect(Summary.contains("/files#r601") && Summary.contains("/files#r602") && !Summary.contains("#discussion_r") && !Summary.contains("incomplete"), "final index replaces incomplete warning");
 				Submitted = true;
@@ -1015,7 +1018,7 @@ namespace {
 			const auto read    = provider->reconcile_tour(input);
 			expect(remote.Writes == lost + 1 && read.Record && read.Record->Comments.size() <= 2, "compatibility restart reads exact retained receipts");
 			expect(provider->publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 6 && remote.Creates == 0 && remote.Submits == 0 && remote.IssueBodies.size() == 3, "explicit Resume never duplicates visible compatibility comments or claims review submission");
-			expect(remote.Description.contains("#issuecomment-703"), "separate description backlink uses returned compatibility index");
+			expect(remote.Description.contains("#issuecomment-603"), "separate description backlink uses returned compatibility index");
 			if (lost == 0) {
 				auto malformed      = *provider->reconcile_tour(input).Record;
 				malformed.Published = false;
@@ -1047,6 +1050,224 @@ namespace {
 		result.Update = draft;
 		expect(application::valid(result), "maintenance plan retains exact root and original stop identities");
 		return result;
+	}
+	void test_mixed_sessions()
+	{
+		for (const bool lost : { false, true }) {
+			for (std::size_t boundary = 0; boundary < 7; ++boundary) {
+				scratch root;
+				server  remote;
+				remote.Mixed              = true;
+				auto input                = plan();
+				input.Mixed               = true;
+				auto historical           = input.Stops.front();
+				historical.Id             = core::tour_stop_id{ 3 };
+				historical.Source.Commit  = commit(0x09);
+				historical.Title          = "Historical conversation destination";
+				historical.Representation = core::tour_representation::conversation_permalink;
+				input.Stops.insert(input.Stops.begin() + 1, historical);
+				expect(application::valid(input), "explicit mixed plan preserves historical source and route order");
+				auto malformed  = input;
+				malformed.Mixed = false;
+				expect(!application::valid(malformed), "mixed destinations cannot hide inside a single-review plan");
+				const auto stages = application::staged_publication_stages(input);
+				expect(stages[1].contains("Stop 1") && stages[2].contains("Stop 3") && stages[3].contains("Stop 2") && stages[3].contains("conversation comment"), "progress stages follow actual pending-first publication order with original route numbers");
+
+				std::stop_source stop;
+				if (lost) {
+					remote.LoseAt = boundary;
+				} else {
+					remote.Stop   = &stop;
+					remote.StopAt = boundary;
+				}
+				auto       provider = session(remote, root.Path);
+				const auto partial  = provider->publish_tour(input, stop.get_token(), [](const auto&) { return true; });
+				expect(partial.Record && remote.Writes == boundary + 1, "every mixed step retains its durable boundary");
+				remote.Stop        = nullptr;
+				remote.LoseAt      = 999;
+				remote.ReadFailure = false;
+				provider.reset();
+				provider            = session(remote, root.Path);
+				const auto observed = provider->reconcile_tour(input);
+				expect(observed.Record && !observed.Record->PossiblyTransmitted && remote.Writes == boundary + 1, "mixed restart reconciles each receipt read-only");
+				const auto result = provider->publish_tour(input, { }, [](const auto&) { return true; });
+				if (result.State != publication_state::published) {
+					std::cerr << "mixed boundary=" << boundary << " lost=" << lost << " state=" << static_cast<int>(result.State) << " writes=" << remote.Writes << " valid=" << (result.Record && application::valid(*result.Record)) << " patched=" << (result.Record ? result.Record->Patched : 999) << " pending=" << (result.Record && result.Record->Pending ? static_cast<int>(result.Record->Pending->Operation) : -1) << "\n";
+				}
+				expect(result.State == publication_state::published && result.Record && remote.Writes == 7 && remote.Creates == 1 && remote.Submits == 1 && remote.IssueBodies.size() == 1, "mixed Resume never reposts any kind or submits another review");
+				const auto& comments = result.Record->Comments;
+				expect(comments.size() == 3 && comments[0].Id == 601 && comments[1].Id == 602 && comments[2].Id == 601, "journal creation order retains both returned identity kinds");
+				expect(remote.Summary.find("/files#r601") < remote.Summary.find("#issuecomment-601") && remote.Summary.find("#issuecomment-601") < remote.Summary.find("/files#r602"), "overview restores original interleaved route order");
+				core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = input.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Problem = "Problem", .Solution = "Solution", .Revision = input.Generation, .LastStopId = 3 };
+				for (const auto& item : input.Stops) {
+					draft.Stops.push_back({ .Id = item.Id, .Title = item.Title, .Body = item.Narrative, .Destination = item.Source });
+				}
+				const auto published = application::published_tour(*result.Record, draft);
+				expect(published && published->Remote->Kind == core::tour_remote_kind::review && published->Stops[1].Remote->Kind == core::tour_remote_kind::conversation_comment && published->Stops[1].Remote->DatabaseId == 601 && published->Stops[2].Remote->DatabaseId == 602, "one local tour retains exact cross-kind bindings in route order");
+				auto desired = *published;
+				std::swap(desired.Stops[0], desired.Stops[1]);
+				++desired.Revision;
+				auto update  = input;
+				update.Mixed = false;
+				update.Stops.clear();
+				update.Description.reset();
+				update.Generation                  = desired.Revision;
+				update.Submission.Proposal.Attempt = core::review_submission_attempt_id{ desired.Revision };
+				update.Submission.IdempotencyKey   = "mixed-maintenance";
+				update.Update                      = desired;
+				remote.Maintenance                 = true;
+				if (!lost && boundary == 0) {
+					for (int mismatch = 0; mismatch < 8; ++mismatch) {
+						auto refused                      = update;
+						refused.Submission.IdempotencyKey = "mixed-mismatch-" + std::to_string(mismatch);
+						auto& conversation                = *refused.Update->Stops[0].Remote;
+						auto& line                        = refused.Update->Stops[1];
+						switch (mismatch) {
+						case 0:  conversation.Entity = "IC_wrong"; break;
+						case 1:  conversation.WebUrl = std::string{ Web } + "#issuecomment-602"; break;
+						case 2:  conversation.Actor = "other"; break;
+						case 3:  conversation.Kind = core::tour_remote_kind::line_comment; break;
+						case 4:  line.Remote->Entity = "PRRC_wrong"; break;
+						case 5:  line.Destination->Path = "wrong.cpp"; break;
+						case 6:  line.Remote->Kind = core::tour_remote_kind::file_comment; break;
+						case 7:  line.Remote->Review = "999"; break;
+						default: expect(false, "every identity mismatch control is explicit"); break;
+						}
+						expect(application::valid(refused), "identity mismatch control remains a structurally valid maintenance plan");
+						const auto refusedResult = provider->publish_tour(refused, { }, [](const auto&) { return true; });
+						expect(refusedResult.State == publication_state::conflict && remote.Writes == 7, "overlapping IDs do not relax exact namespace, node, URL, actor, review, kind or source checks");
+					}
+				}
+				const auto updated = provider->publish_tour(update, { }, [](const auto&) { return true; });
+				expect(updated.State == publication_state::published && remote.Creates == 1 && remote.Submits == 1 && remote.IssueBodies.size() == 1 && remote.Summary.find("#issuecomment-601") < remote.Summary.find("/files#r601"), "maintenance reorders and updates both kinds while preserving every discussion identity");
+			}
+		}
+	}
+	void test_conversation_overview_namespace()
+	{
+		scratch    root;
+		server     remote;
+		auto       provider = session(remote, root.Path);
+		const auto initial  = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+		expect(initial.State == publication_state::published && initial.Record, "overview collision fixture starts from confirmed production publication");
+		const auto initialWrites          = remote.Writes;
+		auto       update                 = maintenance_plan(*initial.Record);
+		auto&      draft                  = *update.Update;
+		const auto previousRoot           = draft.Remote->WebUrl;
+		draft.Remote->Kind                = core::tour_remote_kind::conversation_comment;
+		draft.Remote->DatabaseId          = 601;
+		draft.Remote->Entity              = "IC_601";
+		draft.Remote->WebUrl              = std::string{ Web } + "#issuecomment-601";
+		draft.IndexBaseline->RemoteEntity = draft.Remote->Entity;
+		// Model an imported conversation overview with existing review stops.
+		// Retain a normal link to the original batch as unrelated author prose.
+		for (auto& stop : draft.Stops) {
+			auto&      body   = stop.Baseline->Raw;
+			const auto rootAt = body.find(previousRoot);
+			expect(rootAt != std::string::npos, "published footer names its overview");
+			body.replace(rootAt, previousRoot.size(), draft.Remote->WebUrl);
+			const auto narrative      = body.find(stop.Body);
+			const auto narrativeBytes = stop.Body.size();
+			expect(narrative != std::string::npos, "published body retains its narrative");
+			stop.Body += " [Original batch](" + previousRoot + ").";
+			body.replace(narrative, narrativeBytes, stop.Body);
+			remote.Bodies[stop.Remote->DatabaseId == 601 ? 0U : 1U] = body;
+		}
+		remote.Mixed       = true;
+		remote.Maintenance = true;
+		remote.IssueBodies.push_back(draft.IndexBaseline->Raw);
+		update.Submission.IdempotencyKey = "conversation-overview-maintenance";
+		expect(application::valid(update), "a conversation overview may retain existing review destinations");
+		for (const bool wrongUrl : { false, true }) {
+			auto refused = update;
+			refused.Submission.IdempotencyKey += wrongUrl ? "-url" : "-node";
+			if (wrongUrl) {
+				refused.Update->Remote->WebUrl = std::string{ Web } + "#issuecomment-602";
+			} else {
+				refused.Update->Remote->Entity = "IC_wrong";
+			}
+			expect(provider->publish_tour(refused, { }, [](const auto&) { return true; }).State == publication_state::conflict && remote.Writes == initialWrites, "overview namespace selection retains exact URL and node checks");
+		}
+		const auto result = provider->publish_tour(update, { }, [](const auto&) { return true; });
+		expect(result.State == publication_state::published && remote.Creates == 1 && remote.Submits == 1 && remote.Writes == initialWrites + 3, "conversation overview with colliding review ID is maintained after its two review stops");
+		expect(remote.IssueBodies.front().find("/files#r602") < remote.IssueBodies.front().find("/files#r601"), "conversation overview receives the final ordered route");
+	}
+	void test_saved_legacy_retarget_receipt()
+	{
+		for (const bool legacy : { true, false }) {
+			scratch    root;
+			server     remote;
+			auto       provider = session(remote, root.Path);
+			const auto initial  = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(initial.State == publication_state::published && initial.Record, "saved retarget course publishes its actual remote fixture");
+			auto update = maintenance_plan(*initial.Record);
+			std::swap(update.Update->Stops[0], update.Update->Stops[1]);
+			std::array<std::uint8_t, 32> digestBytes{ };
+			digestBytes[0] = 1;
+			const core::file_comparison_digest digest{ digestBytes };
+			const auto                         actual = plan();
+			for (std::size_t i = 0; i < update.Update->Stops.size(); ++i) {
+				auto&                         stop   = update.Update->Stops[i];
+				const auto&                   source = actual.Stops[i].Source;
+				const core::tour_source_range confirmed{ { digest, source.Side, source.FirstLine }, { digest, source.Side, source.LastLine }, source.Commit, source.Blob, source.Path };
+				stop.Original = confirmed;
+				if (legacy) {
+					// Pre-upgrade published_tour moved Mapped into Original but
+					// retained an imported stop's previous Destination verbatim.
+					stop.Destination->Path = "before-retarget.cpp";
+					stop.Mapping           = core::tour_mapping::exact_original;
+				} else {
+					stop.Original->Path = "before-retarget.cpp";
+					stop.Mapped         = confirmed;
+					stop.Mapping        = core::tour_mapping::author_selected;
+				}
+			}
+			const auto receipt = *update.Update;
+			scratch    tourDisk;
+			auto       store = adapters::sqlite::make_review_tour_store(tourDisk.Path, receipt.Owner.Profile);
+			expect(store->save(receipt, 0, { }).has_value(), "real SQLite saves the published retarget receipt");
+			store.reset();
+			store               = adapters::sqlite::make_review_tour_store(tourDisk.Path, receipt.Owner.Profile);
+			const auto reopened = store->load(receipt.Owner, receipt.Id, { });
+			expect(reopened && *reopened && **reopened == receipt, "SQLite reopen retains the exact stale Destination and Original/Mapped bytes");
+			update.Update = **reopened;
+			update.Update->Stops[0].Body += " Maintained after upgrade.";
+			++update.Update->Revision;
+			update.Generation  = update.Update->Revision;
+			remote.Maintenance = true;
+			const auto before  = remote.Writes;
+			for (int mismatch = 0; mismatch < 7; ++mismatch) {
+				auto refused                      = update;
+				refused.Submission.IdempotencyKey = "saved-retarget-mismatch-" + std::to_string(mismatch);
+				auto& stop                        = refused.Update->Stops[0];
+				switch (mismatch) {
+				case 0: stop.Remote->Entity = "PRRC_wrong"; break;
+				case 1: stop.Remote->Actor = "other"; break;
+				case 2: stop.Remote->WebUrl += "wrong"; break;
+				case 3: stop.Remote->Review = "999"; break;
+				case 4: stop.Remote->Kind = core::tour_remote_kind::file_comment; break;
+				case 5:
+					if (legacy) {
+						stop.Original->Path = stop.Destination->Path;
+					} else {
+						stop.Destination->Path = "wrong-confirmed.cpp";
+						stop.Mapped->Path      = stop.Destination->Path;
+					}
+					break;
+				case 6:  remote.WrongLine = true; break;
+				default: expect(false, "every saved receipt mismatch is explicit"); break;
+				}
+				expect(application::valid(refused), "saved receipt mismatch remains structurally valid");
+				const auto result = provider->publish_tour(refused, { }, [](const auto&) { return true; });
+				expect(result.State == publication_state::conflict && remote.Writes == before, "saved receipt mismatches still refuse before any write");
+				remote.WrongLine = false;
+			}
+			update.Submission.IdempotencyKey = "saved-retarget-maintenance";
+			const auto result                = provider->publish_tour(update, { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::published && result.Record && remote.Writes == before + 1 && remote.Creates == 1 && remote.Submits == 1, "reopened legacy and modern receipts maintain the confirmed replacement with exactly one body edit");
+			const auto maintained = application::published_tour(*result.Record, *update.Update);
+			expect(maintained && maintained->Stops[0].Original == receipt.Stops[0].Original && maintained->Stops[0].Mapped == receipt.Stops[0].Mapped && maintained->Stops[0].Remote == receipt.Stops[0].Remote, "maintenance preserves source ranges and the exact remote discussion");
+		}
 	}
 	void test_maintenance_sessions()
 	{
@@ -1850,6 +2071,9 @@ try {
 		test_recovery_read_refusals_keep_unknown_writes();
 		test_baseline_refusal_diagnoses();
 		test_compatibility_sessions();
+		test_mixed_sessions();
+		test_conversation_overview_namespace();
+		test_saved_legacy_retarget_receipt();
 		test_maintenance_sessions();
 		test_description_only_update();
 		std::cout << "staged-review-session-tests:pass\n";

@@ -308,9 +308,10 @@ namespace bpr::app::detail {
 			std::string_view          HeadOneBlob;
 			std::string_view          HeadTwoBlob;
 			fixture_pack_source       Packs;
-			bool                      Paged          = false;
-			bool                      WindowReading  = false;
-			bool                      OrdinaryUpdate = false;
+			bool                      Paged           = false;
+			bool                      WindowReading   = false;
+			bool                      OrdinaryUpdate  = false;
+			bool                      TourRepairHunks = false;
 			/// [[BPR-1331]]. A one-head fixture's next push: under an epoch
 			/// phase it is served as `HeadTwoOid` from `NextPushPack`, which
 			/// holds every object reachable from it. Outside a phase the
@@ -1124,6 +1125,16 @@ namespace bpr::app::detail {
 				QJsonArray files;
 				files.append(QJsonObject{ { QStringLiteral("filename"), QStringLiteral("review.cpp") }, { QStringLiteral("status"), QStringLiteral("modified") }, { QStringLiteral("additions"), 6 }, { QStringLiteral("deletions"), 6 } });
 				files.append(QJsonObject{ { QStringLiteral("filename"), QStringLiteral("secondary.cpp") }, { QStringLiteral("status"), QStringLiteral("modified") }, { QStringLiteral("additions"), 6 }, { QStringLiteral("deletions"), 6 } });
+				if (aDescriptor.TourRepairHunks) {
+					for (qsizetype i = 0; i < files.size(); ++i) {
+						auto       file   = files[i].toObject();
+						const auto prefix = i == 0 ? QStringLiteral("review") : QStringLiteral("secondary");
+						file.insert(QStringLiteral("patch"), QStringLiteral("@@ -3,7 +3,7 @@\n int %1_line_3 = 0;\n int %1_line_4 = 0;\n int %1_line_5 = 0;\n-int %1_line_6 = 0;\n+int %1_line_6 = 1;\n int %1_line_7 = 0;\n int %1_line_8 = 0;\n int %1_line_9 = 0;").arg(prefix));
+						file.insert(QStringLiteral("additions"), 1);
+						file.insert(QStringLiteral("deletions"), 1);
+						files[i] = file;
+					}
+				}
 				document = QJsonDocument{ files };
 			} else if (aOperation == read_operation::list_review_threads) {
 				auto body       = document.object();
@@ -1257,10 +1268,16 @@ namespace bpr::app::detail {
 			if (aState.StagedReview && aState.StagedReview->State == application::staged_review_state::commented) {
 				reviews.push_back(*aState.StagedReview);
 			}
+
+			if (!aState.FileComments.empty()) {
+				const auto& actor = aState.FileComments.front().Actor;
+				reviews.push_back({ application::review_database_id{ 901 }, "PRR_901", aState.FileComments.front().WebUrl.substr(0, aState.FileComments.front().WebUrl.find('#')) + "#pullrequestreview-901", actor, aState.FileComments.front().Source->Commit, "", application::staged_review_state::commented });
+			}
 			auto comments = aState.PreviousComments;
 			if (aState.StagedReview && aState.StagedReview->State == application::staged_review_state::commented) {
 				comments.insert(comments.end(), aState.StagedComments.begin(), aState.StagedComments.end());
 			}
+			comments.insert(comments.end(), aState.FileComments.begin(), aState.FileComments.end());
 			const auto text = [](std::string_view aValue) { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); };
 			if (aOperation == read_operation::list_checks && aState.CheckRuns) {
 				document = QJsonDocument::fromJson(QByteArray::fromStdString(*aState.CheckRuns));
@@ -1283,6 +1300,14 @@ namespace bpr::app::detail {
 				}
 				search.insert("items", items);
 				document = QJsonDocument{ search };
+
+			} else if (aOperation == read_operation::list_issue_comments) {
+				auto nodes = document.array();
+				for (const auto& comment : aState.CompatibilityComments) {
+					QJsonObject value{ { "id", static_cast<qint64>(comment.Id) }, { "node_id", text(comment.NodeId) }, { "html_url", text(comment.WebUrl) }, { "body", text(comment.Body) }, { "user", QJsonObject{ { "id", static_cast<qint64>(comment.Actor.DatabaseId) }, { "node_id", text(comment.Actor.NodeId) }, { "login", text(comment.Actor.Login) } } }, { "created_at", "2026-11-09T12:00:00Z" }, { "updated_at", "2026-11-09T12:00:00Z" } };
+					nodes.append(value);
+				}
+				document = QJsonDocument{ nodes };
 			} else if (aOperation == read_operation::list_reviews) {
 				auto       nodes = document.array();
 				const auto seed  = nodes.first().toObject();
@@ -1368,7 +1393,20 @@ namespace bpr::app::detail {
 					thread.insert("line", static_cast<int>(source.LastLine + 1));
 					thread.insert("originalLine", static_cast<int>(source.LastLine + 1));
 					thread.insert("diffSide", source.Side == core::diff_side::right ? "RIGHT" : "LEFT");
-					thread.insert("subjectType", "LINE");
+
+					if (comment.Review.value() == 901) {
+						value.insert("line", QJsonValue::Null);
+						value.insert("originalLine", QJsonValue::Null);
+						value.insert("startLine", QJsonValue::Null);
+						value.insert("originalStartLine", QJsonValue::Null);
+						connection.insert("nodes", QJsonArray{ value });
+						thread.insert("comments", connection);
+						thread.insert("line", QJsonValue::Null);
+						thread.insert("originalLine", QJsonValue::Null);
+						thread.insert("subjectType", "FILE");
+					} else {
+						thread.insert("subjectType", "LINE");
+					}
 					thread.insert("isOutdated", false);
 					thread.insert("isResolved", false);
 					nodes.append(thread);
@@ -5917,6 +5955,18 @@ namespace bpr::app::detail {
 			const auto distinctAccount = aOptions.DistinctProfileAccounts && aOptions.Profile != core::default_bpr_profile_id;
 			if (distinctAccount) {
 				served.AccountId = core::github_account_id{ 1000U + aOptions.Profile.value() };
+			}
+			if (aOptions.TourDestinationRepairsCourse) {
+				if (aFixture != github_public_path_fixture::profile_window_restoration_v1) {
+					throw std::runtime_error{ "Tour repairs require the reading fixture" };
+				}
+				served.BaseOid         = "2edbb6f66482a02e3c5337fdac39e342900a58c0";
+				served.HeadOneOid      = "972c0ac4526308e959de4a2fd398d4d4e3d5d54e";
+				served.HeadTwoOid      = "";
+				served.BaseBlob        = "";
+				served.HeadOneBlob     = "";
+				served.Packs           = { .File = "tour-repairs-v1/objects.pack" };
+				served.TourRepairHunks = true;
 			}
 			if (aOptions.ModifiedMissingEndpointCourse) {
 				if (aFixture != github_public_path_fixture::profile_window_restoration_v1

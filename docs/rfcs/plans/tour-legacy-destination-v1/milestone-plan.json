@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "tour-legacy-destination-v1",
+  "scope": {
+    "issues": [
+      "BPR-1982"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "legacy-destination-fix",
+      "outcome": "Saved pre-upgrade retarget receipts remain maintainable at their confirmed remote subject.",
+      "work": [
+        {
+          "issue": "BPR-1982",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A stale legacy Destination survives a real SQLite save/reopen and production-session maintenance edits the confirmed replacement exactly once.",
+        "Actual source and identity mismatches refuse before writes; confirmed modern destinations and subsequent retargets preserve Original/Mapped bytes.",
+        "Focused regression and static/documentation checks pass, explicit commits and durable command state are recorded."
+      ],
+      "boundary": "Owner-authorized P2 post-review upgrade repair only; no live writes, desktop effects, new capability or historical acceptance changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

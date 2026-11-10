@@ -123,6 +123,7 @@ add_library(
         src/home_ignore.cpp
         src/review_tour_import.cpp
         src/review_tour_destination.cpp
+        src/review_tour_repair.cpp
         src/review_tour_markdown.cpp
         src/feedback_convention.cpp
         src/feedback_draft_edit.cpp

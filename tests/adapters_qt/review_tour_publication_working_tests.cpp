@@ -72,6 +72,7 @@ auto main(int argc, char** argv) -> int
 	editor.present_publication({ .Status = "Preview ready.", .Markdown = "## Tour\n\nWhat GitHub will show.", .Publish = true, .Reconcile = true });
 	QApplication::processEvents();
 	expect(publish->text() == QStringLiteral("Publish tour") && publish->isEnabled(), "admitted: Publish tour can be pressed");
+	expect(child<QWidget>(editor, "tourPublicationPreview")->height() >= 160 && child<QWidget>(editor, "tourPreview")->isHidden(), "captured plan has a readable viewport and replaces the local preview");
 	expect(preview->isEnabled() && mode->isEnabled() && describe->isEnabled() && !stop->isEnabled(), "admitted: the plan's choices are open, Stop is not");
 	expect(panel->isHidden() && !status->isHidden() && status->text() == QStringLiteral("Preview ready."), "admitted: the status line says where it stands");
 

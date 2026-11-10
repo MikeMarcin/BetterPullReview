@@ -995,6 +995,7 @@ namespace bpr::adapters::github::detail {
 			entry.Author            = comment.User.Id;
 			entry.AuthorNodeId      = comment.User.NodeId;
 			entry.Login             = comment.User.Login;
+			entry.OnFile            = comment.SubjectType == std::optional<std::string>{ "file" } && !comment.Side && !comment.StartSide && !comment.Line && !comment.StartLine;
 			entry.OnLine            = comment.SubjectType.value_or("line") == "line" && comment.Side.has_value();
 			entry.Reply             = comment.InReplyToId.has_value();
 			page.Comments.push_back(std::move(entry));

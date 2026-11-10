@@ -1,0 +1,85 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "bpr-tour-repair-run",
+  "segment_id": "mixed-publication",
+  "mandate_revision": "tour-destination-repairs-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:6a3e244394aeed7652d24753f6588c0a9408080bd24ddad0dcfc5198d5369fe4",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1979",
+  "binding": {
+    "plan_id": "tour-destination-repairs-v1",
+    "plan_path": "docs/rfcs/plans/tour-destination-repairs-v1/milestone-plan.json",
+    "milestone_id": "mixed-publication",
+    "definition_fingerprint": "sha256:8dd27aff08079df58db05445683dd9659abea2996d94510a2ce07bc64d0167c7",
+    "obligations": [
+      {
+        "id": "BPR-1979:AC5",
+        "source": "BPR-1979",
+        "selector": "AC5",
+        "source_fingerprint": "sha256:4fe0c62dc7683cd8d7d7d5fc9ee3cf77428c0806c5b8ff80d62ce48b4b2e5581"
+      },
+      {
+        "id": "BPR-1979:AC7",
+        "source": "BPR-1979",
+        "selector": "AC7",
+        "source_fingerprint": "sha256:4fe0c62dc7683cd8d7d7d5fc9ee3cf77428c0806c5b8ff80d62ce48b4b2e5581"
+      }
+    ],
+    "obligation_fingerprint": "sha256:d41489b638024e501c4599da5ae576de11c38db161250442069a2fa350034795",
+    "exit_criteria": [
+      {
+        "id": "mixed-publication:exit:1",
+        "text": "RFC-BPR-0041 and RFC-BPR-0042 document the authorized mixed outcome and repair-first, mixed-second, compatibility-last explicit choice."
+      },
+      {
+        "id": "mixed-publication:exit:2",
+        "text": "Mixed staged publication and interruption at every step reuse confirmed identities, preserve ordered cross-kind navigation and overview, and support subsequent maintenance."
+      },
+      {
+        "id": "mixed-publication:exit:3",
+        "text": "All supplied acceptance and tests are reconciled against exact candidates; documentation, architecture gates and final upkeep are complete, with unavailable human/native evidence kept explicit."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:fac881d5e8ed22781fbd71db757d0427d2deaf37cabb5a7957bc016916ab5866",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "repair-policy",
+    "editor-repairs",
+    "mixed-publication"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "e93300932bdb8425df95fc8030930622b6cb8b99",
+    "workflow_branch": "main",
+    "workflow_revision": "e93300932bdb8425df95fc8030930622b6cb8b99"
+  }
+}

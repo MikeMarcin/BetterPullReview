@@ -34,7 +34,7 @@ namespace bpr::adapters::github::detail {
 			if (aRecord.Plan.Update && (aRecord.Updated != 0 || aRecord.DestinationsPublished)) {
 				return state::partial;
 			}
-			return aRecord.Plan.Compatibility && !aRecord.Comments.empty() ? state::partial : (aRecord.Review ? state::staged : state::ready);
+			return (aRecord.Plan.Compatibility || (aRecord.Plan.Mixed && std::ranges::any_of(aRecord.Comments, [&](const auto& aComment) { return !aRecord.Review || aComment.Review != aRecord.Review->Id; }))) && !aRecord.Comments.empty() ? state::partial : (aRecord.Review ? state::staged : state::ready);
 		}
 		auto actor(const application::staged_review_plan& aPlan) -> application::staged_review_actor
 		{
@@ -80,6 +80,9 @@ namespace bpr::adapters::github::detail {
 		auto owned_comments(const std::vector<application::staged_review_comment>& aObserved, const record& aExpected) -> bool
 		{
 			auto owned = aExpected.Comments;
+			if (aExpected.Plan.Mixed) {
+				std::erase_if(owned, [](const auto& aComment) { return aComment.Review.value() != 0; });
+			}
 			if (aExpected.Index) {
 				owned.push_back(*aExpected.Index);
 			}
@@ -223,7 +226,7 @@ namespace bpr::adapters::github::detail {
 		if (!reviews) {
 			return std::unexpected(reviews.error());
 		}
-		std::vector<application::staged_review_comment>             comments;
+		std::vector<application::staged_review_comment>             reviewComments, conversationComments;
 		std::vector<const core::tour_stop*>                         stops;
 		std::optional<std::vector<review_comment_collection_entry>> collection;
 		for (const auto& stop : draft.Stops) {
@@ -238,7 +241,8 @@ namespace bpr::adapters::github::detail {
 			if (review.State == application::staged_review_state::pending && (!aRecord.Review || review.Id != aRecord.Review->Id)) {
 				return false;
 			}
-			const bool needed = std::ranges::any_of(stops, [&](const auto* aStopEntry) { return aStopEntry->Remote->Kind != core::tour_remote_kind::conversation_comment && (aStopEntry->Remote->Review == review.NodeId || aStopEntry->Remote->Review == std::to_string(review.Id.value())); });
+			const auto usesReview = [&](const core::tour_remote_binding& aRemote) { return aRemote.Kind != core::tour_remote_kind::conversation_comment && (aRemote.Review == review.NodeId || aRemote.Review == std::to_string(review.Id.value())); };
+			const bool needed     = usesReview(*draft.Remote) || std::ranges::any_of(stops, [&](const auto* aStopEntry) { return usesReview(*aStopEntry->Remote); });
 			if (!needed) {
 				continue;
 			}
@@ -246,24 +250,40 @@ namespace bpr::adapters::github::detail {
 			if (!observed) {
 				return std::unexpected(observed.error());
 			}
-			comments.insert(comments.end(), observed->Comments.begin(), observed->Comments.end());
+			reviewComments.insert(reviewComments.end(), observed->Comments.begin(), observed->Comments.end());
 		}
 		if (draft.Remote->Kind == core::tour_remote_kind::conversation_comment || std::ranges::any_of(stops, [](const auto* aStopEntry) { return aStopEntry->Remote->Kind == core::tour_remote_kind::conversation_comment; })) {
 			const auto observed = observe_staged(request(aRecord, operation::list_issue_comments), aStop);
 			if (!observed) {
 				return std::unexpected(observed.error());
 			}
-			comments.insert(comments.end(), observed->Comments.begin(), observed->Comments.end());
+			conversationComments = observed->Comments;
 		}
-		const auto matches = [&](const auto& aObserved, const core::tour_remote_binding& aRemote) { return aObserved.NodeId == aRemote.Entity && aObserved.WebUrl == aRemote.WebUrl && aObserved.Actor == actor(aRecord.Plan) && aRemote.Own && aRemote.Actor == aObserved.Actor.Login; };
+		const auto matches        = [&](const auto& aObserved, const core::tour_remote_binding& aRemote) { return aObserved.NodeId == aRemote.Entity && aObserved.WebUrl == aRemote.WebUrl && aObserved.Actor == actor(aRecord.Plan) && aRemote.Own && aRemote.Actor == aObserved.Actor.Login; };
+		const auto commentsFor    = [&](const core::tour_remote_binding& aRemote) -> const std::vector<application::staged_review_comment>& { return aRemote.Kind == core::tour_remote_kind::conversation_comment ? conversationComments : reviewComments; };
+		const auto commentMatches = [&](const application::staged_review_comment& aObserved, const core::tour_remote_binding& aRemote) {
+			if (!matches(aObserved, aRemote) || aObserved.Reply) {
+				return false;
+			}
+			if (aRemote.Kind == core::tour_remote_kind::conversation_comment) {
+				return !aObserved.Source && !aObserved.Review.value();
+			}
+			const auto review = std::ranges::find(reviews->Reviews, aObserved.Review, &application::staged_review_entity::Id);
+			if (review == reviews->Reviews.end() || (aRemote.Review != review->NodeId && aRemote.Review != std::to_string(review->Id.value())) || !collection) {
+				return false;
+			}
+			const auto subject = std::ranges::find(*collection, aObserved.Id, &review_comment_collection_entry::Id);
+			return subject != collection->end() && (aRemote.Kind == core::tour_remote_kind::file_comment ? subject->OnFile : subject->OnLine);
+		};
 		if (draft.Remote->Kind == core::tour_remote_kind::review) {
 			const auto found = std::ranges::find(reviews->Reviews, application::review_database_id{ draft.Remote->DatabaseId }, &application::staged_review_entity::Id);
 			if (found == reviews->Reviews.end() || !matches(*found, *draft.Remote) || found->State == application::staged_review_state::pending || found->Body != expected(*draft.Remote, draft.IndexBaseline->Raw)) {
 				return false;
 			}
 		} else {
-			const auto found = std::ranges::find(comments, draft.Remote->DatabaseId, &application::staged_review_comment::Id);
-			if (found == comments.end() || !matches(*found, *draft.Remote) || found->Reply || found->Body != expected(*draft.Remote, draft.IndexBaseline->Raw)) {
+			const auto& comments = commentsFor(*draft.Remote);
+			const auto  found    = std::ranges::find(comments, draft.Remote->DatabaseId, &application::staged_review_comment::Id);
+			if (found == comments.end() || !commentMatches(*found, *draft.Remote) || found->Body != expected(*draft.Remote, draft.IndexBaseline->Raw)) {
 				return false;
 			}
 		}
@@ -271,13 +291,18 @@ namespace bpr::adapters::github::detail {
 			if (!stop->Baseline) {
 				return false;
 			}
-			const auto found = std::ranges::find(comments, stop->Remote->DatabaseId, &application::staged_review_comment::Id);
-			if (found == comments.end() || !matches(*found, *stop->Remote) || found->Reply || found->Body != expected(*stop->Remote, stop->Baseline->Raw)) {
+			const auto& comments = commentsFor(*stop->Remote);
+			const auto  found    = std::ranges::find(comments, stop->Remote->DatabaseId, &application::staged_review_comment::Id);
+			if (found == comments.end() || !commentMatches(*found, *stop->Remote) || found->Body != expected(*stop->Remote, stop->Baseline->Raw)) {
 				return false;
 			}
-			auto source = stop->Original ? std::optional{ core::destination_of(*stop->Original) } : stop->Destination;
+			auto source = core::published_tour_destination(*stop);
 			if (source) {
 				source->Blob.reset();
+				if (stop->Remote->Kind == core::tour_remote_kind::file_comment) {
+					source->FirstLine = 0;
+					source->LastLine  = 0;
+				}
 			}
 			if (stop->Remote->Kind != core::tour_remote_kind::conversation_comment && found->Source != source) {
 				return false;
@@ -305,13 +330,28 @@ namespace bpr::adapters::github::detail {
 	}
 	auto review_submission_session::verify_staged_reads(const record& aRecord, std::stop_token aStop) -> staged_check
 	{
+		if (aRecord.Plan.Mixed && (!aRecord.FileBaselineIds.empty() || std::ranges::any_of(aRecord.Plan.Stops, [](const auto& aTourStop) { return aTourStop.Representation == core::tour_representation::file_permalink; }))) {
+			const auto files = observe_staged(request(aRecord, operation::list_file_comments), aStop);
+			if (!files) {
+				return std::unexpected(files.error());
+			}
+			for (std::size_t i = 0; i < aRecord.Comments.size(); ++i) {
+				if (application::staged_stop(aRecord.Plan, i).Representation != core::tour_representation::file_permalink) {
+					continue;
+				}
+				const auto found = std::ranges::find(files->Comments, aRecord.Comments[i].Id, &application::staged_review_comment::Id);
+				if (found == files->Comments.end() || *found != aRecord.Comments[i]) {
+					return false;
+				}
+			}
+		}
 		if (aRecord.Plan.Update) {
 			const auto update = verify_tour_update(aRecord, aStop);
 			if (!update || !*update) {
 				return update;
 			}
 		}
-		if (aRecord.Plan.Compatibility) {
+		if (aRecord.Plan.Compatibility || aRecord.Plan.Mixed) {
 			const auto comments = observe_staged(request(aRecord, operation::list_issue_comments), aStop);
 			if (!comments) {
 				return std::unexpected(comments.error());
@@ -319,17 +359,18 @@ namespace bpr::adapters::github::detail {
 			if (!owned_comments(comments->Comments, aRecord)) {
 				return false;
 			}
-			if (aRecord.Comments.empty()) {
+			if (aRecord.Comments.empty() || (aRecord.Plan.Mixed && std::ranges::none_of(aRecord.Comments, [](const auto& aComment) { return !aComment.Review.value(); }))) {
 				std::vector<std::uint64_t> ids;
 				for (const auto& c : comments->Comments) {
 					ids.push_back(c.Id);
 				}
 				std::ranges::sort(ids);
-				if (ids != aRecord.BaselineIds) {
+				if (ids != (aRecord.Plan.Mixed ? aRecord.ConversationBaselineIds : aRecord.BaselineIds)) {
 					return false;
 				}
 			}
-		} else {
+		}
+		if (!aRecord.Plan.Compatibility) {
 			if (!aRecord.Review && (!aRecord.Plan.Update || !aRecord.Plan.Stops.empty())) {
 				const auto reviews = observe_staged(request(aRecord, operation::list_reviews), aStop);
 				if (!reviews) {
@@ -357,7 +398,7 @@ namespace bpr::adapters::github::detail {
 				if (!comments) {
 					return std::unexpected(comments.error());
 				}
-				if (!ordered_comments(comments->Comments, aRecord.Comments, comments->Lines)) {
+				if (!ordered_comments(comments->Comments, application::staged_review_comments(aRecord), comments->Lines)) {
 					return false;
 				}
 			}
@@ -376,7 +417,7 @@ namespace bpr::adapters::github::detail {
 			if (!parsed) {
 				return std::unexpected(staged_failure(failure::malformed_response, static_cast<std::uint16_t>(success->Response.Status), operation::update_description));
 			}
-			return parsed->Description == std::optional{ aRecord.Plan.Description->Baseline };
+			return parsed->Description == std::optional{ aRecord.DescriptionDone ? aRecord.Pending->Body : aRecord.Plan.Description->Baseline };
 		}
 		return true;
 	}
@@ -391,7 +432,7 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(identityProblem ? *identityProblem : staged_failure(identity.error()));
 		}
 		auto next = aRecord;
-		if (aRecord.Plan.Update && aRecord.Pending->Operation != operation::create_pending && aRecord.Pending->Operation != operation::create_issue_comment && aRecord.Pending->Operation != operation::update_description) {
+		if (aRecord.Plan.Update && aRecord.Pending->Operation != operation::create_pending && aRecord.Pending->Operation != operation::create_issue_comment && aRecord.Pending->Operation != operation::create_file_comment && aRecord.Pending->Operation != operation::update_description) {
 			next = application::confirm_staged_update(aRecord);
 			next.Pending.reset();
 			next.PossiblyTransmitted = false;
@@ -406,7 +447,39 @@ namespace bpr::adapters::github::detail {
 				}
 				return *baseline ? state::outcome_unknown : state::conflict;
 			}
-		} else if (aRecord.Plan.Compatibility && aRecord.Pending->Operation != operation::update_description) {
+		} else if (aRecord.Plan.Mixed && (aRecord.Pending->Operation == operation::create_file_comment || (aRecord.Pending->Operation == operation::update_comment && application::staged_stop(aRecord.Plan, aRecord.Patched).Representation == core::tour_representation::file_permalink))) {
+			const auto files = observe_staged(request(aRecord, operation::list_file_comments), aStop);
+			if (!files) {
+				return std::unexpected(files.error());
+			}
+			if (aRecord.Pending->Operation == operation::create_file_comment) {
+				std::optional<application::staged_review_comment> match;
+				for (const auto& file : files->Comments) {
+					if (std::ranges::binary_search(aRecord.FileBaselineIds, file.Id) || std::ranges::any_of(aRecord.Comments, [&](const auto& aKnown) { return aKnown.Source && aKnown.Id == file.Id; }) || file.Actor != actor(aRecord.Plan) || file.Body != aRecord.Pending->Body || file.Source != aRecord.Pending->FileSource || (aRecord.Review && file.Review == aRecord.Review->Id)) {
+						continue;
+					}
+					if (match) {
+						return state::outcome_unknown;
+					}
+					match = file;
+				}
+				if (!match) {
+					return state::outcome_unknown;
+				}
+				next.Comments.push_back(*match);
+			} else {
+				const auto found = std::ranges::find(files->Comments, aRecord.Pending->Comment, &application::staged_review_comment::Id);
+				if (found == files->Comments.end()) {
+					return state::outcome_unknown;
+				}
+				auto expected = aRecord.Comments[aRecord.Patched];
+				expected.Body = aRecord.Pending->Body;
+				if (*found != expected) {
+					return *found == aRecord.Comments[aRecord.Patched] ? state::outcome_unknown : state::conflict;
+				}
+				next.Comments[next.Patched++].Body = aRecord.Pending->Body;
+			}
+		} else if ((aRecord.Plan.Compatibility || aRecord.Plan.Mixed) && (aRecord.Pending->Operation == operation::create_issue_comment || aRecord.Pending->Operation == operation::update_issue_comment)) {
 			const auto comments = observe_staged(request(aRecord, operation::list_issue_comments), aStop);
 			if (!comments) {
 				return std::unexpected(comments.error());
@@ -417,7 +490,7 @@ namespace bpr::adapters::github::detail {
 				}
 				std::optional<application::staged_review_comment> candidate;
 				for (const auto& comment : comments->Comments) {
-					if (std::ranges::binary_search(aRecord.BaselineIds, comment.Id) || std::ranges::find(aRecord.Comments, comment.Id, &application::staged_review_comment::Id) != aRecord.Comments.end() || (aRecord.Index && aRecord.Index->Id == comment.Id) || comment.Actor != actor(aRecord.Plan) || comment.Body != aRecord.Pending->Body) {
+					if (std::ranges::binary_search(aRecord.Plan.Mixed ? aRecord.ConversationBaselineIds : aRecord.BaselineIds, comment.Id) || std::ranges::any_of(aRecord.Comments, [&](const auto& aKnown) { return !aKnown.Review.value() && aKnown.Id == comment.Id; }) || (aRecord.Index && aRecord.Index->Id == comment.Id) || comment.Actor != actor(aRecord.Plan) || comment.Body != aRecord.Pending->Body) {
 						continue;
 					}
 					if (candidate) {
@@ -442,7 +515,7 @@ namespace bpr::adapters::github::detail {
 					return owned_comments(comments->Comments, aRecord) ? state::outcome_unknown : state::conflict;
 				}
 				++next.Patched;
-				next.Published = !next.Plan.Update && next.Patched == next.Comments.size();
+				next.Published = next.Plan.Compatibility && !next.Plan.Update && next.Patched == next.Comments.size();
 			} else {
 				return state::conflict;
 			}
@@ -520,19 +593,19 @@ namespace bpr::adapters::github::detail {
 			if (!bodies) {
 				return state::conflict;
 			}
-			auto expected = aRecord.Comments;
+			auto expectedRecord = aRecord;
 			if (aRecord.Pending->Operation == operation::update_comment || aRecord.Pending->Operation == operation::update_pending_comment) {
 				if (review != *aRecord.Review) {
 					return state::conflict;
 				}
-				expected[aRecord.Patched].Body = aRecord.Pending->Body;
-				if (!ordered_comments(comments->Comments, expected, comments->Lines)) {
-					return ordered_comments(comments->Comments, aRecord.Comments, comments->Lines) ? state::outcome_unknown : state::conflict;
+				expectedRecord.Comments[aRecord.Patched].Body = aRecord.Pending->Body;
+				if (!ordered_comments(comments->Comments, application::staged_review_comments(expectedRecord), comments->Lines)) {
+					return ordered_comments(comments->Comments, application::staged_review_comments(aRecord), comments->Lines) ? state::outcome_unknown : state::conflict;
 				}
-				next.Comments = std::move(expected);
+				next.Comments = std::move(expectedRecord.Comments);
 				++next.Patched;
 			} else if (aRecord.Pending->Operation == operation::submit_comment) {
-				if (!ordered_comments(comments->Comments, aRecord.Comments, comments->Lines)) {
+				if (!ordered_comments(comments->Comments, application::staged_review_comments(aRecord), comments->Lines)) {
 					return state::conflict;
 				}
 				auto expectedReview  = *aRecord.Review;
@@ -544,6 +617,15 @@ namespace bpr::adapters::github::detail {
 				next.Review    = review;
 				next.Published = true;
 			} else {
+				return state::conflict;
+			}
+		}
+		if (next.Plan.Mixed) {
+			const auto checked = verify_staged_reads(next, aStop);
+			if (!checked) {
+				return std::unexpected(checked.error());
+			}
+			if (!*checked) {
 				return state::conflict;
 			}
 		}
@@ -678,6 +760,26 @@ namespace bpr::adapters::github::detail {
 					current.BaselineIds.push_back(review.Id.value());
 				}
 				std::ranges::sort(current.BaselineIds);
+				if (aPlan.Mixed) {
+					const auto issues = observe_staged(request(current, operation::list_issue_comments), aStop);
+					if (!issues) {
+						return refused(step::baseline_read, issues.error().Failure, operation::list_issue_comments, issues.error().HttpStatus);
+					}
+					for (const auto& comment : issues->Comments) {
+						current.ConversationBaselineIds.push_back(comment.Id);
+					}
+					std::ranges::sort(current.ConversationBaselineIds);
+					if (std::ranges::any_of(aPlan.Stops, [](const auto& aTourStop) { return aTourStop.Representation == core::tour_representation::file_permalink; })) {
+						const auto files = observe_staged(request(current, operation::list_file_comments), aStop);
+						if (!files) {
+							return refused(step::baseline_read, files.error().Failure, operation::list_file_comments, files.error().HttpStatus);
+						}
+						for (const auto& file : files->Comments) {
+							current.FileBaselineIds.push_back(file.Id);
+						}
+						std::ranges::sort(current.FileBaselineIds);
+					}
+				}
 				trace(core::tour_publication_stage::journal_save, true);
 				const auto admitted = Recovery->advance_staged(drafting, current);
 				if (!admitted || *admitted != current) {

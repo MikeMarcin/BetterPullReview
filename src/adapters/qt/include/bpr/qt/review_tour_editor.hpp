@@ -40,6 +40,10 @@ namespace bpr::qt {
 	class markdown_body_view;
 	class stop_action_row;
 	class tour_agent_panel;
+	enum class tour_repair_action : std::uint8_t { repin,
+												   preview_relocation,
+												   apply_relocation,
+												   file_comment };
 	enum class tour_editor_action : std::uint8_t { import_selected,
 												   retry_save,
 												   use_saved_copy,
@@ -119,7 +123,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto writing_editor(core::writing_hook aHook) const -> scoped_prose_editor*;
 		[[nodiscard]] auto writing_visible(core::writing_hook aHook) const -> bool;
 		void               present_publication(const application::tour_publication_presentation& aProjection);
+		void               set_repair_dispatch(std::function<void(core::tour_stop_id, tour_repair_action)>);
+		void               present_repair_preview(core::tour_stop_id, const core::tour_source_range&, std::string_view, std::uint64_t);
 		[[nodiscard]] auto compatibility_publication() const -> bool;
+		[[nodiscard]] auto mixed_publication() const -> bool;
 		[[nodiscard]] auto description_publication() const -> bool;
 		void               show_problem();
 		void               present_outline(const std::vector<core::tour_outline_entry>& aEntries);
@@ -436,46 +443,55 @@ namespace bpr::qt {
 		std::multimap<std::uint64_t, QPointer<QWidget>> StopTextProposals;
 		/// [[BPR-1930]]. The proposed order, above the route; each stop's mark
 		/// on the route: its kind and its pill's words.
-		QWidget*                                         ProposedOrder = nullptr;
-		std::map<std::uint64_t, std::pair<int, QString>> RouteMarks;
-		bool                                             StructureProposed = false;
-		void                                             apply_route_marks();
-		std::array<bool, 2>                              PartProposed{ false, false };
-		std::size_t                                      ProposedStopCount = 0U;
-		bool                                             ShowsStopProposal = false;
-		QVBoxLayout*                                     StopFieldsLayout  = nullptr;
-		QPushButton*                                     Complete          = nullptr;
-		QPushButton*                                     ShowInCode        = nullptr;
-		std::optional<core::tour_stop_id>                AdvanceFrom;
-		void                                             begin_proposals();
-		[[nodiscard]] auto                               place_proposal(std::size_t aIndex, const core::tour_proposal_item& aItem, QWidget* aBox) -> bool;
-		void                                             mark_proposed();
-		void                                             place_stop_text_proposal();
-		void                                             refresh_complete();
-		std::optional<core::writing_hook>                RunningHook;
-		bool                                             RunningDraft = false;
-		void                                             open_failed_run();
-		auto                                             add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
-		void                                             refresh_agent_features();
-		void                                             restyle_agent_features();
-		QWidget*                                         Foot               = nullptr;
-		QLabel*                                          FootState          = nullptr;
-		QPushButton*                                     PreviewPublish     = nullptr;
-		QToolButton*                                     HeadChip           = nullptr;
-		QWidget*                                         HeadConfirm        = nullptr;
-		QLabel*                                          HeadQuestion       = nullptr;
-		QPushButton*                                     HeadConfirmYes     = nullptr;
-		QPushButton*                                     HeadEdit           = nullptr;
-		QPushButton*                                     Previous           = nullptr;
-		QPushButton*                                     Next               = nullptr;
-		QComboBox*                                       PublicationMode    = nullptr;
-		QCheckBox*                                       DescriptionEdit    = nullptr;
-		QLabel*                                          PublicationStatus  = nullptr;
-		markdown_body_view*                              PublicationPreview = nullptr;
-		QPushButton*                                     PublishTour        = nullptr;
-		QPushButton*                                     ResumeTour         = nullptr;
-		QPushButton*                                     ReconcileTour      = nullptr;
-		QPushButton*                                     StopTour           = nullptr;
+		QWidget*                                                    ProposedOrder = nullptr;
+		std::map<std::uint64_t, std::pair<int, QString>>            RouteMarks;
+		bool                                                        StructureProposed = false;
+		void                                                        apply_route_marks();
+		std::array<bool, 2>                                         PartProposed{ false, false };
+		std::size_t                                                 ProposedStopCount = 0U;
+		bool                                                        ShowsStopProposal = false;
+		QVBoxLayout*                                                StopFieldsLayout  = nullptr;
+		QPushButton*                                                Complete          = nullptr;
+		QPushButton*                                                ShowInCode        = nullptr;
+		std::optional<core::tour_stop_id>                           AdvanceFrom;
+		void                                                        begin_proposals();
+		[[nodiscard]] auto                                          place_proposal(std::size_t aIndex, const core::tour_proposal_item& aItem, QWidget* aBox) -> bool;
+		void                                                        mark_proposed();
+		void                                                        place_stop_text_proposal();
+		void                                                        refresh_complete();
+		std::optional<core::writing_hook>                           RunningHook;
+		bool                                                        RunningDraft = false;
+		void                                                        open_failed_run();
+		auto                                                        add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
+		void                                                        refresh_agent_features();
+		void                                                        restyle_agent_features();
+		QWidget*                                                    Foot           = nullptr;
+		QLabel*                                                     FootState      = nullptr;
+		QPushButton*                                                PreviewPublish = nullptr;
+		QToolButton*                                                HeadChip       = nullptr;
+		QWidget*                                                    HeadConfirm    = nullptr;
+		QLabel*                                                     HeadQuestion   = nullptr;
+		QPushButton*                                                HeadConfirmYes = nullptr;
+		QPushButton*                                                HeadEdit       = nullptr;
+		QPushButton*                                                Previous       = nullptr;
+		QPushButton*                                                Next           = nullptr;
+		QWidget*                                                    RepairList     = nullptr;
+		QWidget*                                                    RepairPreview  = nullptr;
+		QLabel*                                                     RepairRange    = nullptr;
+		QPlainTextEdit*                                             RepairText     = nullptr;
+		QPushButton*                                                ApplyRepair    = nullptr;
+		core::tour_stop_id                                          PreviewRepairStop;
+		std::uint64_t                                               PreviewRepairRevision = 0U;
+		std::vector<core::tour_destination_repair>                  ShownRepairs;
+		std::function<void(core::tour_stop_id, tour_repair_action)> RepairDispatch;
+		QComboBox*                                                  PublicationMode    = nullptr;
+		QCheckBox*                                                  DescriptionEdit    = nullptr;
+		QLabel*                                                     PublicationStatus  = nullptr;
+		markdown_body_view*                                         PublicationPreview = nullptr;
+		QPushButton*                                                PublishTour        = nullptr;
+		QPushButton*                                                ResumeTour         = nullptr;
+		QPushButton*                                                ReconcileTour      = nullptr;
+		QPushButton*                                                StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;

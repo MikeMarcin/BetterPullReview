@@ -50,6 +50,7 @@
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_projection.hpp"
+#include "bpr/application/review_tour_source.hpp"
 #include "bpr/application/review_tour_store.hpp"
 #include "bpr/application/setup_destination.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
@@ -545,12 +546,21 @@ namespace bpr::app {
 		std::optional<core::tour_code_destination>                       PendingTourSource;
 		/// [[BPR-1227]]. Source reads a forwarded `bpr tour` command has on the diff lane. Counted and
 		/// atomic because the worker ends its read; shutdown stops them and waits for none.
-		std::atomic_size_t TourSourceReadsInFlight{ 0U };
-		std::stop_source   TourSourceStop;
-		auto               selected_tour_source() const -> std::optional<core::tour_source_range>;
-		auto               current_tour_attention() const -> core::tour_attention;
-		void               observe_tour_visit();
-		void               observe_tour_comparison();
+		std::atomic_size_t                                       TourSourceReadsInFlight{ 0U };
+		std::stop_source                                         TourSourceStop;
+		auto                                                     selected_tour_source() const -> std::optional<core::tour_source_range>;
+		auto                                                     current_tour_attention() const -> core::tour_attention;
+		void                                                     observe_tour_visit();
+		void                                                     observe_tour_comparison();
+		void                                                     prepare_tour_repairs();
+		void                                                     read_next_tour_repair();
+		std::shared_ptr<const core::review_tour>                 TourRepairDraft;
+		std::deque<application::workbench_selected_diff_request> TourRepairRequests;
+		void                                                     dispatch_tour_repair(core::tour_stop_id, qt::tour_repair_action);
+		std::uint64_t                                            TourRepairGeneration = 0U;
+		std::vector<application::tour_source_comparison>         TourRepairComparisons;
+		std::vector<core::tour_anchor_file>                      TourRepairFiles;
+		std::optional<core::tour_command>                        TourRepairCommand;
 
 		void finish_tour_navigation();
 		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource);

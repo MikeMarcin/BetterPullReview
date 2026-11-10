@@ -481,6 +481,8 @@ namespace bpr::app::detail {
 		bool GhesCliSourceUpdateCourse = false;
 		/// [[BPR-0943]]. Provider M while the selected base tree lacks review.cpp.
 		bool ModifiedMissingEndpointCourse = false;
+		/// BPR-1979: retained historical bytes and one off-hunk destination.
+		bool TourDestinationRepairsCourse = false;
 		/// Test-owned gate before catalogue reads; absent from production builds.
 		std::function<void(std::stop_token)> BeforeFilesPage;
 		/// [[BPR-1895]]. Test-owned gate after check results, before remaining status.

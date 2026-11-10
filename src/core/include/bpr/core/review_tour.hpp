@@ -130,6 +130,7 @@ namespace bpr::core {
 	};
 
 	/// \brief A local thought with immutable original source and a separate current mapping.
+	/// Destination retains the confirmed remote subject independently of those local ranges.
 	struct tour_stop
 	{
 		tour_stop_id                         Id;
@@ -146,8 +147,12 @@ namespace bpr::core {
 		std::optional<tour_code_destination> Destination;
 		std::optional<git_commit_oid>        ReaffirmedHead = std::nullopt;
 		std::optional<tour_suggestion>       Suggestion;
-		tour_completion_origin               CompletionOrigin = tour_completion_origin::unspecified;
+		tour_completion_origin               CompletionOrigin     = tour_completion_origin::unspecified;
+		bool                                 FileCommentRequested = false;
 	};
+	/// \brief Confirmed remote subject, including legacy retarget receipts whose Original replaced Mapped.
+	/// Does not use a proposed mapping or change retained source ranges.
+	[[nodiscard]] auto published_tour_destination(const tour_stop& aStop) -> std::optional<tour_code_destination>;
 
 	enum class tour_conflict_field : std::uint8_t { problem,
 													solution,

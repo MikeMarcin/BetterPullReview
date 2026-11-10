@@ -1650,9 +1650,9 @@ namespace bpr::adapters::sqlite {
 		void staged_record_codec(detail::tour_codec& aCodec, application::staged_publication_record& aRecord)
 		{
 			// [[BPR-1368]]. Version 4 adds the pending request's comment node ID.
-			std::uint64_t version = 5;
+			std::uint64_t version = 6;
 			aCodec.number(version);
-			if (version < 1 || version > 5) {
+			if (version < 1 || version > 6) {
 				aCodec.Good = false;
 				return;
 			}
@@ -1678,8 +1678,14 @@ namespace bpr::adapters::sqlite {
 				aCodec.text(aStop.Title);
 				aCodec.text(aStop.Narrative);
 				aCodec.text(aStop.SourceLink, 4096);
+				if (version >= 6) {
+					aCodec.enumeration(aStop.Representation);
+				}
 			});
 			aCodec.number(aRecord.Plan.Compatibility);
+			if (version >= 6) {
+				aCodec.number(aRecord.Plan.Mixed);
+			}
 			if (version >= 5) {
 				aCodec.number(aRecord.Plan.ConversationReply);
 				aCodec.number(aRecord.Drafting);
@@ -1692,6 +1698,10 @@ namespace bpr::adapters::sqlite {
 } });
 			aCodec.number(aRecord.Revision);
 			aCodec.list(aRecord.BaselineIds, application::maximum_staged_review_pages * 100U, [&](auto& aId) { aCodec.number(aId); });
+			if (version >= 6) {
+				aCodec.list(aRecord.ConversationBaselineIds, application::maximum_staged_review_pages * 100U, [&](auto& aId) { aCodec.number(aId); });
+				aCodec.list(aRecord.FileBaselineIds, application::maximum_staged_review_pages * 100U, [&](auto& aId) { aCodec.number(aId); });
+			}
 			aCodec.optional(aRecord.Review, [&](auto& aReview) { staged_review_codec(aCodec, aReview); });
 			aCodec.list(aRecord.Comments, application::maximum_staged_review_comments, [&](auto& aComment) { staged_comment_codec(aCodec, aComment); });
 			aCodec.number(aRecord.Patched);
@@ -1707,6 +1717,9 @@ namespace bpr::adapters::sqlite {
 				aCodec.list(aRequest.Lines, application::maximum_staged_review_comments, [&](auto& aLine) {aCodec.destination(aLine.Source);aCodec.text(aLine.Body); });
 				if (version >= 4) {
 					aCodec.text(aRequest.CommentNode, 256);
+				}
+				if (version >= 6) {
+					aCodec.optional(aRequest.FileSource, [&](auto& aSource) { aCodec.destination(aSource); });
 				}
 			});
 			aCodec.number(aRecord.PossiblyTransmitted);

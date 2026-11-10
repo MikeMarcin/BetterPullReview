@@ -541,7 +541,13 @@ namespace bpr::application {
 		if (self.Closing || self.State.Loading || !self.State.Draft) {
 			return;
 		}
-		self.adopt_observation(core::map_tour_revision(*self.State.Draft, aIndex, aLeft, aRight));
+		auto basis = *self.State.Draft;
+		// A historical stop may be added while the tour already names today's head.
+		// The comparison observes that head even when no push has occurred.
+		basis.ObservedHead  = basis.ObservedHead.value_or(basis.Head);
+		auto mapped         = core::map_tour_revision(basis, aIndex, aLeft, aRight);
+		mapped.ObservedHead = self.State.Draft->ObservedHead;
+		self.adopt_observation(std::move(mapped));
 		self.notify();
 	}
 

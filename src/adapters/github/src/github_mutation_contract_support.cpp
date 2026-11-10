@@ -534,7 +534,7 @@ namespace bpr::adapters::github::detail {
 			|| aComment.WebUrl != staged_web_root(target) + "#discussion_r" + std::to_string(aComment.Id)
 			|| (aExpected.Review.value() && aExpected.Review.value() != aComment.Review)
 			|| (aExpected.Comment && aExpected.Comment != aComment.Id)
-			|| (aComment.Subject && *aComment.Subject != "line")) {
+			|| (aComment.Subject && *aComment.Subject != "line" && *aComment.Subject != "file")) {
 			return std::nullopt;
 		}
 		if (!aLines) {
@@ -542,6 +542,16 @@ namespace bpr::adapters::github::detail {
 				return std::nullopt;
 			}
 			return application::staged_review_comment{ aComment.Id, aComment.NodeId, aComment.WebUrl, *actor, application::review_database_id{ aComment.Review }, std::nullopt, aComment.Body, aComment.Reply.has_value() };
+		}
+		if (aComment.Subject == std::optional<std::string>{ "file" }) {
+			if (aComment.Line || aComment.StartLine || aComment.Side || aComment.StartSide || aComment.Reply) {
+				return { };
+			}
+			const auto source = core::tour_code_destination{ .Commit = *commit, .Path = aComment.Path };
+			if (!core::valid(source)) {
+				return { };
+			}
+			return application::staged_review_comment{ aComment.Id, aComment.NodeId, aComment.WebUrl, *actor, application::review_database_id{ aComment.Review }, source, aComment.Body, false };
 		}
 		constexpr auto maximumLine = std::uint64_t{ std::numeric_limits<std::uint32_t>::max() } + 1;
 		if (!aComment.Line || *aComment.Line == 0 || *aComment.Line > maximumLine

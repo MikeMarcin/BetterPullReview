@@ -518,6 +518,24 @@ namespace bpr::core {
 		return aStop.FirstLine == aStop.LastLine ? tour_stop_placement::near_change : tour_stop_placement::off_change;
 	}
 
+	auto nearest_tour_hunk(const tour_line_span aSource, const tour_anchor_file& aFile) -> std::optional<tour_line_span>
+	{
+		if (aSource.First == 0U || aSource.Last < aSource.First || !aFile.OnHead || !aFile.Hunks || aFile.Hunks->empty()
+			|| aFile.Hunks->size() > maximum_patch_hunks || std::ranges::any_of(*aFile.Hunks, [&](const auto& aHunk) { return aHunk.First == 0U || aHunk.Last < aHunk.First || (aFile.HeadLines && aHunk.Last > *aFile.HeadLines); })) {
+			return std::nullopt;
+		}
+		const auto distance = [aSource](const tour_line_span& aHunk) -> std::uint64_t {
+			if (aSource.Last < aHunk.First) {
+				return aHunk.First - aSource.Last;
+			}
+			return aSource.First > aHunk.Last ? aSource.First - aHunk.Last : 0U;
+		};
+		const auto& hunk   = *std::ranges::min_element(*aFile.Hunks, { }, distance);
+		const auto  length = std::min(aSource.Last - aSource.First, hunk.Last - hunk.First);
+		const auto  first  = std::clamp(aSource.First, hunk.First, hunk.Last - length);
+		return tour_line_span{ first, first + length };
+	}
+
 	auto relocate_tour_stop(tour_proposal& aProposal, const std::size_t aIndex, const std::vector<tour_anchor_file>& aFiles) -> bool
 	{
 		if (aIndex >= aProposal.Items.size()) {
@@ -528,23 +546,15 @@ namespace bpr::core {
 			return false;
 		}
 		const auto file = std::ranges::find(aFiles, item.Stop.Path, &tour_anchor_file::Path);
-		if (file == aFiles.end() || !file->Hunks || file->Hunks->empty()) {
+		if (file == aFiles.end()) {
 			return false;
 		}
-		const auto distance = [&item](const tour_line_span& aHunk) -> std::uint64_t {
-			if (item.Stop.LastLine < aHunk.First) {
-				return aHunk.First - item.Stop.LastLine;
-			}
-			if (item.Stop.FirstLine > aHunk.Last) {
-				return item.Stop.FirstLine - aHunk.Last;
-			}
-			return 0U;
-		};
-		const auto& hunk    = *std::ranges::min_element(*file->Hunks, { }, distance);
-		const auto  length  = std::min(item.Stop.LastLine - item.Stop.FirstLine, hunk.Last - hunk.First);
-		const auto  first   = std::clamp(item.Stop.FirstLine, hunk.First, hunk.Last - length);
-		item.Stop.FirstLine = first;
-		item.Stop.LastLine  = first + length;
+		const auto range = nearest_tour_hunk({ item.Stop.FirstLine, item.Stop.LastLine }, *file);
+		if (!range) {
+			return false;
+		}
+		item.Stop.FirstLine = range->First;
+		item.Stop.LastLine  = range->Last;
 		item.Placement      = tour_stop_placement::on_change;
 		return true;
 	}

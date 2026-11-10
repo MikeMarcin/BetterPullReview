@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1982"
+  ],
+  "reserve_for": "tour-legacy-destination",
+  "purpose": "Post-review P2 compatibility repair for saved legacy retarget receipt",
+  "created": "2026-11-10T04:32:45.237540+00:00",
+  "base": "992ebba9c6ea35822a24ea6c315676a865fb5f65"
+}

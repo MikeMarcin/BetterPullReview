@@ -1,0 +1,89 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "bpr1982-post-review",
+  "segment_id": "legacy-destination-fix",
+  "mandate_revision": "tour-destination-repairs-r1-legacy-destination-fix",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:6a3e244394aeed7652d24753f6588c0a9408080bd24ddad0dcfc5198d5369fe4",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1982",
+  "binding": {
+    "plan_id": "tour-legacy-destination-v1",
+    "plan_path": "docs/rfcs/plans/tour-legacy-destination-v1/milestone-plan.json",
+    "milestone_id": "legacy-destination-fix",
+    "definition_fingerprint": "sha256:07dfc08a18a8078d5b70e75161977ff450c51b88b193bc595b33e1a9141fd8e3",
+    "obligations": [
+      {
+        "id": "BPR-1982:AC1",
+        "source": "BPR-1982",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:d1fc5cafdc81c22a5448dfced0f56cdd1f62d88523619a94e103a90228cd0e8e"
+      },
+      {
+        "id": "BPR-1982:AC2",
+        "source": "BPR-1982",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:d1fc5cafdc81c22a5448dfced0f56cdd1f62d88523619a94e103a90228cd0e8e"
+      },
+      {
+        "id": "BPR-1982:AC3",
+        "source": "BPR-1982",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:d1fc5cafdc81c22a5448dfced0f56cdd1f62d88523619a94e103a90228cd0e8e"
+      }
+    ],
+    "obligation_fingerprint": "sha256:dbabbc419c0d66022366a0d8e286aa440ee4a74bf9848657e10cc2fefaff97a1",
+    "exit_criteria": [
+      {
+        "id": "legacy-destination-fix:exit:1",
+        "text": "A stale legacy Destination survives a real SQLite save/reopen and production-session maintenance edits the confirmed replacement exactly once."
+      },
+      {
+        "id": "legacy-destination-fix:exit:2",
+        "text": "Actual source and identity mismatches refuse before writes; confirmed modern destinations and subsequent retargets preserve Original/Mapped bytes."
+      },
+      {
+        "id": "legacy-destination-fix:exit:3",
+        "text": "Focused regression and static/documentation checks pass, explicit commits and durable command state are recorded."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "legacy-destination-fix"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "b99ec8da26016b7839955228c2c0944d2189ae8c",
+    "workflow_branch": "main",
+    "workflow_revision": "b99ec8da26016b7839955228c2c0944d2189ae8c"
+  }
+}

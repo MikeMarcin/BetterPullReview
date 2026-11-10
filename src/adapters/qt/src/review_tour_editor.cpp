@@ -1909,6 +1909,8 @@ namespace bpr::qt {
 		publication->addWidget(onGithub);
 		PublicationPreview = new markdown_body_view{ PublicationPanel };
 		PublicationPreview->setObjectName(QStringLiteral("tourPublicationPreview"));
+		PublicationPreview->setAccessibleName(tr("Captured publication plan"));
+		PublicationPreview->setMinimumHeight(160);
 		publication->addWidget(PublicationPreview, 1);
 		// [[BPR-1782]]. A publication under way, or one that did not finish, is
 		// said in Compose review's waiting panel: the mark, a plain title, what
@@ -1963,9 +1965,48 @@ namespace bpr::qt {
 		PublicationLink->hide();
 		publication->addWidget(PublicationLink);
 		restyle_working();
+		auto* const repairScroll = new QScrollArea{ PublicationPanel };
+		repairScroll->setWidgetResizable(true);
+		repairScroll->setFrameShape(QFrame::NoFrame);
+		repairScroll->setMaximumHeight(250);
+		RepairList = repairScroll;
+		RepairList->setObjectName(QStringLiteral("tourDestinationRepairs"));
+		auto* const repairContents = new QWidget{ repairScroll };
+		repairScroll->setWidget(repairContents);
+		auto* const repairRows = new QVBoxLayout{ repairContents };
+		repairRows->setContentsMargins(0, 0, 0, 0);
+		publication->addWidget(RepairList);
+		RepairPreview = new QWidget{ PublicationPanel };
+		RepairPreview->setObjectName(QStringLiteral("tourRepairPreview"));
+		auto* const repairPreviewLayout = new QVBoxLayout{ RepairPreview };
+		repairPreviewLayout->setContentsMargins(0, 0, 0, 0);
+		RepairRange = paragraph({ }, RepairPreview);
+		repairPreviewLayout->addWidget(RepairRange);
+		RepairText = new QPlainTextEdit{ RepairPreview };
+		RepairText->setObjectName(QStringLiteral("tourRepairSourceText"));
+		RepairText->setAccessibleName(tr("Source at the proposed destination"));
+		RepairText->setReadOnly(true);
+		RepairText->setMaximumHeight(150);
+		repairPreviewLayout->addWidget(RepairText);
+		auto* const repairButtons = new QHBoxLayout;
+		ApplyRepair               = new QPushButton{ tr("Apply destination"), RepairPreview };
+		ApplyRepair->setObjectName(QStringLiteral("tourApplyRepair"));
+		connect(ApplyRepair, &QPushButton::clicked, this, [this] {
+			if (Shown.Draft && Shown.Draft->Revision == PreviewRepairRevision && RepairDispatch) {
+				RepairDispatch(PreviewRepairStop, tour_repair_action::apply_relocation);
+			}
+		});
+		repairButtons->addWidget(ApplyRepair);
+		auto* const cancelRepair = new quiet_push_button{ tr("Cancel"), RepairPreview };
+		connect(cancelRepair, &QPushButton::clicked, RepairPreview, &QWidget::hide);
+		repairButtons->addWidget(cancelRepair);
+		repairButtons->addStretch(1);
+		repairPreviewLayout->addLayout(repairButtons);
+		RepairPreview->hide();
+		publication->addWidget(RepairPreview);
 		PublicationMode = new QComboBox{ PublicationPanel };
 		PublicationMode->setObjectName(QStringLiteral("tourPublicationMode"));
-		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish with compatibility comments (non-atomic)") });
+		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish a mixed tour (non-atomic)"), tr("Publish with compatibility comments (non-atomic)") });
 		publication->addWidget(PublicationMode);
 		DescriptionEdit = new QCheckBox{ tr("Update PR description after publishing"), PublicationPanel };
 		DescriptionEdit->setObjectName(QStringLiteral("tourDescriptionEdit"));
@@ -2123,16 +2164,111 @@ namespace bpr::qt {
 		set_mode(tour_editor_mode::route);
 		present({ });
 	}
-	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
+	void review_tour_editor::set_repair_dispatch(std::function<void(core::tour_stop_id, tour_repair_action)> aDispatch)
+	{
+		RepairDispatch = std::move(aDispatch);
+	}
+	void review_tour_editor::present_repair_preview(const core::tour_stop_id aStop, const core::tour_source_range& aRange, const std::string_view aText, const std::uint64_t aRevision)
+	{
+		if (!Shown.Draft || Shown.Draft->Revision != aRevision || aText.empty()) {
+			return;
+		}
+		PreviewRepairStop     = aStop;
+		PreviewRepairRevision = aRevision;
+		RepairRange->setText(tr("Move to %1, lines %2–%3. The explanation is kept. Undo restores the previous destination.")
+								 .arg(QString::fromStdString(aRange.Path))
+								 .arg(aRange.First.Line + 1U)
+								 .arg(aRange.Last.Line + 1U));
+		RepairText->setPlainText(QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())));
+		RepairPreview->show();
+		ApplyRepair->setFocus();
+		reveal_focus(RepairPreview);
+	}
+	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 2; }
+	auto review_tour_editor::mixed_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
 	auto review_tour_editor::description_publication() const -> bool { return DescriptionEdit->isChecked(); }
 	void review_tour_editor::present_publication(const application::tour_publication_presentation& aProjection)
 	{
+		if (ShownRepairs != aProjection.Repairs) {
+			ShownRepairs               = aProjection.Repairs;
+			auto* const repairContents = static_cast<QScrollArea*>(RepairList)->widget();
+			while (auto* item = repairContents->layout()->takeAt(0)) {
+				if (item->widget()) {
+					item->widget()->hide();
+					item->widget()->deleteLater();
+				}
+				delete item;
+			}
+			for (const auto& repair : ShownRepairs) {
+				auto* const group        = new QWidget{ repairContents };
+				auto* const repairLayout = new QVBoxLayout{ group };
+				repairLayout->setContentsMargins(0, 0, 0, 8);
+				auto reason   = QString{ };
+				using problem = core::tour_destination_problem;
+				switch (repair.Problem) {
+				case problem::historical_exact:       reason = tr("Earlier head; these lines are byte-identical at the current head."); break;
+				case problem::historical_changed:     reason = tr("Earlier head; the source changed. Inspect and choose a destination yourself."); break;
+				case problem::historical_ambiguous:   reason = tr("Earlier head; the source mapping is ambiguous. Inspect and choose a destination yourself."); break;
+				case problem::historical_missing:     reason = tr("Earlier head; the source range is missing at the current head."); break;
+				case problem::historical_unavailable: reason = tr("Earlier head; an exact mapping inside a current diff hunk is unavailable. Keep this source or choose current lines."); break;
+				case problem::off_hunk:               reason = tr("Outside the current diff hunks, including their context lines. A pending off-hunk or file comment is not qualified for this destination."); break;
+				case problem::unchanged_file:         reason = tr("This file has no current diff destination. Choose a changed range or explicitly use compatibility comments."); break;
+				case problem::incompatible_body:      reason = tr("This explanation requires a line comment. Choose a current diff range."); break;
+				case problem::source_unavailable:     reason = tr("The exact source is unavailable. Inspect or choose an available destination."); break;
+				case problem::operation_unavailable:  reason = tr("A pending comment is not qualified for this destination. Keep preparing locally or use a qualified connection."); break;
+				case problem::none:                   break;
+				}
+				const auto  title = tr("Stop %1 “%2”").arg(repair.Number).arg(QString::fromStdString(repair.Title));
+				auto* const label = paragraph({ }, group);
+				label->setObjectName(QStringLiteral("tourRepairReason%1").arg(repair.Stop.value()));
+				label->setTextFormat(Qt::RichText);
+				label->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+				label->setText(QStringLiteral("<a href=\"stop\">%1</a><br/>%2").arg(title.toHtmlEscaped(), reason.toHtmlEscaped()));
+				label->setAccessibleName(title + QStringLiteral(". ") + reason);
+				connect(label, &QLabel::linkActivated, this, [this, stop = repair.Stop] {
+					go_to_stop(stop);
+					if (Outline->currentItem()) {
+						Outline->scrollToItem(Outline->currentItem());
+					}
+					reveal_focus(Title);
+				});
+				repairLayout->addWidget(label);
+				auto* const actions   = new QHBoxLayout;
+				const auto  addRepair = [&](const QString& aLabel, const QString& aName, tour_repair_action aAction) {
+					auto* const control = new quiet_push_button{ aLabel, group };
+					control->setObjectName(aName + QString::number(repair.Stop.value()));
+					control->setAccessibleName(aLabel + QStringLiteral(" — ") + title);
+					connect(control, &QPushButton::clicked, this, [this, stop = repair.Stop, aAction] { if (RepairDispatch) { RepairDispatch(stop, aAction); } });
+					actions->addWidget(control);
+				};
+				if (repair.Repin) {
+					addRepair(tr("Re-pin to current head"), QStringLiteral("tourRepin"), tour_repair_action::repin);
+				}
+				if (repair.Relocation) {
+					addRepair(tr("Move to nearest change…"), QStringLiteral("tourRelocate"), tour_repair_action::preview_relocation);
+				}
+				if (repair.FileComment) {
+					addRepair(tr("Publish as file comment"), QStringLiteral("tourFileComment"), tour_repair_action::file_comment);
+					repairLayout->addWidget(paragraph(tr("A standalone file comment is a separate visible write. Preview a mixed tour to keep the other stops in one review."), group));
+				}
+				actions->addStretch(1);
+				repairLayout->addLayout(actions);
+				repairContents->layout()->addWidget(group);
+			}
+		}
+		RepairList->setVisible(!ShownRepairs.empty() && aProjection.Markdown.empty());
+		if (!Shown.Draft || Shown.Draft->Revision != PreviewRepairRevision || aProjection.Stop) {
+			RepairPreview->hide();
+		}
 		using phase       = application::tour_publication_phase;
 		const auto status = QString::fromStdString(aProjection.Status);
 		PublicationPreview->set_body(aProjection.Markdown, "tour-publication");
 		// [[BPR-1593]]. What a prepared publication sends; until then the
 		// tour's own preview shows what GitHub will show.
 		PublicationPreview->setVisible(!aProjection.Markdown.empty());
+		if (Preview->parentWidget() == PublicationPanel) {
+			Preview->setVisible(aProjection.Markdown.empty());
+		}
 		// [[BPR-1782]]. As Compose review waits for GitHub: the panel says it,
 		// the status line steps aside, and nothing that would change what is
 		// being sent can be used meanwhile. Stop stays.
@@ -4678,6 +4814,7 @@ namespace bpr::qt {
 			PreviewPublish->show();
 			if (auto* const previewPage = Roadmap->widget(Roadmap->count() - 1); previewPage != nullptr && Preview->parentWidget() != previewPage) {
 				static_cast<QVBoxLayout*>(previewPage->layout())->addWidget(Preview, 1);
+				Preview->show();
 			}
 		} else {
 			auto* const left = static_cast<QVBoxLayout*>(PageLeft->layout());
@@ -4705,6 +4842,7 @@ namespace bpr::qt {
 			PageColumns->show();
 			PreviewPublish->hide();
 			static_cast<QVBoxLayout*>(PublicationPanel->layout())->insertWidget(1, Preview, 1);
+			Preview->setVisible(PublicationPreview->isHidden());
 			refresh_preview();
 			if (BriefOpen >= 0) {
 				Roadmap->setCurrentIndex(BriefOpen);

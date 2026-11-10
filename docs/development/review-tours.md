@@ -35,15 +35,62 @@ reconciles a possibly sent operation, and **Resume** requires a fresh preview.
 Use **Help > Export anonymized diagnostics…** to inspect the publication stages
 and classified failure without including your Problem, Solution or stop text.
 
+## Repairing a destination before publication
+
+**Preview** lists each stop that cannot join the review, with its number,
+title and reason. Select its linked title to open and scroll to that stop.
+
+- **Re-pin to current head** is available for an earlier revision only when
+  the exact Git mapping proves the selected bytes unchanged at the current
+  head and the whole range fits a current diff hunk. It keeps the explanation.
+  Changed, ambiguous, missing or unavailable source needs your own inspection
+  and **Use selected lines**; BPR does not choose a replacement for it.
+- **Move to nearest change…** previews the new line range and actual pinned
+  source text. **Apply destination** makes one ordinary edit; **Cancel** keeps
+  the original. The range can include the hunk's context: GitHub.com and the
+  observed GHES 3.20.8 course accept up to three context lines from a change.
+  A line four away is outside that hunk. BPR uses the provider's hunk bounds,
+  rather than guessing them from the painted comparison.
+- **Undo** and **Redo** restore the destination and update the blocker list.
+  Explanations with explicit references to line numbers that moved need
+  reaffirmation; other prose stays ready. The source preview expires if you
+  edit the draft before applying it.
+
+Repairing every blocker keeps **Keep single-review publication**: preview again
+and publish every stop in one COMMENT review. Previewing or repairing sends
+nothing.
+
+If you keep a historical or other incompatible destination, explicitly choose
+**Publish a mixed tour (non-atomic)**. Eligible stops go into one pending review;
+only the remainder become conversation comments opening with source permalinks.
+The review body lists the complete route, and Previous/Next crosses between both
+kinds. The preview names exactly which stops will be outside Files changed.
+Those conversation comments become visible before the final review submission,
+so interruption can leave a partial tour.
+
+**Publish with compatibility comments (non-atomic)** is the last explicit
+choice. It publishes the entire route as visible conversation comments.
+
+**Publish as file comment** appears only when the provider has exact supported
+file-operation facts for that source and scope. It is an ordinary undoable choice;
+then preview the mixed outcome explicitly. A standalone file comment is a separate
+visible write, with its own discussion identity, outside the pending review.
+General tour support, a painted file or a line never proves this capability.
+Unknown or denied operations leave the action unavailable. Current production
+providers keep these file facts Unknown pending separate live qualification;
+the positive recorded fixture is implementation evidence, not server enablement.
+
 ## Updating a published tour
 
 Reopening a tour reads it back from GitHub. If someone edited it on the
 website, you choose between your version and theirs. Removing a stop leaves
-its old comment and replies on GitHub.
+its old comment and replies on GitHub. Mixed tours keep their original review
+overview and both comment kinds through updates; the overview is changed last.
 
 > [!WARNING]
-> If a publish ends with an unknown result, choose **Resume** rather than
-> publishing again, or comments may be posted twice.
+> If publication ends with an unknown result, use **Check status**, then
+> preview the captured plan and explicitly **Resume**. Confirmed comments keep
+> their identities; an unresolved write is never repeated blindly.
 
 ## Writing assistance
 

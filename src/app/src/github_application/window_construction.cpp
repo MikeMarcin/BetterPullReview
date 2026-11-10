@@ -115,6 +115,7 @@ namespace bpr::app {
 				aCommand.Attention = current_tour_attention();
 				static_cast<void>(TourHost->execute({ .Command = std::move(aCommand) }));
 			} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
+		Window->tour_editor()->set_repair_dispatch([this](core::tour_stop_id aStop, qt::tour_repair_action aAction) { dispatch_tour_repair(aStop, aAction); });
 		// [[BPR-1781]]. Overview's Start tour: the published tour, imported
 		// as following it in Review needs, at its first stop.
 		Window->set_tour_start_dispatch([this] { start_published_tour(); });

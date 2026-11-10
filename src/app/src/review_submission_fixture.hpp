@@ -33,12 +33,13 @@ namespace bpr::app::detail {
 		std::optional<std::string>                          CheckRuns, CommitStatuses;
 		std::optional<std::string>                          MergeAssessment, ReviewRequests, BranchRules, BranchProtection, ReviewHistory, ConversationComments;
 		std::optional<std::string>                          AttendedCommentReview;
+		std::vector<application::staged_review_comment>     FileComments;
 		std::size_t                                         StagedWrites = 0, StagedCreates = 0, StagedSubmits = 0;
 		std::optional<application::review_mutation_failure> TourFactoryFailure;
 		int                                                 StagedBaselineStatus = 0;
 		std::size_t                                         StagedBaselineReads = 0U, StagedFaultAtRead = 0U;
 		bool                                                StagedMalformedBaseline = false, StagedLargeBaseline = false;
-		bool                                                StagedQualified = true, StagedConflict = false, StagedRejectDescription = false, StagedBlockNext = false, StagedBlocked = false;
+		bool                                                StagedFileQualified = false, StagedQualified = true, StagedConflict = false, StagedRejectDescription = false, StagedBlockNext = false, StagedBlocked = false;
 		std::vector<application::review_submission_request> Reviews;
 		bool                                                LoseNextResponse = false;
 		bool                                                RefuseBeforeSend = false;

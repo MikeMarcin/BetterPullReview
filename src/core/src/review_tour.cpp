@@ -203,14 +203,17 @@ namespace bpr::core {
 			const auto index = static_cast<std::size_t>(found - aTour.Stops.begin());
 			aSelected        = found->Id;
 			switch (aCommand.Kind) {
-			case tour_command_kind::edit_stop:
+			case tour_command_kind::edit_stop: {
 				if (aCommand.Value.Id != found->Id || aCommand.Value.Original != found->Original || aCommand.Value.Baseline != found->Baseline || aCommand.Value.Remote != found->Remote || aCommand.Value.Destination != found->Destination || aCommand.Value.Suggestion != found->Suggestion || (found->Remote && !found->Remote->Own)) {
 					return tour_refusal::identity;
 				}
+				const auto published    = found->Remote ? published_tour_destination(*found) : found->Destination;
 				*found                  = aCommand.Value;
+				found->Destination      = published;
 				found->Preparation      = tour_preparation::editing;
 				found->CompletionOrigin = tour_completion_origin::unspecified;
 				return tour_refusal::none;
+			}
 			case tour_command_kind::move: {
 				if (aCommand.Position >= aTour.Stops.size()) {
 					return tour_refusal::invalid_command;
@@ -364,6 +367,9 @@ namespace bpr::core {
 					aTour.ObservedHead = aCommand.Head;
 					// Authored Head and source never change merely because a new head was observed.
 					for (auto& stop : aTour.Stops) {
+						if (stop.Remote) {
+							stop.Destination = published_tour_destination(stop);
+						}
 						stop.ReaffirmedHead.reset();
 						stop.Preparation = tour_preparation::needs_attention;
 						stop.Mapping     = tour_mapping::unavailable;
@@ -382,6 +388,9 @@ namespace bpr::core {
 				aTour.Revision           = revision;
 				aTour.LastStopId         = highWater;
 				aTour.LastChatGeneration = chatHighWater;
+				if (std::ranges::find(aTour.Stops, aCommand.Stop, &tour_stop::Id) != aTour.Stops.end()) {
+					aSelected = aCommand.Stop;
+				}
 				return tour_refusal::none;
 			}
 			default: return edit_stop(aTour, aCommand, aSelected);
@@ -415,6 +424,16 @@ namespace bpr::core {
 	auto destination_of(const tour_source_range& aSource) -> tour_code_destination
 	{
 		return { aSource.Commit, aSource.Blob, aSource.Path, aSource.First.Side, aSource.First.Line, aSource.Last.Line };
+	}
+	auto published_tour_destination(const tour_stop& aStop) -> std::optional<tour_code_destination>
+	{
+		// [[BPR-1982]]. The old replacement receipt moved Mapped to Original
+		// and marked it exact, while an imported Destination could remain stale.
+		if (aStop.Remote && aStop.Original && !aStop.Mapped && aStop.Mapping == tour_mapping::exact_original) {
+			return destination_of(*aStop.Original);
+		}
+		return aStop.Destination ? aStop.Destination : aStop.Original ? std::optional{ destination_of(*aStop.Original) }
+																	  : std::nullopt;
 	}
 
 	auto valid(const tour_owner& aOwner) noexcept -> bool

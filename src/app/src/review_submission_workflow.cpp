@@ -876,7 +876,11 @@ namespace bpr::app {
 		Previewed  = false;
 		Publishing = false;
 		Attempted  = false;
-		Status     = "Publication authority changed. Refresh and prepare a new preview.";
+		AnchorFiles.clear();
+		DestinationFacts.reset();
+		AnchorHead          = { };
+		DestinationsChecked = false;
+		Status              = "Publication authority changed. Refresh and prepare a new preview.";
 		present();
 	}
 	void review_tour_publication_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, std::string aDescription, bool aQualified, application::insights_review_capture aInsights)
@@ -923,6 +927,25 @@ namespace bpr::app {
 		}
 		present();
 	}
+	void review_tour_publication_workflow::observe_anchors(core::git_commit_oid aHead, std::vector<core::tour_anchor_file> aFiles)
+	{
+		AnchorHead          = aHead;
+		AnchorFiles         = std::move(aFiles);
+		DestinationsChecked = true;
+		present();
+	}
+	auto review_tour_publication_workflow::file_comment_edit(const core::review_tour& aTour, core::tour_stop_id aId) const -> std::optional<core::tour_command>
+	{
+		if (!DestinationFacts || DestinationFacts->Owner != aTour.Owner || DestinationFacts->Draft != aTour.Id || DestinationFacts->Revision != aTour.Revision || DestinationFacts->Head != aTour.ObservedHead.value_or(aTour.Head) || AnchorHead != DestinationFacts->Head || aTour.Remote || aTour.ReadOnly) {
+			return { };
+		}
+		const auto found = std::ranges::find(aTour.Stops, aId, &core::tour_stop::Id);
+		if (found == aTour.Stops.end() || found->FileCommentRequested) {
+			return { };
+		}
+		const auto observed = tour_operation_observation(aTour, *found, false, Qualified, DestinationFacts->Observations);
+		return core::prepare_tour_file_comment(aTour, aId, observed, AnchorFiles);
+	}
 	void review_tour_publication_workflow::prepare()
 	{
 		application::record_tour_publication(Log.get(), core::tour_publication_stage::preview, Plan ? &*Plan : nullptr, nullptr, true);
@@ -949,8 +972,24 @@ namespace bpr::app {
 			present();
 			return;
 		}
+		const bool factsCurrent = DestinationFacts && DestinationFacts->Owner == Draft.Draft->Owner && DestinationFacts->Draft == Draft.Draft->Id && DestinationFacts->Revision == Draft.Draft->Revision && DestinationFacts->Head == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head);
+		const bool needsFacts   = std::ranges::any_of(Draft.Draft->Stops, [&](const auto& aStop) {
+			if (Draft.Draft->Remote && !core::needs_tour_destination(aStop)) {
+				return false;
+			}
+			const auto observation = tour_operation_observation(*Draft.Draft, aStop, false, Qualified, { });
+			return core::plan_tour_stop_repair(*Draft.Draft, aStop, observation, AnchorFiles).Problem == core::tour_destination_problem::off_hunk;
+		});
+		if (!factsCurrent && needsFacts) {
+			Context   = Host->observe_tour_destinations(*Draft.Draft);
+			Previewed = false;
+			Status    = "Checking exact destination operations. No comments are sent.";
+			present();
+			return;
+		}
 		Attempted           = false;
-		const auto prepared = prepare_tour_plan(*Draft.Draft, *Binding, Description, { Editor.compatibility_publication(), Editor.description_publication() }, Qualified);
+		const auto prepared = prepare_tour_plan(*Draft.Draft, *Binding, Description, { Editor.compatibility_publication(), Editor.description_publication(), Editor.mixed_publication() }, Qualified, AnchorHead == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_anchor_file>{ AnchorFiles } : std::span<const core::tour_anchor_file>{ }, factsCurrent ? std::span<const core::tour_destination_observation>{ DestinationFacts->Observations } : std::span<const core::tour_destination_observation>{ });
+		DestinationsChecked = true;
 		Plan                = prepared.Plan;
 		Previewed           = Plan.has_value();
 		if (Plan) {
@@ -999,7 +1038,7 @@ namespace bpr::app {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
-		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || Plan->Compatibility != Editor.compatibility_publication() || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
+		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || Plan->Compatibility != Editor.compatibility_publication() || ((!Plan->Update || !Plan->Stops.empty()) && Plan->Mixed != Editor.mixed_publication()) || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
@@ -1038,6 +1077,16 @@ namespace bpr::app {
 		}
 		Context.reset();
 		const auto wasPublishing = std::exchange(Publishing, false);
+		if (const auto* facts = std::get_if<application::tour_destination_observations>(&aTerminal.Outcome)) {
+			if (*facts && Draft.Draft && (*facts)->Owner == Draft.Draft->Owner && (*facts)->Draft == Draft.Draft->Id && (*facts)->Revision == Draft.Draft->Revision && (*facts)->Head == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head)) {
+				DestinationFacts = **facts;
+				prepare();
+			} else {
+				Status = "Destination facts changed or are unavailable. Preview again; your draft is kept.";
+				present();
+			}
+			return;
+		}
 		if (const auto* discovered = std::get_if<application::staged_review_discovery>(&aTerminal.Outcome)) {
 			Ready = discovered->has_value();
 			if (!Ready) {
@@ -1081,10 +1130,13 @@ namespace bpr::app {
 				Status = "Tour published; description update needs attention. The tour will not be posted again.";
 			} else {
 				switch (State) {
-				case state::published:             Status = Plan && Plan->Compatibility ? "Published as compatibility comments. All returned links are wired." : "Published: one COMMENT review with verified tour links."; break;
+				case state::published:
+					Status = Plan && Plan->Mixed ? "Published: one COMMENT review and the previewed standalone comments, with verified tour links." : Plan && Plan->Compatibility ? "Published as compatibility comments. All returned links are wired."
+																																												  : "Published: one COMMENT review with verified tour links.";
+					break;
 				case state::ready:                 Status = "Prepared locally. Preview the captured plan before Resume."; break;
 				case state::staged:                Status = "Staged on GitHub (visible to you). Preview the captured plan before Resume."; break;
-				case state::partial:               Status = "Partially published compatibility comments. Completed identities are retained. Preview before Resume."; break;
+				case state::partial:               Status = "Partially published tour. Completed identities are retained. Preview before Resume."; break;
 				case state::outcome_unknown:       Status = "Outcome unknown. Check publication status; no write will be repeated blindly."; break;
 				case state::conflict:              Status = "Publication conflict. The pending review, body, actor or head changed. No further writes are authorized."; break;
 				case state::description_attention: Status = "Tour published; description update needs attention."; break;
@@ -1109,6 +1161,14 @@ namespace bpr::app {
 	auto review_tour_publication_workflow::presentation() const -> application::tour_publication_presentation
 	{
 		application::tour_publication_presentation view{ .Status = Status };
+		if (DestinationsChecked && Draft.Draft && !Draft.Draft->Remote && !Context) {
+			auto observations = std::vector<core::tour_destination_observation>{ };
+			for (const auto& stop : Draft.Draft->Stops) {
+				const auto source = core::publication_source(stop);
+				observations.push_back(source ? tour_operation_observation(*Draft.Draft, stop, false, Qualified, DestinationFacts && DestinationFacts->Owner == Draft.Draft->Owner && DestinationFacts->Draft == Draft.Draft->Id && DestinationFacts->Revision == Draft.Draft->Revision && DestinationFacts->Head == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_destination_observation>{ DestinationFacts->Observations } : std::span<const core::tour_destination_observation>{ }) : core::tour_destination_observation{ });
+			}
+			view.Repairs = core::tour_destination_repairs(*Draft.Draft, observations, AnchorHead == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_anchor_file>{ AnchorFiles } : std::span<const core::tour_anchor_file>{ });
+		}
 		if (Plan) {
 			view.Markdown = tour_plan_markdown(*Plan);
 			if (Record) {

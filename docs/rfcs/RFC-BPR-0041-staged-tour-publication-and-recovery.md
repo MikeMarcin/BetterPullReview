@@ -66,7 +66,49 @@ Staging may display a brief ordinary warning in the pending summary that prepara
 
 The normal target remains a staged single review, including qualified file-level fallbacks. A historical/untouched-file stop or unsupported staging primitive can require standalone normal PR/review comments. Detect the mismatch before the first visible write when possible.
 
-Offer two explicit outcomes: **Keep single-review publication** (resolve/remove/relocate the incompatible draft destinations deliberately), or **Publish with compatibility comments** (preview the non-atomic operation sequence). Do not silently select the latter. In compatibility mode, create the individual comments with valid source/index-or-PR fallback navigation, retain every returned identity, wire remaining links, and publish/update the final index only after its destinations are known. Until complete, partial publication is stated as partial. Never delete already published discussion as an automatic rollback.
+Owner amendment `tour-destination-repairs-r1` (2026-11-09, [[BPR-1979]])
+adds repair tooling and a third explicit outcome. The author sees them in this
+order; none is selected as a fallback after a write:
+
+1. **Keep single-review publication.** Name every blocking stop, its reason
+   and available fixes. Offer exact historical re-pin only from byte-identical
+   current-head mapping, or preview the nearest provider-commentable hunk range
+   and its actual source before an ordinary undoable relocation. Preserve prose
+   and original source; moved explicit line citations need reaffirmation.
+2. **Publish a mixed tour.** Create one pending review for qualified native
+   destinations, then create permalink conversation comments only for the
+   remaining stops. Bind all returned identities, patch Previous/Next across
+   kinds in the original route order, and submit the exact review once as
+   COMMENT. Its body is the complete overview, linking review comments through
+   `files#r<id>` and conversation stops through `#issuecomment-<id>`. The
+   preview names every stop outside Files changed and the non-atomic visible
+   sequence before the first write. At least one pending member is required.
+3. **Publish with compatibility comments.** Publish the entire route as
+   individual visible conversation comments, then its index/navigation. Retain
+   every returned identity and require the explicit non-atomic preview.
+
+**Publish as file comment** is an explicit ordinary undoable destination choice
+only with exact source/scope operation evidence. A qualified standalone file
+comment is a separate visible write in the mixed sequence, with its own returned
+review/comment identity and journal step; it never joins or contaminates the
+owned pending review. The preview states this distinction. A pending file thread
+requires its separate qualified catalog operation; a standalone success cannot
+qualify it. Unknown, denied, rate-limited and indeterminate facts grant neither
+route. Production providers currently report these file-operation facts as
+Unknown: the recorded positive fixture proves the composition and protocol,
+not live qualification. The provider-owned `tour_destinations` read is the seam
+for separately qualified exact operation facts; callers cannot supply a cache
+or use general tour qualification to enable file writes.
+
+The immutable plan retains route order and each stop's representation. Its
+journal retains confirmed pending members first, then separate visible
+identities, with separate complete pre-write baselines for reviews, conversation
+comments and file comments. Numeric IDs from different kinds are not
+interchangeable. Reconciliation verifies each collection independently and
+rebuilds the overview in route order. Until complete, report partial publication;
+never delete already published discussion as automatic rollback. Restart remains
+read-only and an explicit preview/Resume authorizes only remaining steps. This
+amendment does not convert an already-published compatibility tour.
 
 No scratch comment is created/deleted merely to discover write capability on a real company PR. Use recorded contracts and a designated safe fixture repository for qualification. An actual intended operation's definitive unsupported response may be evidence, but an indeterminate write, generic 422, permission denial or rate limit cannot authorize a second representation.
 
@@ -116,7 +158,7 @@ normative; no capability is enabled by this documentation amendment.
 - **AC41-03:** Existing/contaminated pending reviews, head/actor changes and external early submission are handled without unauthorized inclusion, deletion or duplication.
 - **AC41-04:** Native HTTPS and admitted `gh api` production ports share fixture-verified normalized semantics and preserve credential/authority boundaries; live host/transport operations remain unavailable until separately qualified.
 - **AC41-05:** Kill/timeout tests at every durable step prevent blind reposts and recover exact known pending/submitted identities; unresolved outcomes stay unresolved.
-- **AC41-06:** Unqualified pending file-subject staging is refused; fixture-verified unbatchable destinations require an explicit compatibility plan and never an atomicity claim. Enabling any exact operation requires separate live qualification.
+- **AC41-06:** Unqualified pending file-subject staging is refused; fixture-verified unbatchable destinations require an explicit mixed or compatibility plan and never an atomicity claim. Enabling any exact operation requires separate live qualification.
 - **AC41-07:** Description/backlink failure is separate from tour success; retries do not recreate published comments.
 - **AC41-08:** Pagination, rate limits, denied/unsupported operations, wire budgets, redirects, ambiguous responses and cancellation are exercised on real production ports with fixtures.
 - **AC41-09:** Final Preview/Publish and Resume flows are composed in the running application and remote writes occur only after their explicit author commands.

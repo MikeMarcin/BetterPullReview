@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_PROJECTION_HPP
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/review_tour_destination.hpp"
+#include "bpr/core/review_tour_repair.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -42,9 +43,10 @@ namespace bpr::application {
 													   attention };
 	struct tour_publication_presentation
 	{
-		std::string            Status = "Saved locally. Prepare a publication preview when the tour is ready.";
-		std::string            Markdown;
-		tour_publication_phase Phase = tour_publication_phase::idle;
+		std::string                                Status = "Saved locally. Prepare a publication preview when the tour is ready.";
+		std::string                                Markdown;
+		std::vector<core::tour_destination_repair> Repairs;
+		tour_publication_phase                     Phase = tour_publication_phase::idle;
 		/// While publishing: what the captured plan sends, in order.
 		std::vector<std::string> Stages;
 		/// Once published: where GitHub shows the tour.

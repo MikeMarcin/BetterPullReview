@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1979",
+    "BPR-1980"
+  ],
+  "reserve_for": "local-main-tour-repairs",
+  "purpose": "Import repairable tour destinations and prerequisite deterministic core policy",
+  "created": "2026-11-10T01:25:44.344152+00:00",
+  "base": "cf9413b9f76dd34e299bc46518a52127b18b175c"
+}

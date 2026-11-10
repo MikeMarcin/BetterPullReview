@@ -3,9 +3,16 @@
 #include <algorithm>
 namespace bpr::application {
 	namespace {
-		auto remote(const staged_review_comment& aComment, bool aCompatibility) -> core::tour_remote_binding
+		auto remote(const staged_review_comment& aComment, bool aCompatibility, bool aFile = false) -> core::tour_remote_binding
 		{
-			return { .Kind = aCompatibility ? core::tour_remote_kind::conversation_comment : core::tour_remote_kind::line_comment, .DatabaseId = aComment.Id, .Entity = aComment.NodeId, .Actor = aComment.Actor.Login, .WebUrl = aComment.WebUrl, .Review = std::to_string(aComment.Review.value()), .Own = true };
+			return { .Kind       = aCompatibility ? core::tour_remote_kind::conversation_comment : aFile ? core::tour_remote_kind::file_comment
+																										 : core::tour_remote_kind::line_comment,
+					 .DatabaseId = aComment.Id,
+					 .Entity     = aComment.NodeId,
+					 .Actor      = aComment.Actor.Login,
+					 .WebUrl     = aComment.WebUrl,
+					 .Review     = std::to_string(aComment.Review.value()),
+					 .Own        = true };
 		}
 		auto body_request(const staged_review_plan& aPlan, const core::tour_body_update& aEdit) -> staged_review_request
 		{
@@ -28,13 +35,13 @@ namespace bpr::application {
 		std::vector<core::tour_created_destination> created;
 		for (std::size_t i = 0; i < aRecord.Comments.size(); ++i) {
 			// Always plan from the frozen initial body, even after navigation has been patched.
-			const auto&                                 stop = aRecord.Plan.Stops[i];
+			const auto&                                 stop = staged_stop(aRecord.Plan, i);
 			const std::vector<core::tour_markdown_link> nav{ { "Tour overview", aRecord.Plan.Update->Remote->WebUrl } };
-			const auto                                  body = core::render_tour_stop(stop.Title, i + 1, stop.Narrative, nav, stop.SourceLink);
+			const auto                                  body = core::render_tour_stop(stop.Title, staged_stop_order(aRecord.Plan)[i] + 1, stop.Narrative, nav, stop.SourceLink);
 			if (!body) {
 				return { };
 			}
-			created.push_back({ stop.Id, remote(aRecord.Comments[i], aRecord.Plan.Compatibility), *body });
+			created.push_back({ stop.Id, remote(aRecord.Comments[i], aRecord.Plan.Compatibility || !aRecord.Comments[i].Review.value(), staged_stop(aRecord.Plan, i).Representation == core::tour_representation::file_permalink), *body });
 		}
 		return core::plan_tour_update(*aRecord.Plan.Update, created);
 	}
@@ -61,12 +68,12 @@ namespace bpr::application {
 		}
 		staged_review_request result{ .Binding = *aRecord.Plan.Submission.LiveBinding };
 		if (aRecord.Patched < aRecord.Comments.size()) {
-			result.Operation = staged_review_operation::update_issue_comment;
+			result.Operation = aRecord.Plan.Mixed && staged_stop(aRecord.Plan, aRecord.Patched).Representation == core::tour_representation::file_permalink ? staged_review_operation::update_comment : staged_review_operation::update_issue_comment;
 			result.Comment   = aRecord.Comments[aRecord.Patched].Id;
-			const auto id    = aRecord.Plan.Stops[aRecord.Patched].Id;
+			const auto id    = staged_stop(aRecord.Plan, aRecord.Patched).Id;
 			const auto found = std::ranges::find(aRecord.Plan.Update->Stops, id, &core::tour_stop::Id);
 			result.Body      = bodies->StopBodies[static_cast<std::size_t>(found - aRecord.Plan.Update->Stops.begin())];
-			if (!aRecord.Plan.Compatibility) {
+			if (!aRecord.Plan.Compatibility && (!aRecord.Plan.Mixed || staged_stop(aRecord.Plan, aRecord.Patched).Representation == core::tour_representation::native_line)) {
 				// [[BPR-1368]]. Added stops are edited before their review is
 				// submitted, while GitHub's REST edit answers 404.
 				return staged_pending_edit(aRecord, std::move(result.Body));
@@ -134,7 +141,7 @@ namespace bpr::application {
 			const auto& stop    = aRecord.Plan.Stops[i];
 			const auto& who     = aRecord.Plan.Submission.LiveBinding->ActingIdentity;
 			const auto  found   = std::ranges::find(aRecord.Plan.Update->Stops, stop.Id, &core::tour_stop::Id);
-			const auto  initial = core::render_tour_stop(stop.Title, i + 1, stop.Narrative, std::vector<core::tour_markdown_link>{ { "Tour overview", aRecord.Plan.Update->Remote->WebUrl } }, stop.SourceLink);
+			const auto  initial = core::render_tour_stop(stop.Title, staged_stop_order(aRecord.Plan)[i] + 1, stop.Narrative, std::vector<core::tour_markdown_link>{ { "Tour overview", aRecord.Plan.Update->Remote->WebUrl } }, stop.SourceLink);
 			auto        source  = stop.Source;
 			source.Blob.reset();
 			if (!c.Id || c.NodeId.empty() || c.WebUrl.empty() || c.Reply || c.Actor != staged_review_actor{ who.DatabaseId, who.NodeId, who.Login } || std::ranges::find(ids, c.Id) != ids.end() || found == aRecord.Plan.Update->Stops.end() || !initial || c.Body != (i < aRecord.Patched ? bodies->StopBodies[static_cast<std::size_t>(found - aRecord.Plan.Update->Stops.begin())] : *initial) || (aRecord.Plan.Compatibility ? c.Source.has_value() || c.Review.value() != 0 : !aRecord.Review || c.Review != aRecord.Review->Id || c.Source != std::optional{ source })) {
@@ -164,12 +171,11 @@ namespace bpr::application {
 					if (stop.Remote) {
 						stop.Body += "\n\nReplaces [original discussion](" + stop.Remote->WebUrl + ").";
 					}
-					stop.Remote = remote(aRecord.Comments[static_cast<std::size_t>(created - aRecord.Plan.Stops.begin())], aRecord.Plan.Compatibility);
-					if (stop.Mapped) {
-						stop.Original = stop.Mapped;
-						stop.Mapped.reset();
-						stop.Mapping = core::tour_mapping::exact_original;
-					}
+					const auto order    = staged_stop_order(aRecord.Plan);
+					const auto ordinal  = static_cast<std::size_t>(created - aRecord.Plan.Stops.begin());
+					const auto position = static_cast<std::size_t>(std::ranges::find(order, ordinal) - order.begin());
+					stop.Remote         = remote(aRecord.Comments[position], aRecord.Plan.Compatibility || !aRecord.Comments[position].Review.value(), staged_stop(aRecord.Plan, position).Representation == core::tour_representation::file_permalink);
+					stop.Destination    = created->Source;
 				}
 				stop.Baseline = core::tour_field_baseline{ .Raw = bodies->StopBodies[i], .RemoteEntity = stop.Remote->Entity };
 			}
@@ -182,8 +188,10 @@ namespace bpr::application {
 			result.Remote        = aRecord.Index ? remote(*aRecord.Index, true) : core::tour_remote_binding{ .Kind = core::tour_remote_kind::review, .DatabaseId = aRecord.Review->Id.value(), .Entity = aRecord.Review->NodeId, .Actor = aRecord.Review->Actor.Login, .WebUrl = aRecord.Review->WebUrl, .Own = true };
 			result.IndexBaseline = core::tour_field_baseline{ .Raw = aRecord.Index ? aRecord.Index->Body : aRecord.Review->Body, .RemoteEntity = result.Remote->Entity };
 			for (std::size_t i = 0; i < result.Stops.size(); ++i) {
-				result.Stops[i].Remote   = remote(aRecord.Comments[i], aRecord.Plan.Compatibility);
-				result.Stops[i].Baseline = core::tour_field_baseline{ .Raw = aRecord.Comments[i].Body, .RemoteEntity = aRecord.Comments[i].NodeId };
+				const auto ordinal                = staged_stop_order(aRecord.Plan)[i];
+				result.Stops[ordinal].Remote      = remote(aRecord.Comments[i], aRecord.Plan.Compatibility || !aRecord.Comments[i].Review.value(), staged_stop(aRecord.Plan, i).Representation == core::tour_representation::file_permalink);
+				result.Stops[ordinal].Destination = staged_stop(aRecord.Plan, i).Source;
+				result.Stops[ordinal].Baseline    = core::tour_field_baseline{ .Raw = aRecord.Comments[i].Body, .RemoteEntity = aRecord.Comments[i].NodeId };
 			}
 		}
 		if (aRecord.Plan.Description && aRecord.DescriptionDone) {

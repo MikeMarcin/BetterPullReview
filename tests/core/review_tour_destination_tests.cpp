@@ -147,6 +147,22 @@ int main()
 	std::vector<core::tour_destination_plan> decisions{ { representation::native_line, true, false, false, false } };
 	using readiness = core::tour_publication_readiness;
 	expect(core::assess_tour_publication(draft, decisions, false) == readiness::single_review, "core permits only ready qualified native plan");
+
+	{
+		auto mixed = draft;
+		auto stop  = mixed.Stops.front();
+		stop.Id    = core::tour_stop_id{ 2 };
+		mixed.Stops.push_back(stop);
+		mixed.LastStopId = 2;
+		std::vector<core::tour_destination_plan> split{ { representation::native_line, true, false, false, false }, { representation::conversation_permalink, false, true, false, false } };
+		expect(core::assess_tour_publication(mixed, split, false) == readiness::compatibility_choice, "mixed remains an explicit outcome");
+		expect(core::assess_tour_publication(mixed, split, false, true) == readiness::mixed_comments, "exact qualified mixed destination set admitted");
+		expect(core::assess_tour_publication(mixed, split, true, true) == readiness::unavailable, "conflicting explicit outcomes refused");
+		split.back().NeedsQualification = true;
+		expect(core::assess_tour_publication(mixed, split, false, true) == readiness::unavailable, "mixed cannot manufacture unknown support");
+		split.back() = { representation::file_permalink, false, true, false, false };
+		expect(core::assess_tour_publication(mixed, split, false, true) == readiness::mixed_comments, "standalone file remains explicitly outside pending membership");
+	}
 	decisions[0] = { representation::conversation_permalink, false, true, false, false };
 	expect(core::assess_tour_publication(draft, decisions, false) == readiness::compatibility_choice, "visible fallback requires explicit choice");
 	expect(core::assess_tour_publication(draft, decisions, true) == readiness::compatibility_comments, "explicit qualified conversation plan permitted");
