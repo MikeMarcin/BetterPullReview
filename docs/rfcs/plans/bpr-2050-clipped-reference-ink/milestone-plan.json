@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2050-clipped-reference-ink",
+  "scope": {
+    "issues": [
+      "BPR-2050"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "clip-exact-reference-mask",
+      "outcome": "Expected gutter spans come from visible translated reference ink, preserving the existing one-pixel geometry and classifier contracts.",
+      "work": [
+        {
+          "issue": "BPR-2050",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Paired55frames bind sparse reference rows to the bbox-clamp false negative; only the owning testTU retains/translates/clips exact reference mask rows.",
+        "Same-code sparse/dense/missing/fractional/shift controls plus one corrected Linux3-scale block and exact bounded Mac scaling proof pass under original contracts.",
+        "Owned source/workflow lands main, protected producer inputs and original failure evidence remain exact, commands/writers/leases reconciled; successor qualification stays separate."
+      ],
+      "boundary": "Root release55-sparse-reference-mask-r1 mandate. Only tests/adapters_qt/diff_workbench_tests.cpp and own workflow, no classifier/threshold/tolerance/production/config change or foreign source intake."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
