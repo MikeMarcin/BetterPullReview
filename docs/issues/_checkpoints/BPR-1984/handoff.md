@@ -59,3 +59,41 @@ Local external packet: /Users/jaeger/.codex/release-runs/v0.4.2-20261104/impleme
 Next: reconcile existing archive task/receipt FIRST (never redispatch),
 collect actual archive seal/quiescence, then approved normal build-only task.
 OriginalLinux49/BPR1978 remains unresolved; no native qualification credit.
+
+## Measured source ready — current frontier supersedes archive phase above
+
+Normal exact4eab selected Release build0/420.80s/configure0/61.71s; actual
+three90s rows captured. Coordinator-approved contained variants differ ONLY
+normal network prefix+labels. File/mixed/repairs each contained CTest8, real
+childexit1/no pass/no skip; original normal courses all CTest0 with exact
+markers and actual JUnit run/pass, at10.056/7.817/8.413guarded seconds.
+Original failures and positives remain unmodified evidence.
+
+A separate current4eab archive preserves142 exact source/header/selected
+EXE/object/PDB/maps/recipe/ownedlib/DLL inputs,1,112,270,300bytes. Failure-only
+temporary helper patch87f9efb2cb2fd8ef3195ee655ff4b10b8c82716da1ebd949de2915d554147e98
+then names parent-owner-private for each contained course. Canonical
+resolution completed; make_storage_root_owner_private(parent) returnedfalse
+and child-root creation was not reached. No DOS/Win32 cause is inferred.
+
+Diagnosticbuild0/112.14s; diagnosticthree CTest8 at0.587/0.332/0.326s. Exact
+originalheader12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d
+is restored; normalrestorationbuild0/93.92s, source4eab clean, criticalcache
+flags/graph/protectedproducer exact and every owned forest empty. Normal
+source-dirty About/build artifact deltas are retained without claiming all
+libs/images unchanged. No extra original positive is run after restoration.
+
+Only the three registry values+evidencecomment change permanently, using
+existing private-test-root-refused taxonomy. CMake and all other pins remain
+byte-identical. Strict/adversarial/source, maintained registry suite, both
+documentation commands and diff checks pass. On the ACTUAL923row native
+Windows graph, the exact public registration gate rejects all3 old unmeasured
+pins and rejects none after these measured entries. This is the scoped
+registration relation, not a full native qualification/manifest PASS.
+
+Only root-owned1985/86 test fixes+metadata from exact29142852d0136f625ea8bde7164547216bb0d259
+are reconciled; product cutoff5fd and NEXT1987 preserved. No later external
+product main was ingested. Source integration is ready; remaining actions
+are exact task/owned leaked-temp cleanup, nativeidle proof and final Done
+bookkeeping. PC lease remains with this leaf until that handback.
+OriginalLinux49/BPR1978 and final common-source release gates remain open.
