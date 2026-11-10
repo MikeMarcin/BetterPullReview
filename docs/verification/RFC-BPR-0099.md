@@ -50,7 +50,7 @@ are nongating; nothing below is a timing claim.
 | AC06 | `application_review_tour_publication_unsupported`: on an unqualified connection Preview shows "This connection cannot publish this tour", "Stops 1 and 2 need review comments on their lines, and this connection cannot create them.", "Nothing was sent.", Move those stops and Use another connection, with zero writes and no status line | Pass |
 | AC07 | `qt_workbench_window_scale_{100,125,200}` (Overview's Tour tab): Problem renders as Markdown, the row has "item.cpp, lines 4–6" and its first sentence, the row opens its stop in Review's Tour tab, and the state line and actions equal the head's. `core_tour_publication_head`: rows carry one-based lines and the first sentence | Pass |
 | AC08 | Live mixed tour on MikeMarcin/BPR-Test | Pending: see [AC08](#ac08-the-live-course) |
-| AC09 | The owner's look at the Tour tab, the running and stopped panel and Overview on a frozen build | Pending: owner-attended |
+| AC09 | The owner's look at the Tour tab, the running and stopped panel and Overview on a frozen build | Pending: owner-attended, session `5127270e92b1b77ceae8f9df8356c1f6` prepared (frozen build of `bce0d0eba`; the running and stopped panel as renders of the candidate's own test, since a fixture build cannot publish) |
 
 ## AC08: the live course
 
@@ -90,6 +90,12 @@ All on the candidate in `build/dev` (macOS, Debug, tests on):
 never treats loaded code as pending-operation support" on the candidate and on
 `60d427a08` alike (the text it looks for is not in the editor's preview on
 either). It is a baseline failure, not this milestone's.
+
+`bce0d0eba` then kept the tour page from scrolling as a whole and took the
+route's scroll area out of the keyboard focus order (a render showed both);
+the Qt tour tests, the click-scroll test, the composition runs, the
+`stop`, `mixed`, `repairs` and `native` publication courses and
+`qt_workbench_window_scale_100` passed again on it (16 tests).
 
 Earlier runs found and fixed: the head's first test draft that was already
 publishable; a route that, in its own scroll area, scrolled sideways at a large
