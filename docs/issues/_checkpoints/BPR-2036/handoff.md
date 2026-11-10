@@ -55,14 +55,10 @@ passes with the actual MASK-managed global implement-rfc scripts explicitly
 on PYTHONPATH. Exact helper hashes and this context are external, with no
 surrogate helper, gate relaxation or source patch.
 
-PENDING: a native lease after root's running full53 Mac/Windows qualification.
-No native build or public course has run for this candidate. Run the existing
-owning target/original application_review_tour_cold_import_public_path with
-unchanged90s bound plus the existing small core_review_tour_destination control
-that explicitly proves source availability grants no pending batch support.
-Retain original53 as old-oracle negative; any new functional failure remains
-real and is diagnosed before acceptance. No blind retry or timing waiver.
-BPR-2036 remains In Progress until actual focused verification and closeout.
+The initial native wait is resolved by the coordinator's explicit Mac lease.
+No new production source, test seam, route, gesture or timeout change follows
+that lease. The actual proof is recorded below; the first static-only handoff
+and its pending disposition remain external history, not a runtime claim.
 
 External evidence:
 /Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer53-cold-tour-import-r1/.
@@ -71,10 +67,59 @@ source/patch seal, exact static compilation context and gate results. Root
 owns native53 producers/PC and release sequencing. No producer source/cache,
 PC, live desktop, authenticated profile or foreign assets are touched.
 
-## Ownership and next action
+## Actual focused native proof
 
-Static commands are terminal. Prepare/land only the owned correction and
-tracker, preserving canonical high water/foreign work; return main writer
-promptly for the parallel implementer. Await the root-owned native lease,
-then complete the focused proof/Done documentation. No release approval or
-final qualification credit is supplied by static analysis alone.
+Exactly one candidate TU compiles11.689seconds with the immutable normal53
+Release command: all optimization, feature, Werror, hardening, SDK and source-
+fixture definitions stay; only the input TU and private output object change.
+The real normal53 link command replaces only that TU object and private output
+image, reusing all other frozen production/library inputs. No producer CMake
+configure/build, object replacement or cache write occurs. Private link0.581s.
+
+One changed-EXE-only projection runs the original cold-import row, under its
+original network-deny wrapper, offscreen environment, fixture arguments, cwd,
+all predicates/properties and90second timeout. It passes7.790180seconds with
+the anchored review-tour-cold-import marker. The unchanged actual normal53
+core_review_tour_destination passes0.0822465seconds, including its explicit
+source-availability-grants-no-pending-support control. Its normal global1500s
+watchdog is made explicit in the private projection. Actual graph comparison
+checks every runtime property and command; only the cold child EXE changes.
+Total2/2pass7.88seconds, zero skipped, one invocation per course. No retry.
+
+The corrected course reaches every formerly unreached canonical historical
+link, exact source/navigation, Unicode/CRLF/raw preservation, zero inference/
+remote writes, Seen-ledger isolation and durable restart assertion. The old
+frozen53 failure remains the obsolete-copy negative; the existing core control
+retains the negative operation-evidence boundary. No assertion is waived.
+
+All111 protected source/build metadata/original object/EXE/library input
+SHA-256 values match before/after. Protected R remains exactac49 and clean;
+candidate TU SHA04ace3a2875a27afd56d11ea6182773e895a233c2fb4854afddac7a43fb6d0ae
+is unchanged. Private EXE SHA82fe32e74bd0e606b003b484ba9b52946a716600c9b1d170fee4acf286ba93be;
+private object SHAc8df38dcaf3ae51dfb33b1b7269a3c3dd00ec63697ae7deea6ca0e90d273440a.
+Exact raw commands/input seal, original/projected graphs, before/after receipt,
+XML and verified result are in external native-proof-r1. This is focused Mac
+engineering proof; final shared-cohort platform qualification remains separate.
+
+## Integration and ownership
+
+Own source/checkpoint43b1acd20b9bc51262ea53ac080465e4977ea1f6 normally lands
+main as06e87366c873d0bedeff920b104a286af567ffef and its remote lookup matches.
+Only owned plan/claim/test/checkpoint commits are cherry-picked: no frozen
+private allocation/version/cohort ancestors or later external product enter
+main. Canonical2036allocation/counterhighwater and foreign attachments remain.
+
+All native compile/link/course commands are terminal; no server or overlay
+exists. Root receives the Mac lease immediately after actual proof, before
+this documentation closeout; the Windows implementer retains PC ownership.
+Main-writer ownership is coordinated separately for the short Done/proof-only
+integration. No further C++ changes or reruns are required for this slice.
+External final handoff binds the exact final metadata/main commit, clean
+tracked state and native command quiescence. No final release approval or
+other-platform qualification is claimed.
+
+During proof, the parallel approved2037 allocation advanced shared historical
+high water to NEXT2038. The first finish/docs invocation correctly refuses this
+isolated branch's stale NEXT2037. Only the canonical counter value is copied
+forward; no2037 or external product source is imported. Final metadata preserves
+NEXT2038 and retains that refusal as bookkeeping evidence.
