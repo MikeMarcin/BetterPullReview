@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1987"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Diagnose and correct reopened native tour authoritative source context failure from frozen Mac build51",
+  "created": "2026-11-10T06:20:45.490320+00:00",
+  "base": "904f16f82e759deaf0170c52868a73d00c6c82f3"
+}

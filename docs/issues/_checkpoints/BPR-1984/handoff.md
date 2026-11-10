@@ -1,99 +1,117 @@
-# BPR-1984 Windows tour containment — current frontier
+# BPR-1984 Windows tour containment — final handoff
 
-Root mandate frozen-tour-windows-containment-r1. Source owner
-/root/windows_native_diagnosis. Actual allocation6b9000a22d23029f854dc655b37c267d302ed3e1,
-NEXT1985; private branchcodex/bpr1984-windows-tour-containment.
-Final1983 main4eab682639a399243ffb3dc921716b434e6f8be2 is the exact native
-baseline. No later external product main is accepted.
+Mandate frozen-tour-windows-containment-r1 and coordinator-approved failure-
+only diagnostic amendment, 2026-11-09. Owner/root/windows_native_diagnosis.
+Actual allocation6b9000a22d23029f854dc655b37c267d302ed3e1; final NEXT1987
+preserves1985/86 and every reservation. Private branch
+codex/bpr1984-windows-tour-containment. No activeBPR1932 mandate resumes.
 
-Scope: application_review_tour_publication_file/mixed/repairs only, normal
-owning target and sandbox dependencies. At90s original limits, first actual
-contained measurements, then three original normal positives. Current pins
-remain unmeasured until evidence. No product correction is preauthorized.
+## Accepted result and exact source
 
-Own native checkoutD:/bpr-native-session-main-r1/src is clean at970812bfe2a1107625c788a2e87d2a220e4ba93d.
-It will be archived before update; source/Git reachability, recipe/cache,
-objects/libraries/images/PDB/maps/trackers/Testing are retained. Protected
-Windows48 and Linux49 producers stay untouched. Approved ordinaryCtemp is
-C:/Users/mikem/bqm25rgiyz; capacity reservesC32GiB/D128GiB.
+Only application_review_tour_publication_file/mixed/repairs receive measured
+Windows disposition. Exact native source4eab682639a399243ffb3dc921716b434e6f8be2
+is frozen5fd40876745bdd815b0c0ed16407826ca74753f1 product plus reviewed1983
+source pin. Owned1985/86 test-only compile fixes from exactmain29142852d
+are preserved and do not link into this course. No later external product
+main was ingested.
 
-Current phase: read-only prerequisites and archive/task preparation. No native
-archive/build/test is dispatched yet. Root owns Mac; this leaf owns bounded
-PC preparation/native calibration and canonical1984 writer after1983handoff.
-No review server. Exact sealed task/rows/archive proof go to coordinator
-before course dispatch. Original49/Linux1978 remains unresolved.
+Code3e3ca7016 changes ONLY the three registry values+evidence comment in
+scripts/verify_test_network_isolation.py. Their private-test-root-refused
+reason names the observed fixture predicate. The original CMake registrations,
+90s limits, other pins and product policy remain byte-identical. Code is
+normally merged/pushed and origin-verified at
+c514eac7a34c5e2235eed6c8520fe0cd891d5ec9; scriptSHA256
+cfc55edfa2d4d1032abc32c2bfc7c92a6d5bfd956a89ba5cb75637e9f7976dd7.
+Final Done metadata changes no code. Root froze successor51 independently.
 
-## Active archive and approved next stage
+## Native observations
 
-Archive-only R2 is approved and dispatched ONCE as
-BPR-1984-owned-archive-r1. Native evidence root is
-C:/Users/mikem/AppData/Local/BetterPullReviewRelease/v042-20261104/BPR-1984-tour-containment-r1.
-Archive Python SHAfb69c895e5d2f90bb043d1559b4cc7965a31e1bdee4602bc145ab852e0b0c8e6,
-PSb5ad716fecbd916d23d37737dc3620f4b366eda745f72dd5c3c1d49c94f71254.
-It archives ALL own regular build files/generated inputs, with explicit
-junction/sharedcache pruning and references. Bundle/create+verify commands
-exit0/empty forests; tar/member/current-byte verification is still active.
-Owned PythonPID133512/creation2026-11-10T05:08:15.028442Z/exact archive-owned.py
-command identity verified. At05:14UTC it has written3.80GB and read11.61GB;
-progress is real. No source update/build/course has occurred.
+Normal VS18x64 Release owning-target build at4eab exits0/420.80s; configure
+0/61.71s. Required selected EXE+sandbox have validMZ/PE/AMD64 headers/hashes.
+Actual3configured Release rows retain exact mode, absolutePNG, workingdir,
+QPAoffscreen, full environment modifications/PATH/fonts, serial/failure
+predicates/logicalcommand and TIMEOUT90. Contained variants add only the
+maintained normal network prefix and corresponding isolation labels. Root
+programmatically reviews these exact metadata deltas before dispatch.
 
-Root separately approves build/manifest-only Pythona194132d14c2c4434b2cf081200c7710ef6986db6aa5abddacc8d8e5d67582e0
-and PS923be28300a1d02110797ee3a8cbc7a1b138cdc7f8ad8fb85fc53b855e35ff06.
-Source bundle SHA22270c488fc211ff8f9da22398330d4ecb4d0ecbb6f0234dbe31b9ef10f08cc2
-contains only frozen product/1983 pin plus1984 allocation metadata; checkout
-MUST exact4eab682639a399243ffb3dc921716b434e6f8be2. Before dispatch, archive
-must complete/verify/result0 with no children; compile-temp must already
-exist as own nonreparse directory or fail without speculative creation.
-Then normal windows-dev configure and windows-qualification-release owning
-target+sandbox build, PE integrity and full actual3row capture; NO courses.
-Actual three rows and contained variant delta require coordinator review
-before separate six-course task.
+| Course | Contained CTest | Guarded seconds | Original CTest | Guarded seconds |
+|---|---:|---:|---:|---:|
+| file |8/child1|0.588|0|10.056|
+| mixed |8/child1|0.309|0|7.817|
+| repairs |8/child1|0.311|0|8.413|
 
-Canonical writer/allocator is temporarily RELEASED to release_fixes_main
-for root-authorized1985 two-test compile fix. Its allocation15942dcb705366de45225d1df168ebfdd6e013f6
-preserves1984 and NEXT1986. This leaf holds M writes until exact handback.
-It continues own privateW/PC work; no later external product main ingestion.
-Mac is separately owned by root/fmain, no overlap. No review server.
+Every original has its exact anchored pass marker and actual JUnit run/pass,
+no failure/skip. Contained failures retain their real exits, absent pass
+markers and raw/JUnit failures. Operator measurement-completion0 is not a
+course PASS. No course is retried or given weaker assertions/limits.
 
-Local external packet: /Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer1984-windows-tour-containment-r1.
-Next: reconcile existing archive task/receipt FIRST (never redispatch),
-collect actual archive seal/quiescence, then approved normal build-only task.
-OriginalLinux49/BPR1978 remains unresolved; no native qualification credit.
+All3 temporary diagnostic contained courses emit exactly
+BPR1984_PRIVATE_ROOT_REFUSED:parent-owner-private. They each exitCTest8 at
+0.587/0.332/0.326s, unchanged90s. Canonical resolution completed; the existing
+make_storage_root_owner_private(parent) guard returnedfalse before child-root
+creation. No lower Windows/ACL/DOS mechanism was measured or inferred.
 
-## Measured source ready — current frontier supersedes archive phase above
+## Inputs, temporary variant and restoration
 
-Normal exact4eab selected Release build0/420.80s/configure0/61.71s; actual
-three90s rows captured. Coordinator-approved contained variants differ ONLY
-normal network prefix+labels. File/mixed/repairs each contained CTest8, real
-childexit1/no pass/no skip; original normal courses all CTest0 with exact
-markers and actual JUnit run/pass, at10.056/7.817/8.413guarded seconds.
-Original failures and positives remain unmodified evidence.
+Before updating the old owned970812 checkout,27,165 members/3,928,258,560bytes
+are tar/member/current-hash verified; archiveSHA256
+2f0ca3ddbe5e5187c67d7135878ff30bb440bd316daad78a051e5e43cb0248c7.
+A separate --all+HEAD Git bundle preserves reachability; no alternates or
+shared object-store deletion. Every own regular generated build input is
+retained, with junction/sharedcache references recorded rather than traversed.
+No frozen Windows48/Linux49 source/cache/image is mutated.
 
-A separate current4eab archive preserves142 exact source/header/selected
-EXE/object/PDB/maps/recipe/ownedlib/DLL inputs,1,112,270,300bytes. Failure-only
-temporary helper patch87f9efb2cb2fd8ef3195ee655ff4b10b8c82716da1ebd949de2915d554147e98
-then names parent-owner-private for each contained course. Canonical
-resolution completed; make_storage_root_owner_private(parent) returnedfalse
-and child-root creation was not reached. No DOS/Win32 cause is inferred.
+Before the diagnostic, CURRENT4eab header/source/image/object/PDB/maps/recipes/
+ownedlibs/DLLs are separately copied and current/copy hash-verified:142files,
+1,112,270,300bytes. Temporary patch87f9efb2cb2fd8ef3195ee655ff4b10b8c82716da1ebd949de2915d554147e98
+adds fixed failure-only metadata and preserves guard evaluation order, calls,
+success behavior, all functional oracles and90s. It logs no new raw paths/
+content/credentials. Diagnostic normalbuild0/112.14s.
 
-Diagnosticbuild0/112.14s; diagnosticthree CTest8 at0.587/0.332/0.326s. Exact
-originalheader12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d
-is restored; normalrestorationbuild0/93.92s, source4eab clean, criticalcache
-flags/graph/protectedproducer exact and every owned forest empty. Normal
-source-dirty About/build artifact deltas are retained without claiming all
-libs/images unchanged. No extra original positive is run after restoration.
+Finally exact originalheaderSHA256
+12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d
+is restored and normal owning-target rebuild0/93.92s retires the diagnostic
+image. Source4eab is clean; critical cache flags, selected graph and protected
+producer seals match. Source-dirty About/generated-library/image differences
+are recorded, without claiming every library/image byte stays unchanged.
+No extra original positive is run after restoration.
 
-Only the three registry values+evidencecomment change permanently, using
-existing private-test-root-refused taxonomy. CMake and all other pins remain
-byte-identical. Strict/adversarial/source, maintained registry suite, both
-documentation commands and diff checks pass. On the ACTUAL923row native
-Windows graph, the exact public registration gate rejects all3 old unmeasured
-pins and rejects none after these measured entries. This is the scoped
-registration relation, not a full native qualification/manifest PASS.
+## Focused source acceptance
 
-Only root-owned1985/86 test fixes+metadata from exact29142852d0136f625ea8bde7164547216bb0d259
-are reconciled; product cutoff5fd and NEXT1987 preserved. No later external
-product main was ingested. Source integration is ready; remaining actions
-are exact task/owned leaked-temp cleanup, nativeidle proof and final Done
-bookkeeping. PC lease remains with this leaf until that handback.
-OriginalLinux49/BPR1978 and final common-source release gates remain open.
+- Strict normal source gate: ASYNC_MUTATION_HOST_INVENTORY_OK.
+- Owning adversarial direct-bypass contract:1test/0/2.099s.
+- Maintained isolation registry controls:74tests/0/0.617s.
+- Documentation structure0; documentation regression67tests/0/1.966s.
+- Exact public pin_registration_failures over ACTUAL923row native Windows
+  Release graph: original3unmeasured failures; measured candidatezero. All
+  other pins exact and CMake bytes unchanged. This scoped relation is not a
+  full native manifest or release-qualification PASS.
+- Clang-format22 formats the temporary header; originalC++ is restored and no
+  C++ edit lands. Python syntax/registry source controls and diff checks pass.
+- Final scoped board/plan/documentation closeout is recorded with acceptance.
+
+## Evidence, command state and ownership
+
+External root:
+/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer1984-windows-tour-containment-r1.
+archive/current-input receipts,buildreceipt,course-packet-r1,measure-r1,
+private-root-diagnostic-r1 and source-gate logs bind source/image/argv/env/
+limits/actual failures/normal passes/restoration. Native root is the matching
+BPR-1984-tour-containment-r1 under the approved release runtime; private
+checkoutD:/bpr-native-session-main-r1/src remains preserved. No raw build,
+logs, screenshot, object or private fixture content is tracked in Git.
+
+All task-owned commands/forests are terminal/empty. Four exact scheduled
+registrations are verifiedReady/result0, unchanged action/principal/XML,
+then removed. Original49task XML unchanged. Six exact generated empty Qt
+fixture directories reported by these courses are removed with os.rmdir,
+without parent/profile enumeration, recursive deletion or ACL changes.
+Nativeidle12 reports nativeBuildProcesses=[]/idle=true. PC lease is returned
+before final metadata closeout; no further PC operations are performed.
+No review server, human decision or Mac native operation is outstanding.
+
+OriginalLinux49/BPR1978 remains unresolved. Final common-source all-nine
+compilation, full native Release/Debug functional/resource/trust/security
+qualification and publication are separate coordinator obligations. Nothing
+in this bounded calibration converts an original failure into PASS or
+certifies those gates.

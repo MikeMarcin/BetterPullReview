@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1987-native-tour-source-context",
+  "scope": {
+    "issues": [
+      "BPR-1987"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "correct-reopened-tour-source-context",
+      "outcome": "Reopened native tour questions observe the actual authoritative confirmed source state under unchanged functional contracts, with a demonstrated cause and distinguishing correction on main.",
+      "work": [
+        {
+          "issue": "BPR-1987",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Retain original51functional failure and bind exact sources; one approved diagnostic wrapper captures boolean-only actual pre-click/source-wire facts. If unreproduced, a separately bounded controlled existing effect hold must distinguish the causal state before product edits.",
+        "Apply minimal owning fixture/product correction only after concrete cause/scope review; original authoritative-source, identity, memory, source preservation, functional budgets and gestures remain. Distinguishing negative/positive original courses and scoped static/source/docs checks supply actual proof.",
+        "Intentionally land exact release-owned correction and tracker on authoritative main while preserving frozen5fd and approved ownchain/counters/foreign assets; retire variants and finish own commands, return writer/Mac lease with final native qualification separate."
+      ],
+      "boundary": "Initial diagnostic only tests/end_to_end/agent_invocation_composition_public_path.cpp and tests/fixtures/agent/agent_canary_main.cpp, booleans only. No privateR patch/PC/rawprompt/path content, retry-to-green, blanket timing or Qt waiver; broad product edits require reported causal scope."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
