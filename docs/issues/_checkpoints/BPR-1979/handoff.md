@@ -310,3 +310,19 @@ their existing independent scope and status.
   No owned command, writer, server, review protection or worktree remains active.
   The only untracked repository item is the preserved foreign
   `.codex-attachments/`. No push or remote mutation occurred.
+
+
+## Post-review correction round
+
+The owner authorized repair of both P2 critical-review findings after terminal
+closeout. Follow-up BPR-1981 owns this bounded work; BPR-1979's original criteria
+and historical acceptance are unchanged. Exact source/test correction candidate
+`b5644f4a98cb3850ce50722262dad396d87cd5e4` preserves immutable repaired source
+identities and confirms the actual published subject, and qualifies mixed
+maintenance lookup by comment namespace. Permanent baseline reproductions fail;
+final integration passes 9/9, core-only/boundary 4/4, LLVM22 format/tidy and
+documentation/67 regression checks pass. The
+[correction checkpoint](../BPR-1981/handoff.md) and
+[verification record](../../../verification/BPR-1981-tour-maintenance-corrections.md)
+record both findings, controls, commits and final command state. No live/native
+qualification or original acceptance is widened.

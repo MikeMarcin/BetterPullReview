@@ -218,3 +218,14 @@ checks were rerun successfully. No failed functional obligation remains.
 Runtime-only logs and rasters remain external; exact commands, candidate,
 command quiescence and guarded closeout are bound in the existing checkpoint.
 No human, independent-review, native-system or live-server verdict is inferred.
+
+## Post-review maintenance corrections
+
+The owner's critical-review follow-up found two false maintenance conflicts in
+this accepted candidate: repaired initial receipts retained pending retargets,
+and mixed maintenance matched different comment namespaces by numeric ID alone.
+[BPR-1981's correction record](BPR-1981-tour-maintenance-corrections.md) preserves
+the demonstrated baseline failures, permanent regressions, narrow fixes and exact
+candidate evidence. The original acceptance above remains the historical record;
+its source/namespace maintenance claims require this correction for the two
+reviewed cases. Existing live/native qualification boundaries are unchanged.
