@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2005"
 title: "Show what a running turn is doing, its helpers and when it goes quiet"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0103"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0017-activity-block-and-quiet-notice.md"}
 depends_on: ["BPR-2004"]
