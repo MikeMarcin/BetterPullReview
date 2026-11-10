@@ -84,30 +84,42 @@ def frozen_root(directory: Path, name: str, *, required: list[str], next_push: b
 
 # A tests-off application: its self-test says the CLI entry was offered;
 # otherwise it makes its data where the macOS standard paths put it (under
-# CFFIXED_USER_HOME when set) and records the HOME it was given.
+# CFFIXED_USER_HOME when set) and records the HOME it was given. Like the
+# application, it keeps an update control folder beside its bundle where it
+# may write one, and refuses to start on one it can no longer write
+# (bpr-live-v001). Each start's home is appended to BPR_STAND_IN_HOMES.
 LIVE_STAND_IN = """#!/bin/sh
+bundle_folder="$(cd "$(dirname "$0")/../../.." && pwd)"
+control="$bundle_folder/.bpr-update-0"
+if [ -d "$control" ] && [ ! -w "$control" ]; then echo STARTUP_FAILED; exit 1; fi
+if [ -w "$bundle_folder" ]; then mkdir -p "$control"; fi
 for argument in "$@"; do
   if [ "$argument" = --self-test ]; then echo CLI_ENTRY_OFFERED_OK; exit 0; fi
 done
 home="${CFFIXED_USER_HOME:-$HOME}"
+if [ -n "$BPR_STAND_IN_HOMES" ]; then echo "$home" >> "$BPR_STAND_IN_HOMES"; fi
 mkdir -p "$home/Library/Application Support/BetterPullReview"
 echo "$HOME" > "$home/home-was"
 exec sleep 30
 """
 
 
-def live_root(directory: Path, name: str, stand_in: str = LIVE_STAND_IN) -> Path:
+def live_root(directory: Path, name: str, stand_in: str = LIVE_STAND_IN, sealed: bool = True) -> Path:
     root = directory / name
     executable = root / "src" / freeze.LIVE_EXECUTABLE
     executable.parent.mkdir(parents=True)
     executable.write_text(stand_in)
     executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
     (root / "launch.py").write_text(freeze.render_live_launcher(root=root, title="test", commit="0" * 40, wait=15))
+    if sealed:
+        freeze.set_writable(root / "src", False)
     return root
 
 
-def launch(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    environment = {key: value for key, value in os.environ.items() if key != "QT_QPA_PLATFORM"}
+def launch(root: Path, *arguments: str, homes: Path | None = None) -> subprocess.CompletedProcess[str]:
+    environment = {key: value for key, value in os.environ.items() if key not in ("QT_QPA_PLATFORM", "BPR_STAND_IN_HOMES")}
+    if homes is not None:
+        environment["BPR_STAND_IN_HOMES"] = str(homes)
     return subprocess.run([sys.executable, str(root / "launch.py"), *arguments], capture_output=True, text=True,
                           check=False, timeout=120, env=environment)
 
@@ -175,11 +187,33 @@ def main() -> int:
     with contained_temporary_directory() as scratch:
         directory = Path(scratch)
         live = live_root(directory, "live")
-        checked = launch(live, "--check")
+        homes = directory / "homes.log"
+        checked = launch(live, "--check", homes=homes)
         expect(checked.returncode == 0 and "CHECK_OK (self-test): exit 0 with CLI_ENTRY_OFFERED_OK" in checked.stdout
-               and "CHECK_OK (launch): up with its data under its own home" in checked.stdout,
-               f"a tests-off build passes its self-test and comes up on its own home: {checked.stdout!r}")
-        expect(not (live / "home").exists() and not list(live.glob("check.*")), "the check uses a scratch home and leaves none behind")
+               and f"CHECK_OK (launch): up with its data under {live.resolve() / 'home'}, emptied again" in checked.stdout,
+               f"a tests-off build passes its self-test and comes up on the owner's home: {checked.stdout!r}")
+        started = homes.read_text().split() if homes.is_file() else []
+        expect(started == [str(live.resolve() / "home")], f"the check's launch is the owner's: the root's own home: {started!r}")
+        expect(not (live / "home").exists() and not list(live.glob("check.*")), "the check empties the owner's home and leaves no scratch")
+        again = launch(live, "--check")
+        expect(again.returncode == 0, f"a checked build checks again, as the owner's launch then starts: {again.stdout!r}")
+
+        # bpr-live-v001: checked before the seal, its launch left the update
+        # control folder in the build, and the seal made every start refuse.
+        unsealed = live_root(directory, "unsealed", sealed=False)
+        checked = launch(unsealed, "--check")
+        expect(checked.returncode == 1 and "BUILD_NOT_SEALED:" in checked.stdout and "is writable" in checked.stdout,
+               f"an unsealed build is refused: {checked.stdout!r}")
+        leftover = live_root(directory, "leftover", sealed=False)
+        (leftover / "src" / freeze.LIVE_EXECUTABLE).parents[3].joinpath(".bpr-update-0").mkdir()
+        freeze.set_writable(leftover / "src", False)
+        checked = launch(leftover, "--check")
+        expect(checked.returncode == 1 and "BUILD_NOT_SEALED:" in checked.stdout and ".bpr-update-0" in checked.stdout,
+               f"a build sealed over a launch's update folder is refused: {checked.stdout!r}")
+        source = (repository / "scripts/freeze_attended_build.py").read_text()
+        live_freeze = source[source.index("def freeze_live("):source.index("def remove(")]
+        expect(live_freeze.index("set_writable(source, False)") < live_freeze.index('"--check"'),
+               "a live freeze seals the build before its check, so the check starts what the owner will")
         expect("CFFIXED_USER_HOME" in (live / "launch.py").read_text() and "--github-fixture" not in (live / "launch.py").read_text(),
                "the live launcher gives the application its own home and passes no fixture")
 
@@ -205,6 +239,11 @@ def main() -> int:
         if "pid " in owner.stdout:
             pid = int(owner.stdout.split("pid ", 1)[1].split(")", 1)[0])
             os.killpg(pid, 15)
+        in_use = launch(live, "--check")
+        expect(in_use.returncode == 0 and "under a scratch home (the root's home holds a profile)" in in_use.stdout
+               and (live / "home/home-was").is_file(),
+               f"a check after the owner signed in leaves their home alone: {in_use.stdout!r}")
+        freeze.set_writable(directory, True)
 
     if FAILURES:
         for failure in FAILURES:

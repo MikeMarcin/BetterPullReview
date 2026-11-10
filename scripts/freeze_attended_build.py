@@ -32,9 +32,13 @@ home inside the root (`CFFIXED_USER_HOME`, which the macOS standard paths and
 preferences read), so the frozen build's profile, sign-in, review data and
 settings live in the root and never touch the person's own; `HOME` is kept,
 so `gh` still finds the person's sign-in. Its `--check` confirms the build
-is tests-off (no fixture option in the executable), runs the application's
-own `--self-test` offscreen, then starts it offscreen on a scratch home and
-waits until it has stayed up and written its data under that home. The
+is tests-off (no fixture option in the executable) and sealed, runs the
+application's own `--self-test` offscreen, then starts it offscreen with the
+owner's own arguments on the root's own home, waits until it has stayed up and
+written its data there, and empties that home again. The source is sealed
+before that check: bpr-live-v001 was checked unsealed, its launch left the
+application's update control folder beside the bundle, the seal made that
+folder unwritable, and every later start refused (`STARTUP_FAILED`). The
 owner's launch opens it on the root's home and leaves the window to them.
 
 Usage:
@@ -249,9 +253,12 @@ the first time (the gh account you are signed in with is offered); nothing of
 your own BetterPullReview profile is read or changed. Checks the build first
 and reports within seconds if the application exits.
 
-    --check     confirm the build is tests-off, run its self-test offscreen,
-                then open it offscreen on a scratch home until it is up and
-                close it (what the freeze ran)
+    --check     confirm the build is tests-off and sealed, run its self-test
+                offscreen, then open it offscreen exactly as you will (the
+                same arguments, on {root}/home) until it is up, close it and
+                empty that home again (what the freeze ran). A home that
+                already holds your sign-in is left alone: the launch is
+                checked on a scratch home instead
 """
 import os
 import shutil
@@ -280,6 +287,18 @@ def preflight() -> bool:
         return False
     if TESTS_ONLY_OPTION in EXECUTABLE.read_bytes():
         print(f"TESTS_ON_BUILD: {{EXECUTABLE}} carries the tests-only option {{TESTS_ONLY_OPTION.decode()}}")
+        return False
+    # The application keeps its update control folder beside its bundle when
+    # it may write there. One made by an unsealed launch and then sealed
+    # refuses every later start (bpr-live-v001), so the folder holding the
+    # bundle must be read-only and hold no such folder.
+    bundle_folder = EXECUTABLE.parents[2].parent
+    if os.access(bundle_folder, os.W_OK):
+        print(f"BUILD_NOT_SEALED: {{bundle_folder}} is writable")
+        return False
+    left = sorted(path.name for path in bundle_folder.glob(".bpr-update-*"))
+    if left:
+        print(f"BUILD_NOT_SEALED: {{bundle_folder}} holds {{', '.join(left)}} from a launch before it was sealed")
         return False
     return True
 
@@ -346,17 +365,23 @@ def check():
             print(f"CHECK_FAILED (self-test): exit {{process.returncode}}, missing {{missing}}:\\n{{said}}")
             return 1
         print(f"CHECK_OK (self-test): exit 0 with {{', '.join(SELF_TEST_LINES) or 'no required line'}}")
-        home = scratch / "home"
+        # The owner's launch: the same executable, arguments and home. Only the
+        # platform differs: offscreen, so no window reaches anyone's screen.
+        in_use = HOME.exists() and any(HOME.iterdir())
+        home = scratch / "home" if in_use else HOME
         log_path = scratch / "launch.log"
         process = start([str(EXECUTABLE), *EXTRA], home, log_path, offscreen=True)
         try:
             message = await_up(process, home, log_path)
         finally:
             stop(process)
+            if not in_use:
+                shutil.rmtree(HOME, ignore_errors=True)
         if message:
             print(f"CHECK_FAILED (launch): {{message}}")
             return 1
-        print(f"CHECK_OK (launch): up with its data under its own home")
+        where = "a scratch home (the root's home holds a profile)" if in_use else f"{{HOME}}, emptied again"
+        print(f"CHECK_OK (launch): up with its data under {{where}}")
         return 0
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
@@ -588,12 +613,15 @@ def freeze_live(options: argparse.Namespace) -> int:
     launcher.chmod(0o755)
     digest = hashlib.sha256(executable.read_bytes()).hexdigest()
     (root / MARKER).write_text(json.dumps({"commit": commit, "live": True, "executable_sha256": digest}, indent=1) + "\n")
+    # Sealed before the check, so the check starts what the owner will: the
+    # build is fixed and the application can write nothing into it (a launch
+    # before the seal left an update control folder there that the seal then
+    # made unusable). The home the owner signs in to stays writable.
+    set_writable(source, False)
     checked = subprocess.run([sys.executable, str(launcher), "--check"], check=False, capture_output=True, text=True)
     print(checked.stdout, end="")
     if checked.returncode != 0:
         return fail(f"the launcher's own check failed; the root is kept at {root}")
-    # The build is fixed; the home the owner signs in to stays writable.
-    set_writable(source, False)
     print(f"EXECUTABLE_SHA256:{digest}")
     print(f"FROZEN_ROOT:{root}")
     print(f"LAUNCH:python3 {launcher}")
