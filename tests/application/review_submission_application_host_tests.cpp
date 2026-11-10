@@ -157,6 +157,7 @@ namespace {
 	{
 		std::shared_ptr<provider_state>                           State;
 		std::vector<application::review_submission_host_terminal> Terminals;
+		std::vector<application::review_submission_host_context>  Started;
 		std::function<void()>                                     Feedback;
 		explicit projection(std::shared_ptr<provider_state> aState)
 			: State{ std::move(aState) }
@@ -168,6 +169,12 @@ namespace {
 			if (Feedback) {
 				Feedback();
 			}
+		}
+		void started(const application::review_submission_host_context& aContext) override
+		{
+			expect(!State->InEffect, "a start is told only on decision lane");
+			expect(Terminals.empty() || Terminals.back().Context != aContext, "a start never follows its own terminal");
+			Started.push_back(aContext);
 		}
 	};
 	struct fixture
@@ -233,6 +240,33 @@ namespace {
 		query.Owner.Account = core::github_account_id{ 999 };
 		expect(!f.Host.observe_tour_destinations(query), "another account cannot query this provider scope");
 		expect(f.State->Submitted == 0 && f.State->Tours == 0, "observing operations creates no remote effects");
+	}
+	/// [[RFC-BPR-0105]]. Accepted work that has not begun can be abandoned:
+	/// its one terminal (cancelled, nothing sent) arrives at once, the host is
+	/// free, and the queued effect never runs. Work that began cannot be.
+	void test_abandon_before_start()
+	{
+		fixture    f;
+		const auto waiting = f.Host.submit(request(), f.grant());
+		expect(waiting.has_value() && !f.Host.is_quiescent(), "a submission waits on its lane");
+		expect(f.Host.abandon(*waiting), "a submission that has not begun is abandoned");
+		expect(!f.Host.abandon(*waiting), "and only once");
+		f.Decisions.drain();
+		expect(f.Projection.Terminals.size() == 1U && f.Host.is_quiescent(), "its terminal arrives before the lane runs it, and frees the host");
+		const auto& ended = f.outcome();
+		expect(ended.Publication == application::review_submission_publication::definitely_not_published && ended.Failure == application::review_mutation_failure::cancelled,
+			   "it ended unsent and cancelled");
+		f.drain();
+		expect(f.State->Submitted == 0U && f.State->Created == 0U && f.Projection.Terminals.size() == 1U && f.Projection.Started.empty(),
+			   "the queued effect never runs, starts nothing and sends no second terminal");
+
+		const auto sending = f.Host.submit(request(), f.grant());
+		expect(sending.has_value(), "the freed host accepts the next submission");
+		f.Effects.Queue.drain();
+		expect(!f.Host.abandon(*sending), "work that began cannot be abandoned");
+		f.Decisions.drain();
+		expect(f.Projection.Started.size() == 1U && f.Projection.Started.front() == *sending && f.State->Submitted == 1U, "its start is told before its terminal");
+		expect(f.outcome().Publication == application::review_submission_publication::published, "and it publishes");
 	}
 	void test_insights_confirmed_publication_only()
 	{
@@ -491,6 +525,7 @@ namespace {
 }
 auto main() -> int
 {
+	test_abandon_before_start();
 	static_assert(!std::is_convertible_v<bpr::application::review_mutation_execution_grant, bpr::application::review_submission_execution_grant>);
 	static_assert(!std::is_default_constructible_v<bpr::application::review_submission_execution_authority>);
 	test_exact_destination_observations();

@@ -951,6 +951,10 @@ namespace bpr::app {
 		if (aDestination.Target.Kind != core::pull_request_location_kind::pull_request) {
 			PendingLinkLocation = link_location{ .Destination = aDestination };
 		}
+		// [[RFC-BPR-0105]]. An open starts a fresh review surface.
+		if (Window != nullptr) {
+			Window->expect_review_open();
+		}
 		WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
 		return application::setup_destination_opening::reading;
 	}

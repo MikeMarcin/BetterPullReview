@@ -1185,6 +1185,19 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::reset_review_surface()
+	{
+		// The tray, the tour's chat and its page are window state; an opened
+		// pull request does not inherit the last review's.
+		close_tour_page();
+		if (TourEditor != nullptr) {
+			TourEditor->side_chat()->set_column_open(false);
+		}
+		if (TrayTabs != nullptr) {
+			TrayTabs->setCurrentIndex(tray_comments_tab);
+		}
+	}
+
 	auto workbench_window::tour_page_open() const noexcept -> bool
 	{
 		return TourPageOpen;
@@ -1208,7 +1221,7 @@ namespace bpr::qt {
 		if (TourChatSplit != nullptr && TourChatSplit->count() > 0) {
 			TourChatSplit->widget(0)->setMinimumWidth(aShown ? 340 : 0);
 		}
-		if (aShown && !TourChatSized && chat->parentWidget() == TourChatSplit) {
+		if (aShown && !TourChatSized && TourChatSplit != nullptr && chat->parentWidget() == TourChatSplit) {
 			TourChatSized = true;
 			TourChatSplit->setSizes({ 10'000, 10'000 });
 		}

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APP_SRC_REVIEW_SUBMISSION_WORKFLOW_HPP
 #define BPR_SRC_APP_SRC_REVIEW_SUBMISSION_WORKFLOW_HPP
 
+#include "bpr/app/worker_executor.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/review_preflight_observation.hpp"
 #include "bpr/application/review_submission_application_host.hpp"
@@ -9,6 +10,9 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/core/operation_diagnosis.hpp"
+
+#include <chrono>
 #include <tuple>
 
 namespace bpr::app {
@@ -19,7 +23,12 @@ namespace bpr::app {
 	public:
 		using grant_factory         = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::review_submission_request&)>;
 		using publication_admission = std::function<std::expected<void, application::review_mutation_failure>(const application::review_submission_live_binding&)>;
-		review_submission_workflow(application::effect_executor&, application::decision_executor&, qt::review_submission_editor&, grant_factory, publication_admission = { });
+		/// [[RFC-BPR-0105]]. Makes the effect lane one review host runs on, so
+		/// no other pull request's work, and no other publication, waits in
+		/// front of a submission. Without one, every host shares the given
+		/// executor.
+		using lane_factory = std::function<std::unique_ptr<worker_executor>()>;
+		review_submission_workflow(application::effect_executor&, application::decision_executor&, qt::review_submission_editor&, grant_factory, publication_admission = { }, lane_factory = { }, std::shared_ptr<application::diagnostic_log_port> = { });
 		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, application::insights_review_capture = { });
 		void               invalidate(QString aReason = { });
 		void               invalidate(const application::pull_request_authority_invalidation&);
@@ -27,6 +36,14 @@ namespace bpr::app {
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const -> bool;
 		void               publish(const application::review_submission_host_terminal&) override;
+		void               started(const application::review_submission_host_context&) override;
+		/// [[RFC-BPR-0105]]. How long a pressed submission may wait to start
+		/// sending; the core's bound unless a course shortens it.
+		void set_wait_bound(std::chrono::milliseconds aBound) { WaitBound = aBound; }
+#if defined(BPR_BUILD_TESTING)
+		/// [[RFC-BPR-0105]]. Test access only: the current host's own lane.
+		[[nodiscard]] auto current_lane() noexcept -> application::effect_executor* { return Lane.get(); }
+#endif
 
 		/// [[BPR-1085]]. The published feedback of the accepted snapshot. It is
 		/// context only: it never changes the draft, its disposition or its
@@ -95,8 +112,37 @@ namespace bpr::app {
 			application::review_submission_provider_factory Factory;
 			application::insights_review_capture            Insights;
 		};
+		/// [[RFC-BPR-0105]]. A host no longer current, with its lane and the
+		/// review it was for; destroyed once both are at rest.
+		struct retired_host
+		{
+			std::unique_ptr<application::review_submission_application_host> Host;
+			std::unique_ptr<worker_executor>                                 Lane;
+			application::review_submission_live_binding                      Binding;
+		};
+		/// [[RFC-BPR-0105]]. The submission the reviewer pressed, from the
+		/// press until it is sent or ends: what it waits for and since when.
+		struct attempt
+		{
+			std::string                           Key;
+			std::chrono::steady_clock::time_point Pressed;
+			std::chrono::steady_clock::time_point WaitStarted;
+			core::review_submission_note          Waiting = core::review_submission_note::review_lane;
+			bool                                  Sending = false;
+			bool                                  Expired = false;
+			std::uint64_t                         Token   = 0U;
+			/// The accepted send, kept when its host is retired so the bound
+			/// can still end it there.
+			std::optional<application::review_submission_host_context> Sent;
+		};
 		void retire();
 		void start_selection();
+		void begin_attempt(const application::review_submission_request& aRequest, core::review_submission_note aWaiting);
+		void wait_for(core::review_submission_note aWaiting);
+		void expire(std::uint64_t aToken);
+		void end_attempt(core::review_submission_note aEnding);
+		void note(core::operation_action aAction, core::review_submission_note aNote, std::chrono::steady_clock::time_point aSince, std::uint32_t aCount = 0U, core::operation_failure aFailure = core::operation_failure::none) const;
+		void settle(const application::review_submission_result& aResult, std::optional<core::review_submission_draft>& aConfirmed, core::review_finish_transition& aTransition);
 		void new_draft();
 		/// [[BPR-1345]] v003. After a confirmed or discarded review: the next
 		/// unfinished one if any, else a new draft. Nothing waits for New review.
@@ -112,42 +158,55 @@ namespace bpr::app {
 		void               answer(const application::review_submission_request& aRequest, application::review_submission_publication aPublication);
 		void               next_lookup();
 		/// [[BPR-1816]]. The core's transition for GitHub's answer to `aRequest`.
-		[[nodiscard]] auto                                                            finish(const application::review_submission_request& aRequest, core::review_finish_answer aAnswer) const -> core::review_finish_transition;
-		application::effect_executor&                                                 Effects;
-		application::decision_executor&                                               Decisions;
-		qt::review_submission_editor&                                                 Editor;
-		grant_factory                                                                 IssueGrant;
-		publication_admission                                                         AdmitPublication;
-		std::unique_ptr<application::review_submission_application_host>              Host;
-		std::vector<std::unique_ptr<application::review_submission_application_host>> Retired;
-		std::optional<selection>                                                      Current;
-		std::optional<selection>                                                      Next;
-		std::optional<core::review_submission_draft>                                  Draft;
-		std::optional<application::review_submission_live_binding>                    DraftBinding;
-		std::optional<application::review_submission_request>                         Pending;
-		std::optional<application::review_submission_host_context>                    Context;
-		std::vector<application::review_submission_request>                           Unresolved;
-		std::optional<application::review_preflight_observation>                      Observation;
-		std::vector<core::review_preflight_draft>                                     Selection;
-		std::map<std::string, qt::review_submission_preflight_reference>              SelectionReferences;
-		std::optional<core::review_preflight>                                         Preflight;
-		std::map<std::string, qt::review_submission_preflight_reference>              PreflightReferences;
-		std::uint64_t                                                                 PreflightInputs = 0U;
-		std::optional<preflight_key>                                                  PreflightProjected;
-		core::request_generation                                                      Generation;
-		std::uint64_t                                                                 NextDraft = 1U;
-		QString                                                                       Status;
+		[[nodiscard]] auto                                               finish(const application::review_submission_request& aRequest, core::review_finish_answer aAnswer) const -> core::review_finish_transition;
+		application::effect_executor&                                    Effects;
+		application::decision_executor&                                  Decisions;
+		qt::review_submission_editor&                                    Editor;
+		grant_factory                                                    IssueGrant;
+		publication_admission                                            AdmitPublication;
+		lane_factory                                                     MakeLane;
+		std::shared_ptr<application::diagnostic_log_port>                Log;
+		std::unique_ptr<application::review_submission_application_host> Host;
+		std::unique_ptr<worker_executor>                                 Lane;
+		std::vector<retired_host>                                        Retired;
+		std::optional<attempt>                                           Attempt;
+		std::uint64_t                                                    NextAttempt = 1U;
+		std::chrono::milliseconds                                        WaitBound   = core::review_submission_wait_bound;
+		/// [[RFC-BPR-0105]]. Lets a bound's timer outlive this workflow safely.
+		std::shared_ptr<int> Alive = std::make_shared<int>(0);
+		/// [[RFC-BPR-0105]]. The last submission ended not published; Retry
+		/// is offered until another one starts or the draft is replaced.
+		bool                                                             RetryOffered = false;
+		std::optional<selection>                                         Current;
+		std::optional<selection>                                         Next;
+		std::optional<core::review_submission_draft>                     Draft;
+		std::optional<application::review_submission_live_binding>       DraftBinding;
+		std::optional<application::review_submission_request>            Pending;
+		std::optional<application::review_submission_host_context>       Context;
+		std::vector<application::review_submission_request>              Unresolved;
+		std::optional<application::review_preflight_observation>         Observation;
+		std::vector<core::review_preflight_draft>                        Selection;
+		std::map<std::string, qt::review_submission_preflight_reference> SelectionReferences;
+		std::optional<core::review_preflight>                            Preflight;
+		std::map<std::string, qt::review_submission_preflight_reference> PreflightReferences;
+		std::uint64_t                                                    PreflightInputs = 0U;
+		std::optional<preflight_key>                                     PreflightProjected;
+		core::request_generation                                         Generation;
+		std::uint64_t                                                    NextDraft = 1U;
+		QString                                                          Status;
 		/// [[BPR-1853]]. The pull request's author, or empty when unknown.
 		std::string Author;
 		bool        Ready   = false;
 		bool        Closing = false;
 		/// [[BPR-1345]]. Start a review.
-		comment_lock                                          LockComments;
-		review_answer                                         Answer;
-		review_discard                                        DiscardReview;
-		std::vector<core::review_submission_comment>          Comments;
-		core::review_submission_rejection                     CommentsRefusal = core::review_submission_rejection::none;
-		bool                                                  Locking         = false;
+		comment_lock                                 LockComments;
+		review_answer                                Answer;
+		review_discard                               DiscardReview;
+		std::vector<core::review_submission_comment> Comments;
+		core::review_submission_rejection            CommentsRefusal = core::review_submission_rejection::none;
+		/// [[RFC-BPR-0105]]. The key of the submission whose drafts are being
+		/// held; an answer for any other key changes nothing here.
+		std::optional<std::string>                            Locking;
 		std::vector<std::string>                              Lookups;
 		std::vector<core::review_draft_id>                    UnplaceableDrafts;
 		std::vector<std::string>                              LookedUp;

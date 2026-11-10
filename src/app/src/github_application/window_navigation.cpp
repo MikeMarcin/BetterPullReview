@@ -1150,6 +1150,10 @@ namespace bpr::app {
 		RestorationReadAccepted   = false;
 		RestorationReadRequest    = WindowRead->state().NextRequest;
 		restoration_notice(QStringLiteral("Resuming the saved reading…"));
+		// [[RFC-BPR-0105]]. An open starts a fresh review surface.
+		if (Window != nullptr) {
+			Window->expect_review_open();
+		}
 		WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aRequest.Destination.Repository, .Number = aRequest.Destination.Number });
 		if (PendingRestoration && !WindowRead->state().PendingPullRequest && WindowRead->state().NextRequest == *RestorationReadRequest) {
 			Profile->ReviewRestoration->complete_restore(DraftWindow, aRequest.Request, std::unexpected(core::window_review_failure::unavailable));

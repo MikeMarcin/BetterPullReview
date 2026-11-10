@@ -140,6 +140,53 @@ namespace bpr::app {
 		return hold_fixture_effects(aApplication.Implementation->ReviewMutationEffects);
 	}
 
+	auto detail::github_application_fixture_access::hold_review_submission_effects(
+		github_application& aApplication) -> std::function<void()>
+	{
+		return hold_fixture_effects(aApplication.Implementation->ReviewSubmissionEffects);
+	}
+
+	auto detail::github_application_fixture_access::hold_review_submission_lane(
+		github_application& aApplication) -> std::function<void()>
+	{
+		auto* const workflow = aApplication.Implementation->ReviewSubmission.get();
+		auto* const lane     = workflow != nullptr ? workflow->current_lane() : nullptr;
+		if (lane == nullptr) {
+			return [] { };
+		}
+		return hold_fixture_effects(*lane);
+	}
+
+	void detail::github_application_fixture_access::set_review_submission_wait_bound(github_application& aApplication, const std::chrono::milliseconds aBound)
+	{
+		if (auto* const workflow = aApplication.Implementation->ReviewSubmission.get(); workflow != nullptr) {
+			workflow->set_wait_bound(aBound);
+		}
+	}
+
+	auto detail::github_application_fixture_access::invalidate_current_authority(github_application& aApplication) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		if (owner == nullptr || !owner->LastAcceptedHandoff) {
+			return false;
+		}
+		const auto& handoff = *owner->LastAcceptedHandoff;
+		owner->invalidate(application::pull_request_authority_invalidation{
+			.ApplicationSession = handoff.ApplicationSession,
+			.Profile            = handoff.Profile,
+			.ProfileRevision    = handoff.ProfileRevision,
+			.Host               = handoff.Host,
+			.HostAuthority      = handoff.HostAuthority,
+			.Account            = handoff.Account,
+			.Viewer             = handoff.Viewer,
+			.Repository         = handoff.Repository,
+			.PullRequest        = handoff.PullRequest,
+			.IdentityGeneration = handoff.IdentityGeneration,
+			.Mode               = handoff.Mode,
+		});
+		return true;
+	}
+
 	auto detail::github_application_fixture_access::hold_agent_conversation_effects(
 		github_application& aApplication) -> std::function<void()>
 	{

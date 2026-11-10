@@ -8,6 +8,7 @@
 
 #include "bpr/application/review_submission_recovery_port.hpp"
 
+#include <QTimer>
 #include <QUuid>
 #include <algorithm>
 #include <limits>
@@ -50,6 +51,20 @@ namespace bpr::app {
 			return { };
 		}
 
+		/// [[RFC-BPR-0105]]. What a submission waits for, in the reviewer's words.
+		[[nodiscard]] auto waiting_words(const core::review_submission_note aWaiting) -> QString
+		{
+			return aWaiting == core::review_submission_note::pending_comments
+				? QStringLiteral("this review's pending comments to be held")
+				: QStringLiteral("this pull request's earlier GitHub work to finish");
+		}
+
+		[[nodiscard]] auto since(const std::chrono::steady_clock::time_point aStart) -> std::uint32_t
+		{
+			const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - aStart).count();
+			return elapsed <= 0 ? 0U : static_cast<std::uint32_t>(std::min<long long>(elapsed, std::numeric_limits<std::uint32_t>::max()));
+		}
+
 		/// [[BPR-1345]]. Why the pending comments cannot ride this review.
 		[[nodiscard]] auto comments_status(const core::review_submission_rejection aRefusal) -> QString
 		{
@@ -67,13 +82,105 @@ namespace bpr::app {
 	}
 
 	review_submission_workflow::review_submission_workflow(application::effect_executor&   aEffects,
-														   application::decision_executor& aDecisions, qt::review_submission_editor& aEditor, grant_factory aIssueGrant, publication_admission aAdmitPublication)
+														   application::decision_executor& aDecisions, qt::review_submission_editor& aEditor, grant_factory aIssueGrant, publication_admission aAdmitPublication, lane_factory aMakeLane, std::shared_ptr<application::diagnostic_log_port> aLog)
 		: Effects{ aEffects }
 		, Decisions{ aDecisions }
 		, Editor{ aEditor }
 		, IssueGrant{ std::move(aIssueGrant) }
 		, AdmitPublication{ std::move(aAdmitPublication) }
+		, MakeLane{ std::move(aMakeLane) }
+		, Log{ std::move(aLog) }
 	{ }
+
+	void review_submission_workflow::note(const core::operation_action aAction, const core::review_submission_note aNote, const std::chrono::steady_clock::time_point aSince, const std::uint32_t aCount, const core::operation_failure aFailure) const
+	{
+		application::record_operation(Log.get(), { .Action = aAction, .Failure = aFailure, .DurationMilliseconds = since(aSince), .Count = aCount, .Submission = aNote });
+	}
+
+	void review_submission_workflow::begin_attempt(const application::review_submission_request& aRequest, const core::review_submission_note aWaiting)
+	{
+		const auto now = std::chrono::steady_clock::now();
+		Attempt        = attempt{ .Key = aRequest.IdempotencyKey, .Pressed = now, .WaitStarted = now, .Waiting = aWaiting, .Token = NextAttempt++ };
+		RetryOffered   = false;
+		note(core::operation_action::review_submit_request, core::review_submission_note::none, now, static_cast<std::uint32_t>(aRequest.Proposal.Comments.size()));
+		// The bound runs from the press; a send in progress is never cut short.
+		QTimer::singleShot(WaitBound, &Editor, [this, alive = std::weak_ptr<int>{ Alive }, token = Attempt->Token] {
+			if (!alive.expired()) {
+				expire(token);
+			}
+		});
+	}
+
+	void review_submission_workflow::wait_for(const core::review_submission_note aWaiting)
+	{
+		if (!Attempt || Attempt->Sending || Attempt->Waiting == aWaiting) {
+			return;
+		}
+		note(core::operation_action::review_submit_wait, Attempt->Waiting, Attempt->WaitStarted);
+		Attempt->Waiting     = aWaiting;
+		Attempt->WaitStarted = std::chrono::steady_clock::now();
+	}
+
+	void review_submission_workflow::end_attempt(const core::review_submission_note aEnding)
+	{
+		if (!Attempt) {
+			return;
+		}
+		if (!Attempt->Sending) {
+			note(core::operation_action::review_submit_wait, Attempt->Waiting, Attempt->WaitStarted);
+		}
+		const auto failure = aEnding == core::review_submission_note::published ? core::operation_failure::none
+			: aEnding == core::review_submission_note::wait_expired             ? core::operation_failure::cancelled
+			: aEnding == core::review_submission_note::outcome_unknown          ? core::operation_failure::not_confirmed
+																				: core::operation_failure::refused_not_published;
+		note(core::operation_action::review_submit_end, aEnding, Attempt->Pressed, 0U, failure);
+		Attempt.reset();
+	}
+
+	void review_submission_workflow::started(const application::review_submission_host_context& aContext)
+	{
+		if (Closing || !Context || aContext != *Context || !Attempt || Attempt->Sending || !Pending || Pending->IdempotencyKey != Attempt->Key) {
+			return;
+		}
+		note(core::operation_action::review_submit_wait, Attempt->Waiting, Attempt->WaitStarted);
+		note(core::operation_action::review_submit_send, core::review_submission_note::none, Attempt->Pressed);
+		Attempt->Sending = true;
+		present();
+	}
+
+	void review_submission_workflow::expire(const std::uint64_t aToken)
+	{
+		if (Closing || !Attempt || Attempt->Token != aToken || Attempt->Sending || Attempt->Expired) {
+			return;
+		}
+		const auto words = QStringLiteral("Not published. Still waiting for %1. Your review is kept.").arg(waiting_words(Attempt->Waiting));
+		if (Locking && *Locking == Attempt->Key) {
+			// The drafts' answer may still come: it then finds the attempt
+			// gone and releases what it held.
+			Locking.reset();
+			complete(command_kind::fail_submit);
+			Pending.reset();
+			Status = words;
+			end_attempt(core::review_submission_note::wait_expired);
+			RetryOffered = true;
+			apply_review_comments();
+			present();
+			return;
+		}
+		if (Attempt->Sent && Pending && Pending->IdempotencyKey == Attempt->Key) {
+			Attempt->Expired = true;
+			// Ends it only if it has not begun, on whichever host accepted
+			// it; its terminal then says why.
+			if (Host && Host->abandon(*Attempt->Sent)) {
+				return;
+			}
+			for (auto& retired : Retired) {
+				if (retired.Host->abandon(*Attempt->Sent)) {
+					return;
+				}
+			}
+		}
+	}
 
 	void review_submission_workflow::adopt(application::review_submission_live_binding   aBinding,
 										   application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, application::insights_review_capture aInsights)
@@ -100,20 +207,36 @@ namespace bpr::app {
 		Context.reset();
 		if (Host) {
 			Host->shutdown();
-			Retired.push_back(std::move(Host));
+			Retired.push_back({ std::move(Host), std::move(Lane), Current ? Current->Binding : application::review_submission_live_binding{ } });
 		}
-		std::erase_if(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
+		std::erase_if(Retired, [](const retired_host& aRetired) { return aRetired.Host->is_quiescent() && (!aRetired.Lane || aRetired.Lane->idle()); });
 	}
 
 	void review_submission_workflow::start_selection()
 	{
-		std::erase_if(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
-		if (Closing || !Next || !Retired.empty()) {
+		std::erase_if(Retired, [](const retired_host& aRetired) { return aRetired.Host->is_quiescent() && (!aRetired.Lane || aRetired.Lane->idle()); });
+		if (Closing || !Next) {
+			return;
+		}
+		// [[RFC-BPR-0105]]. Only this pull request's own earlier work is
+		// waited for: its record must be seen by the next discovery. Another
+		// pull request's work runs on its own lane and holds nothing here.
+		if (std::ranges::any_of(Retired, [this](const retired_host& aRetired) {
+				return !aRetired.Host->is_quiescent() && application::same_review_submission_identity(aRetired.Binding, Next->Binding);
+			})) {
 			return;
 		}
 		if (DraftBinding && !application::same_review_submission_identity(*DraftBinding, Next->Binding)) {
 			// A different account or PR receives a new empty draft. Any admitted
 			// attempt remains recoverable in its original durable scope.
+			// [[RFC-BPR-0105]]. Its visible submission ends with the page.
+			if (Attempt) {
+				note(core::operation_action::review_submit_drop, core::review_submission_note::retired, std::chrono::steady_clock::now());
+				end_attempt(Attempt->Sending ? core::review_submission_note::outcome_unknown : core::review_submission_note::not_published);
+			}
+			// Drafts still being held for the old review are released when
+			// their answer comes; they never hold this one's controls.
+			Locking.reset();
 			Draft.reset();
 			DraftBinding.reset();
 			Pending.reset();
@@ -131,8 +254,9 @@ namespace bpr::app {
 			return;
 		}
 		Generation = core::request_generation{ Generation.value() + 1U };
+		Lane       = MakeLane ? MakeLane() : nullptr;
 		Host       = std::make_unique<application::review_submission_application_host>(Current->Factory, Current->Binding,
-																					   Current->Authority.ApplicationSession, Generation, Effects, Decisions, *this, Current->Insights);
+																					   Current->Authority.ApplicationSession, Generation, Lane ? *Lane : Effects, Decisions, *this, Current->Insights);
 		Status     = QStringLiteral("Checking for an unfinished review…");
 		Context    = Host->discover();
 		if (!Context) {
@@ -176,7 +300,7 @@ namespace bpr::app {
 
 	auto review_submission_workflow::is_quiescent() const -> bool
 	{
-		return (!Host || Host->is_quiescent()) && std::ranges::all_of(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
+		return (!Host || Host->is_quiescent()) && std::ranges::all_of(Retired, [](const retired_host& aRetired) { return aRetired.Host->is_quiescent(); });
 	}
 
 	void review_submission_workflow::new_draft()
@@ -186,9 +310,10 @@ namespace bpr::app {
 		}
 		DraftBinding = Current->Binding;
 		Unknown.reset();
-		Draft = core::review_submission_draft{ .Id            = core::review_submission_draft_id{ NextDraft++ },
-											   .Target        = DraftBinding->Target.Semantic,
-											   .ActingAccount = DraftBinding->ActingIdentity.Account };
+		RetryOffered = false;
+		Draft        = core::review_submission_draft{ .Id            = core::review_submission_draft_id{ NextDraft++ },
+													  .Target        = DraftBinding->Target.Semantic,
+													  .ActingAccount = DraftBinding->ActingIdentity.Account };
 		Pending.reset();
 		Status = new_draft_status();
 		apply_review_comments();
@@ -437,7 +562,7 @@ namespace bpr::app {
 		QString target;
 		if (DraftBinding) {
 			const auto& binding = *DraftBinding;
-			target              = QStringLiteral("%1 · %2/%3#%4\nHead: %5\nSubmitting as %6 (account %7)")
+			target              = QStringLiteral("%1 · %2/%3#%4\nHead: %5\nWill submit as %6 (account %7)")
 									  .arg(QString::fromStdString(std::string{ binding.Target.Hostname.value() }))
 									  .arg(QString::fromStdString(binding.Target.Repository.Owner))
 									  .arg(QString::fromStdString(binding.Target.Repository.Name))
@@ -457,6 +582,14 @@ namespace bpr::app {
 			status = QStringLiteral("Holding the pending comments for this review…");
 		}
 		project_preflight();
+		// [[RFC-BPR-0105]]. A pressed submission says whether it is waiting,
+		// and for what, or sending.
+		auto phase   = qt::review_submission_phase::none;
+		auto waiting = QString{ };
+		if (Attempt && Draft && Draft->State == draft_state::submitting) {
+			phase   = Attempt->Sending ? qt::review_submission_phase::sending : qt::review_submission_phase::waiting;
+			waiting = QStringLiteral("Waiting for %1.").arg(waiting_words(Attempt->Waiting));
+		}
 		Editor.present({ .Draft             = Draft,
 						 .Controls          = decided_controls(),
 						 .TargetDescription = std::move(target),
@@ -464,7 +597,10 @@ namespace bpr::app {
 						 .Preflight         = Preflight,
 						 .References        = PreflightReferences,
 						 .Prepared          = Draft ? core::prepare_review_decision(*Draft, Selection) : std::nullopt,
-						 .Unknown           = Unknown && Pending ? std::optional{ core::notice(*Unknown) } : std::nullopt });
+						 .Unknown           = Unknown && Pending ? std::optional{ core::notice(*Unknown) } : std::nullopt,
+						 .Phase             = phase,
+						 .Waiting           = std::move(waiting),
+						 .Retry             = RetryOffered && Draft && Draft->State == draft_state::drafting });
 	}
 
 	void review_submission_workflow::complete(command_kind aKind)
@@ -601,12 +737,17 @@ namespace bpr::app {
 				if (!request.Proposal.Comments.empty() && LockComments) {
 					// Every carried draft is held for this submission, durably,
 					// before anything can be sent.
-					Locking = true;
+					begin_attempt(request, core::review_submission_note::pending_comments);
+					Locking = request.IdempotencyKey;
 					present();
 					LockComments(request, [this, request](const bool aHeld) {
-						Locking = false;
+						if (Locking && *Locking == request.IdempotencyKey) {
+							Locking.reset();
+						}
 						if (Closing || !Pending || *Pending != request || !Draft || Draft->State != draft_state::submitting) {
-							// Superseded before it was sent: what was held is released.
+							// Superseded before it was sent: what was held is
+							// released, and the page already says how it ended.
+							note(core::operation_action::review_submit_drop, core::review_submission_note::superseded, std::chrono::steady_clock::now());
 							if (aHeld) {
 								answer(request, application::review_submission_publication::definitely_not_published);
 							}
@@ -618,9 +759,11 @@ namespace bpr::app {
 							Pending.reset();
 							answer(request, application::review_submission_publication::definitely_not_published);
 							Status = QStringLiteral("Not submitted: a pending comment changed or could not be held for this review. Check the comments and submit again.");
+							end_attempt(core::review_submission_note::not_published);
 							present();
 							return;
 						}
+						wait_for(core::review_submission_note::review_lane);
 						send(request);
 						present();
 					});
@@ -631,6 +774,7 @@ namespace bpr::app {
 					Pending.reset();
 					Status = QStringLiteral("Review was not submitted: its pending comments could not be held. Refresh the pull request and try again.");
 				} else {
+					begin_attempt(request, core::review_submission_note::review_lane);
 					send(std::move(request));
 				}
 			} else if (kind == command_kind::discard) {
@@ -659,18 +803,24 @@ namespace bpr::app {
 			Pending.reset();
 			answer(aRequest, application::review_submission_publication::definitely_not_published);
 			Status = QStringLiteral("Not published. The current account or pull request changed. Your draft is kept.");
+			end_attempt(core::review_submission_note::not_published);
 			return;
 		}
 		Context = Host ? Host->submit(aRequest, IssueGrant(Current->Authority.ApplicationSession, Generation, aRequest)) : std::nullopt;
 		if (Context) {
 			SubmittedKey = aRequest.IdempotencyKey;
-			Status       = QStringLiteral("Submitting the exact review shown…");
+			if (Attempt && Attempt->Key == aRequest.IdempotencyKey) {
+				Attempt->Sent = Context;
+			}
+			Status = QStringLiteral("Submitting the exact review shown…");
 			return;
 		}
 		complete(command_kind::fail_submit);
 		Pending.reset();
 		answer(aRequest, application::review_submission_publication::definitely_not_published);
 		Status = QStringLiteral("Review was not submitted. Refresh the pull request and try again.");
+		end_attempt(core::review_submission_note::not_published);
+		RetryOffered = true;
 	}
 
 	void review_submission_workflow::next_review()
@@ -682,12 +832,111 @@ namespace bpr::app {
 		}
 	}
 
+	void review_submission_workflow::settle(const application::review_submission_result& aResult, std::optional<core::review_submission_draft>& aConfirmed, core::review_finish_transition& aTransition)
+	{
+		// [[BPR-1816]]. Where this answer leaves the reviewer, decided by
+		// the core before anything changes; only the first answer is the
+		// Submit's own.
+		const auto published = aResult.Publication == application::review_submission_publication::published
+			&& aResult.Receipt && application::valid(*aResult.Receipt, *Pending);
+		const auto answered = published ? core::review_finish_answer::published
+			: aResult.Publication == application::review_submission_publication::definitely_not_published
+			? core::review_finish_answer::not_published
+			: core::review_finish_answer::unknown;
+		aTransition         = finish(*Pending, answered);
+		SubmittedKey        = std::nullopt;
+		if (published) {
+			const auto submitted = *Pending;
+			Unknown.reset();
+			complete(command_kind::complete_submit);
+			std::erase_if(Unresolved, [this](const auto& aRequest) { return aRequest.IdempotencyKey == Pending->IdempotencyKey; });
+			Pending.reset();
+			answer(submitted, application::review_submission_publication::published);
+			if (PublicationObserved) {
+				PublicationObserved();
+			}
+			// [[BPR-1345]] v003. Confirmed: the page closes and the window
+			// says so (owner, finish-page v002: "once the review is
+			// submitted I just want it to close and return to the PR
+			// instead"). The next review starts at once, so the page never
+			// shows a submitted one or asks for New review.
+			aConfirmed = Draft;
+			end_attempt(core::review_submission_note::published);
+			next_review();
+		} else if (aResult.Publication == application::review_submission_publication::definitely_not_published) {
+			const auto refused = *Pending;
+			Unknown.reset();
+			complete(command_kind::fail_submit);
+			// [[BPR-1715]]. The review carries what is pending now, not
+			// the revisions the refused attempt held: those come back as
+			// its answer releases them, and only then can Submit hold them.
+			apply_review_comments();
+			std::erase_if(Unresolved, [&refused](const auto& aRequest) { return aRequest.IdempotencyKey == refused.IdempotencyKey; });
+			Pending.reset();
+			Status                 = refused.Proposal.Comments.empty()
+				? QStringLiteral("Review was not published. Your summary is retained.")
+				: QStringLiteral("Review was not published. Your summary and its pending comments are kept; check them and submit again.");
+			const auto failureText = refused.LiveBinding ? qt::github_cli_publication_failure_text(aResult.Failure,
+																								   QString::fromStdString(refused.LiveBinding->ActingIdentity.Login), QString::fromStdString(std::string{ refused.LiveBinding->Target.Hostname.value() }))
+														 : QString{ };
+			if (!failureText.isEmpty()) {
+				Status = failureText;
+			}
+			// [[BPR-1715]]. Why GitHub refused it, as far as its answer
+			// says. It names no comment, so neither does the page.
+			if (aResult.Refusal == application::review_submission_refusal::unplaceable_line) {
+				Status = QStringLiteral("Not published: GitHub refused this review because one of its comments is on a line GitHub can't place in the pull request's diff, such as a line outside the changes. GitHub doesn't say which. Your summary and comments are kept: delete or edit that comment, then submit again.");
+			} else if (aResult.Refusal == application::review_submission_refusal::own_pull_request) {
+				// [[BPR-1853]]. The author was not known when it was sent,
+				// or GitHub knew better: say so, and what still works.
+				const auto verdict = refused.Proposal.Disposition == core::review_disposition::request_changes ? QStringLiteral("request changes on") : QStringLiteral("approve");
+				Status             = QStringLiteral("Not published: GitHub doesn't let you %1 your own pull request. %2").arg(verdict, refused.Proposal.Comments.empty() ? QStringLiteral("Your summary is kept; submit it as a comment instead.") : QStringLiteral("Your summary and comments are kept; submit them as a comment instead."));
+			} else if (aResult.Refusal == application::review_submission_refusal::review) {
+				Status = QStringLiteral("Not published: GitHub refused this review. Your summary and comments are kept; check them and submit again.");
+			}
+			// [[RFC-BPR-0105]]. Ended unsent because it waited too long to start.
+			const auto expired = Attempt && Attempt->Key == refused.IdempotencyKey && Attempt->Expired && aResult.Failure == application::review_mutation_failure::cancelled;
+			if (expired) {
+				Status = QStringLiteral("Not published. Still waiting for %1. Your review is kept.").arg(waiting_words(Attempt->Waiting));
+			}
+			end_attempt(expired ? core::review_submission_note::wait_expired : core::review_submission_note::not_published);
+			RetryOffered = true;
+			answer(refused, application::review_submission_publication::definitely_not_published);
+			if (aResult.Refusal == application::review_submission_refusal::unplaceable_line && UnplaceableRefusalObserved) {
+				UnplaceableRefusalObserved(refused);
+			}
+		} else {
+			// [[BPR-1475]]. Not reread: Check status is how an unknown outcome
+			// is settled, and a read accepted while it runs can replace the
+			// authority it runs under. Once it finds the review published,
+			// that answer rereads.
+			Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
+			// [[BPR-1541]]. Each answer replaces the reason.
+			Unknown = aResult.Unknown;
+			end_attempt(core::review_submission_note::outcome_unknown);
+		}
+	}
+
 	void review_submission_workflow::publish(const application::review_submission_host_terminal& aTerminal)
 	{
 		auto confirmed  = std::optional<core::review_submission_draft>{ };
 		auto transition = core::review_finish_transition::keep_review;
 		if (Closing || !Context || aTerminal.Context != *Context) {
 			// Retired hosts can finish, but cannot inspect or replace the current draft.
+			// [[RFC-BPR-0105]]. Except the answer for the submission still on
+			// screen: GitHub's answer ends it, never discarded while the page
+			// says it is being submitted.
+			const auto* result = std::get_if<application::review_submission_result>(&aTerminal.Outcome);
+			if (!Closing && result && Pending && result->Request == *Pending && Draft && Draft->State == draft_state::submitting && !Recovering) {
+				note(core::operation_action::review_submit_drop, core::review_submission_note::retired, std::chrono::steady_clock::now());
+				settle(*result, confirmed, transition);
+				present();
+				if (confirmed) {
+					Editor.confirm_submitted(*confirmed, transition == core::review_finish_transition::keep_review ? core::review_finish_transition::return_to_pull_request : transition);
+				}
+			} else if (result) {
+				note(core::operation_action::review_submit_drop, core::review_submission_note::retired, std::chrono::steady_clock::now());
+			}
 			start_selection();
 			return;
 		}
@@ -765,80 +1014,17 @@ namespace bpr::app {
 		} else if (const auto* result = std::get_if<application::review_submission_result>(&aTerminal.Outcome)) {
 			if (!Pending || !Draft || result->Request.Proposal.Draft != Draft->Id
 				|| result->Request.Proposal.Attempt != Draft->Attempt || result->Request != *Pending) {
+				// [[RFC-BPR-0105]]. Not this page's submission: said in the
+				// log, and a submission still shown is checked rather than
+				// left saying it is being submitted.
+				note(core::operation_action::review_submit_drop, core::review_submission_note::superseded, std::chrono::steady_clock::now());
+				if (Pending && Draft && Draft->State == draft_state::submitting) {
+					reconcile();
+				}
+				present();
 				return;
 			}
-			// [[BPR-1816]]. Where this answer leaves the reviewer, decided by
-			// the core before anything changes; only the first answer is the
-			// Submit's own.
-			const auto published = result->Publication == application::review_submission_publication::published
-				&& result->Receipt && application::valid(*result->Receipt, *Pending);
-			const auto answered = published ? core::review_finish_answer::published
-				: result->Publication == application::review_submission_publication::definitely_not_published
-				? core::review_finish_answer::not_published
-				: core::review_finish_answer::unknown;
-			transition          = finish(*Pending, answered);
-			SubmittedKey        = std::nullopt;
-			if (published) {
-				const auto submitted = *Pending;
-				Unknown.reset();
-				complete(command_kind::complete_submit);
-				std::erase_if(Unresolved, [this](const auto& aRequest) { return aRequest.IdempotencyKey == Pending->IdempotencyKey; });
-				Pending.reset();
-				answer(submitted, application::review_submission_publication::published);
-				if (PublicationObserved) {
-					PublicationObserved();
-				}
-				// [[BPR-1345]] v003. Confirmed: the page closes and the window
-				// says so (owner, finish-page v002: "once the review is
-				// submitted I just want it to close and return to the PR
-				// instead"). The next review starts at once, so the page never
-				// shows a submitted one or asks for New review.
-				confirmed = Draft;
-				next_review();
-			} else if (result->Publication == application::review_submission_publication::definitely_not_published) {
-				const auto refused = *Pending;
-				Unknown.reset();
-				complete(command_kind::fail_submit);
-				// [[BPR-1715]]. The review carries what is pending now, not
-				// the revisions the refused attempt held: those come back as
-				// its answer releases them, and only then can Submit hold them.
-				apply_review_comments();
-				std::erase_if(Unresolved, [&refused](const auto& aRequest) { return aRequest.IdempotencyKey == refused.IdempotencyKey; });
-				Pending.reset();
-				Status                 = refused.Proposal.Comments.empty()
-					? QStringLiteral("Review was not published. Your summary is retained.")
-					: QStringLiteral("Review was not published. Your summary and its pending comments are kept; check them and submit again.");
-				const auto failureText = refused.LiveBinding ? qt::github_cli_publication_failure_text(result->Failure,
-																									   QString::fromStdString(refused.LiveBinding->ActingIdentity.Login), QString::fromStdString(std::string{ refused.LiveBinding->Target.Hostname.value() }))
-															 : QString{ };
-				if (!failureText.isEmpty()) {
-					Status = failureText;
-				}
-				// [[BPR-1715]]. Why GitHub refused it, as far as its answer
-				// says. It names no comment, so neither does the page.
-				if (result->Refusal == application::review_submission_refusal::unplaceable_line) {
-					Status = QStringLiteral("Not published: GitHub refused this review because one of its comments is on a line GitHub can't place in the pull request's diff, such as a line outside the changes. GitHub doesn't say which. Your summary and comments are kept: delete or edit that comment, then submit again.");
-				} else if (result->Refusal == application::review_submission_refusal::own_pull_request) {
-					// [[BPR-1853]]. The author was not known when it was sent,
-					// or GitHub knew better: say so, and what still works.
-					const auto verdict = refused.Proposal.Disposition == core::review_disposition::request_changes ? QStringLiteral("request changes on") : QStringLiteral("approve");
-					Status             = QStringLiteral("Not published: GitHub doesn't let you %1 your own pull request. %2").arg(verdict, refused.Proposal.Comments.empty() ? QStringLiteral("Your summary is kept; submit it as a comment instead.") : QStringLiteral("Your summary and comments are kept; submit them as a comment instead."));
-				} else if (result->Refusal == application::review_submission_refusal::review) {
-					Status = QStringLiteral("Not published: GitHub refused this review. Your summary and comments are kept; check them and submit again.");
-				}
-				answer(refused, application::review_submission_publication::definitely_not_published);
-				if (result->Refusal == application::review_submission_refusal::unplaceable_line && UnplaceableRefusalObserved) {
-					UnplaceableRefusalObserved(refused);
-				}
-			} else {
-				// [[BPR-1475]]. Not reread: Check status is how an unknown outcome
-				// is settled, and a read accepted while it runs can replace the
-				// authority it runs under. Once it finds the review published,
-				// that answer rereads.
-				Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
-				// [[BPR-1541]]. Each answer replaces the reason.
-				Unknown = result->Unknown;
-			}
+			settle(*result, confirmed, transition);
 		}
 		if (!Context) {
 			next_lookup();

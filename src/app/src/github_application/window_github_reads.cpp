@@ -386,6 +386,10 @@ namespace bpr::app {
 						DeviceRefreshAuthority.reset();
 					}
 					if constexpr (std::is_same_v<intent_type, core::open_pull_request_intent> || std::is_same_v<intent_type, core::refresh_pull_request_intent>) {
+						// [[RFC-BPR-0105]]. An open starts a fresh review surface.
+						if (std::is_same_v<intent_type, core::open_pull_request_intent> && Window != nullptr) {
+							Window->expect_review_open();
+						}
 						WindowRead->dispatch(core::github_window_read_event{ std::move(aValue) });
 					} else {
 						Host->dispatch(core::github_event{ std::move(aValue) });

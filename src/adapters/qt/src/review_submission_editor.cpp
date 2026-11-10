@@ -33,6 +33,7 @@
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPolygonF>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QStyleOptionToolButton>
@@ -982,6 +983,17 @@ namespace bpr::qt {
 		WaitingAssure = words(QStringLiteral("wholeReviewWaitingAssurance"));
 		WaitingAssure->setText(tr("Nothing will be sent twice. Your review may already be on GitHub."));
 		panelText->addWidget(WaitingAssure);
+		// [[RFC-BPR-0105]]. While the review is being sent, one thin running
+		// line under the words: it moves only while something is happening.
+		auto* const sending = new QProgressBar{ Waiting };
+		sending->setObjectName(QStringLiteral("wholeReviewSending"));
+		sending->setRange(0, 0);
+		sending->setTextVisible(false);
+		sending->setFixedHeight(3);
+		sending->setAccessibleName(tr("Sending"));
+		sending->hide();
+		Sending = sending;
+		panelText->addWidget(Sending);
 		panelText->addSpacing(6);
 		panelRow->addLayout(panelText, 1);
 		Waiting->hide();
@@ -1148,6 +1160,23 @@ namespace bpr::qt {
 		Status->setMinimumWidth(0);
 		Status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		layout->addWidget(Status);
+		// [[RFC-BPR-0105]]. A review that was not published offers the same
+		// verdict again, under the reason, until it is sent or changed.
+		auto* const retryRow = new QHBoxLayout;
+		retryRow->setContentsMargins(0, 0, 0, 0);
+		RetryButton = new panel_action_button{ this };
+		RetryButton->setObjectName(QStringLiteral("wholeReviewRetry"));
+		RetryButton->setText(tr("Retry"));
+		RetryButton->setAccessibleName(tr("Retry"));
+		RetryButton->hide();
+		connect(RetryButton, &QToolButton::clicked, this, [this] {
+			if (Draft) {
+				submit_as(Draft->Disposition);
+			}
+		});
+		retryRow->addWidget(RetryButton);
+		retryRow->addStretch();
+		layout->addLayout(retryRow);
 		// Recovery appears only when it can be used: Check status is the
 		// waiting panel's own action ([[BPR-1541]] v002).
 		Recovery            = new QWidget{ Waiting };
@@ -1275,8 +1304,21 @@ namespace bpr::qt {
 		UnknownReason->setText(unknown);
 		UnknownReason->setVisible(!unknown.isEmpty());
 		Status->setAccessibleDescription(unknown);
-		WaitingTitle->setText(checkable ? tr("We couldn't confirm this review") : tr("Waiting for GitHub to confirm this review…"));
-		const auto fallback = checkable && unknown.isEmpty() ? tr("GitHub didn't say whether it arrived.") : QString{ };
+		// [[RFC-BPR-0105]]. Before GitHub answers, the panel says which of
+		// two things is happening: waiting to start, and for what; or sending.
+		const auto phase  = waiting ? aProjection.Phase : review_submission_phase::none;
+		const auto before = phase == review_submission_phase::waiting;
+		WaitingTitle->setText(before                                          ? tr("Waiting to send your review")
+								  : phase == review_submission_phase::sending ? tr("Sending your review to GitHub…")
+								  : checkable                                 ? tr("We couldn't confirm this review")
+																			  : tr("Waiting for GitHub to confirm this review…"));
+		WaitingAssure->setText(before ? tr("Nothing has been sent. Your review is kept.") : tr("Nothing will be sent twice. Your review may already be on GitHub."));
+		WaitingMark->setAccessibleName(before ? tr("Waiting") : phase == review_submission_phase::sending ? tr("Sending")
+																										  : tr("Status unknown"));
+		Sending->setVisible(phase == review_submission_phase::sending);
+		const auto fallback = before                                                   ? aProjection.Waiting
+			: phase == review_submission_phase::none && checkable && unknown.isEmpty() ? tr("GitHub didn't say whether it arrived.")
+																					   : QString{ };
 		WaitingFallback->setText(fallback);
 		WaitingFallback->setVisible(!fallback.isEmpty());
 		Waiting->setVisible(waiting);
@@ -1291,7 +1333,10 @@ namespace bpr::qt {
 		DiscardButton->setAccessibleName(Discard->text());
 		// Nothing can be discarded while GitHub may hold the review.
 		DiscardButton->setVisible(Draft.has_value() && !waiting);
-		Reconcile->setEnabled(connected && aProjection.Controls.Reconcile);
+		// [[RFC-BPR-0105]]. Nothing to check while it waits to start or sends.
+		Reconcile->setEnabled(connected && aProjection.Controls.Reconcile && phase == review_submission_phase::none);
+		RetryButton->setVisible(connected && aProjection.Retry && !waiting && core::submits_as(aProjection.Controls, Draft->Disposition));
+		RetryButton->setToolTip(tr("Submit this review again as %1.").arg(Draft ? decisions_name(Draft->Disposition) : QString{ }));
 		ReconcileButton->setVisible(Reconcile->isEnabled());
 		Recovery->setVisible(Reconcile->isEnabled());
 		Body->setToolTip(Body->isReadOnly() ? aProjection.Status : tr("Your summary is kept as a draft until you submit it."));
@@ -2032,6 +2077,8 @@ namespace bpr::qt {
 	auto review_submission_editor::status_label() const noexcept -> QLabel* { return Status; }
 	auto review_submission_editor::unknown_reason_label() const noexcept -> QLabel* { return UnknownReason; }
 	auto review_submission_editor::waiting_panel() const noexcept -> QWidget* { return Waiting; }
+	auto review_submission_editor::sending_progress() const noexcept -> QWidget* { return Sending; }
+	auto review_submission_editor::retry_button() const noexcept -> QToolButton* { return RetryButton; }
 	auto review_submission_editor::waiting_title_label() const noexcept -> QLabel* { return WaitingTitle; }
 	auto review_submission_editor::waiting_assurance_label() const noexcept -> QLabel* { return WaitingAssure; }
 	auto review_submission_editor::reconcile_button() const noexcept -> QToolButton* { return ReconcileButton; }

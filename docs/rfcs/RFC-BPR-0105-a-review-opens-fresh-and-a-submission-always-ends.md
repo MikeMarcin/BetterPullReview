@@ -46,6 +46,33 @@ can wait or vanish without a word:
 
 No card on the board describes this.
 
+#### Found cause (BPR-2010, 2026-11-10)
+
+A recorded course on the baseline `dc5453afa`
+([verification record](../verification/RFC-BPR-0105.md#ac01-the-stall-reproduced))
+confirms the account above in its shared-lane part and refines its
+retired-host part. Two pull requests were opened from Home in one window
+while an earlier effect held the per-profile publication lane, standing in
+for a tour publication or reply that had not answered:
+
+- Opened while the lane was held, the next pull request's review showed no
+  draft, "Checking for an unfinished review…" and a disabled Approve for as
+  long as the earlier effect ran: its new host existed, but its discovery was
+  queued behind the earlier effect. A retired host was not needed for the
+  wait; it is a second, rarer way in, when the host left behind still has
+  accepted work.
+- With the review ready and the lane then taken, Approve moved the page to
+  "Waiting for GitHub to confirm this review…" with no bound, no progress and
+  no log line, until the earlier effect finished. Nothing in the page said what
+  it waited for. With a hung effect that wait outlives the window; only a new
+  process has a new lane, which matches "restarting fixes it".
+
+The owner's own session was not logged at that revision (the waits were not
+recorded), so which earlier effect held the lane then is not known. The fix
+does not depend on it: each review host now sends on its own lane, waits only
+for its own pull request's earlier work, and every wait is stated, bounded and
+logged.
+
 ### A new review shows the last one's tabs
 
 After leaving a review whose Tour tab and side chat were open and opening

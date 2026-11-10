@@ -286,6 +286,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_progressive_open_public_path": "private-desktop-root-refused",
     # [[BPR-1848]]. Coming back to Home on the same slow fixture network.
     "application_home_return_public_path": "private-desktop-root-refused",
+    # [[RFC-BPR-0105]]. The dependable-session course, on the same fixture desktop root.
+    "application_dependable_session_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1865]]. Home's filter, same public-path fixture desktop root.
     "application_home_filter_public_path": "private-desktop-root-refused",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.

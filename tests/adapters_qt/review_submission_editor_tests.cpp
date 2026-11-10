@@ -75,6 +75,55 @@ auto main(int argc, char** argv) -> int
 		}
 		return EXIT_SUCCESS;
 	}
+	// [[RFC-BPR-0105]]. A pressed submission says it is waiting, and for
+	// what, or sending; one that ended not published offers Retry.
+	{
+		qt::review_submission_editor phases{ [](auto) { } };
+		auto                         held = draft;
+		held.Disposition                  = core::review_disposition::approve;
+		held.State                        = core::review_submission_state::submitting;
+		held.Attempt                      = core::review_submission_attempt_id{ 1U };
+		auto waiting                      = qt::review_submission_editor_projection{ .Draft = held, .Controls = core::controls(held), .TargetDescription = projection.TargetDescription, .Status = QStringLiteral("Submitting the exact review shown…"), .Phase = qt::review_submission_phase::waiting, .Waiting = QStringLiteral("Waiting for this review's pending comments to be held.") };
+		phases.resize(360, 620);
+		phases.show();
+		phases.present(waiting);
+		QApplication::processEvents();
+		auto* const fallback = phases.findChild<QLabel*>(QStringLiteral("wholeReviewWaitingFallback"));
+		expect(phases.waiting_panel()->isVisible() && phases.waiting_title_label()->text() == QStringLiteral("Waiting to send your review") && fallback != nullptr
+				   && fallback->isVisible() && fallback->text() == waiting.Waiting && !phases.sending_progress()->isVisible(),
+			   "waiting names what it waits for, with no running line");
+		auto sending  = waiting;
+		sending.Phase = qt::review_submission_phase::sending;
+		phases.present(sending);
+		QApplication::processEvents();
+		expect(phases.waiting_title_label()->text() == QStringLiteral("Sending your review to GitHub…") && phases.sending_progress()->isVisible() && !fallback->isVisible(),
+			   "sending shows the running line");
+		auto ended   = held;
+		ended.State  = core::review_submission_state::drafting;
+		auto refused = qt::review_submission_editor_projection{ .Draft = ended, .Controls = core::controls(ended), .TargetDescription = projection.TargetDescription, .Status = QStringLiteral("Not published. Still waiting for this review's pending comments to be held. Your review is kept."), .Retry = true };
+		phases.present(refused);
+		QApplication::processEvents();
+		expect(!phases.waiting_panel()->isVisible() && phases.status_label()->isVisible() && phases.retry_button()->isVisible(), "not published says why and offers Retry");
+		if (const auto look = qEnvironmentVariable("BPR_SUBMISSION_PHASE_RENDER"); !look.isEmpty()) {
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+				auto profile = qt::appearance_profile{ };
+				profile.select_mode(mode);
+				phases.setPalette(profile.derive(QApplication::palette()));
+				for (const auto& [shown, state] : { std::pair{ &waiting, "waiting" }, std::pair{ &sending, "sending" }, std::pair{ &refused, "not-published" } }) {
+					phases.present(*shown);
+					for (auto turn = 0; turn < 4; ++turn) {
+						QApplication::processEvents();
+					}
+					auto canvas = QPixmap{ phases.size() * phases.devicePixelRatioF() };
+					canvas.setDevicePixelRatio(phases.devicePixelRatioF());
+					canvas.fill(phases.palette().color(QPalette::Window));
+					phases.render(&canvas);
+					expect(canvas.save(look + QStringLiteral("-") + QString::fromLatin1(state) + QStringLiteral("-") + QString::fromLatin1(name) + QStringLiteral(".png")), "phase render saved");
+				}
+			}
+		}
+		phases.retry_button()->click();
+	}
 	// [[BPR-1605]] comparison render: Finish your review carrying one pending
 	// blocking comment of mine, with none on GitHub ("pending"), and with
 	// one on GitHub as well ("mixed"), in Light and Dark. "as-read" is the

@@ -45,6 +45,10 @@ namespace bpr::application {
 	public:
 		virtual ~review_submission_projection_port()                           = default;
 		virtual void publish(const review_submission_host_terminal& aTerminal) = 0;
+		/// \brief [[RFC-BPR-0105]]. The current accepted work began on its
+		/// effect lane: for a submission, sending has started. On the
+		/// decision lane, before its terminal; never after one.
+		virtual void started(const review_submission_host_context& aContext) { static_cast<void>(aContext); }
 	};
 
 #if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)
@@ -85,6 +89,11 @@ namespace bpr::application {
 		/// submits. A found request is reconciled with `reconcile`.
 		[[nodiscard]] auto lookup(std::string aKey) -> std::optional<review_submission_host_context>;
 		void               cancel(review_submission_host_context aContext) noexcept;
+		/// \brief [[RFC-BPR-0105]]. Ends the accepted work `aContext` if it
+		/// has not begun on its lane: it never runs, and its terminal
+		/// (cancelled, nothing sent) is posted now, freeing the host. False
+		/// once it began, or for any other context.
+		[[nodiscard]] auto abandon(review_submission_host_context aContext) -> bool;
 		void               shutdown() noexcept;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 

@@ -52,6 +52,13 @@ namespace bpr::qt {
 		auto    operator==(const review_submission_preflight_reference&) const -> bool = default;
 	};
 	/// \brief Safe, decided presentation; no provider, request or execution authority.
+	/// \brief [[RFC-BPR-0105]]. Where a pressed submission is before
+	/// GitHub answers: waiting to start (with what it waits for) or sending.
+	enum class review_submission_phase : std::uint8_t {
+		none,
+		waiting,
+		sending,
+	};
 	struct review_submission_editor_projection
 	{
 		std::optional<core::review_submission_draft> Draft;
@@ -68,6 +75,13 @@ namespace bpr::qt {
 		/// [[BPR-1541]]. Why a submitted review is still unknown, as the last
 		/// Check status or the attempt's record left it; none otherwise.
 		std::optional<core::review_submission_unknown_notice> Unknown;
+		/// [[RFC-BPR-0105]]. A pressed submission waiting to start, and what
+		/// it waits for in plain words, or sending.
+		review_submission_phase Phase = review_submission_phase::none;
+		QString                 Waiting;
+		/// [[RFC-BPR-0105]]. The last submission ended not published and the
+		/// same verdict can be submitted again.
+		bool Retry = false;
 	};
 	/// \brief [[BPR-1541]]. The line the page shows under "Review status is
 	/// unknown": what happened and what to do, in the reviewer's words, with
@@ -129,6 +143,10 @@ namespace bpr::qt {
 		/// why, what is safe, and Check status. Hidden otherwise.
 		[[nodiscard]] auto waiting_panel() const noexcept -> QWidget*;
 		[[nodiscard]] auto waiting_title_label() const noexcept -> QLabel*;
+		/// [[RFC-BPR-0105]]. The thin running line shown while sending.
+		[[nodiscard]] auto sending_progress() const noexcept -> QWidget*;
+		/// [[RFC-BPR-0105]]. Submits the verdict that was not published again.
+		[[nodiscard]] auto retry_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto waiting_assurance_label() const noexcept -> QLabel*;
 		/// \brief Check status's button, in the panel.
 		[[nodiscard]] auto reconcile_button() const noexcept -> QToolButton*;
@@ -304,6 +322,8 @@ namespace bpr::qt {
 		QLabel*                                                     WaitingTitle    = nullptr;
 		QLabel*                                                     WaitingFallback = nullptr;
 		QLabel*                                                     WaitingAssure   = nullptr;
+		QWidget*                                                    Sending         = nullptr;
+		QToolButton*                                                RetryButton     = nullptr;
 		QLabel*                                                     DraftState      = nullptr;
 		QLabel*                                                     Title           = nullptr;
 		QLabel*                                                     Purpose         = nullptr;

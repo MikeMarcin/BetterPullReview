@@ -215,11 +215,11 @@ namespace bpr::app {
 #else
 		review_submission_workflow::grant_factory issueReviewGrant = [](auto session, auto generation, const application::review_submission_request& request) { return application::detail::review_submission_user_authority_issuer::issue(session, generation, request); };
 #endif
-		ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
-																		*Window->review_submission_editor_view(), std::move(issueReviewGrant),
-																		[this](const application::review_submission_live_binding& aBinding) {
-																			return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity);
-																		});
+		ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->review_submission_editor_view(), std::move(issueReviewGrant), [this](const application::review_submission_live_binding& aBinding) { return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity); },
+																		// [[RFC-BPR-0105]]. Each review host sends on its own lane:
+																		// tour publication, replies and another pull request's
+																		// review work never wait in front of a submission.
+																		[] { return std::make_unique<worker_executor>(); }, DiagnosticLog);
 #if defined(BPR_BUILD_TESTING)
 		review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {
 			return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aPlan) : application::review_submission_execution_grant{ };

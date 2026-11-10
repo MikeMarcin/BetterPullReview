@@ -565,7 +565,8 @@ auto main(int argc, char** argv) -> int
 			editor.submit_action()->trigger();
 			editor.submit_action()->trigger();
 			expect(editor.shown_draft()->State == state::submitting && !editor.discard_action()->isEnabled(), "duplicate/pending controls refuse resend and discard");
-			wait([&] { return access::held_review_submission_terminals(*application) > 0U; }, "held effect terminal");
+			// [[RFC-BPR-0105]]. The send tells it started, then its terminal.
+			wait([&] { return access::held_review_submission_terminals(*application) > 1U; }, "held effect terminal");
 			access::hold_review_submission_terminals(*application, false);
 			submitted(editor);
 			std::scoped_lock lock{ server->Mutex };
@@ -651,7 +652,8 @@ auto main(int argc, char** argv) -> int
 		restored.body_editor()->setPlainText(QStringLiteral("Frozen across authority change"));
 		access::hold_review_submission_terminals(*application, true);
 		restored.submit_action()->trigger();
-		wait([&] { return access::held_review_submission_terminals(*application) > 0U; }, "terminal ready before retirement");
+		// [[RFC-BPR-0105]]. Its start, then its terminal.
+		wait([&] { return access::held_review_submission_terminals(*application) > 1U; }, "terminal ready before retirement");
 		expect(restored.shown_draft()->Target != pending.Target && restored.shown_draft()->Body == "Frozen across authority change", "new explicit draft binds newly observed head after historical recovery");
 		// [[BPR-0771]]. The ordinary Sign out is the signed-in host's card's.
 		QPushButton* signOut = nullptr;

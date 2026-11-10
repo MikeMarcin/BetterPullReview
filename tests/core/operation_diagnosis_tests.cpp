@@ -212,11 +212,28 @@ namespace {
 			expect(!parse_operation_diagnosis(forged).has_value(), std::string{ "a host line that is not exactly what describe writes is refused: " } + std::string{ forged });
 		}
 	}
+
+	/// [[RFC-BPR-0105]]. A review submission's request, waits, drops and
+	/// ending, each naming its subject.
+	void test_review_submission_lines()
+	{
+		const auto wait = operation_diagnosis{ .Action = operation_action::review_submit_wait, .DurationMilliseconds = 20000U, .Submission = review_submission_note::review_lane };
+		expect(describe(wait) == "action=review_submit_wait failure=none process=none exit=none duration_ms=20000 count=0 written=0 read_back=0 submit_subject=review_lane", "a wait names what it waited for and how long");
+		expect(parse_operation_diagnosis(describe(wait)) == wait && family(wait.Action) == operation_diagnosis_family::review_mutation, "and reads back as a review mutation line");
+		const auto ended = operation_diagnosis{ .Action = operation_action::review_submit_end, .Failure = operation_failure::cancelled, .DurationMilliseconds = 20001U, .Submission = review_submission_note::wait_expired };
+		expect(parse_operation_diagnosis(describe(ended)) == ended, "an ending reads back");
+		const auto drop = operation_diagnosis{ .Action = operation_action::review_submit_drop, .Submission = review_submission_note::retired };
+		expect(parse_operation_diagnosis(describe(drop)) == drop, "a drop reads back");
+		expect(describe({ .Action = operation_action::review_submit_request }).empty(), "a submission line names its subject");
+		expect(describe({ .Action = operation_action::resolve_thread, .Submission = review_submission_note::published }).empty(), "only a submission line names one");
+		expect(describe({ .Action = operation_action::review_submit_end, .Submission = static_cast<review_submission_note>(200) }).empty(), "an unknown subject is no line");
+	}
 } // namespace
 
 int main()
 {
 	test_line();
+	test_review_submission_lines();
 	test_tour_publication_trace();
 	test_refusals();
 	test_account_and_update_lines();

@@ -2158,6 +2158,23 @@ namespace bpr::app::detail {
 		/// seconds pass. Decision delivery and public gestures keep turning.
 		[[nodiscard]] static auto hold_private_review_effects(
 			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[RFC-BPR-0105]]. Holds the profile's shared publication
+		/// effect lane (tour publication and conversation replies) the way a
+		/// slow or hung earlier effect does, until the returned function
+		/// releases it or thirty seconds pass.
+		[[nodiscard]] static auto hold_review_submission_effects(
+			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[RFC-BPR-0105]]. Holds the current review host's own lane,
+		/// so the shown review's submission cannot start, until the returned
+		/// function releases it or thirty seconds pass. Empty without a host.
+		[[nodiscard]] static auto hold_review_submission_lane(
+			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[RFC-BPR-0105]]. Shortens the bound on waiting to start.
+		static void set_review_submission_wait_bound(github_application& aApplication, std::chrono::milliseconds aBound);
+		/// \brief [[RFC-BPR-0105]]. Delivers the window's own authority
+		/// change for the accepted pull request, as a changed account or
+		/// identity does, superseding what is in flight. False without one.
+		[[nodiscard]] static auto invalidate_current_authority(github_application& aApplication) -> bool;
 		/// \brief [[BPR-1971]]. Hold the existing Workbench effect queue at
 		/// a settled agent-course boundary, including its legacy history load.
 		/// Other Workbench effects also wait; release before shutdown or thirty

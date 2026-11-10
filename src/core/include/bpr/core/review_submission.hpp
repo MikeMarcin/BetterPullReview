@@ -4,6 +4,7 @@
 #include "bpr/core/review_round_trip.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <span>
 #include <string_view>
@@ -17,6 +18,10 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_review_submission_body_bytes = 64U * 1024U;
 	/// \brief [[BPR-1345]]. At most this many line comments ride one review.
 	inline constexpr std::size_t maximum_review_submission_comments = 50U;
+	/// \brief [[RFC-BPR-0105]]. How long a pressed submission may wait to
+	/// start sending before it ends as not published. A send in progress
+	/// keeps the provider's own deadlines.
+	inline constexpr auto review_submission_wait_bound = std::chrono::seconds{ 20 };
 	/// \brief [[BPR-1345]]. The summary, every comment's body and every path
 	/// together, so the review's one request stays inside the transports'
 	/// 64 KiB request limit with room for its JSON.
