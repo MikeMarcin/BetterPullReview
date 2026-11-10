@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1984"
 title: "Measure Windows containment for the new tour publication courses"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1983"]
 priority: "P1"
