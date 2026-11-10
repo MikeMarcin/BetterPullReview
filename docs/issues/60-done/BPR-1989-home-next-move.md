@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1989"
 title: "Decide and show whose move an authored pull request is"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0098"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0001-home-next-move.md"}
 depends_on: []
-parked_on: "human-review"
+acceptance: [{"criterion":"RFC-BPR-0098 AC01","outcome":"pass","revision":"5018fe6aa336d553b52f075ee32a27e8ddb9057f","evidence":{"kind":"command","detail":"One next move per row of the table","command":"ctest --preset dev -R core_home_next_move"}},{"criterion":"RFC-BPR-0098 AC02","outcome":"pass","revision":"5018fe6aa336d553b52f075ee32a27e8ddb9057f","evidence":{"kind":"command","detail":"Placement and order","command":"ctest --preset dev -R 'core_home_next_move|application_home_next_move_public_path'"}},{"criterion":"RFC-BPR-0098 AC03","outcome":"pass","revision":"5018fe6aa336d553b52f075ee32a27e8ddb9057f","evidence":{"kind":"command","detail":"Word, sentence, tone, header","command":"ctest --preset dev -R 'application_home_next_move_public_path|qt_review_landing_model'"}},{"criterion":"RFC-BPR-0098 AC04","outcome":"pass","revision":"5018fe6aa336d553b52f075ee32a27e8ddb9057f","evidence":{"kind":"command","detail":"Absent facts claim nothing","command":"ctest --preset dev -R 'core_home_next_move|application_review_queue_enrollment|qt_review_landing_model'"}},{"criterion":"RFC-BPR-0098 AC05","outcome":"pass","revision":"5018fe6aa336d553b52f075ee32a27e8ddb9057f","evidence":{"kind":"command","detail":"Bounded reads, no extra request","command":"ctest --preset dev -R 'application_home_next_move_public_path|github_paged_read'"}},{"criterion":"RFC-BPR-0098 AC06","outcome":"pass","revision":"2f772b6f00b3be54d27e4b5462815332977e955b","evidence":{"kind":"observation","detail":"Owner accepted BPR-1989-home-moves (23a80fed), BPR-1989-own-pull-requests (cae206d9) and BPR-1989-word-place (0b371105), attended session bb8c24c5f3cb7ed97777f4e3f1a70a78, no notes"}}]
 ---
 
 # Decide and show whose move an authored pull request is
