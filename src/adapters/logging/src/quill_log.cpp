@@ -8,10 +8,12 @@
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
 #include "build_fingerprint.hpp"
+#include "queued_diagnostic_record.hpp"
 #include "session_files.hpp"
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <charconv>
 #include <chrono>
 #include <deque>
@@ -24,6 +26,31 @@
 #include <quill/sinks/Sink.h>
 #include <random>
 #include <thread>
+namespace bpr::adapters::logging::detail {
+	void record_drop(std::atomic<std::uint64_t>& aDropped) noexcept
+	{
+		auto count = aDropped.load(std::memory_order_relaxed);
+		while (count != std::numeric_limits<std::uint64_t>::max()
+			   && !aDropped.compare_exchange_weak(count, count + 1U, std::memory_order_relaxed)) { }
+	}
+	auto consume_record_for_sink(pending_diagnostic_records& aPending, std::atomic<std::uint64_t>& aDropped, std::string_view aStatement) noexcept -> std::optional<std::string_view>
+	{
+		const auto consumed = consume_queued_record(aPending, aStatement);
+		if (!consumed.Statement && consumed.Released) {
+			record_drop(aDropped);
+		}
+		return consumed.Statement;
+	}
+	auto retire_queued_records(pending_diagnostic_records& aPending, std::atomic<std::uint64_t>& aDropped) noexcept -> bool
+	{
+		const auto retired = aPending.Events.exchange(0U);
+		const auto bytes   = aPending.Bytes.exchange(0U);
+		for (std::size_t index = 0U; index < retired; ++index) {
+			record_drop(aDropped);
+		}
+		return retired != 0U || bytes != 0U;
+	}
+}
 namespace bpr::adapters::logging {
 	namespace {
 		auto failure_name(std::monostate) noexcept -> std::string_view { return "none"; }
@@ -263,20 +290,30 @@ namespace bpr::adapters::logging {
 		{ };
 		using frontend          = quill::FrontendImpl<frontend_options>;
 		using priority_frontend = quill::FrontendImpl<priority_frontend_options>;
+		auto normal_queue_has_priority_reserve() -> bool
+		{
+			constexpr std::size_t priorityReserve = 4096U - 3584U;
+			const auto            needed          = (priorityReserve + 1U) * detail::queued_record_frame_bytes();
+			assert(needed < frontend_options::initial_queue_capacity);
+			if (needed >= frontend_options::initial_queue_capacity) {
+				return false;
+			}
+			auto& queue = quill::detail::get_local_thread_context<frontend_options>()->get_spsc_queue<frontend_options::queue_type>();
+			// Quill13 shares this caller's SPSC queue across logger types.
+			// prepare_write only checks capacity/refreshes the reader cache.
+			// Do not write, finish or commit this non-owning preflight: preserve
+			// the existing 512-event priority reserve inside the SAME 64KiB.
+			return queue.prepare_write(needed) != nullptr;
+		}
+
 		struct sink_state
 		{
 			std::atomic<status_type>             Status{ status_type::unavailable };
 			std::atomic<diagnostic_file_failure> OpenFailure{ diagnostic_file_failure::none };
 			std::atomic<std::uint64_t>           Dropped{ 0 };
 			std::atomic<std::uint64_t>           Generation{ 1 };
-			std::atomic<std::size_t>             PendingEvents{ 0 };
-			std::atomic<std::size_t>             PendingBytes{ 0 };
-			void                                 drop() noexcept
-			{
-				auto count = Dropped.load(std::memory_order_relaxed);
-				while (count != std::numeric_limits<std::uint64_t>::max()
-					   && !Dropped.compare_exchange_weak(count, count + 1U, std::memory_order_relaxed)) { }
-			}
+			detail::pending_diagnostic_records   Pending;
+			void                                 drop() noexcept { detail::record_drop(Dropped); }
 
 			void fail(const status_type aStatus) noexcept
 			{
@@ -305,17 +342,21 @@ namespace bpr::adapters::logging {
 		protected:
 			void write_log(const quill::MacroMetadata*, std::uint64_t, std::string_view, std::string_view, const std::string&, std::string_view, quill::LogLevel, std::string_view, std::string_view, const std::vector<std::pair<std::string, std::string>>*, std::string_view, const std::string_view aStatement) override
 			{
-				State->PendingEvents.fetch_sub(1U);
-				State->PendingBytes.fetch_sub(aStatement.size() - 1U);
-				const auto    separator  = aStatement.find('|');
+				const auto consumed = detail::consume_record_for_sink(State->Pending, State->Dropped, aStatement);
+				if (!consumed) {
+					State->fail(status_type::unavailable);
+					return;
+				}
+				const auto    statement  = *consumed;
+				const auto    separator  = statement.find('|');
 				std::uint64_t generation = 0U;
 				if (separator == std::string_view::npos) {
 					State->drop();
 					return;
 				}
-				const auto prefix = aStatement.substr(0U, separator);
+				const auto prefix = statement.substr(0U, separator);
 				const auto parsed = std::from_chars(prefix.data(), prefix.data() + prefix.size(), generation);
-				if (parsed.ec != std::errc{ } || parsed.ptr != aStatement.data() + separator || generation != State->Generation.load()) {
+				if (parsed.ec != std::errc{ } || parsed.ptr != statement.data() + separator || generation != State->Generation.load()) {
 					State->drop();
 					return;
 				}
@@ -323,7 +364,7 @@ namespace bpr::adapters::logging {
 					State->drop();
 					return;
 				}
-				const auto result = Files.write(aStatement.substr(separator + 1U));
+				const auto result = Files.write(statement.substr(separator + 1U));
 				if (result != status_type::available) {
 					State->drop();
 					if (result != status_type::dropped) {
@@ -536,6 +577,13 @@ namespace bpr::adapters::logging {
 					PriorityLogger = nullptr;
 					frontend::remove_logger_blocking(Logger);
 					Logger = nullptr;
+					// Both blocking retirements completed: no sink callbacks remain.
+					// A fatal whole-format failure may have lost its charge prefix.
+					// Preserve unavailable/drop evidence instead of reporting healthy
+					// zero accounting while callbacks could still be live.
+					if (detail::retire_queued_records(State->Pending, State->Dropped)) {
+						State->fail(status_type::unavailable);
+					}
 				}
 			} catch (...) {
 				State->fail(status_type::unavailable);
@@ -641,7 +689,7 @@ namespace bpr::adapters::logging {
 			}
 			try {
 
-				static constexpr quill::MacroMetadata metadata{ "", "", "{}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
+				static constexpr quill::MacroMetadata metadata{ "", "", "{}{}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
 				const auto                            githubFailure = aEvent.GithubFailure.index() != 0U;
 				const auto                            failureDomain = aEvent.ReviewSubmission || aEvent.ReviewEnding ? std::string_view{ "review_submission" } : githubFailure ? (aEvent.GithubFailure.index() == 1U ? "github" : "validation")
 																																											   : domains[aEvent.EpochFailure.index()];
@@ -699,21 +747,31 @@ namespace bpr::adapters::logging {
 					return status_type::available;
 				}
 				// The generation prefix is transport-only and is stripped before file I/O.
-				const auto transport  = std::to_string(ContextGeneration) + "|" + std::string{ bytes };
-				const auto eventLimit = priority ? 4096U : 3584U;
-				const auto byteLimit  = (priority ? 8U : 7U) * 1024U * 1024U;
-				if (State->PendingEvents.load() >= eventLimit || State->PendingBytes.load() > byteLimit - transport.size()) {
+				const auto transport = std::to_string(ContextGeneration) + "|" + std::string{ bytes };
+				const auto charge    = transport.size();
+				if (!priority && !normal_queue_has_priority_reserve()) {
 					State->drop();
 					return status_type::dropped;
 				}
-				State->PendingEvents.fetch_add(1U);
-				State->PendingBytes.fetch_add(transport.size());
-				const auto submitted = priority
-					? PriorityLogger->log_statement<false>(&metadata, std::string_view{ transport })
-					: Logger->log_statement<false>(&metadata, std::string_view{ transport });
+				auto       queued        = detail::queued_diagnostic_record{ std::make_shared<const detail::diagnostic_record_bytes>(transport) };
+				const auto encodedCharge = detail::encode_record_charge(charge);
+				if (!State->Pending.reserve(charge, priority)) {
+					State->drop();
+					return status_type::dropped;
+				}
+				bool submitted = false;
+				try {
+					const auto field = std::string_view{ encodedCharge.data(), encodedCharge.size() };
+					submitted        = priority
+						? PriorityLogger->log_statement<false>(&metadata, field, std::move(queued))
+						: Logger->log_statement<false>(&metadata, field, std::move(queued));
+				} catch (...) {
+					// Allocation before queue commit must roll back the same charge.
+					State->Pending.release(charge);
+					throw;
+				}
 				if (!submitted) {
-					State->PendingEvents.fetch_sub(1U);
-					State->PendingBytes.fetch_sub(transport.size());
+					State->Pending.release(charge);
 					State->drop();
 					return status_type::dropped;
 				}
