@@ -1318,6 +1318,8 @@ namespace {
 					{ "eventCount", static_cast<qint64>(result.Events.size()) },
 					{ "nativeHandlePresent", !result.NativeHandle.empty() },
 					{ "stderrBytes", static_cast<qint64>(result.StandardError.size()) },
+					{ "stdoutBytes", static_cast<qint64>(result.StandardOutputBytes) },
+					{ "nativeProcessPresent", result.NativeProcess != 0U },
 					{ "exitCode", result.ExitCode ? QJsonValue(*result.ExitCode) : QJsonValue(QJsonValue::Null) },
 					{ "protocolFailure", result.ProtocolFailure ? QJsonValue(static_cast<int>(*result.ProtocolFailure)) : QJsonValue(QJsonValue::Null) },
 					{ "workspaceReason", result.WorkspaceReason ? QJsonValue(static_cast<int>(*result.WorkspaceReason)) : QJsonValue(QJsonValue::Null) }
