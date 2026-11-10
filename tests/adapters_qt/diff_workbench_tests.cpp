@@ -5343,6 +5343,82 @@ namespace {
 		}
 	}
 
+	[[nodiscard]] auto number_pixel_distance(const QColor& aLeft, const QColor& aRight) -> int
+	{
+		return std::max({ std::abs(aLeft.red() - aRight.red()), std::abs(aLeft.green() - aRight.green()), std::abs(aLeft.blue() - aRight.blue()) });
+	}
+
+	[[nodiscard]] auto number_backgrounds_valid(const QColor& aPen, const QColor& aBackground, const QColor& aReferenceBackground) -> bool
+	{
+		return aPen.isValid() && aBackground.isValid() && aReferenceBackground.isValid()
+			&& number_pixel_distance(aBackground, aPen) > 32 && number_pixel_distance(aReferenceBackground, aPen) > 32;
+	}
+
+	[[nodiscard]] auto number_ink_matches_reference(const QColor& aPixel, const QColor& aPen, const QColor& aBackground, const QColor& aReferenceBackground) -> bool
+	{
+		if (!aPixel.isValid() || !number_backgrounds_valid(aPen, aBackground, aReferenceBackground)) {
+			return false;
+		}
+		// Normalize the distance from the pen to the reference background's contrast.
+		// Each factor is at most 255, so both integer products are at most 65025.
+		return number_pixel_distance(aPixel, aPen) * number_pixel_distance(aReferenceBackground, aPen)
+			<= 32 * number_pixel_distance(aBackground, aPen);
+	}
+
+	[[nodiscard]] auto number_ink_tracks_native(const std::pair<int, int> aActual, const int aFirst, const int aLast) -> bool
+	{
+		return std::abs(aActual.first - aFirst) <= 1 && std::abs(aActual.second - aLast) <= 1;
+	}
+
+	void test_number_ink_reference_normalization()
+	{
+		const auto pen                 = QColor{ 91, 101, 112 };
+		const auto referenceBackground = QColor{ 208, 224, 242 };
+		const auto currentBackground   = QColor{ 240, 242, 245 };
+		const auto referencePixel      = QColor{ 118, 130, 142 };
+		const auto currentPixel        = QColor{ 126, 134, 143 };
+		expect(number_pixel_distance(referencePixel, pen) == 30 && number_pixel_distance(currentPixel, pen) == 35,
+			   "observed equal-coverage fringe crosses the old fixed RGB threshold");
+		expect(number_ink_matches_reference(referencePixel, pen, referenceBackground, referenceBackground)
+				   && number_ink_matches_reference(currentPixel, pen, currentBackground, referenceBackground),
+			   "number ink retains the observed fringe across selection backgrounds");
+		expect(!number_ink_matches_reference(currentBackground, pen, currentBackground, referenceBackground), "background alone is never number ink");
+		expect(!number_ink_matches_reference(pen, pen, QColor{ 107, 117, 128 }, referenceBackground)
+				   && !number_ink_matches_reference(pen, pen, currentBackground, pen)
+				   && !number_ink_matches_reference(pen, pen, currentBackground, QColor{ }),
+			   "invalid or low-contrast number backgrounds fail closed");
+		for (const auto& pixel : { pen, referencePixel, currentPixel, referenceBackground, QColor{ 123, 133, 144 }, QColor{ 124, 134, 145 } }) {
+			expect(number_ink_matches_reference(pixel, pen, referenceBackground, referenceBackground) == (number_pixel_distance(pixel, pen) <= 32),
+				   "the reference background preserves the exact original RGB mask");
+		}
+		const auto span = [&](const QImage& aImage) {
+			auto result = std::pair{ aImage.height(), -1 };
+			for (auto y = 23; y < 28; ++y) {
+				if (number_ink_matches_reference(aImage.pixelColor(2, y), pen, aImage.pixelColor(1, y), referenceBackground)) {
+					result.first  = std::min(result.first, y);
+					result.second = std::max(result.second, y);
+				}
+			}
+			return result;
+		};
+		auto missing = QImage{ 3, 40, QImage::Format_ARGB32 };
+		missing.fill(currentBackground);
+		auto present = missing;
+		present.setPixelColor(2, 23, currentPixel);
+		expect(number_ink_tracks_native(span(present), 23, 23), "one visible clipped fringe pixel remains required and recognized");
+		expect(!number_ink_tracks_native(span(missing), 23, 23) && !number_ink_tracks_native(span(missing), 23, 25),
+			   "missing visible one-pixel and multi-pixel number ink is rejected");
+		auto below = missing;
+		below.setPixelColor(2, 25, currentPixel);
+		auto above = missing;
+		above.setPixelColor(2, 21, currentPixel);
+		expect(!number_ink_tracks_native(span(below), 23, 23) && !number_ink_tracks_native(span(above), 23, 23),
+			   "two-pixel displaced number ink is rejected even at the clip edge");
+		expect(number_ink_tracks_native({ 23, 25 }, 24, 26) && number_ink_tracks_native({ 25, 27 }, 24, 26)
+				   && !number_ink_tracks_native({ 22, 24 }, 24, 26) && !number_ink_tracks_native({ 26, 28 }, 24, 26),
+			   "number geometry retains exactly the original one-device-pixel tolerance");
+	}
+
 	void test_one_pane_rows_anchors_and_link_map()
 	{
 		auto workbench = qt::diff_workbench{ };
@@ -5513,16 +5589,36 @@ namespace {
 			const auto heading       = unified->viewport()->mapTo(&workbench, QPoint{ }).y() - gutter->mapTo(&workbench, QPoint{ }).y();
 			const auto headingPixels = qRound(heading * rasterRatio);
 			const auto headingImage  = referenceImage.copy(0, 0, referenceImage.width(), headingPixels);
-			const auto inkSpan       = [&](const QImage& aImage, const int aRow, const int aSide) {
-				const auto column   = aImage.width() / 2;
-				const auto y        = nativeY(aRow);
-				const auto height   = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(aRow) }).height();
-				auto       firstInk = aImage.height();
-				auto       lastInk  = -1;
+			auto       originalTops  = std::vector<int>{ };
+			const auto inkSpan       = [&](const QImage& aImage, const int aRow, const int aSide, const std::optional<qreal> aPixelShift = std::nullopt) {
+				const auto column = aImage.width() / 2;
+				const auto y      = nativeY(aRow);
+				const auto height = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(aRow) }).height();
+
+				// Columns reserve two GutterPadding widths and draw numbers right-aligned.
+				// One logical pixel inside their left padding avoids the border, separator and glyphs.
+				const auto backgroundX = aSide * column + qRound(rasterRatio);
+				expect(backgroundX > aSide * column && backgroundX < (aSide + 1) * column
+						   && backgroundX < referenceImage.width(),
+					   "number background sample remains inside blank column padding");
+				expect(!aPixelShift || (aRow >= 0 && aRow < static_cast<int>(originalTops.size())), "number reference keeps its original native row identity");
+				const auto referenceTop = aPixelShift ? originalTops[static_cast<std::size_t>(aRow)] : y;
+				// Map the row's nominal centre, even when that centre is currently clipped.
+				// Never clamp an invalid reference into a neighboring row.
+				const auto referenceY = qRound((y + height / 2.0) * rasterRatio - aPixelShift.value_or(0.0));
+				expect(referenceY >= 0 && referenceY < referenceImage.height()
+						   && referenceY >= qRound(referenceTop * rasterRatio) && referenceY < qRound((referenceTop + height) * rasterRatio),
+					   "number reference background stays inside the same original row");
+
+				auto firstInk = aImage.height();
+				auto lastInk  = -1;
 				for (auto py = std::max(headingPixels, qRound(y * rasterRatio)); py < std::min(aImage.height(), qRound((y + height) * rasterRatio)); ++py) {
+					const auto background          = aImage.pixelColor(backgroundX, py);
+					const auto referenceBackground = aPixelShift ? referenceImage.pixelColor(backgroundX, referenceY) : background;
+					expect(number_backgrounds_valid(number, background, referenceBackground), "number background normalization has valid substantial contrast");
 					for (auto px = aSide * column; px < (aSide + 1) * column; ++px) {
 						const auto ink = aImage.pixelColor(px, py);
-						if (std::abs(ink.red() - number.red()) <= 32 && std::abs(ink.green() - number.green()) <= 32 && std::abs(ink.blue() - number.blue()) <= 32) {
+						if (number_ink_matches_reference(ink, number, background, referenceBackground)) {
 							firstInk = std::min(firstInk, py);
 							lastInk  = std::max(lastInk, py);
 						}
@@ -5530,8 +5626,7 @@ namespace {
 				}
 				return std::pair{ firstInk, lastInk };
 			};
-			auto originalInk  = std::vector<std::array<std::pair<int, int>, 2>>{ };
-			auto originalTops = std::vector<int>{ };
+			auto originalInk = std::vector<std::array<std::pair<int, int>, 2>>{ };
 			for (auto rowIndex = 0; rowIndex < static_cast<int>(rows.size()); ++rowIndex) {
 				originalInk.push_back({ inkSpan(referenceImage, rowIndex, 0), inkSpan(referenceImage, rowIndex, 1) });
 				originalTops.push_back(nativeY(rowIndex));
@@ -5562,9 +5657,9 @@ namespace {
 						if (original.second < 0 || original.second + shift < headingPixels) {
 							continue;
 						}
-						const auto actual   = inkSpan(image, rowIndex, side);
+						const auto actual   = inkSpan(image, rowIndex, side, shift);
 						const auto firstInk = std::max(headingPixels, qRound(original.first + shift));
-						expect(std::abs(actual.first - firstInk) <= 1 && std::abs(actual.second - qRound(original.second + shift)) <= 1,
+						expect(number_ink_tracks_native(actual, firstInk, qRound(original.second + shift)),
 							   "painted base/head numbers follow native text rows within one device pixel, including the clipped first row");
 					}
 					const auto& row    = rows[static_cast<std::size_t>(rowIndex)];
@@ -6683,6 +6778,7 @@ auto main(int argc, char** argv) -> int
 	test_keyboard_minimal_reveal();
 	test_keyboard_reveal_from_far_out_of_view();
 	test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor();
+	test_number_ink_reference_normalization();
 	test_one_pane_rows_anchors_and_link_map();
 	{
 		auto workbench = qt::diff_workbench{ };
