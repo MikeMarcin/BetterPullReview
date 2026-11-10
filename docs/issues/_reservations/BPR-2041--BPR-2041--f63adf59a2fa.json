@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2041"
+  ],
+  "reserve_for": "release54-profile-menu-contract",
+  "purpose": "Preserve the accepted Go to line command in the profile shell View menu contract",
+  "created": "2026-11-10T18:30:48.881629+00:00",
+  "base": "26e8ca1b4bc6ceeff07d2132c81428e82d22e087"
+}
