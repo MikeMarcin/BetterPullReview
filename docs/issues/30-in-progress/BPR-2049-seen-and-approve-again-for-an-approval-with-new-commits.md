@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2049"
 title: "Seen, or Approve again, for an approval that new commits brought back to Needs me"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0098"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2048--BPR-2049--1f6f243721c8.json","origin":"owner request, 2026-11-10"}
 depends_on: []
