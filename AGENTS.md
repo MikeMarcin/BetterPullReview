@@ -93,6 +93,11 @@ network, or process effects.
   and packs under `pull-requests`), so a freeze runs no
   `scripts/build_*_fixture.py`; a fixture that must be generated goes through
   `--generate`. Helpers a look launches are `--target`s and `--argument`s.
+- Freeze a look with a fixture that already holds the surface under review,
+  and open the build on it: a look at a tour serves a pull request with a
+  tour. The owner, accepting the tour-publishing look on 2026-11-10: "It's
+  weird that you didn't set it up to load a fixture that included a tour to
+  look at."
 - Never copy authenticated attended-review or wizard URLs into tracked files.
   Record the session ID, external state directory and lifecycle status instead;
   keep credential-bearing URLs in the external session state.
