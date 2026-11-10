@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2037"
 title: "Prove retained native workspace in the added Codex finding course"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1974"]
 priority: "P1"
