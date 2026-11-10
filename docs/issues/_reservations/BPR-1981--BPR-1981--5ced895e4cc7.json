@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1981"
+  ],
+  "reserve_for": "bpr1979-maintenance-fixes",
+  "purpose": "",
+  "created": "2026-11-10T04:04:34.631337+00:00",
+  "base": "69f745a9914428046f030a88617dbe68b7f2ca99"
+}

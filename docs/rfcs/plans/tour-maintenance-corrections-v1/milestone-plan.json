@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "tour-maintenance-corrections-v1",
+  "scope": {
+    "issues": [
+      "BPR-1981"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "maintenance-corrections",
+      "outcome": "Published repaired and mixed tours can be maintained without false retargets or cross-namespace identity conflicts.",
+      "work": [
+        {
+          "issue": "BPR-1981",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Repaired initial receipts use the confirmed published source and support no-op preview plus actual text maintenance without duplicate discussion creation.",
+        "Overlapping review and conversation database IDs maintain the exact typed objects; malformed or mismatched identity/source still refuses before writes.",
+        "Focused regression, static and documentation checks pass; explicit commits, durable correction evidence and command quiescence are recorded."
+      ],
+      "boundary": "Post-review repairs for BPR-1979 only under tour-destination-repairs-r1 and owner authorization to fix both findings; no live writes, new capability, visual change or altered original acceptance."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
