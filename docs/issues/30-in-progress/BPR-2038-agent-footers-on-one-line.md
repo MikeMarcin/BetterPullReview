@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2038"
 title: "Fit the Agent tab's turn and session footers on one line each"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0101"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2038--BPR-2039--0af453354534.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"origin":"owner rejection of BPR-1999-agent-footers, attended session fd2f7fdb4d5b89ca67e9793084a68d04, decision 3dd7f36f (event 54)"}
 depends_on: ["BPR-1999"]
