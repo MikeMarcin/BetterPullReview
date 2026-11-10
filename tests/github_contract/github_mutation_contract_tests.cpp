@@ -539,6 +539,8 @@ namespace {
 		case operation::staged_create_issue_comment:   return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/issues/1/comments", "/api/v3/repos/MikeMarcin/BPR-Test/issues/1/comments", "" };
 		case operation::staged_update_issue_comment:   return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/issues/comments/44", "/api/v3/repos/MikeMarcin/BPR-Test/issues/comments/44", "" };
 		case operation::staged_update_pending_comment: return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation UpdateReviewComment" };
+		case operation::staged_create_file_comment:    return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/comments", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/comments", "" };
+		case operation::staged_list_file_comments:     return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100&page=1", "" };
 		case operation::observe_pull_request:
 			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
 		case operation::observe_merge_base:
@@ -616,6 +618,12 @@ namespace {
 			: expected->GhesPath;
 		expect(aWire.Method == expected->Method && aWire.Path == path,
 			   label + " compiles to its independent method and exact path");
+		if (aWire.Operation == review_mutation_operation::staged_create_file_comment) {
+			expect(aWire.Body.find("\"subject_type\":\"file\"") != std::string::npos
+					   && aWire.Body.find("\"line\":") == std::string::npos
+					   && aWire.Body.find("\"start_line\":") == std::string::npos,
+				   "a standalone file comment names its subject without a line destination");
+		}
 		if (!expected->GraphqlOperation.empty()) {
 			expect(aWire.Body.starts_with("{\"query\":\"" + std::string{ expected->GraphqlOperation } + "("),
 				   label + " compiles to its independent GraphQL kind and operation name");
@@ -651,8 +659,11 @@ namespace {
 			result.Review      = application::review_database_id{ 45 };
 			result.CommentNode = "PRRC_fixture_44";
 		}
-		if (aOperation == op::create_pending || aOperation == op::update_comment || aOperation == op::update_summary || aOperation == op::submit_comment || aOperation == op::update_description || aOperation == op::create_issue_comment || aOperation == op::update_issue_comment || aOperation == op::update_pending_comment) {
+		if (aOperation == op::create_pending || aOperation == op::update_comment || aOperation == op::update_summary || aOperation == op::submit_comment || aOperation == op::update_description || aOperation == op::create_issue_comment || aOperation == op::update_issue_comment || aOperation == op::update_pending_comment || aOperation == op::create_file_comment) {
 			result.Body = "Raw **tour** `$(literal)`";
+		}
+		if (aOperation == op::create_file_comment) {
+			result.FileSource = core::tour_code_destination{ .Commit = aTarget.Semantic.ExpectedHead, .Path = "fixture/review.txt", .Side = core::diff_side::right };
 		}
 		if (aOperation == op::create_pending) {
 			result.Lines.push_back({ .Source = { .Commit = aTarget.Semantic.ExpectedHead, .Path = "fixture/review.txt", .Side = core::diff_side::right, .FirstLine = 10, .LastLine = 12 }, .Body = "First stop" });
@@ -766,6 +777,8 @@ namespace {
 			compile_staged_review_request(staged_request(application::staged_review_operation::create_issue_comment, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_issue_comment, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_pending_comment, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::create_file_comment, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::list_file_comments, serverTarget)),
 			compile_merge_base_observation_request(serverTarget, aServer),
 			compile_merge_base_observation_request(serverTarget, aServer, merge_base_observation_basis::recorded_base),
 			compile_merge_base_observation_request(merge_base_ancestry_binding(serverTarget, commit(0x22U)), aServer, merge_base_observation_basis::base_ancestry),
@@ -826,6 +839,8 @@ namespace {
 			row{ operation::staged_create_issue_comment, http_method::post, false, 201, true },
 			row{ operation::staged_update_issue_comment, http_method::patch, false, 200, true },
 			row{ operation::staged_update_pending_comment, http_method::post, true, 200, true },
+			row{ operation::staged_create_file_comment, http_method::post, false, 201, true },
+			row{ operation::staged_list_file_comments, http_method::get, false, 200, false },
 			row{ operation::observe_merge_base, http_method::get, false, 200, false },
 			row{ operation::observe_recorded_merge_base, http_method::get, false, 200, false },
 			row{ operation::observe_base_ancestry, http_method::get, false, 200, false },
