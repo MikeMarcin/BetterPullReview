@@ -35,6 +35,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 class QSystemTrayIcon;
@@ -2168,6 +2169,11 @@ namespace bpr::app::detail {
 		/// absent when that host is not composed, distinct from loaded false.
 		[[nodiscard]] static auto agent_conversation_loaded(
 			const github_application& aApplication) -> std::optional<bool>;
+		/// \brief [[BPR-2040]]. A one-shot late hold on the existing Tour
+		/// effects queue, after its result but before cleanup; release before
+		/// shutdown or thirty seconds. Never present in a distribution build.
+		[[nodiscard]] static auto hold_tour_retirement_effects(
+			github_application& aApplication) -> std::pair<std::function<void()>, std::function<bool()>>;
 		/// \brief [[BPR-1254]]. Whether this window's review ledger answered
 		/// its latest opening as available; empty while it has not answered.
 		[[nodiscard]] static auto review_ledger_available(

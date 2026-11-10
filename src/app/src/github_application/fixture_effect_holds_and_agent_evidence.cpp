@@ -49,6 +49,7 @@
 	#include <QFlags>
 	#include <QListView>
 	#include <QModelIndex>
+	#include <atomic>
 	#include <chrono>
 	#include <condition_variable>
 	#include <cstddef>
@@ -78,7 +79,7 @@
 namespace bpr::app {
 	namespace {
 #if defined(BPR_BUILD_TESTING)
-		auto hold_fixture_effects(application::effect_executor& aEffects) -> std::function<void()>
+		auto hold_fixture_effects(application::effect_executor& aEffects, std::shared_ptr<std::atomic_bool> aWaiting = { }) -> std::function<void()>
 		{
 			struct gate
 			{
@@ -87,9 +88,15 @@ namespace bpr::app {
 				bool                    Open = false;
 			};
 			auto held = std::make_shared<gate>();
-			aEffects.post([held] {
+			aEffects.post([held, aWaiting] {
 				auto lock = std::unique_lock{ held->Mutex };
+				if (aWaiting) {
+					aWaiting->store(true, std::memory_order_release);
+				}
 				static_cast<void>(held->Changed.wait_for(lock, std::chrono::seconds{ 30 }, [&held] { return held->Open; }));
+				if (aWaiting) {
+					aWaiting->store(false, std::memory_order_release);
+				}
 			});
 			return [held] {
 				{
@@ -144,6 +151,39 @@ namespace bpr::app {
 		github_application& aApplication) -> std::function<void()>
 	{
 		return hold_fixture_effects(aApplication.Implementation->WorkbenchEffects);
+	}
+
+	auto detail::github_application_fixture_access::hold_tour_retirement_effects(
+		github_application& aApplication) -> std::pair<std::function<void()>, std::function<bool()>>
+	{
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		auto* const implementation = aApplication.Implementation.get();
+		if (!implementation || !implementation->TourSession || implementation->BeforeTourRetirementFixture) {
+			return { };
+		}
+		struct hold_state
+		{
+			std::function<void()>             Release;
+			bool                              Released = false;
+			std::shared_ptr<std::atomic_bool> Waiting  = std::make_shared<std::atomic_bool>(false);
+		};
+		auto held                                   = std::make_shared<hold_state>();
+		implementation->BeforeTourRetirementFixture = [implementation, held] {
+			if (!held->Released) {
+				held->Release = hold_fixture_effects(implementation->TourAgentEffects, held->Waiting);
+			}
+		};
+		return { [held] {
+					held->Released = true;
+					if (held->Release) {
+						held->Release();
+					}
+				},
+				 [held] { return !held->Released && held->Waiting->load(std::memory_order_acquire); } };
+	#else
+		static_cast<void>(aApplication);
+		return { };
+	#endif
 	}
 
 	auto detail::github_application_fixture_access::agent_conversation_loaded(

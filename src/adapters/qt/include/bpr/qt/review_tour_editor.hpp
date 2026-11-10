@@ -170,6 +170,8 @@ namespace bpr::qt {
 		/// by Draft the tour. Its control says Stop drafting and stops it;
 		/// nothing else waits on it, and leaving the window does not stop it.
 		void set_tour_running(std::optional<core::writing_hook> aHook, bool aDraftTour, bool aAsking = false);
+		/// \brief [[BPR-2040]]. Whether the composed invocation host retired.
+		void set_tour_host_idle(bool aIdle);
 		/// \brief [[BPR-1941]]. What the tour session's running request is
 		/// doing now, from its run events; none once it ends. The side chat's
 		/// running turn says it, and Draft Tour says it under the tab's
