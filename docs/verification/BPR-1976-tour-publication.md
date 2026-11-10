@@ -129,18 +129,17 @@ No functional failure is converted into a pass by omission.
 
 ## Required review and ownership
 
-Independent critical review remains required for exact candidate acceptance;
-the implementer does not self-certify it. No owner-only look or manual-device
-criterion is introduced, so no attended server is needed by this card. The
-corporate machine’s actual refusal is still unknown; the trace makes the next
-observed failure actionable without speculation.
+Independent critical review is supplied for the exact corrected candidate below.
+No owner-only look or manual-device criterion is introduced, so no attended
+server is needed by this card. The corporate machine’s actual refusal is still
+unknown; the trace makes the next observed failure actionable without speculation.
 
 All source writers are this implementer. Foreign `.codex-attachments/` is
 preserved and excluded. No live GitHub/GHES mutation, push, desktop capture or
 credential access occurred. Build/test/tidy/documentation command state and the
-next action are retained in the external checkpoint. Freeze the exact candidate,
-obtain the coordinator-authorized critical review, reconcile findings and then
-complete the acceptance-driven card transition.
+final acceptance are retained in the external checkpoint. All task-owned
+commands are finished. The acceptance-driven card transition completes this
+bounded milestone; no product work or review decision remains pending.
 
 ## Critical P1 correction after fd0c7d5b0
 
@@ -187,6 +186,30 @@ production units pass scoped clang-tidy 22; dependency-only warnings remain
 suppressed. The new review candidate is recorded in the external r2 handoff.
 
 The original source/binary manifests and review packet remain unchanged. The
-correction receives a new candidate and targeted independent reconciliation;
-acceptance is not waived. All original owner amendments and corporate/native
-uncertainties remain.
+correction receives a new candidate and targeted independent reconciliation.
+All original owner amendments and corporate/native uncertainties remain.
+
+## Final independent acceptance
+
+Independent critical reviewer `/root/tour_publish_critical` accepts corrected
+candidate `8ac5e12cf023e424140c01a7cd8dfcf0ab438475`. The reviewer checked the
+source/binary manifests and candidate patch, independently passed five focused
+tests in 11.57s, and ran an additional eight-case production-session probe:
+native or compatibility publication, malformed HTTP 200 or denied HTTP 403,
+before or after the first write. The probe repeats two explicit admissions
+while the fault persists and observes no additional writes. After restart,
+Check status remains read-only; explicit Resume completes with exactly five
+native or six compatibility writes. Typed failure, operation and HTTP diagnosis
+survive every case. The reviewer reports no remaining findings in that targeted
+scope and all its commands finished. The coordinator supplies this acceptance
+and instructs final closeout without further product edits.
+
+The original P1 rejection is therefore resolved, rather than waived. AC1–AC5
+and all five authored milestone exit criteria pass on this evidence and the
+verification above. The finish decision records each criterion against the
+exact corrected source revision. The independent report, acceptance decision,
+final command results and completed checkpoint remain under the external
+evidence directory. Final closeout runs the documentation gate and checks the
+explicit documentation-only commit; prior unchanged product checks are reused.
+No native corporate-server success, installed transport, release qualification
+or owner visual acceptance is inferred from these fixture and offscreen results.
