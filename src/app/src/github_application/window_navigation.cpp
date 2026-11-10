@@ -31,7 +31,9 @@
 #include <QTextStream>
 
 #include <algorithm>
+#include <expected>
 #include <stdexcept>
+#include <string>
 #include <variant>
 
 #if defined(BPR_BUILD_TESTING)
@@ -1294,6 +1296,14 @@ DefectThreadNames.reset();
 			return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 				? WindowRead->open_markdown_link(aIntent, Profile->WindowBrowser)
 				: core::markdown_link_result::stale;
+		});
+		// The address the link question shows, from the same admission the
+		// open above repeats once the reviewer chooses Open.
+		Window->set_markdown_link_address_dispatch([this, weak](const core::markdown_link_intent& aIntent) -> std::expected<std::string, core::markdown_link_result> {
+			if (weak.expired() || Closing || !Profile->current_window(DraftWindow)) {
+				return std::unexpected(core::markdown_link_result::stale);
+			}
+			return WindowRead->markdown_link_address(aIntent, Profile->WindowBrowser);
 		});
 		Window->set_markdown_image_dispatch([this, weak](const core::markdown_image_intent& aIntent) {
 			if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {

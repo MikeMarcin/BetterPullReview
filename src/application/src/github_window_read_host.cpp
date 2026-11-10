@@ -9,8 +9,10 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <expected>
 #include <limits>
 #include <mutex>
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -1855,7 +1857,10 @@ namespace bpr::application {
 			}
 			return core::markdown_context{ Policy.window(), DiagnosticWindowSession, State.IdentityGeneration, AcceptedSnapshot->Snapshot, MarkdownRevision };
 		}
-		auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+		/// The exact address a body gesture would hand the browser, admitted
+		/// against this window's current publication, with no effect.
+		auto markdown_link_address(const core::markdown_link_intent& aIntent, const bool aBrowserAvailable) const
+			-> std::expected<std::string, core::markdown_link_result>
 		{
 			const auto  current   = markdown_identity();
 			const auto& snapshot  = AcceptedSnapshot;
@@ -1867,7 +1872,7 @@ namespace bpr::application {
 			const auto decision = core::admit_markdown_link(aIntent, {
 																		 .Context          = current,
 																		 .BodyAvailable    = current && (aIntent.Body.starts_with("check:") ? checkLink : (aIntent.Body.empty() || MarkdownBodies.contains(aIntent.Body))),
-																		 .BrowserAvailable = aBrowser != nullptr,
+																		 .BrowserAvailable = aBrowserAvailable,
 																		 .Hostname         = AcceptedProfileAuthority ? std::string_view{ AcceptedProfileAuthority->Hostname.value() } : std::string_view{ },
 																		 .Owner            = snapshot ? std::string_view{ snapshot->Repository.Owner } : std::string_view{ },
 																		 .Repository       = snapshot ? std::string_view{ snapshot->Repository.Name } : std::string_view{ },
@@ -1875,20 +1880,27 @@ namespace bpr::application {
 																		 .Number           = snapshot ? snapshot->PullRequest.Number : core::pull_request_number{ },
 																	 });
 			if (!decision) {
-				return decision.error();
+				return std::unexpected(decision.error());
 			}
-			if (aBrowser == nullptr) {
-				return core::markdown_link_result::unavailable;
+			if (decision->Kind == core::markdown_destination_kind::absolute_web) {
+				return decision->Target;
 			}
+			const auto root = "https://" + std::string{ AcceptedProfileAuthority->Hostname.value() } + "/" + snapshot->Repository.Owner + "/" + snapshot->Repository.Name;
+			return decision->Kind == core::markdown_destination_kind::repository_path
+				? root + "/blob/" + std::string{ head } + "/" + decision->Target
+				: root + "/pull/" + std::to_string(snapshot->PullRequest.Number.value()) + decision->Target;
+		}
+		auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+		{
 			try {
-				auto address = decision->Target;
-				if (decision->Kind != core::markdown_destination_kind::absolute_web) {
-					const auto root = "https://" + std::string{ AcceptedProfileAuthority->Hostname.value() } + "/" + snapshot->Repository.Owner + "/" + snapshot->Repository.Name;
-					address         = decision->Kind == core::markdown_destination_kind::repository_path
-						? root + "/blob/" + std::string{ head } + "/" + decision->Target
-						: root + "/pull/" + std::to_string(snapshot->PullRequest.Number.value()) + decision->Target;
+				const auto address = markdown_link_address(aIntent, aBrowser != nullptr);
+				if (!address) {
+					return address.error();
 				}
-				return aBrowser->open(address) ? core::markdown_link_result::opened : core::markdown_link_result::failed;
+				if (aBrowser == nullptr) {
+					return core::markdown_link_result::unavailable;
+				}
+				return aBrowser->open(*address) ? core::markdown_link_result::opened : core::markdown_link_result::failed;
 			} catch (...) {
 				return core::markdown_link_result::failed;
 			}
@@ -2141,6 +2153,15 @@ namespace bpr::application {
 	}
 	auto github_window_read_host::state() const noexcept -> const core::github_state& { return Implementation->State; }
 	auto github_window_read_host::window() const noexcept -> core::bpr_window_context { return Implementation->Policy.window(); }
+	auto github_window_read_host::markdown_link_address(const core::markdown_link_intent& aIntent, const device_authorization_browser_port* aBrowser) const
+		-> std::expected<std::string, core::markdown_link_result>
+	{
+		try {
+			return Implementation->markdown_link_address(aIntent, aBrowser != nullptr);
+		} catch (...) {
+			return std::unexpected(core::markdown_link_result::failed);
+		}
+	}
 	auto github_window_read_host::open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 	{
 		return Implementation->open_markdown_link(aIntent, aBrowser);

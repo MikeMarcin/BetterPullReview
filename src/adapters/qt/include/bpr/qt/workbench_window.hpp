@@ -76,6 +76,7 @@ class QTabWidget;
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <functional>
 #include <limits>
 #include <map>
@@ -1826,6 +1827,14 @@ namespace bpr::qt {
 
 		/// \brief Binds explicit reader gestures to current-context application policy.
 		void set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch);
+		/// \brief Binds the effect-free admission that names a body gesture's full address.
+		/// \details An activated body or check link first asks this for the exact
+		/// address, shows it in an Open or Cancel question, and only on Open sends
+		/// the gesture to `set_markdown_link_dispatch`, which admits it again before
+		/// anything opens. Without it a link answers unavailable and opens nothing.
+		void set_markdown_link_address_dispatch(std::function<std::expected<std::string, core::markdown_link_result>(const core::markdown_link_intent&)> aDispatch);
+		/// \brief The open link question, while one is shown.
+		[[nodiscard]] auto external_link_confirmation() const noexcept -> QDialog*;
 		/// \brief RFC-BPR-0084. Sends a rendered body's image references, with this
 		/// window's accepted Markdown context, to the application.
 		void set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch);
@@ -3405,9 +3414,14 @@ namespace bpr::qt {
 
 		std::function<void(core::diagnostic_export_policy)> DiagnosticExporter;
 
-		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
-		std::function<void(const core::markdown_image_intent&)>                      MarkdownImageDispatch;
-		qt::identity_avatar_pictures*                                                AvatarPictures = nullptr;
+		/// Shows the question for one link gesture, then opens it only on Open.
+		void confirm_markdown_link(const core::markdown_link_intent& aIntent);
+
+		std::function<core::markdown_link_result(const core::markdown_link_intent&)>                             MarkdownDispatch;
+		std::function<std::expected<std::string, core::markdown_link_result>(const core::markdown_link_intent&)> MarkdownAddressDispatch;
+		QPointer<QDialog>                                                                                        LinkConfirmation;
+		std::function<void(const core::markdown_image_intent&)>                                                  MarkdownImageDispatch;
+		qt::identity_avatar_pictures*                                                                            AvatarPictures = nullptr;
 		/// [[BPR-1807]]. The profile, host and account the pictures were asked under.
 		std::string                                                                 AvatarScope;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> MarkdownCodeDispatch;
