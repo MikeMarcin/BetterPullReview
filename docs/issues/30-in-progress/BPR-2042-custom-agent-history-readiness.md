@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2042"
 title: "Wait for chosen-agent histories before the empty-send refusal gesture"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
