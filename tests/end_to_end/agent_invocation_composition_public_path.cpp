@@ -1311,10 +1311,34 @@ auto main(int argc, char** argv) -> int
 			if (course == "tour-native") {
 				editor->problem_editor()->setPlainText(QStringLiteral("Accepted problem stays"));
 				editor->solution_editor()->setPlainText(QStringLiteral("Accepted solution stays"));
+				// [[BPR-1987]]. Change navigation prefers a base-side line when
+				// available. This scenario requires a current-head source that
+				// remains clear on reopen, not a historical line later mapped missing.
+				auto* const surface  = window.comparison_surface();
+				const auto  previous = surface->selected_source_range();
+				const auto  result   = surface->current_result();
+				if (!result) {
+					return fail(*application, "tour-native-current-comparison");
+				}
+				const auto group = std::ranges::find_if(result->Alignment.Groups, [](const auto& aGroup) { return !aGroup.Right.empty(); });
+				if (group == result->Alignment.Groups.end() || !surface->select_conversation_line(core::diff_side::right, group->Right.Begin)) {
+					return fail(*application, "tour-native-select-current-head");
+				}
+				const auto selected = surface->selected_source_range();
+				if (!selected || selected->first.Side != core::diff_side::right || selected->second != selected->first) {
+					return fail(*application, "tour-native-current-head-selection");
+				}
 				window.add_tour_stop_action()->trigger();
 				if (!wait_until([&] { return editor->shown().Draft && !editor->shown().Draft->Stops.empty() && !editor->shown().Saving; })) {
 					return fail(*application, "tour-native-add-stop");
 				}
+				const auto& draft  = *editor->shown().Draft;
+				const auto& source = draft.Stops.front().Original;
+				if (!source || !core::valid(*source) || source->First.Side != core::diff_side::right || source->Last.Side != core::diff_side::right || source->Commit != draft.ObservedHead.value_or(draft.Head)
+					|| source->First != selected->first || source->Last != selected->second) {
+					return fail(*application, "tour-native-saved-current-head");
+				}
+				std::cout << "tour-native-source-input: base-preferred=" << (previous && previous->first.Side == core::diff_side::left) << " head-selected=1 saved-head=1\n";
 			}
 			const auto original = *editor->shown().Draft;
 			if (original.Stops.empty()) {
