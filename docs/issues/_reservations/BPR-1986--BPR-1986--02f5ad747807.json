@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1986"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Complete staged file-operation names in submission fixture and audit all mutation enum switches after release compile blocker",
+  "created": "2026-11-10T05:24:40.945099+00:00",
+  "base": "584a983e0106d585c37a41b147cfa1472bdff63b"
+}
