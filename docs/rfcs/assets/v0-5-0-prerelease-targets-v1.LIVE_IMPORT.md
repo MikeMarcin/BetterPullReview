@@ -95,3 +95,7 @@ this lane and the main checkout restored. Both are Backlog product cards from
 the live-freeze diagnosis, not scheduled in the pack. The lane's counter reads
 BPR-2045; main's reads BPR-2043 until this lane integrates, and its allocator
 refuses until then.
+Main then recorded this lane's reservation as observed high water
+(`555c15ccb`, counter BPR-2045) and reserved BPR-2045 and BPR-2046; it reads
+BPR-2047. The lane's counter now reads BPR-2047, main's own; nothing is
+imported and nothing collides.
