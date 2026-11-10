@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2042"
+  ],
+  "reserve_for": "release54-custom-agent-history-readiness",
+  "purpose": "Wait for settled chosen-agent histories before the original empty-message refusal gesture",
+  "created": "2026-11-10T19:03:25.286655+00:00",
+  "base": "8a3b9704f9a77fad4cf935688f8d2419a80c4f09"
+}
