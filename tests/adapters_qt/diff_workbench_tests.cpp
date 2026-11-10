@@ -5573,9 +5573,14 @@ namespace {
 					if (top + height <= heading) {
 						continue;
 					}
-					const auto point   = QPoint{ gutter->width() / 2, std::max(heading, top) + 1 };
-					auto       press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-					auto       release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+					const auto visibleTop = std::max(heading, top);
+					const auto visibleEnd = std::min(gutter->height(), top + height);
+					expect(visibleTop < visibleEnd, "the gutter fixture row retains a visible native pixel");
+					// A clipped row can leave one logical pixel: adding one would hit the next row.
+					const auto point = QPoint{ gutter->width() / 2, std::min(visibleTop + 1, visibleEnd - 1) };
+					expect(point.y() >= visibleTop && point.y() < visibleEnd, "the gutter fixture click is inside the visible native row");
+					auto press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+					auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 					QApplication::sendEvent(gutter, &press);
 					QApplication::sendEvent(gutter, &release);
 					expect(workbench.selection() && workbench.selection()->PreferredLine.Line == row.Head.value_or(row.Base.value_or(0U))
