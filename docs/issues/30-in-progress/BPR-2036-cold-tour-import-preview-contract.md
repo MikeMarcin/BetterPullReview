@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2036"
 title: "Reconcile cold Tour import preview with publication authority"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0041"]
 depends_on: []
 priority: "P1"
