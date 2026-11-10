@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2040"
 title: "The Tour composer offers follow-ups only after host retirement"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
