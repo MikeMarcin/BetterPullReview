@@ -21,9 +21,12 @@ diagnostics.
   bounded uses, SHA-1 collision detection, xdiff's separate dynamic library and
   RE2's no-worker policy. Eligibility under external determinism does not grant
   adoption approval or arbitrary OS capabilities.
-- Before hand-writing a major general-purpose system here (parser, codec,
-  compressor, hash, regex or diff engine, Unicode tables, protocol), ask the
-  owner whether a suitable library should be allowed instead (root `AGENTS.md`).
+- Before hand-writing a major general-purpose system here (a parser or
+  serializer, codec, compressor, hash, regex or diff engine, Unicode tables,
+  protocol, or similar infrastructure), ask the owner whether a suitable
+  library should be allowed instead. Name the candidate, its licence, the
+  layer it would live in, and why it fits or does not; do not hand-roll it
+  while that question is open.
 - Reject stale completions by typed identity in constant time.
 - Bind repeated diff semantic queries to one validated immutable result; keep
   unindexed public overloads fail closed.

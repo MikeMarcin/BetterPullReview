@@ -45,7 +45,7 @@ themes, rendering mechanics, and event translation.
   bar, title and chevron from the palette's raised surface and text roles. A
   plain `QToolButton` with an arrow is drawn by the platform style, which on
   macOS is a native bezel in the system appearance's grey under the
-  profile's text (BPR-1579).
+  profile's text.
 - Preserve local expansion and selection across incremental accepted
   refreshes whenever the semantic identity still exists.
 - Custom delegates must retain native selection and focus painting, wrap
@@ -72,9 +72,8 @@ themes, rendering mechanics, and event translation.
 - Keep Dif resources, clip/frame state, and animation mechanics in Qt. Do not
   move them into core or the application host. Preserve the owner's requirement
   that the plus/minus prop remain separate from Dif's core base representation.
-- Do not name a local, parameter or lambda capture after a `QWidget` or
-  `QObject` member (`data`, `size`, `pos`, `rect`, `font`, `width`, `height`,
-  `geometry`, `palette`, `style`, `layout`, `parent`, `children` and the like)
-  inside a member function of a widget class. It hides the member, which MSVC
-  reports as C4458, and the project builds with warnings as errors, so Windows
-  stops compiling ([[BPR-1090]]'s `data` in `writing_hooks_panel.cpp`).
+- Do not name a local, parameter or lambda capture `data` or `d_ptr` in this
+  adapter. It hides a Qt base class data member, which MSVC reports as C4458
+  and the Windows build refuses, while Clang and GCC say nothing.
+  `architecture_boundaries` refuses it on every host. A name that matches only
+  a member function (`size`, `width`) does not warn.

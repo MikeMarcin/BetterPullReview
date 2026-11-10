@@ -72,8 +72,7 @@ the functional core or Qt presentation adapter.
   `gh <topic> --help` capability probes of the Git-object path. Native HTTPS remains the default production authentication
   transport. RFC-BPR-0015 authorizes an explicitly opted-in configured-CLI
   account profile with visible residual risks for reads and review/comment
-  publishing. Its former blanket `cli_unavailable` rule is historical; a
-  platform or operation remains unavailable until its revised direct
+  publishing. A platform or operation remains unavailable until its direct
   acceptance checks pass. Preserve the eight original trust gaps as explicit
   limitations, never as guarantees established by a warning.
 - For RFC-BPR-0015 Git-object reads only, the selected `gh` may perform a
@@ -98,9 +97,9 @@ the functional core or Qt presentation adapter.
   may serve the bounded cloned object store through closed protocol v2
   arguments, without network, helper, hooks or repository-controlled executable
   configuration; it runs only in the GitHub CLI process runner.
-  The RFC0065 owner amendments replace the former exact `gh` 2.100.0/2.101.0
-  allowlist and exact Git vendor/banner equality with bounded required-operation
-  checks: `gh` 2.96 or later (the RFC-BPR-0015 account/API floor; later majors
+- Admit the installed tools by bounded required-operation checks, not by an
+  exact version, vendor or banner allowlist (RFC-BPR-0065 owner amendments):
+  `gh` 2.96 or later (the RFC-BPR-0015 account/API floor; later majors
   admitted) and Git 2.49 or later for `clone --revision`. Before any
   credentialed `gh` use, write-denied local `gh api --help`,
   `gh repo clone --help` and `gh auth git-credential --help` probes (32 KiB,
@@ -112,23 +111,22 @@ the functional core or Qt presentation adapter.
   `gh_tool_unsupported`. Direct installed-tool evidence remains
   installation-specific; capability admission is not universal native
   qualification.
-  It enforces a
-  32 MiB per-file ceiling, and
-  supervises a 96 MiB/128-entry temporary-store abort threshold. The latter
+- The Git-object path keeps a 32 MiB per-file ceiling and supervises a
+  96 MiB/128-entry temporary-store abort threshold. The latter
   is not a hard aggregate disk quota. Snapshot-derived local refs do not
   establish fresh remote refs; keep accepted-revision and pack verification.
 - Keep the CLI trust gaps as real evidence, not telemetry-only assumptions.
-  The official `gh` 2.96.0 binary followed a cross-authority `302`, honored
-  persisted `http_unix_socket` for `gh api`, and routed an authenticated
-  request through an AF_UNIX sentinel. `gh api` has no per-invocation
-  `--user`; `gh auth token --user` exposes the token and
-  `gh auth switch --user` mutates persisted active-account state. The latter
-  remains forbidden. Historical tokenless private-config selection could fall
-  back to the active token if the pinned login had no Keychain entry.
-  RFC-BPR-0078 replaces it with explicit named acquisition and the sensitive
-  operation environment above, refusing unavailable credentials before API or
-  network Git. The [[BPR-1370]] viewer check still binds login and numeric ID. A fake
-  child or native HTTPS evidence must never enable CLI mode.
+  The [threat model](../../../docs/architecture/security-threat-model.md)
+  records what the official `gh` binary was observed to do: follow a
+  cross-authority `302` and honor a persisted `http_unix_socket` for `gh api`.
+  `gh api` has no per-invocation `--user`; `gh auth token --user` exposes the
+  token and `gh auth switch --user` mutates persisted active-account state.
+  The latter remains forbidden. Credentials come only from RFC-BPR-0078's
+  explicit named acquisition and the sensitive operation environment above,
+  which refuses unavailable credentials before API or network Git instead of
+  falling back to the active account's token. The [[BPR-1370]] viewer check
+  still binds login and numeric ID. A fake child or native HTTPS evidence must
+  never enable CLI mode.
 - Keep native HTTPS execution in `src/native_https_transport.cpp`; it is the
   only GitHub source permitted to use `QNetworkAccessManager`.
 - Keep native HTTPS on its dedicated worker with manager-local ordered system

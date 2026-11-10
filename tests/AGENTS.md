@@ -27,14 +27,14 @@ Tests are direct evidence, not naming evidence.
   only by the test that made it: `mkdtemp`, `QTemporaryDir`, the SQLite
   contracts' `tests/sqlite_contract/scratch_root.hpp`, or
   `bpr::tests::make_scratch_directory` in `tests/support/scratch_directory.hpp`,
-  whose Windows branch both share (BPR-1138).
-  Never remove a fixed or predictable temporary path before creating it
-  (BPR-1126). Never name a root from the clock, a counter or the process id
+  whose Windows branch both share.
+  Never remove a fixed or predictable temporary path before creating it.
+  Never name a root from the clock, a counter or the process id
   and then use whatever is already at that name. A file that a child process
-  writes goes inside such a root, not directly in the temporary directory
-  (BPR-1128). A fixture that the application launches cannot be given a
+  writes goes inside such a root, not directly in the temporary directory.
+  A fixture that the application launches cannot be given a
   path, so it writes beside its own executable, which the course copies into
-  such a root (BPR-1139). On Windows a root must also carry the access its
+  such a root. On Windows a root must also carry the access its
   row needs: a row inside the AppContainer needs the container's SID.
 - A course's application data root is the `data` child of a temporary
   directory the course has narrowed to owner-private, made by that language's
@@ -61,26 +61,24 @@ Tests are direct evidence, not naming evidence.
 - Runtime-surface tests inspect the launched process on macOS, Linux, and
   Windows; keep platform queries process-scoped and directly unit-tested.
 - Do not name a test identifier `near`, `far`, `small`, `min` or `max`: the
-  Windows SDK defines them as macros, and MSVC then fails to compile the file
-  (BPR-1156 hit `near` twice). Pixel helpers use `colour_near`.
+  Windows SDK defines them as macros, and MSVC then fails to compile the file.
+  Pixel helpers use `colour_near`.
 - Do not call C library functions MSVC deprecates (C4996 is an error under
   `/WX`): `std::getenv`, `std::fopen`, `strcpy`, `sprintf` and similar. Use
-  `qEnvironmentVariable`, `QFile`, or `_wfopen_s` behind `_WIN32`
-  (BPR-1177 and BPR-1180 broke the Windows build this way).
+  `qEnvironmentVariable`, `QFile`, or `_wfopen_s` behind `_WIN32`.
 - Bind range-for elements by reference (`const auto& [a, b]`). GCC's
   `-Werror=range-loop-construct` rejects a by-value copy that Clang accepts,
-  so the Mac build does not catch it (BPR-1078 broke the Linux build this way).
+  so the Mac build does not catch it.
 - Do not build a struct that has defaulted `std::string` members as a
   designated-initializer temporary that is then copied or moved
   (`x.Field = T{ .A = …, .B = … };`). GCC 15 at `-O3 -Werror` reports
   `maybe-uninitialized` on the defaulted strings, which the Debug and Clang
   builds never show. Default-construct a named local and assign its members
-  one by one, then move it (BPR-1297's optimized build hit this in a
-  BPR-1085 test).
+  one by one, then move it.
 - Do not hold an iterator, pointer or reference into a widget's model or card
   list across `processEvents`, a menu popup or a refresh; look the item up
   again afterwards. MSVC's checked iterators abort on the stale one, while
-  GCC and Clang read it silently (BPR-1255's Windows run hit this).
+  GCC and Clang read it silently.
 - Fixtures are sanitized and deterministic; never include credentials or
   private repository content.
 - Native credential fixtures use an adapter-owned integration service and
