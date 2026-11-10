@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2050"
 title: "Clip retained reference ink rows before comparing gutter geometry"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-2047"]
 priority: "P1"
