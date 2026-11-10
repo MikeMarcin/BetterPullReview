@@ -480,3 +480,73 @@ BPR-2048 and BPR-2049 (`issue_board.py finish`), stop host 74660 and remove
 the root with `freeze_attended_build.py remove`. A Reject of Approve again
 asks for a row-level approval, which needs a Home-side review submission
 (no window); a Reject of Seen's hover-only button asks for it always shown.
+
+## Owner hand-back folded in (2026-11-10)
+
+The owner accepted every candidate of four sessions with no notes (read with
+`attended_review.py status`). Nothing pushed.
+
+| Commit | What |
+|---|---|
+| `024846177` | BPR-1989 Done (RFC-BPR-0098 AC06: `23a80fed`, `cae206d9`, `0b371105`, session `bb8c24c5…`) |
+| `99817aeb2`, `3245505b7` | BPR-2048, BPR-2049 Done (session `9ed1f1a0…`: `b441c298`, `4fd937ca`, `c495f9e1`, `3e464b5d`) |
+| `2f5feae13` | BPR-2005 Done (RFC-BPR-0103 AC09: `eead98a1`, `25cac43a`, `d19d4d2d`, session `d2cc3389…`) |
+| `4bc60a496` | Session `26d89bac…`: Accept recorded on both live candidates (`ec9e4113`, `e5e3d58e`) but GitHub holds no evidence (#151 no review; #152 no review, comment or push, head `6c94a03c0`; read with `gh`, remaining 4973). Neither AC08 passes; BPR-2010 and BPR-1992 stay parked |
+
+Stopped: hosts 74660/74677, 29030/29040, 95022/95034. Removed with
+`freeze_attended_build.py remove`: `home-oversized-seen-v001.9rw9vr9h`,
+`agent-work-visible-v001.9any75gt`, `home-next-move-v003.ozia7rab`,
+`home-next-move-live-v002.s9ny7rtj`. Left for the coordinator: session
+`26d89bac…` host 36810/36892 and root `bpr-live-v002.nnhzt2pb`.
+
+## tour-stops (2026-11-10)
+
+Engineered on the same lane; nothing pushed. Frontend-design was loaded before
+the Qt work; the accepted stop mockup is the design. Record:
+[RFC-BPR-0106](../../../verification/RFC-BPR-0106.md).
+
+| Commit | What |
+|---|---|
+| `5df66da08`, `06a24758c` | Ready and claim BPR-2013 |
+| `93b1045a8` | Arrival shows the code (three paths did not), Show in code gone, file-and-lines link; rest versus edit; context menu; outline out of the app; core acceptance record and decision, accept/unaccept commands, material checks from the host's realignment reads, publication gated on Accepted, codec v11 with carry, Overview and agent status speak acceptance; RFC-BPR-0042/0043/0096 amended; tests; app pin resealed. Product candidate |
+| `dee2b7b90` | BPR-2013 Done (AC01, AC06, AC07) |
+| `5c086a178`, `dd766bd4f` | Ready and claim BPR-2014 (its edits are in `93b1045a8`) |
+| `2443a73b8` | BPR-2014 parked `human-review` (AC02 to AC05 pass, AC08 and the critical review pending) |
+
+Runs at the candidate: every `tour` ctest row, every `core_` and `sqlite_`
+row, the Qt stop, drawer, keyboard, workbench window and overview rows (258
+rows), all fourteen publication and CLI courses,
+`application_composition_source_contract`,
+`application_review_round_trip_composition_contract`,
+`architecture_boundaries`, `test_network_isolation_manifest`,
+`coding-format-check`, documentation gate. Baseline failure kept:
+`qt_drawer_parts_scale_*` ("a writer sees an empty field", from `3d97ea548`,
+where Overview's Solution became a Markdown view). Fixed while here, both
+from sibling rounds: `application_review_tour_writing`'s diagnostics check
+(BPR-2004 added fields after `plugins=`) and the `qt_tour_click_scroll` pencil
+now holds the scroll.
+
+Gap: no fixture has a readable second head for a tour route, so AC04 is shown
+on real comparisons in the core and, through the window, only as "not compared
+yet". Decisions for the coordinator: the terminal walk's Ready accepts (it
+shows the code); a historical stop's pinned bytes are not re-checked; changed
+rings carry a small mark.
+
+Filed, awaiting the owner (not waited on; the URL stays in the session
+state): session `679d26abbfa93b3357729061432131ba`, state
+`/Users/jaeger/.attended-review-state/tour-stops-v002-2026-11-10/state`,
+cursor 15, host PID 61912 (its `tailscale serve` child 61936), five
+candidates: `BPR-2013-arrival`, `BPR-2013-stop-at-rest`,
+`BPR-2013-stop-editing`, `BPR-2014-accept`, `BPR-2014-ring-states`. Frozen
+root `/Users/jaeger/tour-stops-v001.5rt9c5gn` (app `c5e2a178c2ea…`). An
+earlier attempt, session `5aedae7b…`, was never served and its state removed.
+
+Owed: the critical review of BPR-2014's publication rule (not
+self-certifiable). Disk: 73 stale non-tour e2e binaries removed from this
+worktree's build (list in the coordinator report; relinked on demand).
+
+Next: read session `679d26ab…` after hand-back. Accept of all five: finish
+BPR-2014, stop host 61912, remove the root. BPR-2015 (RFC-BPR-0106 closeout)
+belongs to `accepted-scope`. Next eligible milestones in plan order:
+`agent-scratch` (unblocked), `tour-conversation` (needs `tour-stops`
+accepted).
