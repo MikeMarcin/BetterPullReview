@@ -24,3 +24,17 @@ No owner review is pending for these bounded capability/test corrections.
 Final Windows/Linux/common-cohort qualification and the original optimized timing
 failures remain release-coordinator obligations. No foreign product main intake,
 producer mutation, PC action, publication or package allocation is authorized here.
+
+## Main integration
+
+Owned source landed as `89a9e1cd8068ee1574221cd2e721298e40659722`. Canonical main and origin were
+verified at `7a088baafc45d04378797b4f8cc1709e28df78d1` after a normal push. All twelve owned code paths
+match the exact tested candidate hashes. The thirteenth path is the manifest:
+the release-only pin remains `44ec961f0767c4cd2243bc9cd153d1030ad3262ccec50047674911d71344c926`,
+while separate canonical-only commit `7a088baaf` binds later foreign BPR-2046
+as `ceeffe4606ad7468ada4cc9411d9ad2961b2e0e26549a2da8e3e286f92392e54`.
+The actual stale-pin control failed, maintained printer/positive/adversarial
+checks passed, and lists/other pins stayed unchanged. Exclude that commit from
+the release cherry-pick set. Counter high water stays at BPR-2048; foreign
+source and attachments were preserved. This integration supplies no combined
+main native qualification claim. Final metadata is deliberately source-free.
