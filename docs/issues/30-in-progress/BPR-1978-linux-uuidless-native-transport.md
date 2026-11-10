@@ -28,3 +28,24 @@ failure remains failed; diagnostic courses carry no qualification credit.
 - AC3. Complete relevant format/source/documentation checks and normal main
   integration, preserve producer and unrelated work, finish owned commands
   and hand back the PC lease. Full native release qualification is separate.
+
+## Accepted progress — observability only
+
+Coordinator amendment on 2026-11-09 approves a maintained failure-only
+structural diagnostic, source `d70ef9d9e0b33b46cefabc76883ee980d6c22aa4`. It records turn, outcome, event count,
+handle presence, stdout/stderr byte counts, process presence, exit code and
+typed failure reasons. It prints no protocol, native handle or stderr body.
+The original assertion, 5000 ms launcher limit and 120 s CTest watchdog stay
+unchanged.
+
+One separately approved projected diagnostic course passed (CTest 14.90 s);
+its failure branch was unreached. This is nonreproduction, not a correction
+or build49 qualification. The final two additional scalar fields compile
+and link successfully against the exact hashed original Linux49 closure;
+no additional course was run. All 92 original input seals match before and
+after. Format 22 and documentation checks pass.
+
+This card remains In Progress. The original Linux49 failure, its cause and
+final fresh common-source native qualification remain open. The
+[checkpoint](../_checkpoints/BPR-1978/handoff.md) preserves evidence, the
+startup observation and the exact continuation.

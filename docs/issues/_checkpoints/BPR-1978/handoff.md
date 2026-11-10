@@ -76,3 +76,23 @@ No source correction is justified by one passing projection. A discriminating
 control must name its hypothesis and expected differing outcome before any
 new native test. Final common-source full native/trust qualification remains
 separate; original49Linux failure still blocks full acceptance.
+
+## Approved maintained observability slice
+
+The coordinator approved landing diagnostics without marking the issue
+fixed or Done. Final source `d70ef9d9e0b33b46cefabc76883ee980d6c22aa4` adds existing stdout byte-count and
+process-presence scalars to the same failure-only JSON. Final testTU SHA256
+006378556ee92c262bfc33603a4f384271429a9c988c26a5278f670a8f71ccd6.
+The prior projected source/image/object are independently archived before
+this final update. A fresh LimitedInteractive compile-only task runs the
+same one-TU recipe and original linked library closure: compile exit0 in
+10.427s; link exit0 in0.263s. No extra course or acceptance credit is taken.
+All92 original input seals remain exact and both command forests are empty.
+
+A bounded external successor observer design is approved separately: only
+already-owned PID/start identities and sealed expected executable identities;
+monotonic time, exe identity, CPU ticks and wait channel; no argv/environment/
+content. At existing250ms cadence, at most24 samples/PID,64 selected PIDs and
+1536 samples/stage, with explicit truncation. It must be a versioned copy/
+addendum to the exact original guardian, never an overwrite. Implementation
+and manifest require coordinator review before a fresh normal run.
