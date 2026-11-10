@@ -24,7 +24,7 @@
       "depends_on": [],
       "exit_criteria": [
         "Retain actual frozen54 failure and identify the result-projection/cleanup readiness window without changing fixture waits or budgets.",
-        "Project the existing tour_session_idle observation as a separate capability. Preserve early final text, Running and Stop; gate only New session, Update, Continue and non-Stop Send. Use an idempotent identity/generation/editor-lifetime-owned mechanical observation at most10Hz, stopping on idle, Closing, destruction, host replacement or new run. Add no timeout/refusal/effect/business policy.",
+        "Project the existing tour_session_idle observation as a separate capability. Preserve early final text, Running and Stop; gate New session, Update, Continue, non-Stop Send and existing Resend recovery. Preserve the existing queued-draft feedback exception; Resend also retains existing !HistoryLoading readiness. Use an idempotent identity/generation/editor-lifetime-owned mechanical observation at most10Hz, stopping on idle, Closing, destruction, host replacement or new run. Add no timeout/refusal/effect/business policy.",
         "Deterministic test-only late cleanup gate proves old public enabled-before-retirement and candidate disabled-before/ready-after. Preserve one original follow-up/backend-memory oracle; include Stop/cancel/close/new-generation guards and original deadlines. Test gates compile out of tests-disabled distribution.",
         "Review/recompute only the142 content pin with inventories/full-app/mutation pins preserved; static/focused gates pass, intentionally land only owned release-fix source/tracker slice on main, and return exact source/evidence/command state without final release qualification credit."
       ],

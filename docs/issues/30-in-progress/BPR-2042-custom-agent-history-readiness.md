@@ -16,3 +16,9 @@ metadata: {"mandate_revision":"frozen54-functional-fixes-r1","reservation":"docs
 - AC3. Focused original custom-agent course and static/docs checks pass for the exact corrected test; deliberately land owned source/tracker slice on main, preserve frozen producer and foreign work, and return command/evidence state without release qualification credit.
 
 Root approved this test-only correction after actual boolean reproduction; original source899 and diagnostic receipts remain external. Native execution requires its next explicit lease.
+
+## Engineering evidence
+
+[Checkpoint](../_checkpoints/BPR-2042/handoff.md) and
+[verification](../../verification/BPR-2040-frozen54-functional-fixes.md) bind the
+exact candidate, original failures and scoped native/static results.

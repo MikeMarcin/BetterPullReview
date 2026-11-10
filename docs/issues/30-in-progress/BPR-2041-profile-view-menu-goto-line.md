@@ -16,3 +16,9 @@ metadata: {"mandate_revision":"frozen54-functional-fixes-r1","reservation":"docs
 - AC3. Focused original Qt course and static/docs gates pass under an explicit native lease; intentionally land only owned test/tracker slice, preserving producer/input identity and reporting release qualification separately.
 
 Frozen source899056e7de7187edc0ee206a7dc499a1f5487af4. Product cutoff5fd is preserved; no foreign product intake. Parent owns running qualification and native leases. Only source/static preparation is authorized until its explicit handoff.
+
+## Engineering evidence
+
+[Checkpoint](../_checkpoints/BPR-2041/handoff.md) and
+[verification](../../verification/BPR-2040-frozen54-functional-fixes.md) bind the
+exact candidate, original failures and scoped native/static results.
