@@ -100,3 +100,11 @@ Main then recorded this lane's reservation as observed high water
 BPR-2047. The lane's counter now reads BPR-2047, main's own; nothing is
 imported and nothing collides. Main then reserved BPR-2047 and reads BPR-2048;
 the lane's counter follows it.
+
+The owner fix round (2026-11-10) allocated BPR-2048 and BPR-2049 against main
+the same way: the allocator ran in the main checkout at `243dddcbb` (counter
+BPR-2048), its counter and receipt
+`docs/issues/_reservations/BPR-2048--BPR-2049--1f6f243721c8.json` moved to
+this lane and the main checkout restored (`6bc29a5b3`). Main then reserved
+BPR-2050 (`085cf45db`) without this lane's receipt and reads BPR-2051; the
+lane's counter follows it. Nothing is imported and nothing collides.
