@@ -80,7 +80,9 @@ namespace bpr::application {
 														identity_check,
 														request_preparation,
 														baseline_read,
-														journal_save };
+														journal_save,
+														verification,
+														recovery };
 	/// \brief Classified context only: no response text, credential or source bytes.
 	struct staged_publication_diagnosis
 	{

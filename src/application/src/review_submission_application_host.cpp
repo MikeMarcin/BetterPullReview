@@ -212,6 +212,8 @@ namespace bpr::application {
 					case staged_publication_step::identity_check:      stopped = stage::identity_check; break;
 					case staged_publication_step::request_preparation: stopped = stage::request_preparation; break;
 					case staged_publication_step::baseline_read:       stopped = stage::baseline_read; break;
+					case staged_publication_step::verification:        stopped = stage::verification; break;
+					case staged_publication_step::recovery:            stopped = stage::recovery; break;
 					}
 					record_tour_publication(Log.get(), stopped, aRecord->Plan ? &*aRecord->Plan : nullptr, result);
 				}

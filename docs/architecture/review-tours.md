@@ -456,7 +456,14 @@ classifier admits the trace to diagnostic export; anonymized export remaps the
 attempt digest inside its fresh mapping namespace while preserving correlation
 across its records. A failed new attempt
 retains its private draft; a pre-provider failure on Resume retains the original
-staged prefix. A prior unknown write stays unknown and cannot be repeated.
+staged prefix. A prior unknown write stays unknown and cannot be repeated. A read or
+normalization failure establishes no remote change: verification carries a
+complete match/mismatch separately from its typed read failure, operation and
+HTTP status. A failed verification pauses the known journal prefix before its
+next write; failed reconciliation preserves any possibly-transmitted witness as
+unknown. Check status remains read-only and only a fresh explicit Preview/Resume
+continues the captured plan. A read failure after earlier writes does not claim
+that the entire invocation sent nothing.
 
 ## Published maintenance
 

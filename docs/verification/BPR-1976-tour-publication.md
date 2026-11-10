@@ -141,3 +141,52 @@ credential access occurred. Build/test/tidy/documentation command state and the
 next action are retained in the external checkpoint. Freeze the exact candidate,
 obtain the coordinator-authorized critical review, reconcile findings and then
 complete the acceptance-driven card transition.
+
+## Critical P1 correction after fd0c7d5b0
+
+Independent reviewer `/root/tour_publish_critical` rejected the original candidate
+on AC3/AC5: a valid initial baseline followed by malformed HTTP 200 or denied
+HTTP 403 on the second verification read returned conflict with a journal but
+no Failure/Diagnosis and zero writes. The UI falsely claimed the remote actor,
+head or content changed. Its seven passing focused tests did not cover that
+sequence. The implementer reproduces it against the original production
+libraries: `review-negative-tests.log` fails the second-read assertion in 1.00s.
+This is a real in-scope finding and the old candidate remains unaccepted.
+
+Verification now returns a complete observed match/mismatch separately from a
+typed read failure. Reconciliation also returns its read failures separately
+from ambiguous or conflicting observations. Staged review/comment reads, normal
+review-comment collections, identity/merge-base reads and description reads
+carry their classified failure, finite operation and bounded HTTP status.
+Normalization emits its own failed diagnostic after an HTTP response is received;
+a malformed HTTP 200 is no longer visible only as wire success plus conflict.
+The existing non-tour review results and protocol order remain unchanged.
+
+A failed verification pauses its known saved prefix before the next write. A
+failed reconciliation retains any possibly-transmitted witness as unknown. The
+UI preserves both that uncertainty and the failed-read reason; it never says
+this invocation sent nothing once a recorded publication is involved. Known
+publication remains known if a later description/status read fails. Check status
+reads only; continuation still needs the captured Preview and a fresh bounded
+Resume grant. A real observed actor/head/membership/body mismatch remains a
+conflict, and no unavailable read authorizes a fallback or another create.
+
+New direct controls fail the second read for native and compatibility plans with
+HTTP 200 malformed or HTTP 403, preserve a Ready journal and zero writes, then
+check status read-only and explicitly resume. Post-write controls fail the first
+reconciliation list read after one write, retain its unknown witness through
+restart and reconcile the exact receipt before completing with exactly five
+native or six compatibility writes. The real composed author course exercises
+both verification errors, their Standard log/export classifications, then a
+post-write unknown error with Resume disabled, read-only status recovery and
+exact completion. Focused session and composed courses pass 2/2 in 6.20s before
+the added composed post-write UI assertion. The final scoped integration passes
+16/16 in 41.88s, including the ordinary provider/restart, host, all nine composed
+publication modes, staged session/restart and both CLI courses. Five changed
+production units pass scoped clang-tidy 22; dependency-only warnings remain
+suppressed. The new review candidate is recorded in the external r2 handoff.
+
+The original source/binary manifests and review packet remain unchanged. The
+correction receives a new candidate and targeted independent reconciliation;
+acceptance is not waived. All original owner amendments and corporate/native
+uncertainties remain.

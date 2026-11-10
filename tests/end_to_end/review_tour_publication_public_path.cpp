@@ -243,6 +243,31 @@ auto main(int argc, char** argv) -> int
 				server->StagedLargeBaseline     = true;
 			}
 			button("tourPreparePublication")->click();
+			for (const auto http : { 200, 403 }) {
+				{
+					const auto lock                 = std::scoped_lock{ server->Mutex };
+					server->StagedBaselineStatus    = http == 200 ? 0 : http;
+					server->StagedMalformedBaseline = http == 200;
+					server->StagedFaultAtRead       = server->StagedBaselineReads + (http == 200 ? 2U : 1U);
+				}
+				button(http == 200 ? "tourPublish" : "tourResume")->click();
+				wait([&] { return !button("tourStop")->isEnabled(); }, "failed verification read terminates");
+				expect(status->text().contains("Could not check pull request comments") && status->text().contains(QStringLiteral("HTTP %1").arg(http)) && !status->text().contains("Publication conflict") && server->StagedWrites == 0U, "a malformed or denied second read is explained without inventing a remote change");
+				if (http == 403 && argc > 2) {
+					expect(window.grab().save(QString::fromUtf8(argv[2]) + "-verification-refused.png"), "verification failure render saved");
+				}
+				{
+					const auto lock                 = std::scoped_lock{ server->Mutex };
+					server->StagedBaselineStatus    = 0;
+					server->StagedMalformedBaseline = false;
+					server->StagedFaultAtRead       = 0U;
+				}
+				button("tourReconcile")->click();
+				wait([&] { return !button("tourStop")->isEnabled(); }, "repaired verification is checked read-only");
+				expect(server->StagedWrites == 0U, "Check status cannot publish the ready journal");
+				button("tourPreparePublication")->click();
+				expect(button("tourResume")->isEnabled() && !button("tourPublish")->isEnabled(), "verification failure retains its exact journal for explicit Resume");
+			}
 		}
 		if (cliMode) {
 			cli.Strict->store(false);
@@ -269,7 +294,12 @@ auto main(int argc, char** argv) -> int
 				server->CliAcquisitionFailure.reset();
 			}
 		}
-		button("tourPublish")->click();
+		if (mode == "compat" && !cliMode) {
+			const auto lock                 = std::scoped_lock{ server->Mutex };
+			server->StagedMalformedBaseline = true;
+			server->StagedFaultAtRead       = server->StagedBaselineReads + 2U;
+		}
+		button(mode == "compat" && !cliMode ? "tourResume" : "tourPublish")->click();
 		// [[BPR-1782]]. From the press until GitHub answers, Publish reads as
 		// working, names the captured plan's stages, and Stop stays.
 		auto* working = editor.findChild<QWidget*>(QStringLiteral("tourPublicationWorking"));
@@ -363,6 +393,21 @@ auto main(int argc, char** argv) -> int
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedWrites == 4 && !server->StagedDescription, "description failure retains submitted review without reposting");
 		} else {
+			if (mode == "compat" && !cliMode) {
+				wait([&] { return !button("tourStop")->isEnabled(); }, "post-write read failure terminates with its witness");
+				expect(status->text().contains("result is still unknown") && status->text().contains("Could not check pull request comments") && !status->text().contains("This attempt sent nothing") && !status->text().contains("Publication conflict") && !button("tourResume")->isEnabled() && server->StagedWrites == 1U, "unknown UI keeps its failed read reason without authorizing a blind retry");
+				{
+					const auto lock                 = std::scoped_lock{ server->Mutex };
+					server->StagedMalformedBaseline = false;
+					server->StagedFaultAtRead       = 0U;
+				}
+				button("tourReconcile")->click();
+				wait([&] { return !button("tourStop")->isEnabled(); }, "unknown compatibility receipt reconciles read-only");
+				expect(server->StagedWrites == 1U, "unknown recovery never reposts the first comment");
+				button("tourPreparePublication")->click();
+				expect(button("tourResume")->isEnabled(), "reconciled exact prefix permits explicit Resume");
+				button("tourResume")->click();
+			}
 			wait([&] { return status->text().startsWith(mode == "compat" ? QStringLiteral("Published as compatibility") : QStringLiteral("Published:")); }, "normal Publish reaches verified success");
 			expect(working->isHidden() && !status->isHidden() && button("tourPublish")->text() == QStringLiteral("Published") && !button("tourStop")->isEnabled() && editor.findChild<QLabel*>(QStringLiteral("tourPublicationLink"))->text().contains(mode == "compat" ? QStringLiteral("#issuecomment-") : QStringLiteral("#pullrequestreview-")), "success says Published with where GitHub shows it");
 		}
@@ -705,12 +750,19 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return tests::read_diagnostic_logs(*dataRoot).contains("tour_state=published"); }, "normal app diagnostic log contains publication terminal");
 			const auto            logs = tests::read_diagnostic_logs(*dataRoot);
 			std::set<std::string> attempts;
+			bool                  verificationMalformed = false, verificationDenied = false;
 			for (const auto& line : QString::fromStdString(logs).split('\n')) {
 				const auto detail = QJsonDocument::fromJson(line.toUtf8()).object()["detail"].toString().toStdString();
 				if (const auto diagnosis = core::parse_operation_diagnosis(detail); diagnosis && diagnosis->Tour && diagnosis->Tour->Attempt != "none") {
 					attempts.insert(diagnosis->Tour->Attempt);
+					if (diagnosis->Tour->Stage == core::tour_publication_stage::verification) {
+						verificationMalformed = verificationMalformed || diagnosis->Failure == core::operation_failure::malformed_response;
+						verificationDenied    = verificationDenied || (diagnosis->Failure == core::operation_failure::refused_by_server && diagnosis->Tour->HttpStatus == 403U);
+					}
 				}
 			}
+			expect(verificationMalformed && verificationDenied, "normal app logs preserve classified verification errors after baseline admission");
+			expect(logs.contains("tour_state=outcome_unknown") && logs.contains("tour_stage=recovery"), "post-write failure and read-only recovery are retained in the same correlated trace");
 			expect(attempts.size() == 1U && attempts.begin()->size() == 64U, "preview admission refusals wire operations and restart correlate to this exact authority/attempt");
 			for (const auto stage : { "preview", "admission", "publish", "factory", "baseline_read", "list_issue_comments", "create_issue_comment", "update_issue_comment", "update_description", "terminal" }) {
 				expect(logs.contains(std::string{ "tour_stage=" } + stage), "normal logs retain every relevant lifecycle stage");

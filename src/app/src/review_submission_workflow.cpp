@@ -1091,7 +1091,10 @@ namespace bpr::app {
 				case state::unavailable:           Status = "Publication is unavailable. The private draft is retained."; break;
 				}
 			}
-			if (const auto detail = tour_publication_failure_text(*result); State != state::outcome_unknown && !(Record && Record->Published) && !detail.empty()) {
+			auto explanation   = *result;
+			explanation.State  = State;
+			explanation.Record = Record;
+			if (const auto detail = tour_publication_failure_text(explanation); !detail.empty()) {
 				Status = detail;
 			}
 			if (result->Failure && Binding && State != state::outcome_unknown && !(Record && Record->Published)) {

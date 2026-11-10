@@ -399,10 +399,11 @@ namespace bpr::app::detail {
 						}
 					}
 					if (w.Path == issuePath + "?per_page=100&page=1") {
-						if (State->StagedBaselineStatus != 0) {
+						const auto fault = ++State->StagedBaselineReads == State->StagedFaultAtRead || State->StagedFaultAtRead == 0U;
+						if (fault && State->StagedBaselineStatus != 0) {
 							return wire::github_mutation_wire_success{ .Response = { .Status = State->StagedBaselineStatus, .Body = "{}" } };
 						}
-						if (State->StagedMalformedBaseline) {
+						if (fault && State->StagedMalformedBaseline) {
 							return success("[not valid JSON]");
 						}
 						auto comments = State->CompatibilityComments;
