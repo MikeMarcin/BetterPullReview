@@ -72,6 +72,20 @@ refuses `accept` and `unaccept` from a command client (their kinds follow
 | AC07 | `qt_tour_stop_acceptance_card`, `qt_review_tour_agent_setup_call`, `qt_review_tour_agent_failure`, `application_review_tour_writing`: no Suggest an outline or Insert outline. `core_tour_stop_acceptance` (`test_carry_saved_drafts`): an older draft's outline-suggested stops open Not accepted yet and can be accepted; the SQLite codec runs that carry for every payload before version 11, and `sqlite_review_tour_storage` still reads and writes drafts. `bpr tour outline` is unchanged (no change under `src/app/src/tour_cli.cpp`'s outline paths; `application_review_tour_cli_*`) | Pass |
 | AC08 | The owner's look at the stop at rest, being edited, and in each ring state on a frozen build | Pending: owner-attended (below) |
 
+## AC08: the owner's look
+
+Pending; filed for the owner and not waited on. Attended session `679d26abbfa93b3357729061432131ba`, state
+`/Users/jaeger/.attended-review-state/tour-stops-v002-2026-11-10/state`,
+cursor 15, host PID 61912 (its `tailscale serve` child 61936), five
+candidates, one question each, ready and protected: `BPR-2013-arrival`,
+`BPR-2013-stop-at-rest`, `BPR-2013-stop-editing`, `BPR-2014-accept` (on the
+frozen app, conventional-comments-v1 renderer.cpp with `--attended-tour-look`)
+and `BPR-2014-ring-states` (the frozen `tour_stop_acceptance_card --look`:
+each ring state after a push). Frozen root
+`/Users/jaeger/tour-stops-v001.5rt9c5gn` from `93b1045a8` (app SHA-256
+`c5e2a178c2ea…`, card test `6683038724ed…`; the launcher's own check reached
+`ATTENDED_TOUR_SHOWN`). The URL stays in the session state.
+
 ## What no course shows yet
 
 The window compares the accepted code with a new head through the same
