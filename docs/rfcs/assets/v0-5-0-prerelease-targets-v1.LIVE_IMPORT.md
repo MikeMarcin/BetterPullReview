@@ -82,3 +82,7 @@ lane's counter at BPR-2040 rewound the high water and the board helpers
 refused to move a card. The lane's counter now reads BPR-2042, main's own;
 no reservation is imported, and none collides with the lane's BPR-2038 and
 BPR-2039.
+
+The live-freeze correction (2026-11-10) allocated nothing. Main had since
+reserved BPR-2042 (`1e82f86b2`) and reads BPR-2043; the lane's counter now
+reads BPR-2043, main's own. No reservation is imported and none collides.

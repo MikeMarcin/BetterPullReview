@@ -277,3 +277,71 @@ with `freeze_attended_build.py remove`. A Reject of the word place moves every
 Home row's word to the front (`home_row_delegate`), a new candidate. The
 closeout card for RFC-BPR-0098 belongs to `accepted-scope`. Next eligible
 milestones in plan order: `agent-work-visible`, `tour-stops`.
+
+## Live-freeze correction (2026-11-10)
+
+Owner amendments in force: "If you need it you need it go build it."; "main
+should be the source of truth for the tracker"; "Continue working unattended,
+you can file reviews but dont block on their results". Nothing pushed.
+
+| Commit | What |
+|---|---|
+| `3373b398f` | BPR-2038 Done: the owner accepted the one-line footers (session `9b8a51a3…`, decision `f55208c9`, event 5); RFC-BPR-0101 AC08 now passes both halves |
+| `abba53926` | `freeze_attended_build.py`: a live freeze seals the build before its check; the live launcher's check refuses a writable or sealed-over build and launches with the owner's arguments on the root's own home (offscreen), then empties it; contract tests |
+| this commit | Rejection cause and refreeze recorded (RFC-BPR-0099, 0105, 0098 records, BPR-1989 card); counter to main's BPR-2043 (LIVE_IMPORT) |
+
+Root cause of "build closes instantly" (session `243efdc0…`, both candidates
+rejected): `freeze_live` ran `launch.py --check` before
+`set_writable(source, False)`. The check's tests-off launch of
+`BetterPullReview.app` joined the update lifetime, which made
+`.bpr-update-<digest>/` (admission and running locks, a participant file)
+beside the bundle; the seal then made that folder and its files read-only.
+Every later start failed `admission_lock` (open for write), so
+`update-lifetime-join` refused as `unavailable`, which the app reports as
+`STARTUP_FAILED` and answers with the profile recovery dialog (Quit).
+Established with lldb on the frozen executable (break on
+`note_startup_failure`, caller `begin_update_lifetime`), and by removing the
+folder: the same sealed build then passed its self-test and launch. Not a
+fresh-profile product bug: a clean tests-off release build starts under a
+fresh `CFFIXED_USER_HOME`, and a build sealed before its first launch takes
+the read-only path. The defect hit `home-next-move-live-v001` too; tests-on
+roots (`better_pull_review.app`) take no update lifetime and are unaffected.
+
+Observations for the coordinator, not changed (no card allocated; IDs come
+from main): an update-lifetime refusal is reported as `unavailable`, so the
+app offers the profile recovery dialog with "A local database in this profile
+could not be opened", which no reset can fix; and a control folder the
+running user owns but cannot write is treated as busy rather than read-only.
+
+Runs: `freeze_attended_build_contract` (ctest, passed), both refreezes' own
+checks (self-test and launch on the root's own home), documentation gate.
+
+Closed: session `9b8a51a3…` stopped (host 86560/86570), root
+`agent-footers-v002.tcfr4gcq` removed; session `243efdc0…` stopped (host
+88376/88384), root `bpr-live-v001.wpvoqim9` removed; root
+`home-next-move-live-v001.krnex__w` removed after its candidate was replaced.
+
+Open, filed and not waited on (URLs stay in the session state):
+
+- Live: session `26d89bac1f89acd7841ee451d1e5ffd1`, state
+  `/Users/jaeger/.attended-review-state/bpr-live-v002-2026-11-10/state`,
+  cursor 6, host PID 36810 (its `tailscale serve` child 36892), candidates
+  `RFC-BPR-0099-AC08-live-mixed-tour` and `RFC-BPR-0105-AC08-approve-151`;
+  root `/Users/jaeger/bpr-live-v002.nnhzt2pb` from `abba53926` (SHA-256
+  `cb02049fbf2f…`). BPR-Test #152 at `6c94a03c0`, no reviews or comments;
+  its next push `929b028f7` (parent `6c94a03c0`) is applied by the owner
+  mid-course. #151 open, no reviews, MikeMarcin requested; #1, #2, #3, #43
+  open for the five-PR session.
+- Home: session `bb8c24c5…` (host 95022/95034), cursor 13;
+  `BPR-1989-own-pull-requests` replaced (released at event 10, now on
+  `/Users/jaeger/home-next-move-live-v002.s9ny7rtj` from `abba53926`,
+  SHA-256 `27bf0f4818e9…`); the other two candidates untouched.
+
+Next: read both sessions after hand-back. Live accept: verify with `gh` that
+#151 has MikeMarcin's APPROVED review and #152 has one review carrying stop 1,
+one conversation comment for stop 2, the tour comment and the description;
+then finish BPR-2010 and BPR-1992, stop host 36810 and remove
+`bpr-live-v002.nnhzt2pb`. Home accept of all three: finish BPR-1989, stop
+host 95022, remove `home-next-move-v003.ozia7rab` and
+`home-next-move-live-v002.s9ny7rtj`. Disposable BPR-Test leftovers: #152 and
+its `-next` branch.

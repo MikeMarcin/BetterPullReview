@@ -70,6 +70,21 @@ cursor 6), candidate `RFC-BPR-0099-AC08-live-mixed-tour`. Writing the tour
 and pressing Publish are the owner's: `bpr tour publish` accepts no agent or
 piped authorization. After the decision, the GitHub result is read with `gh`.
 
+The owner rejected that candidate ("build closes instantly", decision
+`723ba6f7`): every start of `bpr-live-v001` printed `STARTUP_FAILED`. Its
+freeze had run the launch check before sealing the source; that launch left
+the application's update control folder (`.bpr-update-*`) beside the bundle,
+the seal made it unwritable, and every later start failed the update
+admission lock (`update-lifetime-join`, reported as `unavailable`). Found with
+lldb on the frozen executable; removing the folder made the same sealed build
+start. `abba53926` seals before the check, and the live launcher's check
+refuses a writable or sealed-over build and launches on the owner's own home.
+Refrozen as `/Users/jaeger/bpr-live-v002.nnhzt2pb` from `abba53926`
+(SHA-256 `cb02049fbf2f…`, checks passed on the root's own home), in a new
+session `26d89bac1f89acd7841ee451d1e5ffd1` (state
+`/Users/jaeger/.attended-review-state/bpr-live-v002-2026-11-10/state`, cursor
+6), same candidate ID and course; #152 still at `6c94a03c0` with no reviews.
+
 Before this round: A tests-on build holds no publication grant (the composition's
 `BPR_APPLICATION_TESTING` grant issuer returns none, so no tour write can
 leave it), `scripts/freeze_attended_build.py` freezes only tests-on builds,

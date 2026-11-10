@@ -89,6 +89,13 @@ candidate `RFC-BPR-0105-AC08-approve-151`. The owner's review was requested on
 #151 so it appears in Home's review requests. After the decision, #151's
 reviews are read with `gh`.
 
+The owner rejected it ("build closes instantly"): the frozen build could not
+start, for the freeze-order cause recorded under RFC-BPR-0099 AC08, not a
+submission fault. Refrozen as `/Users/jaeger/bpr-live-v002.nnhzt2pb` from
+`abba53926` (SHA-256 `cb02049fbf2f…`) in session
+`26d89bac1f89acd7841ee451d1e5ffd1`, same candidate ID; #151 is still open
+with no reviews and the owner's review requested.
+
 Before this round, no agent live course was run for AC08: there is no composed-application live
 submission harness, and the provider path that writes to GitHub is unchanged.
 The test account opened

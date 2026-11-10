@@ -52,6 +52,7 @@ Frontend-design was loaded before the Qt work.
   `/Users/jaeger/home-next-move-v003.ozia7rab`, launched with `--attended`),
   `BPR-1989-word-place` (the word after the sentence, as every Home row has
   it, or leading, as the design round drew it) and
-  `BPR-1989-own-pull-requests` (the tests-off live build of `58db13bb5`,
-  product as `2f772b6f0`, in `/Users/jaeger/home-next-move-live-v001.krnex__w`,
-  against the owner's own open pull requests).
+  `BPR-1989-own-pull-requests` (a tests-off live build, product as
+  `2f772b6f0`, against the owner's own open pull requests; refrozen from
+  `abba53926` in `/Users/jaeger/home-next-move-live-v002.s9ny7rtj` after the
+  first live build could not start).

@@ -59,10 +59,13 @@ Session `bb8c24c5f3cb7ed97777f4e3f1a70a78`, state
   (`ATTENDED_HOME_SHOWN:rows=13`, app SHA-256 `9dc6988c3032…`).
 - `BPR-1989-word-place`: the move's word stays after the sentence, where Home
   draws every row's word, or leads the line as the design round drew it.
-- `BPR-1989-own-pull-requests`: AC06's own pull requests, on the tests-off
-  live build of `58db13bb5` (`/Users/jaeger/home-next-move-live-v001.krnex__w`,
-  SHA-256 `a56c1ba56992…`; self-test and launch checks passed), whose product
-  sources equal `2f772b6f0`'s.
+- `BPR-1989-own-pull-requests`: AC06's own pull requests, on a tests-off
+  live build whose product sources equal `2f772b6f0`'s. The first,
+  `home-next-move-live-v001` of `58db13bb5`, could not start (its freeze
+  checked it before sealing; see RFC-BPR-0099 AC08) and was replaced before any
+  answer by `/Users/jaeger/home-next-move-live-v002.s9ny7rtj` from
+  `abba53926` (SHA-256 `27bf0f4818e9…`; checks passed on the root's own
+  home), session event 13.
 
 The attended home look of the app (`--attended-home-look
 --attended-home-moves`) lists the rows but cannot refresh them: signed in
