@@ -30,6 +30,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -611,6 +612,7 @@ namespace bpr::qt {
 		composer->setParent(field);
 		composer->setFrameShape(QFrame::NoFrame);
 		composer->setPlaceholderText(tr("Ask about this pull request…"));
+		composer->setToolTip(send_tip());
 		// [[BPR-1916]]. `/name` completion of the person's own skills.
 		SkillCompletion = new skill_completer{ composer };
 		composer->setMaximumHeight(90);
@@ -683,7 +685,7 @@ namespace bpr::qt {
 		Ask->setDefault(true);
 		Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
 		Ask->setAccessibleName(tr("Send"));
-		Ask->setToolTip(tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		Ask->setToolTip(send_tip());
 		// Send, or Stop while the agent works: one place, always in reach.
 		connect(Ask, &QPushButton::clicked, this, [this] {
 			if (State == agent_tab_state::working) {
@@ -738,7 +740,18 @@ namespace bpr::qt {
 		ReadsLine->setWordWrap(true);
 		ReadsLine->setTextFormat(Qt::PlainText);
 		ReadsLine->setForegroundRole(QPalette::PlaceholderText);
-		askCol->addWidget(ReadsLine);
+		// [[BPR-1999]]. The session's cost, when the agent reported any.
+		SessionCostLine = new QLabel{ ask };
+		SessionCostLine->setObjectName(QStringLiteral("agentSessionCost"));
+		SessionCostLine->setTextFormat(Qt::PlainText);
+		SessionCostLine->setForegroundRole(QPalette::PlaceholderText);
+		SessionCostLine->setToolTip(tr("What the agent reported this session has cost. It restarts at New session."));
+		SessionCostLine->hide();
+		auto* const underRow = new QHBoxLayout{ };
+		underRow->setContentsMargins(0, 0, 0, 0);
+		underRow->addWidget(ReadsLine, 1);
+		underRow->addWidget(SessionCostLine, 0, Qt::AlignTop | Qt::AlignRight);
+		askCol->addLayout(underRow);
 		talk->addWidget(ask);
 		Pages->addWidget(Conversation);
 
@@ -950,20 +963,24 @@ namespace bpr::qt {
 		Chips->setText(Chat.chips_text());
 		Chips->setVisible(Chat.chip_count() > 0U);
 		// Send, or Stop while the agent works.
+		// [[BPR-2000]], RFC-BPR-0101. Send starts a run and wears the agent
+		// accent; Stop ends spending and wears the ordinary roles.
 		if (State == agent_tab_state::working) {
+			wear_ordinary_roles(*Ask);
 			Ask->setIcon({ });
 			Ask->setText(tr("Stop"));
 			Ask->setAccessibleName(tr("Stop"));
 			Ask->setToolTip(tr("Stop the agent"));
 			Ask->setEnabled(Launch.cancel_action()->isEnabled());
 		} else {
+			wear_agent_accent(*Ask, palette());
 			Ask->setText({ });
-			Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
+			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
 			Ask->setAccessibleName(tr("Send"));
 			// [[BPR-1817]]. A Send that cannot be pressed says why.
 			const auto blocked = send_blocked();
 			Ask->setToolTip(blocked == core::agent_send_refusal::none
-								? tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText))
+								? send_tip()
 								: send_refusal_words(blocked, agent_name()));
 			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
 			Ask->setEnabled(Chat.send_action()->isEnabled() && !Ask->property("conversationLoading").toBool());
@@ -1518,7 +1535,23 @@ namespace bpr::qt {
 			settle_reply_footer(kept);
 		}
 		Finished = false;
+		present_session_cost(std::nullopt);
 		refresh();
+	}
+
+	void agent_tab_view::present_session_cost(const std::optional<core::agent_cost> aTotal)
+	{
+		SessionTotal = aTotal;
+		if (SessionCostLine == nullptr) {
+			return;
+		}
+		SessionCostLine->setText(aTotal ? tr("%1 this session").arg(QString::fromStdString(core::agent_cost_words(*aTotal))) : QString{ });
+		SessionCostLine->setVisible(aTotal.has_value());
+	}
+
+	auto agent_tab_view::send_tip() const -> QString
+	{
+		return tr("Send the question to the agent (Return). Shift+Return starts a new line.");
 	}
 
 	void agent_tab_view::set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver) { ThreadObserver = std::move(aObserver); }
@@ -1845,13 +1878,33 @@ namespace bpr::qt {
 				RunSettingsSource->report_model(profile->value(), reported);
 			}
 		}
-		auto footer = succeeded ? agent_run_answered_words(ran, seconds) : agent_run_stopped_words(seconds);
-		footer += Launch.last_reported_cost().isEmpty() ? QStringLiteral(".") : tr(" for $%1.").arg(Launch.last_reported_cost());
+		// [[BPR-1999]], RFC-BPR-0101. The turn's cost after its duration, in
+		// dollars and cents: "Claude answered in 1 min 12 s · $0.41". None
+		// when the agent reported none.
+		auto       footer = succeeded ? agent_run_answered_words(ran, seconds) : agent_run_stopped_words(seconds);
+		const auto cost   = Launch.last_turn_cost();
+		auto       more   = QStringList{ };
 		if (succeeded && Launch.pull_request_files_only()) {
-			footer += QStringLiteral(" ") + tr("It saw only this pull request's files.");
+			more << tr("It saw only this pull request's files.");
 		}
 		if (succeeded && findings > 0U && FindingsPresented != FindingsAtTurn) {
-			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
+			more << (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
+		}
+		if (cost) {
+			footer += QStringLiteral(" · ") + QString::fromStdString(core::agent_cost_words(*cost));
+			if (!more.isEmpty()) {
+				footer += QStringLiteral(". ");
+			}
+		} else {
+			footer += more.isEmpty() ? QStringLiteral(".") : QStringLiteral(". ");
+		}
+		footer += more.join(QLatin1Char{ ' ' });
+		// The session's total: the conversation's own, when kept with it,
+		// else this thread's turns added up.
+		if (const auto total = Launch.last_session_cost()) {
+			present_session_cost(*total);
+		} else if (cost) {
+			present_session_cost(SessionTotal.value_or(0U) + *cost);
 		}
 		current.Footer->settle(footer, succeeded);
 		current.AnsweredAt = QDateTime::currentDateTime();
@@ -1955,10 +2008,13 @@ namespace bpr::qt {
 				case core::agent_turn_recovery::resend:
 					kept.Recovery->setText(tr("Resend"));
 					kept.Recovery->setToolTip(tr("Send this message to the agent again"));
+					// [[BPR-2000]]. Resend starts a run.
+					wear_agent_accent(*kept.Recovery, palette());
 					break;
 				case core::agent_turn_recovery::agent_settings:
 					kept.Recovery->setText(tr("Agent settings…"));
 					kept.Recovery->setToolTip(tr("Check the agent's program and the form it answers in"));
+					wear_ordinary_roles(*kept.Recovery);
 					break;
 				}
 				kept.Recovery->setVisible(actions.Recovery != core::agent_turn_recovery::none);
@@ -2165,6 +2221,7 @@ namespace bpr::qt {
 			}
 			BannerText->setText(line);
 			BannerFirst->setText(tr("Stop"));
+			wear_ordinary_roles(*BannerFirst);
 			BannerFirst->show();
 			connect(BannerFirst, &QPushButton::clicked, Launch.cancel_action(), &QAction::trigger);
 			BannerSecond->hide();
@@ -2174,6 +2231,7 @@ namespace bpr::qt {
 			BannerTitle->setText(tr("This session read %1").arg(Head->text()));
 			BannerText->setText(tr("The pull request has moved on. Its findings stay anchored to the head it read."));
 			BannerFirst->setText(Chat.new_session_action()->text().isEmpty() ? tr("Start a new session") : Chat.new_session_action()->text());
+			wear_ordinary_roles(*BannerFirst);
 			connect(BannerFirst, &QPushButton::clicked, Chat.new_session_action(), &QAction::trigger);
 			BannerSecond->setText(Chat.continue_old_revision_action()->text().isEmpty() ? tr("Continue on the old head") : Chat.continue_old_revision_action()->text());
 			connect(BannerSecond, &QPushButton::clicked, Chat.continue_old_revision_action(), &QAction::trigger);
@@ -2199,6 +2257,8 @@ namespace bpr::qt {
 			// Check again that re-ran only the setup check left this banner
 			// up, and the owner read it as the check failing.
 			BannerFirst->setText(tr("Resend"));
+			// [[BPR-2000]]. Resend starts a run.
+			wear_agent_accent(*BannerFirst, palette());
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
@@ -2928,9 +2988,25 @@ namespace bpr::qt {
 
 	auto agent_tab_view::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
+		// [[BPR-1999]], RFC-BPR-0101. Return sends and Shift+Return starts a
+		// new line, as the tour side chat does; Ctrl or Cmd with Return also
+		// sends. Not while an input method composes, not in an empty field,
+		// and not while the skill completion's list takes Return.
+		if (aWatched == Chat.composer() && aEvent->type() == QEvent::InputMethod) {
+			Composing = !static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty();
+		}
 		if (aEvent->type() == QEvent::KeyPress && aWatched == Chat.composer()) {
-			const auto* const key = static_cast<QKeyEvent*>(aEvent);
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0) {
+			const auto* const key       = static_cast<QKeyEvent*>(aEvent);
+			const auto        modifiers = key->modifiers() & ~Qt::KeypadModifier;
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !modifiers.testFlag(Qt::ShiftModifier) && !modifiers.testFlag(Qt::AltModifier)) {
+				if (Composing || (SkillCompletion != nullptr && SkillCompletion->popup() != nullptr && SkillCompletion->popup()->isVisible())) {
+					return false;
+				}
+				// Plain Return in an empty field does nothing; Ctrl or Cmd
+				// with Return asks, as before, and is told why nothing went.
+				if (Chat.composer()->toPlainText().trimmed().isEmpty() && !modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier)) {
+					return true;
+				}
 				ask();
 				return true;
 			}
@@ -3026,9 +3102,16 @@ namespace bpr::qt {
 				kept.Copy->setIcon(copyIcon);
 			}
 		}
-		// The send arrow; while working the button says Stop instead.
+		// The send arrow, in the accent; while working the button says Stop
+		// instead, in the ordinary roles.
 		if (Ask->text().isEmpty()) {
-			Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
+			wear_agent_accent(*Ask, palette());
+			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
+		}
+		for (const auto& kept : Turns) {
+			if (kept.Recovery != nullptr && kept.RecoveryKind == core::agent_turn_recovery::resend) {
+				wear_agent_accent(*kept.Recovery, palette());
+			}
 		}
 		fit_run_settings();
 	}

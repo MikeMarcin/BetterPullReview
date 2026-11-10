@@ -264,7 +264,14 @@ namespace bpr::qt {
 		/// request's kept thread in place of the one shown (none: an empty
 		/// thread), and says each finished turn to `set_thread_observer`'s
 		/// observer with the whole thread, so the host keeps it.
-		void               present_thread(const std::vector<agent_thread_turn>& aTurns);
+		void present_thread(const std::vector<agent_thread_turn>& aTurns);
+		/// \brief [[BPR-1999]], RFC-BPR-0101. The session's total, as kept
+		/// with its history (none: not known), under the composer as "$2.37
+		/// this session". A new thread starts with none; each turn that
+		/// reports a cost adds to it.
+		void               present_session_cost(std::optional<core::agent_cost> aTotal);
+		[[nodiscard]] auto session_cost() const noexcept -> std::optional<core::agent_cost> { return SessionTotal; }
+		[[nodiscard]] auto session_cost_line() const noexcept -> QLabel* { return SessionCostLine; }
 		void               set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver);
 		[[nodiscard]] auto thread_turns() const -> std::vector<agent_thread_turn>;
 		/// \brief Clear session: asks `set_clear_confirmation`'s question when
@@ -658,10 +665,16 @@ namespace bpr::qt {
 		std::optional<agent_conversation_chip> ConversationShown;
 		/// [[BPR-2002]]. The lines chip, the lines it last showed, and
 		/// whether the reviewer detached them.
-		QWidget*                                                                   LinesChip  = nullptr;
-		QLabel*                                                                    LinesText  = nullptr;
-		QToolButton*                                                               LinesClose = nullptr;
-		QLabel*                                                                    ReadsLine  = nullptr;
+		QWidget*     LinesChip  = nullptr;
+		QLabel*      LinesText  = nullptr;
+		QToolButton* LinesClose = nullptr;
+		QLabel*      ReadsLine  = nullptr;
+		/// [[BPR-1999]]. The session's cost under the composer.
+		QLabel*                         SessionCostLine = nullptr;
+		std::optional<core::agent_cost> SessionTotal;
+		/// [[BPR-1999]]. An input method is composing in the question field.
+		bool                                                                       Composing = false;
+		[[nodiscard]] auto                                                         send_tip() const -> QString;
 		std::optional<std::pair<QString, std::pair<std::uint32_t, std::uint32_t>>> LinesSeen;
 		bool                                                                       LinesDetached = false;
 		/// The subject each suggested prompt carries, by its words.

@@ -137,8 +137,8 @@ namespace {
 		show(list);
 
 		expect(
-			list.listed_roles().size() == 62U && core::appearance_role_count == 64U,
-			"62 of the 64 roles the core declares are listed");
+			list.listed_roles().size() == 63U && core::appearance_role_count == 65U,
+			"63 of the 65 roles the core declares are listed, the agent accent among them (BPR-2000)");
 		for (const auto unoffered :
 			 { role::diff_hunk_header_background, role::diff_hunk_header_text }) {
 			expect(
@@ -213,7 +213,7 @@ namespace {
 			list.group_heading_text(group::surfaces_and_text)
 					== QStringLiteral("Surfaces and text")
 				&& list.group_count_text(group::surfaces_and_text)
-					== QStringLiteral("9")
+					== QStringLiteral("10")
 				&& list.group_count_text(group::diff) == QStringLiteral("6")
 				&& list.group_count_text(group::review_states)
 					== QStringLiteral("7")
@@ -289,7 +289,7 @@ namespace {
 		list.filter_field()->clear();
 		settle();
 		expect(
-			list.listed_roles().size() == 62U
+			list.listed_roles().size() == 63U
 				&& list.group_count_text(group::syntax) == QStringLiteral("28")
 				&& list.group_count_text(group::review_states) == QStringLiteral("7"),
 			"clearing the filter lists every offered role again");

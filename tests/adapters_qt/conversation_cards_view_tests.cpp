@@ -1137,6 +1137,13 @@ namespace {
 				   && anchored(button(view, "threadPublishDraft")) && anchored(button(view, "threadReviewDraft"))
 				   && button(view, "threadReviewDraft")->isEnabled() && privacy != nullptr && privacy->accessibleName() == QStringLiteral("Private until you publish"),
 			   "with no review in progress: Add single comment with ⌘⇧↩ and Start a review with ⌘↩, each named in its anchored tooltip");
+		// [[BPR-1999]], RFC-BPR-0101 AC03. A comment composer is not a chat:
+		// Return alone starts a line and publishes or keeps nothing.
+		{
+			const auto before = actions.size();
+			press(Qt::NoModifier);
+			expect(actions.size() == before, "Return alone in a comment composer neither sends nor keeps it");
+		}
 		press();
 		expect(actions.back() == qt::card_action::review_draft, "⌘↩ is Start a review, the default (owner: \"Start a review, add to review should be the default for cmd+enter\")");
 		press(Qt::ControlModifier | Qt::ShiftModifier);

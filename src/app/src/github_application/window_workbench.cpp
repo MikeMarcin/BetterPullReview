@@ -5,6 +5,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/header_source_navigation.hpp"
 #include "bpr/core/hex.hpp"
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -23,6 +24,7 @@
 
 #include <QByteArray>
 #include <QColor>
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QGuiApplication>
 #include <QPalette>
@@ -1304,7 +1306,18 @@ namespace bpr::app {
 		// which is how `code_selection_background` becomes
 		// `QPalette::Highlight` - the selection colour BPR-0117 fitted for
 		// contrast and which, until now, nothing applied.
+		// [[BPR-2000]], RFC-BPR-0101. The Agent accent of the theme on
+		// screen, which every accented surface reads. A change of it alone
+		// changes no Qt palette, so the window's widgets are told as a
+		// palette change is told, and each accented surface restyles.
+		const auto accentChanged = qt::set_agent_accent(AppearanceProfile->color(core::appearance_role::agent_accent));
 		AppearanceProfile->apply_to(*Window);
+		if (accentChanged) {
+			auto changed = QEvent{ QEvent::PaletteChange };
+			for (auto* const widget : Window->findChildren<QWidget*>()) {
+				QCoreApplication::sendEvent(widget, &changed);
+			}
+		}
 		Window->set_go_to_line_colours(AppearanceProfile->color(core::appearance_role::diff_intraline_removed_background),
 									   AppearanceProfile->color(core::appearance_role::diff_intraline_added_background), AppearanceProfile->color(core::appearance_role::application_text));
 		if (Profile->Insights && Profile->InsightsOwner == DraftWindow) {

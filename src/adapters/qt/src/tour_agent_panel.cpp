@@ -11,6 +11,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QClipboard>
 #include <QFontDatabase>
@@ -453,7 +454,7 @@ namespace bpr::qt {
 		UndoReset->setObjectName(QStringLiteral("tourResetUndo"));
 		UndoReset->setFocusPolicy(Qt::TabFocus);
 		doneRow->addWidget(UndoReset, 0, Qt::AlignVCenter);
-		Accented.emplace_back(UndoReset);
+		// [[BPR-2000]]. Undo reset starts no run: ordinary roles.
 		ResetDone->installEventFilter(this);
 		ResetDone->hide();
 		column->addWidget(ResetDone);
@@ -516,7 +517,7 @@ namespace bpr::qt {
 		AcceptAll->setFocusPolicy(Qt::TabFocus);
 		AcceptAll->setToolTip(tr("Accepts every proposed part still waiting in the tour, as it reads now."));
 		titleRow->addWidget(AcceptAll, 0, Qt::AlignTop);
-		Accented.emplace_back(AcceptAll);
+		// [[BPR-2000]]. Accept all applies; it starts no run.
 		connect(AcceptAll, &QPushButton::clicked, this, [this] {
 			if (!Proposal || !DecideDispatch) {
 				return;
@@ -760,7 +761,12 @@ namespace bpr::qt {
 
 	void tour_agent_panel::restyle(const QPalette& aGround)
 	{
-		for (auto* const widget : { static_cast<QWidget*>(Draft), static_cast<QWidget*>(TranscriptToggle), static_cast<QWidget*>(Status), static_cast<QWidget*>(ProposalTitle) }) {
+		// [[BPR-2000]], RFC-BPR-0101. Draft the tour starts a run; opening the
+		// conversation window does not. The status and the proposal's title
+		// say where text came from, and keep the accent.
+		wear_agent_accent(*Draft, aGround);
+		wear_ordinary_roles(*TranscriptToggle);
+		for (auto* const widget : { static_cast<QWidget*>(Status), static_cast<QWidget*>(ProposalTitle) }) {
 			apply_agent_accent(*widget, aGround);
 		}
 		Draft->setIcon(drawer_icon(drawer_glyph::agent, Draft->palette()));
@@ -777,19 +783,25 @@ namespace bpr::qt {
 			show_run(ShownRun, std::nullopt);
 		}
 		CopyRun->setIcon(drawer_icon(drawer_glyph::copy, CopyRun->palette()));
-		apply_agent_accent(*ChatTour, aGround);
+		// [[BPR-2000]]. Opening the tour's chat starts no run.
+		wear_ordinary_roles(*ChatTour);
 		ChatTour->setIcon(side_chat_icon(ChatTour->palette()));
 		// [[BPR-1931]] v002. Reset tour's glyph in this appearance's ink.
 		Reset->setIcon(drawer_icon(drawer_glyph::clear, Reset->palette()));
 		// [[BPR-1930]]. The focus chip reads in the agent's accent.
 		apply_agent_accent(*FocusText, aGround);
-		apply_agent_accent(*FocusClear, aGround);
+		// [[BPR-2000]]. Clearing the focus starts no run.
+		wear_ordinary_roles(*FocusClear);
 		FocusChip->update();
 		ResetConfirm->update();
 		ResetDone->update();
 		for (const auto& widget : Accented) {
 			if (widget) {
-				apply_agent_accent(*widget, aGround);
+				if (qobject_cast<QAbstractButton*>(widget.data()) != nullptr) {
+					wear_agent_accent(*widget, aGround);
+				} else {
+					apply_agent_accent(*widget, aGround);
+				}
 			}
 		}
 		// The proposal's fields paint their own edge from the palette.
@@ -1393,7 +1405,6 @@ namespace bpr::qt {
 						});
 						itemColumn->addWidget(move, 0, Qt::AlignLeft);
 						Relocates[index] = move;
-						Accented.emplace_back(move);
 					}
 				}
 			}
@@ -1522,7 +1533,7 @@ namespace bpr::qt {
 					DecideDispatch(index, core::tour_proposal_decision::discarded, { });
 				}
 			});
-			Accented.emplace_back(accept);
+			// [[BPR-2000]]. Accept applies; it starts no run.
 			Boxes[index] = box;
 			if (Place && Place(index, item, box)) {
 				// [[BPR-1930]]. A wrapped line's minimum is its height at a narrow

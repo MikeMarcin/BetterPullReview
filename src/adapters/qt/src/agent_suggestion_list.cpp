@@ -1,4 +1,5 @@
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/agent_feature.hpp"
 
 #include "bpr/qt/quiet_push_button.hpp"
 
@@ -36,6 +37,8 @@ namespace bpr::qt {
 			if (button != nullptr) {
 				button->hide();
 				Column->removeWidget(button);
+				// Out of the window at once, not only once deleted.
+				button->setParent(nullptr);
 				button->deleteLater();
 			}
 		}
@@ -52,11 +55,25 @@ namespace bpr::qt {
 			button->setAccessibleDescription(tr("Sends this prompt to the agent. Shift-click or %1 puts it in the question field to edit before sending.")
 												 .arg(QKeySequence{ Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 			button->setProperty("agentPrompt", prompt);
+			// [[BPR-2000]], RFC-BPR-0101. A suggestion sends: it starts a run.
+			wear_agent_accent(*button, palette());
 			button->setEnabled(Usable);
 			button->installEventFilter(this);
 			connect(button, &QPushButton::clicked, this, [this, prompt] { choose(prompt, std::exchange(EditFirst, false)); });
 			Column->addWidget(button, 0, Qt::AlignLeft);
 			Buttons.emplace_back(button);
+		}
+	}
+
+	void agent_suggestion_list::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::PaletteChange) {
+			for (const auto& button : Buttons) {
+				if (button != nullptr) {
+					wear_agent_accent(*button, palette());
+				}
+			}
 		}
 	}
 

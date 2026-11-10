@@ -173,6 +173,10 @@ namespace bpr::qt {
 		/// reported running: its model, and its cost when the harness said.
 		[[nodiscard]] auto last_reported_model() const -> QString { return LastModel; }
 		[[nodiscard]] auto last_reported_cost() const -> QString { return LastCost; }
+		/// \brief [[BPR-1999]]. The last run's cost, as the core accounted
+		/// it, and its conversation's total once known.
+		[[nodiscard]] auto last_turn_cost() const noexcept -> std::optional<core::agent_cost> { return LastTurnCost; }
+		[[nodiscard]] auto last_session_cost() const noexcept -> std::optional<core::agent_cost> { return LastSessionCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
 		/// \brief [[BPR-1873]]. Whether the running or last run's workspace
@@ -234,6 +238,8 @@ namespace bpr::qt {
 		QString                                                 LastRefusal;
 		QString                                                 LastModel;
 		QString                                                 LastCost;
+		std::optional<core::agent_cost>                         LastTurnCost;
+		std::optional<core::agent_cost>                         LastSessionCost;
 		phase                                                   Phase = phase::idle;
 		std::vector<std::function<void()>>                      ProgressObservers;
 		void                                                    progressed();

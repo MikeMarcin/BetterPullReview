@@ -327,6 +327,13 @@ namespace bpr::core {
 				.Background = appearance_role::application_surface,
 				.Kind       = contrast_kind::text,
 			},
+			// [[BPR-2000]]. The agent accent is words and button text on the
+			// application surface.
+			contrast_pair{
+				.Foreground = appearance_role::agent_accent,
+				.Background = appearance_role::application_surface,
+				.Kind       = contrast_kind::text,
+			},
 			contrast_pair{
 				.Foreground = appearance_role::code_line_number_text,
 				.Background = appearance_role::code_gutter_background,

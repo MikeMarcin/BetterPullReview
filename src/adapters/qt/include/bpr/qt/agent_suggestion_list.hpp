@@ -47,6 +47,8 @@ namespace bpr::qt {
 
 	protected:
 		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
+		/// [[BPR-2000]]. The chips wear the agent accent of the ground.
+		void changeEvent(QEvent* aEvent) override;
 
 	private:
 		void choose(const QString& aPrompt, bool aEditFirst);

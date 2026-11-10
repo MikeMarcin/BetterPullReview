@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_CONVERSATION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_CONVERSATION_HPP
 
+#include "bpr/core/agent_cost.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/agent_turn.hpp"
 
@@ -73,6 +74,8 @@ namespace bpr::application {
 		std::vector<agent_conversation_turn>    Turns;
 		bool                                    Loading = false;
 		std::string                             Failure;
+		/// [[BPR-1999]]. What the selected conversation has cost, once known.
+		std::optional<core::agent_cost> SessionCost;
 	};
 
 	/// The most turns one pull request keeps; older ones go first.

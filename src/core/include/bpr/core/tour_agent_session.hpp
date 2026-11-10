@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_TOUR_AGENT_SESSION_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_TOUR_AGENT_SESSION_HPP
 
+#include "bpr/core/agent_cost.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_tour.hpp"
 
@@ -303,6 +304,11 @@ namespace bpr::core {
 		/// [[BPR-1914]] v003. How long the run worked, as the host measured
 		/// it, for "Worked for Ns".
 		std::optional<std::uint32_t> Seconds;
+		/// [[BPR-1999]], RFC-BPR-0101. What the run cost, as the core
+		/// accounted the agent's figure, and its conversation's total after
+		/// it; none when the agent reported none.
+		std::optional<agent_cost> Cost;
+		std::optional<agent_cost> SessionCost;
 		/// [[BPR-1930]] follow-up. The focus this turn set, the one it
 		/// replaced, and whether the author undid it.
 		std::string FocusSet;
@@ -614,6 +620,13 @@ namespace bpr::core {
 	/// \brief [[BPR-1914]] v003. Records how long a run worked, once it has
 	/// ended; false for a running or unknown run.
 	auto time_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, std::uint32_t aSeconds) -> bool;
+	/// \brief [[BPR-1999]]. Records what an ended run cost and its
+	/// conversation's total; false for a running or unknown run.
+	auto cost_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, std::optional<agent_cost> aCost, std::optional<agent_cost> aSessionCost) -> bool;
+	/// \brief [[BPR-1999]]. What a thread's chat has cost: its newest run's
+	/// conversation total when known, else its runs' costs added up; none
+	/// when no run reported one.
+	[[nodiscard]] auto tour_thread_cost(const tour_agent_session& aSession, const tour_thread& aThread) -> std::optional<agent_cost>;
 	/// \brief [[BPR-1941]]. Delete on a tour chat turn that ended without an
 	/// answer, as the Agent tab's error turns have ([[BPR-1876]],
 	/// [[BPR-1880]]): the ask turn leaves its thread, and later turns are

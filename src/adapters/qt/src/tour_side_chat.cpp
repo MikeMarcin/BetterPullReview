@@ -8,6 +8,7 @@
 #include "bpr/qt/skill_completer.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 
+#include <QAbstractButton>
 #include <QClipboard>
 #include <QDialog>
 #include <QFontDatabase>
@@ -421,7 +422,15 @@ namespace bpr::qt {
 		compose->addWidget(Composer, 1);
 		compose->addWidget(Send, 0, Qt::AlignBottom);
 		column->addLayout(compose);
-		Accented.emplace_back(Send);
+		// [[BPR-1999]]. What this chat's session has cost, when the agent
+		// reported any.
+		SessionCostLine = new QLabel{ this };
+		SessionCostLine->setObjectName(QStringLiteral("tourSideChatSessionCost"));
+		SessionCostLine->setTextFormat(Qt::PlainText);
+		SessionCostLine->setForegroundRole(QPalette::PlaceholderText);
+		SessionCostLine->setAlignment(Qt::AlignRight);
+		SessionCostLine->hide();
+		column->addWidget(SessionCostLine);
 
 		connect(CopyChat, &QToolButton::clicked, this, [this] {
 			if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
@@ -855,10 +864,21 @@ namespace bpr::qt {
 
 	void tour_side_chat::restyle(const QPalette& aGround)
 	{
+		// [[BPR-2000]]. Send, Update and Resend start runs and wear the
+		// accent as run controls; titles and the suggestions' ground keep it.
 		for (const auto& widget : Accented) {
 			if (widget) {
-				apply_agent_accent(*widget, aGround);
+				if (qobject_cast<QAbstractButton*>(widget.data()) != nullptr) {
+					wear_agent_accent(*widget, aGround);
+				} else {
+					apply_agent_accent(*widget, aGround);
+				}
 			}
+		}
+		if (Mine) {
+			wear_ordinary_roles(*Send);
+		} else {
+			wear_agent_accent(*Send, aGround);
 		}
 		// [[BPR-1925]]. The agent's glyph leads the title, in its accent.
 		auto accented = palette();
@@ -869,6 +889,13 @@ namespace bpr::qt {
 		ClosePane->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		ClearPassage->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		Update->setIcon(drawer_icon(drawer_glyph::agent, Update->palette()));
+		// [[BPR-2000]]. Send starts a run and wears the accent; while this
+		// chat's run is going it is Stop, in the ordinary roles.
+		if (Mine) {
+			wear_ordinary_roles(*Send);
+		} else {
+			wear_agent_accent(*Send, palette());
+		}
 		Send->setIcon(drawer_icon(Mine ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
 		for (auto* const copy : Copies) {
 			if (copy != nullptr) {
@@ -1059,6 +1086,13 @@ namespace bpr::qt {
 		Send->setAccessibleName(Mine ? tr("Stop") : tr("Send"));
 		ContinueOld->setEnabled(active && !Running && !HistoryLoading && Ready);
 		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (Mine || (!RevisionChoiceRequired && (!Running || takes_feedback()) && !blank)));
+		// [[BPR-2000]]. Send starts a run and wears the accent; while this
+		// chat's run is going it is Stop, in the ordinary roles.
+		if (Mine) {
+			wear_ordinary_roles(*Send);
+		} else {
+			wear_agent_accent(*Send, palette());
+		}
 		Send->setIcon(drawer_icon(Mine ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
 		const auto part = !thread                              ? QString{ }
 			: thread->Kind == core::tour_thread_kind::stop     ? tr("this stop")
@@ -1079,6 +1113,9 @@ namespace bpr::qt {
 										 : thread->Kind == core::tour_thread_kind::tour ? tr("Ask about the tour, or say how to change it: fewer stops, merge two, focus on a part")
 																						: tr("Ask about %1").arg(part));
 		Composer->setEnabled(thread.has_value());
+		const auto spent = thread ? core::tour_thread_cost(Session, *thread) : std::nullopt;
+		SessionCostLine->setText(spent ? tr("%1 this session").arg(QString::fromStdString(core::agent_cost_words(*spent))) : QString{ });
+		SessionCostLine->setVisible(spent.has_value());
 		refresh_prompts();
 	}
 
@@ -1387,8 +1424,11 @@ namespace bpr::qt {
 					.Working = Running,
 				});
 				const auto agent    = agent_of(run->Id);
-				ending->settle(answered ? (run->Seconds ? agent_run_answered_words(agent, *run->Seconds) + QStringLiteral(".") : tr("%1 answered.").arg(agent))
-										: (run->Seconds ? agent_run_stopped_words(*run->Seconds) + QStringLiteral(".") : tr("Stopped.")),
+				// [[BPR-1999]], RFC-BPR-0101. The turn's cost after its time,
+				// as the Agent tab says it.
+				const auto spent = run->Cost ? QStringLiteral(" · ") + QString::fromStdString(core::agent_cost_words(*run->Cost)) : QStringLiteral(".");
+				ending->settle(answered ? (run->Seconds ? agent_run_answered_words(agent, *run->Seconds) + spent : (run->Cost ? tr("%1 answered").arg(agent) + spent : tr("%1 answered.").arg(agent)))
+										: (run->Seconds ? agent_run_stopped_words(*run->Seconds) + spent : (run->Cost ? tr("Stopped") + spent : tr("Stopped."))),
 							   answered);
 				// One row in the narrow column: the ending, then its actions.
 				auto* const row = new QHBoxLayout{ };
@@ -1418,6 +1458,9 @@ namespace bpr::qt {
 					resend->setFlat(true);
 					resend->setFocusPolicy(Qt::TabFocus);
 					resend->setToolTip(tr("Send this message to the agent again"));
+					// [[BPR-2000]]. Resend starts a run.
+					Accented.emplace_back(resend);
+					wear_agent_accent(*resend, palette());
 					resend->setEnabled(Ready);
 					auto again = tour_ask{ .Thread = run->Thread, .Passage = run->Passage, .Question = QString::fromStdString(run->Question), .Update = run->Update };
 					connect(resend, &QPushButton::clicked, this, [this, again] {
@@ -1600,7 +1643,7 @@ namespace bpr::qt {
 					buttons->addStretch(1);
 					lines->addLayout(buttons);
 					Accepts[index] = accept;
-					Accented.emplace_back(accept);
+					// [[BPR-2000]]. Accept applies; it starts no run.
 					connect(accept, &QPushButton::clicked, this, [this, index, editor] {
 						if (DecideDispatch) {
 							DecideDispatch(index, core::tour_proposal_decision::accepted, editor->toPlainText());

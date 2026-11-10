@@ -185,6 +185,14 @@ namespace bpr::core {
 		// unassigned and reads the built-in values (`defaults_on_import`).
 		find_match_background,
 		find_current_match_background,
+
+		// [[BPR-2000]], RFC-BPR-0101. The colour of a control that starts or
+		// continues an agent run, and of what says text came from an agent:
+		// words on the application surface, held to the text floor. Appended
+		// for durable ordinal compatibility, so an older palette or theme
+		// leaves it unassigned and reads the built-in value
+		// (`defaults_on_import`).
+		agent_accent,
 	};
 
 	/// \brief The opacity the code panes composite the selection wash at.
@@ -221,10 +229,10 @@ namespace bpr::core {
 		};
 	}
 
-	inline constexpr std::size_t appearance_role_count = 64U;
+	inline constexpr std::size_t appearance_role_count = 65U;
 
 	static_assert(
-		static_cast<std::size_t>(appearance_role::find_current_match_background) + 1U == appearance_role_count,
+		static_cast<std::size_t>(appearance_role::agent_accent) + 1U == appearance_role_count,
 		"appearance_role_count must cover every declared role");
 
 	/// \brief The first of the twelve label tint roles, in catalog order.
@@ -245,7 +253,8 @@ namespace bpr::core {
 	/// \details [[BPR-1083]]. Only the roles added after palettes and theme
 	/// documents had been written without them: the twelve label tints and,
 	/// after them, `state_attention` ([[BPR-1085]]), the namespace/enum
-	/// categories (RFC-BPR-0072) and Find's two washes ([[BPR-1503]]). The owner's rule (BPR-1079
+	/// categories (RFC-BPR-0072), Find's two washes ([[BPR-1503]]) and the agent
+	/// accent ([[BPR-2000]]). The owner's rule (BPR-1079
 	/// `tints-v002`) is that such a palette reads them as the built-in values and
 	/// no other role changes. The core holds no built-in colour, so the parser
 	/// leaves such a role `unassigned_appearance_color`. A stored palette's slot

@@ -246,6 +246,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto copy_chat_button() const noexcept -> QToolButton* { return CopyChat; }
 		[[nodiscard]] auto show_button() const noexcept -> QPushButton* { return ShowPart; }
 		[[nodiscard]] auto subject() const noexcept -> QLabel* { return Subject; }
+		/// \brief [[BPR-1999]]. The open chat's session cost line.
+		[[nodiscard]] auto session_cost_line() const noexcept -> QLabel* { return SessionCostLine; }
 		[[nodiscard]] auto passage_line() const noexcept -> QLabel* { return PassageLine; }
 		[[nodiscard]] auto passage() const -> std::optional<core::tour_passage>;
 		/// \brief How many turns the open chat shows.
@@ -317,6 +319,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto live_status() const -> agent_run_status;
 		[[nodiscard]] auto agent_of(core::tour_agent_run_id aRun) const -> QString;
 
+		QLabel*                                                                     SessionCostLine = nullptr;
 		agent_reference_files_source                                                ReferenceFiles;
 		agent_reference_navigation                                                  ReferenceNavigate;
 		agent_reference_chooser                                                     ReferenceChoose;

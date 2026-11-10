@@ -546,7 +546,9 @@ namespace bpr::qt {
 				LastModel = QString::fromStdString(*report.Settings.Model);
 			}
 		}
-		LastCost = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
+		LastCost        = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
+		LastTurnCost    = aResult.TurnCost;
+		LastSessionCost = aResult.SessionCost;
 		StopReason.clear();
 		if (!aResult.RefusalReason.empty()) {
 			StopReason = QString::fromStdString(aResult.RefusalReason);

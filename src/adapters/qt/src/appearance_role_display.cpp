@@ -36,6 +36,9 @@ namespace bpr::qt {
 			return { group::surfaces_and_text, "Find match background" };
 		case role::find_current_match_background:
 			return { group::surfaces_and_text, "Find current match background" };
+		// [[BPR-2000]]. Controls that start an agent run, and agent marks.
+		case role::agent_accent:
+			return { group::surfaces_and_text, "Agent accent" };
 
 		case role::diff_added_background:
 			return { group::diff, "Diff added background" };

@@ -111,6 +111,14 @@ descriptions) keep Ctrl or Cmd with Return. They are not chats.
   equals its total.
 - **Where.** The Agent tab and the tour side chat show both. The
   selected-lines side chat shows the turn's.
+- **Established, 2026-11-10 ([[BPR-1999]]).** Installed Claude Code 2.1.319
+  reports `total_cost_usd` cumulatively over a resumed session: three
+  `--resume` turns of one session reported 0.00279231, 0.00549827 and
+  0.00631917, and its `modelUsage` token counts grew as running sums while
+  each frame's `usage` was the turn's own. A turn that resumed the runtime's
+  session therefore cost the difference of consecutive figures, and a turn
+  that started one cost its figure; the conversation keeps the last figure
+  and the total with its history ([verification](../verification/RFC-BPR-0101.md#cost-how-claudes-figure-accrues)).
 
 ### Colour
 

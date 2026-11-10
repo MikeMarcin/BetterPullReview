@@ -973,6 +973,8 @@ namespace bpr::app {
 		// [[BPR-1914]] v003. How long it worked, as "Worked for Ns" says.
 		if (run) {
 			static_cast<void>(core::time_tour_run(TourAgent, *run, static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - TourRunStarted).count())));
+			// [[BPR-1999]]. What it cost, and its conversation's total.
+			static_cast<void>(core::cost_tour_run(TourAgent, *run, aResult.TurnCost, aResult.SessionCost));
 		}
 		TourRun.reset();
 		TourInvocation.reset();

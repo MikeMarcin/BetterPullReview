@@ -681,6 +681,34 @@ namespace bpr::core {
 		return true;
 	}
 
+	auto cost_tour_run(tour_agent_session& aSession, const tour_agent_run_id aRun, const std::optional<agent_cost> aCost, const std::optional<agent_cost> aSessionCost) -> bool
+	{
+		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (found == aSession.Runs.end() || found->State == tour_agent_run_state::running) {
+			return false;
+		}
+		found->Cost        = aCost;
+		found->SessionCost = aSessionCost;
+		return true;
+	}
+
+	auto tour_thread_cost(const tour_agent_session& aSession, const tour_thread& aThread) -> std::optional<agent_cost>
+	{
+		auto sum = std::optional<agent_cost>{ };
+		for (auto it = aSession.Runs.rbegin(); it != aSession.Runs.rend(); ++it) {
+			if (!(it->Thread == aThread)) {
+				continue;
+			}
+			if (it->SessionCost) {
+				return *it->SessionCost + sum.value_or(0U);
+			}
+			if (it->Cost) {
+				sum = sum.value_or(0U) + *it->Cost;
+			}
+		}
+		return sum;
+	}
+
 	auto remove_tour_run(tour_agent_session& aSession, const tour_agent_run_id aRun) -> bool
 	{
 		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);

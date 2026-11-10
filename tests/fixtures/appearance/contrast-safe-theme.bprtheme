@@ -63,3 +63,4 @@ syntax_namespace #ffffffff
 syntax_enum_member #ffffffff
 find_match_background #000000ff
 find_current_match_background #000000ff
+agent_accent #ffffffff

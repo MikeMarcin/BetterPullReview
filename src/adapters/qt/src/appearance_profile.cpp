@@ -145,6 +145,11 @@ namespace bpr::qt {
 			// green and red, and as strong as the text floor allows.
 			{ role::find_match_background, srgb(0xF2CC6B) },
 			{ role::find_current_match_background, srgb(0xDB9100) },
+			// [[BPR-2000]], RFC-BPR-0101. The agent accent: the indigo shipped
+			// since [[BPR-1881]] for Light and Dark, and for the high-contrast
+			// variants an indigo of the same hue that meets their text floor
+			// (8.8:1 on white, 11.1:1 on black).
+			{ role::agent_accent, srgb(0x4A3FD6) },
 		} });
 
 		constexpr auto dark_profile = make_profile(profile_entries{ {
@@ -232,6 +237,7 @@ namespace bpr::qt {
 			{ role::syntax_enum_member, srgb(0xD6A05A) },
 			{ role::find_match_background, srgb(0x5C4214) },
 			{ role::find_current_match_background, srgb(0x754D00) },
+			{ role::agent_accent, srgb(0xA3A0FF) },
 		} });
 
 		constexpr auto high_contrast_light_profile = make_profile(profile_entries{ {
@@ -299,6 +305,7 @@ namespace bpr::qt {
 			{ role::syntax_enum_member, srgb(0x2F4F4F) },
 			{ role::find_match_background, srgb(0xFFF3C4) },
 			{ role::find_current_match_background, srgb(0xFFEBA3) },
+			{ role::agent_accent, srgb(0x3A2FC4) },
 		} });
 
 		constexpr auto high_contrast_dark_profile = make_profile(profile_entries{ {
@@ -366,6 +373,7 @@ namespace bpr::qt {
 			{ role::syntax_enum_member, srgb(0xFFCB80) },
 			{ role::find_match_background, srgb(0x33260C) },
 			{ role::find_current_match_background, srgb(0x422C00) },
+			{ role::agent_accent, srgb(0xB8B5FF) },
 		} });
 
 		/// \brief [[BPR-0776]]. Home's section colours per built-in variant, in

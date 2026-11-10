@@ -337,8 +337,14 @@ namespace {
 			"the change-group boundary rule is held to the indicator ratio "
 			"against the code surface it is drawn on");
 
-		expect_equal(static_cast<std::uint32_t>(pairs.size()), 710U,
-					 "the checked set is the three fixed pairs, the boundary rule, "
+		// [[BPR-2000]]. The agent accent on the application surface is the
+		// fourth fixed pair.
+		expect_equal(static_cast<std::uint32_t>(std::ranges::count_if(pairs, [](const contrast_pair& aPair) {
+						 return aPair.Foreground == appearance_role::agent_accent && aPair.Background == appearance_role::application_surface && aPair.Kind == contrast_kind::text;
+					 })),
+					 1U, "the agent accent is held to the text floor on the application surface");
+		expect_equal(static_cast<std::uint32_t>(pairs.size()), 711U,
+					 "the checked set is the four fixed pairs, the boundary rule, "
 					 "28 syntax roles over "
 					 "bare canvas backgrounds and under the selection and two Find "
 					 "washes, and six state indicators");

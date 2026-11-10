@@ -42,6 +42,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -247,6 +248,148 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// \brief The opt-in installed-Claude course; see `main`.
+	[[nodiscard]] auto live_claude_course(const char* const aClaude) -> int
+	{
+		auto       data = QTemporaryDir{ };
+		const auto root = data.isValid() ? e2e::private_data_root(data) : std::nullopt;
+		if (!root) {
+			return EXIT_FAILURE;
+		}
+		// Claude added in the agent setup, as a reviewer adds it, so the Agent
+		// tab's turns continue one native session.
+		{
+			auto preferences        = application::agent_setup_preferences{ };
+			preferences.AgentsMoved = true;
+			auto entry              = core::agent_entry{ };
+			entry.Id                = 1U;
+			entry.Name              = "Claude Code";
+			entry.Protocol          = core::agent_protocol::claude_stream_json;
+			entry.Program           = aClaude;
+			entry.Identity          = std::string(32U, 'c');
+			preferences.Agents.push_back(std::move(entry));
+			preferences.PreferredAgent = 1U;
+			if (!adapters::sqlite::make_agent_setup_store(*root)->store(preferences)) {
+				return EXIT_FAILURE;
+			}
+		}
+		std::unique_ptr<app::github_application> application;
+		auto                                     terminal = false;
+		auto                                     startup  = app::detail::github_application_fixture_access::start(
+			app::detail::github_public_path_fixture::nested_folders_v1,
+			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			[&](auto aResult) {
+				terminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+		const auto minutes = [](const int aMinutes) { return std::chrono::milliseconds{ aMinutes * 60'000 }; };
+		if (!e2e::wait_until_plain([&] { return terminal && startup && startup->is_quiescent(); }, minutes(1)) || !application) {
+			std::cerr << "live-claude: startup\n";
+			return EXIT_FAILURE;
+		}
+		application->show();
+		auto& window = application->window();
+		window.resize(1'280, 860);
+		window.github_connect_action()->trigger();
+		if (!e2e::wait_until_plain([&] { return window.github_open_action()->isEnabled(); }, minutes(1))) {
+			return fail(*application, "live-connect");
+		}
+		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+		window.home_open_action()->trigger();
+		auto* const panel = window.agent_panel();
+		if (!e2e::wait_until_plain([&] { return window.files_drawer()->contents_view()->model()->rowCount() >= 5 && panel->profile_selector()->count() > 0; }, minutes(1))) {
+			return fail(*application, "live-open");
+		}
+		const auto claude = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U).value()));
+		if (claude < 0) {
+			return fail(*application, "live-claude-offered");
+		}
+		panel->profile_selector()->setCurrentIndex(claude);
+		auto* const tab = window.agent_tab();
+		// The cheapest model the installed Claude offers, so the course costs
+		// cents; the rules under test do not depend on the model.
+		static_cast<void>(tab->run_slash_command(QStringLiteral("/model haiku")));
+		auto* const files = window.files_drawer()->contents_view();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		window.choose_modality(qt::review_modality::review);
+		auto* const surface = window.comparison_surface();
+		if (!e2e::wait_until_plain([&] { return surface->current_result() != nullptr && !window.showing_overview(); }, minutes(1))) {
+			return fail(*application, "live-file-open");
+		}
+		const auto open = window.files_drawer()->contents_view()->model()->index(0, 0).data().toString();
+		window.tray_tabs()->setCurrentIndex(3);
+		QApplication::processEvents();
+		auto       costs  = std::vector<std::optional<core::agent_cost>>{ };
+		const auto answer = [&](const std::function<void()>& aSend, const std::string_view aStep) -> bool {
+			// The previous run has finished cleaning up before the next send.
+			static_cast<void>(e2e::wait_until_plain([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent; }, minutes(2)));
+			const auto before = tab->turn_count();
+			aSend();
+			if (!e2e::wait_until_plain([&] { return tab->turn_count() == before + 1U || tab->send_refusal() != core::agent_send_refusal::none; }, minutes(1))
+				|| tab->send_refusal() != core::agent_send_refusal::none) {
+				std::cout << "live-claude " << aStep << ": not started refusal=\"" << tab->send_refusal_text().toStdString() << "\" panel=\"" << panel->status_text().toStdString() << "\" state=" << static_cast<int>(tab->state()) << std::endl;
+				return false;
+			}
+			const auto done = e2e::wait_until_plain(
+				[&] {
+					return tab->turn_count() == before + 1U && tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value();
+				},
+				minutes(10));
+			costs.push_back(panel->last_turn_cost());
+			std::cout << "live-claude " << aStep << ": outcome=" << (tab->turn_outcome(before) ? core::stable_name(*tab->turn_outcome(before)) : std::string_view{ "none" }) << " footer=\"" << tab->turn_footer(before).toStdString()
+					  << "\" reported=" << panel->last_reported_cost().toStdString() << " session=\"" << tab->session_cost_line()->text().toStdString() << "\"" << std::endl;
+			return done && tab->turn_outcome(before) == core::agent_turn_outcome::answered;
+		};
+		if (!answer([&] { tab->send_prompt(QStringLiteral("Review this pull request")); }, "review")) {
+			return fail(*application, "live-review", tab->turn_answer(0U).left(400).toStdString());
+		}
+		// AC03: the answer discusses more than the open file.
+		auto named = QStringList{ };
+		for (int row = 0; row < files->model()->rowCount(); ++row) {
+			const auto path = files->model()->index(row, 0).data().toString();
+			const auto name = path.section(QLatin1Char{ '/' }, -1);
+			if (path != open && (tab->turn_answer(0U).contains(path) || tab->turn_answer(0U).contains(name))) {
+				named << path;
+			}
+		}
+		std::cout << "live-claude open=" << open.toStdString() << " other-files-discussed=" << named.size() << " (" << named.join(QStringLiteral(", ")).toStdString() << ")\n";
+		std::cout << "live-claude answer-head: " << tab->turn_answer(0U).left(600).toStdString() << "\n";
+		auto* const composer = window.side_chat()->composer();
+		const auto  typed    = [&](const QString& aWords) {
+			return [&, aWords] {
+				composer->setPlainText(aWords);
+				auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r") };
+				QApplication::sendEvent(composer, &press);
+			};
+		};
+		if (!answer(typed(QStringLiteral("In one sentence: which changed file carries the most risk?")), "second") || !answer(typed(QStringLiteral("Reply with the single word: done")), "third")) {
+			return fail(*application, "live-followups");
+		}
+		auto sum   = core::agent_cost{ 0U };
+		auto every = true;
+		for (const auto& cost : costs) {
+			every = every && cost.has_value();
+			sum += cost.value_or(0U);
+		}
+		const auto native = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+		std::cout << "live-claude native: process-starts=" << native.Statistics.ProcessStarts << " workspace-starts=" << native.Statistics.WorkspaceStarts << '\n';
+		std::cout << "live-claude turn-costs=";
+		for (const auto& cost : costs) {
+			std::cout << (cost ? std::to_string(*cost) : std::string{ "none" }) << ' ';
+		}
+		std::cout << "sum=" << sum << " session-total=" << (tab->session_cost() ? std::to_string(*tab->session_cost()) : std::string{ "none" }) << " session-line=\"" << tab->session_cost_line()->text().toStdString() << "\"\n";
+		const auto passed = every && tab->session_cost() == sum && named.size() >= 2;
+		if (!shutdown(*application)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << (passed ? "agent-chat-live-claude:pass\n" : "agent-chat-live-claude:fail\n");
+		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication qtApplication{ argc, argv };
@@ -255,6 +398,14 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto course = std::string_view{ argv[1] };
+	// [[BPR-2002]] AC03, [[BPR-1999]] AC05. Opt-in, never registered with
+	// ctest: an installed Claude Code (argv[2]) answers three turns in one
+	// native session about a fixture pull request of 17 changed files, with
+	// one file open. It spends the owner's Claude account, so only an
+	// explicit run of `live-claude` reaches it.
+	if (course == "live-claude") {
+		return live_claude_course(argv[2]);
+	}
 	if (
 		course != "positive" && course != "stale" && course != "continued"
 		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation"

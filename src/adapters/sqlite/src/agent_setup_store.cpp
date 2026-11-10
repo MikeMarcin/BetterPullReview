@@ -128,6 +128,10 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_sparse_objects(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), missing TEXT NOT NULL CHECK(length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, PRIMARY KEY(conversation,ordinal)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_replays(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), source TEXT NOT NULL) STRICT")
+				// [[BPR-1999]]. What a native conversation has cost: the sum of
+				// its turns' costs, whether any reported one, and the runtime's
+				// last figure for the session it resumes.
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_costs(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), total INTEGER NOT NULL CHECK(total >= 0), known INTEGER NOT NULL CHECK(known IN (0,1)), reported INTEGER CHECK(reported >= 0)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
@@ -711,6 +715,52 @@ namespace bpr::adapters::sqlite {
 		private:
 			std::filesystem::path Root;
 		};
+		/// [[BPR-1999]]. A native conversation's cost ledger; none recorded
+		/// reads as an empty ledger.
+		[[nodiscard]] auto read_native_cost(sqlite3* aDatabase, const std::string& aId) -> std::optional<core::agent_cost_ledger>
+		{
+			auto row = detail::prepare(aDatabase, "SELECT total,known,reported FROM native_agent_costs WHERE conversation=?1");
+			if (!row) {
+				return std::nullopt;
+			}
+			bind_text(row->Value, 1, aId);
+			const auto status = sqlite3_step(row->Value);
+			if (status == SQLITE_DONE) {
+				return core::agent_cost_ledger{ };
+			}
+			if (status != SQLITE_ROW) {
+				return std::nullopt;
+			}
+			auto ledger  = core::agent_cost_ledger{ };
+			ledger.Total = static_cast<core::agent_cost>(std::max<sqlite3_int64>(0, sqlite3_column_int64(row->Value, 0)));
+			ledger.Known = sqlite3_column_int(row->Value, 1) != 0;
+			if (sqlite3_column_type(row->Value, 2) != SQLITE_NULL) {
+				ledger.Reported = static_cast<core::agent_cost>(std::max<sqlite3_int64>(0, sqlite3_column_int64(row->Value, 2)));
+			}
+			return ledger;
+		}
+
+		[[nodiscard]] auto write_native_cost(sqlite3* aDatabase, const std::string& aId, const core::agent_cost_ledger& aLedger) -> bool
+		{
+			constexpr auto largest = static_cast<core::agent_cost>(std::numeric_limits<sqlite3_int64>::max());
+			if (aLedger.Total > largest || (aLedger.Reported && *aLedger.Reported > largest)) {
+				return false;
+			}
+			auto row = detail::prepare(aDatabase, "INSERT INTO native_agent_costs(conversation,total,known,reported) VALUES(?1,?2,?3,?4) ON CONFLICT(conversation) DO UPDATE SET total=excluded.total,known=excluded.known,reported=excluded.reported");
+			if (!row) {
+				return false;
+			}
+			bind_text(row->Value, 1, aId);
+			sqlite3_bind_int64(row->Value, 2, static_cast<sqlite3_int64>(aLedger.Total));
+			sqlite3_bind_int(row->Value, 3, aLedger.Known ? 1 : 0);
+			if (aLedger.Reported) {
+				sqlite3_bind_int64(row->Value, 4, static_cast<sqlite3_int64>(*aLedger.Reported));
+			} else {
+				sqlite3_bind_null(row->Value, 4);
+			}
+			return sqlite3_step(row->Value) == SQLITE_DONE;
+		}
+
 		[[nodiscard]] auto read_native_workspace(sqlite3* aDatabase, sqlite3_stmt* aRow)
 			-> std::expected<std::optional<application::owned_agent_workspace>, application::native_agent_storage_failure>
 		{
@@ -986,6 +1036,11 @@ namespace bpr::adapters::sqlite {
 					if (value.Id.size() != 32U || value.Handle.size() > core::maximum_remote_run_id_bytes || value.Turn < 2U || value.Revision == 0U) {
 						return std::unexpected(failure::unavailable);
 					}
+					const auto cost = read_native_cost(db, value.Id);
+					if (!cost) {
+						return std::unexpected(failure::unavailable);
+					}
+					value.Cost = *cost;
 				} else if (status == SQLITE_DONE) {
 					if (!aCreate) {
 						return std::optional<application::native_agent_session>{ };
@@ -1152,6 +1207,9 @@ namespace bpr::adapters::sqlite {
 					if (entry.Id == view.Selected) {
 						view.Replay       = entry.Replay;
 						view.ReplaySource = entry.ReplaySource;
+						if (const auto cost = read_native_cost(db, entry.Id); cost && cost->Known) {
+							view.SessionCost = cost->Total;
+						}
 					}
 					view.Entries.push_back(std::move(entry));
 				}
@@ -1318,6 +1376,9 @@ namespace bpr::adapters::sqlite {
 					return false;
 				}
 				if (workspace.SparseMissingObjects && workspace.SparseMissingObjects->size() > 64U * 1024U * 1024U) {
+					return false;
+				}
+				if (!write_native_cost(connection->Database.get(), aSession.Id, aSession.Cost)) {
 					return false;
 				}
 				auto sparse = detail::prepare(connection->Database.get(), "INSERT INTO native_agent_sparse_objects(conversation,missing) VALUES(?1,?2) ON CONFLICT(conversation) DO UPDATE SET missing=excluded.missing");

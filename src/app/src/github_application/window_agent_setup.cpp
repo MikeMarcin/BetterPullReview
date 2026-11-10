@@ -344,6 +344,8 @@ namespace bpr::app {
 			turns.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome });
 		}
 		tab->present_thread(turns);
+		// [[BPR-1999]]. The conversation's cost, kept with its history.
+		tab->present_session_cost(aView.SessionCost);
 		present_agent_pull_request();
 	}
 

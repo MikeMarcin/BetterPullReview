@@ -3432,33 +3432,47 @@ namespace bpr::qt {
 		// and the agent's spark beside its words, so the colour is never the
 		// only sign. Only the text roles are set: the rest follows the
 		// application's palette, and this runs again when it changes.
+		//
+		// [[BPR-2000]], RFC-BPR-0101: a control wears the accent exactly when
+		// pressing it starts an agent run (Enhance, a stop's Enhance, Suggest
+		// an outline, Draft the tour). Opening a chat, showing a run,
+		// inserting skeleton stops, the agent picker and Set up the agent are
+		// ordinary controls; the spark beside them still says agent.
 		const auto ground = palette();
+		auto       runs   = std::vector<QWidget*>{ StopMagic, SuggestOutline, TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr };
+		for (const char* const name : { "tourProblemMagic", "tourSolutionMagic" }) {
+			runs.push_back(findChild<QPushButton*>(QString::fromLatin1(name)));
+		}
 		for (auto* const feature : agent_features()) {
-			apply_agent_accent(*feature, ground);
+			if (std::ranges::find(runs, feature) != runs.end()) {
+				wear_agent_accent(*feature, ground);
+			} else {
+				wear_ordinary_roles(*feature);
+			}
 			if (auto* const button = qobject_cast<QPushButton*>(feature); button != nullptr) {
 				button->setIcon(drawer_icon(drawer_glyph::agent, button->palette()));
 			}
 		}
 		for (const auto& [hook, notice] : FailureNotices) {
 			auto* const open = static_cast<failure_notice_card*>(notice)->Open;
-			apply_agent_accent(*open, ground);
+			wear_ordinary_roles(*open);
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
 		}
 		SideChat->restyle(ground);
-		// [[BPR-1914]] v004, owner look v003: "The side chat buttons should be
-		// in the agent color."
+		// [[BPR-1914]] v004 had the side chat buttons in the agent colour;
+		// [[BPR-2000]]: opening a chat starts no run, so they are ordinary.
 		for (auto* const chat : ChatButtons) {
-			apply_agent_accent(*chat, ground);
+			wear_ordinary_roles(*chat);
 			chat->setIcon(side_chat_icon(chat->palette()));
 		}
 		if (TourAgentPanel != nullptr) {
 			TourAgentPanel->restyle(ground);
 			auto* const open = static_cast<failure_notice_card*>(DraftFailure)->Open;
-			apply_agent_accent(*open, ground);
+			wear_ordinary_roles(*open);
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
 		}
 		if (AgentSetupButton != nullptr) {
-			apply_agent_accent(*AgentSetupButton, ground);
+			wear_ordinary_roles(*AgentSetupButton);
 			AgentSetupButton->setIcon(drawer_icon(drawer_glyph::agent, AgentSetupButton->palette()));
 			if (auto* const title = AgentSetupCall->findChild<QLabel*>(QStringLiteral("tourAgentSetupTitle")); title != nullptr) {
 				apply_agent_accent(*title, ground);

@@ -6,6 +6,7 @@
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/core/agent_cost.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_setup.hpp"
@@ -885,6 +886,11 @@ namespace bpr::application {
 		/// [[BPR-1753]]. The turn's cost as the harness reported it, a
 		/// decimal of US dollars; absent when it reported none.
 		std::optional<std::string> ReportedCostUsd;
+		/// [[BPR-1999]], RFC-BPR-0101. What this turn cost, as the core
+		/// accounted the reported figure, and its conversation's total once
+		/// known; absent when the runtime reported none.
+		std::optional<core::agent_cost> TurnCost;
+		std::optional<core::agent_cost> SessionCost;
 		/// [[BPR-1891]]. The plugins a writing run's Claude reported
 		/// loading, as `plugins_reported` carries them; empty when none.
 		std::string ReportedPlugins;

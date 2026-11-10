@@ -137,6 +137,10 @@ namespace bpr::application {
 			std::optional<owned_agent_workspace> OwnedWorkspace;
 			std::optional<native_agent_session>  Native;
 			bool                                 RetainWorkspace = false;
+			/// [[BPR-1999]]. The run resumed the runtime's own session (its
+			/// handle was known at launch), so its reported cost is that
+			/// session's running total.
+			bool                                 ResumedNative   = false;
 			bool                                 NativeSubmitted = false;
 			std::optional<private_run_admission> PrivateAdmission;
 			std::atomic_uint64_t                 DurableRun          = 0;
@@ -965,6 +969,7 @@ namespace bpr::application {
 					if (!session.Replay) {
 						launch->NativeConversation = session.Id;
 						launch->NativeHandle       = session.Handle;
+						aInvocation->ResumedNative = !session.Handle.empty();
 						launch->NativeTurn         = session.Turn;
 						launch->SaveNativeHandle   = std::make_shared<std::function<bool(const std::string&)>>([this, aInvocation](const std::string& aHandle) {
 							aInvocation->Native->Handle = aHandle;
@@ -1021,8 +1026,19 @@ namespace bpr::application {
 				if (launch->PrivateInputClaim) {
 					launch->PrivateInputClaim->release();
 				}
+				// [[BPR-1999]], RFC-BPR-0101. The turn's cost, accounted by the
+				// core: a run that resumed the runtime's own session reports
+				// that session's running total, so the turn cost the
+				// difference; any other run's figure is its own.
+				const auto reported = result.ReportedCostUsd ? core::parse_agent_cost(*result.ReportedCostUsd) : std::nullopt;
+				result.TurnCost     = reported;
 				if (aInvocation->Native) {
-					auto& session       = *aInvocation->Native;
+					auto&      session  = *aInvocation->Native;
+					const auto resumed  = aInvocation->ResumedNative;
+					const auto cost     = core::account_agent_turn_cost(session.Cost, reported, resumed);
+					session.Cost        = cost.Ledger;
+					result.TurnCost     = cost.Turn;
+					result.SessionCost  = cost.Ledger.Known ? std::optional{ cost.Ledger.Total } : std::nullopt;
 					result.Conversation = session.Id;
 					if (!session.Replay && !result.NativeHandle.empty()) {
 						session.Handle = result.NativeHandle;

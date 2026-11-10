@@ -154,6 +154,39 @@ At `4e318b625` the scan of `new QPushButton`, `new QToolButton`, the two shared
 classes and `QPushButton`/`QToolButton`/`QAbstractButton` subclasses finds 55
 files, every one of them listed on this page.
 
+## The agent variant
+
+[RFC-BPR-0101](../rfcs/RFC-BPR-0101-agent-chat-conventions.md) adds one
+variant to the shared buttons, decided by one test: **does pressing the control
+start or continue an agent run?** If it does, the control wears the **Agent
+accent** palette role (Appearance › Colours, built-in `#4A3FD6` in Light,
+`#A3A0FF` in Dark, `#3A2FC4` and `#B8B5FF` in the two high-contrast variants)
+for its words and glyph, and its disabled form is the accent faded toward the
+window. Every other control uses the ordinary button roles, even when what it
+handles came from an agent: it only applies, moves, keeps, shows or discards.
+Stop ends spending and is ordinary. Labels that say where text came from (a
+proposal's outline and title, the running status, the focus chip's words, the
+tour's agent marks) are not controls and keep the accent.
+
+A run control is made with `wear_agent_accent` ([agent_feature.hpp](../../src/adapters/qt/include/bpr/qt/agent_feature.hpp)),
+which also marks it `bprAgentRun`; `wear_ordinary_roles` takes both off. No
+surface keeps a fixed colour: `agent_accent` reads the role of the theme on
+screen, which the application sets from the appearance profile.
+
+| Surface | Starts a run: the accent | Starts no run: ordinary roles |
+|---|---|---|
+| Agent tab | Send (`agentAsk`), each suggestion (`agentSuggestion`), Resend on an error turn and in the stopped banner | Stop, History, New session, Suggestions toggle, Attach lines, the lines chip's close, Agent settings…, Start a new session, Continue on the old head, Show the log, Copy, Save as note, Draft comment, Delete |
+| Selected-lines side chat | Send (the Agent tab's, as the panel's composer is the Agent tab's) | Promote reply to draft, the hidden panel's scope and context controls |
+| Tour side chat | Send, Update … from this chat, Resend, each suggestion | Accept, Edit, Discard, Show, Copy, Copy chat, Close, the passage's close, History, New session, Continue on the old head |
+| Tour | Enhance (Problem, Solution, a stop), Suggest an outline, Draft the tour | Accept, Accept all, Undo reset, Move, Reset tour, Conversation, the chat toggles (each part's and the whole tour's), Clear focus, Insert selected skeleton stops, Show the run, Set up the agent, the agent picker |
+| Comment workshop | none shown: its six operations are actions without a button of their own | Accept revision, Reject revision |
+| Review Cycles | Send in the Send to Agent step (`cycleSendIt`) | Send to Agent… (opens the step), Stop, Details |
+
+`test_the_agent_accent_is_on_exactly_the_run_controls`
+(`qt_workbench_agent_send_refusal`) walks every button of the composed window
+and fails when a marked control lacks the accent or an unmarked one wears it,
+with the shipped accent, with a changed accent and after Reset.
+
 ## Completion and evidence
 
 All 46 initial translation units and the surfaces main added are accounted for,

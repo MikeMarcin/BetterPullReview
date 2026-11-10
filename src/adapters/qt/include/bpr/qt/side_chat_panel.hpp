@@ -290,6 +290,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto statistics() const noexcept
 			-> side_chat_panel_statistics;
 
+	protected:
+		/// \brief [[BPR-1999]]. Return in the composer sends and Shift+Return
+		/// starts a new line; an empty composer sends nothing.
+		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
+
 	private:
 		void emit_private_context();
 		void emit_continuation(core::agent_continuation aChoice);

@@ -2,18 +2,59 @@
 
 #include <QCursor>
 #include <QMenu>
-#include <QUrl>
 #include <QWidget>
 
 #include <algorithm>
+#include <string_view>
 
 namespace bpr::qt {
 	namespace {
-		/// A path as a link destination can carry it: what Markdown or the
-		/// target's own separators would read is percent-encoded.
+		/// A path as a link destination can carry it: every byte but letters,
+		/// digits and `/._-+~` is percent-encoded, so Markdown and the target's
+		/// own separators read none of it.
 		[[nodiscard]] auto encoded(const QString& aPath) -> QString
 		{
-			return QString::fromUtf8(QUrl::toPercentEncoding(aPath, "/._-+~"));
+			constexpr auto hex    = std::string_view{ "0123456789ABCDEF" };
+			auto           result = QString{ };
+			for (const auto byte : aPath.toUtf8()) {
+				const auto value = static_cast<unsigned char>(byte);
+				if ((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') || (value >= '0' && value <= '9') || value == '/' || value == '.' || value == '_' || value == '-' || value == '+' || value == '~') {
+					result += QLatin1Char{ static_cast<char>(value) };
+				} else {
+					result += QLatin1Char{ '%' };
+					result += QLatin1Char{ hex[value >> 4U] };
+					result += QLatin1Char{ hex[value & 0x0FU] };
+				}
+			}
+			return result;
+		}
+
+		/// The path `encoded` wrote.
+		[[nodiscard]] auto decoded(const QString& aText) -> QString
+		{
+			const auto bytes  = aText.toUtf8();
+			auto       result = QByteArray{ };
+			const auto digit  = [](const char aCharacter) -> int {
+				if (aCharacter >= '0' && aCharacter <= '9') {
+					return aCharacter - '0';
+				}
+				if (aCharacter >= 'A' && aCharacter <= 'F') {
+					return aCharacter - 'A' + 10;
+				}
+				if (aCharacter >= 'a' && aCharacter <= 'f') {
+					return aCharacter - 'a' + 10;
+				}
+				return -1;
+			};
+			for (qsizetype at = 0; at < bytes.size(); ++at) {
+				if (bytes[at] == '%' && at + 2 < bytes.size() && digit(bytes[at + 1]) >= 0 && digit(bytes[at + 2]) >= 0) {
+					result += static_cast<char>((digit(bytes[at + 1]) << 4) | digit(bytes[at + 2]));
+					at += 2;
+				} else {
+					result += bytes[at];
+				}
+			}
+			return QString::fromUtf8(result);
 		}
 	} // namespace
 
@@ -58,7 +99,7 @@ namespace bpr::qt {
 			if (path.isEmpty()) {
 				return std::nullopt;
 			}
-			target.Paths << QUrl::fromPercentEncoding(path.toUtf8());
+			target.Paths << decoded(path);
 		}
 		return target;
 	}

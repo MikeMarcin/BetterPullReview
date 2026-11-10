@@ -3,6 +3,7 @@
 
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/core/agent_cost.hpp"
 
 #include <expected>
 #include <map>
@@ -33,6 +34,9 @@ namespace bpr::application {
 		bool        Pending = false;
 		bool        Replay  = false;
 		std::string ReplaySource;
+		/// [[BPR-1999]]. What the conversation has cost, and the runtime's
+		/// last figure for the session it resumes.
+		core::agent_cost_ledger Cost;
 	};
 
 	enum class native_agent_storage_failure { unavailable,

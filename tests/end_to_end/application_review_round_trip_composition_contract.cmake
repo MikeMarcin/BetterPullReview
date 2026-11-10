@@ -3402,8 +3402,20 @@ function(bpr_verify_app_source_tree app_source_root)
 	# its review surface then (begin_review_open); the fixture
 	# accessors gain test-only lane holds. No grant, actor/head, admission or
 	# no-blind-retry boundary is relaxed; full-app and mutation pins unchanged.
+	# [[RFC-BPR-0101]], [[RFC-BPR-0102]] reviewed 86a50698b..HEAD
+	# ([[BPR-2002]], [[BPR-1998]], [[BPR-1999]], [[BPR-2000]]): window_agent_chat
+	# composes a chat question's subject and where the reviewer is looking into
+	# the observation (no selection or single file for a pull request subject),
+	# window_construction hands the turn's decided entry point and subject to
+	# the one launch path (no new call site), window_agent_setup gives the
+	# Agent tab the changed files for the core's reference recogniser, a
+	# range-revealing navigation and the native conversation's kept cost, and
+	# window_workbench sets the theme's Agent accent and tells the window's
+	# widgets when it alone changed. window_tours records a tour run's cost.
+	# No grant, actor/head, admission or publication boundary is relaxed;
+	# full-app and mutation pins unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "44a4d9c9f30d745618bc22de1450a9d176d2a8d4708af621c6d7ca403f67e361"
+        "6801d7fd3ee0bdf79bd312bd5ecbaed5fc6a39182a9a7af3e3a0b7bc5f3cea6b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

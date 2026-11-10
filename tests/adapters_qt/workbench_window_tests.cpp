@@ -9,6 +9,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -70,6 +71,7 @@
 #include <QHelpEvent>
 #include <QIcon>
 #include <QImage>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -14078,6 +14080,210 @@ namespace {
 	/// typed, a turn still running), when the host refuses it, and when the
 	/// launch path refuses it after the gesture. A run that fails after it
 	/// started is an error entry in the thread with what the agent wrote.
+	/// [[BPR-1999]], RFC-BPR-0101 AC03, AC04. In the Agent tab, Return sends
+	/// and Shift+Return starts a line; an input method's composition and an
+	/// empty field send nothing. Each turn's footer gives its cost in dollars
+	/// and cents, and the line under the composer the session's.
+	void test_the_agent_chat_sends_on_return_and_says_its_cost()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		process_events();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+		profile.Protocol    = core::agent_protocol::claude_stream_json;
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		agent->refresh();
+		process_events();
+		auto* const chat    = window.side_chat();
+		const auto  binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto  session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = binding };
+		auto        sends   = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				sends.push_back(*send);
+			}
+		});
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+		agent->refresh();
+		auto* const composer = chat->composer();
+		const auto  key      = [composer](const Qt::KeyboardModifiers aModifiers, const QString& aText = QStringLiteral("\r")) {
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, aModifiers, aText };
+			QApplication::sendEvent(composer, &press);
+			process_events();
+		};
+		expect(agent->ask_button()->toolTip().contains(QStringLiteral("(Return)")) && agent->ask_button()->toolTip().contains(QStringLiteral("Shift+Return starts a new line")),
+			   "Send's tooltip says Return sends and Shift+Return starts a line");
+
+		// Empty: Return sends nothing and refuses nothing.
+		composer->clear();
+		key(Qt::NoModifier);
+		expect(sends.empty() && agent->send_refusal() == core::agent_send_refusal::none, "Return in an empty field sends nothing");
+		// Shift+Return: a new line, not a send.
+		composer->setPlainText(QStringLiteral("first line"));
+		auto cursor = composer->textCursor();
+		cursor.movePosition(QTextCursor::End);
+		composer->setTextCursor(cursor);
+		key(Qt::ShiftModifier);
+		expect(sends.empty() && composer->toPlainText().contains(QLatin1Char{ '\n' }), "Shift+Return starts a new line");
+		// An input method composing: Return is the input method's.
+		{
+			auto preedit = QInputMethodEvent{ QStringLiteral("\u304B"), { } };
+			QApplication::sendEvent(composer, &preedit);
+			key(Qt::NoModifier);
+			expect(sends.empty(), "Return while an input method composes does not send");
+			auto commit = QInputMethodEvent{ };
+			commit.setCommitString(QStringLiteral("\u304B"));
+			QApplication::sendEvent(composer, &commit);
+			process_events();
+		}
+		// Return sends; Ctrl or Cmd with Return also does.
+		key(Qt::NoModifier);
+		expect(sends.size() == 1U && sends.back().Text.starts_with("first line"), "Return sends");
+		composer->setPlainText(QStringLiteral("again"));
+		key(Qt::ControlModifier);
+		expect(sends.size() == 2U && sends.back().Text == "again", "Ctrl or Cmd with Return also sends");
+
+		// Cost: a turn's footer says it after the duration; the session line
+		// adds the turns up, or says the conversation's own total.
+		const auto turn = [&window, &composer, &key](const std::uint64_t aId, std::optional<core::agent_cost> aTurn, std::optional<core::agent_cost> aSession) {
+			composer->setPlainText(QStringLiteral("cost %1").arg(aId));
+			key(Qt::NoModifier);
+			auto identity                 = application::agent_invocation_projection_identity{ };
+			identity.ApplicationSession   = core::application_session_id{ 1U };
+			identity.Session.Id           = core::agent_session_id{ aId };
+			identity.InvocationGeneration = aId;
+			window.agent_panel()->admit(identity);
+			process_events();
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success, .TurnCost = aTurn, .SessionCost = aSession });
+			process_events();
+		};
+		expect(!agent->session_cost_line()->isVisible(), "no cost line before any turn reported one");
+		turn(21U, core::parse_agent_cost("0.4123567"), core::parse_agent_cost("0.4123567"));
+		const auto last = [agent] { return agent->turn_footer(agent->turn_count() - 1U); };
+		expect(last().contains(QStringLiteral(" answered in ")) && last().endsWith(QStringLiteral(" · $0.41")), "a turn's footer gives its cost after its duration: " + last().toStdString());
+		expect(agent->session_cost_line()->isVisible() && agent->session_cost_line()->text() == QStringLiteral("$0.41 this session"), "and the session line the conversation's total");
+		turn(22U, core::parse_agent_cost("0.004"), std::nullopt);
+		expect(last().endsWith(QStringLiteral(" · under $0.01")) && agent->session_cost_line()->text() == QStringLiteral("$0.42 this session"),
+			   "a turn under half a cent says so; the session adds it up: " + agent->session_cost_line()->text().toStdString());
+		turn(23U, core::parse_agent_cost("12"), core::parse_agent_cost("12.5"));
+		expect(last().endsWith(QStringLiteral(" · $12.00")) && agent->session_cost_line()->text() == QStringLiteral("$12.50 this session"), "the conversation's own total is said when known");
+		turn(24U, std::nullopt, std::nullopt);
+		expect(!last().contains(QLatin1Char{ '$' }) && last().endsWith(QLatin1Char{ '.' }) && agent->session_cost_line()->text() == QStringLiteral("$12.50 this session"),
+			   "a run with no reported cost shows none, and $0.00 is not invented");
+		agent->present_thread({ });
+		process_events();
+		expect(!agent->session_cost_line()->isVisible() && !agent->session_cost().has_value(), "a new session restarts without a total");
+		window.hide();
+	}
+
+	/// [[BPR-2000]], RFC-BPR-0101 AC07, AC09. The agent accent is a palette
+	/// role with the shipped Light and Dark values; every control that starts
+	/// a run wears it and says so, every other control wears the ordinary
+	/// roles, and a changed accent reaches every accented surface.
+	void test_the_agent_accent_is_on_exactly_the_run_controls()
+	{
+		using core::appearance_role;
+		using core::appearance_variant;
+		const auto builtin = [](const appearance_variant aVariant) { return qt::to_presentation_color(qt::builtin_appearance_palette(aVariant)[core::index_of(appearance_role::agent_accent)]); };
+		expect(builtin(appearance_variant::light) == QColor{ 0x4A, 0x3F, 0xD6 } && builtin(appearance_variant::dark) == QColor{ 0xA3, 0xA0, 0xFF },
+			   "Agent accent's built-in Light and Dark values are the ones shipped");
+		for (const auto variant : { appearance_variant::light, appearance_variant::dark, appearance_variant::high_contrast_light, appearance_variant::high_contrast_dark }) {
+			const auto& palette = qt::builtin_appearance_palette(variant);
+			expect(core::failing_contrast(palette, variant).empty(), "every built-in theme holds the accent to its text floor");
+		}
+
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+		profile.Protocol    = core::agent_protocol::claude_stream_json;
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		agent->set_suggestion_context([] { return qt::agent_suggestion_context{ .OpenFile = QStringLiteral("src/a.cpp"), .Lines = std::pair{ 3U, 4U } }; });
+		process_events();
+		agent->refresh();
+		process_events();
+
+		// The inventory: every button of the window, the Agent tab and the
+		// tour among them. A run control wears the accent; no other does.
+		const auto inventory = [&window](const QColor& aAccent, const std::string_view aWhen) {
+			auto runs  = QStringList{ };
+			auto wrong = QStringList{ };
+			for (auto* const button : window.findChildren<QAbstractButton*>()) {
+				const auto words = button->palette().color(QPalette::Active, QPalette::ButtonText);
+				const auto name  = button->objectName().isEmpty() ? button->text() : button->objectName();
+				if (qt::agent_run_control(*button)) {
+					runs << name;
+					if (words != aAccent) {
+						wrong << QStringLiteral("run without accent: ") + name;
+					}
+				} else if (words == aAccent) {
+					wrong << QStringLiteral("accent without run: ") + name;
+				}
+			}
+			expect(wrong.isEmpty(), "the run controls and the accented controls are one set " + std::string{ aWhen } + ": " + wrong.join(QStringLiteral(", ")).toStdString());
+			return runs;
+		};
+		const auto shipped = qt::agent_accent(window.palette());
+		const auto runs    = inventory(shipped, "with the shipped accent");
+		std::cout << "agent-accent-inventory: " << runs.join(QStringLiteral(", ")).toStdString() << '\n';
+		expect(runs.contains(QStringLiteral("agentAsk")) && runs.contains(QStringLiteral("agentSuggestion")) && runs.contains(QStringLiteral("tourProblemMagic"))
+				   && runs.contains(QStringLiteral("tourSolutionMagic")),
+			   "Send, the suggestions and Enhance are run controls");
+		for (const char* const ordinary : { "tourResetUndo", "tourProposalAcceptAll", "agentHistory", "agentSuggestionsToggle", "agentAddContext", "agentLinesChipClose" }) {
+			if (auto* const button = window.findChild<QAbstractButton*>(QString::fromLatin1(ordinary)); button != nullptr) {
+				expect(!qt::agent_run_control(*button), std::string{ "a control that starts no run is not marked: " } + ordinary);
+			}
+		}
+
+		// A changed accent, as Appearance › Colours gives it, reaches every
+		// accented surface; none returns to the shipped value.
+		const auto custom = QColor{ 0x0B, 0x6E, 0x4F };
+		expect(qt::set_agent_accent(custom), "the theme's accent is set");
+		auto changed = QEvent{ QEvent::PaletteChange };
+		for (auto* const widget : window.findChildren<QWidget*>()) {
+			QCoreApplication::sendEvent(widget, &changed);
+		}
+		process_events();
+		static_cast<void>(inventory(custom, "with a changed accent"));
+		expect(qt::agent_accent(window.palette()) == custom, "every surface reads the changed role");
+		expect(qt::set_agent_accent(std::nullopt), "Reset gives the built-in value back");
+		for (auto* const widget : window.findChildren<QWidget*>()) {
+			QCoreApplication::sendEvent(widget, &changed);
+		}
+		process_events();
+		static_cast<void>(inventory(shipped, "after Reset"));
+		window.hide();
+	}
+
 	void test_a_refused_send_says_why_beside_the_composer()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -24800,6 +25006,8 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1817]]. The composer's refusals, on their own.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--agent-send-refusal"))) {
 		runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
+		runCase("test_the_agent_chat_sends_on_return_and_says_its_cost", &test_the_agent_chat_sends_on_return_and_says_its_cost);
+		runCase("test_the_agent_accent_is_on_exactly_the_run_controls", &test_the_agent_accent_is_on_exactly_the_run_controls);
 		runCase("test_a_removed_agent_is_unavailable_in_the_composer", &test_a_removed_agent_is_unavailable_in_the_composer);
 		runCase("test_an_agent_error_is_an_error_and_suggestions_wait_for_setup", &test_an_agent_error_is_an_error_and_suggestions_wait_for_setup);
 		runCase("test_a_failed_answer_asks_again_and_says_when_fixed", &test_a_failed_answer_asks_again_and_says_when_fixed);
