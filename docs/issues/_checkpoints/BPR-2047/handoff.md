@@ -1,16 +1,27 @@
-# BPR-2047 continuation
+# BPR-2047 handoff
 
-Root approved normalized contrast in the existing Qt test TU, combined with
-2045point fix. Frozen source899056e7de7187edc0ee206a7dc499a1f5487af4;
-point source5a9a503f74bb72d53b0ff3a94acc252a84dc1dc7. Actual allocation
-db44a3474/NEXT2048. No foreign2046product enters this source branch.
+Mandate release54-background-aware-ink-r1. Private exact source
+c4c6ebcc793d08ce178b1643888d14ad59980a69; main source
+3783652920a81b04e62d6a7afbbed004193d9c01. Only the existing Qt fixture TU
+changes; final SHA e3544c853f376b79f85271dc8f582aa50ed50471036cabf0e8bdf47fa625718b.
+No foreign product source entered the frozen899 proof branch.
 
-External evidence is the release-run implementer54-windows-diff-workbench-triage-r1
-folder, paint125-richer-r1: original125exit8/7.54s, reference/currentPNG saves1,
-actualRGBclassification contrast30versus35, all1742producer inputs unchanged,
-source899clean, candidate exact and owned forests empty. Point100/200pass once.
+One combined uninstrumented Windows100/125/200block passed once each
+12.877/14.556/19.313s. Native compile/link0, exact actual flag/row comparisons,
+all1742producer inputs unchanged, candidate exact, source899clean, owned
+forests empty. Actual taskReady/result0; idle12 nativeBuildProcesses[]/idletrue.
+PC lease returned root; no remaining native commands or review server.
 
-Next: adopt/claim, implement only the approved oracle+same-code controls,
-validate blank/reference sampling and exact baseline mask; run combined native
-100/125/200once under original guards. No source54or qualification pass claim.
-PC lease belongs this implementer; canonical writer belongs Macpeer until handback.
+[Verification ledger](../../../verification/BPR-2047-background-aware-gutter-ink.md)
+binds original retained failures, RGB/PNG cause, blank/reference sample guards,
+same-code controls and engineering scope. External evidence is the release-run
+implementer54-windows-diff-workbench-triage-r1 folder; raw native proof lives in
+background-positive-r1/raw. Native task/image roots are retained evidence,
+not active services: D:/bpr2047-background-gutter-ink-r1 and the matching
+BPR2047-background-positive-r1 operator directory under qualification W.
+
+Scoped full-TU LLVM22tidy0, format22/static/numeric/native/docs checks pass;
+source remains tested and unchanged. Finish own tracker/proof metadata and
+return canonical writer; root integrates only exact
+owned commits and freezes a fresh common-source cohort. Original54failures
+retain their raw result; native release qualification is pending root.
