@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1981"
 title: "Preserve published repaired sources and mixed comment namespaces during maintenance"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0041", "RFC-BPR-0042"]
 depends_on: ["BPR-1979"]
 priority: "P2"
