@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2047"
 title: "Normalize gutter ink against its reference background"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-2045"]
 priority: "P1"
 platforms: ["win"]
 metadata: {"milestone_plan":{"id":"bpr-2047-background-aware-gutter-ink","path":"docs/rfcs/plans/bpr-2047-background-aware-gutter-ink/milestone-plan.json"},"mandate_revision":"release54-background-aware-ink-r1","source_baseline":"899056e7de7187edc0ee206a7dc499a1f5487af4","point_source":"5a9a503f74bb72d53b0ff3a94acc252a84dc1dc7","reservation":"docs/issues/_reservations/BPR-2047--BPR-2047--8c355069f064.json","allocation_main":"db44a3474de4cc366ad68f3c7357f16a2353f726"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3783652920a81b04e62d6a7afbbed004193d9c01","evidence":{"kind":"observation","detail":"Observed125RGB/PNG failure binds a present fringe pixel to fixed-distance classification. Test-local normalized contrast validates blank padding and same original reference row, bounded65025products, original reference32mask,575messages, gestures and1px geometry unchanged.","ledger":"docs/verification/BPR-2047-background-aware-gutter-ink.md","external_evidence":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-windows-diff-workbench-triage-r1/background-positive-r1"}},{"criterion":"AC2","outcome":"pass","revision":"3783652920a81b04e62d6a7afbbed004193d9c01","evidence":{"kind":"observation","detail":"Same-code observed/background/lowcontrast/missing/shift controls and exhaustive scalar reference-mask identity pass. Combined original100/125/200native engineering courses pass once12.877/14.556/19.313s; actualCL/module/link/rows match except privateEXE/output namespace. NativeWX, LLVM22format/fullTUtidy0, numeric/static, explicitplan/docs/board/diff pass. No release qualification credit.","ledger":"docs/verification/BPR-2047-background-aware-gutter-ink.md","external_evidence":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-windows-diff-workbench-triage-r1/background-positive-r1"}},{"criterion":"AC3","outcome":"pass","revision":"3783652920a81b04e62d6a7afbbed004193d9c01","evidence":{"kind":"observation","detail":"Own sourcec4c6 lands canonicalmain378365292 with ownplan/claim only, preserving foreignsource/counterNEXT2048. All1742producer inputs/candidate exact, source899clean, forests empty, actualtaskReady0/idletrue; PClease returned. Original54failures retained and fresh common-source native qualification remains root responsibility.","ledger":"docs/verification/BPR-2047-background-aware-gutter-ink.md","external_evidence":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-windows-diff-workbench-triage-r1/background-positive-r1"}}]
 ---
 
 # Normalize gutter ink against its reference background
