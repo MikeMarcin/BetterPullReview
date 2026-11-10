@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2042"
 title: "Wait for chosen-agent histories before the empty-send refusal gesture"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"mandate_revision":"frozen54-functional-fixes-r1","reservation":"docs/issues/_reservations/BPR-2042--BPR-2042--81c973e9a52e.json","milestone_plan":{"id":"bpr-2042-custom-agent-history-readiness","path":"docs/rfcs/plans/bpr-2042-custom-agent-history-readiness/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e4c0568d461b83d78acf47b14ee0325b6477f6e5","evidence":{"kind":"observation","detail":"Singleold899diagnostic reproducedAskdisabled/bothhistoriesloading/no refusal/no starts;111producerinputs unchanged. No wording/product attribution inferred from missing refusal alone."}},{"criterion":"AC2","outcome":"pass","revision":"e4c0568d461b83d78acf47b14ee0325b6477f6e5","evidence":{"kind":"observation","detail":"Oneexistingcustomfixture waits chosenprofile/actuallegacyLoaded/combinedloadingfalse/actualAskEnabled underoriginal30s agentbudget, then sameclear/ONEemptyclick/originaleventpump/empty_message/visibleNotSent/zeroStarts andlateroracles. No product/wording/budgetchange."}},{"criterion":"AC3","outcome":"pass","revision":"7a088baafc45d04378797b4f8cc1709e28df78d1","evidence":{"kind":"observation","detail":"OriginalcustomcoursePASS2.339s andordinarychatcontrolPASS3.534s; staticgates pass/TUtidyclean, source08e0 matches exacttestedhash andlanded/pushedmain7a088; fullreleasequalification remains root-owned."}}]
 ---
 
 # Custom-agent history readiness
@@ -15,10 +16,13 @@ metadata: {"mandate_revision":"frozen54-functional-fixes-r1","reservation":"docs
 - AC2. Only the existing custom-agent test waits for the chosen profile, actual legacy Loaded, combined history loading false and actual Ask enabled under its unchanged default agent budget. Preserve the same clear, one empty Ask click, single original event pump, empty_message/visible Not sent/zeroStarts and all later oracles; no product or wording change.
 - AC3. Focused original custom-agent course and static/docs checks pass for the exact corrected test; deliberately land owned source/tracker slice on main, preserve frozen producer and foreign work, and return command/evidence state without release qualification credit.
 
-Root approved this test-only correction after actual boolean reproduction; original source899 and diagnostic receipts remain external. Native execution requires its next explicit lease.
+Root approved this test-only correction after actual boolean reproduction; original source899 and diagnostic receipts remain external. Native execution followed an explicit coordinator lease; the completed original course and unchanged limits are recorded in the checkpoint.
 
 ## Engineering evidence
 
 [Checkpoint](../_checkpoints/BPR-2042/handoff.md) and
 [verification](../../verification/BPR-2040-frozen54-functional-fixes.md) bind the
 exact candidate, original failures and scoped native/static results.
+
+Owned source is intentionally landed and pushed on main. The checkpoint records
+exact hashes, the separate canonical-only pin and the final native-release limits.
