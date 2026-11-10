@@ -3402,8 +3402,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# covered by the complete197 inventory and tests-disabled guards). Provider,
 	# actor/head/grant/mutation policy is unchanged; inventories and the
 	# full-app/mutation pins remain exact. No native credit is added here.
+	# [[BPR-2040]] canonical-main-only reconciliation after accepted
+	# [[BPR-2046]]: window_navigation.cpp adds the typed PR-body link address
+	# resolver under the same weak/Closing/current-window admission; Open
+	# still revalidates independently. Ordered142/complete197 inventories,
+	# full-app and mutation pins are unchanged. This combined-main binding
+	# is deliberately separate from the frozen release-only44ec961f pin.
 	set(bpr_expected_production_app_manifest_digest
-        "44ec961f0767c4cd2243bc9cd153d1030ad3262ccec50047674911d71344c926"
+        "ceeffe4606ad7468ada4cc9411d9ad2961b2e0e26549a2da8e3e286f92392e54"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
