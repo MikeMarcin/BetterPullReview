@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2049"
 title: "Seen, or Approve again, for an approval that new commits brought back to Needs me"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0098"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2048--BPR-2049--1f6f243721c8.json","origin":"owner request, 2026-11-10"}
 depends_on: []
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-2049 Seen","outcome":"pass","revision":"146bc2b35ef9344ef382b83c0d319eb400efc3c7","evidence":{"kind":"command","detail":"Seen moves the row at once, writes nothing, survives the store","command":"ctest --preset dev -R 'core_review_queue_attention|application_review_queue_enrollment|application_home_oversized_public_path'"}},{"criterion":"BPR-2049 Approve again","outcome":"pass","revision":"146bc2b35ef9344ef382b83c0d319eb400efc3c7","evidence":{"kind":"command","detail":"Approve again opens the review with Approve focused","command":"ctest --preset dev -R application_home_approve_again_public_path"}},{"criterion":"BPR-2049 owner look","outcome":"pass","revision":"6f12ae3f91ae20e99c2fd06b598ece3a08074c7b","evidence":{"kind":"observation","detail":"Owner accepted BPR-2049-seen (decision c495f9e1) and BPR-2049-approve-again (decision 3e464b5d), attended session 9ed1f1a047a56e4d35f43e92d4f9d70b, no note"}}]
 ---
 
 # Seen, or Approve again, for an approval that new commits brought back to Needs me

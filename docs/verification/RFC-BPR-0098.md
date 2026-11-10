@@ -93,7 +93,7 @@ in the handoff.
 
 Two owner-reported Home defects on the same lane, each its own card
 ([BPR-2048](../issues/60-done/BPR-2048-one-oversized-pull-request-fails-no-home-refresh.md),
-[BPR-2049](../issues/40-parked/BPR-2049-seen-and-approve-again-for-an-approval-with-new-commits.md)).
+[BPR-2049](../issues/60-done/BPR-2049-seen-and-approve-again-for-an-approval-with-new-commits.md)).
 Frontend-design was loaded before the Qt work.
 
 ### BPR-2048: one oversized pull request
