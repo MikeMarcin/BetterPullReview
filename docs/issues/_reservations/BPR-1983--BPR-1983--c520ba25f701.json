@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1983"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Review and reconcile accepted tour destination repair and maintenance composition source binding before successor release freeze",
+  "created": "2026-11-10T04:54:48.085078+00:00",
+  "base": "5fd40876745bdd815b0c0ed16407826ca74753f1"
+}
