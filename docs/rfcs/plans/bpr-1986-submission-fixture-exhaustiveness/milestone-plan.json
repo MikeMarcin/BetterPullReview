@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1986-submission-fixture-exhaustiveness",
+  "scope": {
+    "issues": [
+      "BPR-1986"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "complete-submission-operation-names",
+      "outcome": "The third exhaustive fixture compiles and all production/test mutation-operation switch consumers have a bounded audited disposition.",
+      "work": [
+        {
+          "issue": "BPR-1986",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Bind actual third Release switch failure to exact source and audit all production/test consumers of review_mutation_operation, distinguishing exhaustive switches from existing course-scoped diagnostic defaults and unrelated enums.",
+        "Explicitly add only the two missing submission-fixture operation names, preserving exhaustive no-default handling, protocol and oracles. Normal owning Release target/course, scoped format/tidy/docs/source checks pass; reuse unchanged1985target proof for other exhaustive consumers.",
+        "Normally integrate/push owned fix/card with1984/85reservations and maximum counter preserved, all own commands terminal and writer/Mac lease returned. No PC, full app rebuild, private producer patch or later external product ingestion."
+      ],
+      "boundary": "Only tests/github_contract/live_review_submission_provider_tests.cpp and1986plan/card/checkpoint; read-only all-switch audit, no unrelated cleanup/default/warning relaxation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
