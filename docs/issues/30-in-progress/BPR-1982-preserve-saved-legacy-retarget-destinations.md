@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1982"
 title: "Preserve legacy retarget destinations after saved receipt reopen"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0042"]
 depends_on: ["BPR-1981"]
 priority: "P2"
