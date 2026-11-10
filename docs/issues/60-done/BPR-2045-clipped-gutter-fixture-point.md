@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2045"
 title: "Keep scaled gutter fixture clicks inside clipped native rows"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"mandate_revision":"release54-clipped-gutter-point-r1","reservation":"docs/issues/_reservations/BPR-2045--BPR-2045--ca9beb1ba418.json","milestone_plan":{"id":"bpr-2045-clipped-gutter-point","path":"docs/rfcs/plans/bpr-2045-clipped-gutter-point/milestone-plan.json"},"source_baseline":"899056e7de7187edc0ee206a7dc499a1f5487af4","allocation_main":"58c42952fd5b66386ad8df5860d83bace8d7728d","external_evidence":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-windows-diff-workbench-triage-r1","excluded":"125paint remains unresolved; no native qualification credit from projections."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4baf8e0d86c997b412b39fb10b90e7e4eeee9802","evidence":{"kind":"observation","detail":"Frozen54and after-only numeric100/200negative prove original point19is outside[18,19); test-only correction keeps all clipped rows and original pick/assertions.","ledger":"docs/verification/BPR-2045-clipped-gutter-fixture-point.md","external_evidence":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-windows-diff-workbench-triage-r1/point-positive-r1"}},{"criterion":"AC2","outcome":"pass","revision":"4baf8e0d86c997b412b39fb10b90e7e4eeee9802","evidence":{"kind":"observation","detail":"Exact uninstrumented original100/200engineering courses nativeCTest0once each12.8275s/19.2971s, sameflags/props/120s. Native/WX, format22, original575message/gesture and unchanged1pxpredicate audit, own+main docs pass. No125or releasequalification credit.","ledger":"docs/verification/BPR-2045-clipped-gutter-fixture-point.md","external_evidence":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-windows-diff-workbench-triage-r1/point-positive-r1"}},{"criterion":"AC3","outcome":"pass","revision":"4baf8e0d86c997b412b39fb10b90e7e4eeee9802","evidence":{"kind":"observation","detail":"Owned source5a9lands canonicalmain4baf8e0d with ownplan/claim only; producer1742and candidate exact, ownpointforests empty. Mainforeign2046/NEXT2047preserved; only owned slices may enter release. Separate125lease explicitly root-authorized, no activepointcommands.","ledger":"docs/verification/BPR-2045-clipped-gutter-fixture-point.md","external_evidence":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-windows-diff-workbench-triage-r1/point-positive-r1"}}]
 ---
 
 # Keep scaled gutter fixture clicks inside clipped native rows
