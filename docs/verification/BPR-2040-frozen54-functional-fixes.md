@@ -123,3 +123,14 @@ credit. Final common-cohort native qualification remains with the release
 coordinator. Canonical main's later foreign BPR-2046 composition change requires
 its own combined pin in a separate commit; that foreign change and pin must not
 enter this release slice.
+
+## Intentional main landing
+
+Canonical main and origin were verified at
+`7a088baafc45d04378797b4f8cc1709e28df78d1` after a normal push. The twelve
+owned code paths match the exact tested hashes. Source equivalents are
+`89a9e1cd8` (2040), `08c5b9343` plus `cf2c5b9ad` (2041), and `08e0db9c5`
+(2042). Proof documentation landed as `4479590cb`. The main-only manifest
+commit `7a088baaf` is excluded from the release slice; its actual negative,
+maintained printer, positive and adversarial checks passed as specified.
+No foreign source was imported into the frozen engineering candidate.
