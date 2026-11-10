@@ -100,3 +100,12 @@ because there is no unchanged-file view.
 Next: AC08 attended look (see the coordinator report for its session), then
 `agent-work-visible` (depends on this milestone), `tour-publishing`,
 `home-next-move`. Closeouts BPR-2001 and BPR-2003 belong to `accepted-scope`.
+
+AC08 attended look prepared: frozen build `/Users/jaeger/agent-tab-asks-v001.qgjq6axg`
+(from `c1d445720`, executable SHA-256 `e02d77336f22…`, launcher `--check` passed on
+README.md of nested-folders#21), session `fd2f7fdb4d5b89ca67e9793084a68d04`, state
+`/Users/jaeger/.attended-review-state/agent-tab-asks-2026-11-10/state`, served over
+Tailscale, event cursor 6, two candidates ready: `BPR-2000-agent-accent`
+(fingerprint `40b96d3f8f1f…`) and `BPR-1999-agent-footers` (`10e13f7c7435…`).
+The URL stays in the session state. Remove the root with
+`scripts/freeze_attended_build.py remove` once decided.
