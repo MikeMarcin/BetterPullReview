@@ -1309,6 +1309,23 @@ namespace {
 				launch.Input = "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"remember-tool-observation\"}}\n";
 			}
 			const auto result = launcher.run(launch, 5000);
+			if (result.Outcome != application::agent_run_outcome::success || result.Events.empty() || result.NativeHandle.empty()) {
+				const auto outcome = application::name(result.Outcome);
+				auto       detail  = QJsonObject{
+					{ "probe", "BPR-1978-uuidless-result" },
+					{ "turn", static_cast<qint64>(turn) },
+					{ "outcome", QString::fromUtf8(outcome.data(), static_cast<qsizetype>(outcome.size())) },
+					{ "eventCount", static_cast<qint64>(result.Events.size()) },
+					{ "nativeHandlePresent", !result.NativeHandle.empty() },
+					{ "stderrBytes", static_cast<qint64>(result.StandardError.size()) },
+					{ "exitCode", result.ExitCode ? QJsonValue(*result.ExitCode) : QJsonValue(QJsonValue::Null) },
+					{ "protocolFailure", result.ProtocolFailure ? QJsonValue(static_cast<int>(*result.ProtocolFailure)) : QJsonValue(QJsonValue::Null) },
+					{ "workspaceReason", result.WorkspaceReason ? QJsonValue(static_cast<int>(*result.WorkspaceReason)) : QJsonValue(QJsonValue::Null) }
+				};
+				const auto rendered = QJsonDocument(detail).toJson(QJsonDocument::Compact);
+				std::cerr.write(rendered.constData(), static_cast<std::streamsize>(rendered.size()));
+				std::cerr.put('\n');
+			}
 			expect(result.Outcome == application::agent_run_outcome::success && !result.Events.empty() && !result.NativeHandle.empty(), "a valid UUID-less result still completes its sole transport turn");
 			const auto& answer  = result.Events.front().Text;
 			const auto  process = answer.substr(answer.find("process="));
