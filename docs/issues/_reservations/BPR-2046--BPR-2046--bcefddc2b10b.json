@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2046"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Ask before opening PR body links",
+  "created": "2026-11-10T19:46:18.262222+00:00",
+  "base": "58c42952fd5b66386ad8df5860d83bace8d7728d"
+}
