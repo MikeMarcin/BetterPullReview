@@ -3379,8 +3379,20 @@ function(bpr_verify_app_source_tree app_source_root)
 	# at 8ac5e12cf. No grant, actor/head or no-blind-retry boundary is relaxed.
 	# Ordered142/complete197 inventories and full-app/mutation pins stay exact;
 	# all31 supplied source hashes match. No native/corporate success inferred.
+	# [[BPR-1983]] reviewed frozen cf9413b9f..5fd408767: accepted
+	# [[BPR-1979]]/[[BPR-1980]] destination repair and explicit mixed/file
+	# publication, plus [[BPR-1981]]/[[BPR-1982]] maintenance corrections.
+	# Window composition serializes exact pinned-source reads and ordinary
+	# revision-bound repair edits; workflow facts bind owner/draft/head and
+	# preserve explicit preview/route choice. Supporting hosts retain exact
+	# operation qualification, actor/head/grant/witness safety and separate
+	# review/conversation/file namespaces. Published and saved legacy subjects
+	# preserve Original/Mapped bytes and confirmed Destination semantics.
+	# Ordered142/complete197 inventory and full-app/mutation pins are unchanged.
+	# Source binding adds no native acceptance; three new Windows rows remain
+	# truthfully unmeasured pending contained native calibration.
 	set(bpr_expected_production_app_manifest_digest
-        "597c9db010fa32bb7c0ce16fce8aacf01c517b80dc3ea9ee4d7145447b685b35"
+        "b08d76eb245608e7f0c5e44e86ce660150258e69c8622953e9a788e43510bc24"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
