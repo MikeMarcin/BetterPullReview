@@ -159,3 +159,57 @@ Next: `home-next-move` (independent). `tour-stops` follows this milestone;
 BPR-1994 (RFC-BPR-0099 closeout) belongs to `accepted-scope` and waits for
 AC08 and AC09.
 
+
+## Corrections round (2026-11-10)
+
+Owner amendments: "main should be the source of truth for the tracker"; "If
+you need it you need it go build it" (a frozen build that submits to live
+GitHub). Frontend-design was loaded before the Qt work. Nothing pushed.
+
+| Commit | What |
+|---|---|
+| `78ad5391b` | Merge `main` (`1513d4a85`): BPR-1988, BPR-2036, BPR-2037 arrive; no ID collides, nothing renumbered |
+| `481096d5b` | BPR-2038 (footers rework) and BPR-2039 (Colours filter box, Backlog) reserved against main; counter BPR-2040 |
+| `d0cac878a`, `caa36c301` | [LIVE_IMPORT](../../../rfcs/assets/v0-5-0-prerelease-targets-v1.LIVE_IMPORT.md) reconciliation record |
+| `4b39981ee` | BPR-2000 Done: the owner accepted the accent (AC08, accent half) |
+| `2cebc037a` | Claim BPR-2038 |
+| `cdc92d686` | RFC-BPR-0099 AC09 accepted (all four candidates of `5127270e…`); the freeze-with-the-surface rule in `AGENTS.md` |
+| `b1d66829d` | Footers on one line: "Claude answered in 0:11 · < $0.01 · 1 finding", detail in the tooltip; reads note to the field's tooltip; RFC-BPR-0101 (format, AC04) and RFC-BPR-0102 amended. Product candidate |
+| `42eca211e` | `freeze_attended_build.py freeze --live` and its contract tests |
+| `308d53c89` | RFC-BPR-0101 AC08 split verdict recorded; closeout AC04 text |
+| `f543f549f` | BPR-2038 parked `human-review` |
+
+Main's own allocator refuses until main's counter is raised to BPR-2040
+(checked from the main checkout); the main integrator's step.
+
+Runs at `b1d66829d`: `core_agent_cost`, `qt_workbench_agent_send_refusal`
+(new one-line assertion at the default width), `qt_workbench_window_scale_100`,
+`qt_tour_side_chat`, `application_agent_chat_*` (only the baseline
+`application_agent_chat_custom_agent_contract` fails), boundary and source
+contracts, `coding-format-check`, `freeze_attended_build_contract`,
+documentation gate.
+
+Closed: the agent-tab-asks session `fd2f7fdb…` and the tour-publishing
+session `5127270e…` are stopped and their frozen roots removed.
+
+Open, awaiting the owner (URLs stay in the session state):
+
+- Footers: session `9b8a51a3e23f4f46260bdb9d4832f5bf`, state
+  `/Users/jaeger/.attended-review-state/agent-footers-v002-2026-11-10/state`,
+  cursor 3, candidate `BPR-2038-agent-footers-v002`; frozen tests-on build
+  `/Users/jaeger/agent-footers-v002.tcfr4gcq` from `b1d66829d` (SHA-256
+  `7e814abaabf0…`, `--check` passed on nested-folders-v1 README.md).
+- Live: session `243efdc0c300f68944464fc350c097ed`, state
+  `/Users/jaeger/.attended-review-state/bpr-live-v001-2026-11-10/state`,
+  cursor 6, candidates `RFC-BPR-0099-AC08-live-mixed-tour` (BPR-Test #152,
+  next push `929b028f7` applied by the owner mid-course) and
+  `RFC-BPR-0105-AC08-approve-151`; frozen tests-off build
+  `/Users/jaeger/bpr-live-v001.wpvoqim9` from `42eca211e` (SHA-256
+  `39983ab2229e…`, self-test and launch checks passed).
+
+Next: read both sessions after hand-back. On accept, verify with `gh`: #151
+has MikeMarcin's APPROVED review; #152 has one review carrying stop 1, one
+conversation comment for stop 2, the tour comment and the description. Then
+finish BPR-2038, BPR-2010 and BPR-1992, and remove the roots with
+`freeze_attended_build.py remove`. Disposable BPR-Test leftovers: #152, its
+`-next` branch.

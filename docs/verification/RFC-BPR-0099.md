@@ -54,7 +54,23 @@ are nongating; nothing below is a timing claim.
 
 ## AC08: the live course
 
-Not run. A tests-on build holds no publication grant (the composition's
+Prepared 2026-11-10, awaiting the owner. `scripts/freeze_attended_build.py
+freeze --live` now freezes a tests-off build (no fixture, its own profile
+home in the root, a `--check` that refuses a tests-on image, runs the
+self-test and starts it offscreen): `/Users/jaeger/bpr-live-v001.wpvoqim9`
+from `42eca211e` (product as `b1d66829d`), executable SHA-256
+`39983ab2229e…`, both checks passed. The test pull request is
+[BPR-Test #152](https://github.com/MikeMarcin/BPR-Test/pull/152) (head
+`6c94a03c0`); its next push is prepared at `929b028f7` on
+`bpr-1992/mixed-tour-20261110-next`, applied by the owner after the two stops
+are written so stop 2 points at an earlier version. Attended session
+`243efdc0c300f68944464fc350c097ed` (state
+`/Users/jaeger/.attended-review-state/bpr-live-v001-2026-11-10/state`, event
+cursor 6), candidate `RFC-BPR-0099-AC08-live-mixed-tour`. Writing the tour
+and pressing Publish are the owner's: `bpr tour publish` accepts no agent or
+piped authorization. After the decision, the GitHub result is read with `gh`.
+
+Before this round: A tests-on build holds no publication grant (the composition's
 `BPR_APPLICATION_TESTING` grant issuer returns none, so no tour write can
 leave it), `scripts/freeze_attended_build.py` freezes only tests-on builds,
 and the `bpr tour` CLI publishes only after a person types `publish` for the

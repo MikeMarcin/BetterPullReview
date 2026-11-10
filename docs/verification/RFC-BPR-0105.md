@@ -81,7 +81,15 @@ milestone's own first designs (see BPR-2011).
 production app sources, and `test_network_isolation_manifest` received the new
 course's unmeasured Windows pin.
 
-No agent live course was run for AC08: there is no composed-application live
+Prepared 2026-11-10, awaiting the owner: the tests-off frozen build
+`/Users/jaeger/bpr-live-v001.wpvoqim9` (`freeze_attended_build.py freeze
+--live`, from `42eca211e`, SHA-256 `39983ab2229e…`, self-test and launch
+checks passed) and attended session `243efdc0c300f68944464fc350c097ed`,
+candidate `RFC-BPR-0105-AC08-approve-151`. The owner's review was requested on
+#151 so it appears in Home's review requests. After the decision, #151's
+reviews are read with `gh`.
+
+Before this round, no agent live course was run for AC08: there is no composed-application live
 submission harness, and the provider path that writes to GitHub is unchanged.
 The test account opened
 [BPR-Test #151](https://github.com/MikeMarcin/BPR-Test/pull/151) so the
