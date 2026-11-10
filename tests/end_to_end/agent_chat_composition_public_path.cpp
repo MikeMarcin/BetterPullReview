@@ -440,6 +440,20 @@ auto main(int argc, char** argv) -> int
 		// A send with nothing typed is refused before anything is sent, and
 		// the composer says so instead of doing nothing.
 		auto* const tab = window.agent_tab();
+		// [[BPR-2042]]. Choosing a native entry restores its two histories.
+		// The accepted readiness gate withholds Ask until both have settled;
+		// a disabled click cannot exercise the empty-message refusal.
+		auto historyReady = wait_terms{ };
+		if (!wait_until_reporting(historyReady, [&](wait_terms& aTerms) {
+				const auto loaded = app::detail::github_application_fixture_access::agent_conversation_loaded(*application);
+				return aTerms.require("custom-profile-selected", panel->selected_profile() == std::optional{ customSlot })
+					&& aTerms.require("legacy-history-composed", loaded.has_value())
+					&& aTerms.require("legacy-history-loaded", *loaded)
+					&& aTerms.require("histories-settled", !tab->ask_button()->property("conversationLoading").toBool())
+					&& aTerms.require("ask-enabled", tab->ask_button()->isEnabled());
+			})) {
+			return fail(*application, "custom-agent-history-ready", historyReady.render());
+		}
 		chat->composer()->clear();
 		tab->ask_button()->click();
 		QApplication::processEvents();
