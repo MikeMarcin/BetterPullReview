@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1978"
+  ],
+  "reserve_for": "windows-native-diagnosis",
+  "purpose": "Diagnose and correct frozen49 Ubuntu UUID-less agent canary transport completion failure without weakening protocol assertions",
+  "created": "2026-11-10T00:47:16.692996+00:00",
+  "base": "f0da988c818aaf0e1a5f1f170a0e83759b3434de"
+}
