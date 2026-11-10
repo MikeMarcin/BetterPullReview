@@ -60,21 +60,22 @@ dark). Existing whole-review and tour publication courses were rerun; two
 waits in `review_submission_composition_public_path` now wait for the start
 and the terminal, since a held decision lane now also holds the start.
 
-Integration runs. A full `ctest --preset dev` at `357df825d` (stopped at
-761/950 when the open signal was corrected) and a 67-row focused pass at the
-candidate (every whole-review, tour publication, agent invocation and chat,
-native agent session, Home, composed-window and Qt window row, and the
-composition source contract): 66/67 pass. Recorded failures, none changed by
-this milestone:
+Integration run at the candidate `31f900910`: full `ctest --preset dev -j10`,
+950 rows, 940 pass, 4073 s. Failures, each reproduced unchanged on a separate
+baseline `dc5453afa` checkout (none caused by this milestone):
 
-- `application_agent_chat_custom_agent_contract`
-  (`custom-agent-empty-refusal-said`) fails the same with the open reset
-  disabled; this milestone touches no Agent-tab send path.
-- `qt_profile_management_window` expects 28 View actions; the test was last
-  changed on 2026-11-04 and RFC-BPR-0097 added Go to line to View on
-  2026-11-08. This milestone changes no menu.
-- `application_large_review_*` Debug budget rows exceeded their budgets;
-  Debug timings are nongating and these are not counted as passes.
+- `application_agent_chat_custom_agent_contract` (`custom-agent-empty-refusal-said`);
+- `application_agent_finding_codex_found_contract` (`cleanups-is-one`);
+- `application_review_tour_cold_import_public_path` ("real preview never
+  treats loaded code as pending-operation support");
+- `qt_profile_management_window` (28 View actions expected; RFC-BPR-0097
+  added Go to line after the test's last change).
+
+`application_large_review_*` (five rows; `cache_bytes` skipped) exceeded
+Debug budgets: Debug timings are nongating, and these count as neither pass
+nor functional coverage. `application_source_pr_find` failed once under load
+and passed alone. Earlier passes found and fixed two regressions of this
+milestone's own first designs (see BPR-2011).
 
 `application_composition_source_contract` was resealed for the reviewed
 production app sources, and `test_network_isolation_manifest` received the new
