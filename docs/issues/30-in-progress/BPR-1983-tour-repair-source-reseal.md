@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1983"
 title: "Review tour repair composition source binding"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1979", "BPR-1981", "BPR-1982"]
 priority: "P1"
