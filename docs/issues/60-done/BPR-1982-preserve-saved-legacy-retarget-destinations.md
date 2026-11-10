@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1982"
 title: "Preserve legacy retarget destinations after saved receipt reopen"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0042"]
 depends_on: ["BPR-1981"]
 priority: "P2"
 metadata: {"kind":"bug","related_cards":["BPR-1981"],"mandate_revision":"tour-destination-repairs-r1-legacy-destination-fix","milestone_plan":{"id":"tour-legacy-destination-v1","path":"docs/rfcs/plans/tour-legacy-destination-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-1982--BPR-1982--899551a62f40.json"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4e21d72a50135e7226e4c0a3ab389cebff03bf20","evidence":{"kind":"artifact","path":"docs/verification/BPR-1982-legacy-tour-destination.md","detail":"Baseline fails after exact real SQLite reopen; final production session maintains both legacy and modern receipts with exactly one body edit."}},{"criterion":"AC2","outcome":"pass","revision":"4e21d72a50135e7226e4c0a3ab389cebff03bf20","evidence":{"kind":"artifact","path":"docs/verification/BPR-1982-legacy-tour-destination.md","detail":"Fourteen identity/source mismatch controls refuse before writes; later retarget/head transitions preserve confirmed B and Original/Mapped source bytes; mixed/repaired courses pass."}},{"criterion":"AC3","outcome":"pass","revision":"4e21d72a50135e7226e4c0a3ab389cebff03bf20","evidence":{"kind":"artifact","path":"docs/verification/BPR-1982-legacy-tour-destination.md","detail":"Thirteen focused courses pass across integration and narrow recheck; seven core-only/boundary courses, LLVM22 format7files/tidy6TUs, documentation67regressions and diff check pass. All commands quiescent."}}]
 ---
 
 # BPR-1982: Preserve saved legacy retarget destinations
