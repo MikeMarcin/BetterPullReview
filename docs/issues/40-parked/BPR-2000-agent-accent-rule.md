@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2000"
 title: "Apply the agent accent to exactly the controls that start a run"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0101"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0012-agent-accent-rule.md"}
 depends_on: []
+parked_on: "human-review"
+acceptance: [{"criterion":"RFC-BPR-0101 AC07","outcome":"pass","revision":"073cca27293966fbe3e699b1c6522f5d547b8a54","evidence":{"kind":"command","detail":"Inventory test walks every button of the composed window: run controls (agentAsk, agentSuggestion, tourSideChatSend/Update, tourDraftTour, tourStopMagic, tourProblemMagic, tourSolutionMagic, tourSuggestOutline) wear the accent and nothing else does; table in docs/ux/shared-action-buttons.md#the-agent-variant","command":"ctest --preset dev -R qt_workbench_agent_send_refusal"}},{"criterion":"RFC-BPR-0101 AC09","outcome":"pass","revision":"073cca27293966fbe3e699b1c6522f5d547b8a54","evidence":{"kind":"command","detail":"Agent accent listed on Appearance > Colours; built-ins #4A3FD6/#A3A0FF (+HC #3A2FC4/#B8B5FF) pass contrast; a changed accent reaches every accented surface and Reset restores; an older theme imports with the built-in value","command":"ctest --preset dev -R 'appearance|colour_role|theme_exchange|contrast|qt_workbench_agent_send_refusal'"}},{"criterion":"RFC-BPR-0101 AC08","outcome":"pending","revision":"073cca27293966fbe3e699b1c6522f5d547b8a54","evidence":{"kind":"freeform","detail":"The owner's look at the Agent tab's accent and footers on a frozen build; not yet prepared"}}]
 ---
 
 # Apply the agent accent to exactly the controls that start a run
