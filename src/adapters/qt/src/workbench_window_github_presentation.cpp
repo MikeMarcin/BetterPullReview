@@ -219,10 +219,6 @@ namespace bpr::qt {
 				enter_opening_modality(review_modality::overview);
 			}
 			if (aTransition.Status->Status != core::github_status::loading_pull_request && !HasGithubPullRequest) {
-				// [[RFC-BPR-0105]]. An open that ended without a review is over.
-				if (aTransition.Status->Status != core::github_status::pull_request_ready) {
-					ReviewOpenExpected = false;
-				}
 				// [[BPR-1842]]. A file chosen from the provisional list goes on
 				// waiting for the accepted review's rows; any other end drops it.
 				PendingReviewPath = aTransition.Status->Status == core::github_status::pull_request_ready ? OverviewPage->pending_open() : QString{ };
@@ -399,12 +395,6 @@ namespace bpr::qt {
 		// are the reviewer's preferences too; the comparison waits until the
 		// history offers it.
 		if (!aPreserveWindowNavigation) {
-			// [[RFC-BPR-0105]]. Every open, of another pull request or the
-			// same one again, starts on the default review surface; a refresh
-			// keeps it.
-			if (std::exchange(ReviewOpenExpected, false)) {
-				reset_review_surface();
-			}
 			FirstFilterApplied    = false;
 			ReturnComparisonAsked = false;
 			apply_first_comments_filter();

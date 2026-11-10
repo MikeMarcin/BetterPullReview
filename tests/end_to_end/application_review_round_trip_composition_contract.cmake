@@ -3391,8 +3391,19 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Ordered142/complete197 inventory and full-app/mutation pins are unchanged.
 	# Source binding adds no native acceptance; three new Windows rows remain
 	# truthfully unmeasured pending contained native calibration.
+	# [[RFC-BPR-0105]] reviewed dc5453afa..357df825d and its follow-up ([[BPR-2010]],
+	# [[BPR-2011]]): review_submission_workflow gives each whole-review host
+	# its own lane (window_construction supplies a worker_executor factory
+	# and the existing diagnostic port), waits only for a retired host of the
+	# same review identity, bounds the wait to start, abandons only work that
+	# has not begun, settles the shown submission's answer from a retired
+	# host and logs review_submit_* lines. window_github_reads, window_sign_in
+	# and window_navigation tell the window an open is starting, which resets
+	# its review surface then (begin_review_open); the fixture
+	# accessors gain test-only lane holds. No grant, actor/head, admission or
+	# no-blind-retry boundary is relaxed; full-app and mutation pins unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "b08d76eb245608e7f0c5e44e86ce660150258e69c8622953e9a788e43510bc24"
+        "44a4d9c9f30d745618bc22de1450a9d176d2a8d4708af621c6d7ca403f67e361"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

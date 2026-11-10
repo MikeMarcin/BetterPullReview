@@ -1077,9 +1077,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1593]]. Expand: the tour page in the main pane; with
 		/// \p aPublication, at what GitHub will show.
 		/// \brief [[RFC-BPR-0105]]. The composition is opening a pull request
-		/// in this window, from Home, a link, a notification or a restored
-		/// tab: the review it presents next starts fresh.
-		void expect_review_open() noexcept { ReviewOpenExpected = true; }
+		/// in this window, from Home, a link or a restored review: the review
+		/// surface returns to its default now, so a tab chosen while the pull
+		/// request loads is kept, and a refresh never resets it.
+		void begin_review_open();
 		void open_tour_page(bool aPublication = false);
 		/// \brief [[BPR-1593]]. Back to the code: the route in the drawer.
 		void               close_tour_page();
@@ -2707,10 +2708,6 @@ namespace bpr::qt {
 		/// tour's side chat and page closed. Filters, drawer widths, sessions
 		/// and drafts are kept.
 		void reset_review_surface();
-		/// [[RFC-BPR-0105]]. An open was asked for; its pull request's next
-		/// presentation starts the default review surface. A refresh is not
-		/// an open.
-		bool ReviewOpenExpected = false;
 		/// [[BPR-1594]]. The Agent tab, and its keys.
 		agent_tab_view* AgentTab        = nullptr;
 		QAction*        OpenAgentAction = nullptr;

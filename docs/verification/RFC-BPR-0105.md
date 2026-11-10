@@ -60,11 +60,25 @@ dark). Existing whole-review and tour publication courses were rerun; two
 waits in `review_submission_composition_public_path` now wait for the start
 and the terminal, since a held decision lane now also holds the start.
 
-A full `ctest --preset dev` run at an intermediate revision found
-`qt_profile_management_window` failing on the View menu's expected 28 actions;
-the test was last changed on 2026-11-04 and RFC-BPR-0097 added Go to line to
-View on 2026-11-08, and this milestone changes no menu. It is recorded, not
-repaired here.
+Integration runs. A full `ctest --preset dev` at `357df825d` (stopped at
+761/950 when the open signal was corrected) and a 67-row focused pass at the
+candidate (every whole-review, tour publication, agent invocation and chat,
+native agent session, Home, composed-window and Qt window row, and the
+composition source contract): 66/67 pass. Recorded failures, none changed by
+this milestone:
+
+- `application_agent_chat_custom_agent_contract`
+  (`custom-agent-empty-refusal-said`) fails the same with the open reset
+  disabled; this milestone touches no Agent-tab send path.
+- `qt_profile_management_window` expects 28 View actions; the test was last
+  changed on 2026-11-04 and RFC-BPR-0097 added Go to line to View on
+  2026-11-08. This milestone changes no menu.
+- `application_large_review_*` Debug budget rows exceeded their budgets;
+  Debug timings are nongating and these are not counted as passes.
+
+`application_composition_source_contract` was resealed for the reviewed
+production app sources, and `test_network_isolation_manifest` received the new
+course's unmeasured Windows pin.
 
 No agent live course was run for AC08: there is no composed-application live
 submission harness, and the provider path that writes to GitHub is unchanged.

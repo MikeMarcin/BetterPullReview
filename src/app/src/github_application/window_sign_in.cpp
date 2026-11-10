@@ -953,7 +953,7 @@ namespace bpr::app {
 		}
 		// [[RFC-BPR-0105]]. An open starts a fresh review surface.
 		if (Window != nullptr) {
-			Window->expect_review_open();
+			Window->begin_review_open();
 		}
 		WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
 		return application::setup_destination_opening::reading;

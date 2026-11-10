@@ -1198,6 +1198,11 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::begin_review_open()
+	{
+		reset_review_surface();
+	}
+
 	auto workbench_window::tour_page_open() const noexcept -> bool
 	{
 		return TourPageOpen;
