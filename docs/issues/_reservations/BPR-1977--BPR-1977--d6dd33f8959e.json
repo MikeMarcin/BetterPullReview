@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1977"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Review and reconcile accepted BPR-1976 tour publication composition source binding before successor release freeze",
+  "created": "2026-11-10T00:14:05.744749+00:00",
+  "base": "54be67bc5544eaf4f4a9714420c80cb3514b8dad"
+}

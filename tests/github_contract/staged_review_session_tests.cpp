@@ -169,10 +169,13 @@ namespace {
 	}
 	struct server final : github_mutation_wire_transport
 	{
-		bool        Maintenance   = false;
-		bool        PagedComments = false, FailSecondPage = false, ForeignNext = false;
-		std::size_t PageTwoReads = 0;
-		bool        Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
+		bool               Maintenance   = false;
+		bool               PagedComments = false, FailSecondPage = false, ForeignNext = false;
+		std::size_t        PageTwoReads = 0;
+		std::optional<int> BaselineStatus;
+		std::size_t        BaselineReads = 0U, FaultAtBaselineRead = 1U;
+		bool               MalformedBaseline = false;
+		bool               Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
 		/// [[BPR-1560]]. The base branch took commits the head shares: GitHub's
 		/// merge base, which numbers LEFT lines, is no longer the target's.
 		bool MovedMergeBase = false;
@@ -305,6 +308,14 @@ namespace {
 			const auto&                       wire = aRequest.Wire;
 			const auto                        ok   = [](std::string aBody) { return github_mutation_wire_success{ .Response = { .Status = 200, .Body = std::move(aBody) } }; };
 			if (wire.Method == http_method::get) {
+				if ((wire.Operation == review_mutation_operation::staged_list_reviews || wire.Operation == review_mutation_operation::staged_list_issue_comments) && ++BaselineReads == FaultAtBaselineRead) {
+					if (BaselineStatus) {
+						return github_mutation_wire_success{ .Response = { .Status = *BaselineStatus, .Body = "{}" } };
+					}
+					if (MalformedBaseline) {
+						return ok("[not JSON]");
+					}
+				}
 				if (Stop && StopOnReadAfter == Writes && aStop.stop_possible()) {
 					Stop->request_stop();
 					return github_mutation_wire_error{ };
@@ -834,6 +845,133 @@ namespace {
 			expect(recovered.State == expected && recovered.Record == result.Record, "read-only restart confirms the exact stopped progress");
 			expect(remote.Writes == stopped + 1, "restart remains read-only");
 			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5, "Resume after Stop completes bounded plan");
+		}
+	}
+	class failing_staged_store final : public application::review_submission_recovery_port
+	{
+	public:
+		std::unique_ptr<application::review_submission_recovery_port> Inner;
+		bool                                                          FailRead = false, FailWrite = false;
+		explicit failing_staged_store(std::unique_ptr<application::review_submission_recovery_port> aInner)
+			: Inner{ std::move(aInner) }
+		{ }
+		auto load_staged(const std::string& aKey) -> std::expected<std::optional<application::staged_publication_record>, application::review_mutation_recovery_failure> override { return FailRead ? std::unexpected(application::review_mutation_recovery_failure::unavailable) : Inner->load_staged(aKey); }
+		auto advance_staged(const std::optional<application::staged_publication_record>& aBefore, const application::staged_publication_record& aAfter) -> std::expected<application::staged_publication_record, application::review_mutation_recovery_failure> override { return FailWrite ? std::unexpected(application::review_mutation_recovery_failure::unavailable) : Inner->advance_staged(aBefore, aAfter); }
+		auto pending() -> std::expected<std::vector<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override { return Inner->pending(); }
+		auto load(const std::string& aKey) -> std::expected<std::optional<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override { return Inner->load(aKey); }
+		auto admit(const application::review_submission_recovery_record& aRecord) -> std::expected<application::review_submission_recovery_admission, application::review_mutation_recovery_failure> override { return Inner->admit(aRecord); }
+		auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aHash) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Inner->mark_possibly_transmitted(aKey, aHash); }
+		auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aHash, const application::review_submission_receipt& aReceipt) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Inner->resolve(aKey, aHash, aReceipt); }
+	};
+	void test_prewrite_refusal_stages()
+	{
+		using step = application::staged_publication_step;
+		for (const auto expected : { step::authority, step::plan_validation, step::recovery_open, step::lease, step::configuration, step::binding, step::journal_read, step::journal_save, step::identity_check, step::request_preparation }) {
+			scratch root;
+			server  remote;
+			auto    store    = std::make_unique<failing_staged_store>(storage(root.Path));
+			store->FailRead  = expected == step::journal_read;
+			store->FailWrite = expected == step::journal_save;
+			auto permission  = std::make_shared<lease>();
+			auto selected    = configuration();
+			auto input       = plan();
+			if (expected == step::plan_validation) {
+				input.Stops.clear();
+			}
+			if (expected == step::recovery_open) {
+				store.reset();
+			}
+			if (expected == step::lease) {
+				permission->revoke();
+			}
+			if (expected == step::configuration) {
+				selected.CredentialContext.Request = { };
+			}
+			if (expected == step::binding) {
+				input.Submission.LiveBinding->ActingIdentity.Login = "other";
+			}
+			if (expected == step::identity_check) {
+				remote.WrongActor = true;
+			}
+			if (expected == step::request_preparation) {
+				input.Submission.Proposal.Body = std::string(33000U, '"');
+				expect(application::valid(input), "escaped-body regression is a valid raw plan");
+			}
+			review_submission_session provider{ remote, std::move(selected), std::move(permission), std::move(store) };
+			const auto                grant  = expected == step::authority ? application::staged_child_authorizer{ } : application::staged_child_authorizer{ [](const auto&) { return true; } };
+			const auto                result = provider.publish_tour(input, { }, grant);
+			expect(result.Diagnosis && result.Diagnosis->Step == expected && result.Failure && !result.Record && remote.Writes == 0U, "each pre-write exit retains its exact refusal stage without sending");
+		}
+	}
+	void test_verification_read_refusals()
+	{
+		for (const auto compatibility : { false, true }) {
+			for (const auto status : { 200, 403 }) {
+				scratch root;
+				server  remote;
+				remote.FaultAtBaselineRead = 2U;
+				remote.BaselineStatus      = status == 200 ? std::nullopt : std::optional{ status };
+				remote.MalformedBaseline   = status == 200;
+				auto input                 = plan();
+				input.Compatibility        = compatibility;
+				auto       provider        = session(remote, root.Path);
+				const auto result          = provider->publish_tour(input, { }, [](const auto&) { return true; });
+				expect(result.State == publication_state::ready && result.Record && !result.Record->PossiblyTransmitted && result.Failure && result.Diagnosis && remote.Writes == 0U, "a failed second verification read is a paused ready journal, not a remote conflict");
+				expect(*result.Failure == (status == 200 ? application::review_mutation_failure::malformed_response : application::review_mutation_failure::refused_by_server) && result.Diagnosis->HttpStatus == status && result.Diagnosis->Step == application::staged_publication_step::verification, "second read preserves normalized reason and HTTP status");
+				remote.BaselineStatus.reset();
+				remote.MalformedBaseline = false;
+				const auto read          = provider->reconcile_tour(input);
+				expect(read.State == publication_state::ready && remote.Writes == 0U, "Check status after repair remains read-only");
+				expect(provider->publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::published, "an explicit fresh grant resumes the captured plan after verification recovers");
+			}
+		}
+	}
+	void test_recovery_read_refusals_keep_unknown_writes()
+	{
+		for (const auto compatibility : { false, true }) {
+			for (const auto status : { 200, 403 }) {
+				scratch root;
+				server  remote;
+				remote.FaultAtBaselineRead = 3U;
+				remote.BaselineStatus      = status == 200 ? std::nullopt : std::optional{ status };
+				remote.MalformedBaseline   = status == 200;
+				auto input                 = plan();
+				input.Compatibility        = compatibility;
+				auto       provider        = session(remote, root.Path);
+				const auto result          = provider->publish_tour(input, { }, [](const auto&) { return true; });
+				expect(result.State == publication_state::outcome_unknown && result.Record && result.Record->PossiblyTransmitted && result.Failure && result.Diagnosis && remote.Writes == 1U, "a failed post-write read retains its witness and unknown outcome");
+				expect(*result.Failure == (status == 200 ? application::review_mutation_failure::malformed_response : application::review_mutation_failure::refused_by_server) && result.Diagnosis->HttpStatus == status && result.Diagnosis->Step == application::staged_publication_step::recovery, "recovery preserves normalized reason and HTTP status");
+				provider.reset();
+				remote.BaselineStatus.reset();
+				remote.MalformedBaseline = false;
+				provider                 = session(remote, root.Path);
+				const auto recovered     = provider->reconcile_tour(input);
+				expect(recovered.Record && !recovered.Record->PossiblyTransmitted && remote.Writes == 1U, "restart reconciliation reads the exact first receipt without writing");
+				expect(provider->publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == (compatibility ? 6U : 5U), "explicit Resume finishes without duplicating the possibly sent create");
+			}
+		}
+	}
+	void test_baseline_refusal_diagnoses()
+	{
+		for (const auto compatibility : { false, true }) {
+			for (const auto status : { 403, 404, 429, 500, 200 }) {
+				scratch root;
+				server  remote;
+				remote.BaselineStatus    = status == 200 ? std::nullopt : std::optional{ status };
+				remote.MalformedBaseline = status == 200;
+				auto provider            = session(remote, root.Path);
+				auto input               = plan();
+				input.Compatibility      = compatibility;
+				const auto result        = provider->publish_tour(input, { }, [](const auto&) { return true; });
+				expect(result.State == publication_state::unavailable && !result.Record && result.Diagnosis && result.Failure && remote.Writes == 0U, "baseline failure happens before journal admission or any write");
+				expect(result.Diagnosis->Step == application::staged_publication_step::baseline_read && result.Diagnosis->HttpStatus == status && result.Diagnosis->Operation == (compatibility ? application::staged_review_operation::list_issue_comments : application::staged_review_operation::list_reviews), "typed baseline operation and HTTP status are retained");
+				expect(*result.Failure == (status == 200 ? application::review_mutation_failure::malformed_response : status == 404 ? application::review_mutation_failure::target_unavailable
+																																	: application::review_mutation_failure::refused_by_server),
+					   "response refusal and invalid document are distinct");
+				remote.BaselineStatus.reset();
+				remote.MalformedBaseline = false;
+				expect(provider->publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::published, "a new explicit attempt succeeds after the read is repaired");
+			}
 		}
 	}
 	void test_compatibility_sessions()
@@ -1707,6 +1845,10 @@ try {
 	} else {
 		test_conversation_reply_sessions();
 		test_staged_sessions();
+		test_prewrite_refusal_stages();
+		test_verification_read_refusals();
+		test_recovery_read_refusals_keep_unknown_writes();
+		test_baseline_refusal_diagnoses();
 		test_compatibility_sessions();
 		test_maintenance_sessions();
 		test_description_only_update();

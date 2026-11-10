@@ -105,12 +105,18 @@ namespace bpr::app {
 #endif
 		if (TourPublication) {
 #if defined(BPR_BUILD_TESTING)
-			auto tourFactory = [configuration, binding, server = ReviewSubmissionServer, description = WindowRead->accepted_snapshot()->PullRequest.Body]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+			auto tourFactory = [configuration, binding, server = ReviewSubmissionServer, description = WindowRead->accepted_snapshot()->PullRequest.Body, log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				{
+					const auto lock = std::scoped_lock{ server->Mutex };
+					if (server->TourFactoryFailure) {
+						return std::unexpected(*server->TourFactoryFailure);
+					}
+				}
 				auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
 				if (!store) {
 					return std::unexpected(application::review_mutation_failure::unavailable);
 				}
-				return detail::make_staged_review_fixture_provider(server, std::move(*store), binding, description);
+				return detail::make_staged_review_fixture_provider(server, std::move(*store), binding, description, log);
 			};
 			if (ConversationReply) {
 				ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, tourFactory, insights_capture(aHandoff));

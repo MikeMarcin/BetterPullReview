@@ -35,6 +35,15 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto reconcile_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }) -> application::staged_publication_result;
 
 	private:
+		struct staged_read_failure
+		{
+			application::review_mutation_failure                Failure;
+			std::optional<std::uint16_t>                        HttpStatus = std::nullopt;
+			std::optional<application::staged_review_operation> Operation  = std::nullopt;
+		};
+		using staged_check = std::expected<bool, staged_read_failure>;
+		[[nodiscard]] auto staged_failure(application::review_mutation_failure, std::optional<std::uint16_t> = { }, std::optional<application::staged_review_operation> = { }) -> staged_read_failure;
+		[[nodiscard]] auto staged_failure(const github_mutation_wire_completion&, std::optional<application::staged_review_operation> = { }) -> staged_read_failure;
 		[[nodiscard]] auto execute(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result;
 		[[nodiscard]] auto run(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result;
 		/// \brief [[BPR-1540]]. Keeps the first reason this run could not go
@@ -50,7 +59,7 @@ namespace bpr::adapters::github::detail {
 		/// \brief Viewer, then target and head. [[BPR-1560]]: with `aLeftLine`,
 		/// last the merge base GitHub numbers a LEFT line in, which must still
 		/// be the one the review was written against.
-		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false, bool aLeftLine = false) -> std::expected<void, application::review_mutation_failure>;
+		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false, bool aLeftLine = false, std::optional<staged_read_failure>* aReadFailure = nullptr) -> std::expected<void, application::review_mutation_failure>;
 		[[nodiscard]] auto observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
 		[[nodiscard]] auto finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
 		/// \brief The one new exact review GitHub lists for the record, or,
@@ -93,8 +102,8 @@ namespace bpr::adapters::github::detail {
 		void log_ending(const application::review_submission_result& aResult);
 		/// \brief [[BPR-1367]]. Every page of the pull request's review comment
 		/// collection, at most `maximum_review_comment_collection_pages`.
-		[[nodiscard]] auto observe_comment_collection(std::stop_token aStop) -> review_mutation_parse_result<std::vector<review_comment_collection_entry>>;
-		[[nodiscard]] auto observe_staged(application::staged_review_request aRequest, std::stop_token aStop) -> review_mutation_parse_result<application::staged_review_observation>;
+		[[nodiscard]] auto observe_comment_collection(std::stop_token aStop, std::optional<staged_read_failure>* aReadFailure = nullptr) -> review_mutation_parse_result<std::vector<review_comment_collection_entry>>;
+		[[nodiscard]] auto observe_staged(application::staged_review_request aRequest, std::stop_token aStop) -> std::expected<application::staged_review_observation, staged_read_failure>;
 		/// \brief [[BPR-1367]]. A tour review's comments as GitHub lists them,
 		/// and whether that list reports their lines.
 		struct staged_comments
@@ -109,15 +118,15 @@ namespace bpr::adapters::github::detail {
 		/// \brief [[BPR-1367]]. The comments of `aReview`, chosen by its state.
 		/// A submitted review's are read from `aCollection` when given, which
 		/// is read once and kept there.
-		[[nodiscard]] auto observe_staged_comments(const application::staged_publication_record& aRecord, const application::staged_review_entity& aReview, std::stop_token aStop, std::optional<std::vector<review_comment_collection_entry>>* aCollection = nullptr) -> review_mutation_parse_result<staged_comments>;
-		[[nodiscard]] auto reconcile_staged(application::staged_publication_record& aRecord, std::stop_token aStop) -> application::staged_publication_state;
-		[[nodiscard]] auto verify_tour_update(const application::staged_publication_record&, std::stop_token) -> bool;
+		[[nodiscard]] auto observe_staged_comments(const application::staged_publication_record& aRecord, const application::staged_review_entity& aReview, std::stop_token aStop, std::optional<std::vector<review_comment_collection_entry>>* aCollection = nullptr) -> std::expected<staged_comments, staged_read_failure>;
+		[[nodiscard]] auto reconcile_staged(application::staged_publication_record& aRecord, std::stop_token aStop) -> std::expected<application::staged_publication_state, staged_read_failure>;
+		[[nodiscard]] auto verify_tour_update(const application::staged_publication_record&, std::stop_token) -> staged_check;
 		/// \brief `aLeftLine` also asks GitHub's merge base, before a write of
 		/// a plan with a LEFT stop ([[BPR-1560]]).
-		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop, bool aLeftLine = false) -> bool;
+		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop, bool aLeftLine = false) -> staged_check;
 		/// \brief [[BPR-1572]]. `verify_staged`'s reads of the review, its
 		/// comments and the description, which precede the pull request's.
-		[[nodiscard]] auto verify_staged_reads(const application::staged_publication_record& aRecord, std::stop_token aStop) -> bool;
+		[[nodiscard]] auto verify_staged_reads(const application::staged_publication_record& aRecord, std::stop_token aStop) -> staged_check;
 		[[nodiscard]] auto execute_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, bool aWrite, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
 
 		github_mutation_wire_transport*                               Transport;
@@ -127,6 +136,7 @@ namespace bpr::adapters::github::detail {
 		std::shared_ptr<application::diagnostic_log_port>             Log;
 		std::function<std::int64_t()>                                 Clock;
 		std::mutex                                                    Mutex;
+		const application::staged_review_plan*                        ActiveTourTrace = nullptr;
 	};
 }
 #endif

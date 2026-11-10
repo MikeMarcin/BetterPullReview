@@ -2588,6 +2588,56 @@ namespace {
 		test_real_collection_pages();
 	}
 
+	void test_staged_list_response_limits()
+	{
+		using op = application::staged_review_operation;
+		for (const auto enterprise : { false, true }) {
+			auto selected = target();
+			if (enterprise) {
+				selected.Hostname       = application::github_canonical_hostname{ "ghe.example.com" };
+				selected.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+			}
+			const auto api = enterprise ? std::string{ "https://ghe.example.com/api/v3" } : std::string{ "https://api.github.com" };
+			const auto web = enterprise ? std::string{ "https://ghe.example.com" } : std::string{ "https://github.com" };
+			for (const auto operation : { op::list_reviews, op::list_comments, op::list_issue_comments }) {
+				const auto request = staged_request(operation, selected);
+				auto       page    = std::string{ "[" };
+				for (std::uint64_t index = 0; index < 100U; ++index) {
+					auto       object = parse_fixture_object(operation == op::list_reviews ? review_body() : comment_body());
+					const auto id     = 9000U + index;
+					object.insert_or_assign("id", id);
+					object.insert_or_assign("node_id", "N_" + std::to_string(id));
+					object.insert_or_assign("body", std::string(4096U, 'x'));
+					for (std::uint32_t field = 0; field < 48U; ++field) {
+						object.insert_or_assign("bounded_metadata_" + std::to_string(field), field);
+					}
+					if (operation == op::list_reviews) {
+						object.insert_or_assign("state", "COMMENTED");
+						object.insert_or_assign("submitted_at", "2026-09-26T12:34:56Z");
+						object.insert_or_assign("pull_request_url", api + "/repos/MikeMarcin/BPR-Test/pulls/1");
+						object.insert_or_assign("html_url", web + "/MikeMarcin/BPR-Test/pull/1#pullrequestreview-" + std::to_string(id));
+					} else if (operation == op::list_comments) {
+						object.insert_or_assign("pull_request_review_id", 45U);
+						object.insert_or_assign("pull_request_url", api + "/repos/MikeMarcin/BPR-Test/pulls/1");
+						object.insert_or_assign("html_url", web + "/MikeMarcin/BPR-Test/pull/1#discussion_r" + std::to_string(id));
+					} else {
+						object.insert_or_assign("issue_url", api + "/repos/MikeMarcin/BPR-Test/issues/1");
+						object.insert_or_assign("html_url", web + "/MikeMarcin/BPR-Test/pull/1#issuecomment-" + std::to_string(id));
+					}
+					page += (index ? "," : "") + fixture_json(object);
+				}
+				page += "]";
+				expect(page.size() > maximum_review_mutation_response_bytes && page.size() < maximum_review_mutation_list_response_bytes, "representative full page exceeds single-object budget");
+				const auto compiled = compile_staged_review_request(request);
+				expect(compiled && maximum_review_mutation_wire_response_bytes(compiled->Operation) == maximum_review_mutation_list_response_bytes, "native and CLI response admission use the finite list budget");
+				const auto observed = parse_staged_review_response({ .Status = 200, .Body = page }, request);
+				expect(observed && (operation == op::list_reviews ? observed->Reviews.size() : observed->Comments.size()) == 100U, "GitHub and GHES full pages retain every baseline identity above4096values");
+				expect(!parse_staged_review_response({ .Status = 200, .Body = std::string(maximum_review_mutation_list_response_bytes + 1U, ' ') }, request), "the list byte ceiling remains finite");
+				page.insert(page.size() - 1U, "," + page.substr(1U, page.find("},{") + 1U));
+				expect(!parse_staged_review_response({ .Status = 200, .Body = page }, request), "a101st or duplicate baseline entry remains refused");
+			}
+		}
+	}
 	void test_staged_response_contract()
 	{
 		using op     = application::staged_review_operation;
@@ -2998,6 +3048,7 @@ auto main() -> int
 		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
 	test_staged_batch_contract();
 	test_merge_base_observation_contract();
+	test_staged_list_response_limits();
 	test_staged_response_contract();
 	test_a_pending_stop_is_edited_by_graphql();
 	test_exact_wire_compilation_and_tamper_rejection();

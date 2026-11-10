@@ -699,7 +699,12 @@ namespace bpr::adapters::github::detail {
 		if (!wire) {
 			return failed(review_mutation_contract_failure::invalid_request);
 		}
-		const auto exchange = review_mutation_exchange_for(wire->Operation);
+		const auto exchange  = review_mutation_exchange_for(wire->Operation);
+		const auto limit     = maximum_review_mutation_wire_response_bytes(wire->Operation);
+		const auto preflight = staged_list(aExpected.Operation) ? json_preflight_limits{ .Values = maximum_review_mutation_list_values } : json_preflight_limits{ };
+		if (aResponse.Body.size() > limit) {
+			return failed(review_mutation_contract_failure::response_limit);
+		}
 		if (has_header(aResponse, "location") || (aResponse.Status >= 300 && aResponse.Status < 400)) {
 			return failed(review_mutation_contract_failure::redirect);
 		}
@@ -713,7 +718,7 @@ namespace bpr::adapters::github::detail {
 		application::staged_review_observation result{ .HasNext = *next };
 		if (aExpected.Operation == staged_operation::update_description) {
 			const auto target = parse_target_observation(aResponse, aExpected.Binding.Target);
-			const auto body   = document<staged_body_json>(aResponse);
+			const auto body   = document<staged_body_json>(aResponse, limit, preflight);
 			if (!target || !body || !utf8_round_trip(body->Body) || body->Body.size() > maximum_review_mutation_body_bytes) {
 				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
@@ -723,8 +728,8 @@ namespace bpr::adapters::github::detail {
 		if (aExpected.Operation == staged_operation::list_issue_comments || aExpected.Operation == staged_operation::create_issue_comment || aExpected.Operation == staged_operation::update_issue_comment) {
 			std::optional<std::vector<staged_issue_comment_json>> objects;
 			if (staged_list(aExpected.Operation)) {
-				objects = document<std::vector<staged_issue_comment_json>>(aResponse);
-			} else if (auto item = document<staged_issue_comment_json>(aResponse)) {
+				objects = document<std::vector<staged_issue_comment_json>>(aResponse, limit, preflight);
+			} else if (auto item = document<staged_issue_comment_json>(aResponse, limit, preflight)) {
 				objects = std::vector<staged_issue_comment_json>{ *item };
 			}
 			if (!objects || objects->size() > 100 || (*next && objects->empty())) {
@@ -749,7 +754,7 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-1368]]. The edited comment is the one addressed, in the
 			// review and pull request expected, still pending, mine, with the
 			// body sent.
-			const auto answer = document<update_comment_response_json>(aResponse);
+			const auto answer = document<update_comment_response_json>(aResponse, limit, preflight);
 			if (!answer) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
@@ -771,8 +776,8 @@ namespace bpr::adapters::github::detail {
 		if (comments) {
 			std::optional<std::vector<staged_comment_json>> objects;
 			if (staged_list(aExpected.Operation)) {
-				objects = document<std::vector<staged_comment_json>>(aResponse);
-			} else if (auto item = document<staged_comment_json>(aResponse)) {
+				objects = document<std::vector<staged_comment_json>>(aResponse, limit, preflight);
+			} else if (auto item = document<staged_comment_json>(aResponse, limit, preflight)) {
 				objects = std::vector<staged_comment_json>{ *item };
 			}
 			if (!objects || objects->size() > 100 || (*next && objects->empty())) {
@@ -788,8 +793,8 @@ namespace bpr::adapters::github::detail {
 		} else {
 			std::optional<std::vector<staged_review_json>> objects;
 			if (staged_list(aExpected.Operation)) {
-				objects = document<std::vector<staged_review_json>>(aResponse);
-			} else if (auto item = document<staged_review_json>(aResponse)) {
+				objects = document<std::vector<staged_review_json>>(aResponse, limit, preflight);
+			} else if (auto item = document<staged_review_json>(aResponse, limit, preflight)) {
 				objects = std::vector<staged_review_json>{ *item };
 			}
 			if (!objects || objects->size() > 100 || (*next && objects->empty())) {
@@ -818,6 +823,7 @@ namespace bpr::adapters::github::detail {
 			return maximum_description_response_bytes;
 		}
 		return aOperation == review_mutation_operation::observe_reviews || aOperation == review_mutation_operation::observe_review_comments
+				|| aOperation == review_mutation_operation::staged_list_reviews || aOperation == review_mutation_operation::staged_list_comments || aOperation == review_mutation_operation::staged_list_issue_comments
 			? maximum_review_mutation_list_response_bytes
 			: maximum_review_mutation_response_bytes;
 	}

@@ -48,6 +48,7 @@ namespace {
 	struct provider_state
 	{
 		bool                                                        InEffect = false;
+		std::optional<application::review_mutation_failure>         FactoryFailure;
 		std::size_t                                                 Created = 0U, Destroyed = 0U, Submitted = 0U, Reconciled = 0U, Tours = 0U;
 		std::vector<application::review_submission_request>         Pending;
 		std::function<void(application::review_submission_result&)> Answer;
@@ -169,7 +170,7 @@ namespace {
 		core::request_generation                        Generation{ 2U };
 		std::shared_ptr<tests::insights_observer>       Insights = std::make_shared<tests::insights_observer>();
 		application::review_submission_application_host Host{
-			[state = State]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> { return std::make_unique<provider>(state); },
+			[state = State]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> { if(state->FactoryFailure){return std::unexpected(*state->FactoryFailure);} return std::make_unique<provider>(state); },
 			*request().LiveBinding,
 			Session,
 			Generation,
@@ -252,6 +253,16 @@ namespace {
 		f.Host.cancel(*queued);
 		f.drain();
 		expect(f.State->Tours == 1, "Stop revokes parent before any effect");
+		const auto& cancelled = std::get<application::staged_publication_result>(f.Projection.Terminals.back().Outcome);
+		expect(cancelled.Failure == application::review_mutation_failure::cancelled && cancelled.State == application::staged_publication_state::unavailable, "pre-effect tour cancellation keeps its typed reason");
+		for (const auto failure : { application::review_mutation_failure::unavailable, application::review_mutation_failure::credential_unavailable, application::review_mutation_failure::unsupported }) {
+			f.State->FactoryFailure = failure;
+			auto fresh              = application::make_review_submission_testing_grant(f.Session, f.Generation, plan);
+			expect(f.Host.publish_tour(plan, fresh).has_value(), "factory-failure attempt is admitted normally");
+			f.drain();
+			const auto& refused = std::get<application::staged_publication_result>(f.Projection.Terminals.back().Outcome);
+			expect(refused.Failure == failure && !refused.Record && f.State->Tours == 1U, "factory reason reaches tour terminal before provider dispatch");
+		}
 	}
 
 	void test_exact_authority_and_async_delivery()

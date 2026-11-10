@@ -44,6 +44,14 @@ details…** also keeps request and window IDs.
 > details, so send an export rather than a raw log. Operating-system crash
 > reports bypass the export preview and may contain source or comments.
 
+Tour publication records its preview, admission, provider setup, each publication
+operation and its terminal or recovery in the same profile log. A refusal names
+the stage, classified reason and HTTP status when one was received. An opaque
+attempt digest connects those records without recording your tour text. These
+records are retained in anonymized diagnostic export too. A screen saying that
+publication is unavailable does not by itself establish a server, credential or
+qualification cause.
+
 ## Reset this profile's local data
 
 The resets in **Settings > Storage & privacy > Troubleshooting** change

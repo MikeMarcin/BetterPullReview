@@ -1,6 +1,7 @@
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/core/discovery_diagnosis.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/review_submission_unknown.hpp"
 #include "bpr/core/sha256.hpp"
@@ -486,8 +487,16 @@ namespace bpr::application {
 				numeric("http_status", aValues[12]);
 				text("summary", aValues[13]);
 				numeric("dropped", aValues[14]);
-				const bool safe = (aValues[15].empty() || aValues[13] == "sanitized") && safe_detail(aValues[15]);
-				text("detail", safe ? aValues[15] : "[omitted:unclassified-content]");
+				const bool safe   = (aValues[15].empty() || aValues[13] == "sanitized") && safe_detail(aValues[15]);
+				auto       detail = safe ? std::string{ aValues[15] } : std::string{ "[omitted:unclassified-content]" };
+				if (safe && !identifying) {
+					if (auto diagnosis = core::parse_operation_diagnosis(aValues[15]); diagnosis && diagnosis->Tour && diagnosis->Tour->Attempt != "none") {
+						const auto identity      = Namespace + ":tour:" + diagnosis->Tour->Attempt;
+						diagnosis->Tour->Attempt = core::lower_hex(core::sha256({ reinterpret_cast<const std::uint8_t*>(identity.data()), identity.size() }));
+						detail                   = core::describe(*diagnosis);
+					}
+				}
+				text("detail", detail);
 				if (!safe && !aMeasure) {
 					++DetailOmissions;
 				}

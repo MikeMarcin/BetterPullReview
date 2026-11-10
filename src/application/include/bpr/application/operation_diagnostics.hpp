@@ -8,6 +8,7 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_mutation_port.hpp"
+#include "bpr/application/staged_review_publication.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
@@ -30,6 +31,11 @@ namespace bpr::application {
 	/// dropped record and nothing else.
 	void record_operation(diagnostic_log_port* aLog, const core::operation_diagnosis& aDiagnosis, bool aStarted = false) noexcept;
 
+	/// \brief Records a safe tour lifecycle line, correlated by the full authority/key digest.
+	void record_tour_publication(diagnostic_log_port*, core::tour_publication_stage, const staged_review_plan*, const staged_publication_result* = nullptr,
+								 bool aStarted = false, core::operation_failure aFailure = core::operation_failure::none, std::uint16_t aHttpStatus = 0, bool aWritten = false) noexcept;
+	/// \brief The diagnostic stage for one finite publication request.
+	[[nodiscard]] auto tour_stage(staged_review_operation) noexcept -> core::tour_publication_stage;
 	/// \brief [[BPR-1828]]. Milliseconds since an operation started, on the
 	/// steady clock, saturated to 32 bits.
 	class operation_stopwatch

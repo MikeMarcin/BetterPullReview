@@ -1,5 +1,6 @@
 #include "review_submission_workflow.hpp"
 
+#include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
@@ -851,8 +852,9 @@ namespace bpr::app {
 }
 
 namespace bpr::app {
-	review_tour_publication_workflow::review_tour_publication_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, qt::review_tour_editor& aEditor, grant_factory aIssueGrant, review_submission_workflow::publication_admission aAdmitPublication, receipt_sink aReceiptSink)
-		: Effects{ aEffects }
+	review_tour_publication_workflow::review_tour_publication_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, qt::review_tour_editor& aEditor, grant_factory aIssueGrant, review_submission_workflow::publication_admission aAdmitPublication, receipt_sink aReceiptSink, std::shared_ptr<application::diagnostic_log_port> aLog)
+		: Log{ std::move(aLog) }
+		, Effects{ aEffects }
 		, Decisions{ aDecisions }
 		, Editor{ aEditor }
 		, IssueGrant{ std::move(aIssueGrant) }
@@ -894,7 +896,7 @@ namespace bpr::app {
 		Description = std::move(aDescription);
 		Qualified   = aQualified;
 		Generation  = core::request_generation{ Generation.value() + 1 };
-		Host        = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this, std::move(aInsights));
+		Host        = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this, std::move(aInsights), Log);
 		Context     = Host->discover_tours();
 		Status      = "Checking saved publication state. No writes are scheduled.";
 		present();
@@ -923,10 +925,13 @@ namespace bpr::app {
 	}
 	void review_tour_publication_workflow::prepare()
 	{
+		application::record_tour_publication(Log.get(), core::tour_publication_stage::preview, Plan ? &*Plan : nullptr, nullptr, true);
 		if (!Ready || !Binding || !Host || Context || !Draft.Draft) {
+			application::record_tour_publication(Log.get(), core::tour_publication_stage::preview, Plan ? &*Plan : nullptr, nullptr, false, core::operation_failure::unavailable);
 			return;
 		}
 		if (Draft.Refusal != core::tour_refusal::none || Draft.Conflict) {
+			application::record_tour_publication(Log.get(), core::tour_publication_stage::preview, Plan ? &*Plan : nullptr, nullptr, false, core::operation_failure::conflict);
 			Previewed = false;
 			Status    = "Resolve the refused edit or saved-copy conflict before previewing publication.";
 			present();
@@ -937,6 +942,7 @@ namespace bpr::app {
 			Plan.reset();
 		}
 		if (Record) {
+			application::record_tour_publication(Log.get(), core::tour_publication_stage::preview, &Record->Plan);
 			Plan      = Record->Plan;
 			Previewed = true;
 			Status    = "Previewing the captured publication. Resume only continues this exact text and destinations.";
@@ -950,6 +956,7 @@ namespace bpr::app {
 		if (Plan) {
 			State = application::staged_publication_state::ready;
 		}
+		application::record_tour_publication(Log.get(), core::tour_publication_stage::preview, Plan ? &*Plan : nullptr, nullptr, false, Plan ? core::operation_failure::none : core::operation_failure::invalid_input);
 		Status = prepared.Status;
 		present();
 	}
@@ -958,9 +965,11 @@ namespace bpr::app {
 	{
 		using action = qt::tour_editor_action;
 		if (Closing || !Host) {
+			application::record_tour_publication(Log.get(), aAction == action::preview_publication ? core::tour_publication_stage::preview : core::tour_publication_stage::admission, Plan ? &*Plan : nullptr, nullptr, false, core::operation_failure::unavailable);
 			return;
 		}
 		if (aAction == action::stop_publication) {
+			application::record_tour_publication(Log.get(), core::tour_publication_stage::stop, Plan ? &*Plan : nullptr, nullptr, false, core::operation_failure::cancelled);
 			if (Context) {
 				Host->cancel(*Context);
 			}
@@ -974,6 +983,7 @@ namespace bpr::app {
 			return;
 		}
 		if (Context || !Plan) {
+			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, Plan ? &*Plan : nullptr, nullptr, false, Context ? core::operation_failure::busy : core::operation_failure::invalid_input);
 			return;
 		}
 		if (aAction == action::reconcile_publication) {
@@ -986,17 +996,22 @@ namespace bpr::app {
 			return;
 		}
 		if (!Previewed || *Plan->Submission.LiveBinding != *Binding) {
+			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
 		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || Plan->Compatibility != Editor.compatibility_publication() || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
+			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
 		if (Record && (State == application::staged_publication_state::outcome_unknown || State == application::staged_publication_state::conflict || State == application::staged_publication_state::published)) {
+			const auto result = application::staged_publication_result{ State, Record };
+			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, &result);
 			return;
 		}
 		if (AdmitPublication) {
 			const auto admission = AdmitPublication(*Binding);
 			if (!admission) {
+				application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, application::operation_failure_of(admission.error()));
 				Status = qt::github_cli_publication_failure_text(admission.error(), QString::fromStdString(Binding->ActingIdentity.Login), QString::fromStdString(std::string{ Binding->Target.Hostname.value() }), Record.has_value()).toStdString();
 				if (Status.empty()) {
 					Status = "Publication refused: the current account or pull request changed. Your draft is kept.";
@@ -1045,7 +1060,7 @@ namespace bpr::app {
 			}
 		} else if (const auto* result = std::get_if<application::staged_publication_result>(&aTerminal.Outcome)) {
 			const auto preflightRefusal = !result->Record && result->Failure
-				&& (*result->Failure == application::review_mutation_failure::credential_unavailable
+				&& (result->Diagnosis || *result->Failure == application::review_mutation_failure::credential_unavailable
 					|| *result->Failure == application::review_mutation_failure::credential_tool_failed
 					|| *result->Failure == application::review_mutation_failure::cancelled);
 			const auto retainedOutcome = !result->Record && result->Failure && Record
@@ -1075,6 +1090,12 @@ namespace bpr::app {
 				case state::description_attention: Status = "Tour published; description update needs attention."; break;
 				case state::unavailable:           Status = "Publication is unavailable. The private draft is retained."; break;
 				}
+			}
+			auto explanation   = *result;
+			explanation.State  = State;
+			explanation.Record = Record;
+			if (const auto detail = tour_publication_failure_text(explanation); !detail.empty()) {
+				Status = detail;
 			}
 			if (result->Failure && Binding && State != state::outcome_unknown && !(Record && Record->Published)) {
 				const auto status = qt::github_cli_publication_failure_text(*result->Failure, QString::fromStdString(Binding->ActingIdentity.Login), QString::fromStdString(std::string{ Binding->Target.Hostname.value() }), Record.has_value());

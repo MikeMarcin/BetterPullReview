@@ -1,4 +1,5 @@
 #include "review_submission_session.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -220,42 +221,92 @@ namespace bpr::adapters::github::detail {
 	}
 	auto review_submission_session::perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion
 	{
-		if (aStop.stop_requested()) {
-			return github_mutation_wire_cancelled{ };
+		const auto* staged = std::get_if<application::staged_review_request>(&aWire.Semantic);
+		const auto  stage  = staged ? application::tour_stage(staged->Operation) : aWire.Operation == review_mutation_operation::observe_review_comments ? core::tour_publication_stage::list_comments
+																																						 : core::tour_publication_stage::identity_check;
+		if (ActiveTourTrace) {
+			application::record_tour_publication(Log.get(), stage, ActiveTourTrace, nullptr, true);
 		}
-		if (!Lease || !Lease->active() || !valid(Configuration) || !validate_outbound_review_mutation_request(aWire)) {
-			return github_mutation_wire_error{ };
+		const auto write    = static_cast<bool>(aWitness);
+		auto       dispatch = [&]() -> github_mutation_wire_completion {
+			if (aStop.stop_requested()) {
+				return github_mutation_wire_cancelled{ };
+			}
+			if (!Lease || !Lease->active() || !valid(Configuration) || !validate_outbound_review_mutation_request(aWire)) {
+				return github_mutation_wire_error{ };
+			}
+			return Transport->perform_review_mutation({ .Context = Configuration.CredentialContext, .Wire = std::move(aWire) }, aStop, std::move(aWitness));
+		};
+		auto completion = dispatch();
+		if (ActiveTourTrace) {
+			auto          failure = core::operation_failure::none;
+			std::uint16_t status  = 0;
+			bool          written = false;
+			if (const auto* success = std::get_if<github_mutation_wire_success>(&completion)) {
+				written = write;
+				status  = success->Response.Status >= 100 && success->Response.Status <= 599 ? static_cast<std::uint16_t>(success->Response.Status) : 0;
+				if (success->Response.Status >= 300) {
+					failure = core::operation_failure::refused_by_server;
+				}
+			} else if (const auto* error = std::get_if<github_mutation_wire_error>(&completion)) {
+				written = write && error->Transmission != github_mutation_transmission::definitely_not_sent;
+				failure = application::operation_failure_of(error->Failure);
+				status  = error->HttpStatus;
+			} else {
+				written = write && std::get<github_mutation_wire_cancelled>(completion).Transmission != github_mutation_transmission::definitely_not_sent;
+				failure = core::operation_failure::cancelled;
+			}
+			application::record_tour_publication(Log.get(), stage, ActiveTourTrace, nullptr, false, failure, status, written);
 		}
-		return Transport->perform_review_mutation({ .Context = Configuration.CredentialContext, .Wire = std::move(aWire) }, aStop, std::move(aWitness));
+		return completion;
 	}
-	auto review_submission_session::observe_exact(std::stop_token aStop, bool aHistorical, bool aLeftLine) -> std::expected<void, application::review_mutation_failure>
+	auto review_submission_session::observe_exact(std::stop_token aStop, bool aHistorical, bool aLeftLine, std::optional<staged_read_failure>* aReadFailure) -> std::expected<void, application::review_mutation_failure>
 	{
+		if (aReadFailure) {
+			aReadFailure->reset();
+		}
+		const auto wireFailed   = [&](const github_mutation_wire_completion& aAnswer) { if(aReadFailure) { *aReadFailure=staged_failure(aAnswer); } };
+		const auto decodeFailed = [&](review_mutation_contract_failure aFailure, int aStatus) {
+			if (aReadFailure && aFailure != review_mutation_contract_failure::identity_mismatch) {
+				*aReadFailure = staged_failure(application::review_mutation_failure::malformed_response, static_cast<std::uint16_t>(aStatus));
+			}
+		};
+		const auto compileFailed = [&] { if(aReadFailure) { *aReadFailure=staged_failure(application::review_mutation_failure::unsupported); } };
+
 		auto viewer = compile_viewer_observation_request(Configuration.ActingIdentity, Configuration.Target.ServerContract);
 		if (!viewer) {
+			compileFailed();
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 		auto  observedViewer = perform(*viewer, aStop);
 		auto* viewerSuccess  = std::get_if<github_mutation_wire_success>(&observedViewer);
 		if (!viewerSuccess || viewerSuccess->Response.Status != 200) {
+			wireFailed(observedViewer);
 			note_completion(observedViewer);
 			return std::unexpected(application::review_mutation_failure::undesignated_target);
 		}
-		if (!parse_viewer_observation(viewerSuccess->Response, Configuration.ActingIdentity)) {
+		const auto viewerParsed = parse_viewer_observation(viewerSuccess->Response, Configuration.ActingIdentity);
+		if (!viewerParsed) {
+			decodeFailed(viewerParsed.error(), viewerSuccess->Response.Status);
 			note(reason::account_mismatch);
 			return std::unexpected(application::review_mutation_failure::undesignated_target);
 		}
 		auto target = compile_target_observation_request(Configuration.Target, Configuration.Target.ServerContract);
 		if (!target) {
+			compileFailed();
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 		auto  observedTarget = perform(*target, aStop);
 		auto* targetSuccess  = std::get_if<github_mutation_wire_success>(&observedTarget);
 		if (!targetSuccess || targetSuccess->Response.Status != 200) {
+			wireFailed(observedTarget);
 			note_completion(observedTarget);
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 		if (aHistorical) {
-			if (!parse_review_submission_recovery_target(targetSuccess->Response, Configuration.Target)) {
+			const auto historical = parse_review_submission_recovery_target(targetSuccess->Response, Configuration.Target);
+			if (!historical) {
+				decodeFailed(historical.error(), targetSuccess->Response.Status);
 				note(reason::pull_request_mismatch);
 				return std::unexpected(application::review_mutation_failure::undesignated_target);
 			}
@@ -263,6 +314,7 @@ namespace bpr::adapters::github::detail {
 		}
 		auto parsed = parse_target_observation(targetSuccess->Response, Configuration.Target);
 		if (!parsed) {
+			decodeFailed(parsed.error(), targetSuccess->Response.Status);
 			note(reason::pull_request_mismatch);
 			return std::unexpected(application::review_mutation_failure::undesignated_target);
 		}
@@ -282,16 +334,19 @@ namespace bpr::adapters::github::detail {
 			-> std::expected<merge_base_observation, application::review_mutation_failure> {
 			auto request = compile_merge_base_observation_request(aBinding, Configuration.Target.ServerContract, aBasis);
 			if (!request) {
+				compileFailed();
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
 			auto  observed = perform(*request, aStop);
 			auto* success  = std::get_if<github_mutation_wire_success>(&observed);
 			if (!success || success->Response.Status != 200) {
+				wireFailed(observed);
 				note_completion(observed);
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
 			const auto current = parse_merge_base_observation(success->Response, aBinding, aBasis);
 			if (!current) {
+				decodeFailed(current.error(), success->Response.Status);
 				note(reason::pull_request_mismatch);
 				return std::unexpected(application::review_mutation_failure::undesignated_target);
 			}
@@ -322,11 +377,13 @@ namespace bpr::adapters::github::detail {
 		auto  again        = perform(*target, aStop);
 		auto* againSuccess = std::get_if<github_mutation_wire_success>(&again);
 		if (!againSuccess || againSuccess->Response.Status != 200) {
+			wireFailed(again);
 			note_completion(again);
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 		const auto confirmed = parse_target_observation(againSuccess->Response, Configuration.Target);
 		if (!confirmed) {
+			decodeFailed(confirmed.error(), againSuccess->Response.Status);
 			if (target_recorded_base_moved(againSuccess->Response, Configuration.Target)) {
 				return std::unexpected(application::review_mutation_failure::target_moved);
 			}
@@ -399,29 +456,44 @@ namespace bpr::adapters::github::detail {
 		}
 		return resolve_observed(aRecord, *observed, aDuplicate, aStop, aRecord.Post);
 	}
-	auto review_submission_session::observe_comment_collection(std::stop_token aStop) -> review_mutation_parse_result<std::vector<review_comment_collection_entry>>
+	auto review_submission_session::observe_comment_collection(std::stop_token aStop, std::optional<staged_read_failure>* aReadFailure) -> review_mutation_parse_result<std::vector<review_comment_collection_entry>>
 	{
+		if (aReadFailure) {
+			aReadFailure->reset();
+		}
+		const auto failed = [&](application::review_mutation_failure aFailure, std::optional<std::uint16_t> aStatus = { }) {
+			if (aReadFailure) {
+				*aReadFailure = staged_failure(aFailure, aStatus, application::staged_review_operation::list_comments);
+			}
+		};
+
 		auto        result = std::vector<review_comment_collection_entry>{ };
 		std::size_t bytes  = 0U;
 		for (std::uint32_t page = 1U; page <= maximum_review_comment_collection_pages; ++page) {
 			const auto wire = compile_review_comment_collection_request(Configuration.Target, Configuration.Target.ServerContract, page);
 			if (!wire) {
+				failed(application::review_mutation_failure::unsupported);
 				return std::unexpected(wire.error());
 			}
 			const auto  completion = perform(*wire, aStop);
 			const auto* success    = std::get_if<github_mutation_wire_success>(&completion);
 			if (success == nullptr || success->Response.Status != 200) {
+				if (aReadFailure) {
+					*aReadFailure = staged_failure(completion, application::staged_review_operation::list_comments);
+				}
 				note_completion(completion);
 				return std::unexpected(review_mutation_contract_failure::invalid_status);
 			}
 			Pages = static_cast<std::uint16_t>(Pages + 1U);
 			bytes += success->Response.Body.size();
 			if (bytes > maximum_review_mutation_list_response_bytes * maximum_review_comment_collection_pages) {
+				failed(application::review_mutation_failure::malformed_response, static_cast<std::uint16_t>(success->Response.Status));
 				note(reason::comment_page_too_large);
 				return std::unexpected(review_mutation_contract_failure::response_limit);
 			}
 			auto parsed = parse_review_comment_collection(success->Response, Configuration.Target, page);
 			if (!parsed) {
+				failed(application::review_mutation_failure::malformed_response, static_cast<std::uint16_t>(success->Response.Status));
 				// [[BPR-1540]]. A page refused, by size, by its next link, or
 				// as not GitHub's list.
 				note(parsed.error() == review_mutation_contract_failure::response_limit           ? reason::comment_page_too_large
@@ -432,6 +504,7 @@ namespace bpr::adapters::github::detail {
 			}
 			for (auto& comment : parsed->Comments) {
 				if (std::ranges::any_of(result, [&comment](const review_comment_collection_entry& aSeen) { return aSeen.Id == comment.Id || aSeen.NodeId == comment.NodeId; })) {
+					failed(application::review_mutation_failure::malformed_response, static_cast<std::uint16_t>(success->Response.Status));
 					note(reason::comment_page_unreadable);
 					return std::unexpected(review_mutation_contract_failure::identity_mismatch);
 				}
@@ -441,6 +514,7 @@ namespace bpr::adapters::github::detail {
 				return result;
 			}
 		}
+		failed(application::review_mutation_failure::malformed_response);
 		note(reason::comment_collection_too_long);
 		return std::unexpected(review_mutation_contract_failure::response_limit);
 	}

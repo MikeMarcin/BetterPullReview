@@ -428,6 +428,63 @@ namespace bpr::core {
 		stale_result,
 	};
 
+	/// \brief Closed publication lifecycle and exact transport-operation stages.
+	enum class tour_publication_stage : std::uint8_t {
+		preview,
+		admission,
+		discovery,
+		recovery,
+		publish,
+		factory,
+		identity_check,
+		request_preparation,
+		baseline_read,
+		journal,
+		verification,
+		terminal,
+		stop,
+		list_reviews,
+		read_review,
+		list_comments,
+		create_pending,
+		update_comment,
+		update_summary,
+		submit_comment,
+		discard_pending,
+		update_description,
+		list_issue_comments,
+		create_issue_comment,
+		update_issue_comment,
+		update_pending_comment,
+		plan_validation,
+		recovery_open,
+		lease,
+		configuration,
+		binding,
+		journal_read,
+		credential_scope,
+		journal_save
+	};
+	/// \brief State observed by the publisher, never inferred from a failed request.
+	enum class tour_publication_trace_state : std::uint8_t { none,
+															 unavailable,
+															 ready,
+															 staged,
+															 outcome_unknown,
+															 conflict,
+															 published,
+															 description_attention,
+															 partial };
+	/// \brief Safe lifecycle metadata; Attempt is a full authority/key digest or none.
+	struct tour_publication_trace
+	{
+		tour_publication_stage       Stage                                            = tour_publication_stage::preview;
+		tour_publication_trace_state State                                            = tour_publication_trace_state::none;
+		std::string                  Attempt                                          = "none";
+		std::uint16_t                HttpStatus                                       = 0;
+		auto                         operator<=>(const tour_publication_trace&) const = default;
+	};
+
 	/// \brief [[BPR-1828]]. One host operation's diagnostic line: enums,
 	/// counts, a duration and an exit code only.
 	///
@@ -455,8 +512,9 @@ namespace bpr::core {
 		/// [[BPR-1831]]. A storage line's store and schema version, written
 		/// after the fixed keys as `store=STORE schema=N`; absent on every
 		/// other family's line.
-		std::optional<operation_store> Store;
-		std::uint32_t                  Schema = 0U;
+		std::optional<operation_store>        Store;
+		std::uint32_t                         Schema = 0U;
+		std::optional<tour_publication_trace> Tour   = std::nullopt;
 
 		auto operator<=>(const operation_diagnosis&) const = default;
 	};
@@ -473,7 +531,8 @@ namespace bpr::core {
 	/// of the action's own family, a process and exit code only on an agent
 	/// setup check or ([[BPR-1830]]) an MCP helper run (an exit code only
 	/// with a process), and the write flags
-	/// only on a review mutation; a store exactly on a storage line, and a
+	/// only on a review mutation or classified tour publication trace; a store
+	/// exactly on a storage line, and a
 	/// schema version only there ([[BPR-1831]]).
 	[[nodiscard]] auto valid(const operation_diagnosis& aDiagnosis) noexcept -> bool;
 

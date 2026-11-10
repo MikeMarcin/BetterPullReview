@@ -68,11 +68,34 @@ namespace bpr::application {
 														 published,
 														 description_attention,
 														 partial };
+	/// \brief The bounded stage that refused a tour before its next write.
+	enum class staged_publication_step : std::uint8_t { authority,
+														plan_validation,
+														recovery_open,
+														lease,
+														configuration,
+														binding,
+														journal_read,
+														credential_scope,
+														identity_check,
+														request_preparation,
+														baseline_read,
+														journal_save,
+														verification,
+														recovery };
+	/// \brief Classified context only: no response text, credential or source bytes.
+	struct staged_publication_diagnosis
+	{
+		staged_publication_step                Step       = staged_publication_step::authority;
+		std::optional<staged_review_operation> Operation  = std::nullopt;
+		std::optional<std::uint16_t>           HttpStatus = std::nullopt;
+	};
 	struct staged_publication_result
 	{
-		staged_publication_state                 State = staged_publication_state::unavailable;
-		std::optional<staged_publication_record> Record;
-		std::optional<review_mutation_failure>   Failure = std::nullopt;
+		staged_publication_state                    State = staged_publication_state::unavailable;
+		std::optional<staged_publication_record>    Record;
+		std::optional<review_mutation_failure>      Failure   = std::nullopt;
+		std::optional<staged_publication_diagnosis> Diagnosis = std::nullopt;
 	};
 	[[nodiscard]] auto staged_update_bodies(const staged_publication_record&) -> std::optional<core::tour_update_bodies>;
 	[[nodiscard]] auto staged_update_request(const staged_publication_record&) -> std::optional<staged_review_request>;

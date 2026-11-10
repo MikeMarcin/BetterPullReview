@@ -152,10 +152,13 @@ namespace bpr::app {
 			std::optional<application::review_submission_host_terminal> Terminal;
 			application::review_submission_application_host             Host;
 		};
-		auto publication_status(application::staged_publication_state aState) -> std::string
+		auto publication_status(const application::staged_publication_result& aResult) -> std::string
 		{
+			if (const auto detail = tour_publication_failure_text(aResult); !detail.empty()) {
+				return detail;
+			}
 			using state = application::staged_publication_state;
-			switch (aState) {
+			switch (aResult.State) {
 			case state::ready:                 return "Prepared locally; preview and explicitly resume the captured plan.";
 			case state::staged:                return "Staged on GitHub; author-only pending review. Preview and explicitly resume.";
 			case state::published:             return "Published; confirmed identities and navigation retained.";
@@ -709,7 +712,7 @@ namespace bpr::app {
 			preview.Plan   = pending->front();
 			preview.Result = runner.execute(*preview.Plan);
 			preview.Resume = true;
-			preview.Status = publication_status(preview.Result.State);
+			preview.Status = publication_status(preview.Result);
 		} else {
 			const auto prepared = prepare_tour_plan(loaded->Draft, context->Binding, read->Snapshot.PullRequest.Body, aOptions, context->Qualified);
 			preview.Plan        = prepared.Plan;
@@ -724,7 +727,7 @@ namespace bpr::app {
 				if (recovered.Record) {
 					preview.Result = std::move(recovered);
 					preview.Resume = true;
-					preview.Status = publication_status(preview.Result.State);
+					preview.Status = publication_status(preview.Result);
 				}
 			} else if (!aAttempt.empty()) {
 				return failure("attempt_unknown", "This attempt is absent from the admitted local journal. Remote pending material is not authorization.", 4);
@@ -810,7 +813,7 @@ namespace bpr::app {
 		}
 		submission_runner runner{ *context };
 		current->Result = runner.execute(*current->Plan, std::move(grant));
-		current->Status = publication_status(current->Result.State);
+		current->Status = publication_status(current->Result);
 		if (current->Result.Record && current->Result.Record->Published) {
 			if (!self.observe_receipt(target, current->Snapshot.Draft, *current->Result.Record)) {
 				return failure("receipt_save_failed", "Publication was observed; recover its saved journal before another action.", 6);

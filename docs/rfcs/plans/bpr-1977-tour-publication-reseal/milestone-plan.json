@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1977-tour-publication-reseal",
+  "scope": {
+    "issues": [
+      "BPR-1977"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "review-tour-publication-composition",
+      "outcome": "Strict source verification binds accepted tour-publication diagnostics/recovery composition while preserving existing source inventories and independent safety tripwires.",
+      "work": [
+        {
+          "issue": "BPR-1977",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Review changed pinned app composition against accepted1976 exact critical evidence, core diagnostic grammar and shared desktop/CLI failure-helper flow; independently reproduce ordered142 manifest and complete197 inventory identity.",
+        "Retain actual stale source failure, reseal only reviewed manifest/comment after independent and maintained agreement, pass strict source/adversarial checks and preserve full-app/mutation pins.",
+        "Cheap documentation/scoped board/diff checks and intentional main integration/push include accepted1976, actual allocation and source counters; all commands finish without native/app/PC execution or producer mutation."
+      ],
+      "boundary": "Only tests/end_to_end/application_review_round_trip_composition_contract.cmake plus1977plan/card/checkpoint. Reuse accepted8ac5 product/critical evidence and preserve corporate/native uncertainty; no independent product patch or exhaustive rerun."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

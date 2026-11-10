@@ -13,6 +13,8 @@ namespace bpr::app {
 		std::string                                    Status;
 	};
 	[[nodiscard]] auto prepare_tour_plan(const core::review_tour&, const application::review_submission_live_binding&, std::string_view, tour_publication_options, bool) -> tour_plan_preparation;
+	/// \brief Safe stage failure text that preserves known receipts and unknown outcomes.
+	[[nodiscard]] auto tour_publication_failure_text(const application::staged_publication_result&) -> std::string;
 	[[nodiscard]] auto tour_plan_markdown(const application::staged_review_plan&) -> std::string;
 }
 #endif

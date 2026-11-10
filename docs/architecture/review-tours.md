@@ -404,7 +404,7 @@ separate facts. Suggestion bodies cannot silently become file/PR permalink prose
 The capability key separates operations and exact source digests in addition to
 host, actor, repository, API/classifier revision and freshness. Existing
 standalone evidence never qualifies pending file staging. The preparation host
-has no live-qualified pending-operation observation and displays that limit;
+has no live-qualified pending-operation observation and directs the author to the authoritative publication preview;
 loading source or importing an own comment does not create write authority.
 
 ## Staged publication wire contract
@@ -421,7 +421,11 @@ Raw responses retain complete numerical IDs, returned same-PR web URLs, actors,
 review membership and inclusive source coordinates. A page continuation must
 name the exact collection and next bounded page; incomplete membership cannot
 establish ownership. The wire ceiling remains 64 KiB including JSON overhead,
-100 comments per batch, 256 KiB per response and ten pages per collection.
+100 comments per batch and ten pages per collection. Single-object responses
+retain 256 KiB. The three staged review/comment list operations use the existing
+3 MiB/32,768-value list budget; their aggregate is bounded at 30 MiB and their
+100 entries per page, exact identities and continuation validation remain. A
+busy PR's existing discussion is not a single-object response ([[BPR-1976]]).
 These are fixture-tested contracts. Pending comment editability and website
 visibility are not yet qualified on a live host, and pending file-thread staging
 remains unavailable. No compiler, parser or read observation grants write
@@ -436,6 +440,30 @@ private recovery database. Unknown writes are reconciled by complete reads and
 are never blindly repeated. Stop/restart retains receipts and requires explicit
 Resume for further writes. Live pending mutation endpoints are on by the
 [owner amendment of 2026-10-09](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md#owner-amendment-2026-10-09-publication-on-and-files-changed-links).
+
+Publication diagnostics ([[BPR-1976]]) begin in the desktop workflow and
+application host before a provider exists. Standard `tour.operation` records
+name preview/admission, discovery, factory, Publish/Resume, recovery, Stop and
+the terminal; real staged transport reads and writes name their finite operation.
+The terminal retains each classified pre-write refusal: authority, plan
+validation, recovery availability, lease, configuration, binding, journal read,
+credential operation, identity check, request preparation, baseline read and
+journal save. Stage, state, failure category and bounded HTTP status are safe
+closed vocabulary. The attempt label is SHA-256 of the existing authority
+fingerprint plus its idempotency key; no prose, key, account/repository name,
+source, URL, response body or credential is recorded. The existing operation
+classifier admits the trace to diagnostic export; anonymized export remaps the
+attempt digest inside its fresh mapping namespace while preserving correlation
+across its records. A failed new attempt
+retains its private draft; a pre-provider failure on Resume retains the original
+staged prefix. A prior unknown write stays unknown and cannot be repeated. A read or
+normalization failure establishes no remote change: verification carries a
+complete match/mismatch separately from its typed read failure, operation and
+HTTP status. A failed verification pauses the known journal prefix before its
+next write; failed reconciliation preserves any possibly-transmitted witness as
+unknown. Check status remains read-only and only a fresh explicit Preview/Resume
+continues the captured plan. A read failure after earlier writes does not claim
+that the entire invocation sent nothing.
 
 ## Published maintenance
 
