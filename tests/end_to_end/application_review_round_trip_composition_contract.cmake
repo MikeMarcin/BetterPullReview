@@ -3423,8 +3423,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# through the window's browser port and the sign-in controls. No grant,
 	# actor/head, admission, publication or no-blind-retry boundary is
 	# relaxed; full-app and mutation pins unchanged.
+	# [[RFC-BPR-0098]] reviewed f1f6cd22c..HEAD ([[BPR-1989]]): main adds the
+	# test-only --attended-home-moves look beside --attended-home-rows (it
+	# requires --attended-home-look); the fixture accessors gain
+	# home_next_move_fixture_rows and per-row next-move facts, and the public
+	# path fixture serves them and an authored alias's review threads in
+	# Home's batched answer. No production read, grant, admission or
+	# publication boundary changes; full-app and mutation pins unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "01890fe464898e1c066209f574080323d0ba3bc0ff72071cf9f9759ebbc7b38c"
+        "9e9a782f39691e7149d077700ee45ca3a9100112a0cb1a0f0906db511cb16067"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

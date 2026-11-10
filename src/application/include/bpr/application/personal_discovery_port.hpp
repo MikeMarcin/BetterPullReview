@@ -76,6 +76,10 @@ namespace bpr::application {
 		/// empty for `Number` alone. The answer has one row for each pull
 		/// request it could read; one it could not is left out.
 		std::vector<core::pull_request_number> Numbers;
+		/// [[RFC-BPR-0098]]. A batched retained read only: those of `Numbers`
+		/// the viewer authored, ascending, whose conversations awaiting a
+		/// reply are read too. A batch of one names exactly one.
+		std::vector<core::pull_request_number> Authored;
 
 		auto operator<=>(const personal_discovery_request&) const = default;
 	};
@@ -90,6 +94,9 @@ namespace bpr::application {
 		/// [[BPR-1718]]. When it was submitted, in seconds since the epoch
 		/// (UTC); none for a pending review or one whose time was not read.
 		std::optional<std::int64_t> SubmittedAt;
+		/// [[RFC-BPR-0098]]. The author's login, for naming who reviewed;
+		/// empty for a deleted account.
+		std::string Login;
 
 		auto operator<=>(const personal_discovery_review&) const = default;
 	};

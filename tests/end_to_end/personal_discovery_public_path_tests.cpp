@@ -453,12 +453,17 @@ try {
 			const auto id   = identity(aNumber);
 			std::cerr << aWhen << ' ' << id << " bucket=" << (item ? core::name(item->Bucket) : "none") << " unseen=" << (item ? item->Facts.UnseenComments : 0U)
 					  << " verdict=" << (item ? core::name(item->Facts.MyReview.Verdict) : "none") << " new-commits=" << (item && item->Facts.MyReview.NewCommits)
-					  << " reviewed=" << (item && item->Membership.Reviewed) << " chip='" << verdictOf(aNumber).toStdString() << "'\n";
-			expect(item && item->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && qt::home_reason_word(item->Bucket) == QStringLiteral("Waiting"),
+					  << " reviewed=" << (item && item->Membership.Reviewed) << " chip='" << verdictOf(aNumber).toStdString() << "'"
+					  << " move=" << (item && core::next_move_for(*item) ? core::name(*core::next_move_for(*item)) : "none") << " word=" << (item ? qt::home_row_word(*item).toStdString() : "") << '\n';
+			// [[RFC-BPR-0098]]. A failed check makes it Failing, mine to fix,
+			// in My pull requests; otherwise it waits on its reviewers.
+			const auto failing = item && !item->Facts.Waiting.FailedChecks.empty();
+			expect(item && item->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && qt::home_row_word(*item) == (failing ? QStringLiteral("Failing") : QStringLiteral("Waiting")),
 				   "my own reply and my own push leave my pull request waiting on its reviewers, never Changed");
-			expect(contains(state_rows(*windowA, qt::home_group::waiting_on_others), id.c_str()) && !contains(state_rows(*windowA, qt::home_group::my_pull_requests), id.c_str())
+			expect(contains(state_rows(*windowA, failing ? qt::home_group::my_pull_requests : qt::home_group::waiting_on_others), id.c_str())
+					   && !contains(state_rows(*windowA, failing ? qt::home_group::waiting_on_others : qt::home_group::my_pull_requests), id.c_str())
 					   && !contains(state_rows(*windowA, qt::home_group::needs_you), id.c_str()),
-				   "it is listed in Waiting for others");
+				   "it is listed in Waiting for others, or in My pull requests when a check failed");
 			expect(item->Facts.MyReview == core::queue_my_review{ } && verdictOf(aNumber).isEmpty() && !item->Membership.Reviewed,
 				   "my reply is no verdict: no Commented chip, no new commits, and I am not its reviewer");
 		};
@@ -584,8 +589,10 @@ try {
 		auto       item     = queue_item(*windowA, 4001);
 		const auto identity = item->Ref;
 		std::cerr << "waiting bucket=" << static_cast<int>(item->Bucket) << " requests=" << item->Facts.Waiting.Requests.value_or(999) << " failures=" << item->Facts.Waiting.FailedChecks.size() << " checks-known=" << item->Facts.Waiting.ChecksKnown << " head=" << item->Facts.Waiting.Head << "\n";
-		expect(item->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && item->Facts.Waiting.FailedChecks == std::vector<std::string>{ "Branch Freshness" }, "unopened mixed review/check example stays in Waiting on others");
-		expect(qt::home_why_sentence(*item) == QStringLiteral("Waiting on 3 reviewers; Branch Freshness failed."), "[[BPR-1407]] native row counts its reviewers and keeps the independent failure");
+		expect(item->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && item->Facts.Waiting.FailedChecks == std::vector<std::string>{ "Branch Freshness" }, "unopened mixed review/check example keeps its awaiting bucket");
+		// [[RFC-BPR-0098]]. The failed check is mine to fix: the row is Failing.
+		expect(qt::home_why_sentence(*item) == QStringLiteral("Branch Freshness failed.") && qt::home_row_word(*item) == QStringLiteral("Failing"),
+			   "[[BPR-1407]] native row names the independent failure, which makes it Failing: " + qt::home_why_sentence(*item).toStdString());
 		const auto renderWaiting = [&](const QString& aName) {
 			if (renderDirectory.isEmpty()) {
 				return;

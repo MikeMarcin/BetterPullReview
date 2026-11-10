@@ -544,7 +544,15 @@ namespace bpr::application {
 			CycleRetainedReads.clear();
 			CycleProblem = queue_discovery_problem::none;
 			MetadataConsidered.insert(aRef);
-			enqueue(aRef.Repository, personal_discovery_reason::retained, core::pull_request_number{ static_cast<std::uint32_t>(aRef.Number) });
+			const auto number = core::pull_request_number{ static_cast<std::uint32_t>(aRef.Number) };
+			enqueue(aRef.Repository, personal_discovery_reason::retained, number);
+			// [[RFC-BPR-0098]]. A pull request of mine is read in the query
+			// that carries its conversations.
+			const auto queue = Queue.queue();
+			if (const auto item = std::ranges::find(queue, aRef, &core::queue_item::Ref); item != queue.end() && item->Membership.authored()) {
+				Queued.back().Request.Numbers  = { number };
+				Queued.back().Request.Authored = { number };
+			}
 			record(diagnostic_outcome::started, refresh_diagnosis(core::discovery_diagnosis_state::none));
 			pump();
 		}
@@ -899,13 +907,18 @@ namespace bpr::application {
 			CycleProblem = queue_discovery_problem::none;
 			// [[BPR-1680]]. Several retained pull requests of one repository go
 			// in one read, as the core batches them.
-			auto targets = std::vector<core::discovery_retained_target>{ };
-			auto names   = std::vector<std::pair<core::repository_locator, std::string>>{ };
+			auto targets  = std::vector<core::discovery_retained_target>{ };
+			auto authored = std::vector<core::discovery_retained_target>{ };
+			auto names    = std::vector<std::pair<core::repository_locator, std::string>>{ };
 			for (std::size_t index = 0U; index < items.size(); ++index) {
 				MetadataConsidered.insert(items[index].Ref);
 				if (index < maximum_personal_discovery_retained) {
 					const auto locator = *locator_of(items[index].Ref.Repository);
 					targets.push_back({ .Repository = locator, .Number = core::pull_request_number{ static_cast<std::uint32_t>(items[index].Ref.Number) } });
+					// [[RFC-BPR-0098]]. Mine: its conversations are read too.
+					if (items[index].Membership.authored()) {
+						authored.push_back(targets.back());
+					}
 					if (std::ranges::find(names, locator, &std::pair<core::repository_locator, std::string>::first) == names.end()) {
 						names.emplace_back(locator, items[index].Ref.Repository);
 					}
@@ -916,8 +929,17 @@ namespace bpr::application {
 			for (auto& batch : core::plan_retained_batches(targets, Options.RetainedBatch)) {
 				const auto& repository = std::ranges::find(names, batch.Repository, &std::pair<core::repository_locator, std::string>::first)->second;
 				enqueue(repository, personal_discovery_reason::retained, batch.Numbers.front());
-				if (batch.Numbers.size() > 1U) {
-					Queued.back().Request.Numbers = std::move(batch.Numbers);
+				auto mine = std::vector<core::pull_request_number>{ };
+				for (const auto number : batch.Numbers) {
+					if (std::ranges::find(authored, core::discovery_retained_target{ .Repository = batch.Repository, .Number = number }) != authored.end()) {
+						mine.push_back(number);
+					}
+				}
+				// A pull request of mine alone is still read in one query,
+				// which is the read that carries its conversations.
+				if (batch.Numbers.size() > 1U || !mine.empty()) {
+					Queued.back().Request.Numbers  = std::move(batch.Numbers);
+					Queued.back().Request.Authored = std::move(mine);
 				}
 			}
 			Status.State        = queue_discovery_state::refreshing;
@@ -1240,10 +1262,16 @@ namespace bpr::application {
 			// [[BPR-1718]]. The same submitted reviews, for the core to say
 			// which verdict of mine stands.
 			auto mine = std::vector<core::my_submitted_review>{ };
+			// [[RFC-BPR-0098]]. Everyone else's, for the core to say whose
+			// verdict stands on a pull request of mine.
+			auto theirs = std::vector<core::reviewer_submitted_review>{ };
 			for (const auto& review : row.Reviews) {
-				const auto commit = review.Commit ? core::parse_git_commit_oid(review.Commit->value()) : std::nullopt;
-				if (review.DatabaseId == 0U || !review.Author || Session->Viewer.Node.value().empty() || *review.Author != Session->Viewer.Node
-					|| review.State == github_review_state::pending || review.State == github_review_state::uninitialized) {
+				const auto commit    = review.Commit ? core::parse_git_commit_oid(review.Commit->value()) : std::nullopt;
+				const auto submitted = review.DatabaseId != 0U && review.State != github_review_state::pending && review.State != github_review_state::uninitialized;
+				if (submitted && !review.Login.empty() && (!review.Author || Session->Viewer.Node.value().empty() || *review.Author != Session->Viewer.Node)) {
+					theirs.push_back({ .Login = review.Login, .Review = { .State = my_review_verdict_of(review.State), .SubmittedAt = review.SubmittedAt } });
+				}
+				if (!submitted || !review.Author || Session->Viewer.Node.value().empty() || *review.Author != Session->Viewer.Node) {
 					continue;
 				}
 				const auto comparable = commit && commit->algorithm() == head->algorithm();
@@ -1252,17 +1280,24 @@ namespace bpr::application {
 				}
 				mine.push_back({ .State = my_review_verdict_of(review.State), .SubmittedAt = review.SubmittedAt, .OnHead = comparable ? std::optional{ *commit == *head } : std::nullopt });
 			}
+			auto waiting          = row.Waiting;
+			waiting.LatestReviews = core::latest_reviewer_states(theirs);
+			waiting.ReviewsKnown  = true;
+			waiting.ReviewsStale  = false;
 			Queue.apply(queue_metadata_answer{
 				.Session  = Session->Queue,
 				.Ref      = ref,
 				.Facts    = { .Title = row.Title, .Author = row.Author, .Draft = row.Draft, .Change = row.Change, .MyReview = core::my_review_for(mine) },
-				.Activity = { .ReviewedByMe = reviewedHead.has_value(), .HeadMovedSinceMyReview = reviewedHead && *reviewedHead != *head, .ReviewersAwaited = row.ReviewersAwaited, .Known = true, .Waiting = row.Waiting, .FactRevision = aJob.Request.FactRevision },
+				.Activity = { .ReviewedByMe = reviewedHead.has_value(), .HeadMovedSinceMyReview = reviewedHead && *reviewedHead != *head, .ReviewersAwaited = row.ReviewersAwaited, .Known = true, .Waiting = waiting, .FactRevision = aJob.Request.FactRevision },
 				.Closed   = row.Closed,
 				.Authored = row.AuthorIdentity ? std::optional<bool>{ *row.AuthorIdentity == Session->Viewer.Node } : std::nullopt,
 			});
 			// [[BPR-1680]]. What this read established, for the searches that
-			// follow it in this refresh.
-			CycleRetainedRows.insert_or_assign(ref, row);
+			// follow it in this refresh; [[RFC-BPR-0098]] the reviewers'
+			// verdicts included, so a reused row does not make them stale.
+			auto established    = row;
+			established.Waiting = std::move(waiting);
+			CycleRetainedRows.insert_or_assign(ref, std::move(established));
 			CycleRetainedReads.push_back({ .Repository = aJob.Request.Context.Repository, .Number = row.Number, .Open = !row.Closed, .Complete = !row.WaitingLimited, .RequestsViewer = row.RequestsViewer });
 		}
 

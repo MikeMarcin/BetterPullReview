@@ -675,9 +675,11 @@ namespace {
 			   "the sentence is the reason alone, whoever opened the pull request");
 		expect(byAuthor(watched) == QStringLiteral("New activity on a pull request I follow; I watch %1 src/parser.").arg(QString::fromUtf8(core::name(core::observer_rule_kind::path).data())),
 			   "a followed row names its rule");
-		expect(byAuthor(item(7, bucket::authored_awaiting_reviewer_action, core::queue_membership{ .Authored = true })) == QStringLiteral("My pull request waits on reviewers.")
-				   && byAuthor(item(8, bucket::detail_unknown, core::queue_membership{ .Authored = true })) == QStringLiteral("My pull request; nothing about it has been read yet."),
-			   "my own row's sentence is about my pull request");
+		// [[RFC-BPR-0098]]. My own row says its next move; its section says
+		// it is mine.
+		expect(byAuthor(item(7, bucket::authored_awaiting_reviewer_action, core::queue_membership{ .Authored = true })) == QStringLiteral("Waiting on reviewers.")
+				   && byAuthor(item(8, bucket::detail_unknown, core::queue_membership{ .Authored = true })) == QStringLiteral("Nothing about it has been read yet."),
+			   "my own row's sentence is its next move's");
 		{
 			auto mine         = item(9, bucket::authored_awaiting_reviewer_action, core::queue_membership{ .Authored = true });
 			mine.Facts.Author = "octo-reviewer";
@@ -706,8 +708,8 @@ namespace {
 		// and is not quiet: the Quiet-only filter leaves it out.
 		const auto unknown = item(8, bucket::detail_unknown, core::queue_membership{ .Authored = true });
 		expect(qt::home_group_of(bucket::detail_unknown) == qt::home_group::following
-				   && qt::home_why_sentence(unknown) == QStringLiteral("My pull request; nothing about it has been read yet."),
-			   "an authored unread row retains its unknown explanation and identifies ownership");
+				   && qt::home_why_sentence(unknown) == QStringLiteral("Nothing about it has been read yet.") && qt::home_row_word(unknown) == QStringLiteral("Unknown"),
+			   "an authored unread row retains its unknown explanation");
 		{
 			auto source = qt::review_landing_model{ };
 			auto proxy  = qt::review_landing_filter_model{ source };
@@ -757,7 +759,8 @@ namespace {
 		waiting.Facts.Waiting.ChecksKnown    = true;
 		waiting.Facts.Waiting.FailedChecks   = { "Branch Freshness" };
 		const auto text                      = qt::home_why_sentence(waiting);
-		expect(text == QStringLiteral("Waiting on 3 reviewers; Branch Freshness failed."), "[[BPR-1407]] waiting reason counts reviewers once, without a generic clause, and preserves the concurrent failure");
+		// [[RFC-BPR-0098]]. A failed check makes it my move, whoever is awaited.
+		expect(text == QStringLiteral("Branch Freshness failed.") && qt::home_row_word(waiting) == QStringLiteral("Failing"), "a pull request of mine with a failed check is Failing: " + text.toStdString());
 		auto many                       = waiting;
 		many.Facts.Waiting.Requests     = 6;
 		many.Facts.Waiting.People       = 1;
@@ -765,22 +768,22 @@ namespace {
 		many.Facts.Waiting.Reviewers    = { "@alice" };
 		many.Facts.Waiting.FailedChecks = { "Lint", "Build", "Branch Freshness" };
 		many.Facts.Waiting.ChecksStale  = true;
-		expect(qt::home_why_sentence(many) == QStringLiteral("Waiting on 6 reviewers; Lint, Build and Branch Freshness failed; last known."), "a long roster is one count, and Overview holds the whole roster");
+		expect(qt::home_why_sentence(many) == QStringLiteral("Lint, Build and Branch Freshness failed; last known."), "failed checks are named, bounded, and last known when stale");
 		auto unnamed                     = waiting;
 		unnamed.Facts.Waiting.NamesKnown = false;
 		unnamed.Facts.Waiting.People     = 1;
 		unnamed.Facts.Waiting.Teams      = 2;
 		unnamed.Facts.Waiting.CodeOwners.clear();
 		unnamed.Facts.Waiting.FailedChecks.clear();
-		expect(qt::home_why_sentence(unnamed) == QStringLiteral("Waiting on 3 reviewers; Merge blocked."), "without names, discovery's count says the same");
+		expect(qt::home_why_sentence(unnamed) == QStringLiteral("Waiting on 3 reviewers."), "without names, discovery's count says the same, and the wait explains the block");
 		auto one                   = unnamed;
 		one.Facts.Waiting.Requests = 1;
-		expect(qt::home_why_sentence(one) == QStringLiteral("Waiting on 1 reviewer; Merge blocked."), "one reviewer is singular");
+		expect(qt::home_why_sentence(one) == QStringLiteral("Waiting on 1 reviewer."), "one reviewer is singular");
 		auto aggregate                   = unnamed;
 		aggregate.Facts.Waiting.Requests = 0;
 		aggregate.Facts.Waiting.People   = 0;
 		aggregate.Facts.Waiting.Teams    = 0;
-		expect(qt::home_why_sentence(aggregate) == QStringLiteral("Required review outstanding; Merge blocked."), "an aggregate requirement without names invents no one");
+		expect(qt::home_why_sentence(aggregate) == QStringLiteral("Required review outstanding."), "an aggregate requirement without names invents no one");
 		auto others       = waiting;
 		others.Membership = { };
 		others.Bucket     = core::attention_bucket::initial_review_requested;

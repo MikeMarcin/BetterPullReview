@@ -5205,6 +5205,75 @@ namespace {
 		return response;
 	}
 
+	/// [[RFC-BPR-0098]]. A pull request of mine in Home's batch also brings
+	/// its last review threads, in the same query: no request is added, and a
+	/// batch of one of mine is still one query.
+	void test_retained_home_batch_reads_conversations()
+	{
+		using reason      = application::personal_discovery_reason;
+		const auto thread = [](const bool aResolved, const char* aId) {
+			auto       latest = fixture_array{ };
+			const auto login  = std::string{ aId == std::string_view{ "U_viewer" } ? "octo-reviewer" : "alice" };
+			latest.emplace_back(fixture_object{ { "author", fixture_object{ { "__typename", "User" }, { "login", login }, { "id", std::string{ aId } } } } });
+			return fixture_object{ { "isResolved", aResolved }, { "comments", fixture_object{ { "nodes", latest } } } };
+		};
+		const auto mine = [&thread](const std::uint32_t aNumber, const std::uint64_t aTotal) {
+			auto pull    = home_pull(aNumber);
+			auto threads = fixture_array{ };
+			threads.emplace_back(thread(false, "U_alice"));
+			threads.emplace_back(thread(false, "U_alice"));
+			threads.emplace_back(thread(false, "U_viewer"));
+			threads.emplace_back(thread(true, "U_alice"));
+			// A deleted account's comment is not mine.
+			auto ghost = fixture_array{ };
+			ghost.emplace_back(fixture_object{ { "author", nullptr } });
+			threads.emplace_back(fixture_object{ { "isResolved", false }, { "comments", fixture_object{ { "nodes", ghost } } } });
+			pull.insert_or_assign("reviewThreads", fixture_object{ { "totalCount", aTotal }, { "nodes", threads } });
+			return pull;
+		};
+		{
+			auto transport = discovery_fixture_transport{ };
+			transport.Home = [&mine](const github_wire_request& aRequest) {
+				expect(aRequest.Wire.Body.contains("p0:pullRequest(number:17){...HomePullRequest} p1:pullRequest(number:18){...HomePullRequest ...HomeConversations}")
+						   && aRequest.Wire.Body.contains("fragment HomeConversations on PullRequest{reviewThreads(last:50){totalCount nodes{isResolved comments(last:1)")
+						   && aRequest.Wire.Semantic.AuthoredPullRequestNumbers == std::vector<std::uint32_t>{ 18U },
+					   "only my pull request's alias asks for its last fifty threads");
+				return home_response({ home_pull(17U), mine(18U, 5U) });
+			};
+			auto request      = discovery_request(reason::retained);
+			request.Numbers   = { core::pull_request_number{ 17U }, core::pull_request_number{ 18U } };
+			request.Authored  = { core::pull_request_number{ 18U } };
+			const auto result = perform_personal_discovery_read(transport, profile(), request, { });
+			expect(result && result->Rows.size() == 2U && transport.Requests.size() == 1U, "the conversations cost no request of their own");
+			expect(!result->Rows[0].Waiting.AwaitingReply && result->Rows[1].Waiting.AwaitingReply == std::optional<std::uint32_t>{ 3U } && !result->Rows[1].Waiting.MoreConversations,
+				   "unresolved threads whose latest comment is not mine await my reply; another's pull request is not asked");
+			expect(result->Rows[1].Waiting.Decision == core::queue_review_decision::review_required && result->Rows[1].Waiting.Merge == core::queue_merge_state::blocked
+					   && result->Rows[1].Waiting.PendingChecks == 1U && result->Rows[1].Reviews[0].Login == "octo-reviewer",
+				   "the decision, merge state, running checks and reviewers' logins come from the same alias");
+		}
+		{
+			auto transport    = discovery_fixture_transport{ };
+			transport.Home    = [&mine](const github_wire_request&) { return home_response({ mine(18U, 80U) }); };
+			auto request      = discovery_request(reason::retained);
+			request.Number    = core::pull_request_number{ 18U };
+			request.Numbers   = { core::pull_request_number{ 18U } };
+			request.Authored  = { core::pull_request_number{ 18U } };
+			const auto result = perform_personal_discovery_read(transport, profile(), request, { });
+			expect(result && result->Rows.size() == 1U && transport.Requests.size() == 1U && result->Rows[0].Waiting.MoreConversations,
+				   "a batch of one of mine is one query, and more threads than were read is said");
+		}
+		{
+			auto request     = discovery_request(reason::retained);
+			request.Numbers  = { core::pull_request_number{ 17U }, core::pull_request_number{ 18U } };
+			request.Authored = { core::pull_request_number{ 19U } };
+			auto transport   = discovery_fixture_transport{ };
+			expect(!perform_personal_discovery_read(transport, profile(), request, { }) && transport.Requests.empty(), "an authored number outside the batch is refused before any request");
+			request.Numbers  = { core::pull_request_number{ 17U } };
+			request.Authored = { };
+			expect(!perform_personal_discovery_read(transport, profile(), request, { }) && transport.Requests.empty(), "a batch of one that is not mine is refused");
+		}
+	}
+
 	/// [[BPR-1680]]. Several retained pull requests in one GraphQL query; the
 	/// REST way for a pull request with more than a page of anything, for all
 	/// of them when the query fails other than for the whole session, and
@@ -5947,5 +6016,6 @@ auto main(int aArgc, char* aArgv[]) -> int
 	test_home_change_facts_are_read_with_the_pull_request();
 	test_retained_home_metadata_read();
 	test_retained_home_batch_read();
+	test_retained_home_batch_reads_conversations();
 	return EXIT_SUCCESS;
 }

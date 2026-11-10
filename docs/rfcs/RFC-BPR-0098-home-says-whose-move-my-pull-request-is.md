@@ -67,6 +67,24 @@ A Returned row outranks Draft: a reviewer's reply on a draft is still mine
 to answer. The existing staleness wording ("last known") applies to every
 fact the move was decided from.
 
+**Established in implementation, 2026-11-10 ([[BPR-1989]]).** The core
+decides the move (`core::next_move_for` in
+[review_queue_attention.hpp](../../src/core/include/bpr/core/review_queue_attention.hpp)).
+"Changes requested" and "approved" are GitHub's review decision when it gives
+one; when it reports none (no review is required), they are the reviewers'
+standing verdicts, each decided as `my_review_for` decides mine. A merge
+GitHub refuses (`BLOCKED`, `UNSTABLE`) is Blocked only when no outstanding
+review, running check or draft status explains it, because GitHub reports
+every pull request awaiting a required review as blocked and Waiting would
+otherwise never be reached; a conflict, or a base that must be merged in
+first, is Blocked whatever else is pending. "Required checks passed" is every
+check of the head's rollup passed or skipped, since the rollup does not say
+which are required. Unassigned needs the requests and the reviews to have been
+read; a row whose activity was never read keeps the Unknown word it has today
+and sorts after Quiet. A pull request Failing, Blocked, Ready or Unassigned
+while reviewers are also awaited is mine to act on, so it sits in My pull
+requests; only Waiting rows sit in Waiting on others.
+
 ### Placement, order and wording
 
 Sections do not change. Waiting rows stay in Waiting on others; every other
@@ -86,6 +104,21 @@ merge") and omits a zero count. The frames are in the
 
 "Hide quiet" continues to hide only Quiet rows.
 
+**Established in implementation, 2026-11-10 ([[BPR-1989]]).** The remaining
+sentences: Failing "build-linux failed; approved by alice.", Blocked "It
+conflicts with the base branch.", "The base branch must be merged in first."
+or "Merge blocked.", Checking "Approved by bo; 2 checks are running.", Draft
+"Still a draft.", Unread "2 new comments I have not read.", Waiting keeps
+today's "Waiting on 2 reviewers.", Quiet "Nothing here is waiting on anyone."
+Unread comments on a row whose move is not Unread are appended as today.
+Waiting rows keep the Waiting on others tone. The header gives only the
+counts named above, and an unknown count as today; it no longer says how many
+need action, are awaiting review or are blocked. "Hide quiet" reads the
+move, so an approved, mergeable pull request of mine is never hidden as quiet.
+The word keeps the place Home gives every row's word, after the sentence
+([[BPR-0776]]), where the design round drew it first; moving it for authored
+rows alone would give one list two anatomies, so the owner's look asks.
+
 ### Facts
 
 The decision, the merge state and each reviewer's latest review state are
@@ -97,6 +130,20 @@ pull request has more, the sentence says "50 or more". When the host cannot
 provide the field (an older GitHub Enterprise Server, a refused query), a
 row is Returned only on a changes-requested decision, its sentence gives no
 conversation count, and nothing is guessed.
+
+**Established in implementation, 2026-11-10 ([[BPR-1989]]).** The 50 threads
+read are the last 50 (`reviewThreads(last:50)`), the most likely to await a
+reply, in a fragment that only an authored pull request's alias of Home's
+batched query asks for; a batch of one is still sent for a pull request of
+mine, and a return to Home re-reads one of mine the same way. When a pull
+request has more threads than were read, the sentence says "N or more
+conversations await my reply", which reads "50 or more" when every thread read
+awaits one. A read that could not see the conversations (a pull request read
+the REST way because it has more than a page of reviews, requests or checks,
+or a server without the batched query) keeps the count an earlier read made,
+said as last known; a pull request never read through the batch has no count
+and is Returned only on a change request. The facts are stored with the row
+(queue facts version 4) and read back as last known.
 
 ### Boundaries
 

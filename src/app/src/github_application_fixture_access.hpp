@@ -35,6 +35,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 class QSystemTrayIcon;
@@ -190,6 +191,24 @@ namespace bpr::app::detail {
 	/// that fetched it would have to ask for it.
 	struct github_personal_discovery_fixture
 	{
+		/// [[RFC-BPR-0098]]. The facts Home's batched read serves for one pull
+		/// request, exactly, in place of the summary the other fields imply.
+		struct next_move_facts
+		{
+			/// `reviewDecision`: "APPROVED", "CHANGES_REQUESTED",
+			/// "REVIEW_REQUIRED", or empty for null.
+			std::string_view Decision;
+			/// `mergeStateStatus`.
+			std::string_view MergeState = "CLEAN";
+			/// Submitted reviews, oldest first: login and GitHub state.
+			std::vector<std::pair<std::string_view, std::string_view>> Reviews;
+			/// One failed check of this name, when not empty.
+			std::string_view FailedCheck;
+			std::uint32_t    PassedChecks = 3U, PendingChecks = 0U;
+			/// Review threads: unresolved with another's latest comment,
+			/// unresolved with mine, and resolved.
+			std::uint32_t Awaiting = 0U, Answered = 0U, Resolved = 0U;
+		};
 		struct pull_request
 		{
 			std::uint32_t            Number = 0U;
@@ -208,6 +227,7 @@ namespace bpr::app::detail {
 			/// records the author's reply in a review thread: 0 none, 1 on the
 			/// current head, 2 on an earlier commit (the author pushed after).
 			std::shared_ptr<std::atomic<int>> ViewerReply;
+			std::optional<next_move_facts>    NextMove;
 		};
 		std::vector<pull_request> OpenPullRequests;
 		/// [[BPR-1681]]. While set, a personal search of any saved
@@ -260,6 +280,58 @@ namespace bpr::app::detail {
 			pull.Number         = row.Number;
 			pull.Author         = std::string{ row.Author };
 			pull.RequestedUsers = { std::string{ row.Author == aViewer ? std::string_view{ "alice" } : aViewer } };
+			rows.push_back(std::move(pull));
+		}
+		return rows;
+	}
+
+	/// \brief [[RFC-BPR-0098]]. One pull request of the viewer's with the
+	/// facts that decide one next move, and its title.
+	struct home_next_move_fixture_row
+	{
+		std::uint32_t                                      Number = 0U;
+		std::string_view                                   Title;
+		std::vector<std::string_view>                      Requested;
+		bool                                               Draft = false;
+		github_personal_discovery_fixture::next_move_facts Facts;
+	};
+
+	/// \brief [[RFC-BPR-0098]]. Ten pull requests of mine, one for each move
+	/// a fixture can show without local reading state (Unread needs it), in
+	/// the design round's words: the composed course and the attended look
+	/// (`--attended-home-moves`) read the same rows.
+	[[nodiscard]] inline auto home_next_move_fixture_rows() -> std::vector<home_next_move_fixture_row>
+	{
+		using facts = github_personal_discovery_fixture::next_move_facts;
+		return {
+			{ .Number = 4030U, .Title = "Render retained frames before presenting", .Facts = facts{ .Decision = "CHANGES_REQUESTED", .MergeState = "BLOCKED", .Reviews = { { "alice", "CHANGES_REQUESTED" } }, .Awaiting = 3U, .Answered = 1U, .Resolved = 2U } },
+			{ .Number = 4031U, .Title = "Retire the legacy swapchain path", .Facts = facts{ .Decision = "REVIEW_REQUIRED", .MergeState = "BLOCKED", .Reviews = { { "bo", "COMMENTED" } }, .Awaiting = 2U } },
+			{ .Number = 4032U, .Title = "Mark layers dirty from setters only", .Facts = facts{ .Decision = "APPROVED", .Reviews = { { "alice", "APPROVED" }, { "bo", "APPROVED" } }, .Resolved = 1U } },
+			{ .Number = 4033U, .Title = "Pool frames by size class", .Facts = facts{ .Decision = "APPROVED", .MergeState = "UNSTABLE", .Reviews = { { "alice", "APPROVED" } }, .FailedCheck = "build-linux" } },
+			{ .Number = 4034U, .Title = "Split the frame graph by pass", .Facts = facts{ .MergeState = "DIRTY", .Reviews = { { "cy", "COMMENTED" } } } },
+			{ .Number = 4035U, .Title = "Document the frame pool contract", .Facts = facts{ .Decision = "REVIEW_REQUIRED", .MergeState = "BLOCKED" } },
+			{ .Number = 4036U, .Title = "Explore a tiled renderer", .Draft = true, .Facts = facts{ .MergeState = "DRAFT" } },
+			{ .Number = 4037U, .Title = "Resize without dropping the retained frame", .Requested = { "alice", "cy" }, .Facts = facts{ .Decision = "REVIEW_REQUIRED", .MergeState = "BLOCKED" } },
+			{ .Number = 4038U, .Title = "Batch uploads across frames", .Facts = facts{ .Decision = "APPROVED", .MergeState = "BLOCKED", .Reviews = { { "bo", "APPROVED" } }, .PendingChecks = 2U } },
+			{ .Number = 4039U, .Title = "Tidy the frame timing log", .Facts = facts{ .Reviews = { { "cy", "COMMENTED" } } } },
+		};
+	}
+
+	/// \brief [[RFC-BPR-0098]]. Those rows as discovery serves them, opened
+	/// by `aViewer`.
+	[[nodiscard]] inline auto home_next_move_fixture_pull_requests(const std::string_view aViewer)
+		-> std::vector<github_personal_discovery_fixture::pull_request>
+	{
+		auto rows = std::vector<github_personal_discovery_fixture::pull_request>{ };
+		for (auto& row : home_next_move_fixture_rows()) {
+			auto pull   = github_personal_discovery_fixture::pull_request{ };
+			pull.Number = row.Number;
+			pull.Author = std::string{ aViewer };
+			for (const auto login : row.Requested) {
+				pull.RequestedUsers.emplace_back(login);
+			}
+			pull.Draft    = std::make_shared<std::atomic<bool>>(row.Draft);
+			pull.NextMove = std::move(row.Facts);
 			rows.push_back(std::move(pull));
 		}
 		return rows;

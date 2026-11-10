@@ -279,6 +279,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-home-look" },
 		bpr::app::command_line_option{ .Name = "attended-home-rows" },
+		bpr::app::command_line_option{ .Name = "attended-home-moves" },
 		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-refresh-delay-ms", .TakesValue = true },
@@ -11623,7 +11624,10 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1865]]. With the home look, sixteen more rows with titles and
 		// authors of their own, for judging Home's filter.
 		const auto attendedHomeRows = launch.has("--attended-home-rows");
-		const auto parseCount       = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
+		// [[RFC-BPR-0098]]. With the home look, ten pull requests of mine,
+		// one for each next move a fixture can show.
+		const auto attendedHomeMoves = launch.has("--attended-home-moves");
+		const auto parseCount        = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
 			if (!aText.has_value()) {
 				return std::nullopt;
 			}
@@ -11637,7 +11641,7 @@ auto main(int argc, char** argv) -> int
 		const auto readFailNumber   = parseCount(readFailText);
 		auto       readDelayFixture = std::shared_ptr<bpr::app::detail::github_read_delay_fixture>{ };
 		if ((readDelayText.has_value() && !readDelay.has_value()) || (readFailText.has_value() && !readFailNumber.has_value())
-			|| (attendedHomeRows && !attendedHomeLook)
+			|| (attendedHomeRows && !attendedHomeLook) || (attendedHomeMoves && !attendedHomeLook)
 			|| (attendedHomeLook && (!attendedLaunch || attendedOpenPullRequest || attendedOpenSettings || attendedPreflightLook.has_value() || attendedTourStop || attendedWorkshopAgent.has_value() || attendedReadState))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
@@ -11708,6 +11712,11 @@ auto main(int argc, char** argv) -> int
 			};
 			if (attendedHomeRows) {
 				for (auto& row : bpr::app::detail::home_filter_fixture_pull_requests("octo-reviewer")) {
+					fixtureOptions.PersonalDiscovery->OpenPullRequests.push_back(std::move(row));
+				}
+			}
+			if (attendedHomeMoves) {
+				for (auto& row : bpr::app::detail::home_next_move_fixture_pull_requests("octo-reviewer")) {
 					fixtureOptions.PersonalDiscovery->OpenPullRequests.push_back(std::move(row));
 				}
 			}

@@ -292,6 +292,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_dependable_session_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1865]]. Home's filter, same public-path fixture desktop root.
     "application_home_filter_public_path": "private-desktop-root-refused",
+    # [[RFC-BPR-0098]]. Home's next moves, same public-path fixture desktop root.
+    "application_home_next_move_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.

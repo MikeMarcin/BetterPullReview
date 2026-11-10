@@ -4,6 +4,7 @@
 #include "bpr/core/review_queue.hpp"
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -78,6 +79,75 @@ namespace bpr::core {
 	[[nodiscard]] auto explanation(attention_bucket aBucket) noexcept
 		-> std::string_view;
 
+	/// \brief [[BPR-1718]]. The verdict of the reviewer's own latest
+	/// submitted review of a pull request, as Home says it.
+	///
+	/// \details Stored by value: append only, so every stored value keeps its
+	/// meaning.
+	enum class my_review_verdict : std::uint8_t {
+		/// No submitted review by this reviewer was read.
+		none,
+		/// Comments only, with no approval or change request standing.
+		commented,
+		changes_requested,
+		approved,
+		/// The verdict was dismissed and nothing was submitted after it.
+		dismissed,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(my_review_verdict aVerdict) noexcept -> std::string_view;
+
+	/// \brief [[RFC-BPR-0098]]. GitHub's review decision on a pull request,
+	/// as last read.
+	///
+	/// \details Stored by value: append only. `none` is GitHub reporting no
+	/// decision, which it does when no review is required; a decision that was
+	/// not read is an absent value, not `none`.
+	enum class queue_review_decision : std::uint8_t {
+		none,
+		review_required,
+		changes_requested,
+		approved,
+	};
+
+	/// \brief [[RFC-BPR-0098]]. GitHub's merge state of a pull request, as
+	/// last read. Stored by value: append only.
+	enum class queue_merge_state : std::uint8_t {
+		/// Not read, or GitHub had not computed it.
+		unknown,
+		clean,
+		/// Branch protection refuses the merge (a review, a check, a rule).
+		blocked,
+		/// The head is behind a base that must be merged in first.
+		behind,
+		/// The head conflicts with the base.
+		conflicts,
+		draft,
+		/// Mergeable, with hooks that run on merge.
+		hooks,
+		/// Mergeable, but a commit status is not passing.
+		unstable,
+	};
+
+	/// \brief [[RFC-BPR-0098]]. One reviewer's standing verdict on a pull
+	/// request, by login, as `my_review_for` decides one from their reviews.
+	struct queue_reviewer_state
+	{
+		std::string       Login;
+		my_review_verdict State = my_review_verdict::commented;
+
+		auto operator<=>(const queue_reviewer_state&) const = default;
+	};
+
+	/// \brief [[RFC-BPR-0098]]. At most this many reviewers' verdicts are
+	/// carried; the sentence that names them names fewer.
+	inline constexpr std::size_t maximum_queue_reviewer_states = 8U;
+
+	/// \brief [[RFC-BPR-0098]]. At most this many review threads of an
+	/// authored pull request are read for conversations awaiting a reply.
+	inline constexpr std::uint32_t maximum_queue_review_threads = 50U;
+
 	/// \brief A bounded last accepted review/merge summary, independent of local activity.
 	struct queue_waiting_facts
 	{
@@ -88,6 +158,26 @@ namespace bpr::core {
 		bool                         ChecksKnown = false, NamesKnown = false;
 		bool                         RequestsStale = false, AssessmentStale = false, ChecksStale = false;
 		std::string                  Head, Base;
+		/// [[RFC-BPR-0098]]. The review decision and merge state the two
+		/// booleans above are reduced from; stale with `AssessmentStale`.
+		std::optional<queue_review_decision> Decision;
+		queue_merge_state                    Merge = queue_merge_state::unknown;
+		/// [[RFC-BPR-0098]]. Checks still running on the head; known with
+		/// `ChecksKnown`, stale with `ChecksStale`.
+		std::uint32_t PendingChecks = 0U;
+		/// [[RFC-BPR-0098]]. Every other reviewer's standing verdict, at most
+		/// `maximum_queue_reviewer_states`, in the order they first
+		/// reviewed. Never the viewer's own: on their pull request that is a
+		/// reply. Meaningful only when `ReviewsKnown`.
+		std::vector<queue_reviewer_state> LatestReviews;
+		bool                              ReviewsKnown = false, ReviewsStale = false;
+		/// [[RFC-BPR-0098]]. Unresolved review conversations whose latest
+		/// comment is not the viewer's, among the last
+		/// `maximum_queue_review_threads` threads read. Absent when the
+		/// host could not read them. `MoreConversations` says the pull
+		/// request has more threads than were read.
+		std::optional<std::uint32_t> AwaitingReply;
+		bool                         MoreConversations = false, ConversationsStale = false;
 		auto                         operator<=>(const queue_waiting_facts&) const = default;
 	};
 
@@ -168,25 +258,6 @@ namespace bpr::core {
 		auto operator<=>(const queue_change_facts&) const = default;
 	};
 
-	/// \brief [[BPR-1718]]. The verdict of the reviewer's own latest
-	/// submitted review of a pull request, as Home says it.
-	///
-	/// \details Stored by value: append only, so every stored value keeps its
-	/// meaning.
-	enum class my_review_verdict : std::uint8_t {
-		/// No submitted review by this reviewer was read.
-		none,
-		/// Comments only, with no approval or change request standing.
-		commented,
-		changes_requested,
-		approved,
-		/// The verdict was dismissed and nothing was submitted after it.
-		dismissed,
-	};
-
-	/// \brief Returns the stable name for the supplied value.
-	[[nodiscard]] auto name(my_review_verdict aVerdict) noexcept -> std::string_view;
-
 	/// \brief [[BPR-1718]]. One review this reviewer submitted, as the
 	/// host read it, in the order the provider returned them.
 	struct my_submitted_review
@@ -226,6 +297,23 @@ namespace bpr::core {
 	/// approved. "New commits" is the verdict's own review against the current
 	/// head; an unknown commit says nothing. Reads no clock and no provider.
 	[[nodiscard]] auto my_review_for(std::span<const my_submitted_review> aReviews) noexcept -> queue_my_review;
+
+	/// \brief [[RFC-BPR-0098]]. One review another reviewer submitted, by
+	/// login, in the order the provider returned them.
+	struct reviewer_submitted_review
+	{
+		std::string         Login;
+		my_submitted_review Review;
+
+		auto operator<=>(const reviewer_submitted_review&) const = default;
+	};
+
+	/// \brief [[RFC-BPR-0098]]. Each reviewer's standing verdict, as
+	/// `my_review_for` decides one, in the order they first reviewed.
+	///
+	/// \details At most `maximum_queue_reviewer_states`; a reviewer past
+	/// that is left out. Logins compare exactly, as the provider wrote them.
+	[[nodiscard]] auto latest_reviewer_states(std::span<const reviewer_submitted_review> aReviews) -> std::vector<queue_reviewer_state>;
 
 	/// \brief What the host read about a pull request, carried on its item.
 	///
@@ -286,8 +374,84 @@ namespace bpr::core {
 		auto operator<=>(const queue_item&) const = default;
 	};
 
+	/// \brief [[RFC-BPR-0098]]. The one thing a pull request the viewer
+	/// authored is waiting for.
+	///
+	/// \details The order is the decision table's: the first that holds wins,
+	/// and My pull requests lists its rows in this order. Derived on every
+	/// read from the item's facts and never stored.
+	enum class authored_next_move : std::uint8_t {
+		/// A reviewer requested changes, or a conversation awaits my reply.
+		returned,
+		/// A check failed.
+		failing,
+		/// GitHub refuses the merge and no failed check, running check or
+		/// outstanding review explains it.
+		blocked,
+		/// Approved, every check passed, mergeable.
+		ready,
+		/// Comments I have not read.
+		unread,
+		/// Not a draft; no reviewer is requested and nobody has reviewed.
+		unassigned,
+		draft,
+		/// Reviewers are awaited: the row's bucket is
+		/// `authored_awaiting_reviewer_action`.
+		waiting,
+		/// Approved; checks still running.
+		checking,
+		quiet,
+		/// Nothing about the pull request has been read yet
+		/// (`attention_bucket::detail_unknown`).
+		unknown,
+	};
+
+	/// \brief Whose move a next move says it is.
+	enum class next_move_owner : std::uint8_t {
+		mine,
+		theirs,
+		nobody_yet,
+		nobody,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(authored_next_move aMove) noexcept -> std::string_view;
+
+	/// \brief Whose move one next move is, by the decision table.
+	[[nodiscard]] auto owner_of(authored_next_move aMove) noexcept -> next_move_owner;
+
+	/// \brief Whether the facts say a reviewer's change request stands.
+	///
+	/// \details GitHub's decision when it gave one; when it reports none
+	/// (no review is required), any reviewer whose standing verdict is a
+	/// change request.
+	[[nodiscard]] auto changes_requested(const queue_waiting_facts& aFacts) noexcept -> bool;
+
+	/// \brief Whether the facts say the pull request is approved, as
+	/// `changes_requested` reads them.
+	[[nodiscard]] auto approved(const queue_waiting_facts& aFacts) noexcept -> bool;
+
+	/// \brief [[RFC-BPR-0098]]. Decides the next move of a pull request the
+	/// viewer authored; none for one they did not.
+	///
+	/// \details The whole of the decision table. Reads the item's bucket,
+	/// draft status, unseen count and waiting facts and nothing else. An
+	/// absent fact never matches a row that needs it: a pull request whose
+	/// conversations could not be read is Returned only on a change request,
+	/// and one whose reviews were not read is never Unassigned.
+	[[nodiscard]] auto next_move_for(const queue_item& aItem) noexcept -> std::optional<authored_next_move>;
+
+	/// \brief [[RFC-BPR-0098]]. Whether Home's "Hide quiet" hides the row:
+	/// a Quiet next move for a pull request the viewer authored, otherwise a
+	/// quiet bucket with no merge blocker.
+	[[nodiscard]] auto home_row_quiet(const queue_item& aItem) noexcept -> bool;
+
 	/// \brief [[BPR-1683]]. The Home section of one decided item: `ignored`
 	/// for an ignored row, otherwise its membership's section.
+	///
+	/// \details [[RFC-BPR-0098]]. An authored row is in Waiting on others
+	/// exactly when its next move is Waiting, and in My pull requests
+	/// otherwise.
 	[[nodiscard]] auto home_section_for(const queue_item& aItem) noexcept -> home_queue_section;
 
 	/// \brief Whether one item is in this queue in the supplied role.
@@ -319,7 +483,9 @@ namespace bpr::core {
 	/// \brief The deterministic priority relation used by complete and incremental projections.
 	///
 	/// \details [[BPR-1683]]. Ignored items follow every other item; within
-	/// each part the order is bucket, then identity.
+	/// each part the order is bucket, then identity. [[RFC-BPR-0098]]. A row
+	/// of My pull requests ranks by its next move instead of its bucket, after
+	/// every row that needs me and before every row waiting on others.
 	[[nodiscard]] auto queue_precedes(const queue_item& aLeft, const queue_item& aRight) -> bool;
 
 	/// \brief Builds the ordered queue from enrolled items.

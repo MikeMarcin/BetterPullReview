@@ -1849,8 +1849,11 @@ namespace {
 		expect(durable && durable->LastFacts.MyReview == fixture.item(17)->Facts.MyReview, "the private record keeps it");
 		const auto encoded = application::encode_queue_facts(durable->LastFacts);
 		const auto decoded = encoded ? application::decode_queue_facts(*encoded) : std::nullopt;
-		expect(encoded && encoded->starts_with("3;") && decoded && decoded->MyReview == durable->LastFacts.MyReview && decoded->Change == durable->LastFacts.Change,
-			   "the store's codec carries the verdict across a restart as version 3");
+		// [[RFC-BPR-0098]]. A retained read also carries the other
+		// reviewers' verdicts, so the row is written as version 4.
+		expect(encoded && encoded->starts_with("4;") && decoded && decoded->MyReview == durable->LastFacts.MyReview && decoded->Change == durable->LastFacts.Change
+				   && decoded->Waiting.ReviewsKnown && decoded->Waiting.LatestReviews == durable->LastFacts.Waiting.LatestReviews,
+			   "the store's codec carries the verdict and the reviewers' verdicts across a restart as version 4");
 
 		fixture.Discovery.refresh();
 		auto dismissed    = approved;
@@ -1865,8 +1868,17 @@ namespace {
 		fixture.Provider.answer(fixture.Provider.rows({ none }));
 		fixture.settle();
 		expect(fixture.item(17)->Facts.MyReview == core::queue_my_review{ }, "a read with none of my reviews leaves no verdict");
-		const auto plain = application::encode_queue_facts(fixture.record(17)->LastFacts);
-		expect(plain && plain->starts_with("2;"), "a row with no verdict keeps its version 2 bytes");
+		auto older                  = fixture.record(17)->LastFacts;
+		older.Waiting.ReviewsKnown  = false;
+		older.Waiting.LatestReviews = { };
+		older.Waiting.Decision      = std::nullopt;
+		older.Waiting.Merge         = core::queue_merge_state::unknown;
+		older.Waiting.PendingChecks = 0U;
+		older.Waiting.AwaitingReply = std::nullopt;
+		const auto plain            = application::encode_queue_facts(older);
+		expect(plain && plain->starts_with("2;"), "a row with no verdict and no next-move facts keeps its version 2 bytes");
+		const auto mine = application::encode_queue_facts(fixture.record(17)->LastFacts);
+		expect(mine && mine->starts_with("4;"), "[[RFC-BPR-0098]] with the reviewers' verdicts read it is version 4");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}
@@ -1889,6 +1901,51 @@ namespace {
 		expect(unread && unread->MyReview == core::queue_my_review{ .Verdict = core::my_review_verdict::approved, .NewCommits = true }, "an unread time reads back as unread");
 		facts.MyReview.SubmittedAt = -1;
 		expect(!application::encode_queue_facts(facts), "a submission before the epoch is refused");
+	}
+
+	// [[RFC-BPR-0098]]. The facts a next move is decided from survive a
+	// restart, read back as last known, and a malformed version 4 is refused.
+	void test_next_move_facts_codec_version_four()
+	{
+		auto  facts               = core::queue_item_facts{ .Title = "Mine", .Author = "octocat", .Authored = true };
+		auto& waiting             = facts.Waiting;
+		waiting.Decision          = core::queue_review_decision::changes_requested;
+		waiting.Merge             = core::queue_merge_state::conflicts;
+		waiting.PendingChecks     = 2U;
+		waiting.ChecksKnown       = true;
+		waiting.ReviewsKnown      = true;
+		waiting.LatestReviews     = { { .Login = "alice", .State = core::my_review_verdict::changes_requested }, { .Login = "bo", .State = core::my_review_verdict::approved } };
+		waiting.AwaitingReply     = 3U;
+		waiting.MoreConversations = true;
+		const auto encoded        = application::encode_queue_facts(facts).value_or(std::string{ });
+		const auto decoded        = application::decode_queue_facts(encoded);
+		expect(encoded.starts_with("4;") && decoded.has_value(), "next-move facts are written as version 4: " + encoded);
+		const auto& read = decoded->Waiting;
+		expect(read.Decision == waiting.Decision && read.Merge == waiting.Merge && read.PendingChecks == 2U && read.LatestReviews == waiting.LatestReviews
+				   && read.AwaitingReply == 3U && read.MoreConversations && decoded->MyReview == core::queue_my_review{ },
+			   "every next-move fact reads back, with no verdict of mine");
+		expect(read.AssessmentStale && read.ReviewsStale && read.ConversationsStale, "and reads back as last known");
+		// No conversations read is not zero.
+		facts.Waiting.AwaitingReply = std::nullopt;
+		const auto unread           = application::decode_queue_facts(application::encode_queue_facts(facts).value_or(std::string{ }));
+		expect(unread && !unread->Waiting.AwaitingReply && !unread->Waiting.ConversationsStale, "conversations not read stay unread");
+		expect(!application::decode_queue_facts(encoded.substr(0U, encoded.size() - 4U)), "a truncated version 4 is refused");
+		facts.Waiting.AwaitingReply = core::maximum_queue_review_threads + 1U;
+		expect(!application::encode_queue_facts(facts), "more conversations than are read is refused");
+		facts.Waiting.AwaitingReply = 1U;
+		facts.Waiting.LatestReviews = { { .Login = "", .State = core::my_review_verdict::approved } };
+		expect(!application::encode_queue_facts(facts), "a reviewer without a login is refused");
+
+		// A later read without conversations keeps the count, last known; one
+		// with them replaces it.
+		auto retained = decoded->Waiting;
+		auto blind    = core::queue_waiting_facts{ .ChecksKnown = true, .Head = std::string(40U, 'a') };
+		application::merge_queue_waiting(retained, blind);
+		expect(retained.AwaitingReply == 3U && retained.ConversationsStale && retained.ReviewsStale, "a read that could not see them keeps them as last known");
+		blind.AwaitingReply = 0U;
+		blind.ReviewsKnown  = true;
+		application::merge_queue_waiting(retained, blind);
+		expect(retained.AwaitingReply == 0U && !retained.ConversationsStale && retained.LatestReviews.empty() && !retained.ReviewsStale, "a read that saw them replaces them");
 	}
 
 	void test_change_facts_codec_reads_version_one()
@@ -3348,6 +3405,7 @@ namespace {
 
 auto main() -> int
 {
+	test_next_move_facts_codec_version_four();
 	test_repository_addition_refuses_unknown_durable_state();
 	test_repository_addition_results_without_a_pull_request();
 	test_repository_addition_fanout_and_stale_terminals();

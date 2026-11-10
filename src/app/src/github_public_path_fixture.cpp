@@ -71,6 +71,12 @@ namespace bpr::app::detail {
 					return QString::fromUtf8(row.Title.data(), static_cast<qsizetype>(row.Title.size()));
 				}
 			}
+			// [[RFC-BPR-0098]]. So do the next-move rows.
+			for (const auto& row : home_next_move_fixture_rows()) {
+				if (aNumber == QString::number(row.Number)) {
+					return QString::fromUtf8(row.Title.data(), static_cast<qsizetype>(row.Title.size()));
+				}
+			}
 			return aNumber == QStringLiteral("4002")
 				? QStringLiteral("Keep the review queue's discovery cache warm across restarts so one slow repository never holds back the rows of every other saved repository")
 				: QStringLiteral("Discovered pull request ") + aNumber;
@@ -2526,7 +2532,29 @@ namespace bpr::app::detail {
 					}
 					rollup = QJsonObject{ { "contexts", page(contexts, contexts.size()) } };
 				}
-				const auto pull = QJsonObject{
+				// [[RFC-BPR-0098]]. A row with next-move facts serves exactly
+				// those: its reviews, checks, decision and merge state.
+				const auto* const moved = known && found->NextMove ? &*found->NextMove : nullptr;
+				const auto        utf8  = [](const std::string_view aText) { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); };
+				if (moved != nullptr) {
+					reviews = QJsonArray{ };
+					for (std::size_t review = 0U; review < moved->Reviews.size(); ++review) {
+						const auto& [who, state] = moved->Reviews[review];
+						reviews.append(QJsonObject{ { "databaseId", 75000 + static_cast<qint64>(number) * 10 + static_cast<qint64>(review) }, { "state", utf8(state) }, { "submittedAt", "2026-11-09T10:00:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", utf8(who) }, { "id", QStringLiteral("U_") + utf8(who) } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+					}
+					auto contexts = QJsonArray{ };
+					for (std::uint32_t check = 0U; check < moved->PassedChecks; ++check) {
+						contexts.append(QJsonObject{ { "__typename", "CheckRun" }, { "name", QStringLiteral("check-%1").arg(check) }, { "status", "COMPLETED" }, { "conclusion", "SUCCESS" } });
+					}
+					if (!moved->FailedCheck.empty()) {
+						contexts.append(QJsonObject{ { "__typename", "CheckRun" }, { "name", utf8(moved->FailedCheck) }, { "status", "COMPLETED" }, { "conclusion", "FAILURE" } });
+					}
+					for (std::uint32_t check = 0U; check < moved->PendingChecks; ++check) {
+						contexts.append(QJsonObject{ { "__typename", "CheckRun" }, { "name", QStringLiteral("running-%1").arg(check) }, { "status", "IN_PROGRESS" }, { "conclusion", QJsonValue::Null } });
+					}
+					rollup = QJsonObject{ { "contexts", page(contexts, contexts.size()) } };
+				}
+				auto pull = QJsonObject{
 					{ "id", QStringLiteral("PR_fixture_%1").arg(number) },
 					{ "number", static_cast<qint64>(number) },
 					{ "title", known ? discovered_title(QString::number(number)) : QStringLiteral("Served the REST way") },
@@ -2552,6 +2580,29 @@ namespace bpr::app::detail {
 					{ "autoMergeRequest", QJsonValue::Null },
 					{ "commits", QJsonObject{ { "nodes", QJsonArray{ QJsonObject{ { "commit", QJsonObject{ { "oid", head(waiting) }, { "statusCheckRollup", rollup } } } } } } } },
 				};
+				if (moved != nullptr) {
+					pull.insert("mergeStateStatus", utf8(moved->MergeState));
+					pull.insert("reviewDecision", moved->Decision.empty() ? QJsonValue{ QJsonValue::Null } : QJsonValue{ utf8(moved->Decision) });
+				}
+				// [[RFC-BPR-0098]]. An authored pull request's alias asks for
+				// its review threads too.
+				if (std::ranges::binary_search(semantic.AuthoredPullRequestNumbers, number)) {
+					auto       threads = QJsonArray{ };
+					const auto thread  = [&threads](const bool aResolved, const QString& aLogin, const QString& aId) {
+						const auto author = QJsonObject{ { "__typename", "User" }, { "login", aLogin }, { "id", aId } };
+						threads.append(QJsonObject{ { "isResolved", aResolved }, { "comments", QJsonObject{ { "nodes", QJsonArray{ QJsonObject{ { "author", author } } } } } } });
+					};
+					for (std::uint32_t count = 0U; moved != nullptr && count < moved->Awaiting; ++count) {
+						thread(false, QStringLiteral("alice"), QStringLiteral("U_alice"));
+					}
+					for (std::uint32_t count = 0U; moved != nullptr && count < moved->Answered; ++count) {
+						thread(false, QStringLiteral("octo-reviewer"), QStringLiteral("U_fixture_viewer"));
+					}
+					for (std::uint32_t count = 0U; moved != nullptr && count < moved->Resolved; ++count) {
+						thread(true, QStringLiteral("alice"), QStringLiteral("U_alice"));
+					}
+					pull.insert("reviewThreads", QJsonObject{ { "totalCount", threads.size() }, { "nodes", threads } });
+				}
 				repository.insert(QStringLiteral("p%1").arg(index), pull);
 			}
 			auto response = adapters::github::detail::wire_response{ .Status = 200, .Completeness = page_completeness::complete };

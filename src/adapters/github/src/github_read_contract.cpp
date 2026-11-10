@@ -2,6 +2,7 @@
 #include "bpr/core/home_discovery_plan.hpp"
 #include "bpr/core/json_preflight.hpp"
 #include "bpr/core/markdown_image.hpp"
+#include "bpr/core/review_queue_attention.hpp"
 #include "github_graphql_operation_policy.hpp"
 #include "github_http_helpers.hpp"
 
@@ -450,6 +451,13 @@ namespace bpr::adapters::github::detail {
 																" nodes{__typename ... on CheckRun{name status conclusion} ... on StatusContext{context state}}}}}}}}";
 		static_assert(core::discovery_batch_page == 50U, "the fragment's first pages are the core's batch page");
 
+		/// [[RFC-BPR-0098]]. What an authored pull request's alias adds: its
+		/// last review threads, each resolved or not and its latest comment's
+		/// author, for the conversations that await the author's reply.
+		constexpr std::string_view home_conversations_fragment = "fragment HomeConversations on PullRequest{reviewThreads(last:50){totalCount"
+																 " nodes{isResolved comments(last:1){nodes{author{__typename login ... on Node{id}}}}}}}";
+		static_assert(core::maximum_queue_review_threads == 50U, "the fragment's last page is the core's thread bound");
+
 		struct home_variables_json
 		{
 			std::string_view Name;
@@ -476,10 +484,16 @@ namespace bpr::adapters::github::detail {
 		{
 			auto query = std::string{ "query ListHomePullRequests($owner:String!,$name:String!){repository(owner:$owner,name:$name){id nameWithOwner" };
 			for (std::size_t index = 0U; index < aRequest.PullRequestNumbers.size(); ++index) {
-				query += " p" + std::to_string(index) + ":pullRequest(number:" + std::to_string(aRequest.PullRequestNumbers[index]) + "){...HomePullRequest}";
+				const auto number   = aRequest.PullRequestNumbers[index];
+				const auto authored = std::ranges::binary_search(aRequest.AuthoredPullRequestNumbers, number);
+				query += " p" + std::to_string(index) + ":pullRequest(number:" + std::to_string(number) + (authored ? "){...HomePullRequest ...HomeConversations}" : "){...HomePullRequest}");
 			}
 			query += "}} ";
 			query += home_pull_request_fragment;
+			if (!aRequest.AuthoredPullRequestNumbers.empty()) {
+				query += " ";
+				query += home_conversations_fragment;
+			}
 			auto document            = home_query_json{ };
 			document.Query           = query;
 			document.Variables.Name  = aRequest.Repository;
@@ -2144,6 +2158,13 @@ namespace bpr::adapters::github::detail {
 		const auto membership = aRequest.Operation == read_operation::list_home_review_membership;
 		const auto home       = aRequest.Operation == read_operation::list_home_pull_requests || membership;
 		if ((home && (!valid_home_numbers(aRequest.PullRequestNumbers) || (membership && aRequest.Page > 1U && aRequest.PullRequestNumbers.size() != 1U))) || (!home && !aRequest.PullRequestNumbers.empty())) {
+			return failure(contract_failure_code::invalid_pull_request_number);
+		}
+		// [[RFC-BPR-0098]]. Authored numbers are some of the batch's, in order.
+		const auto& authored = aRequest.AuthoredPullRequestNumbers;
+		if (!authored.empty()
+			&& (aRequest.Operation != read_operation::list_home_pull_requests || std::ranges::adjacent_find(authored, std::greater_equal<>{ }) != authored.end()
+				|| !std::ranges::all_of(authored, [&aRequest](const std::uint32_t aNumber) { return std::ranges::binary_search(aRequest.PullRequestNumbers, aNumber); }))) {
 			return failure(contract_failure_code::invalid_pull_request_number);
 		}
 		const auto images    = aRequest.Operation == read_operation::resolve_body_images;
