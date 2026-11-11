@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2058"
 title: "Draft all suggested comments from an agent reply with several"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2058--BPR-2059--bd1353aea511.json","origin":"owner request, 2026-11-10","related_cards":["BPR-1753","BPR-1861","BPR-2059"]}
 depends_on: []
