@@ -1,4 +1,6 @@
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
@@ -8,6 +10,7 @@
 
 #include "owner_186_fixture.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/reference_page.hpp"
 
@@ -2731,6 +2734,102 @@ namespace {
 			view.hide();
 		}
 	}
+	/// The owner, 2026-11-10: "It's hard to read comments' line number
+	/// against the background it's on in dark theme." The open card's line
+	/// button reads on the card in every built-in theme: a published
+	/// thread's number, and my draft's "Line 40", which was drawn in the
+	/// selection colour (`Highlight`) and measured 2.4:1 in Dark. The
+	/// draft's "Draft" beside it is held to the same floor. With a
+	/// directory, each theme's open thread and open draft are drawn there.
+	auto test_line_numbers_read_on_the_open_card(const QString& aDirectory) -> void
+	{
+		const auto modes = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		const auto ratio = [](const QColor& aOne, const QColor& aOther) {
+			return static_cast<double>(core::contrast_ratio_hundredths(qt::to_appearance_color(aOne), qt::to_appearance_color(aOther))) / 100.0;
+		};
+		// The ground is the commonest colour on the widget, and the ink the
+		// pixel that differs from it most.
+		const auto measure = [&ratio](QWidget& aWidget) {
+			const auto image  = aWidget.grab().toImage();
+			auto       counts = std::map<QRgb, int>{ };
+			for (auto y = 0; y < image.height(); ++y) {
+				for (auto x = 0; x < image.width(); ++x) {
+					++counts[image.pixel(x, y)];
+				}
+			}
+			const auto ground = QColor{ std::ranges::max_element(counts, { }, &std::map<QRgb, int>::value_type::second)->first };
+			auto       ink    = ground;
+			for (auto y = 0; y < image.height(); ++y) {
+				for (auto x = 0; x < image.width(); ++x) {
+					if (ratio(image.pixelColor(x, y), ground) > ratio(ink, ground)) {
+						ink = image.pixelColor(x, y);
+					}
+				}
+			}
+			return std::pair{ ground, ink };
+		};
+		for (const auto& [modeName, mode] : modes) {
+			const auto name    = std::string{ modeName };
+			auto       profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto                  floor = static_cast<double>(core::minimum_contrast_hundredths(core::contrast_kind::text, profile.variant())) / 100.0;
+			qt::conversation_cards_view view;
+			view.setPalette(profile.derive(QApplication::palette()));
+			// The window's own two: the theme's unread blue and the marks' amber.
+			view.set_colours(profile.color(core::appearance_role::state_unread), QColor{ 0xD2, 0x99, 0x22 });
+			// And the theme the conversation panel gives its cards.
+			view.set_code_theme({ .Colors = qt::code_role_colors_of(profile.palette()), .Variant = profile.variant() });
+			view.resize(440, 760);
+			view.show();
+			view.adopt({ thread("t", "src/a.cpp", 10U), reply("c", "t", "someone", "Please rename this.") });
+			view.open_thread("t");
+			QApplication::processEvents();
+			auto* const published = view.open_card() == nullptr ? nullptr : view.open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
+			expect(published != nullptr && published->text() == QStringLiteral("10"), name + ": the open thread shows its line");
+			const auto [publishedGround, publishedInk] = measure(*published);
+			std::cout << "line-number " << name << " thread: ground " << publishedGround.name().toStdString() << " ink " << publishedInk.name().toStdString() << " ratio "
+					  << ratio(publishedInk, publishedGround) << '\n';
+			expect(ratio(publishedInk, publishedGround) + 0.005 >= floor, name + ": a published thread's line number reaches the theme's text floor on the card");
+			if (!aDirectory.isEmpty()) {
+				expect(view.open_card()->grab().save(aDirectory + QStringLiteral("/open-thread-%1.png").arg(QLatin1StringView{ modeName })), name + ": capture the open thread");
+			}
+
+			const auto comparison = core::file_comparison_digest{ };
+			view.set_draft(core::review_comment_draft{
+							   .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 39U },
+							   .Body   = "Check the default before publishing.",
+						   },
+						   comparison);
+			QApplication::processEvents();
+			const auto draft = std::ranges::find_if(view.cards(), &qt::thread_card::Draft);
+			expect(draft != view.cards().end(), name + ": my draft is a note");
+			const auto draftId = draft->Id;
+			view.open_thread(draftId);
+			QApplication::processEvents();
+			auto* const writing = view.open_card() == nullptr ? nullptr : view.open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
+			expect(writing != nullptr && writing->text() == QStringLiteral("Line 40"), name + ": the open draft names its line");
+			const auto [writingGround, writingInk] = measure(*writing);
+			std::cout << "line-number " << name << " draft: ground " << writingGround.name().toStdString() << " ink " << writingInk.name().toStdString() << " ratio "
+					  << ratio(writingInk, writingGround) << '\n';
+			auto* const state = view.open_card()->findChild<QWidget*>(QStringLiteral("threadState"));
+			expect(state != nullptr, name + ": the open draft says it is a draft");
+			const auto [stateGround, stateInk] = measure(*state);
+			std::cout << "line-number " << name << " draft state: ground " << stateGround.name().toStdString() << " ink " << stateInk.name().toStdString() << " ratio "
+					  << ratio(stateInk, stateGround) << '\n';
+			if (!aDirectory.isEmpty()) {
+				expect(view.open_card()->grab().save(aDirectory + QStringLiteral("/open-draft-%1.png").arg(QLatin1StringView{ modeName })), name + ": capture the open draft");
+			}
+			expect(ratio(writingInk, writingGround) + 0.005 >= floor, name + ": my draft's line number reaches the theme's text floor on the card");
+			expect(ratio(stateInk, stateGround) + 0.005 >= floor, name + ": my draft's \"Draft\" reaches the theme's text floor on the card");
+			view.hide();
+		}
+	}
+
 	/// [[BPR-1803]]. The owner, 2026-10-28: "I don't like the comments or
 	/// windows saying "you" id rather just always have our GitHub names like
 	/// everyone else". My thread, my reply and my unpublished note are named
@@ -3172,6 +3271,11 @@ auto main(int argc, char** argv) -> int
 		std::cout << "render-reactions:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-line-numbers") {
+		test_line_numbers_read_on_the_open_card(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-line-numbers:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-1803") {
 		test_my_posts_are_named_by_my_login(QString::fromLocal8Bit(argv[2]));
 		test_reactions_render_in_light_and_dark(QString::fromLocal8Bit(argv[2]));
@@ -3229,6 +3333,7 @@ auto main(int argc, char** argv) -> int
 	test_resolve_conversation_beside_reply();
 	test_reactions_render_in_light_and_dark({ });
 	test_my_posts_are_named_by_my_login({ });
+	test_line_numbers_read_on_the_open_card({ });
 	test_conversation_lists_comments_not_reviews();
 	test_a_review_body_is_a_comment_in_its_bundle();
 	test_my_comments_are_edited_in_place();
