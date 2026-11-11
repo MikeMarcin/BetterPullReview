@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shlex
 from pathlib import Path
 import shutil
@@ -729,6 +730,25 @@ python3() {
             harness += script[start:end]
             return subprocess.run(["bash", "-s", "--", *options], input=harness, capture_output=True, text=True)
 
+    def test_source_validation_forwards_scope_and_regressions_without_native_work(self):
+        script = (ROOT / "tools/release.sh").read_text()
+        prefix = script.split('[[ "$(uname -s)" == "Darwin" ]]', 1)[0]
+        for options in (["--test-profile", "comprehensive"], ["--test-scope", "routine"],
+                        ["--test-scope", "incremental", "--test-regressions", "^patch$", "--test-heavy-group", "process-recovery"],
+                        ["--skip-tests"]):
+            with self.subTest(options=options):
+                harness = prefix + '\npython3() { printf "request:%s\\n" "$*"; }\nvalidate_qualification_request\n'
+                result = subprocess.run(["bash", "-s", "--", *options], input=harness, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                if "--skip-tests" in options:
+                    self.assertEqual(result.stdout, "")
+                else:
+                    self.assertIn("--validate-request", result.stdout)
+                    self.assertNotIn("--preset", result.stdout)
+                    if "incremental" in options:
+                        self.assertIn("--include-tests-regex ^patch$", result.stdout)
+                        self.assertIn("--heavy-group process-recovery", result.stdout)
+
     def test_every_local_graph_precedes_qualification_and_variants_are_preserved(self):
         for variant in ("", "agent-free", "agent-free-automation-off"):
             for profile in ("normal", "comprehensive"):
@@ -799,6 +819,22 @@ python3() {
 
 
 class ReleaseProfileAdmissionTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "darwin", "native macOS release entrypoint")
+    def test_invalid_groups_scopes_and_regex_refuse_before_credentials_or_build(self):
+        version = re.search(r"project\([^)]*\bVERSION\s+(\d+\.\d+\.\d+)", (ROOT / "CMakeLists.txt").read_text(), re.S).group(1)
+        diagnostics = ROOT / "build/release-diagnostics"
+        before = set(diagnostics.glob("*"))
+        for arguments, message in ((["--test-scope", "routine", "--test-heavy-group", "typo"], "Unknown heavy group"),
+                                   (["--test-scope", "routine", "--test-scope", "ui"], "Routine cannot hide"),
+                                   (["--test-scope", "incremental", "--test-regressions", "["], "Invalid test selection")):
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(["bash", str(ROOT / "tools/release.sh"), "--version", version,
+                                         "--prepare-only", "--allow-dirty", *arguments], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+                self.assertNotIn("Building", result.stdout)
+                self.assertEqual(set(diagnostics.glob("*")), before)
+
     @unittest.skipUnless(sys.platform == "darwin", "native macOS release entrypoint")
     def test_missing_scope_or_patch_regressions_refuses_before_work(self):
         for arguments in ([], ["--test-scope", "incremental"], ["--test-scope", "qt"]):

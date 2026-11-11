@@ -262,6 +262,45 @@ def select_profile(names: list[str], profile: str, heavy_groups: list[str] | Non
     return result
 
 
+def validate_request(profile: str, heavy_groups: list[str], change_scopes: list[str],
+                     include_tests_regex: str | None = None, tests_regex: str | None = None,
+                     failures_first: Path | None = None, root: Path = ROOT) -> dict:
+    """Refuse invalid source-only requests before costly native work, not qualify rows."""
+    if profile not in {"normal", "debug-residual", "heavy", "comprehensive", "risk-preflight"}:
+        raise ValueError("Unknown test profile")
+    for expression in (include_tests_regex, tests_regex):
+        if expression is not None:
+            try:
+                re.compile(expression)
+            except re.error as error:
+                raise ValueError(f"Invalid test selection regular expression: {error}") from error
+    if profile == "risk-preflight" and (tests_regex is not None or failures_first is not None):
+        raise ValueError("Risk preflight cannot be narrowed or use prior failure ordering; run final qualification separately")
+    definition = json.loads((root / "tests/release_test_profiles.json").read_text(encoding="utf-8"))
+    if definition.get("schema") != "bpr.release-test-profiles.v1":
+        raise ValueError("Unknown release test profile schema")
+    groups, scopes = set(heavy_groups), set(change_scopes)
+    known_groups = {group["id"] for group in definition["groups"]}
+    known_scopes = set(definition["scope_groups"]) | set(definition["comprehensive_scopes"])
+    if groups - known_groups or scopes - known_scopes:
+        raise ValueError("Unknown heavy group or change scope")
+    if profile in {"normal", "debug-residual"} and not scopes:
+        raise ValueError("Normal qualification requires explicit --change-scope; unknown risk requires comprehensive")
+    if profile == "heavy" and not groups:
+        raise ValueError("Heavy qualification requires explicit --heavy-group")
+    if profile == "risk-preflight" and (groups or scopes):
+        raise ValueError("Risk preflight does not classify or replace final qualification scope")
+    if "routine" in scopes and len(scopes) != 1:
+        raise ValueError("Routine cannot hide another declared change scope")
+    if "incremental" in scopes and not include_tests_regex:
+        raise ValueError("Incremental qualification requires explicit --include-tests-regex patch regressions")
+    return dict(schema="bpr.test-request.v1", requested=profile,
+                effective="comprehensive" if profile == "comprehensive" or scopes.intersection(definition["comprehensive_scopes"]) else profile,
+                change_scopes=sorted(scopes), heavy_groups=sorted(groups), focused_regression_regex=include_tests_regex,
+                qualification_started=False,
+                note="Source-only request validation; native inventory, matches, configuration, scheduling and all qualification remain required.")
+
+
 def validate_native_configuration(manifest: dict, configuration: str = "Debug", label: str = "Debug residual") -> None:
     """Require the requested CTest mode and its actual generated build cache."""
     if any(row.get("config") != configuration for row in manifest["tests"]):
@@ -649,14 +688,21 @@ def main() -> int:
     parser.add_argument("--failures-first", type=Path, help="Prior same-preset timings.json: run its failed fixture/dependency groups first, then collect all remaining selected rows")
     parser.add_argument("--phase-ledger", type=Path, help="Append this attempt to an existing request ledger, including refusal/failure")
     parser.add_argument("--phase-context", type=Path, help="Nonsecret JSON source/config/tools/cache/lease facts for --phase-ledger")
+    parser.add_argument("--validate-request", action="store_true", help="Validate scope/group/regex syntax only; no configure, build, CTest or qualification")
     parser.add_argument("--report-log", type=Path, help="Only summarize an existing CTest console log")
     parser.add_argument("--json", action="store_true", help="Print a JSON report when reading --report-log")
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error("--jobs must be positive")
+    if args.validate_request and (args.output_dir or args.phase_ledger or args.phase_context or args.report_log):
+        parser.error("--validate-request cannot produce test outputs or phase receipts")
     if args.report_log:
         report = read_log(args.report_log)
         print(json.dumps(report, indent=2)) if args.json else print_report(report)
+        return 0
+    if args.validate_request:
+        print(json.dumps(validate_request(args.profile, args.heavy_group, args.change_scope,
+                                         args.include_tests_regex, args.tests_regex, args.failures_first), indent=2))
         return 0
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     output = args.output_dir or ROOT / "build/test-results" / args.preset / stamp

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 import io
+from datetime import timedelta
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,30 @@ class SuiteRunnerTests(unittest.TestCase):
         self.inputs = patch.object(suite, "bootstrap_inputs", return_value="fixture-identity")
         self.inputs.start()
         self.addCleanup(self.inputs.stop)
+
+    def test_source_only_request_validation_never_invokes_native_work(self):
+        with patch.object(suite, "run_suite", side_effect=AssertionError("native work started")), \
+             patch.object(suite.subprocess, "run", side_effect=AssertionError("child started")):
+            for profile, scopes in (("normal", ["routine"]), ("debug-residual", ["incremental"]), ("comprehensive", ["broad"])):
+                with self.subTest(profile=profile):
+                    arguments = ["run_test_suite.py", "--validate-request", "--profile", profile,
+                                 "--change-scope", scopes[0], "--include-tests-regex", "^patch$"]
+                    with patch.object(sys, "argv", arguments), redirect_stdout(io.StringIO()) as output:
+                        self.assertEqual(suite.main(), 0)
+                    result = json.loads(output.getvalue())
+                    self.assertFalse(result["qualification_started"])
+                    self.assertNotIn("selected", result)
+            for groups, scopes, expression in ((["typo"], ["routine"], None), ([], ["routine", "ui"], None),
+                                               ([], ["incremental"], None), ([], ["routine"], "[")):
+                with self.subTest(groups=groups, scopes=scopes, expression=expression):
+                    with self.assertRaises(ValueError):
+                        suite.validate_request("normal", groups, scopes, expression)
+        with ContainedTemporaryDirectory() as temporary:
+            output = Path(temporary) / "not-created"
+            arguments = ["run_test_suite.py", "--validate-request", "--output-dir", str(output)]
+            with patch.object(sys, "argv", arguments), patch.object(sys, "stderr", io.StringIO()), self.assertRaises(SystemExit):
+                suite.main()
+            self.assertFalse(output.exists())
 
     def test_failure_priority_preserves_normal_order_and_dependency_fixture_closure(self):
         with ContainedTemporaryDirectory() as temporary:
@@ -717,6 +742,66 @@ bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
 
 
 class PhaseLedgerTests(unittest.TestCase):
+    def test_overlap_accounting_separates_recorded_work_waits_and_unknown_time(self):
+        def at(seconds):
+            return ledger.instant("2026-01-01T00:00:00Z") + timedelta(seconds=seconds)
+        def phase(left, right):
+            return {"started_utc": at(left).isoformat(), "terminal": {"ended_utc": at(right).isoformat()} if right is not None else None}
+        phases = [phase(10, 40), phase(20, 50), phase(80, None)]
+        waits = [{**phase(30, 70), "kind": "human"}, {**phase(60, 90), "kind": "service"},
+                 {**phase(85, None), "kind": "capacity"}]
+        report = ledger.elapsed_accounting({"request_start_utc": at(0).isoformat()}, phases, waits, at(100), 90)
+        self.assertEqual(report["machine_recorded_wall_seconds"], 40)
+        self.assertEqual(report["wait_recorded_wall_seconds"], 70)
+        self.assertEqual(report["machine_and_wait_overlap_seconds"], 20)
+        self.assertEqual(report["unattributed_wall_seconds"], 10)
+        self.assertEqual(report["wait_by_kind_wall_seconds"], {"human": 40, "service": 30, "capacity": 15})
+        self.assertEqual(report["open_phase_window_seconds"], 20)
+        self.assertEqual((report["pending_phase_count"], report["pending_wait_count"]), (1, 1))
+        self.assertEqual(report["target"]["overrun_seconds"], 10)
+        self.assertFalse(report["target"]["qualification_credit"])
+        empty = ledger.elapsed_accounting({"request_start_utc": at(0).isoformat()}, [], [], at(100), None)
+        self.assertEqual(empty["unattributed_wall_seconds"], 100)
+        self.assertEqual(empty["wait_recorded_wall_seconds"], 0)
+        for target in (0, -1, float("nan"), float("inf")):
+            with self.assertRaisesRegex(ValueError, "finite and positive"):
+                ledger.elapsed_accounting({"request_start_utc": at(0).isoformat()}, [], [], at(100), target)
+        for invalid in ([phase(50, 40)], [phase(-1, 10)], [phase(50, 101)]):
+            with self.assertRaises(ValueError):
+                ledger.elapsed_accounting({"request_start_utc": at(0).isoformat()}, invalid, [], at(100), None)
+
+    def test_explicit_wait_cli_retains_pending_and_closed_wait_without_acceptance(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, context = root / "ledger.jsonl", root / "context.json"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            context.write_text('{"candidate":"fixture"}')
+            command = [sys.executable, str(ROOT / "scripts/release_phase_ledger.py"), "--ledger", str(path)]
+            begin = subprocess.run(command + ["begin-wait", "--phase", "owner-look", "--kind", "human", "--context", str(context)], capture_output=True, text=True)
+            self.assertEqual(begin.returncode, 0, begin.stderr)
+            identity = begin.stdout.strip()
+            pending = ledger.summary(path, 7200)
+            self.assertEqual(pending["pending_waits"], [identity])
+            self.assertEqual(pending["pending"], [])
+            self.assertEqual(pending["accounting"]["machine_recorded_wall_seconds"], 0)
+            end = subprocess.run(command + ["end-wait", "--wait-id", identity], capture_output=True, text=True)
+            self.assertEqual(end.returncode, 0, end.stderr)
+            closed = ledger.summary(path)
+            self.assertEqual(closed["pending_waits"], [])
+            self.assertEqual(closed["failed"], [])
+            self.assertNotIn("outcome", closed["waits"][0]["terminal"])
+            with self.assertRaisesRegex(ValueError, "cannot be rewritten"):
+                ledger.end_wait(path, identity)
+            with self.assertRaisesRegex(ValueError, "Unknown wait"):
+                ledger.end_wait(path, "unknown")
+            with self.assertRaises(ValueError):
+                ledger.begin_wait(path, "wait", "inferred", {})
+            result = subprocess.run(command + ["summary", "--target-seconds", "7200", "--accounting-only"], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            summary = json.loads(result.stdout)
+            self.assertEqual(summary["target"]["seconds"], 7200)
+            self.assertNotIn("phases", summary)
+
     def test_init_build_cli_writes_observed_context_and_never_replaces_it(self):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)

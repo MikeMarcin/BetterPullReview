@@ -60,7 +60,9 @@ separate. In particular v0.4.0 and its preview assets remain immutable.
 For a coordinated release or a resumed run, read
 [execution and recovery](references/execution.md) before dispatching native work.
 Use one durable phase record to reconcile existing jobs and schedule the shared
-Windows/WSL host. The [qualification procedure](references/optimized-qualification.md)
+Windows/WSL host. The execution reference records the two-hour clean-release
+target, source-only request admission and separate machine/wait accounting;
+the target changes no qualification obligation. The [qualification procedure](references/optimized-qualification.md)
 uses the owner-authorized normal Release baseline, named patch regressions and
 native Debug residual for bounded incremental releases. Major, broad, unknown,
 Qt/toolchain/platform or ownership changes require comprehensive native Release

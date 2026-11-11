@@ -23,7 +23,9 @@ result or permission to narrow required qualification.
   explicitly recorded human/service/capacity waits and unattributed elapsed time.
   Open/failed attempts remain visible; accounting neither infers wait causes nor
   grants acceptance. Report the two-hour budget without cancelling work.
-- AC2: The runbook distinguishes bounded eligible qualification from broad work,
+- AC2: Source-only request validation refuses invalid scopes/heavy IDs/regex
+  before credentials/builds, while full native selection remains mandatory.
+  The runbook distinguishes bounded eligible qualification from broad work,
   useful work during waits, verified independent native lanes and evidence needed
   before further concurrency. Retain required coverage, all failure receipts,
   physical-host exclusion and source/artifact/trust obligations.

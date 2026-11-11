@@ -179,6 +179,25 @@ Windows/Linux operators use the same runner before the existing package paths.
 An unsigned mechanical rehearsal can use already recorded qualification and the
 existing skip-tests/prepare-only producer path; it supplies no publication approval.
 
+### Validate a request before expensive builds
+
+Use `--validate-request` with the intended profile/scope/heavy groups and focused
+regression expression to reject unknown names, contradictory scope declarations
+and malformed regex syntax before native work. The Mac release entrypoint calls
+it before credential lookup and its three build graphs. It does not configure,
+build, invoke CTest, create test output or supply qualification evidence.
+
+```sh
+python3 scripts/run_test_suite.py --validate-request --profile normal --change-scope incremental --include-tests-regex '^NAMED_PATCH_COURSE$'
+```
+
+This is syntax/scope admission only. The native runner still checks the actual
+configuration, row inventory, regex matches, scheduling, tooling bootstrap and
+all selected results. A well-formed expression can still match no native row and
+be refused there. The [execution procedure](../../.codex/skills/publish-release/references/execution.md#aim-for-a-two-hour-clean-release)
+records the two-hour target and overlap-aware machine/wait accounting without
+changing any profile membership or acceptance.
+
 ## Prioritize repaired failures without dropping coverage
 
 For a repaired candidate, pass the previous same-preset `timings.json` to the

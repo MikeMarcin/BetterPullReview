@@ -129,6 +129,20 @@ record_phase() {
         --phase "${phase}" --context "${PHASE_CONTEXT}" --log-dir "${PHASE_LEDGER}.logs" -- "$@"
 }
 
+validate_qualification_request() {
+    if [[ "${SKIP_TESTS}" == "1" ]]; then return; fi
+    local arguments=(--validate-request --profile "${TEST_PROFILE}")
+    local scope group
+    if [[ ${#TEST_SCOPES[@]} -gt 0 ]]; then
+        for scope in "${TEST_SCOPES[@]}"; do arguments+=(--change-scope "${scope}"); done
+    fi
+    if [[ ${#TEST_HEAVY_GROUPS[@]} -gt 0 ]]; then
+        for group in "${TEST_HEAVY_GROUPS[@]}"; do arguments+=(--heavy-group "${group}"); done
+    fi
+    if [[ -n "${TEST_REGRESSIONS}" ]]; then arguments+=(--include-tests-regex "${TEST_REGRESSIONS}"); fi
+    python3 "${ROOT_DIR}/scripts/run_test_suite.py" "${arguments[@]}"
+}
+
 build_release_graphs() {
     if [[ "${SKIP_TESTS}" == "0" ]]; then
         log "Building Release and Debug test graphs before long qualification"
@@ -683,6 +697,8 @@ require_command lipo
 require_command otool
 require_command shasum
 require_command python3
+
+validate_qualification_request
 
 if [[ "${PREPARE_ONLY}" == "0" ]]; then
     require_command security
