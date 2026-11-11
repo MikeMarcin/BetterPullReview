@@ -1,3 +1,4 @@
+#include "../../src/adapters/git/src/git_artifact_lifetime.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 
 #include "../support/scratch_directory.hpp"
@@ -25,6 +26,7 @@
 #include <array>
 #include <atomic>
 #include <barrier>
+#include <cerrno>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -42,8 +44,14 @@
 #include <vector>
 
 #if defined(Q_OS_UNIX)
+	#include <fcntl.h>
 	#include <sys/stat.h>
 	#include <unistd.h>
+#endif
+
+#if defined(Q_OS_LINUX)
+	#include <linux/magic.h>
+	#include <sys/vfs.h>
 #endif
 
 #if defined(Q_OS_WIN)
@@ -1084,8 +1092,10 @@ namespace {
 		application::git_cache_port& aCache,
 		const std::filesystem::path& aRoot) -> void
 	{
-		for (const auto completed : { false, true }) {
-			const auto seed         = static_cast<std::uint8_t>(completed ? 0xbbU : 0xb9U);
+		for (const auto payloadBytes : { std::size_t{ 17U }, sha1_pack.size(), std::size_t{ 0U } }) {
+			const auto completed    = payloadBytes == sha1_pack.size();
+			const auto seed         = static_cast<std::uint8_t>(completed ? 0xbbU : payloadBytes == 0U ? 0xbdU
+																									   : 0xb9U);
 			const auto cacheRequest = request(seed, static_cast<std::uint8_t>(seed + 1U));
 			auto       opened       = aCache.open(cacheRequest, { });
 			require(opened.has_value(), "open receiving recovery cache");
@@ -1111,8 +1121,8 @@ namespace {
 				append_pack(**sink, sha1_pack);
 				const auto receipt = (*sink)->finish({ });
 				require(receipt && receipt->Spool.Identity == ownership->Identity, "completed publication preserves the witnessed identity");
-			} else {
-				require((*sink)->append(std::as_bytes(std::span{ sha1_pack }.first(17U)), { }).has_value(), "receive a partial payload");
+			} else if (payloadBytes != 0U) {
+				require((*sink)->append(std::as_bytes(std::span{ sha1_pack }.first(payloadBytes)), { }).has_value(), "receive a partial payload");
 			}
 			const auto name     = (completed ? "" : ".") + lower_hex(operation.bytes()) + (completed ? ".pack.part" : ".pack.receiving");
 			const auto spool    = aRoot / "incoming" / "v1" / name;
@@ -1138,14 +1148,74 @@ namespace {
 			require(observed && observed->Spool == application::git_recovery_match::mismatch
 						&& !rejected && rejected.error() == application::git_cache_failure::repair_required
 						&& std::filesystem::file_size(spool) == std::string_view{ "unrelated fixture artifact" }.size()
-						&& std::filesystem::file_size(original) == (completed ? sha1_pack.size() : 17U),
+						&& std::filesystem::file_size(original) == payloadBytes,
 					"receiving ownership refuses substituted partial or completed artifacts and preserves both files");
+#if defined(Q_OS_LINUX)
+			if (payloadBytes == 17U) {
+				std::filesystem::remove(spool);
+				require(::mkfifo(spool.c_str(), S_IRUSR | S_IWUSR) == 0, "substitute an owned FIFO for the receiving name");
+				// A keeper prevents the negative missing-O_NONBLOCK case from
+				// hanging: the actual returned descriptor flags still expose it.
+				const auto keeper             = ::open(spool.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
+				const auto observedDescriptor = git_adapter::detail::open_observed_file(spool);
+				const auto flags              = observedDescriptor >= 0 ? ::fcntl(observedDescriptor, F_GETFL) : -1;
+				if (observedDescriptor >= 0) {
+					static_cast<void>(::close(observedDescriptor));
+				}
+				if (keeper >= 0) {
+					static_cast<void>(::close(keeper));
+				}
+				require(keeper >= 0 && flags >= 0 && (flags & O_NONBLOCK) != 0,
+						"production artifact descriptor opener cannot block on substituted FIFO");
+				const auto fifoObserved = (*opened)->inspect_operation_recovery(recovery, { });
+				const auto fifoAbort    = (*opened)->abort_recovered_operation(recovery, { });
+				require(fifoObserved && fifoObserved->Spool == application::git_recovery_match::mismatch
+							&& !fifoAbort && fifoAbort.error() == application::git_cache_failure::repair_required
+							&& std::filesystem::symlink_status(spool).type() == std::filesystem::file_type::fifo
+							&& std::filesystem::file_size(original) == payloadBytes,
+						"FIFO substitution refuses promptly and preserves both foreign name and owned payload");
+			}
+#endif
 			std::filesystem::remove(spool);
 			std::filesystem::rename(original, spool);
+#if defined(Q_OS_LINUX)
+			// These controls keep the actual device/inode and payload unchanged.
+			// Only the persisted generation or its legacy scheme differs.
+			auto stale = recovery;
+			stale.Receiving->Identity.Bytes[23U] ^= 1U;
+			const auto staleObserved = (*opened)->inspect_operation_recovery(stale, { });
+			const auto staleAbort    = (*opened)->abort_recovered_operation(stale, { });
+			require(staleObserved && staleObserved->Spool == application::git_recovery_match::mismatch
+						&& !staleAbort && staleAbort.error() == application::git_cache_failure::repair_required
+						&& std::filesystem::file_size(spool) == payloadBytes,
+					"stale generation refuses unchanged device/inode and preserves the exact payload");
+			auto legacy                          = recovery;
+			legacy.Receiving->Identity.Bytes[2U] = 1U;
+			std::fill(legacy.Receiving->Identity.Bytes.begin() + 16, legacy.Receiving->Identity.Bytes.begin() + 24, 0U);
+			const auto legacyObserved = (*opened)->inspect_operation_recovery(legacy, { });
+			const auto legacyAbort    = (*opened)->abort_recovered_operation(legacy, { });
+			require(legacyObserved && legacyObserved->Spool == application::git_recovery_match::mismatch
+						&& !legacyAbort && legacyAbort.error() == application::git_cache_failure::repair_required
+						&& std::filesystem::file_size(spool) == payloadBytes,
+					"legacy device/inode proof cannot silently rebind an existing artifact");
+#endif
 			require((*opened)->abort_recovered_operation(recovery, { }).has_value()
 						&& !std::filesystem::exists(spool)
 						&& (*opened)->abort_recovered_operation(recovery, { }).has_value(),
 					"restored exact ownership permits idempotent cleanup after reopen");
+#if defined(Q_OS_LINUX)
+			auto legacyAbsent                          = recovery;
+			legacyAbsent.Receiving->Identity.Bytes[2U] = 1U;
+			require((*opened)->abort_recovered_operation(legacyAbsent, { }).has_value(),
+					"absent legacy artifact remains idempotent without weak ownership upgrade");
+			int descriptors[2]{ -1, -1 };
+			require(::pipe(descriptors) == 0, "create owned unsupported generation descriptors");
+			const auto unavailable = git_adapter::detail::file_generation(descriptors[0]);
+			static_cast<void>(::close(descriptors[0]));
+			static_cast<void>(::close(descriptors[1]));
+			require(!unavailable && !git_adapter::detail::file_generation(-1),
+					"actual unsupported and invalid generation queries remain unavailable, never zero proof");
+#endif
 			if (!completed) {
 				auto unowned = recovery;
 				unowned.Receiving.reset();
@@ -1190,6 +1260,84 @@ namespace {
 			require(aCache.delete_cache(cacheRequest, deletion, { }).has_value(), "remove receiving recovery fixture cache");
 		}
 	}
+
+#if defined(Q_OS_LINUX)
+	auto verify_unavailable_artifact_generation(const std::filesystem::path& aExecutable) -> void
+	{
+		struct statfs filesystem{ };
+		require(::statfs("/dev/shm", &filesystem) == 0 && filesystem.f_type == TMPFS_MAGIC,
+				"unsupported-generation fixture uses the existing tmpfs, without mounting anything");
+		const auto root    = bpr::tests::make_scratch_directory("/dev/shm/bpr-git-generation-unavailable");
+		auto       cleanup = bpr::tests::scratch_guard{ root };
+		const auto probe   = root / "owned-capability";
+		write_file(probe, "owned generation capability");
+		const auto descriptor       = git_adapter::detail::open_observed_file(probe);
+		errno                       = 0;
+		const auto generation       = git_adapter::detail::file_generation(descriptor);
+		const auto unavailableError = errno;
+		if (descriptor >= 0) {
+			static_cast<void>(::close(descriptor));
+		}
+		require(descriptor >= 0 && !generation && (unavailableError == ENOTTY || unavailableError == EOPNOTSUPP),
+				"actual tmpfs GETVERSION is unavailable before testing adapter refusal");
+		const auto storage = root / "cache";
+		std::filesystem::create_directory(storage);
+		std::filesystem::permissions(storage, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		auto cache = git_adapter::make_installed_git_cache({ .GitExecutable = aExecutable, .StorageRoot = storage });
+		require(cache.has_value(), "construct unsupported-generation cache fixture");
+		const auto cacheRequest = request(0xd1U, 0xd2U);
+		auto       opened       = (*cache)->open(cacheRequest, { });
+		require(opened.has_value(), "existing cache manifest and Git admission do not require artifact-generation migration");
+		const auto  operation = identity<core::epoch_operation_id>(0xd1U);
+		std::size_t witnesses = 0U;
+		const auto  sink      = (*opened)->create_pack_sink(operation, sha1_pack.size(), { },
+															[&](const application::git_spool_ownership&) { ++witnesses; return true; });
+		require(!sink && sink.error() == application::git_cache_failure::spool_failure && witnesses == 0U
+					&& std::filesystem::is_empty(storage / "incoming" / "v1"),
+				"unavailable generation admits no weak witness and cleans only its live pinned empty creation");
+		const auto spool = storage / "incoming" / "v1" / ("." + lower_hex(operation.bytes()) + ".pack.receiving");
+		write_file(spool, "foreign");
+		struct stat file{ };
+		require(::lstat(spool.c_str(), &file) == 0, "observe owned unsupported-filesystem canary identity");
+		auto claimed      = application::git_artifact_identity{ };
+		claimed.Bytes[0U] = 1U;
+		claimed.Bytes[1U] = 1U;
+		claimed.Bytes[2U] = 3U;
+		const auto encode = [&](const std::size_t aOffset, const std::uint64_t aValue) {
+			for (std::size_t index = 0; index < 8U; ++index) {
+				claimed.Bytes[aOffset + index] = static_cast<std::uint8_t>(aValue >> (56U - index * 8U));
+			}
+		};
+		encode(8U, static_cast<std::uint64_t>(file.st_dev));
+		encode(24U, static_cast<std::uint64_t>(file.st_ino));
+		const auto commit = core::parse_git_commit_oid(sha1_commit_hex);
+		require(commit.has_value() && application::valid(claimed), "unsupported control carries valid device/inode with claimed generation zero");
+		const auto recovery = application::git_operation_recovery_request{
+			.Operation = operation,
+			.Scope     = cacheRequest.Authority.Scope,
+			.Ordinal   = core::epoch_ordinal{ 1 },
+			.Base      = *commit,
+			.Head      = *commit,
+			.Receiving = application::git_spool_ownership{ .Operation = operation, .Identity = claimed, .MaximumBytes = sha1_pack.size() },
+		};
+		const auto observed = (*opened)->inspect_operation_recovery(recovery, { });
+		const auto refused  = (*opened)->abort_recovered_operation(recovery, { });
+		require(observed && observed->Spool == application::git_recovery_match::mismatch
+					&& !refused && refused.error() == application::git_cache_failure::repair_required
+					&& std::filesystem::file_size(spool) == std::string_view{ "foreign" }.size(),
+				"unavailable native generation never becomes zero proof or deletes a matching-device/inode replacement");
+		std::filesystem::remove(spool);
+		opened->reset();
+		require((*cache)->delete_cache(cacheRequest, {
+														 .ApplicationSession = cacheRequest.ApplicationSession,
+														 .Cache              = cacheRequest.Authority.Cache,
+														 .DurableIntentToken = token(0xd1U),
+													 },
+									   { })
+					.has_value(),
+				"explicit cache deletion remains serviceable without reinterpreting artifact proofs");
+	}
+#endif
 
 	auto verify_refused_installation_witness(
 		application::git_cache_port& aCache,
@@ -1953,6 +2101,9 @@ namespace {
 		verify_descendant_lineage(**cache, descendant);
 		verify_refused_installation_witness(**cache, root.Path, executable);
 		verify_receiving_ownership_recovery(**cache, root.Path);
+#if defined(Q_OS_LINUX)
+		verify_unavailable_artifact_generation(executable);
+#endif
 
 		const auto crossProcessRequest = request(0x36U, 0x46U);
 		const auto lockReady           = root.Path / "cross-process-lock-ready";
