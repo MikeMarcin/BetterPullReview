@@ -1,8 +1,9 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_INFO_GLYPH_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_INFO_GLYPH_HPP
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include <QString>
-#include <QToolButton>
 
 class QEvent;
 class QFocusEvent;
@@ -18,8 +19,10 @@ namespace bpr::qt {
 	/// hosts; the Appearance rows ([[BPR-0790]]) share it.
 	///
 	/// Presentation only: the glyph says a sentence it is given and performs
-	/// nothing.
-	class info_glyph final : public QToolButton
+	/// nothing. It is a quiet tool button with its mark in the ground's ink,
+	/// so the macOS style never paints it on a native bezel in the system
+	/// appearance's grey.
+	class info_glyph final : public quiet_tool_button
 	{
 	public:
 		explicit info_glyph(QString aConsequence, QWidget* aParent = nullptr);
