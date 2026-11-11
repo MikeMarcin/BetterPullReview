@@ -102,8 +102,38 @@ is the missing piece.
 
 [[BPR-2014]] decides what may be published (it amends RFC-BPR-0042, 0043
 and 0096). The pack asks for a critical review of it, which this lane cannot
-give itself: no separately authorized reviewer was available in this round.
-It is pending, not waived.
+give itself.
+
+An independent reviewer (read-only, ran nothing) reviewed `93b1045a8` and
+returned pass-with-findings, provisional. The post-review engineering round
+(2026-11-10) took each finding test first: a test that reproduces it, run
+against the unfixed code, then the fix, and the test kept. A re-review of the
+fixes by an independent reviewer is still owed; it is not self-certified here.
+
+| # | Finding | Reproduced by (failed before the fix) | Disposition |
+|---|---|---|---|
+| 1 | A part-sent tour update saved before acceptance (tour payload version 10) fails to load: `staged_update_bodies` re-plans the frozen tour through `plan_tour_update`, which now requires every stop Accepted, so `valid_staged_update` fails, the SQLite journal reports an integrity failure and the pull request's saved publication state is unavailable | `staged_review_session` (`test_update_saved_before_acceptance_resumes`: a part-sent update of stops not accepted, its frozen tour rewritten in the journal as version 10 with its digest, reopened through `pending_staged`, reconciled and resumed). The reviewer's contradiction resolves the other way: `staged_review_session` did not pass at `93b1045a8`; it failed in `test_mixed_sessions` for the same cause and was not in the candidate's runs | Fixed. `render_tour_update` renders a frozen, already authorized update without judging acceptance again; `plan_tour_update` is that render behind the acceptance gate, and authorization stays at plan time (`assess_tour_update`). The staged record resumes as it was sent |
+| 2 | The terminal walk's Ready accepts with no changed files (the owner codec carries none, the CLI sets none), so references to other files are unrecorded and a push that changes them leaves the stop Accepted | `core_tour_stop_acceptance` (`test_walk_ready_records_references`) | Fixed. An observed Ready accepts only with the changed files when the stop's text names another file (`tour_stop_names_files`); without them it is Ready, not Accepted, and `accept` without them is refused. A standalone walk passes the changed paths its read observed (`tour_runtime::source`); a desktop window showing the pull request supplies them to a forwarded Ready (`live_tour`), and the window's own dispatch does for `complete` as for `accept`. No codec change: files never travel on the owner channel |
+| 3 | Accept at a head where the stop has no mapped lines (or while "not compared yet") records no own lines: Accepted with nothing to compare | `core_tour_stop_acceptance` (`test_reaccept_keeps_own_lines`) | Fixed. Accept keeps the stop's own lines to compare when they are not at the head: what was accepted of them with the comparison's verdict, or (never accepted) its lines at the tour's head. Not compared yet stays yellow until compared; compared changed or gone with nothing mapped makes Accept ask for its lines at this head (`tour_accept_need::lines_at_head`). Only a historical stop is accepted with no own lines. `core_diff_semantics` (real push) and `application_review_tour_publication_reconciliation` (Accept while not compared yet) now pin this; both had asserted the old behaviour |
+| 4 | The carry of version 10 drafts ignores `CompletionOrigin` (an agent's relayed Ready becomes Accepted), accepts outline-suggested Ready stops (against AC07) and erases reference tracking | `core_tour_stop_acceptance` (`test_carry_grants_only_the_author`); `sqlite_review_tour_storage` (a relayed version 10 stop) | Fixed. Only the author's own Ready (`observed`), not outline-suggested, reaffirmed, naming no other file, carries; its lines and bare line references are recorded. Every other stop comes over Not accepted yet |
+| 5 | References outside the changed-file list, ambiguous ones and those past the 33-range bound are not recorded | Not a defect by the stated rule | Recorded, unchanged: the RFC's implementation notes say a reference is recorded when it resolves to exactly one changed file; such a stop can be Accepted while a later push changes an unrecorded range |
+| 6 | The owner channel accepts an observed `complete` with client-supplied attention from a command client | Not reproduced as a defect: the walk is isatty-gated and the channel's peer is the same user | Recorded, unchanged (same-user trust model). A client that forges `observed` gains what the walk itself grants; it cannot `accept` or `unaccept` |
+| 7 | A comparison of accepted code that failed is never asked again at that head | Read from the code (`check_tour_material` recorded the key before the read and never forgot it). No course has a failing realignment read to drive; not reproduced by a test | Fixed. A read that fails, or whose realignment is not ready, is forgotten and asked again on a later presentation, at most three times per file, commit and head (`tour_material_failed`) |
+| 8 | Codec version 11 without a tour protocol bump: a mismatched CLI and desktop fail on the payload instead of at hello | `sqlite_tour_owner_channel` (`test_version_mismatch` with a version 6 owner) | Fixed. Tour protocol version 7; either side refuses version 6 at hello |
+
+Visible change: Accept on a stop whose lines changed or are gone at the new
+head with nothing mapped there is disabled, and its reason line adds "Choose
+its lines again to accept it." (frontend-design was loaded after the change,
+to review it; it turned "at this head" into the card's plainer "again"). The filed look (session
+`679d26ab…`, built from `93b1045a8`) does not show that state: its
+`--look` fixture's stop 2 now maps its changed lines to the new head, as an
+in-place edit does, so every state the owner was asked about looks as it
+did. Not refiled.
+
+Also in this round: `qt_drawer_parts_scale_{100,125,200}` pass (test-only:
+Overview's Solution is a Markdown view since `3d97ea548`, so the test reads
+its empty-body label); `test_network_isolation_manifest` passes with the
+missing entry for BPR-2051's `application_enhance_comment_note_public_path`.
 
 ## Enhance on comments and notes ([[BPR-2051]], 2026-11-10)
 

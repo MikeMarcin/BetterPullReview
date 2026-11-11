@@ -58,8 +58,11 @@ design.
   assertions unchanged — pass.
 - AC08 (with BPR-2013's stop frames): the owner's look, filed and not waited
   on (below).
-- Critical review of the publication rule: owed, not given by this lane (no
-  separately authorized reviewer this round).
+- Critical review of the publication rule: an independent reviewer returned
+  pass-with-findings, provisional, on `93b1045a8`. Each finding was
+  reproduced by a test and fixed or recorded in the post-review round (the
+  [record's table](../../verification/RFC-BPR-0106.md#critical-review)). A
+  re-review of the fixes by an independent reviewer is owed.
 
 ## Owner look (filed, not waited on)
 

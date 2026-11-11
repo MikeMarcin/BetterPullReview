@@ -591,3 +591,49 @@ Next: read session `ac6e3a32…` after hand-back. An icon other than option 1
 sets `CurrentStyle`'s default in `enhance_control.cpp`. Accept of placement
 and the prompt editor: finish BPR-2051, stop host 77843 and remove the root
 with `freeze_attended_build.py remove`.
+
+## tour-stops: critical review round (2026-11-10)
+
+An independent reviewer (read-only) returned pass-with-findings, provisional,
+on `93b1045a8`. Each finding was reproduced by a test against the unfixed code,
+then fixed or recorded; dispositions are in the
+[record](../../../verification/RFC-BPR-0106.md#critical-review). Nothing
+pushed. Owner amendments in force as above.
+
+| Commit | What |
+|---|---|
+| `a4643168d` | `qt_drawer_parts_scale_*` read Overview's Markdown Solution (test only; baseline failure gone) |
+| `55551a90c` | Manifest entry for BPR-2051's `application_enhance_comment_note_public_path`; counter to main's BPR-2058 (LIVE_IMPORT) |
+| `d02f13efb` | Findings 1-4, 7, 8 fixed with their tests; RFC-BPR-0106 implementation notes; app pin resealed. Product candidate |
+| this commit | Accept's added sentence in plainer words ("Choose its lines again to accept it."); record, BPR-2014 card, handoff |
+
+Tests that reproduced the findings: `staged_review_session`
+(`test_update_saved_before_acceptance_resumes`; `staged_review_session` had
+not passed at `93b1045a8`), `core_tour_stop_acceptance`
+(`test_walk_ready_records_references`, `test_reaccept_keeps_own_lines`,
+`test_carry_grants_only_the_author`), `sqlite_review_tour_storage` (relayed
+version 10 stop), `sqlite_tour_owner_channel` (version 6 refused). Finding 7
+was read from the code; no course drives a failing realignment read. Findings
+5 and 6 are recorded, unchanged.
+
+Runs at the candidate: every `core_` and `sqlite_` row, every `tour`,
+`staged` and `publication` row, Qt workbench window and drawer rows,
+`application_composition_source_contract`,
+`application_review_round_trip_composition_contract`,
+`architecture_boundaries`, `test_network_isolation_manifest` (248 rows): all
+pass, except `application_review_tour_publication_mixed` under `-j4` load
+(a 20 s wait; passes alone three times in 3.3 s; Debug timing, nongating).
+Format check on changed files and the documentation gate pass.
+
+Visible change: Accept is disabled, with "Choose its lines again to accept
+it.", on a stop whose lines changed or are gone at the new head with nothing
+mapped there. The filed look (`679d26ab…`, frozen from `93b1045a8`) shows no
+such state; not refiled. Frontend-design was loaded after that change, to
+review it, not before.
+
+Owed: a re-review of these fixes by an independent reviewer; the owner's
+looks `679d26ab…` and `ac6e3a32…` (not touched, nor `26d89bac…`, host 74692,
+BPR-Test #151/#152 or the `-next` branch).
+
+Next: as above (read `679d26ab…` and `ac6e3a32…` after hand-back), and file
+the re-review.

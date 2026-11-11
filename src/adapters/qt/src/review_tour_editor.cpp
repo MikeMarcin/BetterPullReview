@@ -3355,7 +3355,7 @@ namespace bpr::qt {
 			auto reason = acceptance_reason(decision);
 			if (!can) {
 				reason += QLatin1Char(' ') + (need == core::tour_accept_need::title ? tr("Give it a title to accept it.") : need == core::tour_accept_need::explanation ? tr("Write its explanation to accept it.")
-												  : need == core::tour_accept_need::lines_at_head                                                                       ? tr("Choose its lines at this head to accept it.")
+												  : need == core::tour_accept_need::lines_at_head                                                                       ? tr("Choose its lines again to accept it.")
 																																										: tr("Choose its lines to accept it."));
 			}
 			AcceptReason->setText(reason);

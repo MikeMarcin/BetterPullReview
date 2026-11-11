@@ -336,7 +336,7 @@ auto main(int argc, char** argv) -> int
 	show();
 	editor.go_to_stop(core::tour_stop_id{ 3 });
 	settle();
-	expect(accept->isVisibleTo(&editor) && !accept->isEnabled() && reason->text() == QStringLiteral("The lines under this stop are no longer in the pull request. Choose its lines at this head to accept it."), "a stop whose lines are gone at the new head asks for its lines there: " + reason->text().toStdString());
+	expect(accept->isVisibleTo(&editor) && !accept->isEnabled() && reason->text() == QStringLiteral("The lines under this stop are no longer in the pull request. Choose its lines again to accept it."), "a stop whose lines are gone at the new head asks for its lines there: " + reason->text().toStdString());
 	const auto acceptsBefore = std::ranges::count(sent, core::tour_command_kind::accept);
 	editor.accept_stop(core::tour_stop_id{ 3 });
 	settle();
