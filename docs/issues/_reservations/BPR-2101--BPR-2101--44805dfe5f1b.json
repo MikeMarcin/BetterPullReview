@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2101"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "agent disk use: Insights, workspace cleanup, cleanup by pull request state (owner look e97c6a3d)",
+  "created": "2026-11-11T15:04:30.395328+00:00",
+  "base": "c0bb258b72fd4c0f311aa06ea8ebe25407211ec2"
+}
