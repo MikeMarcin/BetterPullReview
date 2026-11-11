@@ -32,3 +32,23 @@ already have a comments column so probably something there".
 5. Owner look: Accept or Reject the column.
 
 Load frontend-design before the Qt work.
+
+## Implementation (2026-11-11)
+
+Frontend-design was loaded before the Qt work.
+
+- The Comments cell's chip layout takes the row's drafts
+  (`overview_comment_chips(counts*, cell, font, drafts)`): one drafts chip, a
+  pencil in a dashed outline (the draft's own mark in Threads) and the count,
+  with an amber dot (the theme's attention colour) while any is not in the
+  review. It keeps the cell's right end, just left of the qualifier's place, so
+  drafts line up down the column; the comment chips fold into "+n" before
+  they reach it; the column keeps its 216-pixel width. A folder row adds up
+  its files; the "Not on a file" row has none.
+- Its tooltip and keyboard announcement: "3 drafts of yours here. 2 in your
+  review, 1 not. Click or press Enter to list them in Threads." A click or
+  Enter opens Threads with My drafts on and the cursor on the row's (or the
+  folder's) first draft.
+- Counts are the core's `draft_counts_by_file`.
+- `qt_pull_request_overview_page`
+  (`test_drafts_chip_counts_and_goes_to_the_drafts`).
