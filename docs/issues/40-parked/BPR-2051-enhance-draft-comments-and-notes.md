@@ -63,3 +63,18 @@ of three drawn icons, Light and Dark), `BPR-2051-placement` and
 `f91330402280…`, course `31349bdc97de…`; launcher `--check` passed; the
 course's `--attended` look reached its ready line offscreen). The URL stays
 in the session state.
+
+## Owner hand-back, session `ac6e3a32…` (2026-11-10)
+
+Read with `attended_review.py status` (sequence 93); host 77843/77881
+stopped, root `enhance-v001.dzk_0xf4` removed.
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-2051-icon` | **Reject** (`1ecc48cc`) | "something more like nib and spark" (attached: a fountain-pen nib with a four-point spark cut into it) |
+| `BPR-2051-placement` | Accept (`edda65a4`), with changes | Place it consistently across the whole app surface; a much shorter tooltip that adapts to the context, e.g. "Enhance writing for this comment with agent." / "Enhance writing for the selected text with agent." |
+| `BPR-2051-prompt-editor` | Accept (`9ea23ba3`), with changes | The bottom prompt list is good; the top part of Agents & context "is ugly as sin and needs a redesign"; rename "Enhance a note" to "Enhance writing" |
+
+Rework (next round): nib-and-spark icon; one placement on every surface;
+context tooltips; one `enhance.writing` prompt for comments and notes (the
+tour stop keeps `enhance.tour-stop`); a redesigned top of Agents & context.

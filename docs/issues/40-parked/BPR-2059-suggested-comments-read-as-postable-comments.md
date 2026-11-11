@@ -107,3 +107,13 @@ Session `fbdd40b2768761881d2a420844cb4ec2` (see BPR-2061), candidates
 `BPR-2059-card-formatting` (before/after renders of the same synthetic
 findings from the Qt harness, and the live frozen build) and
 `BPR-2059-prompt-default`.
+
+## Owner hand-back, session `fbdd40b2…` (2026-11-10)
+
+Read with `attended_review.py status` (sequence 23); host 7089/7121 stopped,
+root `suggested-comments-v001.irz2s4en` removed.
+
+- `BPR-2059-card-formatting`: **Reject** (`fdadc56d`): "You first screenshot
+  shows ```cpp which doesnt look like it's rendering the markdown correctly."
+  A fence with a language must render as a code block.
+- `BPR-2059-prompt-default`: Accept (`1342b7f4`). Scope 6's prompt half passes.

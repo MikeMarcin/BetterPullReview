@@ -79,3 +79,21 @@ each ring state after a push). Frozen root
 `/Users/jaeger/tour-stops-v001.5rt9c5gn` from `93b1045a8` (app SHA-256
 `c5e2a178c2ea…`, card test `6683038724ed…`; the launcher's own check reached
 `ATTENDED_TOUR_SHOWN`). The URL stays in the session state.
+
+## Owner hand-back, session `679d26ab…` (2026-11-10)
+
+Read with `attended_review.py status` (sequence 44); host 61912/61936
+stopped, root `tour-stops-v001.5rt9c5gn` removed.
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-2013-arrival` | Accept (`b331f132`) | |
+| `BPR-2013-stop-at-rest` | Accept (`c13c4ad5`) | "Not sure why it says \"Not accepted yet.\" Next to accept. That feels pretty obvious." |
+| `BPR-2013-stop-editing` | **Reject** (`2c1229e8`) | "I don't understand what these do or how to use these at all. Cancel is like a different size to save, looks weird. There's some kind of theme disparity going on between what I see and your offscreen renders that I wish we could sort out." (screenshots: the stop's `…` menu with "Related source" / "Remove related link"; Cancel smaller than a blue Save) |
+| `BPR-2014-accept` | Accept (`7efc74c5`) | "It's kind of weird that save turns it green. Maybe save should just be accept then." |
+| `BPR-2014-ring-states` | Accept (`58e14b67`) | |
+
+The ring states and Accept pass. AC08 is not complete while the stop frames
+are reworked: the redundant "Not accepted yet." beside Accept goes, Save
+becomes Accept, the editing tools are labelled and explain themselves, and
+Cancel and Accept are one size. The card stays parked for that look.

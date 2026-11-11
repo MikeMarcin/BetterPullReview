@@ -47,3 +47,18 @@ even from a retired host, offers Retry, labels the account line "Will submit
 as", and logs `review_submit_request|wait|send|drop|end` with a
 `submit_subject`. AC01 to AC05 pass on the course; AC08 is the owner's live
 course and is pending.
+
+## Live look v002 abandoned (2026-11-10)
+
+Session `26d89bac1f89acd7841ee451d1e5ffd1` (root `bpr-live-v002.nnhzt2pb`,
+frozen from `abba53926`) is abandoned. The build predated the tour-stops
+redesign, so it showed the old stop card: its stops could not be accepted and
+Publish stayed disabled. The owner: "this is way too many manual steps ... a
+freaking mess I cant even accept these comments or try to publish ... Things
+are moving around as I click them, buttons packed in like a clown car." The
+Accept records `ec9e4113` and `e5e3d58e` from that session are not evidence:
+RFC-BPR-0099 AC08 and RFC-BPR-0105 AC08 are **not passed**. Both move to an
+agent-run live course on BPR-Test in a later round. BPR-Test is left as is
+(the owner pushed `929b028f7` to #152's branch). Host 36810/36892 stopped and
+the root removed with `freeze_attended_build.py remove` after the owner's app
+(PID 46168) had exited.
