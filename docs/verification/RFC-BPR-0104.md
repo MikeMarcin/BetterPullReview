@@ -310,3 +310,12 @@ core-only preset, the live `agent-scratch` course (Claude's changed rules
 were probed directly above; Codex's changes only withhold).
 
 An independent re-review of this round is owed; AC07 stays pending.
+
+## Owner look `246ef52c` (2026-11-11)
+
+Handed back with all three candidates accepted and no notes: `BPR-2007-picker-toggles-v2` (`4373c4bb`), `RFC-BPR-0104-scratch-settings` (`cbffd9d4`), `BPR-2051-footer-setup-quiet` (`55178b22`). The
+picker's two toggles and the agent sheet's scratch settings are accepted as
+built at `b2edc1fa3`; the footer's quiet setup
+state is recorded on BPR-2051. Host 89403/89420 stopped and root
+`agent-grant-v002.y_rhztpu` removed. AC07 stays pending on the independent
+re-review of `531a039cd`; BPR-2007 and BPR-2008 are not finished before it.

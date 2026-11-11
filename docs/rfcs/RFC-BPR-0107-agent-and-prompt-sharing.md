@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0107"
 title: "Share selected agents and prompts"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"absorbed 2026-11-10 from the local PR drafts pack v1, where it was RFC-DRAFT-0001","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
 depends_on: []
 ---
@@ -287,6 +287,6 @@ right?" The answer is yes, and it changes the selective export above:
 
 ## Proposed delivery
 
-[Portable exchange](../issues/60-done/BPR-2016-portable-agent-and-prompt-configuration-exchange.md), [Settings flow](../issues/40-parked/BPR-2017-selective-settings-import-and-export.md),
-and [closeout](../issues/10-backlog/BPR-2018-close-rfc-0107.md) form the first milestone in the
+[Portable exchange](../issues/60-done/BPR-2016-portable-agent-and-prompt-configuration-exchange.md), [Settings flow](../issues/60-done/BPR-2017-selective-settings-import-and-export.md),
+and [closeout](../issues/60-done/BPR-2018-close-rfc-0107.md) form the first milestone in the
 [canonical plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). No later RFC is a prerequisite.
