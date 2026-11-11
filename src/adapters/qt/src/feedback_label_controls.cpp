@@ -3,6 +3,7 @@
 #include "bpr/core/feedback_draft_edit.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -118,6 +119,13 @@ namespace bpr::qt {
 			return QSize{ static_cast<int>(feedback_mark_size) + mark_word_gap, static_cast<int>(feedback_mark_size) };
 		}
 
+		/// \brief The mark alone, for the menu's quiet chips: they keep the
+		/// same gap (`chip_icon_gap`) between their icon and words themselves.
+		[[nodiscard]] auto bare_mark_size() -> QSize
+		{
+			return QSize{ static_cast<int>(feedback_mark_size), static_cast<int>(feedback_mark_size) };
+		}
+
 		[[nodiscard]] auto mark_icon(const QPixmap& aMark) -> QIcon
 		{
 			const auto ratio  = aMark.devicePixelRatio();
@@ -131,9 +139,26 @@ namespace bpr::qt {
 			return QIcon{ padded };
 		}
 
+		/// \brief `aPalette` with every colour of every group set, so a widget
+		/// given it holds it rather than resolving back to its own.
+		[[nodiscard]] auto every_role_of(const QPalette& aPalette) -> QPalette
+		{
+			auto result = aPalette;
+			for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+				for (auto role = 0; role < static_cast<int>(QPalette::NColorRoles); ++role) {
+					const auto colourRole = static_cast<QPalette::ColorRole>(role);
+					if (colourRole != QPalette::NoRole) {
+						result.setColor(group, colourRole, aPalette.color(group, colourRole));
+					}
+				}
+			}
+			return result;
+		}
+
 		[[nodiscard]] auto make_toggle(QWidget* const aParent, const QString& aText, const QString& aName, const QString& aTip) -> QToolButton*
 		{
-			auto* const button = new QToolButton{ aParent };
+			// A quiet chip: raised, with a border, only while it is on.
+			auto* const button = new quiet_tool_button{ aParent };
 			button->setText(aText);
 			button->setObjectName(aName);
 			button->setAccessibleName(aText);
@@ -151,7 +176,17 @@ namespace bpr::qt {
 	{
 		auto       link   = aPalette.color(QPalette::Active, QPalette::Link);
 		const auto ground = aPalette.color(QPalette::Active, QPalette::Window);
-		if (ground.lightness() >= 128 || link.lightness() >= 165) {
+		const auto reads  = [&ground](const QColor& aLink) { return contrast_ratio(to_appearance_color(aLink), to_appearance_color(ground)) >= 4.5; };
+		if (ground.lightness() >= 128) {
+			// A light profile on a dark system inherits the system's light
+			// link blue, about 3.3:1 on the light ground: darker until it reads.
+			const auto hue = link.hslHue() < 0 ? 210 : link.hslHue();
+			for (auto lightness = link.lightness(); !reads(link) && lightness > 0; lightness -= 5) {
+				link = QColor::fromHsl(hue, link.hslSaturation(), std::max(0, lightness - 5));
+			}
+			return link;
+		}
+		if (link.lightness() >= 165) {
 			return link;
 		}
 		// The Markdown reader's lightness first, then lighter until the link
@@ -385,6 +420,12 @@ namespace bpr::qt {
 			return;
 		}
 		++Statistics.MenuOpens;
+		// A popup has no parent to inherit from: it takes the comment's
+		// palette, the profile's, so its chips and words are drawn in the
+		// theme the comment is. Every role is set: an inherited palette
+		// carries no resolved roles, and set as it is it would leave the
+		// popup in the application's (the system's) palette.
+		Menu->setPalette(every_role_of(palette()));
 		Menu->present(State, Theme);
 		Menu->adjustSize();
 		auto place = Chip->mapToGlobal(QPoint{ 0, Chip->height() + 4 });
@@ -468,7 +509,10 @@ namespace bpr::qt {
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(8, 8, 8, 8);
 		column->setSpacing(4);
-		Plain = new QToolButton{ this };
+		// The menu's choices are quiet chips: the one in force is raised,
+		// with a border, on the menu's own colours rather than the macOS
+		// style's bezel in the system appearance's grey.
+		Plain = new quiet_tool_button{ this };
 		Plain->setObjectName(QStringLiteral("feedbackLabelMenuPlain"));
 		Plain->setText(QStringLiteral("Plain comment"));
 		Plain->setAccessibleName(QStringLiteral("Plain comment"));
@@ -477,7 +521,7 @@ namespace bpr::qt {
 		Plain->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		Plain->setCheckable(true);
 		Plain->setAutoRaise(true);
-		Plain->setIconSize(mark_icon_size());
+		Plain->setIconSize(bare_mark_size());
 		anchor_tooltips(*Plain);
 		column->addWidget(Plain);
 		auto* const labelHeading = new QLabel{ QStringLiteral("Label"), this };
@@ -487,13 +531,13 @@ namespace bpr::qt {
 		grid->setSpacing(2);
 		for (std::size_t index = 0U; index < Labels.size(); ++index) {
 			const auto  label  = label_at(index);
-			auto* const button = new QToolButton{ this };
+			auto* const button = new quiet_tool_button{ this };
 			button->setObjectName(QStringLiteral("feedbackLabelMenu_%1").arg(feedback_label_text(label)));
 			button->setText(feedback_label_text(label));
 			button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 			button->setCheckable(true);
 			button->setAutoRaise(true);
-			button->setIconSize(mark_icon_size());
+			button->setIconSize(bare_mark_size());
 			button->setAccessibleName(feedback_label_text(label));
 			button->setAccessibleDescription(feedback_label_description(label));
 			button->setToolTip(feedback_label_description(label));
@@ -542,7 +586,7 @@ namespace bpr::qt {
 		CustomField->setValidator(new QRegularExpressionValidator{ QRegularExpression{ QStringLiteral("[A-Za-z0-9_-]{1,%1}").arg(core::maximum_feedback_label_bytes) }, CustomField });
 		CustomField->setMaxLength(static_cast<int>(core::maximum_feedback_label_bytes));
 		own->addWidget(CustomField, 1);
-		CustomAdd = new QToolButton{ this };
+		CustomAdd = new quiet_tool_button{ this };
 		CustomAdd->setObjectName(QStringLiteral("feedbackLabelMenuCustomAdd"));
 		CustomAdd->setText(QStringLiteral("Add"));
 		CustomAdd->setAccessibleName(QStringLiteral("Add custom decoration"));
@@ -569,7 +613,7 @@ namespace bpr::qt {
 		AboutRule->setFrameShadow(QFrame::Plain);
 		AboutRule->setForegroundRole(QPalette::Midlight);
 		column->addWidget(AboutRule);
-		About = new QToolButton{ this };
+		About = new quiet_tool_button{ this };
 		About->setObjectName(QStringLiteral("feedbackLabelMenuAbout"));
 		About->setText(QStringLiteral("About Conventional Comments"));
 		About->setAccessibleName(QStringLiteral("About Conventional Comments"));
@@ -594,11 +638,11 @@ namespace bpr::qt {
 	{
 		const auto ratio = devicePixelRatioF();
 		Plain->setChecked(!aState.Label.has_value());
-		Plain->setIcon(mark_icon(feedback_plain_mark_pixmap(palette(), ratio)));
+		Plain->setIcon(QIcon{ feedback_plain_mark_pixmap(palette(), ratio) });
 		for (std::size_t index = 0U; index < Labels.size(); ++index) {
 			const auto label = label_at(index);
 			Labels[index]->setChecked(aState.Label == label);
-			Labels[index]->setIcon(mark_icon(feedback_mark_pixmap(label, feedback_mark_emphasis{ }, feedback_mark_colours_for(aTheme, label, palette()), ratio)));
+			Labels[index]->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis{ }, feedback_mark_colours_for(aTheme, label, palette()), ratio) });
 		}
 		const auto written = std::array{ aState.Blocking, aState.NonBlocking, aState.IfMinor };
 		for (std::size_t index = 0U; index < Decorations.size(); ++index) {
@@ -631,8 +675,11 @@ namespace bpr::qt {
 		{
 			// The link colour of the palette on screen, read again at every
 			// opening so a change of appearance is followed.
-			auto linkPalette = About->palette();
-			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(palette()));
+			// The quiet chip reads its words in WindowText.
+			auto       linkPalette = About->palette();
+			const auto link        = readable_link_colour(palette());
+			linkPalette.setColor(QPalette::ButtonText, link);
+			linkPalette.setColor(QPalette::WindowText, link);
 			About->setPalette(linkPalette);
 		}
 		if (hadFocus) {

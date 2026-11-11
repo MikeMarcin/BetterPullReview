@@ -36,8 +36,10 @@ tool_better_pull_review_network_sandbox
 The first configuration/build and cache condition are separate elapsed phases.
 An existing optimized benchmark cache is not a warm complete test graph. A build
 under documented foreign pressure supplies no uncontended build-speed claim.
-Admit timing courses only on the leased quiet physical host; Windows and WSL share
-that host. Preserve any wait or refusal and observe foreign starts during a course.
+Preserve timing/resource ownership on the physical host; Windows and WSL share
+that host. A valid upper-bound pass does not need an idle-host prerequisite. Use
+the [timing diagnosis procedure](execution.md#interpret-optimized-timing-without-idle-host-polling)
+for failures and metrics whose preconditions require isolation.
 Run native Windows Qt through the existing qualified limited interactive context.
 No live desktop driving or capture is involved.
 

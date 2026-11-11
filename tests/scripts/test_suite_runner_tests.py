@@ -27,6 +27,117 @@ class SuiteRunnerTests(unittest.TestCase):
         self.inputs.start()
         self.addCleanup(self.inputs.stop)
 
+    def test_failure_priority_preserves_normal_order_and_dependency_fixture_closure(self):
+        with ContainedTemporaryDirectory() as temporary:
+            previous = Path(temporary) / "previous.json"
+            names = ["earlier_pass", "setup", "failed", "cleanup", "dependent", "later_pass"]
+            manifest = {"tests": [{"name": name} for name in names]}
+            for index, key in ((1, "FIXTURES_SETUP"), (2, "FIXTURES_REQUIRED"), (3, "FIXTURES_CLEANUP")):
+                manifest["tests"][index]["properties"] = [{"name": key, "value": ["native-state"]}]
+            manifest["tests"][4]["properties"] = [{"name": "DEPENDS", "value": ["failed"]}]
+            previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                {"name": name, "status": "failed" if name == "failed" else "passed"} for name in reversed(names)]}))
+            plan = suite.failure_priority(manifest, names, "fixture", previous)
+            self.assertEqual(plan["previous_failures"], ["failed"])
+            self.assertEqual(plan["first"], names[1:5])
+            self.assertEqual(plan["remaining"], ["earlier_pass", "later_pass"])
+            self.assertEqual(len(plan["previous_sha256"]), 64)
+            with self.assertRaisesRegex(ValueError, "split"):
+                suite.failure_priority(manifest, [name for name in names if name != "cleanup"], "fixture", previous)
+            with self.assertRaisesRegex(ValueError, "not selected"):
+                suite.failure_priority(manifest, [name for name in names if name != "failed"], "fixture", previous)
+            with self.assertRaisesRegex(ValueError, "same preset"):
+                suite.failure_priority(manifest, names, "other", previous)
+            previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                {"name": name, "status": "failed" if name in {"failed", "later_pass"} else "passed"} for name in reversed(names)]}))
+            multiple = suite.failure_priority(manifest, names, "fixture", previous)
+            self.assertEqual(multiple["previous_failures"], ["failed", "later_pass"])
+            self.assertEqual(multiple["first"], names[1:])
+            self.assertEqual(multiple["remaining"], ["earlier_pass"])
+            previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                {"name": name, "status": "passed"} for name in names]}))
+            no_failures = suite.failure_priority(manifest, names, "fixture", previous)
+            self.assertEqual(no_failures["first"], [])
+            self.assertEqual(no_failures["remaining"], names)
+            previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                {"name": "failed", "status": "failed"}, {"name": "failed", "status": "passed"}]}))
+            with self.assertRaisesRegex(ValueError, "Duplicate"):
+                suite.failure_priority(manifest, names, "fixture", previous)
+
+    def test_real_failure_first_keeps_collect_all_coverage_and_native_cleanup(self):
+        for repaired in (False, True):
+            with self.subTest(repaired=repaired), ContainedTemporaryDirectory() as temporary:
+                root = Path(temporary)
+                worker = root / "worker.py"
+                worker.write_text('''from pathlib import Path
+import sys
+root=Path(__file__).parent
+name=sys.argv[1]
+with (root/'order').open('a') as output: output.write(name+'\\n')
+if name == 'setup': (root/'fixture').write_text('ready')
+if name == 'failed':
+    assert (root/'fixture').read_text() == 'ready'
+    if (root/'fail').exists(): raise SystemExit(3)
+if name == 'cleanup': (root/'fixture').unlink()
+''')
+                names = ["earlier_pass", "setup", "failed", "cleanup", "later_pass"]
+                cmake = ['cmake_minimum_required(VERSION 3.24)', 'project(FailurePriority NONE)', 'enable_testing()']
+                for name in names:
+                    cmake.append(f'add_test(NAME {name} COMMAND "{Path(sys.executable).as_posix()}" "{worker.as_posix()}" {name})')
+                cmake += ['set_tests_properties(setup PROPERTIES FIXTURES_SETUP state)',
+                          'set_tests_properties(failed PROPERTIES FIXTURES_REQUIRED state)',
+                          'set_tests_properties(cleanup PROPERTIES FIXTURES_CLEANUP state)']
+                (root / "CMakeLists.txt").write_text("\n".join(cmake) + "\n")
+                (root / "CMakePresets.json").write_text(json.dumps({"version": 3,
+                    "configurePresets": [{"name": "fixture", "generator": "Ninja", "binaryDir": "${sourceDir}/build"}],
+                    "testPresets": [{"name": "fixture", "configurePreset": "fixture"}]}))
+                subprocess.run(["cmake", "--preset", "fixture"], cwd=root, check=True, capture_output=True)
+                previous = root / "previous.json"
+                previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                    {"name": name, "status": "failed" if name == "failed" else "passed"} for name in names]}))
+                if not repaired:
+                    (root / "fail").touch()
+                output = root / "results"
+                with redirect_stdout(io.StringIO()):
+                    code = suite.run_suite("fixture", 4, output, root=root, failures_first=previous)
+                order = (root / "order").read_text().splitlines()
+                self.assertEqual(order[:3], ["setup", "failed", "cleanup"])
+                self.assertCountEqual(order[3:], ["earlier_pass", "later_pass"])
+                self.assertCountEqual(order, names)
+                self.assertFalse((root / "fixture").exists())
+                self.assertEqual(code == 0, repaired)
+                report = json.loads((output / "timings.json").read_text())
+                self.assertTrue(report["complete"])
+                self.assertTrue(report["full_graph_selected"])
+                self.assertEqual(report["counts"], {"passed": 5} if repaired else {"passed": 4, "failed": 1})
+                self.assertEqual([b["name"] for b in report["batches"]], ["previous-failures", "remaining"])
+                for batch in report["batches"]:
+                    self.assertIn("--tests-from-file", batch["command"])
+                    self.assertNotIn("--tests-regex", batch["command"])
+                    self.assertEqual(Path(batch["selection_file"]).read_text().splitlines(), batch["selected"])
+                self.assertEqual(len(suite.read_junit(output / "junit.xml", 0)["tests"]), 5)
+                self.assertEqual(report["missing"], [])
+                self.assertTrue((output / "previous-failures-ctest.log").is_file())
+                self.assertTrue((output / "remaining-ctest.log").is_file())
+
+    def test_failure_first_continues_after_missing_batch_report_but_never_passes(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            calls = []
+            def run(command, **kwargs):
+                calls.append(command)
+                if len(calls) == 2:
+                    Path(command[command.index("--output-junit") + 1]).write_text('<testsuite><testcase name="rest"/></testsuite>')
+                return subprocess.CompletedProcess(command, 0)
+            with patch.object(suite.subprocess, "run", side_effect=run):
+                report, code = suite.run_failure_first_batches("ctest", "fixture", 4, root, root,
+                    {"first": ["failed"], "remaining": ["rest"]}, [])
+            self.assertNotEqual(code, 0)
+            self.assertEqual(len(calls), 2)
+            self.assertFalse(report["batches"][0]["complete"])
+            self.assertIn("diagnostic_error", report["batches"][0])
+            self.assertEqual([row["name"] for row in report["tests"]], ["rest"])
+
     def test_bootstrap_reuse_rejects_stale_missing_failed_and_interrupted_proof(self):
         names = sorted(suite.TOOLING_PREFLIGHT)
         valid = dict(invocation_id="live", input_identity="same", expected=names,
@@ -516,6 +627,123 @@ bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
 
 
 class PhaseLedgerTests(unittest.TestCase):
+    def test_init_build_cli_writes_observed_context_and_never_replaces_it(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, context = root / "phases.jsonl", root / "context.json"
+            command = [sys.executable, str(ROOT / "scripts/release_phase_ledger.py"), "--ledger", str(path),
+                       "init-build", "--request-start", "2026-01-01T00:00:00Z", "--context", str(context),
+                       "--source-root", str(ROOT), "--version", "1.2.3", "--candidate", "1.2.3-build.4",
+                       "--producer", "fixture", "--variant", ""]
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            original = path.read_bytes(), context.read_bytes()
+            self.assertEqual(json.loads(context.read_text())["candidate"], "1.2.3-build.4")
+            self.assertEqual(ledger.summary(path)["request"]["context"], json.loads(context.read_text()))
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            self.assertEqual((path.read_bytes(), context.read_bytes()), original)
+
+    def test_refused_existing_output_is_not_attributed_to_a_new_attempt(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, context, output = root / "phases.jsonl", root / "context.json", root / "old-output"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            context.write_text("{}")
+            output.mkdir()
+            (output / "timings.json").write_text('{"complete": true, "counts": {"passed": 99}}')
+            argv = ["run_test_suite.py", "--phase-ledger", str(path), "--phase-context", str(context), "--output-dir", str(output)]
+            with patch.object(sys, "argv", argv), patch.object(suite, "run_suite", side_effect=FileExistsError("already exists")):
+                with self.assertRaises(FileExistsError):
+                    suite.main()
+            terminal = ledger.summary(path)["phases"][0]["terminal"]
+            self.assertEqual(terminal["outcome"], "refused")
+            self.assertEqual(terminal["results"]["reports"], {})
+            self.assertNotIn("timings.json", terminal["results"])
+
+    def test_pipe_read_and_close_failures_are_recorded(self):
+        class BrokenPipe(io.BytesIO):
+            def read1(self, count):
+                raise OSError("pipe read unavailable")
+        class BrokenClose(io.BytesIO):
+            def close(self):
+                super().close()
+                raise OSError("pipe close unavailable")
+        for source, message in ((BrokenPipe(), "pipe read unavailable"), (BrokenClose(), "pipe close unavailable")):
+            with self.subTest(message=message):
+                errors = []
+                ledger.drain_stream(source, io.BytesIO(), io.StringIO(), errors)
+                self.assertEqual(errors, [message])
+                self.assertTrue(source.closed)
+
+    def test_observed_build_context_has_identity_without_environment_secrets(self):
+        with patch.dict(os.environ, {"BPR_PRIVATE_SENTINEL": "never-record-this"}):
+            context = ledger.build_context(ROOT, version="1.2.3", candidate="1.2.3-build.4", producer="mac", variant="")
+        self.assertEqual(context["source_root"], str(ROOT.resolve()))
+        self.assertEqual(len(context["source_commit"]), 40)
+        self.assertEqual(context["candidate"], "1.2.3-build.4")
+        self.assertEqual(context["variant"], "full")
+        self.assertNotIn("never-record-this", json.dumps(context))
+
+    def test_raw_logs_drain_both_streams_preserve_exit_and_attempt_identity(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "phases.jsonl"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            command = [sys.executable, "-c", "import os; os.write(1,b'o'*200000); os.write(2,b'e'*200000); raise SystemExit(7)"]
+            with redirect_stdout(io.StringIO()), patch.object(sys, "stderr", io.StringIO()):
+                self.assertEqual(ledger.run(path, "build", {}, command, root / "logs"), 7)
+                self.assertEqual(ledger.run(path, "build", {}, [sys.executable, "-c", "pass"], root / "logs"), 0)
+            result = ledger.summary(path)
+            failed, passed = result["phases"]
+            self.assertEqual(result["failed"], [failed["phase_id"]])
+            self.assertGreater(failed["child_pid"], 0)
+            self.assertEqual(failed["terminal"]["exit_code"], 7)
+            self.assertEqual(Path(failed["logs"]["stdout"]).read_bytes(), b'o' * 200000)
+            self.assertEqual(Path(failed["logs"]["stderr"]).read_bytes(), b'e' * 200000)
+            self.assertNotEqual(failed["logs"], passed["logs"])
+
+    def test_collection_failure_keeps_actual_successful_child_exit(self):
+        class BrokenConsole(io.StringIO):
+            def write(self, value):
+                raise OSError("collector unavailable")
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "phases.jsonl"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            with redirect_stdout(BrokenConsole()):
+                self.assertEqual(ledger.run(path, "build", {}, [sys.executable, "-c", "print('raw')"], root / "logs"), 1)
+            phase = ledger.summary(path)["phases"][0]
+            self.assertEqual(phase["terminal"]["exit_code"], 0)
+            self.assertEqual(phase["terminal"]["outcome"], "collection-failed")
+            self.assertEqual(Path(phase["logs"]["stdout"]).read_text(), "raw\n")
+
+    def test_qualification_diagnostics_keep_preflight_failures_and_not_run(self):
+        with ContainedTemporaryDirectory() as temporary:
+            output = Path(temporary)
+            self.assertEqual(suite.phase_results(output), {"reports": {}})
+            (output / "timings.json").write_text(json.dumps({"complete": False, "not_run": ["native"], "missing": ["native"]}))
+            (output / "preflight.json").write_text(json.dumps({"complete": True, "results": {"tests": [
+                {"name": "tooling", "status": "failed"}, {"name": "optional", "status": "skipped"}]}}))
+            result = suite.phase_results(output)
+            self.assertEqual(result["preflight.json"]["failed"], ["tooling"])
+            self.assertEqual(result["preflight.json"]["skipped"], ["optional"])
+            self.assertEqual(result["timings.json"]["not_run"], ["native"])
+            (output / "timings.json").write_text("partial json")
+            self.assertIn("diagnostic_error", suite.phase_results(output)["timings.json"])
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX signal exit convention")
+    def test_signaled_child_records_native_status_and_returns_shell_status(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, context = root / "phases.jsonl", root / "context.json"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            context.write_text("{}")
+            result = subprocess.run([sys.executable, str(ROOT / "scripts/release_phase_ledger.py"), "--ledger", str(path),
+                "run", "--phase", "build", "--context", str(context), "--", sys.executable,
+                "-c", "import os,signal; os.kill(os.getpid(),signal.SIGTERM)"], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 143, result.stderr)
+            self.assertEqual(ledger.summary(path)["phases"][0]["terminal"]["exit_code"], -15)
+
     def test_first_request_failures_and_interrupted_phases_survive_resume(self):
         with ContainedTemporaryDirectory() as temporary:
             path = Path(temporary) / "ledger.jsonl"

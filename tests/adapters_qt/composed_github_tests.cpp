@@ -93,6 +93,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <expected>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -3846,6 +3847,9 @@ namespace {
 				lastLink = aIntent;
 				return core::markdown_link_result::opened;
 			});
+			window.set_markdown_link_address_dispatch([](const core::markdown_link_intent& aIntent) -> std::expected<std::string, core::markdown_link_result> {
+				return aIntent.Destination;
+			});
 			const auto readerOf = [cards](const std::string& aPost) -> qt::markdown_body_view* {
 				auto* const opened = cards->open_card();
 				for (auto* const post : opened != nullptr ? opened->findChildren<QWidget*>(QStringLiteral("threadPost")) : QList<QWidget*>{ }) {
@@ -3917,6 +3921,13 @@ namespace {
 			QApplication::sendEvent(replyText, &enter);
 			QApplication::processEvents();
 			qt::hide_anchored_tooltip();
+			// The window asks first, naming the address; nothing is handed on
+			// until Open.
+			auto* const linkQuestion = window.external_link_confirmation();
+			expect(!lastLink.has_value() && linkQuestion != nullptr && linkQuestion->findChild<QPlainTextEdit*>(QStringLiteral("externalLinkAddress"))->toPlainText() == QStringLiteral("https://example.invalid/margins"),
+				   "Return on the link asks before opening, showing its whole address");
+			linkQuestion->findChild<QPushButton*>(QStringLiteral("externalLinkOpen"))->click();
+			QApplication::processEvents();
 			expect(lastLink.has_value() && lastLink->Body == "review-comment:c17" && lastLink->Destination == "https://example.invalid/margins",
 				   "Return on the link hands it to the application's admission with the post's identity");
 			// View source and Copy source in the post's name row.

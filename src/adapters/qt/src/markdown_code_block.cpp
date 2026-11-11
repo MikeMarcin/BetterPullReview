@@ -113,6 +113,7 @@ namespace bpr::qt::detail {
 		connect(Copy, &QToolButton::clicked, this, &markdown_code_block::copy_code);
 		setTabOrder(Wrap, Copy);
 		refresh_icons();
+		refresh_tool_surfaces();
 		refresh_wrap_names();
 	}
 
@@ -151,7 +152,36 @@ namespace bpr::qt::detail {
 			ink.setForeground(Colours.Normal);
 			cursor.mergeCharFormat(ink);
 		}
+		refresh_tool_surfaces();
 		update();
+	}
+
+	auto markdown_code_block::back_colour() const -> QColor
+	{
+		return Colours.Back.isValid() ? Colours.Back : palette().color(QPalette::Active, QPalette::Window);
+	}
+
+	auto markdown_code_block::ink_colour() const -> QColor
+	{
+		return Colours.Normal.isValid() ? Colours.Normal : palette().color(QPalette::Active, QPalette::Text);
+	}
+
+	auto markdown_code_block::header_colour() const -> QColor
+	{
+		return blend(back_colour(), ink_colour(), 0.045);
+	}
+
+	void markdown_code_block::refresh_tool_surfaces()
+	{
+		// The header is painted in the code theme's colours, which no palette
+		// role holds: Wrap and Copy are given them, so their hover, press,
+		// checked and focus faces and their marks are mixed on the header as
+		// drawn, never on the macOS style's bezel in the system's grey.
+		const auto header = header_colour();
+		const auto ink    = ink_colour();
+		for (auto* const tool : { Wrap, Copy }) {
+			tool->set_surface_colours(header, ink);
+		}
 	}
 
 	void markdown_code_block::set_line_formats(const std::vector<QList<QTextLayout::FormatRange>>& aFormats)
@@ -265,6 +295,7 @@ namespace bpr::qt::detail {
 		QWidget::changeEvent(aEvent);
 		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange) {
 			refresh_icons();
+			refresh_tool_surfaces();
 		}
 		if (aEvent->type() == QEvent::FontChange) {
 			arrange();
@@ -275,8 +306,8 @@ namespace bpr::qt::detail {
 	{
 		auto painter = QPainter{ this };
 		painter.setRenderHint(QPainter::Antialiasing, true);
-		const auto back   = Colours.Back.isValid() ? Colours.Back : palette().color(QPalette::Active, QPalette::Window);
-		const auto ink    = Colours.Normal.isValid() ? Colours.Normal : palette().color(QPalette::Active, QPalette::Text);
+		const auto back   = back_colour();
+		const auto ink    = ink_colour();
 		const auto rule   = Colours.Rule.isValid() ? Colours.Rule : blend(back, ink, 0.18);
 		const auto muted  = Colours.Muted.isValid() ? Colours.Muted : blend(ink, back, 0.4);
 		const auto bounds = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
@@ -287,7 +318,7 @@ namespace bpr::qt::detail {
 		const auto header = static_cast<qreal>(header_height());
 		painter.save();
 		painter.setClipPath(shape);
-		painter.fillRect(QRectF{ 0.0, 0.0, static_cast<qreal>(width()), header }, blend(back, ink, 0.045));
+		painter.fillRect(QRectF{ 0.0, 0.0, static_cast<qreal>(width()), header }, header_colour());
 		painter.restore();
 		painter.setPen(QPen{ rule, 1.0 });
 		painter.drawLine(QPointF{ bounds.left(), header + 0.5 }, QPointF{ bounds.right(), header + 0.5 });

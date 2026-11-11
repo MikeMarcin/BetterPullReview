@@ -154,6 +154,31 @@ try {
 	expect(talks->load(failed) == std::optional{ legacy }, "an old stopped turn reads back as one that ended without an answer, an old answer as an answer");
 	expect(talks->store(failed, { }) && talks->load(failed) == std::optional{ turns{ } }, "Clear session removes the outcomes with the turns");
 
+	// Owner report 2026-11-10, after BPR-2052. What was done with each finding
+	// card of a stored answer, read back after a restart.
+	{
+		auto       cards   = adapters::sqlite::make_agent_finding_card_store(scratch.path());
+		const auto block   = core::digest_agent_findings("{\"findings\":[]}");
+		const auto drafted = core::agent_finding_card_record{ .Findings = block, .Ordinal = 1U, .State = core::agent_finding_card_disposition::drafted };
+		const auto refused = core::agent_finding_card_record{ .Findings = block, .Ordinal = 3U, .State = core::agent_finding_card_disposition::refused, .Why = "Not drafted: resolve the draft open at that line first." };
+		const auto noted   = core::agent_finding_card_record{ .Findings = block, .Ordinal = 2U, .State = core::agent_finding_card_disposition::noted, .Note = 42U };
+		expect(cards->load() == std::optional{ std::vector<core::agent_finding_card_record>{ } }, "no card is kept at first");
+		expect(cards->store(drafted) && cards->store(refused) && cards->store(noted), "drafted, refused and noted cards are kept");
+		cards.reset();
+		cards = adapters::sqlite::make_agent_finding_card_store(scratch.path());
+		expect(cards->load() == std::optional{ std::vector{ drafted, refused, noted } }, "a restart reads them back, least recently changed first");
+		auto undone  = refused;
+		undone.State = core::agent_finding_card_disposition::open;
+		expect(cards->store(undone) && cards->load() == std::optional{ std::vector{ drafted, noted } }, "an open card has no row");
+		expect(cards->store(drafted) && cards->load() == std::optional{ std::vector{ noted, drafted } }, "storing a card again makes it the most recently changed");
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		expect(sqlite3_exec(database, "UPDATE agent_finding_cards SET state=5", nullptr, nullptr, nullptr) != SQLITE_OK, "an undeclared disposition is refused by the schema");
+		expect(sqlite3_exec(database, "UPDATE agent_finding_cards SET state=0", nullptr, nullptr, nullptr) != SQLITE_OK, "an open card is never a row");
+		sqlite3_close_v2(database);
+		expect(store->load() == none, "the preferences are untouched by finding cards");
+	}
+
 	// [[BPR-1753]], owner amendment 2026-10-23. The agent list.
 	auto listed            = *store->load();
 	listed.Agents          = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2058"
+  ],
+  "reserve_for": "repair-test-rotation",
+  "purpose": "Run prior failing qualification tests first on future repair candidates while preserving coverage and fixture/dependency ownership",
+  "created": "2026-11-11T01:29:25.478680+00:00",
+  "base": "382edb1e9464e51ec0ab573244867baf77757743"
+}

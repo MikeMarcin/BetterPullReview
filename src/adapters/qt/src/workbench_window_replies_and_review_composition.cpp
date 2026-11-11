@@ -390,6 +390,7 @@ namespace bpr::qt {
 
 	void workbench_window::apply_modality_surface()
 	{
+		present_compose_toggle();
 		if (CentreStack == nullptr || OverviewPage == nullptr) {
 			return;
 		}
@@ -725,6 +726,7 @@ namespace bpr::qt {
 		}
 		move_review_composer(true);
 		ReviewSheetOpen = true;
+		present_compose_toggle();
 		ReviewSubmissionEditor->ensurePolished();
 		ReviewSheet->content_layout()->activate();
 		place_review_sheet();
@@ -754,8 +756,35 @@ namespace bpr::qt {
 		}
 		ReviewSheetOpen = false;
 		ReviewSheet->hide();
+		present_compose_toggle();
 		if (SheetReturnFocus && SheetReturnFocus->isVisible()) {
 			SheetReturnFocus->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::toggle_review_composition()
+	{
+		// Closing takes the composer's own way out: the sheet's Close, or the
+		// expanded page's, which here closes it outright rather than restoring
+		// the sheet. Either only hides the editor, so its words are kept.
+		if (ReviewSheetOpen) {
+			close_review_sheet();
+		} else if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
+			close_review_composition(false);
+		} else {
+			open_review_composition(false);
+		}
+		present_compose_toggle();
+	}
+
+	void workbench_window::present_compose_toggle()
+	{
+		if (ComposeReviewAction == nullptr) {
+			return;
+		}
+		const auto shown = ReviewSheetOpen || (CompositionPage != nullptr && CompositionPage == ComposeReviewPage);
+		if (ComposeReviewAction->isChecked() != shown) {
+			ComposeReviewAction->setChecked(shown);
 		}
 	}
 

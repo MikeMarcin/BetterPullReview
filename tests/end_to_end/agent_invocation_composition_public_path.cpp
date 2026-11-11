@@ -1369,7 +1369,43 @@ auto main(int argc, char** argv) -> int
 					if (!wait_until([&] { return chat->send_button()->isVisible() && chat->send_button()->isEnabled(); })) {
 						return fail(*application, "tour-native-composer-ready");
 					}
+					// [[BPR-2040]]. The result is final before the same host's
+					// cleanup retires. Hold only this reopened stop's cleanup.
+					const auto checkRetirement = course == "tour-native-reopen" && protocol == core::agent_protocol::codex_app_server && thread.Kind == core::tour_thread_kind::stop;
+					struct held_tour_retirement
+					{
+						std::function<void()> Release;
+						std::function<bool()> Waiting;
+						void                  release()
+						{
+							if (Release) {
+								Release();
+								Release = { };
+							}
+						}
+						~held_tour_retirement() { release(); }
+					};
+					auto control = checkRetirement ? app::detail::github_application_fixture_access::hold_tour_retirement_effects(*application) : std::pair<std::function<void()>, std::function<bool()>>{ };
+					auto held    = held_tour_retirement{ std::move(control.first), std::move(control.second) };
+					if (checkRetirement && (!held.Release || !held.Waiting)) {
+						return fail(*application, "tour-native-retirement-gate-armed");
+					}
 					chat->send_button()->click();
+					if (checkRetirement) {
+						if (!wait_until([&] { return held.Waiting() && chat->turn_count() > prior && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("process=") != std::string::npos; }, extended_agent_budget)) {
+							held.release();
+							return fail(*application, "tour-native-retirement-final-reply");
+						}
+						const auto before = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+						chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+						if (before.Quiescent || chat->new_session_button()->isEnabled() || chat->send_button()->isEnabled()
+							|| chat->status_line(chat->turn_count() - 1U)->live()
+							|| app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations != before.AgentProcessLauncherInvocations) {
+							held.release();
+							return fail(*application, "tour-native-capabilities-wait-for-retirement");
+						}
+						held.release();
+					}
 					if (!wait_until([&] { return chat->turn_count() > prior && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("process=") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
 						return fail(*application, "tour-native-first-answer", chat->chat_text().toStdString());
 					}
@@ -1381,7 +1417,9 @@ auto main(int argc, char** argv) -> int
 					if (!scopedProcesses.insert(first.substr(first.find("process="))).second) {
 						return fail(*application, "tour-native-thread-process-isolation");
 					}
-					chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+					if (!checkRetirement) {
+						chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+					}
 					chat->send_button()->click();
 					if (!wait_until([&] { return chat->turn_count() > prior + 1U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("tool-observation-7f13") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
 						return fail(*application, "tour-native-followup", chat->chat_text().toStdString());

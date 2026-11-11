@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2047"
+  ],
+  "reserve_for": "release54-background-aware-gutter-ink",
+  "purpose": "Release54 proven selection-background-sensitive line-number ink oracle; one test TU",
+  "created": "2026-11-10T20:18:16.948518+00:00",
+  "base": "9bc30417fde8310b9bf03947c87788f35d2fa916"
+}

@@ -15,6 +15,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QJsonArray>
@@ -33,7 +34,10 @@
 #include <QSplitter>
 #include <QSplitterHandle>
 #include <QTemporaryDir>
+#include <QTextBlock>
+#include <QTextCursor>
 #include <QTextEdit>
+#include <QTextFragment>
 #include <QThread>
 #include <QToolButton>
 #include <QTreeView>
@@ -73,11 +77,47 @@ namespace {
 	}
 	auto description() -> std::string
 	{
-		auto body = std::string{ "# Preserve the reviewer's place\n\nA summary that explains the renderer changes while Files stays reachable.\n\n" };
+		auto body = std::string{ "# Preserve the reviewer's place\n\nA summary that explains the renderer changes while Files stays reachable. Read the [renderer notes](https://docs.example.invalid/renderer?topic=place) first.\n\n" };
 		for (int section = 1; section <= 60; ++section) {
 			body += "## Renderer case " + std::to_string(section) + "\n\nKeep the accepted document and exact file identity while resizing. 日本語 🦊\n\n- One retained body\n- Independent scrolling\n- Literal `<b>source</b>`\n\n";
 		}
 		return body + "END OF ADMITTED DESCRIPTION\n";
+	}
+	// A real pointer click on a rendered link's own glyphs.
+	void click_link(bpr::qt::markdown_body_view& aReader, const QString& aTarget)
+	{
+		auto* const view = aReader.rendered_view();
+		for (auto block = view->document()->begin(); block.isValid(); block = block.next()) {
+			for (auto it = block.begin(); !it.atEnd(); ++it) {
+				if (it.fragment().charFormat().anchorHref() != aTarget) {
+					continue;
+				}
+				auto cursor = QTextCursor{ view->document() };
+				cursor.setPosition(it.fragment().position() + 1);
+				const auto point = view->cursorRect(cursor).center();
+				expect(view->anchorAt(point) == aTarget, "the pointer rests on the description's link");
+				auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, view->viewport()->mapToGlobal(QPointF{ point }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(view->viewport(), &press);
+				auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, view->viewport()->mapToGlobal(QPointF{ point }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+				QApplication::sendEvent(view->viewport(), &release);
+				settle();
+				return;
+			}
+		}
+		expect(false, "the description renders the link");
+	}
+	// The open link question, its exact address, and its buttons.
+	auto link_question(bpr::qt::workbench_window& aWindow, const QString& aAddress) -> QDialog*
+	{
+		auto* const question = aWindow.external_link_confirmation();
+		expect(question != nullptr && question->isVisible() && question->windowModality() == Qt::WindowModal, "a link asks before anything opens");
+		const auto* const address = question->findChild<QPlainTextEdit*>(QStringLiteral("externalLinkAddress"));
+		expect(address != nullptr && address->toPlainText() == aAddress && address->isReadOnly() && address->accessibleName() == QStringLiteral("Link address"),
+			   "the question shows the complete address that would open, read-only and named");
+		auto* const open   = question->findChild<QPushButton*>(QStringLiteral("externalLinkOpen"));
+		auto* const cancel = question->findChild<QPushButton*>(QStringLiteral("externalLinkCancel"));
+		expect(open != nullptr && cancel != nullptr && open->isDefault() && open->text() == QStringLiteral("Open in Browser"), "the question offers Open in Browser, the default, and Cancel");
+		return question;
 	}
 	auto check_results() -> std::string
 	{
@@ -220,8 +260,35 @@ int main(int aArgc, char** aArgv)
 	render(*application, QStringLiteral("requirement-details"));
 	requirementDisclosure->click();
 	render(*application, QStringLiteral("review-blockers-initial"));
-	const auto opens = access::browser_opens(*application);
+	auto opens = access::browser_opens(*application);
+	// A description link asks first, showing the whole address, and opens
+	// only on Open: Cancel and Escape open nothing.
+	{
+		const auto link = QStringLiteral("https://docs.example.invalid/renderer?topic=place");
+		click_link(*reader, link);
+		auto* question = link_question(window, link);
+		expect(access::browser_opens(*application) == opens, "nothing opens while the question is asked");
+		question->findChild<QPushButton*>(QStringLiteral("externalLinkCancel"))->click();
+		settle();
+		expect(window.external_link_confirmation() == nullptr && access::browser_opens(*application) == opens, "Cancel closes the question and opens nothing");
+		click_link(*reader, link);
+		question = link_question(window, link);
+		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(question, &escape);
+		settle();
+		expect(window.external_link_confirmation() == nullptr && access::browser_opens(*application) == opens, "Escape cancels and opens nothing");
+		click_link(*reader, link);
+		question = link_question(window, link);
+		QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(question->findChild<QPushButton*>(QStringLiteral("externalLinkOpen")), &enter);
+		settle();
+		expect(window.external_link_confirmation() == nullptr && access::browser_opens(*application) == opens + 1 && access::browser_last_address(*application) == link.toStdString(),
+			   "Open hands the description link's exact address to the composed browser");
+		opens = access::browser_opens(*application);
+	}
 	checkOpen->click();
+	link_question(window, QStringLiteral("https://ci.example.invalid/details"))->findChild<QPushButton*>(QStringLiteral("externalLinkOpen"))->click();
+	settle();
 	expect(access::browser_opens(*application) == opens + 1 && access::browser_last_address(*application) == "https://ci.example.invalid/details", "explicit check gesture reaches the admitted recording browser through the public host");
 	const auto findCheck = [&](const QString& aIdentity) {
 		for (int index = 0; index < checkList->topLevelItemCount(); ++index) {

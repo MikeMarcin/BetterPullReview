@@ -769,13 +769,17 @@ namespace bpr::qt {
 				if (aInline) {
 					comment_or_reply();
 				} else {
-					open_review_composition(false);
+					toggle_review_composition();
 				}
 			});
 			return action;
 		};
 		ComposeReviewAction = makeComposition(tr("Compose &review"), QStringLiteral("composeReviewAction"), shortcut_command::compose_review, false);
 		CommentAction       = makeComposition(tr("Co&mment"), QStringLiteral("composeInlineDraftAction"), shortcut_command::comment, true);
+		// The owner: "Clicking 'approve or comment' in the toolbar should be
+		// a toggle to open and close the compose review dialog." Checked while
+		// the review composer shows; the trigger decides, the check follows.
+		ComposeReviewAction->setCheckable(true);
 		// [[BPR-1345]]. While a review is in progress the bar says so, with
 		// how many comments it holds, and Finish review opens its summary in
 		// Discuss (the start-a-review frames, owner's Accept 2026-10-08).

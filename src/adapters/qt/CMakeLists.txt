@@ -16,6 +16,7 @@ add_library(
         src/review_cycle_share_sheet.cpp
         src/review_cycle_share_marks.cpp
         src/anchored_tooltip.cpp
+        src/external_link_confirmation.cpp
         src/feedback_label_marks.cpp
         src/feedback_label_controls.cpp
         src/feedback_label_settings.cpp

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2056"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Line link paints on card in native style",
+  "created": "2026-11-11T00:46:20.238187+00:00",
+  "base": "93bed5961c67244160144a9c3cfdbe7f27e40d33"
+}

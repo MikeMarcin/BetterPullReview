@@ -1357,7 +1357,7 @@ namespace bpr::qt {
 		activityLayout->setContentsMargins(0, 0, 0, 0);
 		activityLayout->setSpacing(4);
 		activityLayout->addWidget(ActivityNotifications);
-		ActivityInfo = new QToolButton{ activityRow };
+		ActivityInfo = new quiet_tool_button{ activityRow };
 		ActivityInfo->setObjectName(QStringLiteral("activityNotificationsInfo"));
 		ActivityInfo->setText(QStringLiteral("\u24D8"));
 		ActivityInfo->setAutoRaise(true);

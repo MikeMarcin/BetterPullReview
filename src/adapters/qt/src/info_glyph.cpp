@@ -12,10 +12,12 @@
 
 namespace bpr::qt {
 	info_glyph::info_glyph(QString aConsequence, QWidget* const aParent)
-		: QToolButton{ aParent }
+		: quiet_tool_button{ aParent }
 	{
 		setObjectName(QStringLiteral("infoGlyph"));
 		setAutoRaise(true);
+		// The theme's information mark is one colour: it takes the ground's ink.
+		set_tinted(true);
 		setFocusPolicy(Qt::StrongFocus);
 		set_consequence(std::move(aConsequence));
 		apply_glyph();
@@ -51,7 +53,7 @@ namespace bpr::qt {
 
 	void info_glyph::focusInEvent(QFocusEvent* const aEvent)
 	{
-		QToolButton::focusInEvent(aEvent);
+		quiet_tool_button::focusInEvent(aEvent);
 		// A keyboard reviewer reaches the sentence by focusing the glyph; a
 		// pointer that clicked already sees it through the press.
 		if (aEvent->reason() != Qt::MouseFocusReason && aEvent->reason() != Qt::PopupFocusReason) {
@@ -74,7 +76,7 @@ namespace bpr::qt {
 
 	void info_glyph::focusOutEvent(QFocusEvent* const aEvent)
 	{
-		QToolButton::focusOutEvent(aEvent);
+		quiet_tool_button::focusOutEvent(aEvent);
 		if (const auto* const tip = anchored_tooltip(); tip != nullptr && tip->parentWidget() == this) {
 			hide_anchored_tooltip();
 		}
@@ -82,7 +84,7 @@ namespace bpr::qt {
 
 	void info_glyph::changeEvent(QEvent* const aEvent)
 	{
-		QToolButton::changeEvent(aEvent);
+		quiet_tool_button::changeEvent(aEvent);
 		if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange) {
 			apply_glyph();
 		}

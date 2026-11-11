@@ -3391,6 +3391,23 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Ordered142/complete197 inventory and full-app/mutation pins are unchanged.
 	# Source binding adds no native acceptance; three new Windows rows remain
 	# truthfully unmeasured pending contained native calibration.
+	# [[BPR-2040]] reviewed frozen899 and app-surface27cb01f1: the existing
+	# Tour host idle predicate is a separate presentation capability, not the
+	# answer's Running/Stop state. Exact host/editor/generation identities bind
+	# one <=10Hz observation through retirement/probe drain; old observers
+	# cannot update replacement editors or survive owner destruction. Test-only
+	# late cleanup holds reuse the existing bounded queue and expose its actual
+	# waiting state; all hooks are under BPR_BUILD_TESTING. Root reviewed all
+	# four app paths (three in this142content list; the test-access header is
+	# covered by the complete197 inventory and tests-disabled guards). Provider,
+	# actor/head/grant/mutation policy is unchanged; inventories and the
+	# full-app/mutation pins remain exact. No native credit is added here.
+	# [[BPR-2040]] canonical-main-only reconciliation after accepted
+	# [[BPR-2046]]: window_navigation.cpp adds the typed PR-body link address
+	# resolver under the same weak/Closing/current-window admission; Open
+	# still revalidates independently. Ordered142/complete197 inventories,
+	# full-app and mutation pins are unchanged. This combined-main binding
+	# is deliberately separate from the frozen release-only44ec961f pin.
 	# [[RFC-BPR-0105]] reviewed dc5453afa..357df825d and its follow-up ([[BPR-2010]],
 	# [[BPR-2011]]): review_submission_workflow gives each whole-review host
 	# its own lane (window_construction supplies a worker_executor factory
@@ -3467,8 +3484,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# switch, or read with no verdict, is asked again, bounded; `bpr tour
 	# status` reports each stop's acceptance. Local only; no grant,
 	# admission or publication boundary changes.
+	# Lane merge of main (e5bb712ab) after the owner-look round: main's
+	# finding-card memory beside the lane's Draft all, and one Enhance
+	# writing prompt for comments, replies and notes (window_tours names it
+	# and adds a writing-kind source). No grant, admission or publication
+	# boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "0ad5588d9a67dce7fefa3d002dcb6a4230732e4f7b29120f650c6ab8ef7d5879"
+        "7b0f932bd0c963c4132f2487e976cc7c3483e116d12b0e6a4dbafa0ee2f8ef8b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

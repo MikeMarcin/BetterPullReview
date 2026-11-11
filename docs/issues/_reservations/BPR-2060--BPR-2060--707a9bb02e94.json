@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2060"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Card icon buttons paint their own surface",
+  "created": "2026-11-11T02:14:02.736380+00:00",
+  "base": "fc73620d92cf30c8e4d5bc4f5a04f2c68039aa5f"
+}

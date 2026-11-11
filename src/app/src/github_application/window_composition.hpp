@@ -134,6 +134,7 @@
 #include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
+#include <QPointer>
 #include <QString>
 #include <QTimer>
 
@@ -164,6 +165,7 @@
 	#include "bpr/application/agent_comment_workshop_host.hpp"
 	#include "bpr/application/agent_conversation.hpp"
 	#include "bpr/application/agent_conversation_host.hpp"
+	#include "bpr/application/agent_finding_card_host.hpp"
 	#include "bpr/application/agent_finding_host.hpp"
 	#include "bpr/application/agent_invocation_host.hpp"
 	#include "bpr/application/agent_program_resolution.hpp"
@@ -627,6 +629,7 @@ namespace bpr::app {
 		[[nodiscard]] auto skill_run_for(core::writing_hook aHook) const -> skill_run;
 		[[nodiscard]] auto agent_idle() const -> bool;
 		[[nodiscard]] auto tour_session_idle() const -> bool;
+		void               refresh_tour_host_idle();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto locate_claude() const -> application::claude_locator;
 
@@ -685,6 +688,13 @@ namespace bpr::app {
 		void                                                 settle_draft_all_card(std::uint64_t aSerial, core::draft_all_result aResult);
 		void                                                 undo_draft_all(std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone);
 		[[nodiscard]] auto                                   agent_finding_placeable(const core::agent_finding& aFinding) const -> bool;
+		/// Owner report 2026-11-10, after BPR-2052. The cards a stored
+		/// answer's findings block makes, each as the reviewer left it.
+		[[nodiscard]] auto restored_finding_cards(const std::string& aAnswer) const -> std::vector<qt::agent_restored_finding_card>;
+		/// Keeps a card's state past a restart.
+		void remember_finding_card(const qt::agent_finding_card_change& aChange);
+		/// The kept states were read: the cards shown take them.
+		void present_remembered_finding_cards();
 
 		[[nodiscard]] auto offered_agent_profiles() const -> std::vector<core::agent_profile>;
 
@@ -2184,6 +2194,10 @@ namespace bpr::app {
 		decltype(github_profile_runtime::NativeAgentSessions)&      NativeAgentSessions = Profile->NativeAgentSessions;
 		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
 		std::unique_ptr<application::agent_conversation_host>       AgentConversation;
+		/// Owner report 2026-11-10, after BPR-2052. What was done with each
+		/// finding card of a stored answer: store, then host.
+		std::unique_ptr<application::agent_finding_card_store_port> AgentFindingCardStore;
+		std::unique_ptr<application::agent_finding_card_host>       AgentFindingCards;
 		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
@@ -2239,6 +2253,9 @@ namespace bpr::app {
 		std::unique_ptr<adapters::agent::agent_process_launcher> TourProcess;
 	#if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<composition_agent_process_launcher_probe> TourProcessProbe;
+		/// Test builds only: arm the existing effect-queue hold after result
+		/// projection, before the host queues its cleanup. No distribution hook.
+		std::function<void()> BeforeTourRetirementFixture;
 	#endif
 		std::unique_ptr<application::wrapped_claude_process>  TourClaudeProcess;
 		std::unique_ptr<application::located_agent_process>   TourLocatedProcess;
@@ -2246,6 +2263,12 @@ namespace bpr::app {
 		std::unique_ptr<application::diagnosed_agent_process> TourDiagnosedProcess;
 		std::unique_ptr<tour_session_projection>              TourProjection;
 		std::unique_ptr<application::agent_invocation_host>   TourSession;
+		/// [[BPR-2040]]. An editor-context observation, destroyed before its
+		/// host. It observes retirement; it never changes run or effect policy.
+		std::unique_ptr<QTimer>                   TourIdleObservation;
+		std::uint64_t                             TourIdleObservationGeneration = 0U;
+		const application::agent_invocation_host* TourIdleObservedHost          = nullptr;
+		QPointer<qt::review_tour_editor>          TourIdleObservedEditor;
 		/// [[BPR-1900]]. The session's runs and transcript, the run in
 		/// flight with its invocation, the workspace it ran in, and the
 		/// whole-tour proposal waiting on the author.

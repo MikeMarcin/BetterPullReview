@@ -64,6 +64,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -3829,6 +3830,135 @@ namespace {
 		}
 	}
 
+	/// \brief A commented line's number reads on its tinted cell.
+	///
+	/// \details The owner, 2026-11-10: "It's hard to read comments' line
+	/// number against the background it's on in dark theme." A thread's
+	/// number cell is tinted amber, a new thread's blue, an open thread's
+	/// lines washed amber and a draft being written washed in the selection
+	/// blue, and the number kept the plain gutter ink: 3.3:1 on the amber
+	/// cell and 2.5:1 on the open one in Dark, 4.2:1 and 3.5:1 in Light. In
+	/// every built-in theme, with the window's own mark colours, each marked
+	/// number now reaches the variant's text floor on the cell it is drawn
+	/// on, and an unmarked number keeps the theme's gutter ink. With
+	/// `BPR_MARKED_NUMBER_RENDER_DIR` set, each theme's gutter is rendered
+	/// there.
+	void test_marked_line_numbers_read_on_their_tint()
+	{
+		auto left  = std::string{ };
+		auto right = std::string{ };
+		for (auto line = 1U; line <= 40U; ++line) {
+			const auto text = "\tconst auto value_" + std::to_string(line) + " = compute(" + std::to_string(line) + ");\n";
+			left += text;
+			right += line == 12U ? "\tconst auto value_12 = compute_twice(12);\n" : text;
+		}
+		const auto diff      = std::make_shared<const core::computed_file_diff>(computed(left, right, { }, 63U));
+		const auto directory = qEnvironmentVariable("BPR_MARKED_NUMBER_RENDER_DIR");
+		const auto modes     = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		for (const auto& [modeName, mode] : modes) {
+			const auto name      = std::string{ modeName };
+			auto       workbench = qt::diff_workbench{ };
+			auto       profile   = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(workbench);
+			workbench.adopt_appearance(profile);
+			profile.apply_code_font_to(workbench);
+			workbench.resize(1'000, 640);
+			workbench.show();
+			process_events();
+			const auto selected = context(*diff, 2U, 2U);
+			workbench.set_loading(selected);
+			workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = diff }));
+			settle_geometry(workbench);
+			// The window's own two: the theme's unread blue and the marks' amber.
+			workbench.set_mark_colours(QColor{ 0xD2, 0x99, 0x22 }, profile.color(core::appearance_role::state_unread));
+			const auto mark = [](const std::uint32_t aLine, const qt::diff_line_mark_kind aKind) {
+				auto made       = qt::diff_line_mark{ };
+				made.Line       = aLine;
+				made.Kind       = aKind;
+				made.SourceLine = aLine;
+				return made;
+			};
+			auto marks = std::vector<qt::diff_line_mark>{ };
+			marks.push_back(mark(3U, qt::diff_line_mark_kind::thread));
+			marks.push_back(mark(7U, qt::diff_line_mark_kind::new_thread));
+			// An open thread on lines 11 to 13.
+			marks.push_back(mark(12U, qt::diff_line_mark_kind::thread));
+			marks.back().Open      = true;
+			marks.back().FirstLine = 10U;
+			marks.push_back(mark(16U, qt::diff_line_mark_kind::thread));
+			marks.back().Resolved = true;
+			// My draft on lines 21 and 22, being written.
+			marks.push_back(mark(21U, qt::diff_line_mark_kind::thread));
+			marks.back().Draft     = true;
+			marks.back().Writing   = true;
+			marks.back().FirstLine = 20U;
+			marks.push_back(mark(25U, qt::diff_line_mark_kind::new_thread));
+			marks.back().Open = true;
+			workbench.set_line_marks(core::diff_side::right, marks);
+			workbench.set_thread_markers(true);
+			settle_geometry(workbench);
+			workbench.scroll_controller()->home();
+			process_events();
+
+			auto* const code   = workbench.right_pane();
+			auto* const gutter = gutter_of(code);
+			const auto  image  = gutter->grab().toImage();
+			const auto  scale  = image.devicePixelRatio();
+			const auto  floor  = core::minimum_contrast_hundredths(core::contrast_kind::text, profile.variant());
+			// One row of the gutter, clear of the open bar at its left edge
+			// and the writing bracket at its right.
+			const auto row = [&](const std::uint32_t aLine) {
+				const auto centre = gutter->mapFrom(&workbench, workbench.line_rect(core::diff_side::right, aLine).center()).y();
+				const auto height = workbench.line_rect(core::diff_side::right, aLine).height();
+				return QRect{ 4, centre - (height / 2) + 1, gutter->width() - 8, height - 2 };
+			};
+			const auto ratioOf = [&](const std::uint32_t aLine) {
+				const auto cell   = row(aLine);
+				const auto ground = commonest(image, cell);
+				auto       ink    = ground;
+				for (auto y = static_cast<int>(cell.top() * scale); y <= static_cast<int>(cell.bottom() * scale); ++y) {
+					for (auto x = static_cast<int>(cell.left() * scale); x <= static_cast<int>(cell.right() * scale); ++x) {
+						if (x < image.width() && y < image.height() && luminance_ratio(image.pixelColor(x, y), ground) > luminance_ratio(ink, ground)) {
+							ink = image.pixelColor(x, y);
+						}
+					}
+				}
+				return std::tuple{ ground, ink, luminance_ratio(ink, ground) };
+			};
+			const auto [plainGround, plainInk, plainRatio] = ratioOf(1U);
+			std::cout << "marked-number " << name << " plain line 2: ground " << plainGround.name().toStdString() << " ink " << plainInk.name().toStdString() << " ratio " << plainRatio << '\n';
+			auto failing = std::vector<std::string>{ };
+			for (const auto& [line, what] : std::array{
+					 std::pair{ 3U, "thread" },
+					 std::pair{ 7U, "new thread" },
+					 std::pair{ 10U, "open thread's first line" },
+					 std::pair{ 12U, "open thread" },
+					 std::pair{ 16U, "resolved thread" },
+					 std::pair{ 20U, "draft being written" },
+					 std::pair{ 25U, "open new thread" },
+				 }) {
+				const auto [ground, ink, ratio] = ratioOf(line);
+				std::cout << "marked-number " << name << " line " << (line + 1U) << " (" << what << "): ground " << ground.name().toStdString() << " ink "
+						  << ink.name().toStdString() << " ratio " << ratio << '\n';
+				if (ratio * 100.0 + 0.5 < static_cast<double>(floor)) {
+					failing.emplace_back(what);
+				}
+			}
+			if (!directory.isEmpty()) {
+				expect(code->grab(QRect{ 0, 0, gutter->width() + 360, code->height() / 2 }).save(directory + QStringLiteral("/marked-numbers-%1.png").arg(QLatin1StringView{ modeName })),
+					   name + ": capture the gutter");
+			}
+			expect(failing.empty(), name + ": every marked line number reaches the theme's text floor on its tinted cell");
+			expect(plainInk.name() == profile.color(core::appearance_role::code_line_number_text).name(), name + ": an unmarked number keeps the theme's gutter ink");
+		}
+	}
+
 	/// \brief [[BPR-1533]], [[BPR-1534]]. The selection fixture's
 	/// classification, so the looks show syntax colours under a selection.
 	[[nodiscard]] auto selection_spans(const core::diff_side aSide) -> application::token_span_list
@@ -5343,6 +5473,117 @@ namespace {
 		}
 	}
 
+	[[nodiscard]] auto number_pixel_distance(const QColor& aLeft, const QColor& aRight) -> int
+	{
+		return std::max({ std::abs(aLeft.red() - aRight.red()), std::abs(aLeft.green() - aRight.green()), std::abs(aLeft.blue() - aRight.blue()) });
+	}
+
+	[[nodiscard]] auto number_backgrounds_valid(const QColor& aPen, const QColor& aBackground, const QColor& aReferenceBackground) -> bool
+	{
+		return aPen.isValid() && aBackground.isValid() && aReferenceBackground.isValid()
+			&& number_pixel_distance(aBackground, aPen) > 32 && number_pixel_distance(aReferenceBackground, aPen) > 32;
+	}
+
+	[[nodiscard]] auto number_ink_matches_reference(const QColor& aPixel, const QColor& aPen, const QColor& aBackground, const QColor& aReferenceBackground) -> bool
+	{
+		if (!aPixel.isValid() || !number_backgrounds_valid(aPen, aBackground, aReferenceBackground)) {
+			return false;
+		}
+		// Normalize the distance from the pen to the reference background's contrast.
+		// Each factor is at most 255, so both integer products are at most 65025.
+		return number_pixel_distance(aPixel, aPen) * number_pixel_distance(aReferenceBackground, aPen)
+			<= 32 * number_pixel_distance(aBackground, aPen);
+	}
+
+	[[nodiscard]] auto number_ink_tracks_native(const std::pair<int, int> aActual, const int aFirst, const int aLast) -> bool
+	{
+		return std::abs(aActual.first - aFirst) <= 1 && std::abs(aActual.second - aLast) <= 1;
+	}
+
+	[[nodiscard]] auto visible_reference_ink_span(const std::vector<int>& aRows, const qreal aShift, const int aClipTop, const int aClipEnd) -> std::pair<int, int>
+	{
+		auto span = std::pair{ aClipEnd, -1 };
+		for (const auto row : aRows) {
+			const auto translated = qRound(row + aShift);
+			if (translated >= aClipTop && translated < aClipEnd) {
+				span.first  = std::min(span.first, translated);
+				span.second = std::max(span.second, translated);
+			}
+		}
+		return span;
+	}
+
+	void test_number_ink_reference_normalization()
+	{
+		const auto pen                 = QColor{ 91, 101, 112 };
+		const auto referenceBackground = QColor{ 208, 224, 242 };
+		const auto currentBackground   = QColor{ 240, 242, 245 };
+		const auto referencePixel      = QColor{ 118, 130, 142 };
+		const auto currentPixel        = QColor{ 126, 134, 143 };
+		expect(number_pixel_distance(referencePixel, pen) == 30 && number_pixel_distance(currentPixel, pen) == 35,
+			   "observed equal-coverage fringe crosses the old fixed RGB threshold");
+		expect(number_ink_matches_reference(referencePixel, pen, referenceBackground, referenceBackground)
+				   && number_ink_matches_reference(currentPixel, pen, currentBackground, referenceBackground),
+			   "number ink retains the observed fringe across selection backgrounds");
+		expect(!number_ink_matches_reference(currentBackground, pen, currentBackground, referenceBackground), "background alone is never number ink");
+		expect(!number_ink_matches_reference(pen, pen, QColor{ 107, 117, 128 }, referenceBackground)
+				   && !number_ink_matches_reference(pen, pen, currentBackground, pen)
+				   && !number_ink_matches_reference(pen, pen, currentBackground, QColor{ }),
+			   "invalid or low-contrast number backgrounds fail closed");
+		for (const auto& pixel : { pen, referencePixel, currentPixel, referenceBackground, QColor{ 123, 133, 144 }, QColor{ 124, 134, 145 } }) {
+			expect(number_ink_matches_reference(pixel, pen, referenceBackground, referenceBackground) == (number_pixel_distance(pixel, pen) <= 32),
+				   "the reference background preserves the exact original RGB mask");
+		}
+		const auto span = [&](const QImage& aImage) {
+			auto result = std::pair{ aImage.height(), -1 };
+			for (auto y = 23; y < 28; ++y) {
+				if (number_ink_matches_reference(aImage.pixelColor(2, y), pen, aImage.pixelColor(1, y), referenceBackground)) {
+					result.first  = std::min(result.first, y);
+					result.second = std::max(result.second, y);
+				}
+			}
+			return result;
+		};
+		auto missing = QImage{ 3, 40, QImage::Format_ARGB32 };
+		missing.fill(currentBackground);
+		auto present = missing;
+		present.setPixelColor(2, 23, currentPixel);
+		expect(number_ink_tracks_native(span(present), 23, 23), "one visible clipped fringe pixel remains required and recognized");
+		expect(!number_ink_tracks_native(span(missing), 23, 23) && !number_ink_tracks_native(span(missing), 23, 25),
+			   "missing visible one-pixel and multi-pixel number ink is rejected");
+		auto below = missing;
+		below.setPixelColor(2, 25, currentPixel);
+		auto above = missing;
+		above.setPixelColor(2, 21, currentPixel);
+		expect(!number_ink_tracks_native(span(below), 23, 23) && !number_ink_tracks_native(span(above), 23, 23),
+			   "two-pixel displaced number ink is rejected even at the clip edge");
+		expect(number_ink_tracks_native({ 23, 25 }, 24, 26) && number_ink_tracks_native({ 25, 27 }, 24, 26)
+				   && !number_ink_tracks_native({ 22, 24 }, 24, 26) && !number_ink_tracks_native({ 26, 28 }, 24, 26),
+			   "number geometry retains exactly the original one-device-pixel tolerance");
+
+		const auto sparse100 = visible_reference_ink_span({ 24, 32 }, -8.0, 18, 40);
+		const auto sparse125 = visible_reference_ink_span({ 30, 40 }, -10.0, 23, 50);
+		expect(sparse100 == std::pair{ 24, 24 } && sparse125 == std::pair{ 30, 30 },
+			   "clipping the actual sparse reference mask never invents ink inside its bounding box");
+		expect(visible_reference_ink_span({ 24, 25, 26, 27, 28, 29, 30, 31, 32 }, -8.0, 18, 40) == std::pair{ 18, 24 }
+				   && visible_reference_ink_span({ 24, 32 }, 0.0, 18, 40) == std::pair{ 24, 32 },
+			   "dense and unclipped reference masks keep their exact original spans");
+		expect(visible_reference_ink_span({ 24, 25, 26 }, -3.75, 21, 40) == std::pair{ 21, 22 },
+			   "fractional native displacement rounds and clips each actual reference ink row");
+		expect(visible_reference_ink_span({ }, -8.0, 18, 40).second < 0
+				   && visible_reference_ink_span({ 24 }, -8.0, 18, 40).second < 0,
+			   "an empty or fully clipped reference mask fabricates no visible ink");
+		expect(!number_ink_tracks_native({ 40, -1 }, sparse100.first, sparse100.second)
+				   && !number_ink_tracks_native({ 50, -1 }, sparse125.first, sparse125.second),
+			   "missing the sole visible reference ink row remains a failure");
+		expect(number_ink_tracks_native({ 23, 23 }, sparse100.first, sparse100.second)
+				   && number_ink_tracks_native({ 25, 25 }, sparse100.first, sparse100.second)
+				   && !number_ink_tracks_native({ 22, 22 }, sparse100.first, sparse100.second)
+				   && !number_ink_tracks_native({ 26, 26 }, sparse100.first, sparse100.second)
+				   && !number_ink_tracks_native({ 20, 24 }, 18, 24),
+			   "clipped reference geometry allows one pixel but rejects two-pixel displacement or loss");
+	}
+
 	void test_one_pane_rows_anchors_and_link_map()
 	{
 		auto workbench = qt::diff_workbench{ };
@@ -5513,27 +5754,50 @@ namespace {
 			const auto heading       = unified->viewport()->mapTo(&workbench, QPoint{ }).y() - gutter->mapTo(&workbench, QPoint{ }).y();
 			const auto headingPixels = qRound(heading * rasterRatio);
 			const auto headingImage  = referenceImage.copy(0, 0, referenceImage.width(), headingPixels);
-			const auto inkSpan       = [&](const QImage& aImage, const int aRow, const int aSide) {
-				const auto column   = aImage.width() / 2;
-				const auto y        = nativeY(aRow);
-				const auto height   = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(aRow) }).height();
-				auto       firstInk = aImage.height();
-				auto       lastInk  = -1;
+			auto       originalTops  = std::vector<int>{ };
+			const auto inkSpan       = [&](const QImage& aImage, const int aRow, const int aSide, const std::optional<qreal> aPixelShift = std::nullopt, std::vector<int>* const aInkRows = nullptr) {
+				const auto column = aImage.width() / 2;
+				const auto y      = nativeY(aRow);
+				const auto height = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(aRow) }).height();
+
+				// Columns reserve two GutterPadding widths and draw numbers right-aligned.
+				// One logical pixel inside their left padding avoids the border, separator and glyphs.
+				const auto backgroundX = aSide * column + qRound(rasterRatio);
+				expect(backgroundX > aSide * column && backgroundX < (aSide + 1) * column
+						   && backgroundX < referenceImage.width(),
+					   "number background sample remains inside blank column padding");
+				expect(!aPixelShift || (aRow >= 0 && aRow < static_cast<int>(originalTops.size())), "number reference keeps its original native row identity");
+				const auto referenceTop = aPixelShift ? originalTops[static_cast<std::size_t>(aRow)] : y;
+				// Map the row's nominal centre, even when that centre is currently clipped.
+				// Never clamp an invalid reference into a neighboring row.
+				const auto referenceY = qRound((y + height / 2.0) * rasterRatio - aPixelShift.value_or(0.0));
+				expect(referenceY >= 0 && referenceY < referenceImage.height()
+						   && referenceY >= qRound(referenceTop * rasterRatio) && referenceY < qRound((referenceTop + height) * rasterRatio),
+					   "number reference background stays inside the same original row");
+
+				auto firstInk = aImage.height();
+				auto lastInk  = -1;
 				for (auto py = std::max(headingPixels, qRound(y * rasterRatio)); py < std::min(aImage.height(), qRound((y + height) * rasterRatio)); ++py) {
+					const auto background          = aImage.pixelColor(backgroundX, py);
+					const auto referenceBackground = aPixelShift ? referenceImage.pixelColor(backgroundX, referenceY) : background;
+					expect(number_backgrounds_valid(number, background, referenceBackground), "number background normalization has valid substantial contrast");
 					for (auto px = aSide * column; px < (aSide + 1) * column; ++px) {
 						const auto ink = aImage.pixelColor(px, py);
-						if (std::abs(ink.red() - number.red()) <= 32 && std::abs(ink.green() - number.green()) <= 32 && std::abs(ink.blue() - number.blue()) <= 32) {
+						if (number_ink_matches_reference(ink, number, background, referenceBackground)) {
 							firstInk = std::min(firstInk, py);
 							lastInk  = std::max(lastInk, py);
 						}
 					}
+					if (aInkRows != nullptr && lastInk == py) {
+						aInkRows->push_back(py);
+					}
 				}
 				return std::pair{ firstInk, lastInk };
 			};
-			auto originalInk  = std::vector<std::array<std::pair<int, int>, 2>>{ };
-			auto originalTops = std::vector<int>{ };
+			auto originalInk     = std::vector<std::array<std::pair<int, int>, 2>>{ };
+			auto originalInkRows = std::vector<std::array<std::vector<int>, 2>>(rows.size());
 			for (auto rowIndex = 0; rowIndex < static_cast<int>(rows.size()); ++rowIndex) {
-				originalInk.push_back({ inkSpan(referenceImage, rowIndex, 0), inkSpan(referenceImage, rowIndex, 1) });
+				originalInk.push_back({ inkSpan(referenceImage, rowIndex, 0, std::nullopt, &originalInkRows[static_cast<std::size_t>(rowIndex)][0]), inkSpan(referenceImage, rowIndex, 1, std::nullopt, &originalInkRows[static_cast<std::size_t>(rowIndex)][1]) });
 				originalTops.push_back(nativeY(rowIndex));
 			}
 			const auto beforeScroll = workbench.statistics();
@@ -5562,9 +5826,12 @@ namespace {
 						if (original.second < 0 || original.second + shift < headingPixels) {
 							continue;
 						}
-						const auto actual   = inkSpan(image, rowIndex, side);
-						const auto firstInk = std::max(headingPixels, qRound(original.first + shift));
-						expect(std::abs(actual.first - firstInk) <= 1 && std::abs(actual.second - qRound(original.second + shift)) <= 1,
+						const auto actual = inkSpan(image, rowIndex, side, shift);
+						// A sparse raster mask can have empty rows inside its bounding box.
+						// Clip its actual qualifying rows before computing the expected span.
+						const auto expected = visible_reference_ink_span(originalInkRows[static_cast<std::size_t>(rowIndex)][static_cast<std::size_t>(side)], shift, headingPixels, image.height());
+						expect(expected.second >= 0, "the visible clipped reference retains actual qualifying ink");
+						expect(number_ink_tracks_native(actual, expected.first, expected.second),
 							   "painted base/head numbers follow native text rows within one device pixel, including the clipped first row");
 					}
 					const auto& row    = rows[static_cast<std::size_t>(rowIndex)];
@@ -5573,9 +5840,14 @@ namespace {
 					if (top + height <= heading) {
 						continue;
 					}
-					const auto point   = QPoint{ gutter->width() / 2, std::max(heading, top) + 1 };
-					auto       press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-					auto       release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+					const auto visibleTop = std::max(heading, top);
+					const auto visibleEnd = std::min(gutter->height(), top + height);
+					expect(visibleTop < visibleEnd, "the gutter fixture row retains a visible native pixel");
+					// A clipped row can leave one logical pixel: adding one would hit the next row.
+					const auto point = QPoint{ gutter->width() / 2, std::min(visibleTop + 1, visibleEnd - 1) };
+					expect(point.y() >= visibleTop && point.y() < visibleEnd, "the gutter fixture click is inside the visible native row");
+					auto press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+					auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, QPointF{ gutter->mapToGlobal(point) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 					QApplication::sendEvent(gutter, &press);
 					QApplication::sendEvent(gutter, &release);
 					expect(workbench.selection() && workbench.selection()->PreferredLine.Line == row.Head.value_or(row.Base.value_or(0U))
@@ -6642,6 +6914,11 @@ auto main(int argc, char** argv) -> int
 		render_selection_looks(QString::fromLocal8Bit(argv[2]));
 		return EXIT_SUCCESS;
 	}
+	if (argc > 1 && std::string_view{ argv[1] } == "--marked-numbers-only") {
+		test_marked_line_numbers_read_on_their_tint();
+		std::cout << "marked-numbers:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--selection-only") {
 		// One of them by name, or all three.
 		const auto only = argc > 2 ? std::string_view{ argv[2] } : std::string_view{ };
@@ -6678,6 +6955,7 @@ auto main(int argc, char** argv) -> int
 	test_keyboard_minimal_reveal();
 	test_keyboard_reveal_from_far_out_of_view();
 	test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor();
+	test_number_ink_reference_normalization();
 	test_one_pane_rows_anchors_and_link_map();
 	{
 		auto workbench = qt::diff_workbench{ };
@@ -6691,6 +6969,7 @@ auto main(int argc, char** argv) -> int
 	test_the_gutter_sizes_to_its_longest_number();
 	test_hiding_the_numbers_returns_the_gutter_width_to_the_code();
 	test_tinted_numbers_and_the_add_button();
+	test_marked_line_numbers_read_on_their_tint();
 	test_selected_composition();
 	test_nontext_publication_status();
 	test_go_to_line_columns();

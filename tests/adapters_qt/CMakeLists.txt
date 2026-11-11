@@ -2136,6 +2136,23 @@ bpr_enable_hardening(test_agent_picker_wrap)
 bpr_enable_warnings(test_agent_picker_wrap)
 bpr_add_network_isolated_test(NAME qt_agent_picker_wrap COMMAND test_agent_picker_wrap)
 set_tests_properties(qt_agent_picker_wrap PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-picker-wrap:pass" TIMEOUT 120)
+bpr_add_executable(test_agent_finding_cards_retained agent_finding_cards_retained_tests.cpp)
+target_link_libraries(test_agent_finding_cards_retained PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_agent_finding_cards_retained)
+bpr_enable_warnings(test_agent_finding_cards_retained)
+bpr_add_network_isolated_test(NAME qt_agent_finding_cards_retained COMMAND test_agent_finding_cards_retained)
+set_tests_properties(qt_agent_finding_cards_retained PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-retained:pass" TIMEOUT 60)
+# Owner report 2026-11-10, after BPR-2052: a stored answer's finding cards and
+# their states come back after a restart. The restore decoder is an agent
+# integration.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_executable(test_agent_finding_cards_restart agent_finding_cards_restart_tests.cpp)
+    target_link_libraries(test_agent_finding_cards_restart PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite)
+    bpr_enable_hardening(test_agent_finding_cards_restart)
+    bpr_enable_warnings(test_agent_finding_cards_restart)
+    bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart COMMAND test_agent_finding_cards_restart)
+    set_tests_properties(qt_agent_finding_cards_restart PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-restart:pass" TIMEOUT 60)
+endif()
 bpr_add_executable(test_review_tour_agent_setup_call review_tour_agent_setup_call_tests.cpp) # [[BPR-1881]]
 target_link_libraries(test_review_tour_agent_setup_call PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_review_tour_agent_setup_call)
@@ -2650,6 +2667,29 @@ set_tests_properties(qt_quiet_buttons PROPERTIES
     PASS_REGULAR_EXPRESSION "quiet-buttons-tests:pass"
     RUN_SERIAL TRUE TIMEOUT 120)
 
+# Every quiet button on the code block, label menu, agent tab, Overview and
+# the smaller panels reads on the face it is painted on, in every theme and
+# state, under the default style and the macOS style in both system
+# appearances. Under cocoa it sees the native bezels; see the file.
+bpr_add_executable(test_better_pull_review_qt_button_faces_tests button_faces_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_button_faces_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_button_faces_tests)
+bpr_enable_warnings(test_better_pull_review_qt_button_faces_tests)
+bpr_add_network_isolated_test(NAME qt_button_faces COMMAND test_better_pull_review_qt_button_faces_tests)
+set_tests_properties(qt_button_faces PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "button-faces-tests:pass"
+    TIMEOUT 600)
+if(APPLE)
+    # The macOS style paints its native bezels only under cocoa. Every
+    # surface is drawn with WA_DontShowOnScreen; nothing reaches the desktop.
+    bpr_add_network_isolated_test(NAME qt_button_faces_cocoa COMMAND test_better_pull_review_qt_button_faces_tests)
+    set_tests_properties(qt_button_faces_cocoa PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1"
+        PASS_REGULAR_EXPRESSION "button-faces-tests:pass"
+        TIMEOUT 600)
+endif()
+
 # [[BPR-1855]]. The signed-out Home card's buttons fit their words and its
 # sentence wraps with a wide typeface at 100, 125, 150 and 200% display scale.
 # [[BPR-1865]]. Home's filter: typing filters, marks, keyboard, Escape and
@@ -2769,9 +2809,11 @@ if(APPLE)
     get_property(bpr_qt_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
     foreach(bpr_qt_test_target IN LISTS bpr_qt_test_targets)
         get_target_property(bpr_qt_test_type "${bpr_qt_test_target}" TYPE)
-        if(bpr_qt_test_target MATCHES "^test_" AND bpr_qt_test_type STREQUAL "EXECUTABLE")
+        get_target_property(bpr_qt_test_links "${bpr_qt_test_target}" LINK_LIBRARIES)
+        # Only an executable that already links Qt: a helper such as the
+        # agent canary links nothing on purpose, and must stay that way.
+        if(bpr_qt_test_target MATCHES "^test_" AND bpr_qt_test_type STREQUAL "EXECUTABLE" AND "${bpr_qt_test_links}" MATCHES "Qt")
             target_sources("${bpr_qt_test_target}" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/native_look_startup.cpp")
-            target_link_libraries("${bpr_qt_test_target}" PRIVATE Qt6::Widgets)
         endif()
     endforeach()
 endif()

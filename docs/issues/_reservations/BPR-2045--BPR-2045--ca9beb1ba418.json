@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2045"
+  ],
+  "reserve_for": "release54-windows-diff-clipped-point",
+  "purpose": "Release54 proven clipped-row fixture click correction; no production behavior change",
+  "created": "2026-11-10T19:26:49.100718+00:00",
+  "base": "555c15ccb7f5cd8fa2f41f54d601e6331ec6a1b5"
+}

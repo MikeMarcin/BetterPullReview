@@ -1,6 +1,7 @@
 #include "bpr/qt/colour_role_list.hpp"
 
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QColorDialog>
 #include <QDialog>
@@ -278,7 +279,7 @@ namespace bpr::qt {
 			rowLayout->setContentsMargins(0, 2, 0, 2);
 			rowLayout->setSpacing(RowSpacing);
 
-			auto* const swatch = new QToolButton{ entry.Frame };
+			auto* const swatch = new quiet_tool_button{ entry.Frame };
 			swatch->setObjectName(
 				QStringLiteral("appearanceColourSwatch%1")
 					.arg(static_cast<int>(index)));

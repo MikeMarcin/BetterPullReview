@@ -240,8 +240,25 @@ namespace bpr::qt {
 		void paint_markers(QPainter& aPainter);
 		/// \brief [[BPR-1335]]. Tints a thread's line-number cell, under its
 		/// number: amber, blue when new, lighter when resolved; my draft is
-		/// outlined, dashed.
-		void               paint_thread_tint(QPainter& aPainter, std::uint32_t aLine, const QRectF& aCell);
+		/// outlined, dashed. Then lays `number_washes` over the cell.
+		void paint_thread_tint(QPainter& aPainter, std::uint32_t aLine, const QRectF& aCell);
+		/// \brief The ink a line's number is drawn in on its cell as painted.
+		///
+		/// \details `aInk` wherever it reaches the variant's text floor.
+		/// The owner, 2026-11-10: "It's hard to read comments' line number
+		/// against the background it's on in dark theme." A thread's tint
+		/// and an open thread's wash left the gutter ink at 2.6:1 to 3.3:1 in
+		/// Dark. On such a cell the
+		/// number moves the least amount toward the code's own ink, and past
+		/// it toward black or white, that reaches the floor; an unmarked
+		/// number keeps `aInk`. `aCell` is the cell under the tint, opaque.
+		[[nodiscard]] auto number_ink(std::uint32_t aLine, const QColor& aInk, const QColor& aCell) const -> QColor;
+		/// \brief [[BPR-1335]]. A thread's number cell tint, at its opacity.
+		[[nodiscard]] auto thread_tint(const diff_line_mark& aMark) const -> QColor;
+		/// \brief The washes laid on a line's number cell, under its number:
+		/// an open thread's amber and my draft's selection blue while it is
+		/// written, over every line each spans.
+		[[nodiscard]] auto number_washes(std::uint32_t aLine) const -> std::vector<QColor>;
 		[[nodiscard]] auto painted_line_numbers() const noexcept -> std::uint64_t;
 
 		/// \brief Adopts the lines each change group starts on.

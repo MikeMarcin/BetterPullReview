@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2040"
+  ],
+  "reserve_for": "release54-tour-retirement-readiness",
+  "purpose": "Release54 composed Tour Send and New session stay unavailable until the owning host really retires",
+  "created": "2026-11-10T18:27:34.875205+00:00",
+  "base": "3e65b4b64d756ddb555876de0bccf066e180c22a"
+}

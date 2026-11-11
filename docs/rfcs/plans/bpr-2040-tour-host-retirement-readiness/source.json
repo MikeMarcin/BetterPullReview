@@ -1,0 +1,21 @@
+{
+  "frozen_source": "899056e7de7187edc0ee206a7dc499a1f5487af4",
+  "mandate_revision": "frozen54-functional-fixes-r1",
+  "baseline_sha256": {
+    "src/app/src/github_application/window_tours.cpp": "78667695a238515149b79383905c05e67028d9157f9cdea400cd1e0b3cc6b3be",
+    "src/app/src/github_application/window_composition.hpp": "8011b5a454b8fc77de5ea3ebce852e4e8a4d2905a240b7aeae10a64b0d1ab350",
+    "src/adapters/qt/include/bpr/qt/tour_side_chat.hpp": "8fef92489a0e89f149357bcf5244d5931fe2f45874cdc252ba31dc3a1fb540af",
+    "src/adapters/qt/src/tour_side_chat.cpp": "f26a4e798c30aaadd2be9a7c42191876cdc345827b00d9f67007cb4f7dc15839",
+    "src/adapters/qt/include/bpr/qt/review_tour_editor.hpp": "f9f85cba4e4ed526076b45724ae0f29be068a9d117030342bcf9ab3b46a705b5",
+    "src/adapters/qt/src/review_tour_editor.cpp": "7b38b78b015649c4a563448445134851cca7182393f13baae31abaf9131fbfb0",
+    "tests/end_to_end/agent_invocation_composition_public_path.cpp": "27587135a198fadfb12a38678015e50dce4bee37f5a33acfdf2edda8c610c1f6",
+    "tests/adapters_qt/tour_side_chat_tests.cpp": "2ce72c9b79b0b63737498221ce17bf744c45e9f5eb8459e88c3d10f1411df472",
+    "src/app/src/github_application_fixture_access.hpp": "5a8abb27b77039b8dae4a70f7c0df284fdd79ddc5f6f83bfeed4bfa6a1051f35",
+    "src/app/src/github_application/fixture_effect_holds_and_agent_evidence.cpp": "744ae0915efebec080263f63eb5b3152eb27ca3e5eae0474f2a112d8def686a0",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake": "734898262c96e57ce588e66a134afabab14acba2c8eeede1e1f84f681c1bd7b4"
+  },
+  "external_evidence": "/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer54-pathological-release-triage-r1",
+  "native_lease": "pending",
+  "design_authority": "coordinator approved exact2040 separate capability/no Running change/lifecycle observer/test-only late hold;2041 test-only menu correction",
+  "recorded_utc": "2026-11-10T18:33:51.949438+00:00"
+}

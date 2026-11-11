@@ -307,12 +307,16 @@ namespace bpr::qt {
 		ShowPart->setFlat(true);
 		ShowPart->setFocusPolicy(Qt::TabFocus);
 		top->addWidget(ShowPart, 0, Qt::AlignTop);
-		CopyChat = new QToolButton{ this };
+		auto* const copyChat = new quiet_tool_button{ this };
+		copyChat->set_tinted(true);
+		CopyChat = copyChat;
 		CopyChat->setObjectName(QStringLiteral("tourSideChatCopy"));
 		CopyChat->setAutoRaise(true);
 		CopyChat->setToolTip(tr("Copy this chat as text"));
 		CopyChat->setAccessibleName(tr("Copy chat"));
-		ClosePane = new QToolButton{ this };
+		auto* const closePane = new quiet_tool_button{ this };
+		closePane->set_tinted(true);
+		ClosePane = closePane;
 		ClosePane->setObjectName(QStringLiteral("tourSideChatClose"));
 		ClosePane->setAutoRaise(true);
 		ClosePane->setToolTip(tr("Close the chat. Every part's chat is kept; its glyph in the tour opens it again."));
@@ -395,7 +399,9 @@ namespace bpr::qt {
 		PassageLine->setObjectName(QStringLiteral("tourSideChatPassage"));
 		PassageLine->setTextFormat(Qt::PlainText);
 		PassageLine->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		ClearPassage = new QToolButton{ PassageRow };
+		auto* const clearPassage = new quiet_tool_button{ PassageRow };
+		clearPassage->set_tinted(true);
+		ClearPassage = clearPassage;
 		ClearPassage->setObjectName(QStringLiteral("tourSideChatPassageClear"));
 		ClearPassage->setAutoRaise(true);
 		ClearPassage->setToolTip(tr("Ask without this passage"));
@@ -632,7 +638,7 @@ namespace bpr::qt {
 		}
 		HistoryLoading = aView.Loading;
 		Sessions->setProperty("loading", aView.Loading);
-		NewSession->setEnabled(!Running && !HistoryLoading);
+		NewSession->setEnabled(HostIdle && !Running && !HistoryLoading);
 		if (!aView.Loading) {
 			SessionMenu->clear();
 			ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
@@ -776,6 +782,15 @@ namespace bpr::qt {
 	{
 		Ready = aReady;
 		Why   = aWhy;
+		refresh_actions();
+	}
+
+	void tour_side_chat::set_host_idle(const bool aIdle)
+	{
+		if (HostIdle == aIdle) {
+			return;
+		}
+		HostIdle = aIdle;
 		refresh_actions();
 	}
 
@@ -1098,13 +1113,13 @@ namespace bpr::qt {
 		const auto answered = thread && std::ranges::any_of(core::thread_runs(Session, *thread), [](const core::tour_agent_run* aRun) { return aRun->State == core::tour_agent_run_state::answered; });
 		const auto blank    = Composer->toPlainText().trimmed().isEmpty();
 		const auto active   = thread && (!Draft || core::active_tour_thread(*Draft, *thread));
-		NewSession->setEnabled(active && !Running && !HistoryLoading);
+		NewSession->setEnabled(active && HostIdle && !Running && !HistoryLoading);
 		Send->setText(Mine ? tr("Stop") : QString{ });
 		Send->setToolTip(!Ready ? Why : Mine ? tr("Stop the tour agent; nothing in the tour changes.")
 											 : tr("Send (Return). Shift+Return starts a new line."));
 		Send->setAccessibleName(Mine ? tr("Stop") : tr("Send"));
-		ContinueOld->setEnabled(active && !Running && !HistoryLoading && Ready);
-		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (Mine || (!RevisionChoiceRequired && (!Running || takes_feedback()) && !blank)));
+		ContinueOld->setEnabled(active && HostIdle && !Running && !HistoryLoading && Ready);
+		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (Mine || ((HostIdle || takes_feedback()) && !RevisionChoiceRequired && (!Running || takes_feedback()) && !blank)));
 		// [[BPR-2000]]. Send starts a run and wears the accent; while this
 		// chat's run is going it is Stop, in the ordinary roles.
 		if (Mine) {
@@ -1119,7 +1134,12 @@ namespace bpr::qt {
 			: thread->Kind == core::tour_thread_kind::solution ? tr("the Solution")
 															   : tr("the tour");
 		Update->setText(tr("Update %1 from this chat").arg(part));
-		Update->setEnabled(active && !RevisionChoiceRequired && !HistoryLoading && Ready && thread.has_value() && answered && !Running);
+		Update->setEnabled(active && HostIdle && !RevisionChoiceRequired && !HistoryLoading && Ready && thread.has_value() && answered && !Running);
+		for (auto* const resend : Resends) {
+			if (resend) {
+				resend->setEnabled(HostIdle && !HistoryLoading && Ready && !Running);
+			}
+		}
 		Update->setToolTip(!Ready          ? Why
 							   : !answered ? tr("Ask something first. Then this asks the agent to rewrite %1 from the chat; you accept, edit or discard what it proposes.").arg(part)
 							   : thread->Kind == core::tour_thread_kind::tour
@@ -1206,7 +1226,7 @@ namespace bpr::qt {
 	void tour_side_chat::send(const QString& aQuestion, const bool aUpdate)
 	{
 		const auto thread = current();
-		if (!thread || aQuestion.isEmpty() || (Running && !(takes_feedback() && !aUpdate)) || HistoryLoading || (Draft && !core::active_tour_thread(*Draft, *thread)) || !Ready || !AskDispatch) {
+		if (!thread || aQuestion.isEmpty() || (!HostIdle && !(takes_feedback() && !aUpdate)) || (Running && !(takes_feedback() && !aUpdate)) || HistoryLoading || (Draft && !core::active_tour_thread(*Draft, *thread)) || !Ready || !AskDispatch) {
 			return;
 		}
 		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::nullopt : passage(), .Question = aQuestion, .Update = aUpdate };
@@ -1473,7 +1493,9 @@ namespace bpr::qt {
 				row->addWidget(ending, 1, Qt::AlignVCenter);
 				auto* copy = static_cast<QToolButton*>(nullptr);
 				if (actions.Copy) {
-					copy = new QToolButton{ answer };
+					auto* const quietCopy = new quiet_tool_button{ answer };
+					quietCopy->set_tinted(true);
+					copy = quietCopy;
 					copy->setObjectName(QStringLiteral("tourSideChatCopyReply"));
 					copy->setAutoRaise(true);
 					copy->setToolTip(answered ? tr("Copy this reply") : tr("Copy what went wrong"));
@@ -1497,10 +1519,10 @@ namespace bpr::qt {
 					// [[BPR-2000]]. Resend starts a run.
 					Accented.emplace_back(resend);
 					wear_agent_accent(*resend, palette());
-					resend->setEnabled(Ready);
+					resend->setEnabled(HostIdle && !HistoryLoading && Ready);
 					auto again = tour_ask{ .Thread = run->Thread, .Passage = run->Passage, .Question = QString::fromStdString(run->Question), .Update = run->Update };
 					connect(resend, &QPushButton::clicked, this, [this, again] {
-						if (Ready && !Running && AskDispatch) {
+						if (HostIdle && !HistoryLoading && Ready && !Running && AskDispatch) {
 							AskDispatch(again);
 						}
 					});

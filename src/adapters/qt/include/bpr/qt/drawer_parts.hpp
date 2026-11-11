@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DRAWER_PARTS_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DRAWER_PARTS_HPP
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include <QColor>
 #include <QFrame>
 #include <QIcon>
@@ -93,8 +95,13 @@ namespace bpr::qt {
 
 	/// \brief One icon tool for a drawer's tab row: borderless, its name as
 	/// tooltip and accessible name, focusable by keyboard.
+	/// \details A `quiet_tool_button` on the `Window` ground: it paints its own
+	/// hover, press, checked and focus faces from the palette, never the
+	/// macOS style's native bezel, and draws its one-colour mark in the
+	/// ground's ink. A tool on another ground names it with `set_surface` or
+	/// `set_surface_colours`.
 	[[nodiscard]] auto make_drawer_tool(QWidget* aParent, const QIcon& aIcon, const QString& aName, const QString& aObjectName)
-		-> QToolButton*;
+		-> quiet_tool_button*;
 
 	/// \brief The glyphs drawer tools use that the strip does not have.
 	enum class drawer_glyph : std::uint8_t {

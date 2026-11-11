@@ -22,6 +22,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -54,6 +55,33 @@ namespace bpr::qt {
 	class appearance_profile;
 	class side_chat_panel;
 
+	/// \brief What a card says once it was acted on.
+	enum class agent_finding_card_state : std::uint8_t {
+		open,
+		working,
+		drafted,
+		noted,
+		dismissed,
+		/// The action could not be done; the card says why and stays open.
+		refused,
+	};
+
+	/// \brief Owner report 2026-11-10, after BPR-2052. One finding card of a
+	/// stored answer, made again under its turn as the reviewer left it: the
+	/// host read it from the answer's findings block and its kept disposition.
+	struct agent_restored_finding_card
+	{
+		/// What its requests and reported states carry.
+		std::uint64_t            Session = 0U;
+		std::size_t              Ordinal = 0U;
+		core::agent_finding      Finding;
+		agent_finding_card_state State = agent_finding_card_state::open;
+		QString                  Why;
+		std::uint64_t            Note = 0U;
+
+		auto operator==(const agent_restored_finding_card&) const -> bool = default;
+	};
+
 	/// \brief [[BPR-1753]], owner decision (b) 2026-10-23. One finished
 	/// turn of the thread, as it is kept for its pull request and shown again.
 	struct agent_thread_turn
@@ -67,6 +95,9 @@ namespace bpr::qt {
 		/// [[BPR-1847]]. How it ended: an answer, or an error that offers
 		/// neither Save as note nor Draft comment.
 		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
+		/// The cards its stored answer's findings block makes, when the host
+		/// read them; a turn whose cards this view still holds keeps those.
+		std::vector<agent_restored_finding_card> Cards;
 
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
@@ -95,17 +126,6 @@ namespace bpr::qt {
 		dismiss,
 		/// Takes a dismissal back.
 		undo_dismiss,
-	};
-
-	/// \brief What a card says once it was acted on.
-	enum class agent_finding_card_state : std::uint8_t {
-		open,
-		working,
-		drafted,
-		noted,
-		dismissed,
-		/// The action could not be done; the card says why and stays open.
-		refused,
 	};
 
 	struct agent_finding_card_request
@@ -140,6 +160,19 @@ namespace bpr::qt {
 	/// \brief Whether a finding's lines are in the pull request at the
 	/// current head, as far as the host knows now.
 	using agent_finding_placeability = std::function<bool(const core::agent_finding&)>;
+	/// \brief Owner report 2026-11-10, after BPR-2052. A card under an
+	/// answer whose findings block it came from took a state the host
+	/// reported: the block as written, the card's place in it, and the state,
+	/// so the host keeps it past a restart.
+	struct agent_finding_card_change
+	{
+		std::string              FindingsBlock;
+		std::size_t              Ordinal = 0U;
+		agent_finding_card_state State   = agent_finding_card_state::open;
+		QString                  Why;
+		std::uint64_t            Note = 0U;
+	};
+	using agent_finding_card_observer = std::function<void(const agent_finding_card_change&)>;
 	/// \brief Save as note on a plain answer: the text (the whole reply, or
 	/// the selected part), and where the host says how it went: the note it
 	/// made, which Go to note opens (owner look v004), when it was saved.
@@ -350,8 +383,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1753]], owner decision 2026-10-23. Where a
 		/// card's Add as draft comment, Save as note and Dismiss go, and the
 		/// state the host reports back for the card (`aWhy` with a refusal).
-		void               set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
-		void               present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
+		void set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
+		void present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
+		/// \brief Owner report 2026-11-10, after BPR-2052. Where each state
+		/// `present_finding_card_state` gives a card under an answer with a
+		/// findings block is said, so the host keeps it.
+		void               set_finding_card_observer(agent_finding_card_observer aObserver) { CardObserver = std::move(aObserver); }
 		[[nodiscard]] auto finding_card_state(std::size_t aCard) const -> agent_finding_card_state;
 		/// \brief [[BPR-2061]]. Where a reply's Draft all and its Undo go, and
 		/// what says whether a suggestion's lines are still in the diff (none:
@@ -520,8 +557,41 @@ namespace bpr::qt {
 		std::uint64_t NextCardId = 1U;
 		/// The findings that arrived during the turn that just ended go
 		/// under its answer.
-		void                               claim_findings(std::size_t aTurn);
-		std::vector<card_entry>            CardEntries;
+		void                    claim_findings(std::size_t aTurn);
+		std::vector<card_entry> CardEntries;
+		/// \brief Owner report 2026-11-10 ("I added one and after a while I
+		/// went back and all the other suggestions were gone"). The cards of
+		/// a turn the thread stopped showing, with their states, kept by the
+		/// answer they came under.
+		/// \details The host shows the thread again whenever it reads the
+		/// conversation back (after a turn ends, on another pull request or
+		/// agent and back), and nothing it reads carries the cards. A turn
+		/// shown again with the same findings block, or failing that the same
+		/// answer, gets its cards back as they were: Drafted stays Drafted
+		/// and the rest stay to be added.
+		struct retained_cards
+		{
+			/// The answer as shown, trimmed.
+			QString Answer;
+			/// The answer's findings block as written; empty when it had none.
+			std::string FindingsBlock;
+			/// Without widgets or turn.
+			std::vector<card_entry> Cards;
+		};
+		/// The most turns whose cards are kept while not shown.
+		static constexpr std::size_t maximum_retained_card_turns = 50U;
+		std::vector<retained_cards>  RetainedCards;
+		/// Moves every card under a turn into `RetainedCards`.
+		void retain_turn_cards();
+		/// Makes again, under \p aTurn, the cards kept for its answer.
+		/// \returns Whether any were kept for it.
+		auto restore_turn_cards(std::size_t aTurn) -> bool;
+		/// Owner report 2026-11-10, after BPR-2052. Makes, under \p aTurn,
+		/// the cards the host read from its stored answer.
+		void make_restored_cards(std::size_t aTurn, const std::vector<agent_restored_finding_card>& aCards);
+		/// Says one card's state to `CardObserver`, when its answer had a block.
+		void                               observe_card_state(const std::string& aFindingsBlock, const card_entry& aEntry) const;
+		agent_finding_card_observer        CardObserver;
 		std::optional<std::uint64_t>       ClaimedSession;
 		agent_finding_card_dispatch        CardDispatch;
 		agent_answer_note_dispatch         NoteDispatch;
@@ -589,8 +659,11 @@ namespace bpr::qt {
 			bool              Done   = false;
 			QPointer<QWidget> Widget;
 			/// The answer as written, shown as Markdown.
-			QPointer<markdown_body_view>    Answer;
-			QString                         AnswerText;
+			QPointer<markdown_body_view> Answer;
+			QString                      AnswerText;
+			/// The findings block's JSON as the agent wrote it, when the
+			/// answer ended with a complete one: what its cards came from.
+			std::string                     FindingsBlock;
 			QPointer<agent_run_status_line> Footer;
 			/// [[BPR-2005]]. Its helpers and the quiet notice while it runs;
 			/// the folded line after.
@@ -701,7 +774,7 @@ namespace bpr::qt {
 		std::function<agent_suggestion_context()>           SuggestionContext;
 		/// [[BPR-1934]]. The suggestion component the tour chats share.
 		agent_suggestion_list* Suggestions     = nullptr;
-		QToolButton*           SuggestionsMenu = nullptr;
+		quiet_tool_button*     SuggestionsMenu = nullptr;
 		/// [[BPR-1847]]. In place of the suggestions while setup is unfinished.
 		QWidget* SetupPrompt = nullptr;
 		/// [[BPR-1881]]. The readiness last told, and who is told.
@@ -734,19 +807,19 @@ namespace bpr::qt {
 		bool          AnswerPending = false;
 		QElapsedTimer Started;
 		/// The last request ended well and nothing has run since.
-		bool             Finished        = false;
-		QWidget*         ReadyCard       = nullptr;
-		QLabel*          ReadyTitle      = nullptr;
-		QLabel*          ReadyText       = nullptr;
-		QLabel*          ReadyGets       = nullptr;
-		QPushButton*     Ask             = nullptr;
-		skill_completer* SkillCompletion = nullptr;
-		QToolButton*     Context         = nullptr;
-		QLabel*          Chips           = nullptr;
+		bool               Finished        = false;
+		QWidget*           ReadyCard       = nullptr;
+		QLabel*            ReadyTitle      = nullptr;
+		QLabel*            ReadyText       = nullptr;
+		QLabel*            ReadyGets       = nullptr;
+		QPushButton*       Ask             = nullptr;
+		skill_completer*   SkillCompletion = nullptr;
+		quiet_tool_button* Context         = nullptr;
+		QLabel*            Chips           = nullptr;
 		/// [[BPR-1773]]. The conversation chip and what it is now.
 		QWidget*                               ConversationChip  = nullptr;
 		QLabel*                                ConversationText  = nullptr;
-		QToolButton*                           ConversationClose = nullptr;
+		quiet_tool_button*                     ConversationClose = nullptr;
 		std::optional<agent_conversation_chip> ConversationShown;
 		/// [[BPR-2002]]. The lines chip, the lines it last showed, and
 		/// whether the reviewer detached them.

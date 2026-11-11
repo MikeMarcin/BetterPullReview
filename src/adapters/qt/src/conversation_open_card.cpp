@@ -1,17 +1,21 @@
 #include "conversation_open_card.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 
+#include "button_surface.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/identity_avatar.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
@@ -22,9 +26,12 @@
 #include <QTextEdit>
 
 #include <QAbstractTextDocumentLayout>
+#include <QEvent>
+#include <QFocusEvent>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QHelpEvent>
+#include <QIcon>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -43,8 +50,10 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <optional>
 #include <utility>
 
@@ -65,6 +74,9 @@ namespace bpr::qt {
 		constexpr int header_height = 34;
 		constexpr int reply_minimum = 54;
 		constexpr int reply_maximum = 220;
+		/// The most `SignalInk` may turn from the writing blue's hue, in
+		/// degrees, and still be the writing blue.
+		constexpr int signal_ink_hue_shift = 30;
 
 		[[nodiscard]] auto mix(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
 		{
@@ -624,9 +636,22 @@ namespace bpr::qt {
 										 mix(colours.Panel, colours.Ink, 0.09).name(), colours.Signal.name(), colours.Faint.name()));
 		}
 
+		/// \brief A quiet button on the card's own colour.
+		/// \details The owner, 2026-11-10: under the macOS style a plain
+		/// auto-raise tool button wore a native bezel in the system
+		/// appearance's grey, so a dark profile on a light system showed
+		/// light marks on pale squares. Its faces come from the card's
+		/// palette instead, in every style.
+		[[nodiscard]] auto card_button(QWidget* const aParent) -> quiet_tool_button*
+		{
+			auto* const button = new quiet_tool_button{ aParent };
+			button->set_surface(QPalette::Base);
+			return button;
+		}
+
 		[[nodiscard]] auto tool(QWidget* aParent, const QString& aName, const QString& aTip, const conversation_glyph aGlyph, const QPalette& aPalette) -> QToolButton*
 		{
-			auto* const button = new QToolButton{ aParent };
+			auto* const button = card_button(aParent);
 			button->setObjectName(aName);
 			button->setAutoRaise(true);
 			button->setFocusPolicy(Qt::StrongFocus);
@@ -639,6 +664,94 @@ namespace bpr::qt {
 			button->setCursor(Qt::ArrowCursor);
 			return button;
 		}
+
+		/// \brief The header's line link: "Line 40", or a thread's number,
+		/// with the target glyph before it.
+		///
+		/// \details The owner, 2026-11-10, on macOS in Dark: the draft's
+		/// "Line 329" was blue on a light grey face. A plain `QToolButton`
+		/// is drawn by the platform style, and macOS gives it a native
+		/// bezel in the system appearance's grey, whatever the profile's
+		/// ink. The link draws itself on the card instead, in every style:
+		/// no face at rest, hovered or pressed (the words are underlined),
+		/// so its ink reads on the card's own colour, and a focus ring
+		/// while keyboard focus is on it. Qt still owns its signals, focus,
+		/// keyboard activation and accessibility.
+		class line_link final : public QToolButton
+		{
+		public:
+			explicit line_link(QWidget* const aParent)
+				: QToolButton{ aParent }
+			{
+				setAttribute(Qt::WA_Hover, true);
+				setAutoRaise(true);
+				setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			}
+
+			/// \brief The words' ink; the palette's button text when unset.
+			void set_ink(const QColor& aInk)
+			{
+				Ink = aInk;
+				update();
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto content = chip_content_size(*this, iconSize(), !icon().isNull());
+				return QSize{ (2 * chip_padding) + content.width(), content.height() + 6 };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return sizeHint();
+			}
+
+		protected:
+			void focusInEvent(QFocusEvent* const aEvent) override
+			{
+				update_button_keyboard_focus(KeyboardFocus, *aEvent);
+				QToolButton::focusInEvent(aEvent);
+			}
+
+			void changeEvent(QEvent* const aEvent) override
+			{
+				QToolButton::changeEvent(aEvent);
+				if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange) {
+					updateGeometry();
+				}
+			}
+
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				if (isEnabled() && hasFocus() && KeyboardFocus) {
+					const auto inset = focus_ring_width / 2.0;
+					painter.setPen(QPen{ focus_ring_colour(palette(), QPalette::Base), focus_ring_width });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), 3.0, 3.0);
+				}
+				const auto content = rect().adjusted(chip_padding, 0, -chip_padding, 0);
+				const auto extent  = chip_content_size(*this, iconSize(), !icon().isNull());
+				auto       place   = QRect{ content.left() + std::max(0, (content.width() - extent.width()) / 2), content.top(), extent.width(), content.height() };
+				if (!icon().isNull()) {
+					const auto image = icon().pixmap(iconSize(), devicePixelRatioF(), isEnabled() ? QIcon::Normal : QIcon::Disabled);
+					const auto spot  = QRect{ place.left(), place.top() + ((place.height() - iconSize().height()) / 2), iconSize().width(), iconSize().height() };
+					style()->drawItemPixmap(&painter, QStyle::visualRect(layoutDirection(), rect(), spot), Qt::AlignCenter, image);
+					place.setLeft(place.left() + iconSize().width() + chip_icon_gap);
+				}
+				auto words = font();
+				words.setUnderline(isEnabled() && (underMouse() || isDown()));
+				painter.setFont(words);
+				painter.setPen(!isEnabled() ? palette().color(QPalette::Disabled, QPalette::ButtonText) : Ink.value_or(palette().color(QPalette::Active, QPalette::ButtonText)));
+				painter.drawText(QStyle::visualRect(layoutDirection(), rect(), place), static_cast<int>(Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine | Qt::TextHideMnemonic), text());
+			}
+
+		private:
+			std::optional<QColor> Ink;
+			bool                  KeyboardFocus = false;
+		};
 
 		/// \brief [[BPR-1757]]. A header word that gives up its room
 		/// before the words beside it: it elides, says itself whole in its
@@ -681,7 +794,7 @@ namespace bpr::qt {
 		};
 	} // namespace
 
-	auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute) -> note_colours
+	auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute, const core::appearance_variant aVariant) -> note_colours
 	{
 		auto       colours = note_colours{ };
 		const auto ink     = aPalette.color(QPalette::Active, QPalette::Text);
@@ -702,6 +815,23 @@ namespace bpr::qt {
 		colours.RouteLine  = mix(aRoute, base, 0.55);
 		colours.Ok         = colours.Dark ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 };
 		colours.Signal     = aPalette.color(QPalette::Active, QPalette::Highlight);
+		{
+			const auto floor   = core::minimum_contrast_hundredths(core::contrast_kind::text, aVariant);
+			const auto grounds = std::array{
+				core::contrast_ground{ .Colour = to_appearance_color(colours.Drawer), .MinimumHundredths = floor },
+				core::contrast_ground{ .Colour = to_appearance_color(colours.Panel), .MinimumHundredths = floor },
+			};
+			auto signal         = to_appearance_color(colours.Signal);
+			signal.Alpha        = 255U;
+			const auto readable = to_presentation_color(core::readable_signal_ink(signal, grounds));
+			// A blue stays a blue. High Contrast Light's selection yellow
+			// would turn the defect red, a different state's colour, so the
+			// words take the drawer's own ink there instead.
+			const auto from   = colours.Signal.hslHue();
+			const auto to     = readable.hslHue();
+			const auto shift  = from < 0 || to < 0 ? 0 : std::min(std::abs(from - to), 360 - std::abs(from - to));
+			colours.SignalInk = shift <= signal_ink_hue_shift ? readable : aPalette.color(QPalette::Active, QPalette::WindowText);
+		}
 		return colours;
 	}
 
@@ -1805,14 +1935,12 @@ namespace bpr::qt {
 			row->addWidget(verdict);
 		}
 		if (aCard.Line.has_value()) {
-			auto* const where = new QToolButton{ header };
+			auto* const where = new line_link{ header };
 			where->setObjectName(QStringLiteral("threadShowLine"));
-			where->setAutoRaise(true);
 			where->setFocusPolicy(Qt::StrongFocus);
 			where->setIcon(conversation_icon(conversation_glyph::target, palette));
 			where->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::target));
 			where->setIconSize(QSize{ 12, 12 });
-			where->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 			auto mono = semibold(Style.CodeFont);
 			mono.setPointSizeF(font().pointSizeF() > 0.0 ? font().pointSizeF() * 0.92 : mono.pointSizeF());
 			if (!Style.Feed) {
@@ -1838,11 +1966,9 @@ namespace bpr::qt {
 			}
 			if (aCard.Writing) {
 				// [[BPR-1212]]. The lines being written on, in the writing blue.
-				Where    = where;
-				auto ink = where->palette();
-				ink.setColor(QPalette::ButtonText, Style.Colours.Signal);
-				where->setPalette(ink);
-				where->setIcon(conversation_icon(conversation_glyph::target, Style.Colours.Signal));
+				Where = where;
+				where->set_ink(Style.Colours.SignalInk);
+				where->setIcon(conversation_icon(conversation_glyph::target, Style.Colours.SignalInk));
 				where->setProperty("conversationGlyph", QVariant{ });
 				// [[BPR-1212]] slice 1. "Lines a–b" for a draft on several.
 				// [[BPR-1212]]. "Base line N" for a draft on the base side.
@@ -1858,12 +1984,12 @@ namespace bpr::qt {
 			row->addSpacing(4);
 		}
 		if (aCard.Writing) {
-			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::lock, Style.Colours.Signal, header };
+			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::lock, Style.Colours.SignalInk, header };
 			DraftState        = state;
 			row->addWidget(state);
 		} else if (aCard.Draft && aCard.Pending) {
 			// [[BPR-1345]]. Sent with the review when it is finished.
-			row->addWidget(new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::lock, Style.Colours.Signal, header });
+			row->addWidget(new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::lock, Style.Colours.SignalInk, header });
 		} else if (aCard.Draft) {
 			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
 		} else if (aCard.ResolutionPending) {
@@ -1898,7 +2024,7 @@ namespace bpr::qt {
 			// [[BPR-1773]]. Ask the agent about this conversation, with the
 			// Agent tab's own mark.
 			if (aCard.Kind == QStringLiteral("Inline thread") && !aCard.Path.isEmpty() && !aCard.Posts.empty()) {
-				auto* const askAgent = new QToolButton{ header };
+				auto* const askAgent = card_button(header);
 				askAgent->setObjectName(QStringLiteral("threadAskAgent"));
 				askAgent->setAutoRaise(true);
 				askAgent->setIcon(drawer_icon(drawer_glyph::agent, palette));
@@ -1949,7 +2075,7 @@ namespace bpr::qt {
 		if (!aCard.DefectBadge.isEmpty()) {
 			auto* const badgeRow = new QHBoxLayout{ };
 			badgeRow->setContentsMargins(text_left - 4, 6, text_right, 0);
-			auto* const badge = new QToolButton{ this };
+			auto* const badge = card_button(this);
 			badge->setObjectName(QStringLiteral("threadDefectBadge"));
 			badge->setText(aCard.DefectBadge);
 			badge->setAccessibleName(aCard.DefectBadge);
@@ -2207,7 +2333,7 @@ namespace bpr::qt {
 				connect(keep, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::keep_reply_as_comment); } });
 				actions->addWidget(keep);
 			}
-			auto* const copy = new QToolButton{ Foot };
+			auto* const copy = card_button(Foot);
 			copy->setObjectName(QStringLiteral("threadCopyReply"));
 			copy->setAutoRaise(true);
 			copy->setText(QStringLiteral("Copy text"));
@@ -2243,7 +2369,7 @@ namespace bpr::qt {
 				connect(carry, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::carry_suggestion); } });
 				actions->addWidget(carry);
 			}
-			auto* const copy = new QToolButton{ Foot };
+			auto* const copy = card_button(Foot);
 			copy->setObjectName(QStringLiteral("threadCopyChange"));
 			copy->setAutoRaise(true);
 			copy->setText(QStringLiteral("Copy change"));
@@ -2266,7 +2392,7 @@ namespace bpr::qt {
 			publish->setIcon(conversation_icon(conversation_glyph::send, palette));
 			publish->set_style(Style);
 			connect(publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_draft); } });
-			auto* const edit = new QToolButton{ Foot };
+			auto* const edit = card_button(Foot);
 			edit->setObjectName(QStringLiteral("threadEditDraft"));
 			edit->setAutoRaise(true);
 			edit->setText(QStringLiteral("Edit"));

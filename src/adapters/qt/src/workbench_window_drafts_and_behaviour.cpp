@@ -1323,7 +1323,7 @@ namespace bpr::qt {
 		helperLayout->addWidget(helperInfo);
 		LabelHelperSwitch->setAccessibleDescription(helperInfo->consequence());
 		// Where the guidance text lives, as Mark colours points at the tints.
-		WorkshopGuidanceLink = new QToolButton{ BehaviourEditor };
+		WorkshopGuidanceLink = new quiet_tool_button{ BehaviourEditor };
 		WorkshopGuidanceLink->setObjectName(QStringLiteral("workshopGuidanceLink"));
 		// "&&" draws one ampersand: a single "&" would be a mnemonic.
 		WorkshopGuidanceLink->setText(QStringLiteral("Agents && context › Review feedback ›"));
@@ -1337,6 +1337,7 @@ namespace bpr::qt {
 		{
 			auto linkPalette = WorkshopGuidanceLink->palette();
 			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(linkPalette));
+			linkPalette.setColor(QPalette::WindowText, linkPalette.color(QPalette::ButtonText));
 			WorkshopGuidanceLink->setPalette(linkPalette);
 		}
 		connect(WorkshopGuidanceLink, &QToolButton::clicked, this, [this] {
@@ -1350,7 +1351,7 @@ namespace bpr::qt {
 		});
 		auto* const countsInfo = new info_glyph{ QStringLiteral("Where the Overview's comment counts start. Open counts unresolved threads; All counts every one. Switching on an Overview changes only that view."), BehaviourEditor };
 		countsInfo->setObjectName(QStringLiteral("overviewCountsInfo"));
-		MarkColoursLink = new QToolButton{ BehaviourEditor };
+		MarkColoursLink = new quiet_tool_button{ BehaviourEditor };
 		MarkColoursLink->setObjectName(QStringLiteral("markColoursLink"));
 		MarkColoursLink->setText(QStringLiteral("Appearance › Colours ›"));
 		MarkColoursLink->setAutoRaise(true);
@@ -1363,6 +1364,7 @@ namespace bpr::qt {
 		{
 			auto linkPalette = MarkColoursLink->palette();
 			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(linkPalette));
+			linkPalette.setColor(QPalette::WindowText, linkPalette.color(QPalette::ButtonText));
 			MarkColoursLink->setPalette(linkPalette);
 		}
 		connect(MarkColoursLink, &QToolButton::clicked, this, [this] {
@@ -1419,7 +1421,7 @@ namespace bpr::qt {
 		ConventionalCommentsCaption->setForegroundRole(QPalette::PlaceholderText);
 		ConventionalCommentsCaption->setTextFormat(Qt::PlainText);
 		conventionalLine->addWidget(ConventionalCommentsCaption);
-		ConventionalCommentsLink = new QToolButton{ ConventionalCommentsRow };
+		ConventionalCommentsLink = new quiet_tool_button{ ConventionalCommentsRow };
 		ConventionalCommentsLink->setObjectName(QStringLiteral("conventionalCommentsLink"));
 		ConventionalCommentsLink->setText(QStringLiteral("About Conventional Comments"));
 		ConventionalCommentsLink->setAutoRaise(true);
@@ -1432,6 +1434,7 @@ namespace bpr::qt {
 		{
 			auto linkPalette = ConventionalCommentsLink->palette();
 			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(linkPalette));
+			linkPalette.setColor(QPalette::WindowText, linkPalette.color(QPalette::ButtonText));
 			ConventionalCommentsLink->setPalette(linkPalette);
 		}
 		connect(ConventionalCommentsLink, &QToolButton::clicked, this, [this] {

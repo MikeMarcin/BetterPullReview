@@ -9,6 +9,7 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
@@ -1054,7 +1055,9 @@ namespace bpr::qt {
 			Field->setPlaceholderText(QStringLiteral("Find a thread"));
 			Field->setAccessibleName(QStringLiteral("Find a thread: words, a person, a file or a line"));
 			Field->setAttribute(Qt::WA_MacShowFocusRect, false);
-			Clear = new QToolButton{ this };
+			auto* const clear = new quiet_tool_button{ this };
+			clear->set_surface(QPalette::Base);
+			Clear = clear;
 			Clear->setObjectName(QStringLiteral("threadFinderClear"));
 			Clear->setAutoRaise(true);
 			Clear->setIconSize(QSize{ 14, 14 });

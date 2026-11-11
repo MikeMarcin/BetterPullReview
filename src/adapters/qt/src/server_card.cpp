@@ -280,7 +280,10 @@ namespace bpr::qt {
 			const QString& aText,
 			const QString& aAccessibleName) -> QPushButton*
 		{
+			// The flat ones are quiet chips: hover and press faces from the
+			// palette, not the macOS style's bezel in the system's grey.
 			QPushButton* const button = aObjectName == QStringLiteral("serverCardCliCheck") || aObjectName == QStringLiteral("serverCardCopyDetails")
+					|| aObjectName == QStringLiteral("serverCardForget") || aObjectName == QStringLiteral("serverCardCliAccountUse")
 				? static_cast<QPushButton*>(new quiet_push_button{ aText, aParent })
 				: new QPushButton{ aText, aParent };
 			button->setObjectName(aObjectName);

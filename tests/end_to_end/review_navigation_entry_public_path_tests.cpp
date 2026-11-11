@@ -570,6 +570,11 @@ int main(int aArgc, char** aArgv)
 			&& current.ActiveTab->View.Comparison == composerTab->View.Comparison;
 	},
 			 "menu navigation leaves composer and finishes the exact next-file view");
+	// The sheet stays over the surface through the navigation, so Compose
+	// review, a toggle, closes it and then brings it back.
+	expect(window.review_sheet_open() && editor->isVisible() && window.compose_review_action()->isChecked(), "the composer stays open through menu navigation");
+	window.compose_review_action()->trigger();
+	wait_for([&] { return !editor->isVisible() && !window.review_sheet_open(); }, "Compose review closes the open composer");
 	window.compose_review_action()->trigger();
 	wait_for([&] { return editor->isVisible(); }, "composer returns");
 	expect(editor->toPlainText() == body, "unsent review summary survives navigation round trip");

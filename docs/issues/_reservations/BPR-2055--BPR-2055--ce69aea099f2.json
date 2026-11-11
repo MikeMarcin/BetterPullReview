@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2055"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Restore agent finding cards after restart",
+  "created": "2026-11-11T00:38:00.810658+00:00",
+  "base": "efe2df62b55ef89c2b9e00a38414f161ccca074b"
+}

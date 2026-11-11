@@ -2,6 +2,7 @@
 #define BPR_SQLITE_AGENT_SETUP_STORE_HPP
 
 #include "bpr/application/agent_conversation.hpp"
+#include "bpr/application/agent_finding_card_host.hpp"
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/native_agent_session.hpp"
@@ -43,6 +44,14 @@ namespace bpr::adapters::sqlite {
 	/// recently written going first. A conversation that does not read back
 	/// whole is reported as none. Settings resets remove it with the file.
 	[[nodiscard]] auto make_agent_conversation_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_conversation_store_port>;
+	/// \brief Owner report 2026-11-10, after BPR-2052. The same file's
+	/// finding card dispositions: for each card of a stored answer (the
+	/// SHA-256 of its findings block and its ordinal) whether it was drafted,
+	/// saved as a note (and which), dismissed or refused (and why), at most
+	/// `core::maximum_remembered_finding_cards`, the least recently changed
+	/// going first. An open card has no row. Settings resets remove it with
+	/// the file.
+	[[nodiscard]] auto make_agent_finding_card_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_finding_card_store_port>;
 	/// \brief Native ownership in the same private profile catalog, with no environment or credential fields.
 	[[nodiscard]] auto make_native_agent_session_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::native_agent_session_store_port>;
 } // namespace bpr::adapters::sqlite

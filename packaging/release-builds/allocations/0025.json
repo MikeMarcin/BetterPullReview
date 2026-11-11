@@ -1,0 +1,93 @@
+{
+  "configuration": {
+    "previousWindows": null,
+    "producers": {
+      "macos-universal": {
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "buildType": "Release",
+        "options": {
+          "BPR_BUILD_AGENT_INTEGRATIONS": "ON",
+          "BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE": "OFF",
+          "BPR_BUILD_FUZZERS": "OFF",
+          "BPR_BUILD_LOCAL_AUTOMATION": "ON",
+          "BPR_BUILD_QT": "ON",
+          "BPR_BUILD_SYNTAX_EVALUATION": "OFF",
+          "BPR_BUILD_TOUR_CLI": "ON",
+          "BPR_CORE_SHA256_PORTABLE": "OFF",
+          "BPR_DEPENDENCY_OFFLINE": "OFF",
+          "BPR_DISTRIBUTION_BUILD": "ON",
+          "BPR_ENABLE_CODING_TARGETS": "OFF",
+          "BPR_EXTERNAL_QT_RESOURCES": "OFF",
+          "BPR_QT_PROVIDER": "ON",
+          "BPR_USE_MIMALLOC": "ON",
+          "BUILD_TESTING": "OFF"
+        },
+        "platform": "Darwin",
+        "preset": "macos-release",
+        "settings": {
+          "CMAKE_BPR_RELEASE_COMPILER_SHA256": "b8763cf250e607a778bb4603cecb5b90338814d0a3dfcba0d57b1de242f610e9",
+          "CMAKE_BPR_RELEASE_SDK_VERSION": "26.5",
+          "CMAKE_CXX_COMPILER_TARGET": "",
+          "CMAKE_CXX_FLAGS": "",
+          "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG",
+          "CMAKE_C_FLAGS": "",
+          "CMAKE_C_FLAGS_RELEASE": "-O3 -DNDEBUG",
+          "CMAKE_EXE_LINKER_FLAGS": "",
+          "CMAKE_EXE_LINKER_FLAGS_RELEASE": "",
+          "CMAKE_GENERATOR": "Ninja",
+          "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "",
+          "CMAKE_MSVC_RUNTIME_LIBRARY": "",
+          "CMAKE_OSX_DEPLOYMENT_TARGET": "14.4",
+          "CMAKE_OSX_SYSROOT": "",
+          "CMAKE_POSITION_INDEPENDENT_CODE": "",
+          "CMAKE_SHARED_LINKER_FLAGS": "",
+          "CMAKE_SHARED_LINKER_FLAGS_RELEASE": ""
+        },
+        "toolchain": {
+          "cmake": "4.4.4",
+          "compilerId": "AppleClang",
+          "compilerVersion": "21.0.0.21000101",
+          "qtVersion": "6.12.0"
+        }
+      }
+    },
+    "schema": "bpr.release-inputs.v1"
+  },
+  "configurationDigest": "7c03c3c74d2dc8f185a9096e3752c2431fb2504d6a0afb929658e36b66f0cde3",
+  "inputDigest": "a501c2898fbe7e09a3e1046531974ff8b116bf1aeb6e422f4e0818786f277714",
+  "native": {
+    "assetVersion": "0.4.2-build.25",
+    "debianVersion": "0.4.2+build.25",
+    "displayVersion": "0.4.2 (build 25)",
+    "macBundleVersion": "25",
+    "msiProductCode": "{3452CD17-894D-524C-89DD-39A389C9A3C2}",
+    "msiProductVersion": "0.4.25",
+    "releaseTag": "v0.4.2-build.25",
+    "windowsImageVersion": "0.4.2.25"
+  },
+  "number": 25,
+  "product": "BetterPullReview",
+  "schema": "bpr.release-allocation.v1",
+  "sourceBase": "0928ca54a5ebe9f597f24181233b707c5730ffae",
+  "sourceInputs": {
+    "CMakePresets.json": "d31df3cc1852772344c55f76d65074a57e053cc6605ac9c89b17a94a064facf0",
+    "packaging/dependencies.json": "aa96c3d2a187672bc02c6e0d6b5d99fa2f9995809cba93ffa2e92aad27b58116",
+    "packaging/release-builds/windows-upgrade-floor.json": "5d50cc4291a0bac872bd3ba0ad293c065ef2a78526f46ed656cafaa64757096a"
+  },
+  "sourceTree": "f5840d49e0f1d5b65e035b67eb506a81e7d9e568",
+  "version": "0.4.2",
+  "windowsUpgradeFloor": {
+    "installerName": "BetterPullReview-0.4.2-build.9-windows-x64.msi",
+    "installerSHA256": "d0eaf614ae5bcd60b1de31f3c8f5e55c6fecfe4025b7a2fab34c2ce968ae7081",
+    "marketingVersion": "0.4.2",
+    "msiProductVersion": "0.4.9",
+    "product": "BetterPullReview",
+    "releaseId": 434387749,
+    "releaseTag": "v0.4.2-build.9",
+    "schema": "bpr.windows-upgrade-floor.v1",
+    "sourceCommit": "5a86e28ed230462c48e5eba0d159f08eb07010c3"
+  }
+}

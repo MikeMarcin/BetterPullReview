@@ -1,0 +1,7 @@
+{
+  "schema": "bpr.release-fix-plan-source.v1",
+  "source_baseline": "f42e747cf9c067040052a51c6bccca9188ffef91",
+  "mandate_revision": "release55-sparse-reference-mask-r1",
+  "allocation": "085cf45dbb3058a0408c9e2d13d9afc1d1b706fc",
+  "scope": "Existing Qt fixture only; direct release blocker, RFC0038"
+}

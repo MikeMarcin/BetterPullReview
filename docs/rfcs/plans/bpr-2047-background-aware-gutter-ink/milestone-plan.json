@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2047-background-aware-gutter-ink",
+  "scope": {
+    "issues": [
+      "BPR-2047"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "reference-background-ink",
+      "outcome": "The gutter raster oracle recognizes equal foreground coverage across selected/unselected backgrounds without weakening the one-device-pixel geometry contract.",
+      "work": [
+        {
+          "issue": "BPR-2047",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Observed125RGB/PNG evidence binds the fixed-distance false negative to a test-local normalized-contrast oracle with validated blank/background/reference-row samples and bounded arithmetic.",
+        "Same-code deterministic observed-pixel, missing-ink, low-contrast and shifted-span controls pass; the combined uninstrumented100/125/200native courses pass once with original predicates/gestures/limits.",
+        "Only owned test/workflow changes land main; original failures and source54producer inputs remain exact, commands are quiescent and successor native release qualification stays separate."
+      ],
+      "boundary": "Root release54 color-oracle mandate; only tests/adapters_qt/diff_workbench_tests.cpp and own workflow. Preserve2045point fix, original575messages and1px/32reference contract; no production/config/Qt policy or foreign main intake."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2041-profile-view-menu-goto-line",
+  "scope": {
+    "issues": [
+      "BPR-2041"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "reconcile-menu-oracle",
+      "outcome": "The profile View menu contract includes the accepted Go to line command.",
+      "work": [
+        {
+          "issue": "BPR-2041",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Retain frozen54 menu failure and trace exact stale28-entry/index9 separator oracle to the accepted Go to line production command.",
+        "Correct only the existing profile-management Qt test: preserve every old order/navigation/shortcut/disabled-shell oracle and assert29 entries plus the exact Go to line command and real window shortcut identity.",
+        "Focused original Qt course and static/docs gates pass under an explicit native lease; intentionally land only owned test/tracker slice, preserving producer/input identity and reporting release qualification separately."
+      ],
+      "boundary": "Only tests/adapters_qt/profile_management_window_tests.cpp and own tracker. No frozen producer changes, external product main intake, PC work, native execution without coordinator lease, release publication or budget relaxation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
