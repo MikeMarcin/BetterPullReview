@@ -1,5 +1,7 @@
 #include "github_application/window_composition.hpp"
 
+#include <QFile>
+#include <QSaveFile>
 #include <QStandardPaths>
 
 #include "bpr/app/native_filesystem_path.hpp"
@@ -42,6 +44,7 @@
 #include <algorithm>
 #include <iterator>
 #include <limits>
+#include <random>
 #include <stdexcept>
 #include <type_traits>
 #include <variant>
@@ -1415,6 +1418,37 @@ namespace bpr::app {
 			ReviewSkill = std::make_unique<application::review_skill_host>(std::move(dependencies));
 		}
 		ReviewSkill->load();
+		// [[BPR-2016]], RFC-BPR-0107. Import and export of agents and
+		// prompts: the file and the stores on the effect lane, no process.
+		AgentConfigurationStore = adapters::sqlite::make_agent_configuration_store(ApplicationDataRoot);
+		{
+			auto dependencies     = application::agent_configuration_dependencies{ };
+			dependencies.Store    = AgentConfigurationStore.get();
+			dependencies.ReadFile = [](const std::string& aPath, const std::size_t aLimit) -> std::optional<std::string> {
+				auto file = QFile{ QString::fromStdString(aPath) };
+				if (!file.open(QIODevice::ReadOnly)) {
+					return std::nullopt;
+				}
+				const auto bytes = file.read(static_cast<qint64>(aLimit) + 1);
+				return std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) };
+			};
+			dependencies.WriteFile = [](const std::string& aPath, const std::string& aBytes) {
+				auto file = QSaveFile{ QString::fromStdString(aPath) };
+				return file.open(QIODevice::WriteOnly) && file.write(aBytes.data(), static_cast<qint64>(aBytes.size())) == static_cast<qint64>(aBytes.size()) && file.commit();
+			};
+			dependencies.MintIdentity = [] {
+				auto           random   = std::random_device{ };
+				auto           identity = std::string{ };
+				constexpr auto digits   = std::string_view{ "0123456789abcdef" };
+				for (auto index = 0U; index < 32U; ++index) {
+					identity += digits[random() & 15U];
+				}
+				return identity;
+			};
+			dependencies.Effects  = &WorkbenchEffects;
+			dependencies.Decision = &DecisionLane;
+			AgentConfiguration    = std::make_unique<application::agent_configuration_host>(std::move(dependencies));
+		}
 		// [[BPR-1753]], owner decision (b) 2026-10-23. One
 		// conversation per pull request, kept with the setup.
 		AgentConversationStore = adapters::sqlite::make_agent_conversation_store(ApplicationDataRoot);
@@ -1441,7 +1475,20 @@ namespace bpr::app {
 		compose_agent_setup_view();
 		observe_conversation();
 #endif
-		Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
+		Window->writing_hooks()->set_dispatch(
+			[this](core::writing_hook aHook, std::string aText) {
+				if (Closing || !Profile->WorkbenchPreferences->apply_writing_hook(aHook, aText)) {
+					return false;
+				}
+#if defined(BPR_AGENT_INTEGRATIONS)
+				// [[BPR-2016]]. A saved override was written against today's built-in.
+				if (AgentConfiguration) {
+					AgentConfiguration->record_written_against(aHook, std::move(aText));
+				}
+#endif
+				return true;
+			},
+			[this](core::writing_hook aHook) { test_writing_hook(aHook); });
 		compose_skill_catalog();
 		Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
 #if defined(BPR_AGENT_INTEGRATIONS)

@@ -3,6 +3,9 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/agent_configuration_dialogs.hpp"
+#include "bpr/qt/agent_entry_dialog.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/bundled_code_font.hpp"
 #include "bpr/qt/conversation_finder.hpp"
@@ -69,6 +72,9 @@
 #include <QFileInfo>
 #include <QFontInfo>
 #include <QIcon>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -279,6 +285,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
 		bpr::app::command_line_option{ .Name = "attended-skill-home", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-prompt-editor" },
+		bpr::app::command_line_option{ .Name = "attended-share-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -5613,6 +5620,7 @@ namespace {
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
 	void schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
+	void schedule_attended_share_look(bpr::app::github_application& aApplication);
 	void schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
 	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
@@ -5714,6 +5722,8 @@ namespace {
 						schedule_attended_tour_look(aApplication, true);
 					} else if (look == "prompt-editor") {
 						schedule_attended_prompt_editor_look(aApplication);
+					} else if (look == "share") {
+						schedule_attended_share_look(aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
@@ -5900,6 +5910,208 @@ namespace {
 			}
 			hooks->ensurePolished();
 			finish(QStringLiteral("ATTENDED_PROMPT_EDITOR_SHOWN:skills=%1").arg(skills->text()));
+		});
+		timer->start();
+	}
+
+	// [[BPR-2017]], RFC-BPR-0107. `--attended-share-look`: once the file
+	// shows, the profile is given what a person shares, through Settings' own
+	// surfaces: two custom agents added through Add agent… (one asking for
+	// relaxed checks, builds and its scratch folder off) and two prompts
+	// edited and saved. Settings then opens on Agents & context, where Import
+	// configuration… and Export configuration… are. Nothing is run or
+	// checked. A profile that already has them is left as it is.
+	void schedule_attended_share_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer   = new QTimer{ &aApplication.window() };
+		const auto  started = automated_clock::now();
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, step = 0, alive = aApplication.liveness()]() mutable {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const hooks  = window.writing_hooks();
+			auto* const agents = window.agent_programs();
+			const auto  finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+				timer->stop();
+				timer->deleteLater();
+			};
+			if (automated_clock::now() - started > std::chrono::seconds{ 30 }) {
+				finish(QStringLiteral("ATTENDED_SHARE_FAILED:timeout"));
+				return;
+			}
+			auto* const text = hooks != nullptr ? hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions")) : nullptr;
+			auto* const save = hooks != nullptr ? hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave")) : nullptr;
+			if (text == nullptr || save == nullptr || agents == nullptr || agents->import_button() == nullptr) {
+				finish(QStringLiteral("ATTENDED_SHARE_FAILED:surfaces"));
+				return;
+			}
+			// `BPR_ATTENDED_SHARE_CHECK=recipient`: a second, fresh profile
+			// imports that file, binding each custom agent to
+			// `BPR_ATTENDED_CONFIGURATION_PROGRAM` through Choose program….
+			const auto recipient = qEnvironmentVariable("BPR_ATTENDED_SHARE_CHECK") == QStringLiteral("recipient");
+			if (recipient) {
+				const auto said  = agents->exchange_note()->text();
+				auto*      found = static_cast<QWidget*>(nullptr);
+				for (auto* const widget : QApplication::topLevelWidgets()) {
+					if (widget->objectName() == QStringLiteral("agentConfigurationImport") && widget->isVisible()) {
+						found = widget;
+					}
+				}
+				if (step == 0) {
+					window.settings_action()->trigger();
+					window.settings()->present(bpr::qt::settings_page::agents_and_context);
+					agents->import_button()->click();
+					step = 1;
+				} else if (step == 1 && found != nullptr) {
+					auto* const importing = static_cast<bpr::qt::agent_configuration_import_dialog*>(found);
+					for (std::size_t item = 0U; item < importing->preview().File.Agents.size(); ++item) {
+						importing->select_agent(item);
+						if (!importing->program_button()->isHidden()) {
+							importing->program_button()->click();
+						}
+					}
+					const auto choices = importing->agent_choices();
+					const auto strict  = std::ranges::all_of(choices, [](const bpr::core::agent_import_choice& aChoice) { return !aChoice.AcceptRelaxedChecks && !aChoice.AcceptBuilds; });
+					if (choices.size() != 2U || !strict) {
+						finish(QStringLiteral("ATTENDED_SHARE_FAILED:bind:%1").arg(importing->summary()->text()));
+						return;
+					}
+					importing->apply_button()->click();
+					step = 2;
+				} else if (step == 2 && said.startsWith(QStringLiteral("Imported"))) {
+					if (agents->agent_list()->count() != 2) {
+						return;
+					}
+					hooks->select_hook(bpr::core::writing_hook::feedback);
+					finish(QStringLiteral("ATTENDED_SHARE_RECEIVED:agents=%1:rows=%2|%3:feedback=%4:said=%5")
+							   .arg(agents->agent_list()->count())
+							   .arg(agents->roster_row_text(0).replace(QLatin1Char('\n'), QStringLiteral(" / ")), agents->roster_row_text(1).replace(QLatin1Char('\n'), QStringLiteral(" / ")))
+							   .arg(text->toPlainText().startsWith(QStringLiteral("Lead with the risk")) ? QStringLiteral("imported") : QStringLiteral("missing"))
+							   .arg(said));
+				} else if (step == 2 && !said.isEmpty() && !said.startsWith(QStringLiteral("Imported"))) {
+					finish(QStringLiteral("ATTENDED_SHARE_FAILED:recipient:%1").arg(said));
+				}
+				return;
+			}
+			if (step == 0) {
+				window.settings_action()->trigger();
+				window.settings()->present(bpr::qt::settings_page::agents_and_context);
+				if (agents->agent_list()->count() == 0) {
+					auto work            = bpr::core::agent_entry{ .Name = "Work Claude", .Protocol = bpr::core::agent_protocol::claude_stream_json, .Program = "/usr/local/bin/work-claude" };
+					work.Arguments       = { "--profile", "work" };
+					work.Model           = "opus";
+					work.Effort          = "high";
+					work.StrictRunChecks = false;
+					work.BuildsAndTests  = true;
+					work.ScratchStarts   = false;
+					auto lint            = bpr::core::agent_entry{ .Name = "Lint bot", .Protocol = bpr::core::agent_protocol::external_terminal, .Program = "/opt/tools/lint-bot" };
+					lint.Arguments       = { "--fast" };
+					for (const auto& entry : { work, lint }) {
+						agents->set_editor([entry](const bpr::core::agent_entry&, QWidget*) { return std::optional{ entry }; });
+						agents->add_agent(std::nullopt);
+					}
+					agents->set_editor(bpr::qt::default_agent_entry_editor());
+					hooks->select_hook(bpr::core::writing_hook::problem);
+					hooks->show_preview(false);
+					text->setPlainText(QStringLiteral("Say what is wrong today in two sentences: who meets it and what it costs them. Name the ticket if there is one."));
+					save->click();
+					hooks->select_hook(bpr::core::writing_hook::enhance_writing);
+					text->setPlainText(text->toPlainText() + QStringLiteral("\n\nKeep the reviewer's own voice. Never add praise they did not write."));
+					save->click();
+				}
+				step = 1;
+				return;
+			}
+			if (agents->agent_list()->count() < 2) {
+				return;
+			}
+			// `BPR_ATTENDED_SHARE_CHECK=1` with `BPR_ATTENDED_CONFIGURATION_FILE`:
+			// the round trip the owner makes, through the same buttons and
+			// dialogs. Every prompt is exported, the shipped Review feedback is
+			// improved in the file, imported back and becomes the edited prompt.
+			const auto file = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
+			if (qEnvironmentVariable("BPR_ATTENDED_SHARE_CHECK") != QStringLiteral("1") || file.isEmpty()) {
+				hooks->select_hook(bpr::core::writing_hook::problem);
+				window.settings()->present(bpr::qt::settings_page::agents_and_context);
+				agents->import_button()->setFocus();
+				finish(QStringLiteral("ATTENDED_SHARE_SHOWN:agents=%1").arg(agents->agent_list()->count()));
+				return;
+			}
+			const auto dialog = [](const QString& aName) -> QWidget* {
+				for (auto* const widget : QApplication::topLevelWidgets()) {
+					if (widget->objectName() == aName && widget->isVisible()) {
+						return widget;
+					}
+				}
+				return nullptr;
+			};
+			const auto said     = agents->exchange_note()->text();
+			const auto improved = QStringLiteral("Lead with the risk, then the fix. One point per comment.");
+			if (step == 1) {
+				agents->export_button()->click();
+				step = 2;
+			} else if (step == 2) {
+				if (auto* const exporting = dialog(QStringLiteral("agentConfigurationExport"))) {
+					exporting->findChild<QPushButton*>(QStringLiteral("agentConfigurationAllPrompts"))->click();
+					exporting->findChild<QPushButton*>(QStringLiteral("agentConfigurationExportButton"))->click();
+					step = 3;
+				}
+			} else if (step == 3 && said.startsWith(QStringLiteral("Exported"))) {
+				auto in = QFile{ file };
+				if (!in.open(QIODevice::ReadOnly)) {
+					finish(QStringLiteral("ATTENDED_SHARE_FAILED:unwritten"));
+					return;
+				}
+				const auto bytes = in.readAll();
+				in.close();
+				if (bytes.contains("/usr/local/bin") || bytes.contains("/opt/tools") || !bytes.contains("\"origin\": \"built-in\"")) {
+					finish(QStringLiteral("ATTENDED_SHARE_FAILED:export-content"));
+					return;
+				}
+				auto document = QJsonDocument::fromJson(bytes);
+				auto root     = document.object();
+				auto prompts  = root[QStringLiteral("prompts")].toArray();
+				for (qsizetype index = 0; index < prompts.size(); ++index) {
+					auto prompt = prompts[index].toObject();
+					if (prompt[QStringLiteral("purpose")].toString() == QStringLiteral("review.feedback")) {
+						prompt[QStringLiteral("origin")] = QStringLiteral("edited");
+						prompt[QStringLiteral("text")]   = improved;
+						prompts[index]                   = prompt;
+					}
+				}
+				root[QStringLiteral("prompts")] = prompts;
+				auto out                        = QFile{ file };
+				if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(QJsonDocument{ root }.toJson()) <= 0) {
+					finish(QStringLiteral("ATTENDED_SHARE_FAILED:improve"));
+					return;
+				}
+				out.close();
+				agents->import_button()->click();
+				step = 4;
+			} else if (step == 4) {
+				if (auto* const importing = dialog(QStringLiteral("agentConfigurationImport"))) {
+					auto* const summary = importing->findChild<QLabel*>(QStringLiteral("agentConfigurationSummary"));
+					if (summary == nullptr || !summary->text().contains(QStringLiteral("0 agents and 1 prompt."))) {
+						finish(QStringLiteral("ATTENDED_SHARE_FAILED:preview:%1").arg(summary != nullptr ? summary->text() : QString{ }));
+						return;
+					}
+					importing->findChild<QPushButton*>(QStringLiteral("agentConfigurationApply"))->click();
+					step = 5;
+				}
+			} else if (step == 5 && said.startsWith(QStringLiteral("Imported"))) {
+				hooks->select_hook(bpr::core::writing_hook::feedback);
+				auto* const badge = hooks->findChild<QLabel*>(QStringLiteral("writingHookBadge"));
+				if (text->toPlainText() != improved || badge == nullptr || badge->text() != QStringLiteral("Changed from built-in")) {
+					return;
+				}
+				finish(QStringLiteral("ATTENDED_SHARE_CHECKED:agents=%1:said=%2").arg(agents->agent_list()->count()).arg(said));
+			} else if (step == 5 && !said.startsWith(QStringLiteral("Exported"))) {
+				finish(QStringLiteral("ATTENDED_SHARE_FAILED:import:%1").arg(said));
+			}
 		});
 		timer->start();
 	}
@@ -11780,6 +11992,7 @@ auto main(int argc, char** argv) -> int
 			fixtureOptions.PersonalSkillHome = std::filesystem::path{ std::string{ *skills } };
 		}
 		const auto attendedPromptEditor = launch.has("--attended-prompt-editor");
+		const auto attendedShareLook    = launch.has("--attended-share-look");
 		if (attendedRepositoryLook) {
 			// Every fixture review is read whole; the look shows the step as a
 			// review read through `gh` shows it, where the choice is.
@@ -12384,6 +12597,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedPromptEditor) {
 						look = std::string{ "prompt-editor" };
+					}
+					if (attendedShareLook) {
+						look = std::string{ "share" };
 					}
 					if (attendedUnknownReviewLook) {
 						look = std::string{ "unknown-review" };

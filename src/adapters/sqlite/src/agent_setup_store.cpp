@@ -1,4 +1,5 @@
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 
 #include "sqlite_connection.hpp"
 #include "storage_internal.hpp"
@@ -8,6 +9,7 @@
 #include "bpr/core/agent_finding_card_memory.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/review_composition.hpp"
+#include "bpr/core/review_preparation.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -178,6 +180,22 @@ namespace bpr::adapters::sqlite {
 									"state INTEGER NOT NULL CHECK(state IN (2,3)),"
 									"failure INTEGER NOT NULL CHECK(failure BETWEEN -1 AND 7),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) <= 128)) STRICT")
+				// [[BPR-2016]], RFC-BPR-0107. The built-in version each writing
+				// hook's override was written against, for the override whose
+				// SHA-256 is `text_digest`: a row for other text says nothing.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS prompt_provenance("
+									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 7),"
+									"text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
+									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT")
+				// [[BPR-2016]]. An import's hooks before it, kept while the
+				// import's writes to the two settings files are under way, so a
+				// crash between them is undone at the next start.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS configuration_import_journal("
+									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 7),"
+									"revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
+									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT")
 				// Owner decision 2026-10-23: the run time limit; none means off.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_run_limit("
@@ -314,11 +332,9 @@ namespace bpr::adapters::sqlite {
 		}
 
 		/// The agent list, replaced whole in one transaction.
-		[[nodiscard]] auto store_agents(sqlite3* const aDatabase, const application::agent_setup_preferences& aPreferences) -> bool
+		/// The agent list's rows, inside a transaction the caller holds.
+		[[nodiscard]] auto write_agents(sqlite3* const aDatabase, const application::agent_setup_preferences& aPreferences) -> bool
 		{
-			if (!detail::execute(aDatabase, "BEGIN IMMEDIATE")) {
-				return false;
-			}
 			auto committed = detail::execute(aDatabase, "DELETE FROM agent_entries").has_value() && detail::execute(aDatabase, "DELETE FROM agent_entry_identity").has_value();
 			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
 				const auto& entry = aPreferences.Agents[index];
@@ -425,7 +441,15 @@ namespace bpr::adapters::sqlite {
 					committed = sqlite3_step(list->Value) == SQLITE_DONE;
 				}
 			}
-			if (!committed) {
+			return committed;
+		}
+
+		[[nodiscard]] auto store_agents(sqlite3* const aDatabase, const application::agent_setup_preferences& aPreferences) -> bool
+		{
+			if (!detail::execute(aDatabase, "BEGIN IMMEDIATE")) {
+				return false;
+			}
+			if (!write_agents(aDatabase, aPreferences)) {
 				static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
 				return false;
 			}
@@ -1926,7 +1950,264 @@ namespace bpr::adapters::sqlite {
 		private:
 			std::filesystem::path Root;
 		};
+
+		/// [[BPR-2016]], RFC-BPR-0107. What an import changes, read and
+		/// written across this file and the profile's workbench settings.
+		class agent_configuration_store final : public application::agent_configuration_store_port
+		{
+		public:
+			explicit agent_configuration_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+
+			[[nodiscard]] auto load() -> std::optional<application::agent_configuration_snapshot> override
+			{
+				try {
+					auto agents = agent_setup_store{ Root }.load();
+					auto skill  = review_skill_store{ Root }.load_review_skill();
+					auto hooks  = load_hooks();
+					auto store  = open(Root);
+					if (!agents || !skill || !hooks || !store) {
+						return std::nullopt;
+					}
+					auto snapshot = application::agent_configuration_snapshot{ .Agents = std::move(*agents), .ReviewSkill = std::move(*skill), .Hooks = std::move(*hooks) };
+					auto row      = detail::prepare(store->Database.get(), "SELECT hook,text_digest,version FROM prompt_provenance");
+					if (!row) {
+						return std::nullopt;
+					}
+					while (sqlite3_step(row->Value) == SQLITE_ROW) {
+						const auto hook    = sqlite3_column_int64(row->Value, 0);
+						auto       version = column_text(row->Value, 2);
+						if (hook < 0 || hook >= static_cast<std::int64_t>(core::writing_hook_count) || !version || sqlite3_column_bytes(row->Value, 1) != 32) {
+							continue;
+						}
+						const auto& text   = snapshot.Hooks.Overrides[static_cast<std::size_t>(hook)];
+						const auto  digest = core::writing_digest(text);
+						if (!text.empty() && std::memcmp(sqlite3_column_blob(row->Value, 1), digest.data(), digest.size()) == 0) {
+							snapshot.WrittenAgainst[static_cast<std::size_t>(hook)] = std::move(*version);
+						}
+					}
+					return snapshot;
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto apply(const application::agent_configuration_snapshot& aBefore, const application::agent_configuration_snapshot& aAfter)
+				-> application::agent_configuration_outcome override
+			{
+				using outcome = application::agent_configuration_outcome;
+				try {
+					if (!application::valid(aAfter.Agents) || !core::valid(aAfter.Hooks)) {
+						return outcome::storage_failed;
+					}
+					const auto current = load();
+					if (!current) {
+						return outcome::storage_failed;
+					}
+					if (current->Agents != aBefore.Agents || current->ReviewSkill != aBefore.ReviewSkill || current->Hooks != aBefore.Hooks) {
+						return outcome::changed_since;
+					}
+					auto store = open(Root);
+					if (!store) {
+						return outcome::storage_failed;
+					}
+					auto* const db          = store->Database.get();
+					const auto  hooksChange = aAfter.Hooks != aBefore.Hooks;
+					// The hooks live in another file. Their earlier text is kept
+					// here first, so a crash before this file's commit is undone.
+					if (hooksChange) {
+						if (!journal(db, aBefore.Hooks, aAfter.Hooks.Revision) || !store_hooks(aAfter.Hooks)) {
+							static_cast<void>(detail::execute(db, "DELETE FROM configuration_import_journal"));
+							return outcome::storage_failed;
+						}
+					}
+					auto committed = detail::execute(db, "BEGIN IMMEDIATE").has_value();
+					if (committed) {
+						committed = write_agents(db, aAfter.Agents) && write_skill(db, aAfter.ReviewSkill) && write_provenance(db, aAfter)
+							&& detail::execute(db, "DELETE FROM configuration_import_journal").has_value();
+						if (!committed) {
+							static_cast<void>(detail::execute(db, "ROLLBACK"));
+						} else {
+							committed = detail::execute(db, "COMMIT").has_value();
+						}
+					}
+					if (!committed) {
+						if (hooksChange) {
+							static_cast<void>(recover());
+						}
+						return outcome::storage_failed;
+					}
+					return outcome::applied;
+				} catch (...) {
+					return outcome::storage_failed;
+				}
+			}
+
+			[[nodiscard]] auto record_written_against(const core::writing_hook aHook, const std::string_view aText, const std::string_view aVersion) -> bool override
+			{
+				try {
+					auto store = open(Root);
+					if (!store || aVersion.empty() || aVersion.size() > core::maximum_prompt_version_bytes) {
+						return false;
+					}
+					if (aText.empty()) {
+						auto row = detail::prepare(store->Database.get(), "DELETE FROM prompt_provenance WHERE hook=?1");
+						return row && sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(aHook)) == SQLITE_OK && sqlite3_step(row->Value) == SQLITE_DONE;
+					}
+					return insert_provenance(store->Database.get(), static_cast<std::size_t>(aHook), aText, aVersion);
+				} catch (...) {
+					return false;
+				}
+			}
+
+			[[nodiscard]] auto recover() -> bool override
+			{
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return false;
+					}
+					auto row = detail::prepare(store->Database.get(), "SELECT hook,revision_after,text FROM configuration_import_journal ORDER BY hook");
+					if (!row) {
+						return false;
+					}
+					auto earlier = std::array<std::string, core::writing_hook_count>{ };
+					auto after   = std::int64_t{ 0 };
+					auto rows    = std::size_t{ 0U };
+					while (sqlite3_step(row->Value) == SQLITE_ROW) {
+						const auto hook = sqlite3_column_int64(row->Value, 0);
+						if (hook >= 0 && hook < static_cast<std::int64_t>(core::writing_hook_count)) {
+							earlier[static_cast<std::size_t>(hook)] = column_text(row->Value, 2).value_or(std::string{ });
+							after                                   = sqlite3_column_int64(row->Value, 1);
+							++rows;
+						}
+					}
+					if (rows == 0U) {
+						return true;
+					}
+					// Undone only while the hooks are still the import's: an edit
+					// made since then is the reviewer's and stays.
+					auto hooks = load_hooks();
+					if (!hooks) {
+						return false;
+					}
+					if (rows == core::writing_hook_count && static_cast<std::int64_t>(hooks->Revision) == after) {
+						hooks->Overrides = earlier;
+						++hooks->Revision;
+						if (!store_hooks(*hooks)) {
+							return false;
+						}
+					}
+					return detail::execute(store->Database.get(), "DELETE FROM configuration_import_journal").has_value();
+				} catch (...) {
+					return false;
+				}
+			}
+
+		private:
+			[[nodiscard]] auto load_hooks() const -> std::optional<core::writing_hook_settings>
+			{
+				auto settings = make_workbench_defaults_store({ .StorageRoot = Root });
+				if (!settings) {
+					return std::nullopt;
+				}
+				auto loaded = (*settings)->load_preferences({ });
+				return loaded ? std::optional{ loaded->WritingHooks } : std::nullopt;
+			}
+
+			[[nodiscard]] auto store_hooks(const core::writing_hook_settings& aHooks) const -> bool
+			{
+				auto settings = make_workbench_defaults_store({ .StorageRoot = Root });
+				if (!settings) {
+					return false;
+				}
+				auto loaded = (*settings)->load_preferences({ });
+				if (!loaded) {
+					return false;
+				}
+				loaded->WritingHooks = aHooks;
+				return (*settings)->store_preferences(*loaded, { }).has_value();
+			}
+
+			[[nodiscard]] static auto journal(sqlite3* const aDatabase, const core::writing_hook_settings& aBefore, const std::uint64_t aRevisionAfter) -> bool
+			{
+				if (!detail::execute(aDatabase, "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto committed = detail::execute(aDatabase, "DELETE FROM configuration_import_journal").has_value();
+				for (std::size_t index = 0U; committed && index < core::writing_hook_count; ++index) {
+					auto row  = detail::prepare(aDatabase, "INSERT INTO configuration_import_journal VALUES(?1,?2,?3)");
+					committed = row.has_value();
+					if (committed) {
+						sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(index));
+						sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(aRevisionAfter));
+						bind_text(row->Value, 3, aBefore.Overrides[index]);
+						committed = sqlite3_step(row->Value) == SQLITE_DONE;
+					}
+				}
+				if (!committed) {
+					static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
+					return false;
+				}
+				return detail::execute(aDatabase, "COMMIT").has_value();
+			}
+
+			[[nodiscard]] static auto write_skill(sqlite3* const aDatabase, const std::optional<application::stored_review_skill>& aSkill) -> bool
+			{
+				if (!aSkill) {
+					return detail::execute(aDatabase, "DELETE FROM review_skill").has_value();
+				}
+				auto row = detail::prepare(aDatabase, "INSERT OR REPLACE INTO review_skill VALUES(1,?1,?2,?3,?4)");
+				if (!row || aSkill->Text.empty() || aSkill->Text.size() > core::maximum_review_skill_bytes) {
+					return false;
+				}
+				bind_text(row->Value, 1, aSkill->Text);
+				sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(aSkill->Record.BaseVersion));
+				sqlite3_bind_blob(row->Value, 3, aSkill->Record.BaseDigest.data(), static_cast<int>(aSkill->Record.BaseDigest.size()), SQLITE_TRANSIENT);
+				if (aSkill->Record.KeptVersion) {
+					sqlite3_bind_int64(row->Value, 4, static_cast<std::int64_t>(*aSkill->Record.KeptVersion));
+				} else {
+					sqlite3_bind_null(row->Value, 4);
+				}
+				return sqlite3_step(row->Value) == SQLITE_DONE;
+			}
+
+			[[nodiscard]] static auto insert_provenance(sqlite3* const aDatabase, const std::size_t aHook, const std::string_view aText, const std::string_view aVersion) -> bool
+			{
+				auto row = detail::prepare(aDatabase, "INSERT OR REPLACE INTO prompt_provenance VALUES(?1,?2,?3)");
+				if (!row) {
+					return false;
+				}
+				const auto digest = core::writing_digest(aText);
+				sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(aHook));
+				sqlite3_bind_blob(row->Value, 2, digest.data(), static_cast<int>(digest.size()), SQLITE_TRANSIENT);
+				sqlite3_bind_text(row->Value, 3, aVersion.data(), static_cast<int>(aVersion.size()), SQLITE_TRANSIENT);
+				return sqlite3_step(row->Value) == SQLITE_DONE;
+			}
+
+			[[nodiscard]] static auto write_provenance(sqlite3* const aDatabase, const application::agent_configuration_snapshot& aAfter) -> bool
+			{
+				if (!detail::execute(aDatabase, "DELETE FROM prompt_provenance")) {
+					return false;
+				}
+				for (std::size_t index = 0U; index < core::writing_hook_count; ++index) {
+					const auto& version = aAfter.WrittenAgainst[index];
+					if (version && !aAfter.Hooks.Overrides[index].empty() && !insert_provenance(aDatabase, index, aAfter.Hooks.Overrides[index], *version)) {
+						return false;
+					}
+				}
+				return true;
+			}
+
+			std::filesystem::path Root;
+		};
 	} // namespace
+
+	auto make_agent_configuration_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_configuration_store_port>
+	{
+		return std::make_unique<agent_configuration_store>(aRoot);
+	}
 
 	auto make_agent_finding_card_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_finding_card_store_port>
 	{

@@ -52,6 +52,8 @@ namespace bpr::qt {
 		void show_preview(bool aPreview);
 		/// \brief Prompts with edits not saved yet.
 		[[nodiscard]] auto unsaved_count() const -> std::size_t;
+		/// \brief [[BPR-2017]]. Whether one prompt has edits not saved yet.
+		[[nodiscard]] auto has_unsaved(core::writing_hook aHook) const -> bool { return Unsaved[static_cast<std::size_t>(aHook)].has_value(); }
 		[[nodiscard]] auto preview_text() const -> QString;
 		[[nodiscard]] auto skill_completion() const noexcept -> skill_completer* { return Completer; }
 

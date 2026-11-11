@@ -217,6 +217,16 @@ namespace bpr::application {
 		}
 		return host.submit(candidate);
 	}
+	auto workbench_preferences_host::adopt_writing_hooks(const core::writing_hook_settings& aHooks) -> bool
+	{
+		auto& host = *Implementation;
+		if (host.Closing || !host.Accepted || host.Pending || !core::valid(aHooks)) {
+			return false;
+		}
+		host.Accepted->WritingHooks = aHooks;
+		host.publish();
+		return true;
+	}
 	auto workbench_preferences_host::apply_claude_wrapper(std::string aPath) -> bool
 	{
 		auto& host = *Implementation;

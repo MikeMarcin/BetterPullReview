@@ -2788,6 +2788,15 @@ bpr_enable_hardening(test_tour_stop_card_cleanup)
 bpr_enable_warnings(test_tour_stop_card_cleanup)
 bpr_add_network_isolated_test(NAME qt_tour_stop_card_cleanup COMMAND test_tour_stop_card_cleanup)
 set_tests_properties(qt_tour_stop_card_cleanup PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-stop-card-cleanup:pass" TIMEOUT 60)
+# [[BPR-2017]], RFC-BPR-0107. Import configuration… and Export configuration….
+bpr_add_executable(test_agent_configuration_dialogs agent_configuration_dialogs_tests.cpp)
+target_link_libraries(test_agent_configuration_dialogs PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_agent_configuration_dialogs)
+bpr_enable_warnings(test_agent_configuration_dialogs)
+bpr_add_network_isolated_test(NAME qt_agent_configuration_dialogs COMMAND test_agent_configuration_dialogs)
+set_tests_properties(qt_agent_configuration_dialogs PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-configuration-dialogs:pass" TIMEOUT 60)
+
+
 # The owner's look in a render (owner, 2026-11-10: "some kind of theme
 # disparity ... between what I see and your offscreen renders"). On macOS every
 # Qt test executable of this directory carries native_look_startup.cpp, so a
@@ -2819,3 +2828,4 @@ if(APPLE)
         endif()
     endforeach()
 endif()
+

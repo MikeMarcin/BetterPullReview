@@ -1,6 +1,7 @@
 #ifndef BPR_SQLITE_AGENT_SETUP_STORE_HPP
 #define BPR_SQLITE_AGENT_SETUP_STORE_HPP
 
+#include "bpr/application/agent_configuration_exchange.hpp"
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_finding_card_host.hpp"
 #include "bpr/application/agent_setup_preferences.hpp"
@@ -52,6 +53,13 @@ namespace bpr::adapters::sqlite {
 	/// going first. An open card has no row. Settings resets remove it with
 	/// the file.
 	[[nodiscard]] auto make_agent_finding_card_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_finding_card_store_port>;
+	/// \brief [[BPR-2016]], RFC-BPR-0107. What an agent and prompt import
+	/// changes: this file's agent list, edited review skill and each writing
+	/// hook's written-against version, and the hooks in the profile's
+	/// workbench settings. An import writes both files all or nothing: the
+	/// hooks it replaces are journalled here first, and `recover` undoes a
+	/// write a crash left half done. Settings resets remove it with the file.
+	[[nodiscard]] auto make_agent_configuration_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_configuration_store_port>;
 	/// \brief Native ownership in the same private profile catalog, with no environment or credential fields.
 	[[nodiscard]] auto make_native_agent_session_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::native_agent_session_store_port>;
 } // namespace bpr::adapters::sqlite

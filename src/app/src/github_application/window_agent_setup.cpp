@@ -5,13 +5,18 @@
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/note_placement.hpp"
+#include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QLocale>
 #include <QObject>
+#include <QStandardPaths>
 #include <QTextStream>
 #include <QUrl>
 
@@ -1511,12 +1516,14 @@ namespace bpr::app {
 						AgentSetup->move_agent(aId, aDelta);
 					}
 				},
-			.SetRunLimit      = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
-			.SetScratchPolicy = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
+			.SetRunLimit         = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+			.SetScratchPolicy    = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
 				const auto taken = !Closing && AgentSetup && AgentSetup->set_scratch_policy(aLimitMiB, aKeepDays);
 				present_run_settings();
 				return taken; },
-			.ClearScratch     = [this] { clear_agent_scratch(std::nullopt, true); },
+			.ClearScratch        = [this] { clear_agent_scratch(std::nullopt, true); },
+			.ImportConfiguration = [this] { import_agent_configuration(); },
+			.ExportConfiguration = [this] { export_agent_configuration(); },
 			.SetProgram =
 				[this](const core::setup_agent aAgent, std::string aPath) {
 					if (Closing || !AgentSetup) {
@@ -2106,6 +2113,157 @@ namespace bpr::app {
 		aInvocation.BuildsAndTests  = core::builds_granted(grant);
 		aInvocation.ScratchLimitMiB = AgentSetup->projection().Preferences.ScratchLimitMiB;
 		return true;
+	}
+
+	namespace {
+		[[nodiscard]] auto configuration_count(const std::size_t aCount, const bool aAgents) -> QString
+		{
+			if (aAgents) {
+				return aCount == 1U ? QObject::tr("1 agent") : QObject::tr("%1 agents").arg(aCount);
+			}
+			return aCount == 1U ? QObject::tr("1 prompt") : QObject::tr("%1 prompts").arg(aCount);
+		}
+	}
+
+	// [[BPR-2016]], [[BPR-2017]], RFC-BPR-0107. Export configuration…: the
+	// stored snapshot, the dialog's choice, then the bytes written where the
+	// reviewer chose. Nothing else is read or run.
+	void github_application::implementation::export_agent_configuration()
+	{
+		if (Closing || !AgentConfiguration || Window == nullptr) {
+			return;
+		}
+		AgentConfiguration->snapshot([this](std::optional<application::agent_configuration_snapshot> aSnapshot) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (!aSnapshot) {
+				Window->agent_programs()->present_exchange(QObject::tr("The agent settings could not be read, so nothing was exported."));
+				return;
+			}
+			auto unsaved = std::array<bool, core::writing_hook_count + 1U>{ };
+			for (std::size_t index = 0U; index < core::writing_hook_count; ++index) {
+				unsaved[index] = Window->writing_hooks()->has_unsaved(static_cast<core::writing_hook>(index));
+			}
+			auto* const dialog = new qt::agent_configuration_export_dialog{ std::move(*aSnapshot), unsaved,
+																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(),
+																			Window->agent_programs()->window() };
+			dialog->setAttribute(Qt::WA_DeleteOnClose);
+			dialog->set_file_chooser([dialog] {
+	#if defined(BPR_BUILD_TESTING)
+				// The attended look's own check names the file; a person is asked.
+				if (const auto forced = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE"); !forced.isEmpty()) {
+					return forced;
+				}
+	#endif
+				const auto folder = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+				return QFileDialog::getSaveFileName(dialog, QObject::tr("Export configuration"), folder + QStringLiteral("/agents.bpr-config.json"), QObject::tr("Agent configuration (*.json)"));
+			});
+			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] {
+				if (Closing || !AgentConfiguration) {
+					return;
+				}
+				const auto agents  = dialog->agents().size();
+				const auto prompts = dialog->prompts().size();
+				const auto path    = dialog->chosen_path();
+				AgentConfiguration->write(path.toStdString(), dialog->bytes(), [this, agents, prompts, path](const bool aWritten) {
+					if (!Closing && Window != nullptr) {
+						Window->agent_programs()->present_exchange(aWritten ? QObject::tr("Exported %1 and %2 to %3.").arg(configuration_count(agents, true), configuration_count(prompts, false), QFileInfo{ path }.fileName())
+																			: QObject::tr("%1 could not be written. Nothing was exported.").arg(QFileInfo{ path }.fileName()));
+					}
+				});
+			});
+			dialog->open();
+		});
+	}
+
+	// Import configuration…: the file is read and decoded against what the
+	// profile holds now; the dialog decides; one all-or-nothing application;
+	// then the hosts read back what was stored. No agent is checked or run.
+	void github_application::implementation::import_agent_configuration()
+	{
+		if (Closing || !AgentConfiguration || Window == nullptr) {
+			return;
+		}
+		auto path = QString{ };
+	#if defined(BPR_BUILD_TESTING)
+		path = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
+	#endif
+		if (path.isEmpty()) {
+			path = QFileDialog::getOpenFileName(Window->agent_programs()->window(), QObject::tr("Import configuration"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+												QObject::tr("Agent configuration (*.json);;All files (*)"));
+		}
+		if (path.isEmpty()) {
+			return;
+		}
+		AgentConfiguration->read(path.toStdString(), [this, path](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (!aPreview) {
+				Window->agent_programs()->present_exchange(aPreview.error().Refusal ? QString::fromUtf8(core::describe(*aPreview.error().Refusal).data()) + QLatin1Char(' ') + QObject::tr("Nothing was imported.")
+																					: QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
+				return;
+			}
+			auto facts = qt::agent_configuration_import_dialog::facts{ .Skills = SkillLibrary.Catalog };
+			for (const auto& row : AgentSetup ? AgentSetup->projection().State.Rows : std::vector<core::agent_setup_row>{ }) {
+				if (!row.Path.empty()) {
+					facts.Found.push_back(row.Agent);
+				}
+			}
+			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), Window->agent_programs()->window() };
+			dialog->setAttribute(Qt::WA_DeleteOnClose);
+			dialog->set_program_chooser([dialog](const QString& aHint) {
+	#if defined(BPR_BUILD_TESTING)
+				if (const auto forced = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_PROGRAM"); !forced.isEmpty()) {
+					return forced;
+				}
+	#endif
+				return QFileDialog::getOpenFileName(dialog, QObject::tr("Choose the program for %1").arg(aHint.isEmpty() ? QObject::tr("this agent") : aHint));
+			});
+			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] { apply_agent_configuration(*dialog); });
+			dialog->open();
+		});
+	}
+
+	void github_application::implementation::apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog)
+	{
+		if (Closing || !AgentConfiguration || Window == nullptr) {
+			return;
+		}
+		if (Profile->WorkbenchPreferences->is_busy()) {
+			Window->agent_programs()->present_exchange(QObject::tr("Settings were being saved. Nothing was imported; import the file again."));
+			return;
+		}
+		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, agents = aDialog.agent_choices().size(), prompts = aDialog.prompt_choices().size()](application::agent_configuration_host::applied aApplied) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (!aApplied) {
+				Window->agent_programs()->present_exchange(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(core::stable_name(aApplied.error().Refusal).data())));
+				return;
+			}
+			switch (aApplied->first) {
+			case application::agent_configuration_outcome::applied:
+				// The stores hold the result; the hosts read it back.
+				static_cast<void>(Profile->WorkbenchPreferences->adopt_writing_hooks(aApplied->second.Hooks));
+				if (AgentSetup) {
+					AgentSetup->load();
+				}
+				if (ReviewSkill) {
+					ReviewSkill->load();
+				}
+				Window->agent_programs()->present_exchange((agents > 0U ? QObject::tr("Imported %1 and %2. Check a new agent before you ask it anything.") : QObject::tr("Imported %1 and %2."))
+															   .arg(configuration_count(agents, true), configuration_count(prompts, false)));
+				break;
+			case application::agent_configuration_outcome::changed_since:
+				Window->agent_programs()->present_exchange(QObject::tr("Your agent or prompt settings changed after the file was read, so nothing was imported. Import it again to see the differences."));
+				break;
+			case application::agent_configuration_outcome::storage_failed:
+				Window->agent_programs()->present_exchange(QObject::tr("The import could not be saved. Nothing changed."));
+				break;
+			}
+		});
 	}
 #endif
 }

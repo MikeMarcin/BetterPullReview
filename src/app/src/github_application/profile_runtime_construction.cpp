@@ -637,7 +637,14 @@ namespace bpr::app {
 			throw std::runtime_error{ "Epoch runtime ports are unavailable" };
 		}
 
-		EpochActors          = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
+		EpochActors = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2016]], RFC-BPR-0107. An agent and prompt import a crash cut
+		// off between its two settings files is undone before either is read.
+		if (const auto exchange = adapters::sqlite::make_agent_configuration_store(applicationDataRoot)) {
+			static_cast<void>(exchange->recover());
+		}
+#endif
 		WorkbenchPreferences = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
 		// The shared owner also serves defaults-only windows, which have no window-record restore.
 		WorkbenchPreferences->restore();

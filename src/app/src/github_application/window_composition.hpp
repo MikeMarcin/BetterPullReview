@@ -165,6 +165,7 @@
 	#include "bpr/adapters/agent/agent_process_launcher.hpp"
 	#include "bpr/application/agent_chat_session_host.hpp"
 	#include "bpr/application/agent_comment_workshop_host.hpp"
+	#include "bpr/application/agent_configuration_exchange.hpp"
 	#include "bpr/application/agent_conversation.hpp"
 	#include "bpr/application/agent_conversation_host.hpp"
 	#include "bpr/application/agent_finding_card_host.hpp"
@@ -186,6 +187,7 @@
 	#include "bpr/core/agent_grant.hpp"
 	#include "bpr/core/agent_setup.hpp"
 	#include "bpr/core/tour_agent_session.hpp"
+	#include "bpr/qt/agent_configuration_dialogs.hpp"
 	#include "bpr/qt/agent_launch_panel.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
@@ -2233,6 +2235,12 @@ namespace bpr::app {
 		/// [[BPR-1752]]. The review skill: store, then host.
 		std::unique_ptr<application::review_skill_store_port> ReviewSkillStore;
 		std::unique_ptr<application::review_skill_host>       ReviewSkill;
+		/// [[BPR-2016]], RFC-BPR-0107. Import and export of agents and prompts.
+		std::unique_ptr<application::agent_configuration_store_port> AgentConfigurationStore;
+		std::unique_ptr<application::agent_configuration_host>       AgentConfiguration;
+		void                                                         export_agent_configuration();
+		void                                                         import_agent_configuration();
+		void                                                         apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog);
 		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
 		decltype(github_profile_runtime::NativeAgentSessions)&      NativeAgentSessions = Profile->NativeAgentSessions;
 		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;

@@ -782,3 +782,17 @@ endif()
 bpr_enable_warnings(test_pull_request_activity_store)
 bpr_add_network_isolated_test(NAME sqlite_pull_request_activity_store WINDOWS_UNCONTAINED COMMAND test_pull_request_activity_store)
 set_tests_properties(sqlite_pull_request_activity_store PROPERTIES PASS_REGULAR_EXPRESSION "pull-request-activity-store:pass" TIMEOUT 120)
+
+# [[BPR-2016]], RFC-BPR-0107. Agents and prompts shared between two profiles
+# through the real stores.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_executable(test_agent_configuration_storage agent_configuration_storage_tests.cpp)
+    target_link_libraries(test_agent_configuration_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::Application BetterPullReview::SQLite3)
+    bpr_enable_hardening(test_agent_configuration_storage)
+    if(WIN32)
+        target_link_libraries(test_agent_configuration_storage PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_agent_configuration_storage)
+    bpr_add_network_isolated_test(NAME sqlite_agent_configuration_storage WINDOWS_UNCONTAINED COMMAND test_agent_configuration_storage)
+    set_tests_properties(sqlite_agent_configuration_storage PROPERTIES PASS_REGULAR_EXPRESSION "agent-configuration-storage:pass" TIMEOUT 120)
+endif()

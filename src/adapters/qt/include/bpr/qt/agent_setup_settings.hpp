@@ -79,6 +79,10 @@ namespace bpr::qt {
 			/// Clear scratch folders now.
 			std::function<bool(std::uint32_t, std::uint32_t)> SetScratchPolicy;
 			std::function<void()>                             ClearScratch;
+			/// [[BPR-2017]], RFC-BPR-0107. Import configuration… and
+			/// Export configuration…, which open their dialogs.
+			std::function<void()> ImportConfiguration;
+			std::function<void()> ExportConfiguration;
 			/// Kept for the built-in profiles: an empty path clears it.
 			std::function<void(core::setup_agent, std::string)> SetProgram;
 			std::function<void(core::codex_protocol_choice)>    SetProtocol;
@@ -114,6 +118,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto scratch_keep_days() const noexcept -> QSpinBox* { return ScratchKeepDays; }
 		[[nodiscard]] auto scratch_usage() const noexcept -> QLabel* { return ScratchUsage; }
 		[[nodiscard]] auto scratch_clear_button() const noexcept -> QPushButton* { return ScratchClear; }
+		/// \brief [[BPR-2017]]. The share row's buttons, and what the last
+		/// import or export did, said under them.
+		[[nodiscard]] auto import_button() const noexcept -> QPushButton* { return ImportButton; }
+		[[nodiscard]] auto export_button() const noexcept -> QPushButton* { return ExportButton; }
+		void               present_exchange(const QString& aSaid);
+		[[nodiscard]] auto exchange_note() const noexcept -> QLabel* { return ExchangeNote; }
 
 		/// \brief [[BPR-1859]]. Check agent: offered, running with Stop, or
 		/// disabled with its reason; its rows, a failure's words and remedy,
@@ -183,6 +193,9 @@ namespace bpr::qt {
 		QSpinBox*                                          ScratchKeepDays = nullptr;
 		QLabel*                                            ScratchUsage    = nullptr;
 		QPushButton*                                       ScratchClear    = nullptr;
+		QPushButton*                                       ImportButton    = nullptr;
+		QPushButton*                                       ExportButton    = nullptr;
+		QLabel*                                            ExchangeNote    = nullptr;
 		void                                               send_scratch_policy();
 		void                                               send_run_limit();
 	};

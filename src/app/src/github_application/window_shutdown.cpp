@@ -130,6 +130,9 @@ namespace bpr::app {
 		if (CloneLinks) {
 			CloneLinks->shutdown();
 		}
+		if (AgentConfiguration) {
+			AgentConfiguration->shutdown();
+		}
 		if (ReviewSkill) {
 			ReviewSkill->shutdown();
 		}
@@ -264,7 +267,7 @@ namespace bpr::app {
 			|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
 			|| (AgentSetup && !AgentSetup->is_quiescent())
 			|| (CloneLinks && !CloneLinks->is_quiescent())
-			|| (ReviewSkill && !ReviewSkill->is_quiescent())
+			|| (ReviewSkill && !ReviewSkill->is_quiescent()) || (AgentConfiguration && !AgentConfiguration->is_quiescent())
 			|| (AgentConversation && !AgentConversation->is_quiescent())
 			|| (AgentFindingCards && !AgentFindingCards->is_quiescent())
 #endif

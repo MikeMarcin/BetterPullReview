@@ -1,4 +1,5 @@
 #include "tour_assist.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -317,6 +318,11 @@ namespace bpr::app {
 		}
 		if (!(*store)->store_preferences(candidate, { })) {
 			return refuse("storage_unavailable", "The hook change was not saved.", 7);
+		}
+		// [[BPR-2016]], RFC-BPR-0107. The override was written against
+		// today's built-in; best effort, as a Settings save records it.
+		if (const auto exchange = adapters::sqlite::make_agent_configuration_store(aRoot)) {
+			static_cast<void>(exchange->record_written_against(aHook, candidate.WritingHooks.Overrides[static_cast<std::size_t>(aHook)], application::writing_hook_version_of(aHook)));
 		}
 		return tour_hook_state{ std::move(candidate.WritingHooks), candidate.Behaviour.LabelHelper };
 	}

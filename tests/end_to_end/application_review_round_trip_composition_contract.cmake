@@ -3518,8 +3518,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# build question, takes Allow build and run tests as a per-pull-request
 	# toggle, carries the set scratch limit to the turn and removes unused
 	# scratch folders. Admission and publication unchanged; no network grant.
+	# [[BPR-2016]], [[BPR-2017]], RFC-BPR-0107: Settings imports and exports
+	# chosen agents and prompts as one local file. Reading, previewing and
+	# applying launch nothing, reach no network and read no credential; an
+	# imported agent is strict and builds stay off unless accepted for that
+	# entry, and nothing is checked until the reviewer asks. No grant,
+	# admission or publication boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "3b4c71eee543c360d5d2a2ddac0b55f11649b4331d3607a31e83d1b7b780bb14"
+        "2967d8d6929e5c6b1602e2640b1f54c7ef15d0589d289cb4714c5c718c36750b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
