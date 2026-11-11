@@ -108,3 +108,17 @@ A re-review of the fixes is owed.
 
 The card stays parked on `human-review` for the new look (below) and the
 re-review.
+
+## Owner look (filed 2026-11-11, not waited on)
+
+Session `246ef52c2815c6c16b3aeb5dacc5a765`, state
+`/Users/jaeger/.attended-review-state/agent-grant-v002-2026-11-11/state`
+(URL in `../serve.log` beside it), cursor 9, host PID 89403 (Tailscale child
+89420). Frozen root `/Users/jaeger/agent-grant-v002.y_rhztpu` from
+`b2edc1fa3b56` (launcher check reached `ATTENDED_PULL_REQUEST_OPENED`; the
+looks `agent_footer --look` and `better_pull_review_qt_settings_window_tests
+--agents-roster-look` are in its build). Candidates, one question each, ready
+and protected: `BPR-2007-picker-toggles-v2`, `RFC-BPR-0104-scratch-settings`,
+`BPR-2051-footer-setup-quiet`. Native renders (Cocoa off screen, light and
+dark) are their media. Insights disk use has no candidate: it is BPR-2101,
+not built.

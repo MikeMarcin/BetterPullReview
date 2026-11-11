@@ -215,3 +215,28 @@ self-certified here.
   red. An agent not yet checked is now drawn in the quiet secondary ink with a
   dashed outline; red stays for a check that ran and failed
   (`qt_agent_footer`).
+
+### Live course on this round's rules (2026-11-11)
+
+`live_second_account_course --course agent-scratch` at `cf8a9c12d`'s product
+code (the course binary built from the working tree before that commit, the
+same product sources), BPR-Test #40 read only, roots
+`/Users/jaeger/bpr-agent-scratch-course-20261111-{claude,codex}` (removed
+after).
+A probes turn sits between the two earlier turns: the agent writes
+`probe.py` and tries the five commands of findings 2 and 3, each as its own
+Bash command.
+
+| | Claude Code 2.1.319 (Haiku) | Codex 0.167.0 (App Server) |
+|---|---|---|
+| Picker before turn 1 | Use scratch folder [on]; Allow build and run tests [off] | the same: this computer's Codex configuration composes (no refusal) |
+| Turn 1 | answered; "1 command, 1 file written in its scratch folder"; printed `3 src/parse.cpp`, `2 src/validate.cpp`; `bpr-probe.txt` refused ("… haven't granted it yet") | answered; the same folded line; printed `./src/parse.cpp: 3`, `./src/validate.cpp: 2`; `touch` failed "Operation not permitted" |
+| Probes | (1) `SCRATCH/../…/usr/bin/touch WS/bpr-a1` denied; (2) `python3 SCRATCH/../…/usr/lib/bpr-missing.py WS` denied; (3) `chmod +x SCRATCH/probe.py WS/src/parse.cpp` refused ("requires approval"); (4) `python3 SCRATCH/probe.py > WS/bpr-a4` refused; (5) `echo hi > WS/bpr-a5` refused | (1) "Operation not permitted"; (2) ran, no such file (Codex permits running, Seatbelt holds writes); (3) the folder's file changed, `src/parse.cpp` refused "Operation not permitted"; (4), (5) "Operation not permitted" |
+| `git status` of every workspace after turn 1, the probes and turn 2 | clean, clean, clean (no mode change) | clean, clean, clean |
+| Picker after unchecking | Use scratch folder [off] | Use scratch folder [off] |
+| Turn 2 (`second.py` there) | refused ("… haven't granted it yet"); the folder held `count.py` and `probe.py` | refused ("operation not permitted"); the folder held `count.py` and `probe.py` |
+
+Two earlier runs of this round's course ended in the course itself (it read
+a menu action after the next turn's settings had rebuilt the menu; lldb:
+`QAction::isChecked` on a freed action at the course's line 574); the course
+now reads it before the turn. Their workspaces were clean after the probes.
