@@ -21,7 +21,7 @@ On a local draft an agent can read and propose, and nothing more:
   ([RFC-BPR-0104](RFC-BPR-0104-agent-scratch-folder-and-opt-in-builds.md)).
 - An agent reply's finding cards offer **Add as draft comment** and **Draft
   all**, which make review comments for GitHub
-  ([BPR-2059](../issues/40-parked/BPR-2059-suggested-comments-read-as-postable-comments.md)).
+  ([BPR-2059](../issues/60-done/BPR-2059-suggested-comments-read-as-postable-comments.md)).
   A local draft has no pull request to comment on.
 - [RFC-BPR-0111](RFC-BPR-0111-draft-publication-and-continuity.md)
   adds no "merge, force push, automatic rebase" operation.
