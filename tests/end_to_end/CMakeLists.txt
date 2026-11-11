@@ -1713,6 +1713,21 @@ target_compile_features(
 bpr_enable_hardening(test_better_pull_review_agent_finding_canary)
 bpr_enable_warnings(test_better_pull_review_agent_finding_canary)
 
+# [[BPR-2058]], [[BPR-2059]]. A fixture agent whose review carries several
+# suggested comments, for the owner's look at Draft all and the finding card
+# (`--attended-agent-look`).
+bpr_add_executable(
+    test_better_pull_review_agent_suggestions_fixture
+    agent_suggestions_fixture_main.cpp
+)
+target_compile_features(
+    test_better_pull_review_agent_suggestions_fixture
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_agent_suggestions_fixture)
+bpr_enable_warnings(test_better_pull_review_agent_suggestions_fixture)
+
 bpr_add_executable(
     test_better_pull_review_agent_finding_composition_public_path
     agent_finding_composition_public_path.cpp
