@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "7f7a95a07c4e187c7df1929e8c076e03e03ba287b07613a36200c12ffeb2ed29",
+  "source_sha256": "b4f9f07454c6ca204c469be2196f63aaee9971da1f7d40d278c57ac2386d21c1",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -56,6 +56,7 @@
     "--compose-review-entry": [
       "test_compose_review_marks_a_kept_draft",
       "test_compose_review_says_approve_or_comment_with_no_review",
+      "test_compose_review_toggles_the_review_sheet",
       "render_compose_review_entry_sheet"
     ],
     "--review-state-icon": [
@@ -181,6 +182,7 @@
       "test_tour_retarget_key_reaches_only_the_outline",
       "test_compose_review_marks_a_kept_draft",
       "test_compose_review_says_approve_or_comment_with_no_review",
+      "test_compose_review_toggles_the_review_sheet",
       "test_settings_collection_limit_keeps_accepted_models_and_recovery_actions",
       "test_settings_share_only_offered_agent_context_and_maintenance_actions",
       "test_all_four_primary_actions_follow_one_core_projection",

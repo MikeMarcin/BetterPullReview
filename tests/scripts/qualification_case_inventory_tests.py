@@ -38,7 +38,7 @@ class QualificationInventoryTests(unittest.TestCase):
     def test_complete_inventory_and_rejections(self):
         manifest, log = self.fixture()
         result = inventory.validate(manifest, log, 'Release', 'Windows')
-        self.assertEqual(result['case_occurrences'], 237)
+        self.assertEqual(result['case_occurrences'], 248)
         for before, after in [('QUALIFICATION_CASE_BEGIN:', 'MISSING:'), ('QUALIFICATION_CASE_END:', 'MISSING:'),
                               ('stop-lines=40000', 'stop-lines=6000'), ('cancel-lines=30000', 'cancel-lines=6000'),
                               ('limit-ms=100', 'limit-ms=0'), ('NDEBUG=1', 'NDEBUG=0'),
