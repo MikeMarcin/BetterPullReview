@@ -1,0 +1,19 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2105",
+    "BPR-2106",
+    "BPR-2107",
+    "BPR-2108",
+    "BPR-2109",
+    "BPR-2110",
+    "BPR-2111",
+    "BPR-2112",
+    "BPR-2113",
+    "BPR-2114"
+  ],
+  "reserve_for": "address-review-feedback-v1",
+  "purpose": "Import of the address-review-feedback-v1 pack (DRAFT-0001..0010)",
+  "created": "2026-11-11T18:59:45.954285+00:00",
+  "base": "22e74190820714863e75e27f02677d660c9b372a"
+}

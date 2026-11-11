@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2115"
+  ],
+  "reserve_for": "v0-5-0-prerelease-targets-v1",
+  "purpose": "Name a session instead of its number (owner suggestion, RFC-BPR-0100 ledger)",
+  "created": "2026-11-11T18:59:46.520056+00:00",
+  "base": "22e74190820714863e75e27f02677d660c9b372a"
+}
