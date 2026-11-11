@@ -121,6 +121,16 @@ descriptions) keep Ctrl or Cmd with Return. They are not chats.
   equals its total.
 - **Where.** The Agent tab and the tour side chat show both. The
   selected-lines side chat shows the turn's.
+- **Amendment, 2026-11-11 ([[BPR-2051]], owner decision "A + footer 1").**
+  The pull request window's footer, in its status bar, shows the pull
+  request's session total at its right: the sum of what the Agent tab, the
+  tour chat, Enhance and the tour's drafting have cost in this pull request
+  this session, each place in its tooltip. The drawers keep the detail: a
+  turn's footer keeps its cost, and the Agent tab's and tour side chat's own
+  session lines keep their conversation's total. One run's ending is said in
+  the window's footer for a few seconds after it ends ("answered in 7:03 ·
+  $1.84 · 2 findings"), after the place it started. The footer's total
+  restarts when the window opens another pull request.
 - **Established, 2026-11-10 ([[BPR-1999]]).** Installed Claude Code 2.1.319
   reports `total_cost_usd` cumulatively over a resumed session: three
   `--resume` turns of one session reported 0.00279231, 0.00549827 and

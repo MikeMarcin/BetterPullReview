@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A · Roster — Settings › Agents & context</title>
+<style>
+html{background:#d6d7db}
+body.doc{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;color:#1b1c20;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1060px;margin:0 auto;padding:48px 40px 120px}
+.wrap.wide{max-width:1360px}
+.crumbs{font-size:13.5px;margin:0 0 30px;color:#55575e}
+.doc a{color:#0b4fd6;text-decoration-thickness:1px;text-underline-offset:3px}
+.doc a:focus-visible{outline:2px solid #0b4fd6;outline-offset:3px;border-radius:3px}
+header.top h1{font-size:31px;line-height:1.14;font-weight:700;letter-spacing:-.024em;margin:0 0 12px}
+header.top p{max-width:66ch;margin:0 0 8px;color:#3b3d44;font-size:16.5px;line-height:1.5}
+.trade{display:grid;grid-template-columns:1fr 1fr;gap:6px 36px;max-width:920px;margin:24px 0 0;padding:0}
+.trade div{font-size:14.5px;line-height:1.5;color:#3b3d44}
+.trade dt{font-weight:650;color:#1b1c20;margin:0 0 2px}
+.trade dd{margin:0}
+.doc h2.band{font-size:19px;font-weight:680;letter-spacing:-.012em;margin:64px 0 4px}
+.doc h2.band + p{max-width:70ch;margin:0;color:#3b3d44}
+figure.shot{margin:26px 0 0}
+figure.shot .scroll{overflow-x:auto;padding:8px 6px 46px;margin:0 -6px -30px}
+figure.shot figcaption{max-width:74ch;margin:0;color:#4b4d54;font-size:14px;line-height:1.5}
+figure.shot figcaption b{color:#1b1c20;font-weight:650}
+.notes{max-width:74ch;margin:14px 0 0;padding:0 0 0 20px;color:#3b3d44;font-size:14.5px}
+.notes li{margin:0 0 6px}
+.doc code{font:13px "SF Mono",ui-monospace,Menlo,monospace;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px}
+@media (max-width:760px){.wrap{padding:28px 18px 80px}.trade{grid-template-columns:1fr}}
+html.shot-light{background:#dcdde1}
+html.shot-dark{background:#101113}
+body.shotpage{margin:0;padding:40px;display:inline-block;background:transparent}
+
+.mac{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;--mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;font:13px/16px var(--font);color:var(--text);-webkit-font-smoothing:antialiased;cursor:default;text-align:left}
+.mac *{box-sizing:border-box}
+.mac[data-theme=light]{--win:#fff;--side:#fff;--base:#fff;--sel:#d6d6d6;--ctl:rgba(0,0,0,.078);--text:rgba(0,0,0,.88);--text2:rgba(0,0,0,.55);--text3:rgba(0,0,0,.32);--hair:rgba(0,0,0,.10);--edge:rgba(0,0,0,.17);--listedge:rgba(0,0,0,.17);--group:rgba(0,0,0,.035);--groupedge:rgba(0,0,0,.05);--field:#fff;--accent:#007aff;--ok:#1a7f37;--bad:#cf222e;--needs:#9a6100;--agent:#4a3fd6;--scrim:rgba(0,0,0,.20);--sheet:#f7f7f7;--winedge:rgba(0,0,0,.24);--shadow:0 26px 64px rgba(0,0,0,.22),0 3px 10px rgba(0,0,0,.10);--chip:rgba(0,0,0,.055);--menu:rgba(246,246,246,.98)}
+.mac[data-theme=dark]{--win:#1e1e1e;--side:#171717;--base:#171717;--sel:#393939;--ctl:rgba(255,255,255,.092);--text:rgba(255,255,255,.90);--text2:rgba(255,255,255,.56);--text3:rgba(255,255,255,.32);--hair:rgba(255,255,255,.10);--edge:rgba(255,255,255,.15);--listedge:rgba(255,255,255,.055);--group:rgba(255,255,255,.05);--groupedge:rgba(255,255,255,.06);--field:#171717;--accent:#0a84ff;--ok:#3fb950;--bad:#f85149;--needs:#e0a23c;--agent:#a3a0ff;--scrim:rgba(0,0,0,.46);--sheet:#272727;--winedge:rgba(255,255,255,.17);--shadow:0 26px 64px rgba(0,0,0,.6),0 3px 10px rgba(0,0,0,.4);--chip:rgba(255,255,255,.075);--menu:rgba(44,44,44,.98)}
+.mac.win{position:relative;width:980px;height:760px;border-radius:12px;background:var(--win);overflow:hidden;box-shadow:0 0 0 .5px var(--winedge),var(--shadow)}
+.mac svg.i{flex:none;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block}
+.mac svg.i.f{fill:currentColor;stroke:none}
+.titlebar{position:relative;height:30px;display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--text)}
+.lights{position:absolute;left:11px;top:9px;display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.lights i:nth-child(2){background:#febc2e}
+.lights i:nth-child(3){background:#28c840}
+.wbody{display:flex;height:730px}
+.side{flex:none;width:196px;background:var(--side);padding:8px 6px 0}
+.search{display:flex;align-items:center;gap:6px;height:21px;padding:0 6px;border-radius:5.5px;background:var(--field);box-shadow:inset 0 0 0 1px var(--edge);color:var(--text3)}
+.search svg.i{width:13px;height:13px}
+.nav{list-style:none;margin:7px 0 0;padding:0}
+.nav li{height:18px;line-height:18px;padding:0 5px}
+.nav li.on{background:var(--sel)}
+.page{position:relative;flex:1;min-width:0;padding:12px 32px 0}
+.ptitle{display:flex;align-items:center;gap:8px;height:26px;margin:0 0 16px -12px}
+.ptitle h1{font-size:16px;line-height:22px;font-weight:700;margin:0;letter-spacing:-.012em}
+.sp{flex:1}
+.thumb{position:absolute;right:3px;top:6px;width:6px;border-radius:3px;background:var(--text3);opacity:.75}
+.sechead{display:flex;align-items:baseline;gap:10px;height:16px;margin:0 0 8px}
+.sechead h2{font-size:13px;line-height:16px;font-weight:600;margin:0}
+.cap{color:var(--text2)}
+.t3{color:var(--text3)}
+.mac code,.mac .mono{font-family:var(--mono);font-size:11.5px;letter-spacing:-.01em}
+.cmd{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:4.5px;background:var(--chip);font-family:var(--mono);font-size:11.5px;color:var(--text)}
+
+/* controls, drawn as QMacStyle draws them on this machine */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;flex:none;height:24px;padding:0 11px;border-radius:7px;background:var(--ctl);color:var(--text);white-space:nowrap}
+.btn svg.i{width:10px;height:10px;stroke-width:1.9;color:var(--text2)}
+.btn.s{height:20px;padding:0 9px;border-radius:6px;font-size:11.5px}
+.btn.pri{background:var(--accent);color:#fff}
+.lnk{color:var(--accent);white-space:nowrap}
+.pop{display:inline-flex;align-items:center;gap:8px;flex:none;height:24px;padding:0 6px 0 10px;border-radius:7px;background:var(--ctl);white-space:nowrap}
+.pop svg.i{width:8px;height:12px;margin-left:auto;color:var(--text2)}
+.chk{flex:none;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4.5px;background:var(--ctl);box-shadow:inset 0 0 0 .5px var(--edge)}
+.chk.on{background:var(--accent);box-shadow:none;color:#fff}
+.chk svg.i{width:10px;height:10px;stroke-width:2.3}
+.field{display:flex;align-items:center;height:22px;padding:0 7px;border-radius:5.5px;background:var(--field);box-shadow:inset 0 0 0 1px var(--edge)}
+
+/* the small glyph buttons in a list's own bar, and a row of page-wide controls */
+.bb{display:inline-flex;align-items:center;justify-content:center;gap:1px;height:21px;min-width:25px;padding:0 5px;color:var(--text2)}
+.bb svg.i{width:12px;height:12px;stroke-width:1.6}
+.bb svg.i.car{width:7px;height:7px;stroke-width:2}
+.bb.off{color:var(--text3)}
+.pagerow{display:flex;align-items:center;gap:8px;margin-top:14px}
+
+/* the check ring: the tour ring's own vocabulary, in the shipped check colours */
+.ring{flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1.5px currentColor;color:var(--text3)}
+.ring svg.i{width:10px;height:10px;stroke-width:2.2}
+.ring.ok{color:var(--ok)}
+.ring.bad{color:var(--bad)}
+.ring.s{width:14px;height:14px;box-shadow:inset 0 0 0 1.4px currentColor}
+.ring.s svg.i{width:8px;height:8px;stroke-width:2.4}
+
+/* a grouped surface: one painted ground, hairlines between its rows */
+.group{border-radius:9px;background:var(--group);box-shadow:inset 0 0 0 1px var(--groupedge)}
+.grow{position:relative;display:flex;align-items:center;gap:8px;min-height:38px;padding:0 9px 0 13px}
+.grow + .grow::before{content:"";position:absolute;left:13px;right:0;top:0;height:1px;background:var(--hair);transform:scaleY(.5);transform-origin:top}
+
+/* ---- Built-in prompts, as it ships: unchanged in every option ---- */
+.prompts{margin-top:26px}
+.prompts h2{font-size:15px;line-height:20px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+.prompts > p{margin:0 0 9px;color:var(--text2)}
+.pbody{display:flex;gap:12px}
+.plist{flex:none;width:168px;height:430px;background:var(--base);box-shadow:inset 0 0 0 1px var(--listedge)}
+.plist .gh{padding:11px 10px 3px;font-size:11.5px;font-weight:600;color:var(--text2)}
+.plist .it{padding:6px 10px 7px}
+.plist .it b{display:block;font-weight:600}
+.plist .it span{display:block;color:var(--text2)}
+.plist .it.on{background:var(--sel)}
+.pd{flex:1;min-width:0}
+.pd h3{font-size:17px;line-height:22px;font-weight:700;margin:0 0 6px;letter-spacing:-.015em}
+.pd p{margin:0 0 6px}
+.pmodes{display:flex;align-items:center;gap:4px;margin:8px 0}
+.qb{display:inline-flex;align-items:center;height:25px;padding:0 9px;border-radius:5.5px}
+.qb.on{background:var(--ctl);box-shadow:inset 0 0 0 1px var(--edge)}
+.ped{height:320px;background:var(--base);box-shadow:inset 0 0 0 1px var(--listedge);padding:8px 10px;font:11.5px/17px var(--mono);white-space:pre-wrap}
+
+/* ---- a native menu, for the opened pull-downs ---- */
+.menu{position:absolute;z-index:30;min-width:200px;padding:5px;border-radius:9px;background:var(--menu);box-shadow:0 0 0 .5px var(--winedge),0 12px 34px rgba(0,0,0,.28),0 2px 6px rgba(0,0,0,.14);font:13px/16px var(--font);color:var(--text)}
+.menu .mi{display:flex;align-items:center;gap:8px;height:22px;padding:0 9px 0 22px;border-radius:5px;position:relative;white-space:nowrap}
+.menu .mi.on{background:var(--accent);color:#fff}
+.menu .mi.on .cap{color:rgba(255,255,255,.8)}
+.menu .mi.off{color:var(--text3)}
+.menu .mi .tick{position:absolute;left:6px;top:5px;width:11px;height:11px;stroke-width:2.2}
+.menu .mi .more{margin-left:auto;width:10px;height:10px;color:var(--text2)}
+.menu .mi .r{margin-left:auto;padding-left:18px;color:var(--text2)}
+.menu .mh{height:20px;padding:3px 9px 0 22px;font-size:11px;font-weight:600;color:var(--text2)}
+.menu hr{border:0;height:1px;margin:5px 9px;background:var(--hair)}
+
+.roster .arow{position:relative;display:flex;align-items:center;gap:11px;height:50px;padding:0 11px 0 13px}
+.roster .arow + .arow::before{content:"";position:absolute;left:42px;right:0;top:0;height:1px;background:var(--hair);transform:scaleY(.5);transform-origin:top}
+.who{flex:1;min-width:0}
+.who b{display:block;font-weight:600;line-height:17px}
+.who > span{display:block;color:var(--text2);font-size:11.5px;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .cmd{display:inline-block;height:auto;line-height:14px;padding:0 4px;font-size:11px;vertical-align:baseline}
+.state{white-space:nowrap;color:var(--text2)}
+.state.bad{color:var(--bad)}
+.state.none{color:var(--text3)}
+.go{width:11px;height:11px;color:var(--text3);stroke-width:1.8}
+.under{display:flex;align-items:center;gap:8px;margin:8px 0 18px}
+.grow .lab{flex:1;min-width:0}
+
+/* the agent's sheet */
+.scrim{position:absolute;left:0;right:0;top:0;bottom:0;background:var(--scrim)}
+.sheet{position:absolute;left:230px;top:70px;width:520px;border-radius:12px;background:var(--sheet);padding:18px 18px 16px;box-shadow:0 0 0 .5px var(--winedge),0 30px 80px rgba(0,0,0,.36),0 4px 14px rgba(0,0,0,.16)}
+.sheet h3{font-size:15px;line-height:20px;font-weight:700;margin:0;letter-spacing:-.01em}
+.sheet .sub{margin:2px 0 14px;color:var(--text2);font-size:11.5px;line-height:15px}
+.sheet .group{margin-top:10px}
+.sheet .grow{min-height:34px}
+.sheet .grow .lab{flex:1}
+.sheet .pop,.sheet .field{width:210px}
+.sheet .status{display:flex;gap:11px;padding:11px 10px 12px 13px}
+.sheet .status .txt{flex:1;min-width:0}
+.sheet .status .txt b{display:block;font-weight:600;line-height:18px}
+.sheet .status .txt > span{display:block;color:var(--text2);font-size:11.5px;line-height:15px;margin-top:1px}
+.sheet .status .line{display:flex;align-items:center;gap:8px;margin-top:8px}
+.sheet .status .line .cmd{height:22px;padding:0 8px;min-width:150px}
+.sheet .note{padding:0 13px 10px 13px;margin-top:-3px;color:var(--text2);font-size:11.5px;line-height:15px}
+.sheet .foot{display:flex;align-items:center;gap:8px;margin-top:16px}
+.sheet .btn.wide{min-width:74px}
+</style></head>
+<body class="doc">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></symbol>
+  <symbol id="i-ud" viewBox="0 0 10 14"><path d="M2.4 5.3 5 2.7l2.6 2.6M2.4 8.7 5 11.3l2.6-2.6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16"><path d="M3.6 6 8 10.4 12.4 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3 8h10"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 16 16"><circle cx="3.3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="12.7" cy="8" r="1.25"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.2 8.6 6.5 11.8 12.8 4.4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 16 16"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="2"/></symbol>
+  <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3.4M3.8 7.4 8 3.2l4.2 4.2"/></symbol>
+  <symbol id="i-nib" viewBox="0 0 16 16"><path d="M8 1.6 12.2 8.4 10 13.2H6L3.8 8.4z"/><path d="M8 8.6v4.4"/><circle cx="8" cy="7.2" r="1" /></symbol>
+  <symbol id="i-home" viewBox="0 0 16 16"><path d="M2.6 7.6 8 2.8l5.4 4.8M4.2 6.6v6.2h7.6V6.6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><rect x="2.4" y="3" width="11.2" height="10" rx="1.6"/><path d="M5 6.2h6M5 8.6h6M5 11h3.6"/></symbol>
+  <symbol id="i-side" viewBox="0 0 16 16"><rect x="2.4" y="3" width="11.2" height="10" rx="1.6"/><path d="M6.2 3v10"/></symbol>
+  <symbol id="i-sider" viewBox="0 0 16 16"><rect x="2.4" y="3" width="11.2" height="10" rx="1.6"/><path d="M9.8 3v10"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M3.2 8a4.8 4.8 0 1 0 1.6-3.6"/><path d="M3 2.8v2.6h2.6"/></symbol>
+  <symbol id="i-person" viewBox="0 0 16 16"><circle cx="8" cy="5.6" r="2.5"/><path d="M3.2 13.2c.6-2.4 2.5-3.6 4.8-3.6s4.2 1.2 4.8 3.6"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.6"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/></symbol>
+  <symbol id="i-out" viewBox="0 0 16 16"><path d="M9 3h4v4M13 3 7.6 8.4M11.4 9.4v3.2H3.4V4.6h3.2"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></symbol>
+  <symbol id="i-bubble" viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.7-3.8"/><path d="M2.8 2.8v2.6h2.6M8 5.4V8l1.8 1.2"/></symbol>
+  <symbol id="i-new" viewBox="0 0 16 16"><path d="M7.4 3.2H4a1.2 1.2 0 0 0-1.2 1.2V12A1.2 1.2 0 0 0 4 13.2h7.6a1.2 1.2 0 0 0 1.2-1.2V8.6"/><path d="M11.6 2.6l1.8 1.8-5 5-2.2.4.4-2.2z"/></symbol>
+  <symbol id="i-seen" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/><path d="M8 3a5 5 0 0 0 0 10z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-ring" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></symbol>
+  <symbol id="i-tri" viewBox="0 0 16 16"><path d="M5.4 3.6 11 8l-5.6 4.4z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.4"/><path d="M8 7.4v3.4M8 5.2v.2"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2.4 14 13H2z"/><path d="M8 6.6v3M8 11.2v.2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2.4 4.4a1 1 0 0 1 1-1h3l1.4 1.6h4.8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1z"/></symbol>
+</svg>
+
+<div class="wrap">
+<p class="crumbs"><a href="index.html">All mockups</a></p>
+<header class="top"><h1>A · Roster</h1><p>Agents as a short grouped list, the way System Settings lists accounts. Each row says who the agent is, what it runs with and whether it works. Clicking a row opens its sheet; nothing in the list is a button.</p></header>
+<dl class="trade"><div><dt>What it optimizes</dt><dd>Calm and height. Three agents take 150 points, so Built-in prompts start above the middle of the window. A healthy agent is one quiet line; the broken one says the fix where its settings were.</dd></div><div><dt>What it gives up</dt><dd>Model, effort, scratch folder and builds are one click away, in the sheet. Comparing two agents' settings means reading two summary lines.</dd></div></dl>
+<h2 class="band">Light</h2><figure class="shot"><div class="scroll"><div class="mac win" data-theme="light">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li>General</li><li>Accounts &amp; hosts</li><li>Repositories</li><li>Home &amp; queue</li><li>Review</li><li>Comments</li><li>Appearance</li><li>Notifications</li><li class=on>Agents &amp; context</li><li>Storage &amp; privacy</li></ul></div>
+    <div class="page">
+<div class="ptitle"><h1>Agents &amp; context</h1></div>
+<div class="sechead"><h2>Agents</h2><span class="cap">A pull request picks one of these in its footer. Drag to reorder.</span></div>
+<div class="group roster">
+  <div class="arow"><span class="ring ok"><svg class="i "><use href="#i-check"/></svg></span><div class="who"><b>Claude Code</b><span>Opus 5.5 · high effort · scratch folder on · builds off</span></div><span class="state">Signed in, version 2.1.321</span><svg class="i go"><use href="#i-right"/></svg></div>
+  <div class="arow"><span class="ring bad"><svg class="i "><use href="#i-x"/></svg></span><div class="who"><b>Codex</b><span>Run <code class="cmd">codex login</code> in a terminal, then check again.</span></div><span class="state bad">Not signed in</span><svg class="i go"><use href="#i-right"/></svg></div>
+  <div class="arow"><span class="ring none"></span><div class="who"><b>Work Claude</b><span>Sonnet 5.5 · medium effort · scratch folder off · builds on</span></div><span class="state none">Not checked</span><svg class="i go"><use href="#i-right"/></svg></div>
+</div>
+<div class="under"><span class="sp"></span><span class="btn">Check all</span><span class="btn">Add agent… <svg class="i "><use href="#i-down"/></svg></span></div>
+<div class="group">
+  <div class="grow"><span class="lab">Stop a run after</span><span class="pop" style="width:112px">No limit <svg class="i "><use href="#i-ud"/></svg></span></div>
+  <div class="grow"><span class="lab">Share agents and edited prompts</span><span class="btn">Import…</span><span class="btn">Export…</span></div>
+  <div class="grow"><span class="lab">Remove every agent and set up again</span><span class="btn">Reset agents…</span></div>
+</div>
+
+<div class="prompts">
+  <h2>Built-in prompts</h2>
+  <p>What the agent is told when you ask it for help. Nothing is sent until you ask. Type / to bring in one of your skills.</p>
+  <div class="pbody">
+    <div class="plist">
+      <div class="gh">Tour tab</div>
+      <div class="it on"><b>Problem statement</b><span>Tour tab, Problem</span></div>
+      <div class="it"><b>Solution summary</b><span>Tour tab, Solution</span></div>
+      <div class="it"><b>Tour outline</b><span>Tour tab, Suggest an outline</span></div>
+      <div class="it"><b>Tour-stop comment</b><span>Tour tab, each stop</span></div>
+      <div class="it"><b>Enhance a stop</b><span>Tour tab, each stop</span></div>
+      <div class="gh">Comments and notes</div>
+      <div class="it"><b>Review feedback</b><span>Comment workshop</span></div>
+      <div class="it"><b>Enhance writing</b><span>Comments, replies and notes</span></div>
+    </div>
+    <div class="pd">
+      <h3>Problem statement</h3>
+      <p>How the agent writes the tour's Problem: why this change is needed.</p>
+      <p class="cap">Used by Draft from PR context and Enhance on the Tour tab's Problem field.</p>
+      <div class="pmodes"><span class="qb on">Edit</span><span class="qb">Preview</span><span class="sp"></span><span class="cap">Built-in</span></div>
+      <div class="ped"># Problem statement
+
+Help a knowledgeable reviewer understand why this change exists before describing its solution.
+
+When text is supplied, edit it rather than substitute your own rationale. Be concise, concrete and precise. Preserve uncertainty, scope and severity. Do not infer production impact, a root cause, test results or safety guarantees from a brief symptom. Keep a one-sentence explanation one sentence when that is sufficient.</div>
+    </div>
+  </div>
+</div><i class="thumb" style="height:330px"></i></div>
+  </div>
+</div></div><figcaption><b>The page.</b> The ring is the tour's ring in the check's colours: green checked, red failed, hollow not checked yet. Run limit, sharing and reset are three rows of one group, each with its control on the right.</figcaption></figure><figure class="shot"><div class="scroll"><div class="mac win" data-theme="light">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li>General</li><li>Accounts &amp; hosts</li><li>Repositories</li><li>Home &amp; queue</li><li>Review</li><li>Comments</li><li>Appearance</li><li>Notifications</li><li class=on>Agents &amp; context</li><li>Storage &amp; privacy</li></ul></div>
+    <div class="page">
+<div class="ptitle"><h1>Agents &amp; context</h1></div>
+<div class="sechead"><h2>Agents</h2><span class="cap">A pull request picks one of these in its footer. Drag to reorder.</span></div>
+<div class="group roster">
+  <div class="arow"><span class="ring ok"><svg class="i "><use href="#i-check"/></svg></span><div class="who"><b>Claude Code</b><span>Opus 5.5 · high effort · scratch folder on · builds off</span></div><span class="state">Signed in, version 2.1.321</span><svg class="i go"><use href="#i-right"/></svg></div>
+  <div class="arow"><span class="ring bad"><svg class="i "><use href="#i-x"/></svg></span><div class="who"><b>Codex</b><span>Run <code class="cmd">codex login</code> in a terminal, then check again.</span></div><span class="state bad">Not signed in</span><svg class="i go"><use href="#i-right"/></svg></div>
+  <div class="arow"><span class="ring none"></span><div class="who"><b>Work Claude</b><span>Sonnet 5.5 · medium effort · scratch folder off · builds on</span></div><span class="state none">Not checked</span><svg class="i go"><use href="#i-right"/></svg></div>
+</div>
+<div class="under"><span class="sp"></span><span class="btn">Check all</span><span class="btn">Add agent… <svg class="i "><use href="#i-down"/></svg></span></div>
+<div class="group">
+  <div class="grow"><span class="lab">Stop a run after</span><span class="pop" style="width:112px">No limit <svg class="i "><use href="#i-ud"/></svg></span></div>
+  <div class="grow"><span class="lab">Share agents and edited prompts</span><span class="btn">Import…</span><span class="btn">Export…</span></div>
+  <div class="grow"><span class="lab">Remove every agent and set up again</span><span class="btn">Reset agents…</span></div>
+</div>
+
+<div class="prompts">
+  <h2>Built-in prompts</h2>
+  <p>What the agent is told when you ask it for help. Nothing is sent until you ask. Type / to bring in one of your skills.</p>
+  <div class="pbody">
+    <div class="plist">
+      <div class="gh">Tour tab</div>
+      <div class="it on"><b>Problem statement</b><span>Tour tab, Problem</span></div>
+      <div class="it"><b>Solution summary</b><span>Tour tab, Solution</span></div>
+      <div class="it"><b>Tour outline</b><span>Tour tab, Suggest an outline</span></div>
+      <div class="it"><b>Tour-stop comment</b><span>Tour tab, each stop</span></div>
+      <div class="it"><b>Enhance a stop</b><span>Tour tab, each stop</span></div>
+      <div class="gh">Comments and notes</div>
+      <div class="it"><b>Review feedback</b><span>Comment workshop</span></div>
+      <div class="it"><b>Enhance writing</b><span>Comments, replies and notes</span></div>
+    </div>
+    <div class="pd">
+      <h3>Problem statement</h3>
+      <p>How the agent writes the tour's Problem: why this change is needed.</p>
+      <p class="cap">Used by Draft from PR context and Enhance on the Tour tab's Problem field.</p>
+      <div class="pmodes"><span class="qb on">Edit</span><span class="qb">Preview</span><span class="sp"></span><span class="cap">Built-in</span></div>
+      <div class="ped"># Problem statement
+
+Help a knowledgeable reviewer understand why this change exists before describing its solution.
+
+When text is supplied, edit it rather than substitute your own rationale. Be concise, concrete and precise. Preserve uncertainty, scope and severity. Do not infer production impact, a root cause, test results or safety guarantees from a brief symptom. Keep a one-sentence explanation one sentence when that is sufficient.</div>
+    </div>
+  </div>
+</div><i class="thumb" style="height:330px"></i></div>
+  </div>
+<div class="scrim" style="top:30px"></div>
+<div class="sheet">
+  <h3>Codex</h3>
+  <div class="sub">Found at <span class="mono">/opt/homebrew/bin/codex</span></div>
+  <div class="group" style="margin-top:0"><div class="status"><span class="ring bad"><svg class="i "><use href="#i-x"/></svg></span><div class="txt"><b>Not signed in</b><span>Sign in from a terminal, then check again.</span><div class="line"><code class="cmd">codex login</code><span class="lnk">Copy</span></div></div><span class="btn">Check again</span></div></div>
+  <div class="group">
+    <div class="grow"><span class="lab">Name</span><span class="field">Codex</span></div>
+    <div class="grow"><span class="lab">Model</span><span class="pop">Codex's own default <svg class="i "><use href="#i-ud"/></svg></span></div>
+    <div class="grow"><span class="lab">Effort</span><span class="pop">Codex's own default <svg class="i "><use href="#i-ud"/></svg></span></div>
+  </div>
+  <div class="group">
+    <div class="grow"><span class="lab">Scratch folder starts</span><span class="pop">On <svg class="i "><use href="#i-ud"/></svg></span></div>
+    <div class="grow"><span class="lab">Build and run tests</span><span class="chk"></span></div>
+    <div class="note">Both run code with your account's rights. Builds stay in its disposable checkout and ask once in each pull request.</div>
+  </div>
+  <div class="group"><div class="grow"><span class="lab">Program and arguments</span><span class="cap">Codex (App Server)</span><svg class="i go"><use href="#i-right"/></svg></div></div>
+  <div class="foot"><span class="btn">Remove agent…</span><span class="sp"></span><span class="btn wide">Cancel</span><span class="btn pri wide">Save</span></div>
+</div>
+</div></div><figcaption><b>After clicking Codex.</b> The sheet leads with the check and its remedy, then the four settings a reviewer changes, then Program and arguments for the rest (Speaks, Program, Arguments, Check, Strict run checks).</figcaption></figure><h2 class="band">Dark</h2><figure class="shot"><div class="scroll"><div class="mac win" data-theme="dark">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li>General</li><li>Accounts &amp; hosts</li><li>Repositories</li><li>Home &amp; queue</li><li>Review</li><li>Comments</li><li>Appearance</li><li>Notifications</li><li class=on>Agents &amp; context</li><li>Storage &amp; privacy</li></ul></div>
+    <div class="page">
+<div class="ptitle"><h1>Agents &amp; context</h1></div>
+<div class="sechead"><h2>Agents</h2><span class="cap">A pull request picks one of these in its footer. Drag to reorder.</span></div>
+<div class="group roster">
+  <div class="arow"><span class="ring ok"><svg class="i "><use href="#i-check"/></svg></span><div class="who"><b>Claude Code</b><span>Opus 5.5 · high effort · scratch folder on · builds off</span></div><span class="state">Signed in, version 2.1.321</span><svg class="i go"><use href="#i-right"/></svg></div>
+  <div class="arow"><span class="ring bad"><svg class="i "><use href="#i-x"/></svg></span><div class="who"><b>Codex</b><span>Run <code class="cmd">codex login</code> in a terminal, then check again.</span></div><span class="state bad">Not signed in</span><svg class="i go"><use href="#i-right"/></svg></div>
+  <div class="arow"><span class="ring none"></span><div class="who"><b>Work Claude</b><span>Sonnet 5.5 · medium effort · scratch folder off · builds on</span></div><span class="state none">Not checked</span><svg class="i go"><use href="#i-right"/></svg></div>
+</div>
+<div class="under"><span class="sp"></span><span class="btn">Check all</span><span class="btn">Add agent… <svg class="i "><use href="#i-down"/></svg></span></div>
+<div class="group">
+  <div class="grow"><span class="lab">Stop a run after</span><span class="pop" style="width:112px">No limit <svg class="i "><use href="#i-ud"/></svg></span></div>
+  <div class="grow"><span class="lab">Share agents and edited prompts</span><span class="btn">Import…</span><span class="btn">Export…</span></div>
+  <div class="grow"><span class="lab">Remove every agent and set up again</span><span class="btn">Reset agents…</span></div>
+</div>
+
+<div class="prompts">
+  <h2>Built-in prompts</h2>
+  <p>What the agent is told when you ask it for help. Nothing is sent until you ask. Type / to bring in one of your skills.</p>
+  <div class="pbody">
+    <div class="plist">
+      <div class="gh">Tour tab</div>
+      <div class="it on"><b>Problem statement</b><span>Tour tab, Problem</span></div>
+      <div class="it"><b>Solution summary</b><span>Tour tab, Solution</span></div>
+      <div class="it"><b>Tour outline</b><span>Tour tab, Suggest an outline</span></div>
+      <div class="it"><b>Tour-stop comment</b><span>Tour tab, each stop</span></div>
+      <div class="it"><b>Enhance a stop</b><span>Tour tab, each stop</span></div>
+      <div class="gh">Comments and notes</div>
+      <div class="it"><b>Review feedback</b><span>Comment workshop</span></div>
+      <div class="it"><b>Enhance writing</b><span>Comments, replies and notes</span></div>
+    </div>
+    <div class="pd">
+      <h3>Problem statement</h3>
+      <p>How the agent writes the tour's Problem: why this change is needed.</p>
+      <p class="cap">Used by Draft from PR context and Enhance on the Tour tab's Problem field.</p>
+      <div class="pmodes"><span class="qb on">Edit</span><span class="qb">Preview</span><span class="sp"></span><span class="cap">Built-in</span></div>
+      <div class="ped"># Problem statement
+
+Help a knowledgeable reviewer understand why this change exists before describing its solution.
+
+When text is supplied, edit it rather than substitute your own rationale. Be concise, concrete and precise. Preserve uncertainty, scope and severity. Do not infer production impact, a root cause, test results or safety guarantees from a brief symptom. Keep a one-sentence explanation one sentence when that is sufficient.</div>
+    </div>
+  </div>
+</div><i class="thumb" style="height:330px"></i></div>
+  </div>
+</div></div><figcaption>The same page in the dark appearance.</figcaption></figure><figure class="shot"><div class="scroll"><div class="mac win" data-theme="dark">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li>General</li><li>Accounts &amp; hosts</li><li>Repositories</li><li>Home &amp; queue</li><li>Review</li><li>Comments</li><li>Appearance</li><li>Notifications</li><li class=on>Agents &amp; context</li><li>Storage &amp; privacy</li></ul></div>
+    <div class="page">
+<div class="ptitle"><h1>Agents &amp; context</h1></div>
+<div class="sechead"><h2>Agents</h2><span class="cap">A pull request picks one of these in its footer. Drag to reorder.</span></div>
+<div class="group roster">
+  <div class="arow"><span class="ring ok"><svg class="i "><use href="#i-check"/></svg></span><div class="who"><b>Claude Code</b><span>Opus 5.5 · high effort · scratch folder on · builds off</span></div><span class="state">Signed in, version 2.1.321</span><svg class="i go"><use href="#i-right"/></svg></div>
+  <div class="arow"><span class="ring bad"><svg class="i "><use href="#i-x"/></svg></span><div class="who"><b>Codex</b><span>Run <code class="cmd">codex login</code> in a terminal, then check again.</span></div><span class="state bad">Not signed in</span><svg class="i go"><use href="#i-right"/></svg></div>
+  <div class="arow"><span class="ring none"></span><div class="who"><b>Work Claude</b><span>Sonnet 5.5 · medium effort · scratch folder off · builds on</span></div><span class="state none">Not checked</span><svg class="i go"><use href="#i-right"/></svg></div>
+</div>
+<div class="under"><span class="sp"></span><span class="btn">Check all</span><span class="btn">Add agent… <svg class="i "><use href="#i-down"/></svg></span></div>
+<div class="group">
+  <div class="grow"><span class="lab">Stop a run after</span><span class="pop" style="width:112px">No limit <svg class="i "><use href="#i-ud"/></svg></span></div>
+  <div class="grow"><span class="lab">Share agents and edited prompts</span><span class="btn">Import…</span><span class="btn">Export…</span></div>
+  <div class="grow"><span class="lab">Remove every agent and set up again</span><span class="btn">Reset agents…</span></div>
+</div>
+
+<div class="prompts">
+  <h2>Built-in prompts</h2>
+  <p>What the agent is told when you ask it for help. Nothing is sent until you ask. Type / to bring in one of your skills.</p>
+  <div class="pbody">
+    <div class="plist">
+      <div class="gh">Tour tab</div>
+      <div class="it on"><b>Problem statement</b><span>Tour tab, Problem</span></div>
+      <div class="it"><b>Solution summary</b><span>Tour tab, Solution</span></div>
+      <div class="it"><b>Tour outline</b><span>Tour tab, Suggest an outline</span></div>
+      <div class="it"><b>Tour-stop comment</b><span>Tour tab, each stop</span></div>
+      <div class="it"><b>Enhance a stop</b><span>Tour tab, each stop</span></div>
+      <div class="gh">Comments and notes</div>
+      <div class="it"><b>Review feedback</b><span>Comment workshop</span></div>
+      <div class="it"><b>Enhance writing</b><span>Comments, replies and notes</span></div>
+    </div>
+    <div class="pd">
+      <h3>Problem statement</h3>
+      <p>How the agent writes the tour's Problem: why this change is needed.</p>
+      <p class="cap">Used by Draft from PR context and Enhance on the Tour tab's Problem field.</p>
+      <div class="pmodes"><span class="qb on">Edit</span><span class="qb">Preview</span><span class="sp"></span><span class="cap">Built-in</span></div>
+      <div class="ped"># Problem statement
+
+Help a knowledgeable reviewer understand why this change exists before describing its solution.
+
+When text is supplied, edit it rather than substitute your own rationale. Be concise, concrete and precise. Preserve uncertainty, scope and severity. Do not infer production impact, a root cause, test results or safety guarantees from a brief symptom. Keep a one-sentence explanation one sentence when that is sufficient.</div>
+    </div>
+  </div>
+</div><i class="thumb" style="height:330px"></i></div>
+  </div>
+<div class="scrim" style="top:30px"></div>
+<div class="sheet">
+  <h3>Codex</h3>
+  <div class="sub">Found at <span class="mono">/opt/homebrew/bin/codex</span></div>
+  <div class="group" style="margin-top:0"><div class="status"><span class="ring bad"><svg class="i "><use href="#i-x"/></svg></span><div class="txt"><b>Not signed in</b><span>Sign in from a terminal, then check again.</span><div class="line"><code class="cmd">codex login</code><span class="lnk">Copy</span></div></div><span class="btn">Check again</span></div></div>
+  <div class="group">
+    <div class="grow"><span class="lab">Name</span><span class="field">Codex</span></div>
+    <div class="grow"><span class="lab">Model</span><span class="pop">Codex's own default <svg class="i "><use href="#i-ud"/></svg></span></div>
+    <div class="grow"><span class="lab">Effort</span><span class="pop">Codex's own default <svg class="i "><use href="#i-ud"/></svg></span></div>
+  </div>
+  <div class="group">
+    <div class="grow"><span class="lab">Scratch folder starts</span><span class="pop">On <svg class="i "><use href="#i-ud"/></svg></span></div>
+    <div class="grow"><span class="lab">Build and run tests</span><span class="chk"></span></div>
+    <div class="note">Both run code with your account's rights. Builds stay in its disposable checkout and ask once in each pull request.</div>
+  </div>
+  <div class="group"><div class="grow"><span class="lab">Program and arguments</span><span class="cap">Codex (App Server)</span><svg class="i go"><use href="#i-right"/></svg></div></div>
+  <div class="foot"><span class="btn">Remove agent…</span><span class="sp"></span><span class="btn wide">Cancel</span><span class="btn pri wide">Save</span></div>
+</div>
+</div></div><figcaption>The same state in the dark appearance.</figcaption></figure></div>
+</body></html>

@@ -870,3 +870,68 @@ tracked.
 
 Next: the coordinator's choice among `agent-scratch`, `tour-conversation`
 (needs `tour-stops` accepted) and the layout round for the two rejections.
+
+## Layout round: agent footer, Agents roster, stop editing, tour panel (2026-11-11)
+
+Owner decisions: "A + footer 1" (mockups A · Roster and footer 1 · In the
+status bar, accepted design in
+[docs/design/BPR-2051-agents-roster-and-footer](../../../design/BPR-2051-agents-roster-and-footer/README.md));
+BPR-2014's stop-editing reject (`1d39ba1e`); "Things are moving around as I
+click them, buttons packed in like a clown car" on the tour panel. Owner
+amendments in force as above. Frontend-design was loaded before the Qt work.
+Nothing pushed.
+
+| Commit | What |
+|---|---|
+| main `43203ba7c` | BPR-2088..2090 reserved and carded (Backlog): live-course bugs b, d, e |
+| `f51063b5b` | Agent footer (one picker per pull request, run with place and Stop, several runs, quiet tone, ending, session cost, setup state); drawer pickers, Tour agent bar and setup band removed; Enhance's Stop stops the tour lane; roster with kept checks (`EntryChecks`, `agent_entry_checks`), Check all, row menu, drag; next-request choices off the Settings page; stop editing (no hint, icon-only Enhance); tour panel layout pass; status line no longer "Nothing published." while publishing; app pin resealed. Product candidate |
+| `be50866a1` | Design record, RFC amendments (0101, 0103, 0104 with BPR-2009's checklist, 0106, 0107), `agent_footer --look`, `--agents-roster-look`, BPR-2088..2090 mirrored |
+| `3285ec887` | BPR-2051 and BPR-2014 records. Frozen |
+| this commit | Session recorded on the cards; counter to main's BPR-2092; handoff |
+
+Live-course bugs: (a) fixed (routine save text no longer in the panel or
+wrong while publishing); (c) gone with the setup band; (b) BPR-2088,
+(d) BPR-2089, (e) BPR-2090, all Backlog on main.
+
+Runs at `f51063b5b`/`be50866a1`: `qt_agent_footer` (new; replaces
+`qt_agent_picker_wrap`), 39 Qt tour/agent/window/settings rows, 55
+application and contract rows (composition source and round-trip
+contracts, `architecture_boundaries`, network-isolation manifest,
+`application_agent_chat_*`, `application_agent_finding_*`, tour courses,
+`application_agent_setup_host`, `sqlite_agent_setup_storage`,
+dependable session), `application_enhance_comment_note_public_path`,
+`application_agent_invocation_composition_contract`,
+`application_profile_tour_handoff_public_path`, `clang-tidy` on the new
+and changed host and Qt sources, format check, documentation gate. Not run:
+core-only preset (no core change), the whole dev suite.
+`test_better_pull_review_qt_agent_launch_canary_tests` and
+`..._claude_process_wrapper_tests` do not compile in `tests/adapters_qt/all`
+(native_look_startup.cpp needs QtWidgets they do not link); not this
+round's change, not built by the dev preset's default course.
+
+Native renders (Cocoa off screen, light and dark) are in the session's
+candidates; scratch copies in the session scratchpad `layout-round/`.
+
+Filed, not waited on (URL in the session state's `serve.log`): session
+`7c9206759d935f663d6a13ce0e008afc`, state
+`/Users/jaeger/.attended-review-state/layout-round-v001-2026-11-11/state`,
+cursor 12, host PID 73758 (tailscale child 73768), four candidates, ready
+and protected: `BPR-2051-roster-top`, `BPR-2051-agent-footer`,
+`BPR-2014-stop-editing-v3`, `tour-panel-layout-v1`. Frozen root
+`/Users/jaeger/layout-round-v001.5q22yahv` from `3285ec887` (app SHA-256
+`97d0861e19dc…`, launcher check reached `ATTENDED_TOUR_SHOWN`); its build
+holds the three look helpers.
+
+Disk: 78 relinkable e2e binaries removed from this worktree's
+`build/dev/tests/end_to_end` (about 14 GB) to make room for the freeze.
+
+Not touched: host 74692, PID 10695, BPR-Test #152 and its `-next` branch.
+
+Next: read `7c920675…` from cursor 12 after hand-back. Accept of the roster
+and footer finishes nothing yet (BPR-2051's other looks are accepted; finish
+it when both are). Accept of both tour looks satisfies BPR-2014's AC08 look;
+its critical review is still owed. Then stop host 73758 and remove the root
+with `freeze_attended_build.py remove`. Not built in this round: the
+mockup's restyled agent sheet, RFC-BPR-0107's Import/Export (placement
+recorded), RFC-BPR-0104's grant item (placement recorded), a fixture with
+configured agents and a running run in the frozen app (the looks stand in).

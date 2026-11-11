@@ -143,3 +143,55 @@ Read with `attended_review.py status --after 18` (handed back at sequence
 
 The card stays parked on `human-review` until a new Agents & context top is
 accepted.
+
+## Owner decision: "A + footer 1" (2026-11-11)
+
+The owner chose the mockups "A · Roster" for the top of Agents & context and
+"footer 1 · In the status bar" for the pull request window ("A + footer 1"),
+from the frontend-design mockups made after the `06aceb8f` rejection. In the
+owner's words, earlier: "As we make agent a bigger part of this tool, I'm
+thinking we might need ot move agent picker out of the individual drawers
+and into an always present footer on the PR window." The accepted design is
+recorded at [docs/design/BPR-2051-agents-roster-and-footer](../../design/BPR-2051-agents-roster-and-footer/README.md).
+
+## Layout round (2026-11-11, `f51063b5b`, `be50866a1`)
+
+Frontend-design was loaded before the Qt work.
+
+- Footer (`agent_footer`, in the window's status bar, hidden on Home): the
+  one picker over the Agent tab's source (the Agent tab, tour chat, Enhance
+  and Draft the tour use its choice); the run with where it started, what it
+  does, its time and Stop; several runs as a count whose list has a Stop
+  each; quiet tone after 120 s without a frame; a finished run's ending for
+  six seconds; the session cost summed over the Agent tab and the tour lane
+  (chat, Enhance, drafting), reset when another pull request opens. One
+  fixed height, so the bar never moves. Setup is the footer's state: the
+  picker says what is missing in the failed check's colour and Agent
+  settings… opens Settings.
+- Removed: the Agent tab's in-field picker (the tab borrows the footer's for
+  /model), the Tour tab's agent bar and its "Drafting help needs the agent"
+  band. Enhance's Stop now stops the tour lane it runs on (it stopped the
+  Agent tab's host).
+- Roster: rings and words from each agent's kept check (`EntryChecks`,
+  `agent_entry_checks`, kept across restarts); a row opens its sheet (the
+  agent dialog); its menu checks it, moves it or removes it; drag reorders;
+  Check all (`agent_setup_host::check_all`) checks each agent in turn and
+  keeps the chosen one chosen. The next request's choices left the page.
+  Import/Export: RFC-BPR-0107 places them; not shown until it is built.
+- RFC-BPR-0104 amended (grant line moves to the picker's menu), RFC-BPR-0101
+  (session total in the footer) and RFC-BPR-0103 (running summary in the
+  footer); drawers keep detail.
+
+Tests: `qt_agent_footer` (new: states, Stop per run, picker in place across
+states, setup, one choice), `application_agent_setup_host` (Check all keeps
+each result; a row's check; removal drops it), `sqlite_agent_setup_storage`
+(checks across restart), `qt_settings_window`, `qt_agent_setup_view`, 39
+Qt tour/agent/window rows, 55 application/contract rows (composition source
+and round-trip contracts, `architecture_boundaries`, network-isolation
+manifest, agent chat/finding, tour courses), `clang-tidy` on the new and
+changed host and Qt sources, format check, documentation gate.
+
+Renders (Cocoa, off screen, light and dark): the roster and every footer
+state, in the attended session below.
+
+Filed, not waited on (the URL stays in the session state's `serve.log`): session `7c9206759d935f663d6a13ce0e008afc`, state `/Users/jaeger/.attended-review-state/layout-round-v001-2026-11-11/state`, cursor 12, host PID 73758 (its `tailscale serve` child 73768), frozen root `/Users/jaeger/layout-round-v001.5q22yahv` from `3285ec887` (app SHA-256 `97d0861e19dc…`, launcher check reached `ATTENDED_TOUR_SHOWN`). Candidates: `BPR-2051-roster-top` and `BPR-2051-agent-footer` (looks: `agent_footer --look`, `better_pull_review_qt_settings_window_tests --agents-roster-look` in the root's build, and the frozen app). The card stays parked on `human-review`.

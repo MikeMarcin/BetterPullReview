@@ -33,6 +33,14 @@ Settings > Agents & context gains Import configuration… and Export configurati
 Both act on the profile whose Settings window is open. A build without agent
 integrations has no Agents & context page and therefore no exchange.
 
+Placement (2026-11-11, [[BPR-2051]], the owner's choice of the Agents roster,
+design [record](../design/BPR-2051-agents-roster-and-footer/README.md)):
+the two buttons share one row of the settings group under the agents roster,
+between "Stop a run after" and "Remove every agent and set up again". The
+row reads "Share agents and edited prompts", with Import configuration… and
+Export configuration… at its right. The row is not shown until this RFC is
+implemented.
+
 Export lets the user select saved agent definitions and individual saved prompt
 overrides. Version one covers the review skill and the writing hooks: tour Problem,
 Solution, outline and stop comment, review feedback, and since [[BPR-2051]]

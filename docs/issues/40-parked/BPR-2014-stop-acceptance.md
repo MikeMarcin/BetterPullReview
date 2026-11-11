@@ -134,3 +134,29 @@ Read with `attended_review.py status --after 18` (handed back at sequence
 
 RFC-BPR-0106 AC08 stays pending on the stop-editing look; the critical
 review is still owed. The card stays parked on `human-review`.
+
+## Layout round (2026-11-11, `f51063b5b`)
+
+Frontend-design was loaded before the Qt work.
+
+- Owner look `1d39ba1e`: the hint under the editing tools is gone; Enhance
+  on a written stop (and on the Problem and Solution) is the nib alone, its
+  name its accessible name and the head of its tooltip.
+- Owner on the live build ("Things are moving around as I click them,
+  buttons packed in like a clown car"): every chat toggle on the route
+  shares one right edge, whether or not a step is done; opening a stop for
+  editing moves neither its title, its chat toggle nor its lines link (the
+  pencil keeps its room; the card's fields are top-aligned); Use selected
+  lines and Link selected lines are one kind of quiet link; the routine save
+  line ("Saved locally. Nothing published.") and the empty notices band are
+  gone from the panel, and writing notices go to the window's status line;
+  Draft Tour is no longer cut at the bottom. The status line no longer says
+  "Nothing published." while the tour publishes (live-course bug a).
+
+Tests: `qt_tour_stop_acceptance_card` (no hint; icon-only Enhance; chat
+toggle and lines link stay put; no routine status text),
+`qt_review_tour_agent_help`, `qt_review_tour_agent_setup_call`,
+`qt_tour_side_chat`, `qt_tour_stop_card_cleanup`, `qt_scoped_prose_editor`,
+`qt_workbench_window_scale_*`, `application_review_tour_composition_public_path`.
+
+Filed, not waited on (the URL stays in the session state's `serve.log`): session `7c9206759d935f663d6a13ce0e008afc`, state `/Users/jaeger/.attended-review-state/layout-round-v001-2026-11-11/state`, cursor 12, host PID 73758 (its `tailscale serve` child 73768), frozen root `/Users/jaeger/layout-round-v001.5q22yahv` from `3285ec887` (app SHA-256 `97d0861e19dc…`, launcher check reached `ATTENDED_TOUR_SHOWN`). Candidates: `BPR-2014-stop-editing-v3` (the `tour_stop_acceptance_card --look`) and `tour-panel-layout-v1` (the frozen app). RFC-BPR-0106 AC08 stays pending on these looks; the critical review is still owed. The card stays parked on `human-review`.

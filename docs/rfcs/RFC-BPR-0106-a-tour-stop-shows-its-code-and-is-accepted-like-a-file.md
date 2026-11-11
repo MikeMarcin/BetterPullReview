@@ -129,6 +129,20 @@ and Mark not accepted are in the stop's context menu and nowhere else on
 the card. Adding a stop and drafting the tour belong to the route and the
 agent bar.
 
+**Owner look, 2026-11-11 ([[BPR-2014]], session `5ea0ce22`, `1d39ba1e`).**
+"That text at the bottom is a giant waste of space. No one can or wants to
+read that. We also don't need the \"Enhance\" label if we're using the new
+enhance icon." A stop being edited has no explanatory text under its tools:
+each tool says what it does in its own words and how in its tooltip.
+Enhance on a written field (a stop, the Problem, the Solution) is its nib
+alone; its name ("Enhance comment", "Enhance selection") is its accessible
+name and leads its tooltip. Use selected lines and Link selected lines are
+one kind of control, quiet links side by side. Opening a stop for editing
+moves neither its title's place, its chat toggle nor its file-and-lines
+link: the pencil keeps its room while hidden. The agent bar is gone
+([[BPR-2051]]): drafting the tour belongs to the route's head, and the agent
+is the window footer's.
+
 ### Suggest an outline leaves the application
 
 Suggest an outline and Insert outline are removed from the Tour tab and the
