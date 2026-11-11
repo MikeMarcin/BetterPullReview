@@ -51,6 +51,7 @@ network, or process effects.
 
 - RFCs close when their explicit dependencies and acceptance criteria are satisfied; index position is not a gate.
 - Issue folder placement is status. `60-done/` is terminal.
+- `main` is the tracker's source of truth: mirror every card move made on a lane to `main` (the card's old and new paths, `docs/issues/NEXT_ID` and `docs/issues/_reservations`) in the same round.
 - Use MASK-managed implement-rfc with `.mask/skill-config/implement-rfc/` context.
 - Allocate issue IDs with `python3 scripts/allocate_issue_id.py`; commit returned counter and receipt paths.
 - Commit each completed issue slice intentionally.
