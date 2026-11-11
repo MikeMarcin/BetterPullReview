@@ -721,7 +721,10 @@ record_phase() {
     printf 'phase:%s\n' "$*"
     if [[ "$1" == "$FAIL_PHASE" ]]; then return 17; fi
 }
-python3() { printf 'suite:%s\n' "$*"; }
+python3() {
+    printf 'suite:%s\n' "$*"
+    if [[ "$*" == *"$FAIL_PHASE"* && -n "$FAIL_PHASE" ]]; then return 19; fi
+}
 '''
             harness += script[start:end]
             return subprocess.run(["bash", "-s", "--", *options], input=harness, capture_output=True, text=True)
@@ -738,15 +741,21 @@ python3() { printf 'suite:%s\n' "$*"; }
                     rows = [line for line in result.stdout.splitlines() if line.startswith(("phase:", "suite:"))]
                     self.assertEqual([line.split()[0] for line in rows[:6]], ["phase:" + phase for phase in
                         ("configure-release", "build-release", "configure-debug", "build-debug", "configure-distribution", "build-distribution")])
-                    self.assertEqual(len(rows), 8)
+                    self.assertEqual(len(rows), 10)
                     self.assertIn("--preset macos-release" + ("-" + variant if variant else ""), rows[4])
                     self.assertIn("-DBPR_RELEASE_COHORT=/cohort -DBPR_RELEASE_PRODUCER=mac", rows[4])
-                    self.assertIn("--preset qualification-release --profile " + profile, rows[6])
-                    self.assertIn("--preset dev --profile " + ("comprehensive" if profile == "comprehensive" else "debug-residual"), rows[7])
+                    self.assertIn("--preset qualification-release --profile risk-preflight", rows[6])
+                    self.assertIn("--preset dev --profile risk-preflight", rows[7])
+                    self.assertIn("--preset qualification-release --profile " + profile, rows[8])
+                    self.assertIn("--preset dev --profile " + ("comprehensive" if profile == "comprehensive" else "debug-residual"), rows[9])
                     for row in rows[6:]:
                         self.assertIn("--jobs 4 --phase-ledger /private ledger/phases.jsonl --phase-context /private ledger/context.json", row)
+                    for row in rows[6:8]:
+                        self.assertNotIn("--heavy-group", row)
+                        self.assertNotIn("--change-scope", row)
+                    for row in rows[8:]:
                         self.assertIn("--heavy-group device-lifecycle", row)
-                    self.assertEqual("--tests-regex" in rows[7], profile == "comprehensive")
+                    self.assertEqual("--tests-regex" in rows[9], profile == "comprehensive")
 
     def test_build_failure_stops_without_running_suites_or_later_builds(self):
         phases = ("configure-release", "build-release", "configure-debug", "build-debug", "configure-distribution", "build-distribution")
@@ -765,10 +774,21 @@ python3() { printf 'suite:%s\n' "$*"; }
             result = self.course(["--test-failures-first", str(release), "--debug-failures-first", str(debug)])
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [row for row in result.stdout.splitlines() if row.startswith("suite:")]
+            self.assertTrue(all("--failures-first" not in row for row in rows[:2]))
+            rows = rows[2:]
             self.assertIn("--failures-first " + str(release), rows[0])
             self.assertNotIn(str(debug), rows[0])
             self.assertIn("--failures-first " + str(debug), rows[1])
             self.assertNotIn(str(release), rows[1])
+
+    def test_either_preflight_failure_stops_before_long_qualification(self):
+        for preset in ("qualification-release", "dev"):
+            with self.subTest(preset=preset):
+                result = self.course(failed_phase="--preset " + preset + " --profile risk-preflight")
+                self.assertEqual(result.returncode, 19, result.stderr)
+                suites = [line for line in result.stdout.splitlines() if line.startswith("suite:")]
+                self.assertEqual(len(suites), 2)
+                self.assertTrue(all("--profile risk-preflight" in line for line in suites))
 
     def test_skip_tests_keeps_only_distribution_builds(self):
         result = self.course(["--skip-tests"])

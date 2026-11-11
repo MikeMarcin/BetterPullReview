@@ -174,6 +174,81 @@ if name == 'cleanup': (root/'fixture').unlink()
             with self.subTest(profile=profile, groups=groups, scopes=scopes), self.assertRaises(ValueError):
                 suite.select_profile(names, profile, groups, scopes)
 
+    def test_risk_preflight_requires_exact_baseline_and_does_not_classify_qualification(self):
+        definition = json.loads((ROOT / "tests/release_test_profiles.json").read_text())
+        baseline = definition["risk_preflight"]["tests"]
+        self.assertEqual(len(baseline), 9)
+        for name in ("git_cache_contract", "application_profile_data_reset_public_path",
+                     "sqlite_epoch_catalog_behavior_contract", "test_network_isolation_manifest"):
+            self.assertIn(name, baseline)
+        names = ["not_early", *reversed(baseline)]
+        selection = suite.select_profile(names, "risk-preflight", [], [])
+        self.assertEqual(selection["selected"], names[1:])
+        self.assertFalse(selection["release_gate_substitution"])
+        self.assertIn("final qualification runs fresh", selection["note"])
+        for missing in baseline:
+            with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "missing required"):
+                suite.select_profile([name for name in names if name != missing], "risk-preflight", [], [])
+        for groups, scopes in ((["device-lifecycle"], []), ([], ["routine"]), ([], ["unknown"])):
+            with self.assertRaisesRegex(ValueError, "does not classify"):
+                suite.select_profile(names, "risk-preflight", groups, scopes)
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for extra in ({"tests_regex": ".*"}, {"failures_first": root / "previous.json"}):
+                with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, "cannot be narrowed"):
+                    suite.run_suite("fixture", 4, root / "results", root=root, profile="risk-preflight", **extra)
+
+    def test_real_risk_preflight_is_native_collect_all_and_final_rows_run_fresh(self):
+        for mode in ("Release", "Debug"):
+            with self.subTest(mode=mode), ContainedTemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / "tests").mkdir()
+                (root / "tests/release_test_profiles.json").write_bytes((ROOT / "tests/release_test_profiles.json").read_bytes())
+                baseline = json.loads((root / "tests/release_test_profiles.json").read_text())["risk_preflight"]["tests"]
+                names = [*baseline, "long_suite_sentinel"]
+                worker = root / "worker.py"
+                worker.write_text("from pathlib import Path\nimport sys\nroot=Path(__file__).parent\n"
+                    "name=sys.argv[1]\np=root/(name+'.runs')\np.write_text(p.read_text()+'run\\n' if p.exists() else 'run\\n')\n"
+                    "if (root/'fail').exists() and name=='git_cache_contract': raise SystemExit(3)\n"
+                    "if (root/'skip').exists() and name=='git_cache_contract': raise SystemExit(77)\n")
+                cmake = ['cmake_minimum_required(VERSION 3.24)', 'project(Preflight NONE)', 'enable_testing()']
+                for name in names:
+                    cmake.append(f'add_test(NAME {name} COMMAND "{Path(sys.executable).as_posix()}" "{worker.as_posix()}" {name})')
+                    cmake.append(f'set_tests_properties({name} PROPERTIES SKIP_RETURN_CODE 77 WORKING_DIRECTORY "${{CMAKE_BINARY_DIR}}")')
+                (root / "CMakeLists.txt").write_text("\n".join(cmake) + "\n")
+                (root / "CMakePresets.json").write_text(json.dumps({"version": 3,
+                    "configurePresets": [{"name": "fixture", "generator": "Ninja", "binaryDir": "${sourceDir}/build",
+                                          "cacheVariables": {"CMAKE_BUILD_TYPE": mode}}],
+                    "testPresets": [{"name": "fixture", "configurePreset": "fixture", "configuration": mode}]}))
+                subprocess.run(["cmake", "--preset", "fixture"], cwd=root, check=True, capture_output=True)
+                for attempt, marker in (("passed", None), ("failed", "fail"), ("skipped", "skip")):
+                    if marker:
+                        (root / marker).touch()
+                    output = root / attempt
+                    with redirect_stdout(io.StringIO()):
+                        code = suite.run_suite("fixture", 4, output, root=root, profile="risk-preflight")
+                    self.assertEqual(code == 0, marker is None)
+                    report = json.loads((output / "timings.json").read_text())
+                    self.assertTrue(report["complete"])
+                    self.assertCountEqual([row["name"] for row in report["tests"]], baseline)
+                    self.assertEqual(report["profile_selection"]["omitted"], ["long_suite_sentinel"])
+                    self.assertFalse(report["qualification_scope"]["release_gate_substitution"])
+                    if marker:
+                        self.assertEqual(report["counts"][attempt], 1)
+                        (root / marker).unlink()
+                self.assertFalse((root / "long_suite_sentinel.runs").exists())
+                with redirect_stdout(io.StringIO()):
+                    self.assertEqual(suite.run_suite("fixture", 4, root / "included", root=root,
+                        profile="risk-preflight", include_tests_regex="^long_suite_sentinel$"), 0)
+                included = json.loads((root / "included/selection.json").read_text())
+                self.assertCountEqual(included["selected"], names)
+                self.assertEqual(included["focused_regressions"], ["long_suite_sentinel"])
+                with redirect_stdout(io.StringIO()):
+                    self.assertEqual(suite.run_suite("fixture", 4, root / "final", root=root), 0)
+                for name in baseline:
+                    self.assertEqual((root / (name + ".runs")).read_text(), "run\n" * 5)
+                self.assertEqual((root / "long_suite_sentinel.runs").read_text(), "run\n" * 2)
+
     def test_real_normal_profile_omits_waiting_sentinel_and_heavy_executes_it_fresh(self):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -218,19 +293,34 @@ if name == 'cleanup': (root/'fixture').unlink()
             manifest = {"tests": [row]}
             cache = root / "CMakeCache.txt"
             with self.assertRaisesRegex(ValueError, "unavailable"):
-                suite.validate_debug_configuration(manifest)
+                suite.validate_native_configuration(manifest)
             for value in ("CMAKE_BUILD_TYPE:STRING=Debug\n", "CMAKE_CONFIGURATION_TYPES:STRING=Debug;Release\n"):
                 cache.write_text(value)
-                suite.validate_debug_configuration(manifest)
+                suite.validate_native_configuration(manifest)
             for value in ("", "CMAKE_BUILD_TYPE:STRING=Release\n", "CMAKE_CONFIGURATION_TYPES:STRING=Release\n"):
                 cache.write_text(value)
                 with self.assertRaisesRegex(ValueError, "does not build Debug"):
-                    suite.validate_debug_configuration(manifest)
+                    suite.validate_native_configuration(manifest)
             cache.write_text("CMAKE_BUILD_TYPE:STRING=Debug\n")
             for label in (None, "Release"):
                 row["config"] = label
                 with self.assertRaisesRegex(ValueError, "actual Debug preset"):
-                    suite.validate_debug_configuration(manifest)
+                    suite.validate_native_configuration(manifest)
+
+    def test_risk_preflight_configuration_cache_is_checked_in_both_modes(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            row = {"name": "qt_workbench_overview", "properties": [
+                {"name": "WORKING_DIRECTORY", "value": str(root)}]}
+            manifest = {"tests": [row]}
+            cache = root / "CMakeCache.txt"
+            for mode, wrong in (("Release", "Debug"), ("Debug", "Release")):
+                row["config"] = mode
+                cache.write_text("CMAKE_BUILD_TYPE:STRING=" + wrong + "\n")
+                with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, "does not build " + mode):
+                    suite.validate_native_configuration(manifest, mode, "Risk preflight")
+                cache.write_text("CMAKE_BUILD_TYPE:STRING=" + mode + "\n")
+                suite.validate_native_configuration(manifest, mode, "Risk preflight")
 
     def test_bounded_selection_keeps_preflight_fresh_and_never_credits_other_rows(self):
         with ContainedTemporaryDirectory() as temporary:

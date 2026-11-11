@@ -62,6 +62,78 @@ not timing acceptance. Optimized Release timings, memory/resource acceptance,
 compilation, artifacts/source/legal, signing, notarization, security and native
 trust remain separate obligations.
 
+## Early native risk preflight
+
+Before long qualification, run the explicit `risk-preflight` profile on the
+candidate's tests-enabled Release **and** Debug graphs on each selected native
+platform. It is early regression discovery, not normal or comprehensive
+qualification. Existing tooling prerequisites still run fresh. No test body,
+watchdog, Release performance limit or native containment rule changes.
+
+The nine mandatory rows in `tests/release_test_profiles.json` cover:
+
+- `git_cache_contract`: the original full cache course, including persisted
+  artifact lifetime/foreign-replacement ownership (BPR-2095), not a new smoke
+  assertion that can miss the regression.
+- `application_profile_data_reset_public_path`: the composed reset/reopen,
+  kept-store and removed-file lifetime course (BPR-2099).
+- `sqlite_epoch_catalog_behavior_contract`: ordinary retained-state storage.
+- `test_network_isolation_manifest`: configured native containment declarations.
+- `qt_workbench_overview`: five bounded composed Overview/navigation cases,
+  rather than repeating the full workbench omnibus and its mixed 100 ms drawer
+  assertion before the long suites.
+- `qt_composed_inline_drawer_scale_100`, `core_diff_compute`,
+  `application_diff_host` and `application_github_host`: representative
+  composed interaction, deterministic diff and host lifecycle checks.
+
+This small row set omits dedicated performance campaigns, real-time expiry and
+large-review resource courses. It retains original per-course watchdogs; it is
+not a promised wall-time budget. New risk-specific cheap public paths can be
+added with `--include-tests-regex`, without removing the mandatory baseline.
+Do not add dedicated Debug timing courses. Missing baseline rows, unsupported or
+mismatched build configurations, `--tests-regex`, prior-failure ordering and
+scope/heavy-group classification are refused. Every required row must execute;
+a skipped check does not produce a passing preflight. Keep actual mixed Debug
+functional/timing failures and apply the standing Debug policy above, without
+turning a timing disposition into a functional pass.
+
+After the physical-host compilation prerequisites, use fresh output directories:
+
+```sh
+python3 scripts/run_test_suite.py --preset qualification-release --profile risk-preflight --jobs 4 --output-dir /absolute/new-preflight-release
+python3 scripts/run_test_suite.py --preset dev --profile risk-preflight --jobs 4 --output-dir /absolute/new-preflight-debug
+```
+
+On Windows use `windows-qualification-release` and `windows-dev` with the
+approved native Python. `tools/release.sh` runs both preflights automatically
+before either long Mac qualification lane. Raw manifest, selection, JUnit,
+timing and phase-ledger results remain separate from the final suites. The Mac
+entrypoint collects both mode results even after a Release failure, then stops
+before long suites if either failed. A failure blocks unstarted downstream work;
+retain all failures in that attempt, reconcile the candidate and fix functional
+failures before redispatch. Do not replace an in-flight release's frozen controller.
+
+If a mixed Debug row ever fails only a performance predicate, retain the failed
+row and its unreached checks, identify the exact predicate and apply the standing
+nongating policy without requesting another timing waiver. Continue final Release
+and Debug functional qualification using the direct runner commands in
+[Select the route](#select-the-route), with the same candidate, native graphs,
+scopes, focused regressions, heavy obligations and existing request ledger.
+Those runs execute fresh; the preflight report is not a substituted receipt.
+Do not repeatedly invoke the failed producer just to turn the timing row green.
+Packaging reentry retains the existing prepare-only/skip-tests policy and its
+explicit limitation acceptance requirement for publication; a timing disposition
+neither authorizes skipping final functional qualification nor supplies a package,
+signing or publication approval.
+
+Final qualification still uses the selected normal/comprehensive and Debug
+policy below, including focused patch regressions and relevant heavy groups.
+Every selected final row runs fresh. A preflight result supplies no replacement
+for one of those rows, no omitted-heavy claim and no cross-source acceptance.
+Rows omitted by the final profile remain separately reported early checks, not
+comprehensive Debug coverage. Prior full-suite failures still use the independent
+`--failures-first` mechanism on the final suite.
+
 ## Select the route
 
 Use the tests-enabled Release preset (`qualification-release` on macOS/Linux,

@@ -117,6 +117,57 @@ artifact audit or signing approval. Preserve the macOS script's gate ownership;
 do not run a duplicate full suite for a packaging transcript. Keep any permitted
 bridge to unchanged qualification explicit and input-bound.
 
+## Run native risk checks before long suites
+
+After the required graphs compile, run the maintained
+[risk preflight](../../../../docs/development/release-test-profiles.md#early-native-risk-preflight)
+on both Release and Debug before long qualification on that physical host.
+The original Git cache ownership and profile-reset public-path courses belong
+in this early set on every selected platform; a Mac pass cannot expose or
+qualify Linux inode/generation behavior or MSVC's checked lifetimes.
+`tools/release.sh` owns both early Mac runs, as well as its later final suites.
+Do not add duplicate manual Mac preflights around it.
+
+Prefer a verified independent Ubuntu 26.04 x64 native producer when one is
+actually available and authorized. Confirm checkout/candidate, native toolchain,
+dependency cache, output ownership and physical host before dispatch. An SSH
+alias or Linux environment inside Windows does not establish independence.
+Keep the selected Linux baseline and approved signer/key location; do not move
+credentials or claim WSL/installation/native-trust evidence from another host.
+Independent hosts may complete their own preflight and advance separately.
+
+If Linux is available only as WSL on the signing PC, schedule Ubuntu discovery
+first: build its Release/Debug/distribution graphs and run both short preflights,
+then finish the Windows graphs and both Windows preflights. Complete all shared
+host compilation and risk checks before either long suite, extended Windows
+repair qualification or packaging. Keep all Windows/WSL builds, tests and package
+work serialized through the existing host lease. Never interrupt a running
+Windows job to insert Linux work; resume this ordering at its next safe owned
+boundary. Existing live release jobs and frozen procedures remain unchanged.
+
+A functional failure rejects the candidate's unstarted downstream work. Preserve
+all native reports and actual exits, including failures from the other mode;
+continue other independent discovery only when already safe and useful. A skipped
+required row is incomplete early discovery, not a PASS. Use the existing Debug
+timing policy for a classified mixed-course timing predicate and retain its raw
+failure. Required final selected qualification, artifact and trust receipts
+remain unchanged.
+
+### Evidence reuse boundary
+
+The early profile is a separate current-candidate observation. Final selected
+rows execute fresh; no early native PASS is imported into the final runner.
+The input closure needed for broader selective reuse has not been verified:
+source/helper/fixture transitive inputs, generated configuration, native libraries,
+compiler/CRT/STL/Qt, containment, storage filesystem capabilities and final artifact
+bytes can change independently of a passing test's name. A docs-only-looking diff
+or identical source file is not that proof. Do not infer that an old source PASS
+qualifies a repaired candidate. Current `--failures-first` receipts only order
+work, and the existing sealed same-invocation tooling bootstrap is the only
+implemented duplicate-row credit. This change enables no new evidence bridge.
+Collection-only recovery may still validate and collect the exact existing native
+outputs under the existing policy; it does not fabricate missing native work.
+
 ## Schedule by physical host and prerequisites
 
 - Run Mac production independently from the signing PC. Windows and its Ubuntu

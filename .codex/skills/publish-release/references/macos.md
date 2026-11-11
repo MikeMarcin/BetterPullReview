@@ -3,9 +3,11 @@
 Run on macOS from the exact committed source:
 
 For a coordinated release, first complete the
-[all-platform compilation barrier](execution.md#compile-every-selected-platform-before-long-suites).
-The macOS script's long tests must not start while another selected platform's
-required compilation is still unverified.
+[physical-host compilation prerequisites](execution.md#compile-each-physical-host-before-its-long-suites)
+and [native risk checks](execution.md#run-native-risk-checks-before-long-suites).
+The script builds its required local graphs and collects Release and Debug risk
+preflights before long qualification. Independent physical hosts may advance
+separately; Windows and WSL remain serialized on their shared host.
 
 ```sh
 tools/release.sh --version X.Y.Z
