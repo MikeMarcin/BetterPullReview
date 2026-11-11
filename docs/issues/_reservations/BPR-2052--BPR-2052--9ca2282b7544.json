@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2052"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Keep agent finding cards when thread is re-shown",
+  "created": "2026-11-11T00:03:11.724681+00:00",
+  "base": "809d0296a268144a3f5817177a41844d5e352510"
+}
