@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1995"
 title: "Clear the side chat foot, answer change requests with the change and run Enhance in the conversation"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0100"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0007-tour-chat-foot-and-one-turn-changes.md"}
 depends_on: ["BPR-1999", "BPR-2000"]
-parked_on: "human-review"
-acceptance: [{"criterion":"AC01","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"Only the composer and the session line under the transcript; a replay or a moved head adds its one notice","command":"ctest --preset dev -R qt_tour_side_chat"}},{"criterion":"AC02","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"The link in every thread names the part and sends the update; no Update button","command":"ctest --preset dev -R qt_tour_side_chat"}},{"criterion":"AC03","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"Contracts state it; live installed Claude Code (Sonnet) carded 5/5 fixed requests in the first answer","command":"build/dev/tests/end_to_end/better_pull_review_agent_chat_composition_public_path live-tour-requests /opt/homebrew/bin/claude"}},{"criterion":"AC04","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"Accept all, Review each, Discard; settling in the tour settles the card","command":"ctest --preset dev -R qt_tour_agent_session_view"}},{"criterion":"AC05","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"Enhance sends the part's update turn in its session; a selection is replaced alone; nothing changes before Accept","command":"ctest --preset dev -R 'qt_tour_side_chat|application_review_tour_writing$|core_tour_references'"}},{"criterion":"AC09","outcome":"pending","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"observation","detail":"Owner look pending in attended session c46887c9608e3cab116a025a744f2379 (frozen 8143e373ec46)"}}]
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"Only the composer and the session line under the transcript; a replay or a moved head adds its one notice","command":"ctest --preset dev -R qt_tour_side_chat"}},{"criterion":"AC02","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"The link in every thread names the part and sends the update; no Update button","command":"ctest --preset dev -R qt_tour_side_chat"}},{"criterion":"AC03","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"Contracts state it; live installed Claude Code (Sonnet) carded 5/5 fixed requests in the first answer","command":"build/dev/tests/end_to_end/better_pull_review_agent_chat_composition_public_path live-tour-requests /opt/homebrew/bin/claude"}},{"criterion":"AC04","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"Accept all, Review each, Discard; settling in the tour settles the card","command":"ctest --preset dev -R qt_tour_agent_session_view"}},{"criterion":"AC05","outcome":"pass","revision":"e6e84653e78106d8561193f6252e9cc45c6b3e22","evidence":{"kind":"command","detail":"Enhance sends the part's update turn in its session; a selection is replaced alone; nothing changes before Accept","command":"ctest --preset dev -R 'qt_tour_side_chat|application_review_tour_writing$|core_tour_references'"}},{"criterion":"AC09","outcome":"pass","revision":"8143e373ec464f7512c1678f265f0a0acb1f004e","evidence":{"kind":"observation","detail":"Owner accepted the lower edge (8736f969) and the revision card (e1ad5848) in attended session c46887c9608e3cab116a025a744f2379 (frozen 8143e373ec46)"}}]
 ---
 
 # Clear the side chat foot, answer change requests with the change and run Enhance in the conversation
@@ -70,3 +69,15 @@ protected: `RFC-BPR-0100-chat-lower-edge`, `RFC-BPR-0100-revision-card`
 (AC09) and `RFC-BPR-0100-flag-move-draft` (AC08). Frozen root
 `/Users/jaeger/tour-conversation-v001.l3mto90j` from `8143e373ec46` (app
 SHA-256 `ca7a6f81fe78…`, launcher check reached `ATTENDED_TOUR_REVISION_SHOWN`).
+
+## Owner look (2026-11-11)
+
+Session `c46887c9608e3cab116a025a744f2379` handed back with all three
+candidates accepted (`session.json`): `RFC-BPR-0100-chat-lower-edge`
+(`8736f969`) and `RFC-BPR-0100-revision-card` (`e1ad5848`) for AC09, no
+decision notes. A later feedback note on the lower edge, a suggestion, is
+recorded verbatim in the
+[ledger](../../verification/RFC-BPR-0100.md#owner-look-c46887c9-2026-11-11)
+(naming a session instead of its number). Host 19967 (Tailscale child 19990) stopped with `attended_review.py stop`;
+root `tour-conversation-v001.l3mto90j` removed with
+`freeze_attended_build.py remove`.

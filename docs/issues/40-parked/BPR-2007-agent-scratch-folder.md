@@ -137,3 +137,17 @@ Handed back 2026-11-11, all Accept with no notes (`session.json`): `BPR-2007-pic
 Host 89403 (Tailscale child 89420) stopped with `attended_review.py stop`;
 root `agent-grant-v002.y_rhztpu` removed with `freeze_attended_build.py remove`.
 The card stays parked: AC07 waits on the independent re-review of `531a039cd`.
+
+## Third review round (2026-11-11)
+
+The re-review of `531a039cd` returned FAIL. F1: in the checkout BPR made, a
+pull request's own `.codex/config.toml` (once Codex trusted the checkout,
+which it wrote into the reviewer's `~/.codex/config.toml`) and its
+`.claude/settings*.json` and `.mcp.json` ran hooks and MCP servers with the
+reviewer's rights; F2: `-c=KEY=VALUE` was not read. Both fixed: every launch
+there names the checkout (Codex: untrusted project, by its path and canonical
+path; Claude Code: `--setting-sources user`), a grant cannot launch without
+it, and the argument parser drops the attached `=`. Both grants are kept.
+Tests and the live course with a hostile fixture are in the
+[ledger](../../verification/RFC-BPR-0104.md#third-review-round-2026-11-11).
+The card stays parked: AC07 waits on another independent re-review.

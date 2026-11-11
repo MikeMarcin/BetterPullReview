@@ -76,3 +76,11 @@ probed on the new rules); Codex in the reviewer's own checkout is given no
 grant at all (N1a). Dispositions in the
 [ledger](../../verification/RFC-BPR-0104.md#re-review-of-the-fixes-2026-11-11).
 Another independent re-review is owed. Still Backlog until BPR-2007 is Done.
+
+Third review round (2026-11-11): F1, a Codex build turn trusted the pull
+request's checkout and ran its `.codex/config.toml` MCP servers outside the
+sandbox, is fixed by naming the checkout an untrusted project on every launch
+there; a build grant now launches only with that checkout named. The builds
+tooltip's claim is true with it, and the live course passes for builds on
+both agents ([ledger](../../verification/RFC-BPR-0104.md#third-review-round-2026-11-11)).
+Another independent re-review is owed. Still Backlog until BPR-2007 is Done.

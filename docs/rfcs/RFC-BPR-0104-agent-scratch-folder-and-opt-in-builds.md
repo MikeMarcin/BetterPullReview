@@ -220,6 +220,37 @@ the launch carries. So:
   so after a restart the picker measures it and Clear scratch folders keeps
   the open pull request's folders.
 
+### Amendment: the pull request's own agent settings never load (2026-11-11, third round)
+
+The checkout BPR makes holds the pull request's files, and those can include
+the agents' own project settings. Established live against Codex 0.167.0 and
+Claude Code 2.1.319 (ledger, [third round](../verification/RFC-BPR-0104.md#third-review-round-2026-11-11)):
+Codex, when the turn's working folder was writable (a build grant, or the
+reviewer's own `workspace-write` mode under `exec` with no grant at all),
+wrote `trust_level = "trusted"` for the checkout into the reviewer's
+`~/.codex/config.toml` and loaded the checkout's `.codex/config.toml`, whose
+`mcp_servers` ran outside the sandbox with the reviewer's rights and the
+network; Claude Code, which skips its workspace trust dialog under `-p`, ran
+the checkout's `.claude/settings.json` and `.claude/settings.local.json`
+hooks, `apiKeyHelper` and `.mcp.json` servers, with no grant at all.
+
+- **Every launch in a checkout BPR made** names it, by the path the turn runs
+  in and its canonical path. Codex gets `-c projects={"PATH"={trust_level=
+  "untrusted"},…}`, which replaces every `projects` entry for the run: the
+  checkout's configuration, hooks and rules are not loaded and Codex writes
+  nothing to the reviewer's configuration. Claude Code gets
+  `--setting-sources user`: no project or local settings, project MCP
+  servers, skills, agents or commands. The reviewer's own checkout keeps
+  their settings (and Codex is given no grant there, as before).
+- **A grant needs it.** A Codex grant, and any build grant, launches only
+  with the checkout so named, and a build only in that checkout.
+- What still reaches the agent from the pull request is text: its
+  `AGENTS.md` or `CLAUDE.md`, and for Codex its skills, which Codex loads
+  untrusted. Whatever they ask is held by the same rules and sandbox as any
+  other request.
+- The agent's own `-c` arguments are read as Codex reads them, including
+  `-c=KEY=VALUE` (one `=` is the flag's); a `-c` with no key refuses.
+
 ### Boundaries
 
 - Tour runs stay read-only. The one-shot hooks stay tool-free.
@@ -263,6 +294,9 @@ installed agents and their own help and protocol schema
   and `-c approval_policy="never"`, on the App Server and on `exec`. The
   profile replaces the configured sandbox mode for the run, and Codex's
   sandbox (Seatbelt on macOS) holds every command to it, with network off.
+  (Incomplete until the third round: the launch must also name the checkout
+  an untrusted project, or Codex may trust it and load its settings outside
+  the sandbox; see "the pull request's own agent settings never load".)
 - **Builds.** Claude gets `Bash(NAME:*)` for a fixed list of build and test
   programs; Codex's profile adds the disposable checkout and `:tmpdir` as
   writable.

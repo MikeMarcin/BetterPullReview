@@ -1301,3 +1301,63 @@ BPR-1997 closes RFC-BPR-0100 in `accepted-scope`. A Reject goes to a fresh
 implementer. Then stop host 19967 and remove the root with
 `freeze_attended_build.py remove`. Not touched: host 74692/74706, PIDs 10695
 and 39804, Tailscale 44738, BPR-Test #152 and `-next`.
+
+## agent-scratch third review round (2026-11-11)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner amendments in force
+as above. No Qt change, so frontend-design was not loaded. The independent
+re-review of `531a039cd` returned FAIL (F1 blocking: a Codex build turn
+trusted the pull request's checkout and ran its `.codex/config.toml` MCP
+servers outside the sandbox; F2 blocking: `-c=KEY=VALUE` not read).
+
+| Commit | What |
+|---|---|
+| `059e191fb` | Product candidate: every launch in a checkout BPR made names it (`PullRequestCheckout`, path and canonical path): Codex `-c projects={…={trust_level="untrusted"}}`, Claude Code `--setting-sources user`; a Codex grant or any build grant refuses without it; `-c=` parsed as Codex parses it; tests; by-hand course `live_agent_checkout_settings_course` and fixture `tests/fixtures/agent-checkout-settings` |
+| this commit | Ledger third-round section, RFC-BPR-0104 amendment, BPR-2007 and BPR-2008 records, counter and BPR-2103/2104 reservations synced from main, handoff; mirrored to main |
+
+Safe or withheld: both grants are kept, for both agents. Reproduced live
+(isolated homes, every model provider at `http://127.0.0.1:9`): the exposure
+was wider than the grant: Codex `exec` under this computer's own
+`workspace-write` trusted the checkout with no grant, and every Claude Code
+turn ran the checkout's hooks and `.mcp.json`. The App Server did not trust
+it in any probe. The fix covers every launch in a made checkout, tours
+included. Evidence:
+[ledger](../../../verification/RFC-BPR-0104.md#third-review-round-2026-11-11).
+
+Runs: the 29 focused rows of the second round (29/29 pass), `coding-format`,
+clang-tidy on the changed sources (one pre-existing warning at
+`agent_launch.cpp:1692`), documentation gate; the live course (Codex 0.167.0,
+Claude Code 2.1.319): controls fire, 11 guarded runs clean. Mutation: the
+parser of `531a039cd` fails `test_codex_attached_equals` at its first case.
+Not run: the whole dev suite, the core-only preset, the live `agent-scratch`
+course (no rule changed; a granted launch only gains the checkout argument).
+
+Trust entries already in `~/.codex/config.toml` (read, not edited; file
+modified 2026-11-10 11:14, before this round): seven
+`[projects."/private/var/folders/k7/…/T/bpr-public-path-*/data-agent-workspaces-v1/betterpullreview-agent-*/workspace"]`
+and `[projects."/private/tmp/claude-501/…/scratchpad/probe/ws"]`, each
+`trust_level = "trusted"` (exact lines in the round's report). The owner's to
+remove.
+
+Not touched: session `c46887c9…` (19967/19990, root
+`tour-conversation-v001.l3mto90j`), host 74692/74706, PIDs 10695 and 39804,
+Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use. No write to
+the reviewer's `~/.codex` or `~/.claude`.
+
+Pending: another independent re-review of `059e191fb` (AC07 stays pending);
+BPR-2101 (Backlog). Next unchanged: with a passing re-review, finish
+BPR-2007, then ready, claim and finish BPR-2008, mirrored to main.
+
+
+## Owner hand-back c46887c9 (2026-11-11)
+
+Handed back at sequence 51, all Accept (`session.json`):
+`RFC-BPR-0100-chat-lower-edge` (`8736f969`), `RFC-BPR-0100-revision-card`
+(`e1ad5848`), `RFC-BPR-0100-flag-move-draft` (`1180b2e4`); no decision notes.
+After accepting the lower edge the owner left one feedback note, a
+suggestion, verbatim in the RFC-BPR-0100 ledger: name a session (from the
+agent, or by the reviewer as VS Code allows) instead of its number
+(coordinator: a follow-up card if wanted). BPR-1995 (AC09) and BPR-1996
+(AC08) Done. Host 19967/19990 stopped with `attended_review.py stop`; root
+`tour-conversation-v001.l3mto90j` removed with `freeze_attended_build.py
+remove`. Next: BPR-1997 closes RFC-BPR-0100 in `accepted-scope`.
