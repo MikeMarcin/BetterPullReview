@@ -1,0 +1,19 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2062",
+    "BPR-2063",
+    "BPR-2064",
+    "BPR-2065",
+    "BPR-2066",
+    "BPR-2067",
+    "BPR-2068",
+    "BPR-2069",
+    "BPR-2070",
+    "BPR-2071"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "local-draft-authoring-v1 pack import (DRAFT-0001 to DRAFT-0010), allocated for lane claude/v0-5-0-prerelease-targets-52265d",
+  "created": "2026-11-11T03:38:19.752893+00:00",
+  "base": "f09384dc4c3c0edb547930c29a3b384fbd6b439f"
+}
