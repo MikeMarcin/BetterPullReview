@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2116"
 title: "A tour update republishes an edited stop's references as permalinks"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0100"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2116--BPR-2117--f5d986a0e8bc.json","origin":"RFC-BPR-0100 closeout review, 2026-11-11 (ledger, Known limits)","related_cards":["BPR-1996","BPR-1997"]}
 depends_on: []
