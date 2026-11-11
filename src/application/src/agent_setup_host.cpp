@@ -203,11 +203,16 @@ namespace bpr::application {
 			save();
 		}
 
-		/// The entry setup chose, when there is one.
+		/// The entry setup chose, when there is one; while Check all runs,
+		/// the entry it checks now.
 		[[nodiscard]] auto preferred_entry() const -> const core::agent_entry*
 		{
 			const auto& agents = Projection.Preferences.Agents;
-			const auto  found  = std::ranges::find(agents, Projection.Preferences.PreferredAgent, &core::agent_entry::Id);
+			if (CheckingOverride && Projection.CheckingEntry) {
+				const auto checking = std::ranges::find(agents, *Projection.CheckingEntry, &core::agent_entry::Id);
+				return checking == agents.end() ? nullptr : &*checking;
+			}
+			const auto found = std::ranges::find(agents, Projection.Preferences.PreferredAgent, &core::agent_entry::Id);
 			if (Projection.Preferences.PreferredAgent != 0U && found != agents.end()) {
 				return &*found;
 			}
@@ -234,7 +239,10 @@ namespace bpr::application {
 				record_operation(Dependencies.Log.get(), { .Action = CheckAction, .Failure = core::operation_failure::cancelled, .DurationMilliseconds = CheckWatch.milliseconds() });
 			}
 			++CheckGeneration;
-			PendingCheck                = false;
+			PendingCheck     = false;
+			CheckingOverride = false;
+			CheckQueue.clear();
+			Projection.CheckingEntry.reset();
 			Projection.State.AgentCheck = { };
 			Projection.Checking         = false;
 			Projection.CheckDetail.clear();
@@ -243,10 +251,16 @@ namespace bpr::application {
 		[[nodiscard]] auto chosen_row() const -> const core::agent_setup_row*
 		{
 			const auto& state = Projection.State;
-			if (!state.Chosen) {
+			auto        agent = state.Chosen;
+			// [[BPR-2051]]. Check all checks each entry's own kind of agent.
+			if (CheckingOverride) {
+				const auto* const entry = preferred_entry();
+				agent                   = entry == nullptr ? std::nullopt : std::optional{ entry->Preset ? *entry->Preset : core::setup_agent_of(entry->Protocol) };
+			}
+			if (!agent) {
 				return nullptr;
 			}
-			const auto row = std::ranges::find(state.Rows, *state.Chosen, &core::agent_setup_row::Agent);
+			const auto row = std::ranges::find(state.Rows, *agent, &core::agent_setup_row::Agent);
 			return row == state.Rows.end() || !row->Verdict.Permitted ? nullptr : &*row;
 		}
 
@@ -269,6 +283,30 @@ namespace bpr::application {
 			Projection.Checking         = false;
 			Projection.State.AgentCheck = std::move(aCheck);
 			Projection.CheckDetail      = Projection.State.AgentCheck.State == core::setup_check_state::passed ? std::string{ } : std::move(aDetail);
+			// [[BPR-2051]]. The entry's last check is kept across restarts.
+			if (const auto* const entry = preferred_entry(); entry != nullptr) {
+				keep_entry_check(entry->Id, Projection.State.AgentCheck);
+			}
+			if (CheckingOverride) {
+				if (!CheckQueue.empty()) {
+					Projection.CheckingEntry = CheckQueue.front();
+					CheckQueue.erase(CheckQueue.begin());
+					publish();
+					start_check();
+					return;
+				}
+				// Check all is done: the chosen agent's own result again.
+				CheckingOverride = false;
+				Projection.CheckingEntry.reset();
+				const auto* const chosen = preferred_entry();
+				const auto* const kept   = chosen != nullptr ? entry_check(Projection.Preferences, chosen->Id) : nullptr;
+				if (kept != nullptr) {
+					Projection.State.AgentCheck = *kept;
+				}
+				publish();
+				return;
+			}
+			Projection.CheckingEntry.reset();
 			if (Projection.State.AgentCheck.State == core::setup_check_state::passed) {
 				const auto* const entry     = preferred_entry();
 				const auto        preferred = entry != nullptr ? entry->Id : Projection.Preferences.PreferredAgent;
@@ -279,6 +317,41 @@ namespace bpr::application {
 				}
 			}
 			publish();
+		}
+
+		/// [[BPR-2051]]. Keeps an entry's settled check; a running or
+		/// unrun check is not a result.
+		void keep_entry_check(const std::uint32_t aId, core::setup_check aCheck)
+		{
+			if (aCheck.State != core::setup_check_state::passed && aCheck.State != core::setup_check_state::failed) {
+				return;
+			}
+			if (aCheck.State == core::setup_check_state::passed) {
+				aCheck.Failure.reset();
+			} else if (!aCheck.Failure) {
+				aCheck.Failure = core::agent_setup_failure::status_unreadable;
+			}
+			if (aCheck.Version.size() > maximum_agent_check_version_bytes) {
+				aCheck.Version.resize(maximum_agent_check_version_bytes);
+				while (!aCheck.Version.empty() && (static_cast<unsigned char>(aCheck.Version.back()) & 0xC0U) == 0x80U) {
+					aCheck.Version.pop_back();
+				}
+				if (!aCheck.Version.empty() && (static_cast<unsigned char>(aCheck.Version.back()) & 0x80U) != 0U) {
+					aCheck.Version.pop_back();
+				}
+			}
+			auto&      records = Projection.Preferences.EntryChecks;
+			const auto found   = std::ranges::find(records, aId, &agent_entry_check_record::Id);
+			if (found != records.end()) {
+				if (found->Check == aCheck) {
+					return;
+				}
+				found->Check = std::move(aCheck);
+			} else {
+				records.push_back({ .Id = aId, .Check = std::move(aCheck) });
+				std::ranges::sort(records, { }, &agent_entry_check_record::Id);
+			}
+			save();
 		}
 
 		/// Runs Check it works' agent row on what was found.
@@ -389,6 +462,11 @@ namespace bpr::application {
 		std::stop_source                 CheckStop;
 		/// [[BPR-1859]]. A check waits for the agents to be looked for.
 		bool PendingCheck = false;
+		/// [[BPR-2051]]. Check all: the entries still to check after the one
+		/// `Projection.CheckingEntry` names, which a check of one entry
+		/// sets too ("CheckingAlone").
+		std::vector<std::uint32_t> CheckQueue;
+		bool                       CheckingOverride = false;
 		/// [[BPR-1828]]. The running check's kind and when it started.
 		core::operation_action CheckAction = core::operation_action::agent_status_check;
 		operation_stopwatch    CheckWatch;
@@ -570,6 +648,7 @@ namespace bpr::application {
 		if (host.Projection.Preferences.PreferredAgent == aId) {
 			host.Projection.Preferences.PreferredAgent = 0U;
 		}
+		std::erase_if(host.Projection.Preferences.EntryChecks, [aId](const agent_entry_check_record& aRecord) { return aRecord.Id == aId; });
 		host.save();
 		host.publish();
 	}
@@ -723,10 +802,76 @@ namespace bpr::application {
 		host.start_check();
 	}
 
+	void agent_setup_host::check_all()
+	{
+		auto& host = *Implementation;
+		if (host.Projection.Checking || host.Projection.Preferences.Agents.empty()) {
+			return;
+		}
+		auto ids = std::vector<std::uint32_t>{ };
+		for (const auto& entry : host.Projection.Preferences.Agents) {
+			ids.push_back(entry.Id);
+		}
+		host.CheckQueue.assign(ids.begin() + 1, ids.end());
+		host.CheckingOverride         = true;
+		host.Projection.CheckingEntry = ids.front();
+		if (!host.Projection.Detected) {
+			// Looked for first, as Check agent does, then checked in turn.
+			++host.CheckGeneration;
+			host.PendingCheck                = true;
+			host.Projection.Checking         = true;
+			host.Projection.State.AgentCheck = { .State = core::setup_check_state::running };
+			host.Projection.CheckDetail.clear();
+			if (host.Projection.Detecting) {
+				host.publish();
+			} else {
+				host.detect();
+			}
+			return;
+		}
+		host.start_check();
+	}
+
+	void agent_setup_host::check_entry(const std::uint32_t aId)
+	{
+		auto& host = *Implementation;
+		if (host.Projection.Checking || std::ranges::find(host.Projection.Preferences.Agents, aId, &core::agent_entry::Id) == host.Projection.Preferences.Agents.end()) {
+			return;
+		}
+		host.CheckQueue.clear();
+		host.CheckingOverride         = true;
+		host.Projection.CheckingEntry = aId;
+		if (!host.Projection.Detected) {
+			++host.CheckGeneration;
+			host.PendingCheck                = true;
+			host.Projection.Checking         = true;
+			host.Projection.State.AgentCheck = { .State = core::setup_check_state::running };
+			host.Projection.CheckDetail.clear();
+			if (host.Projection.Detecting) {
+				host.publish();
+			} else {
+				host.detect();
+			}
+			return;
+		}
+		host.start_check();
+	}
+
 	void agent_setup_host::implementation::start_check()
 	{
 		auto&             host = *this;
 		const auto* const row  = host.chosen_row();
+		if (row == nullptr && host.CheckingOverride) {
+			// [[BPR-2051]]. An entry whose agent was not found here, or is not
+			// allowed: its check says so, and Check all goes on.
+			const auto* const entry      = host.preferred_entry();
+			const auto        agent      = entry == nullptr ? core::setup_agent::claude_code : entry->Preset ? *entry->Preset
+																											 : core::setup_agent_of(entry->Protocol);
+			const auto        generation = ++host.CheckGeneration;
+			host.begin_check(core::operation_action::agent_status_check);
+			host.settle_check(generation, agent, core::fail_check(core::agent_setup_failure::agent_not_found), { });
+			return;
+		}
 		if (row == nullptr) {
 			// [[BPR-1859]]. The saved agent is not found any more: the check
 			// says so, with what to do. Any other missing choice is the
@@ -747,6 +892,10 @@ namespace bpr::application {
 		host.CheckStop                   = std::stop_source{ };
 		host.Projection.Checking         = true;
 		host.Projection.State.AgentCheck = { .State = core::setup_check_state::running };
+		if (!host.CheckingOverride) {
+			const auto* const checked     = host.preferred_entry();
+			host.Projection.CheckingEntry = checked != nullptr ? std::optional{ checked->Id } : std::nullopt;
+		}
 		host.Projection.CheckDetail.clear();
 		host.publish();
 		// Owner decision 2026-10-23. A custom agent's check is that its

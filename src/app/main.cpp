@@ -33,6 +33,7 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/core/review_tour_markdown.hpp"
+	#include "bpr/qt/agent_footer.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
 	#include "bpr/qt/workshop_candidate_line.hpp"
@@ -6244,9 +6245,11 @@ namespace {
 			}
 			auto&       window = aApplication.window();
 			auto* const editor = window.tour_editor();
-			const auto  root   = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER");
-			const auto  theme  = qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark") ? QStringLiteral("-dark") : QStringLiteral("-light");
-			const auto  draw   = [&window, &root, &theme](const QString& aName) {
+			// [[BPR-2051]]. Setup is the window footer's state now.
+			const auto footer_asks_setup = [&window] { return window.agent_footer_widget() != nullptr && window.agent_footer_widget()->settings_button()->isVisibleTo(window.agent_footer_widget()) && !window.agent_footer_widget()->picker()->attention().isEmpty(); };
+			const auto root              = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER");
+			const auto theme             = qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark") ? QStringLiteral("-dark") : QStringLiteral("-light");
+			const auto draw              = [&window, &root, &theme](const QString& aName) {
 				if (!root.isEmpty()) {
 					QCoreApplication::processEvents();
 					static_cast<void>(window.grab().save(root + QStringLiteral("/") + aName + theme + QStringLiteral(".png"), "PNG"));
@@ -6311,15 +6314,16 @@ namespace {
 					window.tray_tabs()->setCurrentIndex(3);
 					QCoreApplication::processEvents();
 					draw(QStringLiteral("app-agent-picker"));
-					done(QStringLiteral("ATTENDED_AGENT_PICKER_SHOWN:wrapped=%1:drawer=%2").arg(window.agent_tab()->run_settings_wrapped() ? 1 : 0).arg(window.conversations_drawer()->width()));
+					// [[BPR-2051]]. One picker, in the window's footer.
+					done(QStringLiteral("ATTENDED_AGENT_PICKER_SHOWN:footer=%1:drawer=%2").arg(window.agent_footer_widget() != nullptr && window.agent_footer_widget()->picker()->isVisible() ? 1 : 0).arg(window.conversations_drawer()->width()));
 					return;
 				}
 				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::ready) {
 					draw(QStringLiteral("app-tour-set-up"));
-					done(editor->agent_setup_call()->isVisible() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
+					done(footer_asks_setup() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
 					return;
 				}
-				if (!editor->agent_setup_call()->isVisible()) {
+				if (!footer_asks_setup()) {
 					done(QStringLiteral("ATTENDED_TOUR_FAILED:no-setup-call"));
 					return;
 				}
@@ -6328,7 +6332,9 @@ namespace {
 					done(QStringLiteral("ATTENDED_TOUR_SETUP_CALL_SHOWN"));
 					return;
 				}
-				editor->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+				// [[BPR-2051]]. The footer, not the Tour tab, asks for setup;
+				// the setup it leads to is the Agent tab's.
+				window.open_agent_setup();
 				*step = 1;
 				return;
 			}

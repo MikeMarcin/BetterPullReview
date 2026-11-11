@@ -74,15 +74,6 @@ namespace {
 	/// stay at the top and bottom while only the route scrolls.
 	void test_bands(const std::string& aPrefix)
 	{
-		qt::agent_launch_panel panel;
-		const auto             profiles = std::array{ core::agent_profile{ .Id = core::agent_profile_id{ 1U }, .DisplayName = "Claude Code" } };
-		panel.offer_profiles(profiles);
-		auto source           = std::make_shared<qt::agent_run_settings_source>(panel);
-		auto claude           = qt::agent_run_settings{ };
-		claude.Profile        = 1U;
-		claude.Agent          = QStringLiteral("Claude Code");
-		claude.ModelChoosable = true;
-		source->present({ claude });
 		auto draft = tests::review_tour_fixture();
 		draft.Stops.clear();
 		for (std::uint64_t id = 1U; id <= 24U; ++id) {
@@ -91,26 +82,24 @@ namespace {
 		draft.LastStopId = 24U;
 		qt::review_tour_editor editor;
 		editor.set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
-		editor.set_agent_picker(new qt::agent_run_settings_picker{ source, &editor });
 		editor.resize(380, 620);
 		editor.show();
 		editor.present({ .Draft = std::make_shared<const core::review_tour>(draft) });
 		editor.open_step(core::tour_step::stops);
 		QApplication::processEvents();
 		auto* const head   = editor.head_bar();
-		auto* const bar    = editor.agent_bar();
 		auto* const scroll = editor.route_scroll();
 		const auto  top    = [&editor](const QWidget* aWidget) { return aWidget->mapTo(&editor, QPoint{ 0, 0 }).y(); };
 		expect(scroll->verticalScrollBar()->maximum() > 0, "AC01: the route is long enough to scroll");
 		expect(head->isVisible() && top(head) == 0 && !scroll->isAncestorOf(head), "AC01: the head is the tab's top band, outside the scrolling route");
-		expect(bar->isVisible() && top(bar) + bar->height() >= editor.height() - 1 && !scroll->isAncestorOf(bar), "AC01: the agent bar is the bottom band, outside the route");
+		// [[BPR-2051]]: no agent bar; the route runs to the tab's bottom.
+		expect(editor.findChild<QWidget*>(QStringLiteral("tourAgentBar")) == nullptr, "the agent bar left for the window's footer");
 		auto* const publish = head->button(action::publish);
 		expect(publish != nullptr && publish->isVisible(), "AC01: Publish… is in the head");
 		const auto headAt = top(head);
-		const auto barAt  = top(bar);
 		scroll->verticalScrollBar()->setValue(scroll->verticalScrollBar()->maximum());
 		QApplication::processEvents();
-		expect(top(head) == headAt && top(bar) == barAt && head->isVisible() && bar->isVisible() && publish->isVisible() && editor.agent_picker()->isVisible(), "AC01: scrolled to the end, both bands stay where they were");
+		expect(top(head) == headAt && head->isVisible() && publish->isVisible(), "AC01: scrolled to the end, the head stays where it was");
 		expect(editor.findChild<QPushButton*>(QStringLiteral("tourPreviewAndPublish")) == nullptr, "the bottom Preview and publish is gone");
 		save(editor, aPrefix, "-bands.png");
 	}

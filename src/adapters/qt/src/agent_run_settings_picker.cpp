@@ -1,6 +1,7 @@
 #include "bpr/qt/agent_run_settings_picker.hpp"
 
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 
 #include <QAction>
 #include <QActionGroup>
@@ -115,6 +116,15 @@ namespace bpr::qt {
 		}
 	}
 
+	void agent_run_settings_picker::set_attention(const QString& aNeed)
+	{
+		if (Attention == aNeed) {
+			return;
+		}
+		Attention = aNeed;
+		present();
+	}
+
 	void agent_run_settings_picker::fit()
 	{
 		// [[BPR-1924]]. The whole words always: a narrow field gives the
@@ -151,6 +161,9 @@ namespace bpr::qt {
 		}
 		// Owner amendment 2026-10-23: agent · model · effort.
 		Full = settings->Agent + QStringLiteral(" · ") + (!(settings->ModelChoosable || settings->EffortChoosable) ? tr("its own model") : shown);
+		if (!Attention.isEmpty()) {
+			Full = settings->Agent + QStringLiteral(" · ") + Attention;
+		}
 		setProperty("agentRunSettingsText", Full);
 		// The whole words, shortened when the row is narrow.
 		setAccessibleName(tr("Agent, model and effort: %1").arg(Full));
@@ -313,7 +326,7 @@ namespace bpr::qt {
 	auto agent_run_settings_picker::sizeHint() const -> QSize
 	{
 		const auto hint = QToolButton::sizeHint();
-		return { fontMetrics().horizontalAdvance(text()) + chrome_width, std::max(hint.height(), fontMetrics().height() + 10) };
+		return { fontMetrics().horizontalAdvance(text()) + chrome_width + 2, std::max(hint.height(), fontMetrics().height() + 10) };
 	}
 
 	/// [[BPR-1924]], owner look on BPR-1914 v004 ("this box around the model
@@ -348,7 +361,17 @@ namespace bpr::qt {
 		painter.setPen(QPen{ quiet, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
 		painter.drawPolyline(std::array{ middle + QPointF{ -half, -1.5 }, middle + QPointF{ 0.0, -1.5 - half }, middle + QPointF{ half, -1.5 } }.data(), 3);
 		painter.drawPolyline(std::array{ middle + QPointF{ -half, 1.5 }, middle + QPointF{ 0.0, 1.5 + half }, middle + QPointF{ half, 1.5 } }.data(), 3);
-		painter.setPen(ink);
+		// [[BPR-2051]]. Setup missing: an outline and the words in the failed
+		// check's colour, so the colour is never the only sign (the words
+		// say what is missing).
+		auto words_ink = ink;
+		if (!Attention.isEmpty()) {
+			words_ink = setup_failed_colour(palette());
+			painter.setBrush(Qt::NoBrush);
+			painter.setPen(QPen{ words_ink, 1.2 });
+			painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
+		}
+		painter.setPen(words_ink);
 		const auto words = rect().adjusted(text_left, 0, -(chrome_width - text_left), 0);
 		painter.drawText(words, Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, words.width())));
 	}

@@ -128,7 +128,6 @@ namespace bpr::qt {
 		/// one publication action; the route's scroll area; the agent bar.
 		[[nodiscard]] auto head_bar() const noexcept -> tour_head_bar* { return Head; }
 		[[nodiscard]] auto route_scroll() const noexcept -> QScrollArea* { return RouteScroll; }
-		[[nodiscard]] auto agent_bar() const noexcept -> QWidget* { return AgentBar; }
 		/// \brief [[BPR-1991]]. The head as last decided, which Overview shows too.
 		[[nodiscard]] auto head() const -> const core::tour_head&;
 		/// \brief [[BPR-1991]]. Told when the head's decision changes.
@@ -234,28 +233,21 @@ namespace bpr::qt {
 		/// not, and the line it says.
 		[[nodiscard]] auto agent_failure_notice(core::writing_hook aHook) const -> QWidget*;
 		[[nodiscard]] auto agent_failure_text(core::writing_hook aHook) const -> QString;
-		/// \brief [[BPR-1878]], owner looks v001 to v003. The Agent tab's own
-		/// agent picker (a second `agent_run_settings_picker` on its source)
-		/// in the tab's bottom bar, styled as the Agent tab's and the last
-		/// thing in the tab, so choosing here chooses there.
-		void               set_agent_picker(agent_run_settings_picker* aPicker);
-		[[nodiscard]] auto agent_picker() const noexcept -> agent_run_settings_picker* { return AgentPicker; }
 		/// \brief [[BPR-1881]], owner 2026-11-06. The Agent tab's setup
 		/// readiness. Until it is `ready` the tab's top says to set the agent
 		/// up (only while `unfinished`), and every agent feature is disabled
-		/// with a tooltip saying why. Agent features wear `agent_accent`
+		/// with a tooltip saying why ([[BPR-2051]]: the window's footer, not
+		/// this tab, asks for setup). Agent features wear `agent_accent`
 		/// in every state. Ready until told otherwise.
+		/// \brief Owner on the live build, 2026-11-11 ("no stray status text
+		/// in the panel"). Where a writing request's notice is said: the
+		/// window's status line. The panel's own label is never shown.
+		void               set_notice_dispatch(std::function<void(const QString&)> aDispatch);
 		void               set_agent_readiness(agent_setup_readiness aReadiness);
 		[[nodiscard]] auto agent_readiness() const noexcept -> agent_setup_readiness { return AgentReadiness; }
-		/// \brief [[BPR-1881]]. Set up the agent, in the call to action:
-		/// asks the window for the Agent tab at its setup. The tab never
-		/// asks by itself.
-		void set_agent_setup_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1881]]. Told each time the tab shows, so the setup
 		/// may look for agents and say whether it has finished.
 		void set_shown_observer(std::function<void()> aObserver);
-		/// \brief [[BPR-1881]]. The call to action at the top of the tab.
-		[[nodiscard]] auto agent_setup_call() const noexcept -> QWidget* { return AgentSetupCall; }
 		/// \brief [[BPR-1881]]. Every agent feature on the tab: the drafting
 		/// helpers, Suggest an outline and its Insert, and the agent bar.
 		[[nodiscard]] auto agent_features() const -> std::vector<QWidget*>;
@@ -397,14 +389,8 @@ namespace bpr::qt {
 		QWidget*         OutlineTools     = nullptr;
 		QWidget*         Notices          = nullptr;
 		/// [[BPR-1878]]. The tab's bottom bar, its field, and the picker in it.
-		QWidget*                   AgentBar    = nullptr;
-		QWidget*                   AgentField  = nullptr;
-		agent_run_settings_picker* AgentPicker = nullptr;
 		/// [[BPR-1881]]. The call to action, its button, and the setup's
 		/// readiness; the helpers' labels, run again when it changes.
-		QWidget*                           AgentSetupCall   = nullptr;
-		QPushButton*                       AgentSetupButton = nullptr;
-		std::function<void()>              AgentSetupDispatch;
 		std::function<void()>              ShownObserver;
 		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
 		std::vector<std::function<void()>> AgentLabels;
@@ -476,7 +462,6 @@ namespace bpr::qt {
 		QVBoxLayout*                                                StopFieldsLayout  = nullptr;
 		QPushButton*                                                Complete          = nullptr;
 		QLabel*                                                     AcceptReason      = nullptr;
-		QLabel*                                                     StopToolsHint     = nullptr;
 		QString                                                     SourceChip;
 		void                                                        paint_source_link();
 		QAction*                                                    MarkNotAccepted = nullptr;
@@ -610,7 +595,9 @@ namespace bpr::qt {
 		QLabel*                                      RevisionChanges = nullptr;
 		QPushButton*                                 NextChanged     = nullptr;
 		QLabel*                                      WritingStatus   = nullptr;
-		agent_run_status_line*                       DraftStatus     = nullptr;
+		std::function<void(const QString&)>          NoticeDispatch;
+		void                                         settle_notices();
+		agent_run_status_line*                       DraftStatus = nullptr;
 		void                                         show_draft_status();
 		std::optional<agent_run_status>              DraftLive;
 		QElapsedTimer                                DraftClock;

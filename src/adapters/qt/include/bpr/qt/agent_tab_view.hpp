@@ -217,6 +217,9 @@ namespace bpr::qt {
 	/// \brief A change to the model, the effort, or both; empty is the
 	/// agent's own default. Answers whether the host took it.
 
+	/// \brief [[BPR-2051]]. A running turn's status and its clock.
+	using agent_tab_run_observer = std::function<void(const agent_run_status& aStatus, const QElapsedTimer& aStarted)>;
+
 	enum class agent_tab_state : std::uint8_t {
 		/// No agent is set up: the tab offers Set up an agent.
 		not_set_up,
@@ -281,6 +284,9 @@ namespace bpr::qt {
 		void               present_run_settings(std::vector<agent_run_settings> aSettings);
 		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
 		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
+		/// \brief [[BPR-2051]]. The window's footer holds the one picker; the
+		/// tab opens it for a bare /model or /effort and reads its words.
+		void adopt_run_settings_button(agent_run_settings_picker* aPicker);
 		/// \brief [[BPR-1924]]. The picker has its own row under the field's
 		/// tools, because the one row cannot hold it whole.
 		[[nodiscard]] auto run_settings_wrapped() const noexcept -> bool { return RunSettingsWrapped; }
@@ -329,7 +335,10 @@ namespace bpr::qt {
 		/// with its history (none: not known), under the composer as "$2.37
 		/// this session". A new thread starts with none; each turn that
 		/// reports a cost adds to it.
-		void               present_session_cost(std::optional<core::agent_cost> aTotal);
+		void present_session_cost(std::optional<core::agent_cost> aTotal);
+		/// \brief [[BPR-2051]]. The window's footer hears the tab's run as it
+		/// moves, how it ended, and the session's total.
+		void               set_footer_observers(agent_tab_run_observer aRun, std::function<void(const QString&)> aEnded, std::function<void(std::optional<core::agent_cost>)> aCost);
 		[[nodiscard]] auto session_cost() const noexcept -> std::optional<core::agent_cost> { return SessionTotal; }
 		[[nodiscard]] auto session_cost_line() const noexcept -> QLabel* { return SessionCostLine; }
 		void               set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver);
@@ -827,8 +836,11 @@ namespace bpr::qt {
 		QLabel*      LinesText  = nullptr;
 		QToolButton* LinesClose = nullptr;
 		/// [[BPR-1999]]. The session's cost under the composer.
-		QLabel*                         SessionCostLine = nullptr;
-		std::optional<core::agent_cost> SessionTotal;
+		QLabel*                                              SessionCostLine = nullptr;
+		std::optional<core::agent_cost>                      SessionTotal;
+		agent_tab_run_observer                               RunObserver;
+		std::function<void(const QString&)>                  EndedObserver;
+		std::function<void(std::optional<core::agent_cost>)> CostObserver;
 		/// [[BPR-1999]]. An input method is composing in the question field.
 		bool                                                                       Composing = false;
 		[[nodiscard]] auto                                                         send_tip() const -> QString;

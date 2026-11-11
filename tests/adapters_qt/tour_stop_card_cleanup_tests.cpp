@@ -319,7 +319,9 @@ auto main(int argc, char** argv) -> int
 		expect(std::abs((trashAt.y() + trash->height() / 2) - (cancelAt.y() + cancelButton->height() / 2)) <= 4 && trashAt.x() + trash->width() < cancelAt.x() && cancelAt.x() < saveButton->mapTo(fields, QPoint{ 0, 0 }).x(),
 			   "the trash is left of Cancel, then Save");
 		const auto titleRight = editor->stop_title()->mapTo(fields, QPoint{ editor->stop_title()->width(), 0 }).x();
-		expect(titleRight >= fields->width() - 50, "the title has the row but for the chat toggle (" + std::to_string(titleRight) + " of " + std::to_string(fields->width()) + ")");
+		// Owner on the live build, 2026-11-11: the pencil keeps its room while
+		// the stop is edited, so nothing in the row moves.
+		expect(titleRight >= fields->width() - 50 - editor->findChild<QToolButton*>(QStringLiteral("tourStopEdit"))->width() - 6, "the title has the row but for the pencil's room and the chat toggle (" + std::to_string(titleRight) + " of " + std::to_string(fields->width()) + ")");
 		// Owner: red only while Shift is held, saying a click will not ask.
 		editor->stop_body()->setFocus(Qt::OtherFocusReason);
 		settle();

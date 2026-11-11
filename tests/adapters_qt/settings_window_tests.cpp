@@ -1,5 +1,6 @@
 /// \file
 /// \brief Proves the Settings window places panels and holds no state of its own.
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -488,8 +489,10 @@ namespace {
 		// "Save my copy to Downloads first", and the run limit its toggle;
 		// neither is a sign-in switch.
 		const auto boxes = page->findChildren<QCheckBox*>();
-		expect(std::ranges::count_if(boxes, [](const QCheckBox* aBox) { return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn"); }) == 2,
-			   "no sign-in switch is offered; the only other check boxes are the next request's private draft and working copy");
+		expect(std::ranges::count_if(boxes, [](const QCheckBox* aBox) { return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn"); }) == 0,
+			   "no sign-in switch is offered, and [[BPR-2051]] the next request's choices left the page (the footer picks the agent; the Agent tab what a question includes)");
+		expect(page->findChild<QWidget*>(QStringLiteral("settingsNextRequest")) == nullptr && page->findChild<QComboBox*>(QStringLiteral("settingsAgentProfile")) == nullptr,
+			   "[[BPR-2051]] the page opens on the agents roster");
 		auto* const settings = workbench.settings();
 		settings->search_field()->setText(QStringLiteral("process wrapper"));
 		expect(!result_names(*settings).contains(QStringLiteral("Process wrapper")), "search finds no wrapper row");
@@ -501,10 +504,10 @@ namespace {
 	{
 		qt::workbench_window workbench;
 		auto* const          settings = workbench.settings();
-		settings->search_field()->setText(QStringLiteral("private draft"));
-		expect(result_names(*settings).contains(QStringLiteral("Private draft")), "a setting on a page is found");
+		settings->search_field()->setText(QStringLiteral("stop a run"));
+		expect(result_names(*settings).contains(QStringLiteral("Stop a run after")), "a setting on a page is found");
 		settings->withdraw_page(qt::settings_page::agents_and_context);
-		expect(!result_names(*settings).contains(QStringLiteral("Private draft"))
+		expect(!result_names(*settings).contains(QStringLiteral("Stop a run after"))
 				   && !result_names(*settings).contains(QStringLiteral("Agents & context")),
 			   "a withdrawn page never appears");
 		auto* const panel  = new QWidget;
@@ -545,45 +548,43 @@ namespace {
 	}
 } // namespace
 
-/// \brief Owner look, 2026-11-10: the top of Agents & context redrawn
-/// three ways. Each option keeps the next request's choices (shared with
-/// the Agent tab) or says where they are. `--agents-top FOLDER` saves each
-/// option, light and dark, with a profile, two notes and a draft offered.
-void render_agents_tops(const QString& aFolder)
+/// \brief [[BPR-2051]], owner decision 2026-11-11 (mockup "A · Roster").
+/// `--agents-roster FOLDER` saves Settings › Agents & context with three
+/// agents: one passed, one not signed in, one never checked. Run it under
+/// `BPR_NATIVE_LOOK` with each `BPR_NATIVE_LOOK_SCHEME` for the owner's look.
+void render_agents_roster(const QString& aFolder)
 {
-	for (std::size_t index = 0; index < qt::agents_context_top_count; ++index) {
-		const auto top = static_cast<qt::agents_context_top>(index);
-		qt::set_agents_context_top(top);
-		qt::workbench_window window;
-		auto*                panel    = window.agent_panel();
-		const auto           profiles = std::array{ core::agent_profile{ .Id = core::agent_profile_id{ 1U }, .DisplayName = "Claude Code" } };
-		panel->offer_profiles(profiles);
-		panel->disclose_scope(QStringLiteral("The selected agent receives the exact accepted PR/diff identities, durable defects, current semantic selection, and only private notes or the current draft checked for this invocation."));
-		const auto notes = std::array{ application::local_note_id{ 1U }, application::local_note_id{ 2U } };
-		panel->offer_private_context(notes, application::agent_draft_choice{ .Id = core::review_draft_id{ 1U }, .Revision = 2U });
-		auto* const settings = window.settings();
-		settings->resize(980, 760);
-		settings->present(qt::settings_page::agents_and_context);
-		settings->show();
-		if (top == qt::agents_context_top::summary) {
-			if (auto* const change = settings->findChild<QPushButton*>(QStringLiteral("settingsNextRequestChange")); change != nullptr) {
-				QApplication::processEvents();
-				expect(settings->grab().save(QStringLiteral("%1/agents-top-%2-closed.png").arg(aFolder).arg(index + 1)), "the summary render saves");
-				change->click();
-			}
-		}
+	qt::workbench_window window;
+	auto                 preferences = application::agent_setup_preferences{ };
+	auto                 claude      = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, "/opt/homebrew/bin/claude");
+	claude.Model                     = "claude-opus-5-5";
+	claude.Effort                    = "high";
+	preferences.Agents               = *core::add_agent_entry({ }, claude);
+	preferences.Agents               = *core::add_agent_entry(preferences.Agents, core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, "/opt/homebrew/bin/codex"));
+	preferences.Agents               = *core::add_agent_entry(preferences.Agents, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude-wrapper", .Model = "claude-sonnet-5-5", .Effort = "medium" });
+	preferences.EntryChecks          = { { .Id = preferences.Agents[0].Id, .Check = { .State = core::setup_check_state::passed, .Version = "2.1.321" } },
+										 { .Id = preferences.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::not_signed_in) } };
+	window.agent_programs()->present(preferences, { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude" } });
+	auto* const settings = window.settings();
+	settings->resize(980, 760);
+	settings->present(qt::settings_page::agents_and_context);
+	settings->show();
+	for (int pass = 0; pass < 4; ++pass) {
 		QApplication::processEvents();
-		expect(settings->grab().save(QStringLiteral("%1/agents-top-%2.png").arg(aFolder).arg(index + 1)), "an option's render saves");
-		settings->hide();
 	}
-	qt::set_agents_context_top(qt::agents_context_top::next_request);
+	const auto scheme = qEnvironmentVariable("BPR_NATIVE_LOOK_SCHEME", QStringLiteral("light"));
+	expect(settings->grab().save(QStringLiteral("%1/agents-roster-%2.png").arg(aFolder, scheme)), "the roster render saves");
+	auto* const programs = window.agent_programs();
+	expect(programs->roster_row_text(0).contains(QStringLiteral("Signed in, version 2.1.321")) && programs->roster_row_text(1).contains(QStringLiteral("Not signed in"))
+			   && programs->roster_row_text(1).contains(QStringLiteral("codex login")) && programs->roster_row_text(2).contains(QStringLiteral("Not checked")),
+		   "each row says its kept check");
 }
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	if (argc > 2 && std::string_view{ argv[1] } == "--agents-top") {
-		render_agents_tops(QString::fromLocal8Bit(argv[2]));
+	if (argc > 2 && std::string_view{ argv[1] } == "--agents-roster") {
+		render_agents_roster(QString::fromLocal8Bit(argv[2]));
 		std::cout << "settings-window:rendered\n";
 		return EXIT_SUCCESS;
 	}

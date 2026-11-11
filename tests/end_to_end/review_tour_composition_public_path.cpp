@@ -4,7 +4,9 @@
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/enhance_control.hpp"
@@ -103,7 +105,8 @@ namespace {
 	/// setup ([[BPR-1881]]). As a person does: the Tour tab, once shown, lets
 	/// the setup look for agents; it finds only the course's stub `claude`
 	/// and chooses it, and the review holds every file, so no clone is asked
-	/// for ([[BPR-1879]]). The Tour tab's Set up the agent opens the setup at
+	/// for ([[BPR-1879]]). The setup opens (from the footer's state,
+	/// [[BPR-2051]]) at
 	/// Check it works, Check runs the stub's `auth status --json` and
 	/// `--version` and makes the workspace, and the Tour tab is shown again.
 	void agent_ready(qt::workbench_window& aWindow)
@@ -112,8 +115,10 @@ namespace {
 		const auto ready  = [&editor] { return editor.agent_readiness() == qt::agent_setup_readiness::ready; };
 		wait([&editor] { return editor.agent_readiness() != qt::agent_setup_readiness::checking; }, "the agent setup looks for agents once the Tour tab shows");
 		if (!ready()) {
-			expect(editor.agent_setup_call()->isVisible(), "the unfinished setup is offered from the Tour tab");
-			editor.findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+			// [[BPR-2051]]: the window's footer says setup is missing; the
+			// setup it leads to is the Agent tab's, at Check it works.
+			expect(!aWindow.agent_footer_widget()->picker()->attention().isEmpty() || aWindow.agent_footer_widget()->picker()->isHidden(), "the unfinished setup is the footer's state");
+			aWindow.open_agent_setup();
 			const auto check = [&aWindow] {
 				auto* const button = aWindow.agent_setup()->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"));
 				return button != nullptr && button->isVisible() && button->isEnabled() ? button : nullptr;
@@ -130,7 +135,7 @@ namespace {
 		} else {
 			std::cout << "agent-setup:already-ready\n";
 		}
-		expect(editor.isVisible() && !editor.agent_setup_call()->isVisible(), "a finished setup leaves the Tour tab no call to set up the agent");
+		expect(editor.isVisible() && aWindow.agent_footer_widget()->picker()->attention().isEmpty(), "a finished setup leaves the footer nothing to ask");
 	}
 	void shutdown(app::github_application& aApp)
 	{

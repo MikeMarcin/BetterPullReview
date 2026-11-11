@@ -6,6 +6,7 @@
 #include "bpr/application/review_tour_source.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
@@ -346,6 +347,13 @@ namespace bpr::app {
 			observe_tour_head();
 			refresh_tour_imports();
 			return;
+		}
+		// [[BPR-2051]]. Another pull request: the footer's total is this one's.
+		TourFooterCosts = { };
+		if (Window != nullptr && Window->agent_footer_widget() != nullptr) {
+			for (const auto place : { qt::agent_footer_place::tour_chat, qt::agent_footer_place::enhance, qt::agent_footer_place::draft_tour, qt::agent_footer_place::tour_tab }) {
+				Window->agent_footer_widget()->present_cost(place, std::nullopt);
+			}
 		}
 		suspend_review_tour();
 		if (const auto found = std::ranges::find(RetiredTourHosts, owner, &retained_tour_host::Owner); found != RetiredTourHosts.end()) {
@@ -728,7 +736,7 @@ namespace bpr::app {
 			// the agent picker at its bottom.
 			const auto agent = writing_agent();
 			Window->tour_editor()->show_writing_notice(Window->agent_panel()->offered_count() == 0 ? QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or keep writing yourself.")
-														   : !agent                                ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
+														   : !agent                                ? QStringLiteral("Choose an agent with the agent picker in the window's footer, or keep writing yourself.")
 														   : !target                               ? QStringLiteral("Only your own tour draft, open in this window, can be drafted for. You can keep writing yourself.")
 																								   : QStringLiteral("The tour session is drafting. Wait for it to finish or stop it, or keep writing yourself."));
 			return;
@@ -1000,6 +1008,64 @@ namespace bpr::app {
 		if (Window != nullptr && Window->tour_editor() != nullptr) {
 			Window->tour_editor()->present_run_status(TourLive);
 		}
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). The
+		// window's footer says the run and where it started, with Stop.
+		if (Window != nullptr && Window->agent_footer_widget() != nullptr) {
+			if (TourLive) {
+				if (!TourFooterPlace) {
+					TourFooterPlace = tour_footer_place();
+					TourFooterStarted.start();
+				}
+				Window->agent_footer_widget()->present_run(*TourFooterPlace, qt::agent_footer_run{ .Status = *TourLive, .Started = TourFooterStarted, .Stop = [this] { cancel_tour_run(); } });
+			} else if (TourFooterPlace) {
+				Window->agent_footer_widget()->present_run(*TourFooterPlace, std::nullopt);
+			}
+		}
+	}
+
+	auto github_application::implementation::tour_footer_place() const -> qt::agent_footer_place
+	{
+		if (TourDraftPending) {
+			return qt::agent_footer_place::draft_tour;
+		}
+		if (TourAskPending) {
+			return qt::agent_footer_place::tour_chat;
+		}
+		if (PendingWriting && PendingWriting->Enhance) {
+			return qt::agent_footer_place::enhance;
+		}
+		// A tour field's Enhance is Enhance; Draft from PR context and
+		// Generate comment are the Tour tab's.
+		if (PendingWriting && Window != nullptr && Window->tour_editor()->request_name(PendingWriting->Request.Target.Hook).startsWith(QStringLiteral("Enhance"))) {
+			return qt::agent_footer_place::enhance;
+		}
+		return qt::agent_footer_place::tour_tab;
+	}
+
+	void github_application::implementation::finish_tour_footer(const application::agent_run_result& aResult)
+	{
+		if (!TourFooterPlace) {
+			return;
+		}
+		const auto place   = *TourFooterPlace;
+		const auto seconds = TourFooterStarted.isValid() ? TourFooterStarted.elapsed() / 1000 : 0;
+		TourFooterPlace.reset();
+		auto& cost = TourFooterCosts[static_cast<std::size_t>(place)];
+		if (aResult.TurnCost) {
+			cost = cost.value_or(0U) + *aResult.TurnCost;
+		}
+		if (Window == nullptr || Window->agent_footer_widget() == nullptr) {
+			return;
+		}
+		auto* const footer = Window->agent_footer_widget();
+		footer->present_cost(place, cost);
+		auto ending = aResult.Outcome == application::agent_run_outcome::success ? QStringLiteral("answered in %1").arg(qt::agent_elapsed_words(seconds))
+			: aResult.Outcome == application::agent_run_outcome::cancelled       ? QStringLiteral("stopped after %1").arg(qt::agent_elapsed_words(seconds))
+																				 : QStringLiteral("didn't finish");
+		if (aResult.TurnCost) {
+			ending += QStringLiteral(" · ") + QString::fromStdString(core::agent_cost_words(*aResult.TurnCost));
+		}
+		footer->present_finished(place, ending);
 	}
 
 	void github_application::implementation::tour_run_refused(const std::string_view aReason)
@@ -1013,13 +1079,14 @@ namespace bpr::app {
 			TourRun.reset();
 		}
 		present_tour_live(std::nullopt);
+		TourFooterPlace.reset();
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
 		TourAskPending = false;
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(aReason == "agent_context_too_large"
 															   ? QStringLiteral("This pull request is too large to describe to the agent in one request.")
-															   : QStringLiteral("The selected agent can't draft with read-only tools. Choose Claude or Codex with the agent picker at the bottom of this tab."));
+															   : QStringLiteral("The selected agent can't draft with read-only tools. Choose Claude or Codex with the agent picker in the window's footer."));
 		}
 		present_tour_session();
 		if (!PendingWriting) {
@@ -1092,6 +1159,7 @@ namespace bpr::app {
 		}
 		TourRun.reset();
 		TourInvocation.reset();
+		finish_tour_footer(aResult);
 		present_tour_live(std::nullopt);
 		refresh_tour_host_idle();
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
@@ -1330,7 +1398,7 @@ namespace bpr::app {
 		};
 		const auto agent = writing_agent();
 		if (!agent) {
-			refuse("No agent is chosen. Choose one with the agent picker at the bottom of the Tour tab.");
+			refuse("No agent is chosen. Choose one with the agent picker in the window's footer.");
 			return;
 		}
 		if (!tour_session_idle()) {
@@ -1338,7 +1406,7 @@ namespace bpr::app {
 			return;
 		}
 		if (!reads_read_only(*agent)) {
-			refuse(QStringLiteral("%1 has no read-only mode to read the code with. Choose Claude or Codex with the agent picker at the bottom of the Tour tab.").arg(agent_display_name(*agent)).toStdString());
+			refuse(QStringLiteral("%1 has no read-only mode to read the code with. Choose Claude or Codex with the agent picker in the window's footer.").arg(agent_display_name(*agent)).toStdString());
 			return;
 		}
 		auto files = std::vector<application::tour_draft_file>{ };
@@ -1624,12 +1692,12 @@ namespace bpr::app {
 		}
 		const auto agent = writing_agent();
 		if (!agent || !tour_session_idle()) {
-			Window->tour_editor()->show_writing_notice(!agent ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
+			Window->tour_editor()->show_writing_notice(!agent ? QStringLiteral("Choose an agent with the agent picker in the window's footer, or keep writing yourself.")
 															  : QStringLiteral("The tour session is drafting. Wait for it to finish or stop it, or keep writing yourself."));
 			return;
 		}
 		if (!reads_read_only(*agent)) {
-			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("%1 has no read-only drafting mode. Choose Claude or Codex with the agent picker at the bottom of this tab.").arg(agent_display_name(*agent)));
+			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("%1 has no read-only drafting mode. Choose Claude or Codex with the agent picker in the window's footer.").arg(agent_display_name(*agent)));
 			return;
 		}
 		auto files = std::vector<application::tour_draft_file>{ };
@@ -2013,8 +2081,10 @@ namespace bpr::app {
 		PendingWriting.reset();
 		WritingState.cancel();
 #if defined(BPR_AGENT_INTEGRATIONS)
-		if (AgentHost != nullptr) {
-			AgentHost->cancel();
+		// [[BPR-2051]]. Enhance runs on the tour session's lane (every writing
+		// run does), so Stop stops that lane, never the Agent tab's run.
+		if (TourSession != nullptr) {
+			TourSession->cancel();
 		}
 #endif
 	}
@@ -2033,11 +2103,11 @@ namespace bpr::app {
 			return;
 		}
 		if (Window->agent_panel()->offered_count() == 0 || !agent) {
-			refuse(QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or choose one at the bottom of the Agent tab. Your text is unchanged."));
+			refuse(QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or choose one with the agent picker in the window's footer. Your text is unchanged."));
 			return;
 		}
 		if (!writes_tool_free(*agent)) {
-			refuse(QStringLiteral("Enhance needs an agent that speaks Claude Code's stream JSON. Choose one at the bottom of the Agent tab. Your text is unchanged."));
+			refuse(QStringLiteral("Enhance needs an agent that speaks Claude Code's stream JSON. Choose one with the agent picker in the window's footer. Your text is unchanged."));
 			return;
 		}
 		if (PendingWriting || !tour_session_idle()) {

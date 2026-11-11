@@ -10,6 +10,7 @@
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -248,39 +249,20 @@ namespace {
 		const auto notes = std::array{ application::local_note_id{ 7U }, application::local_note_id{ 9U } };
 		const auto draft = application::agent_draft_choice{ .Id = core::review_draft_id{ 11U }, .Revision = 3U };
 		panel->offer_private_context(notes, draft);
-		auto* page     = window.settings()->page_widget(qt::settings_page::agents_and_context);
-		auto* selector = page->findChild<QComboBox*>(QStringLiteral("settingsAgentProfile"));
-		auto* noteList = page->findChild<QListView*>(QStringLiteral("settingsAgentNotes"));
-		auto* draftBox = page->findChild<QCheckBox*>(QStringLiteral("settingsAgentDraft"));
-		expect(selector != nullptr && noteList != nullptr && draftBox != nullptr,
-			   "Settings mounts the agent choices");
-		expect(selector->model() == panel->profile_selector()->model()
-				   && noteList->model() == panel->note_selector()->model()
-				   && !draftBox->isChecked() && panel->note_selector()->item(0)->checkState() == Qt::Unchecked,
-			   "Settings shares only host-offered identities with private context unchecked");
-		selector->setCurrentIndex(1);
-		noteList->model()->setData(noteList->model()->index(1, 0), Qt::Checked, Qt::CheckStateRole);
-		draftBox->click();
-		expect(intents.empty(), "editing Settings never starts an agent");
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): Settings
+		// no longer mirrors the next request's choices; the window's footer
+		// picks the agent and the Agent tab what a question includes.
+		auto* page = window.settings()->page_widget(qt::settings_page::agents_and_context);
+		expect(page->findChild<QComboBox*>(QStringLiteral("settingsAgentProfile")) == nullptr && page->findChild<QListView*>(QStringLiteral("settingsAgentNotes")) == nullptr
+				   && page->findChild<QCheckBox*>(QStringLiteral("settingsAgentDraft")) == nullptr,
+			   "Settings mounts no next-request choices");
+		auto* const footer = window.agent_footer_widget();
+		expect(footer != nullptr && footer->picker()->source() == window.agent_tab()->run_settings_source(), "the footer's picker is the Agent tab's choice");
+		panel->offer_profiles(std::span{ profiles });
+		panel->profile_selector()->setCurrentIndex(1);
 		panel->start_action()->trigger();
-		expect(intents.size() == 1U, "the existing explicit start emits one intent");
-		const auto& start = std::get<qt::start_agent_intent>(intents.front());
-		expect(start.Profile == profiles[1].Id
-				   && start.IncludedNotes == std::vector{ notes[1] } && start.IncludedDraft == draft,
-			   "the request carries exactly the profile and private identities selected in Settings");
-		const auto secondName = selector->itemText(1);
-		panel->offer_profiles(std::span{ profiles }.first(1));
-		panel->offer_private_context(std::span{ notes }.first(1), std::nullopt);
-		// [[BPR-1823]], owner ruling 2026-10-29: the chosen Second, no longer
-		// offered, stays chosen as unavailable rather than becoming First.
-		expect(panel->offered_count() == 1U && selector->count() == 2 && selector->itemData(0) == QVariant::fromValue<qulonglong>(1U)
-				   && !panel->selected_profile().has_value() && panel->unavailable_agent_name() == secondName
-				   && noteList->model()->rowCount() == 1
-				   && !draftBox->isChecked() && !draftBox->isEnabled()
-				   && panel->note_selector()->item(0)->checkState() == Qt::Unchecked,
-			   "a changed offer removes old choices, keeps the removed choice as unavailable, and clears private opt-ins");
-		panel->set_running(true);
-		expect(!noteList->isEnabled(), "private context is disabled during a request");
+		expect(intents.size() == 1U && std::get<qt::start_agent_intent>(intents.front()).Profile == profiles[1].Id && std::get<qt::start_agent_intent>(intents.front()).IncludedNotes.empty(),
+			   "the request carries the chosen profile and no private context nobody opted into");
 		window.set_storage_location(QStringLiteral("/fixture/local-data"));
 		auto* storage  = window.settings()->page_widget(qt::settings_page::storage_and_privacy);
 		auto* location = storage->findChild<QLineEdit*>(QStringLiteral("settingsStorageLocation"));
@@ -14109,7 +14091,10 @@ namespace {
 		// chip, and More is one sign that still opens its menu.
 		// [[BPR-2013]]. Show in code and Suggest an outline left the
 		// application; More and its actions are offered while a stop is edited.
-		for (const auto* const name : { "tourStopMagic", "tourAddRelated", "tourRemoveRelated" }) {
+		// Owner on the live build, 2026-11-11 ("buttons packed in like a
+		// clown car"): Link selected lines is a quiet link like Use selected
+		// lines; Enhance and Unlink stay chips.
+		for (const auto* const name : { "tourStopMagic", "tourRemoveRelated" }) {
 			const auto* const action = editor->findChild<QPushButton*>(QString::fromLatin1(name));
 			expect(action != nullptr && dynamic_cast<const qt::quiet_push_button*>(action) != nullptr && !action->isFlat(), std::string{ name } + " is a raised chip, not bare text");
 		}
@@ -14660,9 +14645,9 @@ namespace {
 		auto* const suggestions = agent->suggestions_widget();
 		expect(shown(suggestions) && !shown(agent->setup_prompt()), "with nothing to wait on, the suggestions show");
 		// [[BPR-1881]]. The Tour tab follows the Agent tab's own verdict.
-		auto* const tour     = window.tour_editor();
-		auto* const tourCall = tour->agent_setup_call();
-		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && tourCall->isHidden(), "with nothing to wait on, the Tour tab's agent features are ready and it asks for no setup");
+		auto* const tour   = window.tour_editor();
+		auto* const footer = window.agent_footer_widget();
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && footer->picker()->attention().isEmpty(), "with nothing to wait on, the Tour tab's agent features are ready and the footer asks for no setup");
 		agent->adopt_setup(*window.agent_setup());
 		auto setup                       = application::agent_setup_projection{ };
 		setup.Detected                   = true;
@@ -14685,16 +14670,15 @@ namespace {
 		}
 		// [[BPR-1881]]. The same verdict: the Tour tab says to set the agent
 		// up and its agent features wait, and neither opens the setup.
-		expect(tour->agent_readiness() == qt::agent_setup_readiness::unfinished && !tourCall->isHidden() && agent->state() != qt::agent_tab_state::setting_up,
-			   "an unfinished setup puts the call to action on the Tour tab, and the setup does not open by itself");
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::unfinished && !footer->picker()->attention().isEmpty() && agent->state() != qt::agent_tab_state::setting_up,
+			   "[[BPR-2051]] an unfinished setup is the footer's state, and the setup does not open by itself");
 		auto* const tourDraft = tour->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 		expect(tourDraft != nullptr && !tourDraft->isEnabled() && tourDraft->toolTip().contains(QStringLiteral("not set up")), "the Tour tab's drafting waits for the setup, saying why");
-		// Its Set up the agent opens the Agent tab's setup where Finish setup
-		// does: its first unfinished step.
-		tourCall->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+		// The setup opens at its first unfinished step.
+		window.open_agent_setup();
 		process_events();
 		expect(agent->state() == qt::agent_tab_state::setting_up && window.agent_setup()->open_step() == core::setup_step::check && !shown(suggestions),
-			   "the Tour tab's Set up the agent, like Finish setup, opens the setup at Check it works, with no suggestions");
+			   "Finish setup opens the setup at Check it works, with no suggestions");
 		// The check passes: the setup finishes on its Ready line.
 		// [[BPR-1877]], owner 2026-11-05: the suggestions do not wait for that
 		// line to be closed; they show and can be pressed beside it.
@@ -14707,8 +14691,8 @@ namespace {
 		expect(agent->state() != qt::agent_tab_state::setting_up && shown(agent->ready_card()) && shown(suggestions) && shown(agent->suggestions_toggle())
 				   && !shown(agent->setup_prompt()),
 			   "with the setup's Ready line up, the suggestions show beside it");
-		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && tourCall->isHidden() && tourDraft->isEnabled() && !tourDraft->toolTip().contains(QStringLiteral("not set up")),
-			   "once set up, the Tour tab's call to action goes and its drafting can be pressed");
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && footer->picker()->attention().isEmpty() && tourDraft->isEnabled() && !tourDraft->toolTip().contains(QStringLiteral("not set up")),
+			   "once set up, the footer asks for nothing and the Tour tab's drafting can be pressed");
 		const auto beside = agent->suggestion_buttons();
 		expect(!beside.empty() && std::ranges::all_of(beside, [&shown](const QPushButton* aButton) { return shown(aButton) && aButton->isEnabled(); }),
 			   "every suggestion beside the Ready line can be pressed");
@@ -15068,7 +15052,7 @@ namespace {
 		agent->refresh();
 		process_events();
 		expect(!panel->selected_profile().has_value() && panel->unavailable_agent_name() == QStringLiteral("Fixture agent"), "the removed agent is not replaced by the other");
-		expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Unavailable: Fixture agent"),
+		expect(!agent->run_settings_button()->isHidden() && agent->run_settings_text() == QStringLiteral("Unavailable: Fixture agent"),
 			   "the pill says the chosen agent isn't available: " + agent->run_settings_text().toStdString());
 		auto* const menu    = agent->run_settings_button()->menu();
 		const auto  actions = menu->actions();
@@ -15438,12 +15422,10 @@ namespace {
 				   "the host's kept choice shows them again, and is not said back");
 			agent->set_suggestions_observer({ });
 		}
-		// Owner decision (c) 2026-10-23 ("A chip in the message box like VS
-		// Code"): the model and effort are in the question field, not the
-		// context row.
-		expect(agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->run_settings_button())
-				   && !agent->findChild<QWidget*>(QStringLiteral("agentContextRow"))->isAncestorOf(agent->run_settings_button()),
-			   "the model and effort chip is inside the question field");
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): the agent,
+		// model and effort picker is the window footer's, not the drawer's.
+		expect(window.agent_footer_widget()->isAncestorOf(agent->run_settings_button()) && !agent->isAncestorOf(agent->run_settings_button()),
+			   "the model and effort picker is in the window's footer, not the Agent tab");
 		auto observedThread = std::vector<qt::agent_thread_turn>{ };
 		agent->set_thread_observer([&observedThread](std::vector<qt::agent_thread_turn> aTurns) { observedThread = std::move(aTurns); });
 
@@ -15649,7 +15631,7 @@ namespace {
 				return true;
 			});
 			process_events();
-			expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Codex · Default model")
+			expect(!agent->run_settings_button()->isHidden() && agent->run_settings_text() == QStringLiteral("Codex · Default model")
 					   && agent->run_settings_button()->toolTip().contains(QStringLiteral("/Users/me/.local/bin/codex")),
 				   "the row names the model and effort, and its tooltip the program that runs");
 			auto* const composer = window.side_chat()->composer();

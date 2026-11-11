@@ -106,6 +106,7 @@
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/core/window_review_restoration.hpp"
 #include "bpr/core/workbench_interaction.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -2323,7 +2324,15 @@ namespace bpr::app {
 		/// [[BPR-1941]]. What the run in flight is doing now, as its live
 		/// line in the tour chat says it.
 		std::optional<qt::agent_run_status> TourLive;
-		std::optional<core::tour_proposal>  TourProposal;
+		/// [[BPR-2051]]. Where the tour lane's run started, for the window's
+		/// footer, its clock, and what each place's runs have cost in this
+		/// pull request.
+		std::optional<qt::agent_footer_place>                                     TourFooterPlace;
+		QElapsedTimer                                                             TourFooterStarted;
+		std::array<std::optional<core::agent_cost>, qt::agent_footer_place_count> TourFooterCosts;
+		[[nodiscard]] auto                                                        tour_footer_place() const -> qt::agent_footer_place;
+		void                                                                      finish_tour_footer(const application::agent_run_result& aResult);
+		std::optional<core::tour_proposal>                                        TourProposal;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		/// [[BPR-1931]]. What the last Reset tour cleared, for its Undo, while

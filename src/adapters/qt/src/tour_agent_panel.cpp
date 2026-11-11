@@ -325,7 +325,8 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("tourAgentSession"));
 		setAccessibleName(tr("Tour agent session"));
 		auto* const column = new QVBoxLayout{ this };
-		column->setContentsMargins(10, 8, 10, 0);
+		// Room under the row's buttons, so none is cut at the bottom.
+		column->setContentsMargins(10, 8, 10, 6);
 		column->setSpacing(6);
 
 		// [[BPR-1913]], owner 2026-11-06: "the button at the top looks like a

@@ -200,27 +200,6 @@ namespace bpr::qt {
 			QString              Text;
 		};
 
-		/// \brief [[BPR-1881]]. The call to action's ground: the window
-		/// washed with the agent accent, outlined in it.
-		class agent_setup_call_frame final : public QWidget
-		{
-		public:
-			using QWidget::QWidget;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto ground = palette().color(QPalette::Active, QPalette::Window);
-				const auto accent = agent_accent(palette());
-				const auto box    = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-				painter.setPen(QPen{ mixed(ground, accent, 0.5), 1.0 });
-				painter.setBrush(mixed(ground, accent, 0.08));
-				painter.drawRoundedRect(box, 6.0, 6.0);
-			}
-		};
-
 		/// The route's amber: where you read, as the drawers draw it.
 		[[nodiscard]] auto route_amber(const QPalette& aPalette) -> QColor
 		{
@@ -731,7 +710,9 @@ namespace bpr::qt {
 		{
 			const auto size = chat_toggle_size(aFont, aTurns);
 			const auto top  = aRow.top() + 8 + (ring_size - size.height()) / 2;
-			return QRectF{ static_cast<qreal>(aRow.right() - 8 - size.width()), static_cast<qreal>(top), static_cast<qreal>(size.width()), static_cast<qreal>(size.height()) };
+			// The open card's own toggle sits 12 in from the right; the rows'
+			// share its edge, so no toggle shifts when a stop opens.
+			return QRectF{ static_cast<qreal>(aRow.right() + 1 - 12 - size.width()), static_cast<qreal>(top), static_cast<qreal>(size.width()), static_cast<qreal>(size.height()) };
 		}
 
 		/// \brief [[BPR-1593]]. RFC-BPR-0085 D4: each stop on the route, a
@@ -1172,8 +1153,8 @@ namespace bpr::qt {
 				painter.drawText(QRect{ indent, 0, nameWidth + 2, height() }, Qt::AlignLeft | Qt::AlignVCenter, Name);
 				if (!Summary.isEmpty()) {
 					const auto left  = indent + nameWidth + 10;
-					auto       right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
-																												  : width() - 6;
+					auto       right = Change->isVisible() ? Change->x() - 6 : Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6
+																													: width() - 6;
 					right -= Proposed ? proposed_pill_width() + 6 : 0;
 					painter.setFont(font());
 					painter.setPen(State == core::tour_step_state::needs_attention ? attention_red(palette()) : mixed(ink, window, 0.35));
@@ -1184,8 +1165,8 @@ namespace bpr::qt {
 					// Grey, as a proposed stop's rail is, until it is accepted.
 					auto small = font();
 					small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
-					const auto right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
-																												  : width() - 6;
+					const auto right = Change->isVisible() ? Change->x() - 6 : Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6
+																													: width() - 6;
 					const auto pill  = QRectF{ static_cast<qreal>(right - proposed_pill_width()), (height() - QFontMetrics{ small }.height() - 4) / 2.0, static_cast<qreal>(proposed_pill_width()), QFontMetrics{ small }.height() + 4.0 };
 					const auto grey  = route_grey(palette());
 					painter.setPen(QPen{ grey, 1.0 });
@@ -1211,15 +1192,23 @@ namespace bpr::qt {
 		private:
 			void place_change()
 			{
-				const auto hint = Change->sizeHint();
-				Change->setGeometry(width() - hint.width(), (height() - hint.height()) / 2, hint.width(), hint.height());
+				// Owner on the live build, 2026-11-11: "Things are moving around
+				// as I click them". The chat toggle keeps one place, the right
+				// edge of the stops' own toggles, whatever the step's state;
+				// Change, when the step is done, sits to its left.
+				auto right = width() - chat_inset;
 				if (Chat != nullptr) {
-					const auto chat  = Chat->sizeHint();
-					const auto right = Change->isVisible() ? Change->x() - 6 : width();
+					const auto chat = Chat->sizeHint();
 					Chat->setGeometry(right - chat.width(), (height() - chat.height()) / 2, chat.width(), chat.height());
+					right = Chat->x() - 6;
 				}
+				const auto hint = Change->sizeHint();
+				Change->setGeometry(right - hint.width(), (height() - hint.height()) / 2, hint.width(), hint.height());
 			}
-			bool event(QEvent* aEvent) override
+			/// The stop card's inner margin, so every chat toggle on the route
+			/// shares one right edge.
+			static constexpr int chat_inset = 12;
+			bool                 event(QEvent* aEvent) override
 			{
 				// The toggle's count changes its width: it is placed again.
 				if (aEvent->type() == QEvent::LayoutRequest) {
@@ -1656,47 +1645,9 @@ namespace bpr::qt {
 		RouteScroll->setWidget(routeBody);
 		bands->addWidget(RouteScroll, 1);
 
-		// [[BPR-1881]], owner 2026-11-06. While the agent is not set up, the
-		// tab's top says so, and one click shows the Agent tab's setup. The
-		// setup never opens by itself, here or there.
-		AgentSetupCall = new QWidget{ this };
-		AgentSetupCall->setObjectName(QStringLiteral("tourAgentSetupCall"));
-		auto* const callMargin = new QVBoxLayout{ AgentSetupCall };
-		callMargin->setContentsMargins(10, 8, 10, 0);
-		auto* const callFrame = new agent_setup_call_frame{ AgentSetupCall };
-		callMargin->addWidget(callFrame);
-		// Compact, so the tab's bottom bar keeps its place: what is missing
-		// and the button on one row, what still works under it.
-		auto* const callColumn = new QVBoxLayout{ callFrame };
-		callColumn->setContentsMargins(10, 7, 7, 8);
-		callColumn->setSpacing(2);
-		auto* const callRow = new QHBoxLayout{ };
-		callRow->setSpacing(8);
-		auto* const callTitle = new QLabel{ tr("Drafting help needs the agent."), callFrame };
-		callTitle->setObjectName(QStringLiteral("tourAgentSetupTitle"));
-		callTitle->setWordWrap(true);
-		auto callFont = callTitle->font();
-		callFont.setWeight(QFont::DemiBold);
-		callTitle->setFont(callFont);
-		callRow->addWidget(callTitle, 1);
-		AgentSetupButton = new quiet_push_button{ tr("Set up the agent"), callFrame };
-		AgentSetupButton->setObjectName(QStringLiteral("tourAgentSetupOpen"));
-		AgentSetupButton->setToolTip(tr("Opens the Agent tab at its setup: the agent, the repository, and a check that it works."));
-		callRow->addWidget(AgentSetupButton, 0, Qt::AlignVCenter);
-		callColumn->addLayout(callRow);
-		auto* const callText = new QLabel{ tr("You can still write the tour yourself."), callFrame };
-		callText->setObjectName(QStringLiteral("tourAgentSetupText"));
-		callText->setWordWrap(true);
-		callText->setTextFormat(Qt::PlainText);
-		callText->setForegroundRole(QPalette::PlaceholderText);
-		callColumn->addWidget(callText);
-		connect(AgentSetupButton, &QPushButton::clicked, this, [this] {
-			if (AgentSetupDispatch) {
-				AgentSetupDispatch();
-			}
-		});
-		AgentSetupCall->hide();
-		layout->addWidget(AgentSetupCall);
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): no band
+		// asks for setup here. The pull request window's footer says when the
+		// chosen agent needs setup and leads to Settings.
 
 		// [[BPR-1900]]. The tour's own agent session: Draft the tour, its
 		// proposal, and the transcript, which opens only when asked.
@@ -1772,6 +1723,7 @@ namespace bpr::qt {
 		WritingStatus->setObjectName(QStringLiteral("tourWritingStatus"));
 		WritingStatus->setForegroundRole(QPalette::PlaceholderText);
 		notes->addWidget(WritingStatus);
+		WritingStatus->hide();
 		// [[BPR-1941]]. A running Draft Tour says what the agent is doing and
 		// for how long, with the Agent tab's live line.
 		DraftStatus = new agent_run_status_line{ Notices };
@@ -2118,29 +2070,6 @@ namespace bpr::qt {
 		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 
-		// [[BPR-1878]], owner looks v002 and v003 ("How hard is it to put the
-		// agent picker at the bottom like i asked for"): the tab ends as the
-		// Agent tab does, with its question field's bottom bar: the same
-		// margins, the same rounded field, the agent · model · effort pill on
-		// the right. The draft's state and Preview and publish sit just above
-		// it, so nothing is below the picker.
-		// [[BPR-1924]], owner look on BPR-1914 v004 ("this box around the
-		// model picker looks more like a text entry field than a
-		// dropdown/picker"). The Tour tab has nothing to type here, so the
-		// picker stands on the bar by itself, its right edge on Preview and
-		// publish's, with no field drawn round it.
-		AgentBar = new QWidget{ this };
-		AgentBar->setObjectName(QStringLiteral("tourAgentBar"));
-		auto* const barColumn = new QVBoxLayout{ AgentBar };
-		barColumn->setContentsMargins(10, 8, 10, 10);
-		AgentField = new QWidget{ AgentBar };
-		AgentField->setObjectName(QStringLiteral("tourAgentField"));
-		auto* const barRow = new QHBoxLayout{ AgentField };
-		barRow->setContentsMargins(0, 0, 0, 0);
-		barRow->setSpacing(2);
-		barRow->addStretch(1);
-		barColumn->addWidget(AgentField);
-		AgentBar->hide();
 		// The foot: the private draft's save state. [[BPR-1991]]: Publish… is
 		// the head's; the bottom Preview and publish is gone.
 		Foot = new QWidget{ this };
@@ -2200,7 +2129,6 @@ namespace bpr::qt {
 		pageRow->addWidget(right);
 		layout->addWidget(PageColumns, 1);
 		bands->addWidget(Foot);
-		bands->addWidget(AgentBar);
 		restyle_agent_features();
 		refresh_agent_features();
 
@@ -2488,9 +2416,17 @@ namespace bpr::qt {
 		} else if (Shown.Failure) {
 			status = tr("Local save unavailable. Your edits remain in this window and are not yet durable. Retry the save.");
 		} else if (Shown.Draft) {
-			status = Shown.Saving ? tr("Saving locally…") : Shown.SavedRevision == Shown.Draft->Revision ? tr("Saved locally. Nothing published.")
-																										 : tr("Private draft. Nothing published.");
+			status = Shown.Saving ? tr("Saving locally…") : Shown.SavedRevision == Shown.Draft->Revision ? tr("Saved locally.")
+																										 : tr("Private draft.");
 		}
+		// Owner on the live build, 2026-11-11: "Things are moving around as I
+		// click them" and no stray status text in the panel. The routine save
+		// state (saving, saved, a private draft) is not said in the panel;
+		// the head says where the tour stands. The foot shows only what needs
+		// the reviewer: no pull request, a refusal, a conflict, a failed
+		// save, an import's notice. It also no longer said "Nothing
+		// published." while the tour was being published.
+		const auto routine = Shown.Draft && Shown.Refusal == core::tour_refusal::none && !Shown.Conflict && !Shown.Failure && Shown.Draft->ImportNotice.empty() && Shown.ImportNotice.empty();
 		if (Shown.Draft && !Shown.Draft->ImportNotice.empty()) {
 			status += " " + QString::fromStdString(Shown.Draft->ImportNotice);
 		}
@@ -2498,6 +2434,7 @@ namespace bpr::qt {
 			status += " " + QString::fromStdString(Shown.ImportNotice);
 		}
 		Status->setText(status);
+		Foot->setVisible(!routine && !Shown.Loading);
 		QString changes = tr("No prior local tour version.");
 		if (Shown.Draft && Shown.Draft->HasPriorObservation) {
 			changes = tr("Changes at the last differing local website observation:");
@@ -2515,7 +2452,7 @@ namespace bpr::qt {
 		RevisionChanges->setText(changes);
 		NextChanged->setEnabled(Shown.Draft && !Shown.Draft->ObservedChanges.empty());
 		// [[BPR-1593]]. Said only when the website's tour differs.
-		RevisionChanges->setVisible(Shown.Draft && Shown.Draft->HasPriorObservation);
+		RevisionChanges->setVisible(Shown.Draft && Shown.Draft->HasPriorObservation && !Shown.Draft->ObservedChanges.empty());
 		NextChanged->setVisible(Shown.Draft && !Shown.Draft->ObservedChanges.empty());
 
 		Retry->setVisible(Shown.Failure.has_value() && !Shown.Conflict);
@@ -2524,6 +2461,7 @@ namespace bpr::qt {
 		KeepLocalConflict->setVisible(remoteConflict && !Shown.Conflict);
 		UseRemoteConflict->setVisible(remoteConflict && !Shown.Conflict);
 		Conflict->setVisible(static_cast<bool>(Shown.Conflict) || remoteConflict);
+		settle_notices();
 		if (remoteConflict && !Shown.Conflict) {
 			const auto& conflict = Shown.Draft->Conflicts.front();
 			update_text(Conflict, "Website conflict — saved versions\n\nBASELINE\n" + conflict.Baseline + "\n\nMY PROPOSAL\n" + conflict.Local + "\n\nWEBSITE\n" + conflict.Remote);
@@ -2642,12 +2580,18 @@ namespace bpr::qt {
 			// tooltip, and the longer name still names the request.
 			// Owner look, 2026-11-10: the tooltip "much shorter and adapt to
 			// the context", in the words of every other Enhance.
+			// [[BPR-2014]], owner look 2026-11-11: "We also don't need the
+			// \"Enhance\" label if we're using the new enhance icon." The nib
+			// alone; its name is the accessible name and the tooltip's.
+			button->setProperty("enhanceOnly", false);
 			if (aEditor->textCursor().hasSelection()) {
-				button->setText(tr("Enhance"));
+				button->setText({ });
+				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", tr("Enhance selection"));
 				button->setToolTip(enhance_tooltip(enhance_surface::comment, true));
 			} else if (!core::writing_blank(aEditor->raw())) {
-				button->setText(tr("Enhance"));
+				button->setText({ });
+				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", whole);
 				button->setToolTip(aHook == core::writing_hook::problem ? tr("Enhance writing for the Problem with agent.") : aHook == core::writing_hook::solution ? tr("Enhance writing for the Solution with agent.")
 																																									: tr("Enhance writing for this stop with agent."));
@@ -2668,6 +2612,7 @@ namespace bpr::qt {
 			if (AgentReadiness != agent_setup_readiness::ready) {
 				button->setToolTip(agent_unavailable_reason());
 			}
+			button->setAccessibleName(button->text().isEmpty() ? button->property("requestName").toString() : button->text());
 		};
 		AgentLabels.emplace_back(label);
 		// [[BPR-1914]] v003, owner 2026-11-06: "On each part I can pop open a
@@ -2734,7 +2679,7 @@ namespace bpr::qt {
 			if (!aEditor->isReadOnly() && WritingRequest) {
 				// [[BPR-1892]]. Made again: the last failure no longer stands.
 				const auto named    = button->property("requestName").toString();
-				RequestNames[aHook] = button->text() == tr("Enhance") && !named.isEmpty() ? named : button->text();
+				RequestNames[aHook] = button->property("enhanceOnly").toBool() && !named.isEmpty() ? named : button->text();
 				clear_agent_failure(aHook);
 				if (auto captured = aEditor->capture()) {
 					WritingRequest(aHook, std::move(*captured));
@@ -2793,11 +2738,6 @@ namespace bpr::qt {
 			&& static_cast<QResizeEvent*>(aEvent)->size().width() != static_cast<QResizeEvent*>(aEvent)->oldSize().width()) {
 			QTimer::singleShot(0, this, [this] { place_stop_card_now(); });
 		}
-		// [[BPR-1878]]. The bar shows while its picker does (an agent chosen),
-		// as the Agent tab's pill hides with none.
-		if (AgentPicker != nullptr && aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
-			AgentBar->setVisible(AgentPicker->isVisibleTo(AgentBar));
-		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -2852,7 +2792,26 @@ namespace bpr::qt {
 		}
 		return QWidget::eventFilter(aWatched, aEvent);
 	}
-	void review_tour_editor::show_writing_notice(const QString& aText) { WritingStatus->setText(aText); }
+	void review_tour_editor::show_writing_notice(const QString& aText)
+	{
+		// Owner on the live build, 2026-11-11: no stray status text in the
+		// panel. What a writing request did is said once in the window's
+		// status line; the label keeps it for accessibility and is not shown.
+		WritingStatus->setText(aText);
+		if (NoticeDispatch && !aText.isEmpty()) {
+			NoticeDispatch(aText);
+		}
+	}
+	void review_tour_editor::set_notice_dispatch(std::function<void(const QString&)> aDispatch) { NoticeDispatch = std::move(aDispatch); }
+	void review_tour_editor::settle_notices()
+	{
+		// The notices band takes room only while one of its parts shows.
+		auto any = false;
+		for (auto* const part : Notices->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+			any = any || !part->isHidden();
+		}
+		Notices->setVisible(any);
+	}
 	auto review_tour_editor::add_failure_notice(const core::writing_hook aHook, QWidget* aParent) -> QWidget*
 	{
 		auto* const notice    = new failure_notice_card{ aParent };
@@ -3450,6 +3409,7 @@ namespace bpr::qt {
 		if (!RunningDraft) {
 			DraftStatus->settle({ }, true);
 			DraftStatus->hide();
+			settle_notices();
 			return;
 		}
 		auto shown = DraftLive.value_or(agent_run_status{ });
@@ -3458,6 +3418,7 @@ namespace bpr::qt {
 		}
 		DraftStatus->present(shown, DraftClock);
 		DraftStatus->show();
+		settle_notices();
 	}
 	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
 	{
@@ -3492,20 +3453,6 @@ namespace bpr::qt {
 		const auto* const notice = agent_failure_notice(aHook);
 		return notice != nullptr && !notice->isHidden() ? static_cast<const failure_notice_card*>(notice)->text() : QString{ };
 	}
-	void review_tour_editor::set_agent_picker(agent_run_settings_picker* aPicker)
-	{
-		if (aPicker == nullptr || AgentPicker == aPicker) {
-			return;
-		}
-		AgentPicker = aPicker;
-		aPicker->setParent(AgentField);
-		static_cast<QHBoxLayout*>(AgentField->layout())->addWidget(aPicker);
-		aPicker->installEventFilter(this);
-		aPicker->present();
-		AgentBar->setVisible(aPicker->isVisibleTo(AgentBar));
-		restyle_agent_features();
-	}
-	void review_tour_editor::set_agent_setup_dispatch(std::function<void()> aDispatch) { AgentSetupDispatch = std::move(aDispatch); }
 	void review_tour_editor::set_shown_observer(std::function<void()> aObserver) { ShownObserver = std::move(aObserver); }
 	void review_tour_editor::showEvent(QShowEvent* aEvent)
 	{
@@ -3530,7 +3477,7 @@ namespace bpr::qt {
 				features.push_back(button);
 			}
 		}
-		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr), AgentField }) {
+		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr) }) {
 			if (widget != nullptr) {
 				features.push_back(widget);
 			}
@@ -3540,7 +3487,7 @@ namespace bpr::qt {
 	auto review_tour_editor::agent_unavailable_reason() const -> QString
 	{
 		return AgentReadiness == agent_setup_readiness::checking ? tr("Waiting for the agent setup to find your agents and check this repository.")
-																 : tr("Needs the agent, which is not set up yet. Use Set up the agent at the top of this tab.");
+																 : tr("Needs the agent, which is not set up yet. Agent settings… in the window's footer sets it up.");
 	}
 	void review_tour_editor::restyle_agent_features()
 	{
@@ -3589,24 +3536,12 @@ namespace bpr::qt {
 			wear_ordinary_roles(*open);
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
 		}
-		if (AgentSetupButton != nullptr) {
-			wear_ordinary_roles(*AgentSetupButton);
-			AgentSetupButton->setIcon(drawer_icon(drawer_glyph::agent, AgentSetupButton->palette()));
-			if (auto* const title = AgentSetupCall->findChild<QLabel*>(QStringLiteral("tourAgentSetupTitle")); title != nullptr) {
-				apply_agent_accent(*title, ground);
-			}
-		}
 	}
 	void review_tour_editor::refresh_agent_features()
 	{
 		const auto ready = AgentReadiness == agent_setup_readiness::ready;
-		AgentSetupCall->setVisible(AgentReadiness == agent_setup_readiness::unfinished);
-		// The agent bar keeps its picker usable: it chooses the agent the
-		// Agent tab chooses, and runs nothing.
 		for (auto* const feature : agent_features()) {
-			if (feature != AgentField) {
-				feature->setEnabled(ready);
-			}
+			feature->setEnabled(ready);
 		}
 		for (const auto& label : AgentLabels) {
 			label();
@@ -3887,6 +3822,14 @@ namespace bpr::qt {
 		EditStop->setAccessibleName(tr("Edit stop"));
 		EditStop->setToolTip(tr("Edit the stop's title and explanation (Return)"));
 		titleRow->addWidget(EditStop, 0, Qt::AlignTop);
+		// Hidden while the stop is edited, the pencil keeps its room: the
+		// title, the chat toggle and everything under them stay where they
+		// were (owner on the live build, 2026-11-11).
+		{
+			auto keep = EditStop->sizePolicy();
+			keep.setRetainSizeWhenHidden(true);
+			EditStop->setSizePolicy(keep);
+		}
 		connect(EditStop, &QToolButton::clicked, this, [this] { begin_stop_edit(); });
 		// [[BPR-1936]], owner: "Maybe there needs to be another way to remove
 		// a stop like trash can button." The comments' trash; it removes this
@@ -4019,7 +3962,14 @@ namespace bpr::qt {
 		// Owner look v002 of the editing tools: "I don't understand what these
 		// do or how to use these at all." Each says what it does to the stop,
 		// in the words of the hint under them, and its tooltip how to use it.
-		auto* const addRelated = button(tr("Link selected lines"), QStringLiteral("tourAddRelated"), sources, [this] { trigger(tour_editor_action::add_related); });
+		// Owner on the live build, 2026-11-11 ("buttons packed in like a clown
+		// car"): the two ways to use the code's selection are one kind of
+		// control, quiet links side by side; Enhance is the row's one button.
+		QPushButton* const addRelated = new step_change{ tr("Link selected lines"), StopFields };
+		addRelated->setObjectName(QStringLiteral("tourAddRelated"));
+		addRelated->setCursor(Qt::PointingHandCursor);
+		sources->addWidget(addRelated);
+		connect(addRelated, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::add_related); });
 		addRelated->setToolTip(tr("Select lines in the code first. They are added under Linked code: other code the reader can open from this stop."));
 		auto* const removeRelated = button(tr("Unlink"), QStringLiteral("tourRemoveRelated"), sources, [this] {
 			if (!selected_related() || !Dispatch || Shown.Refusal == core::tour_refusal::bounds) {
@@ -4056,15 +4006,10 @@ namespace bpr::qt {
 		MoreButton    = more;
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
-		// How the tools are used, said once under them while the stop is edited.
-		StopToolsHint = new QLabel{ tr("Select lines in the code first. Use selected lines moves this stop to them; Link selected lines (under … when the card is narrow) adds them as code the reader can open from this stop."), StopFields };
-		StopToolsHint->setObjectName(QStringLiteral("tourStopToolsHint"));
-		StopToolsHint->setWordWrap(true);
-		StopToolsHint->setTextFormat(Qt::PlainText);
-		StopToolsHint->setForegroundRole(QPalette::PlaceholderText);
-		StopToolsHint->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		StopToolsHint->hide();
-		fields->addWidget(StopToolsHint);
+		// [[BPR-2014]], owner look 2026-11-11 (session 5ea0ce22, `1d39ba1e`):
+		// "That text at the bottom is a giant waste of space. No one can or
+		// wants to read that." No hint under the tools: each says what it
+		// does, and its tooltip how.
 		fields->addWidget(add_failure_notice(core::writing_hook::comment, StopFields));
 		// [[BPR-1914]] v003. The read stop's own menu opens its side chat,
 		// with the selected words; [[BPR-2013]] then the stop's context menu.
@@ -4570,9 +4515,6 @@ namespace bpr::qt {
 		// what changes it (Use selected lines, Enhance, its related sources)
 		// is offered only while it is written.
 		StopActions->setVisible(writing);
-		if (StopToolsHint != nullptr) {
-			StopToolsHint->setVisible(writing);
-		}
 		Related->setVisible(writing && Related->count() > 0);
 		StopActions->want(UseLines, writing);
 		if (Retarget != nullptr) {
@@ -5084,7 +5026,10 @@ namespace bpr::qt {
 			static_cast<stop_card*>(card)->Menu = [this](const QPoint& aAt) { popup_stop_menu(aAt); };
 			auto* const column                  = new QVBoxLayout{ card };
 			column->setContentsMargins(text_left - 6, 10, 12, 10);
-			column->addWidget(StopFields);
+			// Owner on the live build, 2026-11-11: "Things are moving around
+			// as I click them". Top-aligned, so the fields never ride on the
+			// card's spare height when Edit opens them.
+			column->addWidget(StopFields, 0, Qt::AlignTop);
 			StopFields->show();
 			Outline->setItemWidget(item, card);
 		}

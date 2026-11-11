@@ -732,8 +732,10 @@ namespace bpr::qt {
 			Notice->setText(aWhy);
 			Notice->show();
 		};
-		RunSettings = new agent_run_settings_picker{ RunSettingsSource, field };
-		askRow->addWidget(RunSettings);
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): the
+		// picker left the drawers for the pull request window's footer, one
+		// choice for the Agent tab, the tour chat, Enhance and Draft the tour.
+		// The tab borrows the footer's picker for /model and /effort.
 		Ask = new QPushButton{ field };
 		Ask->setObjectName(QStringLiteral("agentAsk"));
 		Ask->setDefault(true);
@@ -1689,9 +1691,19 @@ namespace bpr::qt {
 		refresh();
 	}
 
+	void agent_tab_view::set_footer_observers(agent_tab_run_observer aRun, std::function<void(const QString&)> aEnded, std::function<void(std::optional<core::agent_cost>)> aCost)
+	{
+		RunObserver   = std::move(aRun);
+		EndedObserver = std::move(aEnded);
+		CostObserver  = std::move(aCost);
+	}
+
 	void agent_tab_view::present_session_cost(const std::optional<core::agent_cost> aTotal)
 	{
 		SessionTotal = aTotal;
+		if (CostObserver) {
+			CostObserver(aTotal);
+		}
 		if (SessionCostLine == nullptr) {
 			return;
 		}
@@ -2080,6 +2092,9 @@ namespace bpr::qt {
 			status.Agent = agent;
 			status.Stage = agent_run_stage::preparing;
 			current.Footer->present(status, Started);
+			if (RunObserver) {
+				RunObserver(status, Started);
+			}
 			return;
 		}
 		case agent_launch_panel::phase::running: {
@@ -2099,6 +2114,9 @@ namespace bpr::qt {
 				}
 			}
 			current.Footer->present(status, Started);
+			if (RunObserver) {
+				RunObserver(status, Started);
+			}
 			return;
 		}
 		case agent_launch_panel::phase::idle:
@@ -2191,6 +2209,13 @@ namespace bpr::qt {
 		}
 		current.Footer->settle(footer, succeeded);
 		current.Footer->setToolTip(detail);
+		// [[BPR-2051]]. The window's footer says how it ended, for a moment,
+		// after where it started: "answered in 1:12 · $0.41 · 2 findings".
+		if (EndedObserver) {
+			auto ending    = parts;
+			ending.front() = succeeded ? tr("answered in %1").arg(agent_elapsed_words(seconds)) : tr("stopped after %1").arg(agent_elapsed_words(seconds));
+			EndedObserver(ending.join(QStringLiteral(" · ")));
+		}
 		EndedTurns.push_back({ .Question = current.Question, .Ending = succeeded ? QString{ } : current.AnswerText, .Footer = footer, .Activity = Launch.activity(), .Seconds = seconds });
 		if (EndedTurns.size() > 32U) {
 			EndedTurns.erase(EndedTurns.begin());
@@ -3496,7 +3521,9 @@ namespace bpr::qt {
 
 	auto agent_tab_view::current_run_settings() const -> const agent_run_settings* { return RunSettingsSource->current(); }
 
-	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->full_text(); }
+	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings != nullptr ? RunSettings->full_text() : QString{ }; }
+
+	void agent_tab_view::adopt_run_settings_button(agent_run_settings_picker* aPicker) { RunSettings = aPicker; }
 
 	void agent_tab_view::fit_run_settings()
 	{
@@ -3507,7 +3534,7 @@ namespace bpr::qt {
 		// under the tools, left-aligned, with its whole words. The choice
 		// depends only on the field's width and the controls' own sizes, never
 		// on where the picker is now, so moving it cannot flip it back.
-		if (Field == nullptr || RunSettings == nullptr || AskRow == nullptr || Field->width() <= 0) {
+		if (Field == nullptr || RunSettings == nullptr || RunSettings->parentWidget() != Field || AskRow == nullptr || Field->width() <= 0) {
 			return;
 		}
 		const auto margins   = Field->layout()->contentsMargins();
@@ -3570,7 +3597,9 @@ namespace bpr::qt {
 			return true;
 		}
 		if (words.size() < 2) {
-			RunSettings->showMenu();
+			if (RunSettings != nullptr) {
+				RunSettings->showMenu();
+			}
 			Notice->setText(isModel ? tr("Choose a model, or type /model NAME.") : tr("Choose an effort, or type /effort LEVEL."));
 			return true;
 		}

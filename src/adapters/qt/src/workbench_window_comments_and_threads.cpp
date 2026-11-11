@@ -4,6 +4,9 @@
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_footer.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -1045,6 +1048,33 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::open_agent_setup()
+	{
+		if (AgentTab != nullptr) {
+			AgentTab->open_setup();
+			show_agent(false);
+		}
+	}
+
+	void workbench_window::present_agent_footer_setup()
+	{
+		if (AgentFooter == nullptr || AgentTab == nullptr) {
+			return;
+		}
+		// [[BPR-2051]], owner decision 2026-11-11: setup is a state of the
+		// footer. The picker says what is missing in a few words; the
+		// failure's whole account stays on Settings.
+		auto need = QString{ };
+		if (AgentTab->setup_readiness() == agent_setup_readiness::unfinished) {
+			const auto* const setup = AgentTab->setup_view();
+			const auto&       check = setup != nullptr ? setup->projection().State.AgentCheck : core::setup_check{ };
+			need                    = check.State == core::setup_check_state::failed && check.Failure == core::agent_setup_failure::not_signed_in ? tr("not signed in")
+				: check.State == core::setup_check_state::failed                                                                                  ? tr("check failed")
+																																				  : tr("not checked");
+		}
+		AgentFooter->present_setup(need);
+	}
+
 	void workbench_window::wire_tour_page()
 	{
 		// [[BPR-1593]]. RFC-BPR-0085 D4: Expand opens the tour page in the
@@ -1077,17 +1107,35 @@ namespace bpr::qt {
 		escape->setContext(Qt::WidgetWithChildrenShortcut);
 		connect(escape, &QShortcut::activated, this, [this] { close_tour_page(); });
 		CentreStack->addWidget(TourPage);
-		// [[BPR-1878]], owner look v001. The Tour tab has the Agent tab's own
-		// agent picker at its bottom: the same component over the same source.
-		TourEditor->set_agent_picker(new agent_run_settings_picker{ AgentTab->run_settings_source(), TourEditor });
-		// [[BPR-1881]]. The Tour tab's agent features follow the Agent tab's
-		// own setup verdict, and its call to action shows that setup.
-		TourEditor->set_agent_setup_dispatch([this] {
-			if (AgentTab != nullptr) {
-				AgentTab->open_setup();
-				show_agent(false);
-			}
-		});
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): one agent
+		// picker for the pull request, in the window's footer, over the Agent
+		// tab's source, so the Agent tab, the tour chat, Enhance and Draft the
+		// tour use one choice. Setup is a state of that footer.
+		AgentFooter = new agent_footer{ AgentTab->run_settings_source(), this };
+		AgentTab->adopt_run_settings_button(AgentFooter->picker());
+		AgentFooter->set_settings_dispatch([this] { open_settings(settings_page::agents_and_context); });
+		statusBar()->addPermanentWidget(AgentFooter, 0);
+		AgentTab->set_footer_observers(
+			[this](const agent_run_status& aStatus, const QElapsedTimer& aStarted) {
+				if (AgentFooter != nullptr) {
+					AgentFooter->present_run(agent_footer_place::agent_tab, agent_footer_run{ .Status = aStatus, .Started = aStarted, .Stop = [this] {
+																								 if (AgentPanel != nullptr) {
+																									 AgentPanel->cancel_action()->trigger();
+																								 }
+																							 } });
+				}
+			},
+			[this](const QString& aEnding) {
+				if (AgentFooter != nullptr) {
+					AgentFooter->present_finished(agent_footer_place::agent_tab, aEnding);
+				}
+			},
+			[this](const std::optional<core::agent_cost> aCost) {
+				if (AgentFooter != nullptr) {
+					AgentFooter->present_cost(agent_footer_place::agent_tab, aCost);
+				}
+			});
+		AgentFooter->setVisible(!showing_home());
 		// [[BPR-1892]]. A failed request's notice sends the person to the
 		// Agent tab's card for the run; nothing switches tabs by itself.
 		TourEditor->set_agent_failure_dispatch([this] {
@@ -1105,7 +1153,11 @@ namespace bpr::qt {
 			if (TourEditor != nullptr && AgentTab != nullptr) {
 				TourEditor->set_agent_readiness(AgentTab->setup_readiness());
 			}
+			present_agent_footer_setup();
 		});
+		// Owner on the live build, 2026-11-11: no stray status text in the
+		// Tour panel. A writing request's notice is the window's status line.
+		TourEditor->set_notice_dispatch([this](const QString& aText) { statusBar()->showMessage(aText, 8000); });
 		TourEditor->set_expand_dispatch([this](const bool aPublication) { open_tour_page(aPublication); });
 		TourEditor->set_collapse_dispatch([this] { close_tour_page(); });
 		TourEditor->set_excerpt_source([this](const core::tour_source_range& aRange) -> std::optional<tour_excerpt> {

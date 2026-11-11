@@ -1455,6 +1455,19 @@ namespace bpr::app {
 			// the setup's Stop.
 			.Check     = [this] { check_agent_from_settings(); },
 			.StopCheck = [this] { stop_agent_setup_check(); },
+			// [[BPR-2051]]. The roster's Check all and a row's own check.
+			.CheckAll =
+				[this] {
+					if (!Closing && AgentSetup) {
+						AgentSetup->check_all();
+					}
+				},
+			.CheckEntry =
+				[this](const std::uint32_t aId) {
+					if (!Closing && AgentSetup) {
+						AgentSetup->check_entry(aId);
+					}
+				},
 			.Reset =
 				[this] {
 					if (!Closing && Window != nullptr) {

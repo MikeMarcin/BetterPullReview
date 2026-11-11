@@ -741,7 +741,8 @@ namespace {
 		setup.State.Rows   = { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude", .Verdict = { .Permitted = true } } };
 		check.Decision     = { .Offer = core::agent_check_offer::available, .ChecksWorkspace = false };
 		programs.present_check(check);
-		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check agent"), "a chosen agent can be checked");
+		// [[BPR-2051]]: the roster's Check all, which checks each agent.
+		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check all"), "a chosen agent can be checked");
 		expect(programs.check_note()->text() == QStringLiteral("Runs claude auth status, which sends no question and no code. Open a pull request to check its workspace too."),
 			   "the line says what runs, and that the workspace needs an open pull request");
 		expect(programs.check_result_text().isEmpty(), "no rows before a check has run");
@@ -777,7 +778,7 @@ namespace {
 		expect(failed.contains(QStringLiteral("\u2715 Claude Code is signed in")) && failed.contains(QStringLiteral("\u2713 The open pull request's workspace can be made"))
 				   && failed.contains(QStringLiteral("Claude Code isn't signed in. Sign in from a terminal, then check again.")) && failed.contains(QStringLiteral("claude auth login")),
 			   "a failure says what failed, what to do and the command: " + failed.toStdString());
-		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check again"), "it can be run again");
+		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check all"), "it can be run again");
 		auto* const details = programs.findChild<QToolButton*>(QStringLiteral("settingsAgentCheckDetails"));
 		auto* const text    = programs.findChild<QPlainTextEdit*>(QStringLiteral("settingsAgentCheckDetailsText"));
 		expect(shown(details) && !shown(text), "its details wait behind Show details");

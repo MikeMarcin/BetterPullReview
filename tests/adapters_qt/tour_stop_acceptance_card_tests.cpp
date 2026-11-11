@@ -258,10 +258,22 @@ auto main(int argc, char** argv) -> int
 	// Owner look v002: a stop never accepted needs no reason beside Accept.
 	yellow(4, QString{ }, "stop-not-accepted");
 
+	// Owner on the live build, 2026-11-11: "Things are moving around as I
+	// click them". Opening the stop for editing moves neither its chat
+	// toggle, its title's place nor its file-and-lines link, and the panel
+	// says no routine save state.
+	const auto at = [&](const char* aName) {
+		auto* const widget = editor.findChild<QWidget*>(QString::fromLatin1(aName));
+		return widget != nullptr ? widget->mapTo(&editor, QPoint{ 0, 0 }) : QPoint{ -1, -1 };
+	};
+	const auto chatAtRest   = at("tourStopChat");
+	const auto sourceAtRest = at("tourStopSource");
+	expect(!shown("tourSaveStatus") && !shown("tourWritingStatus") && !shown("tourFoot"), "no routine status text in the panel");
 	// AC06. Edited: the fields, Use selected lines, Enhance, Remove, Cancel and Save.
 	editor.begin_stop_edit();
 	settle();
 	render(editor, prefix, "stop-editing");
+	expect(at("tourStopChat") == chatAtRest && at("tourStopSource") == sourceAtRest, "editing the stop moves neither its chat toggle nor its lines link");
 	for (const auto* name : { "tourStopTitle", "tourStopBody", "tourUseSelectedLines", "tourStopMagic", "tourStopRemove", "tourStopCancel", "tourStopSave" }) {
 		expect(shown(name), std::string{ name } + " is offered while the stop is edited");
 	}
@@ -272,8 +284,11 @@ auto main(int argc, char** argv) -> int
 	auto* const editCancel = editor.findChild<QPushButton*>(QStringLiteral("tourStopCancel"));
 	expect(editAccept->text() == QStringLiteral("Accept") && editAccept->isDefault() && editCancel->text() == QStringLiteral("Cancel"), "the edited stop's foot reads Cancel and Accept");
 	expect(editCancel->metaObject() == &QPushButton::staticMetaObject && editCancel->size() == editAccept->size(), "Cancel and Accept are one kind of button at one size");
-	auto* const hint = editor.findChild<QLabel*>(QStringLiteral("tourStopToolsHint"));
-	expect(hint != nullptr && hint->isVisibleTo(&editor) && hint->text().startsWith(QStringLiteral("Select lines in the code first.")), "the tools say how they are used");
+	// Owner look 2026-11-11 (`1d39ba1e`): no hint under the tools, and Enhance
+	// is its nib alone, named for the keyboard and in its tooltip.
+	expect(editor.findChild<QLabel*>(QStringLiteral("tourStopToolsHint")) == nullptr, "no hint text under the editing tools");
+	auto* const enhance = editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic"));
+	expect(enhance != nullptr && enhance->text().isEmpty() && !enhance->icon().isNull() && enhance->accessibleName().startsWith(QStringLiteral("Enhance")) && !enhance->toolTip().isEmpty(), "Enhance is the icon alone, with its name and tooltip");
 	for (const auto& [name, words] : { std::pair{ "tourUseSelectedLines", "Use selected lines" }, std::pair{ "tourAddRelated", "Link selected lines" } }) {
 		auto* const tool = editor.findChild<QAbstractButton*>(QString::fromLatin1(name));
 		expect(tool != nullptr && tool->text() == QString::fromLatin1(words) && tool->toolTip().startsWith(QStringLiteral("Select lines in the code first.")), std::string{ name } + " says what it does and how");

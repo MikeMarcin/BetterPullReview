@@ -47,6 +47,9 @@ namespace bpr::application {
 		/// by entry id, once asked; an entry being asked is in `Cataloguing`.
 		std::map<std::uint32_t, agent_harness_catalog> Catalogs;
 		std::vector<std::uint32_t>                     Cataloguing;
+		/// [[BPR-2051]]. The added agent a check runs on now, by entry id;
+		/// none while no check runs or a check's agent is not in the list.
+		std::optional<std::uint32_t> CheckingEntry;
 		/// Raised by every published change.
 		std::uint64_t Generation = 0U;
 
@@ -131,6 +134,13 @@ namespace bpr::application {
 		void choose(core::setup_agent aAgent);
 		/// Runs Check it works' agent row.
 		void check();
+		/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1").
+		/// Checks every added agent in turn, each as Check it works checks the
+		/// chosen one, and keeps each one's result for the Agents roster. The
+		/// chosen agent stays chosen.
+		void check_all();
+		/// \brief [[BPR-2051]]. Checks one added agent, from its sheet.
+		void check_entry(std::uint32_t aId);
 		void stop();
 		/// Saves a program path for Codex or the plain-text harness after the
 		/// adapter inspected it; empty clears it. Answers on the decision lane.

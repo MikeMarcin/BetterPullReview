@@ -72,6 +72,7 @@ add_library(
         src/agent_suggestion_list.cpp
         src/agent_run_status.cpp
         src/agent_run_settings_picker.cpp
+        src/agent_footer.cpp
         src/agent_feature.cpp
         src/agent_setup_view.cpp
         src/agent_setup_settings.cpp

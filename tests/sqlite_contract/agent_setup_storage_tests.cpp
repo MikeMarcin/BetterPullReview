@@ -202,8 +202,21 @@ try {
 	auto popular                      = listed;
 	popular.Agents[2].StrictRunChecks = false;
 	expect(core::inspect_agent_entries(popular.Agents) == core::agent_entry_refusal::relaxed_popular_agent && !store->store(popular), "a popular agent keeps strict run checks");
+	// [[BPR-2051]]. Each agent's last check is kept across a restart: a pass
+	// with its version, a failure with why; a check of an agent no longer in
+	// the list does not come back.
+	listed.EntryChecks = { { .Id = listed.Agents[0].Id, .Check = { .State = core::setup_check_state::passed, .Version = "2.1.321" } },
+						   { .Id = listed.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::not_signed_in) },
+						   { .Id = listed.Agents[2].Id, .Check = core::fail_check(core::agent_setup_failure::timed_out) } };
+	expect(store->store(listed), "the agents' last checks are stored");
+	store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	expect(store->load() == listed, "and read back after a restart, with versions and failures");
+	auto running                 = listed;
+	running.EntryChecks[0].Check = { .State = core::setup_check_state::running };
+	expect(!store->store(running), "a running check is not a result to keep");
 	listed.Agents.pop_back();
-	expect(store->store(listed) && store->load()->Agents.size() == 2U, "a removed agent is gone from the stored list");
+	listed.EntryChecks.pop_back();
+	expect(store->store(listed) && store->load()->Agents.size() == 2U && store->load()->EntryChecks.size() == 2U, "a removed agent is gone from the stored list, with its check");
 
 #ifndef _WIN32
 	struct stat status{ };

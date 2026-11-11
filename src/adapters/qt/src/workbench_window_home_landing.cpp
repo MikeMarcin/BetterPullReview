@@ -1,6 +1,7 @@
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/core/home_filter.hpp"
 #include "bpr/core/review_comment_range.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -579,6 +580,10 @@ namespace bpr::qt {
 
 	void workbench_window::update_dif_presentation()
 	{
+		// [[BPR-2051]]. The agent footer belongs to a pull request's window.
+		if (AgentFooter != nullptr) {
+			AgentFooter->setVisible(!showing_home());
+		}
 		if (WorkshopHeader != nullptr) {
 			WorkshopHeader->setVisible(!showing_home() && CompositionPage == ComposeInlinePage
 									   && ReviewEditor->shown_proposal().has_value());

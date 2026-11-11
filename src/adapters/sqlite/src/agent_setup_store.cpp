@@ -143,6 +143,14 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
 									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64)) STRICT")
+				// [[BPR-2051]]. Each added agent's last check: passed (2) with
+				// the version it read, or failed (3) with why.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_entry_checks("
+									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64),"
+									"state INTEGER NOT NULL CHECK(state IN (2,3)),"
+									"failure INTEGER NOT NULL CHECK(failure BETWEEN -1 AND 7),"
+									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) <= 128)) STRICT")
 				// Owner decision 2026-10-23: the run time limit; none means off.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_run_limit("
@@ -318,6 +326,21 @@ namespace bpr::adapters::sqlite {
 						sqlite3_bind_int64(row->Value, 1, entry.Id);
 						committed = sqlite3_step(row->Value) == SQLITE_DONE;
 					}
+				}
+			}
+			if (committed) {
+				committed = detail::execute(aDatabase, "DELETE FROM agent_entry_checks").has_value();
+			}
+			for (std::size_t index = 0U; committed && index < aPreferences.EntryChecks.size(); ++index) {
+				const auto& record = aPreferences.EntryChecks[index];
+				auto        row    = detail::prepare(aDatabase, "INSERT INTO agent_entry_checks VALUES(?1,?2,?3,?4)");
+				committed          = row.has_value();
+				if (committed) {
+					sqlite3_bind_int64(row->Value, 1, record.Id);
+					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(record.Check.State));
+					sqlite3_bind_int64(row->Value, 3, record.Check.Failure ? static_cast<std::int64_t>(*record.Check.Failure) : -1);
+					bind_text(row->Value, 4, record.Check.Version);
+					committed = sqlite3_step(row->Value) == SQLITE_DONE;
 				}
 			}
 			if (committed) {
@@ -682,6 +705,23 @@ namespace bpr::adapters::sqlite {
 					}
 					if (core::inspect_agent_entries(loaded.Agents)) {
 						loaded.Agents.clear();
+					}
+					// [[BPR-2051]]. The kept checks of agents still in the list.
+					if (auto checks = detail::prepare(store->Database.get(), "SELECT id,state,failure,version FROM agent_entry_checks ORDER BY id"); checks) {
+						while (sqlite3_step(checks->Value) == SQLITE_ROW) {
+							auto record        = application::agent_entry_check_record{ };
+							record.Id          = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(checks->Value, 0), 0, 64));
+							record.Check.State = sqlite3_column_int64(checks->Value, 1) == 2 ? core::setup_check_state::passed : core::setup_check_state::failed;
+							if (const auto failure = sqlite3_column_int64(checks->Value, 2); failure >= 0 && record.Check.State == core::setup_check_state::failed) {
+								record.Check.Failure = static_cast<core::agent_setup_failure>(std::clamp<std::int64_t>(failure, 0, 7));
+							} else if (record.Check.State == core::setup_check_state::failed) {
+								record.Check.Failure = core::agent_setup_failure::status_unreadable;
+							}
+							record.Check.Version = column_text(checks->Value, 3).value_or(std::string{ });
+							if (std::ranges::find(loaded.Agents, record.Id, &core::agent_entry::Id) != loaded.Agents.end()) {
+								loaded.EntryChecks.push_back(std::move(record));
+							}
+						}
 					}
 					if (auto limit = detail::prepare(store->Database.get(), "SELECT minutes FROM agent_run_limit WHERE singleton=1"); limit && sqlite3_step(limit->Value) == SQLITE_ROW) {
 						loaded.RunLimitMinutes = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(limit->Value, 0), 0, 1440));

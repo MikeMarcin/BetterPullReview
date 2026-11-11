@@ -194,6 +194,10 @@ namespace bpr::qt {
 	/// \brief [[BPR-1859]]. A check row's mark and its colour, from the
 	/// palette: a ring not run, a part-filled ring running, a tick passed, a
 	/// cross failed.
+	/// \brief [[BPR-2051]]. The setup's passed and failed colours, for a mark
+	/// drawn elsewhere (the Agents roster's rings, the footer's setup state).
+	[[nodiscard]] auto setup_passed_colour(const QPalette& aPalette) -> QColor;
+	[[nodiscard]] auto setup_failed_colour(const QPalette& aPalette) -> QColor;
 	[[nodiscard]] auto setup_check_mark(core::setup_check_state aState, const QPalette& aPalette) -> std::pair<QString, QColor>;
 } // namespace bpr::qt
 

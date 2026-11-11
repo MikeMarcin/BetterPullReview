@@ -90,9 +90,6 @@ namespace {
 				expect(!button->icon().isNull(), std::string{ aWhen } + ": " + feature->objectName().toStdString() + " carries the agent's spark, so colour is not the only sign");
 			}
 		}
-		auto* const open = child<QPushButton>(aEditor, "tourAgentSetupOpen");
-		expect(open->palette().color(QPalette::Active, QPalette::ButtonText) != accent && child<QLabel>(aEditor, "tourAgentSetupTitle")->palette().color(QPalette::Active, QPalette::WindowText) == accent,
-			   std::string{ aWhen } + ": the call's title wears the accent; Set up the agent starts no run and is ordinary");
 		// The ordinary controls keep the palette's own words.
 		auto* const map = child<QPushButton>(aEditor, "tourProblemMap");
 		expect(map->palette().color(QPalette::Active, QPalette::ButtonText) != accent, std::string{ aWhen } + ": an ordinary control does not wear the accent");
@@ -105,18 +102,6 @@ auto main(int argc, char** argv) -> int
 	const auto   prefix = argc > 1 ? std::string{ argv[1] } : std::string{ };
 	QApplication::setPalette(light_palette(QApplication::palette()));
 
-	qt::agent_launch_panel panel;
-	const auto             profiles = std::array{ core::agent_profile{ .Id = core::agent_profile_id{ 1U }, .DisplayName = "Claude Code" } };
-	panel.offer_profiles(profiles);
-	auto source            = std::make_shared<qt::agent_run_settings_source>(panel);
-	source->Choose         = [](const std::uint64_t) { return true; };
-	auto claude            = qt::agent_run_settings{ };
-	claude.Profile         = 1U;
-	claude.Agent           = QStringLiteral("Claude Code");
-	claude.ModelChoosable  = true;
-	claude.EffortChoosable = true;
-	source->present({ claude });
-
 	auto draft     = tests::review_tour_fixture();
 	draft.Problem  = { };
 	draft.Solution = { };
@@ -125,44 +110,34 @@ auto main(int argc, char** argv) -> int
 	editor.set_dispatch([](core::tour_command) { }, [&actions](qt::tour_editor_action) { ++actions; });
 	auto asked = 0;
 	editor.set_writing_dispatch([&asked](core::writing_hook, qt::prose_capture) { ++asked; }, [] { });
-	auto setupAsked = 0;
-	editor.set_agent_setup_dispatch([&setupAsked] { ++setupAsked; });
-	editor.set_agent_picker(new qt::agent_run_settings_picker{ source, &editor });
 	editor.resize(380, 760);
 	editor.show();
 	editor.present({ .Draft = std::make_shared<const core::review_tour>(draft) });
 	editor.show_problem();
 	QApplication::processEvents();
 
-	auto* const call  = editor.agent_setup_call();
 	auto* const magic = child<QPushButton>(editor, "tourProblemMagic");
-	const auto  top   = [&editor](const QWidget* aWidget) { return aWidget->mapTo(&editor, QPoint{ 0, 0 }).y(); };
-	expect(editor.agent_readiness() == qt::agent_setup_readiness::ready && !call->isVisible() && magic->isEnabled(), "until told otherwise the agent is ready and nothing asks for setup");
-	expect(editor.agent_features().size() >= 5U, "the drafting helpers, the outline's and the agent bar are agent features");
+	expect(editor.agent_readiness() == qt::agent_setup_readiness::ready && magic->isEnabled(), "until told otherwise the agent is ready");
+	expect(editor.agent_features().size() >= 3U, "the drafting helpers and Draft the tour are agent features");
+	// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): the Tour tab
+	// has no picker and no setup band; the window's footer holds both.
+	for (const auto* name : { "tourAgentSetupCall", "tourAgentSetupOpen", "tourAgentBar", "tourAgentField", "agentRunSettings" }) {
+		expect(editor.findChild<QWidget*>(QString::fromLatin1(name)) == nullptr, std::string{ name } + " is gone from the Tour tab");
+	}
 
-	// AC1, AC3. Not set up: the call to action at the top, the features waiting.
+	// AC1, AC3. Not set up: no band; the features wait and say where to go.
 	editor.set_agent_readiness(qt::agent_setup_readiness::unfinished);
 	QApplication::processEvents();
-	expect(setupAsked == 0, "an unfinished setup never opens the setup by itself");
-	// [[BPR-1991]]. Under the head, the route's first thing.
-	expect(call->isVisible() && call->mapTo(editor.route_scroll()->widget(), QPoint{ 0, 0 }).y() == 0 && top(call) >= top(editor.route_scroll()), "the call to action is the first thing on the tab's route");
-	expect(top(call) + call->height() <= top(child<QWidget>(editor, "tourSteps")), "the steps follow the call to action");
 	for (auto* const feature : editor.agent_features()) {
-		if (feature == child<QWidget>(editor, "tourAgentField")) {
-			continue;
-		}
 		expect(!feature->isEnabled(), feature->objectName().toStdString() + " waits for the setup");
-		expect(feature->toolTip().contains(QStringLiteral("not set up")) && feature->toolTip().contains(QStringLiteral("Set up the agent")), feature->objectName().toStdString() + "'s tooltip says why and where to go");
+		expect(feature->toolTip().contains(QStringLiteral("not set up")) && feature->toolTip().contains(QStringLiteral("footer")), feature->objectName().toStdString() + "'s tooltip says why and where to go");
 	}
-	expect(child<QWidget>(editor, "tourAgentField")->isEnabled() && editor.agent_picker()->isEnabled(), "the agent picker, which runs nothing, stays usable");
 	expect(!editor.problem_editor()->isReadOnly() && child<QPushButton>(editor, "tourProblemMap")->isEnabled(), "writing by hand stays open");
 	magic->click();
 	expect(asked == 0, "a waiting helper asks nothing");
 	expect(magic->palette().color(QPalette::Disabled, QPalette::ButtonText) == qt::agent_accent_disabled(editor.palette()), "a waiting helper's words are the accent, faded");
 	expect_accent(editor, "light, before setup");
 	render(editor, prefix, "before-setup-light");
-	child<QPushButton>(editor, "tourAgentSetupOpen")->click();
-	expect(setupAsked == 1, "Set up the agent asks the window for the Agent tab's setup, once");
 
 	// Dark: the accent follows the palette.
 	QApplication::setPalette(dark_palette(QApplication::palette()));
@@ -174,12 +149,11 @@ auto main(int argc, char** argv) -> int
 	// Checking: the setup cannot say what is missing yet, so it asks nothing.
 	editor.set_agent_readiness(qt::agent_setup_readiness::checking);
 	QApplication::processEvents();
-	expect(!call->isVisible() && !magic->isEnabled() && magic->toolTip().contains(QStringLiteral("Waiting")), "while the setup checks, no call to action, and the helpers wait saying so");
+	expect(!magic->isEnabled() && magic->toolTip().contains(QStringLiteral("Waiting")), "while the setup checks, the helpers wait saying so");
 
 	// AC1, AC3. Set up: the call goes; the features work and keep the accent.
 	editor.set_agent_readiness(qt::agent_setup_readiness::ready);
 	QApplication::processEvents();
-	expect(!call->isVisible(), "the call to action goes once the agent is set up");
 	for (auto* const feature : editor.agent_features()) {
 		expect(feature->isEnabled() && !feature->toolTip().contains(QStringLiteral("not set up")), feature->objectName().toStdString() + " can be used once set up");
 	}
@@ -194,7 +168,6 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect_accent(editor, "light, after setup");
 	render(editor, prefix, "after-setup-light");
-	expect(setupAsked == 1, "nothing asked for the setup but the click");
 
 	std::cout << "review-tour-agent-setup-call:pass\n";
 	return EXIT_SUCCESS;

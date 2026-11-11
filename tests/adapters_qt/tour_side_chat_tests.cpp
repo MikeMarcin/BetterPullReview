@@ -257,7 +257,9 @@ auto main(int argc, char** argv) -> int
 	// the Solution's header row, and says what it does.
 	auto* const solutionRow = editor.findChild<QWidget*>(QStringLiteral("tourSolutionRow"));
 	expect(glyph != nullptr && glyph->isVisibleTo(&editor) && glyph->parentWidget() == solutionRow && glyph->isCheckable() && !glyph->isChecked(), "the Solution's chat toggle is in its header");
-	expect(glyph->geometry().right() >= solutionRow->width() - 2 - (solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange")) != nullptr && solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange"))->isVisible() ? solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange"))->width() + 8 : 0), "at the header's right");
+	// Owner on the live build, 2026-11-11: the toggle keeps one place, the
+	// stops' toggles' right edge, whether or not Change shows beside it.
+	expect(glyph->geometry().right() >= solutionRow->width() - 14, "at the header's right, whatever the step's state");
 	expect(glyph->accessibleName() == QStringLiteral("Open the chat about the Solution") && glyph->focusPolicy() == Qt::StrongFocus, "it says it opens the Solution's chat and takes the keyboard");
 	expect(!editor.isAncestorOf(chat) && chat->isWindow() && chat->findChild<QTabBar*>() == nullptr, "the chat is its own column, for the window to place beside the tour, with no tabs");
 	expect(!chat->isVisible() && shown.empty(), "no chat is open until asked for");

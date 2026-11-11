@@ -20,6 +20,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QHBoxLayout;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -56,6 +57,10 @@ namespace bpr::qt {
 			/// through the same host as Check it works.
 			std::function<void()> Check;
 			std::function<void()> StopCheck;
+			/// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). Check
+			/// all, and one agent's check from its row's menu.
+			std::function<void()>              CheckAll;
+			std::function<void(std::uint32_t)> CheckEntry;
 			/// Owner look v006: Reset agents…, which asks before it clears.
 			std::function<void()>                          Reset;
 			std::function<void(core::agent_entry, answer)> Add;
@@ -98,6 +103,9 @@ namespace bpr::qt {
 		/// and its details, all on the page.
 		void               present_check(const agent_check_presentation& aCheck);
 		[[nodiscard]] auto check_button() const noexcept -> QPushButton* { return CheckButton; }
+		/// \brief [[BPR-2051]]. A roster row as read aloud and as tests read
+		/// it: the agent's name, its line under the name, and its state.
+		[[nodiscard]] auto roster_row_text(int aRow) const -> QString;
 		[[nodiscard]] auto stop_check_button() const noexcept -> QPushButton* { return StopCheckButton; }
 		/// The line beside the button: what the check does, what runs, or why
 		/// it cannot run.
@@ -112,7 +120,7 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
-		void                                    build_check(QVBoxLayout& aColumn);
+		void                                    build_check(QVBoxLayout& aColumn, QHBoxLayout& aRow);
 		std::optional<agent_check_presentation> ShownCheck;
 		QPushButton*                            CheckButton     = nullptr;
 		QPushButton*                            StopCheckButton = nullptr;
@@ -137,16 +145,23 @@ namespace bpr::qt {
 		agent_entry_editor                      Editor;
 		std::vector<core::agent_entry>          Agents;
 		std::vector<core::agent_detection>      Found;
-		QListWidget*                            List         = nullptr;
-		QPushButton*                            AddButton    = nullptr;
-		QPushButton*                            EditButton   = nullptr;
-		QPushButton*                            RemoveButton = nullptr;
-		QPushButton*                            UpButton     = nullptr;
-		QPushButton*                            DownButton   = nullptr;
-		QLabel*                                 Status       = nullptr;
-		QCheckBox*                              RunLimitOn   = nullptr;
-		QSpinBox*                               RunLimit     = nullptr;
-		void                                    send_run_limit();
+		/// [[BPR-2051]]. The kept checks, the agent a check runs on now, and
+		/// the roster's rows drawn from them.
+		std::vector<application::agent_entry_check_record> Kept;
+		std::optional<std::uint32_t>                       Checking;
+		void                                               present_roster();
+		void                                               say(const QString& aText);
+		void                                               open_row_menu(const QPoint& aAt);
+		QListWidget*                                       List         = nullptr;
+		QPushButton*                                       AddButton    = nullptr;
+		QPushButton*                                       EditButton   = nullptr;
+		QPushButton*                                       RemoveButton = nullptr;
+		QPushButton*                                       UpButton     = nullptr;
+		QPushButton*                                       DownButton   = nullptr;
+		QLabel*                                            Status       = nullptr;
+		QCheckBox*                                         RunLimitOn   = nullptr;
+		QSpinBox*                                          RunLimit     = nullptr;
+		void                                               send_run_limit();
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner decision D2). Settings ›

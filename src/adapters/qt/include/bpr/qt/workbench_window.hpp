@@ -117,26 +117,6 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
-	/// \brief The drawn options for the top of Settings › Agents & context.
-	/// Owner look, 2026-11-10: "The bottom part of agents menu with the
-	/// prompts is pretty good but this top part is ugly as sin and needs a
-	/// redesign." A look may switch it before the window is made; the
-	/// product keeps the default until the owner chooses.
-	enum class agents_context_top : std::uint8_t {
-		/// The next request's choices in one titled group, each row labelled.
-		next_request,
-		/// No per-request choices here (they are the Agent tab's); the page
-		/// opens on the saved agents, under one line that says where they went.
-		agents_first,
-		/// One line that says what the next request includes, and Change…
-		/// to open the same choices in place.
-		summary,
-	};
-	inline constexpr std::size_t agents_context_top_count = 3U;
-	[[nodiscard]] auto           agents_context_top_name(agents_context_top aTop) -> QString;
-	void                         set_agents_context_top(agents_context_top aTop);
-	[[nodiscard]] auto           current_agents_context_top() -> agents_context_top;
-
 	class compose_review_sheet;
 	class commit_filter_chip;
 	class generated_files_row;
@@ -180,6 +160,7 @@ namespace bpr::qt {
 	class private_review_panel;
 	class private_notes_panel;
 	class agent_tab_view;
+	class agent_footer;
 	struct private_note_item;
 	// RFC-BPR-0016's second way into a profile, declared for the same reason:
 	// the window places it and hands it out, and a consumer of the shell does
@@ -808,6 +789,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1773]]. Opens the drawer on the Agent tab with the
 		/// keyboard in its question field; nothing is sent.
 		void open_agent_question();
+		/// \brief [[BPR-2051]]. The Agent tab's setup, at its first unfinished
+		/// step, shown: what the Tour tab's Set up the agent did before the
+		/// footer took the setup state.
+		void open_agent_setup();
 		/// \brief [[BPR-1773]]. Lines `aFirst` to `aLast` (one-based,
 		/// clamped to the document) of the compared file `aPath` on `aSide`,
 		/// with the number of the first; none when that file is not the one
@@ -1113,6 +1098,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto tour_page_open() const noexcept -> bool;
 		/// \brief [[BPR-1594]]. The Agent tab, and its two keys' actions.
 		[[nodiscard]] auto agent_tab() const noexcept -> agent_tab_view* { return AgentTab; }
+		/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1").
+		/// The pull request window's agent footer in the status bar: the one
+		/// agent picker, what runs and where it started with Stop, and what
+		/// this pull request's agent work has cost.
+		[[nodiscard]] auto agent_footer_widget() const noexcept -> agent_footer* { return AgentFooter; }
 		/// \brief [[BPR-1753]], owner decision 2026-10-23. Opens one of
 		/// the pull request's files in Review, as choosing it in Files does, for
 		/// a finding card's draft or note at its lines. False when the path is
@@ -2760,6 +2750,8 @@ namespace bpr::qt {
 		QWidget* TourPageBody = nullptr;
 		bool     TourPageOpen = false;
 		void     wire_tour_page();
+		/// [[BPR-2051]]. The footer's setup state, from the Agent tab's setup.
+		void present_agent_footer_setup();
 		/// \brief [[RFC-BPR-0105]]. A pull request opened in this window
 		/// starts on the default review surface: the tray on Comments, the
 		/// tour's side chat and page closed. Filters, drawer widths, sessions
@@ -2767,6 +2759,7 @@ namespace bpr::qt {
 		void reset_review_surface();
 		/// [[BPR-1594]]. The Agent tab, and its keys.
 		agent_tab_view* AgentTab        = nullptr;
+		agent_footer*   AgentFooter     = nullptr;
 		QAction*        OpenAgentAction = nullptr;
 		QAction*        AskAgentAction  = nullptr;
 		/// [[BPR-1594]]. Opens the drawer on the Agent tab; with \p aAsk, the

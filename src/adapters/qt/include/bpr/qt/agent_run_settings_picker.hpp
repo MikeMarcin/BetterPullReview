@@ -121,6 +121,12 @@ namespace bpr::qt {
 		void present();
 		/// The pill's whole words, however it is shortened.
 		[[nodiscard]] auto full_text() const -> QString { return Full; }
+		/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). The
+		/// chosen agent needs setup: the pill says what is missing after the
+		/// agent's name ("Codex · not signed in") in the failed check's
+		/// colour, with an outline. Empty: it does not.
+		void               set_attention(const QString& aNeed);
+		[[nodiscard]] auto attention() const -> const QString& { return Attention; }
 		[[nodiscard]] auto source() const -> const std::shared_ptr<agent_run_settings_source>& { return Source; }
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
@@ -138,6 +144,7 @@ namespace bpr::qt {
 		std::shared_ptr<agent_run_settings_source> Source;
 		QString                                    Full;
 		QString                                    Tip;
+		QString                                    Attention;
 		bool                                       MenuStale = false;
 
 		/// The words' inset, and the chevron's width and inset on the right.

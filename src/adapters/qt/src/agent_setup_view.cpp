@@ -62,10 +62,8 @@ namespace bpr::qt {
 									static_cast<float>(aFrom.blueF() * keep + aTo.blueF() * aShare));
 		}
 
-		[[nodiscard]] auto dark(const QPalette& aPalette) -> bool { return aPalette.color(QPalette::Window).lightness() < 128; }
-
-		[[nodiscard]] auto passed_colour(const QPalette& aPalette) -> QColor { return dark(aPalette) ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 }; }
-		[[nodiscard]] auto failed_colour(const QPalette& aPalette) -> QColor { return dark(aPalette) ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E }; }
+		[[nodiscard]] auto passed_colour(const QPalette& aPalette) -> QColor { return setup_passed_colour(aPalette); }
+		[[nodiscard]] auto failed_colour(const QPalette& aPalette) -> QColor { return setup_failed_colour(aPalette); }
 
 		/// \brief A step's marker: its number while open or ahead, a tick once
 		/// done. The steps are a real sequence, so they are numbered.
@@ -456,6 +454,9 @@ namespace bpr::qt {
 			: aSetup.ChecksWrapper  ? QObject::tr("Claude process wrapper reports signed in")
 									: QObject::tr("%1 is signed in").arg(aAgent);
 	}
+
+	auto setup_passed_colour(const QPalette& aPalette) -> QColor { return aPalette.color(QPalette::Window).lightness() < 128 ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 }; }
+	auto setup_failed_colour(const QPalette& aPalette) -> QColor { return aPalette.color(QPalette::Window).lightness() < 128 ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E }; }
 
 	auto setup_check_mark(const core::setup_check_state aState, const QPalette& aPalette) -> std::pair<QString, QColor>
 	{
