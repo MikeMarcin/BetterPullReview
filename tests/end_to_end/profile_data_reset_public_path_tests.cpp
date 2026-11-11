@@ -123,12 +123,12 @@ namespace {
 		-> std::map<std::string, held_store_file>
 	{
 		std::map<std::string, held_store_file> held;
-		for (const auto& [store, before] : aBefore) {
-			if (before) {
+		for (const auto& [store, storeIdentity] : aBefore) {
+			if (storeIdentity) {
 				auto [position, inserted] = held.try_emplace(store, aRoot / "state/v1" / (store + ".sqlite3"));
 				const auto observed       = position->second.status();
 				expect(inserted && S_ISREG(observed.st_mode) && observed.st_nlink == 1
-						   && tests::sqlite_contract::file_identity{ static_cast<std::uint64_t>(observed.st_dev), static_cast<std::uint64_t>(observed.st_ino) } == *before,
+						   && tests::sqlite_contract::file_identity{ static_cast<std::uint64_t>(observed.st_dev), static_cast<std::uint64_t>(observed.st_ino) } == *storeIdentity,
 					   "retained descriptor names the exact original private store");
 			}
 		}
