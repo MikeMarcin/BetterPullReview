@@ -47,7 +47,7 @@ Three facts decided the arguments:
 | AC04 | `core_agent_grant`: off until turned on; own checkout is `own_checkout` with no allowance and nothing to ask; a disposable checkout asks once (`unasked`), declining leaves none. `application_agent_invocation_host`: the reviewer's own checkout launches with no build allowance even when asked; `qt_agent_setup_view`: the setting's words; `sqlite_agent_setup_storage`: the pull request's answer is kept across a restart | Pass at the unit, host and storage layers; the question's composed path (`grant_agent_turn`) has no course |
 | AC05 | Rejected as drawn (`5a9f122e`) and redrawn as two toggles; `qt_agent_footer` and `core_agent_grant` show each toggle checked only while the launch carries it (see [dispositions](#dispositions), finding 4). At `882ebed54`: `qt_agent_footer`: the grant line reads "Writes only in its scratch folder", "Reads only" and "Builds and tests in its disposable checkout" for the three states, the scratch item is checked while on, the builds line names the agent; Claude's words say "permission rule" and never "sandbox"; Codex's say "Codex's sandbox enforces this". Live: the line read "Writes only in its scratch folder" for the turn that wrote, "Reads only" for the turn that could not | Pass |
 | AC06 | `application_agent_launch`: a read-only (tour) run and a tool-free run refuse a grant; the plain-text harness refuses one; the existing tour and hook argv tests are unchanged and pass | Pass |
-| AC07 | Independent critical review | Reviewed 2026-11-11: pass-with-findings; every finding fixed or disclosed in this round ([dispositions](#dispositions)). **Pending** a re-review of the fixes |
+| AC07 | Independent critical review | Reviewed 2026-11-11: pass-with-findings ([dispositions](#dispositions)); re-reviewed: pass-with-findings ([second round](#re-review-of-the-fixes-2026-11-11)); re-reviewed again: **FAIL** (F1, F2), fixed in the [third round](#third-review-round-2026-11-11). **Pending** another independent re-review |
 | AC08 | `core_agent_grant`: a new agent and agents migrated from the pre-list settings start with the folder on and builds off; `sqlite_agent_setup_storage`: an agent stored before the setting reads back on; with its starting state Off, a pull request with no choice resolves to no scratch allowance | Pass |
 | AC09 | `sqlite_agent_setup_storage`: the choice is kept for that pull request and agent after a restart, another pull request and another agent have none, the starting state is untouched. Live: unchecking "Scratch folder in this pull request" in the footer picker turned the line to "Reads only" and the next turn had no allowance: Claude's write of `second.py` was refused, Codex's failed with "operation not permitted", and the folder held only `count.py` | Pass for restart, other pull request and next turn; New session is the same stored choice (it is not keyed by conversation) and has no separate course |
 
@@ -105,6 +105,11 @@ A self-review by the implementer; AC07 needs an independent one.
   disposable checkout and the temporary folder), network is off, everything
   is readable. A build that writes outside those (a cache under the home
   folder) fails. The words say "Codex's sandbox enforces this, network off".
+  (Third round: this held for the commands Codex ran, but not for the
+  checkout's own `.codex/config.toml`, which Codex loaded once it trusted the
+  checkout, and whose MCP servers ran outside the sandbox; and Claude Code
+  ran the checkout's own hooks and MCP servers. Both are closed by naming the
+  checkout on every launch; see [the third round](#third-review-round-2026-11-11).)
 - BPR passes no network allowance and no `bypassPermissions`,
   `--dangerously-*` or sandbox-off flag; the reviewer's own Claude settings
   still apply, so a reviewer whose own settings allow more gets more, from
@@ -319,3 +324,158 @@ built at `b2edc1fa3`; the footer's quiet setup
 state is recorded on BPR-2051. Host 89403/89420 stopped and root
 `agent-grant-v002.y_rhztpu` removed. AC07 stays pending on the independent
 re-review of `531a039cd`; BPR-2007 and BPR-2008 are not finished before it.
+
+## Third review round (2026-11-11)
+
+An independent re-review of `531a039cd` returned **FAIL** with two blocking
+findings, both reproduced by the reviewer with Codex 0.167.0, an isolated
+`CODEX_HOME` and a dead model provider. A fresh implementer reproduced each
+the same way (every home isolated by `HOME`, `CODEX_HOME` or
+`CLAUDE_CONFIG_DIR`; every model provider and `ANTHROPIC_BASE_URL` at
+`http://127.0.0.1:9`, so no run reached a model; the hostile settings only
+create beacon files) and took each test first.
+
+### F1: the pull request's own agent settings ran
+
+Reproduced, a Git checkout holding a `.codex/config.toml` with
+`[mcp_servers.x]` (a beacon), `notify`, its own permissions profile and
+`danger-full-access`, in a home whose configuration is this computer's
+(`workspace-write`, `on-request`):
+
+| Codex 0.167.0 launch in the checkout | Beacon | Home `config.toml` |
+|---|---|---|
+| `exec`, the build grant (`531a039cd`'s arguments) | MCP server ran | `[projects."…/ws"] trust_level = "trusted"` added |
+| `exec`, the scratch grant only | none | unchanged |
+| `exec`, no grant (the reviewer's own `workspace-write`) | MCP server ran | trust added |
+| App Server: no grant and the build grant through `thread/start` and a turn; the scratch grant through `thread/start` | none | unchanged |
+| `exec`, `-c 'projects."…/ws".trust_level="untrusted"'` (dotted key) | MCP server ran | trust added: the dotted key is not honoured |
+| `exec`, `-c 'projects={"…/ws"={trust_level="untrusted"}}'`, no grant or the build grant | none | unchanged |
+| the same through a symbolic link to the checkout, keyed by the link only | MCP server ran | trust added under the canonical path |
+| keyed by the canonical path, run through the link or from a subfolder | none | unchanged |
+
+The project file's `model_provider`, `model_providers` and `notify` were
+ignored ("unsupported project-local config keys"); `mcp_servers` was not.
+Untrusted, Codex warns "Project-local config, hooks, and exec policies are
+disabled … but skills still load". Under the build grant's profile, `codex
+sandbox` writes the checkout but refuses `.git/config`, `.git/hooks`,
+`.codex/` and `.agents/` in it ("Operation not permitted"), refuses a write
+outside, and cannot resolve a host.
+
+Claude Code 2.1.319 (`-p`, stream JSON, as BPR launches it, no grant) in a
+checkout holding `.claude/settings.json`, `.claude/settings.local.json`
+(hooks, `apiKeyHelper`, `statusLine`, `enableAllProjectMcpServers`, allow
+rules, `bypassPermissions`), `.mcp.json` and a skill: the `SessionStart` and
+`UserPromptSubmit` hooks of both files, the local file's `apiKeyHelper` and
+the `.mcp.json` server ran; the allow rules were ignored ("this workspace
+has not been trusted"); the skill, an agent and a command were listed in the
+session's `init`. With `--setting-sources user`: no beacon, the project MCP
+server absent even with `enableAllProjectMcpServers` in the user's settings,
+and no project skill, agent or command listed. Claude wrote no settings
+file; it keeps its session transcripts under its own folder, as on every run.
+
+Disposition, **fixed** (product candidate below), the safe option that keeps
+both grants:
+
+- Every launch in a checkout BPR made carries it in
+  `agent_launch_options::PullRequestCheckout`: the path the turn runs in and
+  its canonical path (`std::filesystem::canonical`), set by
+  `agent_invocation_host` whenever the reviewer's own checkout was not
+  chosen. Codex (`exec` and the App Server, tour runs included) gets `-c
+  projects={PATH={trust_level="untrusted"},…}`, which replaces every
+  `projects` entry for the run; Claude Code gets `--setting-sources user`.
+  The reviewer's own checkout keeps both agents' project settings (Codex
+  gets no grant there, as before).
+- `build_agent_launch` refuses a Codex grant without a named checkout, and a
+  build grant whose checkout is not the one named, so no grant can reach a
+  launch that might load the pull request's settings.
+- The builds tooltip's claim ("Codex's sandbox holds the build's writes to
+  the disposable checkout and the temporary folder, with the network off") is
+  true with this: nothing of the pull request runs outside the sandbox, and
+  the sandbox keeps `.git`, `.codex` and `.agents` in the checkout read-only.
+  The words are unchanged.
+- The exposure was wider than the grant: Codex `exec` under this computer's
+  own `workspace-write`, and every Claude Code turn, loaded the checkout's
+  settings with no grant at all. Both are closed by the same arguments.
+- What still reaches an agent from the pull request is text it reads
+  (`AGENTS.md`, `CLAUDE.md`, and for Codex its skills); what it then asks for
+  is held by the same rules and sandbox.
+
+Tests, each failing or reproduced before the fix:
+
+- `application_agent_launch`
+  (`test_the_pull_requests_own_settings_never_load`): the untrusted
+  argument for both paths on `exec` and the App Server, tour runs too; none
+  in the reviewer's own checkout; a Codex scratch or build grant without the
+  checkout refused; Claude's `--setting-sources user` there and not in the
+  reviewer's checkout; a build grant outside the named checkout refused; the
+  TOML value escaped. `test_the_grant_crosses_exactly` updated to the new
+  argument.
+- `application_agent_invocation_host`: a Claude turn in the made checkout
+  carries `--setting-sources user`; a Codex `exec` turn with builds carries
+  the checkout untrusted by both its paths and the build grant naming it; the
+  reviewer's own checkout carries neither.
+- Live, by hand: `live_agent_checkout_settings_course --root DIR --codex
+  PROGRAM --claude PROGRAM`
+  (`tests/end_to_end/live_agent_checkout_settings_course.cpp`, fixture
+  `tests/fixtures/agent-checkout-settings`, on the lane): BPR's own
+  `build_agent_launch` arguments, the installed agents, a home per run. Run
+  2026-11-11 at `059e191fb` (Codex 0.167.0, Claude Code 2.1.319), every
+  session started:
+
+| Run | Beacons | Home configuration |
+|---|---|---|
+| Codex `exec`, unguarded control (as `531a039cd` launched it) | `codex-mcp` | changed (trust added) |
+| Codex `exec`: no grant, scratch, builds, builds through a link | none | unchanged |
+| Codex App Server: no grant, scratch, builds, builds through a link | none | unchanged |
+| Claude Code, unguarded control | both settings files' `SessionStart` and `UserPromptSubmit`, the local file's `apiKeyHelper`, `.mcp.json` | unchanged |
+| Claude Code: no grant, scratch, builds | none | unchanged |
+
+### F2: `-c=KEY=VALUE` was not read
+
+Codex's parser takes `-c=KEY=VALUE` as `KEY=VALUE`; the short-flag branch
+kept the `=`, so the key read empty and nothing refused.
+
+Disposition, **fixed**: an attached value drops one leading `=`, and only a
+flag with nothing attached takes the next argument; a `-c` setting with no
+`=`, an empty key or a key that begins with `-` refuses. `core_agent_grant`
+(`test_codex_attached_equals`): `-c=default_permissions=…`,
+`-c=permissions.…`, `-c=sandbox_mode=…`, `-c=approval_policy=…`,
+`-c=profile=…`, `-c=projects=…`, the `--config=` forms, `-hc=…`, `-c=`,
+`-c==x`, `--config==…`, `-cnokey`, `-c=nokey` and `-c -pwork` refuse; an
+attached `-c=` leaves the next `-pwork` a flag; `-c=model=…`,
+`--config=model=…`, `-m=o3` compose. With the parser of `531a039cd` the test
+fails at its first case. Audit of the other attached forms: `--NAME=VALUE`
+is split at the first `=` for every long flag; a long flag BPR does not know
+refuses, so an abbreviation cannot pass; a short cluster takes the rest of
+the argument for its first value flag, as Codex's parser does.
+
+### Recorded, not blocking
+
+- **Claude symbolic links** (the re-review's note). Claude's path rules can
+  be reached through a symbolic link; they are permissions Claude follows,
+  not a sandbox, and the tooltips say so. Inherent to that model; not
+  changed.
+- **No home.** With `HOME` unset or relative, `codex_configuration_paths`
+  has no user file to read and the grant is refused as unreadable; Codex
+  itself would fall back to the account's home. Not reachable from the app,
+  which always has a home.
+- **Codex `exec` and the App Server differ** in when they trust a project;
+  the argument is passed to both, so neither depends on that.
+- **Trust entries already in this computer's `~/.codex/config.toml`** (read,
+  not changed): seven `[projects."/private/var/folders/…/T/bpr-public-path-…/data-agent-workspaces-v1/betterpullreview-agent-…/workspace"]`
+  and one `[projects."/private/tmp/claude-501/…/scratchpad/probe/ws"]`, each
+  `trust_level = "trusted"`, written before 2026-11-10 11:14 (the file's
+  modification time), before this round and by earlier courses and probes,
+  which shows the unguarded exposure was real here. They are the owner's to
+  remove.
+
+### Runs (third round)
+
+Product candidate `059e191fb`. The 29 rows of the second round, rebuilt:
+29 of 29 pass. `coding-format` on the changed C++; clang-tidy on the changed
+sources (one pre-existing warning at `agent_launch.cpp:1692`); documentation
+gate; the live course above. Not run: the whole dev suite, the core-only
+preset, the live `agent-scratch` course (no rule changed; a launch only gains
+the checkout argument).
+
+Another independent re-review is owed; AC07 stays pending.
