@@ -413,6 +413,7 @@ auto main(int argc, char** argv) -> int
 			expect(repairedEditor.shown().Draft->Stops[1].Mapped.has_value(), "ordinary Redo restores the repair");
 			find("tourPreparePublication")->click();
 			wait([&] { return find("tourPublish")->isEnabled(); }, "both repairs re-plan as one review");
+			const auto beforePublicationSnapshot = access::window_read_progress(*application).Snapshot;
 			find("tourPublish")->click();
 			wait([&] { return repairedEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains(QStringLiteral("Published:")); }, "repaired tour publishes");
 			{
@@ -426,6 +427,11 @@ auto main(int argc, char** argv) -> int
 				expect(published.Stops[i].Original == fixtureDraft.Stops[i].Original && published.Stops[i].Mapped && published.Stops[i].Mapped->Blob, "publication preserves original and repaired byte identities");
 				expect(published.Stops[i].Destination == core::publication_source(published.Stops[i]), "receipt retains the actual published source separately");
 			}
+			wait([&] {
+				const auto progress = access::window_read_progress(*application);
+				return progress.Snapshot.has_value() && progress.Snapshot != beforePublicationSnapshot && !progress.Reading;
+			},
+				 "published pull request snapshot settles before maintenance preview");
 			find("tourPreparePublication")->click();
 			expect(!find("tourPublish")->isEnabled() && repairedEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains("No published changes"), "second preview of repaired tour offers no duplicate destinations or writes");
 			repairedEditor.outline()->setCurrentRow(0);
