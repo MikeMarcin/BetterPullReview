@@ -2134,6 +2134,17 @@ bpr_enable_hardening(test_agent_finding_cards_retained)
 bpr_enable_warnings(test_agent_finding_cards_retained)
 bpr_add_network_isolated_test(NAME qt_agent_finding_cards_retained COMMAND test_agent_finding_cards_retained)
 set_tests_properties(qt_agent_finding_cards_retained PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-retained:pass" TIMEOUT 60)
+# Owner report 2026-11-10, after BPR-2052: a stored answer's finding cards and
+# their states come back after a restart. The restore decoder is an agent
+# integration.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_executable(test_agent_finding_cards_restart agent_finding_cards_restart_tests.cpp)
+    target_link_libraries(test_agent_finding_cards_restart PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite)
+    bpr_enable_hardening(test_agent_finding_cards_restart)
+    bpr_enable_warnings(test_agent_finding_cards_restart)
+    bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart COMMAND test_agent_finding_cards_restart)
+    set_tests_properties(qt_agent_finding_cards_restart PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-restart:pass" TIMEOUT 60)
+endif()
 bpr_add_executable(test_review_tour_agent_setup_call review_tour_agent_setup_call_tests.cpp) # [[BPR-1881]]
 target_link_libraries(test_review_tour_agent_setup_call PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_review_tour_agent_setup_call)

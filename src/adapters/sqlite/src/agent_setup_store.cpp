@@ -5,6 +5,7 @@
 
 #include <sqlite3.h>
 
+#include "bpr/core/agent_finding_card_memory.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/review_composition.hpp"
 
@@ -22,6 +23,12 @@
 namespace bpr::adapters::sqlite {
 	// [[BPR-1847]]. The outcome column's check names every declared outcome.
 	static_assert(core::agent_turn_outcome_count == 10U, "agent_conversation_outcomes' CHECK must cover every turn outcome");
+	// agent_finding_cards' CHECKs: every kept disposition (open is no row), the
+	// reason bound and the remembered-card bound.
+	static_assert(core::agent_finding_card_disposition_count == 5U && static_cast<int>(core::agent_finding_card_disposition::refused) == 4,
+				  "agent_finding_cards' state CHECK must cover every kept disposition");
+	static_assert(core::maximum_finding_card_reason_bytes == 1024U, "agent_finding_cards' why CHECK must match the reason bound");
+	static_assert(core::maximum_remembered_finding_cards == 4096U, "agent_finding_cards' prune must match the card bound");
 
 	namespace {
 		/// "BPRY": distinct from every other store's identity, so pointing this
@@ -191,7 +198,20 @@ namespace bpr::adapters::sqlite {
 									"agent INTEGER NOT NULL,"
 									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
 									"outcome INTEGER NOT NULL CHECK(outcome BETWEEN 0 AND 9),"
-									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")) {
+									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")
+				// Owner report 2026-11-10, after BPR-2052. What was done with each
+				// finding card of a stored answer, by the SHA-256 of the answer's
+				// findings block and the card's place in it; an open card has no
+				// row. `changed` orders them for the bound.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_finding_cards("
+									"findings BLOB NOT NULL CHECK(length(findings)=32),"
+									"ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 4294967295),"
+									"state INTEGER NOT NULL CHECK(state BETWEEN 1 AND 4),"
+									"why TEXT NOT NULL CHECK(length(CAST(why AS BLOB)) <= 1024),"
+									"note INTEGER NOT NULL CHECK(note >= 0),"
+									"changed INTEGER NOT NULL CHECK(changed >= 0),"
+									"PRIMARY KEY(findings, ordinal)) STRICT")) {
 				return { };
 			}
 			return result;
@@ -1564,7 +1584,108 @@ namespace bpr::adapters::sqlite {
 		private:
 			std::filesystem::path Root;
 		};
+
+		/// Owner report 2026-11-10, after BPR-2052. What was done with each
+		/// finding card of a stored answer, so a restart makes it again so.
+		class agent_finding_card_store final : public application::agent_finding_card_store_port
+		{
+		public:
+			explicit agent_finding_card_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+
+			[[nodiscard]] auto load() -> std::optional<std::vector<core::agent_finding_card_record>> override
+			{
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					auto row = detail::prepare(store->Database.get(), "SELECT findings,ordinal,state,why,note FROM agent_finding_cards ORDER BY changed LIMIT 4096");
+					if (!row) {
+						return std::nullopt;
+					}
+					auto records = std::vector<core::agent_finding_card_record>{ };
+					for (auto step = sqlite3_step(row->Value); step != SQLITE_DONE; step = sqlite3_step(row->Value)) {
+						if (step != SQLITE_ROW) {
+							return std::nullopt;
+						}
+						const auto* const findings = static_cast<const std::uint8_t*>(sqlite3_column_blob(row->Value, 0));
+						const auto        why      = column_text(row->Value, 3);
+						if (findings == nullptr || sqlite3_column_bytes(row->Value, 0) != 32 || !why) {
+							continue;
+						}
+						auto record = core::agent_finding_card_record{ };
+						std::copy_n(findings, record.Findings.size(), record.Findings.begin());
+						record.Ordinal = static_cast<std::uint32_t>(sqlite3_column_int64(row->Value, 1));
+						record.State   = static_cast<core::agent_finding_card_disposition>(sqlite3_column_int64(row->Value, 2));
+						record.Why     = std::move(*why);
+						record.Note    = static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 4));
+						records.push_back(core::normalized(std::move(record)));
+					}
+					return records;
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store(const core::agent_finding_card_record& aRecord) -> bool override
+			{
+				const auto record = core::normalized(aRecord);
+				if (static_cast<std::size_t>(record.State) >= core::agent_finding_card_disposition_count || record.Note > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					return false;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return false;
+					}
+					auto* const db = store->Database.get();
+					if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+						return false;
+					}
+					const auto bindCard = [&record](sqlite3_stmt* const aRow) {
+						sqlite3_bind_blob(aRow, 1, record.Findings.data(), static_cast<int>(record.Findings.size()), SQLITE_TRANSIENT);
+						sqlite3_bind_int64(aRow, 2, static_cast<std::int64_t>(record.Ordinal));
+					};
+					auto committed = false;
+					if (record.State == core::agent_finding_card_disposition::open) {
+						auto row = detail::prepare(db, "DELETE FROM agent_finding_cards WHERE findings=?1 AND ordinal=?2");
+						if (row) {
+							bindCard(row->Value);
+							committed = sqlite3_step(row->Value) == SQLITE_DONE;
+						}
+					} else {
+						auto row = detail::prepare(db, "INSERT OR REPLACE INTO agent_finding_cards SELECT ?1,?2,?3,?4,?5,coalesce(max(changed)+1,0) FROM agent_finding_cards");
+						if (row) {
+							bindCard(row->Value);
+							sqlite3_bind_int64(row->Value, 3, static_cast<std::int64_t>(record.State));
+							bind_text(row->Value, 4, record.Why);
+							sqlite3_bind_int64(row->Value, 5, static_cast<std::int64_t>(record.Note));
+							committed = sqlite3_step(row->Value) == SQLITE_DONE;
+						}
+						// The least recently changed cards go first.
+						committed = committed && detail::execute(db, "DELETE FROM agent_finding_cards WHERE rowid NOT IN (SELECT rowid FROM agent_finding_cards ORDER BY changed DESC LIMIT 4096)");
+					}
+					if (!committed) {
+						static_cast<void>(detail::execute(db, "ROLLBACK"));
+						return false;
+					}
+					return detail::execute(db, "COMMIT").has_value();
+				} catch (...) {
+					return false;
+				}
+			}
+
+		private:
+			std::filesystem::path Root;
+		};
 	} // namespace
+
+	auto make_agent_finding_card_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_finding_card_store_port>
+	{
+		return std::make_unique<agent_finding_card_store>(aRoot);
+	}
 
 	auto make_agent_conversation_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_conversation_store_port>
 	{

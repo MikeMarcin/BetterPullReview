@@ -12,12 +12,15 @@
 #include <QTextStream>
 
 #include <algorithm>
+#include <limits>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/application/managed_clone.hpp"
 	#include "bpr/application/review_brief.hpp"
+	#include "bpr/core/agent_answer_findings.hpp"
 	#include "bpr/core/agent_comment_suggestion.hpp"
 	#include "bpr/core/agent_entry.hpp"
+	#include "bpr/core/agent_finding_card_memory.hpp"
 	#include "bpr/core/agent_wrapper.hpp"
 	#include "bpr/core/markdown_code.hpp"
 	#include "bpr/core/review_skill.hpp"
@@ -189,7 +192,8 @@ namespace bpr::app {
 		}
 		const auto& finding = aRequest.Finding;
 		if (aRequest.Action == qt::agent_finding_card_action::dismiss || aRequest.Action == qt::agent_finding_card_action::undo_dismiss) {
-			if (aRequest.Action == qt::agent_finding_card_action::dismiss && FindingHost != nullptr) {
+			// A restored card's delivery is not the finding host's to act on.
+			if (aRequest.Action == qt::agent_finding_card_action::dismiss && FindingHost != nullptr && !core::is_restored_finding_session(aRequest.Session)) {
 				FindingHost->act({ .Session = core::agent_session_id{ aRequest.Session }, .Ordinal = aRequest.Ordinal, .Action = application::agent_finding_action::dismiss });
 			}
 			state(aRequest.Action == qt::agent_finding_card_action::dismiss ? qt::agent_finding_card_state::dismissed : qt::agent_finding_card_state::open);
@@ -247,6 +251,80 @@ namespace bpr::app {
 		if (!surface->select_conversation_line(at.Side, at.Line)) {
 			PendingNotePromotion.reset();
 			state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: line %1 is not in the comparison on screen.").arg(at.Line + 1U));
+		}
+	}
+
+	namespace {
+		[[nodiscard]] auto shown_state(const core::agent_finding_card_disposition aKept) -> qt::agent_finding_card_state
+		{
+			switch (aKept) {
+			case core::agent_finding_card_disposition::open:      return qt::agent_finding_card_state::open;
+			case core::agent_finding_card_disposition::drafted:   return qt::agent_finding_card_state::drafted;
+			case core::agent_finding_card_disposition::noted:     return qt::agent_finding_card_state::noted;
+			case core::agent_finding_card_disposition::dismissed: return qt::agent_finding_card_state::dismissed;
+			case core::agent_finding_card_disposition::refused:   return qt::agent_finding_card_state::refused;
+			}
+			return qt::agent_finding_card_state::open;
+		}
+
+		[[nodiscard]] auto kept_state(const qt::agent_finding_card_state aShown) -> std::optional<core::agent_finding_card_disposition>
+		{
+			switch (aShown) {
+			case qt::agent_finding_card_state::open:      return core::agent_finding_card_disposition::open;
+			case qt::agent_finding_card_state::working:   return std::nullopt;
+			case qt::agent_finding_card_state::drafted:   return core::agent_finding_card_disposition::drafted;
+			case qt::agent_finding_card_state::noted:     return core::agent_finding_card_disposition::noted;
+			case qt::agent_finding_card_state::dismissed: return core::agent_finding_card_disposition::dismissed;
+			case qt::agent_finding_card_state::refused:   return core::agent_finding_card_disposition::refused;
+			}
+			return std::nullopt;
+		}
+	} // namespace
+
+	auto github_application::implementation::restored_finding_cards(const std::string& aAnswer) const -> std::vector<qt::agent_restored_finding_card>
+	{
+		auto cards = std::vector<qt::agent_restored_finding_card>{ };
+		if (!AgentFindingCards || aAnswer.find(core::agent_findings_fence) == std::string::npos) {
+			return cards;
+		}
+		const auto restored = application::restore_agent_findings(aAnswer, AgentFindingCards->memory());
+		if (!restored) {
+			return cards;
+		}
+		cards.reserve(restored->Cards.size());
+		for (const auto& card : restored->Cards) {
+			cards.push_back({ .Session = restored->Session,
+							  .Ordinal = card.Ordinal,
+							  .Finding = card.Finding,
+							  .State   = shown_state(card.Kept.State),
+							  .Why     = QString::fromStdString(card.Kept.Why),
+							  .Note    = card.Kept.Note });
+		}
+		return cards;
+	}
+
+	void github_application::implementation::remember_finding_card(const qt::agent_finding_card_change& aChange)
+	{
+		const auto state = kept_state(aChange.State);
+		if (Closing || !AgentFindingCards || !state || aChange.FindingsBlock.empty() || aChange.Ordinal > std::numeric_limits<std::uint32_t>::max()) {
+			return;
+		}
+		AgentFindingCards->remember({ .Findings = core::digest_agent_findings(aChange.FindingsBlock),
+									  .Ordinal  = static_cast<std::uint32_t>(aChange.Ordinal),
+									  .State    = *state,
+									  .Why      = aChange.Why.toStdString(),
+									  .Note     = aChange.Note });
+	}
+
+	void github_application::implementation::present_remembered_finding_cards()
+	{
+		if (Closing || Window == nullptr || !AgentFindingCards) {
+			return;
+		}
+		// A thread shown before the kept states were read made its cards
+		// open; each kept one takes its state now.
+		for (const auto& kept : AgentFindingCards->memory().records()) {
+			Window->agent_tab()->present_finding_card_state(core::restored_finding_session(kept.Findings), kept.Ordinal, shown_state(kept.State), QString::fromStdString(kept.Why), kept.Note);
 		}
 	}
 
@@ -341,7 +419,11 @@ namespace bpr::app {
 		NativeFreshAtCurrentRevision.reset();
 		auto turns = std::vector<qt::agent_thread_turn>{ };
 		for (const auto& turn : aView.Turns) {
-			turns.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome });
+			turns.push_back({ .Question = QString::fromStdString(turn.Asked),
+							  .Answer   = QString::fromStdString(turn.Answered),
+							  .Footer   = QString::fromStdString(turn.Ending),
+							  .Outcome  = turn.Outcome,
+							  .Cards    = restored_finding_cards(turn.Answered) });
 		}
 		tab->present_thread(turns);
 		present_agent_pull_request();
@@ -701,7 +783,11 @@ namespace bpr::app {
 		auto shown = std::vector<qt::agent_thread_turn>{ };
 		shown.reserve(aView.Turns.size());
 		for (const auto& turn : aView.Turns) {
-			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome });
+			shown.push_back({ .Question = QString::fromStdString(turn.Asked),
+							  .Answer   = QString::fromStdString(turn.Answered),
+							  .Footer   = QString::fromStdString(turn.Ending),
+							  .Outcome  = turn.Outcome,
+							  .Cards    = restored_finding_cards(turn.Answered) });
 		}
 		Window->agent_tab()->present_thread(shown);
 		present_agent_pull_request();
@@ -1000,6 +1086,7 @@ namespace bpr::app {
 		// conversation about the open pull request.
 		QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
 		tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
+		tab->set_finding_card_observer([this](const qt::agent_finding_card_change& aChange) { remember_finding_card(aChange); });
 		tab->set_answer_note_dispatch([this](const QString& aText, qt::agent_answer_note_done aDone) { save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone)); });
 		// [[BPR-1773]]. Ask agent on a thread attaches it; the chip's
 		// close removes it. Owner look 2026-10-27: every answer's Draft

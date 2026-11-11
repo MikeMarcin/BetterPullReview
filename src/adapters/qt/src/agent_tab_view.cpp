@@ -1667,10 +1667,45 @@ namespace bpr::qt {
 			set_answer(kept, shown.Answer);
 			kept.Footer->setText(shown.Footer);
 			settle_reply_footer(kept);
-			restore_turn_cards(Turns.size() - 1U);
+			// The cards this view still holds are the freshest; otherwise
+			// those the host read from the stored answer, as they were left.
+			if (!restore_turn_cards(Turns.size() - 1U)) {
+				make_restored_cards(Turns.size() - 1U, shown.Cards);
+			}
 		}
 		Finished = false;
 		refresh();
+	}
+
+	void agent_tab_view::make_restored_cards(const std::size_t aTurn, const std::vector<agent_restored_finding_card>& aCards)
+	{
+		if (aTurn >= Turns.size() || Turns[aTurn].CardColumn == nullptr) {
+			return;
+		}
+		for (const auto& restored : aCards) {
+			CardEntries.push_back(card_entry{
+				.Session  = restored.Session,
+				.Ordinal  = restored.Ordinal,
+				.Finding  = restored.Finding,
+				.Anchored = false,
+				// A card that was being worked on when the application closed
+				// is open again.
+				.State = restored.State == agent_finding_card_state::working ? agent_finding_card_state::open : restored.State,
+				.Why   = restored.Why,
+				.Note  = restored.State == agent_finding_card_state::noted ? restored.Note : 0U,
+				.Turn  = aTurn,
+			});
+			auto* const widget = make_card(CardEntries.back(), Turns[aTurn].Widget);
+			Turns[aTurn].CardColumn->addWidget(widget);
+		}
+	}
+
+	void agent_tab_view::observe_card_state(const std::string& aFindingsBlock, const card_entry& aEntry) const
+	{
+		if (!CardObserver || aFindingsBlock.empty() || aEntry.State == agent_finding_card_state::working) {
+			return;
+		}
+		CardObserver({ .FindingsBlock = aFindingsBlock, .Ordinal = aEntry.Ordinal, .State = aEntry.State, .Why = aEntry.Why, .Note = aEntry.Note });
 	}
 
 	void agent_tab_view::retain_turn_cards()
@@ -1694,10 +1729,10 @@ namespace bpr::qt {
 		}
 	}
 
-	void agent_tab_view::restore_turn_cards(const std::size_t aTurn)
+	auto agent_tab_view::restore_turn_cards(const std::size_t aTurn) -> bool
 	{
 		if (aTurn >= Turns.size() || Turns[aTurn].CardColumn == nullptr) {
-			return;
+			return false;
 		}
 		const auto& shown  = Turns[aTurn];
 		const auto  answer = shown.AnswerText.trimmed();
@@ -1708,7 +1743,7 @@ namespace bpr::qt {
 			return (!aKept.FindingsBlock.empty() && aKept.FindingsBlock == shown.FindingsBlock) || (!answer.isEmpty() && aKept.Answer == answer);
 		});
 		if (found == RetainedCards.end()) {
-			return;
+			return false;
 		}
 		auto cards = std::move(found->Cards);
 		RetainedCards.erase(found);
@@ -1718,6 +1753,7 @@ namespace bpr::qt {
 			auto* const widget = make_card(CardEntries.back(), Turns[aTurn].Widget);
 			Turns[aTurn].CardColumn->addWidget(widget);
 		}
+		return true;
 	}
 
 	void agent_tab_view::set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver) { ThreadObserver = std::move(aObserver); }
@@ -1727,8 +1763,21 @@ namespace bpr::qt {
 		auto result = std::vector<agent_thread_turn>{ };
 		for (const auto& kept : Turns) {
 			if (kept.Done) {
+				// Owner report 2026-11-10, after BPR-2052. The kept thread keeps
+				// the findings block its cards come from, so they are made again
+				// when it is read back after a restart. Shown again here, the
+				// answer shows without it. A block the kept text could not hold
+				// whole is left off rather than torn.
+				auto answer = kept.AnswerText;
+				if (!kept.FindingsBlock.empty()) {
+					auto withBlock = answer + QStringLiteral("\n\n") + QLatin1StringView{ core::agent_findings_fence.data(), static_cast<qsizetype>(core::agent_findings_fence.size()) }
+						+ QLatin1Char{ '\n' } + QString::fromStdString(kept.FindingsBlock) + QStringLiteral("\n```");
+					if (static_cast<std::size_t>(withBlock.toUtf8().size()) <= application::maximum_conversation_text_bytes) {
+						answer = std::move(withBlock);
+					}
+				}
 				result.push_back({ .Question   = kept.Question,
-								   .Answer     = kept.AnswerText,
+								   .Answer     = answer,
 								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
 								   .AskedAt    = kept.AskedAt,
 								   .AnsweredAt = kept.AnsweredAt,
@@ -2501,12 +2550,29 @@ namespace bpr::qt {
 
 	void agent_tab_view::present_finding_card_state(const std::uint64_t aSession, const std::size_t aOrdinal, const agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote)
 	{
+		const auto settle = [aState, &aWhy, aNote](card_entry& aEntry) {
+			aEntry.State = aState;
+			aEntry.Why   = aWhy;
+			aEntry.Note  = aState == agent_finding_card_state::noted ? aNote : 0U;
+		};
 		for (auto& entry : CardEntries) {
 			if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
-				entry.State = aState;
-				entry.Why   = aWhy;
-				entry.Note  = aState == agent_finding_card_state::noted ? aNote : 0U;
+				settle(entry);
 				show_card_state(entry);
+				// Owner report 2026-11-10, after BPR-2052: kept past a restart.
+				if (entry.Turn && *entry.Turn < Turns.size()) {
+					observe_card_state(Turns[*entry.Turn].FindingsBlock, entry);
+				}
+			}
+		}
+		// A card whose turn the thread stopped showing while the host worked
+		// on it takes the state too, so it comes back with it.
+		for (auto& kept : RetainedCards) {
+			for (auto& entry : kept.Cards) {
+				if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
+					settle(entry);
+					observe_card_state(kept.FindingsBlock, entry);
+				}
 			}
 		}
 	}
