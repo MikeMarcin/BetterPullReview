@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2093"
 title: "Overview's Comments column shows each file's drafts"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0085", "RFC-BPR-0049"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2092--BPR-2094--a28677e4b291.json","origin":"owner request, 2026-11-11 (drafts round)","related_cards":["BPR-1089","BPR-2092","BPR-2094"]}
 depends_on: []
+parked_on: "human-review"
 ---
 
 # Overview's Comments column shows each file's drafts
@@ -52,3 +53,14 @@ Frontend-design was loaded before the Qt work.
 - Counts are the core's `draft_counts_by_file`.
 - `qt_pull_request_overview_page`
   (`test_drafts_chip_counts_and_goes_to_the_drafts`).
+
+## Owner look (filed 2026-11-11, not waited on)
+
+Session `585d18246da0bd78411dee4b26777a2d`, state
+`/Users/jaeger/.attended-review-state/drafts-round-v001-2026-11-11/state`,
+candidate `BPR-2093-overview-drafts` (one Accept or Reject), cursor 9. Frozen root
+`/Users/jaeger/drafts-round-v001.yva0tan3` from `ee4724b2a984` (executable
+SHA-256 `56ba5f7f9482…`, launcher check reached
+`ATTENDED_FINISH_REVIEW_SHOWN`); look `--attended-drafts-look` on
+conventional-comments-v1 (renderer.cpp: threads, three comments in the review,
+two drafts left out). The URL stays in the session state.
