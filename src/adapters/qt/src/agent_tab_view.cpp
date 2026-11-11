@@ -1495,14 +1495,18 @@ namespace bpr::qt {
 			return;
 		}
 		aTurn.AnswerText = aText;
+		aTurn.FindingsBlock.clear();
 		// The findings block is for the cards; the reply shows without it.
 		// [[BPR-1861]]. The core ends the block where its JSON ends, so a
 		// suggested comment's code fence cannot cut it in half, and shows a
 		// block it cannot read whole, as code, never as a torn Markdown tail.
 		if (aTurn.AnswerText.contains(QLatin1StringView{ core::agent_findings_fence.data(), static_cast<qsizetype>(core::agent_findings_fence.size()) })) {
-			const auto split = core::split_agent_answer(aTurn.AnswerText.toStdString());
+			auto split = core::split_agent_answer(aTurn.AnswerText.toStdString());
 			if (split.Block != core::agent_findings_block::absent) {
 				aTurn.AnswerText = QString::fromStdString(split.Prose);
+			}
+			if (split.Block == core::agent_findings_block::complete) {
+				aTurn.FindingsBlock = std::move(split.Payload);
 			}
 		}
 		show_answer(aTurn);
@@ -1635,6 +1639,8 @@ namespace bpr::qt {
 
 	void agent_tab_view::present_thread(const std::vector<agent_thread_turn>& aTurns)
 	{
+		// Owner report 2026-11-10. A turn shown again gets its cards back.
+		retain_turn_cards();
 		for (auto& kept : Turns) {
 			if (kept.Widget != nullptr) {
 				kept.Widget->hide();
@@ -1661,9 +1667,57 @@ namespace bpr::qt {
 			set_answer(kept, shown.Answer);
 			kept.Footer->setText(shown.Footer);
 			settle_reply_footer(kept);
+			restore_turn_cards(Turns.size() - 1U);
 		}
 		Finished = false;
 		refresh();
+	}
+
+	void agent_tab_view::retain_turn_cards()
+	{
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			auto kept = retained_cards{ .Answer = Turns[index].AnswerText.trimmed(), .FindingsBlock = Turns[index].FindingsBlock, .Cards = { } };
+			for (const auto& entry : CardEntries) {
+				if (entry.Turn == std::optional{ index }) {
+					auto card   = entry;
+					card.Turn   = std::nullopt;
+					card.Widget = nullptr;
+					kept.Cards.push_back(std::move(card));
+				}
+			}
+			if (!kept.Cards.empty() && (!kept.Answer.isEmpty() || !kept.FindingsBlock.empty())) {
+				RetainedCards.push_back(std::move(kept));
+			}
+		}
+		if (RetainedCards.size() > maximum_retained_card_turns) {
+			RetainedCards.erase(RetainedCards.begin(), RetainedCards.end() - static_cast<std::ptrdiff_t>(maximum_retained_card_turns));
+		}
+	}
+
+	void agent_tab_view::restore_turn_cards(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || Turns[aTurn].CardColumn == nullptr) {
+			return;
+		}
+		const auto& shown  = Turns[aTurn];
+		const auto  answer = shown.AnswerText.trimmed();
+		// The findings block names the cards exactly. The answer's words do
+		// when the block is not there: findings that came without one, or the
+		// kept thread, which keeps the answer as shown.
+		const auto found = std::ranges::find_if(RetainedCards, [&shown, &answer](const retained_cards& aKept) {
+			return (!aKept.FindingsBlock.empty() && aKept.FindingsBlock == shown.FindingsBlock) || (!answer.isEmpty() && aKept.Answer == answer);
+		});
+		if (found == RetainedCards.end()) {
+			return;
+		}
+		auto cards = std::move(found->Cards);
+		RetainedCards.erase(found);
+		for (auto& card : cards) {
+			card.Turn = aTurn;
+			CardEntries.push_back(std::move(card));
+			auto* const widget = make_card(CardEntries.back(), Turns[aTurn].Widget);
+			Turns[aTurn].CardColumn->addWidget(widget);
+		}
 	}
 
 	void agent_tab_view::set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver) { ThreadObserver = std::move(aObserver); }
