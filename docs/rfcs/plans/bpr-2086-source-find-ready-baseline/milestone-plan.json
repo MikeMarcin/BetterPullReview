@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2086-source-find-ready-baseline",
+  "scope": {
+    "issues": [
+      "BPR-2086"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "ready-source-find-baseline",
+      "outcome": "SourceFind scroll-work counters start after existing geometry work completes and still reject any new post-baseline work.",
+      "work": [
+        {
+          "issue": "BPR-2086",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Preserve original56 Debug three-scale failures and once-only scalar diagnostic proving pending geometry at baseline; add only existing bounded geometry-ready wait before baseline.",
+        "Same exact four-counter oracle rejects deliberate post-baseline geometry work; corrected original Release and Debug three-scale courses pass on native current product inputs or retain actual short-watchdog cutoffs explicitly.",
+        "Land only owned fixture/workflow commits main, preserve frozen56 producer/input bytes and foreign work/highwater; return native/writer leases and leave successor qualification separate."
+      ],
+      "boundary": "Owner release56-source-find-ready-r1: tests/end_to_end/source_find_public_path_tests.cpp only plus own workflow; no product/API/gesture/workload/180ms/oracle/Release120s changes and no post-scroll baseline absorption."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
