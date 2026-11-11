@@ -3,6 +3,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -455,8 +456,11 @@ namespace {
 		expect(summary->stop_readiness() == QStringList{ QStringLiteral("Accepted"), QStringLiteral("Not accepted yet"), QStringLiteral("Changed since accepted"), QStringLiteral("Not accepted yet") },
 			   "each with its acceptance as the route shows it");
 		expect(summary->state_label()->text().startsWith(QStringLiteral("A private draft")), "a private draft says so");
-		auto* const solution = summary->findChild<QLabel*>(QStringLiteral("overviewTourSolution"));
-		expect(solution != nullptr && solution->isVisible() && solution->text() == QStringLiteral("Not written yet"), "a writer sees an empty field as still to write");
+		// Since 3d97ea548 Problem and Solution are Markdown views; an empty
+		// one shows its empty-body text in a label of its own.
+		auto* const solution = dynamic_cast<qt::markdown_body_view*>(summary->findChild<QWidget*>(QStringLiteral("overviewTourSolution")));
+		expect(solution != nullptr && solution->isVisible() && std::ranges::any_of(solution->findChildren<QLabel*>(), [](const auto* aLabel) { return !aLabel->isHidden() && aLabel->text() == QStringLiteral("Not written yet"); }),
+			   "a writer sees an empty field as still to write");
 		expect(summary->action()->text() == QStringLiteral("Continue in Review"), "and continues in Review");
 		auto* const firstRow = summary->findChild<QWidget*>(QStringLiteral("overviewTourStop"));
 		summary->present(writer);
