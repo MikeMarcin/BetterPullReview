@@ -734,6 +734,9 @@ namespace bpr::qt {
 
 	void workbench_window::present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents)
 	{
+		if (CycleRecents == aRecents) {
+			return;
+		}
 		CycleRecents = aRecents;
 		if (HomeCyclesList == nullptr) {
 			return;
