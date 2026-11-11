@@ -156,4 +156,3 @@ read "Refreshing the pull request." after the tour's publication, was dropped
 without a word; the course opened again and it took. The Agent tab never
 reported idle before the question (the course waited 120 s, then sent; the
 question was answered).
-
