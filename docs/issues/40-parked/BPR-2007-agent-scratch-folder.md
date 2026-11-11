@@ -67,3 +67,44 @@ Frozen root `/Users/jaeger/agent-scratch-v001.weg1sgre` from `c19749f58892`
 (app SHA-256 `cb283436e169…`, launcher check passed). Candidates, ready and
 protected: `BPR-2007-grant-menu`, `BPR-2007-agent-sheet`,
 `BPR-2008-build-question`, `RFC-BPR-0104-AC03-bound`.
+
+## Owner hand-back, session `e97c6a3d…` (2026-11-11)
+
+Read from `session.json` (handed back at sequence 116); host 72034/72042
+stopped, root `agent-scratch-v001.weg1sgre` removed with
+`freeze_attended_build.py remove`.
+
+- `BPR-2007-agent-sheet`: Accept (`6515a88d`).
+- `BPR-2008-build-question`: Accept (`df4d82a8`).
+- `BPR-2007-grant-menu`: **Reject** (`5a9f122e`): explainer text into
+  tooltips, no "runs the program setup found", "Use scratch folder", /model
+  and /effort only where true, "Allow build and run tests" as a toggle.
+- `RFC-BPR-0104-AC03-bound`: **Reject** (`8443d4bd`): the limit a setting,
+  scratch folders cleaned up, disk use seen in Insights and cleaned up from
+  Settings.
+
+## Post-review round (2026-11-11)
+
+Frontend-design was loaded before the Qt work. The independent critical
+review of the launch allowances (AC07) returned pass-with-findings; every
+finding is fixed or disclosed, test first where a test could run
+([ledger](../../verification/RFC-BPR-0104.md#owner-look-e97c6a3d-and-the-critical-review-2026-11-11)).
+A re-review of the fixes is owed.
+
+- Picker: Use scratch folder and Allow build and run tests, both toggles for
+  this pull request, explained only in tooltips; each checked only while the
+  launch carries it; /model and /effort as the Model and Effort menus'
+  tooltips only where true.
+- Limit a setting (256 MiB to begin with), a turn that reaches it stopped;
+  unused folders removed after the kept days (30); Settings shows the
+  folders' size and has Clear scratch folders. Insights and workspace cleanup
+  are [[BPR-2101]] (Backlog).
+- Codex grant only where it cannot widen the reviewer's configuration;
+  Claude's rules tightened (no direct-run or chmod rule, `Bash(*/..*)`
+  denied); glob characters refused in a grant path; the build question
+  re-checks the pull request.
+- Footer: an agent not yet checked is drawn quiet, not red (owner note "Why
+  is it red?" on BPR-2051's footer).
+
+The card stays parked on `human-review` for the new look (below) and the
+re-review.

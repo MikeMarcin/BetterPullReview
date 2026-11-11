@@ -132,6 +132,72 @@ grant line to sit beside, so the grant moves with the picker:
   to match: AC05's "Agent tab's grant line" is the footer picker's grant
   item, and AC09 turns the scratch folder off from that item.
 
+### Amendment: two toggles, a set limit, and folders that go (2026-11-11, owner look `e97c6a3d`)
+
+The owner rejected the picker's grant item ("All this grey explainer text I
+think should be in tooltips instead of taking space in here … \"Scratch folder
+in this pull request\" should be something more like \"Use scratch folder\" …
+\"Builds and tests are off\" Seems to be this should be \"Allow build and run
+tests\" and a toggle just like use scratch") and the turn-start bound ("This
+needs to be a configurable setting. We also need to make sure that we clean up
+scratch folders somehow … our app doesn't just consume disk space without
+bounds"). An independent critical review of the launch allowances
+(pass-with-findings) asked, among other things, that the picker state only what
+the launch carries. So:
+
+- **Two toggles.** The footer picker's menu has, under the model and effort,
+  **Use scratch folder** and **Allow build and run tests**, both checkable and
+  both for this pull request and agent. Every explanation (what it allows,
+  what enforces it, why it is unavailable) is the toggle's tooltip; the menu
+  has no explanatory lines, no "runs the program setup found" line and no
+  /model line. A toggle is checked only while the next turn's launch carries
+  what it names, and is unavailable, with its reason, when the launch cannot
+  (no place for a folder on this computer, the reviewer's own checkout for
+  builds, or a refused grant). A full folder reads "Use scratch folder
+  (full)". This replaces the grant line and its three states: AC05 is the
+  toggles matching the launch.
+- **Builds per pull request.** Checking Allow build and run tests is this pull
+  request's answer to the build question; unchecking declines. The agent's
+  Build and run tests setting decides only whether a pull request with no
+  answer asks before its first turn; with it off, the toggle still turns
+  builds on for one pull request.
+- **/model and /effort** are named, as the Model and Effort menus' tooltips,
+  only for an agent that runs the claude or codex it names (no program of its
+  own, or one with that name) and whose own arguments do not already set the
+  model or effort.
+- **The limit is a setting**: Settings › Agents & context, Scratch folder
+  limit, 256 MiB to begin with (16 MiB to 64 GiB). A turn that starts with
+  the folder at or past it gets no write allowance there and is told why; a
+  turn that reaches it is stopped after the step that did, and the reviewer is
+  told why. A step that writes past the limit finishes first, so a folder can
+  end above it by what that one step wrote. This replaces AC03's "refuses a
+  write past 256 MiB": the bound is the set limit, enforced by stopping.
+- **Folders go.** A scratch folder unused for the kept days (30 to begin with;
+  a setting, or kept until cleared) is removed when the application starts;
+  Settings shows what the folders hold and has Clear scratch folders (not
+  while a question runs; the folders of the open pull request's agents stay).
+  Removing folders and retained workspaces when a pull request is merged,
+  closed or left, and Insights' disk use, are [[BPR-2101]].
+
+### Amendment: what the grant composes with (2026-11-11, critical review)
+
+- **Codex.** BPR's permissions profile replaces the configured one and asks
+  for no approval, so it is passed only where it cannot widen the reviewer's
+  configuration: none is passed when the reviewer's Codex configuration (the
+  user's `config.toml` or a managed one) has a permissions profile of its own,
+  an approval policy other than on-request, on-failure or never, or cannot be
+  read, or when the agent's own arguments choose a profile, sandbox or
+  approval. Both toggles then read unavailable with the reason. Where the
+  configuration has only a sandbox mode, every legacy mode already reads the
+  whole disk, so `":root"="read"` reads nothing the reviewer's did not.
+- **Claude.** The rules are `Write` and `Edit` under the folder and
+  `Bash(RUNNER FOLDER/*)` for python3, python, node, ruby and perl; nothing
+  runs a file directly and nothing changes a mode. A granted run is denied
+  `Bash(*/..*)`, so no runner reaches a file outside the folder by a parent
+  step. The build programs keep `Bash(NAME:*)`; the build toggle's tooltip
+  says they run with any arguments, in any folder, including commands that
+  install or publish.
+
 ### Boundaries
 
 - Tour runs stay read-only. The one-shot hooks stay tool-free.
@@ -167,7 +233,9 @@ installed agents and their own help and protocol schema
   runs directly once it is executable. The `:*` prefix form does not match a file inside the folder,
   and no form matches a quoted path, so a folder is granted only on a path
   with no space. These are permission rules Claude follows; a script it runs
-  has the reviewer's rights.
+  has the reviewer's rights. (Superseded on 2026-11-11 after the critical
+  review: no direct-run or `chmod` rule, and `Bash(*/..*)` denied; see "what
+  the grant composes with" above.)
 - **Codex 0.167.0.** A turn gets `-c permissions.betterpullreview_grant.filesystem=
   {":root"="read","FOLDER"="write"}`, `-c default_permissions="betterpullreview_grant"`
   and `-c approval_policy="never"`, on the App Server and on `exec`. The
@@ -187,7 +255,8 @@ installed agents and their own help and protocol schema
 - **The 256 MiB bound** is measured when a turn starts: a turn that starts
   with the folder at or past it is told so and gets no write allowance there.
   A write that crosses the bound during a turn is not refused (AC03 partly
-  met; see the ledger).
+  met; see the ledger). (Superseded on 2026-11-11: the limit is a setting and
+  a turn that reaches it is stopped; see the amendment above.)
 - **Windows** paths are not granted (a grant path must be absolute POSIX); a
   Windows turn reads only.
 
@@ -203,11 +272,14 @@ installed agents and their own help and protocol schema
   after the turn.
 - **AC03:** The folder is outside the repository and the workspace, is
   removed with its session, and refuses a write past 256 MiB with a reason
-  the agent receives.
+  the agent receives. Amended 2026-11-11: past its set limit (256 MiB to
+  begin with), a turn starting gets no write allowance and is told why, and a
+  turn reaching it is stopped with the reason shown; an unused folder is
+  removed after the kept days, and Settings clears folders.
 - **AC04:** Build and run tests is unavailable, with its reason, for a
   checkout the reviewer chose. In a disposable checkout it asks once per
   pull request, and declining leaves the launch without the build allowance.
-- **AC05:** The footer picker's grant item (amended 2026-11-11, [[BPR-2051]]) matches the launch for each of the
+- **AC05:** The footer picker's grant item (amended 2026-11-11, [[BPR-2051]]; its two toggles, amended the same day after owner look `e97c6a3d`) matches the launch for each of the
   three states, and no text calls the grant a sandbox for a runtime that
   does not enforce one.
 - **AC06:** Tour runs and one-shot hooks launch exactly as before.
