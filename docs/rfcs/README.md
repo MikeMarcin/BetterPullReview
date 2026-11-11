@@ -763,7 +763,7 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 |---|---|---|---|
 | [RFC-BPR-0098](RFC-BPR-0098-home-says-whose-move-my-pull-request-is.md) | Home says whose move each of my pull requests is | Auto-Verified | None |
 | [RFC-BPR-0099](RFC-BPR-0099-tour-publishing-in-reach-and-reported.md) | Keep tour publishing in reach, report each step and choose its form | Auto-Verified | None |
-| [RFC-BPR-0100](RFC-BPR-0100-tour-conversation-that-changes-the-tour-in-one-turn.md) | A tour conversation that changes the tour in one turn | Proposed | None |
+| [RFC-BPR-0100](RFC-BPR-0100-tour-conversation-that-changes-the-tour-in-one-turn.md) | A tour conversation that changes the tour in one turn | Auto-Verified | None |
 | [RFC-BPR-0101](RFC-BPR-0101-agent-chat-conventions.md) | One set of conventions for every agent chat: references, send key, cost and colour | Auto-Verified | None |
 | [RFC-BPR-0102](RFC-BPR-0102-agent-questions-say-what-they-point-at.md) | An agent question says what it points at, and a suggestion always sends | Auto-Verified | None |
 | [RFC-BPR-0103](RFC-BPR-0103-agent-work-is-visible-and-a-turn-ends-when-the-work-does.md) | Agent work is visible, and a turn ends when the work does | Auto-Verified | None |

@@ -157,3 +157,10 @@ Runs at `f042726a6`: `core_review_tour_update`, all twelve
 `application_review_round_trip_composition_contract` (pin resealed),
 `application_composition_source_contract`, `architecture_boundaries`,
 `coding-format-check`, clang-tidy on the three changed sources (clean).
+
+## Closeout (2026-11-11)
+
+[[BPR-1997]] judged every criterion against the evidence above; all pass,
+AC06 on both the first publication and a tour update of an edited published
+stop. Evidence reused unchanged except BPR-2116's runs. Not run: Windows and
+Linux, the whole dev suite. RFC-BPR-0100 is Auto-Verified.
