@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2053"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Readable comment line numbers on tints",
+  "created": "2026-11-11T00:13:53.162733+00:00",
+  "base": "2d89c55925914f1a70ce95217ffc73b4af4d85ba"
+}
