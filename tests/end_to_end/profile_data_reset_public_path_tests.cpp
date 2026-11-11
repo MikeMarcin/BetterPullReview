@@ -33,6 +33,13 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <utility>
+
+#if !defined(_WIN32)
+	#include <fcntl.h>
+	#include <sys/stat.h>
+	#include <unistd.h>
+#endif
 
 namespace {
 	using namespace bpr;
@@ -81,6 +88,53 @@ namespace {
 		}
 		return found;
 	}
+
+#if !defined(_WIN32)
+	struct held_store_file
+	{
+		explicit held_store_file(const fs::path& aPath)
+			: Descriptor{ ::open(aPath.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC) }
+		{
+			expect(Descriptor >= 0, "fixture retains the original removed store");
+		}
+		~held_store_file()
+		{
+			if (Descriptor >= 0) {
+				static_cast<void>(::close(Descriptor));
+			}
+		}
+		held_store_file(const held_store_file&)                    = delete;
+		auto operator=(const held_store_file&) -> held_store_file& = delete;
+		held_store_file(held_store_file&& aOther) noexcept
+			: Descriptor{ std::exchange(aOther.Descriptor, -1) }
+		{
+		}
+		auto operator=(held_store_file&&) -> held_store_file& = delete;
+		auto status() const -> struct stat
+		{
+			struct stat observed{ };
+			expect(::fstat(Descriptor, &observed) == 0, "retained store metadata is readable");
+			return observed;
+		} auto unlinked() const -> bool { return status().st_nlink == 0; }
+		int    Descriptor = -1;
+	};
+
+	auto hold_removed_stores(const fs::path& aRoot, const std::map<std::string, std::optional<tests::sqlite_contract::file_identity>>& aBefore)
+		-> std::map<std::string, held_store_file>
+	{
+		std::map<std::string, held_store_file> held;
+		for (const auto& [store, before] : aBefore) {
+			if (before) {
+				auto [position, inserted] = held.try_emplace(store, aRoot / "state/v1" / (store + ".sqlite3"));
+				const auto observed       = position->second.status();
+				expect(inserted && S_ISREG(observed.st_mode) && observed.st_nlink == 1
+						   && tests::sqlite_contract::file_identity{ static_cast<std::uint64_t>(observed.st_dev), static_cast<std::uint64_t>(observed.st_ino) } == *before,
+					   "retained descriptor names the exact original private store");
+			}
+		}
+		return held;
+	}
+#endif
 
 	auto cache_stores() -> std::set<std::string>
 	{
@@ -208,8 +262,14 @@ try {
 	{
 		const auto settings = identities(root, settings_stores());
 		const auto other    = identities(root, [] { auto all = review_stores(); all.merge(cache_stores()); all.merge(kept_stores()); return all; }());
+#if !defined(_WIN32)
+		const auto held = hold_removed_stores(root, settings);
+#endif
 		run.reset_from_settings(reset::settings, QStringLiteral("Settings reset"));
 		for (const auto& [store, before] : settings) {
+#if !defined(_WIN32)
+			expect(!before || held.at(store).unlinked(), "Reset settings unlinks the retained original store");
+#endif
 			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) != before, "Reset settings removed each settings store");
 		}
 		for (const auto& [store, before] : other) {
@@ -221,8 +281,14 @@ try {
 	{
 		const auto caches = identities(root, cache_stores());
 		const auto other  = identities(root, [] { auto all = review_stores(); all.merge(kept_stores()); return all; }());
+#if !defined(_WIN32)
+		const auto held = hold_removed_stores(root, caches);
+#endif
 		run.reset_from_settings(reset::caches, QStringLiteral("Caches cleared"));
 		for (const auto& [store, before] : caches) {
+#if !defined(_WIN32)
+			expect(!before || held.at(store).unlinked(), "Clear caches unlinks the retained original store");
+#endif
 			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) != before, "Clear caches removed each cache store");
 		}
 		for (const auto& [store, before] : other) {
@@ -235,8 +301,14 @@ try {
 		const auto review = identities(root, review_stores());
 		const auto kept   = identities(root, kept_stores());
 		expect(review.at("review-cycles").has_value(), "a review store exists before its reset");
+#if !defined(_WIN32)
+		const auto held = hold_removed_stores(root, review);
+#endif
 		run.reset_from_settings(reset::review_data, QStringLiteral("Review data reset"));
 		for (const auto& [store, before] : review) {
+#if !defined(_WIN32)
+			expect(!before || held.at(store).unlinked(), "Reset review data unlinks the retained original store");
+#endif
 			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) != before, "Reset review data removed each review store");
 		}
 		for (const auto& [store, before] : kept) {
