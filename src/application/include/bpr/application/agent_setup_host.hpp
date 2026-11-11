@@ -166,6 +166,10 @@ namespace bpr::application {
 		/// \brief Owner decision 2026-10-23: the run time limit in minutes,
 		/// 0 for none. Answers whether it was taken.
 		[[nodiscard]] auto set_run_limit(std::uint32_t aMinutes) -> bool;
+		/// \brief RFC-BPR-0104 as amended 2026-11-11. The scratch folder
+		/// limit in MiB and the days an unused folder is kept (0: until
+		/// cleared). Answers whether they were taken.
+		[[nodiscard]] auto set_scratch_policy(std::uint32_t aLimitMiB, std::uint32_t aKeepDays) -> bool;
 		/// \brief Owner look v004: the Agent tab's Suggestions toggle, kept.
 		void set_suggestions_hidden(bool aHidden);
 		/// \brief Owner look v006 ("Codex is totally missing its model

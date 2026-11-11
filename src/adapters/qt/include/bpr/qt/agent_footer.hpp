@@ -90,7 +90,9 @@ namespace bpr::qt {
 		/// \brief The chosen agent needs setup: what is missing ("not signed
 		/// in"), or empty when it does not. With no agent at all the picker is
 		/// hidden and Set up an agent… leads to Settings.
-		void present_setup(const QString& aNeed);
+		/// `aFailed`: a check ran and failed (drawn in the failed check's
+		/// colour); otherwise the agent is not checked yet (drawn quiet).
+		void present_setup(const QString& aNeed, bool aFailed = false);
 		/// \brief Agent settings… and Set up an agent…: Settings › Agents & context.
 		void set_settings_dispatch(std::function<void()> aDispatch);
 		/// \brief How long a finished run's ending stays, in milliseconds.
@@ -127,6 +129,7 @@ namespace bpr::qt {
 		std::array<QString, agent_footer_place_count>                         Endings;
 		std::optional<agent_footer_place>                                     Finished;
 		QString                                                               Need;
+		bool                                                                  NeedFailed = false;
 		std::function<void()>                                                 SettingsDispatch;
 		agent_run_settings_picker*                                            Picker         = nullptr;
 		QWidget*                                                              RunArea        = nullptr;

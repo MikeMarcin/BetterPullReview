@@ -1,5 +1,6 @@
 #include "github_application/window_composition.hpp"
 
+#include "bpr/application/agent_scratch_folder.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -8,11 +9,14 @@
 
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QFile>
+#include <QLocale>
 #include <QObject>
 #include <QTextStream>
 #include <QUrl>
 
 #include <algorithm>
+#include <chrono>
 #include <limits>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -1239,6 +1243,7 @@ namespace bpr::app {
 		// [[BPR-2007]]. The footer picker's grant item and Open scratch folder.
 		tab->run_settings_source()->ToggleScratch = [this](const std::uint64_t aProfile, const bool aOn) { toggle_agent_scratch(aProfile, aOn); };
 		tab->run_settings_source()->OpenScratch   = [this](const std::uint64_t aProfile) { open_agent_scratch(aProfile); };
+		tab->run_settings_source()->ToggleBuilds  = [this](const std::uint64_t aProfile, const bool aOn) { toggle_agent_builds(aProfile, aOn); };
 		// [[BPR-1753]], owner decision (b). Each turn that ends is
 		// kept for the pull request, and Clear session keeps none.
 		tab->set_thread_observer([this](std::vector<qt::agent_thread_turn> aTurns) {
@@ -1506,7 +1511,12 @@ namespace bpr::app {
 						AgentSetup->move_agent(aId, aDelta);
 					}
 				},
-			.SetRunLimit = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+			.SetRunLimit      = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+			.SetScratchPolicy = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
+				const auto taken = !Closing && AgentSetup && AgentSetup->set_scratch_policy(aLimitMiB, aKeepDays);
+				present_run_settings();
+				return taken; },
+			.ClearScratch     = [this] { clear_agent_scratch(std::nullopt, true); },
 			.SetProgram =
 				[this](const core::setup_agent aAgent, std::string aPath) {
 					if (Closing || !AgentSetup) {
@@ -1632,6 +1642,16 @@ namespace bpr::app {
 			return;
 		}
 		const auto setup = AgentSetup->projection();
+		// Owner look e97c6a3d: scratch folders unused past the kept days go,
+		// once a session, before the first question can use one.
+		if (!ScratchSwept && !AgentScratchRoot.empty()) {
+			ScratchSwept = true;
+			if (setup.Preferences.ScratchKeepDays != 0U) {
+				const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				clear_agent_scratch(now - static_cast<std::int64_t>(setup.Preferences.ScratchKeepDays) * 86400, false);
+			}
+			present_scratch_usage();
+		}
 		// [[BPR-1753]], owner amendment 2026-10-23. One per added
 		// agent, from its entry; its protocol says which settings apply.
 		auto shown = std::vector<qt::agent_run_settings>{ };
@@ -1639,10 +1659,11 @@ namespace bpr::app {
 			auto settings    = qt::agent_run_settings{ };
 			settings.Profile = core::entry_profile_id(entry).value();
 			settings.Agent   = QString::fromStdString(entry.Name);
-			auto program     = entry.Program.empty() ? (entry.Preset == core::setup_agent::codex ? QStringLiteral("the codex found on this computer") : QStringLiteral("the claude found on this computer"))
-													 : QString::fromStdString(entry.Program);
+			// Owner look e97c6a3d: the program setup found goes unsaid; a
+			// program or arguments of the reviewer's own are named.
+			auto program = QString::fromStdString(entry.Program);
 			for (const auto& argument : entry.Arguments) {
-				program += QStringLiteral(" ") + QString::fromStdString(argument);
+				program += (program.isEmpty() ? QString{ } : QStringLiteral(" ")) + QString::fromStdString(argument);
 			}
 			settings.Program = program;
 			settings.Model   = entry.Model;
@@ -1680,18 +1701,42 @@ namespace bpr::app {
 				break;
 			}
 			}
-			// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended. The grant in
-			// the pull request now open, under the model and effort.
+			// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11
+			// (owner look e97c6a3d, review findings 4 to 6). The two toggles,
+			// decided from the facts the launch is decided from.
 			if (const auto grantProgram = core::entry_settings_program(entry.Protocol); grantProgram && AgentReview) {
-				const auto* const own     = Window->agent_panel()->existing_checkout_action();
-				const auto        grant   = agent_grant_for(entry, own != nullptr && own->isChecked());
-				settings.GrantApplies     = grant.Applies;
-				const auto line           = core::agent_grant_line(core::grant_level(grant));
-				settings.GrantLine        = QString::fromUtf8(line.data(), static_cast<qsizetype>(line.size()));
-				settings.ScratchOn        = grant.Scratch;
-				settings.BuildsLine       = QString::fromStdString(core::agent_builds_line(grant.Builds, entry.Name));
-				settings.GrantEnforcement = QString::fromStdString(core::agent_grant_enforcement(grant, grantProgram));
-				settings.ScratchOpenable  = AgentScratchFolders.contains(settings.Profile);
+				const auto* const own    = Window->agent_panel()->existing_checkout_action();
+				const auto        grant  = agent_grant_for(entry, own != nullptr && own->isChecked());
+				settings.GrantApplies    = grant.Applies;
+				settings.ScratchText     = QString::fromStdString(core::agent_scratch_toggle_text(grant));
+				settings.ScratchOn       = core::agent_scratch_toggle_checked(grant);
+				settings.ScratchEnabled  = core::agent_scratch_toggle_enabled(grant);
+				settings.ScratchTip      = QString::fromStdString(core::agent_scratch_tooltip(grant, grantProgram, setup.Preferences.ScratchLimitMiB));
+				settings.BuildsOn        = core::agent_builds_toggle_checked(grant);
+				settings.BuildsEnabled   = core::agent_builds_toggle_enabled(grant);
+				settings.BuildsTip       = QString::fromStdString(core::agent_builds_tooltip(grant, grantProgram));
+				settings.ScratchOpenable = AgentScratchFolders.contains(settings.Profile);
+			}
+			// Owner look e97c6a3d ("I'm not even sure if type /MODEL or type
+			// /EFFORT is true in general with custom agents"). The question
+			// field's /model and /effort set what BetterPullReview passes; they
+			// are said to work only for an agent that runs the claude or codex
+			// it names (no program of its own, or one of those by name) and
+			// whose own arguments do not set the model or effort already.
+			if (const auto runtime = core::entry_settings_program(entry.Protocol); runtime) {
+				const auto name       = std::filesystem::path{ entry.Program }.filename().string();
+				const auto runsItself = entry.Program.empty() || name == (*runtime == core::agent_program::codex ? "codex" : "claude");
+				const auto sets       = [&entry](const std::initializer_list<std::string_view> aKeys) {
+					return std::ranges::any_of(entry.Arguments, [&aKeys](const std::string& aArgument) {
+						return std::ranges::any_of(aKeys, [&aArgument](const std::string_view aKey) { return aArgument == aKey || aArgument.starts_with(std::string{ aKey } + "=") || aArgument.find(aKey) != std::string::npos; });
+					});
+				};
+				if (runsItself && !sets({ "--model", "-m", "model=" }) && !std::ranges::contains(entry.Arguments, std::string{ "-m" })) {
+					settings.ModelHint = QStringLiteral("Or type /model NAME in the Agent tab's question field.");
+				}
+				if (runsItself && !sets({ "--effort", "model_reasoning_effort" })) {
+					settings.EffortHint = QStringLiteral("Or type /effort LEVEL in the Agent tab's question field.");
+				}
 			}
 			const auto choosable     = core::entry_settings_program(entry.Protocol).has_value();
 			settings.ModelChoosable  = choosable;
@@ -1869,6 +1914,14 @@ namespace bpr::app {
 		facts.ScratchStarts = aEntry.ScratchStarts;
 		facts.Builds        = aEntry.BuildsAndTests;
 		facts.OwnCheckout   = aOwnCheckout;
+		// Review finding 4: what the launch can carry. A folder is made
+		// only under a root a rule can name (never on Windows); a folder
+		// full at its last turn's end is full until it is measured again.
+		facts.ScratchPlace = !AgentScratchRoot.empty();
+		if (const auto full = AgentScratchFull.find(core::entry_profile_id(aEntry).value()); full != AgentScratchFull.end()) {
+			facts.ScratchFull = full->second;
+		}
+		facts.Refusal = agent_grant_refusal_for(aEntry);
 		if (const auto key = grant_key(aEntry.Id); key && AgentConversationStore) {
 			facts.ScratchChoice = AgentConversationStore->load_scratch_choice(*key);
 			facts.BuildAnswer   = AgentConversationStore->load_build_answer(*key);
@@ -1892,6 +1945,103 @@ namespace bpr::app {
 		present_run_settings();
 	}
 
+	void github_application::implementation::toggle_agent_builds(const std::uint64_t aProfile, const bool aOn)
+	{
+		if (Closing || !AgentSetup || !AgentConversationStore) {
+			return;
+		}
+		const auto  agents = AgentSetup->projection().Preferences.Agents;
+		const auto* entry  = core::entry_of_profile(agents, core::agent_profile_id{ aProfile });
+		const auto  key    = entry != nullptr ? grant_key(entry->Id) : std::nullopt;
+		// Owner look e97c6a3d: the toggle is this pull request's answer to
+		// the build question (one answer per pull request, as the question
+		// keeps it); its tooltip says what building does. The next turn
+		// takes it.
+		if (key && !AgentConversationStore->store_build_answer(*key, aOn)) {
+			Window->agent_panel()->refuse("The build and test choice could not be saved.");
+		}
+		present_run_settings();
+	}
+
+	auto github_application::implementation::agent_grant_refusal_for(const core::agent_entry& aEntry) const -> std::optional<core::agent_grant_refusal>
+	{
+		if (core::entry_settings_program(aEntry.Protocol) != core::agent_program::codex) {
+			return std::nullopt;
+		}
+		// Review finding 1 (2026-11-11). BPR's Codex profile replaces the
+		// configured one and asks for no approval, so it is passed only where
+		// the reviewer's own configuration (the user's and a managed one) has
+		// no permissions profile and does not ask before commands.
+		auto home = qEnvironmentVariable("CODEX_HOME");
+		if (home.isEmpty()) {
+			home = QDir::homePath() + QStringLiteral("/.codex");
+		}
+		auto texts      = std::vector<std::string>{ };
+		auto unreadable = false;
+		for (const auto& path : { home + QStringLiteral("/config.toml"), QStringLiteral("/etc/codex/managed_config.toml") }) {
+			auto file = QFile{ path };
+			if (!file.exists()) {
+				continue;
+			}
+			if (file.size() > 1024 * 1024 || !file.open(QIODevice::ReadOnly)) {
+				unreadable = true;
+				continue;
+			}
+			texts.push_back(file.readAll().toStdString());
+		}
+		auto views = std::vector<std::string_view>{ texts.begin(), texts.end() };
+		return core::codex_grant_refusal(views, unreadable, aEntry.Arguments);
+	}
+
+	void github_application::implementation::present_scratch_usage(const QString& aSaid)
+	{
+		if (Closing || Window == nullptr || Window->agent_programs() == nullptr) {
+			return;
+		}
+		if (AgentScratchRoot.empty()) {
+			Window->agent_programs()->present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 0U, 0U }, aSaid);
+			return;
+		}
+		auto       bytes = std::uint64_t{ 0U };
+		const auto all   = application::survey_agent_scratch_root(AgentScratchRoot);
+		for (const auto& entry : all) {
+			bytes += entry.Bytes;
+		}
+		Window->agent_programs()->present_scratch_usage(std::pair{ bytes, all.size() }, aSaid);
+	}
+
+	void github_application::implementation::clear_agent_scratch(const std::optional<std::int64_t> aBeforeSeconds, const bool aSay)
+	{
+		if (Closing || AgentScratchRoot.empty()) {
+			return;
+		}
+		// Never under a running question: its folder could be any of them.
+		if (AgentHost && !AgentHost->is_quiescent()) {
+			if (aSay) {
+				present_scratch_usage(QStringLiteral("Stop the agent's question first."));
+			}
+			return;
+		}
+		// A folder a turn of this window uses now stays; the others go.
+		auto keep = std::vector<std::string>{ };
+		for (const auto& [profile, folder] : AgentScratchFolders) {
+			keep.push_back(std::filesystem::path{ folder }.filename().string());
+		}
+		const auto cleanup = application::remove_agent_scratch_folders(AgentScratchRoot, aBeforeSeconds, keep);
+		if (!aBeforeSeconds) {
+			AgentScratchFull.clear();
+		}
+		if (aSay) {
+			auto said = cleanup.Removed == 0U ? QStringLiteral("Nothing to clear.")
+											  : QStringLiteral("Cleared %1 from %2 %3.").arg(QLocale{ }.formattedDataSize(static_cast<qint64>(cleanup.Bytes))).arg(cleanup.Removed).arg(cleanup.Removed == 1U ? QStringLiteral("folder") : QStringLiteral("folders"));
+			if (cleanup.Failed != 0U) {
+				said += QStringLiteral(" %1 could not be removed.").arg(cleanup.Failed);
+			}
+			present_scratch_usage(said);
+			present_run_settings();
+		}
+	}
+
 	void github_application::implementation::open_agent_scratch(const std::uint64_t aProfile)
 	{
 		const auto found = AgentScratchFolders.find(aProfile);
@@ -1903,7 +2053,21 @@ namespace bpr::app {
 
 	void github_application::implementation::note_agent_scratch(const core::agent_profile_id aProfile, const application::agent_run_result& aResult)
 	{
-		if (Closing || aResult.ScratchFolder.empty()) {
+		if (Closing) {
+			return;
+		}
+		// RFC-BPR-0104 as amended 2026-11-11: a turn that filled its folder
+		// was stopped; the reviewer is told why, and the toggle says full.
+		if (aResult.ScratchOverflowed && Window != nullptr) {
+			const auto limit = AgentSetup ? AgentSetup->projection().Preferences.ScratchLimitMiB : core::default_agent_scratch_limit_mib;
+			Window->agent_panel()->refuse("Stopped: the agent's scratch folder reached its limit of " + std::to_string(limit) + " MiB. Open it to make room, clear it in Settings, or raise the limit there.");
+		}
+		if (aResult.Grant && !aResult.Grant->ScratchFolder.empty()) {
+			AgentScratchFull[aProfile.value()] = aResult.ScratchFull;
+			present_scratch_usage();
+		}
+		if (aResult.ScratchFolder.empty()) {
+			present_run_settings();
 			return;
 		}
 		AgentScratchFolders[aProfile.value()] = aResult.ScratchFolder;
@@ -1924,18 +2088,23 @@ namespace bpr::app {
 		// RFC-BPR-0104 AC04. Asked once per pull request, before the first
 		// turn that would build; declining leaves reading and scripting.
 		if (core::build_question_due(grant)) {
+			const auto asked  = grant_key(entry->Id);
 			const auto answer = AskBuildQuestion ? AskBuildQuestion() : qt::ask_build_question(Window.get());
-			if (!answer) {
+			// Review finding 7: the question is modal, and the window may
+			// close or move to another pull request while it is open. The
+			// turn goes only to the pull request it was asked in.
+			if (!answer || Closing || !AgentSetup || grant_key(entry->Id) != asked) {
 				return false;
 			}
-			if (const auto key = grant_key(entry->Id); key && AgentConversationStore) {
-				static_cast<void>(AgentConversationStore->store_build_answer(*key, *answer));
+			if (asked && AgentConversationStore) {
+				static_cast<void>(AgentConversationStore->store_build_answer(*asked, *answer));
 			}
 			grant.Builds = *answer ? core::agent_builds_state::allowed : core::agent_builds_state::declined;
 			present_run_settings();
 		}
-		aInvocation.ScratchFolder  = core::scratch_granted(grant);
-		aInvocation.BuildsAndTests = core::builds_granted(grant);
+		aInvocation.ScratchFolder   = core::scratch_granted(grant);
+		aInvocation.BuildsAndTests  = core::builds_granted(grant);
+		aInvocation.ScratchLimitMiB = AgentSetup->projection().Preferences.ScratchLimitMiB;
 		return true;
 	}
 #endif

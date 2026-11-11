@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <fstream>
@@ -152,12 +154,18 @@ namespace bpr::application {
 			bool                              ScratchKept = false;
 			agent_scratch_listing             ScratchBefore;
 			std::optional<agent_launch_grant> Grant;
-			std::atomic_uint64_t              DurableRun          = 0;
-			std::atomic_bool                  Superseded          = false;
-			std::atomic_bool                  TerminalComplete    = false;
-			std::atomic_bool                  CleanupScheduled    = false;
-			std::atomic_bool                  Retired             = false;
-			std::atomic_bool                  ExplicitlyCancelled = false;
+			/// RFC-BPR-0104 as amended 2026-11-11. The folder's limit, when
+			/// it is watched during the turn (it was below it at the start);
+			/// when it was last measured; whether the turn passed it.
+			std::uint64_t        ScratchLimit        = 0U;
+			std::atomic_int64_t  ScratchMeasuredAt   = 0;
+			std::atomic_bool     ScratchOverflowed   = false;
+			std::atomic_uint64_t DurableRun          = 0;
+			std::atomic_bool     Superseded          = false;
+			std::atomic_bool     TerminalComplete    = false;
+			std::atomic_bool     CleanupScheduled    = false;
+			std::atomic_bool     Retired             = false;
+			std::atomic_bool     ExplicitlyCancelled = false;
 		};
 
 		implementation(
@@ -970,7 +978,9 @@ namespace bpr::application {
 							aInvocation->ScratchKept   = kept;
 							aInvocation->ScratchBefore = list_agent_scratch_folder(*folder);
 							grant.ScratchFolder        = folder->string();
-							grant.ScratchFull          = agent_scratch_full(aInvocation->ScratchBefore);
+							grant.ScratchLimitMiB      = core::agent_scratch_limit_mib(aRequest.ScratchLimitMiB);
+							grant.ScratchFull          = agent_scratch_full(aInvocation->ScratchBefore, core::agent_scratch_limit_bytes(aRequest.ScratchLimitMiB));
+							aInvocation->ScratchLimit  = grant.ScratchFull ? 0U : core::agent_scratch_limit_bytes(aRequest.ScratchLimitMiB);
 						}
 					}
 					if (aRequest.BuildsAndTests && !aRequest.ExistingCheckoutChosen && workspace && valid_agent_build_path(workspace->Path)) {
@@ -1058,6 +1068,7 @@ namespace bpr::application {
 					*launch,
 					aRequest.RunLimitMilliseconds.value_or(agent_run_without_limit),
 					[weak, aInvocation](const agent_stream_event& aEvent) {
+						watch_scratch(*aInvocation);
 						if (auto self = weak.lock()) {
 							self->post_stream(aInvocation, aEvent);
 						}
@@ -1174,8 +1185,11 @@ namespace bpr::application {
 			// own folder goes with it.
 			aResult.Grant = aInvocation->Grant;
 			if (!aInvocation->ScratchFolder.empty()) {
-				aResult.ScratchFolder = aInvocation->ScratchFolder.string();
-				aResult.ScratchFiles  = agent_scratch_written(aInvocation->ScratchBefore, list_agent_scratch_folder(aInvocation->ScratchFolder), core::maximum_agent_activity_listed);
+				const auto after          = list_agent_scratch_folder(aInvocation->ScratchFolder);
+				aResult.ScratchFolder     = aInvocation->ScratchFolder.string();
+				aResult.ScratchFiles      = agent_scratch_written(aInvocation->ScratchBefore, after, core::maximum_agent_activity_listed);
+				aResult.ScratchFull       = aInvocation->Grant && agent_scratch_full(after, core::agent_scratch_limit_bytes(aInvocation->Grant->ScratchLimitMiB));
+				aResult.ScratchOverflowed = aInvocation->ScratchOverflowed.load(std::memory_order_acquire);
 				if (!aInvocation->ScratchKept) {
 					static_cast<void>(remove_agent_scratch_folder(ScratchRoot, aInvocation->ScratchKey));
 					aResult.ScratchFolder.clear();
@@ -1202,6 +1216,27 @@ namespace bpr::application {
 						}
 					});
 			} catch (...) {
+			}
+		}
+
+		/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d). A
+		/// turn's folder is measured as it reports its steps, at most every
+		/// half second; the turn is stopped once the folder reaches its limit.
+		/// A step that writes past the limit finishes before the stop, so the
+		/// folder can end above it by what that step wrote.
+		static void watch_scratch(invocation& aInvocation)
+		{
+			if (aInvocation.ScratchLimit == 0U || aInvocation.ScratchOverflowed.load(std::memory_order_acquire)) {
+				return;
+			}
+			const auto now  = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			auto       last = aInvocation.ScratchMeasuredAt.load(std::memory_order_acquire);
+			if (now - last < 500 || !aInvocation.ScratchMeasuredAt.compare_exchange_strong(last, now, std::memory_order_acq_rel)) {
+				return;
+			}
+			if (agent_scratch_full(list_agent_scratch_folder(aInvocation.ScratchFolder), aInvocation.ScratchLimit)) {
+				aInvocation.ScratchOverflowed.store(true, std::memory_order_release);
+				static_cast<void>(aInvocation.Stop->request_stop());
 			}
 		}
 

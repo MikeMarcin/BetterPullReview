@@ -254,9 +254,10 @@ namespace bpr::qt {
 		refresh();
 	}
 
-	void agent_footer::present_setup(const QString& aNeed)
+	void agent_footer::present_setup(const QString& aNeed, const bool aFailed)
 	{
-		Need = aNeed;
+		Need       = aNeed;
+		NeedFailed = aFailed;
 		refresh();
 	}
 
@@ -375,7 +376,7 @@ namespace bpr::qt {
 		}
 
 		// The picker, or the way to set one up.
-		Picker->set_attention(Need);
+		Picker->set_attention(Need, NeedFailed);
 		const auto chosen = !Picker->isHidden();
 		SettingsButton->setText(chosen ? tr("Agent settings…") : tr("Set up an agent…"));
 		SettingsButton->setVisible(!Need.isEmpty() || Picker->isHidden());

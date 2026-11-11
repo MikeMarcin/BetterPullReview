@@ -3243,16 +3243,20 @@ namespace bpr::application {
 		}
 		/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104, established 2026-11-11
 		/// against Claude Code 2.1.319. `--add-dir` lets the file tools reach
-		/// the folder; the rules allow writing and editing under it and
-		/// running a file in it, directly or with an interpreter. The rules
-		/// are globs (`Bash(python3 FOLDER/*)`): the `:*` prefix form matches
-		/// only at a word boundary, so `FOLDER/:*` never matched a file in it
-		/// (live course, 2026-11-11). A command whose path is quoted does not
-		/// match a rule, so a folder whose path has a space is never granted
-		/// (`valid_agent_grant_path`). Building
-		/// adds its programs. Nothing else the reviewer's settings decide is
-		/// changed: a headless run cannot ask, so anything else they would
-		/// ask about is refused.
+		/// the folder; the rules allow writing and editing under it (Claude
+		/// resolves `..` in a file tool's path) and running a file in it with
+		/// an interpreter. The rules are globs (`Bash(python3 FOLDER/*)`): the
+		/// `:*` prefix form matches only at a word boundary, so `FOLDER/:*`
+		/// never matched a file in it. A `*` matches any text, slashes and
+		/// spaces included, so (review finding 2) no rule runs a file
+		/// directly or changes a mode, and `Bash(*/..*)` is denied: with it,
+		/// `python3 FOLDER/../x.py` is refused. Claude checks each part of a
+		/// compound command and refuses a redirect to a file on its own
+		/// (live, 2026-11-11). A quoted path does not match a rule, so a
+		/// folder whose path has a space is never granted
+		/// (`valid_agent_grant_path`). Building adds its programs. Nothing
+		/// else the reviewer's settings decide is widened: a headless run
+		/// cannot ask, so anything else they would ask about is refused.
 		void append_claude_grant(std::vector<std::string>& aArguments, const agent_launch_grant& aGrant)
 		{
 			auto rules = std::vector<std::string>{ };
@@ -3263,7 +3267,6 @@ namespace bpr::application {
 					rules.push_back("Write(/" + aGrant.ScratchFolder + "/**)");
 					rules.push_back("Edit(/" + aGrant.ScratchFolder + "/**)");
 				}
-				rules.push_back("Bash(" + aGrant.ScratchFolder + "/*)");
 				for (const auto runner : claude_scratch_runners) {
 					rules.push_back("Bash(" + std::string{ runner } + " " + aGrant.ScratchFolder + "/*)");
 				}
@@ -3276,6 +3279,8 @@ namespace bpr::application {
 			if (!rules.empty()) {
 				aArguments.emplace_back("--allowedTools");
 				aArguments.insert(aArguments.end(), std::make_move_iterator(rules.begin()), std::make_move_iterator(rules.end()));
+				aArguments.emplace_back("--disallowedTools");
+				aArguments.emplace_back(claude_grant_denial);
 			}
 		}
 		/// Established 2026-11-11 against Codex 0.167.0: a permissions profile
@@ -3457,7 +3462,7 @@ namespace bpr::application {
 		}
 		// [[BPR-2007]], [[BPR-2008]]. The agent is told what it was granted.
 		if (aOptions.Grant && !aOptions.Grant->ScratchFolder.empty()) {
-			append_field(payload, "scratch_folder", core::agent_scratch_instruction(aOptions.Grant->ScratchFolder, aOptions.Grant->ScratchFull));
+			append_field(payload, "scratch_folder", core::agent_scratch_instruction(aOptions.Grant->ScratchFolder, aOptions.Grant->ScratchFull, aOptions.Grant->ScratchLimitMiB));
 		}
 		if (aOptions.Grant && !aOptions.Grant->BuildWorkspace.empty()) {
 			append_field(payload, "builds", core::agent_builds_instruction(aOptions.Grant->BuildWorkspace));

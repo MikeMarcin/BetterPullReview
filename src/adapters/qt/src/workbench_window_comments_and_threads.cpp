@@ -1064,15 +1064,17 @@ namespace bpr::qt {
 		// [[BPR-2051]], owner decision 2026-11-11: setup is a state of the
 		// footer. The picker says what is missing in a few words; the
 		// failure's whole account stays on Settings.
-		auto need = QString{ };
+		auto need   = QString{ };
+		auto failed = false;
 		if (AgentTab->setup_readiness() == agent_setup_readiness::unfinished) {
 			const auto* const setup = AgentTab->setup_view();
 			const auto&       check = setup != nullptr ? setup->projection().State.AgentCheck : core::setup_check{ };
 			need                    = check.State == core::setup_check_state::failed && check.Failure == core::agent_setup_failure::not_signed_in ? tr("not signed in")
 				: check.State == core::setup_check_state::failed                                                                                  ? tr("check failed")
 																																				  : tr("not checked");
+			failed                  = check.State == core::setup_check_state::failed;
 		}
-		AgentFooter->present_setup(need);
+		AgentFooter->present_setup(need, failed);
 	}
 
 	void workbench_window::wire_tour_page()

@@ -486,10 +486,16 @@ namespace {
 		expect(page->findChild<QListWidget*>(QStringLiteral("settingsAgentList")) != nullptr && page->findChild<QPushButton*>(QStringLiteral("settingsAddAgent")) != nullptr,
 			   "the page is the agent list with Add agent…");
 		// [[BPR-1753]]. The review skill's Restore default has its own
-		// "Save my copy to Downloads first", and the run limit its toggle;
-		// neither is a sign-in switch.
+		// "Save my copy to Downloads first", the run limit its toggle, and
+		// (RFC-BPR-0104 as amended 2026-11-11) the scratch folders how long
+		// an unused one is kept; none is a sign-in switch.
 		const auto boxes = page->findChildren<QCheckBox*>();
-		expect(std::ranges::count_if(boxes, [](const QCheckBox* aBox) { return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn"); }) == 0,
+		expect(std::ranges::count_if(boxes,
+									 [](const QCheckBox* aBox) {
+										 return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn")
+											 && aBox->objectName() != QStringLiteral("settingsScratchKeepOn");
+									 })
+				   == 0,
 			   "no sign-in switch is offered, and [[BPR-2051]] the next request's choices left the page (the footer picks the agent; the Agent tab what a question includes)");
 		expect(page->findChild<QWidget*>(QStringLiteral("settingsNextRequest")) == nullptr && page->findChild<QComboBox*>(QStringLiteral("settingsAgentProfile")) == nullptr,
 			   "[[BPR-2051]] the page opens on the agents roster");
@@ -569,9 +575,12 @@ void render_agents_roster(const QString& aFolder, const bool aLook = false)
 	preferences.EntryChecks              = { { .Id = preferences.Agents[0].Id, .Check = { .State = core::setup_check_state::passed, .Version = "2.1.321" } },
 											 { .Id = preferences.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::not_signed_in) } };
 	window.agent_programs()->present(preferences, { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude" } });
+	// RFC-BPR-0104 as amended 2026-11-11: what the scratch folders hold.
+	window.agent_programs()->present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 41U * 1024U * 1024U + 300U * 1024U, 3U });
 	if (aLook) {
-		// A row's sheet opens and its OK answers; nothing is kept.
-		window.agent_programs()->set_dispatch({ .CheckAll = [] { }, .CheckEntry = [](std::uint32_t) { }, .Update = [](core::agent_entry, qt::agent_programs_panel::answer aAnswer) { aAnswer(std::nullopt); } });
+		// A row's sheet opens and its OK answers; nothing is kept. Clear
+		// scratch folders answers as the application does.
+		window.agent_programs()->set_dispatch({ .CheckAll = [] { }, .CheckEntry = [](std::uint32_t) { }, .Update = [](core::agent_entry, qt::agent_programs_panel::answer aAnswer) { aAnswer(std::nullopt); }, .SetScratchPolicy = [](std::uint32_t, std::uint32_t) { return true; }, .ClearScratch = [&window] { window.agent_programs()->present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 0U, 0U }, QStringLiteral("Cleared 41.3 MB from 3 folders.")); } });
 	}
 	auto* const settings = window.settings();
 	settings->resize(980, 760);
@@ -583,7 +592,7 @@ void render_agents_roster(const QString& aFolder, const bool aLook = false)
 	if (aLook) {
 		// The owner's look: the page live. Rows open their sheet, their menu
 		// checks, moves or removes (nothing is saved: no host behind it).
-		settings->setWindowTitle(QStringLiteral("Settings › Agents & context: one agent passed, one not signed in, one never checked. Open a row for its scratch folder and builds settings"));
+		settings->setWindowTitle(QStringLiteral("Settings › Agents & context: the scratch folder limit, how long unused folders are kept, what they hold, and Clear scratch folders"));
 		QApplication::exec();
 		return;
 	}

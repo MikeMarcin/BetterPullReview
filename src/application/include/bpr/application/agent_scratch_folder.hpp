@@ -36,8 +36,33 @@ namespace bpr::application {
 		bool Truncated = false;
 	};
 	[[nodiscard]] auto list_agent_scratch_folder(const std::filesystem::path& aFolder) -> agent_scratch_listing;
-	/// \brief Whether a turn starting now gets no write allowance there.
-	[[nodiscard]] auto agent_scratch_full(const agent_scratch_listing& aListing) noexcept -> bool;
+	/// \brief Whether the folder is at or past `aLimitBytes`: a turn starting
+	/// now gets no write allowance there, and a turn running now is stopped.
+	[[nodiscard]] auto agent_scratch_full(const agent_scratch_listing& aListing, std::uint64_t aLimitBytes) noexcept -> bool;
+
+	/// \brief Owner look e97c6a3d (2026-11-11): "we need to make sure that
+	/// our app doesn't just consume disk space without bounds". One folder
+	/// under the root, as Settings lists it.
+	struct agent_scratch_entry
+	{
+		std::string   Key;
+		std::uint64_t Bytes = 0U;
+		/// The newest change in it (or the folder's own), seconds since the epoch.
+		std::int64_t LastChanged = 0;
+	};
+	/// \brief Every folder under `aRoot`, at most `maximum_agent_scratch_entries`
+	/// of them, each measured as `list_agent_scratch_folder` measures.
+	[[nodiscard]] auto survey_agent_scratch_root(const std::filesystem::path& aRoot) -> std::vector<agent_scratch_entry>;
+	/// \brief Removes each folder under `aRoot` whose newest change is older
+	/// than `aBeforeSeconds` (all of them for none), except `aKeep`. Answers
+	/// the folders removed and the bytes they held.
+	struct agent_scratch_cleanup
+	{
+		std::size_t   Removed = 0U;
+		std::uint64_t Bytes   = 0U;
+		std::size_t   Failed  = 0U;
+	};
+	[[nodiscard]] auto remove_agent_scratch_folders(const std::filesystem::path& aRoot, std::optional<std::int64_t> aBeforeSeconds, const std::vector<std::string>& aKeep) -> agent_scratch_cleanup;
 	/// \brief The files new or changed between two listings, in path order,
 	/// at most `aLimit`.
 	[[nodiscard]] auto agent_scratch_written(const agent_scratch_listing& aBefore, const agent_scratch_listing& aAfter, std::size_t aLimit) -> std::vector<std::string>;

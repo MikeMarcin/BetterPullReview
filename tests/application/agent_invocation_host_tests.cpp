@@ -324,6 +324,7 @@ namespace {
 			if (aSink) {
 				aSink(event);
 			}
+			StopAfterEvent = aStop.stop_requested();
 			return {
 				.Session        = aRequest.Session,
 				.Outcome        = application::agent_run_outcome::success,
@@ -345,6 +346,7 @@ namespace {
 		std::size_t                                      Cancels           = 0U;
 		int                                              LastTimeout       = 0;
 		bool                                             LastStopRequested = false;
+		bool                                             StopAfterEvent    = false;
 		std::optional<application::agent_launch_request> LastRequest;
 		std::function<void()>                            AfterStart;
 		/// What a completed turn returned, as the shared loop decoded it.
@@ -1978,6 +1980,30 @@ namespace {
 		test.Host.dispatch(off);
 		test.settle();
 		expect(!test.Processes.LastRequest->Grant && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--add-dir" }), "off: no allowance");
+
+		// Owner look e97c6a3d (2026-11-11): the limit is a setting, and a
+		// turn that passes it during the turn is stopped after that step.
+		auto bounded              = input;
+		bounded.BuildsAndTests    = false;
+		bounded.ScratchLimitMiB   = 16U;
+		test.Processes.AfterStart = [&] {
+			const auto& started = *test.Processes.LastRequest;
+			if (started.Grant) {
+				auto big = std::ofstream{ std::filesystem::path{ started.Grant->ScratchFolder } / "big.bin", std::ios::binary };
+				big.seekp(static_cast<std::streamoff>(core::agent_scratch_limit_bytes(16U)));
+				big.put('\0');
+			}
+		};
+		test.Host.dispatch(bounded);
+		test.settle();
+		expect(test.Processes.LastRequest->Grant && test.Processes.LastRequest->Grant->ScratchLimitMiB == 16U && !test.Processes.LastRequest->Grant->ScratchFull, "the turn starts below its 16 MiB limit");
+		expect(test.Processes.StopAfterEvent, "the step that passed it stops the turn");
+		expect(test.Projection.Finished.back().ScratchOverflowed && test.Projection.Finished.back().ScratchFull, "and the result says why");
+		test.Processes.AfterStart     = { };
+		test.Processes.StopAfterEvent = false;
+		test.Host.dispatch(off);
+		test.settle();
+		expect(!test.Processes.StopAfterEvent, "a turn without a folder is never stopped for one");
 	}
 
 	void test_tour_history_keeps_the_terminal_answer_item()

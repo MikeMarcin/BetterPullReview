@@ -190,6 +190,11 @@ try {
 	// Owner look v004: the Agent tab's Suggestions toggle is kept.
 	listed.SuggestionsHidden  = true;
 	listed.Agents[0].Identity = std::string(32U, 'a');
+	expect(store->load()->ScratchLimitMiB == core::default_agent_scratch_limit_mib && store->load()->ScratchKeepDays == core::default_agent_scratch_keep_days, "the scratch policy starts at 256 MiB and 30 days");
+	// RFC-BPR-0104 as amended 2026-11-11: the scratch folder limit and how
+	// long an unused folder is kept are settings.
+	listed.ScratchLimitMiB = 1024U;
+	listed.ScratchKeepDays = 0U;
 	expect(store->store(listed), "an agent list is stored");
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");

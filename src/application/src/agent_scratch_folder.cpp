@@ -14,6 +14,13 @@ namespace bpr::application {
 			const auto status = std::filesystem::symlink_status(aPath, error);
 			return !error && std::filesystem::is_directory(status) && !std::filesystem::is_symlink(status);
 		}
+		/// A file time as seconds since the epoch, through the two clocks'
+		/// present readings (the library offers no portable cast).
+		[[nodiscard]] auto unix_seconds(const std::filesystem::file_time_type aTime) -> std::int64_t
+		{
+			const auto since = std::chrono::duration_cast<std::chrono::seconds>(aTime - std::filesystem::file_time_type::clock::now());
+			return (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()) + since).count();
+		}
 	} // namespace
 
 	auto valid_agent_scratch_key(const std::string_view aKey) noexcept -> bool
@@ -48,6 +55,8 @@ namespace bpr::application {
 		if (!plain_folder(folder)) {
 			return std::nullopt;
 		}
+		// In use now: an age cleanup counts from here.
+		std::filesystem::last_write_time(folder, std::filesystem::file_time_type::clock::now(), error);
 		return folder;
 	}
 
@@ -82,9 +91,56 @@ namespace bpr::application {
 		return listing;
 	}
 
-	auto agent_scratch_full(const agent_scratch_listing& aListing) noexcept -> bool
+	auto agent_scratch_full(const agent_scratch_listing& aListing, const std::uint64_t aLimitBytes) noexcept -> bool
 	{
-		return aListing.Truncated || aListing.Bytes >= core::maximum_agent_scratch_bytes;
+		return aListing.Truncated || aListing.Bytes >= aLimitBytes;
+	}
+
+	auto survey_agent_scratch_root(const std::filesystem::path& aRoot) -> std::vector<agent_scratch_entry>
+	{
+		auto entries = std::vector<agent_scratch_entry>{ };
+		if (!plain_folder(aRoot)) {
+			return entries;
+		}
+		auto error = std::error_code{ };
+		for (auto walk = std::filesystem::directory_iterator{ aRoot, error }; !error && walk != std::filesystem::directory_iterator{ }; walk.increment(error)) {
+			if (entries.size() >= maximum_agent_scratch_entries) {
+				break;
+			}
+			const auto key = walk->path().filename().string();
+			if (!valid_agent_scratch_key(key) || !plain_folder(walk->path())) {
+				continue;
+			}
+			const auto listing = list_agent_scratch_folder(walk->path());
+			auto       newest  = std::int64_t{ 0 };
+			auto       ignored = std::error_code{ };
+			if (const auto own = std::filesystem::last_write_time(walk->path(), ignored); !ignored) {
+				newest = unix_seconds(own);
+			}
+			for (const auto& [path, facts] : listing.Files) {
+				newest = std::max(newest, unix_seconds(std::filesystem::file_time_type{ std::filesystem::file_time_type::duration{ facts.second } }));
+			}
+			entries.push_back({ .Key = key, .Bytes = listing.Bytes, .LastChanged = newest });
+		}
+		std::ranges::sort(entries, { }, &agent_scratch_entry::Key);
+		return entries;
+	}
+
+	auto remove_agent_scratch_folders(const std::filesystem::path& aRoot, const std::optional<std::int64_t> aBeforeSeconds, const std::vector<std::string>& aKeep) -> agent_scratch_cleanup
+	{
+		auto cleanup = agent_scratch_cleanup{ };
+		for (const auto& entry : survey_agent_scratch_root(aRoot)) {
+			if (std::ranges::contains(aKeep, entry.Key) || (aBeforeSeconds && entry.LastChanged >= *aBeforeSeconds)) {
+				continue;
+			}
+			if (remove_agent_scratch_folder(aRoot, entry.Key)) {
+				++cleanup.Removed;
+				cleanup.Bytes += entry.Bytes;
+			} else {
+				++cleanup.Failed;
+			}
+		}
+		return cleanup;
 	}
 
 	auto agent_scratch_written(const agent_scratch_listing& aBefore, const agent_scratch_listing& aAfter, const std::size_t aLimit) -> std::vector<std::string>

@@ -679,6 +679,22 @@ namespace bpr::application {
 		return true;
 	}
 
+	auto agent_setup_host::set_scratch_policy(const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) -> bool
+	{
+		auto& host = *Implementation;
+		if (aLimitMiB < core::minimum_agent_scratch_limit_mib || aLimitMiB > core::maximum_agent_scratch_limit_mib || aKeepDays > core::maximum_agent_scratch_keep_days) {
+			return false;
+		}
+		auto& preferences = host.Projection.Preferences;
+		if (preferences.ScratchLimitMiB != aLimitMiB || preferences.ScratchKeepDays != aKeepDays) {
+			preferences.ScratchLimitMiB = aLimitMiB;
+			preferences.ScratchKeepDays = aKeepDays;
+			host.save();
+			host.publish();
+		}
+		return true;
+	}
+
 	void agent_setup_host::set_suggestions_hidden(const bool aHidden)
 	{
 		auto& host = *Implementation;

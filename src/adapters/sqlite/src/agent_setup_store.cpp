@@ -183,6 +183,13 @@ namespace bpr::adapters::sqlite {
 									"CREATE TABLE IF NOT EXISTS agent_run_limit("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
 									"minutes INTEGER NOT NULL CHECK(minutes BETWEEN 0 AND 1440)) STRICT")
+				// RFC-BPR-0104 as amended 2026-11-11: the scratch folder limit and
+				// how long an unused folder is kept.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_scratch_policy("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"limit_mib INTEGER NOT NULL CHECK(limit_mib BETWEEN 16 AND 65536),"
+									"keep_days INTEGER NOT NULL CHECK(keep_days BETWEEN 0 AND 3650)) STRICT")
 				// Owner look v004: whether the Agent tab's suggestions are hidden.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_suggestions("
@@ -390,6 +397,15 @@ namespace bpr::adapters::sqlite {
 				if (committed) {
 					sqlite3_bind_int64(limit->Value, 1, aPreferences.RunLimitMinutes);
 					committed = sqlite3_step(limit->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				auto policy = detail::prepare(aDatabase, "INSERT OR REPLACE INTO agent_scratch_policy VALUES(1,?1,?2)");
+				committed   = policy.has_value();
+				if (committed) {
+					sqlite3_bind_int64(policy->Value, 1, aPreferences.ScratchLimitMiB);
+					sqlite3_bind_int64(policy->Value, 2, aPreferences.ScratchKeepDays);
+					committed = sqlite3_step(policy->Value) == SQLITE_DONE;
 				}
 			}
 			if (committed) {
@@ -777,6 +793,10 @@ namespace bpr::adapters::sqlite {
 					}
 					if (auto limit = detail::prepare(store->Database.get(), "SELECT minutes FROM agent_run_limit WHERE singleton=1"); limit && sqlite3_step(limit->Value) == SQLITE_ROW) {
 						loaded.RunLimitMinutes = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(limit->Value, 0), 0, 1440));
+					}
+					if (auto policy = detail::prepare(store->Database.get(), "SELECT limit_mib,keep_days FROM agent_scratch_policy WHERE singleton=1"); policy && sqlite3_step(policy->Value) == SQLITE_ROW) {
+						loaded.ScratchLimitMiB = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(policy->Value, 0), core::minimum_agent_scratch_limit_mib, core::maximum_agent_scratch_limit_mib));
+						loaded.ScratchKeepDays = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(policy->Value, 1), 0, core::maximum_agent_scratch_keep_days));
 					}
 					if (auto hidden = detail::prepare(store->Database.get(), "SELECT hidden FROM agent_suggestions WHERE singleton=1"); hidden && sqlite3_step(hidden->Value) == SQLITE_ROW) {
 						loaded.SuggestionsHidden = sqlite3_column_int64(hidden->Value, 0) != 0;

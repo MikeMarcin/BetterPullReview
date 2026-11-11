@@ -6,10 +6,12 @@
 #include "bpr/core/agent_entry.hpp"
 #include "bpr/core/agent_grant.hpp"
 
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -72,26 +74,89 @@ namespace {
 		value.OwnCheckout = true;
 		expect(core::resolve_agent_grant(value).Builds == core::agent_builds_state::own_checkout && !core::builds_granted(core::resolve_agent_grant(value)), "never in the reviewer's own checkout");
 		expect(!core::build_question_due(core::resolve_agent_grant(value)), "nothing to ask there");
+		// Owner look e97c6a3d (2026-11-11): "Allow build and run tests" is a
+		// toggle per pull request. Turned on there, it is the answer, whatever
+		// the agent's setting; turned off, it stays off.
+		auto toggled        = facts(core::agent_program::claude);
+		toggled.BuildAnswer = true;
+		expect(core::builds_granted(core::resolve_agent_grant(toggled)), "the pull request's toggle allows builds with the agent's setting off");
+		expect(core::agent_builds_toggle_checked(core::resolve_agent_grant(toggled)) && core::agent_builds_toggle_enabled(core::resolve_agent_grant(toggled)), "the toggle reads checked");
+		toggled.OwnCheckout = true;
+		expect(!core::agent_builds_toggle_enabled(core::resolve_agent_grant(toggled)) && !core::agent_builds_toggle_checked(core::resolve_agent_grant(toggled)), "unavailable, unchecked, in the reviewer's own checkout");
+	}
+
+	// Review finding 4 (2026-11-11): the picker states only what the launch
+	// carries. A folder that cannot be made, a full folder and a refused
+	// grant each read as what they are.
+	void test_what_the_launch_carries()
+	{
+		auto value         = facts(core::agent_program::claude);
+		value.ScratchPlace = false;
+		auto grant         = core::resolve_agent_grant(value);
+		expect(!core::scratch_granted(grant) && !core::agent_scratch_toggle_enabled(grant) && !core::agent_scratch_toggle_checked(grant), "no place for a folder: no allowance and the toggle is unavailable");
+		expect(core::agent_scratch_tooltip(grant, core::agent_program::claude, 256U).find("No scratch folder") != std::string::npos, "and it says why");
+		value             = facts(core::agent_program::claude);
+		value.ScratchFull = true;
+		grant             = core::resolve_agent_grant(value);
+		expect(core::scratch_granted(grant) && !core::scratch_writable(grant) && core::grant_level(grant) == core::agent_grant_level::reads_only, "a full folder may be run, not written");
+		expect(core::agent_scratch_toggle_text(grant) == "Use scratch folder (full)", "the toggle names it full");
+		expect(core::agent_scratch_tooltip(grant, core::agent_program::claude, 64U).find("64 MiB") != std::string::npos, "with the configured limit");
+		value         = facts(core::agent_program::codex);
+		value.Builds  = true;
+		value.Refusal = core::agent_grant_refusal::codex_own_permissions;
+		grant         = core::resolve_agent_grant(value);
+		expect(!core::scratch_granted(grant) && !core::builds_granted(grant) && !core::build_question_due(grant), "a refused grant carries nothing and asks nothing");
+		expect(!core::agent_scratch_toggle_enabled(grant) && !core::agent_builds_toggle_enabled(grant), "both toggles unavailable");
+		expect(core::agent_scratch_tooltip(grant, core::agent_program::codex, 256U).find("permissions profile") != std::string::npos, "with the refusal's reason");
+	}
+
+	// Review finding 1 (2026-11-11): BPR's Codex profile replaces the
+	// reviewer's, so it is passed only where it cannot widen it.
+	void test_codex_composition()
+	{
+		const auto none = std::vector<std::string>{ };
+		const auto ok   = [&](const std::string_view aConfig) { return !core::codex_grant_refusal(std::array{ aConfig }, false, none).has_value(); };
+		expect(ok(""), "no configuration composes");
+		expect(ok("model = \"gpt-5\"\nsandbox_mode = \"workspace-write\"\napproval_policy = \"on-request\"\n"), "a sandbox mode and on-request compose");
+		expect(ok("# default_permissions = \"x\"\nmodel = \"a\"\n"), "a comment is not a setting");
+		const auto refused = [&](const std::string_view aConfig, const core::agent_grant_refusal aWhy) { return core::codex_grant_refusal(std::array{ aConfig }, false, none) == std::optional{ aWhy }; };
+		expect(refused("default_permissions = \"mine\"\n[permissions.mine.filesystem]\n\"~/.ssh\" = \"none\"\n", core::agent_grant_refusal::codex_own_permissions), "the reviewer's own profile");
+		expect(refused("[profiles.work]\ndefault_permissions = \"mine\"\n", core::agent_grant_refusal::codex_own_permissions), "in a profile too");
+		expect(refused("approval_policy = \"untrusted\"\n", core::agent_grant_refusal::codex_asks_approval), "untrusted is never replaced by never");
+		expect(refused("[profiles.x]\napproval_policy = { granular = true }\n", core::agent_grant_refusal::codex_asks_approval), "an approval BPR cannot read");
+		expect(core::codex_grant_refusal(std::array<std::string_view, 0>{ }, true, none) == std::optional{ core::agent_grant_refusal::codex_config_unreadable }, "an unreadable configuration");
+		const auto arguments = std::vector<std::string>{ "-c", "sandbox_mode=\"danger-full-access\"" };
+		expect(core::codex_grant_refusal(std::array<std::string_view, 0>{ }, false, arguments) == std::optional{ core::agent_grant_refusal::custom_arguments }, "an agent whose own arguments set its sandbox");
+		const auto profile = std::vector<std::string>{ "--profile", "work" };
+		expect(core::codex_grant_refusal(std::array<std::string_view, 0>{ }, false, profile) == std::optional{ core::agent_grant_refusal::custom_arguments }, "or choose a profile");
+		const auto model = std::vector<std::string>{ "-c", "model=\"o3\"" };
+		expect(!core::codex_grant_refusal(std::array<std::string_view, 0>{ }, false, model).has_value(), "a model setting composes");
 	}
 
 	void test_words()
 	{
 		auto value = facts(core::agent_program::claude);
-		expect(core::agent_grant_line(core::grant_level(core::resolve_agent_grant(value))) == "Writes only in its scratch folder", "scratch line");
-		value.ScratchChoice = false;
-		expect(core::agent_grant_line(core::grant_level(core::resolve_agent_grant(value))) == "Reads only", "reads-only line");
-		value.Builds      = true;
-		value.BuildAnswer = true;
-		expect(core::agent_grant_line(core::grant_level(core::resolve_agent_grant(value))) == "Builds and tests in its disposable checkout", "builds line");
-		expect(core::agent_builds_line(core::agent_builds_state::off, "Claude Code") == "Builds and tests are off for Claude Code", "builds-off item");
+		expect(core::agent_scratch_toggle_text(core::resolve_agent_grant(value)) == "Use scratch folder", "the scratch toggle");
+		expect(core::agent_builds_toggle_text == "Allow build and run tests", "the builds toggle");
 		// AC05: only an enforcing runtime is said to have a sandbox.
-		auto       scratch = core::resolve_agent_grant(facts(core::agent_program::claude));
-		const auto claude  = core::agent_grant_enforcement(scratch, core::agent_program::claude);
+		const auto scratch = core::resolve_agent_grant(facts(core::agent_program::claude));
+		const auto claude  = core::agent_scratch_tooltip(scratch, core::agent_program::claude, 256U);
 		expect(claude.find("sandbox") == std::string::npos && claude.find("permission rule") != std::string::npos, "Claude's grant is a rule, never a sandbox");
-		expect(core::agent_grant_enforcement(scratch, core::agent_program::codex).find("sandbox enforces") != std::string::npos, "Codex's is enforced");
+		expect(core::agent_scratch_tooltip(scratch, core::agent_program::codex, 256U).find("sandbox holds") != std::string::npos, "Codex's is enforced");
+		// Review finding 5: off is not "Reads only": the agent's own settings still apply.
+		value.ScratchChoice = false;
+		const auto off      = core::agent_scratch_tooltip(core::resolve_agent_grant(value), core::agent_program::claude, 256U);
+		expect(off.find("its own settings allow") != std::string::npos && off.find("Reads only") == std::string::npos, "off says what still applies");
+		// Review finding 6: Claude's build rules are disclosed as unconfined.
+		auto builds        = facts(core::agent_program::claude);
+		builds.BuildAnswer = true;
+		const auto told    = core::agent_builds_tooltip(core::resolve_agent_grant(builds), core::agent_program::claude);
+		expect(told.find("any arguments") != std::string::npos && told.find("publish") != std::string::npos, "Claude's build programs run with any arguments, anywhere");
 		expect(core::agent_build_question == "Building runs this pull request's code on this computer with your account's rights. Allow for this pull request?", "the question as written");
-		const auto told = core::agent_scratch_instruction("/s", true);
-		expect(told.find("/s") != std::string::npos && told.find("256 MiB") != std::string::npos && told.find("may not write") != std::string::npos, "the agent is told the path, the limit and why");
+		const auto instruction = core::agent_scratch_instruction("/s", true, 128U);
+		expect(instruction.find("/s") != std::string::npos && instruction.find("128 MiB") != std::string::npos && instruction.find("may not write") != std::string::npos, "the agent is told the path, the limit and why");
+		expect(core::agent_scratch_instruction("/s", false, 256U).find("python3") != std::string::npos, "and which programs run its files");
+		expect(core::agent_scratch_limit_bytes(256U) == 256ULL * 1024ULL * 1024ULL && core::agent_scratch_limit_mib(0U) == core::default_agent_scratch_limit_mib && core::agent_scratch_limit_mib(1U << 30U) == core::maximum_agent_scratch_limit_mib, "the limit is bounded");
 	}
 
 	void test_commands_listed()
@@ -116,6 +181,8 @@ auto main() -> int
 	test_entry_defaults();
 	test_scratch_follows_start_until_chosen();
 	test_builds();
+	test_what_the_launch_carries();
+	test_codex_composition();
 	test_words();
 	test_commands_listed();
 	std::cout << "agent-grant-tests:pass\n";

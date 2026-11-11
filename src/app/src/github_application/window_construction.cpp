@@ -890,6 +890,7 @@ namespace bpr::app {
 				}
 				if (application::valid_agent_grant_path((root / "x").string())) {
 					AgentHost->set_scratch_root(root);
+					AgentScratchRoot = root;
 				}
 			}
 			AgentProjections->NativeSession = [this](const core::agent_session& aSession) { if (!Closing && ChatHost) { LatestAgentSession=aSession; ChatHost->admitted(aSession,true); } };

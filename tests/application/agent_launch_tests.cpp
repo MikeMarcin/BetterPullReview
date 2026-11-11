@@ -2329,18 +2329,22 @@ namespace {
 		const auto has = [](const auto& aLaunch, const std::string& aArgument) { return std::ranges::contains(aLaunch->Arguments, aArgument); };
 		expect(!has(none, "--add-dir") && !has(none, "--allowedTools") && none->Arguments.size() + 0U < claude->Arguments.size(), "off: no allowance at all");
 		auto expected = none->Arguments;
-		expected.insert(expected.end(), { "--add-dir", folder, "--allowedTools", "Write(/" + folder + "/**)", "Edit(/" + folder + "/**)", "Bash(" + folder + "/*)" });
+		expected.insert(expected.end(), { "--add-dir", folder, "--allowedTools", "Write(/" + folder + "/**)", "Edit(/" + folder + "/**)" });
 		for (const auto runner : application::claude_scratch_runners) {
 			expected.push_back("Bash(" + std::string{ runner } + " " + folder + "/*)");
 		}
-		expect(claude->Arguments == expected, "Claude: the folder, write and edit under it, and running files in it; nothing else");
+		expected.insert(expected.end(), { "--disallowedTools", "Bash(*/..*)" });
+		expect(claude->Arguments == expected, "Claude: the folder, write and edit under it, running files in it with an interpreter, and no parent step; nothing else");
+		// Review finding 2 (2026-11-11): no rule runs a file directly or
+		// changes a mode; both matched commands that wrote the workspace.
+		expect(!has(claude, "Bash(" + folder + "/*)") && !has(claude, "Bash(chmod +x " + folder + "/*)"), "no direct run and no chmod rule");
 		const auto told = std::string{ claude->Input.begin(), claude->Input.end() };
 		expect(told.find("scratch_folder") != std::string::npos && told.find(folder) != std::string::npos, "Claude is told its folder");
 		expect(claude->Grant == std::optional{ scratch }, "the launch records its grant");
 
 		scratch.ScratchFull = true;
 		const auto full     = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });
-		expect(full && !has(full, "Write(/" + folder + "/**)") && has(full, "Bash(" + folder + "/*)") && std::string{ full->Input.begin(), full->Input.end() }.find("may not write") != std::string::npos,
+		expect(full && !has(full, "Write(/" + folder + "/**)") && has(full, "Bash(python3 " + folder + "/*)") && std::string{ full->Input.begin(), full->Input.end() }.find("may not write") != std::string::npos,
 			   "AC03: a full folder gives no write allowance, and the agent is told why");
 
 		const auto codexNone = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { });
@@ -2354,7 +2358,11 @@ namespace {
 		expect(builds && builds->Arguments.back() == "-" && has(builds, "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\",\"" + ws + "\"=\"write\",\":tmpdir\"=\"write\"}"),
 			   "AC04: builds add the disposable checkout and the temporary folder, before exec's stdin marker");
 		const auto claudeBuilds = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws } });
-		expect(claudeBuilds && has(claudeBuilds, "Bash(cmake:*)") && has(claudeBuilds, "Bash(ctest:*)") && !has(claudeBuilds, "--add-dir"), "Claude builds: the build programs only");
+		expect(claudeBuilds && has(claudeBuilds, "Bash(cmake:*)") && has(claudeBuilds, "Bash(ctest:*)") && !has(claudeBuilds, "--add-dir") && has(claudeBuilds, "Bash(*/..*)"), "Claude builds: the build programs only");
+		scratch.ScratchFull     = false;
+		scratch.ScratchLimitMiB = 64U;
+		const auto limited      = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });
+		expect(limited && std::string{ limited->Input.begin(), limited->Input.end() }.find("64 MiB") != std::string::npos, "the agent is told the limit as set");
 
 		// AC06: tour and writing runs never take a grant; a plain-text harness neither.
 		const auto grant = application::agent_launch_grant{ .ScratchFolder = folder };
@@ -2364,6 +2372,10 @@ namespace {
 		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = "/Library/Application Support/x" } }),
 			   "a folder a rule cannot name is refused");
 		expect(!application::valid_agent_grant_path("relative/x") && application::valid_agent_build_path("/a b/c"), "path rules");
+		// Review finding 8: a glob character would widen the rule it is named in.
+		for (const auto* const path : { "/d/*", "/d/a?", "/d/[a]", "/d/{a,b}", "/d/x]" }) {
+			expect(!application::valid_agent_grant_path(path), "a glob character is refused");
+		}
 	}
 } // namespace
 

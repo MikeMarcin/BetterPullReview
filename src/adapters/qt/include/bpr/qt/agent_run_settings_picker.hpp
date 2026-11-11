@@ -42,20 +42,27 @@ namespace bpr::qt {
 		/// Owner look v006. The harness is being asked for its models.
 		bool Listing = false;
 		/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11
-		/// ([[BPR-2051]]). The grant in this pull request, under the model
-		/// and effort; none shown when the agent takes no grant.
+		/// (owner look e97c6a3d). Two toggles for this pull request under the
+		/// model and effort, each explained in its tooltip; none shown when
+		/// the agent takes no grant. A toggle is checked only while the launch
+		/// carries what it names, and unavailable (with why) when it cannot.
 		bool GrantApplies = false;
-		/// The grant line: "Reads only", "Writes only in its scratch
-		/// folder", "Builds and tests in its disposable checkout".
-		QString GrantLine;
-		/// Whether "Scratch folder in this pull request" is checked.
-		bool ScratchOn = false;
-		/// "Builds and tests are off for Claude Code" and its other states.
-		QString BuildsLine;
-		/// What the runtime enforces and what it only follows.
-		QString GrantEnforcement;
+		/// "Use scratch folder", or "Use scratch folder (full)".
+		QString ScratchText;
+		bool    ScratchOn      = false;
+		bool    ScratchEnabled = false;
+		QString ScratchTip;
+		bool    BuildsOn      = false;
+		bool    BuildsEnabled = false;
+		QString BuildsTip;
 		/// The session's scratch folder is known and can be opened.
 		bool ScratchOpenable = false;
+		/// Owner look e97c6a3d ("I'm not even sure if type /MODEL or type
+		/// /EFFORT is true in general with custom agents"): the Model and
+		/// Effort menus' tooltips say the question field takes /model or
+		/// /effort only when it does for this agent; empty otherwise.
+		QString ModelHint;
+		QString EffortHint;
 	};
 
 	/// \brief Where a model or effort chosen in the picker goes; answers
@@ -114,6 +121,9 @@ namespace bpr::qt {
 		/// request and agent; Open scratch folder.
 		std::function<void(std::uint64_t, bool)> ToggleScratch;
 		std::function<void(std::uint64_t)>       OpenScratch;
+		/// Owner look e97c6a3d. Allow build and run tests turned on or off
+		/// for this pull request and agent.
+		std::function<void(std::uint64_t, bool)> ToggleBuilds;
 
 		/// Each picker presents again (settings, report or choice changed).
 		void refresh();
@@ -152,9 +162,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto full_text() const -> QString { return Full; }
 		/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). The
 		/// chosen agent needs setup: the pill says what is missing after the
-		/// agent's name ("Codex · not signed in") in the failed check's
-		/// colour, with an outline. Empty: it does not.
-		void               set_attention(const QString& aNeed);
+		/// agent's name ("Codex · not signed in") with an outline. Owner note
+		/// on the footer look ("Why is it red?"): only a check that ran and
+		/// failed (`aFailed`) is drawn in the failed check's colour; an agent
+		/// not yet checked is drawn in the quiet secondary ink. Empty: it
+		/// needs nothing.
+		void               set_attention(const QString& aNeed, bool aFailed = false);
+		[[nodiscard]] auto attention_failed() const noexcept -> bool { return AttentionFailed; }
 		[[nodiscard]] auto attention() const -> const QString& { return Attention; }
 		[[nodiscard]] auto source() const -> const std::shared_ptr<agent_run_settings_source>& { return Source; }
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
@@ -174,7 +188,8 @@ namespace bpr::qt {
 		QString                                    Full;
 		QString                                    Tip;
 		QString                                    Attention;
-		bool                                       MenuStale = false;
+		bool                                       AttentionFailed = false;
+		bool                                       MenuStale       = false;
 
 		/// The words' inset, and the chevron's width and inset on the right.
 		static constexpr int text_left     = 10;

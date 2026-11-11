@@ -3511,8 +3511,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# once the reviewer allowed them for the pull request; the window asks the
 	# build question and keeps the choice and the answer. Tour runs, tool-free
 	# hooks, admission and publication are unchanged; no network grant.
+	# RFC-BPR-0104 post-review round: this one narrows a grant. The window
+	# passes no grant to a Codex whose own configuration has a permissions
+	# profile or asks before commands (it would replace them), states only
+	# what the launch carries, re-checks the pull request after the modal
+	# build question, takes Allow build and run tests as a per-pull-request
+	# toggle, carries the set scratch limit to the turn and removes unused
+	# scratch folders. Admission and publication unchanged; no network grant.
 	set(bpr_expected_production_app_manifest_digest
-        "720e163b70dc0e6eef84875092568e36a8beeed315e7b619c161e8e100c97621"
+        "3b4c71eee543c360d5d2a2ddac0b55f11649b4331d3607a31e83d1b7b780bb14"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

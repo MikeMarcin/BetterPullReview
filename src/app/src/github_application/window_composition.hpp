@@ -717,6 +717,14 @@ namespace bpr::app {
 		[[nodiscard]] auto agent_grant_for(const core::agent_entry& aEntry, bool aOwnCheckout) const -> core::agent_grant;
 		/// The footer picker's scratch item, turned on or off here.
 		void toggle_agent_scratch(std::uint64_t aProfile, bool aOn);
+		/// Owner look e97c6a3d. Allow build and run tests, turned on or off here.
+		void toggle_agent_builds(std::uint64_t aProfile, bool aOn);
+		/// Review finding 1. Why `aEntry` is given no grant at all, or none.
+		[[nodiscard]] auto agent_grant_refusal_for(const core::agent_entry& aEntry) const -> std::optional<core::agent_grant_refusal>;
+		/// Owner look e97c6a3d. Settings' scratch line, measured now; and
+		/// the startup cleanup of folders unused past the kept days.
+		void present_scratch_usage(const QString& aSaid = { });
+		void clear_agent_scratch(std::optional<std::int64_t> aBeforeSeconds, bool aSay);
 		/// Open scratch folder.
 		void open_agent_scratch(std::uint64_t aProfile);
 		/// Sets an Agent tab turn's grant; asks the build question first when
@@ -2542,6 +2550,12 @@ namespace bpr::app {
 		/// [[BPR-2007]]. Each agent's scratch folder in the pull request now
 		/// open, once a turn has had one; by profile.
 		std::map<std::uint64_t, std::string> AgentScratchFolders;
+		/// Review finding 4. Each agent's folder was full when its last turn
+		/// ended, by profile; the root folders are made under (empty: none
+		/// can be named here, so no scratch folder is granted).
+		std::map<std::uint64_t, bool> AgentScratchFull;
+		std::filesystem::path         AgentScratchRoot;
+		bool                          ScratchSwept = false;
 		/// [[BPR-2008]]. Asks the build question: true allows, false
 		/// declines, none closed it. A course answers it itself.
 		std::function<std::optional<bool>()>                AskBuildQuestion;

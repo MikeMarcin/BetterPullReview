@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SETUP_PREFERENCES_HPP
 
 #include "bpr/core/agent_entry.hpp"
+#include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 
@@ -66,6 +67,11 @@ namespace bpr::application {
 		bool SuggestionsHidden = false;
 		/// [[BPR-2051]]. Each added agent's last check, by entry id.
 		std::vector<agent_entry_check_record> EntryChecks;
+		/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d). The
+		/// scratch folder limit in MiB, and the days an unused folder is kept
+		/// (0: kept until cleared).
+		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
+		std::uint32_t ScratchKeepDays = core::default_agent_scratch_keep_days;
 
 		auto operator<=>(const agent_setup_preferences&) const = default;
 	};
@@ -83,6 +89,8 @@ namespace bpr::application {
 			&& (aPreferences.CodexEffort.empty() || core::valid_agent_effort(core::agent_program::codex, aPreferences.CodexEffort))
 			&& !core::inspect_agent_entries(aPreferences.Agents) && aPreferences.PreferredAgent <= core::maximum_agent_entry_id
 			&& aPreferences.RunLimitMinutes <= maximum_run_limit_minutes && aPreferences.EntryChecks.size() <= core::maximum_agent_entry_id
+			&& aPreferences.ScratchLimitMiB >= core::minimum_agent_scratch_limit_mib && aPreferences.ScratchLimitMiB <= core::maximum_agent_scratch_limit_mib
+			&& aPreferences.ScratchKeepDays <= core::maximum_agent_scratch_keep_days
 			&& std::ranges::all_of(aPreferences.EntryChecks, [](const agent_entry_check_record& aRecord) {
 				   return aRecord.Id >= 1U && aRecord.Id <= core::maximum_agent_entry_id && (aRecord.Check.State == core::setup_check_state::passed || aRecord.Check.State == core::setup_check_state::failed)
 					   && aRecord.Check.Version.size() <= maximum_agent_check_version_bytes && (aRecord.Check.State == core::setup_check_state::failed) == aRecord.Check.Failure.has_value();

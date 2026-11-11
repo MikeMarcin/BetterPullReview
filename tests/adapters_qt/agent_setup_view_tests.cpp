@@ -577,7 +577,13 @@ namespace {
 									[&saved](const std::uint32_t aMinutes) {
 										saved.push_back("limit:" + std::to_string(aMinutes));
 										return true;
-									} });
+									},
+								.SetScratchPolicy =
+									[&saved](const std::uint32_t aLimit, const std::uint32_t aDays) {
+										saved.push_back("scratch:" + std::to_string(aLimit) + ":" + std::to_string(aDays));
+										return true;
+									},
+								.ClearScratch = [&saved] { saved.emplace_back("clear-scratch"); } });
 		auto preferences   = application::agent_setup_preferences{ };
 		preferences.Agents = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
 		preferences.Agents = *core::add_agent_entry(preferences.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } });
@@ -619,6 +625,20 @@ namespace {
 		limited.RunLimitMinutes = 30U;
 		programs.present(limited);
 		expect(programs.run_limit_toggle()->isChecked() && programs.run_limit_minutes()->value() == 30, "a saved limit shows");
+		// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d): the
+		// scratch folder limit, how long an unused folder is kept, what they
+		// hold, and Clear now.
+		expect(programs.scratch_limit()->value() == 256 && programs.scratch_keep_toggle()->isChecked() && programs.scratch_keep_days()->value() == 30, "the scratch policy starts at 256 MiB and 30 days");
+		programs.scratch_limit()->setValue(1024);
+		emit programs.scratch_limit()->editingFinished();
+		programs.scratch_keep_toggle()->setChecked(false);
+		expect(saved.size() >= 2U && saved[saved.size() - 2U] == "scratch:1024:30" && saved.back() == "scratch:1024:0", "a limit and keeping folders until cleared are sent");
+		programs.present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 3U * 1024U * 1024U, 2U });
+		expect(programs.scratch_usage()->text().contains(QStringLiteral("2 folders")) && programs.scratch_clear_button()->isEnabled(), "what the folders hold");
+		programs.scratch_clear_button()->click();
+		expect(saved.back() == "clear-scratch", "Clear scratch folders is an intent");
+		programs.present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 0U, 0U }, QStringLiteral("Cleared 3 MB from 2 folders."));
+		expect(programs.scratch_usage()->text().startsWith(QStringLiteral("No scratch folders.")) && !programs.scratch_clear_button()->isEnabled(), "nothing left to clear");
 		// The dialog: OK waits for an entry that may be kept, and the
 		// arguments are taken one per line, as written.
 		auto dialog = qt::agent_entry_dialog{ core::agent_entry{ } };

@@ -18,6 +18,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QPainter>
 #include <QPlainTextEdit>
@@ -322,6 +323,57 @@ namespace bpr::qt {
 			send_run_limit();
 		});
 		connect(RunLimit, &QSpinBox::editingFinished, this, [this] { send_run_limit(); });
+		// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d: "we need to
+		// make sure that our app doesn't just consume disk space without
+		// bounds"). The scratch folders' limit, how long an unused one is
+		// kept, what they hold and Clear now. The explanations are tooltips.
+		auto* const scratchRow = new QHBoxLayout{ };
+		auto* const limitSays  = new QLabel{ tr("Scratch folder limit"), this };
+		limitSays->setToolTip(tr("The most an agent's scratch folder may hold. A question that starts with it full may run what is there but not write; one that fills it is stopped."));
+		scratchRow->addWidget(limitSays);
+		scratchRow->addStretch(1);
+		ScratchLimit = new QSpinBox{ this };
+		ScratchLimit->setObjectName(QStringLiteral("settingsScratchLimit"));
+		ScratchLimit->setRange(static_cast<int>(core::minimum_agent_scratch_limit_mib), static_cast<int>(core::maximum_agent_scratch_limit_mib));
+		ScratchLimit->setValue(static_cast<int>(core::default_agent_scratch_limit_mib));
+		ScratchLimit->setSuffix(tr(" MiB"));
+		ScratchLimit->setToolTip(limitSays->toolTip());
+		limitSays->setBuddy(ScratchLimit);
+		scratchRow->addWidget(ScratchLimit);
+		column->addLayout(scratchRow);
+		auto* const keepRow = new QHBoxLayout{ };
+		ScratchKeepOn       = new QCheckBox{ tr("Remove scratch folders unused for"), this };
+		ScratchKeepOn->setObjectName(QStringLiteral("settingsScratchKeepOn"));
+		ScratchKeepOn->setToolTip(tr("Checked when BetterPullReview starts. Off, a folder stays until you clear it."));
+		keepRow->addWidget(ScratchKeepOn);
+		keepRow->addStretch(1);
+		ScratchKeepDays = new QSpinBox{ this };
+		ScratchKeepDays->setObjectName(QStringLiteral("settingsScratchKeepDays"));
+		ScratchKeepDays->setRange(1, static_cast<int>(core::maximum_agent_scratch_keep_days));
+		ScratchKeepDays->setValue(static_cast<int>(core::default_agent_scratch_keep_days));
+		ScratchKeepDays->setSuffix(tr(" days"));
+		keepRow->addWidget(ScratchKeepDays);
+		column->addLayout(keepRow);
+		auto* const usageRow = new QHBoxLayout{ };
+		ScratchUsage         = note({ }, this);
+		ScratchUsage->setObjectName(QStringLiteral("settingsScratchUsage"));
+		usageRow->addWidget(ScratchUsage, 1);
+		ScratchClear = new quiet_push_button{ tr("Clear scratch folders"), this };
+		ScratchClear->setObjectName(QStringLiteral("settingsScratchClear"));
+		ScratchClear->setToolTip(tr("Remove every agent's scratch folder now, except those of this pull request's agents. Not while a question runs. The agents' conversations stay."));
+		usageRow->addWidget(ScratchClear);
+		column->addLayout(usageRow);
+		connect(ScratchLimit, &QSpinBox::editingFinished, this, [this] { send_scratch_policy(); });
+		connect(ScratchKeepDays, &QSpinBox::editingFinished, this, [this] { send_scratch_policy(); });
+		connect(ScratchKeepOn, &QCheckBox::toggled, this, [this](const bool aOn) {
+			ScratchKeepDays->setEnabled(aOn);
+			send_scratch_policy();
+		});
+		connect(ScratchClear, &QPushButton::clicked, this, [this] {
+			if (Dispatch.ClearScratch) {
+				Dispatch.ClearScratch();
+			}
+		});
 		// Owner look v006: the setup is not entered again except to start
 		// afresh; Reset agents… asks first, then clears every agent setting.
 		auto* const resetRow  = new QHBoxLayout{ };
@@ -347,6 +399,29 @@ namespace bpr::qt {
 		if (Dispatch.SetRunLimit) {
 			static_cast<void>(Dispatch.SetRunLimit(RunLimitOn->isChecked() ? static_cast<std::uint32_t>(RunLimit->value()) : 0U));
 		}
+	}
+
+	void agent_programs_panel::send_scratch_policy()
+	{
+		if (Dispatch.SetScratchPolicy) {
+			static_cast<void>(Dispatch.SetScratchPolicy(static_cast<std::uint32_t>(ScratchLimit->value()), ScratchKeepOn->isChecked() ? static_cast<std::uint32_t>(ScratchKeepDays->value()) : 0U));
+		}
+	}
+
+	void agent_programs_panel::present_scratch_usage(const std::optional<std::pair<std::uint64_t, std::size_t>> aUsage, const QString& aSaid)
+	{
+		auto words = QString{ };
+		if (aUsage) {
+			const auto size = QLocale{ }.formattedDataSize(static_cast<qint64>(aUsage->first));
+			words           = aUsage->second == 0U ? tr("No scratch folders.")
+				: aUsage->second == 1U             ? tr("Scratch folders hold %1 in 1 folder.").arg(size)
+												   : tr("Scratch folders hold %1 in %2 folders.").arg(size).arg(aUsage->second);
+		}
+		if (!aSaid.isEmpty()) {
+			words += (words.isEmpty() ? QString{ } : QStringLiteral(" ")) + aSaid;
+		}
+		ScratchUsage->setText(words);
+		ScratchClear->setEnabled(!aUsage || aUsage->second != 0U);
 	}
 
 	void agent_programs_panel::set_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
@@ -389,6 +464,19 @@ namespace bpr::qt {
 			RunLimit->setEnabled(aPreferences.RunLimitMinutes != 0U);
 			if (aPreferences.RunLimitMinutes != 0U && !RunLimit->hasFocus()) {
 				RunLimit->setValue(static_cast<int>(aPreferences.RunLimitMinutes));
+			}
+		}
+		{
+			const auto blockLimit  = QSignalBlocker{ ScratchLimit };
+			const auto blockToggle = QSignalBlocker{ ScratchKeepOn };
+			const auto blockDays   = QSignalBlocker{ ScratchKeepDays };
+			if (!ScratchLimit->hasFocus()) {
+				ScratchLimit->setValue(static_cast<int>(aPreferences.ScratchLimitMiB));
+			}
+			ScratchKeepOn->setChecked(aPreferences.ScratchKeepDays != 0U);
+			ScratchKeepDays->setEnabled(aPreferences.ScratchKeepDays != 0U);
+			if (aPreferences.ScratchKeepDays != 0U && !ScratchKeepDays->hasFocus()) {
+				ScratchKeepDays->setValue(static_cast<int>(aPreferences.ScratchKeepDays));
 			}
 		}
 		const auto keptId = selected() != nullptr ? selected()->Id : 0U;

@@ -9,6 +9,7 @@
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_cost.hpp"
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_turn.hpp"
@@ -224,20 +225,24 @@ namespace bpr::application {
 		bool ScratchFull = false;
 		/// The disposable checkout the agent may build and test in; empty: none.
 		std::string BuildWorkspace;
+		/// The folder's limit as set, for the agent's instruction.
+		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
 
 		auto operator<=>(const agent_launch_grant&) const = default;
 	};
 
 	/// \brief [[BPR-2007]]. Whether a path can be named in a grant: absolute,
 	/// with no space, control character, parenthesis or comma, which a
-	/// Claude permission rule cannot carry.
+	/// Claude permission rule cannot carry, and (review finding 8) no glob
+	/// character, which would widen the rule it is named in.
 	[[nodiscard]] inline auto valid_agent_grant_path(const std::string_view aPath) noexcept -> bool
 	{
 		if (aPath.empty() || aPath.size() > 1024U || aPath.front() != '/') {
 			return false;
 		}
 		for (const auto character : aPath) {
-			if (static_cast<unsigned char>(character) <= 0x20U || character == 0x7F || character == '(' || character == ')' || character == ',' || character == '"' || character == '\\') {
+			if (static_cast<unsigned char>(character) <= 0x20U || character == 0x7F || character == '(' || character == ')' || character == ',' || character == '"' || character == '\\'
+				|| character == '*' || character == '?' || character == '[' || character == ']' || character == '{' || character == '}') {
 				return false;
 			}
 		}
@@ -266,11 +271,18 @@ namespace bpr::application {
 		"go", "gradle", "./gradlew", "mvn", "dotnet", "swift", "xcodebuild", "pytest", "python3 -m pytest", "tox", "just"
 	};
 	/// \brief [[BPR-2007]]. The interpreters Claude may run a scratch file
-	/// with, each as `Bash(NAME FOLDER/*)`. A shell script runs directly
-	/// (`Bash(FOLDER/*)`) once `chmod +x` has made it executable.
-	inline constexpr std::array<std::string_view, 6> claude_scratch_runners = {
-		"python3", "python", "node", "ruby", "perl", "chmod +x"
+	/// with, each as `Bash(NAME FOLDER/*)`. Review finding 2 (2026-11-11):
+	/// nothing runs a file directly and nothing changes a mode, since
+	/// `Bash(FOLDER/*)` matched `FOLDER/../../usr/bin/touch WORKSPACE/x` and
+	/// `chmod +x FOLDER/*` matched `chmod +x FOLDER/a WORKSPACE/file`.
+	inline constexpr std::array<std::string_view, 5> claude_scratch_runners = {
+		"python3", "python", "node", "ruby", "perl"
 	};
+	/// \brief Review finding 2. A granted Claude run is denied any command
+	/// with a parent step in a path, so a runner rule cannot reach a file
+	/// outside the folder (`python3 FOLDER/../x.py`). A deny rule wins over
+	/// every allow rule, the reviewer's own included, for that run.
+	inline constexpr std::string_view claude_grant_denial = "Bash(*/..*)";
 
 	struct agent_launch_options
 	{
@@ -1072,6 +1084,10 @@ namespace bpr::application {
 		std::vector<std::string> ScratchFiles;
 		/// The grant the turn launched with.
 		std::optional<agent_launch_grant> Grant;
+		/// RFC-BPR-0104 as amended 2026-11-11. The folder was at or past its
+		/// limit when the turn ended, and the turn was stopped for passing it.
+		bool ScratchFull       = false;
+		bool ScratchOverflowed = false;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};

@@ -494,10 +494,11 @@ namespace {
 			auto        line    = QString{ };
 			auto        scratch = static_cast<QAction*>(nullptr);
 			for (auto* const item : picker->menu()->actions()) {
-				if (item->objectName() == QStringLiteral("agentRunSettingsGrantLine")) {
-					line = item->text();
-				} else if (item->objectName() == QStringLiteral("agentRunSettingsScratch")) {
+				if (item->objectName() == QStringLiteral("agentRunSettingsScratch")) {
 					scratch = item;
+					line    = item->text() + (item->isChecked() ? QStringLiteral(" [on]") : QStringLiteral(" [off]"));
+				} else if (item->objectName() == QStringLiteral("agentRunSettingsBuilds")) {
+					line += QStringLiteral("; ") + item->text() + (item->isChecked() ? QStringLiteral(" [on]") : QStringLiteral(" [off]"));
 				}
 			}
 			return { line, scratch };
@@ -547,6 +548,17 @@ namespace {
 														  "current directory, and say exactly whether you were allowed. Do not start helpers."));
 		const auto afterFirst       = listing();
 		const auto cleanFirst       = workspaces();
+		// Review findings 2 and 3 (2026-11-11): the commands the old rules let
+		// through, and Bash writes, each tried by the agent as written.
+		const auto probes      = turn(QStringLiteral(
+			"In your scratch folder write probe.py containing print('probe'). Then run each of these five shell commands as its own Bash command, exactly as written except "
+			"that SCRATCH is your scratch folder's absolute path and WS is the absolute path of the current directory, and for each say whether it was allowed or refused: "
+			"(1) SCRATCH/../../../../../../../../../../usr/bin/touch WS/bpr-a1 "
+			"(2) python3 SCRATCH/../../../../../../../../../../usr/lib/bpr-missing.py WS "
+			"(3) chmod +x SCRATCH/probe.py WS/src/parse.cpp "
+			"(4) python3 SCRATCH/probe.py > WS/bpr-a4 "
+			"(5) echo hi > WS/bpr-a5 . Do not try any other way. Do not start helpers."));
+		const auto cleanProbes = workspaces();
 		aWindow.grab().save(QString::fromStdString((aOptions.Root / ("agent-scratch-" + std::string{ codex ? "codex" : "claude" } + "-on.png")).string()));
 		// AC09: off from the footer picker's grant item, as a person turns it off.
 		auto [lineBefore, item] = grantItem();
@@ -556,10 +568,12 @@ namespace {
 		item->trigger();
 		QApplication::processEvents();
 		const auto [lineOff, itemOff] = grantItem();
-		const auto second             = turn(QStringLiteral("Now try to create a file named second.py in the same scratch folder as before, containing print(2), and run it. Say exactly whether you were allowed. Do not start helpers."));
-		const auto afterSecond        = listing();
-		const auto facts              = std::string{ "{\"agent\":" } + quote(codex ? QStringLiteral("codex") : QStringLiteral("claude")) + ",\"line_on\":" + quote(lineOn) + ",\"first\":" + first + ",\"scratch_after_first\":" + quote(QString::fromStdString(afterFirst))
-			+ ",\"workspaces_after_first\":" + quote(QString::fromStdString(cleanFirst)) + ",\"line_off\":" + quote(lineOff) + ",\"item_off_checked\":" + (itemOff != nullptr && itemOff->isChecked() ? "true" : "false")
+		// Read now: the next turn's settings rebuild the menu and its actions.
+		const auto offChecked  = itemOff != nullptr && itemOff->isChecked();
+		const auto second      = turn(QStringLiteral("Now try to create a file named second.py in the same scratch folder as before, containing print(2), and run it. Say exactly whether you were allowed. Do not start helpers."));
+		const auto afterSecond = listing();
+		const auto facts       = std::string{ "{\"agent\":" } + quote(codex ? QStringLiteral("codex") : QStringLiteral("claude")) + ",\"line_on\":" + quote(lineOn) + ",\"first\":" + first + ",\"scratch_after_first\":" + quote(QString::fromStdString(afterFirst))
+			+ ",\"workspaces_after_first\":" + quote(QString::fromStdString(cleanFirst)) + ",\"probes\":" + probes + ",\"workspaces_after_probes\":" + quote(QString::fromStdString(cleanProbes)) + ",\"line_off\":" + quote(lineOff) + ",\"item_off_checked\":" + (offChecked ? "true" : "false")
 			+ ",\"second\":" + second + ",\"scratch_after_second\":" + quote(QString::fromStdString(afterSecond)) + ",\"workspaces_after_second\":" + quote(QString::fromStdString(workspaces())) + "}";
 		std::ofstream{ aOptions.Root / "agent-scratch.jsonl", std::ios::app } << facts << '\n';
 		say("agent-scratch:" + facts);

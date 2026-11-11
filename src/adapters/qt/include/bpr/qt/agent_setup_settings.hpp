@@ -13,9 +13,12 @@
 
 #include <QWidget>
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 class QCheckBox;
@@ -70,6 +73,12 @@ namespace bpr::qt {
 			/// Owner decision 2026-10-23: the run time limit in minutes, 0 for
 			/// none. Answers whether it was taken.
 			std::function<bool(std::uint32_t)> SetRunLimit;
+			/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d): the
+			/// scratch folder limit in MiB and the days an unused folder is
+			/// kept (0: until cleared), answering whether they were taken;
+			/// Clear scratch folders now.
+			std::function<bool(std::uint32_t, std::uint32_t)> SetScratchPolicy;
+			std::function<void()>                             ClearScratch;
 			/// Kept for the built-in profiles: an empty path clears it.
 			std::function<void(core::setup_agent, std::string)> SetProgram;
 			std::function<void(core::codex_protocol_choice)>    SetProtocol;
@@ -97,6 +106,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
 		[[nodiscard]] auto run_limit_toggle() const noexcept -> QCheckBox* { return RunLimitOn; }
 		[[nodiscard]] auto run_limit_minutes() const noexcept -> QSpinBox* { return RunLimit; }
+		/// \brief What the scratch folders hold now: bytes and folders; none
+		/// while unmeasured. A cleanup's answer is said beside it.
+		void               present_scratch_usage(std::optional<std::pair<std::uint64_t, std::size_t>> aUsage, const QString& aSaid = { });
+		[[nodiscard]] auto scratch_limit() const noexcept -> QSpinBox* { return ScratchLimit; }
+		[[nodiscard]] auto scratch_keep_toggle() const noexcept -> QCheckBox* { return ScratchKeepOn; }
+		[[nodiscard]] auto scratch_keep_days() const noexcept -> QSpinBox* { return ScratchKeepDays; }
+		[[nodiscard]] auto scratch_usage() const noexcept -> QLabel* { return ScratchUsage; }
+		[[nodiscard]] auto scratch_clear_button() const noexcept -> QPushButton* { return ScratchClear; }
 
 		/// \brief [[BPR-1859]]. Check agent: offered, running with Stop, or
 		/// disabled with its reason; its rows, a failure's words and remedy,
@@ -152,15 +169,21 @@ namespace bpr::qt {
 		void                                               present_roster();
 		void                                               say(const QString& aText);
 		void                                               open_row_menu(const QPoint& aAt);
-		QListWidget*                                       List         = nullptr;
-		QPushButton*                                       AddButton    = nullptr;
-		QPushButton*                                       EditButton   = nullptr;
-		QPushButton*                                       RemoveButton = nullptr;
-		QPushButton*                                       UpButton     = nullptr;
-		QPushButton*                                       DownButton   = nullptr;
-		QLabel*                                            Status       = nullptr;
-		QCheckBox*                                         RunLimitOn   = nullptr;
-		QSpinBox*                                          RunLimit     = nullptr;
+		QListWidget*                                       List            = nullptr;
+		QPushButton*                                       AddButton       = nullptr;
+		QPushButton*                                       EditButton      = nullptr;
+		QPushButton*                                       RemoveButton    = nullptr;
+		QPushButton*                                       UpButton        = nullptr;
+		QPushButton*                                       DownButton      = nullptr;
+		QLabel*                                            Status          = nullptr;
+		QCheckBox*                                         RunLimitOn      = nullptr;
+		QSpinBox*                                          RunLimit        = nullptr;
+		QSpinBox*                                          ScratchLimit    = nullptr;
+		QCheckBox*                                         ScratchKeepOn   = nullptr;
+		QSpinBox*                                          ScratchKeepDays = nullptr;
+		QLabel*                                            ScratchUsage    = nullptr;
+		QPushButton*                                       ScratchClear    = nullptr;
+		void                                               send_scratch_policy();
 		void                                               send_run_limit();
 	};
 

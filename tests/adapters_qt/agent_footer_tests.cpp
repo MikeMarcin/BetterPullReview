@@ -183,14 +183,17 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended. Claude with its
 	// scratch folder on and builds off; Codex allowed to build here.
 	const auto present_grant = [](qt::agent_run_settings& aSettings, const core::agent_grant_facts& aFacts) {
-		const auto grant           = core::resolve_agent_grant(aFacts);
-		const auto line            = core::agent_grant_line(core::grant_level(grant));
-		aSettings.GrantApplies     = grant.Applies;
-		aSettings.GrantLine        = QString::fromUtf8(line.data(), static_cast<qsizetype>(line.size()));
-		aSettings.ScratchOn        = grant.Scratch;
-		aSettings.BuildsLine       = QString::fromStdString(core::agent_builds_line(grant.Builds, aSettings.Agent.toStdString()));
-		aSettings.GrantEnforcement = QString::fromStdString(core::agent_grant_enforcement(grant, aFacts.Program));
-		aSettings.ScratchOpenable  = grant.Scratch;
+		const auto grant          = core::resolve_agent_grant(aFacts);
+		aSettings.GrantApplies    = grant.Applies;
+		aSettings.ScratchText     = QString::fromStdString(core::agent_scratch_toggle_text(grant));
+		aSettings.ScratchOn       = core::agent_scratch_toggle_checked(grant);
+		aSettings.ScratchEnabled  = core::agent_scratch_toggle_enabled(grant);
+		aSettings.ScratchTip      = QString::fromStdString(core::agent_scratch_tooltip(grant, aFacts.Program, 256U));
+		aSettings.BuildsOn        = core::agent_builds_toggle_checked(grant);
+		aSettings.BuildsEnabled   = core::agent_builds_toggle_enabled(grant);
+		aSettings.BuildsTip       = QString::fromStdString(core::agent_builds_tooltip(grant, aFacts.Program));
+		aSettings.ScratchOpenable = core::scratch_granted(grant);
+		aSettings.ModelHint       = QStringLiteral("Or type /model NAME in the Agent tab's question field.");
 	};
 	present_grant(claude, { .Program = core::agent_program::claude });
 	auto codex    = claude;
@@ -300,41 +303,54 @@ auto main(int argc, char** argv) -> int
 	expect(picker->width() >= picker->sizeHint().width(), "the picker keeps its whole words: " + std::to_string(picker->width()) + " of " + std::to_string(picker->sizeHint().width()));
 	footer->settings_button()->click();
 	expect(settingsAsked == 1, "Agent settings… asks for Settings");
+	// Owner note on the footer look ("Why is it red?"): a failed check is
+	// drawn in the failed check's colour; an agent not checked yet is quiet.
+	expect(!picker->attention_failed(), "a need given without a failed check is drawn quiet");
 	render(window, root, "needs-setup");
+	footer->present_setup(QStringLiteral("check failed"), true);
+	settle();
+	expect(picker->attention_failed(), "a failed check keeps the failed check's colour");
+	render(window, root, "check-failed");
 	footer->present_setup({ });
 	settle();
 	expect(!footer->settings_button()->isVisible() && picker->full_text().startsWith(QStringLiteral("Claude Code · Opus 5.5")), "set up again: the picker as before");
 
-	// [[BPR-2007]], RFC-BPR-0104 AC05, AC09. The grant under the model and
-	// effort: what it allows, the scratch folder item that turns it off or on
-	// here, the builds line, and what the runtime enforces.
+	// [[BPR-2007]], RFC-BPR-0104 AC05, AC09 as amended 2026-11-11 (owner look
+	// e97c6a3d). Under the model and effort, two toggles for this pull
+	// request; every explanation is a tooltip, and no line explains.
 	auto toggled          = std::string{ };
 	auto opened           = 0;
 	source->ToggleScratch = [&toggled](const std::uint64_t aProfile, const bool aOn) { toggled += std::to_string(aProfile) + (aOn ? ":on;" : ":off;"); };
+	source->ToggleBuilds  = [&toggled](const std::uint64_t aProfile, const bool aOn) { toggled += std::to_string(aProfile) + (aOn ? ":build;" : ":nobuild;"); };
 	source->OpenScratch   = [&opened](const std::uint64_t) { ++opened; };
-	{
-		emit       picker->menu()->aboutToShow();
-		const auto find = [&](const char* aName) -> QAction* {
-			for (auto* const item : picker->menu()->actions()) {
-				if (item->objectName() == QString::fromLatin1(aName)) {
-					return item;
-				}
+	const auto find       = [&](const char* aName) -> QAction* {
+		for (auto* const item : picker->menu()->actions()) {
+			if (item->objectName() == QString::fromLatin1(aName)) {
+				return item;
 			}
-			return nullptr;
-		};
-		auto* const line     = find("agentRunSettingsGrantLine");
-		auto* const scratch  = find("agentRunSettingsScratch");
-		auto* const builds   = find("agentRunSettingsBuilds");
-		auto* const enforced = find("agentRunSettingsEnforcement");
-		auto* const open     = find("agentRunSettingsOpenScratch");
-		expect(line != nullptr && line->text() == QStringLiteral("Writes only in its scratch folder") && !line->isEnabled(), "the grant line says what this pull request allows");
-		expect(scratch != nullptr && scratch->text() == QStringLiteral("Scratch folder in this pull request") && scratch->isCheckable() && scratch->isChecked(), "the scratch item is checked while on");
-		expect(builds != nullptr && builds->text() == QStringLiteral("Builds and tests are off for Claude Code"), "the builds line names the agent");
-		expect(enforced != nullptr && enforced->text().contains(QStringLiteral("permission rule")) && !enforced->text().contains(QStringLiteral("sandbox")), "Claude's grant is never called a sandbox");
+		}
+		return nullptr;
+	};
+	{
+		emit        picker->menu()->aboutToShow();
+		auto* const scratch = find("agentRunSettingsScratch");
+		auto* const builds  = find("agentRunSettingsBuilds");
+		auto* const open    = find("agentRunSettingsOpenScratch");
+		expect(scratch != nullptr && scratch->text() == QStringLiteral("Use scratch folder") && scratch->isCheckable() && scratch->isChecked() && scratch->isEnabled(), "Use scratch folder is checked while on");
+		expect(scratch->toolTip().contains(QStringLiteral("permission rule")) && !scratch->toolTip().contains(QStringLiteral("sandbox")), "its tooltip: Claude's grant is never called a sandbox");
+		expect(builds != nullptr && builds->text() == QStringLiteral("Allow build and run tests") && builds->isCheckable() && !builds->isChecked() && builds->isEnabled(), "Allow build and run tests, off");
+		expect(picker->menu()->toolTipsVisible(), "the menu shows its tooltips");
+		for (auto* const item : picker->menu()->actions()) {
+			expect(item->isEnabled() || item->isSeparator() || item == builds || item == scratch, "no disabled explainer line in the menu: " + item->text().toStdString());
+			expect(!item->text().contains(QStringLiteral("/model")) && !item->text().contains(QStringLiteral(" runs ")), "no /model line and no runs line");
+		}
+		expect(picker->menu()->findChild<QMenu*>(QStringLiteral("agentRunSettingsModels"))->menuAction()->toolTip().contains(QStringLiteral("/model")), "the /model hint is the Model menu's tooltip");
+		expect(picker->menu()->findChild<QMenu*>(QStringLiteral("agentRunSettingsEfforts"))->menuAction()->toolTip().isEmpty() || !picker->menu()->findChild<QMenu*>(QStringLiteral("agentRunSettingsEfforts"))->menuAction()->toolTip().contains(QStringLiteral("/effort")),
+			   "no /effort hint where it was not said to be true");
 		auto actions = picker->menu()->actions();
-		expect(actions.indexOf(scratch) > actions.indexOf(picker->menu()->findChild<QMenu*>(QStringLiteral("agentRunSettingsEfforts"))->menuAction()), "the grant sits under the model and effort");
+		expect(actions.indexOf(scratch) > actions.indexOf(picker->menu()->findChild<QMenu*>(QStringLiteral("agentRunSettingsEfforts"))->menuAction()), "the toggles sit under the model and effort");
 		expect(open != nullptr, "Open scratch folder once the session has one");
-		// [[BPR-2007]]. For the owner's look: the menu with the grant, the
+		// [[BPR-2007]]. For the owner's look: the menu with the toggles, the
 		// agent's sheet with its two settings, and the question.
 		if (!root.empty()) {
 			const auto native = qEnvironmentVariable("BPR_NATIVE_LOOK") == QStringLiteral("1");
@@ -359,23 +375,37 @@ auto main(int argc, char** argv) -> int
 		scratch->trigger();
 		expect(toggled == "1:off;" && opened == 1, "unchecking turns it off for this pull request and agent; Open opens it");
 	}
-	claude.ScratchOn = false;
-	claude.GrantLine = QStringLiteral("Reads only");
+	{
+		emit picker->menu()->aboutToShow();
+		find("agentRunSettingsBuilds")->trigger();
+		expect(toggled == "1:off;1:build;", "checking Allow build and run tests turns builds on for this pull request and agent");
+	}
+	present_grant(claude, { .Program = core::agent_program::claude, .ScratchChoice = false });
 	source->present({ claude, codex });
 	settle();
 	{
 		emit picker->menu()->aboutToShow();
-		auto checked = std::optional<bool>{ };
-		auto line    = QString{ };
-		for (auto* const item : picker->menu()->actions()) {
-			if (item->objectName() == QStringLiteral("agentRunSettingsScratch")) {
-				checked = item->isChecked();
-			} else if (item->objectName() == QStringLiteral("agentRunSettingsGrantLine")) {
-				line = item->text();
-			}
-		}
-		expect(checked == std::optional{ false } && line == QStringLiteral("Reads only"), "off: unchecked, and the line says it reads only");
+		expect(!find("agentRunSettingsScratch")->isChecked() && find("agentRunSettingsScratch")->toolTip().contains(QStringLiteral("its own settings allow")), "off: unchecked, and its tooltip says what still applies");
 	}
+	// Review finding 4: a full folder is named full; a grant the launch will
+	// not carry reads unavailable, never on.
+	present_grant(claude, { .Program = core::agent_program::claude, .ScratchFull = true });
+	source->present({ claude, codex });
+	settle();
+	{
+		emit picker->menu()->aboutToShow();
+		expect(find("agentRunSettingsScratch")->text() == QStringLiteral("Use scratch folder (full)") && find("agentRunSettingsScratch")->toolTip().contains(QStringLiteral("256 MiB")), "full: named full, with its limit");
+	}
+	present_grant(claude, { .Program = core::agent_program::claude, .ScratchPlace = false });
+	source->present({ claude, codex });
+	settle();
+	{
+		emit picker->menu()->aboutToShow();
+		expect(!find("agentRunSettingsScratch")->isChecked() && !find("agentRunSettingsScratch")->isEnabled(), "no place for a folder: unchecked and unavailable");
+	}
+	present_grant(claude, { .Program = core::agent_program::claude });
+	source->present({ claude, codex });
+	settle();
 
 	// One choice: the picker's menu chooses the agent every feature uses.
 	emit picker->menu()->aboutToShow();
@@ -389,13 +419,7 @@ auto main(int argc, char** argv) -> int
 	settle();
 	expect(chosen == 2U && picker->full_text().startsWith(QStringLiteral("Codex")), "choosing in the footer chooses the agent");
 	emit picker->menu()->aboutToShow();
-	for (auto* const item : picker->menu()->actions()) {
-		if (item->objectName() == QStringLiteral("agentRunSettingsGrantLine")) {
-			expect(item->text() == QStringLiteral("Builds and tests in its disposable checkout"), "Codex allowed to build: the third line");
-		} else if (item->objectName() == QStringLiteral("agentRunSettingsEnforcement")) {
-			expect(item->text().startsWith(QStringLiteral("Codex's sandbox enforces this")), "Codex's runtime enforces it, and says so");
-		}
-	}
+	expect(find("agentRunSettingsBuilds")->isChecked() && find("agentRunSettingsBuilds")->toolTip().contains(QStringLiteral("Codex's sandbox holds")), "Codex allowed to build: checked, and its tooltip says Codex's sandbox holds it");
 
 	std::cout << "agent-footer:pass\n";
 	return EXIT_SUCCESS;

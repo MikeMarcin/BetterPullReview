@@ -119,12 +119,13 @@ namespace bpr::qt {
 		}
 	}
 
-	void agent_run_settings_picker::set_attention(const QString& aNeed)
+	void agent_run_settings_picker::set_attention(const QString& aNeed, const bool aFailed)
 	{
-		if (Attention == aNeed) {
+		if (Attention == aNeed && AttentionFailed == aFailed) {
 			return;
 		}
-		Attention = aNeed;
+		Attention       = aNeed;
+		AttentionFailed = aFailed && !aNeed.isEmpty();
 		present();
 	}
 
@@ -134,7 +135,7 @@ namespace bpr::qt {
 		// picker a row of its own rather than an icon. The tooltip leads with
 		// them, for the rare row narrower still.
 		setText(Full);
-		setToolTip(tr("Choose the agent and model: %1").arg(Full) + QStringLiteral("\n") + Tip);
+		setToolTip(tr("Choose the agent and model: %1").arg(Full) + (Tip.isEmpty() ? QString{ } : QStringLiteral("\n") + Tip));
 		updateGeometry();
 		update();
 	}
@@ -170,18 +171,21 @@ namespace bpr::qt {
 		setProperty("agentRunSettingsText", Full);
 		// The whole words, shortened when the row is narrow.
 		setAccessibleName(tr("Agent, model and effort: %1").arg(Full));
-		auto tip = tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program);
+		// Owner look e97c6a3d: "Claude Code runs the program setup found" said
+		// nothing; only a program of the reviewer's own choosing is named.
+		auto       tip  = settings->Program.isEmpty() ? QString{ } : tr("%1 runs %2").arg(settings->Agent, settings->Program);
+		const auto line = [&tip](const QString& aText) { tip += (tip.isEmpty() ? QString{ } : QStringLiteral("\n")) + aText; };
 		if (settings->ModelChoosable) {
-			tip += QStringLiteral("\n") + (settings->Model.empty() ? tr("Model: the agent's own default") : tr("Model: %1").arg(model));
+			line(settings->Model.empty() ? tr("Model: the agent's own default") : tr("Model: %1").arg(model));
 		}
 		if (settings->EffortChoosable) {
-			tip += QStringLiteral("\n") + (settings->Effort.empty() ? tr("Effort: the agent's own default") : tr("Effort: %1").arg(QString::fromStdString(settings->Effort)));
+			line(settings->Effort.empty() ? tr("Effort: the agent's own default") : tr("Effort: %1").arg(QString::fromStdString(settings->Effort)));
 		}
 		if (!settings->Note.isEmpty()) {
-			tip += QStringLiteral("\n") + settings->Note;
+			line(settings->Note);
 		}
 		if (!ranAs.isEmpty()) {
-			tip += QStringLiteral("\n") + tr("Last answer ran %1 (%2)").arg(ranAs, reported);
+			line(tr("Last answer ran %1 (%2)").arg(ranAs, reported));
 		}
 		Tip = tip;
 		fit();
@@ -210,11 +214,9 @@ namespace bpr::qt {
 			connect(item, &QAction::triggered, this, [this, profile = offered.Profile] { choose(profile); });
 		}
 		choices->addSeparator();
-		auto* const what = choices->addAction(tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program));
-		what->setEnabled(false);
-		if (!settings->Note.isEmpty()) {
-			choices->addAction(settings->Note)->setEnabled(false);
-		}
+		// Owner look e97c6a3d: no explainer lines in the menu; what an item
+		// means is its tooltip.
+		choices->setToolTipsVisible(true);
 		const auto profile = settings->Profile;
 		const auto apply   = [this, profile](std::optional<std::string> aModel, std::optional<std::string> aEffort) {
 			if (Source->Dispatch && !Source->Dispatch(profile, std::move(aModel), std::move(aEffort)) && Source->Refused) {
@@ -224,6 +226,7 @@ namespace bpr::qt {
 		if (settings->ModelChoosable) {
 			auto* const models = choices->addMenu(tr("Model"));
 			models->setObjectName(QStringLiteral("agentRunSettingsModels"));
+			models->menuAction()->setToolTip(settings->ModelHint);
 			auto* const group = new QActionGroup{ models };
 			const auto  add   = [&](const std::string& aValue, const QString& aLabel) {
 				auto* const action = models->addAction(aLabel);
@@ -254,6 +257,7 @@ namespace bpr::qt {
 		if (settings->EffortChoosable) {
 			auto* const efforts = choices->addMenu(tr("Effort"));
 			efforts->setObjectName(QStringLiteral("agentRunSettingsEfforts"));
+			efforts->menuAction()->setToolTip(settings->EffortHint);
 			auto* const group = new QActionGroup{ efforts };
 			const auto  add   = [&](const std::string& aValue, const QString& aLabel) {
 				auto* const action = efforts->addAction(aLabel);
@@ -267,31 +271,33 @@ namespace bpr::qt {
 				add(level, QString::fromStdString(level));
 			}
 		}
-		// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11. What
-		// this pull request lets the agent do, and the control that turns its
-		// scratch folder off or on here.
+		// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11 (owner
+		// look e97c6a3d). Two toggles for this pull request; each says in its
+		// tooltip what it allows, who enforces it, or why it is unavailable.
 		if (settings->GrantApplies) {
 			choices->addSeparator();
-			auto* const line = choices->addAction(settings->GrantLine);
-			line->setObjectName(QStringLiteral("agentRunSettingsGrantLine"));
-			line->setEnabled(false);
-			auto* const scratch = choices->addAction(tr("Scratch folder in this pull request"));
-			scratch->setObjectName(QStringLiteral("agentRunSettingsScratch"));
-			scratch->setCheckable(true);
-			scratch->setChecked(settings->ScratchOn);
-			scratch->setToolTip(settings->GrantEnforcement);
-			scratch->setStatusTip(settings->GrantEnforcement);
+			const auto toggle = [&](const QString& aText, const QString& aName, const bool aOn, const bool aEnabled, const QString& aTip) {
+				auto* const action = choices->addAction(aText);
+				action->setObjectName(aName);
+				action->setCheckable(true);
+				action->setChecked(aOn);
+				action->setEnabled(aEnabled);
+				action->setToolTip(aTip);
+				action->setStatusTip(aTip);
+				return action;
+			};
+			auto* const scratch = toggle(settings->ScratchText, QStringLiteral("agentRunSettingsScratch"), settings->ScratchOn, settings->ScratchEnabled, settings->ScratchTip);
 			connect(scratch, &QAction::triggered, this, [this, profile](const bool aOn) {
 				if (Source->ToggleScratch) {
 					Source->ToggleScratch(profile, aOn);
 				}
 			});
-			auto* const builds = choices->addAction(settings->BuildsLine);
-			builds->setObjectName(QStringLiteral("agentRunSettingsBuilds"));
-			builds->setEnabled(false);
-			auto* const enforced = choices->addAction(settings->GrantEnforcement);
-			enforced->setObjectName(QStringLiteral("agentRunSettingsEnforcement"));
-			enforced->setEnabled(false);
+			auto* const builds = toggle(tr("Allow build and run tests"), QStringLiteral("agentRunSettingsBuilds"), settings->BuildsOn, settings->BuildsEnabled, settings->BuildsTip);
+			connect(builds, &QAction::triggered, this, [this, profile](const bool aOn) {
+				if (Source->ToggleBuilds) {
+					Source->ToggleBuilds(profile, aOn);
+				}
+			});
 			if (settings->ScratchOpenable) {
 				auto* const open = choices->addAction(tr("Open scratch folder"));
 				open->setObjectName(QStringLiteral("agentRunSettingsOpenScratch"));
@@ -303,7 +309,6 @@ namespace bpr::qt {
 			}
 		}
 		choices->addSeparator();
-		choices->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
 		// Owner look v006 ("This model picker dropdown should have a link to
 		// open the agent settings page").
 		auto* const open = choices->addAction(tr("Agent settings…"));
@@ -429,9 +434,12 @@ namespace bpr::qt {
 		// say what is missing).
 		auto words_ink = ink;
 		if (!Attention.isEmpty()) {
-			words_ink = setup_failed_colour(palette());
+			// Owner note "Why is it red?": an agent not yet checked needs a
+			// step, not a repair; the quiet ink says so, and only a failed
+			// check takes the failed check's colour.
+			words_ink = AttentionFailed ? setup_failed_colour(palette()) : mixed(base, ink, 0.72);
 			painter.setBrush(Qt::NoBrush);
-			painter.setPen(QPen{ words_ink, 1.2 });
+			painter.setPen(QPen{ words_ink, 1.0, AttentionFailed ? Qt::SolidLine : Qt::DashLine });
 			painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
 		}
 		painter.setPen(words_ink);
