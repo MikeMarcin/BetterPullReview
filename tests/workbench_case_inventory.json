@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "b4f9f07454c6ca204c469be2196f63aaee9971da1f7d40d278c57ac2386d21c1",
+  "source_sha256": "72484982cfac504055f7f346417e07dadd373f366096dc296ebef74289190f14",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -91,6 +91,8 @@
     ],
     "--agent-send-refusal": [
       "test_a_refused_send_says_why_beside_the_composer",
+      "test_the_agent_chat_sends_on_return_and_says_its_cost",
+      "test_the_agent_accent_is_on_exactly_the_run_controls",
       "test_a_removed_agent_is_unavailable_in_the_composer",
       "test_an_agent_error_is_an_error_and_suggestions_wait_for_setup",
       "test_a_failed_answer_asks_again_and_says_when_fixed"
@@ -177,6 +179,7 @@
       "test_finish_review_is_a_sheet_beside_the_code",
       "test_the_tour_is_a_route_expanding_to_its_page",
       "test_the_agent_is_a_drawer_tab",
+      "test_a_reply_drafts_all_its_suggested_comments",
       "test_a_refused_send_says_why_beside_the_composer",
       "test_pending_rows_open_their_comments_like_threads",
       "test_tour_retarget_key_reaches_only_the_outline",
