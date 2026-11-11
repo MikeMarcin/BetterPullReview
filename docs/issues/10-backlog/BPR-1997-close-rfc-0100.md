@@ -5,7 +5,7 @@ title: "Verify and close RFC-BPR-0100"
 status: "Backlog"
 rfcs: ["RFC-BPR-0100"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0009-close-tour-conversation.md","draft_title":"Close the tour conversation RFC"}
-depends_on: ["BPR-1995", "BPR-1996"]
+depends_on: ["BPR-1995", "BPR-1996", "BPR-2116"]
 closeout_for: ["RFC-BPR-0100"]
 ---
 
