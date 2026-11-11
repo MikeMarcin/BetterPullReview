@@ -2033,6 +2033,14 @@ namespace bpr::qt {
 		/// in progress and the bar has room, its icon otherwise; its name and
 		/// description to match.
 		void present_compose_entry();
+		/// \brief Compose review is a toggle: it opens the review sheet while
+		/// no review composer shows and closes the sheet, or the expanded
+		/// review page, while one does. Closing only hides; the draft stays.
+		void toggle_review_composition();
+		/// \brief Checks Compose review while the review sheet or the expanded
+		/// review page shows, so its bar button, menu item and key read as the
+		/// toggle they are.
+		void present_compose_toggle();
 		/// [[BPR-1345]]. The chip counts what the saved drafts say.
 		void update_review_chip();
 		/// \brief [[BPR-1133]]. The review thread Comment answers: the one the
