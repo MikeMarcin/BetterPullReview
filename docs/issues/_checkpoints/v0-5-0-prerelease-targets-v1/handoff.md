@@ -1145,3 +1145,54 @@ Not touched: host 74692 (its Tailscale child 74706), PID 10695, BPR-Test #152
 and its `-next` branch, Tailscale serve 44738.
 
 Main mirror commits this round: `28d6a2cc7`, `06e187baa`, `0958234d7`, `fbf3c6be6`.
+
+## share-agent-prompts (2026-11-11)
+
+Milestone `share-agent-prompts` (RFC-BPR-0107, [[BPR-2016]], [[BPR-2017]],
+[[BPR-2018]]), same lane; nothing pushed. Frontend-design was loaded before
+the Qt work. Ledger: [RFC-BPR-0107](../../../verification/RFC-BPR-0107.md).
+Owner amendments in force as above, plus the owner's decision to export the
+shipped defaults too, recorded in the RFC with the nine recognized purposes and
+the written-against record.
+
+| Commit | What |
+|---|---|
+| `b827cd0db` | Counter and BPR-2102 reservation synced from main |
+| `f7bd397eb`, `985d3bf9d` | Ready and claim BPR-2016 |
+| `7ae9b389c` | Product candidate: core format and import decisions (glaze after `json_preflight`), `application::agent_configuration_host`, all-or-nothing store across `agent-setup.sqlite3` and the workbench settings (journal, recovery at profile start, `changed_since`), written-against record for hook overrides (Settings and `bpr` saves), Settings share row and both dialogs, `--attended-share-look` and its two composed checks, committed import fixture `tests/fixtures/agent-configuration/team-agents.bpr-config.json`, RFC owner decision and implementation record, app pin resealed (no grant change) |
+| `9be81a9c2` | Ledger. Frozen |
+| `4ef38b5c1`, `4213f98d8` | BPR-2016 record; Done (AC02, AC03, AC04, AC05, AC07) |
+| `fd3f112b9`, `61bd263de`, `6ef228058`, `677d7b0a3` | Ready, claim, record BPR-2017; parked `human-review` (AC01 pass, AC06 pending) |
+| `d9131f5ca` | BPR-2018 checklist filled; stays Backlog until BPR-2017 is Done |
+
+Runs: see the ledger (`core_agent_configuration`, `sqlite_agent_configuration_storage`,
+`qt_agent_configuration_dialogs` new; agent setup, review skill, workbench
+preferences and settings rows; composition source contract;
+`architecture_boundaries`; network-isolation manifest (new uncontained row
+added); format check; clang-tidy on the new sources). Composed courses through
+the real app, run by hand: sender `ATTENDED_SHARE_CHECKED`, recipient
+`ATTENDED_SHARE_RECEIVED` (ledger). Not run: whole dev suite, core-only preset,
+Windows and Linux.
+
+Filed, not waited on (URL in the session state's `../serve.log`): session
+`629d64c72746157219d2473892973d7f`, state
+`/Users/jaeger/.attended-review-state/share-agent-prompts-v001-2026-11-11/state`,
+cursor 9, host PID 76865 (Tailscale child 76875), three candidates, ready and
+protected: `BPR-2017-export-selection`, `BPR-2017-import-preview-bind`,
+`RFC-BPR-0107-default-prompt-round-trip`. Frozen root
+`/Users/jaeger/share-agent-prompts-v001.h9i51jwq` from `9be81a9c2141` (app
+SHA-256 `1088de08cc6a…`, launcher check reached `ATTENDED_SHARE_SHOWN:agents=2`).
+The import question names
+`/Users/jaeger/share-agent-prompts-v001.h9i51jwq/src/tests/fixtures/agent-configuration/team-agents.bpr-config.json`.
+
+Not touched: session `246ef52c…` (89403/89420, root
+`agent-grant-v002.y_rhztpu`), host 74692/74706, PID 10695, Tailscale 44738,
+BPR-Test #152 and its `-next` branch.
+
+Next: read `629d64c7…` from cursor 9 after hand-back. Accept of all three
+finishes BPR-2017 (AC06 macOS; record Windows and Linux as not run or run them
+on a station), then BPR-2018 closes RFC-BPR-0107 (ready, claim, finish,
+mirrored). A Reject goes to a fresh implementer. Then stop host 76865 and
+remove the root with `freeze_attended_build.py remove`. Known limit: another
+open window of the same profile can write its older agent list over an import
+(true of any agent edit today).
