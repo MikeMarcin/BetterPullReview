@@ -1143,3 +1143,5 @@ footer answer is recorded on BPR-2051 (Done; a Reject is a new card). Then
 stop host 89403 and remove the root with `freeze_attended_build.py remove`.
 Not touched: host 74692 (its Tailscale child 74706), PID 10695, BPR-Test #152
 and its `-next` branch, Tailscale serve 44738.
+
+Main mirror commits this round: `28d6a2cc7`, `06e187baa`, `0958234d7`, `fbf3c6be6`.
