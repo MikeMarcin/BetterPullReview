@@ -19,6 +19,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -696,7 +697,7 @@ namespace bpr::qt {
 		std::function<agent_suggestion_context()>           SuggestionContext;
 		/// [[BPR-1934]]. The suggestion component the tour chats share.
 		agent_suggestion_list* Suggestions     = nullptr;
-		QToolButton*           SuggestionsMenu = nullptr;
+		quiet_tool_button*     SuggestionsMenu = nullptr;
 		/// [[BPR-1847]]. In place of the suggestions while setup is unfinished.
 		QWidget* SetupPrompt = nullptr;
 		/// [[BPR-1881]]. The readiness last told, and who is told.
@@ -729,19 +730,19 @@ namespace bpr::qt {
 		bool          AnswerPending = false;
 		QElapsedTimer Started;
 		/// The last request ended well and nothing has run since.
-		bool             Finished        = false;
-		QWidget*         ReadyCard       = nullptr;
-		QLabel*          ReadyTitle      = nullptr;
-		QLabel*          ReadyText       = nullptr;
-		QLabel*          ReadyGets       = nullptr;
-		QPushButton*     Ask             = nullptr;
-		skill_completer* SkillCompletion = nullptr;
-		QToolButton*     Context         = nullptr;
-		QLabel*          Chips           = nullptr;
+		bool               Finished        = false;
+		QWidget*           ReadyCard       = nullptr;
+		QLabel*            ReadyTitle      = nullptr;
+		QLabel*            ReadyText       = nullptr;
+		QLabel*            ReadyGets       = nullptr;
+		QPushButton*       Ask             = nullptr;
+		skill_completer*   SkillCompletion = nullptr;
+		quiet_tool_button* Context         = nullptr;
+		QLabel*            Chips           = nullptr;
 		/// [[BPR-1773]]. The conversation chip and what it is now.
 		QWidget*                                   ConversationChip  = nullptr;
 		QLabel*                                    ConversationText  = nullptr;
-		QToolButton*                               ConversationClose = nullptr;
+		quiet_tool_button*                         ConversationClose = nullptr;
 		std::optional<agent_conversation_chip>     ConversationShown;
 		std::function<void()>                      ConversationDismiss;
 		std::function<agent_answer_draft_target()> DraftTargetSource;

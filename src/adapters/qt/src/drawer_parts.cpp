@@ -209,9 +209,10 @@ namespace bpr::qt {
 		aTabs.setFocusPolicy(Qt::StrongFocus);
 	}
 
-	auto make_drawer_tool(QWidget* const aParent, const QIcon& aIcon, const QString& aName, const QString& aObjectName) -> QToolButton*
+	auto make_drawer_tool(QWidget* const aParent, const QIcon& aIcon, const QString& aName, const QString& aObjectName) -> quiet_tool_button*
 	{
-		auto* const tool = new QToolButton{ aParent };
+		auto* const tool = new quiet_tool_button{ aParent };
+		tool->set_tinted(true);
 		tool->setObjectName(aObjectName);
 		tool->setIcon(aIcon);
 		tool->setToolTip(aName);

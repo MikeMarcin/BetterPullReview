@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_SRC_MARKDOWN_CODE_BLOCK_HPP
 
 #include "bpr/qt/code_sample_painter.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QColor>
 #include <QFont>
@@ -88,7 +89,13 @@ namespace bpr::qt::detail {
 		void               arrange();
 		void               refresh_icons();
 		void               refresh_wrap_names();
+		void               refresh_tool_surfaces();
 		[[nodiscard]] auto header_font() const -> QFont;
+		/// \brief The box's ground and ink, and its header's ground: the code
+		/// theme's colours, or the palette's before it has them.
+		[[nodiscard]] auto back_colour() const -> QColor;
+		[[nodiscard]] auto ink_colour() const -> QColor;
+		[[nodiscard]] auto header_colour() const -> QColor;
 
 		QString                     Language;
 		std::string                 Text;
@@ -96,8 +103,8 @@ namespace bpr::qt::detail {
 		bool                        Wrapped   = false;
 		bool                        Copied    = false;
 		QTextEdit*                  Editor    = nullptr;
-		QToolButton*                Wrap      = nullptr;
-		QToolButton*                Copy      = nullptr;
+		quiet_tool_button*          Wrap      = nullptr;
+		quiet_tool_button*          Copy      = nullptr;
 		QTimer*                     CopiedFor = nullptr;
 	};
 
