@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2072"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Quiet buttons draw on their own surface everywhere",
+  "created": "2026-11-11T03:38:33.263740+00:00",
+  "base": "f09384dc4c3c0edb547930c29a3b384fbd6b439f"
+}
