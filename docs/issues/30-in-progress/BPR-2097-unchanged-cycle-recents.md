@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2097"
 title: "Keep the Home cycle model intact for unchanged recents"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
