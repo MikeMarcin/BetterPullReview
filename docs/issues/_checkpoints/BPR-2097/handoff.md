@@ -1,0 +1,3 @@
+# Frozen release56 public projection corrections
+
+Source baseline `48bd9b3f2b82128e6b43527812f165eacc4f8b47`; own branch `codex/bpr2097-2098-public-projections`. Allocation main `f8780ce0b`, own adoption `b33268f24`. Baseline SHA map is in the authored plan. Root explicitly approved both minimal scopes after R8 causal results. No product edit or corrected native verification yet. Canonical writer and PC lease returned; Windows peer owns metadata. Next: claim both Ready cards, implement exact five-path slice, seal/review, then request focused normal Release/Debug native proof. No broad main intake.
