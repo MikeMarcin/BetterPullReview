@@ -638,6 +638,10 @@ auto main(int argc, char** argv) -> int
 			panel->select_hook(core::writing_hook::problem);
 			QApplication::processEvents();
 			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-problem.png")), "the problem row render is saved");
+			// [[BPR-2059]] The suggested-comment format, as shipped.
+			panel->select_hook(core::writing_hook::suggested_comment);
+			QApplication::processEvents();
+			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-suggested-comment.png")), "the suggested-comment row render is saved");
 		}
 	}
 	{
