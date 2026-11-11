@@ -60,14 +60,19 @@ namespace bpr::qt {
 		}
 	}
 
-	void paint_button_surface(QPainter& aPainter, const QAbstractButton& aButton, const bool aRaised, const bool aKeyboardFocus)
+	auto button_ink_role(const QPalette::ColorRole aSurface) -> QPalette::ColorRole
+	{
+		return aSurface == QPalette::Base ? QPalette::Text : QPalette::WindowText;
+	}
+
+	void paint_button_surface(QPainter& aPainter, const QAbstractButton& aButton, const bool aRaised, const bool aKeyboardFocus, const QPalette::ColorRole aSurface)
 	{
 		aPainter.save();
 		aPainter.setRenderHint(QPainter::Antialiasing, true);
 		const auto& colours = aButton.palette();
-		const auto  ground  = colours.color(QPalette::Active, QPalette::Window);
+		const auto  ground  = colours.color(QPalette::Active, aSurface);
 		const auto  group   = aButton.isEnabled() ? QPalette::Active : QPalette::Disabled;
-		const auto  ink     = colours.color(group, QPalette::WindowText);
+		const auto  ink     = colours.color(group, button_ink_role(aSurface));
 		const auto  box     = QRectF{ aButton.rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
 		const auto  pressed = aButton.isEnabled() && aButton.isDown();
 		if (aRaised) {
@@ -81,7 +86,7 @@ namespace bpr::qt {
 		}
 		if (aButton.isEnabled() && aButton.hasFocus() && aKeyboardFocus) {
 			const auto inset = focus_ring_width / 2.0;
-			aPainter.setPen(QPen{ focus_ring_colour(colours, QPalette::Window), focus_ring_width });
+			aPainter.setPen(QPen{ focus_ring_colour(colours, aSurface), focus_ring_width });
 			aPainter.setBrush(Qt::NoBrush);
 			aPainter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), chip_radius, chip_radius);
 		}
@@ -97,7 +102,7 @@ namespace bpr::qt {
 		return { aIconSize.width() + chip_icon_gap + words.width(), std::max(aIconSize.height(), words.height()) };
 	}
 
-	void paint_button_label(QPainter& aPainter, const QAbstractButton& aButton, const QSize aIconSize, const bool aShowIcon)
+	void paint_button_label(QPainter& aPainter, const QAbstractButton& aButton, const QSize aIconSize, const bool aShowIcon, const QPalette::ColorRole aSurface)
 	{
 		aPainter.save();
 		auto* const style   = aButton.style();
@@ -122,7 +127,15 @@ namespace bpr::qt {
 			flags |= Qt::TextHideMnemonic;
 		}
 		style->drawItemText(&aPainter, QStyle::visualRect(aButton.layoutDirection(), aButton.rect(), place), flags, aButton.palette(), aButton.isEnabled(),
-							aButton.text(), QPalette::WindowText);
+							aButton.text(), button_ink_role(aSurface));
 		aPainter.restore();
+	}
+
+	void paint_button_glyph(QPainter& aPainter, const QAbstractButton& aButton, const QSize aIconSize)
+	{
+		const auto mode  = aButton.isEnabled() ? QIcon::Normal : QIcon::Disabled;
+		const auto state = aButton.isChecked() ? QIcon::On : QIcon::Off;
+		const auto image = aButton.icon().pixmap(aIconSize, aPainter.device()->devicePixelRatio(), mode, state);
+		aButton.style()->drawItemPixmap(&aPainter, aButton.rect(), Qt::AlignCenter, image);
 	}
 } // namespace bpr::qt

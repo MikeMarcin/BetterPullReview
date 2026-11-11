@@ -6,6 +6,7 @@
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 
@@ -30,6 +31,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPointer>
@@ -2753,6 +2755,12 @@ namespace {
 	/// measured against the face the button is actually painted on, inside
 	/// the card as drawn, at rest, hovered, pressed and with keyboard focus,
 	/// under the default style and, where the platform has it, macOS.
+	///
+	/// The card's icon tools had the same native bezel: Resolve, Ask agent,
+	/// Mark read, More, Show in Discuss, Maximize, Close and the composer's
+	/// Delete were pale squares under a dark profile on a light system. Each
+	/// mark is held to the non-text floor on its painted face in the same
+	/// states, and the defect badge's words to the text floor.
 	auto test_line_numbers_read_on_the_open_card(const QString& aDirectory) -> void
 	{
 		const auto modes = std::array{
@@ -2796,15 +2804,16 @@ namespace {
 			const auto scale = image.devicePixelRatio();
 			return measureImage(image.copy(QRectF{ place.x() * scale, place.y() * scale, place.width() * scale, place.height() * scale }.toAlignedRect()));
 		};
-		// Every state a person sees the line in; each ends as it began.
-		const auto statesRead = [&](QWidget& aCard, QToolButton& aButton, const std::string& aName, const double aFloor) {
+		// Every state a person sees the button in; each ends as it began.
+		// `aWhat` says what is measured: the line's words, or a tool's mark.
+		const auto statesRead = [&](QWidget& aCard, QToolButton& aButton, const std::string& aName, const double aFloor, const std::string_view aWhat = "line-number") {
 			const auto check = [&](const std::string_view aState) {
 				aButton.update();
 				QApplication::processEvents();
 				const auto [ground, ink] = measureOnCard(aCard, aButton);
-				std::cout << "line-number " << aName << ' ' << aState << ": ground " << ground.name().toStdString() << " ink " << ink.name().toStdString() << " ratio "
+				std::cout << aWhat << ' ' << aName << ' ' << aState << ": ground " << ground.name().toStdString() << " ink " << ink.name().toStdString() << " ratio "
 						  << ratio(ink, ground) << '\n';
-				expect(ratio(ink, ground) + 0.005 >= aFloor, aName + " " + std::string{ aState } + ": the line reaches the theme's text floor on the face it is painted on");
+				expect(ratio(ink, ground) + 0.005 >= aFloor, aName + " " + std::string{ aState } + ": it reaches the theme's floor on the face it is painted on");
 			};
 			check("at rest");
 			aButton.setAttribute(Qt::WA_UnderMouse, true);
@@ -2817,11 +2826,25 @@ namespace {
 			const auto unfocused = aButton.grab().toImage();
 			aButton.setFocus(Qt::TabFocusReason);
 			check("with keyboard focus");
-			expect(aButton.hasFocus() || QGuiApplication::platformName() != QStringLiteral("offscreen"), aName + ": the line takes keyboard focus");
+			expect(aButton.hasFocus() || QGuiApplication::platformName() != QStringLiteral("offscreen"), aName + ": it takes keyboard focus");
 			if (aButton.hasFocus()) {
-				expect(aButton.grab().toImage() != unfocused, aName + ": keyboard focus on the line is drawn");
+				expect(aButton.grab().toImage() != unfocused, aName + ": keyboard focus on it is drawn");
 			}
 			aButton.clearFocus();
+		};
+		// The card's tools: each named, offered, and its mark held to the
+		// non-text floor on its face. A disabled tool is not measured.
+		const auto toolsRead = [&](QWidget& aCard, const std::vector<QString>& aNames, const std::string& aName, const double aFloor) {
+			for (const auto& objectName : aNames) {
+				auto* const tool = aCard.findChild<QToolButton*>(objectName);
+				const auto  name = aName + " " + objectName.toStdString();
+				expect(tool != nullptr && tool->isVisibleTo(&aCard), name + ": the card offers it");
+				if (tool == nullptr || !tool->isEnabled()) {
+					continue;
+				}
+				expect(!tool->accessibleName().isEmpty() && !tool->toolTip().isEmpty() && tool->focusPolicy() == Qt::StrongFocus, name + ": it is named, explained and takes focus");
+				statesRead(aCard, *tool, name, aFloor, "card-tool");
+			}
 		};
 		// A style, the system appearance it is run under (unset: whatever the
 		// platform says), and the name its results and pictures carry.
@@ -2854,7 +2877,8 @@ namespace {
 				const auto name    = styleKey.toStdString() + " " + std::string{ modeName };
 				auto       profile = qt::appearance_profile{ };
 				static_cast<void>(profile.select_mode(mode));
-				const auto                  floor = static_cast<double>(core::minimum_contrast_hundredths(core::contrast_kind::text, profile.variant())) / 100.0;
+				const auto                  floor     = static_cast<double>(core::minimum_contrast_hundredths(core::contrast_kind::text, profile.variant())) / 100.0;
+				const auto                  indicator = static_cast<double>(core::minimum_contrast_hundredths(core::contrast_kind::indicator, profile.variant())) / 100.0;
 				qt::conversation_cards_view view;
 				view.setPalette(profile.derive(QApplication::palette()));
 				// The window's own two: the theme's unread blue and the marks' amber.
@@ -2867,15 +2891,39 @@ namespace {
 				// window becomes active, so keyboard focus is tried offscreen.
 				view.setAttribute(Qt::WA_DontShowOnScreen, QGuiApplication::platformName() != QStringLiteral("offscreen"));
 				view.show();
+				// Every header tool a thread can show: Resolve, Ask agent, an
+				// enabled Mark read (one post is new), More and Close, and
+				// the defect badge's words.
+				view.set_resolution_offered(true);
 				view.adopt({ thread("t", "src/a.cpp", 10U), reply("c", "t", "someone", "Please rename this.") });
+				view.set_read_state({ qt::thread_read_state{ .Thread = "t", .UnreadPosts = { "c" } } });
+				view.set_defect_badges({ { "t", { QStringLiteral("[open] minor · correctness"), QStringLiteral("Nobody has addressed this yet.") } } });
 				view.open_thread("t");
 				QApplication::processEvents();
 				auto* const published = view.open_card() == nullptr ? nullptr : view.open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
 				expect(published != nullptr && published->text() == QStringLiteral("10"), name + ": the open thread shows its line");
 				statesRead(*view.open_card(), *published, name + " thread", floor);
+				toolsRead(*view.open_card(), { QStringLiteral("threadResolve"), QStringLiteral("threadAskAgent"), QStringLiteral("threadMarkRead"), QStringLiteral("threadMore"), QStringLiteral("threadClose") },
+						  name + " thread", indicator);
+				auto* const markRead = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadMarkRead"));
+				expect(markRead != nullptr && markRead->isEnabled(), name + ": a thread with a new post can be marked read");
+				auto* const badge = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadDefectBadge"));
+				expect(badge != nullptr, name + ": the classified thread shows its badge");
+				if (badge != nullptr) {
+					statesRead(*view.open_card(), *badge, name + " thread threadDefectBadge", floor, "card-tool");
+				}
 				if (!aDirectory.isEmpty()) {
 					expect(view.open_card()->grab().save(aDirectory + QStringLiteral("/open-thread-%1-%2.png").arg(QLatin1StringView{ modeName }, styleKey)),
 						   name + ": capture the open thread");
+					auto* const more = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadMore"));
+					more->setAttribute(Qt::WA_UnderMouse, true);
+					markRead->setDown(true);
+					more->update();
+					QApplication::processEvents();
+					expect(view.open_card()->grab().save(aDirectory + QStringLiteral("/open-thread-tools-hover-press-%1-%2.png").arg(QLatin1StringView{ modeName }, styleKey)),
+						   name + ": capture More hovered and Mark read pressed");
+					markRead->setDown(false);
+					more->setAttribute(Qt::WA_UnderMouse, false);
 				}
 
 				const auto comparison = core::file_comparison_digest{ };
@@ -2921,12 +2969,61 @@ namespace {
 					writing->clearFocus();
 				}
 				statesRead(*view.open_card(), *writing, name + " draft", floor);
+				// The draft's Show in Discuss and Maximize (expand), Close
+				// (collapse), and the composer's Delete.
+				toolsRead(*view.open_card(), { QStringLiteral("conversationShowInDiscuss"), QStringLiteral("threadMaximizeDraft"), QStringLiteral("threadClose"), QStringLiteral("threadDeleteDraft") },
+						  name + " draft", indicator);
+				if (!aDirectory.isEmpty()) {
+					auto* const trash = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadDeleteDraft"));
+					auto* const close = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadClose"));
+					trash->setDown(true);
+					close->setAttribute(Qt::WA_UnderMouse, true);
+					close->update();
+					QApplication::processEvents();
+					expect(view.open_card()->grab().save(aDirectory + QStringLiteral("/open-draft-tools-hover-press-%1-%2.png").arg(QLatin1StringView{ modeName }, styleKey)),
+						   name + ": capture Close hovered and Delete pressed");
+					close->setAttribute(Qt::WA_UnderMouse, false);
+					trash->setDown(false);
+				}
 				auto* const state = view.open_card()->findChild<QWidget*>(QStringLiteral("threadState"));
 				expect(state != nullptr, name + ": the open draft says it is a draft");
 				const auto [stateGround, stateInk] = measure(*state);
 				std::cout << "line-number " << name << " draft state: ground " << stateGround.name().toStdString() << " ink " << stateInk.name().toStdString() << " ratio "
 						  << ratio(stateInk, stateGround) << '\n';
 				expect(ratio(stateInk, stateGround) + 0.005 >= floor, name + ": my draft's \"Draft\" reaches the theme's text floor on the card");
+				{
+					// A kept reply's Copy text, a moved suggestion's Copy
+					// change and a saved draft's Edit are opened from the
+					// window, not in place here. They are the card's quiet
+					// button with words beside the mark, on the card's colour,
+					// measured as the card builds them.
+					auto host = QWidget{ };
+					host.setPalette(view.palette());
+					host.setBackgroundRole(QPalette::Base);
+					host.setAutoFillBackground(true);
+					host.setAttribute(Qt::WA_DontShowOnScreen, QGuiApplication::platformName() != QStringLiteral("offscreen"));
+					auto* const words = new qt::quiet_tool_button{ &host };
+					words->set_surface(QPalette::Base);
+					words->setAutoRaise(true);
+					words->setText(QStringLiteral("Copy text"));
+					words->setToolTip(QStringLiteral("Copy the reply as written"));
+					words->setAccessibleName(words->text());
+					auto mark = QPixmap{ 16, 16 };
+					mark.fill(Qt::transparent);
+					{
+						auto painter = QPainter{ &mark };
+						painter.fillRect(QRect{ 4, 3, 8, 10 }, view.palette().color(QPalette::Active, QPalette::ButtonText));
+					}
+					words->setIcon(QIcon{ mark });
+					words->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+					words->setFocusPolicy(Qt::StrongFocus);
+					words->move(8, 8);
+					words->resize(words->sizeHint());
+					host.resize(words->width() + 16, words->height() + 16);
+					host.show();
+					QApplication::processEvents();
+					statesRead(host, *words, name + " foot threadCopyReply", floor, "card-tool");
+				}
 				view.hide();
 			}
 		}

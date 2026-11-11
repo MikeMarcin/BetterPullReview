@@ -636,9 +636,22 @@ namespace bpr::qt {
 										 mix(colours.Panel, colours.Ink, 0.09).name(), colours.Signal.name(), colours.Faint.name()));
 		}
 
+		/// \brief A quiet button on the card's own colour.
+		/// \details The owner, 2026-11-10: under the macOS style a plain
+		/// auto-raise tool button wore a native bezel in the system
+		/// appearance's grey, so a dark profile on a light system showed
+		/// light marks on pale squares. Its faces come from the card's
+		/// palette instead, in every style.
+		[[nodiscard]] auto card_button(QWidget* const aParent) -> quiet_tool_button*
+		{
+			auto* const button = new quiet_tool_button{ aParent };
+			button->set_surface(QPalette::Base);
+			return button;
+		}
+
 		[[nodiscard]] auto tool(QWidget* aParent, const QString& aName, const QString& aTip, const conversation_glyph aGlyph, const QPalette& aPalette) -> QToolButton*
 		{
-			auto* const button = new QToolButton{ aParent };
+			auto* const button = card_button(aParent);
 			button->setObjectName(aName);
 			button->setAutoRaise(true);
 			button->setFocusPolicy(Qt::StrongFocus);
@@ -2011,7 +2024,7 @@ namespace bpr::qt {
 			// [[BPR-1773]]. Ask the agent about this conversation, with the
 			// Agent tab's own mark.
 			if (aCard.Kind == QStringLiteral("Inline thread") && !aCard.Path.isEmpty() && !aCard.Posts.empty()) {
-				auto* const askAgent = new QToolButton{ header };
+				auto* const askAgent = card_button(header);
 				askAgent->setObjectName(QStringLiteral("threadAskAgent"));
 				askAgent->setAutoRaise(true);
 				askAgent->setIcon(drawer_icon(drawer_glyph::agent, palette));
@@ -2062,7 +2075,7 @@ namespace bpr::qt {
 		if (!aCard.DefectBadge.isEmpty()) {
 			auto* const badgeRow = new QHBoxLayout{ };
 			badgeRow->setContentsMargins(text_left - 4, 6, text_right, 0);
-			auto* const badge = new QToolButton{ this };
+			auto* const badge = card_button(this);
 			badge->setObjectName(QStringLiteral("threadDefectBadge"));
 			badge->setText(aCard.DefectBadge);
 			badge->setAccessibleName(aCard.DefectBadge);
@@ -2320,7 +2333,7 @@ namespace bpr::qt {
 				connect(keep, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::keep_reply_as_comment); } });
 				actions->addWidget(keep);
 			}
-			auto* const copy = new QToolButton{ Foot };
+			auto* const copy = card_button(Foot);
 			copy->setObjectName(QStringLiteral("threadCopyReply"));
 			copy->setAutoRaise(true);
 			copy->setText(QStringLiteral("Copy text"));
@@ -2356,7 +2369,7 @@ namespace bpr::qt {
 				connect(carry, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::carry_suggestion); } });
 				actions->addWidget(carry);
 			}
-			auto* const copy = new QToolButton{ Foot };
+			auto* const copy = card_button(Foot);
 			copy->setObjectName(QStringLiteral("threadCopyChange"));
 			copy->setAutoRaise(true);
 			copy->setText(QStringLiteral("Copy change"));
@@ -2379,7 +2392,7 @@ namespace bpr::qt {
 			publish->setIcon(conversation_icon(conversation_glyph::send, palette));
 			publish->set_style(Style);
 			connect(publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_draft); } });
-			auto* const edit = new QToolButton{ Foot };
+			auto* const edit = card_button(Foot);
 			edit->setObjectName(QStringLiteral("threadEditDraft"));
 			edit->setAutoRaise(true);
 			edit->setText(QStringLiteral("Edit"));
