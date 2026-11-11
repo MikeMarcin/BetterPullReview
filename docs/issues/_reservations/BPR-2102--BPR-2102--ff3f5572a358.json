@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2102"
+  ],
+  "reserve_for": "release57-agent-picker-total-gap",
+  "purpose": "Correct proven ordinary-spacing double count while preserving total12pixel gap",
+  "created": "2026-11-11T15:24:52.822452+00:00",
+  "base": "fbf3c6be6ee9606269b70ca5da40e78bc470c777"
+}
