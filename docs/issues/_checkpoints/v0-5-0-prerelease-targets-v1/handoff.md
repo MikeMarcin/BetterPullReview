@@ -550,3 +550,44 @@ BPR-2014, stop host 61912, remove the root. BPR-2015 (RFC-BPR-0106 closeout)
 belongs to `accepted-scope`. Next eligible milestones in plan order:
 `agent-scratch` (unblocked), `tour-conversation` (needs `tour-stops`
 accepted).
+
+## Enhance on comments and notes: BPR-2051 (2026-11-10)
+
+Owner request, on the same lane; nothing pushed. Owner amendments in force as
+above. Frontend-design was loaded before the Qt work. Record:
+[RFC-BPR-0106, Enhance on comments and notes](../../../verification/RFC-BPR-0106.md#enhance-on-comments-and-notes-bpr-2051-2026-11-10).
+
+| Commit | What |
+|---|---|
+| `d3517ccac`, `b35139c5d` | BPR-2051 reserved against main at `809d0296a` (receipt `BPR-2051--BPR-2051--efa66a8a01d3.json`, main restored), readied and claimed |
+| `821307015` | Enhance on a draft comment, a reply and a note (icon in the field's tool row, Agent accent; suggestion under the field with Discard and Use suggestion); three Enhance prompts as writing hooks with defaults, Reset, versions, purpose IDs and digests; a stop's Enhance sends its own prompt; profile schema 25; RFC-BPR-0106 and 0107 amended; app pin resealed; counter to main's BPR-2056. Product candidate |
+| this commit | BPR-2051 parked `human-review` (scopes 1 to 6 pass; owner look pending) |
+
+How it fits RFC-BPR-0107: the prompts are writing hooks in the same Built-in
+prompts list, store and revision, so the exchange takes them as purposes
+`enhance.tour-stop`, `enhance.comment`, `enhance.note` (existing hooks:
+`tour.problem`, `tour.solution`, `tour.outline`, `tour.stop-comment`,
+`review.feedback`), each with its own built-in version and SHA-256 digest
+(`application::writing_hook_purpose`, `default_writing_hook_digest`). Not
+stored for any prompt yet: which built-in version an override was written
+against; that record belongs with the exchange (share-agent-prompts).
+
+Filed, awaiting the owner (not waited on; the URL stays in the session
+state): session `ac6e3a324ea3472583fe1d6e82c300f6`, state
+`/Users/jaeger/.attended-review-state/enhance-v001-2026-11-10/state`, cursor
+9, host PID 77843 (its `tailscale serve` child 77881), candidates
+`BPR-2051-icon` (option list of three icons), `BPR-2051-placement`,
+`BPR-2051-prompt-editor`; frozen root `/Users/jaeger/enhance-v001.dzk_0xf4`
+from `821307015` (app SHA-256 `f91330402280…`, launcher `--check` passed;
+the look is the composed course with `--enhance STUB --attended`).
+
+Disk: 72 non-tour e2e binaries in this worktree's `build/dev` (about 13 GB)
+were removed twice (a full dev build relinks them); build named targets.
+
+Not touched: sessions `679d26ab…` (61912/61936), `26d89bac…` (36810/36892),
+host 74692, BPR-Test #151/#152 and the `-next` branch.
+
+Next: read session `ac6e3a32…` after hand-back. An icon other than option 1
+sets `CurrentStyle`'s default in `enhance_control.cpp`. Accept of placement
+and the prompt editor: finish BPR-2051, stop host 77843 and remove the root
+with `freeze_attended_build.py remove`.
