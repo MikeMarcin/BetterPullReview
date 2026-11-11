@@ -138,9 +138,10 @@
         "test_a_rotation_keeps_the_material_it_just_stored",
         "test_a_retained_slot_leaves_when_another_account_arrives",
         "test_a_retained_slot_stays_when_the_same_account_arrives",
-        "test_a_retained_slot_does_not_survive_a_failure_or_a_shutdown"
+        "test_a_retained_slot_does_not_survive_a_failure_or_a_shutdown",
+        "test_sign_out_and_account_change_diagnostics"
       ],
-      "source_sha256": "fd91b02441ced4dc5b1516a88869ec71c3ac63799bfe2e872185ab8d0feeee9c"
+      "source_sha256": "77fdb38006b28e0c917f6acb76c6f580b0f857369ddc479d76955726893ba11f"
     },
     {
       "name": "qt_composed_inline_drawer_scale_100",
@@ -149,7 +150,7 @@
         "test_inline_drawer_follows_the_code_and_opens_threads_in_place",
         "test_a_suggestion_reads_against_the_compared_lines"
       ],
-      "source_sha256": "9cc72ccef0fea6cecad7a460fe8c2fbeebd014581925bc84f1d015e4ea4fdceb"
+      "source_sha256": "da63abe5d17f09385f5393733db5b73b0138285ba9434eb859fb4b81e1575219"
     }
   ],
   "build_report_sha256": "9f3e1a252c099819d2a7f694fff03c4d2da7496f6952eb459395a79f4941c984"

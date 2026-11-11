@@ -60,7 +60,7 @@ A failed preflight does not qualify the five commands.
 Retain `Testing/Temporary/LastTest.log` before another CTest invocation replaces it.
 Validate the actual manifest and log through
 `scripts/qualification_case_inventory.py --configuration Release --platform Windows`
-with absolute `--manifest`, `--log` and `--output` paths. It requires all 237 ordered
+with absolute `--manifest`, `--log` and `--output` paths. It requires all 248 ordered
 case occurrences and the exact configuration/STL/workload/latency/sweep evidence.
 Run `scripts/qualification_assertion_controls.py` with that manifest, the actual
 Release probe image under `build/windows-dev/tests/core/Release`, and an absolute
