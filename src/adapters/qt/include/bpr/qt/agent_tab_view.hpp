@@ -479,8 +479,34 @@ namespace bpr::qt {
 		std::uint64_t      NextCardId = 1U;
 		/// The findings that arrived during the turn that just ended go
 		/// under its answer.
-		void                               claim_findings(std::size_t aTurn);
-		std::vector<card_entry>            CardEntries;
+		void                    claim_findings(std::size_t aTurn);
+		std::vector<card_entry> CardEntries;
+		/// \brief Owner report 2026-11-10 ("I added one and after a while I
+		/// went back and all the other suggestions were gone"). The cards of
+		/// a turn the thread stopped showing, with their states, kept by the
+		/// answer they came under.
+		/// \details The host shows the thread again whenever it reads the
+		/// conversation back (after a turn ends, on another pull request or
+		/// agent and back), and nothing it reads carries the cards. A turn
+		/// shown again with the same findings block, or failing that the same
+		/// answer, gets its cards back as they were: Drafted stays Drafted
+		/// and the rest stay to be added.
+		struct retained_cards
+		{
+			/// The answer as shown, trimmed.
+			QString Answer;
+			/// The answer's findings block as written; empty when it had none.
+			std::string FindingsBlock;
+			/// Without widgets or turn.
+			std::vector<card_entry> Cards;
+		};
+		/// The most turns whose cards are kept while not shown.
+		static constexpr std::size_t maximum_retained_card_turns = 50U;
+		std::vector<retained_cards>  RetainedCards;
+		/// Moves every card under a turn into `RetainedCards`.
+		void retain_turn_cards();
+		/// Makes again, under \p aTurn, the cards kept for its answer.
+		void                               restore_turn_cards(std::size_t aTurn);
 		std::optional<std::uint64_t>       ClaimedSession;
 		agent_finding_card_dispatch        CardDispatch;
 		agent_answer_note_dispatch         NoteDispatch;
@@ -547,8 +573,11 @@ namespace bpr::qt {
 			bool              Done   = false;
 			QPointer<QWidget> Widget;
 			/// The answer as written, shown as Markdown.
-			QPointer<markdown_body_view>    Answer;
-			QString                         AnswerText;
+			QPointer<markdown_body_view> Answer;
+			QString                      AnswerText;
+			/// The findings block's JSON as the agent wrote it, when the
+			/// answer ended with a complete one: what its cards came from.
+			std::string                     FindingsBlock;
 			QPointer<agent_run_status_line> Footer;
 			QPointer<QPushButton>           SaveNote;
 			QPointer<QVBoxLayout>           CardColumn;
