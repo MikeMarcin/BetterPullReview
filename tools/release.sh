@@ -28,6 +28,8 @@ TEST_PROFILE="normal"
 TEST_SCOPES=()
 TEST_HEAVY_GROUPS=()
 TEST_REGRESSIONS=""
+TEST_FAILURES_FIRST=""
+DEBUG_FAILURES_FIRST=""
 PHASE_LEDGER=""
 PHASE_CONTEXT=""
 INVOCATION_START="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -52,6 +54,8 @@ Options:
                         Missing scope refuses; broad/unknown needs explicit comprehensive.
   --test-heavy-group ID  Add one named heavy obligation to normal checks.
   --test-regressions RE  Add focused patch regressions without dropping baseline.
+  --test-failures-first ABS  Prior Release timings.json; run its failures first, then the rest.
+  --debug-failures-first ABS Prior Debug timings.json; independent failure ordering hint.
   --phase-ledger ABS     Append build/qualification diagnostics to this existing request ledger.
   --phase-context ABS    Nonsecret JSON context for that ledger; both options required together.
                         Default: a fresh build/release-diagnostics/ directory, printed before work.
@@ -591,6 +595,11 @@ while [[ $# -gt 0 ]]; do
             if [[ "$1" == --phase-ledger ]]; then PHASE_LEDGER="$2"; else PHASE_CONTEXT="$2"; fi
             shift 2
             ;;
+        --test-failures-first|--debug-failures-first)
+            [[ $# -ge 2 && "$2" == /* && -f "$2" ]] || fail "$1 requires an absolute existing timing report"
+            if [[ "$1" == --test-failures-first ]]; then TEST_FAILURES_FIRST="$2"; else DEBUG_FAILURES_FIRST="$2"; fi
+            shift 2
+            ;;
         --skip-notarize)
             SKIP_NOTARIZE=1
             shift
@@ -705,10 +714,13 @@ if [[ "${SKIP_TESTS}" == "0" ]]; then
     fi
     if [[ -n "${TEST_REGRESSIONS}" ]]; then TEST_ARGUMENTS+=(--include-tests-regex "${TEST_REGRESSIONS}"); fi
     log "Testing the declared Release profile; omitted heavy claims remain unqualified"
-    python3 scripts/run_test_suite.py --preset qualification-release --profile "${TEST_PROFILE}" "${TEST_ARGUMENTS[@]}"
+    RELEASE_TEST_ARGUMENTS=("${TEST_ARGUMENTS[@]}")
+    if [[ -n "${TEST_FAILURES_FIRST}" ]]; then RELEASE_TEST_ARGUMENTS+=(--failures-first "${TEST_FAILURES_FIRST}"); fi
+    python3 scripts/run_test_suite.py --preset qualification-release --profile "${TEST_PROFILE}" "${RELEASE_TEST_ARGUMENTS[@]}"
     log "Testing the native Debug diagnostic lane"
     DEBUG_PROFILE=debug-residual
     DEBUG_TEST_ARGUMENTS=("${TEST_ARGUMENTS[@]}")
+    if [[ -n "${DEBUG_FAILURES_FIRST}" ]]; then DEBUG_TEST_ARGUMENTS+=(--failures-first "${DEBUG_FAILURES_FIRST}"); fi
     if [[ "${TEST_PROFILE}" == comprehensive ]]; then
         DEBUG_PROFILE=comprehensive
         # The standing owner policy omits only these dedicated Debug timing

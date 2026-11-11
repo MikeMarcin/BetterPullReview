@@ -757,6 +757,19 @@ python3() { printf 'suite:%s\n' "$*"; }
                 self.assertNotIn("suite:", result.stdout)
                 self.assertEqual(sum(line.startswith("phase:") for line in result.stdout.splitlines()), index + 1)
 
+    def test_failure_reports_remain_bound_to_their_release_or_debug_lane(self):
+        with ContainedTemporaryDirectory() as temporary:
+            release, debug = Path(temporary) / "release.json", Path(temporary) / "debug.json"
+            release.write_text("{}")
+            debug.write_text("{}")
+            result = self.course(["--test-failures-first", str(release), "--debug-failures-first", str(debug)])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = [row for row in result.stdout.splitlines() if row.startswith("suite:")]
+            self.assertIn("--failures-first " + str(release), rows[0])
+            self.assertNotIn(str(debug), rows[0])
+            self.assertIn("--failures-first " + str(debug), rows[1])
+            self.assertNotIn(str(release), rows[1])
+
     def test_skip_tests_keeps_only_distribution_builds(self):
         result = self.course(["--skip-tests"])
         self.assertEqual(result.returncode, 0, result.stderr)

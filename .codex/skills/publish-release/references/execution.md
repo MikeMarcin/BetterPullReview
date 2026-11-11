@@ -102,8 +102,10 @@ discovery of a GCC warning-as-error until after hours of tests during v0.3.3.
 
 A failure still rejects its candidate. Stop dispatching its unstarted downstream
 stages, retain every running job's ownership and result, and reconcile all failed
-rows before preparing a successor. Include each unresolved regression in the
-successor's early checks; fixing only the first failure serializes discovery.
+rows before preparing a successor. Use the runner's [failure-first option](../../../../docs/development/release-test-profiles.md#prioritize-repaired-failures-without-dropping-coverage)
+for successor qualification: prior failed fixture/dependency groups run before
+the normal remainder, and both batches still collect all failures. Fixing only
+the first failure serializes discovery.
 Do not kill unrelated work. Starting independent native qualification earlier
 can spend work on a candidate later rejected elsewhere; it does not grant any
 old-source pass to corrected source. Reconcile unchanged passing receipts only

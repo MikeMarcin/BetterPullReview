@@ -192,9 +192,9 @@ def suite_lock(path: Path):
 
 def run_suite(preset: str, jobs: int, output: Path, ctest: str = "ctest", root: Path = ROOT, tests_regex: str | None = None,
               profile: str = "comprehensive", heavy_groups: list[str] | None = None, change_scopes: list[str] | None = None,
-              include_tests_regex: str | None = None) -> int:
+              include_tests_regex: str | None = None, failures_first: Path | None = None) -> int:
     with suite_lock(root / "build/.test-suite.lock"):
-        return run_locked_suite(preset, jobs, output, ctest, root, tests_regex, profile, heavy_groups, change_scopes, include_tests_regex)
+        return run_locked_suite(preset, jobs, output, ctest, root, tests_regex, profile, heavy_groups, change_scopes, include_tests_regex, failures_first)
 
 
 def select_profile(names: list[str], profile: str, heavy_groups: list[str] | None, change_scopes: list[str] | None, root: Path = ROOT) -> dict:
@@ -364,9 +364,108 @@ def reusable_bootstrap(report: dict | None, invocation: str, identity: str | Non
     return names
 
 
+def failure_priority(manifest: dict, expected: list[str], preset: str, previous: Path) -> dict:
+    """Use prior failures only as ordering hints; preserve current fixture/dependency groups."""
+    content = previous.read_bytes()
+    report = json.loads(content)
+    if not isinstance(report, dict) or report.get("schema") != "bpr.test-timings.v1" or report.get("preset") != preset:
+        raise ValueError("Failure-first ordering needs a timing report from the same preset")
+    tests = report.get("tests")
+    if not isinstance(tests, list) or any(not isinstance(row, dict) or not isinstance(row.get("name"), str)
+                                         or row.get("status") not in {"passed", "failed", "skipped"} for row in tests):
+        raise ValueError("Invalid previous test results for failure-first ordering")
+    names = [row["name"] for row in tests]
+    if len(names) != len(set(names)):
+        raise ValueError("Duplicate previous test results for failure-first ordering")
+    failures = {row["name"] for row in tests if row["status"] == "failed"}
+    absent = failures - set(expected)
+    if absent:
+        raise ValueError("Previous failures are not selected; reconcile removed/renamed rows or include their current obligations: "
+                         + ", ".join(sorted(absent)))
+    graph = {row["name"]: set() for row in manifest["tests"]}
+    fixtures = {}
+    def values(value):
+        return value.split(";") if isinstance(value, str) else value
+    for row in manifest["tests"]:
+        name = row["name"]
+        props = {item["name"]: item["value"] for item in row.get("properties", [])}
+        for dependency in values(props.get("DEPENDS", [])):
+            if dependency not in graph:
+                raise ValueError("Unknown CTest dependency: " + dependency)
+            graph[name].add(dependency)
+            graph[dependency].add(name)
+        for property_name in ("FIXTURES_SETUP", "FIXTURES_REQUIRED", "FIXTURES_CLEANUP"):
+            for fixture in values(props.get(property_name, [])):
+                fixtures.setdefault(fixture, set()).add(name)
+    for members in fixtures.values():
+        for name in members:
+            graph[name].update(members - {name})
+    priority = set(failures)
+    pending = list(failures)
+    while pending:
+        for name in graph[pending.pop()] - priority:
+            priority.add(name)
+            pending.append(name)
+    if priority - set(expected):
+        raise ValueError("Failure-first ordering would split a selected fixture/dependency group; include: "
+                         + ", ".join(sorted(priority - set(expected))))
+    return dict(previous_report=str(previous.resolve()), previous_sha256=hashlib.sha256(content).hexdigest(),
+                previous_failures=[name for name in expected if name in failures],
+                first=[name for name in expected if name in priority],
+                remaining=[name for name in expected if name not in priority],
+                policy="Collect all selected results, failures first then normal remainder; no prior verdict reuse")
+
+
+def run_failure_first_batches(ctest: str, preset: str, jobs: int, root: Path, output: Path,
+                              priority: dict, reused: list[str]) -> tuple[dict, int]:
+    """Keep CTest's locks, native ordering and cleanup; collect both batches even on failure."""
+    rows, batches = [], []
+    combined = ET.Element("testsuite")
+    code = 0
+    started = time.monotonic()
+    for label, names in (("previous-failures", priority["first"]), ("remaining", priority["remaining"])):
+        names = [name for name in names if name not in reused]
+        if not names:
+            continue
+        junit, log = output / (label + "-junit.xml"), output / (label + "-ctest.log")
+        if any("\n" in name or "\r" in name for name in names):
+            raise ValueError("Failure-first test names must fit one line")
+        selection_file = output / (label + "-tests.txt")
+        selection_file.write_text("\n".join(names) + "\n", encoding="utf-8")
+        command = [ctest, "--preset", preset, "--parallel", str(jobs), "--output-on-failure", "--no-tests=error",
+                   "--tests-from-file", str(selection_file),
+                   "--output-log", str(log), "--output-junit", str(junit)]
+        print(f"Failure-first batch {label}: {len(names)} selected rows; collect-all", flush=True)
+        before = time.monotonic()
+        completed = subprocess.run(command, cwd=root, check=False)
+        code = code or completed.returncode
+        batch = dict(name=label, selected=names, command=command, ctest_exit_code=completed.returncode,
+                     seconds=time.monotonic() - before, junit=str(junit), log=str(log), selection_file=str(selection_file))
+        try:
+            result = read_junit(junit, batch["seconds"])
+            batch["complete"] = Counter(row["name"] for row in result["tests"]) == Counter(names)
+            rows.extend(result["tests"])
+            combined.extend(ET.parse(junit).getroot().iter("testcase"))
+            if not batch["complete"] or result["counts"].get("failed", 0):
+                code = code or 1
+        except (OSError, ValueError, KeyError, ET.ParseError) as error:
+            batch.update(complete=False, diagnostic_error=str(error))
+            code = code or 1
+        batches.append(batch)
+        # Keep an incremental structured receipt if a later invocation is interrupted.
+        (output / "batches.json").write_text(json.dumps(batches, indent=2) + "\n", encoding="utf-8")
+    result = summarize(rows, time.monotonic() - started)
+    combined.attrib.update(name=preset + ":failure-first", tests=str(len(rows)),
+                           failures=str(result["counts"].get("failed", 0)),
+                           skipped=str(result["counts"].get("skipped", 0)), time=str(result["wall_seconds"]))
+    ET.ElementTree(combined).write(output / "junit.xml", encoding="utf-8", xml_declaration=True)
+    result["batches"] = batches
+    return result, code
+
+
 def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Path, tests_regex: str | None = None,
                      profile: str = "comprehensive", heavy_groups: list[str] | None = None, change_scopes: list[str] | None = None,
-                     include_tests_regex: str | None = None) -> int:
+                     include_tests_regex: str | None = None, failures_first: Path | None = None) -> int:
     if sys.flags.optimize or os.environ.get("PYTHONOPTIMIZE"):
         raise ValueError("Qualification requires Python assertions enabled (no -O/PYTHONOPTIMIZE)")
     runner_started = time.monotonic()
@@ -392,6 +491,9 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     expected = [name for name in selection["selected"] if tests_regex is None or re.search(tests_regex, name)]
     if not expected:
         raise ValueError("The selected CTest preset contains no tests")
+    priority = failure_priority(selected, expected, preset, failures_first) if failures_first is not None else None
+    if priority is not None:
+        selection["failure_priority"] = priority
     (output / "manifest.json").write_text(manifest.stdout, encoding="utf-8")
     selection.update(selected=expected, selection_regex=tests_regex, focused_regression_regex=include_tests_regex, focused_regressions=included,
                      omitted=sorted(set(all_names) - set(expected)), manifest_sha256=hashlib.sha256(manifest.stdout.encode()).hexdigest())
@@ -428,6 +530,9 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
         except (OSError, ValueError, subprocess.CalledProcessError):
             pass
     reused = sorted(set(reusable_bootstrap(preflight, invocation, current_identity)).intersection(expected))
+    if priority is not None:
+        # Connected bootstrap rows cannot be removed from a fixture/dependency group.
+        reused = [name for name in reused if name not in priority["first"]]
     fresh = [name for name in expected if name not in reused]
     command = [ctest, "--preset", preset, "--parallel", str(jobs), "--output-on-failure",
                "--no-tests=error", "--output-log", str(output / "ctest.log"),
@@ -437,7 +542,10 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     if reused:
         command.extend(["--exclude-regex", "^(" + "|".join(re.escape(name) for name in reused) + ")$"])
     started = time.monotonic()
-    if fresh:
+    if priority is not None and priority["first"]:
+        report, batch_code = run_failure_first_batches(ctest, preset, jobs, root, output, priority, reused)
+        completed = subprocess.CompletedProcess(command, batch_code)
+    elif fresh:
         completed = subprocess.run(command, cwd=root, check=False)
         report = read_junit(output / "junit.xml", time.monotonic() - started)
     else:
@@ -446,7 +554,7 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     elapsed = time.monotonic() - started
     if reused:
         proof_rows = [row for row in preflight["results"]["tests"] if row["name"] in reused]
-        report = summarize(report["tests"] + [{**row, "evidence": "same-invocation-preflight"} for row in proof_rows], elapsed)
+        report = {**report, **summarize(report["tests"] + [{**row, "evidence": "same-invocation-preflight"} for row in proof_rows], elapsed)}
     actual = [row["name"] for row in report["tests"]]
     complete = Counter(actual) == Counter(expected)
     final_identity = None
@@ -466,6 +574,7 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
                   preflight_wall_seconds=preflight["wall_seconds"] if preflight else 0.0,
                   total_runner_wall_seconds=time.monotonic() - runner_started,
                   missing=sorted(set(expected) - set(actual)),
+                  not_run=sorted(set(expected) - set(actual)),
                   unexpected=sorted(set(actual) - set(expected)))
     (output / "timings.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print_report(report)
@@ -480,7 +589,7 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
 def phase_results(output: Path) -> dict:
     """Link structured native evidence without scraping console output or granting pass credit."""
     result = {"reports": {name: str((output / name).resolve()) for name in
-                          ("manifest.json", "selection.json", "preflight.json", "timings.json", "junit.xml", "ctest.log")
+                          ("manifest.json", "selection.json", "preflight.json", "timings.json", "junit.xml", "ctest.log", "batches.json")
                           if (output / name).is_file()}}
     for name in ("timings.json", "preflight.json"):
         path = output / name
@@ -510,6 +619,7 @@ def main() -> int:
     parser.add_argument("--heavy-group", action="append", default=[], help="Explicit heavy obligation group; repeat for several groups")
     parser.add_argument("--change-scope", action="append", default=[], help="Declared owning change scope; unknown/broad/toolchain/Qt/platform escalates to comprehensive")
     parser.add_argument("--include-tests-regex", help="Add named patch regressions to a normal profile without dropping its baseline")
+    parser.add_argument("--failures-first", type=Path, help="Prior same-preset timings.json: run its failed fixture/dependency groups first, then collect all remaining selected rows")
     parser.add_argument("--phase-ledger", type=Path, help="Append this attempt to an existing request ledger, including refusal/failure")
     parser.add_argument("--phase-context", type=Path, help="Nonsecret JSON source/config/tools/cache/lease facts for --phase-ledger")
     parser.add_argument("--report-log", type=Path, help="Only summarize an existing CTest console log")
@@ -527,17 +637,18 @@ def main() -> int:
         parser.error("--phase-ledger and --phase-context are required together")
     if not args.phase_ledger:
         return run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex,
-                         profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, include_tests_regex=args.include_tests_regex)
+                         profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, include_tests_regex=args.include_tests_regex, failures_first=args.failures_first)
     import release_phase_ledger as ledger
     context = json.loads(args.phase_context.read_text(encoding="utf-8"))
     context.update(preset=args.preset, jobs=args.jobs, output=str(output.resolve()), selection_regex=args.tests_regex,
-                   profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, focused_regressions=args.include_tests_regex)
+                   profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, focused_regressions=args.include_tests_regex,
+                   failures_first=str(args.failures_first.resolve()) if args.failures_first else None)
     identity = ledger.begin(args.phase_ledger, "qualification", context, sys.argv)
     started = time.monotonic()
     output_existed = output.exists()
     try:
         code = run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex,
-                         profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, include_tests_regex=args.include_tests_regex)
+                         profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, include_tests_regex=args.include_tests_regex, failures_first=args.failures_first)
     except Exception as error:
         ledger.finish(args.phase_ledger, identity, outcome="refused", seconds=time.monotonic() - started, exit_code=None,
                       detail=str(error), results={"reports": {}, "diagnostic_note": "Output existed before this attempt; not attributed"}

@@ -107,6 +107,45 @@ Windows/Linux operators use the same runner before the existing package paths.
 An unsigned mechanical rehearsal can use already recorded qualification and the
 existing skip-tests/prepare-only producer path; it supplies no publication approval.
 
+## Prioritize repaired failures without dropping coverage
+
+For a repaired candidate, pass the previous same-preset `timings.json` to the
+existing runner:
+
+```sh
+python3 scripts/run_test_suite.py --preset qualification-release --profile comprehensive --failures-first /absolute/previous/qualification-release/timings.json
+```
+
+The runner keeps its collect-all behavior. After the ordinary fresh tooling
+preflight, it runs the prior failing tests and their entire fixture/dependency
+components, then all remaining selected tests with normal CTest scheduling.
+It continues the remainder even if an early failure repeats, retaining all current
+failures for the next repair. There is no circular rotation, first-failure stop,
+new concurrency policy or previous-source PASS reuse. The report is only an
+ordering hint; new or previously unrun rows stay in the normal remainder.
+
+`selection.json` records the prior report path/digest, failed names and both
+batches. Both batches retain native locks, serial declarations and fixture setup/
+cleanup. A connected component cannot cross batches. Unknown/renamed or currently
+excluded prior failures are refused: reconcile the change or explicitly include
+the current obligation, rather than silently hiding it behind a narrower profile.
+A report for another preset is refused. An empty prior failure set uses the normal
+single invocation.
+
+Each batch writes separate raw CTest/JUnit files, linked by `batches.json` and
+`timings.json`. Exact row-name files select the batches without expanding large
+native inventories past Windows command-line limits. The aggregate JUnit/timing inventory still requires every selected
+row exactly once (apart from the existing, separately identified same-invocation
+tooling preflight credit). Missing/malformed results never become passing proof.
+A missing batch report does not prevent collecting the independent remainder;
+the aggregate remains failed/incomplete. Logs are not parsed for scheduling.
+
+The Mac release entrypoint forwards `--test-failures-first /absolute/release/timings.json`
+and `--debug-failures-first /absolute/debug/timings.json` independently. Keep the
+same explicit normal/comprehensive scope selection and Debug policy. Windows and
+Linux use the runner directly. Apply this to future repair work only; do not
+replace a running release's frozen scripts or controllers.
+
 ## Coverage and heavy obligations
 
 [The exact row inventory](../../tests/release_test_profiles.json) is authoritative.

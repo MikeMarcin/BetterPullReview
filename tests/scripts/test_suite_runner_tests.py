@@ -27,6 +27,117 @@ class SuiteRunnerTests(unittest.TestCase):
         self.inputs.start()
         self.addCleanup(self.inputs.stop)
 
+    def test_failure_priority_preserves_normal_order_and_dependency_fixture_closure(self):
+        with ContainedTemporaryDirectory() as temporary:
+            previous = Path(temporary) / "previous.json"
+            names = ["earlier_pass", "setup", "failed", "cleanup", "dependent", "later_pass"]
+            manifest = {"tests": [{"name": name} for name in names]}
+            for index, key in ((1, "FIXTURES_SETUP"), (2, "FIXTURES_REQUIRED"), (3, "FIXTURES_CLEANUP")):
+                manifest["tests"][index]["properties"] = [{"name": key, "value": ["native-state"]}]
+            manifest["tests"][4]["properties"] = [{"name": "DEPENDS", "value": ["failed"]}]
+            previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                {"name": name, "status": "failed" if name == "failed" else "passed"} for name in reversed(names)]}))
+            plan = suite.failure_priority(manifest, names, "fixture", previous)
+            self.assertEqual(plan["previous_failures"], ["failed"])
+            self.assertEqual(plan["first"], names[1:5])
+            self.assertEqual(plan["remaining"], ["earlier_pass", "later_pass"])
+            self.assertEqual(len(plan["previous_sha256"]), 64)
+            with self.assertRaisesRegex(ValueError, "split"):
+                suite.failure_priority(manifest, [name for name in names if name != "cleanup"], "fixture", previous)
+            with self.assertRaisesRegex(ValueError, "not selected"):
+                suite.failure_priority(manifest, [name for name in names if name != "failed"], "fixture", previous)
+            with self.assertRaisesRegex(ValueError, "same preset"):
+                suite.failure_priority(manifest, names, "other", previous)
+            previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                {"name": name, "status": "failed" if name in {"failed", "later_pass"} else "passed"} for name in reversed(names)]}))
+            multiple = suite.failure_priority(manifest, names, "fixture", previous)
+            self.assertEqual(multiple["previous_failures"], ["failed", "later_pass"])
+            self.assertEqual(multiple["first"], names[1:])
+            self.assertEqual(multiple["remaining"], ["earlier_pass"])
+            previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                {"name": name, "status": "passed"} for name in names]}))
+            no_failures = suite.failure_priority(manifest, names, "fixture", previous)
+            self.assertEqual(no_failures["first"], [])
+            self.assertEqual(no_failures["remaining"], names)
+            previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                {"name": "failed", "status": "failed"}, {"name": "failed", "status": "passed"}]}))
+            with self.assertRaisesRegex(ValueError, "Duplicate"):
+                suite.failure_priority(manifest, names, "fixture", previous)
+
+    def test_real_failure_first_keeps_collect_all_coverage_and_native_cleanup(self):
+        for repaired in (False, True):
+            with self.subTest(repaired=repaired), ContainedTemporaryDirectory() as temporary:
+                root = Path(temporary)
+                worker = root / "worker.py"
+                worker.write_text('''from pathlib import Path
+import sys
+root=Path(__file__).parent
+name=sys.argv[1]
+with (root/'order').open('a') as output: output.write(name+'\\n')
+if name == 'setup': (root/'fixture').write_text('ready')
+if name == 'failed':
+    assert (root/'fixture').read_text() == 'ready'
+    if (root/'fail').exists(): raise SystemExit(3)
+if name == 'cleanup': (root/'fixture').unlink()
+''')
+                names = ["earlier_pass", "setup", "failed", "cleanup", "later_pass"]
+                cmake = ['cmake_minimum_required(VERSION 3.24)', 'project(FailurePriority NONE)', 'enable_testing()']
+                for name in names:
+                    cmake.append(f'add_test(NAME {name} COMMAND "{Path(sys.executable).as_posix()}" "{worker.as_posix()}" {name})')
+                cmake += ['set_tests_properties(setup PROPERTIES FIXTURES_SETUP state)',
+                          'set_tests_properties(failed PROPERTIES FIXTURES_REQUIRED state)',
+                          'set_tests_properties(cleanup PROPERTIES FIXTURES_CLEANUP state)']
+                (root / "CMakeLists.txt").write_text("\n".join(cmake) + "\n")
+                (root / "CMakePresets.json").write_text(json.dumps({"version": 3,
+                    "configurePresets": [{"name": "fixture", "generator": "Ninja", "binaryDir": "${sourceDir}/build"}],
+                    "testPresets": [{"name": "fixture", "configurePreset": "fixture"}]}))
+                subprocess.run(["cmake", "--preset", "fixture"], cwd=root, check=True, capture_output=True)
+                previous = root / "previous.json"
+                previous.write_text(json.dumps({"schema": "bpr.test-timings.v1", "preset": "fixture", "tests": [
+                    {"name": name, "status": "failed" if name == "failed" else "passed"} for name in names]}))
+                if not repaired:
+                    (root / "fail").touch()
+                output = root / "results"
+                with redirect_stdout(io.StringIO()):
+                    code = suite.run_suite("fixture", 4, output, root=root, failures_first=previous)
+                order = (root / "order").read_text().splitlines()
+                self.assertEqual(order[:3], ["setup", "failed", "cleanup"])
+                self.assertCountEqual(order[3:], ["earlier_pass", "later_pass"])
+                self.assertCountEqual(order, names)
+                self.assertFalse((root / "fixture").exists())
+                self.assertEqual(code == 0, repaired)
+                report = json.loads((output / "timings.json").read_text())
+                self.assertTrue(report["complete"])
+                self.assertTrue(report["full_graph_selected"])
+                self.assertEqual(report["counts"], {"passed": 5} if repaired else {"passed": 4, "failed": 1})
+                self.assertEqual([b["name"] for b in report["batches"]], ["previous-failures", "remaining"])
+                for batch in report["batches"]:
+                    self.assertIn("--tests-from-file", batch["command"])
+                    self.assertNotIn("--tests-regex", batch["command"])
+                    self.assertEqual(Path(batch["selection_file"]).read_text().splitlines(), batch["selected"])
+                self.assertEqual(len(suite.read_junit(output / "junit.xml", 0)["tests"]), 5)
+                self.assertEqual(report["missing"], [])
+                self.assertTrue((output / "previous-failures-ctest.log").is_file())
+                self.assertTrue((output / "remaining-ctest.log").is_file())
+
+    def test_failure_first_continues_after_missing_batch_report_but_never_passes(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            calls = []
+            def run(command, **kwargs):
+                calls.append(command)
+                if len(calls) == 2:
+                    Path(command[command.index("--output-junit") + 1]).write_text('<testsuite><testcase name="rest"/></testsuite>')
+                return subprocess.CompletedProcess(command, 0)
+            with patch.object(suite.subprocess, "run", side_effect=run):
+                report, code = suite.run_failure_first_batches("ctest", "fixture", 4, root, root,
+                    {"first": ["failed"], "remaining": ["rest"]}, [])
+            self.assertNotEqual(code, 0)
+            self.assertEqual(len(calls), 2)
+            self.assertFalse(report["batches"][0]["complete"])
+            self.assertIn("diagnostic_error", report["batches"][0])
+            self.assertEqual([row["name"] for row in report["tests"]], ["rest"])
+
     def test_bootstrap_reuse_rejects_stale_missing_failed_and_interrupted_proof(self):
         names = sorted(suite.TOOLING_PREFLIGHT)
         valid = dict(invocation_id="live", input_identity="same", expected=names,
