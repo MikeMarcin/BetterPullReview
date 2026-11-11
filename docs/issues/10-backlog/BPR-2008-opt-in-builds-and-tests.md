@@ -55,3 +55,16 @@ protected: `BPR-2007-grant-menu`, `BPR-2007-agent-sheet`,
 Stays in Backlog: it cannot be readied, claimed or parked while BPR-2007 is not
 Done. Next: after BPR-2007 finishes, ready and claim it, and finish it when
 AC07's independent review and the `BPR-2008-build-question` look are in.
+
+## Owner hand-back and post-review round (2026-11-11)
+
+`BPR-2008-build-question`: Accept (`df4d82a8`, session `e97c6a3d…`; host
+stopped, root removed). The grant menu's rejection (`5a9f122e`) asked for
+"Allow build and run tests" as a toggle like the scratch folder's: it is now a
+per-pull-request toggle in the footer picker's menu; checking it is the pull
+request's answer to the build question, and the agent's setting decides only
+whether an unanswered pull request asks first (`cf8a9c12d`; RFC-BPR-0104
+amendment). The critical review's finding 6 (Claude's build rules are not
+confined) is disclosed in the toggle's tooltip; finding 7 (the modal question)
+is fixed. A re-review of the fixes is owed. Still Backlog until BPR-2007 is
+Done.
