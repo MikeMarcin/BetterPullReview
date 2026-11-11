@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2099"
 title: "Retain removed file lifetimes in the profile reset fixture"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
