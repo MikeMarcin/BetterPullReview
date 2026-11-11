@@ -1233,3 +1233,5 @@ the owner's answers in `246ef52c…`; BPR-2101 (Backlog). Next unchanged from
 the post-review round: read `246ef52c…` from cursor 9 after hand-back;
 Accept of the picker and the settings with a passing re-review finishes
 BPR-2007, then ready, claim and finish BPR-2008, mirrored.
+
+Main mirror commit this round: `feacae49f`.
