@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2100"
+  ],
+  "reserve_for": "future-release-preflight",
+  "purpose": "",
+  "created": "2026-11-11T15:03:56.251740+00:00",
+  "base": "50fc261c14b2d0e3b1966f5ab0b3edebb0f9b0ad"
+}
