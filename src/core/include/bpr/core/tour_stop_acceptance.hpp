@@ -76,8 +76,14 @@ namespace bpr::core {
 		explanation,
 		/// No lines and no destination: nothing to accept the code of.
 		lines,
+		/// Its own lines changed or are gone at the current head and none
+		/// are mapped there: its lines must be chosen at this head.
+		lines_at_head,
 	};
 	[[nodiscard]] auto tour_stop_accept_need(const tour_stop& aStop) noexcept -> tour_accept_need;
+	/// \brief As above, and `lines_at_head` when Accept at the tour's current
+	/// head could only keep its own lines changed (critical review finding 3).
+	[[nodiscard]] auto tour_stop_accept_need(const review_tour& aTour, const tour_stop& aStop) -> tour_accept_need;
 
 	/// \brief The code a stop is accepted on at `aHead`: its own lines when
 	/// they are at that head (as authored, or as mapped there), then each range
@@ -87,12 +93,19 @@ namespace bpr::core {
 	/// those bytes cannot change.
 	[[nodiscard]] auto tour_stop_material(const tour_stop& aStop, const git_commit_oid& aHead, std::span<const std::string> aFiles) -> std::vector<tour_material>;
 
-	/// \brief What `accept` records for `aStop` in `aTour` now.
+	/// \brief True when the stop's text names a range in a file by path: that
+	/// reference resolves only against the pull request's changed files.
+	[[nodiscard]] auto tour_stop_names_files(const tour_stop& aStop) -> bool;
+
+	/// \brief What `accept` records for `aStop` in `aTour` now. Its own lines
+	/// not at the current head stay to be compared: what was accepted of them
+	/// before, or its lines at the tour's head before a push, not compared yet.
 	[[nodiscard]] auto accept_tour_stop(const review_tour& aTour, const tour_stop& aStop, std::span<const std::string> aFiles) -> tour_stop_acceptance;
 
 	/// \brief Carries a draft saved before acceptance existed across: a stop
-	/// that was Ready and reaffirmed at the current head is Accepted on its
-	/// own lines; every other stop stays Not accepted yet.
+	/// the author made Ready, reaffirmed at the current head, not suggested by
+	/// an outline and naming no other file, is Accepted on its lines and its
+	/// text's references; every other stop stays Not accepted yet.
 	void carry_tour_acceptance(review_tour& aTour);
 
 } // namespace bpr::core

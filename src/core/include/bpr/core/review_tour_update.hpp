@@ -25,6 +25,10 @@ namespace bpr::core {
 	[[nodiscard]] auto propose_tour_stop_text(const tour_stop&) -> std::optional<std::string>;
 	[[nodiscard]] auto needs_tour_destination(const tour_stop&) -> bool;
 	/// Pure bounded planning: exact raw spans, real returned destinations, no no-op writes.
+	/// [[BPR-2014]]. Refused unless every stop is Accepted.
 	[[nodiscard]] auto plan_tour_update(const review_tour&, std::span<const tour_created_destination>) -> std::optional<tour_update_bodies>;
+	/// The bodies of an update already authorized: a staged plan's frozen
+	/// tour is rendered as it was sent, not judged again by a later rule.
+	[[nodiscard]] auto render_tour_update(const review_tour&, std::span<const tour_created_destination>) -> std::optional<tour_update_bodies>;
 }
 #endif

@@ -1377,7 +1377,7 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(test_staged_review_session staged_review_session_tests.cpp)
-target_link_libraries(test_staged_review_session PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::AdapterSQLite BetterPullReview::Application Qt6::Core)
+target_link_libraries(test_staged_review_session PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::AdapterSQLite BetterPullReview::Application BetterPullReview::SQLite3 Qt6::Core)
 target_include_directories(test_staged_review_session PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
 bpr_enable_hardening(test_staged_review_session)
 bpr_enable_warnings(test_staged_review_session)

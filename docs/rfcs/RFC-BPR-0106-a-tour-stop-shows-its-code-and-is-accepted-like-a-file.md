@@ -192,7 +192,30 @@ within the stated behaviour:
   differ in any colours; the reason line says which.
 - Lines chosen with Use selected lines stay chosen across a new head.
 - The terminal walk's Ready, which shows the stop's code to the person,
-  accepts the stop; a relayed `bpr tour ready` and any agent do not.
+  accepts the stop; a relayed `bpr tour ready` and any agent do not. It
+  accepts with the pull request's changed files, which a standalone walk's
+  read observes and a desktop window showing the pull request supplies;
+  without them a stop whose text names another file is Ready, not Accepted
+  (critical review, finding 2).
+- Accept at a head where the stop's own lines are not mapped keeps them to
+  compare: what was accepted of them, with the comparison's verdict, or (never
+  accepted) its lines at the tour's head before the push. The stop stays
+  yellow until they are compared unchanged or its lines are chosen at the new
+  head; only a historical stop is accepted with no lines of its own to
+  compare (finding 3).
+- A draft saved before acceptance carries a stop Accepted only when the
+  author made it Ready (in the window or the walk), it was not suggested by
+  an outline, it was reaffirmed at the current head and its text names no
+  other file; its lines and bare line references are recorded. Every other
+  stop comes over Not accepted yet (finding 4).
+- A tour update already part sent resumes as it was sent: its frozen tour was
+  authorized when the plan was made and is rendered without being judged
+  again, so a record saved under the earlier rule still loads (finding 1).
+- A comparison of accepted code that could not be read is asked again on a
+  later presentation, at most three times at a head (finding 7). The tour
+  owner channel is protocol version 7, so a command client and a desktop on
+  either side of the tour payload's version 11 refuse each other at hello
+  (finding 8).
 - Overview's stop rows say Accepted, Not accepted yet or Changed since
   accepted, as the route does.
 

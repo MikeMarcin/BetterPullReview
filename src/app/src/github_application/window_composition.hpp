@@ -568,8 +568,13 @@ namespace bpr::app {
 		void                                                                             read_next_tour_material();
 		std::deque<application::workbench_selected_diff_request>                         TourMaterialRequests;
 		std::vector<std::tuple<core::git_commit_oid, core::git_commit_oid, std::string>> TourMaterialAsked;
-		std::uint64_t                                                                    TourMaterialGeneration = 0U;
-		bool                                                                             TourMaterialReading    = false;
+		/// Critical review finding 7: a read that failed is asked again on a
+		/// later presentation, at most `maximum_tour_material_attempts` times.
+		std::vector<std::pair<std::tuple<core::git_commit_oid, core::git_commit_oid, std::string>, unsigned>> TourMaterialFailed;
+		static constexpr unsigned                                                                             maximum_tour_material_attempts = 3U;
+		void                                                                                                  tour_material_failed(const application::workbench_selected_diff_request& aRequest);
+		std::uint64_t                                                                                         TourMaterialGeneration = 0U;
+		bool                                                                                                  TourMaterialReading    = false;
 
 		void finish_tour_navigation();
 		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource);
@@ -579,6 +584,9 @@ namespace bpr::app {
 		{
 			application::review_tour_host* Host    = nullptr;
 			bool                           Current = false, Composing = false;
+			/// [[BPR-2014]]. The changed paths of the pull request the
+			/// current window shows, for a forwarded walk's Ready.
+			std::vector<std::string> Files{ };
 		};
 		auto live_tour(std::string_view aSelector) -> live_tour_view;
 		auto read_tour_source(std::string_view aSelector, const core::tour_code_destination& aSource, std::function<void(application::tour_channel_bytes)>& aRespond) -> bool;

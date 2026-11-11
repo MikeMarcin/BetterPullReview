@@ -100,7 +100,7 @@ namespace {
 		for (const auto& stop : draft->Stops) {
 			const auto now   = aEditor.shown().Draft;
 			const auto found = std::ranges::find(now->Stops, stop.Id, &core::tour_stop::Id);
-			if (found == now->Stops.end() || core::tour_stop_accepted(*now, *found) || core::tour_stop_accept_need(*found) != core::tour_accept_need::nothing) {
+			if (found == now->Stops.end() || core::tour_stop_accepted(*now, *found) || core::tour_stop_accept_need(*now, *found) != core::tour_accept_need::nothing) {
 				continue;
 			}
 			aEditor.accept_stop(stop.Id);
@@ -1014,10 +1014,15 @@ auto main(int argc, char** argv) -> int
 			cold.go_to_stop(cold.shown().Draft->Stops.front().Id);
 			saved(cold);
 			expect(decided().State == core::tour_acceptance_state::changed && decided().Reason == core::tour_acceptance_reason::unchecked, "an uncompared push leaves the stop Changed since accepted, not compared yet");
-			// The stop's Accept, which replaces the Head changed chip.
+			// The stop's Accept, which replaces the Head changed chip. Critical
+			// review finding 3: pressed while its lines are not compared yet,
+			// it keeps them to compare and is never green on unread evidence.
 			cold.accept_stop(cold.shown().Draft->Stops.front().Id);
 			saved(cold);
-			expect(core::tour_stop_accepted(*cold.shown().Draft, cold.shown().Draft->Stops.front()) && cold.shown().Draft->Stops.front().Remote == originalStops.front().Remote && cold.shown().Draft->Stops.front().Destination == originalStops.front().Destination, "accepting preserves the original imported subject and comment");
+			const auto& kept = cold.shown().Draft->Stops.front();
+			expect(decided().Reason == core::tour_acceptance_reason::unchecked && kept.Acceptance && std::ranges::any_of(kept.Acceptance->Material, [](const auto& aMaterial) { return !aMaterial.Reference; }),
+				   "Accept while the stop's lines are not compared yet keeps them to compare");
+			expect(kept.Remote == originalStops.front().Remote && kept.Destination == originalStops.front().Destination, "accepting preserves the original imported subject and comment");
 			{
 				std::scoped_lock lock{ server->Mutex };
 				expect(server->StagedWrites == 6, "a new head and accepting a stop issue zero remote writes");

@@ -32,6 +32,9 @@ namespace bpr::app {
 			QMap<QString, QString>              Values;
 			bool                                Json = false, Interactive = false;
 			std::optional<core::tour_attention> WalkAttention;
+			/// [[BPR-2014]]. The changed paths the walk's read observed, so its
+			/// Ready records the code at the references the stop's text makes.
+			std::vector<std::string> WalkFiles;
 		};
 		auto refuse(std::string aCode, std::string aMessage, int aExit = 2) { return std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
 		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview", "publish", "recover", "hooks", "assist", "outline", "labels" }; }
@@ -517,6 +520,7 @@ namespace bpr::app {
 				command.CompletionOrigin = aOptions.WalkAttention ? core::tour_completion_origin::observed : core::tour_completion_origin::relayed;
 				if (aOptions.WalkAttention) {
 					command.Attention = *aOptions.WalkAttention;
+					command.Files     = aOptions.WalkFiles;
 				}
 			} else {
 				if (aOptions.Values.contains("--before") == aOptions.Values.contains("--after")) {
@@ -931,7 +935,8 @@ namespace bpr::app {
 				const auto  range       = stop.Mapped ? stop.Mapped : stop.Original;
 				const auto  destination = range ? std::optional{ core::destination_of(*range) } : stop.Destination;
 				const auto  token       = tour_runtime::draft_token(snapshot->Target);
-				auto        source      = destination ? runtime->source(token, *destination, transport == "gh") : tour_cli_result<tour_source_material>{ refuse("source_unavailable", "No pinned destination is available.", 5) };
+				auto        files       = std::vector<std::string>{ };
+				auto        source      = destination ? runtime->source(token, *destination, transport == "gh", &files) : tour_cli_result<tour_source_material>{ refuse("source_unavailable", "No pinned destination is available.", 5) };
 				QString     page        = "Stop " + QString::number(index + 1) + "/" + QString::number(snapshot->Draft.Stops.size()) + " · ID " + QString::number(stop.Id.value()) + " · revision " + QString::number(snapshot->Draft.Revision) + "\n" + text(stop.Title) + "\nComment\n" + text(stop.Body) + "\n";
 				if (source) {
 					page += render_source(*source);
@@ -977,6 +982,7 @@ namespace bpr::app {
 				} else if (action == "r") {
 					command.Command       = "ready";
 					command.WalkAttention = core::tour_attention{ .EditorVisible = true, .Source = source ? std::optional{ source->Source } : std::nullopt, .SourceUnavailable = !source };
+					command.WalkFiles     = files;
 				} else {
 					const auto parts = action.split(' ', Qt::SkipEmptyParts);
 					if (parts.size() != 3 || parts[0] != "m" || (parts[1] != "before" && parts[1] != "after") || !number(parts[2])) {

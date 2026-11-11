@@ -881,9 +881,18 @@ namespace {
 		expect(first.State == tour_acceptance_state::changed && first.Reason == tour_acceptance_reason::lines_changed, "the stop whose lines changed is Changed since accepted: its lines");
 		expect(second.State == tour_acceptance_state::changed && second.Reason == tour_acceptance_reason::reference_changed && second.Reference == "src/a.cpp:5-6", "the stop that links to changed lines is Changed since accepted: the link");
 		expect(third.State == tour_acceptance_state::accepted, "a stop whose lines and links are byte-identical stays Accepted");
-		// Accepting the changed stop again, at the new head, turns it green.
-		const auto again = apply(tour, { .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::accept, .Stop = tour.Stops[0].Id, .Files = files });
-		expect(again.Refusal == tour_refusal::none && tour_stop_accepted(again.Accepted, again.Accepted.Stops[0]), "Accept at the new head accepts the stop's new code");
+		// Critical review finding 3: while the stop's changed lines are not
+		// mapped at the new head, Accept asks for its lines there; it is never
+		// Accepted with nothing to compare.
+		auto again = apply(tour, { .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::accept, .Stop = tour.Stops[0].Id, .Files = files });
+		expect(!tour.Stops[0].Mapped && again.Refusal == tour_refusal::incomplete && tour_stop_accept_need(tour, tour.Stops[0]) == tour_accept_need::lines_at_head,
+			   "Accept at the new head with no lines mapped there asks for its lines");
+		// Its lines chosen at the new head (Use selected lines), Accept accepts its new code.
+		auto chosen             = tour;
+		chosen.Stops[0].Mapped  = tour_source_range{ line(diff, diff_side::right, 0), line(diff, diff_side::right, 1), newHead, diff.Alignment.Key.RightBlob, "src/a.cpp" };
+		chosen.Stops[0].Mapping = tour_mapping::author_selected;
+		again                   = apply(chosen, { .Draft = chosen.Id, .Owner = chosen.Owner, .ExpectedRevision = chosen.Revision, .Kind = tour_command_kind::accept, .Stop = chosen.Stops[0].Id, .Files = files });
+		expect(again.Refusal == tour_refusal::none && tour_stop_accepted(again.Accepted, again.Accepted.Stops[0]), "Accept on lines chosen at the new head accepts the stop's new code");
 	}
 	void test_tour_revision_mapping()
 	{

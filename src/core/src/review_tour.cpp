@@ -304,12 +304,16 @@ namespace bpr::core {
 				// [[BPR-2014]]. The terminal walk's Ready shows the stop's code
 				// to the person who answers it: that is an accept. A relayed
 				// Ready (an agent, a script) accepts nothing.
-				if (found->CompletionOrigin == tour_completion_origin::observed && visible_tour_stop(*found, aCommand.Attention, true) && tour_stop_accept_need(*found) == tour_accept_need::nothing) {
+				// Critical review finding 2: without the changed files a
+				// reference to another file cannot be recorded, so that Ready
+				// accepts nothing.
+				if (found->CompletionOrigin == tour_completion_origin::observed && visible_tour_stop(*found, aCommand.Attention, true) && tour_stop_accept_need(aTour, *found) == tour_accept_need::nothing
+					&& aCommand.Files.size() <= maximum_tour_file_count && (!aCommand.Files.empty() || !tour_stop_names_files(*found))) {
 					found->Acceptance = accept_tour_stop(aTour, *found, aCommand.Files);
 				}
 				return tour_refusal::none;
 			case tour_command_kind::accept:
-				if (aCommand.Files.size() > maximum_tour_file_count || tour_stop_accept_need(*found) != tour_accept_need::nothing) {
+				if (aCommand.Files.size() > maximum_tour_file_count || tour_stop_accept_need(aTour, *found) != tour_accept_need::nothing || (aCommand.Files.empty() && tour_stop_names_files(*found))) {
 					return tour_refusal::incomplete;
 				}
 				found->Acceptance = accept_tour_stop(aTour, *found, aCommand.Files);

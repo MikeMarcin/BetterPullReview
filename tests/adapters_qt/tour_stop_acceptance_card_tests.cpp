@@ -124,6 +124,13 @@ namespace {
 				material.Verdict   = changed ? core::tour_material_verdict::changed : core::tour_material_verdict::unchanged;
 			}
 		}
+		// The comparison mapped stop 2's changed lines to the new head, as a
+		// push that edits lines in place does.
+		auto& changed          = draft.Stops[1];
+		changed.Mapped         = *changed.Original;
+		changed.Mapped->Commit = after;
+		changed.Mapped->Blob   = std::nullopt;
+		changed.Mapping        = core::tour_mapping::changed_material;
 		expect(core::validate(draft) == core::tour_refusal::none, "the fixture tour is valid");
 		return draft;
 	}
@@ -318,6 +325,22 @@ auto main(int argc, char** argv) -> int
 	mark->trigger();
 	settle();
 	expect(state(4) == core::tour_acceptance_state::not_accepted && accept->isVisibleTo(&editor), "Mark not accepted");
+
+	// Critical review finding 3. Its lines changed and none are mapped at the
+	// new head: Accept cannot record them, so it asks for its lines there
+	// rather than turning green with nothing to compare.
+	auto& unmapped = *std::ranges::find(draft.Stops, core::tour_stop_id{ 3 }, &core::tour_stop::Id);
+	for (auto& material : unmapped.Acceptance->Material) {
+		material.Verdict = material.Reference ? core::tour_material_verdict::unchanged : core::tour_material_verdict::missing;
+	}
+	show();
+	editor.go_to_stop(core::tour_stop_id{ 3 });
+	settle();
+	expect(accept->isVisibleTo(&editor) && !accept->isEnabled() && reason->text() == QStringLiteral("The lines under this stop are no longer in the pull request. Choose its lines at this head to accept it."), "a stop whose lines are gone at the new head asks for its lines there: " + reason->text().toStdString());
+	const auto acceptsBefore = std::ranges::count(sent, core::tour_command_kind::accept);
+	editor.accept_stop(core::tour_stop_id{ 3 });
+	settle();
+	expect(std::ranges::count(sent, core::tour_command_kind::accept) == acceptsBefore + 1 && state(3) == core::tour_acceptance_state::changed, "an Accept that reaches the core anyway is refused");
 	std::cout << "tour-stop-card:pass\n";
 	return EXIT_SUCCESS;
 }

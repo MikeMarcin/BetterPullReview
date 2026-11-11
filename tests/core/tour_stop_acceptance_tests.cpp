@@ -145,6 +145,7 @@ namespace {
 		auto walk             = command(fresh, tour_command_kind::complete, fresh.Stops[0].Id);
 		walk.CompletionOrigin = tour_completion_origin::observed;
 		walk.Attention        = { .EditorVisible = true, .Source = fresh.Stops[0].Original };
+		walk.Files            = { "src/item.cpp", "src/pool.cpp" };
 		fresh                 = applied(fresh, walk);
 		expect(tour_stop_accepted(fresh, fresh.Stops[0]), "the walk's Ready, with the code shown, accepts");
 		// Mark not accepted forgets it.
@@ -175,7 +176,9 @@ namespace {
 		const auto reasons = tour_publication_reasons(tour, plan, false);
 		expect(std::ranges::find(reasons, tour_status_reason::not_accepted) != reasons.end(), "the refusal names the stops not accepted");
 		expect(decide_tour_head(&tour, { }).ToAccept == 2U, "the head counts both stops to accept");
-		tour = applied(tour, command(tour, tour_command_kind::accept, tour.Stops[0].Id));
+		auto accept  = command(tour, tour_command_kind::accept, tour.Stops[0].Id);
+		accept.Files = { "src/item.cpp", "src/pool.cpp" };
+		tour         = applied(tour, accept);
 		expect(assess_tour_publication(tour, plan, false) == tour_publication_readiness::incomplete && decide_tour_head(&tour, { }).ToAccept == 1U, "one yellow stop still refuses");
 		tour = applied(tour, command(tour, tour_command_kind::accept, tour.Stops[1].Id));
 		expect(assess_tour_publication(tour, plan, false) == tour_publication_readiness::single_review, "every stop Accepted publishes");
@@ -188,22 +191,115 @@ namespace {
 		expect(assess_tour_publication(old, plan, false) == tour_publication_readiness::incomplete, "Ready is no longer acceptance");
 	}
 
+	/// A stop Ready from the author's own look (the window or the walk).
+	void author_ready(tour_stop& aStop)
+	{
+		aStop.Preparation      = tour_preparation::ready;
+		aStop.CompletionOrigin = tour_completion_origin::observed;
+	}
+
 	void test_carry_saved_drafts()
 	{
-		auto tour                 = two_stops();
-		tour.Stops[0].Preparation = tour_preparation::ready;
-		tour.Stops[1].Suggestion  = tour_suggestion{ .AnchorRef = "a", .Reason = "b" };
+		auto tour = two_stops();
+		author_ready(tour.Stops[1]);
 		carry_tour_acceptance(tour);
-		expect(tour_stop_accepted(tour, tour.Stops[0]), "a stop that was Ready is Accepted");
-		expect(!tour.Stops[1].Acceptance, "every other stop, outline-suggested ones too, is Not accepted yet");
-		auto moved                    = two_stops();
+		expect(tour_stop_accepted(tour, tour.Stops[1]), "a stop the author made Ready is Accepted");
+		auto moved = two_stops();
+		author_ready(moved.Stops[0]);
+		author_ready(moved.Stops[1]);
 		moved.ObservedHead            = head2();
-		moved.Stops[0].Preparation    = tour_preparation::ready;
-		moved.Stops[1].Preparation    = tour_preparation::ready;
+		moved.Stops[0].Body           = "Read these lines.";
 		moved.Stops[1].ReaffirmedHead = head2();
 		carry_tour_acceptance(moved);
 		expect(!moved.Stops[0].Acceptance && moved.Stops[1].Acceptance, "Ready and reaffirmed at the head carries; Ready at an older head does not");
 		expect(validate(moved) == tour_refusal::none, "a carried draft validates");
+	}
+
+	/// Critical review finding 4: a carried stop is Accepted only for the
+	/// author's own Ready, never an agent's or a script's, never an
+	/// outline-suggested stop (AC07), and never with its references dropped.
+	void test_carry_grants_only_the_author()
+	{
+		const auto carried = [](const auto aChange) {
+			auto tour = two_stops();
+			author_ready(tour.Stops[1]);
+			aChange(tour.Stops[1]);
+			carry_tour_acceptance(tour);
+			return tour;
+		};
+		expect(!carried([](tour_stop& aStop) { aStop.CompletionOrigin = tour_completion_origin::relayed; }).Stops[1].Acceptance, "a relayed Ready (an agent, a script) carries no acceptance");
+		expect(!carried([](tour_stop& aStop) { aStop.CompletionOrigin = tour_completion_origin::unspecified; }).Stops[1].Acceptance, "a Ready of unknown origin carries no acceptance");
+		expect(!carried([](tour_stop& aStop) { aStop.Suggestion = tour_suggestion{ .AnchorRef = "a", .Reason = "b", .Visited = true }; }).Stops[1].Acceptance, "an outline-suggested stop opens Not accepted yet even when it was Ready");
+		expect(!carried([](tour_stop& aStop) { aStop.Body = "The pool hands back the frame (`src/pool.cpp:41-47`)."; }).Stops[1].Acceptance,
+			   "a stop whose text names another file cannot record that reference without the changed files: Not accepted yet");
+		const auto bare = carried([](tour_stop& aStop) { aStop.Body = "Read line 5 first."; });
+		expect(bare.Stops[1].Acceptance && tour_stop_accepted(bare, bare.Stops[1]) && std::ranges::any_of(bare.Stops[1].Acceptance->Material, [](const auto& aMaterial) { return aMaterial.Reference && aMaterial.Range.Path == "src/item.cpp" && aMaterial.Range.FirstLine == 4U; }),
+			   "a bare line reference names the stop's own file and is kept when carried");
+	}
+
+	/// Critical review finding 2: the terminal walk's Ready accepts only with
+	/// the changed files its text's references resolve against, so a push that
+	/// changes a referenced range turns the stop yellow.
+	void test_walk_ready_records_references()
+	{
+		const auto tour       = two_stops();
+		auto       walk       = command(tour, tour_command_kind::complete, tour.Stops[0].Id);
+		walk.CompletionOrigin = tour_completion_origin::observed;
+		walk.Attention        = { .EditorVisible = true, .Source = tour.Stops[0].Original };
+		const auto blind      = applied(tour, walk);
+		expect(blind.Stops[0].Preparation == tour_preparation::ready && !blind.Stops[0].Acceptance, "a walk's Ready without the changed files is Ready, not Accepted");
+		walk.Files = { "src/item.cpp", "src/pool.cpp" };
+		auto seen  = applied(tour, walk);
+		expect(tour_stop_accepted(seen, seen.Stops[0]) && std::ranges::any_of(seen.Stops[0].Acceptance->Material, [](const auto& aMaterial) { return aMaterial.Reference && aMaterial.Range.Path == "src/pool.cpp"; }), "a walk's Ready with the changed files records the reference");
+		seen = applied(seen, { .Draft = seen.Id, .Owner = seen.Owner, .ExpectedRevision = seen.Revision, .Kind = tour_command_kind::observe_head, .Head = head2() });
+		for (auto& material : seen.Stops[0].Acceptance->Material) {
+			material.CheckedAt = head2();
+			material.Verdict   = material.Reference ? tour_material_verdict::changed : tour_material_verdict::unchanged;
+		}
+		expect(decide_tour_stop_acceptance(seen, seen.Stops[0]).Reason == tour_acceptance_reason::reference_changed, "a push that changes the referenced lines turns the walk-accepted stop yellow");
+		expect(apply(tour, command(tour, tour_command_kind::accept, tour.Stops[0].Id)).Refusal == tour_refusal::incomplete, "Accept without the changed files refuses a stop whose text names another file");
+		expect(apply(tour, command(tour, tour_command_kind::accept, tour.Stops[1].Id)).Refusal == tour_refusal::none, "a stop that names no other file needs no file list");
+	}
+
+	/// Critical review finding 3: accepting at a head where the stop's own
+	/// lines are not mapped keeps them to compare; it never yields Accepted
+	/// with nothing to compare.
+	void test_reaccept_keeps_own_lines()
+	{
+		const auto at2 = [](review_tour aTour) { return applied(aTour, { .Draft = aTour.Id, .Owner = aTour.Owner, .ExpectedRevision = aTour.Revision, .Kind = tour_command_kind::observe_head, .Head = head2() }); };
+		const auto own = [](const review_tour& aTour) {
+			const auto& record = aTour.Stops[1].Acceptance;
+			return record ? std::ranges::count_if(record->Material, [](const auto& aMaterial) { return !aMaterial.Reference; }) : 0;
+		};
+		auto tour = two_stops();
+		tour      = at2(applied(tour, command(tour, tour_command_kind::accept, tour.Stops[1].Id)));
+		expect(!tour.Stops[1].Mapped && decide_tour_stop_acceptance(tour, tour.Stops[1]).Reason == tour_acceptance_reason::unchecked, "after a push the stop's lines are not compared yet");
+		auto again = applied(tour, command(tour, tour_command_kind::accept, tour.Stops[1].Id));
+		expect(own(again) == 1 && decide_tour_stop_acceptance(again, again.Stops[1]).Reason == tour_acceptance_reason::unchecked, "Accept while not compared yet keeps the stop's own lines and stays not compared yet");
+		auto compared = again;
+		for (auto& material : compared.Stops[1].Acceptance->Material) {
+			material.CheckedAt = head2();
+			material.Verdict   = tour_material_verdict::changed;
+		}
+		expect(tour_stop_accept_need(compared, compared.Stops[1]) == tour_accept_need::lines_at_head && apply(compared, command(compared, tour_command_kind::accept, compared.Stops[1].Id)).Refusal == tour_refusal::incomplete,
+			   "Accept at a head where its lines changed and none are mapped asks for its lines there");
+		compared.Stops[1].Mapped         = *compared.Stops[1].Original;
+		compared.Stops[1].Mapped->Commit = head2();
+		compared.Stops[1].Mapping        = tour_mapping::author_selected;
+		compared                         = applied(compared, command(compared, tour_command_kind::accept, compared.Stops[1].Id));
+		expect(tour_stop_accepted(compared, compared.Stops[1]) && compared.Stops[1].Acceptance->Material.front().Range.Commit == head2(), "its lines chosen at the new head, Accept accepts them there");
+		for (auto& material : again.Stops[1].Acceptance->Material) {
+			material.CheckedAt = head2();
+			material.Verdict   = tour_material_verdict::unchanged;
+		}
+		expect(tour_stop_accepted(again, again.Stops[1]), "compared unchanged, it is Accepted");
+		auto first = at2(two_stops());
+		first      = applied(first, command(first, tour_command_kind::accept, first.Stops[1].Id));
+		expect(own(first) == 1 && decide_tour_stop_acceptance(first, first.Stops[1]).Reason == tour_acceptance_reason::unchecked, "a first Accept after a push records the stop's lines at the tour's head, not compared yet");
+		auto historical                      = two_stops();
+		historical.Stops[1].Original->Commit = *parse_git_commit_oid("3333333333333333333333333333333333333333");
+		historical                           = applied(historical, command(historical, tour_command_kind::accept, historical.Stops[1].Id));
+		expect(own(historical) == 0 && tour_stop_accepted(historical, historical.Stops[1]), "a historical stop's pinned lines are not recorded: no push can change them");
 	}
 }
 
@@ -213,6 +309,9 @@ auto main() -> int
 	test_what_accepts();
 	test_publication();
 	test_carry_saved_drafts();
+	test_carry_grants_only_the_author();
+	test_walk_ready_records_references();
+	test_reaccept_keeps_own_lines();
 	std::cout << "tour-stop-acceptance:pass\n";
 	return EXIT_SUCCESS;
 }

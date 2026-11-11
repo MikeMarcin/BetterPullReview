@@ -161,7 +161,14 @@ namespace bpr::core {
 	}
 	auto plan_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>
 	{
-		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || std::ranges::any_of(aTour.Stops, [&aTour](const auto& aStop) { return !tour_stop_accepted(aTour, aStop); })) {
+		if (std::ranges::any_of(aTour.Stops, [&aTour](const auto& aStop) { return !tour_stop_accepted(aTour, aStop); })) {
+			return { };
+		}
+		return render_tour_update(aTour, aCreated);
+	}
+	auto render_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>
+	{
+		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty()) {
 			return { };
 		}
 		std::vector<tour_markdown_link> entries;

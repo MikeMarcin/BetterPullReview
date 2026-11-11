@@ -43,7 +43,10 @@ namespace bpr::application {
 			}
 			created.push_back({ stop.Id, remote(aRecord.Comments[i], aRecord.Plan.Compatibility || !aRecord.Comments[i].Review.value(), staged_stop(aRecord.Plan, i).Representation == core::tour_representation::file_permalink), *body });
 		}
-		return core::plan_tour_update(*aRecord.Plan.Update, created);
+		// RFC-BPR-0106 critical review, finding 1. The frozen tour was
+		// authorized when the plan was made (assess_tour_update); a record
+		// saved under an earlier rule resumes as it was sent.
+		return core::render_tour_update(*aRecord.Plan.Update, created);
 	}
 	namespace {
 		// [[BPR-1787]]. A tour whose brief lives in the description can be

@@ -599,7 +599,7 @@ namespace {
 		expect(after.wait().has_value(), "caller after the stall answered");
 	}
 
-	void test_version_mismatch()
+	void version_mismatch_with(const std::uint8_t aVersion)
 	{
 		scratch_directory root;
 		auto              lease = acquire_profile_runtime_lease(root.Path);
@@ -616,9 +616,8 @@ namespace {
 		client    caller{ root.Path, profile, load_request() };
 		const int accepted = ::accept(listen, nullptr, nullptr);
 		expect(accepted >= 0, "the caller connects");
-		// Version 5 is the owner before the tour source read (BPR-1227).
-		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', 5 };
-		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version 5");
+		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', aVersion };
+		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version " + std::to_string(aVersion));
 		const auto& result = caller.wait();
 		expect(!result && result.error() == tour_channel_failure::version_mismatch, "another protocol version is named as such, before a payload is sent");
 		std::array<std::uint8_t, 1> probe{ };
@@ -626,6 +625,16 @@ namespace {
 		::close(accepted);
 		::close(listen);
 		std::filesystem::remove(path);
+	}
+
+	void test_version_mismatch()
+	{
+		// Version 5 is the owner before the tour source read (BPR-1227);
+		// version 6 the owner before stop acceptance (BPR-2014), which
+		// cannot read the tour payload (version 11) a newer side sends.
+		for (const std::uint8_t version : { std::uint8_t{ 5 }, std::uint8_t{ 6 } }) {
+			version_mismatch_with(version);
+		}
 	}
 
 	void test_stale_and_hostile_endpoints()

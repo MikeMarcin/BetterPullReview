@@ -25,6 +25,26 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 
+		/// [[BPR-2014]], critical review finding 3. The stop's own lines when
+		/// they are not at `aHead`: what was accepted of them before, with what
+		/// the comparison said, or (never accepted) its lines at the tour's own
+		/// head before a push, not compared yet. A historical stop, pinned at
+		/// another commit, has none: no push can change its bytes.
+		[[nodiscard]] auto own_lines_to_compare(const review_tour& aTour, const tour_stop& aStop, const git_commit_oid& aHead) -> std::optional<tour_material>
+		{
+			const auto source = publication_source(aStop);
+			if (aStop.Acceptance && aStop.Acceptance->Destination == source) {
+				const auto kept = std::ranges::find(aStop.Acceptance->Material, false, &tour_material::Reference);
+				if (kept != aStop.Acceptance->Material.end()) {
+					return *kept;
+				}
+			}
+			if (source && source->Commit == aTour.Head && aTour.Head != aHead) {
+				return tour_material{ .Range = *source };
+			}
+			return std::nullopt;
+		}
+
 		[[nodiscard]] auto reason_of(const tour_material& aMaterial, const bool aMissing) -> tour_acceptance_reason
 		{
 			if (aMaterial.Reference) {
@@ -117,6 +137,19 @@ namespace bpr::core {
 		return tour_accept_need::nothing;
 	}
 
+	auto tour_stop_accept_need(const review_tour& aTour, const tour_stop& aStop) -> tour_accept_need
+	{
+		if (const auto need = tour_stop_accept_need(aStop); need != tour_accept_need::nothing) {
+			return need;
+		}
+		const auto head = tour_current_head(aTour);
+		if (own_lines_at(aStop, head)) {
+			return tour_accept_need::nothing;
+		}
+		const auto kept = own_lines_to_compare(aTour, aStop, head);
+		return kept && kept->CheckedAt == head && (kept->Verdict == tour_material_verdict::changed || kept->Verdict == tour_material_verdict::missing) ? tour_accept_need::lines_at_head : tour_accept_need::nothing;
+	}
+
 	auto tour_stop_material(const tour_stop& aStop, const git_commit_oid& aHead, const std::span<const std::string> aFiles) -> std::vector<tour_material>
 	{
 		auto       result = std::vector<tour_material>{ };
@@ -151,6 +184,11 @@ namespace bpr::core {
 		return result;
 	}
 
+	auto tour_stop_names_files(const tour_stop& aStop) -> bool
+	{
+		return std::ranges::any_of(find_agent_references(aStop.Body, true), [](const auto& aReference) { return !aReference.Before && !aReference.Path.empty() && aReference.First != 0U && aReference.Last >= aReference.First; });
+	}
+
 	auto accept_tour_stop(const review_tour& aTour, const tour_stop& aStop, const std::span<const std::string> aFiles) -> tour_stop_acceptance
 	{
 		const auto head = tour_current_head(aTour);
@@ -159,6 +197,16 @@ namespace bpr::core {
 			// The author accepted these bytes at this head.
 			material.CheckedAt = head;
 			material.Verdict   = tour_material_verdict::unchanged;
+		}
+		// Lines not at this head are not accepted by a press: they stay to be
+		// compared, so the stop is never Accepted with nothing to compare.
+		if (!own_lines_at(aStop, head)) {
+			if (auto kept = own_lines_to_compare(aTour, aStop, head)) {
+				made.Material.insert(made.Material.begin(), std::move(*kept));
+				if (made.Material.size() > maximum_tour_material) {
+					made.Material.pop_back();
+				}
+			}
 		}
 		return made;
 	}
@@ -169,12 +217,14 @@ namespace bpr::core {
 			if (stop.Acceptance) {
 				continue;
 			}
+			// Critical review finding 4: only the author's own Ready (seen in
+			// the window or the walk) carries, never an agent's, a script's or
+			// one of unknown origin, and never an outline-suggested stop. A
+			// stop whose text names another file is not carried: the draft
+			// does not know the changed files that reference resolves against.
 			const bool reaffirmed = !aTour.ObservedHead || stop.ReaffirmedHead == aTour.ObservedHead;
-			if (stop.Preparation == tour_preparation::ready && reaffirmed && tour_stop_accept_need(stop) == tour_accept_need::nothing) {
-				// What the draft knew: the stop's own lines. References in its
-				// text are recorded the next time the author accepts it.
+			if (stop.Preparation == tour_preparation::ready && stop.CompletionOrigin == tour_completion_origin::observed && !stop.Suggestion && reaffirmed && tour_stop_accept_need(stop) == tour_accept_need::nothing && !tour_stop_names_files(stop)) {
 				stop.Acceptance = accept_tour_stop(aTour, stop, { });
-				std::erase_if(stop.Acceptance->Material, [](const auto& aMaterial) { return aMaterial.Reference; });
 			}
 		}
 	}

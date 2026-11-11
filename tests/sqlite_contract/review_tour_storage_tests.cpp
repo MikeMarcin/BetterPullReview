@@ -50,10 +50,12 @@ namespace {
 			auto saved = tests::review_tour_fixture();
 			saved.Stops.front().Acceptance.reset();
 			saved.Stops.front().Preparation = core::tour_preparation::ready;
-			auto suggested                  = saved.Stops.front();
-			suggested.Id                    = core::tour_stop_id{ 2 };
-			suggested.Preparation           = core::tour_preparation::suggested;
-			suggested.Suggestion            = core::tour_suggestion{ .AnchorRef = "selected-source", .Reason = "Private reason" };
+			// Critical review finding 4: only the author's own Ready carries.
+			saved.Stops.front().CompletionOrigin = core::tour_completion_origin::observed;
+			auto suggested                       = saved.Stops.front();
+			suggested.Id                         = core::tour_stop_id{ 2 };
+			suggested.Preparation                = core::tour_preparation::suggested;
+			suggested.Suggestion                 = core::tour_suggestion{ .AnchorRef = "selected-source", .Reason = "Private reason" };
 			saved.Stops.push_back(suggested);
 			saved.LastStopId = 2;
 			adapters::sqlite::detail::tour_codec version10;
@@ -63,6 +65,15 @@ namespace {
 			core::review_tour carried;
 			read10.tour(carried);
 			expect(read10.Good && read10.Input.empty() && core::tour_stop_accepted(carried, carried.Stops[0]) && !carried.Stops[1].Acceptance, "a version 10 draft carries its Ready stop Accepted and its suggested stop Not accepted yet");
+			auto relayed                           = saved;
+			relayed.Stops.front().CompletionOrigin = core::tour_completion_origin::relayed;
+			adapters::sqlite::detail::tour_codec relayed10;
+			relayed10.Version = 10;
+			relayed10.tour(relayed);
+			auto              readRelayed = adapters::sqlite::detail::tour_codec{ .Input = relayed10.Bytes, .Reading = true };
+			core::review_tour agentReady;
+			readRelayed.tour(agentReady);
+			expect(readRelayed.Good && !agentReady.Stops[0].Acceptance, "a version 10 stop an agent made Ready comes over Not accepted yet");
 			adapters::sqlite::detail::tour_codec current;
 			current.tour(carried);
 			auto              read11 = adapters::sqlite::detail::tour_codec{ .Input = current.Bytes, .Reading = true };

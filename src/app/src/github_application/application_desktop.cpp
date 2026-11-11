@@ -218,6 +218,12 @@ namespace bpr::app {
 			}
 			edit.Command.Owner = draft->Owner;
 			edit.Command.Draft = draft->Id;
+			// [[BPR-2014]]. A walk's Ready accepts with the code at the
+			// references its stop's text makes; the window showing the pull
+			// request supplies the changed paths they resolve against.
+			if (edit.Command.Kind == core::tour_command_kind::complete && found.Current) {
+				edit.Command.Files = found.Files;
+			}
 			if (assisting) {
 				// The receiver's own clock and hook revision; the caller supplied neither.
 				if (!preferences) {

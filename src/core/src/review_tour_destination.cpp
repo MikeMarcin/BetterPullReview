@@ -132,7 +132,7 @@ namespace bpr::core {
 			if (aAttention.Source && valid(*aAttention.Source)) {
 				result.AvailableActions.emplace_back("Use selected lines");
 			}
-			if (acceptance.State != tour_acceptance_state::accepted && tour_stop_accept_need(aStop) == tour_accept_need::nothing) {
+			if (acceptance.State != tour_acceptance_state::accepted && tour_stop_accept_need(aTour, aStop) == tour_accept_need::nothing) {
 				result.AvailableActions.emplace_back("Accept");
 			}
 		}

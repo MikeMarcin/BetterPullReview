@@ -3452,8 +3452,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# prompt and answers the field as a suggestion; a stop's Enhance sends
 	# the stop's Enhance prompt. Nothing reaches GitHub; no grant, admission
 	# or publication boundary changes.
+	# RFC-BPR-0106 critical review: a walk's Ready and a forwarded Ready
+	# carry the pull request's changed paths (read locally, never on the
+	# owner channel) so a stop's references are recorded; a failed
+	# comparison of accepted code is asked again, bounded. No grant,
+	# admission or publication boundary is relaxed.
 	set(bpr_expected_production_app_manifest_digest
-        "9a1267b60a9af3887e16f373b4f7a213f786dce239560fca0c98f9986b788956"
+        "d6b2d59be0aa155ab1aebbba331c8c23c37ca16f9f64006e22a36d51ceb1eb7b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

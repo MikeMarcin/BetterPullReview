@@ -1,8 +1,10 @@
+#include "../../src/adapters/sqlite/src/review_tour_codec.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "bpr/core/sha256.hpp"
 #include "cli_account_wrapper_support.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
@@ -27,6 +29,7 @@
 #include <iostream>
 #include <map>
 #include <random>
+#include <sqlite3.h>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -1379,6 +1382,89 @@ namespace {
 			expect(result.State == publication_state::conflict && remote.Writes == 5, "remote body/actor/head drift refuses maintenance before write");
 		}
 	}
+	/// The tour as `aVersion` of the tour payload writes it.
+	auto tour_bytes(core::review_tour aTour, const std::uint8_t aVersion) -> std::vector<std::uint8_t>
+	{
+		adapters::sqlite::detail::tour_codec codec;
+		codec.Version = aVersion;
+		codec.tour(aTour);
+		expect(codec.Good, "the tour encodes");
+		return std::move(codec.Bytes);
+	}
+	/// Rewrites every saved staged record's frozen update tour from `aFrom`
+	/// to `aTo`, with its digest, as a journal saved by an older build reads.
+	auto rewrite_frozen_tour(const std::filesystem::path& aRoot, const std::vector<std::uint8_t>& aFrom, const std::vector<std::uint8_t>& aTo) -> std::size_t
+	{
+		auto path = std::filesystem::path{ };
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ aRoot }) {
+			if (entry.path().filename() == "review-mutation-recovery.sqlite3") {
+				path = entry.path();
+			}
+		}
+		expect(!path.empty(), "the staged journal exists");
+		sqlite3* database = nullptr;
+		expect(::sqlite3_open(path.string().c_str(), &database) == SQLITE_OK, "the staged journal opens");
+		auto          rows = std::vector<std::pair<std::int64_t, std::vector<std::uint8_t>>>{ };
+		sqlite3_stmt* read = nullptr;
+		expect(::sqlite3_prepare_v2(database, "SELECT rowid, record FROM staged_publication", -1, &read, nullptr) == SQLITE_OK, "the staged rows are read");
+		while (::sqlite3_step(read) == SQLITE_ROW) {
+			const auto* bytes = static_cast<const std::uint8_t*>(::sqlite3_column_blob(read, 1));
+			rows.emplace_back(::sqlite3_column_int64(read, 0), std::vector<std::uint8_t>(bytes, bytes + ::sqlite3_column_bytes(read, 1)));
+		}
+		::sqlite3_finalize(read);
+		auto rewritten = std::size_t{ 0 };
+		for (auto& [row, bytes] : rows) {
+			const auto found = std::ranges::search(bytes, aFrom);
+			if (found.empty()) {
+				continue;
+			}
+			const auto at = static_cast<std::size_t>(found.begin() - bytes.begin());
+			bytes.erase(bytes.begin() + static_cast<std::ptrdiff_t>(at), bytes.begin() + static_cast<std::ptrdiff_t>(at + aFrom.size()));
+			bytes.insert(bytes.begin() + static_cast<std::ptrdiff_t>(at), aTo.begin(), aTo.end());
+			const auto    digest = core::sha256(bytes);
+			sqlite3_stmt* write  = nullptr;
+			expect(::sqlite3_prepare_v2(database, "UPDATE staged_publication SET record=?1, record_digest=?2 WHERE rowid=?3", -1, &write, nullptr) == SQLITE_OK
+					   && ::sqlite3_bind_blob(write, 1, bytes.data(), static_cast<int>(bytes.size()), SQLITE_TRANSIENT) == SQLITE_OK
+					   && ::sqlite3_bind_blob(write, 2, digest.data(), static_cast<int>(digest.size()), SQLITE_TRANSIENT) == SQLITE_OK && ::sqlite3_bind_int64(write, 3, row) == SQLITE_OK
+					   && ::sqlite3_step(write) == SQLITE_DONE,
+				   "the staged row is rewritten");
+			::sqlite3_finalize(write);
+			++rewritten;
+		}
+		::sqlite3_close(database);
+		return rewritten;
+	}
+	/// RFC-BPR-0106 critical review, finding 1. A part-sent tour update
+	/// saved before stops were accepted (tour payload version 10, its stops
+	/// Ready by the old rule or not Ready at all) resumes as it was sent: the
+	/// frozen plan was authorized when it was made and is not judged again.
+	void test_update_saved_before_acceptance_resumes()
+	{
+		scratch          root;
+		server           remote;
+		auto             provider = session(remote, root.Path);
+		const auto       original = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+		auto             update   = maintenance_plan(*original.Record);
+		std::stop_source stop;
+		for (auto& item : update.Update->Stops) {
+			item.Acceptance.reset();
+			item.Preparation = core::tour_preparation::editing;
+		}
+		remote.Maintenance = true;
+		remote.Stop        = &stop;
+		remote.StopAt      = 5;
+		const auto partial = provider->publish_tour(update, stop.get_token(), [](const auto&) { return true; });
+		expect(partial.State == publication_state::partial && partial.Record && remote.Writes == 6, "an update of stops not accepted by the new rule is part sent");
+		remote.Stop = nullptr;
+		provider.reset();
+		expect(rewrite_frozen_tour(root.Path, tour_bytes(*partial.Record->Plan.Update, 11), tour_bytes(*partial.Record->Plan.Update, 10)) == 1U, "the frozen update tour is saved as version 10");
+		const auto pending = storage(root.Path)->pending_staged();
+		expect(pending && pending->size() == 1U && pending->front() == *partial.Record, "a version 10 update record still loads exactly");
+		provider             = session(remote, root.Path);
+		const auto recovered = provider->reconcile_tour(update);
+		expect(recovered.State == publication_state::partial && recovered.Record == partial.Record && remote.Writes == 6, "it reconciles read-only as part sent");
+		expect(provider->publish_tour(update, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 8, "Resume finishes it as it was sent");
+	}
 	// [[BPR-1787]]. A tour whose brief lives in the description is updated by
 	// the description alone: no comment changes, one write, published.
 	void test_description_only_update()
@@ -2071,6 +2157,7 @@ try {
 		test_recovery_read_refusals_keep_unknown_writes();
 		test_baseline_refusal_diagnoses();
 		test_compatibility_sessions();
+		test_update_saved_before_acceptance_resumes();
 		test_mixed_sessions();
 		test_conversation_overview_namespace();
 		test_saved_legacy_retarget_receipt();
