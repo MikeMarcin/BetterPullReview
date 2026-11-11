@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2104"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Windows inactive-branch profile-reset local identifier collision in release58",
+  "created": "2026-11-11T18:20:08.862940+00:00",
+  "base": "9334a787980a87c7d29a83b0de7cf1e049c5be16"
+}
