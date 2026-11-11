@@ -198,6 +198,28 @@ the launch carries. So:
   says they run with any arguments, in any folder, including commands that
   install or publish.
 
+### Amendment: the re-review's findings (2026-11-11, second round)
+
+- **Codex.** The configuration read is the one the launched Codex reads:
+  `.codex/config.toml` under the home BPR passes it (BPR passes no
+  `CODEX_HOME`, so one set for BPR itself is not Codex's),
+  `/etc/codex/config.toml` and `/etc/codex/managed_config.toml`. In the
+  reviewer's own checkout Codex is given no grant: it reads that checkout's
+  `.codex/config.toml` once the reviewer trusted it, and BPR's profile would
+  replace it. The agent's own arguments compose only when every flag is one
+  known to leave permissions alone; an attached value counts as its flag's
+  (`-pwork` is `--profile work`). A byte-order mark is not part of a key; an
+  inline table under `profiles` cannot be judged and refuses.
+- **Claude.** The parent-step denial names each runner
+  (`Bash(python3 */..*)` and the others) and rides only a writable scratch
+  folder, so a build program's `cmake ../..` is not denied. A turn that
+  starts with its folder full gets the folder to read and no run rule: such a
+  turn is not watched, and a script Claude runs is not confined.
+- **The picker.** "Full" and a folder that could not be made are kept per
+  pull request and agent; a kept folder is remembered with its pull request,
+  so after a restart the picker measures it and Clear scratch folders keeps
+  the open pull request's folders.
+
 ### Boundaries
 
 - Tour runs stay read-only. The one-shot hooks stay tool-free.

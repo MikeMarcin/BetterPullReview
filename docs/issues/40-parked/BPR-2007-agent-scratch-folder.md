@@ -109,6 +109,16 @@ A re-review of the fixes is owed.
 The card stays parked on `human-review` for the new look (below) and the
 re-review.
 
+Second post-review round (2026-11-11): the re-review of `cf8a9c12d`
+returned pass-with-findings; N1 (Codex composition: the reviewer's own
+checkout, the home Codex reads, attached flags, `/etc/codex/config.toml`, a
+BOM, inline tables), N2 (an end-to-end course from the configuration to the
+launch), N3 and N4 (scratch state per pull request and agent, kept across a
+restart), N5 (the parent-step denial names the runners) and N6 (a full folder
+gives Claude no run rule) are fixed; dispositions in the
+[ledger](../../verification/RFC-BPR-0104.md#re-review-of-the-fixes-2026-11-11).
+Another independent re-review is owed.
+
 ## Owner look (filed 2026-11-11, not waited on)
 
 Session `246ef52c2815c6c16b3aeb5dacc5a765`, state

@@ -1196,3 +1196,40 @@ mirrored). A Reject goes to a fresh implementer. Then stop host 76865 and
 remove the root with `freeze_attended_build.py remove`. Known limit: another
 open window of the same profile can write its older agent list over an import
 (true of any agent edit today).
+
+Main mirror commit this milestone: `031ea2cb6`.
+
+## agent-scratch second post-review round (2026-11-11)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner amendments in force
+as above. An independent re-review of `cf8a9c12d` returned
+pass-with-findings (N1 medium; N2 to N6 low). No Qt layout change, so
+frontend-design was not loaded.
+
+| Commit | What |
+|---|---|
+| `531a039cd` | Product candidate: Codex refused in the reviewer's own checkout (core and host); configuration read from the home's `.codex` (no `CODEX_HOME`), `/etc/codex/config.toml` and the managed file; argument allowlist parsed as Codex parses it; BOM stripped; inline tables under `profiles` refused; scratch state per pull request and agent, kept folder stored (`agent_scratch_folder`) and read on open; Clear keeps the open pull request's folders; per-runner parent-step denial only with a writable folder; a full folder gives Claude no run rule; new course `application_agent_chat_custom_agent_refused_contract`; app pin resealed (narrows a grant) |
+| this commit | Ledger (finding 1 corrected to partly fixed; N1 to N6 dispositions), RFC-BPR-0104 amendment, BPR-2007 and BPR-2008 records, handoff; mirrored to main |
+
+Evidence: [ledger](../../../verification/RFC-BPR-0104.md#re-review-of-the-fixes-2026-11-11).
+N1a, N1b, N1c and N5 reproduced live (`codex sandbox` with an isolated
+`CODEX_HOME`; `claude -p --model haiku --setting-sources project`); N5's
+fix probed live. 29 focused rows pass (list in the ledger), format check,
+clang-tidy on the changed sources, documentation gate. Mutation: with the
+window's refusal removed, the new refused course fails. Not run: whole dev
+suite, core-only preset, live `agent-scratch` course.
+
+Picker: visible states change only where no filed look shows (Codex in the
+reviewer's own checkout, a folder that could not be made, Claude's full
+tooltip); no new attended session.
+
+Not touched: sessions `629d64c7…` (76865/76875, root
+`share-agent-prompts-v001.h9i51jwq`) and `246ef52c…` (89403/89420, root
+`agent-grant-v002.y_rhztpu`), host 74692/74706, PIDs 10695 and 39804,
+Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use.
+
+Pending: another independent re-review of `531a039cd` (AC07 stays pending);
+the owner's answers in `246ef52c…`; BPR-2101 (Backlog). Next unchanged from
+the post-review round: read `246ef52c…` from cursor 9 after hand-back;
+Accept of the picker and the settings with a passing re-review finishes
+BPR-2007, then ready, claim and finish BPR-2008, mirrored.

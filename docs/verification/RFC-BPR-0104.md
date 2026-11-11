@@ -175,7 +175,7 @@ for verbatim; `permission_denials` and `git status` read after each:
 
 | # | Finding | Test (failed or reproduced before the fix) | Disposition |
 |---|---|---|---|
-| 1 (medium) | Codex grant replaces the reviewer's permissions profile and approval policy, widening reads (`~/.ssh` denied by theirs becomes readable) and `untrusted` becomes `never` | `core_agent_grant` (`test_codex_composition`: a reviewer profile, one in a `[profiles.*]` table, `untrusted`, an unreadable approval, an unreadable file, a sandbox or profile argument each refuse; a sandbox mode with on-request composes) | Fixed by not granting where BPR cannot compose: `codex_grant_refusal` reads the user's `config.toml` (`$CODEX_HOME` or `~/.codex`) and `/etc/codex/managed_config.toml` and the agent's own arguments; any permissions profile, an approval other than on-request/on-failure/never, an unreadable file, or a profile/sandbox/approval argument gives no grant, and both toggles read unavailable with the reason. With only a legacy sandbox mode, `":root"="read"` reads what that mode already reads, and `never` replaces only a policy a headless run could not answer anyway. A project `.codex/config.toml` in the workspace is not read (Codex loads one only for a trusted project; the disposable checkout is not) |
+| 1 (medium) | Codex grant replaces the reviewer's permissions profile and approval policy, widening reads (`~/.ssh` denied by theirs becomes readable) and `untrusted` becomes `never` | `core_agent_grant` (`test_codex_composition`: a reviewer profile, one in a `[profiles.*]` table, `untrusted`, an unreadable approval, an unreadable file, a sandbox or profile argument each refuse; a sandbox mode with on-request composes) | **Partly fixed** at `cf8a9c12d`; the re-review found it incomplete (N1 below: the reviewer's own checkout, `CODEX_HOME`, attached flags, `/etc/codex/config.toml`), completed in the second round. As first fixed, by not granting where BPR cannot compose: `codex_grant_refusal` reads the user's `config.toml` (`$CODEX_HOME` or `~/.codex`) and `/etc/codex/managed_config.toml` and the agent's own arguments; any permissions profile, an approval other than on-request/on-failure/never, an unreadable file, or a profile/sandbox/approval argument gives no grant, and both toggles read unavailable with the reason. With only a legacy sandbox mode, `":root"="read"` reads what that mode already reads, and `never` replaces only a policy a headless run could not answer anyway. A project `.codex/config.toml` in the workspace is not read (Codex loads one only for a trusted project; the disposable checkout is not), which missed the reviewer's own checkout (N1a) |
 | 2 (medium) | Claude's `Bash(FOLDER/*)` and `Bash(RUNNER FOLDER/*)` are whole-command globs | Live table above (rows 1, 3 and 6 allowed at `882ebed54`); `application_agent_launch` (`test_the_grant_crosses_exactly`: no direct-run or chmod rule, the denial present) | Fixed: rules are Write/Edit under the folder and `Bash(R FOLDER/*)` for python3, python, node, ruby, perl; `--disallowedTools Bash(*/..*)`. Arguments after a script are the script's own; a script runs with the reviewer's rights, as the tooltip says |
 | 3 | AC02 Claude evidence only exercised the Write tool on the older rules | Live course with the five Bash probes (below) | Rerun on this round's rules |
 | 4 (medium) | The picker could state a grant the launch drops (no root, non-POSIX, a full folder) | `core_agent_grant` (`test_what_the_launch_carries`); `qt_agent_footer` (full, no place) | Fixed: the picker and the launch decide from the same facts (`ScratchPlace`, `ScratchFull` from the last turn's result, `Refusal`); a toggle is checked only while the launch carries it, unavailable with why otherwise; a full folder reads "Use scratch folder (full)" |
@@ -240,3 +240,73 @@ Two earlier runs of this round's course ended in the course itself (it read
 a menu action after the next turn's settings had rebuilt the menu; lldb:
 `QAction::isChecked` on a freed action at the course's line 574); the course
 now reads it before the turn. Their workspaces were clean after the probes.
+
+## Re-review of the fixes (2026-11-11)
+
+An independent re-review of `cf8a9c12d` returned pass-with-findings: one
+medium (N1) and five low. Product candidate `531a039cd`. A fresh implementer
+took each test first; Codex
+behaviour was reproduced with `codex sandbox` and an isolated `CODEX_HOME`,
+Claude's with `claude -p --model haiku --setting-sources project` (Claude
+Code 2.1.319, Codex 0.167.0) in a throwaway workspace.
+
+### Reproduced live
+
+- **N1a.** `CODEX_HOME` with `[projects."P"] trust_level = "trusted"` and
+  `P/.codex/config.toml` naming its own permissions profile that denies a
+  folder: `codex sandbox cat SECRET` in `P` is refused ("Operation not
+  permitted"); with BPR's three `-c` grant arguments it prints the file. Not
+  trusted, the project file is not read. Trust given to `P`'s parent
+  directory does not load it either (`P` is its own Git root), which is why
+  the disposable checkout is not scanned.
+- **N1b.** With `CODEX_HOME` unset, Codex read `$HOME/.codex/config.toml`
+  (a home with a trusted project denied the read above).
+- **N1c.** `codex exec -pp1` reports "`--profile` `p1` cannot be used while
+  … `[profiles.p1]`": an attached value is the flag's; `-sbogus` is rejected
+  as `--sandbox`'s value.
+- **N5.** `--allowedTools "Bash(cmake:*)" --disallowedTools "Bash(*/..*)"`:
+  `cmake -E echo ../..` denied. With this round's per-runner denials and the
+  runner and build rules together: `python3 SCRATCH/../evil.py` denied (no
+  file written in the workspace), `python3 SCRATCH/x.py` ran,
+  `cmake -E echo ../..` ran.
+
+### Dispositions
+
+| # | Finding | Test (failed or reproduced before the fix) | Disposition |
+|---|---|---|---|
+| N1a (medium) | Codex in the reviewer's own checkout reads its trusted `.codex/config.toml`; the scratch grant was still passed there | Live above; `core_agent_grant` (`test_codex_composition_round_two`: own checkout refuses, both toggles unavailable, an earlier refusal keeps its reason, Claude unaffected); `application_agent_invocation_host` (a Codex turn in the reviewer's own checkout launched with the scratch grant before the fix) | Fixed, the safe option: a new refusal `codex_own_checkout` ("Unavailable in your own checkout: Codex reads that checkout's own settings there…"); the core withholds it and the host independently passes Codex no grant when the reviewer's checkout was chosen |
+| N1b (medium) | `CODEX_HOME` read from BPR's environment, never passed to Codex | Reproduced live (above) | Fixed: check and launch use the same home. BPR passes no `CODEX_HOME`, so the check reads the home's `.codex` (`QDir::homePath()`; the app may not name the variable itself, `architecture_boundaries`) and ignores `CODEX_HOME`. `core::codex_configuration_paths` names the files; no home reads as unreadable |
+| N1c (medium) | `-pNAME`, `-sMODE`, `-aPOLICY` missed | `core_agent_grant` (`-pwork` composed before the fix) | Fixed with an allowlist read as Codex's parser reads it: switches and value flags known to leave permissions alone (`--json`, `--model`, `-m`, `-i`, `-o`, `--color` and the like) compose, a short cluster's first value flag takes the rest; any other flag, attached or long (`-p*`, `-s*`, `-a*`, `--cd`, `--add-dir`, `--enable`, `--ignore-user-config`, `--approve-for-me`), refuses; `-c` keys naming permissions, approval, sandbox, profile or projects refuse |
+| N1d (medium) | `/etc/codex/config.toml` not read | `core_agent_grant` (the path list) | Fixed: read with the user's and the managed file |
+| N1 extra | A UTF-8 BOM hid the first key; an inline table under `profiles` hid its settings | `core_agent_grant` (a BOM before a setting composed before the fix) | Fixed: the BOM is stripped; an inline table under `profiles`, or one naming a permission or an approval, refuses as "cannot judge" (the reason now says so) |
+| N2 (low) | No end-to-end test from the configuration to the launch arguments | New course `application_agent_chat_custom_agent_refused_contract` (a home whose `.codex/config.toml` names its own profile): the composed window's Send launches the fixture agent, which reports no `default_permissions` argument and no scratch folder in its frame; the existing `application_agent_chat_custom_agent_contract` now runs under a home whose file composes and requires both. Mutation: with the window's refusal replaced by none, the refused course fails (`grant-seen:0`) | Added; the custom-agent course no longer depends on the machine's own Codex file |
+| N3 (low) | "(full)" keyed by agent only, cleared on open, empty after a restart; a folder that could not be made left the toggle checked | `core_agent_grant` (unmade: unchecked, still asked for); `application_agent_invocation_host` (a root that is a file: no grant and the result says so; the next turn makes it); `sqlite_agent_setup_storage` (the kept folder per pull request and agent survives a restart, a reset forgets it) | Fixed: the window keeps folders, "full" and "could not be made" by pull request and agent; a kept folder's name is stored (`agent_scratch_folder`) and, when a pull request opens, read and measured on disk; a turn's result is filed under the pull request it was granted in. The toggle reads unchecked with "could not be made for the last question… The next question tries again" |
+| N4 (low) | Clear scratch folders could remove the open pull request's folders after a restart or switch | Storage test above; the keep list is now the open pull request's stored folders | Fixed: kept by the open pull request's identity, known from the store after a restart or a switch; other pull requests' entries are dropped once their folders are gone |
+| N5 (low) | `Bash(*/..*)` rode a builds-only grant and denied `cmake ../..` | Live above; `application_agent_launch` (builds only: no denial; both: the denial names only the runners) | Fixed: `Bash(RUNNER */..*)` for each runner, only with a writable scratch folder |
+| N6 (low) | A turn starting full is unwatched, while Claude keeps its runner rules | `application_agent_launch` (full: `--add-dir` only, no rules, no denial); `core_agent_grant` (full tooltips) | Fixed by dropping Claude's runner rules when full: the folder is only read. Codex keeps running there (its sandbox gives the folder `read`, so a script cannot write it). The tooltips and the agent's instruction say so |
+
+The picker's visible states change only in cases no filed look shows: Codex
+in the reviewer's own checkout (both toggles unavailable with the new
+reason), a folder that could not be made (unchecked, new tooltip) and a full
+folder's tooltip for Claude. No new attended session was filed.
+
+### Runs (second round)
+
+`core_agent_grant`, `core_agent_entry`, `core_agent_activity`,
+`application_agent_launch`, `application_agent_scratch_folder`,
+`application_agent_invocation_host`, `application_agent_setup_host`,
+`sqlite_agent_setup_storage`, `qt_agent_footer`, `qt_agent_setup_view`,
+`qt_settings_window`, `qt_agent_launch_panel`, `qt_agent_activity_view`,
+`qt_workbench_agent_send_refusal`, every `application_agent_chat_*_contract`
+(the new refused course included),
+`application_agent_{finding,invocation}_composition_contract`,
+`application_composition_source_contract`,
+`application_review_round_trip_composition_contract` (app source pin
+resealed: narrows a grant), `architecture_boundaries`,
+`test_network_isolation_manifest` (new row unmeasured on Windows): 29 of 29
+pass. Format check; clang-tidy on the changed sources (one pre-existing
+warning at `agent_launch.cpp:1692`). Not run: the whole dev suite, the
+core-only preset, the live `agent-scratch` course (Claude's changed rules
+were probed directly above; Codex's changes only withhold).
+
+An independent re-review of this round is owed; AC07 stays pending.
