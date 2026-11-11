@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_SRC_BUTTON_SURFACE_HPP
 #define BPR_SRC_ADAPTERS_QT_SRC_BUTTON_SURFACE_HPP
 
+#include <QPalette>
 #include <QSize>
 
 class QAbstractButton;
@@ -14,7 +15,13 @@ namespace bpr::qt {
 	/// \brief Draws the accepted Overview chip, hover/press and keyboard focus surface.
 	/// \details Content and interaction remain with the button. All colours are read
 	/// from its current palette; no native bezel or cached theme colour is involved.
-	void paint_button_surface(QPainter& aPainter, const QAbstractButton& aButton, bool aRaised, bool aKeyboardFocus);
+	/// `aSurface` is the palette role of the ground the button sits on (`Window`
+	/// for a pane, `Base` for a card): the faces are mixed from it toward its
+	/// ink, and the focus ring is held to it.
+	void paint_button_surface(QPainter& aPainter, const QAbstractButton& aButton, bool aRaised, bool aKeyboardFocus, QPalette::ColorRole aSurface = QPalette::Window);
+
+	/// \brief The ink role read on `aSurface`: `Text` on `Base`, `WindowText` elsewhere.
+	[[nodiscard]] auto button_ink_role(QPalette::ColorRole aSurface) -> QPalette::ColorRole;
 
 	/// \brief The room the chip keeps between its edge and its content, each side.
 	inline constexpr int chip_padding = 6;
@@ -34,8 +41,13 @@ namespace bpr::qt {
 	/// elements are not used: they may keep a further margin of their own
 	/// (Windows 11 takes six pixels from each side of a push button's label),
 	/// which the chip's measured size does not include, and the words would be
-	/// clipped at both ends. The style still draws the words and mnemonic.
-	void paint_button_label(QPainter& aPainter, const QAbstractButton& aButton, QSize aIconSize, bool aShowIcon);
+	/// clipped at both ends. The style still draws the words and mnemonic, in
+	/// the ink of `aSurface`.
+	void paint_button_label(QPainter& aPainter, const QAbstractButton& aButton, QSize aIconSize, bool aShowIcon, QPalette::ColorRole aSurface = QPalette::Window);
+
+	/// \brief Draws an icon-only button's icon, centred, in its enabled or
+	/// disabled mode and its checked state.
+	void paint_button_glyph(QPainter& aPainter, const QAbstractButton& aButton, QSize aIconSize);
 } // namespace bpr::qt
 
 #endif

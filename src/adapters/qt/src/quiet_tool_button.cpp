@@ -23,6 +23,19 @@ namespace bpr::qt {
 		return !text().isEmpty() && menu() == nullptr && arrowType() == Qt::NoArrow && toolButtonStyle() != Qt::ToolButtonTextUnderIcon && (icon().isNull() || textStyle);
 	}
 
+	auto quiet_tool_button::uses_glyph() const -> bool
+	{
+		return text().isEmpty() && !icon().isNull() && menu() == nullptr && arrowType() == Qt::NoArrow;
+	}
+
+	void quiet_tool_button::set_surface(const QPalette::ColorRole aSurface)
+	{
+		if (Surface != aSurface) {
+			Surface = aSurface;
+			update();
+		}
+	}
+
 	auto quiet_tool_button::shows_icon() const -> bool
 	{
 		return !icon().isNull() && toolButtonStyle() == Qt::ToolButtonTextBesideIcon;
@@ -66,17 +79,25 @@ namespace bpr::qt {
 
 	void quiet_tool_button::paintEvent(QPaintEvent* const aEvent)
 	{
+		const auto raised = isChecked() || (!isCheckable() && !autoRaise());
+		if (uses_glyph()) {
+			// An icon tool keeps the style's size; only its face is ours.
+			auto painter = QPainter{ this };
+			paint_button_surface(painter, *this, raised, KeyboardFocus, Surface);
+			paint_button_glyph(painter, *this, iconSize());
+			return;
+		}
 		if (!uses_chip()) {
 			QToolButton::paintEvent(aEvent);
 			return;
 		}
 		auto painter = QPainter{ this };
-		paint_button_surface(painter, *this, isChecked() || (!isCheckable() && !autoRaise()), KeyboardFocus);
+		paint_button_surface(painter, *this, raised, KeyboardFocus, Surface);
 		// With no icon, Qt's default IconOnly still means a text button.
 		// [[BPR-1855]]. The chip draws its own content in the room it measured;
 		// the style's label element may elide or inset it.
 		auto option = QStyleOptionToolButton{ };
 		initStyleOption(&option);
-		paint_button_label(painter, *this, option.iconSize, shows_icon());
+		paint_button_label(painter, *this, option.iconSize, shows_icon(), Surface);
 	}
 } // namespace bpr::qt
