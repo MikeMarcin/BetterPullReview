@@ -86,7 +86,7 @@ checkout for a pull request; the once-per-pull-request build question; no
 network grant; no use of the word sandbox; tour runs read-only and one-shot
 hooks tool-free. Its acceptance criteria are unchanged.
 
-Consequences: [BPR-2007](../../../issues/10-backlog/BPR-2007-agent-scratch-folder.md)
+Consequences: [BPR-2007](../../../issues/30-in-progress/BPR-2007-agent-scratch-folder.md)
 and [BPR-2008](../../../issues/10-backlog/BPR-2008-opt-in-builds-and-tests.md)
 are unaffected in scope; the grant line they build must admit a fourth
 value.
