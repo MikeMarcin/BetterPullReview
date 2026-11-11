@@ -117,3 +117,20 @@ Frontend-design was loaded before the Qt work.
 Tests: `qt_tour_stop_acceptance_card` (no reason beside a never-accepted
 stop's Accept; Cancel and Accept one kind and one size; the hint and each
 tool's words), `application_review_tour_composition_public_path`.
+
+## Owner hand-back, session `5ea0ce22…` (2026-11-11)
+
+Read with `attended_review.py status --after 18` (handed back at sequence
+49); host 78319/78332 stopped, root `owner-look-v003.w0k3mfr3` removed with
+`freeze_attended_build.py remove`.
+
+- `BPR-2013-stop-at-rest-v2`: Accept (`54a1ceca`).
+- `BPR-2013-stop-editing-v2`: **Reject** (`1d39ba1e`, with a screenshot):
+  "That text at the bottom is a giant waste of space. No one can or wants to
+  read that. We also don't need the \"Enhance\" label if we're using the new
+  enhance icon." Not implemented here; it goes to the next layout round
+  (drop the explanatory text under the editing stop; Enhance as the icon
+  alone).
+
+RFC-BPR-0106 AC08 stays pending on the stop-editing look; the critical
+review is still owed. The card stays parked on `human-review`.

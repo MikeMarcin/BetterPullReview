@@ -126,3 +126,20 @@ v26 fold in its four cases), `tour_cli_composition`,
 `application_enhance_comment_note_public_path` (the stub answers only when
 the `writing-kind` source names the comment or the note) and
 `application_review_tour_composition_public_path`.
+
+## Owner hand-back, session `5ea0ce22…` (2026-11-11)
+
+Read with `attended_review.py status --after 18` (handed back at sequence
+49); host 78319/78332 stopped, root `owner-look-v003.w0k3mfr3` removed with
+`freeze_attended_build.py remove`.
+
+- `BPR-2051-icon-v2`: Select "1. Nib with the spark cut out" (`ab426ddc`),
+  already the default (`CurrentStyle`); nothing changes.
+- `BPR-2051-placement-tooltip`: Accept (`a955d55c`).
+- `BPR-2051-agents-top`: **Reject** (`06aceb8f`): "These are all ugly we
+  need a deep-worker to come up with some mockups using the frontend-design
+  skill". Not implemented here; it goes to the next layout round, which
+  starts from mockups made with the frontend-design skill.
+
+The card stays parked on `human-review` until a new Agents & context top is
+accepted.
