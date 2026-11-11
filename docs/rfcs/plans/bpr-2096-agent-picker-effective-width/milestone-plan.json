@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2096-agent-picker-effective-width",
+  "scope": {
+    "issues": [
+      "BPR-2096"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "respect-control-preferred-widths",
+      "outcome": "The agent picker wraps before native minimum/preferred control widths consume the existing twelve-pixel gap.",
+      "work": [
+        {
+          "issue": "BPR-2096",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Use QWidgetItem public preferred sizing in the existing width-only fit decision; no source effects/API/style/token changes and the original >=12 gap oracle remains.",
+        "Independent public effective-width prediction plus controlled explicit minimum greater than hint rejects old raw-hint sizing; original full light/dark/narrow-to-wide/Tour interaction checks remain.",
+        "Focused exact native Release/Debug affected rows and required cross-native successor evidence are bound without claiming qualification from private proofs; format22/tidy/docs/board/source checks and intentional own main integration complete."
+      ],
+      "boundary": "Root approved picker-fit-fix-proposal-r1: src/adapters/qt/src/agent_tab_view.cpp and tests/adapters_qt/agent_picker_wrap_tests.cpp only plus own workflow. Frozen56 producer/mainforeign source untouched; frontend-design and desktop reference loaded."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
