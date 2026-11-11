@@ -331,6 +331,24 @@ int main()
 		const auto reconciled = reconcile_tour(generated, remote);
 		expect(reconciled.Stops[1].Suggestion && reconciled.Stops[1].Preparation != tour_preparation::ready, "website narrative change clears local generated acknowledgement");
 	}
+	{
+		// [[BPR-2116]], RFC-BPR-0100 AC06. Which published stops an update
+		// writes anew: with the author's text kept, only one edited since; a
+		// stop published before that record, only one whose text differs.
+		auto tour = published();
+		expect(std::ranges::none_of(tour.Stops, tour_stop_text_edited), "a stop published as written is not edited");
+		tour.Stops[0].Body += " more";
+		expect(tour_stop_text_edited(tour.Stops[0]), "a changed stop is edited");
+		tour.Stops[1].Baseline->DraftText = tour.Stops[1].Body;
+		tour.Stops[1].Body                = "Exact explanation 2 ([`review.cpp:2-4`](https://github.com/o/r/blob/abc/review.cpp#L2-L4))";
+		tour.Stops[1].Baseline->Raw       = *render_tour_stop(tour.Stops[1].Title, 2, tour.Stops[1].Body, { });
+		tour.Stops[1].Body                = *tour.Stops[1].Baseline->DraftText;
+		expect(!tour_stop_text_edited(tour.Stops[1]), "a stop whose author's text is the published one is not edited, though its comment carries permalinks");
+		tour.Stops[1].Body += " (`review.cpp:3-4`)";
+		expect(tour_stop_text_edited(tour.Stops[1]), "an edit since publishing is edited");
+		tour.Stops[2].Baseline.reset();
+		expect(!tour_stop_text_edited(tour.Stops[2]), "an unpublished stop is not an edited published one");
+	}
 	published_source_baseline();
 	legacy_published_source();
 	legacy_stop_heading();

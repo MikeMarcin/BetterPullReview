@@ -172,6 +172,18 @@ namespace bpr::core {
 		const auto published = published_tour_destination(aStop);
 		return !aStop.Remote || (aStop.Mapping == tour_mapping::author_selected && aStop.Mapped && published != std::optional{ destination_of(*aStop.Mapped) });
 	}
+	auto tour_stop_text_edited(const tour_stop& aStop) -> bool
+	{
+		if (!aStop.Baseline) {
+			return false;
+		}
+		if (aStop.Baseline->DraftText) {
+			return *aStop.Baseline->DraftText != aStop.Body;
+		}
+		const auto& raw    = aStop.Baseline->Raw;
+		const auto  mapped = map_tour_stop(raw);
+		return mapped.Narrative ? trim(span_text(raw, *mapped.Narrative)) != trim(aStop.Body) : raw != aStop.Body;
+	}
 	auto plan_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>
 	{
 		if (std::ranges::any_of(aTour.Stops, [&aTour](const auto& aStop) { return !tour_stop_accepted(aTour, aStop); })) {

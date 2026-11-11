@@ -180,7 +180,18 @@ namespace bpr::app {
 		submission.LiveBinding          = aBinding;
 		application::staged_review_plan value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility, .Mixed = aOptions.Mixed };
 		if (draft.Remote) {
-			value.Update = draft;
+			// [[BPR-2116]], RFC-BPR-0100 AC06. The frozen tour is rendered as it
+			// is sent: a published stop whose text was edited is written anew,
+			// so its references are published as a first publication's are.
+			// The live draft keeps the author's text, which becomes the
+			// published baseline's `DraftText` (`published_tour`).
+			auto frozen = draft;
+			for (auto& stop : frozen.Stops) {
+				if (!core::needs_tour_destination(stop) && core::tour_stop_text_edited(stop)) {
+					stop.Body = core::rewrite_tour_references(stop.Body, files, published).Text;
+				}
+			}
+			value.Update = std::move(frozen);
 			std::erase_if(value.Stops, [&](const auto& aStop) {const auto found=std::ranges::find(draft.Stops,aStop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
 		}
 		if (value.Update && value.Stops.empty()) {

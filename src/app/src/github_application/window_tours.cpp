@@ -2251,7 +2251,28 @@ namespace bpr::app {
 		if (!draft || !TourPublication) {
 			return;
 		}
+		const auto anchorFiles = [this] {
+			auto result = std::vector<core::tour_anchor_file>{ };
+			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
+				auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
+				if (file.HeadHunks) {
+					anchor.Hunks.emplace();
+					for (const auto& [first, last] : *file.HeadHunks) {
+						anchor.Hunks->push_back({ first, last });
+					}
+				}
+				result.push_back(std::move(anchor));
+			}
+			return result;
+		};
 		if (draft->Remote || !EpochHost || !LastAcceptedHandoff || !WindowRead->accepted_snapshot()) {
+			// [[BPR-2116]], RFC-BPR-0100 AC06. An update publishes an edited
+			// stop's references as permalinks, so it needs the pull request's
+			// files as a first publication does; a published tour's stops
+			// keep their destinations, so nothing else is checked here.
+			if (draft->Remote && WindowRead && WindowRead->accepted_snapshot() && TourHead == draft->ObservedHead.value_or(draft->Head)) {
+				TourPublication->observe_anchors(TourHead, anchorFiles());
+			}
 			TourPublication->dispatch(qt::tour_editor_action::preview_publication);
 			return;
 		}
@@ -2262,17 +2283,7 @@ namespace bpr::app {
 			TourPublication->dispatch(qt::tour_editor_action::preview_publication);
 			return;
 		}
-		auto files = std::vector<core::tour_anchor_file>{ };
-		for (const auto& file : WindowRead->accepted_snapshot()->Files) {
-			auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
-			if (file.HeadHunks) {
-				anchor.Hunks.emplace();
-				for (const auto& [first, last] : *file.HeadHunks) {
-					anchor.Hunks->push_back({ first, last });
-				}
-			}
-			files.push_back(std::move(anchor));
-		}
+		auto files    = anchorFiles();
 		auto requests = std::vector<application::workbench_selected_diff_request>{ };
 		for (const auto& stop : draft->Stops) {
 			const auto source = core::publication_source(stop);

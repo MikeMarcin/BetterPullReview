@@ -19,6 +19,7 @@
 #include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include "bpr/core/review_tour_update.hpp"
+#include "bpr/core/tour_publication_head.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
 #include <QAction>
@@ -1232,6 +1233,55 @@ auto main(int argc, char** argv) -> int
 			expect(!restored.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "published draft cannot offer a duplicate publication");
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->StagedWrites == (mode == "compat" ? 6 : 5), "completed restart and preview perform zero writes");
+		}
+		// [[BPR-2116]], RFC-BPR-0100 AC06. A tour update that edits a published
+		// stop writes its references as a first publication does, and the
+		// published baseline keeps the author's text, so a restart sees no
+		// change.
+		if (mode == "native" && !cliMode) {
+			auto&      edited      = *application->window().tour_editor();
+			const auto press       = [&](const char* aName) { return edited.findChild<QPushButton*>(QString::fromUtf8(aName)); };
+			auto*      shownStatus = edited.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
+			edited.outline()->setCurrentRow(1);
+			wait([&] { return edited.stop_title()->toPlainText() == QStringLiteral("Use the retained source"); }, "the citing published stop is open");
+			edited.stop_body()->setPlainText(QStringLiteral("Edited after publishing (`review.cpp:3-4`).\n\nsecondary.cpp:2-3"));
+			saved(edited);
+			accept_every_stop(edited);
+			press("tourPreparePublication")->click();
+			expect(press("tourPublish")->isEnabled(), "an edited published stop offers an update");
+			std::size_t before = 0U;
+			{
+				std::scoped_lock lock{ server->Mutex };
+				before = server->StagedWrites;
+			}
+			press("tourPublish")->click();
+			wait([&] { return shownStatus->text().startsWith(QStringLiteral("Published:")); }, "the update of an edited published stop completes");
+			saved(edited);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				const auto       cited = std::ranges::find_if(server->StagedComments, [](const auto& aComment) { return aComment.Body.find("Edited after publishing") != std::string::npos; });
+				expect(cited != server->StagedComments.end(), "the edited stop's comment was updated on GitHub");
+				const auto& body = cited->Body;
+				std::cout << "tour-references-updated: " << QString::fromStdString(body).replace(QLatin1Char('\n'), QStringLiteral(" | ")).toStdString() << '\n';
+				expect(body.find("(`review.cpp:3-4`).") == std::string::npos, "the updated comment does not keep the reference as written");
+				expect(body.find("([`review.cpp:3-4`](https://github.com/") != std::string::npos && body.find("#L3-L4)") != std::string::npos, "the updated inline reference is a Markdown link to the commit-pinned permalink");
+				expect(body.find("\n\nhttps://github.com/") != std::string::npos && body.find("secondary.cpp#L2-L3\n") != std::string::npos, "the updated reference alone on its line is the bare permalink");
+				expect(server->StagedWrites > before, "the update wrote to GitHub");
+				before = server->StagedWrites;
+			}
+			expect(edited.shown().Draft && edited.shown().Draft->Stops.size() == 2U && edited.shown().Draft->Stops[1].Body == "Edited after publishing (`review.cpp:3-4`).\n\nsecondary.cpp:2-3", "the author's text stays as written");
+			shutdown(*application);
+			application.reset();
+			application = make();
+			open(*application, cli);
+			auto& again = *application->window().tour_editor();
+			wait([&] {const auto& draft=again.shown().Draft;return draft && draft->Remote && draft->Stops.size()==2 && draft->Stops[1].Remote && draft->Stops[1].Body.starts_with("Edited after publishing"); }, "the updated tour survives a restart");
+			expect(core::tour_unpublished_changes(*again.shown().Draft) == 0U, "a restarted app sees the updated tour as unchanged");
+			accept_every_stop(again);
+			again.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+			expect(!again.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "a restarted app offers no update for the published edit");
+			std::scoped_lock lock{ server->Mutex };
+			expect(server->StagedWrites == before, "the restart and its preview write nothing");
 		}
 		if (mode == "compat" && !cliMode) {
 			wait([&] { return tests::read_diagnostic_logs(*dataRoot).contains("tour_state=published"); }, "normal app diagnostic log contains publication terminal");

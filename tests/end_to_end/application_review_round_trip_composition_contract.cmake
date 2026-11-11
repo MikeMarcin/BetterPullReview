@@ -3539,8 +3539,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# repository through the existing publication. The flag-move fixture is
 	# added. No grant, admission or publication boundary changes; no network
 	# grant.
+	# [[BPR-2116]], RFC-BPR-0100 AC06: a tour update writes an edited
+	# published stop's references as permalinks (tour_publication_plan
+	# rewrites that stop's text in the frozen update tour), and the window
+	# observes the pull request's files before previewing a published tour's
+	# update. No grant, admission or publication boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "7f0d18e0ee41be14744426ccae344051bc15a079da643ce47a74822945caf121"
+        "51d2bdfa2bd487a48be4e9a86298d75eda792770b71119fc54c345735638cc6f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
