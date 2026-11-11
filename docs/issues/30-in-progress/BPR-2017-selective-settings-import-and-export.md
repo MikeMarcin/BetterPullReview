@@ -25,3 +25,25 @@ Use the actual Settings entrypoints with a fresh recipient profile, keyboard nav
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
+
+## Record (2026-11-11)
+
+Product candidate `7ae9b389c`; ledger [RFC-BPR-0107](../../verification/RFC-BPR-0107.md).
+Frontend-design was loaded before the Qt work. Settings › Agents & context
+has the share row where the [design record](../../design/BPR-2051-agents-roster-and-footer/README.md)
+placed it; Export configuration… and Import configuration… are native dialogs
+(`qt/agent_configuration_dialogs`). AC01 passes on the two-profile storage
+course and on the composed app courses through the real buttons and dialogs
+(`--attended-share-look` with `BPR_ATTENDED_SHARE_CHECK=1`, then `recipient`
+in a second fresh profile). AC06: keyboard and accessible names
+(`qt_agent_configuration_dialogs`), restart read-back, built-in restoration
+and skill references pass on macOS; the owner's look and Windows and Linux are
+pending.
+
+Filed, not waited on: session `629d64c72746157219d2473892973d7f`, state
+`/Users/jaeger/.attended-review-state/share-agent-prompts-v001-2026-11-11/state`
+(URL in `../serve.log`), cursor 9, host PID 76865 (Tailscale child 76875),
+candidates `BPR-2017-export-selection`, `BPR-2017-import-preview-bind`,
+`RFC-BPR-0107-default-prompt-round-trip`. Frozen root
+`/Users/jaeger/share-agent-prompts-v001.h9i51jwq` from `9be81a9c2141` (app
+SHA-256 `1088de08cc6a…`, launcher check reached `ATTENDED_SHARE_SHOWN:agents=2`).
