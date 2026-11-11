@@ -68,3 +68,11 @@ amendment). The critical review's finding 6 (Claude's build rules are not
 confined) is disclosed in the toggle's tooltip; finding 7 (the modal question)
 is fixed. A re-review of the fixes is owed. Still Backlog until BPR-2007 is
 Done.
+
+Second post-review round (2026-11-11): the re-review's N5 is fixed: Claude's
+parent-step denial names the scratch runners only, so a builds-only grant (or
+builds with the folder) no longer denies `cmake ../..` (reproduced live, then
+probed on the new rules); Codex in the reviewer's own checkout is given no
+grant at all (N1a). Dispositions in the
+[ledger](../../verification/RFC-BPR-0104.md#re-review-of-the-fixes-2026-11-11).
+Another independent re-review is owed. Still Backlog until BPR-2007 is Done.
