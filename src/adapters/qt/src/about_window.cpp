@@ -4,6 +4,7 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAccessible>
 #include <QAccessibleEvent>
@@ -73,7 +74,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto link_button(const QString& aText, const QString& aDescription, QWidget* const aParent, const QString& aName) -> QToolButton*
 		{
-			auto* const button = new QToolButton{ aParent };
+			auto* const button = new quiet_tool_button{ aParent };
 			button->setObjectName(aName);
 			button->setText(aText);
 			button->setAutoRaise(true);
@@ -451,6 +452,8 @@ namespace bpr::qt {
 		for (auto* const button : { Product, Source, Maker, Notices, Offer }) {
 			auto ink = button->palette();
 			ink.setColor(QPalette::ButtonText, readable_link_colour(palette()));
+			// The quiet chip reads its words in WindowText.
+			ink.setColor(QPalette::WindowText, readable_link_colour(palette()));
 			button->setPalette(ink);
 		}
 	}

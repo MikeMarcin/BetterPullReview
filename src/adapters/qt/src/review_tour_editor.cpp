@@ -11,6 +11,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "waiting_panel.hpp"
@@ -129,7 +130,7 @@ namespace bpr::qt {
 				Line->setWordWrap(true);
 				Line->setTextInteractionFlags(Qt::TextSelectableByMouse);
 				top->addWidget(Line, 1);
-				Dismiss = new QToolButton{ this };
+				Dismiss = new quiet_tool_button{ this };
 				Dismiss->setObjectName(QStringLiteral("tourAgentFailureDismiss"));
 				Dismiss->setAutoRaise(true);
 				Dismiss->setText(QStringLiteral("\u2715"));
@@ -3784,7 +3785,9 @@ namespace bpr::qt {
 		// [[BPR-1936]]. No state word beside the title: the ring says Ready,
 		// Suggested or Needs attention, and written or read, the title keeps
 		// the row.
-		EditStop = new QToolButton{ StopFields };
+		auto* const editStop = new quiet_tool_button{ StopFields };
+		editStop->set_tinted(true);
+		EditStop = editStop;
 		EditStop->setObjectName(QStringLiteral("tourStopEdit"));
 		// The comments' pencil, as Edit comment draws it.
 		EditStop->setIcon(conversation_icon(conversation_glyph::edit, palette()));
@@ -3972,7 +3975,8 @@ namespace bpr::qt {
 		});
 		// [[BPR-1593]]. The rest of the stop's actions, behind More: the
 		// route has room for the three a stop is written with.
-		auto* const more = new QToolButton{ StopFields };
+		auto* const more = new quiet_tool_button{ StopFields };
+		more->set_tinted(true);
 		more->setObjectName(QStringLiteral("tourStopMore"));
 		// [[BPR-1776]]. One sign: the conversation cards' More glyph. An
 		// instant-popup menu would add Qt's own arrow beside it, so the menu
@@ -4140,12 +4144,12 @@ namespace bpr::qt {
 		StopHeading->setFont(headingFont);
 		StopHeading->setTextFormat(Qt::PlainText);
 		headerRow->addWidget(StopHeading, 1);
-		Previous = new QPushButton{ tr("Previous"), StopHeader };
+		Previous = new quiet_push_button{ tr("Previous"), StopHeader };
 		Previous->setObjectName(QStringLiteral("tourPrevious"));
 		Previous->setFlat(true);
 		connect(Previous, &QPushButton::clicked, this, [this] { next_stop(-1); });
 		headerRow->addWidget(Previous);
-		Next = new QPushButton{ tr("Next"), StopHeader };
+		Next = new quiet_push_button{ tr("Next"), StopHeader };
 		Next->setObjectName(QStringLiteral("tourNext"));
 		Next->setFlat(true);
 		connect(Next, &QPushButton::clicked, this, [this] { next_stop(1); });

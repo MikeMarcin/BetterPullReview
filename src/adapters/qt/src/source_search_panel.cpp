@@ -578,7 +578,9 @@ namespace bpr::qt {
 		Sides[0] = chip(core::diff_side::left, QStringLiteral("sourceSearchSideLeft"), tr("Left"), tr("Left side"), tr("Show matches on the left side (at least one side stays on)"));
 		Sides[1] = chip(core::diff_side::right, QStringLiteral("sourceSearchSideRight"), tr("Right"), tr("Right side"), tr("Show matches on the right side (at least one side stays on)"));
 		controls->addStretch(1);
-		CollapseAll = new QToolButton{ this };
+		auto* const collapseAll = new quiet_tool_button{ this };
+		collapseAll->set_tinted(true);
+		CollapseAll = collapseAll;
 		CollapseAll->setObjectName(QStringLiteral("sourceSearchCollapseAll"));
 		CollapseAll->setAccessibleName(tr("Collapse all files"));
 		CollapseAll->setToolTip(tr("Collapse all files"));
@@ -586,7 +588,7 @@ namespace bpr::qt {
 		CollapseAll->setFocusPolicy(Qt::StrongFocus);
 		controls->addWidget(CollapseAll);
 		controls->addSpacing(2);
-		Details = new QToolButton{ this };
+		Details = new quiet_tool_button{ this };
 		Details->setObjectName(QStringLiteral("sourceSearchDetailsToggle"));
 		Details->setText(QStringLiteral("…"));
 		Details->setAccessibleName(tr("Toggle search details"));

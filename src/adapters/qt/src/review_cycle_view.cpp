@@ -7,6 +7,7 @@
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -555,13 +556,13 @@ namespace bpr::qt {
 		auto* const trayHeader = new QHBoxLayout{ };
 		auto* const trayTitle  = new QLabel{ QStringLiteral("Notes"), tray };
 		trayHeader->addWidget(trayTitle, 1);
-		auto* const cycleNote = new QToolButton{ tray };
+		auto* const cycleNote = new quiet_tool_button{ tray };
 		cycleNote->setObjectName(QStringLiteral("cycleWholeNote"));
 		cycleNote->setText(QStringLiteral("Note on the cycle"));
 		cycleNote->setAutoRaise(true);
 		trayHeader->addWidget(cycleNote);
 		// BPR-1164: what a recipient said back, entered by hand or from a response file.
-		ReplyButton = new QToolButton{ tray };
+		ReplyButton = new quiet_tool_button{ tray };
 		ReplyButton->setObjectName(QStringLiteral("cycleAddReply"));
 		ReplyButton->setText(QStringLiteral("Add reply"));
 		ReplyButton->setToolTip(QStringLiteral("Record what someone said back about a round: paste their words, or open a response file"));
@@ -571,7 +572,7 @@ namespace bpr::qt {
 		ReplyMenu->setObjectName(QStringLiteral("cycleReplyMenu"));
 		ReplyButton->setMenu(ReplyMenu);
 		trayHeader->addWidget(ReplyButton);
-		NextRound = new QToolButton{ tray };
+		NextRound = new quiet_tool_button{ tray };
 		NextRound->setObjectName(QStringLiteral("cycleNextRound"));
 		NextRound->setText(QStringLiteral("Next round"));
 		NextRound->setToolTip(QStringLiteral("Prepare the next round's draft from the last round's assignment and the notes still open; nothing is sent"));

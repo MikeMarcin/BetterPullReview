@@ -10,6 +10,7 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/steady_columns.hpp"
 #include "conversation_glyphs.hpp"
@@ -304,7 +305,13 @@ namespace bpr::qt {
 		auto* const cornerLayout = new QHBoxLayout{ DescriptionCorner };
 		cornerLayout->setContentsMargins(0, 0, 0, 0);
 		cornerLayout->setSpacing(0);
-		DescriptionEdit = new QToolButton{ DescriptionCorner };
+		// The corner's tools sit on the reader's paper: quiet buttons on Base,
+		// their one-colour marks in its ink, never the macOS style's bezel in
+		// the system appearance's grey.
+		auto* const descriptionEdit = new quiet_tool_button{ DescriptionCorner };
+		descriptionEdit->set_surface(QPalette::Base);
+		descriptionEdit->set_tinted(true);
+		DescriptionEdit = descriptionEdit;
 		DescriptionEdit->setObjectName(QStringLiteral("overviewEditDescription"));
 		DescriptionEdit->setAutoRaise(true);
 		DescriptionEdit->setFocusPolicy(Qt::StrongFocus);
@@ -317,7 +324,10 @@ namespace bpr::qt {
 		DescriptionEdit->setAutoFillBackground(true);
 		DescriptionEdit->hide();
 		cornerLayout->addWidget(DescriptionEdit);
-		FullView = new QToolButton{ DescriptionCorner };
+		auto* const fullView = new quiet_tool_button{ DescriptionCorner };
+		fullView->set_surface(QPalette::Base);
+		fullView->set_tinted(true);
+		FullView = fullView;
 		cornerLayout->addWidget(FullView);
 		FullView->setObjectName(QStringLiteral("overviewFullView"));
 		// Not checkable: Exit keeps Enter's quiet auto-raised style and only the
@@ -462,7 +472,7 @@ namespace bpr::qt {
 		headingRow->addWidget(FilesHeading);
 		headingRow->addStretch(1);
 		const auto folderButton = [main](const QString& aName, const QString& aObjectName) {
-			auto* const button = new QToolButton{ main };
+			auto* const button = new quiet_tool_button{ main };
 			button->setObjectName(aObjectName);
 			button->setAccessibleName(aName);
 			button->setToolTip(aName);
@@ -509,7 +519,7 @@ namespace bpr::qt {
 				choose_mode(core::feedback_resolution_mode::all);
 			}
 		});
-		Uncertain = new QToolButton{ main };
+		Uncertain = new quiet_tool_button{ main };
 		Uncertain->setObjectName(QStringLiteral("overviewUncertain"));
 		Uncertain->setAutoRaise(true);
 		Uncertain->setFocusPolicy(Qt::StrongFocus);
@@ -833,7 +843,7 @@ namespace bpr::qt {
 		NewThreadsText = new QLabel{ NewThreadsRow };
 		NewThreadsText->setObjectName(QStringLiteral("overviewNewThreadsText"));
 		NewThreadsText->setTextFormat(Qt::PlainText);
-		NewThreadsGo = new QToolButton{ NewThreadsRow };
+		NewThreadsGo = new quiet_tool_button{ NewThreadsRow };
 		NewThreadsGo->setObjectName(QStringLiteral("overviewGoToNewThreads"));
 		NewThreadsGo->setText(QStringLiteral("Go to them"));
 		NewThreadsGo->setAutoRaise(true);
@@ -857,7 +867,7 @@ namespace bpr::qt {
 		NewConversationText = new QLabel{ NewConversationRow };
 		NewConversationText->setObjectName(QStringLiteral("overviewNewConversationText"));
 		NewConversationText->setTextFormat(Qt::PlainText);
-		NewConversationGo = new QToolButton{ NewConversationRow };
+		NewConversationGo = new quiet_tool_button{ NewConversationRow };
 		NewConversationGo->setObjectName(QStringLiteral("overviewGoToNewConversation"));
 		NewConversationGo->setText(QStringLiteral("Go to them"));
 		NewConversationGo->setAutoRaise(true);
@@ -957,7 +967,7 @@ namespace bpr::qt {
 		// [[BPR-1852]]. Convert to draft sits with who is asked to review,
 		// where GitHub's own page keeps it: making a pull request a draft
 		// again is about the reviewers being asked.
-		ConvertToDraft = new QToolButton{ peopleBody };
+		ConvertToDraft = new quiet_tool_button{ peopleBody };
 		ConvertToDraft->setText(QStringLiteral("Convert to draft"));
 		ConvertToDraft->setAutoRaise(true);
 		ConvertToDraft->setCursor(Qt::PointingHandCursor);

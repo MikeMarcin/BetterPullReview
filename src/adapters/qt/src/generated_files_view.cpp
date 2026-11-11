@@ -1,5 +1,7 @@
 #include "bpr/qt/generated_files_view.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include <QAbstractItemView>
 #include <QAction>
 #include <QHBoxLayout>
@@ -107,7 +109,7 @@ namespace bpr::qt {
 		auto* const header = new QHBoxLayout{ };
 		header->setContentsMargins(2, 0, 6, 0);
 		header->setSpacing(8);
-		Toggle = new QToolButton{ this };
+		Toggle = new quiet_tool_button{ this };
 		Toggle->setObjectName(QStringLiteral("generatedFilesToggle"));
 		Toggle->setAutoRaise(true);
 		Toggle->setArrowType(Qt::RightArrow);
@@ -120,6 +122,8 @@ namespace bpr::qt {
 		Toggle->setFont(strong);
 		auto ink = Toggle->palette();
 		ink.setColor(QPalette::ButtonText, ink.color(QPalette::PlaceholderText));
+		// The quiet chip reads its words and arrow in WindowText.
+		ink.setColor(QPalette::WindowText, ink.color(QPalette::PlaceholderText));
 		Toggle->setPalette(ink);
 		connect(Toggle, &QToolButton::clicked, this, [this] { set_open(!Open); });
 		header->addWidget(Toggle, 0);

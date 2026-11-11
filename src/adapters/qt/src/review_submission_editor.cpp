@@ -1176,7 +1176,7 @@ namespace bpr::qt {
 		lastRow->setSpacing(8);
 		lastRow->addWidget(Details);
 		lastRow->addStretch();
-		auto* savedComments = new QToolButton(this);
+		auto* savedComments = new quiet_tool_button(this);
 		savedComments->setObjectName(QStringLiteral("wholeReviewSavedComments"));
 		savedComments->setText(tr("Saved comments…"));
 		savedComments->setAutoRaise(true);
@@ -1558,7 +1558,8 @@ namespace bpr::qt {
 					});
 					across->addWidget(convert, 0, Qt::AlignVCenter);
 				}
-				auto* const remove = new QToolButton{ row };
+				auto* const remove = new quiet_tool_button{ row };
+				remove->set_tinted(true);
 				remove->setObjectName(QStringLiteral("wholeReviewPendingDelete"));
 				remove->setAutoRaise(true);
 				remove->setFocusPolicy(Qt::StrongFocus);
