@@ -27,3 +27,15 @@ Round-trip selected portable definitions and refuse malformed, incompatible or c
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
+
+## Record (2026-11-11)
+
+Product candidate `7ae9b389c`; ledger [RFC-BPR-0107](../../verification/RFC-BPR-0107.md).
+Core format, admission and import decisions (`core/agent_configuration`),
+host and all-or-nothing store (`application::agent_configuration_host`,
+`adapters::sqlite::make_agent_configuration_store`), and the written-against
+record for every hook override. AC02, AC03, AC04, AC05 and AC07 pass on
+`core_agent_configuration` and `sqlite_agent_configuration_storage` (two
+profiles, real stores, a concurrent `bpr`-style edit, a simulated crash
+between the two settings files). The owner's 2026-11-11 decision (export the
+shipped defaults; all purposes; provenance recorded) is in the RFC.
