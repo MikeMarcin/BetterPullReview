@@ -11,14 +11,15 @@ namespace bpr::application {
 	auto writing_hook_version_of(core::writing_hook aHook) noexcept -> std::string_view
 	{
 		switch (aHook) {
-		case core::writing_hook::feedback:        return review_feedback_hook_version;
-		case core::writing_hook::enhance_stop:    return enhance_stop_hook_version;
-		case core::writing_hook::enhance_comment: return enhance_comment_hook_version;
-		case core::writing_hook::enhance_note:    return enhance_note_hook_version;
+		case core::writing_hook::feedback:          return review_feedback_hook_version;
+		case core::writing_hook::enhance_stop:      return enhance_stop_hook_version;
+		case core::writing_hook::enhance_comment:   return enhance_comment_hook_version;
+		case core::writing_hook::enhance_note:      return enhance_note_hook_version;
+		case core::writing_hook::suggested_comment: return suggested_comment_hook_version;
 		case core::writing_hook::problem:
 		case core::writing_hook::solution:
 		case core::writing_hook::outline:
-		case core::writing_hook::comment:         return writing_hook_version;
+		case core::writing_hook::comment:           return writing_hook_version;
 		}
 		return writing_hook_version;
 	}
@@ -34,6 +35,7 @@ namespace bpr::application {
 			"enhance.tour-stop",
 			"enhance.comment",
 			"enhance.note",
+			"review.suggested-comment",
 		};
 	}
 	auto writing_hook_purpose(const core::writing_hook aHook) noexcept -> std::string_view
@@ -66,6 +68,18 @@ namespace bpr::application {
 	}
 	static_assert(core::maximum_writing_instruction_bytes <= core::maximum_feedback_guidance_bytes, "every valid feedback override fits a workshop request");
 	static_assert(review_feedback_hook_version.size() <= core::maximum_feedback_guidance_version_bytes);
+	auto suggested_comment_format(const core::writing_hook_settings& aSettings) -> std::optional<core::supplement_feedback_guidance>
+	{
+		const auto text = effective_writing_hook(aSettings, core::writing_hook::suggested_comment);
+		if (text.empty()) {
+			return std::nullopt;
+		}
+		return core::supplement_feedback_guidance{
+			.Source  = aSettings.Overrides[static_cast<std::size_t>(core::writing_hook::suggested_comment)].empty() ? core::feedback_guidance_source::shipped : core::feedback_guidance_source::profile_override,
+			.Version = std::string{ suggested_comment_hook_version },
+			.Text    = std::string{ text },
+		};
+	}
 	auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>
 	{
 		const auto text = workshop_feedback_guidance(aSettings, aHelper);

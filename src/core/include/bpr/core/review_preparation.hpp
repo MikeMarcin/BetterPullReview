@@ -19,6 +19,10 @@ namespace bpr::core {
 	/// private note. `enhance_stop` is never a target; it is the instructions
 	/// a stop's Enhance sends (`writing_instructions_for`). `enhance_comment`
 	/// and `enhance_note` are both: their surfaces are not tour fields.
+	///
+	/// [[BPR-2059]] `suggested_comment` came last: how an agent writes the
+	/// comments it suggests for the reviewer to post. It writes no field and
+	/// is never a target; every Agent tab request carries it in its brief.
 	enum class writing_hook : std::uint8_t { problem,
 											 solution,
 											 outline,
@@ -26,10 +30,11 @@ namespace bpr::core {
 											 feedback,
 											 enhance_stop,
 											 enhance_comment,
-											 enhance_note };
-	inline constexpr std::size_t writing_hook_count = 8;
+											 enhance_note,
+											 suggested_comment };
+	inline constexpr std::size_t writing_hook_count = 9;
 	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
-	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop; }
+	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_note; }
 	/// \brief The review-preparation hooks, `problem` to `comment`.
 	inline constexpr std::size_t review_preparation_hook_count     = 4;
 	inline constexpr std::size_t maximum_writing_instruction_bytes = 8192;

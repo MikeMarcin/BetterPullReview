@@ -3457,8 +3457,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# owner channel) so a stop's references are recorded; a failed
 	# comparison of accepted code is asked again, bounded. No grant,
 	# admission or publication boundary is relaxed.
+	# [[BPR-2058]], [[BPR-2059]]: Draft all drafts a reply's suggested
+	# comments one after another through a card's own Add as draft comment
+	# path, and its Undo discards the drafts it made that are unchanged since;
+	# every Agent tab brief carries the suggested-comment format. All local;
+	# no grant, admission or publication boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "d6b2d59be0aa155ab1aebbba331c8c23c37ca16f9f64006e22a36d51ceb1eb7b"
+        "388fb45639c10937991adf6430eb11c4a77a1b7337fc601a3b4ceac0381fa2fd"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -174,13 +174,28 @@ int main()
 		expect(application::writing_hook_version_of(core::writing_hook::enhance_stop) == "enhance-tour-stop-v1" && application::writing_hook_version_of(core::writing_hook::enhance_comment) == "enhance-comment-v1"
 				   && application::writing_hook_version_of(core::writing_hook::enhance_note) == "enhance-note-v1",
 			   "each Enhance prompt has its own built-in version");
-		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.problem", "tour.solution", "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.comment", "enhance.note" };
+		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.problem", "tour.solution", "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.comment", "enhance.note", "review.suggested-comment" };
 		for (std::size_t index = 0; index < core::writing_hook_count; ++index) {
 			const auto hook = static_cast<core::writing_hook>(index);
 			expect(application::writing_hook_purpose(hook) == purposes[index] && application::writing_hook_of_purpose(purposes[index]) == hook, "every prompt has one stable purpose ID, and the ID names it");
 			expect(application::default_writing_hook_digest(hook) == core::writing_digest(application::default_writing_hook(hook)), "the built-in digest is the default text's");
 		}
 		expect(!application::writing_hook_of_purpose("enhance.unknown") && !application::writing_hook_of_purpose(""), "an unrecognized purpose names no prompt");
+		// [[BPR-2059]] The suggested-comment format: its default, version and
+		// purpose, and what every Agent tab brief carries of it.
+		{
+			auto hooks = core::writing_hook_settings{ };
+			expect(application::default_writing_hook(core::writing_hook::suggested_comment).starts_with("# Suggested comments")
+					   && application::writing_hook_version_of(core::writing_hook::suggested_comment) == "suggested-comment-v1" && !core::enhance_hook(core::writing_hook::suggested_comment),
+				   "the suggested-comment format ships its own default and version, and is not an Enhance prompt");
+			const auto shipped = application::suggested_comment_format(hooks);
+			expect(shipped && shipped->Source == core::feedback_guidance_source::shipped && shipped->Version == "suggested-comment-v1"
+					   && shipped->Text == application::default_writing_hook(core::writing_hook::suggested_comment),
+				   "with no override the brief carries the shipped default");
+			hooks.Overrides[static_cast<std::size_t>(core::writing_hook::suggested_comment)] = "Use Conventional Comments labels.";
+			const auto mine                                                                  = application::suggested_comment_format(hooks);
+			expect(mine && mine->Source == core::feedback_guidance_source::profile_override && mine->Text == "Use Conventional Comments labels.", "an override is what the brief carries");
+		}
 
 		core::writing_hook_settings settings;
 		core::writing_request       enhanceRequest;

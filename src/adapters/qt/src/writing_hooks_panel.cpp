@@ -59,6 +59,9 @@ namespace bpr::qt {
 			  "Used by Enhance on a draft comment or reply. You choose whether to use what it suggests; nothing is published." },
 			{ core::writing_hook::enhance_note, "Enhance a note", "Notes, a private note", "How the agent improves a private note you have written.",
 			  "Used by Enhance on a private note. You choose whether to use what it suggests; the note stays private." },
+			// [[BPR-2059]] How the agent writes the comments it suggests.
+			{ core::writing_hook::suggested_comment, "Suggested comments", "Agent tab, finding cards", "How the agent writes the comments it suggests for you to post.",
+			  "Sent with every Agent tab question. Add as draft comment and Draft all start from what it writes; nothing is published." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
@@ -198,6 +201,14 @@ namespace bpr::qt {
 			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::enhance_note).Name), Hook };
 			item->setData(hook_role, static_cast<int>(core::writing_hook::enhance_note));
 			item->setData(usage_role, tr(facts_of(core::writing_hook::enhance_note).Where));
+		}
+		// [[BPR-2059]] The Agent tab's group: how the agent writes the comments
+		// it suggests, and the review skill once it is adopted below it.
+		static_cast<void>(make_header(Hook, tr("Agent tab")));
+		{
+			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::suggested_comment).Name), Hook };
+			item->setData(hook_role, static_cast<int>(core::writing_hook::suggested_comment));
+			item->setData(usage_role, tr(facts_of(core::writing_hook::suggested_comment).Where));
 		}
 		body->addWidget(Hook, 0);
 
@@ -339,7 +350,7 @@ namespace bpr::qt {
 			show_notice("Unsaved edits discarded.");
 		});
 		connect(TestButton, &QPushButton::clicked, this, [this] {
-			if (Test && selected_hook() != core::writing_hook::feedback) {
+			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment) {
 				Test(selected_hook());
 			}
 		});
@@ -430,7 +441,7 @@ namespace bpr::qt {
 			return;
 		}
 		ReviewSkillShown = true;
-		static_cast<void>(make_header(Hook, tr("Agent tab")));
+		// [[BPR-2059]] Under the Agent tab's heading, after Suggested comments.
 		auto* const item = new QListWidgetItem{ tr("Review skill"), Hook };
 		item->setData(hook_role, review_skill_v);
 		item->setData(usage_role, tr("Agent tab, every question"));
@@ -592,8 +603,13 @@ namespace bpr::qt {
 			Scope->setText(LabelHelper == application::review_label_helper::on ? tr("On. Sent with each comment workshop request: Comments › Comment workshop.")
 																			   : tr("Off. Not sent with comment workshop requests; turn it on in Comments › Comment workshop."));
 		}
-		TestButton->setEnabled(!feedback);
-		TestButton->setToolTip(feedback ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.") : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
+		// [[BPR-2059]] The suggested-comment format writes no passage either:
+		// it is tried by asking the agent a question.
+		const bool suggested = hook == core::writing_hook::suggested_comment;
+		TestButton->setEnabled(!feedback && !suggested);
+		TestButton->setToolTip(feedback        ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
+								   : suggested ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
+											   : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
 		refresh_state();
 		refresh_rows();
 	}
@@ -663,8 +679,9 @@ namespace bpr::qt {
 				const auto& entry = Skills.Catalog[index];
 				names.push_back(QStringLiteral("/%1 (%2, %3)").arg(text_of(entry.Name), entry.Source == core::skill_source::personal ? tr("personal") : tr("repository"), text_of(entry.Origin)));
 			}
-			line = hook == core::writing_hook::feedback
-				? tr("Names %1. Skills aren't brought into comment workshop requests yet.").arg(names.join(QStringLiteral(", ")))
+			line = hook == core::writing_hook::feedback ? tr("Names %1. Skills aren't brought into comment workshop requests yet.").arg(names.join(QStringLiteral(", ")))
+				: hook == core::writing_hook::suggested_comment
+				? tr("Names %1. Skills aren't brought in through this format; name a skill in your question instead.").arg(names.join(QStringLiteral(", ")))
 				: tr("Brings in %1. Its SKILL.md is sent with the request; only skills a prompt names are sent.").arg(names.join(QStringLiteral(", ")));
 		} else if (Skills.Catalog.empty()) {
 			line = tr("No skills found in ~/.claude/skills, ~/.agents/skills or ~/.codex/skills.");

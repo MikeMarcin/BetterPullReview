@@ -560,10 +560,10 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 13 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments" && hook->item(7)->text() == "Review feedback"
+		expect(hook->count() == 14 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments" && hook->item(7)->text() == "Review feedback"
 				   && hook->item(8)->text() == "Enhance a comment" && hook->item(9)->text() == "Notes" && hook->item(10)->text() == "Enhance a note" && hook->item(11)->text() == "Agent tab"
-				   && hook->item(12)->text() == "Review skill" && !text->toPlainText().isEmpty(),
-			   "[[BPR-1917]], [[BPR-2051]] every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and a comment's Enhance, a note's Enhance, and the review skill");
+				   && hook->item(12)->text() == "Suggested comments" && hook->item(13)->text() == "Review skill" && !text->toPlainText().isEmpty(),
+			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]] every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and a comment's Enhance, a note's Enhance, the suggested-comment format and the review skill");
 		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
 		for (const auto tourHook : tourHooks) {
 			panel->select_hook(tourHook);
@@ -610,6 +610,20 @@ auto main(int argc, char** argv) -> int
 			expect(settings.Overrides[index] == "Our voice" && settings.Overrides[0] == "precise" && source->text().contains("Changed from built-in"), "its override is its own");
 			panel->findChild<QPushButton*>("writingHookReset")->click();
 			expect(settings.Overrides[index].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(enhance), "Reset to built-in restores it in one click");
+		}
+		// [[BPR-2059]] The suggested-comment format: its shipped text and
+		// version, its own override and Reset; Test does not apply to it.
+		{
+			const auto index = static_cast<std::size_t>(core::writing_hook::suggested_comment);
+			panel->select_hook(core::writing_hook::suggested_comment);
+			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment) && source->text().contains(QStringLiteral("suggested-comment-v1"))
+					   && !test->isEnabled(),
+				   "the suggested-comment format shows its shipped text and version");
+			text->setPlainText("Short comments");
+			panel->findChild<QPushButton*>("writingHookSave")->click();
+			expect(settings.Overrides[index] == "Short comments" && settings.Overrides[0] == "precise", "its override is its own");
+			panel->findChild<QPushButton*>("writingHookReset")->click();
+			expect(settings.Overrides[index].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment), "Reset to built-in restores it");
 		}
 		// For a look at the row as drawn, when BPR_SETTINGS_RENDER_DIR is set.
 		if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {

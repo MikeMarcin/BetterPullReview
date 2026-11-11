@@ -74,6 +74,8 @@ namespace bpr::app {
 		case core::writing_hook::enhance_stop:    return "enhance-stop";
 		case core::writing_hook::enhance_comment: return "enhance-comment";
 		case core::writing_hook::enhance_note:    return "enhance-note";
+		// [[BPR-2059]] How an agent writes the comments it suggests.
+		case core::writing_hook::suggested_comment: return "suggested-comment";
 		}
 		return "problem";
 	}

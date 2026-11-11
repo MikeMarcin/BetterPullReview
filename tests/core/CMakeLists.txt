@@ -1126,6 +1126,13 @@ bpr_enable_hardening(test_agent_comment_suggestion)
 bpr_enable_warnings(test_agent_comment_suggestion)
 bpr_add_network_isolated_test(NAME core_agent_comment_suggestion COMMAND test_agent_comment_suggestion)
 
+# [[BPR-2058]]. Draft all: which suggested comments one reply drafts, and why the rest are passed over.
+bpr_add_executable(test_agent_draft_all agent_draft_all_tests.cpp)
+target_link_libraries(test_agent_draft_all PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_draft_all)
+bpr_enable_warnings(test_agent_draft_all)
+bpr_add_network_isolated_test(NAME core_agent_draft_all COMMAND test_agent_draft_all)
+
 # [[BPR-1861]]. An agent's answer split into prose and its bpr-findings block, a fenced suggestion included.
 bpr_add_executable(test_agent_answer_findings agent_answer_findings_tests.cpp)
 target_link_libraries(test_agent_answer_findings PRIVATE BetterPullReview::Core)

@@ -271,6 +271,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-agent-picker" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-agent-draft-all-check" },
 		bpr::app::command_line_option{ .Name = "attended-agent-helpers", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
 		bpr::app::command_line_option{ .Name = "attended-skill-home", .TakesValue = true },
@@ -7271,19 +7272,75 @@ namespace {
 				*step = 2;
 				return;
 			}
-			if (window.finding_queue()->finding_count() == 0U && tab->state() != bpr::qt::agent_tab_state::stopped) {
+			if (*step == 2 && window.finding_queue()->finding_count() == 0U && tab->state() != bpr::qt::agent_tab_state::stopped) {
 				return;
 			}
-			tab->refresh();
-			QCoreApplication::processEvents();
-			if (const auto root = qEnvironmentVariable("BPR_ATTENDED_AGENT_RENDER"); !root.isEmpty()) {
+			if (*step == 2) {
+				tab->refresh();
+				QCoreApplication::processEvents();
+			}
+			if (const auto root = qEnvironmentVariable("BPR_ATTENDED_AGENT_RENDER"); *step == 2 && !root.isEmpty()) {
 				if (qEnvironmentVariable("BPR_ATTENDED_AGENT_THEME") == QStringLiteral("dark")) {
 					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
 				}
 				QCoreApplication::processEvents();
 				static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent.png"), "PNG"));
 			}
-			done(QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count()));
+			// [[BPR-2058]]. `--attended-agent-draft-all-check`: once shown, a
+			// course presses the reply's Draft all, reports what it says and
+			// each card's state, then its Undo, as the person would. A look
+			// for the person leaves both to them.
+			if (*step == 2) {
+				const auto shown = QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count());
+				if (!QCoreApplication::arguments().contains(QStringLiteral("--attended-agent-draft-all-check"))) {
+					done(shown);
+					return;
+				}
+				QTextStream{ stdout } << shown << '\n';
+				QTextStream{ stdout }.flush();
+				*step  = 3;
+				*ticks = 0;
+				return;
+			}
+			const auto last  = tab->turn_count() == 0U ? 0U : tab->turn_count() - 1U;
+			auto*      press = tab->turn_draft_all_button(last);
+			auto*      said  = tab->turn_draft_all_state(last);
+			auto*      undo  = tab->turn_draft_all_undo(last);
+			const auto cards = [tab] {
+				auto states = QStringList{ };
+				for (std::size_t index = 0U; index < tab->finding_cards().size(); ++index) {
+					states << QString::number(static_cast<int>(tab->finding_card_state(index)));
+				}
+				return states.join(QLatin1Char{ ',' });
+			};
+			if (press == nullptr || said == nullptr || undo == nullptr) {
+				done(QStringLiteral("ATTENDED_DRAFT_ALL_FAILED:no-row"));
+				return;
+			}
+			if (*step == 3) {
+				QTextStream{ stdout } << "ATTENDED_DRAFT_ALL_OFFERED:" << press->text() << ":visible=" << press->isVisible() << '\n';
+				press->click();
+				*step = 4;
+				return;
+			}
+			if (*step == 4) {
+				if (!undo->isVisible() && (said->isHidden() || said->text().startsWith(QStringLiteral("Drafting")))) {
+					return;
+				}
+				QTextStream{ stdout } << "ATTENDED_DRAFT_ALL_DONE:" << said->text() << ":cards=" << cards() << ":button=" << press->text() << '\n';
+				QTextStream{ stdout }.flush();
+				if (!undo->isVisible()) {
+					done(QStringLiteral("ATTENDED_DRAFT_ALL_FAILED:no-undo"));
+					return;
+				}
+				undo->click();
+				*step = 5;
+				return;
+			}
+			if (said->text().startsWith(QStringLiteral("Drafted")) || said->text().startsWith(QStringLiteral("Nothing drafted"))) {
+				return;
+			}
+			done(QStringLiteral("ATTENDED_DRAFT_ALL_UNDONE:%1:cards=%2:button=%3").arg(said->text(), cards(), press->text()));
 		});
 		timer->start();
 	}

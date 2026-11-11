@@ -147,6 +147,18 @@ is a suggestion under the field, used only with **Use suggestion**; Enhance
 writes nothing to GitHub. `bpr tour hooks show|edit|reset` takes
 `enhance-stop`, `enhance-comment` and `enhance-note`.
 
+#### Suggested comments
+
+**Agents & context > Built-in prompts > Agent tab > Suggested comments** says
+how the agent writes the comments it suggests for you to post (a finding's
+suggested comment, or a reply written to be posted). Its built-in default asks
+for a short comment you could post as it stands: the problem in one sentence,
+then the fix, code in code spans, no severity or label prefix, and no
+restating of the finding. Every Agent tab question carries it, and the review
+skill follows it; **Reset to built-in** restores the default. Add as draft
+comment and **Draft all** on a reply start from what it writes. `bpr tour
+hooks show|edit|reset suggested-comment` edits it too.
+
 See the [AI agent boundary](../architecture/ai-agent-boundary.md) for exactly
 what an agent receives and may do.
 

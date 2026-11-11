@@ -52,6 +52,9 @@ namespace bpr::application {
 	inline constexpr std::string_view enhance_stop_hook_version    = "enhance-tour-stop-v1";
 	inline constexpr std::string_view enhance_comment_hook_version = "enhance-comment-v1";
 	inline constexpr std::string_view enhance_note_hook_version    = "enhance-note-v1";
+	/// \brief [[BPR-2059]] Version of the shipped suggested-comment format,
+	/// `resources/review-preparation/suggested-comment.md`.
+	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.
@@ -82,6 +85,10 @@ namespace bpr::application {
 	/// shipped version it was taken from, and whether it is the profile's
 	/// override. None while the label helper is off, which leaves the press's
 	/// request byte for byte what it was before the hook existed.
+	/// \brief [[BPR-2059]] The suggested-comment format every Agent tab
+	/// request's brief carries: the profile's override, or the shipped
+	/// default, with its version and which of the two it is.
+	[[nodiscard]] auto suggested_comment_format(const core::writing_hook_settings& aSettings) -> std::optional<core::supplement_feedback_guidance>;
 	[[nodiscard]] auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
 }
 #endif

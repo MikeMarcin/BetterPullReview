@@ -179,6 +179,13 @@ independent of its display name, enumeration position, text and version
 | `enhance.tour-stop` | Enhance a stop | `enhance-tour-stop-v1` |
 | `enhance.comment` | Enhance a comment | `enhance-comment-v1` |
 | `enhance.note` | Enhance a note | `enhance-note-v1` |
+| `review.suggested-comment` | Suggested comments ([[BPR-2059]]) | `suggested-comment-v1` |
+
+[[BPR-2059]] (2026-11-10) added a ninth writing hook, **Suggested comments**:
+how an agent writes the comments it suggests for the reviewer to post. It is
+listed under the Agent tab group of Built-in prompts and rides every Agent tab
+brief as `brief.comment_format.{source,version,text}`; the review skill
+(bpr-version 5) defers to it. Version one therefore recognizes ten purposes.
 
 Each built-in's digest is SHA-256 of its shipped text
 (`application::default_writing_hook_digest`). The review skill's purpose ID

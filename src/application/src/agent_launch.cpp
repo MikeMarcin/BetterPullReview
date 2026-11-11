@@ -2786,6 +2786,13 @@ namespace bpr::application {
 				append_field(aResult, "brief.skill.version", aBrief.Skill->Version ? std::to_string(*aBrief.Skill->Version) : std::string{ });
 				append_field(aResult, "brief.skill.text", aBrief.Skill->Text);
 			}
+			// [[BPR-2059]]. How the reviewer wants suggested comments written;
+			// the skill defers to it. Absent, no line is written.
+			if (aBrief.CommentFormat) {
+				append_field(aResult, "brief.comment_format.source", core::stable_name(aBrief.CommentFormat->Source));
+				append_field(aResult, "brief.comment_format.version", aBrief.CommentFormat->Version);
+				append_field(aResult, "brief.comment_format.text", aBrief.CommentFormat->Text);
+			}
 		}
 
 		template <typename TSink>

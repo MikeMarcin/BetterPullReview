@@ -11,6 +11,7 @@
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/core/agent_chat_scope.hpp"
+#include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_turn.hpp"
@@ -116,6 +117,29 @@ namespace bpr::qt {
 		agent_finding_card_action Action = agent_finding_card_action::draft_comment;
 	};
 	using agent_finding_card_dispatch = std::function<void(const agent_finding_card_request&)>;
+	/// \brief [[BPR-2058]]. Draft all: the suggested comments of one reply
+	/// to draft, in its cards' order, as one batch; `Planned` already counts
+	/// those passed over before drafting.
+	struct agent_draft_all_request
+	{
+		std::uint64_t                           Batch = 0U;
+		std::vector<agent_finding_card_request> Cards;
+		core::draft_all_outcome                 Planned;
+	};
+	/// \brief How the batch ended; `aUndoable` when it made a draft that
+	/// one Undo can remove. Each card's own state still goes through
+	/// `present_finding_card_state`.
+	using agent_draft_all_done     = std::function<void(const core::draft_all_outcome& aOutcome, bool aUndoable)>;
+	using agent_draft_all_dispatch = std::function<void(agent_draft_all_request aRequest, agent_draft_all_done aDone)>;
+	/// \brief Undo of one batch: the drafts it made that are unchanged since
+	/// are removed (`aRemoved`); a draft edited since is kept (`aKept`). The
+	/// host opens each removed draft's card again through
+	/// `present_finding_card_state`.
+	using agent_draft_all_undo_done = std::function<void(std::size_t aRemoved, std::size_t aKept)>;
+	using agent_draft_all_undo      = std::function<void(std::uint64_t aBatch, agent_draft_all_undo_done aDone)>;
+	/// \brief Whether a finding's lines are in the pull request at the
+	/// current head, as far as the host knows now.
+	using agent_finding_placeability = std::function<bool(const core::agent_finding&)>;
 	/// \brief Save as note on a plain answer: the text (the whole reply, or
 	/// the selected part), and where the host says how it went: the note it
 	/// made, which Go to note opens (owner look v004), when it was saved.
@@ -329,6 +353,18 @@ namespace bpr::qt {
 		void               set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
 		void               present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
 		[[nodiscard]] auto finding_card_state(std::size_t aCard) const -> agent_finding_card_state;
+		/// \brief [[BPR-2058]]. Where a reply's Draft all and its Undo go, and
+		/// what says whether a suggestion's lines are still in the diff (none:
+		/// the anchor the finding arrived with).
+		void set_draft_all_dispatch(agent_draft_all_dispatch aDispatch, agent_draft_all_undo aUndo);
+		void set_finding_placeability(agent_finding_placeability aPlaceable);
+		/// \brief Draft all's button, its sentence and its Undo, on one turn.
+		[[nodiscard]] auto turn_draft_all_button(std::size_t aTurn) const -> QPushButton*;
+		[[nodiscard]] auto turn_draft_all_state(std::size_t aTurn) const -> QLabel*;
+		[[nodiscard]] auto turn_draft_all_undo(std::size_t aTurn) const -> QPushButton*;
+		/// \brief Draft all's sentence for one outcome, and for one Undo.
+		[[nodiscard]] static auto draft_all_words(const core::draft_all_outcome& aOutcome) -> QString;
+		[[nodiscard]] static auto draft_all_undo_words(std::size_t aRemoved, std::size_t aKept) -> QString;
 		/// \brief [[BPR-1773]]. Shows the conversation chip (none: removes
 		/// it), with conversation prompts in place of the usual ones while it
 		/// is shown. Its close button calls `set_conversation_dismiss`'s
@@ -467,11 +503,16 @@ namespace bpr::qt {
 			/// The turn it is under; none for a card no turn brought.
 			std::optional<std::size_t> Turn;
 			QPointer<QWidget>          Widget;
+			/// [[BPR-2058]]. Its claim, evidence and suggested comment as
+			/// Markdown, each fitted to the card's width.
+			std::vector<QPointer<markdown_body_view>> Texts;
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
-		void               show_card_state(card_entry& aEntry);
-		void               act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);
-		std::uint64_t      NextCardId = 1U;
+		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.
+		void          fit_card_text(markdown_body_view& aView) const;
+		void          show_card_state(card_entry& aEntry);
+		void          act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);
+		std::uint64_t NextCardId = 1U;
 		/// The findings that arrived during the turn that just ended go
 		/// under its answer.
 		void                               claim_findings(std::size_t aTurn);
@@ -585,8 +626,26 @@ namespace bpr::qt {
 			/// [[BPR-1876]], [[BPR-1880]]. Delete: an error turn leaves the
 			/// thread.
 			QPointer<QPushButton> Delete;
+			/// [[BPR-2058]]. Draft all over its cards, what the last press
+			/// did, and the Undo of that batch.
+			QPointer<QWidget>          DraftAllRow;
+			QPointer<QPushButton>      DraftAll;
+			QPointer<QLabel>           DraftAllState;
+			QPointer<QPushButton>      DraftAllUndo;
+			std::uint64_t              DraftAllBatch = 0U;
+			bool                       DraftAllBusy  = false;
+			std::vector<std::uint64_t> DraftAllCards;
 		};
 		std::vector<turn> Turns;
+		/// [[BPR-2058]].
+		void                       refresh_draft_all(std::size_t aTurn);
+		void                       draft_all(std::size_t aTurn);
+		void                       undo_draft_all(std::size_t aTurn);
+		[[nodiscard]] auto         turn_of_widget(const QObject* aWidget) const -> std::optional<std::size_t>;
+		agent_draft_all_dispatch   DraftAllDispatch;
+		agent_draft_all_undo       DraftAllUndo;
+		agent_finding_placeability FindingPlaceable;
+		std::uint64_t              NextDraftAllBatch = 1U;
 		/// [[BPR-2005]]. How the turns this window saw end: their line and
 		/// what they did, so a thread drawn again from its saved history
 		/// keeps them. Not saved with the history; the last 32.

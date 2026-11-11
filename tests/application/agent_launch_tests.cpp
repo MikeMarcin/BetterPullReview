@@ -440,6 +440,8 @@ namespace {
 			.Threads     = { { .Path = "src/retry.cpp", .Line = 12U, .Comments = { { .Author = "octo", .Body = "Is this bounded?" } } } },
 			.Workspace   = core::brief_workspace::linked_clone_history,
 			.Skill       = core::brief_review_skill{ .Source = core::review_skill_source::built_in, .Version = 1U, .Text = std::string{ application::built_in_review_skill() } },
+			// [[BPR-2059]]. The suggested-comment format, as a profile override.
+			.CommentFormat = core::supplement_feedback_guidance{ .Source = core::feedback_guidance_source::profile_override, .Version = "suggested-comment-v1", .Text = "One sentence.\nThen the fix." },
 			// [[BPR-1753]], owner decision (b): the conversation so far.
 			.Conversation = { { .Asked = "Does this work?", .Answered = "Yes.\nThe loop ends." } },
 		});
@@ -470,6 +472,9 @@ namespace {
 				 "brief.skill.present\t1\n",
 				 "brief.skill.source\tbuilt_in\n",
 				 "brief.skill.version\t1\n",
+				 "brief.comment_format.source\tprofile_override\n",
+				 "brief.comment_format.version\tsuggested-comment-v1\n",
+				 "brief.comment_format.text\tOne sentence.\\nThen the fix.\n",
 			 }) {
 			expect(encoded.find(required) != std::string::npos, "the exact brief field is encoded");
 		}

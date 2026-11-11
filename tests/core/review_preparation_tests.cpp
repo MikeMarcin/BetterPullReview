@@ -111,6 +111,6 @@ int main()
 			   && core::writing_instructions_for(core::writing_hook::enhance_comment, core::writing_scope::selection) == core::writing_hook::enhance_comment
 			   && core::writing_instructions_for(core::writing_hook::enhance_note, core::writing_scope::field) == core::writing_hook::enhance_note,
 		   "every other target sends its own prompt");
-	expect(core::enhance_hook(core::writing_hook::enhance_stop) && core::enhance_hook(core::writing_hook::enhance_note) && !core::enhance_hook(core::writing_hook::feedback), "the Enhance prompts are named as such");
+	expect(core::enhance_hook(core::writing_hook::enhance_stop) && core::enhance_hook(core::writing_hook::enhance_note) && !core::enhance_hook(core::writing_hook::feedback) && !core::enhance_hook(core::writing_hook::suggested_comment), "the Enhance prompts are named as such");
 	std::cout << "review-preparation:pass\n";
 }

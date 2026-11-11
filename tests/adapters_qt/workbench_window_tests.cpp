@@ -15044,6 +15044,161 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-2058]], [[BPR-2059]], owner 2026-11-10. A reply with several
+	/// suggested comments offers Draft all, counting only those it would draft;
+	/// it drafts through the host, says what it drafted and skipped and why, and
+	/// one Undo removes the batch. The cards read as Markdown in three spaced
+	/// blocks, the suggestion upright in its inset, and a narrow card keeps its
+	/// severity and kind whole while its file name shortens.
+	void test_a_reply_drafts_all_its_suggested_comments()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Claude Code";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		agent->refresh();
+		process_events();
+		const auto made = [](std::string aPath, std::string aClaim, std::optional<std::string> aComment) {
+			auto finding             = core::agent_finding{ };
+			finding.Provider         = core::agent_profile_id{ 1U };
+			finding.Severity         = core::defect_severity::major;
+			finding.Confidence       = core::agent_finding_confidence::medium;
+			finding.Category         = core::defect_category::maintainability;
+			finding.Path             = std::move(aPath);
+			finding.Lines            = { .Begin = 10U, .End = 12U };
+			finding.Claim            = std::move(aClaim);
+			finding.Evidence         = "`Cache::get` calls `at` before it checks the map.";
+			finding.SuggestedComment = std::move(aComment);
+			return application::agent_delivered_finding{ .Finding = std::move(finding), .Verdict = { } };
+		};
+		auto delivery     = application::agent_finding_delivery{ };
+		delivery.Session  = core::agent_session_id{ 9U };
+		delivery.Findings = {
+			made("src/a_rather_long_directory_name/cache_with_a_long_file_name.cpp", "`Cache::get` throws on a miss.", "Use `find` instead of `at`:\n\n```cpp\nauto found = map_.find(key);\n```"),
+			made("src/b.cpp", "The lock is held across the callback.", "suggestion (non-blocking): Release `mutex_` before calling `on_done`."),
+			made("src/c.cpp", "A third.", "Rename `tmp` to `pending`."),
+			made("src/gone.cpp", "Gone at the head.", "Drop this."),
+			made("src/d.cpp", "No suggestion on this one.", std::nullopt),
+		};
+		agent->set_finding_placeability([](const core::agent_finding& aFinding) { return aFinding.Path != "src/gone.cpp"; });
+		auto requests = std::vector<qt::agent_draft_all_request>{ };
+		auto finish   = qt::agent_draft_all_done{ };
+		auto undone   = std::vector<std::uint64_t>{ };
+		auto undoDone = qt::agent_draft_all_undo_done{ };
+		agent->set_draft_all_dispatch(
+			[&requests, &finish](qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone) {
+				requests.push_back(std::move(aRequest));
+				finish = std::move(aDone);
+			},
+			[&undone, &undoDone](const std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone) {
+				undone.push_back(aBatch);
+				undoDone = std::move(aDone);
+			});
+		auto identity                 = application::agent_invocation_projection_identity{ };
+		identity.ApplicationSession   = core::application_session_id{ 1U };
+		identity.Session.Id           = core::agent_session_id{ 9U };
+		identity.InvocationGeneration = 1U;
+		window.agent_panel()->admit(identity);
+		window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+		window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Four findings, three with a comment to post." });
+		window.finding_queue()->present(delivery);
+		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+		process_events();
+		auto* const button = agent->turn_draft_all_button(0U);
+		auto* const said   = agent->turn_draft_all_state(0U);
+		auto* const undo   = agent->turn_draft_all_undo(0U);
+		expect(agent->turn_cards(0U).size() == 5U && button != nullptr && button->isVisible() && button->isEnabled() && button->text() == QStringLiteral("Draft all (3)"),
+			   "a reply with several suggested comments offers Draft all, counting the placeable ones it would draft");
+
+		// The card reads as the comment would: Markdown, spaced, upright.
+		auto* const first   = agent->turn_cards(0U).front();
+		auto* const comment = dynamic_cast<qt::markdown_body_view*>(first->findChild<QWidget*>(QStringLiteral("agentFindingComment")));
+		auto* const claim   = dynamic_cast<qt::markdown_body_view*>(first->findChild<QWidget*>(QStringLiteral("agentFindingClaim")));
+		auto* const inset   = first->findChild<QWidget*>(QStringLiteral("agentFindingSuggestion"));
+		expect(comment != nullptr && claim != nullptr && dynamic_cast<qt::markdown_body_view*>(first->findChild<QWidget*>(QStringLiteral("agentFindingEvidence"))) != nullptr && inset != nullptr && inset->isAncestorOf(comment),
+			   "the claim, the evidence and the suggested comment are each Markdown, the suggestion in its inset");
+		const auto rendered = [](const qt::markdown_body_view* aView) {
+			auto text = QString{ };
+			for (const auto* const edit : aView->findChildren<QTextEdit*>()) {
+				if (edit->isVisible()) {
+					text += edit->toPlainText();
+				}
+			}
+			return text;
+		};
+		expect(!comment->font().italic() && rendered(comment).contains(QStringLiteral("find")) && !rendered(comment).contains(QLatin1Char{ '`' }) && !rendered(claim).contains(QLatin1Char{ '`' }),
+			   "code spans render as code, not raw backticks, and the suggestion is not italic");
+		expect(comment->original_body() == "Use `find` instead of `at`:\n\n```cpp\nauto found = map_.find(key);\n```", "the suggestion's Markdown is kept as the agent wrote it");
+		expect(inset->geometry().top() > claim->geometry().bottom() && comment->height() > 4 && claim->height() > 4, "the suggestion sits below the claim with room of its own");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-draft-all-offered.png"), "PNG"), "render saved");
+		}
+		// Narrow, the chips keep their words and the file name shortens.
+		window.resize(900, 900);
+		process_events();
+		{
+			auto* const kind   = first->findChild<QLabel*>(QStringLiteral("agentFindingKind"));
+			auto* const anchor = first->findChild<QLabel*>(QStringLiteral("agentFindingAnchor"));
+			expect(kind != nullptr && anchor != nullptr && kind->width() >= kind->sizeHint().width() && anchor->text().endsWith(QStringLiteral(":11–12"))
+					   && anchor->width() < anchor->fontMetrics().horizontalAdvance(anchor->text()),
+				   "narrow, the kind keeps its whole width and the anchor gives way");
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-draft-all-narrow.png"), "PNG"), "render saved");
+			}
+		}
+		window.resize(1'440, 900);
+		process_events();
+
+		// One already drafted by its own card: the count follows.
+		agent->present_finding_card_state(9U, 2U, qt::agent_finding_card_state::drafted);
+		process_events();
+		expect(button->text() == QStringLiteral("Draft all (2)"), "a suggestion already drafted is not counted");
+		button->click();
+		process_events();
+		expect(requests.size() == 1U && requests.back().Cards.size() == 2U && requests.back().Cards[0].Ordinal == 0U && requests.back().Cards[1].Ordinal == 1U
+				   && requests.back().Planned.AlreadyDrafted == 1U && requests.back().Planned.NotInDiff == 1U && !button->isEnabled() && said->text() == QStringLiteral("Drafting 2 suggested comments…"),
+			   "Draft all asks the host for the undrafted, placeable ones, in order, and waits");
+		agent->present_finding_card_state(9U, 0U, qt::agent_finding_card_state::drafted);
+		agent->present_finding_card_state(9U, 1U, qt::agent_finding_card_state::refused, QStringLiteral("Line 11 is not in src/b.cpp at the current head, so nothing was made."));
+		auto outcome = requests.back().Planned;
+		outcome      = core::settle_draft_all(outcome, core::draft_all_result::drafted);
+		outcome      = core::settle_draft_all(outcome, core::draft_all_result::not_in_diff);
+		finish(outcome, true);
+		process_events();
+		expect(said->isVisible() && said->text() == QStringLiteral("Drafted 1 private draft. Skipped 3: 1 already drafted, 2 no longer in the diff.") && undo->isVisible()
+				   && button->text() == QStringLiteral("Draft all (1)"),
+			   "the reply says how many were drafted and skipped, and why, and offers one Undo");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-draft-all-done.png"), "PNG"), "render saved");
+		}
+		undo->click();
+		process_events();
+		expect(undone == std::vector<std::uint64_t>{ requests.back().Batch } && !undo->isVisible(), "Undo asks the host to remove that batch");
+		agent->present_finding_card_state(9U, 0U, qt::agent_finding_card_state::open);
+		undoDone(1U, 0U);
+		process_events();
+		expect(said->text() == QStringLiteral("Removed 1 draft.") && agent->finding_card_state(0U) == qt::agent_finding_card_state::open && button->text() == QStringLiteral("Draft all (2)"),
+			   "the batch's draft is gone and its card is open again");
+		expect(qt::agent_tab_view::draft_all_undo_words(2U, 1U) == QStringLiteral("Removed 2 drafts. Kept 1 draft you changed since.")
+				   && qt::agent_tab_view::draft_all_words({ .Drafted = 0U, .Dismissed = 1U }) == QStringLiteral("Nothing drafted. Skipped 1: 1 dismissed."),
+			   "every outcome is said in words");
+		// [[BPR-2059]]. The continuation line carries no replay counts.
+		expect(!agent->findChild<QLabel*>(QStringLiteral("agentContinuationMode"))->text().contains(QStringLiteral("Replay omits")), "no internal status line is shown");
+	}
+
 	void test_the_agent_is_a_drawer_tab()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -25182,6 +25337,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_finish_review_is_a_sheet_beside_the_code", &test_finish_review_is_a_sheet_beside_the_code);
 	runCase("test_the_tour_is_a_route_expanding_to_its_page", &test_the_tour_is_a_route_expanding_to_its_page);
 	runCase("test_the_agent_is_a_drawer_tab", &test_the_agent_is_a_drawer_tab);
+	runCase("test_a_reply_drafts_all_its_suggested_comments", &test_a_reply_drafts_all_its_suggested_comments);
 	runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
 	runCase("test_pending_rows_open_their_comments_like_threads", &test_pending_rows_open_their_comments_like_threads);
 	runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);

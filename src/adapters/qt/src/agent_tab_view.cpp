@@ -7,6 +7,8 @@
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/defect_workflow.hpp"
+#include "bpr/core/feedback_convention.hpp"
+#include "bpr/core/review_preparation.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -43,6 +45,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QStackedWidget>
@@ -153,6 +156,54 @@ namespace bpr::qt {
 			{
 				auto painter = QPainter{ this };
 				painter.fillRect(rect(), mixed(palette().color(QPalette::Active, QPalette::Base), palette().color(QPalette::Active, QPalette::WindowText), 0.14));
+			}
+		};
+
+		/// \brief [[BPR-2059]]. A finding's file and lines, shortened in the
+		/// middle when the card is narrow so the severity and kind beside it
+		/// keep their words. Its text stays whole: the accessible name, and the
+		/// tooltip the card sets.
+		class eliding_anchor final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return QSize{ fontMetrics().horizontalAdvance(QStringLiteral("…:9")), QLabel::minimumSizeHint().height() };
+			}
+			[[nodiscard]] auto shown_text() const -> QString { return fontMetrics().elidedText(text(), Qt::ElideMiddle, std::max(0, contentsRect().width())); }
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				style()->drawItemText(&painter, contentsRect(), static_cast<int>(alignment()), palette(), isEnabled(), shown_text(), foregroundRole());
+			}
+		};
+
+		/// \brief [[BPR-2059]]. The suggested comment's inset: a faint wash
+		/// and a rule down its left, so the words that would be posted read as
+		/// a quotation apart from the agent's own claim and evidence.
+		class suggestion_inset final : public QWidget
+		{
+		public:
+			explicit suggestion_inset(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto base = palette().color(QPalette::Active, QPalette::Base);
+				const auto ink  = palette().color(QPalette::Active, QPalette::WindowText);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(mixed(base, ink, 0.04));
+				painter.drawRoundedRect(QRectF{ rect() }, 6.0, 6.0);
+				painter.setBrush(mixed(base, ink, 0.26));
+				painter.drawRoundedRect(QRectF{ 0.0, 0.0, 2.0, static_cast<qreal>(height()) }, 1.0, 1.0);
 			}
 		};
 
@@ -1151,6 +1202,56 @@ namespace bpr::qt {
 		dress_answer(*answer);
 		answer->hide();
 		replyColumn->addWidget(answer);
+		// [[BPR-2058]], owner 2026-11-10. A reply with several suggested
+		// comments drafts them all at once: one quiet action over its cards,
+		// what the last press did, and the Undo of that batch. It starts no
+		// run, so it wears no Agent accent.
+		auto* const draftAllRow = new QWidget{ reply };
+		draftAllRow->setObjectName(QStringLiteral("agentTurnDraftAllRow"));
+		// The action on its own line; what the last press did under it, with
+		// its Undo beside the sentence it takes back.
+		auto* const draftAllColumn = new QVBoxLayout{ draftAllRow };
+		draftAllColumn->setContentsMargins(0, 4, 0, 0);
+		draftAllColumn->setSpacing(4);
+		auto* const draftAllLine = new QHBoxLayout{ };
+		draftAllLine->setSpacing(6);
+		auto* const draftAll = new quiet_push_button{ draftAllRow };
+		draftAll->setObjectName(QStringLiteral("agentTurnDraftAll"));
+		draftAll->setToolTip(tr("Make each suggested comment below a private draft at its lines, as Add as draft comment does. Nothing is published."));
+		draftAllLine->addWidget(draftAll);
+		draftAllLine->addStretch(1);
+		draftAllColumn->addLayout(draftAllLine);
+		auto* const draftAllSaid = new QHBoxLayout{ };
+		draftAllSaid->setSpacing(6);
+		auto* const draftAllState = new QLabel{ draftAllRow };
+		draftAllState->setObjectName(QStringLiteral("agentTurnDraftAllState"));
+		draftAllState->setForegroundRole(QPalette::PlaceholderText);
+		draftAllState->setWordWrap(true);
+		draftAllState->hide();
+		draftAllSaid->addWidget(draftAllState, 1);
+		auto* const draftAllUndo = new quiet_push_button{ tr("Undo"), draftAllRow };
+		draftAllUndo->setObjectName(QStringLiteral("agentTurnDraftAllUndo"));
+		draftAllUndo->setFlat(true);
+		draftAllUndo->setToolTip(tr("Remove the drafts this made. A draft you have edited since is kept."));
+		draftAllUndo->hide();
+		draftAllSaid->addWidget(draftAllUndo, 0, Qt::AlignTop);
+		draftAllColumn->addLayout(draftAllSaid);
+		draftAllRow->hide();
+		replyColumn->addWidget(draftAllRow);
+		aTurn.DraftAllRow   = draftAllRow;
+		aTurn.DraftAll      = draftAll;
+		aTurn.DraftAllState = draftAllState;
+		aTurn.DraftAllUndo  = draftAllUndo;
+		connect(draftAll, &QPushButton::clicked, this, [this, draftAll] {
+			if (const auto turn = turn_of_widget(draftAll)) {
+				draft_all(*turn);
+			}
+		});
+		connect(draftAllUndo, &QPushButton::clicked, this, [this, draftAllUndo] {
+			if (const auto turn = turn_of_widget(draftAllUndo)) {
+				undo_draft_all(*turn);
+			}
+		});
 		// Owner decision 2026-10-23: the turn's findings, as cards, under its answer.
 		auto* const cards = new QVBoxLayout{ };
 		cards->setSpacing(8);
@@ -1648,7 +1749,15 @@ namespace bpr::qt {
 		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
 																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
 		ContinuationMode->setToolTip(tr("Replay uses at most 50 retained turns, 8 KiB per field and 48 KiB total; older turns and cut text are omitted. The source history stays. New session starts empty and sends no question."));
-		ContinuationMode->setText(ContinuationMode->text() + tr(" Replay omits %1 retained turns and cuts %2 text bytes; earlier storage omissions are unknown.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
+		// [[BPR-2059]], owner 2026-11-10: the replay's counts ("Replay omits 0
+		// retained turns and cuts 0 text bytes …") are a diagnostic, not words
+		// for the reviewer. They stay on the label for diagnostics and tests,
+		// and the tooltip says them only when something was left out.
+		ContinuationMode->setProperty("replayTurnsOmitted", QVariant::fromValue<qulonglong>(aView.ReplayTurnsOmitted));
+		ContinuationMode->setProperty("replayTextCutBytes", QVariant::fromValue<qulonglong>(aView.ReplayTextCutBytes));
+		if (aView.Replay && (aView.ReplayTurnsOmitted > 0U || aView.ReplayTextCutBytes > 0U)) {
+			ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" This replay leaves out %1 older turns and %2 bytes of cut text.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
+		}
 		auto* replay = NativeHistoryMenu->addAction(tr("Use Transcript replay with selected agent"));
 		replay->setObjectName(QStringLiteral("agentTranscriptReplay"));
 		replay->setToolTip(ContinuationMode->toolTip());
@@ -2523,6 +2632,7 @@ namespace bpr::qt {
 			auto* const card = make_card(CardEntries.back(), Turns[aTurn].Widget);
 			Turns[aTurn].CardColumn->addWidget(card);
 		}
+		refresh_draft_all(aTurn);
 	}
 
 	auto agent_tab_view::make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*
@@ -2545,52 +2655,120 @@ namespace bpr::qt {
 		severity->setPalette(sevPalette);
 		meta->addWidget(severity);
 		auto* const kind = new QLabel{ QStringLiteral("%1 · %2").arg(confidence_words(finding.Confidence), QString::fromUtf8(core::name(finding.Category).data(), static_cast<qsizetype>(core::name(finding.Category).size()))), card };
+		kind->setObjectName(QStringLiteral("agentFindingKind"));
 		kind->setForegroundRole(QPalette::PlaceholderText);
-		// The kind gives way to the anchor when the drawer is narrow.
-		kind->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		kind->setToolTip(kind->text());
-		meta->addWidget(kind, 1);
+		// [[BPR-2059]], owner 2026-11-10: the chips were cut to "possible ·
+		// correctn" while the path kept its width. The severity and kind keep
+		// their words; the anchor gives way and shortens in the middle.
+		kind->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+		meta->addWidget(kind);
+		meta->addStretch(1);
 		// Lines are shown one-based, first and last, as an editor numbers them.
 		const auto  first = finding.Lines.Begin + 1U;
 		const auto  last  = std::max(first, finding.Lines.End);
-		auto* const where = new QLabel{ first == last ? QStringLiteral("%1:%2").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first)
-													  : QStringLiteral("%1:%2–%3").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first).arg(last),
-										card };
+		auto* const where = new eliding_anchor{ first == last ? QStringLiteral("%1:%2").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first)
+															  : QStringLiteral("%1:%2–%3").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first).arg(last),
+												card };
 		where->setObjectName(QStringLiteral("agentFindingAnchor"));
+		where->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+		where->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		where->setMinimumWidth(where->minimumSizeHint().width());
 		auto code = QFont{ QStringLiteral("Menlo") };
 		code.setStyleHint(QFont::Monospace);
 		code.setPointSizeF(std::max(1.0, font().pointSizeF() * 0.86));
 		code.setWeight(QFont::DemiBold);
 		where->setFont(code);
 		where->setToolTip(aEntry.Anchored ? QString::fromStdString(finding.Path) : tr("%1 (not the file open when the agent answered)").arg(QString::fromStdString(finding.Path)));
-		meta->addWidget(where);
+		where->setAccessibleName(where->text());
+		meta->addWidget(where, 1);
 		col->addLayout(meta);
-		auto* const claim = new QLabel{ QString::fromStdString(finding.Claim), card };
-		claim->setWordWrap(true);
-		claim->setFont(sevFont);
-		claim->setTextFormat(Qt::PlainText);
+		aEntry.Id = NextCardId++;
+		// [[BPR-2059]], owner 2026-11-10 ("just a big wall of text"): the
+		// claim, the evidence and the suggested comment are each Markdown, so
+		// code reads as code, each in its own block with room between them.
+		// The suggested comment is set upright in an inset: it is the text a
+		// draft starts from, shown as it would read once posted, its leading
+		// Conventional Comments label drawn as the label mark comments wear.
+		const auto cardText = [this, &aEntry](QWidget* aHolder, const std::string& aBody, const QString& aName, const int aInset) {
+			auto* const view = new markdown_body_view{ aHolder };
+			view->setObjectName(aName);
+			view->set_in_place(true);
+			// Its width is the card's: a long line wraps rather than widening it.
+			auto policy = view->sizePolicy();
+			policy.setHorizontalPolicy(QSizePolicy::Ignored);
+			view->setSizePolicy(policy);
+			view->setMinimumWidth(0);
+			view->setFocusPolicy(Qt::NoFocus);
+			view->setProperty("agentCardText", true);
+			view->setProperty("agentCardInset", aInset);
+			dress_answer(*view);
+			view->set_height_observer([this, view] { fit_card_text(*view); });
+			view->installEventFilter(this);
+			view->set_body(aBody, "agent-card-" + std::to_string(aEntry.Id) + "-" + aName.toStdString());
+			aEntry.Texts.emplace_back(view);
+			return view;
+		};
+		auto* const claim     = cardText(card, finding.Claim, QStringLiteral("agentFindingClaim"), 0);
+		auto        claimFont = font();
+		claimFont.setWeight(QFont::DemiBold);
+		claim->setFont(claimFont);
 		col->addWidget(claim);
 		if (!finding.Evidence.empty()) {
-			auto* const evidence = new QLabel{ QString::fromStdString(finding.Evidence), card };
-			evidence->setWordWrap(true);
-			evidence->setTextFormat(Qt::PlainText);
-			evidence->setForegroundRole(QPalette::PlaceholderText);
+			col->addSpacing(2);
+			auto* const evidence = cardText(card, finding.Evidence, QStringLiteral("agentFindingEvidence"), 0);
+			auto        quiet    = evidence->palette();
+			quiet.setColor(QPalette::Text, palette().color(QPalette::PlaceholderText));
+			quiet.setColor(QPalette::WindowText, palette().color(QPalette::PlaceholderText));
+			evidence->setPalette(quiet);
 			col->addWidget(evidence);
 		}
 		if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
-			auto* const comment = new QLabel{ QString::fromStdString(*finding.SuggestedComment), card };
-			comment->setObjectName(QStringLiteral("agentFindingComment"));
-			comment->setWordWrap(true);
-			comment->setTextFormat(Qt::PlainText);
-			comment->setTextInteractionFlags(Qt::TextSelectableByMouse);
-			auto italic = comment->font();
-			italic.setItalic(true);
-			comment->setFont(italic);
-			col->addWidget(comment);
+			col->addSpacing(6);
+			auto* const inset = new suggestion_inset{ card };
+			inset->setObjectName(QStringLiteral("agentFindingSuggestion"));
+			auto* const insetColumn = new QVBoxLayout{ inset };
+			insetColumn->setContentsMargins(12, 7, 10, 8);
+			insetColumn->setSpacing(3);
+			// A Conventional Comments label the agent led with is said once,
+			// quietly, beside the caption, and the comment reads from its
+			// subject; the draft still opens with it in the label control.
+			const auto& suggested = *finding.SuggestedComment;
+			const auto  read      = core::recognize_feedback_prefix(suggested);
+			auto        shown     = suggested;
+			auto        label     = QString{ };
+			if (read.Status == core::feedback_prefix_status::recognized && read.Header && read.Subject && read.Subject->Begin <= suggested.size() && read.Header->End <= suggested.size()) {
+				label = QString::fromStdString(suggested.substr(read.Header->Begin, read.Header->End - read.Header->Begin)).trimmed();
+				if (label.endsWith(QLatin1Char{ ':' })) {
+					label.chop(1);
+				}
+				shown = suggested.substr(read.Subject->Begin);
+			}
+			auto* const captionRow = new QHBoxLayout{ };
+			captionRow->setSpacing(8);
+			auto* const caption = new QLabel{ tr("Suggested comment"), inset };
+			caption->setObjectName(QStringLiteral("agentFindingSuggestionCaption"));
+			caption->setForegroundRole(QPalette::PlaceholderText);
+			auto small = caption->font();
+			small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
+			caption->setFont(small);
+			captionRow->addWidget(caption);
+			captionRow->addStretch(1);
+			if (!label.isEmpty()) {
+				auto* const labelled = new QLabel{ label, inset };
+				labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
+				labelled->setForegroundRole(QPalette::PlaceholderText);
+				labelled->setFont(small);
+				labelled->setToolTip(tr("The label the agent gave it. A draft opens with it chosen in the label control."));
+				captionRow->addWidget(labelled);
+			}
+			insetColumn->addLayout(captionRow);
+			auto* const comment = cardText(inset, shown, QStringLiteral("agentFindingComment"), 22);
+			insetColumn->addWidget(comment);
+			col->addWidget(inset);
 		}
+		col->addSpacing(2);
 		auto* const actions = new QHBoxLayout{ };
 		actions->setSpacing(6);
-		aEntry.Id         = NextCardId++;
 		const auto  index = aEntry.Id;
 		auto* const draft = new quiet_push_button{ tr("Add as draft comment"), card };
 		draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
@@ -2672,6 +2850,218 @@ namespace bpr::qt {
 		card->setProperty("agentFindingStateName", static_cast<int>(aEntry.State));
 		card->setEnabled(true);
 		card->update();
+		if (aEntry.Turn) {
+			refresh_draft_all(*aEntry.Turn);
+		}
+	}
+
+	void agent_tab_view::fit_card_text(markdown_body_view& aView) const
+	{
+		// Before the card is laid out its width is a guess: the viewport less
+		// the thread's, the reply's and the card's margins, and the inset's.
+		constexpr auto margins = 12 + 12 + reply_left_margin + reply_right_margin + 14 + 12;
+		const auto     guess   = (Viewport == nullptr ? 360 : Viewport->width()) - margins - aView.property("agentCardInset").toInt();
+		const auto     width   = aView.isVisible() && aView.width() > 16 ? aView.width() : guess;
+		aView.setFixedHeight(aView.heightForWidth(std::max(1, width)));
+	}
+
+	auto agent_tab_view::turn_of_widget(const QObject* const aWidget) const -> std::optional<std::size_t>
+	{
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			if (Turns[index].DraftAll == aWidget || Turns[index].DraftAllUndo == aWidget) {
+				return index;
+			}
+		}
+		return std::nullopt;
+	}
+
+	void agent_tab_view::set_draft_all_dispatch(agent_draft_all_dispatch aDispatch, agent_draft_all_undo aUndo)
+	{
+		DraftAllDispatch = std::move(aDispatch);
+		DraftAllUndo     = std::move(aUndo);
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			refresh_draft_all(index);
+		}
+	}
+
+	void agent_tab_view::set_finding_placeability(agent_finding_placeability aPlaceable)
+	{
+		FindingPlaceable = std::move(aPlaceable);
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			refresh_draft_all(index);
+		}
+	}
+
+	auto agent_tab_view::turn_draft_all_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].DraftAll.data() : nullptr; }
+
+	auto agent_tab_view::turn_draft_all_state(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].DraftAllState.data() : nullptr; }
+
+	auto agent_tab_view::turn_draft_all_undo(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].DraftAllUndo.data() : nullptr; }
+
+	namespace {
+		[[nodiscard]] auto draft_all_state_of(const agent_finding_card_state aState) noexcept -> core::draft_all_card_state
+		{
+			switch (aState) {
+			case agent_finding_card_state::working:   return core::draft_all_card_state::working;
+			case agent_finding_card_state::drafted:   return core::draft_all_card_state::drafted;
+			case agent_finding_card_state::noted:     return core::draft_all_card_state::noted;
+			case agent_finding_card_state::dismissed: return core::draft_all_card_state::dismissed;
+			case agent_finding_card_state::open:
+			case agent_finding_card_state::refused:   return core::draft_all_card_state::open;
+			}
+			return core::draft_all_card_state::open;
+		}
+	}
+
+	namespace {
+		/// "1 draft", "3 drafts": the count and the one or the other word.
+		[[nodiscard]] auto counted(const std::size_t aCount, const QString& aOne, const QString& aMany) -> QString
+		{
+			return QStringLiteral("%1 %2").arg(aCount).arg(aCount == 1U ? aOne : aMany);
+		}
+	}
+
+	auto agent_tab_view::draft_all_words(const core::draft_all_outcome& aOutcome) -> QString
+	{
+		auto reasons = QStringList{ };
+		if (aOutcome.AlreadyDrafted > 0U) {
+			reasons << tr("%1 already drafted").arg(aOutcome.AlreadyDrafted);
+		}
+		if (aOutcome.NotInDiff > 0U) {
+			reasons << tr("%1 no longer in the diff").arg(aOutcome.NotInDiff);
+		}
+		if (aOutcome.Dismissed > 0U) {
+			reasons << tr("%1 dismissed").arg(aOutcome.Dismissed);
+		}
+		if (aOutcome.Busy > 0U) {
+			reasons << tr("%1 still being drafted or saved").arg(aOutcome.Busy);
+		}
+		if (aOutcome.Refused > 0U) {
+			reasons << (aOutcome.Refused == 1U ? tr("1 could not be drafted; its card says why") : tr("%1 could not be drafted; their cards say why").arg(aOutcome.Refused));
+		}
+		const auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
+		if (reasons.isEmpty()) {
+			return drafted;
+		}
+		return drafted + QLatin1Char{ ' ' } + tr("Skipped %1: %2.").arg(aOutcome.skipped()).arg(reasons.join(QStringLiteral(", ")));
+	}
+
+	auto agent_tab_view::draft_all_undo_words(const std::size_t aRemoved, const std::size_t aKept) -> QString
+	{
+		const auto removed = aRemoved == 0U ? tr("Nothing removed.") : tr("Removed %1.").arg(counted(aRemoved, tr("draft"), tr("drafts")));
+		return aKept == 0U ? removed : removed + QLatin1Char{ ' ' } + tr("Kept %1 you changed since.").arg(counted(aKept, tr("draft"), tr("drafts")));
+	}
+
+	void agent_tab_view::refresh_draft_all(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || Turns[aTurn].DraftAll == nullptr) {
+			return;
+		}
+		auto& turn  = Turns[aTurn];
+		auto  cards = std::vector<core::draft_all_candidate>{ };
+		for (const auto& entry : CardEntries) {
+			if (entry.Turn == std::optional{ aTurn }) {
+				cards.push_back({ .State     = draft_all_state_of(entry.State),
+								  .Suggested = entry.Finding.SuggestedComment && !core::writing_blank(*entry.Finding.SuggestedComment),
+								  .Placeable = FindingPlaceable ? FindingPlaceable(entry.Finding) : entry.Anchored });
+			}
+		}
+		const auto offered = core::draft_all_offer(cards);
+		const auto several = core::draft_all_suggestions(cards) >= core::minimum_draft_all_suggestions;
+		turn.DraftAll->setText(tr("Draft all (%1)").arg(offered));
+		turn.DraftAll->setVisible(offered > 0U || turn.DraftAllBusy);
+		turn.DraftAll->setEnabled(offered > 0U && !turn.DraftAllBusy && DraftAllDispatch != nullptr);
+		turn.DraftAllRow->setVisible(DraftAllDispatch != nullptr && (several || !turn.DraftAllState->isHidden()));
+	}
+
+	void agent_tab_view::draft_all(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || !DraftAllDispatch || Turns[aTurn].DraftAllBusy || !panels_alive()) {
+			return;
+		}
+		auto indices = std::vector<std::size_t>{ };
+		auto cards   = std::vector<core::draft_all_candidate>{ };
+		for (std::size_t index = 0U; index < CardEntries.size(); ++index) {
+			const auto& entry = CardEntries[index];
+			if (entry.Turn == std::optional{ aTurn }) {
+				indices.push_back(index);
+				cards.push_back({ .State     = draft_all_state_of(entry.State),
+								  .Suggested = entry.Finding.SuggestedComment && !core::writing_blank(*entry.Finding.SuggestedComment),
+								  .Placeable = FindingPlaceable ? FindingPlaceable(entry.Finding) : entry.Anchored });
+			}
+		}
+		const auto plan    = core::plan_draft_all(cards);
+		auto       request = agent_draft_all_request{ .Batch = NextDraftAllBatch++, .Planned = core::start_draft_all(plan) };
+		auto&      turn    = Turns[aTurn];
+		turn.DraftAllCards.clear();
+		for (const auto position : plan.Draft) {
+			auto& entry = CardEntries[indices[position]];
+			request.Cards.push_back({ .Session = entry.Session, .Ordinal = entry.Ordinal, .Finding = entry.Finding, .Action = agent_finding_card_action::draft_comment });
+			turn.DraftAllCards.push_back(entry.Id);
+		}
+		if (request.Cards.empty()) {
+			return;
+		}
+		turn.DraftAllBusy  = true;
+		turn.DraftAllBatch = request.Batch;
+		turn.DraftAllUndo->hide();
+		turn.DraftAllState->setText(tr("Drafting %1…").arg(counted(request.Cards.size(), tr("suggested comment"), tr("suggested comments"))));
+		turn.DraftAllState->show();
+		for (const auto id : turn.DraftAllCards) {
+			if (const auto found = std::ranges::find(CardEntries, id, &card_entry::Id); found != CardEntries.end()) {
+				found->State = agent_finding_card_state::working;
+				show_card_state(*found);
+			}
+		}
+		refresh_draft_all(aTurn);
+		const auto batch = request.Batch;
+		DraftAllDispatch(std::move(request), [this, alive = QPointer<agent_tab_view>{ this }, batch](const core::draft_all_outcome& aOutcome, const bool aUndoable) {
+			if (alive == nullptr) {
+				return;
+			}
+			for (std::size_t index = 0U; index < Turns.size(); ++index) {
+				auto& kept = Turns[index];
+				if (kept.DraftAllBatch != batch || kept.DraftAll == nullptr) {
+					continue;
+				}
+				kept.DraftAllBusy = false;
+				kept.DraftAllState->setText(draft_all_words(aOutcome));
+				kept.DraftAllState->show();
+				kept.DraftAllUndo->setVisible(aUndoable && DraftAllUndo != nullptr);
+				refresh_draft_all(index);
+			}
+		});
+	}
+
+	void agent_tab_view::undo_draft_all(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || !DraftAllUndo || Turns[aTurn].DraftAllBusy || Turns[aTurn].DraftAllBatch == 0U) {
+			return;
+		}
+		auto& turn = Turns[aTurn];
+		turn.DraftAllUndo->hide();
+		turn.DraftAllBusy = true;
+		refresh_draft_all(aTurn);
+		const auto batch = turn.DraftAllBatch;
+		DraftAllUndo(batch, [this, alive = QPointer<agent_tab_view>{ this }, batch](const std::size_t aRemoved, const std::size_t aKept) {
+			if (alive == nullptr) {
+				return;
+			}
+			for (std::size_t index = 0U; index < Turns.size(); ++index) {
+				auto& kept = Turns[index];
+				if (kept.DraftAllBatch != batch || kept.DraftAll == nullptr) {
+					continue;
+				}
+				kept.DraftAllBusy  = false;
+				kept.DraftAllBatch = 0U;
+				// The host opened each card whose draft it removed, through
+				// present_finding_card_state; a kept draft's card stays drafted.
+				kept.DraftAllCards.clear();
+				kept.DraftAllState->setText(draft_all_undo_words(aRemoved, aKept));
+				kept.DraftAllState->show();
+				refresh_draft_all(index);
+			}
+		});
 	}
 
 	void agent_tab_view::act_on_card(const std::uint64_t aCard, const agent_finding_card_action aAction)
@@ -3092,6 +3482,13 @@ namespace bpr::qt {
 		// picker's words, the scope's, the picker shown or hidden).
 		if ((aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::LayoutRequest) && aWatched == Field) {
 			fit_run_settings();
+			return false;
+		}
+		// [[BPR-2059]]. A card's Markdown text takes the height its new width needs.
+		if (aEvent->type() == QEvent::Resize && aWatched->property("agentCardText").toBool()) {
+			if (auto* const view = dynamic_cast<markdown_body_view*>(aWatched); view != nullptr && static_cast<QResizeEvent*>(aEvent)->size().width() != static_cast<QResizeEvent*>(aEvent)->oldSize().width()) {
+				fit_card_text(*view);
+			}
 			return false;
 		}
 		if (aEvent->type() == QEvent::Resize && aWatched == Viewport) {

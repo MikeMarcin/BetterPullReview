@@ -680,6 +680,16 @@ namespace bpr::app {
 		// workshop press and a writing request are not review requests.
 		if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
 			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
+			// [[BPR-2059]]. How the reviewer wants suggested comments
+			// written, read now from the profile's saved prompts.
+			if (Profile && Profile->WorkbenchPreferences) {
+				if (const auto& preferences = Profile->WorkbenchPreferences->accepted(); preferences) {
+					brief.CommentFormat = application::suggested_comment_format(preferences->WritingHooks);
+				}
+			}
+			if (!brief.CommentFormat) {
+				brief.CommentFormat = application::suggested_comment_format(core::writing_hook_settings{ });
+			}
 
 			observation.Brief = core::bound_review_brief(std::move(brief));
 		}

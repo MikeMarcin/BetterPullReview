@@ -335,6 +335,9 @@ namespace bpr::core {
 		std::vector<brief_thread>         Threads;
 		brief_workspace                   Workspace = brief_workspace::private_copy;
 		std::optional<brief_review_skill> Skill;
+		/// [[BPR-2059]]. How the agent writes the comments it suggests: the
+		/// profile's suggested-comment prompt or its shipped default.
+		std::optional<supplement_feedback_guidance> CommentFormat;
 		/// The earlier turns, oldest first.
 		std::vector<brief_turn> Conversation;
 
@@ -359,6 +362,8 @@ namespace bpr::core {
 		std::size_t                       ThreadsOmitted = 0U;
 		brief_workspace                   Workspace      = brief_workspace::private_copy;
 		std::optional<brief_review_skill> Skill;
+		/// [[BPR-2059]]. The suggested-comment format, as the input gave it.
+		std::optional<supplement_feedback_guidance> CommentFormat;
 		/// The earlier turns kept, oldest first, and how many older ones
 		/// were left out.
 		std::vector<brief_turn> Conversation;

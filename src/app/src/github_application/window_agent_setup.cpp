@@ -184,6 +184,7 @@ namespace bpr::app {
 				tab->present_finding_card_state(aRequest.Session, aRequest.Ordinal, aState, aWhy, aNote);
 			}
 		};
+		CardRefusalGone = false;
 		if (Closing || tab == nullptr) {
 			return;
 		}
@@ -205,6 +206,7 @@ namespace bpr::app {
 		// then the draft or note is made at its line.
 		if (!onScreen) {
 			if (!Window->open_file_in_review(QString::fromStdString(finding.Path))) {
+				CardRefusalGone = true;
 				state(qt::agent_finding_card_state::refused, QStringLiteral("%1 is not in this pull request at its current head, so there is no line to put it on.").arg(QString::fromStdString(finding.Path)));
 				return;
 			}
@@ -217,6 +219,7 @@ namespace bpr::app {
 		const auto& shownAlignment = surface->current_result()->Alignment;
 		const auto  lineCount      = side == core::diff_side::left ? shownAlignment.LeftLineCount : shownAlignment.RightLineCount;
 		if (finding.Lines.Begin >= lineCount) {
+			CardRefusalGone = true;
 			state(qt::agent_finding_card_state::refused,
 				  QStringLiteral("Line %1 is not in %2 at the current head, so nothing was made.").arg(finding.Lines.Begin + 1U).arg(QString::fromStdString(finding.Path)));
 			return;
@@ -246,8 +249,162 @@ namespace bpr::app {
 		PendingNotePromotion = pending_note_promotion{ .Text = text, .At = at, .Refused = std::move(refused), .Done = std::move(done) };
 		if (!surface->select_conversation_line(at.Side, at.Line)) {
 			PendingNotePromotion.reset();
+			CardRefusalGone = true;
 			state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: line %1 is not in the comparison on screen.").arg(at.Line + 1U));
 		}
+	}
+
+	/// [[BPR-2058]]. Whether a finding's lines can take a draft now: its
+	/// file is in the pull request at the current head and, when that file is
+	/// the one on screen, its first line is in it. A file not on screen is
+	/// opened when its turn comes, and a line found gone then is counted so.
+	auto github_application::implementation::agent_finding_placeable(const core::agent_finding& aFinding) const -> bool
+	{
+		if (Closing || Window == nullptr || WindowRead == nullptr || !WindowRead->accepted_snapshot()) {
+			return false;
+		}
+		const auto& files = WindowRead->accepted_snapshot()->Files;
+		if (std::ranges::none_of(files, [&aFinding](const auto& aFile) { return aFile.Path == aFinding.Path; })) {
+			return false;
+		}
+		const auto* const surface  = Window->comparison_surface();
+		const auto        onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == aFinding.Path && surface != nullptr && surface->current_result() != nullptr
+			&& surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+		if (!onScreen) {
+			return true;
+		}
+		const auto  side      = aFinding.Anchor.Line ? aFinding.Anchor.Line->Side : core::diff_side::right;
+		const auto& alignment = surface->current_result()->Alignment;
+		return aFinding.Lines.Begin < (side == core::diff_side::left ? alignment.LeftLineCount : alignment.RightLineCount);
+	}
+
+	/// [[BPR-2058]], owner 2026-11-10: "Can we get a draft all suggested
+	/// comments from an agent response with several." Each card is drafted
+	/// in turn through `act_on_agent_card`, exactly as its own Add as draft
+	/// comment does, so a batch makes the drafts a reviewer pressing each
+	/// card would. Nothing is published.
+	void github_application::implementation::draft_all_agent_cards(qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone)
+	{
+		if (Closing || Window == nullptr || DraftAllRun) {
+			if (aDone) {
+				auto outcome = aRequest.Planned;
+				for (std::size_t index = 0U; index < aRequest.Cards.size(); ++index) {
+					outcome = core::settle_draft_all(outcome, core::draft_all_result::refused);
+				}
+				aDone(outcome, false);
+			}
+			return;
+		}
+		DraftAllRun = draft_all_run{ .Batch = aRequest.Batch, .Queue = std::move(aRequest.Cards), .Outcome = aRequest.Planned, .Done = std::move(aDone) };
+		next_draft_all_card();
+	}
+
+	void github_application::implementation::next_draft_all_card()
+	{
+		if (!DraftAllRun) {
+			return;
+		}
+		auto* const tab = Window != nullptr ? Window->agent_tab() : nullptr;
+		if (Closing || tab == nullptr || DraftAllRun->Next >= DraftAllRun->Queue.size()) {
+			auto run = std::move(*DraftAllRun);
+			DraftAllRun.reset();
+			for (; run.Next < run.Queue.size(); ++run.Next) {
+				run.Outcome = core::settle_draft_all(run.Outcome, core::draft_all_result::refused);
+			}
+			const auto undoable = !run.Made.empty();
+			if (undoable) {
+				DraftAllBatches[run.Batch] = std::move(run.Made);
+			}
+			if (run.Done) {
+				run.Done(run.Outcome, undoable);
+			}
+			return;
+		}
+		const auto serial   = ++DraftAllSerial;
+		DraftAllRun->Serial = serial;
+		const auto request  = DraftAllRun->Queue[DraftAllRun->Next];
+		// A card whose draft never settles (its line's editor never opened)
+		// is given up after a while, so the batch still ends and says so.
+		QTimer::singleShot(20'000, Window.get(), [this, serial] { settle_draft_all_card(serial, core::draft_all_result::refused); });
+		act_on_agent_card(request, [this, tab, serial, session = request.Session, ordinal = request.Ordinal](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
+			if (Closing) {
+				return;
+			}
+			const auto gone = CardRefusalGone;
+			tab->present_finding_card_state(session, ordinal, aState, aWhy, aNote);
+			if (aState == qt::agent_finding_card_state::drafted) {
+				if (DraftAllRun && DraftAllRun->Serial == serial && ReviewDraft) {
+					DraftAllRun->Made.push_back({ .Session = session, .Ordinal = ordinal, .Draft = ReviewDraft->Id, .Revision = ReviewDraftRevision });
+				}
+				settle_draft_all_card(serial, core::draft_all_result::drafted);
+			} else if (aState == qt::agent_finding_card_state::refused) {
+				settle_draft_all_card(serial, gone ? core::draft_all_result::not_in_diff : core::draft_all_result::refused);
+			}
+		});
+	}
+
+	void github_application::implementation::settle_draft_all_card(const std::uint64_t aSerial, const core::draft_all_result aResult)
+	{
+		if (!DraftAllRun || DraftAllRun->Serial != aSerial) {
+			return;
+		}
+		DraftAllRun->Serial  = 0U;
+		DraftAllRun->Outcome = core::settle_draft_all(DraftAllRun->Outcome, aResult);
+		++DraftAllRun->Next;
+		// The next card starts once this one's draft has settled its editor.
+		QTimer::singleShot(0, Window.get(), [this] { next_draft_all_card(); });
+	}
+
+	/// [[BPR-2058]]. One Undo removes the batch: each draft it made that is
+	/// still at the revision it was made at, and still a draft, is discarded
+	/// in one write and its card is open again. A draft edited since is kept.
+	void github_application::implementation::undo_draft_all(const std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone)
+	{
+		const auto found = DraftAllBatches.find(aBatch);
+		if (Closing || !SharedDrafts || found == DraftAllBatches.end()) {
+			if (aDone) {
+				aDone(0U, 0U);
+			}
+			return;
+		}
+		auto made = std::move(found->second);
+		DraftAllBatches.erase(found);
+		auto commands = std::vector<core::revisioned_review_draft_command>{ };
+		auto removed  = std::vector<draft_all_made>{ };
+		auto kept     = std::size_t{ 0U };
+		for (const auto& draft : made) {
+			const auto read = SharedDrafts->read(DraftConsumer, draft.Draft);
+			if (!read.Accepted || read.Accepted->Revision != draft.Revision || read.Accepted->Draft.State != core::review_draft_state::drafting) {
+				++kept;
+				continue;
+			}
+			auto command             = core::revisioned_review_draft_command{ };
+			command.Command          = core::review_draft_command{ .Id = draft.Draft, .Kind = core::review_draft_command_kind::discard };
+			command.ExpectedRevision = draft.Revision;
+			command.Scope            = read.Accepted->Scope;
+			commands.push_back(std::move(command));
+			removed.push_back(draft);
+		}
+		if (commands.empty()) {
+			if (aDone) {
+				aDone(0U, kept);
+			}
+			return;
+		}
+		change_review_drafts(std::move(commands), [this, gone = std::move(removed), kept, done = std::move(aDone)](const bool aChanged) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (aChanged) {
+				for (const auto& draft : gone) {
+					Window->agent_tab()->present_finding_card_state(draft.Session, draft.Ordinal, qt::agent_finding_card_state::open);
+				}
+				leave_deleted_draft();
+			}
+			if (done) {
+				done(aChanged ? gone.size() : 0U, aChanged ? kept : kept + gone.size());
+			}
+		});
 	}
 
 	/// [[BPR-1753]], owner amendment 2026-10-23. What the picker
@@ -1002,6 +1159,11 @@ namespace bpr::app {
 		// conversation about the open pull request.
 		QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
 		tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
+		// [[BPR-2058]]. Draft all and its Undo, and whether a suggestion's
+		// lines are still in the pull request.
+		tab->set_draft_all_dispatch([this](qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone) { draft_all_agent_cards(std::move(aRequest), std::move(aDone)); },
+									[this](const std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone) { undo_draft_all(aBatch, std::move(aDone)); });
+		tab->set_finding_placeability([this](const core::agent_finding& aFinding) { return agent_finding_placeable(aFinding); });
 		tab->set_answer_note_dispatch([this](const QString& aText, qt::agent_answer_note_done aDone) { save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone)); });
 		// [[BPR-1773]]. Ask agent on a thread attaches it; the chip's
 		// close removes it. Owner look 2026-10-27: every answer's Draft

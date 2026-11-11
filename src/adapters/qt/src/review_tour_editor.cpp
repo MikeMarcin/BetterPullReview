@@ -2616,7 +2616,8 @@ namespace bpr::qt {
 		// [[BPR-2051]] The Enhance prompts are instructions, not tour fields.
 		case core::writing_hook::enhance_stop:
 		case core::writing_hook::enhance_comment:
-		case core::writing_hook::enhance_note:    return false;
+		case core::writing_hook::enhance_note:
+		case core::writing_hook::suggested_comment: return false; // [[BPR-2059]] Not a tour field either.
 		}
 		return false;
 	}

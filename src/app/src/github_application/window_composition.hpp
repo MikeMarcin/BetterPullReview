@@ -650,6 +650,40 @@ namespace bpr::app {
 		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone);
 
 		void act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport = { });
+		/// [[BPR-2058]]. Set by `act_on_agent_card` just before it refuses
+		/// because the finding's file or line is not in the pull request at
+		/// the current head; Draft all reads it with that refusal.
+		bool CardRefusalGone = false;
+		/// [[BPR-2058]]. Draft all: one reply's suggested comments drafted
+		/// one after another through the card's own path, then reported as
+		/// one outcome; the drafts each batch made, for its one Undo.
+		struct draft_all_made
+		{
+			std::uint64_t         Session = 0U;
+			std::size_t           Ordinal = 0U;
+			core::review_draft_id Draft;
+			std::uint64_t         Revision = 0U;
+		};
+		struct draft_all_run
+		{
+			std::uint64_t                               Batch = 0U;
+			std::vector<qt::agent_finding_card_request> Queue;
+			std::size_t                                 Next = 0U;
+			core::draft_all_outcome                     Outcome;
+			std::vector<draft_all_made>                 Made;
+			qt::agent_draft_all_done                    Done;
+			/// Names the card being drafted, so a late answer for one the
+			/// watchdog gave up on is not counted twice.
+			std::uint64_t Serial = 0U;
+		};
+		std::optional<draft_all_run>                         DraftAllRun;
+		std::map<std::uint64_t, std::vector<draft_all_made>> DraftAllBatches;
+		std::uint64_t                                        DraftAllSerial = 0U;
+		void                                                 draft_all_agent_cards(qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone);
+		void                                                 next_draft_all_card();
+		void                                                 settle_draft_all_card(std::uint64_t aSerial, core::draft_all_result aResult);
+		void                                                 undo_draft_all(std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone);
+		[[nodiscard]] auto                                   agent_finding_placeable(const core::agent_finding& aFinding) const -> bool;
 
 		[[nodiscard]] auto offered_agent_profiles() const -> std::vector<core::agent_profile>;
 

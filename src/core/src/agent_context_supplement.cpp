@@ -359,6 +359,15 @@ namespace bpr::core {
 		{
 			return enumerator_at_most(aSkill.Source, review_skill_source::profile_copy) && inspect_review_skill(aSkill.Text).has_value();
 		}
+
+		/// [[BPR-2059]]. The suggested-comment format a brief carries: text
+		/// within the prompt's own ceiling and a named version.
+		[[nodiscard]] auto valid_comment_format(const supplement_feedback_guidance& aFormat) -> bool
+		{
+			return !aFormat.Text.empty() && aFormat.Text.size() <= maximum_writing_instruction_bytes && valid_writing_utf8(aFormat.Text) && !aFormat.Version.empty()
+				&& aFormat.Version.size() <= maximum_feedback_guidance_version_bytes && valid_writing_utf8(aFormat.Version)
+				&& enumerator_at_most(aFormat.Source, feedback_guidance_source::profile_override);
+		}
 	} // namespace
 
 	auto stable_name(const brief_file_status aStatus) noexcept -> std::string_view
@@ -442,7 +451,8 @@ namespace bpr::core {
 
 	auto bound_review_brief(review_brief_input aInput) -> std::optional<supplement_brief>
 	{
-		if (!enumerator_at_most(aInput.Workspace, brief_workspace::private_snapshot) || (aInput.Skill && !valid_skill(*aInput.Skill))) {
+		if (!enumerator_at_most(aInput.Workspace, brief_workspace::private_snapshot) || (aInput.Skill && !valid_skill(*aInput.Skill))
+			|| (aInput.CommentFormat && !valid_comment_format(*aInput.CommentFormat))) {
 			return std::nullopt;
 		}
 		auto brief = supplement_brief{
@@ -451,6 +461,7 @@ namespace bpr::core {
 			.Workspace  = aInput.Workspace,
 			.Skill      = std::move(aInput.Skill),
 		};
+		brief.CommentFormat = std::move(aInput.CommentFormat);
 		if (aInput.Description.size() <= maximum_brief_description_bytes) {
 			brief.Description = std::move(aInput.Description);
 		} else {
@@ -508,7 +519,8 @@ namespace bpr::core {
 	{
 		if (aBrief.Title.size() > maximum_brief_title_bytes || aBrief.Description.size() > maximum_brief_description_bytes
 			|| aBrief.BaseBranch.size() > maximum_brief_branch_bytes || aBrief.Files.size() > maximum_brief_files
-			|| !enumerator_at_most(aBrief.Workspace, brief_workspace::private_snapshot) || (aBrief.Skill && !valid_skill(*aBrief.Skill))) {
+			|| !enumerator_at_most(aBrief.Workspace, brief_workspace::private_snapshot) || (aBrief.Skill && !valid_skill(*aBrief.Skill))
+			|| (aBrief.CommentFormat && !valid_comment_format(*aBrief.CommentFormat))) {
 			return false;
 		}
 		if (std::ranges::any_of(aBrief.Files, [](const brief_changed_file& aFile) {
