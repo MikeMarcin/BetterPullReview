@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2014"
 title: "Accept a tour stop the way a file is accepted"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0106"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0026-stop-acceptance.md"}
 depends_on: ["BPR-2013"]
-parked_on: "human-review"
-acceptance: [{"criterion":"RFC-BPR-0106 AC02","outcome":"pass","revision":"93b1045a8e1248bbd382d7b6324e8522859d858b","evidence":{"kind":"command","detail":"Each state-table row yields its state, reason and ring","command":"ctest --preset dev -R 'core_tour_stop_acceptance|qt_tour_stop_acceptance_card'"}},{"criterion":"RFC-BPR-0106 AC03","outcome":"pass","revision":"93b1045a8e1248bbd382d7b6324e8522859d858b","evidence":{"kind":"command","detail":"Accept, Save and the stop's own proposal accept; opening, the ring, Accept all, a hidden Accept and a relayed Ready do not","command":"ctest --preset dev -R 'core_tour_stop_acceptance|qt_tour_stop_acceptance_card|qt_tour_chat_in_tab|application_review_tour_writing'"}},{"criterion":"RFC-BPR-0106 AC04","outcome":"pass","revision":"93b1045a8e1248bbd382d7b6324e8522859d858b","evidence":{"kind":"command","detail":"Real comparisons of a push: exactly the stop whose lines changed and the stop whose linked lines changed turn yellow with their reasons; composed course shows only 'not compared yet' (fixture has no readable second head)","command":"ctest --preset dev -R 'core_diff_semantics|application_review_tour_publication_reconciliation'"}},{"criterion":"RFC-BPR-0106 AC05","outcome":"pass","revision":"93b1045a8e1248bbd382d7b6324e8522859d858b","evidence":{"kind":"command","detail":"Publication refused while any stop is yellow, allowed once all are accepted; publication and CLI courses unchanged in writes","command":"ctest --preset dev -R 'core_tour_stop_acceptance|application_review_tour_publication_|application_review_tour_cli_'"}},{"criterion":"RFC-BPR-0106 AC08","outcome":"pending","revision":"93b1045a8e1248bbd382d7b6324e8522859d858b","evidence":{"kind":"freeform","detail":"Owner look filed: attended session 679d26abbfa93b3357729061432131ba (five candidates, with BPR-2013's stop frames), frozen root /Users/jaeger/tour-stops-v001.5rt9c5gn (app c5e2a178c2ea...)"}},{"criterion":"BPR-2014 critical review","outcome":"pending","revision":"93b1045a8e1248bbd382d7b6324e8522859d858b","evidence":{"kind":"freeform","detail":"The pack asks for critical review of the publication rule; no separately authorized reviewer this round; not self-certified"}}]
+acceptance: [{"criterion":"RFC-BPR-0106 AC08","outcome":"pass","revision":"3285ec887627035f0d1ac76b1d6f3521ea158f0e","evidence":{"kind":"observation","detail":"Owner looks: arrival b331f132, ring states 58e14b67, Accept 7efc74c5 (session 679d26ab); stop at rest v2 54a1ceca (session 5ea0ce22); stop editing v3 5465deb7 and tour panel layout 950eef0f (session 7c9206759d935f663d6a13ce0e008afc, frozen from 3285ec887)"}},{"criterion":"BPR-2014 critical review","outcome":"pass","revision":"3285ec887627035f0d1ac76b1d6f3521ea158f0e","evidence":{"kind":"artifact","detail":"Independent critical review of 93b1045a8 (pass-with-findings, all fixed test first) and independent re-review of d02f13efb/fb94545ec (pass-with-findings, nothing blocking, all fixed and pinned); docs/verification/RFC-BPR-0106.md 'Critical review' and 'Re-review of the fixes'"}}]
 ---
 
 # Accept a tour stop the way a file is accepted
@@ -160,3 +159,18 @@ toggle and lines link stay put; no routine status text),
 `qt_workbench_window_scale_*`, `application_review_tour_composition_public_path`.
 
 Filed, not waited on (the URL stays in the session state's `serve.log`): session `7c9206759d935f663d6a13ce0e008afc`, state `/Users/jaeger/.attended-review-state/layout-round-v001-2026-11-11/state`, cursor 12, host PID 73758 (its `tailscale serve` child 73768), frozen root `/Users/jaeger/layout-round-v001.5q22yahv` from `3285ec887` (app SHA-256 `97d0861e19dc…`, launcher check reached `ATTENDED_TOUR_SHOWN`). Candidates: `BPR-2014-stop-editing-v3` (the `tour_stop_acceptance_card --look`) and `tour-panel-layout-v1` (the frozen app). RFC-BPR-0106 AC08 stays pending on these looks; the critical review is still owed. The card stays parked on `human-review`.
+
+## Owner hand-back, session `7c920675…` (2026-11-11)
+
+Read from `session.json` (handed back at sequence 27); host 73758/73768
+stopped, root `layout-round-v001.5q22yahv` removed.
+
+- `BPR-2014-stop-editing-v3`: Accept (`5465deb7`).
+- `tour-panel-layout-v1`: Accept (`950eef0f`).
+
+RFC-BPR-0106 AC08 is met: arrival, ring states and Accept (`679d26ab…`),
+the stop at rest (`5ea0ce22…`) and the stop being edited (here). The critical
+review this card asks for was done in two rounds, each by an independent
+reviewer, with every finding fixed test first
+([RFC-BPR-0106 verification](../../verification/RFC-BPR-0106.md#critical-review)).
+Nothing else is open. The card is Done.
