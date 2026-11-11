@@ -156,3 +156,7 @@ read "Refreshing the pull request." after the tour's publication, was dropped
 without a word; the course opened again and it took. The Agent tab never
 reported idle before the question (the course waited 120 s, then sent; the
 question was answered).
+
+## Closeout (2026-11-11)
+
+[[BPR-2012]] judged every criterion against the evidence above; all pass. AC06 was exercised from Home; a notification's open was not. BPR-2088 and BPR-2090 (Backlog) are later observations outside the criteria. Evidence reused unchanged; no product change in the closeout round. Not run: Windows and Linux, the whole dev suite. RFC-BPR-0105 is Auto-Verified.
