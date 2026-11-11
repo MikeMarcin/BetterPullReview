@@ -182,6 +182,41 @@ def main() -> int:
                                "--fixture", "conventional-comments-v1"], capture_output=True, text=True, check=False, timeout=60)
     expect(unopened.returncode == 1 and "FREEZE_FAILED:a fixture look needs" in unopened.stdout,
            f"a fixture look still needs what it opens: {unopened.stdout!r}")
+    # bpr-live-v002 was frozen from a commit the lane had left behind. A freeze
+    # takes only this checkout's clean HEAD unless it says why, before it
+    # exports anything, and names the commit it froze.
+    script = str(repository / "scripts/freeze_attended_build.py")
+    head = freeze.git("rev-parse", "HEAD")
+    parent = freeze.git("rev-parse", "HEAD~1")
+    for live_flag in ([], ["--live"]):
+        look = [] if live_flag else ["--fixture", "conventional-comments-v1", "--open-file", "README.md"]
+        stale = subprocess.run([sys.executable, script, "freeze", *live_flag, "--name", "x", *look, "--commit", "HEAD~1"],
+                               capture_output=True, text=True, check=False, timeout=60)
+        expect(stale.returncode == 1 and f"FREEZE_FAILED:HEAD~1 is {parent[:12]}, not this checkout's HEAD {head[:12]}" in stale.stdout
+               and "--not-head-because" in stale.stdout and "FREEZING:" not in stale.stdout,
+               f"a freeze of a commit that is not HEAD is refused before any export ({live_flag}): {stale.stdout!r}")
+        blank = subprocess.run([sys.executable, script, "freeze", *live_flag, "--name", "x", *look, "--commit", "HEAD~1",
+                                "--not-head-because", "  "], capture_output=True, text=True, check=False, timeout=60)
+        expect(blank.returncode == 1 and "FREEZE_FAILED:--not-head-because needs the reason in words" in blank.stdout,
+               f"an empty reason is no reason ({live_flag}): {blank.stdout!r}")
+    commit, refusal = freeze.frozen_commit("HEAD~1", "the owner asked for the build before the redesign")
+    expect(commit == parent and refusal == "", f"a named reason lets an older commit freeze: {commit!r} {refusal!r}")
+    record = freeze.provenance(parent, "the owner asked for the build before the redesign")
+    line = freeze.session_line(record)
+    expect(record["commit"] == parent and record["head_at_freeze"] == head and record["subject"]
+           and record["not_head_because"] == "the owner asked for the build before the redesign",
+           f"the root records the commit, its subject, the HEAD at freeze and the reason: {record!r}")
+    expect(line.startswith(f"Frozen from {parent[:12]} ") and "NOT HEAD of" in line and "before the redesign" in line,
+           f"the session line says loudly that it is not HEAD: {line!r}")
+    at_head = freeze.session_line(freeze.provenance(head, None))
+    expect(at_head.startswith(f"Frozen from {head[:12]} ") and at_head.endswith("at freeze.") and "NOT HEAD" not in at_head,
+           f"a HEAD freeze's session line names its commit and branch: {at_head!r}")
+    rendered = freeze.render_launcher(root=Path("/r"), title="t", commit=at_head, fixture="f", open_file="a", required=[], next_push=False)
+    expect(f"FROZEN = {at_head!r}" in rendered and rendered.count("print(FROZEN)") == 2,
+           "the launcher prints the frozen commit when it checks and when it opens")
+    rendered = freeze.render_live_launcher(root=Path("/r"), title="t", commit=at_head)
+    expect(f"FROZEN = {at_head!r}" in rendered and rendered.count("print(FROZEN)") == 2,
+           "the live launcher prints the frozen commit when it checks and when it opens")
     expect(freeze.LIVE_BUILD == "build/app-release" and "app-release-tests" not in freeze.LIVE_EXECUTABLE,
            "a live freeze builds the tests-off app-release tree")
     with contained_temporary_directory() as scratch:

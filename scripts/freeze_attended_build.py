@@ -42,15 +42,24 @@ folder unwritable, and every later start refused (`STARTUP_FAILED`). The
 owner's launch opens it on the root's home and leaves the window to them.
 
 Usage:
-    freeze_attended_build.py freeze --live --name NAME [--commit REV] [--title TEXT] [--parent DIR]
+    freeze_attended_build.py freeze --live --name NAME [--commit REV --not-head-because REASON] [--title TEXT] [--parent DIR]
         [--argument ARG]... [--target TARGET]... [--wait SECONDS]
     freeze_attended_build.py freeze --name NAME --fixture FIXTURE (--open-file PATH | --open-pull-request)
-        [--commit REV] [--title TEXT] [--next-push] [--require RELPATH]... [--parent DIR]
+        [--commit REV --not-head-because REASON] [--title TEXT] [--next-push] [--require RELPATH]... [--parent DIR]
         [--argument ARG]... [--target TARGET]... [--generate COMMAND]...
         [--ready LINE] [--wait SECONDS]
     freeze_attended_build.py remove ROOT
 
-`freeze` prints `FROZEN_ROOT:<root>` and `LAUNCH:python3 <root>/launch.py`, or
+A freeze takes this checkout's own clean HEAD: bpr-live-v002 was frozen from
+a commit the lane had already left, and the owner judged a stop card that no
+longer existed. Any other commit, or a tree with uncommitted tracked changes,
+is refused before anything is exported unless `--not-head-because` says why.
+The root's marker records the commit, its subject and date, the branch and
+the HEAD at freeze; the launcher prints that line whenever it checks or
+opens; and the freeze prints it as `SESSION_LINE:`, for the attended
+session's content to carry verbatim.
+
+`freeze` prints `FROZEN_COMMIT:<sha>`, `SESSION_LINE:<text>`, `FROZEN_ROOT:<root>` and `LAUNCH:python3 <root>/launch.py`, or
 `FREEZE_FAILED:<reason>` and exits 1 (the root is kept for diagnosis).
 `remove` deletes only a root this script froze.
 """
@@ -82,8 +91,8 @@ TESTS_ONLY_OPTION = b"github-fixture"
 LAUNCHER = '''#!/usr/bin/env python3
 """Open the frozen build for the owner's look: {title}.
 
-Frozen from {commit} by scripts/freeze_attended_build.py. Starts the
-fixture pull request {fixture} signed in, {opens},
+{commit}
+Made by scripts/freeze_attended_build.py. Starts the fixture pull request {fixture} signed in, {opens},
 and leaves the window to you. Checks the build and the fixture tree first and
 reports within seconds if the application exits.
 {next_push_doc}
@@ -111,6 +120,7 @@ NEXT_PUSH = {next_push!r}
 EXTRA = [argument.replace("{{build}}", str(SOURCE / {build!r})) for argument in {extra!r}]
 READY = {ready!r}
 WAIT_SECONDS = {wait}
+FROZEN = {commit!r}
 DATA = ROOT / "review-data"
 PUSHED = DATA / "pushed"
 LOG = ROOT / "launch.log"
@@ -179,6 +189,7 @@ def stop(process):
 
 def check(native):
     """Opens the build as the launcher does and closes it once the file shows."""
+    print(FROZEN)
     if not preflight():
         return 1
     scratch = Path(tempfile.mkdtemp(prefix="check.", dir=str(ROOT)))
@@ -231,6 +242,7 @@ def main():
             print("This review data has already seen the push. Run with --next-push to open it again,")
             print("or with --fresh to start over on the first head.")
             return 1
+    print(FROZEN)
     process = start(arguments(data, phase), LOG, offscreen=False)
     line, head, message = await_shown(process, LOG)
     if line is None:
@@ -247,8 +259,8 @@ if __name__ == "__main__":
 LIVE_LAUNCHER = '''#!/usr/bin/env python3
 """Open the frozen live build: {title}.
 
-Frozen from {commit} by scripts/freeze_attended_build.py with tests off, so it
-reaches live GitHub. It keeps its own profile in {root}/home: sign in there
+{commit}
+Made by scripts/freeze_attended_build.py with tests off, so it reaches live GitHub. It keeps its own profile in {root}/home: sign in there
 the first time (the gh account you are signed in with is offered); nothing of
 your own BetterPullReview profile is read or changed. Checks the build first
 and reports within seconds if the application exits.
@@ -276,6 +288,7 @@ TESTS_ONLY_OPTION = {tests_only!r}
 EXTRA = [argument.replace("{{build}}", str(SOURCE / {build!r})) for argument in {extra!r}]
 SELF_TEST_LINES = {self_test_lines!r}
 WAIT_SECONDS = {wait}
+FROZEN = {commit!r}
 HOME = ROOT / "home"
 LOG = ROOT / "launch.log"
 DATA = Path("Library/Application Support/BetterPullReview")
@@ -347,6 +360,7 @@ def await_up(process, home, log_path):
 
 
 def check():
+    print(FROZEN)
     if not preflight():
         return 1
     scratch = Path(tempfile.mkdtemp(prefix="check.", dir=str(ROOT)))
@@ -396,6 +410,7 @@ def main():
         return check()
     if not preflight():
         return 1
+    print(FROZEN)
     process = start([str(EXECUTABLE), *EXTRA], HOME, LOG, offscreen=False)
     message = await_up(process, HOME, LOG)
     if message:
@@ -466,6 +481,55 @@ def fail(reason: str) -> int:
     return 1
 
 
+def frozen_commit(requested: str, because: str | None) -> tuple[str | None, str]:
+    """The commit a freeze may export, or None and why not.
+
+    bpr-live-v002 was frozen from `abba53926` after the lane had moved on to the
+    tour-stops redesign, so the owner judged a stop card that no longer
+    existed. A freeze exports the checkout's own HEAD, from a clean tree, or
+    says in `--not-head-because` why it does not.
+    """
+    commit = git("rev-parse", "--verify", f"{requested}^{{commit}}")
+    head = git("rev-parse", "--verify", "HEAD^{commit}")
+    if because is not None and not because.strip():
+        return None, "--not-head-because needs the reason in words"
+    if because:
+        return commit, ""
+    if commit != head:
+        return None, (f"{requested} is {commit[:12]}, not this checkout's HEAD {head[:12]} "
+                      f"({git('log', '-1', '--format=%s', head)}); freeze HEAD, or name why with --not-head-because")
+    changed = git("status", "--porcelain", "--untracked-files=no")
+    if changed:
+        return None, ("this checkout has uncommitted changes to tracked files, which the export of HEAD would leave out; "
+                      "commit them, or name why with --not-head-because")
+    return commit, ""
+
+
+def provenance(commit: str, because: str | None) -> dict[str, str]:
+    """What the session content says about the build: the commit, its subject
+    and date, the branch it was HEAD of, and any reason it was not."""
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    record = {
+        "commit": commit,
+        "subject": git("log", "-1", "--format=%s", commit),
+        "committed": git("log", "-1", "--format=%cI", commit),
+        "branch": branch,
+        "head_at_freeze": git("rev-parse", "HEAD"),
+    }
+    if because:
+        record["not_head_because"] = because
+    return record
+
+
+def session_line(record: dict[str, str]) -> str:
+    """One line for the attended session's content, naming the frozen commit."""
+    line = f"Frozen from {record['commit'][:12]} \u201c{record['subject']}\u201d ({record['committed']})"
+    if record["commit"] == record["head_at_freeze"]:
+        return f"{line}, HEAD of {record['branch']} at freeze."
+    return (f"{line}, NOT HEAD of {record['branch']} (HEAD was {record['head_at_freeze'][:12]}): "
+            f"{record.get('not_head_because', '')}")
+
+
 def fixture_paths(source: Path, fixture: str) -> list[str]:
     """The fixture's own tree, looked up where the build serves fixtures from."""
     found = []
@@ -503,7 +567,10 @@ def freeze(options: argparse.Namespace) -> int:
         options.ready = OPENED
     elif options.ready is None:
         options.ready = "ATTENDED_FILE_SHOWN"
-    commit = git("rev-parse", "--verify", f"{options.commit}^{{commit}}")
+    commit, refusal = frozen_commit(options.commit, options.not_head_because)
+    if commit is None:
+        return fail(refusal)
+    record = provenance(commit, options.not_head_because)
     parent = Path(options.parent).expanduser().resolve()
     root = Path(tempfile.mkdtemp(prefix=f"{options.name}.", dir=str(parent)))
     source = root / "src"
@@ -552,13 +619,13 @@ def freeze(options: argparse.Namespace) -> int:
 
     executable = source / EXECUTABLE
     launcher = root / "launch.py"
-    launcher.write_text(render_launcher(root=root, title=options.title, commit=commit, fixture=options.fixture,
+    launcher.write_text(render_launcher(root=root, title=options.title, commit=session_line(record), fixture=options.fixture,
                                         open_file=options.open_file, required=required, next_push=options.next_push,
                                         extra=options.argument, ready=options.ready, wait=options.wait))
     launcher.chmod(0o755)
     digest = hashlib.sha256(executable.read_bytes()).hexdigest()
     (root / MARKER).write_text(json.dumps({
-        "commit": commit, "fixture": options.fixture, "open_file": options.open_file,
+        **record, "fixture": options.fixture, "open_file": options.open_file,
         "required": required, "next_push": options.next_push, "executable_sha256": digest,
     }, indent=1) + "\n")
 
@@ -569,10 +636,16 @@ def freeze(options: argparse.Namespace) -> int:
         return fail(f"the launcher's own check failed; the root is kept at {root}")
     # Nothing in the source or build may change after the check.
     set_writable(source, False)
+    report(record, digest, root, launcher)
+    return 0
+
+
+def report(record: dict[str, str], digest: str, root: Path, launcher: Path) -> None:
+    print(f"FROZEN_COMMIT:{record['commit']}")
+    print(f"SESSION_LINE:{session_line(record)}")
     print(f"EXECUTABLE_SHA256:{digest}")
     print(f"FROZEN_ROOT:{root}")
     print(f"LAUNCH:python3 {launcher}")
-    return 0
 
 
 def export(commit: str, parent: Path, name: str) -> tuple[Path, Path] | None:
@@ -589,7 +662,10 @@ def export(commit: str, parent: Path, name: str) -> tuple[Path, Path] | None:
 
 
 def freeze_live(options: argparse.Namespace) -> int:
-    commit = git("rev-parse", "--verify", f"{options.commit}^{{commit}}")
+    commit, refusal = frozen_commit(options.commit, options.not_head_because)
+    if commit is None:
+        return fail(refusal)
+    record = provenance(commit, options.not_head_because)
     exported = export(commit, Path(options.parent).expanduser().resolve(), options.name)
     if exported is None:
         return fail(f"git archive of {commit} did not extract")
@@ -608,11 +684,11 @@ def freeze_live(options: argparse.Namespace) -> int:
     if not executable.is_file():
         return fail(f"{LIVE_EXECUTABLE} is missing after the build")
     launcher = root / "launch.py"
-    launcher.write_text(render_live_launcher(root=root, title=options.title, commit=commit, extra=options.argument,
+    launcher.write_text(render_live_launcher(root=root, title=options.title, commit=session_line(record), extra=options.argument,
                                              wait=options.wait))
     launcher.chmod(0o755)
     digest = hashlib.sha256(executable.read_bytes()).hexdigest()
-    (root / MARKER).write_text(json.dumps({"commit": commit, "live": True, "executable_sha256": digest}, indent=1) + "\n")
+    (root / MARKER).write_text(json.dumps({**record, "live": True, "executable_sha256": digest}, indent=1) + "\n")
     # Sealed before the check, so the check starts what the owner will: the
     # build is fixed and the application can write nothing into it (a launch
     # before the seal left an update control folder there that the seal then
@@ -622,9 +698,7 @@ def freeze_live(options: argparse.Namespace) -> int:
     print(checked.stdout, end="")
     if checked.returncode != 0:
         return fail(f"the launcher's own check failed; the root is kept at {root}")
-    print(f"EXECUTABLE_SHA256:{digest}")
-    print(f"FROZEN_ROOT:{root}")
-    print(f"LAUNCH:python3 {launcher}")
+    report(record, digest, root, launcher)
     return 0
 
 
@@ -651,7 +725,11 @@ def main() -> int:
     opening.add_argument("--open-file", help="the fixture file the look opens in Review")
     opening.add_argument("--open-pull-request", action="store_true",
                          help="open the pull request on its own opening page (its Overview), no file")
-    frozen.add_argument("--commit", default="HEAD")
+    frozen.add_argument("--commit", default="HEAD",
+                        help="the commit to freeze; anything but this checkout's clean HEAD needs --not-head-because")
+    frozen.add_argument("--not-head-because", default=None, metavar="REASON",
+                        help="freeze a commit that is not this checkout's clean HEAD, for the reason given "
+                             "(recorded in the root and the session line)")
     frozen.add_argument("--title", default="")
     frozen.add_argument("--next-push", action="store_true")
     frozen.add_argument("--require", action="append", default=[])

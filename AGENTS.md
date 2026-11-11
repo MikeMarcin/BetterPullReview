@@ -98,6 +98,10 @@ network, or process effects.
   in there; their own profile is untouched), and a `--check` that refuses a
   tests-on image, runs the self-test and starts it offscreen on a scratch
   home.
+  A freeze takes the lane's clean HEAD; any other commit needs
+  `--not-head-because REASON`. Paste its `SESSION_LINE:` (the frozen commit
+  and subject) into every candidate's content, so the owner sees what they
+  are judging.
 - Freeze a look with a fixture that already holds the surface under review,
   and open the build on it: a look at a tour serves a pull request with a
   tour. The owner, accepting the tour-publishing look on 2026-11-10: "It's
