@@ -62,3 +62,13 @@ agent-run live course on BPR-Test in a later round. BPR-Test is left as is
 (the owner pushed `929b028f7` to #152's branch). Host 36810/36892 stopped and
 the root removed with `freeze_attended_build.py remove` after the owner's app
 (PID 46168) had exited.
+
+## Agent-run live course (2026-11-10)
+
+RFC-BPR-0105 AC08 amended by the owner to an agent-run course; it passes on
+lane `33c282ccd`: after six pull requests in one window with agent and tour
+use, the course pressed Approve on BPR-Test #151 as MikeMarcin; the page
+showed "Sending your review to GitHub…", closed, and the window said "Review
+submitted. Closed the review of MikeMarcin/BPR-Test#151."; `gh` reads one
+APPROVED review by MikeMarcin (id 5854726479). Record:
+[RFC-BPR-0105](../../verification/RFC-BPR-0105.md#agent-run-live-course-2026-11-10).

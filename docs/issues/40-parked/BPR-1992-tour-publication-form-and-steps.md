@@ -59,3 +59,17 @@ agent-run live course on BPR-Test in a later round. BPR-Test is left as is
 (the owner pushed `929b028f7` to #152's branch). Host 36810/36892 stopped and
 the root removed with `freeze_attended_build.py remove` after the owner's app
 (PID 46168) had exited.
+
+## Agent-run live course (2026-11-10)
+
+RFC-BPR-0099 AC08 passes on lane `33c282ccd`: the agent-run course published
+a mixed tour on disposable BPR-Test #177 through the window's own Publish,
+the form chosen with stop 2 as its reason ("Stop 2 points at an earlier
+version of the code, so it is sent as a conversation comment."), six steps
+waiting, sending, sent in order with the head's count equal to the panel's,
+ending Published; `gh` reads one COMMENT review carrying stop 1, one
+conversation comment for stop 2 at the earlier head, and the description
+linking the review. The course found and the same commit fixed a live
+defect: after a push no stop could be compared in a sparse review, so no
+tour could be published again. Record:
+[RFC-BPR-0099](../../verification/RFC-BPR-0099.md#agent-run-live-course-2026-11-10).
