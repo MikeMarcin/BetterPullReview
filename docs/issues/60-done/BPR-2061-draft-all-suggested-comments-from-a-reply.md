@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2061"
 title: "Draft all suggested comments from an agent reply with several"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2061--BPR-2061--37ecd03b9111.json","renumbered_from":"BPR-2058 (lane receipt BPR-2058--BPR-2059--bd1353aea511.json; main reserved BPR-2058 for another card meanwhile)","origin":"owner request, 2026-11-10","related_cards":["BPR-1753","BPR-1861","BPR-2059"]}
 depends_on: []
-parked_on: "human-review"
+acceptance: [{"criterion":"Scope 1-4","outcome":"pass","revision":"e4aeb679e","evidence":{"kind":"command","detail":"core_agent_draft_all; qt_workbench_window_scale_100/125/200 test_a_reply_drafts_all_its_suggested_comments; composed path --attended-agent-draft-all-check (Drafted 3, Skipped 1, Undo removed 3)"}},{"criterion":"Scope 5","outcome":"pass","revision":"52e085d57","evidence":{"kind":"command","detail":"Agent accent inventory rows in the focused set"}},{"criterion":"Scope 6","outcome":"pass","revision":"e4aeb679e","evidence":{"kind":"observation","detail":"Owner accepted BPR-2058-draft-all, session fbdd40b2768761881d2a420844cb4ec2, decision 1aad48ff-d4ed-4363-a26e-8d156bffc670"}}]
 ---
 
 # Draft all suggested comments from an agent reply with several
@@ -94,9 +94,11 @@ Its first run found two faults, fixed in `e4aeb679e`: the skipped suggestion
 was offered again once drafting moved the screen to another file, and the
 drawer was left on Comments, hiding the reply's sentence.
 
-## Owner look (pending)
+## Owner look (accepted)
 
-Session `fbdd40b2768761881d2a420844cb4ec2`, state
-`/Users/jaeger/.attended-review-state/suggested-comments-v001-2026-11-10/state`
-(URL in its `serve.log`), candidate `BPR-2058-draft-all` (its ID predates the renumbering); frozen root
-`/Users/jaeger/suggested-comments-v001.irz2s4en` from `e4aeb679e`.
+Session `fbdd40b2768761881d2a420844cb4ec2`, candidate `BPR-2058-draft-all`
+(its ID predates the renumbering), frozen root
+`suggested-comments-v001.irz2s4en` from `e4aeb679e`: the owner accepted,
+no note (decision `1aad48ff-d4ed-4363-a26e-8d156bffc670`, 2026-11-11T02:51Z).
+Scope 6 passes. Host stopped and the root removed with
+`freeze_attended_build.py remove` on 2026-11-10.
