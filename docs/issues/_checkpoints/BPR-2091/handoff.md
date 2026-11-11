@@ -45,23 +45,65 @@ history and continues the valid live PR read. No canonical/strict cursor
 mismatch trace was reached. The stale accepted description yields the exact
 mapping refusal while the separately queued publication reread is incomplete.
 
-## Scoped checks and remaining work
+## Corrected native verification and main binding
 
-LLVM22.1.8 format/diff check pass. One-TU LLVM22 tidy passes (46warnings in
-non-user code suppressed by the normal script, no reported user finding).
+Corrected original `application_review_tour_publication_repairs` passes on the
+native Windows limited interactive Session3/adminfalse route in both configs:
+Release CTest9.79s (guard10.0944565s) and Debug CTest18.19s (guard18.4477697s).
+Each keeps the original90s outer and20s inner limits, provider sequence,
+gestures and174original expect calls. Both reach the final fourteen-write
+maintenance/source/remote-identity assertions and `repairs:pass` marker.
+The exact candidate test source remains SHA-256 `50f6bd6e...ccc0b7d`.
+
+Release reuses its exact privately compiled/linked image from R1; no second
+CL/LINK. Debug compiles only the changed TU and links the normal56libraries,
+with original ordered flags and original runtime/environment/row properties.
+The projected command changes only private EXE and output-only PNG paths.
+Instrumented Tour4 archives are explicitly excluded. All1,460normal inputs
+and both candidate-image variants remain exact. Task is Ready/result0,
+owned forests empty and maintained native-idle observation true; PC lease
+returned to root. No source, normal image, archive or producer cache changed.
+
+The first corrected R1 Release attempt retains native8/CTest6.72s
+(guard7.0139s): the operator relocated captures without creating its owned
+`renders` parent. The first assertion was per-stop capture, before publication
+and the new wait, with writes0/PRready. The operator-only continuation creates
+that directory, reuses the same source/OBJ/EXE, then runs the still-unreached
+Debug row. R1 remains a failed result; it is not relabelled. No source change,
+weaker assertion, extra deliberately failing control or timing waiver followed.
+
+Actual R2 native receipt SHA-256:
+`5f12230f0e5778ae96534eae7be4a91420e17cd82cabc19a48f368160eec7476`.
+The external `bpr2091/native-proof.json` binds both raw stdout/XML hashes,
+original negative evidence, candidate identities and the terminal observations.
+Its SHA-256 is
+`e30e75851f1f26444b1b43600272099b5ee36828ee7c3f4f647c06ce9875cfe7`.
+
+Canonical main source commit `103982d07708438cbd27173457c6bdd634785744` is the exact six-insertion
+cherry-pick of private source `ca63ff761ec7c585198fe6eb6301fe1cb15f43de`.
+No foreign main product is imported into the frozen release/engineering base;
+main's unrelated work and higher NEXT_ID/reservations are preserved.
+
+## Scoped static checks and release boundary
+
+LLVM22.1.8 format/diff check and one-TU LLVM22 tidy pass. The tidy log retains
+46non-user warnings suppressed by the normal script, with no user finding.
 Documentation prints DOCUMENTATION_OK. Actual maintained source/full/mutation
-inventory mode prints ASYNC_MUTATION_HOST_INVENTORY_OK with all pins unchanged.
+inventory prints ASYNC_MUTATION_HOST_INVENTORY_OK with no BPR2091 pin change.
 The explicit own milestone plan binds successfully. The broader checkpoint
-scanner refuses an inherited unrelated plan's unknown `amendments` field;
-its raw refusal is retained externally and no historical plan was rewritten.
+scanner's inherited unrelated plan `amendments` refusal is preserved; no
+historical plan was rewritten to bypass it.
 
-Required next: Windows executor runs ONE corrected ORIGINAL repairs row in
-Release and ONE in Debug using exact normal flags/context/row/environment and
-ORIGINAL normal libraries, never the instrumented Tour4 archives. Both are
-pending. After actual passing evidence, finish acceptance/docs and integrate
-only this owned slice into main, preserving other writers/counter highwater.
-No full-release qualification or old-source acceptance is inferred.
+Root selected the documented frozen56 corrective-proof route: producer source
+`48bd9b3f2b82128e6b43527812f165eacc4f8b47`, cohort
+`bab13d48d24733673ac9bd204dde2a2d071344a32b2eac830b480527e5544dec`,
+configuration and shipped bytes stay unchanged. Corrective test source/images
+and proofs remain separate; original comprehensive exits, omissions and
+unreached predicates retain their actual verdicts. These proofs close this
+fixture issue, not all native qualification/security/trust/publication gates.
+There is no pending human decision or review server for this test-only scope.
 
-External packet and full raw evidence:
+External packet:
 `/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer56-tour-repairs-readonly-triage-r1/bpr2091`.
-All own local commands are terminal; the source remains frozen for native proof.
+All implementer commands are terminal; no native or desktop commands were run
+by this source owner. Root owns final release acceptance and publication.
