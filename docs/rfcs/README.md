@@ -761,7 +761,7 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0098](RFC-BPR-0098-home-says-whose-move-my-pull-request-is.md) | Home says whose move each of my pull requests is | Proposed | None |
+| [RFC-BPR-0098](RFC-BPR-0098-home-says-whose-move-my-pull-request-is.md) | Home says whose move each of my pull requests is | Auto-Verified | None |
 | [RFC-BPR-0099](RFC-BPR-0099-tour-publishing-in-reach-and-reported.md) | Keep tour publishing in reach, report each step and choose its form | Proposed | None |
 | [RFC-BPR-0100](RFC-BPR-0100-tour-conversation-that-changes-the-tour-in-one-turn.md) | A tour conversation that changes the tour in one turn | Proposed | None |
 | [RFC-BPR-0101](RFC-BPR-0101-agent-chat-conventions.md) | One set of conventions for every agent chat: references, send key, cost and colour | Proposed | None |
