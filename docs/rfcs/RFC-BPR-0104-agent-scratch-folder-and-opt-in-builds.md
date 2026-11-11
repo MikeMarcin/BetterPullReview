@@ -154,6 +154,43 @@ on, because a script runs with the reviewer's rights; the owner chose on,
 with the starting state as an agent setting and the per-pull-request memory
 above.
 
+## Implementation record (2026-11-11, [[BPR-2007]], [[BPR-2008]])
+
+Observations, not amendments. The facts were established against the
+installed agents and their own help and protocol schema
+([ledger](../verification/RFC-BPR-0104.md)).
+
+- **Claude Code 2.1.319.** A turn with the scratch folder on gets
+  `--add-dir FOLDER` and `--allowedTools` with `Write(/FOLDER/**)`,
+  `Edit(/FOLDER/**)`, `Bash(FOLDER/*)` and `Bash(RUNNER FOLDER/*)` for
+  `python3`, `python`, `node`, `ruby`, `perl` and `chmod +x`; a shell script
+  runs directly once it is executable. The `:*` prefix form does not match a file inside the folder,
+  and no form matches a quoted path, so a folder is granted only on a path
+  with no space. These are permission rules Claude follows; a script it runs
+  has the reviewer's rights.
+- **Codex 0.167.0.** A turn gets `-c permissions.betterpullreview_grant.filesystem=
+  {":root"="read","FOLDER"="write"}`, `-c default_permissions="betterpullreview_grant"`
+  and `-c approval_policy="never"`, on the App Server and on `exec`. The
+  profile replaces the configured sandbox mode for the run, and Codex's
+  sandbox (Seatbelt on macOS) holds every command to it, with network off.
+- **Builds.** Claude gets `Bash(NAME:*)` for a fixed list of build and test
+  programs; Codex's profile adds the disposable checkout and `:tmpdir` as
+  writable.
+- **Where the folder is.** Beside the profile's data
+  (`<data>-agent-scratch-v1`), or, when that path has a space as macOS's
+  "Application Support" does, under the user's cache folder
+  (`betterpullreview-agent-scratch-v1/<profile hash>`). One folder per native
+  conversation, kept with it as its retained workspace is (RFC-BPR-0096 adds
+  no automatic deletion); a turn without a native conversation gets its own
+  folder, removed when the turn ends. New session starts a new conversation
+  and so a new folder.
+- **The 256 MiB bound** is measured when a turn starts: a turn that starts
+  with the folder at or past it is told so and gets no write allowance there.
+  A write that crosses the bound during a turn is not refused (AC03 partly
+  met; see the ledger).
+- **Windows** paths are not granted (a grant path must be absolute POSIX); a
+  Windows turn reads only.
+
 ## Acceptance criteria
 
 - **AC01:** With the scratch folder on, an installed Claude and an installed

@@ -116,3 +116,17 @@ has a separate generation/source link and never supplies missing tool state or
 permission authority. Tool-free hooks remain one-shot. Original acceptance is
 historical; the new runtime and retention claims are scoped in the
 [RFC-BPR-0096 ledger](../verification/RFC-BPR-0096.md).
+
+## Grant amendment (RFC-BPR-0104, 2026-11-11)
+
+[The scratch folder RFC](RFC-BPR-0104-agent-scratch-folder-and-opt-in-builds.md)
+amends the goal "Preserve each agent's own model, GitHub, AWS, sandbox,
+approval, and credential boundaries" in one respect: for an Agent tab turn of
+Claude Code or Codex, BPR may pass two narrow allowances when they are on for
+that agent and pull request. The scratch folder allowance lets the agent write
+and run files in a folder of the session's own, outside the repository and the
+workspace; the build allowance, asked for once per pull request, lets it build
+and test in the disposable checkout, never in a checkout the reviewer chose.
+BPR grants no network access. Tour runs and the tool-free hooks are unchanged.
+Every other boundary is preserved. What each runtime enforces and what it only
+follows is recorded in the [RFC-BPR-0104 ledger](../verification/RFC-BPR-0104.md).

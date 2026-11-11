@@ -29,3 +29,30 @@ pull request and agent. Verify each allowance against the installed agents'
 own documentation and behaviour rather than from memory.
 
 This is part of `agent-scratch` in the [plan](../../rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
+
+## Implementation record (2026-11-11, `882ebed54`)
+
+One candidate with [[BPR-2008]], under this card's claim (BPR-2008 could not be
+readied while this card was not Done). Frontend-design was loaded before the Qt
+work. Facts, criteria and runs: [ledger](../../verification/RFC-BPR-0104.md).
+
+- AC01, AC02: pass, live with installed Claude Code 2.1.319 and Codex
+  0.167.0 on BPR-Test #40 (read only), and at the launch and host layers.
+- AC03: partly met. The folder is outside the repository and workspace,
+  owner-only, removed with a turn that has no native conversation; the
+  256 MiB bound is checked when a turn starts (a full folder gets no write
+  allowance, and the agent is told why). A write crossing the bound during a
+  turn is not refused; a native conversation's folder is kept as its
+  retained workspace is (RFC-BPR-0096 removes neither automatically). Asked
+  of the owner as an Accept/Reject below.
+- AC05, AC06, AC08: pass (unit, Qt and storage rows).
+- AC09: pass for restart, another pull request, another agent, the starting
+  state and the next turn (live); New session reads the same stored choice
+  and has no separate course.
+- Established, and recorded in the RFC: Claude's `:*` rules never matched a
+  file in the folder and no rule matches a quoted path, so the rules are
+  globs and the folder's path has no space (macOS uses the cache folder);
+  Codex's permissions profile replaces the configured sandbox mode.
+- Settings live on `agent_entry` (`ScratchStarts`, `BuildsAndTests`), so
+  RFC-BPR-0107's export carries them; the per-pull-request choice and
+  answer are local state. Export is not implemented here.

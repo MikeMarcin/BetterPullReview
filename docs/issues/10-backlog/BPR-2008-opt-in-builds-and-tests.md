@@ -24,3 +24,20 @@ builds belong in this release, with these limits. Building runs the pull
 request's own code: give the allowance critical review.
 
 This is part of `agent-scratch` in the [plan](../../rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
+
+## Implementation record (2026-11-11, `882ebed54`)
+
+Built in one candidate with [[BPR-2007]] under that card's claim; this card
+could not be readied while BPR-2007 was not Done. Ledger:
+[RFC-BPR-0104](../../verification/RFC-BPR-0104.md).
+
+- AC04: pass at the unit, host and storage layers: off until turned on; in
+  the reviewer's own checkout it is unavailable with its reason and the
+  launch carries nothing; in the disposable checkout the next question asks
+  once per pull request ("Building runs this pull request's code on this
+  computer with your account's rights. Allow for this pull request?"), and
+  declining leaves the launch without the build allowance. The question's
+  composed path has no course.
+- AC07: pending. An independent critical review of both agents' launch
+  allowances is required; the implementer's self-review in the ledger is
+  input to it, not it.
