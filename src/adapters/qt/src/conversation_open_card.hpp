@@ -3,6 +3,7 @@
 
 #include "conversation_glyphs.hpp"
 
+#include "bpr/core/appearance_model.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
@@ -55,11 +56,22 @@ namespace bpr::qt {
 		QColor RouteLine;
 		QColor Ok;
 		QColor Signal;
+		/// The writing blue as words and the marks beside them: `Signal`
+		/// moved, if it must, to read on the drawer and on the card. The
+		/// owner, 2026-11-10: "It's hard to read comments' line number
+		/// against the background it's on in dark theme." `Signal` is the
+		/// selection colour, chosen to sit under text, and my draft's
+		/// "Line 40" in it measured 2.1:1 in Dark and 1.2:1 in High
+		/// Contrast Light.
+		QColor SignalInk;
 		QColor CodeBackground;
 		QColor CodeInk;
 		bool   Dark = false;
 	};
-	[[nodiscard]] auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute) -> note_colours;
+	/// \brief The notes' colours from the palette on screen; `aVariant`
+	/// names the text floor `SignalInk` is held to.
+	[[nodiscard]] auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute, core::appearance_variant aVariant = core::appearance_variant::light)
+		-> note_colours;
 
 	/// \brief An 18 px avatar (14 px small), ringed when it is mine: the shared
 	/// `paint_identity_avatar` ([[BPR-1583]]) over the notes' grounds.

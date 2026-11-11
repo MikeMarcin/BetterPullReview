@@ -1,5 +1,6 @@
 #include "conversation_open_card.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -9,6 +10,7 @@
 #include "conversation_reactions.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/identity_avatar.hpp"
@@ -43,8 +45,10 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <optional>
 #include <utility>
 
@@ -65,6 +69,9 @@ namespace bpr::qt {
 		constexpr int header_height = 34;
 		constexpr int reply_minimum = 54;
 		constexpr int reply_maximum = 220;
+		/// The most `SignalInk` may turn from the writing blue's hue, in
+		/// degrees, and still be the writing blue.
+		constexpr int signal_ink_hue_shift = 30;
 
 		[[nodiscard]] auto mix(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
 		{
@@ -681,7 +688,7 @@ namespace bpr::qt {
 		};
 	} // namespace
 
-	auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute) -> note_colours
+	auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute, const core::appearance_variant aVariant) -> note_colours
 	{
 		auto       colours = note_colours{ };
 		const auto ink     = aPalette.color(QPalette::Active, QPalette::Text);
@@ -702,6 +709,23 @@ namespace bpr::qt {
 		colours.RouteLine  = mix(aRoute, base, 0.55);
 		colours.Ok         = colours.Dark ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 };
 		colours.Signal     = aPalette.color(QPalette::Active, QPalette::Highlight);
+		{
+			const auto floor   = core::minimum_contrast_hundredths(core::contrast_kind::text, aVariant);
+			const auto grounds = std::array{
+				core::contrast_ground{ .Colour = to_appearance_color(colours.Drawer), .MinimumHundredths = floor },
+				core::contrast_ground{ .Colour = to_appearance_color(colours.Panel), .MinimumHundredths = floor },
+			};
+			auto signal         = to_appearance_color(colours.Signal);
+			signal.Alpha        = 255U;
+			const auto readable = to_presentation_color(core::readable_signal_ink(signal, grounds));
+			// A blue stays a blue. High Contrast Light's selection yellow
+			// would turn the defect red, a different state's colour, so the
+			// words take the drawer's own ink there instead.
+			const auto from   = colours.Signal.hslHue();
+			const auto to     = readable.hslHue();
+			const auto shift  = from < 0 || to < 0 ? 0 : std::min(std::abs(from - to), 360 - std::abs(from - to));
+			colours.SignalInk = shift <= signal_ink_hue_shift ? readable : aPalette.color(QPalette::Active, QPalette::WindowText);
+		}
 		return colours;
 	}
 
@@ -1840,9 +1864,9 @@ namespace bpr::qt {
 				// [[BPR-1212]]. The lines being written on, in the writing blue.
 				Where    = where;
 				auto ink = where->palette();
-				ink.setColor(QPalette::ButtonText, Style.Colours.Signal);
+				ink.setColor(QPalette::ButtonText, Style.Colours.SignalInk);
 				where->setPalette(ink);
-				where->setIcon(conversation_icon(conversation_glyph::target, Style.Colours.Signal));
+				where->setIcon(conversation_icon(conversation_glyph::target, Style.Colours.SignalInk));
 				where->setProperty("conversationGlyph", QVariant{ });
 				// [[BPR-1212]] slice 1. "Lines a–b" for a draft on several.
 				// [[BPR-1212]]. "Base line N" for a draft on the base side.
@@ -1858,12 +1882,12 @@ namespace bpr::qt {
 			row->addSpacing(4);
 		}
 		if (aCard.Writing) {
-			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::lock, Style.Colours.Signal, header };
+			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::lock, Style.Colours.SignalInk, header };
 			DraftState        = state;
 			row->addWidget(state);
 		} else if (aCard.Draft && aCard.Pending) {
 			// [[BPR-1345]]. Sent with the review when it is finished.
-			row->addWidget(new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::lock, Style.Colours.Signal, header });
+			row->addWidget(new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::lock, Style.Colours.SignalInk, header });
 		} else if (aCard.Draft) {
 			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
 		} else if (aCard.ResolutionPending) {

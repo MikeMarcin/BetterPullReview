@@ -64,6 +64,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -3829,6 +3830,135 @@ namespace {
 		}
 	}
 
+	/// \brief A commented line's number reads on its tinted cell.
+	///
+	/// \details The owner, 2026-11-10: "It's hard to read comments' line
+	/// number against the background it's on in dark theme." A thread's
+	/// number cell is tinted amber, a new thread's blue, an open thread's
+	/// lines washed amber and a draft being written washed in the selection
+	/// blue, and the number kept the plain gutter ink: 3.3:1 on the amber
+	/// cell and 2.5:1 on the open one in Dark, 4.2:1 and 3.5:1 in Light. In
+	/// every built-in theme, with the window's own mark colours, each marked
+	/// number now reaches the variant's text floor on the cell it is drawn
+	/// on, and an unmarked number keeps the theme's gutter ink. With
+	/// `BPR_MARKED_NUMBER_RENDER_DIR` set, each theme's gutter is rendered
+	/// there.
+	void test_marked_line_numbers_read_on_their_tint()
+	{
+		auto left  = std::string{ };
+		auto right = std::string{ };
+		for (auto line = 1U; line <= 40U; ++line) {
+			const auto text = "\tconst auto value_" + std::to_string(line) + " = compute(" + std::to_string(line) + ");\n";
+			left += text;
+			right += line == 12U ? "\tconst auto value_12 = compute_twice(12);\n" : text;
+		}
+		const auto diff      = std::make_shared<const core::computed_file_diff>(computed(left, right, { }, 63U));
+		const auto directory = qEnvironmentVariable("BPR_MARKED_NUMBER_RENDER_DIR");
+		const auto modes     = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		for (const auto& [modeName, mode] : modes) {
+			const auto name      = std::string{ modeName };
+			auto       workbench = qt::diff_workbench{ };
+			auto       profile   = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(workbench);
+			workbench.adopt_appearance(profile);
+			profile.apply_code_font_to(workbench);
+			workbench.resize(1'000, 640);
+			workbench.show();
+			process_events();
+			const auto selected = context(*diff, 2U, 2U);
+			workbench.set_loading(selected);
+			workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = diff }));
+			settle_geometry(workbench);
+			// The window's own two: the theme's unread blue and the marks' amber.
+			workbench.set_mark_colours(QColor{ 0xD2, 0x99, 0x22 }, profile.color(core::appearance_role::state_unread));
+			const auto mark = [](const std::uint32_t aLine, const qt::diff_line_mark_kind aKind) {
+				auto made       = qt::diff_line_mark{ };
+				made.Line       = aLine;
+				made.Kind       = aKind;
+				made.SourceLine = aLine;
+				return made;
+			};
+			auto marks = std::vector<qt::diff_line_mark>{ };
+			marks.push_back(mark(3U, qt::diff_line_mark_kind::thread));
+			marks.push_back(mark(7U, qt::diff_line_mark_kind::new_thread));
+			// An open thread on lines 11 to 13.
+			marks.push_back(mark(12U, qt::diff_line_mark_kind::thread));
+			marks.back().Open      = true;
+			marks.back().FirstLine = 10U;
+			marks.push_back(mark(16U, qt::diff_line_mark_kind::thread));
+			marks.back().Resolved = true;
+			// My draft on lines 21 and 22, being written.
+			marks.push_back(mark(21U, qt::diff_line_mark_kind::thread));
+			marks.back().Draft     = true;
+			marks.back().Writing   = true;
+			marks.back().FirstLine = 20U;
+			marks.push_back(mark(25U, qt::diff_line_mark_kind::new_thread));
+			marks.back().Open = true;
+			workbench.set_line_marks(core::diff_side::right, marks);
+			workbench.set_thread_markers(true);
+			settle_geometry(workbench);
+			workbench.scroll_controller()->home();
+			process_events();
+
+			auto* const code   = workbench.right_pane();
+			auto* const gutter = gutter_of(code);
+			const auto  image  = gutter->grab().toImage();
+			const auto  scale  = image.devicePixelRatio();
+			const auto  floor  = core::minimum_contrast_hundredths(core::contrast_kind::text, profile.variant());
+			// One row of the gutter, clear of the open bar at its left edge
+			// and the writing bracket at its right.
+			const auto row = [&](const std::uint32_t aLine) {
+				const auto centre = gutter->mapFrom(&workbench, workbench.line_rect(core::diff_side::right, aLine).center()).y();
+				const auto height = workbench.line_rect(core::diff_side::right, aLine).height();
+				return QRect{ 4, centre - (height / 2) + 1, gutter->width() - 8, height - 2 };
+			};
+			const auto ratioOf = [&](const std::uint32_t aLine) {
+				const auto cell   = row(aLine);
+				const auto ground = commonest(image, cell);
+				auto       ink    = ground;
+				for (auto y = static_cast<int>(cell.top() * scale); y <= static_cast<int>(cell.bottom() * scale); ++y) {
+					for (auto x = static_cast<int>(cell.left() * scale); x <= static_cast<int>(cell.right() * scale); ++x) {
+						if (x < image.width() && y < image.height() && luminance_ratio(image.pixelColor(x, y), ground) > luminance_ratio(ink, ground)) {
+							ink = image.pixelColor(x, y);
+						}
+					}
+				}
+				return std::tuple{ ground, ink, luminance_ratio(ink, ground) };
+			};
+			const auto [plainGround, plainInk, plainRatio] = ratioOf(1U);
+			std::cout << "marked-number " << name << " plain line 2: ground " << plainGround.name().toStdString() << " ink " << plainInk.name().toStdString() << " ratio " << plainRatio << '\n';
+			auto failing = std::vector<std::string>{ };
+			for (const auto& [line, what] : std::array{
+					 std::pair{ 3U, "thread" },
+					 std::pair{ 7U, "new thread" },
+					 std::pair{ 10U, "open thread's first line" },
+					 std::pair{ 12U, "open thread" },
+					 std::pair{ 16U, "resolved thread" },
+					 std::pair{ 20U, "draft being written" },
+					 std::pair{ 25U, "open new thread" },
+				 }) {
+				const auto [ground, ink, ratio] = ratioOf(line);
+				std::cout << "marked-number " << name << " line " << (line + 1U) << " (" << what << "): ground " << ground.name().toStdString() << " ink "
+						  << ink.name().toStdString() << " ratio " << ratio << '\n';
+				if (ratio * 100.0 + 0.5 < static_cast<double>(floor)) {
+					failing.emplace_back(what);
+				}
+			}
+			if (!directory.isEmpty()) {
+				expect(code->grab(QRect{ 0, 0, gutter->width() + 360, code->height() / 2 }).save(directory + QStringLiteral("/marked-numbers-%1.png").arg(QLatin1StringView{ modeName })),
+					   name + ": capture the gutter");
+			}
+			expect(failing.empty(), name + ": every marked line number reaches the theme's text floor on its tinted cell");
+			expect(plainInk.name() == profile.color(core::appearance_role::code_line_number_text).name(), name + ": an unmarked number keeps the theme's gutter ink");
+		}
+	}
+
 	/// \brief [[BPR-1533]], [[BPR-1534]]. The selection fixture's
 	/// classification, so the looks show syntax colours under a selection.
 	[[nodiscard]] auto selection_spans(const core::diff_side aSide) -> application::token_span_list
@@ -6784,6 +6914,11 @@ auto main(int argc, char** argv) -> int
 		render_selection_looks(QString::fromLocal8Bit(argv[2]));
 		return EXIT_SUCCESS;
 	}
+	if (argc > 1 && std::string_view{ argv[1] } == "--marked-numbers-only") {
+		test_marked_line_numbers_read_on_their_tint();
+		std::cout << "marked-numbers:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--selection-only") {
 		// One of them by name, or all three.
 		const auto only = argc > 2 ? std::string_view{ argv[2] } : std::string_view{ };
@@ -6834,6 +6969,7 @@ auto main(int argc, char** argv) -> int
 	test_the_gutter_sizes_to_its_longest_number();
 	test_hiding_the_numbers_returns_the_gutter_width_to_the_code();
 	test_tinted_numbers_and_the_add_button();
+	test_marked_line_numbers_read_on_their_tint();
 	test_selected_composition();
 	test_nontext_publication_status();
 	test_go_to_line_columns();

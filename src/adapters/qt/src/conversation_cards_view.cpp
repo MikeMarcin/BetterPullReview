@@ -2129,7 +2129,7 @@ namespace bpr::qt {
 		}
 		const auto [count, unread] = *PullRequestCounts;
 		auto* const chip           = static_cast<pull_request_chip*>(PullRequestChip);
-		chip->Colours              = note_colours_of(palette(), Accent, Marker);
+		chip->Colours              = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
 		const auto badgeChanged    = (chip->New > 0U) != (unread > 0U);
 		chip->New                  = unread;
 		if (badgeChanged) {
@@ -2339,7 +2339,7 @@ namespace bpr::qt {
 
 	void conversation_cards_view::paint_timeline(QPainter& aPainter, const QRect& aClip)
 	{
-		const auto colours = note_colours_of(palette(), Accent, Marker);
+		const auto colours = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
 		const auto small   = scaled(font(), 0.92);
 		aPainter.save();
 		for (const auto& line : TimelineLines) {
@@ -2934,7 +2934,7 @@ namespace bpr::qt {
 		}
 		auto style = open_card_style{
 			.Marks             = MarkTheme,
-			.Colours           = note_colours_of(palette(), Accent, Marker),
+			.Colours           = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light),
 			.CodeFont          = CodeFont,
 			.Viewer            = Viewer,
 			.ResolutionOffered = ResolutionOffered,
@@ -3450,7 +3450,7 @@ namespace bpr::qt {
 			// Nearest first.
 			std::ranges::reverse(above);
 		}
-		const auto colours   = note_colours_of(palette(), Accent, Marker);
+		const auto colours   = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
 		auto       used      = std::size_t{ 0U };
 		const auto layoutRow = [&](const std::vector<std::size_t>& aList, const int aY, const bool aDown) {
 			if (aList.empty()) {
@@ -3563,7 +3563,7 @@ namespace bpr::qt {
 
 	void conversation_cards_view::paint_closed(QPainter& aPainter, const thread_card& aCard, const bool aHovered, const bool aFocused) const
 	{
-		const auto  colours = note_colours_of(palette(), Accent, Marker);
+		const auto  colours = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
 		const auto  rect    = to_viewport(aCard.Rect);
 		const auto  box     = QRectF{ rect }.adjusted(0.5, 0.5, -0.5, -0.5);
 		const auto* measure = closed_measure_of(aCard);
@@ -3616,7 +3616,7 @@ namespace bpr::qt {
 				: !aCard.Pending                                                  ? QStringLiteral("Draft")
 				: right - left - smallMetrics.horizontalAdvance(whole) - 20 >= 90 ? whole
 																				  : QStringLiteral("Pending");
-			const auto ink   = aCard.Pending ? colours.Signal : colours.Faint;
+			const auto ink   = aCard.Pending ? colours.SignalInk : colours.Faint;
 			const auto w     = smallMetrics.horizontalAdvance(words);
 			aPainter.setPen(ink);
 			aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
@@ -3636,9 +3636,9 @@ namespace bpr::qt {
 				const auto words = QStringLiteral("Draft reply");
 				aPainter.save();
 				aPainter.setOpacity(1.0);
-				aPainter.setPen(colours.Signal);
+				aPainter.setPen(colours.SignalInk);
 				aPainter.drawText(meta.UnsentReply.adjusted(16.0, 0.0, 1.0, 0.0), Qt::AlignRight | Qt::AlignVCenter, words);
-				paint_conversation_glyph(aPainter, QRectF{ meta.UnsentReply.left(), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.Signal);
+				paint_conversation_glyph(aPainter, QRectF{ meta.UnsentReply.left(), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.SignalInk);
 				aPainter.restore();
 			}
 			if (!meta.NewCount.isEmpty()) {
@@ -3753,7 +3753,7 @@ namespace bpr::qt {
 		static_cast<void>(aEvent);
 		auto painter = QPainter{ viewport() };
 		painter.setRenderHint(QPainter::Antialiasing, true);
-		const auto colours  = note_colours_of(palette(), Accent, Marker);
+		const auto colours  = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
 		const auto small    = scaled(font(), 0.92);
 		auto       lastPath = QString{ };
 		auto       first    = true;

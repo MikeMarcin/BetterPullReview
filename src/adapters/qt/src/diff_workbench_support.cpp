@@ -2,6 +2,8 @@
 
 #include "source_display_text.hpp"
 
+#include "bpr/qt/appearance_profile.hpp"
+
 #include <QAbstractScrollArea>
 #include <QAbstractSlider>
 #include <QAbstractTextDocumentLayout>
@@ -37,6 +39,31 @@
 #include <tuple>
 
 namespace bpr::qt {
+	namespace {
+		/// \brief `aOver`, at its own opacity, laid over `aUnder`, as the
+		/// gutter's painter lays a tint or a wash.
+		[[nodiscard]] auto laid(const QColor& aOver, const core::appearance_color aUnder) noexcept -> core::appearance_color
+		{
+			auto opaque  = to_appearance_color(aOver);
+			opaque.Alpha = 255U;
+			return core::composited(opaque, aUnder, static_cast<std::uint8_t>(aOver.alpha()));
+		}
+
+		/// \brief The margin a marked number's ink keeps over the text floor.
+		constexpr auto number_blend_margin_hundredths = 10U;
+
+		/// \brief The opacity the gutter washes an open thread's lines with.
+		constexpr auto open_wash_opacity = 0.18F;
+		/// \brief The opacity the gutter washes my draft's lines with while it is written.
+		constexpr auto writing_wash_opacity = 0.16F;
+
+		[[nodiscard]] auto with_opacity(QColor aColour, const float aOpacity) -> QColor
+		{
+			aColour.setAlphaF(aOpacity);
+			return aColour;
+		}
+	} // namespace
+
 	thread_tick_scroll_bar::thread_tick_scroll_bar(const Qt::Orientation aOrientation, QWidget* const aParent)
 		: QScrollBar{ aOrientation, aParent }
 	{
@@ -1737,9 +1764,9 @@ namespace bpr::qt {
 		if (!block.isValid()) {
 			return;
 		}
-		painter.setPen(GutterText.isValid()
-						   ? GutterText
-						   : palette().color(QPalette::WindowText));
+		const auto ink    = GutterText.isValid() ? GutterText : palette().color(QPalette::WindowText);
+		const auto ground = to_appearance_color(GutterBackground.isValid() ? GutterBackground : palette().color(QPalette::Window));
+		painter.setPen(ink);
 		const auto headerHeight = gutter_header();
 		const auto numbers      = Gutter->width();
 		if (UnifiedRows != nullptr) {
@@ -1769,8 +1796,10 @@ namespace bpr::qt {
 						const auto& row  = (*UnifiedRows)[index];
 						const auto  fill = !row.Head ? RemovedColor : !row.Base ? AddedColor
 																				: QColor{ };
+						auto        cell = ground;
 						if (fill.isValid()) {
 							painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(Gutter->width()), height }, fill);
+							cell = laid(fill, cell);
 						}
 						const auto contains = [](const std::optional<core::line_span> aSpan, const std::optional<std::uint32_t> aLine) {
 							return aSpan && aLine && *aLine >= aSpan->Begin && *aLine < aSpan->End;
@@ -1779,9 +1808,11 @@ namespace bpr::qt {
 							auto wash = palette().color(QPalette::Highlight);
 							wash.setAlpha(core::selection_wash_alpha);
 							painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(Gutter->width()), height }, wash);
+							cell = laid(wash, cell);
 						}
 						const auto columnWidth = numbers / 2;
 						paint_thread_tint(painter, static_cast<std::uint32_t>(block.blockNumber()), QRectF{ 0.0, top, static_cast<qreal>(numbers), height });
+						painter.setPen(number_ink(static_cast<std::uint32_t>(block.blockNumber()), ink, to_presentation_color(cell)));
 						for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 							const auto number = side == core::diff_side::left ? row.Base : row.Head;
 							if (number) {
@@ -1791,12 +1822,15 @@ namespace bpr::qt {
 						}
 					}
 				} else {
+					auto cell = ground;
 					if (const auto drag = add_drag_rect(); !drag.isEmpty() && top < drag.bottom() + 1 && top + height > drag.top()) {
 						auto wash = palette().color(QPalette::Active, QPalette::Highlight);
 						wash.setAlphaF(0.16F);
 						painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(numbers), height }, wash);
+						cell = laid(wash, cell);
 					}
 					paint_thread_tint(painter, static_cast<std::uint32_t>(block.blockNumber()), QRectF{ 0.0, top, static_cast<qreal>(numbers), height });
+					painter.setPen(number_ink(static_cast<std::uint32_t>(block.blockNumber()), ink, to_presentation_color(cell)));
 					GutterLabels.draw(painter, QRect{ 0, qRound(top), right, qRound(height) }, QString::number(block.blockNumber() + 1));
 					++PaintedLineNumbers;
 				}
@@ -1814,29 +1848,99 @@ namespace bpr::qt {
 		if (!markers_shown()) {
 			return;
 		}
-		const auto* const mark = mark_on(aLine);
-		if (mark == nullptr) {
-			return;
+		if (const auto* const mark = mark_on(aLine); mark != nullptr) {
+			if (mark->Draft) {
+				aPainter.save();
+				aPainter.setRenderHint(QPainter::Antialiasing, true);
+				aPainter.setPen(QPen{ palette().color(QPalette::Active, QPalette::PlaceholderText), 1.2, Qt::DashLine });
+				aPainter.setBrush(Qt::NoBrush);
+				aPainter.drawRoundedRect(aCell.adjusted(1.5, 1.5, -1.5, -1.5), 3.0, 3.0);
+				aPainter.restore();
+			} else {
+				aPainter.fillRect(aCell, thread_tint(*mark));
+			}
 		}
-		if (mark->Draft) {
-			aPainter.save();
-			aPainter.setRenderHint(QPainter::Antialiasing, true);
-			aPainter.setPen(QPen{ palette().color(QPalette::Active, QPalette::PlaceholderText), 1.2, Qt::DashLine });
-			aPainter.setBrush(Qt::NoBrush);
-			aPainter.drawRoundedRect(aCell.adjusted(1.5, 1.5, -1.5, -1.5), 3.0, 3.0);
-			aPainter.restore();
-			return;
+		// The open thread's and my draft's washes go under the number too:
+		// laid over it, they dimmed its ink with its ground, and even white
+		// missed High Contrast Dark's 7:1 on an open thread's amber.
+		for (const auto& wash : number_washes(aLine)) {
+			aPainter.fillRect(aCell, wash);
 		}
-		auto tint = mark->Kind == diff_line_mark_kind::new_thread ? NewThreadMarkColor : ThreadMarkColor;
-		tint.setAlphaF(mark->Resolved ? 0.12F : 0.30F);
-		aPainter.fillRect(aCell, tint);
+	}
+
+	auto source_pane::thread_tint(const diff_line_mark& aMark) const -> QColor
+	{
+		return with_opacity(aMark.Kind == diff_line_mark_kind::new_thread ? NewThreadMarkColor : ThreadMarkColor, aMark.Resolved ? 0.12F : 0.30F);
+	}
+
+	auto source_pane::number_washes(const std::uint32_t aLine) const -> std::vector<QColor>
+	{
+		auto washes = std::vector<QColor>{ };
+		for (const auto& mark : Marks) {
+			const auto first = mark.FirstLine.has_value() && *mark.FirstLine < mark.Line ? *mark.FirstLine : mark.Line;
+			if (aLine < first || aLine > mark.Line) {
+				continue;
+			}
+			// [[BPR-1290]]. The open thread's lines washed amber;
+			// [[BPR-1212]], my draft's being written washed blue.
+			if (mark.Writing) {
+				washes.push_back(with_opacity(palette().color(QPalette::Active, QPalette::Highlight), writing_wash_opacity));
+			} else if (mark.Open) {
+				washes.push_back(with_opacity(ThreadMarkColor, open_wash_opacity));
+			}
+		}
+		return washes;
+	}
+
+	auto source_pane::number_ink(const std::uint32_t aLine, const QColor& aInk, const QColor& aCell) const -> QColor
+	{
+		if (!markers_shown() || Marks.empty()) {
+			return aInk;
+		}
+		// The cell as `paint_thread_tint` leaves it: the thread's tint, then
+		// any open thread's or writing draft's wash.
+		const auto* const mark   = mark_on(aLine);
+		const auto        tinted = mark != nullptr && !mark->Draft;
+		const auto        washes = number_washes(aLine);
+		if (!tinted && washes.empty()) {
+			return aInk;
+		}
+		auto ground = to_appearance_color(aCell);
+		if (tinted) {
+			ground = laid(thread_tint(*mark), ground);
+		}
+		for (const auto& wash : washes) {
+			ground = laid(wash, ground);
+		}
+		// The painter's own blending rounds a tint a little differently from
+		// `composited`, so the move aims a margin above the floor and the
+		// painted number still reaches it.
+		const auto floor = core::minimum_contrast_hundredths(core::contrast_kind::text, SelectionVariant) + number_blend_margin_hundredths;
+		const auto reads = [&ground, floor](const core::appearance_color aCandidate) { return core::contrast_ratio_hundredths(aCandidate, ground) >= floor; };
+		const auto from  = to_appearance_color(aInk);
+		if (reads(from)) {
+			return aInk;
+		}
+		// Toward the code's own ink first, so the number stays the theme's
+		// grey; past it toward black or white only where that is not enough.
+		const auto strong  = to_appearance_color(SelectionNormal.isValid() ? SelectionNormal : palette().color(QPalette::Active, QPalette::Text));
+		const auto extreme = core::emphasis_foreground(ground);
+		for (const auto& [start, target] : { std::pair{ from, strong }, std::pair{ strong, extreme } }) {
+			for (auto step = 1U; step <= 255U; ++step) {
+				if (const auto candidate = core::composited(target, start, static_cast<std::uint8_t>(step)); reads(candidate)) {
+					return to_presentation_color(candidate);
+				}
+			}
+		}
+		return to_presentation_color(extreme);
 	}
 
 	void source_pane::paint_markers(QPainter& aPainter)
 	{
-		// [[BPR-1290]]. The open thread's number is washed amber and barred
-		// at the gutter's left edge. [[BPR-1212]]: my draft being written is
-		// washed blue and bracketed at its right edge, where its card joins.
+		// [[BPR-1290]]. The open thread's number is barred at the gutter's
+		// left edge. [[BPR-1212]]: my draft being written is bracketed at its
+		// right edge, where its card joins. Their washes are laid under the
+		// numbers, by `paint_thread_tint`.
 		if (!markers_shown()) {
 			return;
 		}
@@ -1850,13 +1954,9 @@ namespace bpr::qt {
 				// of them shows.
 				const auto row = mark_span_rect(mark);
 				if (!row.isEmpty() && row.bottom() + header >= 0 && row.top() + header <= Gutter->height()) {
-					const auto write = palette().color(QPalette::Active, QPalette::Highlight);
-					auto       wash  = write;
-					wash.setAlphaF(0.16F);
-					aPainter.fillRect(QRect{ 0, row.top() + header, Gutter->width(), row.height() }, wash);
 					auto bracket = QPainterPath{ };
 					bracket.addRoundedRect(QRectF{ static_cast<qreal>(Gutter->width() - 3), static_cast<qreal>(row.top() + header + 2), 3.0, static_cast<qreal>(std::max(1, row.height() - 4)) }, 1.5, 1.5);
-					aPainter.fillPath(bracket, write);
+					aPainter.fillPath(bracket, palette().color(QPalette::Active, QPalette::Highlight));
 				}
 				continue;
 			}
@@ -1868,9 +1968,6 @@ namespace bpr::qt {
 			if (row.isEmpty() || row.bottom() + header < 0 || row.top() + header > Gutter->height()) {
 				continue;
 			}
-			auto wash = ThreadMarkColor;
-			wash.setAlphaF(0.18F);
-			aPainter.fillRect(QRect{ 0, row.top() + header, Gutter->width(), row.height() }, wash);
 			aPainter.fillRect(QRect{ 0, row.top() + header, 3, row.height() }, ThreadMarkColor);
 		}
 		aPainter.restore();
