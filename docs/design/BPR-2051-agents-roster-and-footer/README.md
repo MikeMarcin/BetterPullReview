@@ -3,7 +3,7 @@
 The owner chose these two mockups on 2026-11-11 as the accepted design:
 "A + footer 1". They follow the rejection of the earlier Agents & context
 top ("all ugly", owner look `5ea0ce22`, `06aceb8f`, recorded on
-[BPR-2051](../../issues/40-parked/BPR-2051-enhance-draft-comments-and-notes.md))
+[BPR-2051](../../issues/60-done/BPR-2051-enhance-draft-comments-and-notes.md))
 and the owner's request: "As we make agent a bigger part of this tool, I'm
 thinking we might need to move agent picker out of the individual drawers and
 into an always present footer on the PR window."

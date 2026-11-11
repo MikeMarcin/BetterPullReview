@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2051"
 title: "Enhance on draft comments and notes, each surface with its own editable prompt"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0106", "RFC-BPR-0107"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2051--BPR-2051--efa66a8a01d3.json","origin":"owner request, 2026-11-10"}
 depends_on: []
-acceptance: [{"criterion": "BPR-2051 scope 1", "outcome": "pass", "revision": "821307015704fc7051eb29197973731350555d53", "evidence": {"kind": "command", "detail": "Comment and note Enhance build and decode through the tour writing operation", "command": "ctest --preset dev -R 'application_writing_delivery|core_review_preparation'"}}, {"criterion": "BPR-2051 scope 2", "outcome": "pass", "revision": "821307015704fc7051eb29197973731350555d53", "evidence": {"kind": "command", "detail": "Runs only when pressed; a suggestion applied only by Use, one Undo; nothing to GitHub", "command": "ctest --preset dev -R 'qt_enhance_control|application_enhance_comment_note_public_path'"}}, {"criterion": "BPR-2051 scope 3", "outcome": "pass", "revision": "821307015704fc7051eb29197973731350555d53", "evidence": {"kind": "command", "detail": "Enhance wears the Agent accent; the window inventory stays one set", "command": "ctest --preset dev -R 'qt_enhance_control|qt_workbench_window'"}}, {"criterion": "BPR-2051 scope 4", "outcome": "pass", "revision": "821307015704fc7051eb29197973731350555d53", "evidence": {"kind": "command", "detail": "Own prompt per surface with default and restore; schema 25", "command": "ctest --preset dev -R 'qt_settings_window|sqlite_workbench_settings_storage|application_enhance_comment_note_public_path'"}}, {"criterion": "BPR-2051 scope 5", "outcome": "pass", "revision": "821307015704fc7051eb29197973731350555d53", "evidence": {"kind": "command", "detail": "A run uses the prompt saved at the press; a save meanwhile neither changes nor discards it", "command": "ctest --preset dev -R application_enhance_comment_note_public_path"}}, {"criterion": "BPR-2051 scope 6", "outcome": "pass", "revision": "821307015704fc7051eb29197973731350555d53", "evidence": {"kind": "command", "detail": "Stable purpose IDs, versions and digests; RFC-BPR-0107 amended", "command": "ctest --preset dev -R application_writing_delivery"}}]
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-2051 scope 7","outcome":"pass","revision":"3285ec887627035f0d1ac76b1d6f3521ea158f0e","evidence":{"kind":"observation","detail":"Owner looks accepted: icon (ab426ddc, session 5ea0ce22), placement and tooltip (a955d55c), prompt list (9ea23ba3, session ac6e3a32); the rejected Agents & context top replaced by the roster, Accept 4fec6767 (BPR-2051-roster-top) and the footer Accept 585b2013 (BPR-2051-agent-footer), session 7c9206759d935f663d6a13ce0e008afc, frozen from 3285ec887"}}]
 ---
 
 # Enhance on draft comments and notes, each surface with its own editable prompt
@@ -195,3 +194,21 @@ Renders (Cocoa, off screen, light and dark): the roster and every footer
 state, in the attended session below.
 
 Filed, not waited on (the URL stays in the session state's `serve.log`): session `7c9206759d935f663d6a13ce0e008afc`, state `/Users/jaeger/.attended-review-state/layout-round-v001-2026-11-11/state`, cursor 12, host PID 73758 (its `tailscale serve` child 73768), frozen root `/Users/jaeger/layout-round-v001.5q22yahv` from `3285ec887` (app SHA-256 `97d0861e19dc…`, launcher check reached `ATTENDED_TOUR_SHOWN`). Candidates: `BPR-2051-roster-top` and `BPR-2051-agent-footer` (looks: `agent_footer --look`, `better_pull_review_qt_settings_window_tests --agents-roster-look` in the root's build, and the frozen app). The card stays parked on `human-review`.
+
+## Owner hand-back, session `7c920675…` (2026-11-11)
+
+Read from `session.json` (handed back at sequence 27); host 73758/73768
+stopped, root `layout-round-v001.5q22yahv` removed with
+`freeze_attended_build.py remove`.
+
+- `BPR-2051-roster-top`: Accept (`4fec6767`).
+- `BPR-2051-agent-footer`: Accept (`585b2013`), note "Why is it red?". The
+  frozen build had no agent set up, so the footer showed its setup state, which
+  drew the picker in the failed check's (error) red. Needing setup is not a
+  failure; the post-review round of `agent-scratch` (2026-11-11) draws it in
+  the calm secondary tone with an outline, and keeps red for a check that ran
+  and failed.
+
+Every look the card asks for is accepted (the icon, placement and prompt list
+earlier; the roster that replaced the rejected Agents & context top and the
+footer now). The card is Done.

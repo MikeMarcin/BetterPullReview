@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2092"
 title: "My drafts are found in Threads, labelled Draft, with a filter for only my drafts"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0085"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2092--BPR-2094--a28677e4b291.json","origin":"owner request, 2026-11-11 (drafts round)","related_cards":["BPR-1293","BPR-1345","BPR-2093","BPR-2094"]}
 depends_on: []
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-2092 scope 1","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"Place recorded with an edit; v4 record; older records read unchanged","command":"ctest --preset dev -R 'core_draft_roster|application_comment_range_draft_store'"}},{"criterion":"BPR-2092 scope 2","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"Standing and place decided in core, no Qt","command":"ctest --preset dev -R core_draft_roster"}},{"criterion":"BPR-2092 scope 3","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"Threads lists drafts labelled Draft / Not in review","command":"ctest --preset dev -R qt_conversation_finder_scale_100"}},{"criterion":"BPR-2092 scope 4","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"My drafts filter with count, not remembered (amended)","command":"ctest --preset dev -R qt_conversation_finder_scale_100"}},{"criterion":"BPR-2092 scope 5","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"Row click/Return goes to the draft's lines with it open; composed --attended-drafts-look THREADS 5,2","command":"ctest --preset dev -R qt_conversation_finder_scale_100"}},{"criterion":"BPR-2092 scope 6","outcome":"pass","revision":"ee4724b2a98446ddeb2d33a46a99dc12520c2b19","evidence":{"kind":"observation","detail":"Owner Accept `828baa6d` on candidate `BPR-2092-threads-drafts`, session 585d18246da0bd78411dee4b26777a2d (handed back 2026-11-11T14:24Z), frozen root from ee4724b2a"}}]
 ---
 
 # My drafts are found in Threads, labelled Draft, with a filter for only my drafts
@@ -100,3 +100,10 @@ SHA-256 `56ba5f7f9482…`, launcher check reached
 `ATTENDED_FINISH_REVIEW_SHOWN`); look `--attended-drafts-look` on
 conventional-comments-v1 (renderer.cpp: threads, three comments in the review,
 two drafts left out). The URL stays in the session state.
+
+## Owner hand-back, session `585d1824…` (2026-11-11)
+
+Read from `session.json` (handed back at sequence 20): `BPR-2092-threads-drafts` **Accept**
+(`828baa6d`), no note. Host 24810/24818 stopped with `attended_review.py stop`;
+root `drafts-round-v001.yva0tan3` removed with `freeze_attended_build.py
+remove`. Every scope item passes; the card is Done.
