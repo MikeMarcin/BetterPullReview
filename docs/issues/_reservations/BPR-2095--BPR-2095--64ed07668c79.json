@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2095"
+  ],
+  "reserve_for": "release56-git-artifact-lifetime",
+  "purpose": "",
+  "created": "2026-11-11T12:56:02.929047+00:00",
+  "base": "ae0f44726759ce99a10b080aa204232c46e08f26"
+}

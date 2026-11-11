@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2096"
+  ],
+  "reserve_for": "release56-agent-picker-effective-fit",
+  "purpose": "",
+  "created": "2026-11-11T12:56:11.632520+00:00",
+  "base": "ae0f44726759ce99a10b080aa204232c46e08f26"
+}
