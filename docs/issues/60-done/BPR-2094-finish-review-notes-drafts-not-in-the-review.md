@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2094"
 title: "Finish your review notes drafts that are not in the review"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0085"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2092--BPR-2094--a28677e4b291.json","origin":"owner request, 2026-11-11 (drafts round)","related_cards":["BPR-1345","BPR-1590","BPR-2092"]}
 depends_on: []
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-2094 scope 1","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"Finish review line and list of drafts not in the review; composed OUTSIDE 2","command":"ctest --preset dev -R 'qt_review_submission_editor_scale_100|qt_review_submission_editor_scale_125|qt_review_submission_editor_scale_200'"}},{"criterion":"BPR-2094 scope 2","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"Add all / Add / reason per row; nothing added unless asked; composed ADDED 5","command":"ctest --preset dev -R 'qt_review_submission_editor_scale_100|application_review_submission_application_host'"}},{"criterion":"BPR-2094 scope 3","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"plan_add_to_review in core, one durable write in host","command":"ctest --preset dev -R 'core_draft_roster|application_review_submission_application_host'"}},{"criterion":"BPR-2094 scope 4","outcome":"pass","revision":"7cd7fab2b5d682a546644499bc94b2c831f26c6c","evidence":{"kind":"command","detail":"Verdict buttons unchanged; submit without adding","command":"ctest --preset dev -R 'qt_review_submission_editor_scale_100|application_review_submission_contract'"}},{"criterion":"BPR-2094 scope 5","outcome":"pass","revision":"ee4724b2a98446ddeb2d33a46a99dc12520c2b19","evidence":{"kind":"observation","detail":"Owner Accept `cca3371f` on candidate `BPR-2094-finish-drafts-line`, session 585d18246da0bd78411dee4b26777a2d (handed back 2026-11-11T14:24Z), frozen root from ee4724b2a"}}]
 ---
 
 # Finish your review notes drafts that are not in the review
@@ -69,3 +69,10 @@ SHA-256 `56ba5f7f9482…`, launcher check reached
 `ATTENDED_FINISH_REVIEW_SHOWN`); look `--attended-drafts-look` on
 conventional-comments-v1 (renderer.cpp: threads, three comments in the review,
 two drafts left out). The URL stays in the session state.
+
+## Owner hand-back, session `585d1824…` (2026-11-11)
+
+Read from `session.json` (handed back at sequence 20): `BPR-2094-finish-drafts-line` **Accept**
+(`cca3371f`), no note. Host 24810/24818 stopped with `attended_review.py stop`;
+root `drafts-round-v001.yva0tan3` removed with `freeze_attended_build.py
+remove`. Every scope item passes; the card is Done.
