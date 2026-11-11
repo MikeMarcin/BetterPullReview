@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2098"
 title: "Make Submit reflect held comments and isolate the finish-navigation fixture"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
