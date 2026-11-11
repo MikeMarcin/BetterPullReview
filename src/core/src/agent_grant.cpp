@@ -189,12 +189,14 @@ namespace bpr::core {
 			}
 			return aLine;
 		}
-		/// The key without quotes or spaces around its dots.
+		/// The key without quotes or whitespace around its dots. Fourth
+		/// review (2026-11-11): Codex trims every whitespace character, a
+		/// newline, return, vertical tab or form feed too.
 		[[nodiscard]] auto plain_key(const std::string_view aKey) -> std::string
 		{
 			auto key = std::string{ };
 			for (const auto character : aKey) {
-				if (character != '"' && character != '\'' && character != ' ' && character != '\t') {
+				if (character != '"' && character != '\'' && character != ' ' && character != '\t' && character != '\n' && character != '\r' && character != '\v' && character != '\f') {
 					key += character;
 				}
 			}

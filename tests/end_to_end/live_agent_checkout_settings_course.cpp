@@ -2,15 +2,21 @@
 // agent settings never run in the checkout BetterPullReview made from it, and
 // no launch writes the agent's configuration.
 //
-// Run by hand on macOS, never as a registered row: it starts the installed
-// Codex and Claude Code. Every run has its own home (`HOME` only, as the
+// Opt in on macOS: configure with -DBPR_LIVE_AGENT_COURSES=ON and run
+// `ctest -L live-agent` (row `live_agent_checkout_settings`), or run it by
+// hand; never a default row, since it starts the installed Codex and Claude
+// Code. Every run has its own home (`HOME` only, as the
 // application passes it), whose configuration points every model provider at
 // http://127.0.0.1:9, so no run reaches a model; a run is ended after
 // `--seconds` (12 by default).
 //
-//   live_agent_checkout_settings_course --root DIR [--codex PROGRAM] [--claude PROGRAM] [--seconds N]
+//   live_agent_checkout_settings_course --root DIR [--replace] [--codex PROGRAM] [--claude PROGRAM] [--seconds N]
 //
-// DIR must not exist. For each run the course makes a Git checkout holding
+// DIR must not exist, unless `--replace` removes it first. The fourth review
+// (2026-11-11) adds Codex runs whose home trusts the checkout, whose
+// checkout is a linked worktree of a trusted repository, and that run in the
+// checkout through the `/System/Volumes/Data` firmlink; guarded runs name the
+// checkout by `application::agent_checkout_spellings`, as the host does. For each run the course makes a Git checkout holding
 // the hostile settings in `tests/fixtures/agent-checkout-settings` and builds
 // the arguments with `application::build_agent_launch`, exactly as a turn
 // would: Codex (`exec` and the App Server) and Claude Code, each with no
@@ -22,6 +28,7 @@
 // per run and `live-agent-checkout-settings-course:pass` at the end.
 
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/agent_scratch_folder.hpp"
 
 #include <fcntl.h>
 #include <spawn.h>
@@ -223,6 +230,14 @@ namespace {
 		/// workspace under `/var` or `/tmp` does on macOS; the launch names
 		/// both paths, as the host does.
 		bool ViaLink = false;
+		/// Fourth review: the home trusts the checkout (or, for a worktree,
+		/// the repository it was added from).
+		bool HomeTrusts = false;
+		/// Fourth review: the checkout is a linked worktree.
+		bool Worktree = false;
+		/// Fourth review: the turn runs in the checkout through the
+		/// `/System/Volumes/Data` firmlink spelling of its path.
+		bool ViaFirmlink = false;
 	};
 } // namespace
 
@@ -232,8 +247,17 @@ auto main(int aCount, char** aArguments) -> int
 	auto codex   = std::string{ };
 	auto claude  = std::string{ };
 	auto seconds = 12;
-	for (auto index = 1; index + 1 < aCount; index += 2) {
-		const auto name  = std::string_view{ aArguments[index] };
+	auto replace = false;
+	for (auto index = 1; index < aCount; index += 2) {
+		const auto name = std::string_view{ aArguments[index] };
+		if (name == "--replace") {
+			replace = true;
+			--index;
+			continue;
+		}
+		if (index + 1 >= aCount) {
+			break;
+		}
 		const auto value = std::string{ aArguments[index + 1] };
 		if (name == "--root") {
 			root = fs::path{ value };
@@ -245,8 +269,11 @@ auto main(int aCount, char** aArguments) -> int
 			seconds = std::stoi(value);
 		}
 	}
+	if (root && replace) {
+		fs::remove_all(*root);
+	}
 	if (!root || fs::exists(*root) || (codex.empty() && claude.empty())) {
-		std::cerr << "usage: live_agent_checkout_settings_course --root NEW-DIR [--codex PROGRAM] [--claude PROGRAM] [--seconds N]\n";
+		std::cerr << "usage: live_agent_checkout_settings_course --root NEW-DIR [--replace] [--codex PROGRAM] [--claude PROGRAM] [--seconds N]\n";
 		return EXIT_FAILURE;
 	}
 	fs::create_directories(*root);
@@ -261,6 +288,13 @@ auto main(int aCount, char** aArguments) -> int
 			cases.push_back({ .Label = name + "-scratch", .Protocol = protocol, .Scratch = true });
 			cases.push_back({ .Label = name + "-builds", .Protocol = protocol, .Scratch = true, .Builds = true });
 			cases.push_back({ .Label = name + "-builds-via-link", .Protocol = protocol, .Scratch = true, .Builds = true, .ViaLink = true });
+			cases.push_back({ .Label = name + "-builds-home-trusts", .Protocol = protocol, .Scratch = true, .Builds = true, .HomeTrusts = true });
+		}
+		cases.push_back({ .Label = "codex-exec-control-home-trusts", .Protocol = core::agent_protocol::codex_jsonl_exec, .Guarded = false, .MustFire = true, .HomeTrusts = true });
+		cases.push_back({ .Label = "codex-exec-worktree-home-trusts", .Protocol = core::agent_protocol::codex_jsonl_exec, .HomeTrusts = true, .Worktree = true });
+		cases.push_back({ .Label = "codex-exec-control-worktree-home-trusts", .Protocol = core::agent_protocol::codex_jsonl_exec, .Guarded = false, .MustFire = true, .HomeTrusts = true, .Worktree = true });
+		if (fs::exists("/System/Volumes/Data" + root->string())) {
+			cases.push_back({ .Label = "codex-exec-builds-via-firmlink", .Protocol = core::agent_protocol::codex_jsonl_exec, .Scratch = true, .Builds = true, .ViaFirmlink = true });
 		}
 	}
 	if (!claude.empty()) {
@@ -278,22 +312,29 @@ auto main(int aCount, char** aArguments) -> int
 		const auto checkout = base / "checkout";
 		const auto scratch  = base / "scratch";
 		const auto beacons  = base / "beacons";
-		for (const auto& folder : { home, checkout, scratch, beacons }) {
+		// A worktree's files are committed in its repository and checked out.
+		const auto source = entry.Worktree ? base / "repository" : checkout;
+		for (const auto& folder : { home, source, scratch, beacons }) {
 			fs::create_directories(folder);
 		}
 		const auto isCodex = entry.Protocol != core::agent_protocol::claude_stream_json;
-		write_file(checkout / ".codex/config.toml", fixture("codex-project-config.toml.in", beacons, "codex"));
-		write_file(checkout / ".claude/settings.json", fixture("claude-project-settings.json.in", beacons, "claude-settings"));
-		write_file(checkout / ".claude/settings.local.json", fixture("claude-project-settings.json.in", beacons, "claude-settings-local"));
-		write_file(checkout / ".mcp.json", fixture("mcp.json.in", beacons, "claude"));
-		write_file(checkout / ".claude/skills/beacon/SKILL.md", fixture("claude-skill.md.in", beacons, "claude"));
-		write_file(checkout / "README.md", "A pull request.\n");
-		const auto homeConfig = isCodex ? home / ".codex/config.toml" : home / ".claude/settings.json";
-		write_file(homeConfig, isCodex ? fixture("codex-home-config.toml.in", beacons, "home") : std::string{ "{}\n" });
-		if (!git_checkout(checkout)) {
+		write_file(source / ".codex/config.toml", fixture("codex-project-config.toml.in", beacons, "codex"));
+		write_file(source / ".claude/settings.json", fixture("claude-project-settings.json.in", beacons, "claude-settings"));
+		write_file(source / ".claude/settings.local.json", fixture("claude-project-settings.json.in", beacons, "claude-settings-local"));
+		write_file(source / ".mcp.json", fixture("mcp.json.in", beacons, "claude"));
+		write_file(source / ".claude/skills/beacon/SKILL.md", fixture("claude-skill.md.in", beacons, "claude"));
+		write_file(source / "README.md", "A pull request.\n");
+		if (!git_checkout(source) || (entry.Worktree && !git(source, { "worktree", "add", "-q", "--detach", checkout.string() }))) {
 			std::cerr << entry.Label << ": the checkout could not be made\n";
 			return EXIT_FAILURE;
 		}
+		const auto homeConfig = isCodex ? home / ".codex/config.toml" : home / ".claude/settings.json";
+		auto       homeText   = isCodex ? fixture("codex-home-config.toml.in", beacons, "home") : std::string{ "{}\n" };
+		if (entry.HomeTrusts) {
+			// The reviewer's own trust, as `codex` writes it.
+			homeText += "\n[projects.\"" + fs::canonical(source).string() + "\"]\ntrust_level = \"trusted\"\n";
+		}
+		write_file(homeConfig, homeText);
 		const auto before = read_file(homeConfig);
 
 		auto runsIn = checkout;
@@ -301,12 +342,17 @@ auto main(int aCount, char** aArguments) -> int
 			fs::create_directory_symlink(base, *root / (entry.Label + "-link"));
 			runsIn = *root / (entry.Label + "-link") / "checkout";
 		}
+		if (entry.ViaFirmlink) {
+			runsIn = fs::path{ "/System/Volumes/Data" + checkout.string() };
+		}
 		auto options = application::agent_launch_options{ };
 		if (entry.Guarded) {
-			options.PullRequestCheckout = { runsIn.string() };
-			if (runsIn != checkout) {
-				options.PullRequestCheckout.push_back(checkout.string());
+			auto spellings = application::agent_checkout_spellings(runsIn.string());
+			if (!spellings) {
+				std::cerr << entry.Label << ": the checkout could not be resolved\n";
+				return EXIT_FAILURE;
 			}
+			options.PullRequestCheckout = std::move(*spellings);
 		}
 		if (entry.Scratch || entry.Builds) {
 			options.Grant = application::agent_launch_grant{ .ScratchFolder = entry.Scratch ? scratch.string() : std::string{ }, .BuildWorkspace = entry.Builds ? runsIn.string() : std::string{ } };

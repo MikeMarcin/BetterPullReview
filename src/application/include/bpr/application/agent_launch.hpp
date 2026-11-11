@@ -306,8 +306,9 @@ namespace bpr::application {
 		/// [[BPR-2007]], [[BPR-2008]]. None launches exactly as before.
 		std::optional<agent_launch_grant> Grant;
 		/// RFC-BPR-0104, third review round (F1). The disposable checkout BPR
-		/// made from the pull request, as the turn runs in it and as its
-		/// canonical path; empty for the reviewer's own checkout. Its own
+		/// made from the pull request, as the turn runs in it, as its
+		/// canonical path and as the system names the opened folder
+		/// (`agent_checkout_spellings`); empty for the reviewer's own checkout. Its own
 		/// agent settings are the pull request's, so they are never loaded:
 		/// Claude Code reads only the user's settings (`--setting-sources
 		/// user`), and Codex is told the checkout is an untrusted project
@@ -318,15 +319,18 @@ namespace bpr::application {
 
 	/// \brief RFC-BPR-0104, third review round (F1). The `-c` value that
 	/// makes Codex treat each checkout path as an untrusted project for the
-	/// run, replacing every `projects` entry the reviewer's configuration
-	/// has. Established 2026-11-11 against Codex 0.167.0: without it, a turn
-	/// whose working folder is writable (a build grant, or the reviewer's own
-	/// `workspace-write` mode under `exec`) writes `trust_level = "trusted"`
+	/// run. Codex merges it into the reviewer's `projects` table: it
+	/// overrides the entries for these paths and leaves the others (fourth
+	/// review, 2026-11-11), so every spelling Codex may key the checkout by
+	/// must be named (`agent_checkout_spellings`). Established 2026-11-11
+	/// against Codex 0.167.0: without it, a turn whose working folder is
+	/// writable (a build grant, or the reviewer's own `workspace-write` mode
+	/// under `exec`) writes `trust_level = "trusted"`
 	/// for the checkout into the reviewer's `~/.codex/config.toml` and loads
 	/// the checkout's `.codex/config.toml`, whose `mcp_servers` then run
 	/// outside the sandbox. Untrusted, the checkout's configuration, hooks
 	/// and rules are not loaded and nothing is written. Codex matches the
-	/// canonical path, so the host passes that too.
+	/// kernel's path for its working folder, so the host passes that too.
 	[[nodiscard]] auto codex_untrusted_project_argument(std::span<const std::string> aCheckout) -> std::string;
 
 	/// \brief Effect-lane source claim, released after the private input write or refusal.

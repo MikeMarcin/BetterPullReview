@@ -198,6 +198,11 @@ namespace {
 			   "--config=approval_policy=\"untrusted\"", "-hc=sandbox_mode=\"danger-full-access\"", "-c=", "-c==x", "--config==sandbox_mode=1", "-cnokey", "-c=nokey" }) {
 			expect(refused({ argument }), std::string{ "refused: " } + argument);
 		}
+		// Fourth review, item 3 (2026-11-11): Codex trims every whitespace
+		// character around a key, a newline or a carriage return included.
+		for (const auto* const setting : { "\nsandbox_mode=\"danger-full-access\"", "\r\nprojects={}", "\vdefault_permissions=\"mine\"", "\fapproval_policy=\"untrusted\"", "profile\n=\"work\"" }) {
+			expect(refused({ "-c", setting }), std::string{ "refused with whitespace around the key: " } + setting);
+		}
 		for (const auto& arguments : std::vector<std::vector<std::string>>{ { "--config", "default_permissions=\"mine\"" }, { "-c", "approval_policy=\"untrusted\"" }, { "-c", "-pwork" } }) {
 			expect(refused(arguments), "refused: " + arguments.front() + " " + arguments.back());
 		}

@@ -7,6 +7,7 @@
 #include "bpr/application/agent_scratch_folder.hpp"
 #include "bpr/core/agent_grant.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -89,6 +90,26 @@ auto main() -> int
 	expect(application::remove_agent_scratch_folder(root, "0123abcd") && !std::filesystem::exists(*folder), "the folder goes with its session");
 	expect(std::filesystem::exists(outside / "keep.txt"), "what a link inside named stays");
 	expect(application::remove_agent_scratch_folder(root, "0123abcd"), "removing a folder already gone succeeds");
+	// RFC-BPR-0104 fourth review, item 1 (2026-11-11). Codex keys a project
+	// by the path the kernel reports for its working folder; a checkout named
+	// through a firmlink canonicalises to the firmlink spelling, so the
+	// opened folder's own path is named too. A folder that cannot be resolved
+	// is no checkout to launch in.
+	{
+		const auto checkout = std::filesystem::canonical(base) / "checkout";
+		std::filesystem::create_directories(checkout);
+		const auto plain = application::agent_checkout_spellings(checkout.string());
+		expect(plain && plain->front() == checkout.string() && std::ranges::count(*plain, checkout.string()) == 1, "a plain checkout is named once by its path");
+#if defined(__APPLE__)
+		const auto spelled = "/System/Volumes/Data" + checkout.string();
+		if (std::filesystem::exists(spelled)) {
+			const auto firm = application::agent_checkout_spellings(spelled);
+			expect(firm && firm->front() == spelled && std::ranges::find(*firm, checkout.string()) != firm->end(), "a firmlink spelling is named with the kernel's path");
+		}
+#endif
+		expect(!application::agent_checkout_spellings((checkout / "missing").string()), "a checkout that cannot be resolved is refused");
+		expect(!application::agent_checkout_spellings(""), "no path is refused");
+	}
 	std::filesystem::remove_all(base);
 	std::cout << "agent-scratch-folder-tests:pass\n";
 	return EXIT_SUCCESS;

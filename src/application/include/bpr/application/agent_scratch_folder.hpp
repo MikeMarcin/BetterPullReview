@@ -70,6 +70,16 @@ namespace bpr::application {
 	/// \brief Removes the folder for `aKey` under `aRoot` and everything in
 	/// it, without following a link out. True when it is gone.
 	[[nodiscard]] auto remove_agent_scratch_folder(const std::filesystem::path& aRoot, std::string_view aKey) -> bool;
+
+	/// \brief RFC-BPR-0104, fourth review (2026-11-11). Every spelling an
+	/// agent may key the checkout at `aPath` by: the path as given, its
+	/// canonical path, and the path the system reports for the opened folder
+	/// (Codex keys a project by its working folder as the kernel names it,
+	/// which differs from the canonical path under a macOS firmlink such as
+	/// `/System/Volumes/Data`). The given path first, each once. Nothing
+	/// when the folder cannot be resolved or opened: a checkout that cannot
+	/// be named is never launched in.
+	[[nodiscard]] auto agent_checkout_spellings(const std::string& aPath) -> std::optional<std::vector<std::string>>;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SCRATCH_FOLDER_HPP

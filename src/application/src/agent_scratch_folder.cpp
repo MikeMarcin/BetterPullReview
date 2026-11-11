@@ -3,8 +3,15 @@
 #include "bpr/core/agent_grant.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <system_error>
+
+#if defined(__APPLE__)
+	#include <fcntl.h>
+	#include <sys/param.h>
+	#include <unistd.h>
+#endif
 
 namespace bpr::application {
 	namespace {
@@ -176,5 +183,53 @@ namespace bpr::application {
 		// `remove_all` removes a link inside as a link, never what it names.
 		std::filesystem::remove_all(folder, error);
 		return !error;
+	}
+} // namespace bpr::application
+
+namespace bpr::application {
+	namespace {
+		/// The path the system reports for the folder at `aPath` once opened:
+		/// the spelling a process running there sees as its working folder.
+		[[nodiscard]] auto opened_folder_path(const std::string& aPath) -> std::optional<std::string>
+		{
+#if defined(__APPLE__)
+			const int descriptor = ::open(aPath.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+			if (descriptor < 0) {
+				return std::nullopt;
+			}
+			auto       buffer = std::array<char, MAXPATHLEN>{ };
+			const bool read   = ::fcntl(descriptor, F_GETPATH, buffer.data()) != -1;
+			::close(descriptor);
+			if (!read || buffer.front() == '\0') {
+				return std::nullopt;
+			}
+			return std::string{ buffer.data() };
+#else
+			// Elsewhere the kernel's name for a folder is its resolved path.
+			auto       failed   = std::error_code{ };
+			const auto resolved = std::filesystem::canonical(std::filesystem::path{ aPath }, failed);
+			return failed ? std::nullopt : std::optional{ resolved.string() };
+#endif
+		}
+	} // namespace
+
+	auto agent_checkout_spellings(const std::string& aPath) -> std::optional<std::vector<std::string>>
+	{
+		auto       failed    = std::error_code{ };
+		const auto canonical = aPath.empty() ? std::filesystem::path{ } : std::filesystem::canonical(std::filesystem::path{ aPath }, failed);
+		if (aPath.empty() || failed || !std::filesystem::is_directory(canonical, failed) || failed) {
+			return std::nullopt;
+		}
+		const auto opened = opened_folder_path(aPath);
+		if (!opened) {
+			return std::nullopt;
+		}
+		auto result = std::vector<std::string>{ aPath };
+		for (const auto& spelling : { canonical.string(), *opened }) {
+			if (std::ranges::find(result, spelling) == result.end()) {
+				result.push_back(spelling);
+			}
+		}
+		return result;
 	}
 } // namespace bpr::application

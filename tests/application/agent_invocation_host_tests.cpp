@@ -226,6 +226,12 @@ namespace {
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::agent_workspace_failure::cancelled };
 			}
+			// RFC-BPR-0104 fourth review: a launch names the checkout by
+			// every spelling, so the made checkout exists, as a real one does.
+			if (MakeWorkspace) {
+				auto ignored = std::error_code{ };
+				std::filesystem::create_directories(WorkspacePath, ignored);
+			}
 			// [[BPR-1262]]. The nested workspace names its type: braced without
 			// it, an aggregate holding a std::string is the shape GCC 15
 			// destroys twice when a later member throws ([[BPR-0816]]).
@@ -233,7 +239,7 @@ namespace {
 				.Workspace = application::prepared_workspace{
 					.Policy         = core::agent_workspace_policy::disposable_review_workspace,
 					.PinnedHead     = aRequest.Session.Binding.HeadOid,
-					.Path           = "/tmp/bpr-agent-owned/exact-head",
+					.Path           = WorkspacePath,
 					.BorrowsHistory = BorrowsHistory,
 					.Shallow        = Shallow,
 				},
@@ -287,6 +293,8 @@ namespace {
 		std::vector<application::owned_agent_workspace>                     CleanupAttempts;
 		std::function<void()>                                               AfterMaterialization;
 		std::optional<application::agent_workspace_error>                   MaterializationFailure;
+		std::string                                                         WorkspacePath   = "/tmp/bpr-agent-owned/exact-head";
+		bool                                                                MakeWorkspace   = true;
 		bool                                                                FailNextCleanup = false;
 		bool                                                                BorrowsHistory  = false;
 		application::agent_workspace_unavailable_reason                     InspectReason   = application::agent_workspace_unavailable_reason::retained_unavailable;
@@ -1982,6 +1990,21 @@ namespace {
 			expect(untrusted != codex.Arguments.end() && untrusted->find("\"" + codex.WorkingDirectory + "\"={trust_level=\"untrusted\"}") != std::string::npos
 					   && untrusted->find("\"" + canonical + "\"={trust_level=\"untrusted\"}") != std::string::npos && codex.Grant && codex.Grant->BuildWorkspace == codex.WorkingDirectory,
 				   "Codex in the pull request's checkout: untrusted by both paths, and the build grant names it");
+		}
+
+		// Fourth review, item 1 (2026-11-11): a made checkout that cannot be
+		// resolved is never launched in (it failed open: only its path was
+		// named).
+		{
+			const auto starts             = test.Processes.Starts;
+			test.Workspaces.WorkspacePath = (root / "never-made").string();
+			test.Workspaces.MakeWorkspace = false;
+			test.Host.dispatch(codexBuild);
+			test.settle();
+			expect(test.Processes.Starts == starts && !test.Projection.Finished.empty() && test.Projection.Finished.back().Outcome == application::agent_run_outcome::failed_to_start,
+				   "a checkout that cannot be resolved refuses the launch");
+			test.Workspaces.WorkspacePath = "/tmp/bpr-agent-owned/exact-head";
+			test.Workspaces.MakeWorkspace = true;
 		}
 
 		// The reviewer's own checkout: no build allowance, whatever was asked.

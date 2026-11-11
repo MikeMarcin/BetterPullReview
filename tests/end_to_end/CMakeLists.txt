@@ -4855,6 +4855,26 @@ if(APPLE AND BPR_BUILD_AGENT_INTEGRATIONS)
         "BPR_CHECKOUT_SETTINGS_FIXTURE=\"${PROJECT_SOURCE_DIR}/tests/fixtures/agent-checkout-settings\"")
     bpr_enable_hardening(test_live_agent_checkout_settings_course)
     bpr_enable_warnings(test_live_agent_checkout_settings_course)
+    # Fourth review (2026-11-11): registered as an opt-in row. Never on by
+    # default: it starts the installed agents (dead model providers only).
+    option(BPR_LIVE_AGENT_COURSES "Register the live courses that start the installed Codex and Claude Code" OFF)
+    if(BPR_LIVE_AGENT_COURSES)
+        find_program(bpr_live_codex codex)
+        find_program(bpr_live_claude claude)
+        set(bpr_live_agent_arguments)
+        if(bpr_live_codex)
+            list(APPEND bpr_live_agent_arguments --codex "${bpr_live_codex}")
+        endif()
+        if(bpr_live_claude)
+            list(APPEND bpr_live_agent_arguments --claude "${bpr_live_claude}")
+        endif()
+        if(bpr_live_agent_arguments)
+            add_test(NAME live_agent_checkout_settings
+                COMMAND test_live_agent_checkout_settings_course --root "${CMAKE_CURRENT_BINARY_DIR}/live-agent-checkout-settings" --replace ${bpr_live_agent_arguments})
+            set_tests_properties(live_agent_checkout_settings PROPERTIES
+                LABELS live-agent TIMEOUT 900 PASS_REGULAR_EXPRESSION "live-agent-checkout-settings-course:pass")
+        endif()
+    endif()
 endif()
 
 # BPR-1409: shared-runtime reopen uses the production metadata store and exact CLI viewer checks.

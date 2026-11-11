@@ -980,12 +980,22 @@ namespace bpr::application {
 				// pull request's own `.codex` and `.claude` settings; the
 				// launch names it so they are never loaded, by the path the
 				// agent runs in and the canonical one Codex matches.
+				// Fourth review (2026-11-11): Codex keys the project by the
+				// kernel's name for its working folder, which a firmlink
+				// spelling's canonical path is not, so the opened folder's
+				// path is named too; a checkout that cannot be resolved is
+				// never launched in (it failed open before).
 				if (!aRequest.ExistingCheckoutChosen && workspace) {
-					options.PullRequestCheckout = { workspace->Path };
-					auto failed                 = std::error_code{ };
-					if (const auto canonical = std::filesystem::canonical(std::filesystem::path{ workspace->Path }, failed); !failed && canonical.string() != workspace->Path) {
-						options.PullRequestCheckout.push_back(canonical.string());
+					auto spellings = agent_checkout_spellings(workspace->Path);
+					if (!spellings) {
+						finish_run(
+							{ .Session       = aInvocation->Identity.Session.Id,
+							  .Outcome       = agent_run_outcome::failed_to_start,
+							  .StandardError = "The pull request's checkout could not be resolved, so its own agent settings could not be shut out. No question was sent." },
+							aInvocation);
+						return;
 					}
+					options.PullRequestCheckout = std::move(*spellings);
 				}
 				const auto codexOwn = aRequest.ExistingCheckoutChosen
 					&& (aProfile.Protocol == core::agent_protocol::codex_jsonl_exec || aProfile.Protocol == core::agent_protocol::codex_app_server);
