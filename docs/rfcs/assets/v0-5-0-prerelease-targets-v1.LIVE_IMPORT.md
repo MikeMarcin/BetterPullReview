@@ -117,3 +117,6 @@ this lane and the main checkout restored. The lane's counter reads BPR-2052;
 main's reads BPR-2051 until this lane integrates. Nothing collides.
 Main then reserved BPR-2052 to BPR-2055 (skipping this lane's BPR-2051) and
 reads BPR-2056; the lane's counter follows it. Nothing collides.
+Main then recorded BPR-2056 and reserved BPR-2057 (`86653eacd`) and reads
+BPR-2058; the lane's counter follows it in the critical-review round. Nothing
+is imported and nothing collides.
