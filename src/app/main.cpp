@@ -7252,7 +7252,18 @@ namespace {
 				return;
 			}
 			auto* const tab = window.agent_tab();
+			// [[BPR-2058]]. An unfinished setup (the fixture `codex` found and
+			// chosen) is finished as a person would: Check it works.
 			if (*step == 0) {
+				auto* const setup = window.agent_setup();
+				window.open_agent_action()->trigger();
+				if (setup != nullptr && setup->needed()) {
+					auto* const check = setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"));
+					if (setup->projection().Step == bpr::core::setup_step::check && check != nullptr && check->isVisible() && check->isEnabled()) {
+						check->click();
+					}
+					return;
+				}
 				if (window.agent_panel()->profile_selector()->count() == 0) {
 					return;
 				}
@@ -7324,12 +7335,12 @@ namespace {
 				return;
 			}
 			if (*step == 4) {
-				if (!undo->isVisible() && (said->isHidden() || said->text().startsWith(QStringLiteral("Drafting")))) {
+				if (undo->isHidden() && (said->isHidden() || said->text().startsWith(QStringLiteral("Drafting")))) {
 					return;
 				}
-				QTextStream{ stdout } << "ATTENDED_DRAFT_ALL_DONE:" << said->text() << ":cards=" << cards() << ":button=" << press->text() << '\n';
+				QTextStream{ stdout } << "ATTENDED_DRAFT_ALL_DONE:" << said->text() << ":cards=" << cards() << ":button=" << press->text() << ":agent_shown=" << tab->isVisible() << '\n';
 				QTextStream{ stdout }.flush();
-				if (!undo->isVisible()) {
+				if (undo->isHidden()) {
 					done(QStringLiteral("ATTENDED_DRAFT_ALL_FAILED:no-undo"));
 					return;
 				}
@@ -11734,6 +11745,13 @@ auto main(int argc, char** argv) -> int
 		}
 		if (attendedAgentLook.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentLook } };
+			// [[BPR-2058]]. A fixture built as `codex` is the only agent the
+			// setup finds, never the person's own, and the look finishes the
+			// setup on it.
+			if (const auto agent = std::filesystem::path{ std::string{ *attendedAgentLook } }; agent.stem() == "codex") {
+				fixtureOptions.AttendedAgentSearch = false;
+				fixtureOptions.CodexSearch         = bpr::app::detail::claude_search_environment{ .PathVariable = agent.parent_path().string() };
+			}
 		}
 		if (attendedAgentHelpers.has_value()) {
 			fixtureOptions.ClaudeAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentHelpers } };

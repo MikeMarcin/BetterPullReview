@@ -3463,7 +3463,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# every Agent tab brief carries the suggested-comment format. All local;
 	# no grant, admission or publication boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "388fb45639c10937991adf6430eb11c4a77a1b7337fc601a3b4ceac0381fa2fd"
+        "175d8e266df56c1bfcbc04c53e470145fc9c8666be6f040b431aef85fd2b6ecb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

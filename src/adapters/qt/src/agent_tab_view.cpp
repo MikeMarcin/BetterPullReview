@@ -2892,6 +2892,18 @@ namespace bpr::qt {
 		}
 	}
 
+	void agent_tab_view::mark_finding_gone(const std::uint64_t aSession, const std::size_t aOrdinal)
+	{
+		for (auto& entry : CardEntries) {
+			if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
+				entry.Gone = true;
+				if (entry.Turn) {
+					refresh_draft_all(*entry.Turn);
+				}
+			}
+		}
+	}
+
 	auto agent_tab_view::turn_draft_all_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].DraftAll.data() : nullptr; }
 
 	auto agent_tab_view::turn_draft_all_state(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].DraftAllState.data() : nullptr; }
@@ -2963,7 +2975,7 @@ namespace bpr::qt {
 			if (entry.Turn == std::optional{ aTurn }) {
 				cards.push_back({ .State     = draft_all_state_of(entry.State),
 								  .Suggested = entry.Finding.SuggestedComment && !core::writing_blank(*entry.Finding.SuggestedComment),
-								  .Placeable = FindingPlaceable ? FindingPlaceable(entry.Finding) : entry.Anchored });
+								  .Placeable = !entry.Gone && (FindingPlaceable ? FindingPlaceable(entry.Finding) : entry.Anchored) });
 			}
 		}
 		const auto offered = core::draft_all_offer(cards);
@@ -2987,12 +2999,20 @@ namespace bpr::qt {
 				indices.push_back(index);
 				cards.push_back({ .State     = draft_all_state_of(entry.State),
 								  .Suggested = entry.Finding.SuggestedComment && !core::writing_blank(*entry.Finding.SuggestedComment),
-								  .Placeable = FindingPlaceable ? FindingPlaceable(entry.Finding) : entry.Anchored });
+								  .Placeable = !entry.Gone && (FindingPlaceable ? FindingPlaceable(entry.Finding) : entry.Anchored) });
 			}
 		}
 		const auto plan    = core::plan_draft_all(cards);
 		auto       request = agent_draft_all_request{ .Batch = NextDraftAllBatch++, .Planned = core::start_draft_all(plan) };
-		auto&      turn    = Turns[aTurn];
+		// A suggestion skipped as not in the diff stays skipped: the file on
+		// screen changes as the batch drafts, and with it what the host can
+		// tell of another file's lines.
+		for (std::size_t position = 0U; position < cards.size(); ++position) {
+			if (cards[position].Suggested && !cards[position].Placeable) {
+				CardEntries[indices[position]].Gone = true;
+			}
+		}
+		auto& turn = Turns[aTurn];
 		turn.DraftAllCards.clear();
 		for (const auto position : plan.Draft) {
 			auto& entry = CardEntries[indices[position]];

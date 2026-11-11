@@ -315,6 +315,11 @@ namespace bpr::app {
 			if (undoable) {
 				DraftAllBatches[run.Batch] = std::move(run.Made);
 			}
+			// Drafting opened each line's draft in Comments; the reply that
+			// says what was drafted is shown again.
+			if (tab != nullptr && !Closing && Window->open_agent_action() != nullptr) {
+				Window->open_agent_action()->trigger();
+			}
 			if (run.Done) {
 				run.Done(run.Outcome, undoable);
 			}
@@ -338,6 +343,10 @@ namespace bpr::app {
 				}
 				settle_draft_all_card(serial, core::draft_all_result::drafted);
 			} else if (aState == qt::agent_finding_card_state::refused) {
+				// A line found gone is not offered again.
+				if (gone) {
+					tab->mark_finding_gone(session, ordinal);
+				}
 				settle_draft_all_card(serial, gone ? core::draft_all_result::not_in_diff : core::draft_all_result::refused);
 			}
 		});

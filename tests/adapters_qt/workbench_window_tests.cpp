@@ -15187,11 +15187,14 @@ namespace {
 		undo->click();
 		process_events();
 		expect(undone == std::vector<std::uint64_t>{ requests.back().Batch } && !undo->isVisible(), "Undo asks the host to remove that batch");
+		agent->mark_finding_gone(9U, 1U);
 		agent->present_finding_card_state(9U, 0U, qt::agent_finding_card_state::open);
 		undoDone(1U, 0U);
 		process_events();
-		expect(said->text() == QStringLiteral("Removed 1 draft.") && agent->finding_card_state(0U) == qt::agent_finding_card_state::open && button->text() == QStringLiteral("Draft all (2)"),
+		expect(said->text() == QStringLiteral("Removed 1 draft.") && agent->finding_card_state(0U) == qt::agent_finding_card_state::open && button->text() == QStringLiteral("Draft all (1)"),
 			   "the batch's draft is gone and its card is open again");
+		agent->set_finding_placeability([](const core::agent_finding&) { return true; });
+		expect(button->text() == QStringLiteral("Draft all (1)"), "a suggestion found not in the diff is not offered again when the screen changes");
 		expect(qt::agent_tab_view::draft_all_undo_words(2U, 1U) == QStringLiteral("Removed 2 drafts. Kept 1 draft you changed since.")
 				   && qt::agent_tab_view::draft_all_words({ .Drafted = 0U, .Dismissed = 1U }) == QStringLiteral("Nothing drafted. Skipped 1: 1 dismissed."),
 			   "every outcome is said in words");

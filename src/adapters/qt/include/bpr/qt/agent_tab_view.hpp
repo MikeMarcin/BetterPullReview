@@ -358,6 +358,9 @@ namespace bpr::qt {
 		/// the anchor the finding arrived with).
 		void set_draft_all_dispatch(agent_draft_all_dispatch aDispatch, agent_draft_all_undo aUndo);
 		void set_finding_placeability(agent_finding_placeability aPlaceable);
+		/// \brief The host found this finding's file or lines not in the pull
+		/// request at the head: Draft all no longer counts it.
+		void mark_finding_gone(std::uint64_t aSession, std::size_t aOrdinal);
 		/// \brief Draft all's button, its sentence and its Undo, on one turn.
 		[[nodiscard]] auto turn_draft_all_button(std::size_t aTurn) const -> QPushButton*;
 		[[nodiscard]] auto turn_draft_all_state(std::size_t aTurn) const -> QLabel*;
@@ -506,6 +509,8 @@ namespace bpr::qt {
 			/// [[BPR-2058]]. Its claim, evidence and suggested comment as
 			/// Markdown, each fitted to the card's width.
 			std::vector<QPointer<markdown_body_view>> Texts;
+			/// [[BPR-2058]]. Found not at the head when it was drafted.
+			bool Gone = false;
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
 		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.

@@ -1727,6 +1727,14 @@ target_compile_features(
 )
 bpr_enable_hardening(test_better_pull_review_agent_suggestions_fixture)
 bpr_enable_warnings(test_better_pull_review_agent_suggestions_fixture)
+# Named `codex`, alone in its folder, so the look's agent search finds it
+# and nothing of the person's own.
+set_target_properties(
+    test_better_pull_review_agent_suggestions_fixture
+    PROPERTIES
+        OUTPUT_NAME codex
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/suggestions-agent"
+)
 
 bpr_add_executable(
     test_better_pull_review_agent_finding_composition_public_path

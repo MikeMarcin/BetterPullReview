@@ -8,44 +8,17 @@
 // block) beside a short, postable one, so one reply shows both. One finding
 // names a line past its file's end, so Draft all has one to skip, and one
 // carries no suggested comment. It speaks Codex JSONL, as
-// `agent_finding_canary_main.cpp` does, and reads only the fields it needs
-// from the context it is handed.
+// `agent_finding_canary_main.cpp` does, and answers as the review skill asks
+// a real agent to: prose, then one block fenced `bpr-findings`, which the host
+// decodes, anchoring the findings on the file the turn froze.
 
 #include <cstdlib>
 #include <iostream>
-#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
 
 namespace {
-	using context_fields = std::map<std::string, std::string, std::less<>>;
-
-	[[nodiscard]] auto parse_context(const std::string_view aPayload) -> context_fields
-	{
-		auto fields = context_fields{ };
-		auto begin  = std::size_t{ 0U };
-		while (begin < aPayload.size()) {
-			auto end = aPayload.find('\n', begin);
-			if (end == std::string_view::npos) {
-				end = aPayload.size();
-			}
-			const auto line = aPayload.substr(begin, end - begin);
-			const auto tab  = line.find('\t');
-			if (tab != std::string_view::npos && tab != 0U) {
-				fields.emplace(std::string{ line.substr(0U, tab) }, std::string{ line.substr(tab + 1U) });
-			}
-			begin = end + 1U;
-		}
-		return fields;
-	}
-
-	[[nodiscard]] auto field(const context_fields& aFields, const std::string_view aName, const std::string_view aFallback) -> std::string
-	{
-		const auto found = aFields.find(aName);
-		return found == aFields.end() ? std::string{ aFallback } : found->second;
-	}
-
 	struct suggestion
 	{
 		std::string_view Path;
@@ -61,20 +34,38 @@ namespace {
 	};
 } // namespace
 
-auto main() -> int
+auto main(int argc, char** argv) -> int
 {
+	// The agent setup's check asks `codex login status` and `codex --version`
+	// (and the model menu `codex app-server`) of the program it found: this
+	// fixture is built as `codex` in a folder of its own for that search.
+	const auto argument = [argc, argv](const std::string_view aWord) {
+		for (auto index = 1; index < argc; ++index) {
+			if (std::string_view{ argv[index] } == aWord) {
+				return true;
+			}
+		}
+		return false;
+	};
+	if (argument("login")) {
+		std::cout << "Logged in using a fixture account\n";
+		return EXIT_SUCCESS;
+	}
+	if (argument("--version")) {
+		std::cout << "codex-cli 0.0.0-fixture\n";
+		return EXIT_SUCCESS;
+	}
+	if (!argument("exec")) {
+		return EXIT_SUCCESS;
+	}
+	// The context is read and dropped: the answer does not depend on it.
 	auto buffer = std::ostringstream{ };
 	buffer << std::cin.rdbuf();
-	const auto fields     = parse_context(buffer.str());
-	const auto session    = field(fields, "session", "1");
-	const auto provider   = field(fields, "profile", "2");
-	const auto base       = field(fields, "base", std::string(40U, '1'));
-	const auto head       = field(fields, "head", std::string(40U, '2'));
-	const auto comparison = field(fields, "selection.preferred.comparison", std::string(64U, '5'));
 
+	// One-based, inclusive lines, as the review skill asks.
 	constexpr suggestion findings[] = {
 		{ .Path       = "src/engine/renderer.cpp",
-		  .Begin      = 0U,
+		  .Begin      = 1U,
 		  .End        = 2U,
 		  .Severity   = "major",
 		  .Confidence = "medium",
@@ -86,7 +77,7 @@ auto main() -> int
 						"unbounded. Consider moving the reset into `begin_request` instead:\\n\\n```cpp\\nvoid Renderer::begin_request() {\\n    "
 						"frame_budget_.reset();\\n}\\n```\\n\\nThis keeps per-frame work bounded while still giving each request a fresh budget." },
 		{ .Path       = "tests/ui/widgets/button_tests.cpp",
-		  .Begin      = 0U,
+		  .Begin      = 1U,
 		  .End        = 1U,
 		  .Severity   = "minor",
 		  .Confidence = "high",
@@ -96,7 +87,7 @@ auto main() -> int
 		  .Comment    = "nitpick: The test name `test_button` does not say what it checks; because the test asserts a single emission of `clicked`, "
 						"naming it after that behaviour, for example `test_click_emits_once`, makes a failure easier to read." },
 		{ .Path       = "src/engine/shaders/post/tonemap.frag",
-		  .Begin      = 0U,
+		  .Begin      = 1U,
 		  .End        = 1U,
 		  .Severity   = "minor",
 		  .Confidence = "medium",
@@ -106,7 +97,7 @@ auto main() -> int
 		  .Comment    = "Bright values clip before `exposure` is applied. Multiply by `exposure` first, then clamp." },
 		{ .Path       = "src/engine/renderer.cpp",
 		  .Begin      = 4000U,
-		  .End        = 4001U,
+		  .End        = 4000U,
 		  .Severity   = "trivial",
 		  .Confidence = "high",
 		  .Category   = "style",
@@ -114,7 +105,7 @@ auto main() -> int
 		  .Evidence   = "Nothing reads `legacy_path_`.",
 		  .Comment    = "Remove the unused `legacy_path_` member." },
 		{ .Path       = "src/engine/renderer.h",
-		  .Begin      = 0U,
+		  .Begin      = 1U,
 		  .End        = 1U,
 		  .Severity   = "minor",
 		  .Confidence = "low",
@@ -123,32 +114,41 @@ auto main() -> int
 		  .Evidence   = "No comment or assertion names the render thread.",
 		  .Comment    = "" },
 	};
-	auto payload = std::string{ "{\"session\":" + session + ",\"findings\":[" };
-	auto first   = true;
+	// The block's JSON, escaped once more to ride inside the message text.
+	auto block = std::string{ "{\\\"findings\\\": [" };
+	auto first = true;
 	for (const auto& finding : findings) {
-		payload += first ? "{" : ",{";
+		block += first ? "{" : ",{";
 		first = false;
-		payload += "\"provider\":" + provider;
-		payload += ",\"severity\":\"" + std::string{ finding.Severity } + "\",\"confidence\":\"" + std::string{ finding.Confidence } + "\"";
-		payload += ",\"category\":\"" + std::string{ finding.Category } + "\"";
-		payload += ",\"path\":\"" + std::string{ finding.Path } + "\"";
-		payload += ",\"lines\":{\"begin\":" + std::to_string(finding.Begin) + ",\"end\":" + std::to_string(finding.End) + "}";
-		payload += ",\"anchor\":{\"line\":{\"comparison\":\"" + comparison + "\",\"side\":\"right\",\"line\":" + std::to_string(finding.Begin) + "}}";
-		payload += ",\"claim\":\"" + std::string{ finding.Claim } + "\"";
-		payload += ",\"evidence\":\"" + std::string{ finding.Evidence } + "\"";
+		block += "\\\"path\\\": \\\"" + std::string{ finding.Path } + "\\\"";
+		block += ", \\\"startLine\\\": " + std::to_string(finding.Begin) + ", \\\"endLine\\\": " + std::to_string(finding.End);
+		block += ", \\\"severity\\\": \\\"" + std::string{ finding.Severity } + "\\\", \\\"category\\\": \\\"" + std::string{ finding.Category } + "\\\"";
+		block += ", \\\"confidence\\\": \\\"" + std::string{ finding.Confidence } + "\\\"";
+		block += ", \\\"claim\\\": \\\"" + std::string{ finding.Claim } + "\\\"";
+		block += ", \\\"evidence\\\": \\\"" + std::string{ finding.Evidence } + "\\\"";
 		if (!finding.Comment.empty()) {
-			payload += ",\"suggestedComment\":\"" + std::string{ finding.Comment } + "\"";
+			// A suggestion's own escapes (\n) are escaped again for the frame.
+			auto comment = std::string{ };
+			for (const auto character : finding.Comment) {
+				if (character == '\\') {
+					comment += "\\\\";
+				} else {
+					comment.push_back(character);
+				}
+			}
+			block += ", \\\"suggestedComment\\\": \\\"" + comment + "\\\"";
 		}
-		payload += ",\"analyzedBase\":\"" + base + "\",\"analyzedHead\":\"" + head + "\",\"analyzedCommits\":[\"" + head + "\"]}";
+		block += "}";
 	}
-	payload += "]}";
+	block += "]}";
 	std::cout << "{\"type\":\"thread.started\",\"thread_id\":\"suggestions-fixture\"}\n"
 				 "{\"type\":\"turn.started\"}\n"
 				 "{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\",\"type\":\"agent_message\",\"text\":\""
 				 "I read the renderer, the tone-mapping shader and the button tests. Five findings below; four come with a comment you could post. "
-				 "I could not run the shaders.\"}}\n"
-				 "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":1,\"cached_input_tokens\":0,\"output_tokens\":1},\"bprFindings\":"
-			  << payload << "}\n";
+				 "I could not run the shaders.\\n\\n```bpr-findings\\n"
+			  << block
+			  << "\\n```\\n\"}}\n"
+				 "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":1,\"cached_input_tokens\":0,\"output_tokens\":1}}\n";
 	std::cout.flush();
 	return EXIT_SUCCESS;
 }
