@@ -193,3 +193,5 @@ changed host and Qt sources, format check, documentation gate.
 
 Renders (Cocoa, off screen, light and dark): the roster and every footer
 state, in the attended session below.
+
+Filed, not waited on (the URL stays in the session state's `serve.log`): session `7c9206759d935f663d6a13ce0e008afc`, state `/Users/jaeger/.attended-review-state/layout-round-v001-2026-11-11/state`, cursor 12, host PID 73758 (its `tailscale serve` child 73768), frozen root `/Users/jaeger/layout-round-v001.5q22yahv` from `3285ec887` (app SHA-256 `97d0861e19dc…`, launcher check reached `ATTENDED_TOUR_SHOWN`). Candidates: `BPR-2051-roster-top` and `BPR-2051-agent-footer` (looks: `agent_footer --look`, `better_pull_review_qt_settings_window_tests --agents-roster-look` in the root's build, and the frozen app). The card stays parked on `human-review`.

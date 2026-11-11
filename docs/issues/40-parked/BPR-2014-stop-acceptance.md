@@ -158,3 +158,5 @@ toggle and lines link stay put; no routine status text),
 `qt_review_tour_agent_help`, `qt_review_tour_agent_setup_call`,
 `qt_tour_side_chat`, `qt_tour_stop_card_cleanup`, `qt_scoped_prose_editor`,
 `qt_workbench_window_scale_*`, `application_review_tour_composition_public_path`.
+
+Filed, not waited on (the URL stays in the session state's `serve.log`): session `7c9206759d935f663d6a13ce0e008afc`, state `/Users/jaeger/.attended-review-state/layout-round-v001-2026-11-11/state`, cursor 12, host PID 73758 (its `tailscale serve` child 73768), frozen root `/Users/jaeger/layout-round-v001.5q22yahv` from `3285ec887` (app SHA-256 `97d0861e19dc…`, launcher check reached `ATTENDED_TOUR_SHOWN`). Candidates: `BPR-2014-stop-editing-v3` (the `tour_stop_acceptance_card --look`) and `tour-panel-layout-v1` (the frozen app). RFC-BPR-0106 AC08 stays pending on these looks; the critical review is still owed. The card stays parked on `human-review`.
