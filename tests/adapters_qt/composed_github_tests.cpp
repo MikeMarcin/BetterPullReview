@@ -5294,6 +5294,11 @@ namespace {
 		projection.Entries.push_back(recent_entry("microsoft", "terminal", 42U, "Fix the conpty resize race", 1'772'000'000, false));
 		projection.Entries.push_back(recent_entry("qt", "qtbase", 9'001U, { }, 0, false));
 		window.publish(projection);
+		auto* const cycleModel           = window.home_cycles_list()->model();
+		unsigned    cycleResets          = 0U;
+		const auto  cycleResetConnection = QObject::connect(cycleModel, &QAbstractItemModel::modelReset, &window, [&] { ++cycleResets; });
+		window.present_local_cycle_recents({ });
+		expect(cycleResets == 0U && window.home_cycles_list()->isHidden(), "unchanged empty cycle recents reset no Home model");
 		auto cycles                        = std::vector<application::review_cycle_recent>(2U);
 		cycles[0].Cycle.Title              = "Engine refactor";
 		cycles[0].Cycle.Subject.Generation = 7U;
@@ -5301,6 +5306,25 @@ namespace {
 		cycles[1].Cycle.Title              = "Docs pass";
 		cycles[1].Cycle.Subject.Generation = 8U;
 		window.present_local_cycle_recents(cycles);
+		auto* const cycleList = window.home_cycles_list();
+		cycleList->setCurrentRow(1);
+		const QPersistentModelIndex retainedCycle{ cycleModel->index(1, 0) };
+		const auto                  resetsBeforeRepeat = cycleResets;
+		window.present_local_cycle_recents(cycles);
+		expect(cycleResets == resetsBeforeRepeat && cycleList->model() == cycleModel && retainedCycle.isValid()
+				   && retainedCycle == cycleModel->index(1, 0) && cycleList->currentRow() == 1,
+			   "unchanged cycle recents retain model, item identity and selected row");
+		auto changedCycles           = cycles;
+		changedCycles[1].Cycle.Title = "Updated docs pass";
+		changedCycles[1].Location    = "/work/updated-docs";
+		window.present_local_cycle_recents(changedCycles);
+		expect(cycleResets > resetsBeforeRepeat && cycleList->count() == 2 && cycleList->item(1)->text().contains(QStringLiteral("Updated docs pass"))
+				   && cycleList->item(1)->toolTip() == QStringLiteral("/work/updated-docs"),
+			   "changed cycle recents still publish their current title and location");
+		window.present_local_cycle_recents({ });
+		expect(cycleList->count() == 0 && cycleList->isHidden(), "a real empty cycle projection removes the old rows");
+		window.present_local_cycle_recents(cycles);
+		QObject::disconnect(cycleResetConnection);
 		// The lists lay out over a few turns; a click is made where a row is.
 		for (auto turn = 0; turn < 20; ++turn) {
 			QApplication::processEvents();
