@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2100"
 title: "Discover native release regressions before long qualification"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-2057", "BPR-2058"]
 priority: "P1"
