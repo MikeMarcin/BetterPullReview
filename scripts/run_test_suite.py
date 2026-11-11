@@ -477,6 +477,28 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     return completed.returncode or (1 if not complete or report["counts"].get("failed", 0) else 0)
 
 
+def phase_results(output: Path) -> dict:
+    """Link structured native evidence without scraping console output or granting pass credit."""
+    result = {"reports": {name: str((output / name).resolve()) for name in
+                          ("manifest.json", "selection.json", "preflight.json", "timings.json", "junit.xml", "ctest.log")
+                          if (output / name).is_file()}}
+    for name in ("timings.json", "preflight.json"):
+        path = output / name
+        if not path.is_file():
+            continue
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+            rows = report.get("results", report)
+            result[name] = {"complete": report.get("complete"), "counts": rows.get("counts", {}),
+                            "failed": [row["name"] for row in rows.get("tests", []) if row["status"] == "failed"],
+                            "skipped": [row["name"] for row in rows.get("tests", []) if row["status"] == "skipped"],
+                            "missing": report.get("missing", []), "unexpected": report.get("unexpected", []),
+                            "not_run": report.get("not_run", [])}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+            result[name] = {"diagnostic_error": str(error)}
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preset", default="dev")
@@ -512,13 +534,17 @@ def main() -> int:
                    profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, focused_regressions=args.include_tests_regex)
     identity = ledger.begin(args.phase_ledger, "qualification", context, sys.argv)
     started = time.monotonic()
+    output_existed = output.exists()
     try:
         code = run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex,
                          profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, include_tests_regex=args.include_tests_regex)
     except Exception as error:
-        ledger.finish(args.phase_ledger, identity, outcome="refused", seconds=time.monotonic() - started, exit_code=None, detail=str(error))
+        ledger.finish(args.phase_ledger, identity, outcome="refused", seconds=time.monotonic() - started, exit_code=None,
+                      detail=str(error), results={"reports": {}, "diagnostic_note": "Output existed before this attempt; not attributed"}
+                      if output_existed else phase_results(output))
         raise
-    ledger.finish(args.phase_ledger, identity, outcome="passed" if code == 0 else "failed", seconds=time.monotonic() - started, exit_code=code)
+    ledger.finish(args.phase_ledger, identity, outcome="passed" if code == 0 else "failed", seconds=time.monotonic() - started,
+                  exit_code=code, results=phase_results(output))
     return code
 
 

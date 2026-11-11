@@ -75,41 +75,45 @@ unstarted downstream stages. Retain any running job's ownership and raw result;
 do not stop unrelated jobs. Validate affected evidence for the new source under
 the release policy. Do not silently reuse old-source acceptance.
 
-## Compile every selected platform before long suites
+## Compile each physical host before its long suites
 
-Compilation is an all-platform prerequisite, not a stage hidden behind another
-platform's long tests. After freezing the common source and passing cheap tooling
-and source checks, configure and build on **every selected native platform**:
+Compilation is an early prerequisite on each physical host, not a global wait
+between independent hosts. After freezing the common source and passing cheap
+tooling and source checks, configure and build every selected graph on that host:
 
 1. The Release test graph and its selected test executables.
 2. The required Debug test graph and its selected test executables.
 3. The tests-disabled distribution graph, including every selected architecture
    and variant (for example, both architectures of the macOS universal build).
 
-Record the exact source, presets/configurations, toolchain, commands, actual
-exits and raw build receipts in the existing phase ledger. Do not start any long
-qualification, performance or end-to-end suite until every required compilation
-receipt passes. A configure-only result or a focused target build does not prove
-that the remaining selected targets compile. A Debug timeout waiver does not
-waive compilation failures.
+Record source, presets/configurations, toolchain, commands, actual exits and raw
+build receipts in the phase ledger. A configure-only or focused target result
+does not prove all selected targets compile. A Debug timing omission does not
+waive compilation failures. `tools/release.sh` builds all three local graphs
+before its long qualification suites, finding Debug/distribution compile errors
+earlier instead of spending the Release suite first.
 
-Mac compilation may run alongside PC compilation. On the shared PC, finish
-Windows Release/Debug/distribution compilation, then Ubuntu
-Release/Debug/distribution compilation (or the reverse), **before either platform
-starts long tests**. Do not schedule Windows build → Windows full suite → Ubuntu
-build. That ordering delayed discovery of a GCC warning-as-error until after
-hours of tests during v0.3.3 preparation.
+Mac compilation may run alongside PC compilation. Once its own graphs pass, Mac
+qualification may start while the PC finishes compilation. Do not wait for an
+unrelated physical host's receipt. On the shared PC, finish Windows and Ubuntu
+Release/Debug/distribution compilation before either platform's long suites.
+Do not schedule Windows build → Windows full suite → Ubuntu build: that delayed
+discovery of a GCC warning-as-error until after hours of tests during v0.3.3.
 
-If compilation fails, preserve the failure, fix it and rebuild the affected
-inputs before releasing the barrier. Reconcile unchanged passing build receipts
-under the existing evidence policy; this barrier does not require discarding
-valid work or rerunning unrelated builds. Compilation is not test acceptance,
-artifact audit, signing or publication approval.
+A failure still rejects its candidate. Stop dispatching its unstarted downstream
+stages, retain every running job's ownership and result, and reconcile all failed
+rows before preparing a successor. Include each unresolved regression in the
+successor's early checks; fixing only the first failure serializes discovery.
+Do not kill unrelated work. Starting independent native qualification earlier
+can spend work on a candidate later rejected elsewhere; it does not grant any
+old-source pass to corrected source. Reconcile unchanged passing receipts only
+under the existing evidence policy.
 
-Once the barrier passes, run the required native suites, then package/sign using
-the existing platform workflow. Preserve the macOS script's gate ownership;
-avoid a duplicate full suite merely to obtain a packaging transcript. Retain any
-policy-permitted bridge to already completed, unchanged qualification explicitly.
+All selected native compilation and qualification receipts remain required before
+coordinated release acceptance/publication. Compilation is not test acceptance,
+artifact audit or signing approval. Preserve the macOS script's gate ownership;
+do not run a duplicate full suite for a packaging transcript. Keep any permitted
+bridge to unchanged qualification explicit and input-bound.
 
 ## Schedule by physical host and prerequisites
 
@@ -135,6 +139,26 @@ policy-permitted bridge to already completed, unchanged qualification explicitly
   do not ask again merely because an agent or phase changed. A changed Qt/legal
   material decision and a factual security applicability disposition remain
   distinct obligations. Follow the attended-review handback boundary.
+
+## Interpret optimized timing without idle-host polling
+
+Do not impose a quiet-host wait merely to attempt an upper-bound latency check.
+A valid complete Release course that meets its unchanged maximum under load can
+satisfy that course; it does not prove an uncontended speedup. Preserve the
+course's fixture, workload, clocks, resource ownership and other validity
+conditions. Minimum-throughput, cold-cache, RSS/heap and comparative performance
+claims keep their own preconditions. Never infer those conditions from CPU
+idleness or weaken CTest locks/serial declarations.
+
+A failed timing predicate remains a failure. Retain its exact identity, binary,
+configuration, workload, metric, limit and raw output. Diagnose functional errors
+and collect available process-scoped CPU/memory/I/O observations from the same
+interval before blaming contention; process names or a later quiet pass are not
+causal evidence. Where the predicate permits it, plan at most one controlled,
+identical-binary rerun after removing the suspected contention, retaining both
+attempts and the changed conditions. Do not retry until green, average away a
+failure, or call an unsupported result a pass. A repeated failure needs correction
+or explicit disposition. Do not change an in-flight release's frozen procedure.
 
 ## Recover the failed layer
 
@@ -172,6 +196,34 @@ comparable run; instruction changes alone establish no speedup.
 
 ## Request phase ledger
 
+BPR-2057 makes build/qualification diagnostics automatic in future
+`tools/release.sh` invocations. It prints a new external-to-source
+`build/release-diagnostics/VERSION.XXXXXX/phases.jsonl` path before builds, with
+`context.json` holding observed source commit/dirty state, candidate/version,
+producer, platform/architecture and resolved tools. Each configure/build phase
+retains UTC timestamps, monotonic elapsed seconds, cwd, argv, actual native exit,
+child PID and separate raw stdout/stderr paths while streaming output normally.
+The ledger's `summary` command includes failed and pending phase IDs, so callers
+do not need to scrape transcripts. Qualification terminal records link the
+existing manifest/selection/JUnit/timing/preflight reports and list failed,
+skipped, missing, unexpected and not-run rows. Incomplete or malformed reports
+are diagnostics, never acceptance. No environment or credential dump is made.
+
+This is phase-level instrumentation, not per-translation-unit compiler profiling.
+It covers configure/build/qualification, not package/sign/trust/publication.
+An interrupted wrapper leaves an open phase until native state is reconciled.
+A signaled child retains its native negative signal status in JSON and returns
+128+signal to the shell. Raw logs stay private, outside published release assets;
+inspect them before sharing, since a tool can print sensitive information.
+
+A coordinated or resumed run passes existing absolute `--phase-ledger` and
+`--phase-context` paths to `tools/release.sh`; it must not reset the original
+request clock. A default ledger starts at this script invocation, not at an
+unobserved earlier user request. Windows/Linux commands use the same portable
+ledger wrapper with `run --log-dir /absolute/private-logs`. Contexts must retain
+current source/configuration, toolchain, physical-host and candidate identity;
+a diagnostic context is not an evidence-reuse certificate.
+
 BPR-1675 adds `scripts/release_phase_ledger.py` as an append-only observation
 helper around these existing commands. It does not select tests, schedule hosts,
 reuse verdicts, sign or publish. Initialize one new external ledger at the actual
@@ -182,7 +234,7 @@ tools, cache condition, physical-host lease and evidence roots:
 python3 scripts/release_phase_ledger.py --ledger /absolute/request.jsonl init \
   --request-start ACTUAL_UTC_INSTANT --context /absolute/context.json
 python3 scripts/release_phase_ledger.py --ledger /absolute/request.jsonl run \
-  --phase build --context /absolute/context.json -- cmake --build --preset PRESET
+  --phase build --context /absolute/context.json --log-dir /absolute/private-logs -- cmake --build --preset PRESET
 python3 scripts/run_test_suite.py --preset PRESET --jobs 4 \
   --output-dir /absolute/new-results --phase-ledger /absolute/request.jsonl \
   --phase-context /absolute/context.json

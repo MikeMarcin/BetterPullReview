@@ -88,10 +88,11 @@ suite runner's exact same-invocation bootstrap receipts may avoid duplicate rows
    on relevant native hosts before the expensive release gates. Update the CMake
    version and user-facing notes, then commit the common release source. Record
    its full commit and use that commit on every producer. Before starting any
-   long test suite, complete the [all-platform compilation barrier](references/execution.md#compile-every-selected-platform-before-long-suites):
+   long test suite, complete the [physical-host compilation prerequisites](references/execution.md#compile-each-physical-host-before-its-long-suites):
    configure and build the required Release and Debug test graphs and the
-   tests-disabled distribution graph on every selected native platform. Fix
-   compilation failures before releasing that barrier. Then run the relevant
+   tests-disabled distribution graph on that physical host. Independent hosts may advance separately; Windows and
+   WSL share a host and finish their builds before long tests. Fix compilation
+   failures and retain every selected platform's required final receipts. Then run the relevant
    native test gates and proceed with packaging; the macOS script owns its
    normal gate. Record failures and configured
    skips. Do not publish dirty-source or skipped-test candidates without the

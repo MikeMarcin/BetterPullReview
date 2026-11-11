@@ -700,6 +700,71 @@ class ReleaseBuildDirectoryTests(unittest.TestCase):
                 self.assertNotEqual(self.select(root, arguments).returncode, 0)
 
 
+@unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")
+class ReleasePhaseOrderTests(unittest.TestCase):
+    def course(self, options=(), failed_phase=""):
+        script = (ROOT / "tools/release.sh").read_text()
+        prefix = script.split('[[ "$(uname -s)" == "Darwin" ]]', 1)[0]
+        start = script.index('cd "${ROOT_DIR}"\ninitialize_phase_diagnostics')
+        end = script.index('[[ -d "${APP_PATH}" ]]', start)
+        with ContainedTemporaryDirectory() as temporary:
+            harness = prefix + "\nROOT_DIR=" + shlex.quote(temporary)
+            harness += "\nFAIL_PHASE=" + shlex.quote(failed_phase)
+            harness += r'''
+PRESET="macos-release${VARIANT:+-${VARIANT}}"
+BUILD_DIR="$ROOT_DIR/build/$PRESET"
+COHORT_CONFIGURE=(-DBPR_RELEASE_COHORT=/cohort -DBPR_RELEASE_PRODUCER=mac)
+PHASE_LEDGER="/private ledger/phases.jsonl"
+PHASE_CONTEXT="/private ledger/context.json"
+initialize_phase_diagnostics() { :; }
+record_phase() {
+    printf 'phase:%s\n' "$*"
+    if [[ "$1" == "$FAIL_PHASE" ]]; then return 17; fi
+}
+python3() { printf 'suite:%s\n' "$*"; }
+'''
+            harness += script[start:end]
+            return subprocess.run(["bash", "-s", "--", *options], input=harness, capture_output=True, text=True)
+
+    def test_every_local_graph_precedes_qualification_and_variants_are_preserved(self):
+        for variant in ("", "agent-free", "agent-free-automation-off"):
+            for profile in ("normal", "comprehensive"):
+                with self.subTest(variant=variant, profile=profile):
+                    options = ["--test-profile", profile, "--test-scope", "routine", "--test-heavy-group", "device-lifecycle"]
+                    if variant:
+                        options += ["--variant", variant]
+                    result = self.course(options)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    rows = [line for line in result.stdout.splitlines() if line.startswith(("phase:", "suite:"))]
+                    self.assertEqual([line.split()[0] for line in rows[:6]], ["phase:" + phase for phase in
+                        ("configure-release", "build-release", "configure-debug", "build-debug", "configure-distribution", "build-distribution")])
+                    self.assertEqual(len(rows), 8)
+                    self.assertIn("--preset macos-release" + ("-" + variant if variant else ""), rows[4])
+                    self.assertIn("-DBPR_RELEASE_COHORT=/cohort -DBPR_RELEASE_PRODUCER=mac", rows[4])
+                    self.assertIn("--preset qualification-release --profile " + profile, rows[6])
+                    self.assertIn("--preset dev --profile " + ("comprehensive" if profile == "comprehensive" else "debug-residual"), rows[7])
+                    for row in rows[6:]:
+                        self.assertIn("--jobs 4 --phase-ledger /private ledger/phases.jsonl --phase-context /private ledger/context.json", row)
+                        self.assertIn("--heavy-group device-lifecycle", row)
+                    self.assertEqual("--tests-regex" in rows[7], profile == "comprehensive")
+
+    def test_build_failure_stops_without_running_suites_or_later_builds(self):
+        phases = ("configure-release", "build-release", "configure-debug", "build-debug", "configure-distribution", "build-distribution")
+        for index, phase in enumerate(phases):
+            with self.subTest(phase=phase):
+                result = self.course(failed_phase=phase)
+                self.assertEqual(result.returncode, 17)
+                self.assertNotIn("suite:", result.stdout)
+                self.assertEqual(sum(line.startswith("phase:") for line in result.stdout.splitlines()), index + 1)
+
+    def test_skip_tests_keeps_only_distribution_builds(self):
+        result = self.course(["--skip-tests"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("suite:", result.stdout)
+        self.assertEqual(sum(line.startswith("phase:") for line in result.stdout.splitlines()), 2)
+        self.assertIn("phase:build-distribution", result.stdout)
+
+
 class ReleaseProfileAdmissionTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "darwin", "native macOS release entrypoint")
     def test_missing_scope_or_patch_regressions_refuses_before_work(self):

@@ -28,6 +28,9 @@ TEST_PROFILE="normal"
 TEST_SCOPES=()
 TEST_HEAVY_GROUPS=()
 TEST_REGRESSIONS=""
+PHASE_LEDGER=""
+PHASE_CONTEXT=""
+INVOCATION_START="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 usage() {
     cat <<EOF
@@ -49,6 +52,9 @@ Options:
                         Missing scope refuses; broad/unknown needs explicit comprehensive.
   --test-heavy-group ID  Add one named heavy obligation to normal checks.
   --test-regressions RE  Add focused patch regressions without dropping baseline.
+  --phase-ledger ABS     Append build/qualification diagnostics to this existing request ledger.
+  --phase-context ABS    Nonsecret JSON context for that ledger; both options required together.
+                        Default: a fresh build/release-diagnostics/ directory, printed before work.
   --skip-notarize        Build signed artifacts without submitting them to Apple.
   --prepare-only        Local deployment, notices/source, audit and ZIP only;
                         ad-hoc seal, no Keychain lookup or Apple submissions.
@@ -95,6 +101,41 @@ select_release_paths() {
 
 log() {
     printf '==> %s\n' "$*"
+}
+
+initialize_phase_diagnostics() {
+    if [[ -z "${PHASE_LEDGER}" ]]; then
+        mkdir -p "${ROOT_DIR}/build/release-diagnostics"
+        local diagnostics
+        diagnostics="$(mktemp -d "${ROOT_DIR}/build/release-diagnostics/${ASSET_VERSION}.XXXXXX")"
+        PHASE_LEDGER="${diagnostics}/phases.jsonl"
+        PHASE_CONTEXT="${diagnostics}/context.json"
+        python3 "${ROOT_DIR}/scripts/release_phase_ledger.py" --ledger "${PHASE_LEDGER}" init-build \
+            --request-start "${INVOCATION_START}" --context "${PHASE_CONTEXT}" --source-root "${ROOT_DIR}" \
+            --version "${REQUESTED_VERSION}" --candidate "${ASSET_VERSION}" \
+            --producer "${RELEASE_PRODUCER:-macos}" --variant "${VARIANT}"
+    fi
+    log "Build/qualification phase ledger: ${PHASE_LEDGER}"
+}
+
+record_phase() {
+    local phase="$1"
+    shift
+    python3 "${ROOT_DIR}/scripts/release_phase_ledger.py" --ledger "${PHASE_LEDGER}" run \
+        --phase "${phase}" --context "${PHASE_CONTEXT}" --log-dir "${PHASE_LEDGER}.logs" -- "$@"
+}
+
+build_release_graphs() {
+    if [[ "${SKIP_TESTS}" == "0" ]]; then
+        log "Building Release and Debug test graphs before long qualification"
+        record_phase configure-release cmake --preset qualification-release
+        record_phase build-release cmake --build --preset qualification-release
+        record_phase configure-debug cmake --preset dev
+        record_phase build-debug cmake --build --preset dev
+    fi
+    log "Building the universal tests-disabled application (${PRESET})"
+    record_phase configure-distribution cmake --preset "${PRESET}" -B "${BUILD_DIR}" "${COHORT_CONFIGURE[@]}"
+    record_phase build-distribution cmake --build "${BUILD_DIR}" --config Release
 }
 
 require_command() {
@@ -545,6 +586,11 @@ while [[ $# -gt 0 ]]; do
             TEST_REGRESSIONS="$2"
             shift 2
             ;;
+        --phase-ledger|--phase-context)
+            [[ $# -ge 2 && "$2" == /* ]] || fail "$1 requires an absolute path"
+            if [[ "$1" == --phase-ledger ]]; then PHASE_LEDGER="$2"; else PHASE_CONTEXT="$2"; fi
+            shift 2
+            ;;
         --skip-notarize)
             SKIP_NOTARIZE=1
             shift
@@ -573,6 +619,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "macOS release packaging requires macOS"
+if [[ -n "${PHASE_LEDGER}" || -n "${PHASE_CONTEXT}" ]]; then
+    [[ -f "${PHASE_LEDGER}" && -f "${PHASE_CONTEXT}" ]] || fail "--phase-ledger and --phase-context must name existing files together"
+fi
 if [[ "${SKIP_TESTS}" == "0" ]]; then
     [[ "${TEST_PROFILE}" == normal || "${TEST_PROFILE}" == comprehensive ]] || fail "--test-profile must be normal or comprehensive"
     if [[ "${TEST_PROFILE}" == normal ]]; then
@@ -641,9 +690,13 @@ if [[ "${PREPARE_ONLY}" == "0" && "${SKIP_NOTARIZE}" == "0" ]]; then
     fi
 fi
 
+cd "${ROOT_DIR}"
+initialize_phase_diagnostics
+build_release_graphs
+
 if [[ "${SKIP_TESTS}" == "0" ]]; then
     [[ "${TEST_PROFILE}" == normal || "${TEST_PROFILE}" == comprehensive ]] || fail "--test-profile must be normal or comprehensive"
-    TEST_ARGUMENTS=(--jobs 4)
+    TEST_ARGUMENTS=(--jobs 4 --phase-ledger "${PHASE_LEDGER}" --phase-context "${PHASE_CONTEXT}")
     if [[ ${#TEST_SCOPES[@]} -gt 0 ]]; then
         for scope in "${TEST_SCOPES[@]}"; do TEST_ARGUMENTS+=(--change-scope "${scope}"); done
     fi
@@ -651,13 +704,9 @@ if [[ "${SKIP_TESTS}" == "0" ]]; then
         for group in "${TEST_HEAVY_GROUPS[@]}"; do TEST_ARGUMENTS+=(--heavy-group "${group}"); done
     fi
     if [[ -n "${TEST_REGRESSIONS}" ]]; then TEST_ARGUMENTS+=(--include-tests-regex "${TEST_REGRESSIONS}"); fi
-    log "Building and testing the declared Release profile; omitted heavy claims remain unqualified"
-    cmake --preset qualification-release
-    cmake --build --preset qualification-release
+    log "Testing the declared Release profile; omitted heavy claims remain unqualified"
     python3 scripts/run_test_suite.py --preset qualification-release --profile "${TEST_PROFILE}" "${TEST_ARGUMENTS[@]}"
-    log "Building the native Debug diagnostic lane"
-    cmake --preset dev
-    cmake --build --preset dev
+    log "Testing the native Debug diagnostic lane"
     DEBUG_PROFILE=debug-residual
     DEBUG_TEST_ARGUMENTS=("${TEST_ARGUMENTS[@]}")
     if [[ "${TEST_PROFILE}" == comprehensive ]]; then
@@ -671,9 +720,6 @@ else
     log "Skipping tests"
 fi
 
-log "Building the universal tests-disabled application (${PRESET})"
-cmake --preset "${PRESET}" -B "${BUILD_DIR}" "${COHORT_CONFIGURE[@]}"
-cmake --build "${BUILD_DIR}" --config Release
 [[ -d "${APP_PATH}" ]] || fail "Expected application bundle is absent: ${APP_PATH}"
 
 INFO_PLIST="${APP_PATH}/Contents/Info.plist"

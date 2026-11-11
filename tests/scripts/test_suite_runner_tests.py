@@ -516,6 +516,123 @@ bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
 
 
 class PhaseLedgerTests(unittest.TestCase):
+    def test_init_build_cli_writes_observed_context_and_never_replaces_it(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, context = root / "phases.jsonl", root / "context.json"
+            command = [sys.executable, str(ROOT / "scripts/release_phase_ledger.py"), "--ledger", str(path),
+                       "init-build", "--request-start", "2026-01-01T00:00:00Z", "--context", str(context),
+                       "--source-root", str(ROOT), "--version", "1.2.3", "--candidate", "1.2.3-build.4",
+                       "--producer", "fixture", "--variant", ""]
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            original = path.read_bytes(), context.read_bytes()
+            self.assertEqual(json.loads(context.read_text())["candidate"], "1.2.3-build.4")
+            self.assertEqual(ledger.summary(path)["request"]["context"], json.loads(context.read_text()))
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            self.assertEqual((path.read_bytes(), context.read_bytes()), original)
+
+    def test_refused_existing_output_is_not_attributed_to_a_new_attempt(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, context, output = root / "phases.jsonl", root / "context.json", root / "old-output"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            context.write_text("{}")
+            output.mkdir()
+            (output / "timings.json").write_text('{"complete": true, "counts": {"passed": 99}}')
+            argv = ["run_test_suite.py", "--phase-ledger", str(path), "--phase-context", str(context), "--output-dir", str(output)]
+            with patch.object(sys, "argv", argv), patch.object(suite, "run_suite", side_effect=FileExistsError("already exists")):
+                with self.assertRaises(FileExistsError):
+                    suite.main()
+            terminal = ledger.summary(path)["phases"][0]["terminal"]
+            self.assertEqual(terminal["outcome"], "refused")
+            self.assertEqual(terminal["results"]["reports"], {})
+            self.assertNotIn("timings.json", terminal["results"])
+
+    def test_pipe_read_and_close_failures_are_recorded(self):
+        class BrokenPipe(io.BytesIO):
+            def read1(self, count):
+                raise OSError("pipe read unavailable")
+        class BrokenClose(io.BytesIO):
+            def close(self):
+                super().close()
+                raise OSError("pipe close unavailable")
+        for source, message in ((BrokenPipe(), "pipe read unavailable"), (BrokenClose(), "pipe close unavailable")):
+            with self.subTest(message=message):
+                errors = []
+                ledger.drain_stream(source, io.BytesIO(), io.StringIO(), errors)
+                self.assertEqual(errors, [message])
+                self.assertTrue(source.closed)
+
+    def test_observed_build_context_has_identity_without_environment_secrets(self):
+        with patch.dict(os.environ, {"BPR_PRIVATE_SENTINEL": "never-record-this"}):
+            context = ledger.build_context(ROOT, version="1.2.3", candidate="1.2.3-build.4", producer="mac", variant="")
+        self.assertEqual(context["source_root"], str(ROOT.resolve()))
+        self.assertEqual(len(context["source_commit"]), 40)
+        self.assertEqual(context["candidate"], "1.2.3-build.4")
+        self.assertEqual(context["variant"], "full")
+        self.assertNotIn("never-record-this", json.dumps(context))
+
+    def test_raw_logs_drain_both_streams_preserve_exit_and_attempt_identity(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "phases.jsonl"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            command = [sys.executable, "-c", "import os; os.write(1,b'o'*200000); os.write(2,b'e'*200000); raise SystemExit(7)"]
+            with redirect_stdout(io.StringIO()), patch.object(sys, "stderr", io.StringIO()):
+                self.assertEqual(ledger.run(path, "build", {}, command, root / "logs"), 7)
+                self.assertEqual(ledger.run(path, "build", {}, [sys.executable, "-c", "pass"], root / "logs"), 0)
+            result = ledger.summary(path)
+            failed, passed = result["phases"]
+            self.assertEqual(result["failed"], [failed["phase_id"]])
+            self.assertGreater(failed["child_pid"], 0)
+            self.assertEqual(failed["terminal"]["exit_code"], 7)
+            self.assertEqual(Path(failed["logs"]["stdout"]).read_bytes(), b'o' * 200000)
+            self.assertEqual(Path(failed["logs"]["stderr"]).read_bytes(), b'e' * 200000)
+            self.assertNotEqual(failed["logs"], passed["logs"])
+
+    def test_collection_failure_keeps_actual_successful_child_exit(self):
+        class BrokenConsole(io.StringIO):
+            def write(self, value):
+                raise OSError("collector unavailable")
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "phases.jsonl"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            with redirect_stdout(BrokenConsole()):
+                self.assertEqual(ledger.run(path, "build", {}, [sys.executable, "-c", "print('raw')"], root / "logs"), 1)
+            phase = ledger.summary(path)["phases"][0]
+            self.assertEqual(phase["terminal"]["exit_code"], 0)
+            self.assertEqual(phase["terminal"]["outcome"], "collection-failed")
+            self.assertEqual(Path(phase["logs"]["stdout"]).read_text(), "raw\n")
+
+    def test_qualification_diagnostics_keep_preflight_failures_and_not_run(self):
+        with ContainedTemporaryDirectory() as temporary:
+            output = Path(temporary)
+            self.assertEqual(suite.phase_results(output), {"reports": {}})
+            (output / "timings.json").write_text(json.dumps({"complete": False, "not_run": ["native"], "missing": ["native"]}))
+            (output / "preflight.json").write_text(json.dumps({"complete": True, "results": {"tests": [
+                {"name": "tooling", "status": "failed"}, {"name": "optional", "status": "skipped"}]}}))
+            result = suite.phase_results(output)
+            self.assertEqual(result["preflight.json"]["failed"], ["tooling"])
+            self.assertEqual(result["preflight.json"]["skipped"], ["optional"])
+            self.assertEqual(result["timings.json"]["not_run"], ["native"])
+            (output / "timings.json").write_text("partial json")
+            self.assertIn("diagnostic_error", suite.phase_results(output)["timings.json"])
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX signal exit convention")
+    def test_signaled_child_records_native_status_and_returns_shell_status(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, context = root / "phases.jsonl", root / "context.json"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            context.write_text("{}")
+            result = subprocess.run([sys.executable, str(ROOT / "scripts/release_phase_ledger.py"), "--ledger", str(path),
+                "run", "--phase", "build", "--context", str(context), "--", sys.executable,
+                "-c", "import os,signal; os.kill(os.getpid(),signal.SIGTERM)"], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 143, result.stderr)
+            self.assertEqual(ledger.summary(path)["phases"][0]["terminal"]["exit_code"], -15)
+
     def test_first_request_failures_and_interrupted_phases_survive_resume(self):
         with ContainedTemporaryDirectory() as temporary:
             path = Path(temporary) / "ledger.jsonl"
