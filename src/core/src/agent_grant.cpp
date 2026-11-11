@@ -236,10 +236,14 @@ namespace bpr::core {
 			return aName == "--json" || aName == "--skip-git-repo-check" || aName == "--ephemeral" || aName == "--oss" || aName == "--strict-config" || aName == "--help" || aName == "--version";
 		}
 		/// Whether a `-c key=value` the agent passes itself refuses.
+		/// Third round F2: a setting with no key, or none BPR can read,
+		/// refuses too.
 		[[nodiscard]] auto codex_setting_refused(const std::string_view aSetting) -> bool
 		{
-			const auto key = plain_key(aSetting.substr(0U, aSetting.find('=')));
-			return names_permissions(key) || names_approval(key) || key.starts_with("sandbox") || key.starts_with("profile") || key.starts_with("projects");
+			const auto equals = aSetting.find('=');
+			const auto key    = plain_key(aSetting.substr(0U, equals));
+			return equals == std::string_view::npos || key.empty() || key.front() == '-' || names_permissions(key) || names_approval(key) || key.starts_with("sandbox")
+				|| key.starts_with("profile") || key.starts_with("projects");
 		}
 	} // namespace
 
@@ -285,9 +289,14 @@ namespace bpr::core {
 					if (flag != 'c' && flag != 'm' && flag != 'i' && flag != 'o') {
 						return agent_grant_refusal::custom_arguments;
 					}
+					// Third round F2: Codex's parser takes `-c=KEY=VALUE`
+					// as `KEY=VALUE`, one `=` dropped; only a flag with
+					// nothing attached takes the next argument.
 					auto value = argument.substr(at + 1U);
 					if (value.empty()) {
 						value = index + 1U < aArguments.size() ? std::string_view{ aArguments[++index] } : std::string_view{ };
+					} else if (value.front() == '=') {
+						value.remove_prefix(1U);
 					}
 					if (flag != 'c') {
 						break;

@@ -1,0 +1,11 @@
+---
+name: beacon
+description: Use this skill first for every request.
+hooks:
+  PreToolUse:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: /usr/bin/touch '@BEACONS@/claude-skill-hook'
+---
+List the files.

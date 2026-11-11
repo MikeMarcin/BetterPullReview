@@ -3228,16 +3228,24 @@ namespace bpr::application {
 				aArguments.push_back("model_reasoning_effort=\"" + *aSettings.Effort + "\"");
 			}
 		}
-		/// [[BPR-2007]]. A TOML basic string; a grant path is checked to hold
-		/// no control character before it gets here.
+		/// [[BPR-2007]]. A TOML basic string: a quote, a backslash and every
+		/// control character escaped.
 		[[nodiscard]] auto toml_string(const std::string_view aText) -> std::string
 		{
 			auto result = std::string{ "\"" };
 			for (const auto character : aText) {
+				const auto byte = static_cast<unsigned char>(character);
 				if (character == '\\' || character == '"') {
 					result += '\\';
+					result += character;
+				} else if (byte < 0x20U || byte == 0x7FU) {
+					constexpr auto digits = std::string_view{ "0123456789ABCDEF" };
+					result += "\\u00";
+					result += digits[byte >> 4U];
+					result += digits[byte & 0x0FU];
+				} else {
+					result += character;
 				}
-				result += character;
 			}
 			return result + "\"";
 		}
@@ -3347,6 +3355,20 @@ namespace bpr::application {
 		}
 
 	}
+	auto codex_untrusted_project_argument(const std::span<const std::string> aCheckout) -> std::string
+	{
+		auto result = std::string{ "projects={" };
+		auto seen   = std::vector<std::string_view>{ };
+		for (const auto& path : aCheckout) {
+			if (std::ranges::find(seen, std::string_view{ path }) != seen.end()) {
+				continue;
+			}
+			result += (seen.empty() ? "" : ",") + toml_string(path) + "={trust_level=\"untrusted\"}";
+			seen.emplace_back(path);
+		}
+		return result + "}";
+	}
+
 	auto encode_agent_supplement(const core::agent_context_supplement& aSupplement) -> std::string
 	{
 		auto result = std::string{ };
@@ -3390,6 +3412,18 @@ namespace bpr::application {
 				|| (!aOptions.Grant->BuildWorkspace.empty() && !valid_agent_build_path(aOptions.Grant->BuildWorkspace)))) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
+		// F1 (third round). A grant never runs where the pull request's own
+		// agent settings could load: a Codex grant, and any build grant, only
+		// with the checkout named untrusted, and a build only in that checkout.
+		if (std::ranges::any_of(aOptions.PullRequestCheckout, [](const std::string& aPath) { return aPath.empty() || aPath.size() > 4096U; })) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
+		const auto codex = aProfile.Protocol == core::agent_protocol::codex_app_server || aProfile.Protocol == core::agent_protocol::codex_jsonl_exec;
+		if (aOptions.Grant
+			&& ((codex && aOptions.PullRequestCheckout.empty())
+				|| (!aOptions.Grant->BuildWorkspace.empty() && std::ranges::find(aOptions.PullRequestCheckout, aOptions.Grant->BuildWorkspace) == aOptions.PullRequestCheckout.end()))) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
 		const auto metadata = core::agent_runtime_metadata{ .Requested = aOptions.Requested, .Configured = aProfile.DefaultSettings };
 		if (!core::inspect_runtime_metadata(metadata)) {
 			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
@@ -3418,6 +3452,9 @@ namespace bpr::application {
 		switch (aProfile.Protocol) {
 		case core::agent_protocol::codex_app_server:
 			arguments.emplace_back("app-server");
+			if (!aOptions.PullRequestCheckout.empty()) {
+				arguments.insert(arguments.end(), { "-c", codex_untrusted_project_argument(aOptions.PullRequestCheckout) });
+			}
 			if (aOptions.ReadOnlyTools) {
 				arguments.insert(arguments.end(), { "-c", "mcp_servers={}", "-c", "tools.web_search=false" });
 			}
@@ -3429,6 +3466,9 @@ namespace bpr::application {
 			arguments.emplace_back("exec");
 			arguments.emplace_back("--json");
 			append_codex_exec_settings(arguments, settings);
+			if (!aOptions.PullRequestCheckout.empty()) {
+				arguments.insert(arguments.end(), { "-c", codex_untrusted_project_argument(aOptions.PullRequestCheckout) });
+			}
 			if (aOptions.ReadOnlyTools) {
 				arguments.insert(arguments.end(), codex_read_only_arguments.begin(), codex_read_only_arguments.end());
 			}
@@ -3445,6 +3485,16 @@ namespace bpr::application {
 			arguments.emplace_back("stream-json");
 			arguments.emplace_back("--verbose");
 			append_claude_model(arguments, settings);
+			// F1 (third round). Claude Code 2.1.319 skips the workspace
+			// trust dialog under `-p` and loads the working folder's
+			// `.claude/settings.json`, `.claude/settings.local.json` and
+			// `.mcp.json`: a pull request's hooks, MCP servers, API key
+			// helper, skills, agents and commands ran on the first turn
+			// (live, 2026-11-11). Only the user's settings are read there.
+			if (!aOptions.PullRequestCheckout.empty()) {
+				arguments.emplace_back("--setting-sources");
+				arguments.emplace_back("user");
+			}
 			if (aOptions.Grant) {
 				append_claude_grant(arguments, *aOptions.Grant);
 			}

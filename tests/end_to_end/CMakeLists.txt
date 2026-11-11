@@ -4844,6 +4844,19 @@ if(APPLE)
     bpr_enable_warnings(test_live_second_account_course)
 endif()
 
+# RFC-BPR-0104, third review round (F1). The installed Codex and Claude Code
+# in a checkout holding a pull request's hostile agent settings, with dead
+# model providers. Run by hand on macOS (see the source's header); never a
+# registered row: it starts the installed agents.
+if(APPLE AND BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_executable(test_live_agent_checkout_settings_course live_agent_checkout_settings_course.cpp)
+    target_link_libraries(test_live_agent_checkout_settings_course PRIVATE BetterPullReview::Application)
+    target_compile_definitions(test_live_agent_checkout_settings_course PRIVATE
+        "BPR_CHECKOUT_SETTINGS_FIXTURE=\"${PROJECT_SOURCE_DIR}/tests/fixtures/agent-checkout-settings\"")
+    bpr_enable_hardening(test_live_agent_checkout_settings_course)
+    bpr_enable_warnings(test_live_agent_checkout_settings_course)
+endif()
+
 # BPR-1409: shared-runtime reopen uses the production metadata store and exact CLI viewer checks.
 bpr_add_executable(test_remembered_connection_public_path remembered_connection_public_path_tests.cpp)
 target_link_libraries(test_remembered_connection_public_path PRIVATE BetterPullReview::Composition)

@@ -185,6 +185,29 @@ namespace {
 		expect(!refuses("[tui]\nnotifications = { enabled = true }\n"), "an inline table elsewhere composes");
 	}
 
+	// Third review round F2 (2026-11-11). Codex's parser takes `-c=KEY=VALUE`
+	// as `KEY=VALUE` (live, Codex 0.167.0); the leading `=` once hid the key.
+	void test_codex_attached_equals()
+	{
+		const auto refused = [](std::vector<std::string> aArguments) {
+			return core::codex_grant_refusal(std::array<std::string_view, 0>{ }, false, aArguments) == std::optional{ core::agent_grant_refusal::custom_arguments };
+		};
+		for (const auto* const argument :
+			 { "-c=default_permissions=\"mine\"", "-c=permissions.mine.filesystem={\":root\"=\"write\"}", "-c=sandbox_mode=\"danger-full-access\"", "-c=approval_policy=\"untrusted\"",
+			   "-c=profile=\"work\"", "-c=projects={}", "--config=default_permissions=\"mine\"", "--config=permissions.mine.filesystem={}", "--config=sandbox_mode=\"danger-full-access\"",
+			   "--config=approval_policy=\"untrusted\"", "-hc=sandbox_mode=\"danger-full-access\"", "-c=", "-c==x", "--config==sandbox_mode=1", "-cnokey", "-c=nokey" }) {
+			expect(refused({ argument }), std::string{ "refused: " } + argument);
+		}
+		for (const auto& arguments : std::vector<std::vector<std::string>>{ { "--config", "default_permissions=\"mine\"" }, { "-c", "approval_policy=\"untrusted\"" }, { "-c", "-pwork" } }) {
+			expect(refused(arguments), "refused: " + arguments.front() + " " + arguments.back());
+		}
+		// The `=` is the flag's: an attached value never takes the next argument.
+		expect(refused({ "-c=model=\"o3\"", "-pwork" }), "an attached -c leaves the next flag a flag");
+		for (const auto& arguments : std::vector<std::vector<std::string>>{ { "-c=model=\"o3\"" }, { "--config=model=\"o3\"" }, { "-m=o3" }, { "-c", "model_reasoning_effort=\"low\"" } }) {
+			expect(!refused(arguments), "composes: " + arguments.front());
+		}
+	}
+
 	// Re-review N3, N6 (2026-11-11).
 	void test_scratch_unmade_and_full()
 	{
@@ -258,6 +281,7 @@ auto main() -> int
 	test_what_the_launch_carries();
 	test_codex_composition();
 	test_codex_composition_round_two();
+	test_codex_attached_equals();
 	test_scratch_unmade_and_full();
 	test_words();
 	test_commands_listed();

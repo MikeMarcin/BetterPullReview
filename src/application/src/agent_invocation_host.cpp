@@ -12,11 +12,13 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <mutex>
 #include <ranges>
 #include <stop_token>
+#include <system_error>
 #include <thread>
 #include <utility>
 
@@ -974,6 +976,17 @@ namespace bpr::application {
 				// checkout reads that checkout's trusted `.codex/config.toml`,
 				// which BPR's profile would replace, so it is given nothing
 				// there (the picker says why).
+				// F1 (third round, 2026-11-11). A checkout BPR made holds the
+				// pull request's own `.codex` and `.claude` settings; the
+				// launch names it so they are never loaded, by the path the
+				// agent runs in and the canonical one Codex matches.
+				if (!aRequest.ExistingCheckoutChosen && workspace) {
+					options.PullRequestCheckout = { workspace->Path };
+					auto failed                 = std::error_code{ };
+					if (const auto canonical = std::filesystem::canonical(std::filesystem::path{ workspace->Path }, failed); !failed && canonical.string() != workspace->Path) {
+						options.PullRequestCheckout.push_back(canonical.string());
+					}
+				}
 				const auto codexOwn = aRequest.ExistingCheckoutChosen
 					&& (aProfile.Protocol == core::agent_protocol::codex_jsonl_exec || aProfile.Protocol == core::agent_protocol::codex_app_server);
 				if ((aRequest.ScratchFolder || aRequest.BuildsAndTests) && !aRequest.WritingOnly && !aRequest.ReadOnlyTools && !codexOwn) {

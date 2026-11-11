@@ -2356,18 +2356,18 @@ namespace {
 		expect(has(full, "--add-dir") && !has(full, "Bash(python3 " + folder + "/*)") && !has(full, "--allowedTools") && !has(full, "--disallowedTools"), "full: Claude reads the folder only");
 
 		const auto codexNone = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { });
-		const auto codex     = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder } });
+		const auto codex     = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder }, .PullRequestCheckout = { ws } });
 		expect(codexNone && codex && codexNone->Arguments == std::vector<std::string>{ "app-server" }, "Codex off: as before");
 		expect(codex->Arguments
-				   == std::vector<std::string>{ "app-server", "-c", "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\"}", "-c",
+				   == std::vector<std::string>{ "app-server", "-c", "projects={\"" + ws + "\"={trust_level=\"untrusted\"}}", "-c", "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\"}", "-c",
 												"default_permissions=\"betterpullreview_grant\"", "-c", "approval_policy=\"never\"" },
 			   "Codex: a profile that reads everything and writes only the folder, network unset (off)");
-		const auto builds = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws } });
+		const auto builds = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws }, .PullRequestCheckout = { ws } });
 		expect(builds && builds->Arguments.back() == "-" && has(builds, "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\",\"" + ws + "\"=\"write\",\":tmpdir\"=\"write\"}"),
 			   "AC04: builds add the disposable checkout and the temporary folder, before exec's stdin marker");
-		const auto claudeBuilds = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws } });
+		const auto claudeBuilds = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws }, .PullRequestCheckout = { ws } });
 		expect(claudeBuilds && has(claudeBuilds, "Bash(cmake:*)") && has(claudeBuilds, "Bash(ctest:*)") && !has(claudeBuilds, "--add-dir") && !has(claudeBuilds, "--disallowedTools"), "Claude builds: the build programs only, and `cmake ../..` is not denied (re-review N5)");
-		const auto both = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws } });
+		const auto both = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws }, .PullRequestCheckout = { ws } });
 		expect(both && has(both, "Bash(cmake:*)") && has(both, "Bash(python3 */..*)") && !has(both, "Bash(*/..*)"), "both: the denial still names only the runners");
 		scratch.ScratchFull     = false;
 		scratch.ScratchLimitMiB = 64U;
@@ -2386,6 +2386,47 @@ namespace {
 		for (const auto* const path : { "/d/*", "/d/a?", "/d/[a]", "/d/{a,b}", "/d/x]" }) {
 			expect(!application::valid_agent_grant_path(path), "a glob character is refused");
 		}
+	}
+
+	// RFC-BPR-0104, third review round F1 (2026-11-11, Codex 0.167.0 and
+	// Claude Code 2.1.319, live): in a checkout made from the pull request,
+	// Codex wrote `trust_level = "trusted"` for it into the reviewer's
+	// configuration and ran the checkout's `mcp_servers` outside its
+	// sandbox, and Claude ran the checkout's hooks and MCP servers. The
+	// pull request's own agent settings are never loaded there.
+	void test_the_pull_requests_own_settings_never_load()
+	{
+		const auto ws        = std::string{ "/data/agent workspaces/w1" };
+		const auto canonical = std::string{ "/private/data/agent workspaces/w1" };
+		const auto folder    = std::string{ "/data/bpr-agent-scratch-v1/0123abcd" };
+		const auto has       = [](const auto& aLaunch, const std::string& aArgument) { return std::ranges::contains(aLaunch->Arguments, aArgument); };
+		const auto untrusted = "projects={\"" + ws + "\"={trust_level=\"untrusted\"},\"" + canonical + "\"={trust_level=\"untrusted\"}}";
+		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::codex_jsonl_exec }) {
+			const auto plain = application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .PullRequestCheckout = { ws, canonical } });
+			expect(plain && has(plain, untrusted), "Codex in a pull request's checkout: both paths untrusted, with no grant too");
+			const auto tour = application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .ReadOnlyTools = true, .PullRequestCheckout = { ws } });
+			expect(tour && has(tour, "projects={\"" + ws + "\"={trust_level=\"untrusted\"}}"), "and on a read-only tour run");
+			const auto own = application::build_agent_launch(profile(protocol), built_supplement(), reader(), { });
+			expect(own && std::ranges::none_of(own->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("projects="); }), "the reviewer's own checkout keeps their settings");
+			// A Codex grant without the checkout named untrusted never launches.
+			expect(!application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder } }), "a Codex scratch grant needs it");
+			expect(!application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws } }), "a Codex build grant needs it");
+			const auto granted = application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws }, .PullRequestCheckout = { ws, canonical } });
+			expect(granted && has(granted, untrusted) && has(granted, "default_permissions=\"betterpullreview_grant\""), "a Codex build grant with it launches, the checkout untrusted");
+		}
+		const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .PullRequestCheckout = { ws } });
+		expect(claude && !std::ranges::search(claude->Arguments, std::vector<std::string>{ "--setting-sources", "user" }).empty(), "Claude in a pull request's checkout reads only the user's settings");
+		const auto claudeOwn = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { });
+		expect(claudeOwn && !has(claudeOwn, "--setting-sources"), "and in the reviewer's own checkout, all of theirs");
+		const auto claudeTour = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true, .PullRequestCheckout = { ws } });
+		expect(claudeTour && has(claudeTour, "--setting-sources"), "a Claude tour run in it too");
+		// A build grant names only that checkout.
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws } }), "a Claude build grant needs it");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws }, .PullRequestCheckout = { "/elsewhere" } }), "and builds only in it");
+		expect(application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder } }).has_value(), "a Claude scratch grant in the reviewer's own checkout is unchanged");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .PullRequestCheckout = { "" } }), "an empty checkout path is refused");
+		// The value is TOML: quotes, backslashes and control characters escaped; one entry per path.
+		expect(application::codex_untrusted_project_argument(std::vector<std::string>{ "/a\"b\\c\nd", "/a\"b\\c\nd" }) == "projects={\"/a\\\"b\\\\c\\u000Ad\"={trust_level=\"untrusted\"}}", "escaped, and a repeated path named once");
 	}
 } // namespace
 
@@ -2426,6 +2467,7 @@ auto main() -> int
 	test_process_and_staleness_outcomes_remain_distinct();
 	test_private_prose_crosses_only_through_the_session_keyed_optin();
 	test_the_grant_crosses_exactly();
+	test_the_pull_requests_own_settings_never_load();
 	std::cout << "agent-launch-tests:pass\n";
 	return EXIT_SUCCESS;
 }

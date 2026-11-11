@@ -1,0 +1,18 @@
+# The course's own Codex home: every provider dead, and this computer's own
+# sandbox mode and approval policy (`workspace-write`, `on-request`), under
+# which an unguarded `exec` in the checkout trusts it.
+model = "beacon-dead"
+model_provider = "beacon_dead"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+check_for_update_on_startup = false
+
+[sandbox_workspace_write]
+network_access = false
+
+[model_providers.beacon_dead]
+name = "beacon_dead"
+base_url = "http://127.0.0.1:9/v1"
+wire_api = "responses"
+request_max_retries = 0
+stream_max_retries = 0

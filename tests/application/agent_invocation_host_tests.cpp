@@ -1962,6 +1962,27 @@ namespace {
 		const auto& finished = test.Projection.Finished.back();
 		expect(finished.ScratchFiles == std::vector<std::string>{ "count.py" } && finished.Grant == launch.Grant, "the result lists what the turn wrote there");
 		expect(!folder.empty() && !std::filesystem::exists(folder), "a turn's own folder goes when the turn ends");
+		// Third review round F1 (2026-11-11): the pull request's own
+		// `.claude` settings are never loaded in the checkout BPR made.
+		expect(!std::ranges::search(launch.Arguments, std::vector<std::string>{ "--setting-sources", "user" }).empty(), "Claude reads only the user's settings in the pull request's checkout");
+
+		// F1: Codex there is told the checkout, by its path and its canonical
+		// path, is an untrusted project; and builds there with it.
+		auto codexBuild    = input;
+		codexBuild.Profile = core::codex_jsonl_profile_id;
+		test.Host.dispatch(codexBuild);
+		test.settle();
+		{
+			const auto& codex = *test.Processes.LastRequest;
+			// The fake workspace may not exist on disk: then its path is all.
+			auto       failed    = std::error_code{ };
+			const auto resolved  = std::filesystem::canonical(std::filesystem::path{ codex.WorkingDirectory }, failed);
+			const auto canonical = failed ? codex.WorkingDirectory : resolved.string();
+			const auto untrusted = std::ranges::find_if(codex.Arguments, [](const std::string& aArgument) { return aArgument.starts_with("projects={"); });
+			expect(untrusted != codex.Arguments.end() && untrusted->find("\"" + codex.WorkingDirectory + "\"={trust_level=\"untrusted\"}") != std::string::npos
+					   && untrusted->find("\"" + canonical + "\"={trust_level=\"untrusted\"}") != std::string::npos && codex.Grant && codex.Grant->BuildWorkspace == codex.WorkingDirectory,
+				   "Codex in the pull request's checkout: untrusted by both paths, and the build grant names it");
+		}
 
 		// The reviewer's own checkout: no build allowance, whatever was asked.
 		auto own                   = input;
@@ -1972,6 +1993,7 @@ namespace {
 		test.settle();
 		expect(test.Processes.LastRequest->Grant && test.Processes.LastRequest->Grant->BuildWorkspace.empty() && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "Bash(cmake:*)" }),
 			   "AC04: never in the reviewer's own checkout");
+		expect(!std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--setting-sources" }), "the reviewer's own checkout keeps their project settings");
 
 		// Re-review N1a (2026-11-11): Codex in the reviewer's own checkout
 		// reads that checkout's trusted settings, which BPR's would replace;
@@ -1984,6 +2006,7 @@ namespace {
 		expect(test.Processes.Starts == starts + 1U && std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--json" }) && !test.Processes.LastRequest->Grant
 				   && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "default_permissions=\"betterpullreview_grant\"" }),
 			   "Codex in the reviewer's own checkout: no grant");
+		expect(std::ranges::none_of(test.Processes.LastRequest->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("projects="); }), "and their own project trust");
 
 		// Off: exactly as before.
 		auto off           = input;

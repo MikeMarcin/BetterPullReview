@@ -25,6 +25,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -304,7 +305,29 @@ namespace bpr::application {
 		agent_run_checks RunChecks = agent_run_checks::strict;
 		/// [[BPR-2007]], [[BPR-2008]]. None launches exactly as before.
 		std::optional<agent_launch_grant> Grant;
+		/// RFC-BPR-0104, third review round (F1). The disposable checkout BPR
+		/// made from the pull request, as the turn runs in it and as its
+		/// canonical path; empty for the reviewer's own checkout. Its own
+		/// agent settings are the pull request's, so they are never loaded:
+		/// Claude Code reads only the user's settings (`--setting-sources
+		/// user`), and Codex is told the checkout is an untrusted project
+		/// (`codex_untrusted_project_argument`). A grant that names the
+		/// checkout, or any Codex grant, needs it.
+		std::vector<std::string> PullRequestCheckout;
 	};
+
+	/// \brief RFC-BPR-0104, third review round (F1). The `-c` value that
+	/// makes Codex treat each checkout path as an untrusted project for the
+	/// run, replacing every `projects` entry the reviewer's configuration
+	/// has. Established 2026-11-11 against Codex 0.167.0: without it, a turn
+	/// whose working folder is writable (a build grant, or the reviewer's own
+	/// `workspace-write` mode under `exec`) writes `trust_level = "trusted"`
+	/// for the checkout into the reviewer's `~/.codex/config.toml` and loads
+	/// the checkout's `.codex/config.toml`, whose `mcp_servers` then run
+	/// outside the sandbox. Untrusted, the checkout's configuration, hooks
+	/// and rules are not loaded and nothing is written. Codex matches the
+	/// canonical path, so the host passes that too.
+	[[nodiscard]] auto codex_untrusted_project_argument(std::span<const std::string> aCheckout) -> std::string;
 
 	/// \brief Effect-lane source claim, released after the private input write or refusal.
 	class agent_input_claim
