@@ -3402,8 +3402,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# covered by the complete197 inventory and tests-disabled guards). Provider,
 	# actor/head/grant/mutation policy is unchanged; inventories and the
 	# full-app/mutation pins remain exact. No native credit is added here.
+	# [[BPR-2087]] reviewed frozen48bd fixture-only focused-layout correction.
+	# The exact focused predicate waits through the existing bounded5s helper
+	# for its admitted preference save, replacing64event calls. No production
+	# policy/API/gesture/40s300s budget change; ordered142/complete197 and
+	# full-app/mutation pins remain exact. Native evidence is separate.
 	set(bpr_expected_production_app_manifest_digest
-        "44ec961f0767c4cd2243bc9cd153d1030ad3262ccec50047674911d71344c926"
+        "9e58ea71b6e28ae263297591d8b1ed062980bb724c924a24fdca6b0ec863ed88"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
