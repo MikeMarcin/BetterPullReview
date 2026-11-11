@@ -27,9 +27,10 @@ namespace bpr::core {
 
 		/// [[BPR-2014]], critical review finding 3. The stop's own lines when
 		/// they are not at `aHead`: what was accepted of them before, with what
-		/// the comparison said, or (never accepted) its lines at the tour's own
-		/// head before a push, not compared yet. A historical stop, pinned at
-		/// another commit, has none: no push can change its bytes.
+		/// the comparison said, or (never accepted) its lines at a head the tour
+		/// had before a push (its own head or a later one it observed; re-review
+		/// finding 1), not compared yet. A historical stop, pinned at a commit
+		/// the tour never had as its head, has none: no push can change its bytes.
 		[[nodiscard]] auto own_lines_to_compare(const review_tour& aTour, const tour_stop& aStop, const git_commit_oid& aHead) -> std::optional<tour_material>
 		{
 			const auto source = publication_source(aStop);
@@ -39,7 +40,7 @@ namespace bpr::core {
 					return *kept;
 				}
 			}
-			if (source && source->Commit == aTour.Head && aTour.Head != aHead) {
+			if (source && source->Commit != aHead && (source->Commit == aTour.Head || std::ranges::find(aTour.EarlierHeads, source->Commit) != aTour.EarlierHeads.end())) {
 				return tour_material{ .Range = *source };
 			}
 			return std::nullopt;

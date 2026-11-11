@@ -1,5 +1,6 @@
 #include "bpr/core/review_tour.hpp"
 
+#include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
 
 #include <algorithm>
@@ -429,8 +430,18 @@ namespace bpr::core {
 				if (!aCommand.Head.valid()) {
 					return tour_refusal::invalid_source;
 				}
-				if (aCommand.Head != aTour.ObservedHead.value_or(aTour.Head)) {
+				if (const auto left = aTour.ObservedHead.value_or(aTour.Head); aCommand.Head != left) {
 					aTour.ObservedHead = aCommand.Head;
+					// [[BPR-2014]]. The head left behind stays known while a stop has its lines there.
+					if (left != aTour.Head && std::ranges::find(aTour.EarlierHeads, left) == aTour.EarlierHeads.end()) {
+						aTour.EarlierHeads.push_back(left);
+					}
+					std::erase_if(aTour.EarlierHeads, [&](const git_commit_oid& aEarlier) {
+						return aEarlier == aCommand.Head || std::ranges::none_of(aTour.Stops, [&](const tour_stop& aStop) {
+								   const auto source = publication_source(aStop);
+								   return (source && source->Commit == aEarlier) || (aStop.Original && aStop.Original->Commit == aEarlier);
+							   });
+					});
 					// Authored Head and source never change merely because a new head was observed.
 					for (auto& stop : aTour.Stops) {
 						if (stop.Remote) {
@@ -591,7 +602,7 @@ namespace bpr::core {
 		}
 		if (!field_ok(aTour.Problem) || !field_ok(aTour.Solution) || !baseline_ok(aTour.ProblemBaseline) || !baseline_ok(aTour.SolutionBaseline)
 			|| !baseline_ok(aTour.IndexBaseline) || !remote_ok(aTour.Remote) || !field_ok(aTour.ImportNotice)
-			|| (aTour.ObservedHead && !aTour.ObservedHead->valid()) || aTour.ObservedChanges.size() > maximum_tour_stops * 4 + 2 || aTour.IncomingRoute.size() > maximum_tour_stops || aTour.Conflicts.size() > maximum_tour_stops + 3 || aTour.Retired.size() > maximum_tour_stops || aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
+			|| (aTour.ObservedHead && !aTour.ObservedHead->valid()) || aTour.EarlierHeads.size() > maximum_tour_stops || !std::ranges::all_of(aTour.EarlierHeads, [](const auto& aHead) { return aHead.valid(); }) || aTour.ObservedChanges.size() > maximum_tour_stops * 4 + 2 || aTour.IncomingRoute.size() > maximum_tour_stops || aTour.Conflicts.size() > maximum_tour_stops + 3 || aTour.Retired.size() > maximum_tour_stops || aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
 			return tour_refusal::bounds;
 		}
 		for (std::size_t index = 0; index < aTour.Stops.size(); ++index) {

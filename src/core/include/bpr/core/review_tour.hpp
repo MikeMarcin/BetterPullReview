@@ -257,7 +257,11 @@ namespace bpr::core {
 		std::optional<git_commit_oid>     ObservedHead;
 		bool                              HasPriorObservation = false;
 		std::vector<tour_observed_change> ObservedChanges;
-		auto                              operator==(const review_tour&) const -> bool = default;
+		/// [[BPR-2014]]. Heads observed after `Head` and since left behind that
+		/// a stop still has its lines at: code there is compared against later
+		/// heads like code at `Head`. At most one per stop.
+		std::vector<git_commit_oid> EarlierHeads;
+		auto                        operator==(const review_tour&) const -> bool = default;
 	};
 
 	enum class tour_command_kind : std::uint8_t { problem,

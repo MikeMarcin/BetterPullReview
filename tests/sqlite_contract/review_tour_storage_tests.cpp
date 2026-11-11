@@ -79,7 +79,25 @@ namespace {
 			auto              read11 = adapters::sqlite::detail::tour_codec{ .Input = current.Bytes, .Reading = true };
 			core::review_tour again;
 			read11.tour(again);
-			expect(read11.Good && read11.Input.empty() && again == carried, "version 11 keeps what was accepted exactly");
+			expect(read11.Good && read11.Input.empty() && again == carried, "the current version keeps what was accepted exactly");
+			// Re-review finding 1: version 12 keeps the earlier observed heads a
+			// stop has its lines at; version 11 records none and reads back as such.
+			auto observed         = carried;
+			observed.ObservedHead = *core::parse_git_commit_oid("3333333333333333333333333333333333333333");
+			observed.EarlierHeads = { *core::parse_git_commit_oid("2222222222222222222222222222222222222222") };
+			adapters::sqlite::detail::tour_codec version12;
+			version12.tour(observed);
+			auto              read12 = adapters::sqlite::detail::tour_codec{ .Input = version12.Bytes, .Reading = true };
+			core::review_tour heads;
+			read12.tour(heads);
+			expect(version12.Version == 12 && read12.Good && read12.Input.empty() && heads == observed, "version 12 keeps the earlier observed heads");
+			adapters::sqlite::detail::tour_codec version11;
+			version11.Version = 11;
+			version11.tour(observed);
+			auto              readOld = adapters::sqlite::detail::tour_codec{ .Input = version11.Bytes, .Reading = true };
+			core::review_tour before;
+			readOld.tour(before);
+			expect(readOld.Good && readOld.Input.empty() && before.EarlierHeads.empty() && before.ObservedHead == observed.ObservedHead, "a version 11 draft reads with no earlier heads");
 		}
 		original.Remote          = core::tour_remote_binding{ .DatabaseId = 18446744073709551615ULL, .Entity = "node", .Actor = "author", .WebUrl = "https://github.com/o/r/pull/7#pullrequestreview-18446744073709551615", .Own = true };
 		original.IndexBaseline   = core::tour_field_baseline{ .Raw = "index\r\n", .RemoteEntity = "node" };

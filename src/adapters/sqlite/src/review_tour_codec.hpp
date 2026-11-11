@@ -14,7 +14,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
-		std::uint8_t                  Version = 11;
+		std::uint8_t                  Version = 12;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -238,7 +238,7 @@ namespace bpr::adapters::sqlite::detail {
 		void tour(core::review_tour& aTour)
 		{
 			byte(Version);
-			if (Version < 1 || Version > 11) {
+			if (Version < 1 || Version > 12) {
 				Good = false;
 				return;
 			}
@@ -275,6 +275,11 @@ namespace bpr::adapters::sqlite::detail {
 				optional(aTour.ObservedHead, [&](auto& aValue) { oid(aValue); });
 				number(aTour.HasPriorObservation);
 				list(aTour.ObservedChanges, core::maximum_tour_stops * 4 + 2, [&](auto& aValue) {enumeration(aValue.Kind);id(aValue.Stop);text(aValue.Title); });
+			}
+			// [[BPR-2014]], re-review finding 1. Earlier observed heads a stop
+			// still has its lines at; a version 11 draft has none recorded.
+			if (Version >= 12) {
+				list(aTour.EarlierHeads, core::maximum_tour_stops, [&](auto& aValue) { oid(aValue); });
 			}
 			// [[BPR-2014]]. A draft saved before stops were accepted: a stop
 			// Ready and reaffirmed stays Accepted, every other is not yet.

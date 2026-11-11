@@ -301,6 +301,47 @@ namespace {
 		historical                           = applied(historical, command(historical, tour_command_kind::accept, historical.Stops[1].Id));
 		expect(own(historical) == 0 && tour_stop_accepted(historical, historical.Stops[1]), "a historical stop's pinned lines are not recorded: no push can change them");
 	}
+	/// Re-review finding 1 (2026-11-10): a stop authored at a head the tour
+	/// observed after its own (the tour's `Head` is the authored head and never
+	/// advances) is compared against later heads like one authored at the
+	/// tour's head. Accept never leaves it Accepted with nothing to compare;
+	/// only a stop pinned at a commit the tour never had as its head is.
+	void test_intermediate_head_stop_is_compared()
+	{
+		const auto head3 = *parse_git_commit_oid("3333333333333333333333333333333333333333");
+		const auto at    = [](review_tour aTour, const git_commit_oid& aHead) { return applied(aTour, { .Draft = aTour.Id, .Owner = aTour.Owner, .ExpectedRevision = aTour.Revision, .Kind = tour_command_kind::observe_head, .Head = aHead }); };
+		const auto own   = [](const review_tour& aTour) {
+			const auto& record = aTour.Stops[1].Acceptance;
+			return record ? std::ranges::count_if(record->Material, [](const auto& aMaterial) { return !aMaterial.Reference; }) : 0;
+		};
+		// Authored at H1 (the second head the tour saw), first Accept after a push to H2.
+		auto tour                      = at(two_stops(), head2());
+		tour.Stops[1].Original->Commit = head2();
+		tour.Stops[1].Mapping          = tour_mapping::exact_original;
+		expect(tour_stop_accept_need(tour, tour.Stops[1]) == tour_accept_need::nothing, "a stop authored at the head now can be accepted");
+		auto pushed = at(tour, head3);
+		auto first  = applied(pushed, command(pushed, tour_command_kind::accept, pushed.Stops[1].Id));
+		expect(own(first) == 1 && first.Stops[1].Acceptance->Material.front().Range.Commit == head2(), "a first Accept after a push records the lines at the head they were authored at");
+		expect(decide_tour_stop_acceptance(first, first.Stops[1]).Reason == tour_acceptance_reason::unchecked && !tour_stop_publishable(first, first.Stops[1]),
+			   "and the stop stays not compared yet, unpublishable, until they are compared");
+		// Accepted at H1, compared changed at H2: Accept asks for its lines; Mark not accepted and Accept again keeps them to compare.
+		auto accepted = applied(tour, command(tour, tour_command_kind::accept, tour.Stops[1].Id));
+		accepted      = at(accepted, head3);
+		for (auto& material : accepted.Stops[1].Acceptance->Material) {
+			material.CheckedAt = head3;
+			material.Verdict   = tour_material_verdict::changed;
+		}
+		expect(apply(accepted, command(accepted, tour_command_kind::accept, accepted.Stops[1].Id)).Refusal == tour_refusal::incomplete, "compared changed, Accept asks for its lines at this head");
+		auto unaccepted = applied(accepted, command(accepted, tour_command_kind::unaccept, accepted.Stops[1].Id));
+		auto again      = applied(unaccepted, command(unaccepted, tour_command_kind::accept, unaccepted.Stops[1].Id));
+		expect(own(again) == 1 && !tour_stop_accepted(again, again.Stops[1]), "Mark not accepted then Accept keeps its lines to compare: never Accepted with nothing to compare");
+		// A commit the tour never had as its head stays historical.
+		auto historical                      = at(two_stops(), head2());
+		historical.Stops[1].Original->Commit = head3;
+		historical                           = at(historical, *parse_git_commit_oid("4444444444444444444444444444444444444444"));
+		historical                           = applied(historical, command(historical, tour_command_kind::accept, historical.Stops[1].Id));
+		expect(own(historical) == 0 && tour_stop_accepted(historical, historical.Stops[1]), "a stop pinned at a commit the tour never had as its head is historical");
+	}
 }
 
 auto main() -> int
@@ -312,6 +353,7 @@ auto main() -> int
 	test_carry_grants_only_the_author();
 	test_walk_ready_records_references();
 	test_reaccept_keeps_own_lines();
+	test_intermediate_head_stop_is_compared();
 	std::cout << "tour-stop-acceptance:pass\n";
 	return EXIT_SUCCESS;
 }

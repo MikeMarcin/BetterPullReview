@@ -631,8 +631,9 @@ namespace {
 	{
 		// Version 5 is the owner before the tour source read (BPR-1227);
 		// version 6 the owner before stop acceptance (BPR-2014), which
-		// cannot read the tour payload (version 11) a newer side sends.
-		for (const std::uint8_t version : { std::uint8_t{ 5 }, std::uint8_t{ 6 } }) {
+		// cannot read the tour payload (version 11) a newer side sends;
+		// version 7 the owner before earlier heads were kept (payload 12).
+		for (const std::uint8_t version : { std::uint8_t{ 5 }, std::uint8_t{ 6 }, std::uint8_t{ 7 } }) {
 			version_mismatch_with(version);
 		}
 	}

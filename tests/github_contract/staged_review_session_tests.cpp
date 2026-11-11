@@ -1440,30 +1440,56 @@ namespace {
 	/// frozen plan was authorized when it was made and is not judged again.
 	void test_update_saved_before_acceptance_resumes()
 	{
-		scratch          root;
-		server           remote;
-		auto             provider = session(remote, root.Path);
-		const auto       original = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
-		auto             update   = maintenance_plan(*original.Record);
-		std::stop_source stop;
-		for (auto& item : update.Update->Stops) {
-			item.Acceptance.reset();
-			item.Preparation = core::tour_preparation::editing;
+		// Re-review finding 5: also with stops the author made Ready by the old
+		// rule, so the version 10 carry runs when the journal's record is read.
+		for (const bool ready : { false, true }) {
+			scratch          root;
+			server           remote;
+			auto             provider = session(remote, root.Path);
+			const auto       original = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			auto             update   = maintenance_plan(*original.Record);
+			std::stop_source stop;
+			for (auto& item : update.Update->Stops) {
+				item.Acceptance.reset();
+				item.Preparation      = ready ? core::tour_preparation::ready : core::tour_preparation::editing;
+				item.CompletionOrigin = ready ? core::tour_completion_origin::observed : core::tour_completion_origin::unspecified;
+				// A published stop is Ready once its lines are reaffirmed at the head.
+				item.ReaffirmedHead = ready ? std::optional{ core::tour_current_head(*update.Update) } : std::nullopt;
+			}
+			remote.Maintenance = true;
+			remote.Stop        = &stop;
+			remote.StopAt      = 5;
+			const auto partial = provider->publish_tour(update, stop.get_token(), [](const auto&) { return true; });
+			expect(partial.State == publication_state::partial && partial.Record && remote.Writes == 6, "an update of stops not accepted by the new rule is part sent");
+			remote.Stop = nullptr;
+			provider.reset();
+			const auto current = adapters::sqlite::detail::tour_codec{ }.Version;
+			expect(rewrite_frozen_tour(root.Path, tour_bytes(*partial.Record->Plan.Update, current), tour_bytes(*partial.Record->Plan.Update, 10)) == 1U, "the frozen update tour is saved as version 10");
+			const auto pending = storage(root.Path)->pending_staged();
+			expect(pending && pending->size() == 1U, "a version 10 update record still loads");
+			if (ready) {
+				// The carry accepts the author's own Ready stops as the record is
+				// read; the frozen tour is otherwise exactly what was sent.
+				const auto& loaded = *pending->front().Plan.Update;
+				expect(std::ranges::all_of(loaded.Stops, [&](const auto& aStop) { return core::tour_stop_accepted(loaded, aStop); }), "the old rule's Ready stops come over Accepted");
+				auto unaccepted = loaded;
+				for (auto& item : unaccepted.Stops) {
+					item.Acceptance.reset();
+				}
+				auto expected        = *partial.Record;
+				expected.Plan.Update = unaccepted;
+				expect(expected == *partial.Record, "and the record is otherwise exactly the one sent");
+			} else {
+				expect(pending->front() == *partial.Record, "a version 10 update record loads exactly");
+			}
+			provider = session(remote, root.Path);
+			// The desktop resumes the plan it discovers in the journal.
+			const auto discovered = provider->pending_tours({ });
+			expect(discovered && discovered->size() == 1U && discovered->front() == pending->front().Plan, "the part-sent update is discovered as it was read");
+			const auto recovered = provider->reconcile_tour(discovered->front());
+			expect(recovered.State == publication_state::partial && recovered.Record == pending->front() && remote.Writes == 6, "it reconciles read-only as part sent");
+			expect(provider->publish_tour(discovered->front(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 8, "Resume finishes it as it was sent");
 		}
-		remote.Maintenance = true;
-		remote.Stop        = &stop;
-		remote.StopAt      = 5;
-		const auto partial = provider->publish_tour(update, stop.get_token(), [](const auto&) { return true; });
-		expect(partial.State == publication_state::partial && partial.Record && remote.Writes == 6, "an update of stops not accepted by the new rule is part sent");
-		remote.Stop = nullptr;
-		provider.reset();
-		expect(rewrite_frozen_tour(root.Path, tour_bytes(*partial.Record->Plan.Update, 11), tour_bytes(*partial.Record->Plan.Update, 10)) == 1U, "the frozen update tour is saved as version 10");
-		const auto pending = storage(root.Path)->pending_staged();
-		expect(pending && pending->size() == 1U && pending->front() == *partial.Record, "a version 10 update record still loads exactly");
-		provider             = session(remote, root.Path);
-		const auto recovered = provider->reconcile_tour(update);
-		expect(recovered.State == publication_state::partial && recovered.Record == partial.Record && remote.Writes == 6, "it reconciles read-only as part sent");
-		expect(provider->publish_tour(update, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 8, "Resume finishes it as it was sent");
 	}
 	// [[BPR-1787]]. A tour whose brief lives in the description is updated by
 	// the description alone: no comment changes, one write, published.
