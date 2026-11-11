@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2119"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Hotfix: agent launches in PR checkouts load the pull request's own agent settings (release exposure, RFC-BPR-0104)",
+  "created": "2026-11-11T19:43:29.525922+00:00",
+  "base": "8d283e7448f3e0e7015ef481e0bd71634dde03fc"
+}
