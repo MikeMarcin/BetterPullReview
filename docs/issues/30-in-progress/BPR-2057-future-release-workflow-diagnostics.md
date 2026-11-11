@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2057"
 title: "Reduce release dependency waits and expose structured build diagnostics"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
