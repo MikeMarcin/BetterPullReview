@@ -90,6 +90,11 @@ namespace bpr::core {
 				++aActivity.FilesRead;
 			} else if (aUpdate.Doing == agent_doing::running) {
 				++aActivity.Commands;
+				// [[BPR-2007]]. The folded line lists what ran.
+				if (auto command = bounded(aUpdate.Subject); !command.empty() && aActivity.CommandsRun.size() < maximum_agent_activity_listed
+					&& !std::ranges::contains(aActivity.CommandsRun, command)) {
+					aActivity.CommandsRun.push_back(std::move(command));
+				}
 			}
 		}
 		switch (aUpdate.Kind) {

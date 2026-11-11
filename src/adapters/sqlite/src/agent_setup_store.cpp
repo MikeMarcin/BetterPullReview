@@ -143,6 +143,33 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
 									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64)) STRICT")
+				// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. Each added agent's
+				// Scratch folder starts and Build and run tests settings; an
+				// agent with no row (one carried over) starts on, builds off.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_entry_grants("
+									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64),"
+									"scratch_starts INTEGER NOT NULL CHECK(scratch_starts IN (0,1)),"
+									"builds INTEGER NOT NULL CHECK(builds IN (0,1))) STRICT")
+				// The scratch folder choice made in one pull request for one
+				// agent, and the pull request's answer to the build question.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_scratch_choice("
+									"host TEXT NOT NULL,"
+									"owner TEXT NOT NULL,"
+									"name TEXT NOT NULL,"
+									"number INTEGER NOT NULL,"
+									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
+									"scratch INTEGER NOT NULL CHECK(scratch IN (0,1)),"
+									"PRIMARY KEY(host, owner, name, number, agent)) STRICT")
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_build_answer("
+									"host TEXT NOT NULL,"
+									"owner TEXT NOT NULL,"
+									"name TEXT NOT NULL,"
+									"number INTEGER NOT NULL,"
+									"allowed INTEGER NOT NULL CHECK(allowed IN (0,1)),"
+									"PRIMARY KEY(host, owner, name, number)) STRICT")
 				// [[BPR-2051]]. Each added agent's last check: passed (2) with
 				// the version it read, or failed (3) with why.
 				|| !detail::execute(db,
@@ -326,6 +353,20 @@ namespace bpr::adapters::sqlite {
 						sqlite3_bind_int64(row->Value, 1, entry.Id);
 						committed = sqlite3_step(row->Value) == SQLITE_DONE;
 					}
+				}
+			}
+			if (committed) {
+				committed = detail::execute(aDatabase, "DELETE FROM agent_entry_grants").has_value();
+			}
+			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
+				const auto& entry = aPreferences.Agents[index];
+				auto        row   = detail::prepare(aDatabase, "INSERT INTO agent_entry_grants VALUES(?1,?2,?3)");
+				committed         = row.has_value();
+				if (committed) {
+					sqlite3_bind_int64(row->Value, 1, entry.Id);
+					sqlite3_bind_int64(row->Value, 2, entry.ScratchStarts ? 1 : 0);
+					sqlite3_bind_int64(row->Value, 3, entry.BuildsAndTests ? 1 : 0);
+					committed = sqlite3_step(row->Value) == SQLITE_DONE;
 				}
 			}
 			if (committed) {
@@ -699,6 +740,17 @@ namespace bpr::adapters::sqlite {
 							for (auto& entry : loaded.Agents) {
 								if (entry.Id == id && !entry.Preset) {
 									entry.StrictRunChecks = false;
+								}
+							}
+						}
+					}
+					if (auto grants = detail::prepare(store->Database.get(), "SELECT id,scratch_starts,builds FROM agent_entry_grants"); grants) {
+						while (sqlite3_step(grants->Value) == SQLITE_ROW) {
+							const auto id = sqlite3_column_int64(grants->Value, 0);
+							for (auto& entry : loaded.Agents) {
+								if (entry.Id == id) {
+									entry.ScratchStarts  = sqlite3_column_int64(grants->Value, 1) != 0;
+									entry.BuildsAndTests = sqlite3_column_int64(grants->Value, 2) != 0;
 								}
 							}
 						}
@@ -1676,12 +1728,85 @@ namespace bpr::adapters::sqlite {
 			{
 				try {
 					auto store = open(Root);
-					return store && detail::execute(store->Database.get(), "DELETE FROM agent_conversation_choice");
+					// [[BPR-2007]]. A reset's new agent may reuse an old id: it
+					// does not inherit the old one's scratch choices either.
+					return store && detail::execute(store->Database.get(), "DELETE FROM agent_conversation_choice")
+						&& detail::execute(store->Database.get(), "DELETE FROM agent_scratch_choice");
 				} catch (...) {
 					return false;
 				}
 			}
 
+			[[nodiscard]] auto load_scratch_choice(const application::agent_conversation_key& aKey) -> std::optional<bool> override
+			{
+				return load_flag(aKey, "SELECT scratch FROM agent_scratch_choice WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5");
+			}
+
+			[[nodiscard]] auto store_scratch_choice(const application::agent_conversation_key& aKey, const bool aOn) -> bool override
+			{
+				return store_flag(aKey, "INSERT OR REPLACE INTO agent_scratch_choice VALUES(?1,?2,?3,?4,?5,?6)", 6, aOn);
+			}
+
+			[[nodiscard]] auto load_build_answer(const application::agent_conversation_key& aKey) -> std::optional<bool> override
+			{
+				return load_flag(aKey, "SELECT allowed FROM agent_build_answer WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4");
+			}
+
+			[[nodiscard]] auto store_build_answer(const application::agent_conversation_key& aKey, const bool aAllowed) -> bool override
+			{
+				return store_flag(aKey, "INSERT OR REPLACE INTO agent_build_answer VALUES(?1,?2,?3,?4,?5)", 5, aAllowed);
+			}
+
+		private:
+			/// One 0/1 column for a pull request key; `bind_key` binds the
+			/// agent as ?5 only where the statement has it.
+			[[nodiscard]] auto load_flag(const application::agent_conversation_key& aKey, const char* aSql) const -> std::optional<bool>
+			{
+				if (!application::valid(aKey) || aKey.Number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					return std::nullopt;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					auto row = detail::prepare(store->Database.get(), aSql);
+					if (!row) {
+						return std::nullopt;
+					}
+					bind_key(row->Value, aKey);
+					if (sqlite3_step(row->Value) != SQLITE_ROW) {
+						return std::nullopt;
+					}
+					return sqlite3_column_int64(row->Value, 0) != 0;
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store_flag(const application::agent_conversation_key& aKey, const char* aSql, const int aColumn, const bool aValue) const -> bool
+			{
+				if (!application::valid(aKey) || aKey.Number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					return false;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return false;
+					}
+					auto row = detail::prepare(store->Database.get(), aSql);
+					if (!row) {
+						return false;
+					}
+					bind_key(row->Value, aKey);
+					sqlite3_bind_int64(row->Value, aColumn, aValue ? 1 : 0);
+					return sqlite3_step(row->Value) == SQLITE_DONE;
+				} catch (...) {
+					return false;
+				}
+			}
+
+		public:
 		private:
 			std::filesystem::path Root;
 		};

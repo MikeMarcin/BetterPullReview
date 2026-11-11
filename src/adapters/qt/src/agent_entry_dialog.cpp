@@ -104,7 +104,28 @@ namespace bpr::qt {
 		Effort = new QComboBox{ this };
 		Effort->setObjectName(QStringLiteral("agentEntryEffort"));
 		form->addRow(tr("Effort"), Effort);
+		// [[BPR-2007]], RFC-BPR-0104 (owner, 2026-11-10: "Should start on, can
+		// have that initial state be a setting in the agent settings").
+		ScratchStarts = new QComboBox{ this };
+		ScratchStarts->setObjectName(QStringLiteral("agentEntryScratchStarts"));
+		ScratchStarts->addItem(tr("On"), true);
+		ScratchStarts->addItem(tr("Off"), false);
+		ScratchStarts->setCurrentIndex(aEntry.ScratchStarts ? 0 : 1);
+		ScratchStarts->setToolTip(tr("Whether a pull request starts with the agent's scratch folder: a folder of its own, outside your repository, where it may write and run scripts. Each pull request remembers a change you make in the agent picker."));
+		form->addRow(tr("Scratch folder starts"), ScratchStarts);
 		column->addLayout(form);
+		// [[BPR-2008]]. Off until turned on; what it means right under it.
+		Builds = new QCheckBox{ tr("Build and run tests"), this };
+		Builds->setObjectName(QStringLiteral("agentEntryBuilds"));
+		Builds->setChecked(aEntry.BuildsAndTests);
+		column->addWidget(Builds);
+		BuildsMeaning = new QLabel{ tr("In a disposable checkout of the pull request only, never in your own checkout. Each pull request asks before the first build, because building runs its code with your account's rights."), this };
+		BuildsMeaning->setObjectName(QStringLiteral("agentEntryBuildsMeaning"));
+		BuildsMeaning->setWordWrap(true);
+		BuildsMeaning->setForegroundRole(QPalette::PlaceholderText);
+		BuildsMeaning->setContentsMargins(style()->pixelMetric(QStyle::PM_IndicatorWidth) + style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing), 0, 0, 0);
+		Builds->setAccessibleDescription(BuildsMeaning->text());
+		column->addWidget(BuildsMeaning);
 		// [[BPR-1918]]. A custom agent's opt-out, with what it means right
 		// under it; a popular agent keeps strict checks and shows none.
 		if (!aEntry.Preset) {
@@ -143,6 +164,8 @@ namespace bpr::qt {
 			connect(StrictChecks, &QCheckBox::toggled, this, [this] { settle(); });
 		}
 		connect(Effort, &QComboBox::currentIndexChanged, this, [this] { settle(); });
+		connect(ScratchStarts, &QComboBox::currentIndexChanged, this, [this] { settle(); });
+		connect(Builds, &QCheckBox::toggled, this, [this] { settle(); });
 		connect(Protocol, &QComboBox::currentIndexChanged, this, [this] {
 			offer_efforts();
 			settle();
@@ -165,6 +188,10 @@ namespace bpr::qt {
 		}
 		Effort->setCurrentIndex(std::max(0, Effort->findData(kept)));
 		Model->setEnabled(core::entry_settings_program(protocol).has_value());
+		// A plain-text harness is given no allowance at all.
+		const auto grants = core::entry_settings_program(protocol).has_value();
+		ScratchStarts->setEnabled(grants);
+		Builds->setEnabled(grants);
 	}
 
 	auto agent_entry_dialog::entry() const -> core::agent_entry
@@ -192,6 +219,8 @@ namespace bpr::qt {
 		if ((result.Preset == core::setup_agent::claude_code && result.Protocol != core::agent_protocol::claude_stream_json) || (result.Preset == core::setup_agent::codex && !codex)) {
 			result.Preset.reset();
 		}
+		result.ScratchStarts  = ScratchStarts->currentData().toBool();
+		result.BuildsAndTests = Builds->isChecked();
 		// A popular agent keeps its sign-in check and strict run checks.
 		result.StrictRunChecks = StrictChecks == nullptr || StrictChecks->isChecked();
 		if (result.Preset) {

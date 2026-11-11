@@ -559,6 +559,8 @@ namespace bpr::qt {
 		LastUnfinished = aResult.UnfinishedHelpers;
 		KeptText       = aResult.Outcome == application::agent_run_outcome::cancelled || LastFailure == application::agent_protocol_failure::helpers_unfinished ? Output->toPlainText() : QString{ };
 		Activity       = core::end_agent_activity(std::move(Activity), static_cast<std::uint64_t>(qMax(qint64{ 0 }, agent_activity_clock_ms() - ActivityStartedMs)));
+		// [[BPR-2007]]. The host found these written in the scratch folder.
+		Activity.ScratchFiles = aResult.ScratchFiles;
 		if (aResult.Outcome != application::agent_run_outcome::success) {
 			Output->clear();
 			// [[BPR-1827]]. A run that read nothing still says what it

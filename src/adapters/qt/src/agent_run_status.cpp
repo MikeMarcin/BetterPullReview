@@ -115,6 +115,10 @@ namespace bpr::qt {
 		if (aActivity.Commands > 0U) {
 			parts << (aActivity.Commands == 1U ? QObject::tr("1 command") : QObject::tr("%1 commands").arg(aActivity.Commands));
 		}
+		// [[BPR-2007]], RFC-BPR-0104. What it left in its scratch folder.
+		if (const auto written = aActivity.ScratchFiles.size(); written > 0U) {
+			parts << (written == 1U ? QObject::tr("1 file written in its scratch folder") : QObject::tr("%1 files written in its scratch folder").arg(written));
+		}
 		const auto took = minutes > 0 ? QObject::tr("Worked for %1 min").arg(minutes) : QObject::tr("Worked for %1 s").arg(aSeconds);
 		return parts.isEmpty() ? took : took + QStringLiteral(": ") + parts.join(QStringLiteral(", "));
 	}
@@ -333,7 +337,7 @@ namespace bpr::qt {
 		Quiet->hide();
 		KeptWaitingAtMs.reset();
 		rebuild_rows();
-		const auto worked  = !aActivity.Helpers.empty() || aActivity.UnlistedHelpers > 0U || aActivity.FilesRead > 0U || aActivity.Commands > 0U;
+		const auto worked  = !aActivity.Helpers.empty() || aActivity.UnlistedHelpers > 0U || aActivity.FilesRead > 0U || aActivity.Commands > 0U || !aActivity.ScratchFiles.empty();
 		const auto blocker = QSignalBlocker{ Summary };
 		Summary->setChecked(false);
 		Summary->setArrowType(Qt::RightArrow);
@@ -397,7 +401,36 @@ namespace bpr::qt {
 			auto* const more = new QLabel{ (Activity.UnlistedHelpers == 1U ? tr("and 1 more helper") : tr("and %1 more helpers").arg(Activity.UnlistedHelpers)), Rows };
 			more->setForegroundRole(QPalette::PlaceholderText);
 			RowGrid->addWidget(more, row, 0, 1, 3);
+			++row;
 		}
+		// [[BPR-2007]], RFC-BPR-0104. Once folded, the line lists the commands
+		// run and the files written in the scratch folder.
+		if (Live) {
+			return;
+		}
+		const auto listed = [&](const QString& aKind, const std::vector<std::string>& aItems, const char* aName) {
+			for (const auto& item : aItems) {
+				auto* const kind = new QLabel{ aKind, Rows };
+				kind->setForegroundRole(QPalette::PlaceholderText);
+				auto* const what = new QLabel{ QString::fromStdString(item), Rows };
+				what->setTextFormat(Qt::PlainText);
+				what->setWordWrap(true);
+				what->setToolTip(what->text());
+				what->setMinimumWidth(40);
+				what->setTextInteractionFlags(Qt::TextSelectableByMouse);
+				for (auto* const label : { kind, what }) {
+					label->setObjectName(QString::fromLatin1(aName));
+					auto small = label->font();
+					small.setPointSizeF(small.pointSizeF() * 0.92);
+					label->setFont(small);
+				}
+				RowGrid->addWidget(kind, row, 0);
+				RowGrid->addWidget(what, row, 1, 1, 2);
+				++row;
+			}
+		};
+		listed(tr("Ran"), Activity.CommandsRun, "agentActivityCommand");
+		listed(tr("Wrote"), Activity.ScratchFiles, "agentActivityScratchFile");
 	}
 
 	void agent_activity_view::tick()

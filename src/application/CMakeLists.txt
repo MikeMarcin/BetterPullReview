@@ -192,6 +192,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/agent_finding_card_host.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
+            src/agent_scratch_folder.cpp
             src/agent_realignment.cpp
             src/mcp_context_helper_supervisor.cpp
             src/review_cycle_agent_sender.cpp

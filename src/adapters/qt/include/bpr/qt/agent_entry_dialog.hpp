@@ -39,6 +39,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto effort() const noexcept -> QComboBox* { return Effort; }
 		/// [[BPR-1918]]. Strict run checks; none for a popular agent.
 		[[nodiscard]] auto strict_checks() const noexcept -> QCheckBox* { return StrictChecks; }
+		/// [[BPR-2007]], [[BPR-2008]]. Scratch folder starts; Build and run tests.
+		[[nodiscard]] auto scratch_starts() const noexcept -> QComboBox* { return ScratchStarts; }
+		[[nodiscard]] auto builds() const noexcept -> QCheckBox* { return Builds; }
 		[[nodiscard]] auto problem() const noexcept -> QLabel* { return Problem; }
 		[[nodiscard]] auto buttons() const noexcept -> QDialogButtonBox* { return Buttons; }
 
@@ -47,16 +50,19 @@ namespace bpr::qt {
 		void offer_efforts();
 
 		core::agent_entry Base;
-		QLineEdit*        Name         = nullptr;
-		QComboBox*        Protocol     = nullptr;
-		QLineEdit*        Program      = nullptr;
-		QPlainTextEdit*   Arguments    = nullptr;
-		QPlainTextEdit*   Check        = nullptr;
-		QLineEdit*        Model        = nullptr;
-		QComboBox*        Effort       = nullptr;
-		QCheckBox*        StrictChecks = nullptr;
-		QLabel*           Problem      = nullptr;
-		QDialogButtonBox* Buttons      = nullptr;
+		QLineEdit*        Name          = nullptr;
+		QComboBox*        Protocol      = nullptr;
+		QLineEdit*        Program       = nullptr;
+		QPlainTextEdit*   Arguments     = nullptr;
+		QPlainTextEdit*   Check         = nullptr;
+		QLineEdit*        Model         = nullptr;
+		QComboBox*        Effort        = nullptr;
+		QCheckBox*        StrictChecks  = nullptr;
+		QComboBox*        ScratchStarts = nullptr;
+		QCheckBox*        Builds        = nullptr;
+		QLabel*           BuildsMeaning = nullptr;
+		QLabel*           Problem       = nullptr;
+		QDialogButtonBox* Buttons       = nullptr;
 	};
 
 	/// \brief How a view asks for an entry to be added or edited: the entry

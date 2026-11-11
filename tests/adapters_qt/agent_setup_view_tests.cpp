@@ -644,6 +644,15 @@ namespace {
 		expect(!dialog.entry().StrictRunChecks && dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled(), "turned off, the entry keeps it off and may be kept");
 		auto popular = qt::agent_entry_dialog{ core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }) };
 		expect(popular.strict_checks() == nullptr && popular.entry().StrictRunChecks, "a popular agent shows no switch and keeps strict checks");
+		// [[BPR-2007]], [[BPR-2008]]. Scratch folder starts On and Build and
+		// run tests off, beside the model and effort, and both are kept.
+		expect(popular.scratch_starts()->currentText() == QStringLiteral("On") && !popular.builds()->isChecked() && popular.entry().ScratchStarts && !popular.entry().BuildsAndTests,
+			   "a new agent's scratch folder starts on; builds are off");
+		popular.scratch_starts()->setCurrentIndex(1);
+		popular.builds()->setChecked(true);
+		expect(!popular.entry().ScratchStarts && popular.entry().BuildsAndTests, "both settings are the agent's own");
+		const auto* const buildsMeaning = popular.findChild<QLabel*>(QStringLiteral("agentEntryBuildsMeaning"));
+		expect(buildsMeaning != nullptr && buildsMeaning->text().contains(QStringLiteral("never in your own checkout")) && buildsMeaning->text().contains(QStringLiteral("asks before the first build")), "what turning builds on means");
 
 		auto folders = qt::clone_folders_panel{ };
 		auto asked   = std::vector<std::string>{ };

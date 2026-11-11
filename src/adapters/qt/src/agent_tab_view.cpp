@@ -875,11 +875,13 @@ namespace bpr::qt {
 		Dying = true;
 		// [[BPR-1878]]. Another picker on this source may outlive the tab.
 		if (RunSettingsSource) {
-			RunSettingsSource->Choose   = { };
-			RunSettingsSource->Dispatch = { };
-			RunSettingsSource->Catalog  = { };
-			RunSettingsSource->Setup    = { };
-			RunSettingsSource->Refused  = { };
+			RunSettingsSource->Choose        = { };
+			RunSettingsSource->Dispatch      = { };
+			RunSettingsSource->Catalog       = { };
+			RunSettingsSource->Setup         = { };
+			RunSettingsSource->Refused       = { };
+			RunSettingsSource->ToggleScratch = { };
+			RunSettingsSource->OpenScratch   = { };
 		}
 		// The panels hold these controls by pointer and outlive this tab; the
 		// tab never deletes what it only shows.

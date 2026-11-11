@@ -61,6 +61,14 @@ namespace bpr::core {
 		/// ending on it (`application::agent_run_checks::relaxed`). A popular
 		/// agent keeps strict checks: only a custom agent may turn them off.
 		bool StrictRunChecks = true;
+		/// [[BPR-2007]], RFC-BPR-0104 (owner, 2026-11-10: "Should start on,
+		/// can have that initial state be a setting in the agent settings").
+		/// Whether a pull request the reviewer has not changed starts with the
+		/// scratch folder on. On for a new agent and one carried over.
+		bool ScratchStarts = true;
+		/// [[BPR-2008]]. Build and run tests: off until the reviewer turns it
+		/// on; then a disposable checkout asks once per pull request.
+		bool BuildsAndTests = false;
 		/// Host-minted incarnation; replacement/reset never inherits a reused slot.
 		std::string Identity;
 

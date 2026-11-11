@@ -5,6 +5,8 @@
 #include <QString>
 #include <QToolButton>
 
+class QMessageBox;
+
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -39,6 +41,21 @@ namespace bpr::qt {
 		QString Note;
 		/// Owner look v006. The harness is being asked for its models.
 		bool Listing = false;
+		/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11
+		/// ([[BPR-2051]]). The grant in this pull request, under the model
+		/// and effort; none shown when the agent takes no grant.
+		bool GrantApplies = false;
+		/// The grant line: "Reads only", "Writes only in its scratch
+		/// folder", "Builds and tests in its disposable checkout".
+		QString GrantLine;
+		/// Whether "Scratch folder in this pull request" is checked.
+		bool ScratchOn = false;
+		/// "Builds and tests are off for Claude Code" and its other states.
+		QString BuildsLine;
+		/// What the runtime enforces and what it only follows.
+		QString GrantEnforcement;
+		/// The session's scratch folder is known and can be opened.
+		bool ScratchOpenable = false;
 	};
 
 	/// \brief Where a model or effort chosen in the picker goes; answers
@@ -52,6 +69,14 @@ namespace bpr::qt {
 	[[nodiscard]] auto agent_model_display_name(const QString& aModel) -> QString;
 
 	class agent_run_settings_picker;
+
+	/// \brief [[BPR-2008]], RFC-BPR-0104. Asks, once per pull request, before
+	/// the first turn that would build: true allows, false declines (the
+	/// default), none when the question was closed.
+	[[nodiscard]] auto ask_build_question(QWidget* aParent) -> std::optional<bool>;
+	/// \brief The question's box, not yet shown, for `ask_build_question` and
+	/// for a render of it.
+	[[nodiscard]] auto make_build_question(QWidget* aParent) -> std::unique_ptr<QMessageBox>;
 
 	/// \brief [[BPR-1878]]. What every agent picker shows: the agents offered
 	/// with their run settings, the model each last reported running, and
@@ -85,6 +110,10 @@ namespace bpr::qt {
 		std::function<void()> Setup;
 		/// The agent refused a setting.
 		std::function<void(const QString&)> Refused;
+		/// [[BPR-2007]]. The scratch folder turned on or off for this pull
+		/// request and agent; Open scratch folder.
+		std::function<void(std::uint64_t, bool)> ToggleScratch;
+		std::function<void(std::uint64_t)>       OpenScratch;
 
 		/// Each picker presents again (settings, report or choice changed).
 		void refresh();

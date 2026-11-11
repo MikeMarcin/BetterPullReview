@@ -183,6 +183,7 @@
 	#include "bpr/application/tour_agent_context.hpp"
 	#include "bpr/core/agent_chat_scope.hpp"
 	#include "bpr/core/agent_finding.hpp"
+	#include "bpr/core/agent_grant.hpp"
 	#include "bpr/core/agent_setup.hpp"
 	#include "bpr/core/tour_agent_session.hpp"
 	#include "bpr/qt/agent_launch_panel.hpp"
@@ -708,6 +709,21 @@ namespace bpr::app {
 		[[nodiscard]] auto run_limit_milliseconds() const -> std::optional<int>;
 
 		[[nodiscard]] auto current_conversation_agent() const -> std::uint32_t;
+
+		/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The pull request now
+		/// open, keyed for `aAgent`'s grant; none without one.
+		[[nodiscard]] auto grant_key(std::uint32_t aAgent) const -> std::optional<application::agent_conversation_key>;
+		/// The grant `aEntry` gets in this pull request.
+		[[nodiscard]] auto agent_grant_for(const core::agent_entry& aEntry, bool aOwnCheckout) const -> core::agent_grant;
+		/// The footer picker's scratch item, turned on or off here.
+		void toggle_agent_scratch(std::uint64_t aProfile, bool aOn);
+		/// Open scratch folder.
+		void open_agent_scratch(std::uint64_t aProfile);
+		/// Sets an Agent tab turn's grant; asks the build question first when
+		/// it is due. False: the reviewer closed the question, nothing is sent.
+		[[nodiscard]] auto grant_agent_turn(application::agent_invocation_request& aInvocation) -> bool;
+		/// A turn ended: its scratch folder, kept with the session, can be opened.
+		void note_agent_scratch(core::agent_profile_id aProfile, const application::agent_run_result& aResult);
 
 		void observe_conversation_agent();
 
@@ -2522,7 +2538,13 @@ namespace bpr::app {
 			/// [[BPR-1879]]. GitHub's repository `size`, in bytes, when it said.
 			std::optional<std::uint64_t> ApproximateBytes;
 		};
-		std::optional<agent_review_facts>                   AgentReview;
+		std::optional<agent_review_facts> AgentReview;
+		/// [[BPR-2007]]. Each agent's scratch folder in the pull request now
+		/// open, once a turn has had one; by profile.
+		std::map<std::uint64_t, std::string> AgentScratchFolders;
+		/// [[BPR-2008]]. Asks the build question: true allows, false
+		/// declines, none closed it. A course answers it itself.
+		std::function<std::optional<bool>()>                AskBuildQuestion;
 		decltype(github_profile_runtime::ExistingCheckout)& ExistingCheckout      = Profile->ExistingCheckout;
 		bool                                                Closing               = false;
 		bool                                                OtherShutdownBegun    = false;

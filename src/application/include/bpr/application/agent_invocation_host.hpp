@@ -104,6 +104,13 @@ namespace bpr::application {
 		std::string NativeQuestion;
 		std::string SelectedConversation;
 		bool        TranscriptReplay = false;
+		/// [[BPR-2007]], RFC-BPR-0104. The turn gets its session's scratch
+		/// folder and the narrow allowance to write and run there. Only an
+		/// Agent tab turn: never with `WritingOnly` or `ReadOnlyTools`.
+		bool ScratchFolder = false;
+		/// [[BPR-2008]]. The reviewer allowed building and testing in this
+		/// pull request; granted only in a disposable checkout.
+		bool BuildsAndTests = false;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -235,6 +242,10 @@ namespace bpr::application {
 		void cancel();
 		void shutdown();
 		void retry_cleanup();
+		/// \brief [[BPR-2007]]. Where scratch folders are made, one per native
+		/// session (kept with it) or per turn (removed when it ends). Set once
+		/// at composition, before any dispatch; empty grants none.
+		void set_scratch_root(std::filesystem::path aRoot);
 
 		/// \brief [[BPR-1751]], RFC-BPR-0092 Check it works. Makes the
 		/// workspace an Ask on this binding would make, through the same

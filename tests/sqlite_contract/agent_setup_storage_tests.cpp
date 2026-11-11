@@ -217,6 +217,33 @@ try {
 	listed.Agents.pop_back();
 	listed.EntryChecks.pop_back();
 	expect(store->store(listed) && store->load()->Agents.size() == 2U && store->load()->EntryChecks.size() == 2U, "a removed agent is gone from the stored list, with its check");
+	// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 AC08. Scratch folder starts
+	// and Build and run tests are each agent's, kept across a restart; an
+	// agent stored before them reads back on and off.
+	expect(store->load()->Agents[0].ScratchStarts && !store->load()->Agents[0].BuildsAndTests, "an agent carried over starts with the folder on and builds off");
+	listed.Agents[0].ScratchStarts  = false;
+	listed.Agents[1].BuildsAndTests = true;
+	expect(store->store(listed), "the grant settings are stored");
+	store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	expect(store->load() == listed && !store->load()->Agents[0].ScratchStarts && store->load()->Agents[1].ScratchStarts && store->load()->Agents[1].BuildsAndTests,
+		   "and read back per agent after a restart");
+	// AC09. The choice made in one pull request is that pull request's and
+	// that agent's alone; the build answer is the pull request's.
+	{
+		auto       grants    = adapters::sqlite::make_agent_conversation_store(scratch.path());
+		const auto mine      = application::agent_conversation_key{ .Host = "github.com", .Owner = "MikeMarcin", .Name = "BPR-Test", .Number = 40U, .Agent = 1U };
+		auto       elsewhere = mine;
+		elsewhere.Number     = 41U;
+		auto otherAgent      = mine;
+		otherAgent.Agent     = 2U;
+		expect(!grants->load_scratch_choice(mine) && !grants->load_build_answer(mine), "nothing chosen yet");
+		expect(grants->store_scratch_choice(mine, false) && grants->store_build_answer(mine, false), "a choice and an answer are stored");
+		grants = adapters::sqlite::make_agent_conversation_store(scratch.path());
+		expect(grants->load_scratch_choice(mine) == std::optional{ false } && !grants->load_scratch_choice(elsewhere) && !grants->load_scratch_choice(otherAgent), "after a restart, only that pull request and agent");
+		expect(grants->load_build_answer(otherAgent) == std::optional{ false } && !grants->load_build_answer(elsewhere), "the build answer holds for the pull request");
+		expect(grants->store_scratch_choice(mine, true) && grants->load_scratch_choice(mine) == std::optional{ true }, "turned back on");
+		expect(grants->forget_agents() && !grants->load_scratch_choice(mine), "a reset's new agents inherit no choice");
+	}
 
 #ifndef _WIN32
 	struct stat status{ };

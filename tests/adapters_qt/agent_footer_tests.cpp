@@ -16,6 +16,8 @@
 
 #include "bpr/core/agent_activity.hpp"
 #include "bpr/core/agent_cost.hpp"
+#include "bpr/core/agent_grant.hpp"
+#include "bpr/qt/agent_entry_dialog.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
@@ -27,6 +29,7 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QStyleHints>
@@ -141,7 +144,12 @@ namespace {
 		answered->set_finished_hold(24 * 60 * 60 * 1000);
 		answered->present_finished(qt::agent_footer_place::tour_chat, QStringLiteral("answered in 0:21 · $0.04"));
 		add(QStringLiteral("The chosen agent needs setup: it says what is missing; Agent settings… leads to Settings"))->present_setup(QStringLiteral("not signed in"));
-		add(QStringLiteral("Idle: the pull request's agent and what this session has cost"));
+		add(QStringLiteral("Idle: the pull request's agent and what this session has cost. Its menu holds the grant: Claude writes only in its scratch folder; Codex may build here"));
+		// [[BPR-2008]]. The question a pull request asks once, before the first build.
+		auto* const ask = new QPushButton{ QStringLiteral("Show the build question…"), &window };
+		ask->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		QObject::connect(ask, &QPushButton::clicked, &window, [&window] { static_cast<void>(qt::ask_build_question(&window)); });
+		column->addWidget(ask);
 		column->addStretch(1);
 		window.resize(1100, 560);
 		window.show();
@@ -172,11 +180,25 @@ auto main(int argc, char** argv) -> int
 	claude.EffortChoosable = true;
 	claude.Model           = "claude-opus-5-5";
 	claude.Effort          = "high";
-	auto codex             = claude;
-	codex.Profile          = 2U;
-	codex.Agent            = QStringLiteral("Codex");
+	// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended. Claude with its
+	// scratch folder on and builds off; Codex allowed to build here.
+	const auto present_grant = [](qt::agent_run_settings& aSettings, const core::agent_grant_facts& aFacts) {
+		const auto grant           = core::resolve_agent_grant(aFacts);
+		const auto line            = core::agent_grant_line(core::grant_level(grant));
+		aSettings.GrantApplies     = grant.Applies;
+		aSettings.GrantLine        = QString::fromUtf8(line.data(), static_cast<qsizetype>(line.size()));
+		aSettings.ScratchOn        = grant.Scratch;
+		aSettings.BuildsLine       = QString::fromStdString(core::agent_builds_line(grant.Builds, aSettings.Agent.toStdString()));
+		aSettings.GrantEnforcement = QString::fromStdString(core::agent_grant_enforcement(grant, aFacts.Program));
+		aSettings.ScratchOpenable  = grant.Scratch;
+	};
+	present_grant(claude, { .Program = core::agent_program::claude });
+	auto codex    = claude;
+	codex.Profile = 2U;
+	codex.Agent   = QStringLiteral("Codex");
 	codex.Model.clear();
 	codex.Effort.clear();
+	present_grant(codex, { .Program = core::agent_program::codex, .Builds = true, .BuildAnswer = true });
 	source->present({ claude, codex });
 	panel.profile_selector()->setCurrentIndex(panel.profile_selector()->findData(QVariant::fromValue<qulonglong>(1U)));
 	if (argc > 1 && std::string_view{ argv[1] } == "--look") {
@@ -283,6 +305,78 @@ auto main(int argc, char** argv) -> int
 	settle();
 	expect(!footer->settings_button()->isVisible() && picker->full_text().startsWith(QStringLiteral("Claude Code · Opus 5.5")), "set up again: the picker as before");
 
+	// [[BPR-2007]], RFC-BPR-0104 AC05, AC09. The grant under the model and
+	// effort: what it allows, the scratch folder item that turns it off or on
+	// here, the builds line, and what the runtime enforces.
+	auto toggled          = std::string{ };
+	auto opened           = 0;
+	source->ToggleScratch = [&toggled](const std::uint64_t aProfile, const bool aOn) { toggled += std::to_string(aProfile) + (aOn ? ":on;" : ":off;"); };
+	source->OpenScratch   = [&opened](const std::uint64_t) { ++opened; };
+	{
+		emit       picker->menu()->aboutToShow();
+		const auto find = [&](const char* aName) -> QAction* {
+			for (auto* const item : picker->menu()->actions()) {
+				if (item->objectName() == QString::fromLatin1(aName)) {
+					return item;
+				}
+			}
+			return nullptr;
+		};
+		auto* const line     = find("agentRunSettingsGrantLine");
+		auto* const scratch  = find("agentRunSettingsScratch");
+		auto* const builds   = find("agentRunSettingsBuilds");
+		auto* const enforced = find("agentRunSettingsEnforcement");
+		auto* const open     = find("agentRunSettingsOpenScratch");
+		expect(line != nullptr && line->text() == QStringLiteral("Writes only in its scratch folder") && !line->isEnabled(), "the grant line says what this pull request allows");
+		expect(scratch != nullptr && scratch->text() == QStringLiteral("Scratch folder in this pull request") && scratch->isCheckable() && scratch->isChecked(), "the scratch item is checked while on");
+		expect(builds != nullptr && builds->text() == QStringLiteral("Builds and tests are off for Claude Code"), "the builds line names the agent");
+		expect(enforced != nullptr && enforced->text().contains(QStringLiteral("permission rule")) && !enforced->text().contains(QStringLiteral("sandbox")), "Claude's grant is never called a sandbox");
+		auto actions = picker->menu()->actions();
+		expect(actions.indexOf(scratch) > actions.indexOf(picker->menu()->findChild<QMenu*>(QStringLiteral("agentRunSettingsEfforts"))->menuAction()), "the grant sits under the model and effort");
+		expect(open != nullptr, "Open scratch folder once the session has one");
+		// [[BPR-2007]]. For the owner's look: the menu with the grant, the
+		// agent's sheet with its two settings, and the question.
+		if (!root.empty()) {
+			const auto native = qEnvironmentVariable("BPR_NATIVE_LOOK") == QStringLiteral("1");
+			const auto scheme = native ? qEnvironmentVariable("BPR_NATIVE_LOOK_SCHEME", QStringLiteral("light")) : QStringLiteral("offscreen");
+			if (native) {
+				QGuiApplication::styleHints()->setColorScheme(scheme == QStringLiteral("dark") ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+				settle();
+			}
+			picker->menu()->adjustSize();
+			expect(picker->menu()->grab().save(QString::fromStdString(root) + QStringLiteral("/grant-menu-") + scheme + QStringLiteral(".png")), "menu render saved");
+			auto codexEntry           = core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, "/opt/homebrew/bin/codex");
+			codexEntry.Id             = 2U;
+			codexEntry.BuildsAndTests = true;
+			auto sheet                = qt::agent_entry_dialog{ codexEntry, &window };
+			sheet.adjustSize();
+			expect(sheet.grab().save(QString::fromStdString(root) + QStringLiteral("/agent-sheet-") + scheme + QStringLiteral(".png")), "sheet render saved");
+			const auto question = qt::make_build_question(&window);
+			question->adjustSize();
+			expect(question->grab().save(QString::fromStdString(root) + QStringLiteral("/build-question-") + scheme + QStringLiteral(".png")), "question render saved");
+		}
+		open->trigger();
+		scratch->trigger();
+		expect(toggled == "1:off;" && opened == 1, "unchecking turns it off for this pull request and agent; Open opens it");
+	}
+	claude.ScratchOn = false;
+	claude.GrantLine = QStringLiteral("Reads only");
+	source->present({ claude, codex });
+	settle();
+	{
+		emit picker->menu()->aboutToShow();
+		auto checked = std::optional<bool>{ };
+		auto line    = QString{ };
+		for (auto* const item : picker->menu()->actions()) {
+			if (item->objectName() == QStringLiteral("agentRunSettingsScratch")) {
+				checked = item->isChecked();
+			} else if (item->objectName() == QStringLiteral("agentRunSettingsGrantLine")) {
+				line = item->text();
+			}
+		}
+		expect(checked == std::optional{ false } && line == QStringLiteral("Reads only"), "off: unchecked, and the line says it reads only");
+	}
+
 	// One choice: the picker's menu chooses the agent every feature uses.
 	emit picker->menu()->aboutToShow();
 	for (auto* const item : picker->menu()->actions()) {
@@ -294,6 +388,14 @@ auto main(int argc, char** argv) -> int
 	}
 	settle();
 	expect(chosen == 2U && picker->full_text().startsWith(QStringLiteral("Codex")), "choosing in the footer chooses the agent");
+	emit picker->menu()->aboutToShow();
+	for (auto* const item : picker->menu()->actions()) {
+		if (item->objectName() == QStringLiteral("agentRunSettingsGrantLine")) {
+			expect(item->text() == QStringLiteral("Builds and tests in its disposable checkout"), "Codex allowed to build: the third line");
+		} else if (item->objectName() == QStringLiteral("agentRunSettingsEnforcement")) {
+			expect(item->text().startsWith(QStringLiteral("Codex's sandbox enforces this")), "Codex's runtime enforces it, and says so");
+		}
+	}
 
 	std::cout << "agent-footer:pass\n";
 	return EXIT_SUCCESS;

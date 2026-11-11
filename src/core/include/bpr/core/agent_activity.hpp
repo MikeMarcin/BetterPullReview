@@ -89,6 +89,8 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_agent_helpers = 64U;
 	/// The most bytes a subject or a helper's words keep.
 	inline constexpr std::size_t maximum_agent_activity_subject_bytes = 240U;
+	/// [[BPR-2007]]. The most commands and scratch files a turn lists.
+	inline constexpr std::size_t maximum_agent_activity_listed = 16U;
 	/// RFC-BPR-0103: the run is quiet after this long without any frame.
 	inline constexpr std::uint64_t agent_quiet_after_ms = 120'000U;
 
@@ -102,6 +104,12 @@ namespace bpr::core {
 		std::uint32_t UnlistedHelpers = 0U;
 		std::uint32_t FilesRead       = 0U;
 		std::uint32_t Commands        = 0U;
+		/// [[BPR-2007]], RFC-BPR-0104. The commands run, in order, each once,
+		/// the first `maximum_agent_activity_listed` of them.
+		std::vector<std::string> CommandsRun;
+		/// The files the turn left written in its scratch folder, relative to
+		/// it, as the host found them when the turn ended.
+		std::vector<std::string> ScratchFiles;
 		/// When the runtime last sent anything, milliseconds into the turn.
 		std::uint64_t LastFrameMs      = 0U;
 		std::uint64_t LongestSilenceMs = 0U;

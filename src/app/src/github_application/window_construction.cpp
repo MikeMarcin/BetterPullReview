@@ -1,5 +1,7 @@
 #include "github_application/window_composition.hpp"
 
+#include <QStandardPaths>
+
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
@@ -734,6 +736,7 @@ namespace bpr::app {
 						return;
 					}
 					finish_writing(aIdentity, aResult);
+					note_agent_scratch(aIdentity.Session.Profile, aResult);
 					settle_comment_workshop(
 						aIdentity.Session.Id, aResult.Outcome);
 					Window->finish_dif_invocation(aIdentity, aResult.Outcome);
@@ -868,6 +871,27 @@ namespace bpr::app {
 				AgentEffects,
 				DecisionLane,
 				*AgentProjections, PrivateReview.get(), NativeAgentSessions.get(), DiagnosticLog.get());
+			// [[BPR-2007]], RFC-BPR-0104. Scratch folders sit beside the
+			// profile's data. Claude cannot match a rule to a quoted path, so a
+			// root whose path has a space (macOS's "Application Support") moves
+			// to the user's cache folder, one per profile; with neither usable
+			// no folder is granted.
+			{
+				auto leaf = ApplicationDataRoot.filename();
+				leaf += "-agent-scratch-v1";
+				auto root = ApplicationDataRoot.parent_path() / leaf;
+				if (!application::valid_agent_grant_path((root / "x").string())) {
+					auto hash = std::uint64_t{ 14695981039346656037ULL };
+					for (const auto byte : ApplicationDataRoot.generic_string()) {
+						hash = (hash ^ static_cast<unsigned char>(byte)) * 1099511628211ULL;
+					}
+					root = std::filesystem::path{ QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation).toStdString() } / "betterpullreview-agent-scratch-v1"
+						/ QString::number(hash, 16).toStdString();
+				}
+				if (application::valid_agent_grant_path((root / "x").string())) {
+					AgentHost->set_scratch_root(root);
+				}
+			}
 			AgentProjections->NativeSession = [this](const core::agent_session& aSession) { if (!Closing && ChatHost) { LatestAgentSession=aSession; ChatHost->admitted(aSession,true); } };
 			AgentProjections->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_agent_native_history(aView); };
 			compose_tour_session(agentProfiles, agentPolicies);

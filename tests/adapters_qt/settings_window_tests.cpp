@@ -562,8 +562,12 @@ void render_agents_roster(const QString& aFolder, const bool aLook = false)
 	preferences.Agents               = *core::add_agent_entry({ }, claude);
 	preferences.Agents               = *core::add_agent_entry(preferences.Agents, core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, "/opt/homebrew/bin/codex"));
 	preferences.Agents               = *core::add_agent_entry(preferences.Agents, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude-wrapper", .Model = "claude-sonnet-5-5", .Effort = "medium" });
-	preferences.EntryChecks          = { { .Id = preferences.Agents[0].Id, .Check = { .State = core::setup_check_state::passed, .Version = "2.1.321" } },
-										 { .Id = preferences.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::not_signed_in) } };
+	// [[BPR-2007]], [[BPR-2008]]. Codex may build and test; Work Claude's
+	// scratch folder starts off; Claude Code keeps the defaults.
+	preferences.Agents[1].BuildsAndTests = true;
+	preferences.Agents[2].ScratchStarts  = false;
+	preferences.EntryChecks              = { { .Id = preferences.Agents[0].Id, .Check = { .State = core::setup_check_state::passed, .Version = "2.1.321" } },
+											 { .Id = preferences.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::not_signed_in) } };
 	window.agent_programs()->present(preferences, { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude" } });
 	if (aLook) {
 		// A row's sheet opens and its OK answers; nothing is kept.
@@ -579,7 +583,7 @@ void render_agents_roster(const QString& aFolder, const bool aLook = false)
 	if (aLook) {
 		// The owner's look: the page live. Rows open their sheet, their menu
 		// checks, moves or removes (nothing is saved: no host behind it).
-		settings->setWindowTitle(QStringLiteral("Settings › Agents & context: one agent passed, one not signed in, one never checked"));
+		settings->setWindowTitle(QStringLiteral("Settings › Agents & context: one agent passed, one not signed in, one never checked. Open a row for its scratch folder and builds settings"));
 		QApplication::exec();
 		return;
 	}

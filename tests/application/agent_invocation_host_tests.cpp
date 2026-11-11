@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -1927,6 +1928,58 @@ namespace {
 }
 
 namespace {
+	/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 AC01, AC03, AC04, AC06. The
+	/// host makes the turn's scratch folder, launches with its grant, reports
+	/// what the turn wrote there and removes a turn's own folder; builds are
+	/// granted only in the disposable checkout; a tour run takes nothing.
+	void test_the_grant_reaches_the_launch_and_the_folder_goes_with_the_turn()
+	{
+		const auto root    = tests::make_scratch_directory("bpr-agent-scratch-host");
+		auto       cleanup = tests::scratch_guard{ root };
+		auto       test    = harness{ };
+		test.Host.set_scratch_root(root / "scratch");
+		auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+		input.ScratchFolder       = true;
+		input.BuildsAndTests      = true;
+		auto folder               = std::filesystem::path{ };
+		test.Processes.AfterStart = [&] {
+			const auto& launch = *test.Processes.LastRequest;
+			if (launch.Grant) {
+				folder = launch.Grant->ScratchFolder;
+				std::ofstream{ folder / "count.py" } << "print(3)\n";
+			}
+		};
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		const auto& launch = *test.Processes.LastRequest;
+		expect(launch.Grant && launch.Grant->ScratchFolder.starts_with((root / "scratch").string()) && launch.Grant->BuildWorkspace == launch.WorkingDirectory,
+			   "the launch carries the folder under the root and the disposable checkout to build in");
+		expect(std::ranges::contains(launch.Arguments, std::string{ "--add-dir" }) && std::ranges::contains(launch.Arguments, std::string{ "Bash(cmake:*)" }), "as Claude's arguments");
+		const auto& finished = test.Projection.Finished.back();
+		expect(finished.ScratchFiles == std::vector<std::string>{ "count.py" } && finished.Grant == launch.Grant, "the result lists what the turn wrote there");
+		expect(!folder.empty() && !std::filesystem::exists(folder), "a turn's own folder goes when the turn ends");
+
+		// The reviewer's own checkout: no build allowance, whatever was asked.
+		auto own                   = input;
+		own.ExistingCheckoutChosen = true;
+		own.ExistingCheckout       = application::checkout_observation{ .Path = (root / "mine").string(), .Cleanliness = application::checkout_cleanliness::clean };
+		std::filesystem::create_directories(root / "mine");
+		test.Host.dispatch(own);
+		test.settle();
+		expect(test.Processes.LastRequest->Grant && test.Processes.LastRequest->Grant->BuildWorkspace.empty() && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "Bash(cmake:*)" }),
+			   "AC04: never in the reviewer's own checkout");
+
+		// Off: exactly as before.
+		auto off           = input;
+		off.ScratchFolder  = false;
+		off.BuildsAndTests = false;
+		test.Host.dispatch(off);
+		test.settle();
+		expect(!test.Processes.LastRequest->Grant && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--add-dir" }), "off: no allowance");
+	}
+
 	void test_tour_history_keeps_the_terminal_answer_item()
 	{
 		auto test                 = harness{ };
@@ -2223,6 +2276,7 @@ auto main(const int aCount, char** aArguments) -> int
 	native_storage_failures_remain_private();
 	native_project_size_does_not_gate_first_or_continued_turns();
 	test_tour_history_keeps_the_terminal_answer_item();
+	test_the_grant_reaches_the_launch_and_the_folder_goes_with_the_turn();
 	test_explicit_settings_cross_the_existing_invocation_host();
 	test_reopened_replay_uncertainty_is_visible_without_native_workspace();
 	test_session_admission_answers_later_and_admits_one_turn();

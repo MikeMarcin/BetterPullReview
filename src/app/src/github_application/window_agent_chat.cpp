@@ -937,6 +937,10 @@ namespace bpr::app {
 					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
 			}
 		}
+		// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The turn's grant.
+		if (!grant_agent_turn(invocation)) {
+			return false;
+		}
 		AgentHost->dispatch(std::move(invocation));
 		return true;
 	}

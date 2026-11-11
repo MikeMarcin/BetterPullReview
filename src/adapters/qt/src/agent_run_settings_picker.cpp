@@ -1,5 +1,6 @@
 #include "bpr/qt/agent_run_settings_picker.hpp"
 
+#include "bpr/core/agent_grant.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 
@@ -11,7 +12,9 @@
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPainter>
+#include <QPushButton>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
 #include <QTimer>
@@ -264,6 +267,41 @@ namespace bpr::qt {
 				add(level, QString::fromStdString(level));
 			}
 		}
+		// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11. What
+		// this pull request lets the agent do, and the control that turns its
+		// scratch folder off or on here.
+		if (settings->GrantApplies) {
+			choices->addSeparator();
+			auto* const line = choices->addAction(settings->GrantLine);
+			line->setObjectName(QStringLiteral("agentRunSettingsGrantLine"));
+			line->setEnabled(false);
+			auto* const scratch = choices->addAction(tr("Scratch folder in this pull request"));
+			scratch->setObjectName(QStringLiteral("agentRunSettingsScratch"));
+			scratch->setCheckable(true);
+			scratch->setChecked(settings->ScratchOn);
+			scratch->setToolTip(settings->GrantEnforcement);
+			scratch->setStatusTip(settings->GrantEnforcement);
+			connect(scratch, &QAction::triggered, this, [this, profile](const bool aOn) {
+				if (Source->ToggleScratch) {
+					Source->ToggleScratch(profile, aOn);
+				}
+			});
+			auto* const builds = choices->addAction(settings->BuildsLine);
+			builds->setObjectName(QStringLiteral("agentRunSettingsBuilds"));
+			builds->setEnabled(false);
+			auto* const enforced = choices->addAction(settings->GrantEnforcement);
+			enforced->setObjectName(QStringLiteral("agentRunSettingsEnforcement"));
+			enforced->setEnabled(false);
+			if (settings->ScratchOpenable) {
+				auto* const open = choices->addAction(tr("Open scratch folder"));
+				open->setObjectName(QStringLiteral("agentRunSettingsOpenScratch"));
+				connect(open, &QAction::triggered, this, [this, profile] {
+					if (Source->OpenScratch) {
+						Source->OpenScratch(profile);
+					}
+				});
+			}
+		}
 		choices->addSeparator();
 		choices->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
 		// Owner look v006 ("This model picker dropdown should have a link to
@@ -275,6 +313,31 @@ namespace bpr::qt {
 				Source->Setup();
 			}
 		});
+	}
+
+	auto make_build_question(QWidget* const aParent) -> std::unique_ptr<QMessageBox>
+	{
+		const auto question = core::agent_build_question;
+		auto       box      = std::make_unique<QMessageBox>(QMessageBox::Question, QObject::tr("Build and run tests"), QString::fromUtf8(question.data(), static_cast<qsizetype>(question.size())), QMessageBox::NoButton, aParent);
+		box->setObjectName(QStringLiteral("agentBuildQuestion"));
+		box->setInformativeText(QObject::tr("Declining leaves the agent reading and writing scripts in its scratch folder. Agent settings turn building off for an agent."));
+		auto* const allow = box->addButton(QObject::tr("Allow for this pull request"), QMessageBox::AcceptRole);
+		allow->setObjectName(QStringLiteral("agentBuildAllow"));
+		auto* const decline = box->addButton(QObject::tr("Don't allow"), QMessageBox::RejectRole);
+		decline->setObjectName(QStringLiteral("agentBuildDecline"));
+		box->setDefaultButton(decline);
+		return box;
+	}
+
+	auto ask_build_question(QWidget* const aParent) -> std::optional<bool>
+	{
+		const auto box = make_build_question(aParent);
+		box->exec();
+		const auto* const clicked = box->clickedButton();
+		if (clicked == nullptr) {
+			return std::nullopt;
+		}
+		return clicked->objectName() == QStringLiteral("agentBuildAllow");
 	}
 
 	void agent_run_settings_picker::present_unavailable()

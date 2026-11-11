@@ -3504,8 +3504,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# writing prompt for comments, replies and notes (window_tours names it
 	# and adds a writing-kind source). No grant, admission or publication
 	# boundary changes.
+	# [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104: this one changes a grant. An
+	# Agent tab turn of Claude Code or Codex may launch with the narrow
+	# allowance to write and run in its own scratch folder (on to begin with,
+	# per agent and pull request), and with builds in the disposable checkout
+	# once the reviewer allowed them for the pull request; the window asks the
+	# build question and keeps the choice and the answer. Tour runs, tool-free
+	# hooks, admission and publication are unchanged; no network grant.
 	set(bpr_expected_production_app_manifest_digest
-        "7211be57501740617fd3a121010b33626f4fb8d675a164a57eca7205ee8477fb"
+        "720e163b70dc0e6eef84875092568e36a8beeed315e7b619c161e8e100c97621"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

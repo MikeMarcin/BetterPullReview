@@ -3,6 +3,7 @@
 #include "bpr/application/tour_writing_style.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_answer_findings.hpp"
+#include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/review_cycle_send.hpp"
@@ -3227,6 +3228,74 @@ namespace bpr::application {
 				aArguments.push_back("model_reasoning_effort=\"" + *aSettings.Effort + "\"");
 			}
 		}
+		/// [[BPR-2007]]. A TOML basic string; a grant path is checked to hold
+		/// no control character before it gets here.
+		[[nodiscard]] auto toml_string(const std::string_view aText) -> std::string
+		{
+			auto result = std::string{ "\"" };
+			for (const auto character : aText) {
+				if (character == '\\' || character == '"') {
+					result += '\\';
+				}
+				result += character;
+			}
+			return result + "\"";
+		}
+		/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104, established 2026-11-11
+		/// against Claude Code 2.1.319. `--add-dir` lets the file tools reach
+		/// the folder; the rules allow writing and editing under it and
+		/// running a file in it, directly or with an interpreter. The rules
+		/// are globs (`Bash(python3 FOLDER/*)`): the `:*` prefix form matches
+		/// only at a word boundary, so `FOLDER/:*` never matched a file in it
+		/// (live course, 2026-11-11). A command whose path is quoted does not
+		/// match a rule, so a folder whose path has a space is never granted
+		/// (`valid_agent_grant_path`). Building
+		/// adds its programs. Nothing else the reviewer's settings decide is
+		/// changed: a headless run cannot ask, so anything else they would
+		/// ask about is refused.
+		void append_claude_grant(std::vector<std::string>& aArguments, const agent_launch_grant& aGrant)
+		{
+			auto rules = std::vector<std::string>{ };
+			if (!aGrant.ScratchFolder.empty()) {
+				aArguments.emplace_back("--add-dir");
+				aArguments.push_back(aGrant.ScratchFolder);
+				if (!aGrant.ScratchFull) {
+					rules.push_back("Write(/" + aGrant.ScratchFolder + "/**)");
+					rules.push_back("Edit(/" + aGrant.ScratchFolder + "/**)");
+				}
+				rules.push_back("Bash(" + aGrant.ScratchFolder + "/*)");
+				for (const auto runner : claude_scratch_runners) {
+					rules.push_back("Bash(" + std::string{ runner } + " " + aGrant.ScratchFolder + "/*)");
+				}
+			}
+			if (!aGrant.BuildWorkspace.empty()) {
+				for (const auto program : claude_build_programs) {
+					rules.push_back("Bash(" + std::string{ program } + ":*)");
+				}
+			}
+			if (!rules.empty()) {
+				aArguments.emplace_back("--allowedTools");
+				aArguments.insert(aArguments.end(), std::make_move_iterator(rules.begin()), std::make_move_iterator(rules.end()));
+			}
+		}
+		/// Established 2026-11-11 against Codex 0.167.0: a permissions profile
+		/// named as `default_permissions` replaces the configured sandbox mode
+		/// for the run, and Codex's sandbox (Seatbelt on macOS) holds every
+		/// command to it: everything readable, writes only where it says, no
+		/// network. A headless run cannot answer an escalation, so none is asked.
+		void append_codex_grant(std::vector<std::string>& aArguments, const agent_launch_grant& aGrant)
+		{
+			auto filesystem = std::string{ "{\":root\"=\"read\"" };
+			if (!aGrant.ScratchFolder.empty()) {
+				filesystem += "," + toml_string(aGrant.ScratchFolder) + (aGrant.ScratchFull ? "=\"read\"" : "=\"write\"");
+			}
+			if (!aGrant.BuildWorkspace.empty()) {
+				filesystem += "," + toml_string(aGrant.BuildWorkspace) + "=\"write\",\":tmpdir\"=\"write\"";
+			}
+			filesystem += "}";
+			const auto profile = std::string{ codex_grant_profile };
+			aArguments.insert(aArguments.end(), { "-c", "permissions." + profile + ".filesystem=" + filesystem, "-c", "default_permissions=\"" + profile + "\"", "-c", "approval_policy=\"never\"" });
+		}
 		[[nodiscard]] auto settings_json(const core::agent_runtime_metadata& aMetadata) -> std::string
 		{
 			const auto settings = effective_settings(aMetadata);
@@ -3300,6 +3369,14 @@ namespace bpr::application {
 		if (aOptions.ReadOnlyTools && (aOptions.WritingOnly || (aProfile.Protocol != core::agent_protocol::claude_stream_json && aProfile.Protocol != core::agent_protocol::codex_jsonl_exec && aProfile.Protocol != core::agent_protocol::codex_app_server))) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
+		// [[BPR-2007]], [[BPR-2008]]. A grant is for an Agent tab turn of an
+		// agent that takes one, on paths a rule can name.
+		if (aOptions.Grant
+			&& (aOptions.WritingOnly || aOptions.ReadOnlyTools || aProfile.Protocol == core::agent_protocol::external_terminal
+				|| (!aOptions.Grant->ScratchFolder.empty() && !valid_agent_grant_path(aOptions.Grant->ScratchFolder))
+				|| (!aOptions.Grant->BuildWorkspace.empty() && !valid_agent_build_path(aOptions.Grant->BuildWorkspace)))) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
 		const auto metadata = core::agent_runtime_metadata{ .Requested = aOptions.Requested, .Configured = aProfile.DefaultSettings };
 		if (!core::inspect_runtime_metadata(metadata)) {
 			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
@@ -3331,6 +3408,9 @@ namespace bpr::application {
 			if (aOptions.ReadOnlyTools) {
 				arguments.insert(arguments.end(), { "-c", "mcp_servers={}", "-c", "tools.web_search=false" });
 			}
+			if (aOptions.Grant) {
+				append_codex_grant(arguments, *aOptions.Grant);
+			}
 			break;
 		case core::agent_protocol::codex_jsonl_exec:
 			arguments.emplace_back("exec");
@@ -3338,6 +3418,9 @@ namespace bpr::application {
 			append_codex_exec_settings(arguments, settings);
 			if (aOptions.ReadOnlyTools) {
 				arguments.insert(arguments.end(), codex_read_only_arguments.begin(), codex_read_only_arguments.end());
+			}
+			if (aOptions.Grant) {
+				append_codex_grant(arguments, *aOptions.Grant);
 			}
 			arguments.emplace_back("-");
 			break;
@@ -3349,6 +3432,9 @@ namespace bpr::application {
 			arguments.emplace_back("stream-json");
 			arguments.emplace_back("--verbose");
 			append_claude_model(arguments, settings);
+			if (aOptions.Grant) {
+				append_claude_grant(arguments, *aOptions.Grant);
+			}
 			break;
 		case core::agent_protocol::external_terminal:
 			break;
@@ -3369,6 +3455,13 @@ namespace bpr::application {
 		if ((aProfile.Protocol == core::agent_protocol::codex_jsonl_exec || aProfile.Protocol == core::agent_protocol::codex_app_server) && !aOptions.WritingOnly) {
 			append_field(payload, "helpers", codex_foreground_helpers);
 		}
+		// [[BPR-2007]], [[BPR-2008]]. The agent is told what it was granted.
+		if (aOptions.Grant && !aOptions.Grant->ScratchFolder.empty()) {
+			append_field(payload, "scratch_folder", core::agent_scratch_instruction(aOptions.Grant->ScratchFolder, aOptions.Grant->ScratchFull));
+		}
+		if (aOptions.Grant && !aOptions.Grant->BuildWorkspace.empty()) {
+			append_field(payload, "builds", core::agent_builds_instruction(aOptions.Grant->BuildWorkspace));
+		}
 		auto request = agent_launch_request{
 			.Protocol    = aProfile.Protocol,
 			.Session     = aSupplement.Session.Id,
@@ -3387,6 +3480,7 @@ namespace bpr::application {
 		}
 		request.ReadOnlyTools = aOptions.ReadOnlyTools;
 		request.RunChecks     = aOptions.RunChecks;
+		request.Grant         = aOptions.Grant;
 		request.Profile       = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = payload;

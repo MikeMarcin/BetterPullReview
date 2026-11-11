@@ -2315,6 +2315,56 @@ namespace {
 		expect(!application::build_agent_protocol_followup(app, { .Kind = application::agent_protocol_event_kind::context_channel_ready, .Text = std::string(1025, 't') }), "oversized late thread identity refuses before context write");
 	}
 
+	/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 AC01, AC04, AC06. A granted
+	/// Agent tab turn carries exactly the narrow allowance; with none it
+	/// launches as before; tour and writing runs never take one.
+	void test_the_grant_crosses_exactly()
+	{
+		const auto folder  = std::string{ "/data/bpr-agent-scratch-v1/0123abcd" };
+		const auto ws      = std::string{ "/data/agent workspaces/w1" };
+		auto       scratch = application::agent_launch_grant{ .ScratchFolder = folder };
+		const auto none    = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { });
+		const auto claude  = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });
+		expect(none && claude, "both launch");
+		const auto has = [](const auto& aLaunch, const std::string& aArgument) { return std::ranges::contains(aLaunch->Arguments, aArgument); };
+		expect(!has(none, "--add-dir") && !has(none, "--allowedTools") && none->Arguments.size() + 0U < claude->Arguments.size(), "off: no allowance at all");
+		auto expected = none->Arguments;
+		expected.insert(expected.end(), { "--add-dir", folder, "--allowedTools", "Write(/" + folder + "/**)", "Edit(/" + folder + "/**)", "Bash(" + folder + "/*)" });
+		for (const auto runner : application::claude_scratch_runners) {
+			expected.push_back("Bash(" + std::string{ runner } + " " + folder + "/*)");
+		}
+		expect(claude->Arguments == expected, "Claude: the folder, write and edit under it, and running files in it; nothing else");
+		const auto told = std::string{ claude->Input.begin(), claude->Input.end() };
+		expect(told.find("scratch_folder") != std::string::npos && told.find(folder) != std::string::npos, "Claude is told its folder");
+		expect(claude->Grant == std::optional{ scratch }, "the launch records its grant");
+
+		scratch.ScratchFull = true;
+		const auto full     = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });
+		expect(full && !has(full, "Write(/" + folder + "/**)") && has(full, "Bash(" + folder + "/*)") && std::string{ full->Input.begin(), full->Input.end() }.find("may not write") != std::string::npos,
+			   "AC03: a full folder gives no write allowance, and the agent is told why");
+
+		const auto codexNone = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { });
+		const auto codex     = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder } });
+		expect(codexNone && codex && codexNone->Arguments == std::vector<std::string>{ "app-server" }, "Codex off: as before");
+		expect(codex->Arguments
+				   == std::vector<std::string>{ "app-server", "-c", "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\"}", "-c",
+												"default_permissions=\"betterpullreview_grant\"", "-c", "approval_policy=\"never\"" },
+			   "Codex: a profile that reads everything and writes only the folder, network unset (off)");
+		const auto builds = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws } });
+		expect(builds && builds->Arguments.back() == "-" && has(builds, "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\",\"" + ws + "\"=\"write\",\":tmpdir\"=\"write\"}"),
+			   "AC04: builds add the disposable checkout and the temporary folder, before exec's stdin marker");
+		const auto claudeBuilds = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws } });
+		expect(claudeBuilds && has(claudeBuilds, "Bash(cmake:*)") && has(claudeBuilds, "Bash(ctest:*)") && !has(claudeBuilds, "--add-dir"), "Claude builds: the build programs only");
+
+		// AC06: tour and writing runs never take a grant; a plain-text harness neither.
+		const auto grant = application::agent_launch_grant{ .ScratchFolder = folder };
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true, .Grant = grant }), "a read-only tour run refuses a grant");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .WritingOnly = true, .Grant = grant }), "a tool-free run refuses a grant");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::external_terminal), built_supplement(), reader(), { .Grant = grant }), "the plain-text harness refuses a grant");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = "/Library/Application Support/x" } }),
+			   "a folder a rule cannot name is refused");
+		expect(!application::valid_agent_grant_path("relative/x") && application::valid_agent_build_path("/a b/c"), "path rules");
+	}
 } // namespace
 
 auto main() -> int
@@ -2353,6 +2403,7 @@ auto main() -> int
 	test_every_protocol_decoder_handles_partial_frames();
 	test_process_and_staleness_outcomes_remain_distinct();
 	test_private_prose_crosses_only_through_the_session_keyed_optin();
+	test_the_grant_crosses_exactly();
 	std::cout << "agent-launch-tests:pass\n";
 	return EXIT_SUCCESS;
 }

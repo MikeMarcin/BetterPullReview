@@ -61,6 +61,15 @@
 //       what the running block showed and how the one turn ended into
 //       DIR/agent-helpers.jsonl, with renders. It spends the account of the
 //       installed agent; nothing is written to GitHub.
+//   --course agent-scratch --root DIR --pull N --path PROGRAM [--author claude|codex]
+//       [[BPR-2007]], RFC-BPR-0104 AC01, AC02, AC09. Opens MikeMarcin/BPR-Test#N,
+//       adds the installed agent at PROGRAM, and asks it from the Agent tab
+//       to write a script in its scratch folder, run it against the workspace
+//       and try to write into the workspace. It then turns the scratch folder
+//       off from the footer picker's grant item and asks it to write there
+//       again. It writes what each turn did, the folder's files and the
+//       workspace's `git status` into DIR/agent-scratch.jsonl. It spends the
+//       installed agent's account; nothing is written to GitHub.
 //   --course live-session --root DIR --pull N --path FILE --second FILE
 //            --first-stop L --second-stop L --reads A,B,C [--approve M] [--agent PROGRAM]
 //       RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. The one course that writes:
@@ -75,7 +84,9 @@
 #include "bpr/core/agent_entry.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -114,6 +125,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTabBar>
@@ -236,10 +248,10 @@ namespace {
 			}
 		}
 		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
-			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment" && result.Course != "agent-helpers" && result.Course != "live-session")
+			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment" && result.Course != "agent-helpers" && result.Course != "agent-scratch" && result.Course != "live-session")
 			|| result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))
-			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment" || result.Course == "agent-helpers") && result.Path.empty())
+			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment" || result.Course == "agent-helpers" || result.Course == "agent-scratch") && result.Path.empty())
 			|| (result.Course == "live-session" && (result.Path.empty() || result.Second.empty() || result.Reads.empty()))) {
 			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push|filtered-comment|whole-pr-comment --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
@@ -431,6 +443,127 @@ namespace {
 		if (tab->turn_count() != before + 1U) {
 			fail("more than one turn");
 		}
+	}
+
+	/// [[BPR-2007]], RFC-BPR-0104 AC01, AC02, AC09. The installed agent writes
+	/// and runs a script in its scratch folder and nowhere else; turned off
+	/// from the footer picker's grant item, the next turn has no allowance.
+	void agent_scratch_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		const auto codex = aOptions.Author == "codex";
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		aWindow.agent_programs()->set_editor([&](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry    = aStart;
+			entry.Program = aOptions.Path;
+			if (!codex) {
+				entry.Model = "haiku";
+			}
+			return entry;
+		});
+		const auto protocol = codex ? core::agent_protocol::codex_app_server : core::agent_protocol::claude_stream_json;
+		auto*      panel    = aWindow.agent_panel();
+		const auto profile  = core::entry_profile_id(protocol, 1U).value();
+		const auto id       = QVariant::fromValue<qulonglong>(profile);
+		require([&] {
+			if (panel->profile_selector()->findData(id) < 0) {
+				aWindow.agent_programs()->add_agent(codex ? core::setup_agent::codex : core::setup_agent::claude_code);
+			}
+			return panel->profile_selector()->findData(id) >= 0;
+		},
+				"the installed agent is offered", std::chrono::seconds{ 60 });
+		panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
+		aWindow.settings()->hide();
+		aWindow.choose_modality(qt::review_modality::review);
+		aWindow.tray_tabs()->setCurrentIndex(3);
+		auto* const tab = aWindow.agent_tab();
+		wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
+		const auto quote = [](const QString& aText) {
+			auto out = std::string{ };
+			for (const auto character : aText.toStdString()) {
+				if (character == '"' || character == '\\') {
+					out += '\\';
+				}
+				out += character == '\n' || character == '\t' ? ' ' : character;
+			}
+			return "\"" + out + "\"";
+		};
+		const auto grantItem = [&]() -> std::pair<QString, QAction*> {
+			auto* const picker = aWindow.agent_footer_widget()->picker();
+			emit        picker->menu()->aboutToShow();
+			auto        line    = QString{ };
+			auto        scratch = static_cast<QAction*>(nullptr);
+			for (auto* const item : picker->menu()->actions()) {
+				if (item->objectName() == QStringLiteral("agentRunSettingsGrantLine")) {
+					line = item->text();
+				} else if (item->objectName() == QStringLiteral("agentRunSettingsScratch")) {
+					scratch = item;
+				}
+			}
+			return { line, scratch };
+		};
+		const auto scratchRoot = aOptions.Root / "data-agent-scratch-v1";
+		const auto listing     = [&] {
+			auto files = std::string{ };
+			auto error = std::error_code{ };
+			for (auto entry = std::filesystem::recursive_directory_iterator{ scratchRoot, error }; !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
+				if (entry->is_regular_file()) {
+					files += (files.empty() ? "" : ",") + entry->path().lexically_relative(scratchRoot).generic_string();
+				}
+			}
+			return files;
+		};
+		const auto workspaces = [&] {
+			// Every checkout BPR made for this profile, and what Git says of it.
+			auto states = std::string{ };
+			auto error  = std::error_code{ };
+			for (auto entry = std::filesystem::recursive_directory_iterator{ aOptions.Root / "data-agent-workspaces-v1", error }; !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
+				if (entry->path().filename() == ".git" || entry.depth() > 4) {
+					entry.disable_recursion_pending();
+				}
+				if (entry->path().filename() == ".git") {
+					const auto checkout = entry->path().parent_path();
+					auto       process  = QProcess{ };
+					process.start(QStringLiteral("git"), { QStringLiteral("-C"), QString::fromStdString(checkout.string()), QStringLiteral("status"), QStringLiteral("--porcelain"), QStringLiteral("--untracked-files=all") });
+					process.waitForFinished(30'000);
+					const auto out = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+					states += (states.empty() ? "" : ";") + std::string{ out.isEmpty() ? "clean" : out.toStdString() };
+				}
+			}
+			return states;
+		};
+		const auto turn = [&](const QString& aPrompt) {
+			const auto before = tab->turn_count();
+			tab->send_prompt(aPrompt);
+			require([&] { return tab->turn_count() == before + 1U; }, "the turn starts", std::chrono::seconds{ 120 });
+			require([&] { return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value(); }, "the turn ends", std::chrono::seconds{ 900 });
+			auto* const block = tab->turn_activity(before);
+			return std::string{ "{\"outcome\":" } + quote(QString::fromUtf8(core::stable_name(*tab->turn_outcome(before)).data())) + ",\"summary\":" + quote(block != nullptr ? block->summary_text() : QString{ })
+				+ ",\"answer\":" + quote(tab->turn_answer(before).left(900)) + "}";
+		};
+		const auto [lineOn, itemOn] = grantItem();
+		const auto first            = turn(QStringLiteral("Write a Python script named count.py in your scratch folder that prints the number of lines in each regular file in the current directory and below, skipping .git. "
+														  "Run it with python3 and its absolute path, as one command with nothing else, and report what it printed. Then try to create a file named bpr-probe.txt in the "
+														  "current directory, and say exactly whether you were allowed. Do not start helpers."));
+		const auto afterFirst       = listing();
+		const auto cleanFirst       = workspaces();
+		aWindow.grab().save(QString::fromStdString((aOptions.Root / ("agent-scratch-" + std::string{ codex ? "codex" : "claude" } + "-on.png")).string()));
+		// AC09: off from the footer picker's grant item, as a person turns it off.
+		auto [lineBefore, item] = grantItem();
+		if (item == nullptr || !item->isChecked()) {
+			fail("the grant item is not there, or not on");
+		}
+		item->trigger();
+		QApplication::processEvents();
+		const auto [lineOff, itemOff] = grantItem();
+		const auto second             = turn(QStringLiteral("Now try to create a file named second.py in the same scratch folder as before, containing print(2), and run it. Say exactly whether you were allowed. Do not start helpers."));
+		const auto afterSecond        = listing();
+		const auto facts              = std::string{ "{\"agent\":" } + quote(codex ? QStringLiteral("codex") : QStringLiteral("claude")) + ",\"line_on\":" + quote(lineOn) + ",\"first\":" + first + ",\"scratch_after_first\":" + quote(QString::fromStdString(afterFirst))
+			+ ",\"workspaces_after_first\":" + quote(QString::fromStdString(cleanFirst)) + ",\"line_off\":" + quote(lineOff) + ",\"item_off_checked\":" + (itemOff != nullptr && itemOff->isChecked() ? "true" : "false")
+			+ ",\"second\":" + second + ",\"scratch_after_second\":" + quote(QString::fromStdString(afterSecond)) + ",\"workspaces_after_second\":" + quote(QString::fromStdString(workspaces())) + "}";
+		std::ofstream{ aOptions.Root / "agent-scratch.jsonl", std::ios::app } << facts << '\n';
+		say("agent-scratch:" + facts);
+		static_cast<void>(itemOn);
 	}
 
 	/// Drags through the window, as a pointer is delivered, so whatever sits
@@ -1704,6 +1837,8 @@ try {
 		whole_pr_comment_course(chosen, *window);
 	} else if (chosen.Course == "agent-helpers") {
 		agent_helpers_course(chosen, *window);
+	} else if (chosen.Course == "agent-scratch") {
+		agent_scratch_course(chosen, *window);
 	} else if (chosen.Course == "live-session") {
 		live_session_course(chosen, *window);
 	} else {

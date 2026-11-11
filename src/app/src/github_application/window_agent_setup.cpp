@@ -10,6 +10,7 @@
 #include <QDesktopServices>
 #include <QObject>
 #include <QTextStream>
+#include <QUrl>
 
 #include <algorithm>
 #include <limits>
@@ -634,6 +635,9 @@ namespace bpr::app {
 		}
 		AgentConversation->open(
 			{ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value(), .Agent = current_conversation_agent() });
+		// [[BPR-2007]]. Another pull request's grant and folders.
+		AgentScratchFolders.clear();
+		present_run_settings();
 	}
 
 	/// Owner look v004. The Agent tab's header names the pull request, and
@@ -1232,6 +1236,9 @@ namespace bpr::app {
 		tab->set_run_settings_dispatch([this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
 			return apply_run_settings(aProfile, std::move(aModel), std::move(aEffort));
 		});
+		// [[BPR-2007]]. The footer picker's grant item and Open scratch folder.
+		tab->run_settings_source()->ToggleScratch = [this](const std::uint64_t aProfile, const bool aOn) { toggle_agent_scratch(aProfile, aOn); };
+		tab->run_settings_source()->OpenScratch   = [this](const std::uint64_t aProfile) { open_agent_scratch(aProfile); };
 		// [[BPR-1753]], owner decision (b). Each turn that ends is
 		// kept for the pull request, and Clear session keeps none.
 		tab->set_thread_observer([this](std::vector<qt::agent_thread_turn> aTurns) {
@@ -1673,6 +1680,19 @@ namespace bpr::app {
 				break;
 			}
 			}
+			// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended. The grant in
+			// the pull request now open, under the model and effort.
+			if (const auto grantProgram = core::entry_settings_program(entry.Protocol); grantProgram && AgentReview) {
+				const auto* const own     = Window->agent_panel()->existing_checkout_action();
+				const auto        grant   = agent_grant_for(entry, own != nullptr && own->isChecked());
+				settings.GrantApplies     = grant.Applies;
+				const auto line           = core::agent_grant_line(core::grant_level(grant));
+				settings.GrantLine        = QString::fromUtf8(line.data(), static_cast<qsizetype>(line.size()));
+				settings.ScratchOn        = grant.Scratch;
+				settings.BuildsLine       = QString::fromStdString(core::agent_builds_line(grant.Builds, entry.Name));
+				settings.GrantEnforcement = QString::fromStdString(core::agent_grant_enforcement(grant, grantProgram));
+				settings.ScratchOpenable  = AgentScratchFolders.contains(settings.Profile);
+			}
 			const auto choosable     = core::entry_settings_program(entry.Protocol).has_value();
 			settings.ModelChoosable  = choosable;
 			settings.EffortChoosable = choosable;
@@ -1832,6 +1852,91 @@ namespace bpr::app {
 			CycleDesktop->prefer_send_profile(saved);
 		}
 		observe_conversation_agent();
+	}
+
+	auto github_application::implementation::grant_key(const std::uint32_t aAgent) const -> std::optional<application::agent_conversation_key>
+	{
+		if (!AgentReview) {
+			return std::nullopt;
+		}
+		return application::agent_conversation_key{ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value(), .Agent = aAgent };
+	}
+
+	auto github_application::implementation::agent_grant_for(const core::agent_entry& aEntry, const bool aOwnCheckout) const -> core::agent_grant
+	{
+		auto facts          = core::agent_grant_facts{ };
+		facts.Program       = core::entry_settings_program(aEntry.Protocol);
+		facts.ScratchStarts = aEntry.ScratchStarts;
+		facts.Builds        = aEntry.BuildsAndTests;
+		facts.OwnCheckout   = aOwnCheckout;
+		if (const auto key = grant_key(aEntry.Id); key && AgentConversationStore) {
+			facts.ScratchChoice = AgentConversationStore->load_scratch_choice(*key);
+			facts.BuildAnswer   = AgentConversationStore->load_build_answer(*key);
+		}
+		return core::resolve_agent_grant(facts);
+	}
+
+	void github_application::implementation::toggle_agent_scratch(const std::uint64_t aProfile, const bool aOn)
+	{
+		if (Closing || !AgentSetup || !AgentConversationStore) {
+			return;
+		}
+		const auto  agents = AgentSetup->projection().Preferences.Agents;
+		const auto* entry  = core::entry_of_profile(agents, core::agent_profile_id{ aProfile });
+		const auto  key    = entry != nullptr ? grant_key(entry->Id) : std::nullopt;
+		// RFC-BPR-0104 AC09. Kept for this pull request and agent; the agent's
+		// starting state is not touched. The next turn takes it.
+		if (key && !AgentConversationStore->store_scratch_choice(*key, aOn)) {
+			Window->agent_panel()->refuse("The scratch folder choice could not be saved.");
+		}
+		present_run_settings();
+	}
+
+	void github_application::implementation::open_agent_scratch(const std::uint64_t aProfile)
+	{
+		const auto found = AgentScratchFolders.find(aProfile);
+		if (Closing || found == AgentScratchFolders.end()) {
+			return;
+		}
+		QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdString(found->second)));
+	}
+
+	void github_application::implementation::note_agent_scratch(const core::agent_profile_id aProfile, const application::agent_run_result& aResult)
+	{
+		if (Closing || aResult.ScratchFolder.empty()) {
+			return;
+		}
+		AgentScratchFolders[aProfile.value()] = aResult.ScratchFolder;
+		present_run_settings();
+	}
+
+	auto github_application::implementation::grant_agent_turn(application::agent_invocation_request& aInvocation) -> bool
+	{
+		if (!AgentSetup || aInvocation.WritingOnly || aInvocation.ReadOnlyTools) {
+			return true;
+		}
+		const auto  agents = AgentSetup->projection().Preferences.Agents;
+		const auto* entry  = core::entry_of_profile(agents, aInvocation.Profile);
+		if (entry == nullptr) {
+			return true;
+		}
+		auto grant = agent_grant_for(*entry, aInvocation.ExistingCheckoutChosen);
+		// RFC-BPR-0104 AC04. Asked once per pull request, before the first
+		// turn that would build; declining leaves reading and scripting.
+		if (core::build_question_due(grant)) {
+			const auto answer = AskBuildQuestion ? AskBuildQuestion() : qt::ask_build_question(Window.get());
+			if (!answer) {
+				return false;
+			}
+			if (const auto key = grant_key(entry->Id); key && AgentConversationStore) {
+				static_cast<void>(AgentConversationStore->store_build_answer(*key, *answer));
+			}
+			grant.Builds = *answer ? core::agent_builds_state::allowed : core::agent_builds_state::declined;
+			present_run_settings();
+		}
+		aInvocation.ScratchFolder  = core::scratch_granted(grant);
+		aInvocation.BuildsAndTests = core::builds_granted(grant);
+		return true;
 	}
 #endif
 }

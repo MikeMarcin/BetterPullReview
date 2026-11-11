@@ -128,6 +128,33 @@ namespace bpr::application {
 		/// was last asked with, so a reset's new agent, whose id may be an old
 		/// one's, does not open on that agent's thread. Every turn stays.
 		[[nodiscard]] virtual auto forget_agents() -> bool = 0;
+		/// \brief [[BPR-2007]], RFC-BPR-0104. The scratch folder choice the
+		/// reviewer made in this pull request for the key's agent, or none
+		/// when they made none (the agent's starting state applies).
+		[[nodiscard]] virtual auto load_scratch_choice(const agent_conversation_key& aKey) -> std::optional<bool>
+		{
+			static_cast<void>(aKey);
+			return std::nullopt;
+		}
+		[[nodiscard]] virtual auto store_scratch_choice(const agent_conversation_key& aKey, bool aOn) -> bool
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aOn);
+			return false;
+		}
+		/// \brief [[BPR-2008]]. This pull request's answer to the build
+		/// question (the key's `Agent` is not read), or none before it is asked.
+		[[nodiscard]] virtual auto load_build_answer(const agent_conversation_key& aKey) -> std::optional<bool>
+		{
+			static_cast<void>(aKey);
+			return std::nullopt;
+		}
+		[[nodiscard]] virtual auto store_build_answer(const agent_conversation_key& aKey, bool aAllowed) -> bool
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aAllowed);
+			return false;
+		}
 	};
 } // namespace bpr::application
 

@@ -15,6 +15,7 @@
 #include "bpr/core/review_composition.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
+#include <algorithm>
 #include <array>
 #include <compare>
 #include <cstddef>
@@ -210,6 +211,67 @@ namespace bpr::application {
 	/// \brief Host admission snapshot and explicit settings for one invocation.
 	/// The host persists AdmittedRun before dispatch; the builder verifies correlation,
 	/// never allocates identities. Legacy callers omit it until durable host integration.
+	/// \brief [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The allowances one
+	/// Agent tab turn launches with: the narrow write and run allowance in
+	/// its scratch folder, and building and testing in its disposable
+	/// checkout. Never with a writing or read-only run.
+	struct agent_launch_grant
+	{
+		/// The session's scratch folder, absolute; empty: none.
+		std::string ScratchFolder;
+		/// The folder was full when the turn started: the agent is told its
+		/// path and why, may run what is there, and may not write there.
+		bool ScratchFull = false;
+		/// The disposable checkout the agent may build and test in; empty: none.
+		std::string BuildWorkspace;
+
+		auto operator<=>(const agent_launch_grant&) const = default;
+	};
+
+	/// \brief [[BPR-2007]]. Whether a path can be named in a grant: absolute,
+	/// with no space, control character, parenthesis or comma, which a
+	/// Claude permission rule cannot carry.
+	[[nodiscard]] inline auto valid_agent_grant_path(const std::string_view aPath) noexcept -> bool
+	{
+		if (aPath.empty() || aPath.size() > 1024U || aPath.front() != '/') {
+			return false;
+		}
+		for (const auto character : aPath) {
+			if (static_cast<unsigned char>(character) <= 0x20U || character == 0x7F || character == '(' || character == ')' || character == ',' || character == '"' || character == '\\') {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/// \brief [[BPR-2008]]. Whether a disposable checkout can be named in a
+	/// grant: absolute, with no control character, quote or backslash. Only
+	/// Codex's profile names it, so a space is allowed.
+	[[nodiscard]] inline auto valid_agent_build_path(const std::string_view aPath) noexcept -> bool
+	{
+		if (aPath.empty() || aPath.size() > 4096U || aPath.front() != '/') {
+			return false;
+		}
+		return std::ranges::none_of(aPath, [](const char aCharacter) { return static_cast<unsigned char>(aCharacter) < 0x20U || aCharacter == 0x7F || aCharacter == '"' || aCharacter == '\\'; });
+	}
+
+	/// \brief The name of the Codex permissions profile a granted launch defines.
+	inline constexpr std::string_view codex_grant_profile = "betterpullreview_grant";
+
+	/// \brief [[BPR-2008]]. The build and test programs Claude may run when
+	/// builds are granted, each as a `Bash(NAME:*)` rule. Every one of them
+	/// runs the pull request's own code; the question says so.
+	inline constexpr std::array<std::string_view, 22> claude_build_programs = {
+		"cmake", "ctest", "make", "ninja", "meson", "bazel", "npm", "npx", "pnpm", "yarn", "cargo",
+		"go", "gradle", "./gradlew", "mvn", "dotnet", "swift", "xcodebuild", "pytest", "python3 -m pytest", "tox", "just"
+	};
+	/// \brief [[BPR-2007]]. The interpreters Claude may run a scratch file
+	/// with, each as `Bash(NAME FOLDER/*)`. A shell script runs directly
+	/// (`Bash(FOLDER/*)`) once `chmod +x` has made it executable.
+	inline constexpr std::array<std::string_view, 6> claude_scratch_runners = {
+		"python3", "python", "node", "ruby", "perl", "chmod +x"
+	};
+
 	struct agent_launch_options
 	{
 		core::agent_setting_facts                 Requested;
@@ -223,6 +285,8 @@ namespace bpr::application {
 		bool ReadOnlyTools = false;
 		/// [[BPR-1918]]. Strict unless a custom profile opted out.
 		agent_run_checks RunChecks = agent_run_checks::strict;
+		/// [[BPR-2007]], [[BPR-2008]]. None launches exactly as before.
+		std::optional<agent_launch_grant> Grant;
 	};
 
 	/// \brief Effect-lane source claim, released after the private input write or refusal.
@@ -270,6 +334,8 @@ namespace bpr::application {
 		/// program and fixed arguments are found for its slot.
 		core::agent_profile_id Profile;
 		agent_launch_purpose   Purpose = agent_launch_purpose::conversation;
+		/// [[BPR-2007]], [[BPR-2008]]. The grant the turn launched with.
+		std::optional<agent_launch_grant> Grant;
 		/// [[BPR-1900]]. The decoder admits only read-only tool uses.
 		bool ReadOnlyTools = false;
 		/// [[BPR-1918]]. How the decoder treats what a wrapper can trip.
@@ -999,6 +1065,13 @@ namespace bpr::application {
 		std::uint64_t LongestSilenceMs = 0U;
 		/// The frame types the decoder read past, comma separated, bounded.
 		std::string ReadPast;
+		/// [[BPR-2007]], RFC-BPR-0104. The turn's scratch folder, when it
+		/// had one, and the files it left new or changed there, relative to
+		/// it, at most `core::maximum_agent_activity_listed`.
+		std::string              ScratchFolder;
+		std::vector<std::string> ScratchFiles;
+		/// The grant the turn launched with.
+		std::optional<agent_launch_grant> Grant;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};

@@ -1,5 +1,6 @@
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/agent_conversation_host.hpp"
+#include "bpr/application/agent_scratch_folder.hpp"
 #include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/tour_agent_conversation.hpp"
 
@@ -143,12 +144,20 @@ namespace bpr::application {
 			bool                                 ResumedNative   = false;
 			bool                                 NativeSubmitted = false;
 			std::optional<private_run_admission> PrivateAdmission;
-			std::atomic_uint64_t                 DurableRun          = 0;
-			std::atomic_bool                     Superseded          = false;
-			std::atomic_bool                     TerminalComplete    = false;
-			std::atomic_bool                     CleanupScheduled    = false;
-			std::atomic_bool                     Retired             = false;
-			std::atomic_bool                     ExplicitlyCancelled = false;
+			/// [[BPR-2007]]. The turn's scratch folder, its key under the
+			/// root, whether it is kept with a native session, and what it
+			/// held when the turn started.
+			std::filesystem::path             ScratchFolder;
+			std::string                       ScratchKey;
+			bool                              ScratchKept = false;
+			agent_scratch_listing             ScratchBefore;
+			std::optional<agent_launch_grant> Grant;
+			std::atomic_uint64_t              DurableRun          = 0;
+			std::atomic_bool                  Superseded          = false;
+			std::atomic_bool                  TerminalComplete    = false;
+			std::atomic_bool                  CleanupScheduled    = false;
+			std::atomic_bool                  Retired             = false;
+			std::atomic_bool                  ExplicitlyCancelled = false;
 		};
 
 		implementation(
@@ -944,6 +953,34 @@ namespace bpr::application {
 						: workspace->BorrowsHistory               ? core::brief_workspace::linked_clone_history
 																  : core::brief_workspace::private_copy;
 				}
+				// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The grant this
+				// turn launches with: a scratch folder kept with a native
+				// session (or this turn's own), and the disposable checkout to
+				// build in. A folder that cannot be made, or named in a rule,
+				// is no grant; the turn reads only.
+				if ((aRequest.ScratchFolder || aRequest.BuildsAndTests) && !aRequest.WritingOnly && !aRequest.ReadOnlyTools) {
+					auto grant = agent_launch_grant{ };
+					if (aRequest.ScratchFolder && !ScratchRoot.empty()) {
+						const auto kept = aInvocation->Native.has_value() && valid_agent_scratch_key(aInvocation->Native->Id);
+						const auto key  = kept ? aInvocation->Native->Id
+											   : "run-" + std::to_string(aRequest.ApplicationSession.value()) + "-" + std::to_string(aInvocation->Identity.Session.Id.value());
+						if (const auto folder = prepare_agent_scratch_folder(ScratchRoot, key); folder && valid_agent_grant_path(folder->string())) {
+							aInvocation->ScratchFolder = *folder;
+							aInvocation->ScratchKey    = key;
+							aInvocation->ScratchKept   = kept;
+							aInvocation->ScratchBefore = list_agent_scratch_folder(*folder);
+							grant.ScratchFolder        = folder->string();
+							grant.ScratchFull          = agent_scratch_full(aInvocation->ScratchBefore);
+						}
+					}
+					if (aRequest.BuildsAndTests && !aRequest.ExistingCheckoutChosen && workspace && valid_agent_build_path(workspace->Path)) {
+						grant.BuildWorkspace = workspace->Path;
+					}
+					if (!grant.ScratchFolder.empty() || !grant.BuildWorkspace.empty()) {
+						options.Grant      = grant;
+						aInvocation->Grant = grant;
+					}
+				}
 				auto launch = build_agent_launch(aProfile, framed ? *framed : aSupplement, Environment, options);
 				options.PrivateSources.clear();
 				if (aInvocation->PrivateAdmission) {
@@ -1131,6 +1168,17 @@ namespace bpr::application {
 					aResult.Outcome = agent_run_outcome::private_storage_failure;
 					aResult.Events.clear();
 					aResult.Findings.reset();
+				}
+			}
+			// [[BPR-2007]]. What the turn left in its scratch folder; a turn's
+			// own folder goes with it.
+			aResult.Grant = aInvocation->Grant;
+			if (!aInvocation->ScratchFolder.empty()) {
+				aResult.ScratchFolder = aInvocation->ScratchFolder.string();
+				aResult.ScratchFiles  = agent_scratch_written(aInvocation->ScratchBefore, list_agent_scratch_folder(aInvocation->ScratchFolder), core::maximum_agent_activity_listed);
+				if (!aInvocation->ScratchKept) {
+					static_cast<void>(remove_agent_scratch_folder(ScratchRoot, aInvocation->ScratchKey));
+					aResult.ScratchFolder.clear();
 				}
 			}
 			complete(std::move(aResult), aInvocation);
@@ -1446,6 +1494,7 @@ namespace bpr::application {
 		std::vector<core::agent_profile>     Profiles;
 		std::vector<core::agent_host_policy> Policies;
 		std::filesystem::path                WorkspaceParent;
+		std::filesystem::path                ScratchRoot;
 		agent_session_catalog_port&          Sessions;
 		agent_workspace_port&                Workspaces;
 		agent_process_port&                  Processes;
@@ -1692,6 +1741,11 @@ namespace bpr::application {
 		const auto implementation = Implementation;
 		implementation->Closing.store(true, std::memory_order_release);
 		implementation->cancel();
+	}
+
+	void agent_invocation_host::set_scratch_root(std::filesystem::path aRoot)
+	{
+		Implementation->ScratchRoot = std::move(aRoot);
 	}
 
 	void agent_invocation_host::retry_cleanup()
