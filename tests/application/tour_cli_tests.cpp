@@ -386,7 +386,7 @@ namespace {
 		expect(more.Exit == 0 && more.json()["data"].toObject()["assist"].toObject()["reason"] == "insufficient_context" && problem() == text, "insufficient context is reported and changes nothing");
 		// Hooks are shared settings: what the CLI shows and edits is what the desktop uses.
 		auto hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
-		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 8, "the four tour hooks, review feedback and the three Enhance prompts");
+		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 9, "the four tour hooks, review feedback, the three Enhance prompts and [[BPR-2059]] the suggested-comment format");
 		const auto beforeHooks = hooks.json()["data"].toObject()["hooks_revision"].toString();
 		auto       pending     = context({ "--hook", "problem", "--field", "problem" });
 		auto       custom      = call({ "tour", "hooks", "edit", "problem", "--file", put("hook.txt", "Write tersely."), "--profile", "1", "--json" });
@@ -403,7 +403,9 @@ namespace {
 			for (const auto& entry : listed) {
 				names.append(entry.toObject()["name"].toString());
 			}
-			expect(names == QStringList{ "problem", "solution", "outline", "comment", "feedback", "enhance-stop", "enhance-comment", "enhance-note" }, "the hooks are listed in their stable order, [[BPR-2051]] the Enhance prompts last");
+			expect(names == QStringList{ "problem", "solution", "outline", "comment", "feedback", "enhance-stop", "enhance-comment", "enhance-note", "suggested-comment" },
+				   "the hooks are listed in their stable order, [[BPR-2051]] the Enhance prompts and [[BPR-2059]] the suggested-comment format last");
+			expect(listed[8].toObject()["purpose"] == "review.suggested-comment" && listed[8].toObject()["version"] == "suggested-comment-v1", "[[BPR-2059]] the format names its purpose and version");
 			expect(listed[6].toObject()["purpose"] == "enhance.comment" && listed[6].toObject()["version"] == "enhance-comment-v1" && listed[3].toObject()["purpose"] == "tour.stop-comment",
 				   "[[BPR-2051]] each hook names its stable purpose and its own default's version");
 			const auto shipped = listed[4].toObject();
