@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2018"
 title: "Verify and close RFC-BPR-0107"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0107"]
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0003","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0030-close-the-independent-configuration-sharing-slice.md","draft_title":"Close the independent configuration-sharing slice"}
 depends_on: ["BPR-2016", "BPR-2017"]
