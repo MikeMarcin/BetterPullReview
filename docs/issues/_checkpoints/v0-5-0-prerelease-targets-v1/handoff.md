@@ -748,3 +748,70 @@ while the window has no read of the tour's pull request. Not refiled.
 
 Owed: as before (the owner's looks; AC08). A further independent review of
 `e06af4246`/`816864eb5` may be filed; it is not waited on.
+
+## Owner feedback round: Enhance, finding cards, tour stops, freeze guard (2026-11-10)
+
+Owner amendments in force as above, plus: merge main and use main's
+theme-parity work; the tracker lives on main ("the cards should be on main").
+Frontend-design was loaded before the Qt work. Nothing pushed.
+
+Hand-back recorded and cleaned up first (`e183472b1`, `2679d0094`):
+`679d26ab…` (tour stops: arrival, Accept, ring states accepted; stop at rest
+accepted with a note; stop editing rejected), `ac6e3a32…` (Enhance: icon
+rejected, "nib and spark"; placement and prompt editor accepted with
+changes), `fbdd40b2…` (Draft all accepted, BPR-2061 Done; card formatting
+rejected; prompt default accepted), `26d89bac…` abandoned (frozen from
+`abba53926`, before the stop redesign): RFC-BPR-0099 AC08 and RFC-BPR-0105
+AC08 not passed, moved to an agent-run live course. Hosts 61912, 77843,
+7089, 36810 (and their tailscale children) stopped; roots
+`tour-stops-v001.5rt9c5gn`, `enhance-v001.dzk_0xf4`,
+`suggested-comments-v001.irz2s4en`, `bpr-live-v002.nnhzt2pb` removed (the
+owner's app PID 46168 had exited). BPR-Test left as is.
+
+| Commit | What |
+|---|---|
+| `5380330fb` | `freeze_attended_build.py` freezes only the checkout's clean HEAD unless `--not-head-because REASON`; marker, launcher and `SESSION_LINE:` name the frozen commit; contract tests |
+| `90785ae34` | Nib glyphs (default: spark cut out), Enhance first under every field with short context tooltips, one `enhance.writing` prompt (schema 27 fold), Agents & context top in three options, stop editing reworked (Accept, equal Cancel, labelled tools), fenced-code assertion, `BPR_NATIVE_LOOK` renders |
+| `9b67037b9` | Merge main `e5bb712ab` (finding-card memory, quiet buttons painting their own faces, release fixes); pin resealed; canary kept free of Qt; chat contract counts Enhance's launch |
+| `4646358f6` | Merge `claude/agent-assistance-v1-import` (RFC-BPR-0116..0121, BPR-2073..2085; queued, not implemented) |
+| `8ac77be96`, `02200853d` | Card records; the hint names where Link selected lines is when narrow (frozen) |
+| main `634bd6fa7` | The tracker on main: all three packs, the lane's cards in their current columns, receipts, RFC amendments, records, design pages, NEXT_ID BPR-2086 |
+| `2bedfe0db`, `89d6aa2d6` | Merge main back (tracker, qualification inventory fixes); the lane's workbench cases registered |
+
+Theme parity: main's fix (BPR-2056, 2060, 2072) makes quiet buttons paint
+their own faces in every style and measures them under Cocoa
+(`qt_button_faces_cocoa`, `WA_DontShowOnScreen`). The lane-specific gap was
+the renders: offscreen meant Fusion, always Light, another font database.
+`native_look_startup.cpp` applies main's Cocoa-off-screen procedure to any Qt
+test under `BPR_NATIVE_LOOK=1` (documented in `src/adapters/qt/AGENTS.md`);
+this round's renders use it. Cancel/Save size was the lane's own (a chip
+beside a native button), fixed.
+
+Runs: `freeze_attended_build_contract`; `qt_native_look_{light,dark}`; 43
+Qt rows (tour, enhance, settings, workbench window scales, agent, notes,
+cards, button faces, drawer, side chat); `qt_agent_launch_canary`; every
+`core_`, `sqlite_`, application writing/skill rows and `tour_cli_*`
+(206); 26 `application_agent_chat_*`/`application_agent_finding_*` rows (the
+earlier baselines now pass); `application_review_tour_composition_public_path`,
+`application_enhance_comment_note_public_path`,
+`application_profile_tour_handoff_public_path`; app source and round-trip
+contracts, `architecture_boundaries`, `test_network_isolation_manifest`,
+`command_correctness_registry_contract`, qualification inventory script;
+documentation gate (lane and main).
+
+Filed, not waited on (URL in the session state's `serve.log`): session
+`5ea0ce22c14ed5083b9d2e7382717df9`, state
+`/Users/jaeger/.attended-review-state/owner-look-v003-2026-11-10/state`,
+cursor 18, host PID 78319 (tailscale child 78332), six candidates:
+`BPR-2051-icon-v2` (options), `BPR-2051-agents-top` (options),
+`BPR-2051-placement-tooltip`, `BPR-2059-code-blocks`,
+`BPR-2013-stop-at-rest-v2`, `BPR-2013-stop-editing-v2`. Frozen root
+`/Users/jaeger/owner-look-v003.w0k3mfr3` from `02200853d` (app SHA-256
+`667c03614657…`, launcher check reached `ATTENDED_TOUR_SHOWN`).
+
+Next: read `5ea0ce22…` after hand-back. An icon other than 1 sets
+`CurrentStyle` in `enhance_control.cpp`; a top other than 1 sets
+`AgentsContextTop`'s default (option 2 drops the controls, so the settings
+search test for "Private draft" changes). Accept of placement, code blocks
+and both stop looks: finish BPR-2051, BPR-2059 and BPR-2014 (AC08), stop host
+78319, remove the root. Card moves from now on are mirrored to main.
