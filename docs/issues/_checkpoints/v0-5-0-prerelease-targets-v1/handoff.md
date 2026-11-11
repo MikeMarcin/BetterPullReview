@@ -1016,7 +1016,7 @@ amendments in force as above.
 | `5592956a4`, `b83072662`; main `26d1474eb` | Ready and claim BPR-2007 (BPR-2008 cannot be readied before BPR-2007 is Done; it was built under BPR-2007's claim). The protected `local-draft-authoring-v1/AMENDMENTS.md` links the card by lane path, so each move repaired that one link path by hand (the board helper refuses protected files) |
 | `882ebed54` | Product candidate: core grant, launch arguments, scratch folders, storage, footer grant item, agent sheet settings, build question, folded Ran/Wrote lines, live `agent-scratch` course; app source pin resealed (its note says this is a grant) |
 | `c19749f58` | Ledger, RFC-BPR-0104 implementation record, RFC-BPR-0011 grant amendment, card records. Frozen |
-| this commit | BPR-2007 parked `human-review`; BPR-2008 records (stays Backlog); session recorded; handoff |
+| `8a56ee009`; main `fa6adc3f0`, `ae0f44726` | BPR-2007 parked `human-review`; BPR-2008 records (stays Backlog); session recorded; handoff; mirrored with the RFC-BPR-0104 ledger the cards link |
 
 Facts established (installed Claude Code 2.1.319, Codex 0.167.0): Claude takes
 `--add-dir` and `--allowedTools` rules; `Bash(DIR/:*)` never matches a file in
