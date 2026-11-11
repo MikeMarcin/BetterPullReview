@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0099"
 title: "Keep tour publishing in reach, report each step and choose its form"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"owner notes, 2026-11-10, notes 2, 3, 6 and 7","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
 ---
 
@@ -83,6 +83,12 @@ button is removed.
 
 The **agent bar** keeps the agent, model and effort pill and the Draft the
 tour action, at the bottom of the tab at every route length.
+
+**Amended 2026-11-11 ([[BPR-2051]], owner decision "A + footer 1").** The
+agent bar is gone. The agent, model and effort are chosen in the window's
+agent footer, and Draft the tour is in the route's head, as
+[RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md)
+records. The Tour tab has two bands: the head and the route.
 
 **Established in implementation, 2026-11-10 ([[BPR-1991]]).** Until
 [RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md)
@@ -200,6 +206,11 @@ criterion is ready.
 - **AC01:** With a route long enough to scroll, the head's publication
   action and the agent bar remain visible and operable at the top and bottom
   of the Tour tab while the route scrolls between them.
+  (Amended 2026-11-11 at closeout: the owner's layout decision "A + footer 1"
+  ([[BPR-2051]]) removed the agent bar; the agent picker is the window's
+  footer, outside the tab, and Draft the tour is in the route's head. The
+  criterion is met by the head's publication action staying visible and
+  operable at the top while the route scrolls.)
 - **AC02:** The head shows each state of the table for a tour in that state,
   and Publish… opens the tour page with its preview present.
 - **AC03:** No mode list is offered. For fixture tours whose stops need one

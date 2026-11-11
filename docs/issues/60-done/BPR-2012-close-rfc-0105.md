@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2012"
 title: "Verify and close RFC-BPR-0105"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0105"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0024-close-fresh-review-and-submission.md","draft_title":"Close the fresh review and submission RFC"}
 depends_on: ["BPR-2010", "BPR-2011"]
 closeout_for: ["RFC-BPR-0105"]
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"357df825deb811adbd45c366172d609abe2e2dc2","evidence":{"kind":"observation","detail":"Baseline course on dc5453afa reproduced the stall; RFC cause amended"}},{"criterion":"AC02","outcome":"pass","revision":"31f9009103e26314c3ec69cbf15e08807e4ef64b","evidence":{"kind":"command","detail":"See the closeout checklist and ledger","command":"ctest --preset dev -R application_dependable_session_public_path"}},{"criterion":"AC03","outcome":"pass","revision":"31f9009103e26314c3ec69cbf15e08807e4ef64b","evidence":{"kind":"command","detail":"See the closeout checklist and ledger","command":"ctest --preset dev -R application_dependable_session_public_path"}},{"criterion":"AC04","outcome":"pass","revision":"31f9009103e26314c3ec69cbf15e08807e4ef64b","evidence":{"kind":"command","detail":"See the closeout checklist and ledger","command":"ctest --preset dev -R application_dependable_session_public_path"}},{"criterion":"AC05","outcome":"pass","revision":"31f9009103e26314c3ec69cbf15e08807e4ef64b","evidence":{"kind":"command","detail":"See the closeout checklist and ledger","command":"ctest --preset dev -R application_dependable_session_public_path"}},{"criterion":"AC06","outcome":"pass","revision":"31f9009103e26314c3ec69cbf15e08807e4ef64b","evidence":{"kind":"command","detail":"See the closeout checklist and ledger","command":"ctest --preset dev -R application_dependable_session_public_path"}},{"criterion":"AC07","outcome":"pass","revision":"31f9009103e26314c3ec69cbf15e08807e4ef64b","evidence":{"kind":"command","detail":"See the closeout checklist and ledger","command":"ctest --preset dev -R application_dependable_session_public_path"}},{"criterion":"AC08","outcome":"pass","revision":"33c282ccdf87eaee5975fb5e5327c256b9efb01a","evidence":{"kind":"observation","detail":"Agent-run live course: six pull requests with agent and tour use, then Approve on BPR-Test #151; MikeMarcin's APPROVED review 5854726479 read with gh"}}]
 ---
 
 # BPR-2012: Verify and close RFC-BPR-0105
@@ -47,3 +48,7 @@ RFC base: `dc5453afa3ba0e1620fe30bf97b17211e09ba4bd`.
 | **AC06:** After a review with the Tour tab and a side chat open, opening a different pull request from Home shows the tray on Comments with no side chat, and the same holds when the same pull request is reopened. | application_dependable_session_public_path step 6 | Pass from Home; notification open not exercised | `31f900910` |
 | **AC07:** The remembered filter defaults and the window's drawer widths are the same before and after opening the different pull request. | application_dependable_session_public_path step 6 | Pass | `31f900910` |
 | **AC08:** A pull request on MikeMarcin/BPR-Test is approved through the window's own Approve after a course of at least five pull requests with agent and tour use, and it publishes. (Amended 2026-11-10 by the owner: it was the owner's own run on a frozen build, which proved "way too many manual steps"; an agent-run live course through the same window and actions replaces it.) | Agent-run live course `tests/end_to_end/live_session_course.py` (six pull requests, agent and tour use, Approve on #151) | Pass: #151 has MikeMarcin's APPROVED review 5854726479 (read with `gh`) | `33c282ccd` |
+
+## Closeout (2026-11-11)
+
+Every criterion judged against the [ledger](../../verification/RFC-BPR-0105.md). AC06 was exercised from Home (the criterion's path); a notification's open was not. BPR-2088 and BPR-2090 (Backlog) are later observations outside these criteria. Documentation gate run before this commit. RFC-BPR-0105 is Auto-Verified.

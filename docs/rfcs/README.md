@@ -761,14 +761,14 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0098](RFC-BPR-0098-home-says-whose-move-my-pull-request-is.md) | Home says whose move each of my pull requests is | Proposed | None |
-| [RFC-BPR-0099](RFC-BPR-0099-tour-publishing-in-reach-and-reported.md) | Keep tour publishing in reach, report each step and choose its form | Proposed | None |
+| [RFC-BPR-0098](RFC-BPR-0098-home-says-whose-move-my-pull-request-is.md) | Home says whose move each of my pull requests is | Auto-Verified | None |
+| [RFC-BPR-0099](RFC-BPR-0099-tour-publishing-in-reach-and-reported.md) | Keep tour publishing in reach, report each step and choose its form | Auto-Verified | None |
 | [RFC-BPR-0100](RFC-BPR-0100-tour-conversation-that-changes-the-tour-in-one-turn.md) | A tour conversation that changes the tour in one turn | Proposed | None |
-| [RFC-BPR-0101](RFC-BPR-0101-agent-chat-conventions.md) | One set of conventions for every agent chat: references, send key, cost and colour | Proposed | None |
-| [RFC-BPR-0102](RFC-BPR-0102-agent-questions-say-what-they-point-at.md) | An agent question says what it points at, and a suggestion always sends | Proposed | None |
-| [RFC-BPR-0103](RFC-BPR-0103-agent-work-is-visible-and-a-turn-ends-when-the-work-does.md) | Agent work is visible, and a turn ends when the work does | Proposed | None |
+| [RFC-BPR-0101](RFC-BPR-0101-agent-chat-conventions.md) | One set of conventions for every agent chat: references, send key, cost and colour | Auto-Verified | None |
+| [RFC-BPR-0102](RFC-BPR-0102-agent-questions-say-what-they-point-at.md) | An agent question says what it points at, and a suggestion always sends | Auto-Verified | None |
+| [RFC-BPR-0103](RFC-BPR-0103-agent-work-is-visible-and-a-turn-ends-when-the-work-does.md) | Agent work is visible, and a turn ends when the work does | Auto-Verified | None |
 | [RFC-BPR-0104](RFC-BPR-0104-agent-scratch-folder-and-opt-in-builds.md) | A scratch folder for agent scripts, and opt-in builds and tests | Proposed | None |
-| [RFC-BPR-0105](RFC-BPR-0105-a-review-opens-fresh-and-a-submission-always-ends.md) | A review opens fresh, and a submission always ends | Proposed | None |
+| [RFC-BPR-0105](RFC-BPR-0105-a-review-opens-fresh-and-a-submission-always-ends.md) | A review opens fresh, and a submission always ends | Auto-Verified | None |
 | [RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) | A tour stop shows its code on arrival and is accepted the way a file is | Proposed | None |
 | [RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md) | Share selected agents and prompts | Auto-Verified | None |
 | [RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md) | Prepare a local PR draft from a worktree | Proposed | None |
@@ -801,3 +801,13 @@ Imported 2026-11-10 at the owner's request; no implementation mandate has been g
 | [RFC-BPR-0121](RFC-BPR-0121-insights-shows-what-the-agents-did-and-what-was-kept.md) | Insights shows what the agents did and which suggestions were kept | Proposed | RFC-BPR-0086, RFC-BPR-0101 |
 
 Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/agent-assistance-v1.LIVE_IMPORT.md); [authored plan](plans/agent-assistance-v1/milestone-plan.json). The [proposed amendments](assets/agent-assistance-v1/AMENDMENTS.md) change the subject rule of two agent entry points and are applied by the owning milestones, not at import.
+
+## Address review feedback
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0122](RFC-BPR-0122-address-feedback-opens-my-pull-request-with-each-conversation-as-an-item.md) | Address feedback opens my pull request as a local draft, with each conversation as an item | Proposed | RFC-BPR-0098, RFC-BPR-0108, RFC-BPR-0111 |
+| [RFC-BPR-0123](RFC-BPR-0123-the-agent-evaluates-feedback-fixes-what-i-accept-and-drafts-the-replies.md) | The agent evaluates feedback, fixes what I accept and drafts the replies | Proposed | RFC-BPR-0101, RFC-BPR-0103, RFC-BPR-0107, RFC-BPR-0110, RFC-BPR-0115, RFC-BPR-0122 |
+| [RFC-BPR-0124](RFC-BPR-0124-one-press-publishes-the-response-push-then-replies.md) | One press publishes the response: push, then replies | Proposed | RFC-BPR-0069, RFC-BPR-0091, RFC-BPR-0098, RFC-BPR-0099, RFC-BPR-0105, RFC-BPR-0111, RFC-BPR-0114, RFC-BPR-0122 |
+
+Imported 2026-11-11 at the owner's request ("/author-rfc a pack for this and message the other session to add it to it's work"); no implementation mandate has been given. [Import](assets/address-review-feedback-v1.LIVE_IMPORT.md); [authored plan](plans/address-review-feedback-v1/milestone-plan.json). P01 to P09 of the [decision record](assets/address-review-feedback-v1/DECISIONS.md) are unconfirmed proposals; P09 changes an adopted rule of RFC-BPR-0098 and is put to the owner before BPR-2113 is built. The [proposed amendments](assets/address-review-feedback-v1/AMENDMENTS.md) are applied by the owning milestones, not at import.

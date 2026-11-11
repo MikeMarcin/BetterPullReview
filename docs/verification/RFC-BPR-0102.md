@@ -80,3 +80,7 @@ Code 2.1.319 (Haiku) with "This pull request has three defects that would stop
 it building or render correctly…", naming 13 of the 16 other changed files.
 Earlier runs named 9, 12 and 11. Before this card the same suggestion was
 refused for want of a selection.
+
+## Closeout (2026-11-11)
+
+[[BPR-2003]] judged every criterion against the evidence above; all pass. Evidence reused unchanged; no product change in the closeout round. Not run: Windows and Linux, the whole dev suite. RFC-BPR-0102 is Auto-Verified.

@@ -1361,3 +1361,55 @@ agent, or by the reviewer as VS Code allows) instead of its number
 (AC08) Done. Host 19967/19990 stopped with `attended_review.py stop`; root
 `tour-conversation-v001.l3mto90j` removed with `freeze_attended_build.py
 remove`. Next: BPR-1997 closes RFC-BPR-0100 in `accepted-scope`.
+
+## Import and closeout round (2026-11-11)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no product change. Owner
+amendments in force as above, plus the relayed "/author-rfc a pack for this
+and message the other session to add it to it's work".
+
+**Import.** Branch `claude/address-review-feedback-v1` (`b1e5e6fdb`, pack
+folder only) merged (`881778d5b`) and imported
+([LIVE_IMPORT](../../../rfcs/assets/address-review-feedback-v1.LIVE_IMPORT.md)):
+RFC-DRAFT-0001..0003 → RFC-BPR-0122..0124, DRAFT-0001..0010 →
+BPR-2105..2114 (closeouts BPR-2107, 2111, 2114), all Backlog; plan adopted
+under `docs/rfcs/plans/address-review-feedback-v1/`. AMENDMENTS.md not
+applied. P01–P09 unconfirmed; P09 (RFC-BPR-0098's Returned rule) must be
+asked before BPR-2113 is built (said on the card and the RFC index).
+
+**Owner suggestion.** BPR-2115 (Backlog): name a tour chat session instead of
+its number.
+
+**Closeouts (`accepted-scope`).** Closed, Auto-Verified: RFC-BPR-0098
+(BPR-1990), 0099 (BPR-1994; AC01 amended for the owner's removal of the agent
+bar, [[BPR-2051]]), 0101 (BPR-2001), 0102 (BPR-2003), 0103 (BPR-2006), 0105
+(BPR-2012). Left open: RFC-BPR-0100 (AC06 not met when a tour update
+republishes an edited stop; BPR-2116, BPR-1997 depends on it), RFC-BPR-0106
+(AC04 has no composed evidence; BPR-2117, BPR-2015 depends on it; AC08 now
+passes), RFC-BPR-0104 (AC07 re-review of `059e191fb` pending, not touched).
+
+| Commit | What |
+|---|---|
+| main `42fba4488` | BPR-2105..2114 and BPR-2115 reserved (counter BPR-2116) |
+| `881778d5b`, `91cce126b` | Pack merge; counter and receipts from main |
+| `5cc70e5ed` | Import |
+| `54173961f` | BPR-2115 |
+| main `8e22a71b0`; `d624c430b`, `a485010b9` | BPR-2116..2117 reserved (counter BPR-2118); cards; closeout dependencies |
+| `7af8c1049`, `5c794d7eb`..`6c1c7b206` | Ready and claim the six closeouts |
+| `45cca8934` | RFC-BPR-0100 and 0106 closeout reviews (left open) |
+| `236c6f9b2`, `536b784ed`, `c2316d9f5`, `4edb28d81`, `46fc9e7df`, `ab0aadf75` | Finish BPR-1990, 1994, 2001, 2003, 2006, 2012 |
+
+Runs: documentation gate after each step; `issue_board.py validate` (all
+cards); `milestone_plan.py adopt` and `render`. Evidence for the closeouts is
+the ledgers' unchanged evidence; nothing rebuilt.
+
+Next eligible in plan order: v0.5.0 `local-draft-entry` (BPR-2019..2022, no
+prerequisite, under mandate `v0-5-0-prerelease-targets-r1`); `accepted-scope`
+remains for BPR-1997 (after BPR-2116), BPR-2009 (after BPR-2007's AC07
+re-review and BPR-2008), BPR-2015 (after BPR-2117). Imported without an
+implementation mandate: `agent-assistance-v1` (returning-pull-request,
+explain-file, comment-to-suggested-change, failing-check-question,
+agent-insights have no unmet card prerequisite), `local-draft-authoring-v1`
+and `address-review-feedback-v1` (both wait on local-draft work).
+Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
+BPR-Test #152 and `-next`.

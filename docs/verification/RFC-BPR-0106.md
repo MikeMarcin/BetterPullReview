@@ -203,3 +203,15 @@ listing's count and purposes) is not configured in the dev preset
 Not shown by a course: the owner's own Claude on a real pull request (the
 stub answers fixed text); a card rebuilt while a run is going drops its
 answer unused (the text is never changed by it).
+
+## Closeout review (2026-11-11): left open
+
+AC08 passes: the owner accepted the stop looks in session `7c920675…`
+(`BPR-2014-stop-editing-v3`, `tour-panel-layout-v1`) after `679d26ab…`
+(arrival, Accept, ring states, stop at rest); [[BPR-2014]] is Done.
+[[BPR-2015]] was not closed: AC04 is shown on a real comparison only in the
+core, and through the window only as "not compared yet" (What no course shows
+yet). The agent-run live course found the window's comparison broken on
+sparse heads while the core tests passed, so core evidence alone does not
+close AC04. [[BPR-2117]] (Backlog) adds the composed course and
+[[BPR-2015]] now depends on it.
