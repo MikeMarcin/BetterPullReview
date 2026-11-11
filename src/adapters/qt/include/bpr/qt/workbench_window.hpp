@@ -116,6 +116,26 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	/// \brief The drawn options for the top of Settings › Agents & context.
+	/// Owner look, 2026-11-10: "The bottom part of agents menu with the
+	/// prompts is pretty good but this top part is ugly as sin and needs a
+	/// redesign." A look may switch it before the window is made; the
+	/// product keeps the default until the owner chooses.
+	enum class agents_context_top : std::uint8_t {
+		/// The next request's choices in one titled group, each row labelled.
+		next_request,
+		/// No per-request choices here (they are the Agent tab's); the page
+		/// opens on the saved agents, under one line that says where they went.
+		agents_first,
+		/// One line that says what the next request includes, and Change…
+		/// to open the same choices in place.
+		summary,
+	};
+	inline constexpr std::size_t agents_context_top_count = 3U;
+	[[nodiscard]] auto           agents_context_top_name(agents_context_top aTop) -> QString;
+	void                         set_agents_context_top(agents_context_top aTop);
+	[[nodiscard]] auto           current_agents_context_top() -> agents_context_top;
+
 	class compose_review_sheet;
 	class commit_filter_chip;
 	class generated_files_row;

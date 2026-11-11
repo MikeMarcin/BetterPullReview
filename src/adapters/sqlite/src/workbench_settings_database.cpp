@@ -198,16 +198,28 @@ namespace bpr::adapters::sqlite::detail {
 		/// \brief The zero-based result column of one hook's override in the
 		/// profile row's SELECT; its INSERT parameter is one more. The four
 		/// review-preparation hooks are adjacent; [[BPR-1090]] the feedback
-		/// hook came later, and [[BPR-2051]] the three Enhance prompts after
-		/// every other column, [[BPR-2059]] the suggested-comment format after
-		/// them.
+		/// hook came later, and [[BPR-2051]] the Enhance prompts after every
+		/// other column, [[BPR-2059]] the suggested-comment format after them.
+		/// Version twenty-seven: one Enhance writing prompt keeps the draft
+		/// comment's column (32); the note's (33) is retired, always empty.
 		[[nodiscard]] constexpr auto writing_hook_column(const std::size_t aHook) noexcept -> int
 		{
-			return aHook < core::review_preparation_hook_count                    ? static_cast<int>(15 + aHook)
-				: aHook == static_cast<std::size_t>(core::writing_hook::feedback) ? 24
-																				  : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
+			return aHook < core::review_preparation_hook_count                             ? static_cast<int>(15 + aHook)
+				: aHook == static_cast<std::size_t>(core::writing_hook::feedback)          ? 24
+				: aHook == static_cast<std::size_t>(core::writing_hook::suggested_comment) ? 34
+																						   : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
 		}
-		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 5U, "a new hook needs its own column");
+		/// \brief The retired column of the note's own Enhance prompt.
+		constexpr int retired_enhance_note_column = 33;
+		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 4U, "a new hook needs its own column");
+		/// \brief Version twenty-seven folds the note's Enhance prompt into the
+		/// one Enhance writing prompt: a profile that changed only the note's
+		/// keeps that text for every surface, one that changed the comment's
+		/// keeps the comment's (comments and replies used it), and the note's
+		/// column is emptied.
+		constexpr std::string_view FoldEnhanceNote
+			= "UPDATE workbench_preferences SET writing_enhance_draft = CASE WHEN writing_enhance_draft = '' THEN writing_enhance_note ELSE writing_enhance_draft END,"
+			  " writing_enhance_note = ''";
 		static_assert(core::maximum_agent_wrapper_bytes == 1024U);
 		static_assert(core::maximum_claude_model_bytes == 128U);
 		static_assert(application::minimum_center_ribbon_width == 16U);
@@ -788,13 +800,20 @@ namespace bpr::adapters::sqlite::detail {
 			// specifically, written out rather than derived from the constant,
 			// so a version this build has no step for is refused rather than
 			// handed to the wrong one.
-			if (*current < 0 || *current > 25) {
+			// Version twenty-six has today's tables; it only folds the note's
+			// Enhance prompt into the one Enhance writing prompt, as every
+			// older version's rebuild does after it.
+			if (*current < 0 || *current > 26) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
 			const auto fresh      = *current == 0;
-			const auto statements = fresh ? schema_version_1()
+			auto       statements = fresh ? schema_version_1()
+				: *current == 26          ? std::vector<std::string>{ "UPDATE workbench_meta SET schema_format=" + std::to_string(workbench_settings_schema_version) + " WHERE singleton=1" }
 										  : migrate_from(*current);
+			if (!fresh) {
+				statements.insert(statements.end() - 1, std::string{ FoldEnhanceNote });
+			}
 			if (auto created = run_all(aDatabase, statements, aStop); !created) {
 				rollback();
 				return created;
@@ -1172,6 +1191,9 @@ namespace bpr::adapters::sqlite::detail {
 			if (sqlite3_bind_text(statement->Value, writing_hook_column(i) + 1, text.data(), static_cast<int>(text.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
 				return std::unexpected(failure::integrity_failure);
 			}
+		}
+		if (sqlite3_bind_text(statement->Value, retired_enhance_note_column + 1, "", 0, SQLITE_STATIC) != SQLITE_OK) {
+			return std::unexpected(failure::integrity_failure);
 		}
 		// [[BPR-1088]]. `valid` above admitted the columns, so the text names
 		// each catalog label at most once.

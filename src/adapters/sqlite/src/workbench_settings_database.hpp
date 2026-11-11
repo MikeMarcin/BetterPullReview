@@ -97,7 +97,11 @@ namespace bpr::adapters::sqlite::detail {
 	/// draft comment and a note, the shipped defaults for a migrated row.
 	/// Twenty-six since [[BPR-2059]]: how an agent writes the comments it
 	/// suggests, the shipped default for a migrated row.
-	inline constexpr std::int64_t workbench_settings_schema_version = 26;
+	/// Twenty-seven since the owner's look at [[BPR-2051]]: one Enhance
+	/// writing prompt for comments, replies and notes. The tables are
+	/// version twenty-six's; a migrated row keeps the comment's override, or
+	/// the note's when only that was changed, and the note's column is empty.
+	inline constexpr std::int64_t workbench_settings_schema_version = 27;
 
 	/// \brief Owns the durable workbench layout database.
 	///

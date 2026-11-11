@@ -67,6 +67,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
+#include <QFontInfo>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QGuiApplication>
@@ -15142,6 +15143,28 @@ namespace {
 		expect(!comment->font().italic() && rendered(comment).contains(QStringLiteral("find")) && !rendered(comment).contains(QLatin1Char{ '`' }) && !rendered(claim).contains(QLatin1Char{ '`' }),
 			   "code spans render as code, not raw backticks, and the suggestion is not italic");
 		expect(comment->original_body() == "Use `find` instead of `at`:\n\n```cpp\nauto found = map_.find(key);\n```", "the suggestion's Markdown is kept as the agent wrote it");
+		// Owner look, 2026-11-10 (BPR-2059 rejected): "You first screenshot shows
+		// ```cpp which doesnt look like it's rendering the markdown correctly."
+		// A fence with a language is a code block: no fence or language
+		// shown, its line set in the code font as a block of its own.
+		{
+			auto codeBlock = false;
+			auto codeFixed = false;
+			for (const auto* const edit : comment->findChildren<QTextEdit*>()) {
+				for (auto block = edit->document()->begin(); block.isValid(); block = block.next()) {
+					if (block.text().contains(QStringLiteral("auto found = map_.find(key);"))) {
+						codeBlock = block.text().trimmed() == QStringLiteral("auto found = map_.find(key);");
+						auto font = block.charFormat().font();
+						if (block.begin() != block.end()) {
+							font = block.begin().fragment().charFormat().font();
+						}
+						codeFixed = QFontInfo{ font }.fixedPitch() || font.fixedPitch() || font.styleHint() == QFont::Monospace || font.styleHint() == QFont::TypeWriter;
+					}
+				}
+			}
+			expect(!rendered(comment).contains(QStringLiteral("```")) && !rendered(comment).split(QLatin1Char{ '\n' }).contains(QStringLiteral("cpp")) && codeBlock && codeFixed,
+				   "a ```cpp fence renders as a code block in the code font, with no fence or language shown");
+		}
 		expect(inset->geometry().top() > claim->geometry().bottom() && comment->height() > 4 && claim->height() > 4, "the suggestion sits below the claim with room of its own");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-draft-all-offered.png"), "PNG"), "render saved");
@@ -24991,7 +25014,12 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 	}
-	const auto runCase = [&](const char* aName, auto aRun) {
+	// One case alone, for a render made under BPR_NATIVE_LOOK.
+	const auto onlyCase = qEnvironmentVariable("BPR_WORKBENCH_ONLY_CASE");
+	const auto runCase  = [&](const char* aName, auto aRun) {
+		if (!onlyCase.isEmpty() && onlyCase != QLatin1StringView{ aName }) {
+			return;
+		}
 		if (listCases) {
 			std::cout << "WORKBENCH_CASE:" << aName << '\n';
 			return;

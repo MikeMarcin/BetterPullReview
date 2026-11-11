@@ -2748,3 +2748,30 @@ bpr_enable_hardening(test_tour_stop_card_cleanup)
 bpr_enable_warnings(test_tour_stop_card_cleanup)
 bpr_add_network_isolated_test(NAME qt_tour_stop_card_cleanup COMMAND test_tour_stop_card_cleanup)
 set_tests_properties(qt_tour_stop_card_cleanup PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-stop-card-cleanup:pass" TIMEOUT 60)
+# The owner's look in a render (owner, 2026-11-10: "some kind of theme
+# disparity ... between what I see and your offscreen renders"). On macOS every
+# Qt test executable of this directory carries native_look_startup.cpp, so a
+# render made under BPR_NATIVE_LOOK=1 on Cocoa is painted by QMacStyle in the
+# asked appearance with no window on screen. Without the variable it does
+# nothing.
+if(APPLE)
+    bpr_add_executable(test_native_look native_look_tests.cpp)
+    target_link_libraries(test_native_look PRIVATE Qt6::Widgets)
+    bpr_enable_hardening(test_native_look)
+    bpr_enable_warnings(test_native_look)
+    foreach(scheme IN ITEMS light dark)
+        bpr_add_network_isolated_test(NAME qt_native_look_${scheme} COMMAND test_native_look)
+        set_tests_properties(qt_native_look_${scheme} PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1;BPR_NATIVE_LOOK=1;BPR_NATIVE_LOOK_SCHEME=${scheme}"
+            PASS_REGULAR_EXPRESSION "native-look:pass"
+            TIMEOUT 30)
+    endforeach()
+    get_property(bpr_qt_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(bpr_qt_test_target IN LISTS bpr_qt_test_targets)
+        get_target_property(bpr_qt_test_type "${bpr_qt_test_target}" TYPE)
+        if(bpr_qt_test_target MATCHES "^test_" AND bpr_qt_test_type STREQUAL "EXECUTABLE")
+            target_sources("${bpr_qt_test_target}" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/native_look_startup.cpp")
+            target_link_libraries("${bpr_qt_test_target}" PRIVATE Qt6::Widgets)
+        endif()
+    endforeach()
+endif()

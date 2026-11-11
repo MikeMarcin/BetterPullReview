@@ -10,6 +10,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTextCursor>
 #include <QVBoxLayout>
 
 #include <cstdlib>
@@ -215,7 +216,7 @@ namespace {
 				panel.hide();
 			}
 			// The icons alone, side by side, at two sizes.
-			auto sheet = QImage{ 3 * 140, 84, QImage::Format_ARGB32_Premultiplied };
+			auto sheet = QImage{ 3 * 200, 120, QImage::Format_ARGB32_Premultiplied };
 			sheet.fill(palette.color(QPalette::Window));
 			auto       painter       = QPainter{ &sheet };
 			auto       accentPalette = palette;
@@ -223,15 +224,40 @@ namespace {
 			accentPalette.setColor(QPalette::Active, QPalette::ButtonText, accent);
 			for (std::size_t index = 0; index < qt::enhance_glyph_style_count; ++index) {
 				const auto icon = qt::enhance_icon(accentPalette, static_cast<qt::enhance_glyph_style>(index));
-				painter.drawPixmap(static_cast<int>(index) * 140 + 34, 26, icon.pixmap(16, 16));
-				painter.drawPixmap(static_cast<int>(index) * 140 + 66, 18, icon.pixmap(32, 32));
+				painter.drawPixmap(static_cast<int>(index) * 200 + 30, 48, icon.pixmap(16, 16));
+				painter.drawPixmap(static_cast<int>(index) * 200 + 60, 40, icon.pixmap(32, 32));
+				painter.drawPixmap(static_cast<int>(index) * 200 + 106, 16, icon.pixmap(64, 64));
 				painter.setPen(palette.color(QPalette::WindowText));
-				painter.drawText(QRect{ static_cast<int>(index) * 140, 60, 140, 20 }, Qt::AlignCenter, QStringLiteral("%1. %2").arg(index + 1).arg(qt::enhance_glyph_style_name(static_cast<qt::enhance_glyph_style>(index))));
+				painter.drawText(QRect{ static_cast<int>(index) * 200, 92, 200, 20 }, Qt::AlignCenter, QStringLiteral("%1. %2").arg(index + 1).arg(qt::enhance_glyph_style_name(static_cast<qt::enhance_glyph_style>(index))));
 			}
 			painter.end();
 			expect(sheet.save(QStringLiteral("%1/icons-%2.png").arg(aFolder, dark ? QStringLiteral("dark") : QStringLiteral("light"))), "the icon sheet saves");
 		}
-		qt::set_enhance_glyph_style(qt::enhance_glyph_style::pen);
+		qt::set_enhance_glyph_style(qt::enhance_glyph_style::nib_cut);
+	}
+
+	/// Owner look, 2026-11-10: "The tooltip should be much shorter and adapt
+	/// to the context", e.g. "Enhance writing for this comment with agent."
+	void test_tooltip_is_short_and_follows_the_selection()
+	{
+		for (const auto& [surface, noun] : { std::pair{ qt::enhance_surface::comment, "comment" }, std::pair{ qt::enhance_surface::reply, "reply" }, std::pair{ qt::enhance_surface::note, "note" } }) {
+			auto f = fixture{ surface };
+			f.wire();
+			f.Editor->setPlainText(QStringLiteral("check the cache"));
+			drain();
+			expect(f.Button->toolTip() == QStringLiteral("Enhance writing for this %1 with agent.").arg(QString::fromLatin1(noun)), "the tooltip names the surface, in one short sentence");
+			auto cursor = f.Editor->textCursor();
+			cursor.setPosition(0);
+			cursor.setPosition(5, QTextCursor::KeepAnchor);
+			f.Editor->setTextCursor(cursor);
+			drain();
+			expect(f.Button->toolTip() == QStringLiteral("Enhance writing for the selected text with agent."), "with a selection it says the selected text");
+			cursor.clearSelection();
+			f.Editor->setTextCursor(cursor);
+			drain();
+			expect(f.Button->toolTip().endsWith(QStringLiteral("with agent.")) && !f.Button->toolTip().contains(QStringLiteral("selected")), "and goes back when the selection goes");
+		}
+		expect(qt::current_enhance_glyph_style() == qt::enhance_glyph_style::nib_cut, "the product draws the nib with the spark cut out until the owner chooses");
 	}
 } // namespace
 
@@ -246,6 +272,7 @@ auto main(int argc, char** argv) -> int
 	test_press_asks_once_and_changes_nothing();
 	test_use_replaces_once_and_undo_restores();
 	test_accent_follows_the_theme();
+	test_tooltip_is_short_and_follows_the_selection();
 	std::cout << "enhance-control:pass\n";
 	return EXIT_SUCCESS;
 }

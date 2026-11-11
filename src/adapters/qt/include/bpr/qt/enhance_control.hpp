@@ -27,18 +27,29 @@ class QPlainTextEdit;
 namespace bpr::qt {
 	/// \brief Which editor asked.
 	enum class enhance_surface : std::uint8_t {
+		/// A new draft comment.
 		comment,
+		/// A reply in a conversation.
+		reply,
+		/// A private note.
 		note,
 	};
+	/// \brief The control's short, context-aware tooltip (owner look,
+	/// 2026-11-10: "much shorter and adapt to the context"): what it
+	/// enhances, with the agent.
+	[[nodiscard]] auto enhance_tooltip(enhance_surface aSurface, bool aSelection) -> QString;
 
-	/// \brief The drawn options for the control's icon (owner look, BPR-2051).
+	/// \brief The drawn options for the control's icon. The owner rejected
+	/// pen, lines and wand on 2026-11-10 ("something more like nib and
+	/// spark", with a picture of a solid nib whose body has a four-point spark
+	/// cut out of it); these are three nibs.
 	enum class enhance_glyph_style : std::uint8_t {
-		/// A pen with a spark over its end: the agent rewrites your words.
-		pen,
-		/// Lines of text with a spark where they end: your text, improved.
-		lines,
-		/// A wand with sparks at its tip.
-		wand,
+		/// A solid nib with the spark cut out of its body, as the owner's picture.
+		nib_cut,
+		/// A nib drawn in outline, its slit and breather hole, and the spark above it.
+		nib_outline,
+		/// A solid nib, and the spark beside its shoulder.
+		nib_spark,
 	};
 	inline constexpr std::size_t enhance_glyph_style_count = 3U;
 	/// \brief The option's name as the owner's look lists it.
@@ -85,7 +96,9 @@ namespace bpr::qt {
 	public:
 		enhance_button(enhance_surface aSurface, QWidget* aParent);
 		/// \brief Shows a run going (Stop) or not (Enhance).
-		void               set_running(bool aRunning);
+		void set_running(bool aRunning);
+		/// \brief Whether the editor has text selected, which the tooltip names.
+		void               set_selection(bool aSelection);
 		[[nodiscard]] auto running() const noexcept -> bool { return Running; }
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 
@@ -98,6 +111,7 @@ namespace bpr::qt {
 
 		enhance_surface Surface;
 		bool            Running   = false;
+		bool            Selection = false;
 		bool            Restyling = false;
 	};
 

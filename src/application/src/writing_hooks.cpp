@@ -13,8 +13,7 @@ namespace bpr::application {
 		switch (aHook) {
 		case core::writing_hook::feedback:          return review_feedback_hook_version;
 		case core::writing_hook::enhance_stop:      return enhance_stop_hook_version;
-		case core::writing_hook::enhance_comment:   return enhance_comment_hook_version;
-		case core::writing_hook::enhance_note:      return enhance_note_hook_version;
+		case core::writing_hook::enhance_writing:   return enhance_writing_hook_version;
 		case core::writing_hook::suggested_comment: return suggested_comment_hook_version;
 		case core::writing_hook::problem:
 		case core::writing_hook::solution:
@@ -33,8 +32,7 @@ namespace bpr::application {
 			"tour.stop-comment",
 			"review.feedback",
 			"enhance.tour-stop",
-			"enhance.comment",
-			"enhance.note",
+			"enhance.writing",
 			"review.suggested-comment",
 		};
 	}
@@ -49,6 +47,11 @@ namespace bpr::application {
 			if (Purposes[index] == aPurpose) {
 				return static_cast<core::writing_hook>(index);
 			}
+		}
+		// Owner look, 2026-11-10: one Enhance writing prompt took the place
+		// of the comment's and the note's, so their IDs name it.
+		if (aPurpose == "enhance.comment" || aPurpose == "enhance.note") {
+			return core::writing_hook::enhance_writing;
 		}
 		return std::nullopt;
 	}

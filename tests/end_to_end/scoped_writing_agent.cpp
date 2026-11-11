@@ -539,9 +539,10 @@ int main(int argc, char** argv)
 	if (input.find(R"(\"scope\":\"field\")") != std::string::npos || input.find(R"("scope":"field")") != std::string::npos) {
 		if (input.find("TEAM_PROMPT_CANARY") != std::string::npos) {
 			result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Team voice applied.","notes":[]})";
-		} else if (input.find("# Enhance a draft comment") != std::string::npos) {
+		} else if (input.find("# Enhance writing") != std::string::npos && input.find("A draft comment or reply") != std::string::npos) {
+			// One Enhance writing prompt; the `writing-kind` source says which.
 			result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Nit: the loop does the same work twice. Could it run once?","notes":[]})";
-		} else if (input.find("# Enhance a note") != std::string::npos) {
+		} else if (input.find("# Enhance writing") != std::string::npos && input.find("A private note the reviewer keeps") != std::string::npos) {
 			result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Check cache invalidation: the delete path may be missing.\nAsk about tests.","notes":[]})";
 		}
 	}

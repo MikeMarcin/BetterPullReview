@@ -72,8 +72,7 @@ namespace bpr::app {
 		case core::writing_hook::feedback: return "feedback";
 		// [[BPR-2051]] The Enhance prompts, named for `bpr tour hooks`.
 		case core::writing_hook::enhance_stop:    return "enhance-stop";
-		case core::writing_hook::enhance_comment: return "enhance-comment";
-		case core::writing_hook::enhance_note:    return "enhance-note";
+		case core::writing_hook::enhance_writing: return "enhance-writing";
 		// [[BPR-2059]] How an agent writes the comments it suggests.
 		case core::writing_hook::suggested_comment: return "suggested-comment";
 		}

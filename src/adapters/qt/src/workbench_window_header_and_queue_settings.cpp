@@ -78,6 +78,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <initializer_list>
@@ -1070,40 +1071,113 @@ namespace bpr::qt {
 		update_queue_rule_actions();
 	}
 
+	namespace {
+		std::atomic<agents_context_top> AgentsContextTop{ agents_context_top::next_request };
+	}
+	auto agents_context_top_name(const agents_context_top aTop) -> QString
+	{
+		switch (aTop) {
+		case agents_context_top::next_request: return QStringLiteral("Next request group");
+		case agents_context_top::agents_first: return QStringLiteral("Agents first");
+		case agents_context_top::summary:      return QStringLiteral("One-line summary with Change…");
+		}
+		return { };
+	}
+	void set_agents_context_top(const agents_context_top aTop) { AgentsContextTop.store(aTop); }
+	auto current_agents_context_top() -> agents_context_top { return AgentsContextTop.load(); }
+
 	void workbench_window::build_capability_settings()
 	{
-		auto* const agents      = new QWidget;
-		auto* const column      = new QVBoxLayout{ agents };
-		auto* const explanation = new QLabel{ QStringLiteral("The selected host determines which agent profiles are allowed. The request choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel."), agents };
-		explanation->setWordWrap(true);
-		column->addWidget(explanation);
-		auto* const form    = new QFormLayout{ };
-		auto* const profile = new QComboBox{ agents };
+		auto* const agents = new QWidget;
+		auto* const column = new QVBoxLayout{ agents };
+		// Owner look, 2026-11-10: "this top part is ugly as sin and needs a
+		// redesign". The choices here are the next request's, mirrored from
+		// the Agent tab, never saved; every option says so in one line and
+		// keeps the long account of what the agent receives in a tooltip.
+		const auto  top     = current_agents_context_top();
+		auto* const choices = new QWidget{ agents };
+		choices->setObjectName(QStringLiteral("settingsNextRequest"));
+		auto* const form = new QFormLayout{ choices };
+		form->setContentsMargins(0, 0, 0, 0);
+		form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+		form->setLabelAlignment(Qt::AlignLeft);
+		auto* const profile = new QComboBox{ choices };
 		profile->setObjectName(QStringLiteral("settingsAgentProfile"));
-		profile->setAccessibleName(QStringLiteral("Allowed agent profile for this request"));
+		profile->setAccessibleName(QStringLiteral("Agent for the next request"));
 		profile->setModel(AgentPanel->profile_selector()->model());
-		form->addRow(QStringLiteral("Allowed profile"), profile);
-		auto* const notes = new QListView{ agents };
-		notes->setObjectName(QStringLiteral("settingsAgentNotes"));
-		notes->setAccessibleName(QStringLiteral("Private notes included with this request"));
-		notes->setModel(AgentPanel->note_selector()->model());
-		notes->setMaximumHeight(160);
-		form->addRow(QStringLiteral("Private notes"), notes);
-		auto* const draft = new QCheckBox{ agents };
+		form->addRow(QStringLiteral("Agent"), profile);
+		auto* const draft = new QCheckBox{ choices };
 		draft->setObjectName(QStringLiteral("settingsAgentDraft"));
 		draft->setAccessibleName(QStringLiteral("Include current private draft"));
 		form->addRow(QStringLiteral("Private draft"), draft);
-		column->addLayout(form);
-		auto* const checkout = new quiet_tool_button{ agents };
-		checkout->setDefaultAction(AgentPanel->existing_checkout_action());
+		auto* const notes = new QListView{ choices };
+		notes->setObjectName(QStringLiteral("settingsAgentNotes"));
+		notes->setAccessibleName(QStringLiteral("Private notes included with the next request"));
+		notes->setModel(AgentPanel->note_selector()->model());
+		notes->setFrameShape(QFrame::NoFrame);
+		notes->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		form->addRow(QStringLiteral("Private notes"), notes);
+		// A check box like the draft's, bound to the Agent tab's own action.
+		auto* const checkout = new QCheckBox{ QStringLiteral("Use my working copy instead of a fresh checkout"), choices };
+		checkout->setObjectName(QStringLiteral("settingsAgentWorkingCopy"));
 		checkout->setAccessibleName(QStringLiteral("Use existing working copy for this request"));
-		column->addWidget(checkout);
+		checkout->setToolTip(AgentPanel->existing_checkout_action()->toolTip());
+		checkout->setChecked(AgentPanel->existing_checkout_action()->isChecked());
+		connect(checkout, &QCheckBox::toggled, AgentPanel->existing_checkout_action(), &QAction::setChecked);
+		connect(AgentPanel->existing_checkout_action(), &QAction::toggled, checkout, &QCheckBox::setChecked);
+		form->addRow(QStringLiteral("Working copy"), checkout);
 		auto* const scope = new QLabel{ agents };
+		scope->setObjectName(QStringLiteral("settingsAgentScope"));
 		scope->setTextFormat(Qt::PlainText);
 		scope->setWordWrap(true);
+		scope->setForegroundRole(QPalette::PlaceholderText);
 		scope->setAccessibleName(QStringLiteral("Agent request scope"));
-		column->addWidget(scope);
-		const auto refresh = [page = QPointer<QWidget>{ agents }, panel = QPointer<agent_launch_panel>{ AgentPanel }, profile, notes, draft, scope] {
+		const auto groupHeading = [agents](const QString& aText) {
+			auto* const label = new QLabel{ aText, agents };
+			auto        bold  = label->font();
+			bold.setWeight(QFont::DemiBold);
+			label->setFont(bold);
+			return label;
+		};
+		auto* const summary = new QLabel{ agents };
+		summary->setObjectName(QStringLiteral("settingsNextRequestSummary"));
+		summary->setTextFormat(Qt::PlainText);
+		summary->setWordWrap(true);
+		auto* const change = new QPushButton{ QStringLiteral("Change…"), agents };
+		change->setObjectName(QStringLiteral("settingsNextRequestChange"));
+		change->setCheckable(true);
+		switch (top) {
+		case agents_context_top::next_request:
+			column->addWidget(groupHeading(QStringLiteral("Next request in this review")));
+			scope->setText(QStringLiteral("Chosen for one request and not saved. The Agent tab offers the same choices."));
+			column->addWidget(scope);
+			column->addWidget(choices);
+			change->hide();
+			summary->hide();
+			break;
+		case agents_context_top::agents_first:
+			// The choices stay made, for the Agent tab they mirror, but are
+			// not shown: the page is the saved agents and prompts.
+			scope->setText(QStringLiteral("Which agent answers a request, and what it includes (your notes, your draft, your working copy), is chosen in the Agent tab each time."));
+			column->addWidget(scope);
+			choices->hide();
+			change->hide();
+			summary->hide();
+			break;
+		case agents_context_top::summary: {
+			column->addWidget(groupHeading(QStringLiteral("Next request in this review")));
+			auto* const row = new QHBoxLayout{ };
+			row->addWidget(summary, 1);
+			row->addWidget(change, 0, Qt::AlignTop);
+			column->addLayout(row);
+			column->addWidget(choices);
+			choices->hide();
+			scope->hide();
+			connect(change, &QPushButton::toggled, choices, &QWidget::setVisible);
+			break;
+		}
+		}
+		const auto refresh = [page = QPointer<QWidget>{ agents }, panel = QPointer<agent_launch_panel>{ AgentPanel }, profile, notes, draft, scope, summary, checkout] {
 			if (!page || !panel) {
 				return;
 			}
@@ -1112,10 +1186,24 @@ namespace bpr::qt {
 			profile->setCurrentIndex(panel->profile_selector()->currentIndex());
 			profile->setEnabled(panel->profile_selector()->isEnabled() && profile->count() != 0);
 			notes->setEnabled(panel->note_selector()->isEnabled());
+			// As tall as its notes, at most five rows; none says so.
+			const auto rows = notes->model() != nullptr ? notes->model()->rowCount() : 0;
+			notes->setFixedHeight(std::clamp(rows, 1, 5) * (notes->sizeHintForRow(0) > 0 ? notes->sizeHintForRow(0) : notes->fontMetrics().height() + 6) + 2);
 			draft->setText(panel->draft_selector()->text());
 			draft->setChecked(panel->draft_selector()->isChecked());
 			draft->setEnabled(panel->draft_selector()->isEnabled());
-			scope->setText(panel->disclosure_text().isEmpty() ? QStringLiteral("Open a review to see its allowed profiles and request scope.") : panel->disclosure_text());
+			const auto disclosure = panel->disclosure_text().isEmpty() ? QStringLiteral("Open a review to see its agents and what a request includes.") : panel->disclosure_text();
+			scope->setToolTip(disclosure);
+			summary->setToolTip(disclosure);
+			auto checked = 0;
+			for (auto row = 0; row < rows; ++row) {
+				checked += notes->model()->index(row, 0).data(Qt::CheckStateRole).toInt() == Qt::Checked ? 1 : 0;
+			}
+			summary->setText(profile->count() == 0 ? QStringLiteral("Open a review to choose what its next request includes.")
+												   : QStringLiteral("%1, %2, %3, %4.")
+														 .arg(profile->currentText(), rows == 0 ? QStringLiteral("no notes") : QStringLiteral("%1 of %2 notes").arg(checked).arg(rows),
+															  draft->isChecked() ? QStringLiteral("your draft") : QStringLiteral("no draft"),
+															  checkout->isChecked() ? QStringLiteral("your working copy") : QStringLiteral("a fresh checkout")));
 		};
 		connect(profile, &QComboBox::currentIndexChanged, AgentPanel->profile_selector(), &QComboBox::setCurrentIndex);
 		connect(draft, &QCheckBox::toggled, AgentPanel->draft_selector(), &QCheckBox::setChecked);

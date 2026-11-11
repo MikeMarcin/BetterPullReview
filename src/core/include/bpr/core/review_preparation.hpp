@@ -14,11 +14,13 @@ namespace bpr::core {
 	/// no `writing_target` names it, and a comment workshop request carries it
 	/// only while the label helper is on.
 	///
-	/// [[BPR-2051]] The three Enhance prompts came later and sit last, one for
-	/// each surface that offers Enhance: a tour stop, a draft comment and a
-	/// private note. `enhance_stop` is never a target; it is the instructions
-	/// a stop's Enhance sends (`writing_instructions_for`). `enhance_comment`
-	/// and `enhance_note` are both: their surfaces are not tour fields.
+	/// [[BPR-2051]] The Enhance prompts came later: one for a tour stop and,
+	/// since the owner's look of 2026-11-10 ("Change it from \"Enhance a
+	/// note\" to \"Enhance writing\""), one, `enhance_writing`, for every
+	/// draft comment, reply and private note. `enhance_stop` is never a
+	/// target; it is the instructions a stop's Enhance sends
+	/// (`writing_instructions_for`). `enhance_writing` is both: its surfaces
+	/// are not tour fields.
 	///
 	/// [[BPR-2059]] `suggested_comment` came last: how an agent writes the
 	/// comments it suggests for the reviewer to post. It writes no field and
@@ -29,12 +31,11 @@ namespace bpr::core {
 											 comment,
 											 feedback,
 											 enhance_stop,
-											 enhance_comment,
-											 enhance_note,
+											 enhance_writing,
 											 suggested_comment };
-	inline constexpr std::size_t writing_hook_count = 9;
+	inline constexpr std::size_t writing_hook_count = 8;
 	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
-	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_note; }
+	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_writing; }
 	/// \brief The review-preparation hooks, `problem` to `comment`.
 	inline constexpr std::size_t review_preparation_hook_count     = 4;
 	inline constexpr std::size_t maximum_writing_instruction_bytes = 8192;

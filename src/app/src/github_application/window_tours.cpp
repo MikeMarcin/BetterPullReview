@@ -1940,11 +1940,13 @@ namespace bpr::app {
 
 	void github_application::implementation::request_enhancement(qt::enhance_request aRequest)
 	{
-		const auto  id     = aRequest.Id;
-		const auto  refuse = [this, id](const QString& aWhy) { answer_enhancement(id, std::nullopt, aWhy); };
-		const auto  hook   = aRequest.Surface == qt::enhance_surface::comment ? core::writing_hook::enhance_comment : core::writing_hook::enhance_note;
-		const auto& prefs  = Profile->WorkbenchPreferences->accepted();
-		const auto  agent  = writing_agent();
+		const auto id     = aRequest.Id;
+		const auto refuse = [this, id](const QString& aWhy) { answer_enhancement(id, std::nullopt, aWhy); };
+		// One Enhance writing prompt for every comment, reply and note; the
+		// `writing-kind` source tells the agent which this is.
+		const auto  hook  = core::writing_hook::enhance_writing;
+		const auto& prefs = Profile->WorkbenchPreferences->accepted();
+		const auto  agent = writing_agent();
 		if (Closing || !prefs || !WindowRead->accepted_snapshot()) {
 			refuse(QStringLiteral("Open a pull request to use Enhance. Your text is unchanged."));
 			return;
@@ -1993,6 +1995,8 @@ namespace bpr::app {
 		};
 		// What the field is about: the pull request's description and, for a
 		// comment, the lines it is on.
+		add("writing-kind", aRequest.Surface == qt::enhance_surface::note ? std::string_view{ "A private note the reviewer keeps for themselves; nobody else reads it." } : std::string_view{ "A draft comment or reply on the pull request, which its author will read." },
+			256);
 		add("pr-description", WindowRead->accepted_snapshot()->PullRequest.Body, 2048);
 		if (aRequest.Surface == qt::enhance_surface::comment) {
 			if (const auto source = selected_writing_source(true)) {

@@ -26,6 +26,7 @@
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStyleHints>
 #include <QToolButton>
 
 #include <algorithm>
@@ -140,8 +141,15 @@ namespace {
 		if (aPrefix.empty()) {
 			return;
 		}
-		const auto saved = aEditor.palette();
+		// Under BPR_NATIVE_LOOK (native_look_startup.cpp) the appearance is the
+		// platform's own, as in the owner's window; offscreen it is only derived.
+		const auto native = qEnvironmentVariable("BPR_NATIVE_LOOK") == QStringLiteral("1");
+		const auto saved  = aEditor.palette();
 		for (const auto& [suffix, appearance] : { std::pair{ "light", core::appearance_mode::light }, std::pair{ "dark", core::appearance_mode::dark } }) {
+			if (native) {
+				QGuiApplication::styleHints()->setColorScheme(appearance == core::appearance_mode::dark ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+				settle();
+			}
 			auto profile = qt::appearance_profile{ };
 			profile.select_mode(appearance);
 			aEditor.setPalette(profile.derive(QApplication::palette()));
@@ -240,14 +248,15 @@ auto main(int argc, char** argv) -> int
 		editor.go_to_stop(core::tour_stop_id{ aId });
 		settle();
 		render(editor, prefix, aName);
-		expect(accept->isVisibleTo(&editor) && accept->isEnabled() && accept->text() == QStringLiteral("Accept") && reason->isVisibleTo(&editor) && reason->text() == aReason, "stop " + std::to_string(aId) + " offers Accept, saying: " + reason->text().toStdString());
+		expect(accept->isVisibleTo(&editor) && accept->isEnabled() && accept->text() == QStringLiteral("Accept") && reason->isVisibleTo(&editor) == !aReason.isEmpty() && (aReason.isEmpty() || reason->text() == aReason), "stop " + std::to_string(aId) + " offers Accept, saying: " + reason->text().toStdString());
 		for (const auto* name : { "tourStopRemove", "tourStopCancel", "tourStopSave", "tourUseSelectedLines", "tourStopMagic" }) {
 			expect(!shown(name), std::string{ name } + " is not offered at rest on a yellow stop");
 		}
 	};
 	yellow(2, QStringLiteral("The code under this stop changed in the last push."), "stop-changed-lines");
 	yellow(3, QStringLiteral("src/frame_pool.cpp:41-47, which this stop links to, changed."), "stop-changed-link");
-	yellow(4, QStringLiteral("Not accepted yet."), "stop-not-accepted");
+	// Owner look v002: a stop never accepted needs no reason beside Accept.
+	yellow(4, QString{ }, "stop-not-accepted");
 
 	// AC06. Edited: the fields, Use selected lines, Enhance, Remove, Cancel and Save.
 	editor.begin_stop_edit();
@@ -256,7 +265,19 @@ auto main(int argc, char** argv) -> int
 	for (const auto* name : { "tourStopTitle", "tourStopBody", "tourUseSelectedLines", "tourStopMagic", "tourStopRemove", "tourStopCancel", "tourStopSave" }) {
 		expect(shown(name), std::string{ name } + " is offered while the stop is edited");
 	}
-	expect(!accept->isVisibleTo(&editor), "while it is edited Save is the card's action");
+	expect(!accept->isVisibleTo(&editor), "while it is edited the editor's Accept is the card's action");
+	// Owner look v002: Save is Accept (it accepts), Cancel the same native
+	// button at the same size, and every tool says what it does.
+	auto* const editAccept = editor.findChild<QPushButton*>(QStringLiteral("tourStopSave"));
+	auto* const editCancel = editor.findChild<QPushButton*>(QStringLiteral("tourStopCancel"));
+	expect(editAccept->text() == QStringLiteral("Accept") && editAccept->isDefault() && editCancel->text() == QStringLiteral("Cancel"), "the edited stop's foot reads Cancel and Accept");
+	expect(editCancel->metaObject() == &QPushButton::staticMetaObject && editCancel->size() == editAccept->size(), "Cancel and Accept are one kind of button at one size");
+	auto* const hint = editor.findChild<QLabel*>(QStringLiteral("tourStopToolsHint"));
+	expect(hint != nullptr && hint->isVisibleTo(&editor) && hint->text().startsWith(QStringLiteral("Select lines in the code first.")), "the tools say how they are used");
+	for (const auto& [name, words] : { std::pair{ "tourUseSelectedLines", "Use selected lines" }, std::pair{ "tourAddRelated", "Link selected lines" } }) {
+		auto* const tool = editor.findChild<QAbstractButton*>(QString::fromLatin1(name));
+		expect(tool != nullptr && tool->text() == QString::fromLatin1(words) && tool->toolTip().startsWith(QStringLiteral("Select lines in the code first.")), std::string{ name } + " says what it does and how");
+	}
 
 	// AC06. Every operation offered before is still reachable: the stop's
 	// context menu holds the route's operations and Mark not accepted.
@@ -277,7 +298,7 @@ auto main(int argc, char** argv) -> int
 	expect(state(4) == core::tour_acceptance_state::not_accepted, "typing accepts nothing");
 	editor.findChild<QPushButton*>(QStringLiteral("tourStopSave"))->click();
 	settle();
-	expect(state(4) == core::tour_acceptance_state::accepted && !accept->isVisibleTo(&editor), "Save accepts the stop it saved");
+	expect(state(4) == core::tour_acceptance_state::accepted && !accept->isVisibleTo(&editor), "the editor's Accept accepts the stop it kept");
 	render(editor, prefix, "stop-saved");
 
 	// AC03. Accept on the current stop, which moves nowhere.
@@ -360,11 +381,11 @@ auto main(int argc, char** argv) -> int
 	show();
 	editor.go_to_stop(core::tour_stop_id{ 4 });
 	settle();
-	expect(accept->isVisibleTo(&editor) && !accept->isEnabled() && reason->text() == QStringLiteral("Not accepted yet. Accept it once the pull request's files load."), "without the changed files Accept is disabled and says why: " + reason->text().toStdString());
+	expect(accept->isVisibleTo(&editor) && !accept->isEnabled() && reason->text() == QStringLiteral("Accept it once the pull request's files load."), "without the changed files Accept is disabled and says why: " + reason->text().toStdString());
 	files = known;
 	show();
 	settle();
-	expect(accept->isVisibleTo(&editor) && accept->isEnabled() && reason->text() == QStringLiteral("Not accepted yet."), "with them Accept is offered: " + reason->text().toStdString());
+	expect(accept->isVisibleTo(&editor) && accept->isEnabled() && !reason->isVisibleTo(&editor), "with them Accept is offered, with nothing beside it: " + reason->text().toStdString());
 	accept->click();
 	settle();
 	expect(state(4) == core::tour_acceptance_state::accepted, "and accepts the stop with its reference");

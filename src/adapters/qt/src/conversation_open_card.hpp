@@ -494,7 +494,7 @@ namespace bpr::qt {
 		enhance_button*     EnhanceButton = nullptr;
 		enhance_suggestion* EnhancePanel  = nullptr;
 		enhance_binding*    Enhance       = nullptr;
-		void                build_enhance(QBoxLayout& aControls);
+		void                build_enhance(QBoxLayout& aControls, enhance_surface aSurface);
 		/// [[BPR-1212]]. The composer's line button, state and change view.
 		QToolButton* Where      = nullptr;
 		QWidget*     DraftState = nullptr;

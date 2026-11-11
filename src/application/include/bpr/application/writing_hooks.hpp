@@ -49,9 +49,10 @@ namespace bpr::application {
 	/// \brief [[BPR-2051]] Versions of the shipped Enhance prompts,
 	/// `resources/review-preparation/enhance-*.md`, one for each, so an
 	/// override can say which default it was written against.
-	inline constexpr std::string_view enhance_stop_hook_version    = "enhance-tour-stop-v1";
-	inline constexpr std::string_view enhance_comment_hook_version = "enhance-comment-v1";
-	inline constexpr std::string_view enhance_note_hook_version    = "enhance-note-v1";
+	inline constexpr std::string_view enhance_stop_hook_version = "enhance-tour-stop-v1";
+	/// One prompt for comments, replies and notes since 2026-11-10; it
+	/// replaced `enhance-comment-v1` and `enhance-note-v1`, which never shipped.
+	inline constexpr std::string_view enhance_writing_hook_version = "enhance-writing-v1";
 	/// \brief [[BPR-2059]] Version of the shipped suggested-comment format,
 	/// `resources/review-preparation/suggested-comment.md`.
 	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v1";
@@ -60,7 +61,8 @@ namespace bpr::application {
 	/// text, version, position in this enumeration or display name.
 	[[nodiscard]] auto writing_hook_purpose(core::writing_hook aHook) noexcept -> std::string_view;
 	/// \brief The prompt a purpose ID names, or none for an ID this version
-	/// does not recognize.
+	/// does not recognize. The retired `enhance.comment` and `enhance.note`
+	/// name `enhance.writing`, which replaced them.
 	[[nodiscard]] auto writing_hook_of_purpose(std::string_view aPurpose) noexcept -> std::optional<core::writing_hook>;
 	/// \brief [[BPR-2051]] SHA-256 of one hook's shipped default text: with
 	/// `writing_hook_version_of`, the built-in provenance an exported

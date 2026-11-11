@@ -52,13 +52,13 @@ namespace bpr::qt {
 			{ core::writing_hook::comment, "Tour-stop comment", "Tour tab, each stop", "How the agent writes one stop's comment.", "Used by Generate comment on an empty tour stop." },
 			{ core::writing_hook::feedback, "Review feedback", "Comment workshop", "Guidance the comment workshop follows when it helps you word a review comment.",
 			  "Sent with comment workshop requests while Comments › Comment workshop turns it on." },
-			// [[BPR-2051]] One Enhance prompt for each surface that offers it.
+			// [[BPR-2051]] Enhance on a tour stop, and (owner look, 2026-11-10:
+			// "Change it from \"Enhance a note\" to \"Enhance writing\"") one
+			// Enhance writing prompt for every comment, reply and note.
 			{ core::writing_hook::enhance_stop, "Enhance a stop", "Tour tab, each stop", "How the agent improves a stop's comment you have written.",
 			  "Used by Enhance on a tour stop that has text, for the whole comment or a selection." },
-			{ core::writing_hook::enhance_comment, "Enhance a comment", "Comments, a draft or reply", "How the agent improves a draft comment or reply you have written.",
-			  "Used by Enhance on a draft comment or reply. You choose whether to use what it suggests; nothing is published." },
-			{ core::writing_hook::enhance_note, "Enhance a note", "Notes, a private note", "How the agent improves a private note you have written.",
-			  "Used by Enhance on a private note. You choose whether to use what it suggests; the note stays private." },
+			{ core::writing_hook::enhance_writing, "Enhance writing", "Comments, replies and notes", "How the agent improves a draft comment, a reply or a private note you have written.",
+			  "Used by Enhance on a draft comment, a reply and a private note. You choose whether to use what it suggests; nothing is published." },
 			// [[BPR-2059]] How the agent writes the comments it suggests.
 			{ core::writing_hook::suggested_comment, "Suggested comments", "Agent tab, finding cards", "How the agent writes the comments it suggests for you to post.",
 			  "Sent with every Agent tab question. Add as draft comment and Draft all start from what it writes; nothing is published." },
@@ -189,18 +189,11 @@ namespace bpr::qt {
 		}
 		// [[BPR-1090]] The review-feedback guidance is not a tour field's hook;
 		// its own group says where it is used.
-		static_cast<void>(make_header(Hook, tr("Comments")));
-		for (const auto hook : { core::writing_hook::feedback, core::writing_hook::enhance_comment }) {
+		static_cast<void>(make_header(Hook, tr("Comments and notes")));
+		for (const auto hook : { core::writing_hook::feedback, core::writing_hook::enhance_writing }) {
 			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
-		}
-		// [[BPR-2051]] A note's Enhance, in its own group.
-		static_cast<void>(make_header(Hook, tr("Notes")));
-		{
-			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::enhance_note).Name), Hook };
-			item->setData(hook_role, static_cast<int>(core::writing_hook::enhance_note));
-			item->setData(usage_role, tr(facts_of(core::writing_hook::enhance_note).Where));
 		}
 		// [[BPR-2059]] The Agent tab's group: how the agent writes the comments
 		// it suggests, and the review skill once it is adopted below it.

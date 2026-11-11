@@ -1033,10 +1033,10 @@ auto main(int argc, char** argv) -> int
 				auto* const text   = hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions"));
 				auto* const save   = hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave"));
 				auto* const source = hooks->findChild<QLabel*>(QStringLiteral("writingHookSource"));
-				hooks->select_hook(core::writing_hook::enhance_comment);
+				hooks->select_hook(core::writing_hook::enhance_writing);
 				text->setPlainText(QStringLiteral("TEAM_PROMPT_CANARY WAIT_CANARY Keep it short."));
 				save->click();
-				wait([&] { return source->text().contains(QStringLiteral("Changed from built-in")); }, "the comment's Enhance prompt is saved");
+				wait([&] { return source->text().contains(QStringLiteral("Changed from built-in")); }, "the Enhance writing prompt is saved");
 				before = launched();
 				cards->enhance_control()->click();
 				wait([&] { return launched() > before; }, "Enhance runs with the saved prompt");
@@ -1066,7 +1066,7 @@ auto main(int argc, char** argv) -> int
 			QApplication::processEvents();
 			// Each prompt in Settings, with its built-in and its restore.
 			auto* const hooks = window.writing_hooks();
-			for (const auto& [hook, title] : std::array{ std::pair{ core::writing_hook::enhance_comment, "Enhance a comment" }, std::pair{ core::writing_hook::enhance_note, "Enhance a note" }, std::pair{ core::writing_hook::enhance_stop, "Enhance a stop" } }) {
+			for (const auto& [hook, title] : std::array{ std::pair{ core::writing_hook::enhance_writing, "Enhance writing" }, std::pair{ core::writing_hook::enhance_stop, "Enhance a stop" } }) {
 				hooks->select_hook(hook);
 				QApplication::processEvents();
 				expect(hooks->findChild<QLabel*>(QStringLiteral("writingHookTitle"))->text() == QString::fromUtf8(title) && hooks->findChild<QPushButton*>(QStringLiteral("writingHookReset")) != nullptr,
@@ -1262,7 +1262,7 @@ auto main(int argc, char** argv) -> int
 			editor.show_stops();
 			editor.trigger(qt::tour_editor_action::navigate_stop);
 			QApplication::processEvents();
-			expect(editor.accept_button()->isVisible() && editor.accept_reason()->text() == QStringLiteral("Not accepted yet."), "the stop offers Accept and says why");
+			expect(editor.accept_button()->isVisible() && !editor.accept_reason()->isVisible(), "the stop offers Accept, with nothing beside it");
 			editor.accept_button()->click();
 			saved(editor);
 			expect(accepted() && editor.selected_stop()->Id == generatedId && !editor.accept_button()->isVisible(), "Accept accepts the current stop and moves nowhere");

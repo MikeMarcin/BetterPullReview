@@ -444,9 +444,11 @@ namespace bpr::qt {
 		AskAgentButton->setFocusPolicy(Qt::StrongFocus);
 		foot->addWidget(AskAgentButton);
 		// [[BPR-2051]]. Enhance, the one control here that starts a run, in
-		// the Agent accent beside Ask agent.
+		// the Agent accent; owner look 2026-11-10 ("placed pretty consistently
+		// across the whole app surface"): first in the row under the field,
+		// as on a comment, a reply and a tour stop.
 		EnhanceButton = new enhance_button{ enhance_surface::note, Card };
-		foot->addWidget(EnhanceButton);
+		foot->insertWidget(0, EnhanceButton);
 		foot->addStretch(1);
 		auto* const discard = new note_button{ note_button::kind::secondary, tr("Discard changes"), Card };
 		discard->setObjectName(QStringLiteral("privateNoteDiscard"));

@@ -2375,10 +2375,12 @@ namespace bpr::qt {
 			Placement  = aCard.Suggestion;
 			Suggestion = new suggestion_mark{ Editor };
 			Suggestion->setObjectName(QStringLiteral("threadReplySuggestionMark"));
+			// [[BPR-2051]], owner look 2026-11-10 ("placed pretty consistently
+			// across the whole app surface"): Enhance is the first control
+			// of the row under the field, on every surface that has it.
+			build_enhance(*controls, enhance_surface::reply);
 			controls->addWidget(Suggestion);
 			controls->addStretch(1);
-			// [[BPR-2051]]. Enhance, beside the reply's own sending buttons.
-			build_enhance(*controls);
 			auto* const cancel = new quiet_tool_button{ Editor };
 			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
 			cancel->setAutoRaise(true);
@@ -2462,12 +2464,12 @@ namespace bpr::qt {
 		Placement  = aCard.Suggestion;
 		Suggestion = new suggestion_mark{ Editor };
 		Suggestion->setObjectName(QStringLiteral("threadDraftSuggestionMark"));
+		// [[BPR-2051]]. Enhance first in the field's own tool row, as on every
+		// surface; its suggestion under that row.
+		build_enhance(*controls, enhance_surface::comment);
 		controls->addWidget(Suggestion);
 		controls->addStretch(1);
 		editor->addLayout(controls);
-		// [[BPR-2051]]. Enhance at the right of the field's own tool row; its
-		// suggestion under that row.
-		build_enhance(*controls);
 		editor->addWidget(EnhancePanel);
 		ReplyStatus = new QLabel{ Editor };
 		ReplyStatus->setObjectName(QStringLiteral("threadDraftStatus"));
@@ -2573,14 +2575,14 @@ namespace bpr::qt {
 		});
 	}
 
-	void open_thread_card::build_enhance(QBoxLayout& aControls)
+	void open_thread_card::build_enhance(QBoxLayout& aControls, const enhance_surface aSurface)
 	{
 		// [[BPR-2051]]. The field's Enhance: an icon in its tool row, and under
 		// the field the run, then the suggestion with Use and Discard drawn as
 		// this card's own buttons. Nothing changes the field until Use.
-		EnhanceButton = new enhance_button{ enhance_surface::comment, Editor };
-		aControls.addWidget(EnhanceButton, 0, Qt::AlignVCenter);
-		EnhancePanel    = new enhance_suggestion{ enhance_surface::comment, Editor };
+		EnhanceButton = new enhance_button{ aSurface, Editor };
+		aControls.insertWidget(0, EnhanceButton, 0, Qt::AlignVCenter);
+		EnhancePanel    = new enhance_suggestion{ aSurface, Editor };
 		auto* const use = new note_button{ note_button::kind::primary, QStringLiteral("Use suggestion"), EnhancePanel };
 		use->setObjectName(QStringLiteral("commentEnhanceUse"));
 		use->set_style(Style);
@@ -2589,7 +2591,7 @@ namespace bpr::qt {
 		discard->setAccessibleName(QStringLiteral("Discard suggestion"));
 		discard->set_style(Style);
 		EnhancePanel->set_buttons(use, discard);
-		Enhance          = new enhance_binding{ *ReplyBox, enhance_surface::comment, *EnhanceButton, *EnhancePanel, this };
+		Enhance          = new enhance_binding{ *ReplyBox, aSurface, *EnhanceButton, *EnhancePanel, this };
 		Enhance->Changed = [this] {
 			if (HeightChanged) {
 				HeightChanged();

@@ -12,6 +12,7 @@
 #include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QTextCursor>
+#include <QTransform>
 #include <QVBoxLayout>
 
 #include <atomic>
@@ -19,66 +20,98 @@
 
 namespace bpr::qt {
 	namespace {
-		std::atomic<enhance_glyph_style> CurrentStyle{ enhance_glyph_style::pen };
+		std::atomic<enhance_glyph_style> CurrentStyle{ enhance_glyph_style::nib_cut };
 		std::atomic<std::uint64_t>       Sequence{ 0U };
 
-		/// The agent's four-pointed spark, as `drawer_glyph::agent` draws it,
-		/// centred at (aX, aY) of a 24-unit square.
-		void spark(QPainter& aPainter, const qreal aUnit, const qreal aX, const qreal aY, const qreal aReach)
+		/// The nib upright, its tip at the bottom of a 24-unit square: the
+		/// shoulders, the body to the tip, and the grip above. Each option
+		/// turns it 45 degrees so the tip points to the lower left, as a pen
+		/// held to write.
+		[[nodiscard]] auto nib_outline_path(const qreal aUnit) -> QPainterPath
+		{
+			const auto at   = [aUnit](const qreal aX, const qreal aY) { return QPointF{ aX * aUnit, aY * aUnit }; };
+			auto       path = QPainterPath{ at(12.0, 22.5) };
+			path.lineTo(at(6.0, 12.6));
+			path.lineTo(at(7.4, 8.6));
+			path.lineTo(at(16.6, 8.6));
+			path.lineTo(at(18.0, 12.6));
+			path.closeSubpath();
+			auto grip = QPainterPath{ };
+			grip.addRoundedRect(QRectF{ at(8.4, 3.2), at(15.6, 7.6) }, 1.2 * aUnit, 1.2 * aUnit);
+			return path.united(grip);
+		}
+
+		[[nodiscard]] auto spark_path(const qreal aUnit, const qreal aX, const qreal aY, const qreal aReach) -> QPainterPath
 		{
 			auto path = QPainterPath{ QPointF{ aX * aUnit, (aY - aReach) * aUnit } };
 			path.quadTo(QPointF{ aX * aUnit, aY * aUnit }, QPointF{ (aX + aReach) * aUnit, aY * aUnit });
 			path.quadTo(QPointF{ aX * aUnit, aY * aUnit }, QPointF{ aX * aUnit, (aY + aReach) * aUnit });
 			path.quadTo(QPointF{ aX * aUnit, aY * aUnit }, QPointF{ (aX - aReach) * aUnit, aY * aUnit });
 			path.quadTo(QPointF{ aX * aUnit, aY * aUnit }, QPointF{ aX * aUnit, (aY - aReach) * aUnit });
-			aPainter.drawPath(path);
+			path.closeSubpath();
+			return path;
 		}
 
-		/// Strokes one option `aSide` logical pixels square at the origin.
+		/// Draws one option `aSide` logical pixels square at the origin.
 		void paint_glyph(QPainter& aPainter, const qreal aSide, const QColor& aInk, const enhance_glyph_style aStyle)
 		{
-			aPainter.setPen(QPen{ aInk, aSide / 14.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
-			aPainter.setBrush(Qt::NoBrush);
 			const auto unit = aSide / 24.0;
-			const auto at   = [unit](const qreal aX, const qreal aY) { return QPointF{ aX * unit, aY * unit }; };
+			const auto turn = [&](QPainterPath aPath, const qreal aScale, const QPointF aShift) {
+				auto transform = QTransform{ };
+				transform.translate((12.0 + aShift.x()) * unit, (12.0 + aShift.y()) * unit);
+				transform.rotate(45.0);
+				transform.scale(aScale, aScale);
+				transform.translate(-12.0 * unit, -12.0 * unit);
+				return transform.map(aPath);
+			};
+			// The slit from the tip to the breather hole.
+			auto slit = QPainterPath{ };
+			slit.addRoundedRect(QRectF{ QPointF{ 11.35 * unit, 15.0 * unit }, QPointF{ 12.65 * unit, 23.5 * unit } }, 0.6 * unit, 0.6 * unit);
 			switch (aStyle) {
-			case enhance_glyph_style::pen: {
-				// A pen laid from the lower left, its nib at the line it
-				// writes, and the spark over its end.
-				auto body = QPainterPath{ at(4.0, 20.0) };
-				body.lineTo(at(5.0, 15.5));
-				body.lineTo(at(14.0, 6.5));
-				body.lineTo(at(17.5, 10.0));
-				body.lineTo(at(8.5, 19.0));
-				body.closeSubpath();
-				aPainter.drawPath(body);
-				aPainter.drawLine(at(12.0, 8.5), at(15.5, 12.0));
-				aPainter.setPen(QPen{ aInk, aSide / 16.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
-				spark(aPainter, unit, 19.0, 4.5, 3.0);
+			case enhance_glyph_style::nib_cut: {
+				// The owner's picture: one solid nib, the spark and the slit
+				// cut out of it.
+				auto body = nib_outline_path(unit).subtracted(slit).subtracted(spark_path(unit, 12.0, 12.0, 4.0));
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(aInk);
+				aPainter.drawPath(turn(body, 1.22, QPointF{ 0.6, -0.6 }));
 				break;
 			}
-			case enhance_glyph_style::lines:
-				// Three lines of text, the first short where the spark sits.
-				aPainter.drawLine(at(4.0, 7.0), at(12.0, 7.0));
-				aPainter.drawLine(at(4.0, 12.5), at(20.0, 12.5));
-				aPainter.drawLine(at(4.0, 18.0), at(15.0, 18.0));
-				aPainter.setPen(QPen{ aInk, aSide / 16.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
-				spark(aPainter, unit, 18.0, 6.0, 3.5);
+			case enhance_glyph_style::nib_outline: {
+				// The nib in outline, slit and hole, smaller, and the spark
+				// over its grip.
+				aPainter.setPen(QPen{ aInk, aSide / 14.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				auto lines = nib_outline_path(unit);
+				auto cut   = QPainterPath{ QPointF{ 12.0 * unit, 22.0 * unit } };
+				cut.lineTo(QPointF{ 12.0 * unit, 15.4 * unit });
+				lines.addPath(cut);
+				aPainter.drawPath(turn(lines, 0.98, QPointF{ -1.0, 1.0 }));
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(aInk);
+				aPainter.drawPath(spark_path(unit, 19.2, 4.8, 4.4));
 				break;
-			case enhance_glyph_style::wand:
-				// A wand from the lower left, a band near its tip, a spark
-				// at the tip and two small ones beside it.
-				aPainter.drawLine(at(4.0, 20.0), at(13.5, 10.5));
-				aPainter.drawLine(at(10.0, 12.0), at(12.0, 14.0));
-				aPainter.setPen(QPen{ aInk, aSide / 16.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
-				spark(aPainter, unit, 17.0, 7.0, 4.0);
-				spark(aPainter, unit, 10.5, 4.0, 1.6);
-				spark(aPainter, unit, 20.5, 14.0, 1.6);
+			}
+			case enhance_glyph_style::nib_spark: {
+				// A solid nib with its slit, smaller, and the spark beside it.
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(aInk);
+				aPainter.drawPath(turn(nib_outline_path(unit).subtracted(slit), 0.98, QPointF{ -1.0, 1.0 }));
+				aPainter.drawPath(spark_path(unit, 19.2, 4.8, 4.4));
 				break;
+			}
 			}
 		}
 
-		[[nodiscard]] auto noun(const enhance_surface aSurface) -> QString { return aSurface == enhance_surface::comment ? QObject::tr("comment") : QObject::tr("note"); }
+		[[nodiscard]] auto noun(const enhance_surface aSurface) -> QString
+		{
+			switch (aSurface) {
+			case enhance_surface::comment: return QObject::tr("comment");
+			case enhance_surface::reply:   return QObject::tr("reply");
+			case enhance_surface::note:    return QObject::tr("note");
+			}
+			return QObject::tr("text");
+		}
 
 		[[nodiscard]] auto utf8_offset(const QString& aText, const int aPosition) -> std::size_t { return static_cast<std::size_t>(aText.left(aPosition).toUtf8().size()); }
 	} // namespace
@@ -86,11 +119,16 @@ namespace bpr::qt {
 	auto enhance_glyph_style_name(const enhance_glyph_style aStyle) -> QString
 	{
 		switch (aStyle) {
-		case enhance_glyph_style::pen:   return QObject::tr("Pen and spark");
-		case enhance_glyph_style::lines: return QObject::tr("Lines and spark");
-		case enhance_glyph_style::wand:  return QObject::tr("Wand");
+		case enhance_glyph_style::nib_cut:     return QObject::tr("Nib with the spark cut out");
+		case enhance_glyph_style::nib_outline: return QObject::tr("Nib outline and spark");
+		case enhance_glyph_style::nib_spark:   return QObject::tr("Solid nib and spark");
 		}
 		return { };
+	}
+
+	auto enhance_tooltip(const enhance_surface aSurface, const bool aSelection) -> QString
+	{
+		return aSelection ? QObject::tr("Enhance writing for the selected text with agent.") : QObject::tr("Enhance writing for this %1 with agent.").arg(noun(aSurface));
 	}
 
 	void set_enhance_glyph_style(const enhance_glyph_style aStyle) { CurrentStyle.store(aStyle); }
@@ -107,7 +145,7 @@ namespace bpr::qt {
 		: QToolButton{ aParent }
 		, Surface{ aSurface }
 	{
-		setObjectName(aSurface == enhance_surface::comment ? QStringLiteral("commentEnhance") : QStringLiteral("noteEnhance"));
+		setObjectName(aSurface == enhance_surface::note ? QStringLiteral("noteEnhance") : QStringLiteral("commentEnhance"));
 		setAutoRaise(true);
 		setFocusPolicy(Qt::StrongFocus);
 		setCursor(Qt::PointingHandCursor);
@@ -121,11 +159,18 @@ namespace bpr::qt {
 	{
 		Running         = aRunning;
 		const auto what = noun(Surface);
-		setAccessibleName(aRunning ? tr("Stop enhancing") : tr("Enhance"));
-		setToolTip(aRunning ? tr("Stop enhancing. Your %1 stays as it is.").arg(what)
-							: tr("Enhance: asks the agent to improve this %1, or only the selected text. You choose whether to use what it suggests; nothing is published.").arg(what));
-		setAccessibleDescription(toolTip());
+		setAccessibleName(aRunning ? tr("Stop enhancing") : tr("Enhance writing"));
+		setToolTip(aRunning ? tr("Stop enhancing. Your %1 stays as it is.").arg(what) : enhance_tooltip(Surface, Selection));
+		setAccessibleDescription(aRunning ? toolTip() : toolTip() + QLatin1Char(' ') + tr("You choose whether to use what it suggests; nothing is published."));
 		restyle();
+	}
+
+	void enhance_button::set_selection(const bool aSelection)
+	{
+		if (Selection != aSelection) {
+			Selection = aSelection;
+			set_running(Running);
+		}
 	}
 
 	auto enhance_button::sizeHint() const -> QSize { return { 26, 24 }; }
@@ -194,7 +239,7 @@ namespace bpr::qt {
 		: QFrame{ aParent }
 		, Surface{ aSurface }
 	{
-		setObjectName(aSurface == enhance_surface::comment ? QStringLiteral("commentEnhanceSuggestion") : QStringLiteral("noteEnhanceSuggestion"));
+		setObjectName(aSurface == enhance_surface::note ? QStringLiteral("noteEnhanceSuggestion") : QStringLiteral("commentEnhanceSuggestion"));
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(12, 8, 10, 8);
 		column->setSpacing(6);
@@ -254,8 +299,7 @@ namespace bpr::qt {
 
 	void enhance_suggestion::show_suggestion(const QString& aText, const bool aSelection)
 	{
-		Heading->setText(aSelection ? tr("Suggested rewrite of your selection") : Surface == enhance_surface::comment ? tr("Suggested comment")
-																													  : tr("Suggested note"));
+		Heading->setText(aSelection ? tr("Suggested rewrite of your selection") : tr("Suggested %1").arg(noun(Surface)));
 		Text->setText(aText);
 		Text->show();
 		Notice->clear();
@@ -351,6 +395,7 @@ namespace bpr::qt {
 		// agents never wires it, and shows none.
 		Button->setVisible(Dispatch != nullptr);
 		const auto blank = core::writing_blank(Editor->toPlainText().toStdString());
+		Button->set_selection(Editor->textCursor().hasSelection());
 		Button->setEnabled(Running || (Dispatch != nullptr && !Editor->isReadOnly() && !blank));
 		if (!Running && Dispatch != nullptr && blank) {
 			Button->setToolTip(tr("Enhance improves what you have written. Write your %1 first.").arg(noun(Surface)));

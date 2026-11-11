@@ -474,6 +474,7 @@ namespace bpr::qt {
 		QVBoxLayout*                                                StopFieldsLayout  = nullptr;
 		QPushButton*                                                Complete          = nullptr;
 		QLabel*                                                     AcceptReason      = nullptr;
+		QLabel*                                                     StopToolsHint     = nullptr;
 		QString                                                     SourceChip;
 		void                                                        paint_source_link();
 		QAction*                                                    MarkNotAccepted = nullptr;

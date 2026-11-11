@@ -17,6 +17,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -1956,10 +1957,10 @@ namespace {
 	/// default; an override is stored in its own column and survives a reopen.
 	void test_suggested_comment_format_migrates_from_twenty_five_and_survives()
 	{
-		const auto scratch                                                                        = scratch_directory{ };
-		const auto path                                                                           = scratch.file("suggested-v25.sqlite3");
-		auto       chosen                                                                         = settled_profile();
-		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_note)] = "One line per thought.";
+		const auto scratch                                                                           = scratch_directory{ };
+		const auto path                                                                              = scratch.file("suggested-v25.sqlite3");
+		auto       chosen                                                                            = settled_profile();
+		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_writing)] = "One line per thought.";
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db && db->store(chosen, { }), "a full profile row stores");
@@ -1972,7 +1973,8 @@ namespace {
 			const auto loaded = db->load({ });
 			expect(loaded && *loaded == chosen, "every earlier override, the Enhance prompts included, is kept exactly");
 		}
-		expect(stored_profile_text(path, "writing_suggestion_format") == std::string{ } && stored_profile_text(path, "writing_enhance_note") == "One line per thought.", "a migrated profile follows the shipped format");
+		expect(stored_profile_text(path, "writing_suggestion_format") == std::string{ } && stored_profile_text(path, "writing_enhance_draft") == "One line per thought." && stored_profile_text(path, "writing_enhance_note") == std::string{ },
+			   "a migrated profile follows the shipped format");
 		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::suggested_comment)] = "Use Conventional Comments labels.";
 		++chosen.WritingHooks.Revision;
 		{
@@ -1984,6 +1986,34 @@ namespace {
 			expect(db && *db->load({ }) == chosen, "it survives a reopen beside the others");
 		}
 		expect(stored_profile_text(path, "writing_suggestion_format") == "Use Conventional Comments labels.", "it is stored as written in its own column");
+	}
+
+	/// Owner look, 2026-11-10: one Enhance writing prompt for comments,
+	/// replies and notes. A version-twenty-six row keeps the comment's
+	/// override, or takes the note's when only that was changed, and the
+	/// note's retired column is emptied.
+	void test_enhance_note_folds_into_enhance_writing_from_twenty_six()
+	{
+		const auto scratch = scratch_directory{ };
+		for (const auto& [comment, note, kept] : std::array{ std::tuple{ "", "One line per thought.", "One line per thought." }, std::tuple{ "Kind and direct.", "One line per thought.", "Kind and direct." },
+															 std::tuple{ "Kind and direct.", "", "Kind and direct." }, std::tuple{ "", "", "" } }) {
+			const auto path   = scratch.file(std::string{ "fold-v26-" } + (std::string_view{ comment }.empty() ? "n" : "c") + (std::string_view{ note }.empty() ? "n" : "o") + ".sqlite3");
+			auto       chosen = settled_profile();
+			{
+				auto db = workbench_settings_database::open(path, { });
+				expect(db && db->store(chosen, { }), "a full profile row stores");
+				const auto sql = std::string{ "UPDATE workbench_preferences SET writing_enhance_draft='" } + comment + "', writing_enhance_note='" + note + "'; UPDATE workbench_meta SET schema_format=26; PRAGMA user_version=26";
+				expect(sqlite3_exec(db->handle(), sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version26 source with its two Enhance overrides");
+			}
+			{
+				auto db = workbench_settings_database::open(path, { });
+				expect(db.has_value() && integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version, "version26 migrates and stamps the current version");
+				const auto loaded                                                                            = db->load({ });
+				chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_writing)] = kept;
+				expect(loaded && *loaded == chosen, "the comment's override is kept, the note's only when it was the one changed");
+			}
+			expect(stored_profile_text(path, "writing_enhance_draft") == kept && stored_profile_text(path, "writing_enhance_note") == std::string{ }, "the note's retired column is empty");
+		}
 	}
 
 	/// [[BPR-2051]]. A version-twenty-four row migrates with every override,
@@ -2013,8 +2043,7 @@ namespace {
 			expect(stored_profile_text(path, column) == std::string{ }, "a migrated profile follows each Enhance default");
 		}
 		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_stop)]    = "Tighter, same claims.";
-		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_comment)] = "Kind and direct.";
-		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_note)]    = "One line per thought.";
+		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_writing)] = "Kind and direct.";
 		++chosen.WritingHooks.Revision;
 		{
 			auto db = workbench_settings_database::open(path, { });
@@ -2025,9 +2054,9 @@ namespace {
 			expect(db && *db->load({ }) == chosen, "they survive a reopen beside the others");
 		}
 		expect(stored_profile_text(path, "writing_enhance_stop") == "Tighter, same claims." && stored_profile_text(path, "writing_enhance_draft") == "Kind and direct."
-				   && stored_profile_text(path, "writing_enhance_note") == "One line per thought." && stored_profile_text(path, "writing_stop") == "One stop, one point.",
-			   "each is stored as written in its own column");
-		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_note)] = std::string(core::maximum_writing_instruction_bytes + 1U, 'x');
+				   && stored_profile_text(path, "writing_enhance_note") == std::string{ } && stored_profile_text(path, "writing_stop") == "One stop, one point.",
+			   "each is stored as written in its own column; the retired note column stays empty");
+		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_writing)] = std::string(core::maximum_writing_instruction_bytes + 1U, 'x');
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db && !db->store(chosen, { }), "an oversize Enhance override is refused before it is written");
@@ -2528,6 +2557,7 @@ try {
 	test_claude_model_persists_and_migrates_from_seventeen();
 	test_feedback_hook_override_migrates_from_fifteen_and_survives();
 	test_enhance_prompts_migrate_from_twenty_four_and_survive();
+	test_enhance_note_folds_into_enhance_writing_from_twenty_six();
 	test_suggested_comment_format_migrates_from_twenty_five_and_survives();
 	test_claude_wrapper_storage_outside_its_bounds_fails_closed();
 	test_native_geometry_is_window_local_and_migrates_from_eight();

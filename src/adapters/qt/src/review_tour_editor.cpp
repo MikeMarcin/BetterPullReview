@@ -9,6 +9,7 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -2615,8 +2616,7 @@ namespace bpr::qt {
 			return false; // [[BPR-1090]] No tour field takes the feedback hook.
 		// [[BPR-2051]] The Enhance prompts are instructions, not tour fields.
 		case core::writing_hook::enhance_stop:
-		case core::writing_hook::enhance_comment:
-		case core::writing_hook::enhance_note:
+		case core::writing_hook::enhance_writing:
 		case core::writing_hook::suggested_comment: return false; // [[BPR-2059]] Not a tour field either.
 		}
 		return false;
@@ -2639,14 +2639,17 @@ namespace bpr::qt {
 			// buttons to just the '<symbol> Enhance' and leave the tooltips in
 			// place." The spark and one word; what it rewrites is in the
 			// tooltip, and the longer name still names the request.
+			// Owner look, 2026-11-10: the tooltip "much shorter and adapt to
+			// the context", in the words of every other Enhance.
 			if (aEditor->textCursor().hasSelection()) {
 				button->setText(tr("Enhance"));
 				button->setProperty("requestName", tr("Enhance selection"));
-				button->setToolTip(tr("Asks the drafting agent to rewrite only the selected text. Undo restores it."));
+				button->setToolTip(enhance_tooltip(enhance_surface::comment, true));
 			} else if (!core::writing_blank(aEditor->raw())) {
 				button->setText(tr("Enhance"));
 				button->setProperty("requestName", whole);
-				button->setToolTip(tr("Asks the drafting agent to rewrite this whole field, keeping your meaning. Undo restores your text."));
+				button->setToolTip(aHook == core::writing_hook::problem ? tr("Enhance writing for the Problem with agent.") : aHook == core::writing_hook::solution ? tr("Enhance writing for the Solution with agent.")
+																																									: tr("Enhance writing for this stop with agent."));
 			} else if (aHook == core::writing_hook::comment) {
 				button->setText(tr("Generate comment"));
 				button->setToolTip(tr("Asks the drafting agent to write this stop's comment from its code. Undo removes it."));
@@ -3352,18 +3355,19 @@ namespace bpr::qt {
 		Complete->setVisible(offered);
 		Complete->setEnabled(can);
 		Complete->setDefault(offered);
-		AcceptReason->setVisible(offered);
+		AcceptReason->setVisible(false);
 		if (offered) {
 			auto reason = acceptance_reason(decision);
 			if (!can) {
-				reason += QLatin1Char(' ') + (need == core::tour_accept_need::title ? tr("Give it a title to accept it.") : need == core::tour_accept_need::explanation ? tr("Write its explanation to accept it.")
-												  : need == core::tour_accept_need::lines_at_head                                                                       ? tr("Choose its lines again to accept it.")
-												  : need == core::tour_accept_need::changed_files                                                                       ? tr("Accept it once the pull request's files load.")
-																																										: tr("Choose its lines to accept it."));
+				reason += (reason.isEmpty() ? QString{ } : QStringLiteral(" ")) + (need == core::tour_accept_need::title ? tr("Give it a title to accept it.") : need == core::tour_accept_need::explanation ? tr("Write its explanation to accept it.")
+																					   : need == core::tour_accept_need::lines_at_head                                                                       ? tr("Choose its lines again to accept it.")
+																					   : need == core::tour_accept_need::changed_files                                                                       ? tr("Accept it once the pull request's files load.")
+																																																			 : tr("Choose its lines to accept it."));
 			}
 			AcceptReason->setText(reason);
 			AcceptReason->setForegroundRole(QPalette::PlaceholderText);
-			Complete->setAccessibleDescription(reason);
+			AcceptReason->setVisible(!reason.isEmpty());
+			Complete->setAccessibleDescription(reason.isEmpty() ? tr("Accepts this stop as it is now.") : reason);
 		}
 		Complete->setToolTip(tr("Accept this stop as it is now (%1)").arg(Complete->shortcut().toString(QKeySequence::NativeText)));
 	}
@@ -3371,9 +3375,12 @@ namespace bpr::qt {
 	{
 		using reason = core::tour_acceptance_reason;
 		switch (aDecision.Reason) {
-		case reason::none:              return { };
+		// Owner look v002: "Not sure why it says \"Not accepted yet.\" next to
+		// accept. That feels pretty obvious." A stop never accepted needs no
+		// reason beside Accept; only a change since accepting does.
+		case reason::none:
 		case reason::not_accepted:
-		case reason::text_changed:      return tr("Not accepted yet.");
+		case reason::text_changed:      return { };
 		case reason::moved:             return tr("This stop was moved to other lines.");
 		case reason::lines_changed:     return tr("The code under this stop changed in the last push.");
 		case reason::lines_missing:     return tr("The lines under this stop are no longer in the pull request.");
@@ -3381,7 +3388,7 @@ namespace bpr::qt {
 		case reason::reference_missing: return aDecision.Reference.empty() ? tr("Lines this stop links to are no longer in the pull request.") : tr("%1, which this stop links to, is no longer in the pull request.").arg(QString::fromStdString(aDecision.Reference));
 		case reason::unchecked:         return tr("The pull request has a new head; the code under this stop is not compared yet.");
 		}
-		return tr("Not accepted yet.");
+		return { };
 	}
 	void review_tour_editor::accept_stop(const core::tour_stop_id aStop)
 	{
@@ -3553,7 +3560,9 @@ namespace bpr::qt {
 				wear_ordinary_roles(*feature);
 			}
 			if (auto* const button = qobject_cast<QPushButton*>(feature); button != nullptr) {
-				button->setIcon(drawer_icon(drawer_glyph::agent, button->palette()));
+				// The fields' Enhance wears the nib, as every Enhance does.
+				const auto writing = button->objectName().endsWith(QStringLiteral("Magic"));
+				button->setIcon(writing ? enhance_icon(button->palette()) : drawer_icon(drawer_glyph::agent, button->palette()));
 			}
 		}
 		for (const auto& [hook, notice] : FailureNotices) {
@@ -3995,13 +4004,16 @@ namespace bpr::qt {
 		UseLines->setObjectName(QStringLiteral("tourUseSelectedLines"));
 		UseLines->setCursor(Qt::PointingHandCursor);
 		UseLines->setAccessibleName(tr("Use the lines selected in the code"));
-		UseLines->setToolTip(retarget->toolTip());
+		UseLines->setToolTip(tr("Select lines in the code first. This stop then shows those lines instead (%1). No code is copied or changed.").arg(retarget->shortcut().toString(QKeySequence::NativeText)));
 		connect(UseLines, &QPushButton::clicked, this, [retarget] { retarget->trigger(); });
 		sources->addWidget(UseLines);
-		Retarget               = retarget;
-		auto* const addRelated = button(tr("Related source"), QStringLiteral("tourAddRelated"), sources, [this] { trigger(tour_editor_action::add_related); });
-		addRelated->setToolTip(tr("Link the lines selected in the code as related source"));
-		auto* const removeRelated = button(tr("Remove link"), QStringLiteral("tourRemoveRelated"), sources, [this] {
+		Retarget = retarget;
+		// Owner look v002 of the editing tools: "I don't understand what these
+		// do or how to use these at all." Each says what it does to the stop,
+		// in the words of the hint under them, and its tooltip how to use it.
+		auto* const addRelated = button(tr("Link selected lines"), QStringLiteral("tourAddRelated"), sources, [this] { trigger(tour_editor_action::add_related); });
+		addRelated->setToolTip(tr("Select lines in the code first. They are added under Linked code: other code the reader can open from this stop."));
+		auto* const removeRelated = button(tr("Unlink"), QStringLiteral("tourRemoveRelated"), sources, [this] {
 			if (!selected_related() || !Dispatch || Shown.Refusal == core::tour_refusal::bounds) {
 				return;
 			}
@@ -4021,12 +4033,13 @@ namespace bpr::qt {
 		more->setToolButtonStyle(Qt::ToolButtonIconOnly);
 		more->setAutoRaise(true);
 		more->setCursor(Qt::ArrowCursor);
-		more->setToolTip(tr("More: related source"));
+		more->setToolTip(tr("More ways to change this stop's code"));
 		more->setAccessibleName(tr("More stop actions"));
 		auto* const moreMenu = new QMenu{ more };
 		moreMenu->setObjectName(QStringLiteral("tourStopMoreMenu"));
-		moreMenu->addAction(tr("Related source"), addRelated, &QPushButton::click);
-		moreMenu->addAction(tr("Remove related link"), removeRelated, &QPushButton::click);
+		moreMenu->setToolTipsVisible(true);
+		moreMenu->addAction(tr("Link selected lines"), addRelated, &QPushButton::click)->setToolTip(addRelated->toolTip());
+		moreMenu->addAction(tr("Unlink the chosen linked code"), removeRelated, &QPushButton::click)->setToolTip(tr("Choose a line under Linked code first."));
 		connect(more, &QToolButton::clicked, moreMenu, [more, moreMenu] { moreMenu->popup(more->mapToGlobal(QPoint{ 0, more->height() })); });
 		sources->addWidget(more);
 		AddRelated    = addRelated;
@@ -4034,6 +4047,15 @@ namespace bpr::qt {
 		MoreButton    = more;
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
+		// How the tools are used, said once under them while the stop is edited.
+		StopToolsHint = new QLabel{ tr("Select lines in the code first. Use selected lines moves this stop to them; Link selected lines adds them as other code the reader can open from here."), StopFields };
+		StopToolsHint->setObjectName(QStringLiteral("tourStopToolsHint"));
+		StopToolsHint->setWordWrap(true);
+		StopToolsHint->setTextFormat(Qt::PlainText);
+		StopToolsHint->setForegroundRole(QPalette::PlaceholderText);
+		StopToolsHint->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		StopToolsHint->hide();
+		fields->addWidget(StopToolsHint);
 		fields->addWidget(add_failure_notice(core::writing_hook::comment, StopFields));
 		// [[BPR-1914]] v003. The read stop's own menu opens its side chat,
 		// with the selected words; [[BPR-2013]] then the stop's context menu.
@@ -4052,10 +4074,13 @@ namespace bpr::qt {
 			}
 		});
 		StopActions->yield(UseLines, false);
-		StopActions->yield(addRelated, Mode == tour_editor_mode::page);
+		// Owner look v002: Link selected lines is named in the hint, so it is
+		// on the row in the route too while there is room; More keeps it after.
+		StopActions->yield(addRelated, true);
 		StopActions->yield(removeRelated, false);
 		connect(Related, &QListWidget::currentRowChanged, removeRelated, [this](const int aRow) { StopActions->want(RemoveRelated, aRow >= 0 && Mode == tour_editor_mode::page); });
-		Related->setToolTip(tr("Double-click a related source to inspect it. The stop's file and lines bring its own lines back."));
+		Related->setToolTip(tr("Linked code. Double-click one to open it; choose one, then Unlink, to remove it. The stop's file and lines bring its own lines back."));
+		removeRelated->setToolTip(tr("Removes the linked code chosen in the list above. The code itself is not changed."));
 		connect(Related, &QListWidget::itemActivated, this, [this] { trigger(tour_editor_action::navigate_related); });
 		// The foot: its row, and the trash's question under it, as one item,
 		// so a proposal placed before the foot never comes between them.
@@ -4127,17 +4152,28 @@ namespace bpr::qt {
 		// description the pencil goes away and we get cancel / save at the
 		// bottom". The description editor's foot: Cancel, then Save, the
 		// default, at the card's bottom right while the stop is written.
-		CancelStop = new quiet_push_button{ tr("Cancel"), StopFields };
+		// Owner look v002: "Cancel is like a different size to save, looks
+		// weird" and "It's kind of weird that save turns it green. Maybe save
+		// should just be accept then." Both are the platform's own push
+		// button, one width; the default one says what it does: it keeps the
+		// edit and accepts the stop.
+		CancelStop = new QPushButton{ tr("Cancel"), StopFields };
 		CancelStop->setObjectName(QStringLiteral("tourStopCancel"));
 		CancelStop->setAccessibleDescription(tr("Puts the title and explanation back as they were when you began editing."));
 		CancelStop->setToolTip(tr("Undo this edit's text changes (Esc)"));
 		nav->addWidget(CancelStop);
 		connect(CancelStop, &QPushButton::clicked, this, [this] { cancel_stop_edit(); });
-		SaveStop = new QPushButton{ tr("Save"), StopFields };
+		SaveStop = new QPushButton{ tr("Accept"), StopFields };
 		SaveStop->setObjectName(QStringLiteral("tourStopSave"));
-		SaveStop->setAccessibleDescription(tr("Closes the editor. The stop is kept in your private tour draft; nothing is sent to GitHub."));
-		SaveStop->setToolTip(tr("Save (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		SaveStop->setAccessibleName(tr("Accept the edited stop"));
+		SaveStop->setAccessibleDescription(tr("Keeps your edit in your private tour draft and accepts the stop. Nothing is sent to GitHub."));
+		SaveStop->setToolTip(tr("Keep this edit and accept the stop (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 		nav->addWidget(SaveStop);
+		{
+			const auto width = std::max(CancelStop->sizeHint().width(), SaveStop->sizeHint().width());
+			CancelStop->setMinimumWidth(width);
+			SaveStop->setMinimumWidth(width);
+		}
 		connect(SaveStop, &QPushButton::clicked, this, [this] { save_stop_edit(); });
 		// [[BPR-2014]], RFC-BPR-0106. Accept, the files' word: it accepts
 		// this stop as it is now (its text, its lines and the code at every
@@ -4525,6 +4561,9 @@ namespace bpr::qt {
 		// what changes it (Use selected lines, Enhance, its related sources)
 		// is offered only while it is written.
 		StopActions->setVisible(writing);
+		if (StopToolsHint != nullptr) {
+			StopToolsHint->setVisible(writing);
+		}
 		Related->setVisible(writing && Related->count() > 0);
 		StopActions->want(UseLines, writing);
 		if (Retarget != nullptr) {
@@ -4860,9 +4899,9 @@ namespace bpr::qt {
 			}
 		}
 		StopHeader->setVisible(aMode == tour_editor_mode::page);
-		// The route keeps Related source behind More; the page has room.
+		// Link selected lines is on the row in both places while there is room.
 		if (StopActions != nullptr) {
-			StopActions->want(AddRelated, aMode == tour_editor_mode::page);
+			StopActions->want(AddRelated, true);
 			StopActions->want(RemoveRelated, aMode == tour_editor_mode::page && Related->currentRow() >= 0);
 		}
 		fit_page_columns();

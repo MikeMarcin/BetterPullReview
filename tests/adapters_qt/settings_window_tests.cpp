@@ -488,8 +488,8 @@ namespace {
 		// "Save my copy to Downloads first", and the run limit its toggle;
 		// neither is a sign-in switch.
 		const auto boxes = page->findChildren<QCheckBox*>();
-		expect(std::ranges::count_if(boxes, [](const QCheckBox* aBox) { return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn"); }) == 1,
-			   "no sign-in switch is offered; the only other check box is the private draft");
+		expect(std::ranges::count_if(boxes, [](const QCheckBox* aBox) { return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn"); }) == 2,
+			   "no sign-in switch is offered; the only other check boxes are the next request's private draft and working copy");
 		auto* const settings = workbench.settings();
 		settings->search_field()->setText(QStringLiteral("process wrapper"));
 		expect(!result_names(*settings).contains(QStringLiteral("Process wrapper")), "search finds no wrapper row");
@@ -545,9 +545,48 @@ namespace {
 	}
 } // namespace
 
+/// \brief Owner look, 2026-11-10: the top of Agents & context redrawn
+/// three ways. Each option keeps the next request's choices (shared with
+/// the Agent tab) or says where they are. `--agents-top FOLDER` saves each
+/// option, light and dark, with a profile, two notes and a draft offered.
+void render_agents_tops(const QString& aFolder)
+{
+	for (std::size_t index = 0; index < qt::agents_context_top_count; ++index) {
+		const auto top = static_cast<qt::agents_context_top>(index);
+		qt::set_agents_context_top(top);
+		qt::workbench_window window;
+		auto*                panel    = window.agent_panel();
+		const auto           profiles = std::array{ core::agent_profile{ .Id = core::agent_profile_id{ 1U }, .DisplayName = "Claude Code" } };
+		panel->offer_profiles(profiles);
+		panel->disclose_scope(QStringLiteral("The selected agent receives the exact accepted PR/diff identities, durable defects, current semantic selection, and only private notes or the current draft checked for this invocation."));
+		const auto notes = std::array{ application::local_note_id{ 1U }, application::local_note_id{ 2U } };
+		panel->offer_private_context(notes, application::agent_draft_choice{ .Id = core::review_draft_id{ 1U }, .Revision = 2U });
+		auto* const settings = window.settings();
+		settings->resize(980, 760);
+		settings->present(qt::settings_page::agents_and_context);
+		settings->show();
+		if (top == qt::agents_context_top::summary) {
+			if (auto* const change = settings->findChild<QPushButton*>(QStringLiteral("settingsNextRequestChange")); change != nullptr) {
+				QApplication::processEvents();
+				expect(settings->grab().save(QStringLiteral("%1/agents-top-%2-closed.png").arg(aFolder).arg(index + 1)), "the summary render saves");
+				change->click();
+			}
+		}
+		QApplication::processEvents();
+		expect(settings->grab().save(QStringLiteral("%1/agents-top-%2.png").arg(aFolder).arg(index + 1)), "an option's render saves");
+		settings->hide();
+	}
+	qt::set_agents_context_top(qt::agents_context_top::next_request);
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (argc > 2 && std::string_view{ argv[1] } == "--agents-top") {
+		render_agents_tops(QString::fromLocal8Bit(argv[2]));
+		std::cout << "settings-window:rendered\n";
+		return EXIT_SUCCESS;
+	}
 	test_composed_pages_fit_and_render_at_minimum_size();
 	test_large_page_scrolls_without_growing_the_window();
 	test_close_cancels_preview_without_destroying_accepted_controls();
@@ -560,10 +599,10 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 14 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments" && hook->item(7)->text() == "Review feedback"
-				   && hook->item(8)->text() == "Enhance a comment" && hook->item(9)->text() == "Notes" && hook->item(10)->text() == "Enhance a note" && hook->item(11)->text() == "Agent tab"
-				   && hook->item(12)->text() == "Suggested comments" && hook->item(13)->text() == "Review skill" && !text->toPlainText().isEmpty(),
-			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]] every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and a comment's Enhance, a note's Enhance, the suggested-comment format and the review skill");
+		expect(hook->count() == 12 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
+				   && hook->item(8)->text() == "Enhance writing" && hook->item(9)->text() == "Agent tab" && hook->item(10)->text() == "Suggested comments" && hook->item(11)->text() == "Review skill"
+				   && !text->toPlainText().isEmpty(),
+			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]] every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and the one Enhance writing prompt (owner look 2026-11-10), the suggested-comment format and the review skill");
 		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
 		for (const auto tourHook : tourHooks) {
 			panel->select_hook(tourHook);
@@ -599,8 +638,7 @@ auto main(int argc, char** argv) -> int
 		expect(scope->text().startsWith("Off."), "and turning the helper off again says so");
 		// [[BPR-2051]] Each Enhance prompt: its own default and version, its
 		// own override, and its restore; the others are untouched.
-		for (const auto [enhance, version] : std::array{ std::pair{ core::writing_hook::enhance_stop, "enhance-tour-stop-v1" }, std::pair{ core::writing_hook::enhance_comment, "enhance-comment-v1" },
-														 std::pair{ core::writing_hook::enhance_note, "enhance-note-v1" } }) {
+		for (const auto [enhance, version] : std::array{ std::pair{ core::writing_hook::enhance_stop, "enhance-tour-stop-v1" }, std::pair{ core::writing_hook::enhance_writing, "enhance-writing-v1" } }) {
 			const auto index = static_cast<std::size_t>(enhance);
 			panel->select_hook(enhance);
 			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(enhance) && source->text().contains(QString::fromLatin1(version)) && scope->isHidden() && test->isEnabled(),
