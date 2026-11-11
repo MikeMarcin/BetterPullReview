@@ -287,6 +287,6 @@ right?" The answer is yes, and it changes the selective export above:
 
 ## Proposed delivery
 
-[Portable exchange](../issues/60-done/BPR-2016-portable-agent-and-prompt-configuration-exchange.md), [Settings flow](../issues/30-in-progress/BPR-2017-selective-settings-import-and-export.md),
+[Portable exchange](../issues/60-done/BPR-2016-portable-agent-and-prompt-configuration-exchange.md), [Settings flow](../issues/40-parked/BPR-2017-selective-settings-import-and-export.md),
 and [closeout](../issues/10-backlog/BPR-2018-close-rfc-0107.md) form the first milestone in the
 [canonical plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). No later RFC is a prerequisite.
