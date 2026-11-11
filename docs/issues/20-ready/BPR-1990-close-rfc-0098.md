@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1990"
 title: "Verify and close RFC-BPR-0098"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0098"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0002-close-home-next-move.md","draft_title":"Close the Home next-move RFC"}
 depends_on: ["BPR-1989"]
