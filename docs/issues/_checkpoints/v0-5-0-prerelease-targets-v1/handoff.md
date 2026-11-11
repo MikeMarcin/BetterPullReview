@@ -1413,3 +1413,5 @@ agent-insights have no unmet card prerequisite), `local-draft-authoring-v1`
 and `address-review-feedback-v1` (both wait on local-draft work).
 Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
 BPR-Test #152 and `-next`.
+
+Main mirror commit this round: `1734f1d59` (with `42fba4488`, `8e22a71b0`). Main's copies of the RFC-BPR-0099, 0101, 0102, 0103 and 0105 ledgers keep their earlier de-linked source paths; only this round's changes were applied there.
