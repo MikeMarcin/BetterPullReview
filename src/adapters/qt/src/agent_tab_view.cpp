@@ -33,6 +33,7 @@
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLayoutItem>
 #include <QListWidget>
 #include <QLocale>
 #include <QMenu>
@@ -3041,7 +3042,9 @@ namespace bpr::qt {
 		auto       count     = 0;
 		for (auto* const widget : { static_cast<QWidget*>(Context), static_cast<QWidget*>(SuggestionsMenu), static_cast<QWidget*>(Chat.scope_selector()), static_cast<QWidget*>(RunSettings), static_cast<QWidget*>(Ask) }) {
 			if (widget != nullptr && widget->isVisibleTo(Field)) {
-				needed += widget->sizeHint().width();
+				// Match the public layout contract: a preferred width must
+				// include native minimum hints and explicit min/max bounds.
+				needed += QWidgetItem{ widget }.sizeHint().width();
 				++count;
 			}
 		}

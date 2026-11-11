@@ -43,6 +43,7 @@
 #include <QTextEdit>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -146,6 +147,48 @@ namespace {
 		expect(fill != ground, "the picker is a filled pill, not the field's own ground" + aAt);
 	}
 
+	// Predict from the widget's independent public constraints, rather than
+	// calling the production fit function or its layout-item calculation.
+	[[nodiscard]] auto effective_width(const QWidget& aWidget) -> int
+	{
+		const auto preferred = std::max(aWidget.sizeHint().width(), aWidget.minimumSizeHint().width());
+		return std::max(aWidget.minimumWidth(), std::min(preferred, aWidget.maximumWidth()));
+	}
+
+	void test_an_explicit_minimum_is_not_lost()
+	{
+		auto                 profile = qt::appearance_profile{ qt::default_appearance_settings() };
+		qt::workbench_window window;
+		open_review(window, profile, 900U);
+		window.tray_tabs()->setCurrentIndex(3);
+		settle();
+		choose_agent(window);
+		auto* const agent  = window.agent_tab();
+		auto* const picker = agent->run_settings_button();
+		auto* const field  = picker->parentWidget();
+		auto* const scope  = window.side_chat()->scope_selector();
+		auto* const ask    = agent->ask_button();
+		expect(field != nullptr, "the explicit-minimum control has the question field");
+		scope->setMinimumWidth(effective_width(*scope) + 96);
+		expect(scope->minimumWidth() > scope->sizeHint().width(), "the control's explicit minimum is greater than its raw size hint");
+		auto distinguished = false;
+		for (auto width = 380; width <= 900; width += 4) {
+			drag_drawer(window, width);
+			const auto left          = scope->mapTo(field, QPoint{ 0, 0 }).x();
+			const auto boundary      = field->width() - field->layout()->contentsMargins().right();
+			const auto oldPrediction = left + scope->sizeHint().width() + 12 + picker->sizeHint().width() + 2 + ask->sizeHint().width();
+			const auto required      = left + effective_width(*scope) + 12 + effective_width(*picker) + 2 + effective_width(*ask);
+			if (oldPrediction <= boundary && required > boundary) {
+				expect(agent->run_settings_wrapped(), "an explicit minimum beyond the raw hint requires the picker to wrap");
+				expect(in(*picker, *field).top() >= in(*ask, *field).bottom(), "the minimum-width control preserves the picker's separate row");
+				distinguished = true;
+				break;
+			}
+		}
+		expect(distinguished, "the bounded width sweep reaches the raw-hint versus explicit-minimum boundary");
+		window.hide();
+	}
+
 	void test_the_picker_wraps_and_stays_whole()
 	{
 		struct theme
@@ -187,7 +230,7 @@ namespace {
 				expect(pickerBox.right() < field->width() - margins.right() + 1, "the picker stays inside the field" + at);
 				// The threshold: one row while every control fits it whole with
 				// the gap to spare.
-				const auto row  = scope->mapTo(field, QPoint{ 0, 0 }).x() + scope->sizeHint().width() + 12 + picker->sizeHint().width() + 2 + ask->sizeHint().width();
+				const auto row  = scope->mapTo(field, QPoint{ 0, 0 }).x() + effective_width(*scope) + 12 + effective_width(*picker) + 2 + effective_width(*ask);
 				const auto fits = row <= field->width() - margins.right();
 				expect(agent->run_settings_wrapped() == !fits, "the picker wraps exactly when the row cannot hold it whole" + at);
 				if (agent->run_settings_wrapped()) {
@@ -248,6 +291,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_an_explicit_minimum_is_not_lost();
 	test_the_picker_wraps_and_stays_whole();
 	std::cout << "agent-picker-wrap:pass\n";
 	return EXIT_SUCCESS;
