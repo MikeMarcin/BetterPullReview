@@ -637,3 +637,56 @@ BPR-Test #151/#152 or the `-next` branch).
 
 Next: as above (read `679d26ab…` and `ac6e3a32…` after hand-back), and file
 the re-review.
+
+## Owner feature round: Draft all (BPR-2061) and postable suggested comments (BPR-2059) (2026-11-10)
+
+Owner requests, relayed by the coordinator; nothing pushed. Owner amendments
+in force as above. Frontend-design was loaded before the Qt work. Evidence is
+on the cards ([BPR-2061](../../40-parked/BPR-2061-draft-all-suggested-comments-from-a-reply.md),
+[BPR-2059](../../40-parked/BPR-2059-suggested-comments-read-as-postable-comments.md));
+RFC-BPR-0092 and RFC-BPR-0107 amended.
+
+| Commit | What |
+|---|---|
+| `b583bb919`, `388466350`, `8863decf4` | BPR-2058/2059 reserved against main at `86653eacd`, readied and claimed |
+| `227174441` | Suggestions fixture agent (test only) |
+| `52e085d57` | Draft all (core plan, Agent tab row, host batch and Undo); Markdown cards, inset suggestion, chips keep width, anchor elides; replay counts off the continuation line; Suggested comments writing hook (`review.suggested-comment`, `suggested-comment-v1`), `brief.comment_format`, review skill v5, profile schema 26; pin resealed |
+| `a823552f6`, `832254a71` | Tour CLI test lists the ninth hook (not run: tour-cli preset not built); settings render hook |
+| `e4aeb679e` | Composed-path fixes (skipped stays skipped; Agent tab shown again after the batch); the agent look finishes setup on a fixture `codex` and `--attended-agent-draft-all-check`. Product candidate, frozen |
+| `38ef8e5e0`, `f7668858f` | Collision: main reserved BPR-2058 meanwhile; Draft all renumbered BPR-2061 (LIVE_IMPORT) |
+| this commit | Both cards parked `human-review`; handoff |
+
+Composed check (`e4aeb679e`, dev app, offscreen): Draft all (3) → "Drafted 3
+private drafts. Skipped 1: 1 no longer in the diff." → Undo "Removed 3
+drafts." Focused set (29 rows) passed at `52e085d57`;
+`qt_workbench_window_scale_100/125/200`, round-trip contract and
+`architecture_boundaries` again after `e4aeb679e`/`f7668858f`. Not run (disk):
+tour-cli preset, the e2e `application_agent_*` courses, core-only preset,
+`coding-tidy`. Disk: five stale non-tour e2e binaries removed from
+`build/dev/tests/end_to_end` (tour ones kept for the critical reviewer).
+
+Decisions for the coordinator or owner: the review skill no longer asks for a
+Conventional Comments header (BPR-1861 design point 1); the format prompt
+governs it, and a label the agent does write is still read into the editor
+and shown beside the card's caption. The replay counts stay as label
+properties and in the tooltip when nonzero; the typed diagnostic log has no
+free-text field, so no new diagnostic event. The default drawer is narrower
+than a card's action row, so cards clip on the right (before and after alike).
+
+Filed, awaiting the owner (not waited on; the URL stays in the session
+state's `serve.log`): session `fbdd40b2768761881d2a420844cb4ec2`, state
+`/Users/jaeger/.attended-review-state/suggested-comments-v001-2026-11-10/state`,
+cursor 9, host PID 7089 (its `tailscale serve` child 7121), candidates
+`BPR-2058-draft-all` (card BPR-2061), `BPR-2059-card-formatting` (before/after
+renders inline), `BPR-2059-prompt-default`; frozen root
+`/Users/jaeger/suggested-comments-v001.irz2s4en` from `e4aeb679e` (executable
+SHA-256 `642b4a6c43d9…`, launcher `--check` passed, ready line
+`ATTENDED_AGENT_SHOWN:findings=5`).
+
+Not touched: sessions `ac6e3a32…`, `679d26ab…`, `26d89bac…`, host 74692,
+PID 10695, BPR-Test #151/#152, the `-next` branch.
+
+Next: read `fbdd40b2…` from cursor 9 after hand-back. Accept of all three:
+finish BPR-2061 and BPR-2059, stop host 7089 and remove the root with
+`freeze_attended_build.py remove`. A Reject goes to a fresh implementer with
+the note.

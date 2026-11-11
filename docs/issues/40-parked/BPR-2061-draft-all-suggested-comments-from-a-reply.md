@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2061"
 title: "Draft all suggested comments from an agent reply with several"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0092"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2061--BPR-2061--37ecd03b9111.json","renumbered_from":"BPR-2058 (lane receipt BPR-2058--BPR-2059--bd1353aea511.json; main reserved BPR-2058 for another card meanwhile)","origin":"owner request, 2026-11-10","related_cards":["BPR-1753","BPR-1861","BPR-2059"]}
 depends_on: []
+parked_on: "human-review"
 ---
 
 # Draft all suggested comments from an agent reply with several

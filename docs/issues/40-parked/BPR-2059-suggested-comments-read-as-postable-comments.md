@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2059"
 title: "Suggested comments read as postable comments, with an editable format prompt"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0092", "RFC-BPR-0107"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2058--BPR-2059--bd1353aea511.json","origin":"owner report, 2026-11-10 (screenshot of a private repository; nothing of it is kept)","related_cards":["BPR-1861","BPR-2051","BPR-2061"]}
 depends_on: []
+parked_on: "human-review"
 ---
 
 # Suggested comments read as postable comments, with an editable format prompt
