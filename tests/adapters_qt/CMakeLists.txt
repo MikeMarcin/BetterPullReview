@@ -2656,6 +2656,29 @@ set_tests_properties(qt_quiet_buttons PROPERTIES
     PASS_REGULAR_EXPRESSION "quiet-buttons-tests:pass"
     RUN_SERIAL TRUE TIMEOUT 120)
 
+# Every quiet button on the code block, label menu, agent tab, Overview and
+# the smaller panels reads on the face it is painted on, in every theme and
+# state, under the default style and the macOS style in both system
+# appearances. Under cocoa it sees the native bezels; see the file.
+bpr_add_executable(test_better_pull_review_qt_button_faces_tests button_faces_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_button_faces_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_button_faces_tests)
+bpr_enable_warnings(test_better_pull_review_qt_button_faces_tests)
+bpr_add_network_isolated_test(NAME qt_button_faces COMMAND test_better_pull_review_qt_button_faces_tests)
+set_tests_properties(qt_button_faces PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "button-faces-tests:pass"
+    TIMEOUT 600)
+if(APPLE)
+    # The macOS style paints its native bezels only under cocoa. Every
+    # surface is drawn with WA_DontShowOnScreen; nothing reaches the desktop.
+    bpr_add_network_isolated_test(NAME qt_button_faces_cocoa COMMAND test_better_pull_review_qt_button_faces_tests)
+    set_tests_properties(qt_button_faces_cocoa PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1"
+        PASS_REGULAR_EXPRESSION "button-faces-tests:pass"
+        TIMEOUT 600)
+endif()
+
 # [[BPR-1855]]. The signed-out Home card's buttons fit their words and its
 # sentence wraps with a wide typeface at 100, 125, 150 and 200% display scale.
 # [[BPR-1865]]. Home's filter: typing filters, marks, keyboard, Escape and

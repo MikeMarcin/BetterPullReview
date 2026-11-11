@@ -46,6 +46,13 @@ themes, rendering mechanics, and event translation.
   plain `QToolButton` with an arrow is drawn by the platform style, which on
   macOS is a native bezel in the system appearance's grey under the
   profile's text.
+- The same bezel takes any auto-raise `QToolButton` or flat `QPushButton`
+  outside a real `QToolBar`. Build those as `quiet_tool_button` or
+  `quiet_push_button`: name a card's ground with `set_surface(Base)`, a
+  ground no role holds (a code block's header) with `set_surface_colours`,
+  and a one-colour mark with `set_tinted`. A popup without a parent takes its
+  opener's palette with every role set. `qt_button_faces` and
+  `qt_button_faces_cocoa` measure every such button against its painted face.
 - Preserve local expansion and selection across incremental accepted
   refreshes whenever the semantic identity still exists.
 - Custom delegates must retain native selection and focus painting, wrap
