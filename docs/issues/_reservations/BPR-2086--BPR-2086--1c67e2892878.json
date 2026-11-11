@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2086"
+  ],
+  "reserve_for": "release56-source-find-baseline",
+  "purpose": "Release56 SourceFind fixture geometry-ready baseline; frozen48bd only",
+  "created": "2026-11-11T06:44:40.672874+00:00",
+  "base": "f159095b09a00590539fad04f722090d222b9e6e"
+}

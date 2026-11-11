@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2099"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Release56 profile-reset fixture retains removed-file lifetime through unlink/recreate oracle",
+  "created": "2026-11-11T14:09:51.907449+00:00",
+  "base": "eb730c2f710c2173e6bc718da5a185933cc26311"
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2091"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Wait for the published Tour PR snapshot before no-op repair maintenance preview",
+  "created": "2026-11-11T07:31:59.377255+00:00",
+  "base": "4e2d47dc3dd5c924621b5086a65a22b72e5acc8c"
+}

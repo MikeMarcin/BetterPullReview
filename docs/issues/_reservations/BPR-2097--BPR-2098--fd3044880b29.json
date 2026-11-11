@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2097",
+    "BPR-2098"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Release56 unchanged Home cycle projection and held Submit/independent finish fixture",
+  "created": "2026-11-11T13:17:10.549390+00:00",
+  "base": "058575944e76740b3ca891bc48ff50a1931fc98b"
+}
