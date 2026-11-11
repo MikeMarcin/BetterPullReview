@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2116",
+    "BPR-2117"
+  ],
+  "reserve_for": "v0-5-0-prerelease-targets-v1",
+  "purpose": "Closeout gaps: RFC-BPR-0100 AC06 (republished edited stop keeps references as written), RFC-BPR-0106 AC04 (no composed course of a push changing accepted stops)",
+  "created": "2026-11-11T19:04:17.669319+00:00",
+  "base": "42fba4488d07c926b5495bf28c11e541896baec7"
+}
