@@ -129,3 +129,12 @@ suggestion's ```cpp fence is a code block in the code font. Now pinned:
 the fenced line is one block in a fixed-pitch font
 (`test_a_reply_drafts_all_its_suggested_comments`). Refiled with native
 renders only.
+
+## Owner hand-back, session `5ea0ce22…` (2026-11-11)
+
+Read with `attended_review.py status --after 18` (handed back at sequence
+49); host 78319/78332 stopped, root `owner-look-v003.w0k3mfr3` removed with
+`freeze_attended_build.py remove`.
+
+- `BPR-2059-code-blocks`: Accept (`39e0cbaa`). The fenced code block renders
+  as code; scope 6's formatting half passes and nothing else is open.
