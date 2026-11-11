@@ -3408,8 +3408,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# still revalidates independently. Ordered142/complete197 inventories,
 	# full-app and mutation pins are unchanged. This combined-main binding
 	# is deliberately separate from the frozen release-only44ec961f pin.
+	# [[BPR-2087]] canonical-only review: accepted [[BPR-2055]] commit95393374f
+	# changes window_agent_setup/window_composition/window_construction/window_shutdown.
+	# Independent review305a4f54 covers their composition ownership; this is not
+	# whole-feature native acceptance. The only additional file is the bounded
+	# tests-only focused-layout wait. Ordered142/complete197 and full-app/mutation
+	# pins stay exact. Frozen56/private44ec-to9e58 lineage remains separate.
 	set(bpr_expected_production_app_manifest_digest
-        "ceeffe4606ad7468ada4cc9411d9ad2961b2e0e26549a2da8e3e286f92392e54"
+        "4cb4c7bb88d0c08c2dbd6d66390e2f6cbe083b0d0cdd116d1c96d25b9d9d8d63"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
