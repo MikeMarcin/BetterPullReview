@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2103"
+  ],
+  "reserve_for": "two-hour-release-budget",
+  "purpose": "Separate execution from waits in two-hour future release target",
+  "created": "2026-11-11T18:13:42.358341+00:00",
+  "base": "573a3b79d0e68bcbf97b15fc29c065c7648f1e11"
+}
