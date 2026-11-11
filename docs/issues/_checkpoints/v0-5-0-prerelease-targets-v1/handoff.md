@@ -1233,3 +1233,71 @@ the owner's answers in `246ef52c…`; BPR-2101 (Backlog). Next unchanged from
 the post-review round: read `246ef52c…` from cursor 9 after hand-back;
 Accept of the picker and the settings with a passing re-review finishes
 BPR-2007, then ready, claim and finish BPR-2008, mirrored.
+
+Main mirror commit this round: `feacae49f`.
+
+## Owner hand-backs 246ef52c and 629d64c7 (2026-11-11)
+
+Both handed back, all Accept, no notes (`session.json`). `246ef52c…`:
+`BPR-2007-picker-toggles-v2`, `RFC-BPR-0104-scratch-settings`,
+`BPR-2051-footer-setup-quiet` recorded on RFC-BPR-0104's ledger, BPR-2007 and
+BPR-2051; BPR-2007 and BPR-2008 stay unfinished until the independent
+re-review of `531a039cd` passes (AC07). `629d64c7…`: BPR-2017 Done (AC06 on
+macOS; Windows and Linux not run), BPR-2018 readied, claimed and Done:
+RFC-BPR-0107 Auto-Verified. Hosts 89403/89420 and 76865/76875 stopped with
+`attended_review.py stop`; roots `agent-grant-v002.y_rhztpu` and
+`share-agent-prompts-v001.h9i51jwq` removed with `freeze_attended_build.py
+remove`. Lane `24f28d60a`, `d311b8c14`, `f65e12b6c`, `3e0a57454`,
+`0d882c8c2`; main `b0bf01049`.
+
+## tour-conversation (2026-11-11)
+
+Milestone `tour-conversation` (RFC-BPR-0100, [[BPR-1995]], [[BPR-1996]]),
+same lane; nothing pushed. Frontend-design was loaded before the Qt work.
+Ledger: [RFC-BPR-0100](../../../verification/RFC-BPR-0100.md).
+
+Test-target hygiene first: all 352 Qt, application and core test executables
+(160 core, 85 application, 107 Qt) were built by name in three batches; none
+failed to compile, and every `.cpp` under those test folders is in a target.
+The stale APIs clangd reported (`set_agent_picker`, `agent_bar`,
+`enhance_glyph_style::pen`, designated-initializer order) are no longer in the
+sources: the diagnostics were a stale index.
+
+| Commit | What |
+|---|---|
+| `6a7ec471d`, `6eaf36a2d`, `6e42846ee`, `8613b130c` | Ready and claim BPR-1995, BPR-1996 |
+| `e6e84653e` | Product candidate: chat foot (composer with passage chip, Session menu and cost, notices only when abnormal), the update link in every thread, request answered in its turn, revision card (Accept all, Review each, Discard), Enhance in the part's session with `core::confine_to_passage`, `core::rewrite_tour_references` (links, 12-line snippets, publication permalinks, unresolved said in the preview, plan record v7, published baselines keep the authored text), guide v2 and `tour-stop-comment-v2`, `flag-move-v1` fixture, opt-in courses `live-tour-requests` and `live-tour-draft-flag-move`; app pin resealed |
+| `8143e373e` | Ledger, BPR-1997 checklist, fixture catalog. Frozen |
+| `215e61af8`, `0e163ac1a` | BPR-1995 and BPR-1996 parked `human-review` |
+
+Evidence: live `live-tour-requests` (installed Claude Code 2.1.319, Sonnet)
+carded 5/5 fixed change requests in the first answer; BPR-Test #43 showed
+review comments and conversation comments both embed a bare permalink (probe
+comments deleted). Runs in the ledger; a run of all 431 `qt_`, `core_`,
+`sqlite_` rows left two failures outside this change
+(`qt_profile_management_window`, `qt_workbench_conversation_reveal`).
+
+Filed, not waited on (URL in `../serve.log` beside the state): session
+`c46887c9608e3cab116a025a744f2379`, state
+`/Users/jaeger/.attended-review-state/tour-conversation-v001-2026-11-11/state`,
+cursor 9, host PID 19967 (Tailscale child 19990), three candidates, ready and
+protected: `RFC-BPR-0100-chat-lower-edge`, `RFC-BPR-0100-revision-card`
+(AC09) and `RFC-BPR-0100-flag-move-draft` (AC08). Frozen root
+`/Users/jaeger/tour-conversation-v001.l3mto90j` from `8143e373ec46` (app
+SHA-256 `ca7a6f81fe78…`, launcher check reached
+`ATTENDED_TOUR_REVISION_SHOWN`). A first freeze attempt failed at configure
+(kernel.org download timeout); its unfrozen root was deleted by hand because
+the remove tool refuses a root that never froze.
+
+Pending: the owner's three answers. Known limit recorded on BPR-1996 and the
+ledger: an edited published stop republished by a tour update keeps its
+references as written (coordinator: a follow-up card if wanted).
+`qt_tour_agent_session_view` fails under the native-look environment at an
+existing focus-geometry check (offscreen it passes).
+
+Next: read `c46887c9…` from cursor 9 after hand-back. Accept of both looks
+finishes BPR-1995 (AC09); Accept of the draft finishes BPR-1996 (AC08); then
+BPR-1997 closes RFC-BPR-0100 in `accepted-scope`. A Reject goes to a fresh
+implementer. Then stop host 19967 and remove the root with
+`freeze_attended_build.py remove`. Not touched: host 74692/74706, PIDs 10695
+and 39804, Tailscale 44738, BPR-Test #152 and `-next`.
