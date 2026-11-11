@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2057"
+  ],
+  "reserve_for": "future-release-workflow",
+  "purpose": "Reduce future release dependency waits and expose structured build diagnostics without changing current v0.4.2",
+  "created": "2026-11-11T01:18:07.248891+00:00",
+  "base": "a965283724bc1c0cf5d345f874fcf788c6c0cfd8"
+}
