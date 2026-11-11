@@ -127,3 +127,11 @@ wanted). Host 19967 (Tailscale child 19990) stopped with
 `attended_review.py stop`; root `tour-conversation-v001.l3mto90j` removed with
 `freeze_attended_build.py remove`. BPR-1995 (AC09) and BPR-1996 (AC08) Done.
 
+## Closeout review (2026-11-11): left open
+
+[[BPR-1997]] was not closed. AC06 requires the published comment to carry the
+commit-pinned permalink; a tour update that republishes an edited, already
+published stop writes its references as written (Known limits above), so on
+that path the criterion is not met. [[BPR-2116]] (Backlog) fixes it and
+[[BPR-1997]] now depends on it. Every other criterion passes as recorded. The
+owner's suggestion to name a session is [[BPR-2115]] (Backlog).
