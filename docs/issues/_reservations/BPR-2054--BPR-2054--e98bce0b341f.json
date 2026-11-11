@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2054"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Compose review toggles the review sheet",
+  "created": "2026-11-11T00:36:16.431668+00:00",
+  "base": "9e6ae959213ae0321a7bd2da2857a5ffd1939554"
+}
