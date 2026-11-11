@@ -15,3 +15,12 @@ running58 suites and any scoped successor qualification bridge. Preserve this
 independent clone: its LF-terminated Git alternates borrows frozen R's object
 store. Do not remove either object owner without preserving reachable objects.
 No attended review/server or human decision pending for this source correction.
+
+Canonical source31fc9e391 and proof63596c536 are pushed; exact candidate TU hash
+matches the isolated proof. Canonical documentation gate also0. Foreign2103
+tooling/policy commits were preserved on main, not imported into this frozen703
+lineage or R. Their two-hour target/source-request validation/accounting changes
+add no qualification waiver; the bridge assessment above uses frozen58 policy.
+Root must wait for all original58 results, retain nonpasses, allocate the new
+source identity and validate the all-nine compile barrier, affected cases and
+explicit unchanged-input bridge before qualification/publication claims.
