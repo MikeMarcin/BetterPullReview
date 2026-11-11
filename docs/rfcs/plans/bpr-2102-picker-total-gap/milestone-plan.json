@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2102-picker-total-gap",
+  "scope": {
+    "issues": [
+      "BPR-2102"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "count-the-total-gap-once",
+      "outcome": "Agent picker wrap uses the accepted total twelve-pixel gap without double-counting the ordinary row spacing.",
+      "work": [
+        {
+          "issue": "BPR-2102",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Subtract already-counted ordinary spacing from the additional twelve-pixel reserve, clamped at zero; retain QWidgetItem preferred/minimum sizing, visibility, no-overlap and unchanged >=12 mapped-gap/exact-threshold oracles.",
+        "A deterministic exact-row boundary control distinguishes old57 double-counting and its adjacent non-fitting width; retain all original light/dark/narrow/wide/minimum/hover/Tour checks.",
+        "Bind original57 negative/scalar evidence and focused corrected native Release/Debug Mac plus relevant Linux positive, source/format22/tidy/docs/board checks, independent root review and own intentional main integration. Final common-source Windows/full qualification stays coordinator-owned."
+      ],
+      "boundary": "Root approved source57 causal-summary61a6d7 and two-path correction on2026-11-11. Only src/adapters/qt/src/agent_tab_view.cpp + tests/adapters_qt/agent_picker_wrap_tests.cpp plus own workflow; frozen57 source/cohort/assets untouched; no Qt waiver, style/API or host-effect change."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
