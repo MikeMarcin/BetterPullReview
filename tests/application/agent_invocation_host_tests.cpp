@@ -1973,6 +1973,18 @@ namespace {
 		expect(test.Processes.LastRequest->Grant && test.Processes.LastRequest->Grant->BuildWorkspace.empty() && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "Bash(cmake:*)" }),
 			   "AC04: never in the reviewer's own checkout");
 
+		// Re-review N1a (2026-11-11): Codex in the reviewer's own checkout
+		// reads that checkout's trusted settings, which BPR's would replace;
+		// the host passes it nothing there, whatever was asked.
+		auto codexOwn     = own;
+		codexOwn.Profile  = core::codex_jsonl_profile_id;
+		const auto starts = test.Processes.Starts;
+		test.Host.dispatch(codexOwn);
+		test.settle();
+		expect(test.Processes.Starts == starts + 1U && std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--json" }) && !test.Processes.LastRequest->Grant
+				   && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "default_permissions=\"betterpullreview_grant\"" }),
+			   "Codex in the reviewer's own checkout: no grant");
+
 		// Off: exactly as before.
 		auto off           = input;
 		off.ScratchFolder  = false;
@@ -2004,6 +2016,20 @@ namespace {
 		test.Host.dispatch(off);
 		test.settle();
 		expect(!test.Processes.StopAfterEvent, "a turn without a folder is never stopped for one");
+
+		// Re-review N3: a folder that cannot be made is said in the result,
+		// so the picker does not show it as granted.
+		auto unmade           = input;
+		unmade.BuildsAndTests = false;
+		std::ofstream{ root / "not-a-folder" } << "x";
+		test.Host.set_scratch_root(root / "not-a-folder");
+		test.Host.dispatch(unmade);
+		test.settle();
+		expect(!test.Processes.LastRequest->Grant && test.Projection.Finished.back().ScratchUnmade, "an unmade folder: no grant, and the result says so");
+		test.Host.set_scratch_root(root / "scratch");
+		test.Host.dispatch(unmade);
+		test.settle();
+		expect(test.Processes.LastRequest->Grant && !test.Projection.Finished.back().ScratchUnmade, "the next turn makes it");
 	}
 
 	void test_tour_history_keeps_the_terminal_answer_item()

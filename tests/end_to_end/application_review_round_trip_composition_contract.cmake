@@ -3524,8 +3524,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# imported agent is strict and builds stay off unless accepted for that
 	# entry, and nothing is checked until the reviewer asks. No grant,
 	# admission or publication boundary changes.
+	# RFC-BPR-0104 second post-review round (re-review N1, N3, N4): this one
+	# narrows a grant. The window reads Codex's configuration where the
+	# launched Codex does (the home's .codex, /etc/codex/config.toml, the
+	# managed file), passes Codex no grant in the reviewer's own checkout,
+	# keeps each kept scratch folder by pull request and agent (stored, read
+	# when a pull request opens) and keeps the open pull request's folders
+	# when clearing. Admission and publication unchanged; no network grant.
 	set(bpr_expected_production_app_manifest_digest
-        "2967d8d6929e5c6b1602e2640b1f54c7ef15d0589d289cb4714c5c718c36750b"
+        "26eb77c229084d7dddda2b1ca8571c2e46bde579925b9ea8ea96ad6f9ad05839"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

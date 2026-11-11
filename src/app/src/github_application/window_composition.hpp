@@ -734,6 +734,9 @@ namespace bpr::app {
 		[[nodiscard]] auto grant_agent_turn(application::agent_invocation_request& aInvocation) -> bool;
 		/// A turn ended: its scratch folder, kept with the session, can be opened.
 		void note_agent_scratch(core::agent_profile_id aProfile, const application::agent_run_result& aResult);
+		/// Re-review N3, N4. The open pull request's kept folders, read from
+		/// the store and measured on disk.
+		void derive_agent_scratch();
 
 		void observe_conversation_agent();
 
@@ -2555,15 +2558,23 @@ namespace bpr::app {
 			std::optional<std::uint64_t> ApproximateBytes;
 		};
 		std::optional<agent_review_facts> AgentReview;
-		/// [[BPR-2007]]. Each agent's scratch folder in the pull request now
-		/// open, once a turn has had one; by profile.
-		std::map<std::uint64_t, std::string> AgentScratchFolders;
-		/// Review finding 4. Each agent's folder was full when its last turn
-		/// ended, by profile; the root folders are made under (empty: none
-		/// can be named here, so no scratch folder is granted).
-		std::map<std::uint64_t, bool> AgentScratchFull;
-		std::filesystem::path         AgentScratchRoot;
-		bool                          ScratchSwept = false;
+		/// [[BPR-2007]]; re-review N3, N4 (2026-11-11). Each agent's kept
+		/// scratch folder in each pull request this window knows, by pull
+		/// request and agent: from a turn's result, or from the store when a
+		/// pull request opens. Clear scratch folders keeps the open pull
+		/// request's.
+		std::map<application::agent_conversation_key, std::string> AgentScratchFolders;
+		/// Review finding 4. The folder was full when last measured (a
+		/// turn's end, or opening the pull request), by pull request and
+		/// agent; a folder the last turn could not make (re-review N3); the
+		/// turn granted last, which its result belongs to; the root folders
+		/// are made under (empty: none can be named here, so no scratch
+		/// folder is granted).
+		std::map<application::agent_conversation_key, bool> AgentScratchFull;
+		std::set<application::agent_conversation_key>       AgentScratchUnmade;
+		std::optional<application::agent_conversation_key>  AgentScratchTurn;
+		std::filesystem::path                               AgentScratchRoot;
+		bool                                                ScratchSwept = false;
 		/// [[BPR-2008]]. Asks the build question: true allows, false
 		/// declines, none closed it. A course answers it itself.
 		std::function<std::optional<bool>()>                AskBuildQuestion;

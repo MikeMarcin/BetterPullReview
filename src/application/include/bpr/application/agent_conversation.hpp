@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bpr::application {
@@ -153,6 +154,21 @@ namespace bpr::application {
 		{
 			static_cast<void>(aKey);
 			static_cast<void>(aAllowed);
+			return false;
+		}
+		/// \brief Re-review N3, N4 (2026-11-11). The scratch folder (its name
+		/// under the root) the key's agent last kept in this pull request, so
+		/// the picker and Clear scratch folders know it after a restart or
+		/// a switch; none before one was kept.
+		[[nodiscard]] virtual auto load_scratch_folder(const agent_conversation_key& aKey) -> std::optional<std::string>
+		{
+			static_cast<void>(aKey);
+			return std::nullopt;
+		}
+		[[nodiscard]] virtual auto store_scratch_folder(const agent_conversation_key& aKey, std::string_view aFolder) -> bool
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aFolder);
 			return false;
 		}
 	};

@@ -550,7 +550,7 @@ auto main(int argc, char** argv) -> int
 	if (
 		course != "positive" && course != "stale" && course != "continued"
 		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation"
-		&& course != "custom-agent" && course != "subject") {
+		&& course != "custom-agent" && course != "custom-agent-refused" && course != "subject") {
 		return EXIT_FAILURE;
 	}
 	// The two courses that take `continue_against_old_revision` to a further
@@ -559,10 +559,22 @@ auto main(int argc, char** argv) -> int
 		= course == "continued" || course == "anchored-continuation";
 	const auto anchored = course == "anchored-continuation";
 	// [[BPR-1817]]. The course whose only agent is one the reviewer added.
-	const auto custom = course == "custom-agent";
-	auto       data   = QTemporaryDir{ };
-	if (!data.isValid()) {
+	// Re-review N2 (2026-11-11): its Codex configuration is the one under a
+	// home of the course's own, which composes with BetterPullReview's grant
+	// (custom-agent) or has a permissions profile of its own, which refuses
+	// it (custom-agent-refused). The launch's arguments say which.
+	const auto custom       = course == "custom-agent" || course == "custom-agent-refused";
+	const auto grantRefused = course == "custom-agent-refused";
+	auto       data         = QTemporaryDir{ };
+	auto       home         = QTemporaryDir{ };
+	if (!data.isValid() || !home.isValid()) {
 		return EXIT_FAILURE;
+	}
+	if (custom) {
+		const auto codex = std::filesystem::path{ home.path().toStdString() } / ".codex";
+		std::filesystem::create_directories(codex);
+		std::ofstream{ codex / "config.toml" } << (grantRefused ? "default_permissions = \"mine\"\n[permissions.mine]\nfilesystem = { \":root\" = \"read\" }\n" : "model = \"fixture\"\n");
+		qputenv("HOME", home.path().toUtf8());
 	}
 	// [[BPR-0812]], [[BPR-1050]]. The stores refuse a root that is not
 	// owner-private, and the agent workspace neighbourhood beside the root
@@ -1192,8 +1204,13 @@ auto main(int argc, char** argv) -> int
 	if (custom) {
 		// The added agent was the one asked: the turn ran under its slot, its
 		// program answered with the typed message, and no refusal is shown.
-		auto* const tab    = window.agent_tab();
-		const auto  passed = afterSend.ChatHostComposed && afterSend.Statistics.Turns == 1U && afterSend.Statistics.Replies == 1U
+		auto* const tab = window.agent_tab();
+		// Re-review N2: the refusal read from the configuration reached the
+		// launch through the turn's grant: no permissions profile among the
+		// arguments and no scratch folder in the frame.
+		const auto grantWords = std::string{ grantRefused ? "BPR_GRANT_2007 permissions=no scratch=no end" : "BPR_GRANT_2007 permissions=yes scratch=yes end" };
+		const auto grantSeen  = finding.QueuedClaim.find(grantWords) != std::string::npos;
+		const auto passed     = grantSeen && afterSend.ChatHostComposed && afterSend.Statistics.Turns == 1U && afterSend.Statistics.Replies == 1U
 			&& afterSend.Statistics.Refusals == 0U && afterSend.LastTurn.has_value() && afterSend.LastTurn->Session.Profile == customSlot
 			&& afterSend.Session.has_value() && afterSend.Session->Profile == customSlot && invocation.Statistics.ProcessStarts == 1U
 			&& finding.QueuedClaim.find(exactly_once_echo(chat_message)) != std::string::npos && tab->send_refusal() == core::agent_send_refusal::none
@@ -1202,12 +1219,12 @@ auto main(int argc, char** argv) -> int
 			std::cerr << "agent-chat-custom-agent-evidence:" << afterSend.Statistics.Turns << ':' << afterSend.Statistics.Replies << ':'
 					  << afterSend.Statistics.Refusals << ':' << (afterSend.LastTurn ? afterSend.LastTurn->Session.Profile.value() : 0U) << ':'
 					  << invocation.Statistics.ProcessStarts << "\nrefusal:" << tab->send_refusal_text().toStdString()
-					  << "\npanel-status:" << afterSend.AgentPanelStatusText << '\n';
+					  << "\npanel-status:" << afterSend.AgentPanelStatusText << "\ngrant-seen:" << grantSeen << " claim:" << finding.QueuedClaim << '\n';
 		}
 		if (!shutdown(*application) || !passed) {
 			return EXIT_FAILURE;
 		}
-		std::cout << "agent-chat-custom-agent:pass\n";
+		std::cout << "agent-chat-" << course << ":pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (course == "positive") {

@@ -133,6 +133,80 @@ namespace {
 		expect(!core::codex_grant_refusal(std::array<std::string_view, 0>{ }, false, model).has_value(), "a model setting composes");
 	}
 
+	// Re-review N1 (2026-11-11). What the first fix missed.
+	void test_codex_composition_round_two()
+	{
+		const auto none    = std::vector<std::string>{ };
+		const auto refuses = [&](const std::string_view aConfig) { return core::codex_grant_refusal(std::array{ aConfig }, false, none).has_value(); };
+		// (a) In the reviewer's own checkout Codex also reads that checkout's
+		// .codex/config.toml once they trusted it (reproduced with `codex
+		// sandbox`): BPR passes Codex nothing there. Claude is not affected.
+		auto own        = facts(core::agent_program::codex);
+		own.OwnCheckout = true;
+		auto grant      = core::resolve_agent_grant(own);
+		expect(grant.Refusal == std::optional{ core::agent_grant_refusal::codex_own_checkout } && !core::scratch_granted(grant) && !core::agent_scratch_toggle_enabled(grant)
+				   && !core::agent_builds_toggle_enabled(grant),
+			   "Codex in the reviewer's own checkout: no grant, both toggles unavailable");
+		expect(core::agent_scratch_tooltip(grant, core::agent_program::codex, 256U).find("own checkout") != std::string::npos, "and it says why");
+		own.Refusal = core::agent_grant_refusal::codex_own_permissions;
+		expect(core::resolve_agent_grant(own).Refusal == std::optional{ core::agent_grant_refusal::codex_own_permissions }, "an earlier refusal keeps its reason");
+		auto claude        = facts(core::agent_program::claude);
+		claude.OwnCheckout = true;
+		expect(core::scratch_granted(core::resolve_agent_grant(claude)), "Claude's scratch folder is unaffected there");
+		// (b), (d) Codex's own files, from the home the launch passes it.
+		expect(core::codex_configuration_paths("/Users/r")
+				   == std::optional{ std::vector<std::string>{ "/Users/r/.codex/config.toml", "/etc/codex/config.toml", "/etc/codex/managed_config.toml" } },
+			   "the user's file under the passed home, the system file and the managed file");
+		expect(!core::codex_configuration_paths("").has_value() && !core::codex_configuration_paths("relative").has_value(), "no home: nothing can be read");
+		// (c) Attached and long forms of the profile, sandbox and approval
+		// flags, and any other flag BPR cannot judge (a working folder, an
+		// added folder, a feature, ignoring the user's file): only flags known
+		// to leave permissions alone compose.
+		for (const auto* const argument : { "-pwork", "-p=work", "-sdanger-full-access", "-anever", "--profile=work", "--sandbox=danger-full-access", "--ask-for-approval=never", "-Cdir", "--cd=/x",
+											"--add-dir", "--enable", "--approve-for-me", "--ignore-user-config", "-mo3p", "-xp" }) {
+			const auto arguments = std::vector<std::string>{ argument };
+			const auto refused   = core::codex_grant_refusal(std::array<std::string_view, 0>{ }, false, arguments) == std::optional{ core::agent_grant_refusal::custom_arguments };
+			expect(refused != (std::string_view{ argument } == "-mo3p"), std::string{ "the argument " } + argument);
+		}
+		for (const auto& arguments : std::vector<std::vector<std::string>>{ { "-mgpt-5.1-codex" }, { "-cmodel=\"o3\"" }, { "exec", "--json", "-m", "-p", "-" }, { "-ipic-sa.png" }, { "--model=o3", "--color", "never" } }) {
+			expect(!core::codex_grant_refusal(std::array<std::string_view, 0>{ }, false, arguments).has_value(), "a value is not a flag: " + arguments.front());
+		}
+		const auto cluster = std::vector<std::string>{ "-csandbox_mode=\"danger-full-access\"" };
+		expect(core::codex_grant_refusal(std::array<std::string_view, 0>{ }, false, cluster).has_value(), "an attached -c setting is read");
+		// A byte-order mark before the first setting or table.
+		expect(refuses("\xEF\xBB\xBF"
+					   "default_permissions = \"mine\"\n"),
+			   "a BOM before a setting");
+		expect(refuses("\xEF\xBB\xBF[permissions.mine]\nfilesystem = { \":root\" = \"read\" }\n"), "a BOM before a table");
+		// An inline table under profiles holds settings a line scan cannot place.
+		expect(refuses("profiles = { work = { default_permissions = \"mine\" } }\n"), "profiles as an inline table");
+		expect(refuses("[profiles]\nwork = { approval_policy = \"untrusted\" }\n"), "a profile as an inline table");
+		expect(refuses("profiles.work = { sandbox_mode = \"read-only\" }\n"), "any inline table under profiles");
+		expect(!refuses("[tui]\nnotifications = { enabled = true }\n"), "an inline table elsewhere composes");
+	}
+
+	// Re-review N3, N6 (2026-11-11).
+	void test_scratch_unmade_and_full()
+	{
+		// N3: a folder the last question could not make is not shown as
+		// granted; the next question still asks for one.
+		auto value          = facts(core::agent_program::claude);
+		value.ScratchUnmade = true;
+		auto grant          = core::resolve_agent_grant(value);
+		expect(core::scratch_granted(grant) && !core::agent_scratch_toggle_checked(grant) && core::agent_scratch_toggle_enabled(grant), "unmade: unchecked, and the next question tries again");
+		expect(core::agent_scratch_tooltip(grant, core::agent_program::claude, 256U).find("could not be made") != std::string::npos, "and it says so");
+		// N6: a full folder gives Claude, whose scripts are not confined, no
+		// run rule either; Codex's sandbox holds a script's writes.
+		value             = facts(core::agent_program::claude);
+		value.ScratchFull = true;
+		grant             = core::resolve_agent_grant(value);
+		const auto claude = core::agent_scratch_tooltip(grant, core::agent_program::claude, 256U);
+		const auto codex  = core::agent_scratch_tooltip(grant, core::agent_program::codex, 256U);
+		expect(claude.find("may read what is there") != std::string::npos && claude.find("may run") == std::string::npos, "full, Claude: read only");
+		expect(codex.find("may run what is there") != std::string::npos, "full, Codex: run, not write");
+		expect(core::agent_scratch_instruction("/s", true, 256U).find("only read") != std::string::npos, "a full folder's instruction says read only");
+	}
+
 	void test_words()
 	{
 		auto value = facts(core::agent_program::claude);
@@ -183,6 +257,8 @@ auto main() -> int
 	test_builds();
 	test_what_the_launch_carries();
 	test_codex_composition();
+	test_codex_composition_round_two();
+	test_scratch_unmade_and_full();
 	test_words();
 	test_commands_listed();
 	std::cout << "agent-grant-tests:pass\n";

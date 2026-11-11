@@ -164,6 +164,17 @@ namespace bpr::adapters::sqlite {
 									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
 									"scratch INTEGER NOT NULL CHECK(scratch IN (0,1)),"
 									"PRIMARY KEY(host, owner, name, number, agent)) STRICT")
+				// Re-review N3, N4. The scratch folder each agent last kept in
+				// one pull request, by its name under the root.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_scratch_folder("
+									"host TEXT NOT NULL,"
+									"owner TEXT NOT NULL,"
+									"name TEXT NOT NULL,"
+									"number INTEGER NOT NULL,"
+									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
+									"folder TEXT NOT NULL CHECK(length(folder) BETWEEN 1 AND 96),"
+									"PRIMARY KEY(host, owner, name, number, agent)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_build_answer("
 									"host TEXT NOT NULL,"
@@ -297,6 +308,16 @@ namespace bpr::adapters::sqlite {
 		void bind_text(sqlite3_stmt* const aRow, const int aIndex, const std::string& aText)
 		{
 			sqlite3_bind_text(aRow, aIndex, aText.data(), static_cast<int>(aText.size()), SQLITE_TRANSIENT);
+		}
+
+		/// Re-review N3, N4. A scratch folder's name under the root, as the
+		/// application makes it: 1 to 96 ASCII letters, digits and `-`, not
+		/// starting with `-`.
+		[[nodiscard]] auto scratch_folder_name(const std::string_view aName) noexcept -> bool
+		{
+			return !aName.empty() && aName.size() <= 96U && aName.front() != '-' && std::ranges::all_of(aName, [](const char aCharacter) {
+				return (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= 'A' && aCharacter <= 'Z') || (aCharacter >= '0' && aCharacter <= '9') || aCharacter == '-';
+			});
 		}
 
 		/// [[BPR-1753]]. An entry's fixed arguments, one per line: an
@@ -1775,7 +1796,7 @@ namespace bpr::adapters::sqlite {
 					// [[BPR-2007]]. A reset's new agent may reuse an old id: it
 					// does not inherit the old one's scratch choices either.
 					return store && detail::execute(store->Database.get(), "DELETE FROM agent_conversation_choice")
-						&& detail::execute(store->Database.get(), "DELETE FROM agent_scratch_choice");
+						&& detail::execute(store->Database.get(), "DELETE FROM agent_scratch_choice") && detail::execute(store->Database.get(), "DELETE FROM agent_scratch_folder");
 				} catch (...) {
 					return false;
 				}
@@ -1799,6 +1820,54 @@ namespace bpr::adapters::sqlite {
 			[[nodiscard]] auto store_build_answer(const application::agent_conversation_key& aKey, const bool aAllowed) -> bool override
 			{
 				return store_flag(aKey, "INSERT OR REPLACE INTO agent_build_answer VALUES(?1,?2,?3,?4,?5)", 5, aAllowed);
+			}
+
+			[[nodiscard]] auto load_scratch_folder(const application::agent_conversation_key& aKey) -> std::optional<std::string> override
+			{
+				if (!application::valid(aKey) || aKey.Number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					return std::nullopt;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					auto row = detail::prepare(store->Database.get(), "SELECT folder FROM agent_scratch_folder WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5");
+					if (!row) {
+						return std::nullopt;
+					}
+					bind_key(row->Value, aKey);
+					if (sqlite3_step(row->Value) != SQLITE_ROW) {
+						return std::nullopt;
+					}
+					const auto* const text = reinterpret_cast<const char*>(sqlite3_column_text(row->Value, 0));
+					auto              name = text != nullptr ? std::string{ text, static_cast<std::size_t>(sqlite3_column_bytes(row->Value, 0)) } : std::string{ };
+					return scratch_folder_name(name) ? std::optional{ std::move(name) } : std::nullopt;
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store_scratch_folder(const application::agent_conversation_key& aKey, const std::string_view aFolder) -> bool override
+			{
+				if (!application::valid(aKey) || aKey.Number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) || !scratch_folder_name(aFolder)) {
+					return false;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return false;
+					}
+					auto row = detail::prepare(store->Database.get(), "INSERT OR REPLACE INTO agent_scratch_folder VALUES(?1,?2,?3,?4,?5,?6)");
+					if (!row) {
+						return false;
+					}
+					bind_key(row->Value, aKey);
+					bind_text(row->Value, 6, std::string{ aFolder });
+					return sqlite3_step(row->Value) == SQLITE_DONE;
+				} catch (...) {
+					return false;
+				}
 			}
 
 		private:

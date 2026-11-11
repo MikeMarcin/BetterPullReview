@@ -2333,7 +2333,12 @@ namespace {
 		for (const auto runner : application::claude_scratch_runners) {
 			expected.push_back("Bash(" + std::string{ runner } + " " + folder + "/*)");
 		}
-		expected.insert(expected.end(), { "--disallowedTools", "Bash(*/..*)" });
+		// Re-review N5: the parent-step denial names the runners only, so it
+		// rides the scratch grant and never a build program's arguments.
+		expected.emplace_back("--disallowedTools");
+		for (const auto runner : application::claude_scratch_runners) {
+			expected.push_back("Bash(" + std::string{ runner } + " */..*)");
+		}
 		expect(claude->Arguments == expected, "Claude: the folder, write and edit under it, running files in it with an interpreter, and no parent step; nothing else");
 		// Review finding 2 (2026-11-11): no rule runs a file directly or
 		// changes a mode; both matched commands that wrote the workspace.
@@ -2344,8 +2349,11 @@ namespace {
 
 		scratch.ScratchFull = true;
 		const auto full     = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });
-		expect(full && !has(full, "Write(/" + folder + "/**)") && has(full, "Bash(python3 " + folder + "/*)") && std::string{ full->Input.begin(), full->Input.end() }.find("may not write") != std::string::npos,
+		expect(full && !has(full, "Write(/" + folder + "/**)") && std::string{ full->Input.begin(), full->Input.end() }.find("may not write") != std::string::npos,
 			   "AC03: a full folder gives no write allowance, and the agent is told why");
+		// Re-review N6: a turn starting full is not watched, so Claude (whose
+		// scripts are not confined) gets no run rule there: only reading.
+		expect(has(full, "--add-dir") && !has(full, "Bash(python3 " + folder + "/*)") && !has(full, "--allowedTools") && !has(full, "--disallowedTools"), "full: Claude reads the folder only");
 
 		const auto codexNone = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { });
 		const auto codex     = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder } });
@@ -2358,7 +2366,9 @@ namespace {
 		expect(builds && builds->Arguments.back() == "-" && has(builds, "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\",\"" + ws + "\"=\"write\",\":tmpdir\"=\"write\"}"),
 			   "AC04: builds add the disposable checkout and the temporary folder, before exec's stdin marker");
 		const auto claudeBuilds = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws } });
-		expect(claudeBuilds && has(claudeBuilds, "Bash(cmake:*)") && has(claudeBuilds, "Bash(ctest:*)") && !has(claudeBuilds, "--add-dir") && has(claudeBuilds, "Bash(*/..*)"), "Claude builds: the build programs only");
+		expect(claudeBuilds && has(claudeBuilds, "Bash(cmake:*)") && has(claudeBuilds, "Bash(ctest:*)") && !has(claudeBuilds, "--add-dir") && !has(claudeBuilds, "--disallowedTools"), "Claude builds: the build programs only, and `cmake ../..` is not denied (re-review N5)");
+		const auto both = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws } });
+		expect(both && has(both, "Bash(cmake:*)") && has(both, "Bash(python3 */..*)") && !has(both, "Bash(*/..*)"), "both: the denial still names only the runners");
 		scratch.ScratchFull     = false;
 		scratch.ScratchLimitMiB = 64U;
 		const auto limited      = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });

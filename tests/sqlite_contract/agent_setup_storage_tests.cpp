@@ -247,7 +247,14 @@ try {
 		expect(grants->load_scratch_choice(mine) == std::optional{ false } && !grants->load_scratch_choice(elsewhere) && !grants->load_scratch_choice(otherAgent), "after a restart, only that pull request and agent");
 		expect(grants->load_build_answer(otherAgent) == std::optional{ false } && !grants->load_build_answer(elsewhere), "the build answer holds for the pull request");
 		expect(grants->store_scratch_choice(mine, true) && grants->load_scratch_choice(mine) == std::optional{ true }, "turned back on");
-		expect(grants->forget_agents() && !grants->load_scratch_choice(mine), "a reset's new agents inherit no choice");
+		// Re-review N3, N4: the folder an agent kept in a pull request is
+		// known after a restart, for that pull request and agent only.
+		expect(!grants->load_scratch_folder(mine), "no folder kept yet");
+		expect(grants->store_scratch_folder(mine, "native-0123abcd") && !grants->store_scratch_folder(mine, "../x") && !grants->store_scratch_folder(mine, "-x"), "a folder name is stored; a path is refused");
+		grants = adapters::sqlite::make_agent_conversation_store(scratch.path());
+		expect(grants->load_scratch_folder(mine) == std::optional<std::string>{ "native-0123abcd" } && !grants->load_scratch_folder(elsewhere) && !grants->load_scratch_folder(otherAgent),
+			   "after a restart, only that pull request and agent");
+		expect(grants->forget_agents() && !grants->load_scratch_choice(mine) && !grants->load_scratch_folder(mine), "a reset's new agents inherit no choice and no folder");
 	}
 
 #ifndef _WIN32

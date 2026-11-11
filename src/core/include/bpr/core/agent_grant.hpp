@@ -9,6 +9,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace bpr::core {
 	/// \brief [[BPR-2007]], RFC-BPR-0104 as amended 2026-11-11 (owner look
@@ -54,6 +55,10 @@ namespace bpr::core {
 		codex_config_unreadable,
 		/// The agent's own arguments set its sandbox, approvals or profile.
 		custom_arguments,
+		/// Re-review N1a (2026-11-11). Codex runs in the reviewer's own
+		/// checkout, whose `.codex/config.toml` Codex reads once they
+		/// trusted it; BPR's profile would replace that one.
+		codex_own_checkout,
 	};
 
 	/// \brief What BPR lets one turn do beyond reading, in the words of the
@@ -104,6 +109,9 @@ namespace bpr::core {
 		bool ScratchPlace = true;
 		/// The session's folder was at or past its limit when last measured.
 		bool ScratchFull = false;
+		/// Re-review N3. The last question asked for a folder and none could
+		/// be made; the next asks again.
+		bool ScratchUnmade = false;
 		/// Nothing is granted, and why.
 		std::optional<agent_grant_refusal> Refusal;
 
@@ -116,10 +124,11 @@ namespace bpr::core {
 		/// Whether the runtime can be given an allowance at all.
 		bool Applies = false;
 		/// The pull request's choice (or the agent's starting state).
-		bool                               Scratch      = false;
-		agent_builds_state                 Builds       = agent_builds_state::off;
-		bool                               ScratchPlace = true;
-		bool                               ScratchFull  = false;
+		bool                               Scratch       = false;
+		agent_builds_state                 Builds        = agent_builds_state::off;
+		bool                               ScratchPlace  = true;
+		bool                               ScratchFull   = false;
+		bool                               ScratchUnmade = false;
 		std::optional<agent_grant_refusal> Refusal;
 
 		auto operator<=>(const agent_grant&) const = default;
@@ -162,10 +171,11 @@ namespace bpr::core {
 	{
 		return aGrant.Applies && !aGrant.Refusal && aGrant.ScratchPlace;
 	}
-	/// \brief Checked only while the launch carries the folder.
+	/// \brief Checked only while the launch carries the folder, and not
+	/// while the last question's folder could not be made (re-review N3).
 	[[nodiscard]] constexpr auto agent_scratch_toggle_checked(const agent_grant& aGrant) noexcept -> bool
 	{
-		return scratch_granted(aGrant);
+		return scratch_granted(aGrant) && !aGrant.ScratchUnmade;
 	}
 	[[nodiscard]] constexpr auto agent_builds_toggle_enabled(const agent_grant& aGrant) noexcept -> bool
 	{
@@ -194,6 +204,11 @@ namespace bpr::core {
 	/// `aArguments`, the agent's own arguments. A conservative scan: a key
 	/// it cannot judge refuses. Pure.
 	[[nodiscard]] auto codex_grant_refusal(std::span<const std::string_view> aConfigs, bool aUnreadable, std::span<const std::string> aArguments) -> std::optional<agent_grant_refusal>;
+	/// \brief Re-review N1b, N1d. The configuration files a Codex BPR
+	/// launches reads, for the home BPR passes it (`HOME`; BPR passes no
+	/// `CODEX_HOME`): the user's, the system's and the managed one. None for
+	/// a home that is not an absolute path, which reads as unreadable. Pure.
+	[[nodiscard]] auto codex_configuration_paths(std::string_view aHome) -> std::optional<std::vector<std::string>>;
 	/// \brief Why Build and run tests is unavailable in the reviewer's own
 	/// checkout, for the setting and the picker.
 	inline constexpr std::string_view agent_builds_own_checkout_reason = "BetterPullReview does not let an agent write into your own working tree.";

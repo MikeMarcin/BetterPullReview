@@ -1852,6 +1852,7 @@ foreach(
         construction-cut
         conversation
         custom-agent
+        custom-agent-refused
         subject
 )
     if(course STREQUAL "positive")

@@ -644,8 +644,9 @@ namespace bpr::app {
 		}
 		AgentConversation->open(
 			{ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value(), .Agent = current_conversation_agent() });
-		// [[BPR-2007]]. Another pull request's grant and folders.
-		AgentScratchFolders.clear();
+		// [[BPR-2007]]; re-review N3, N4. This pull request's folders, as
+		// the store and the disk have them; another's stay known.
+		derive_agent_scratch();
 		present_run_settings();
 	}
 
@@ -1722,7 +1723,8 @@ namespace bpr::app {
 				settings.BuildsOn        = core::agent_builds_toggle_checked(grant);
 				settings.BuildsEnabled   = core::agent_builds_toggle_enabled(grant);
 				settings.BuildsTip       = QString::fromStdString(core::agent_builds_tooltip(grant, grantProgram));
-				settings.ScratchOpenable = AgentScratchFolders.contains(settings.Profile);
+				const auto keyed         = grant_key(entry.Id);
+				settings.ScratchOpenable = keyed && AgentScratchFolders.contains(*keyed);
 			}
 			// Owner look e97c6a3d ("I'm not even sure if type /MODEL or type
 			// /EFFORT is true in general with custom agents"). The question
@@ -1925,13 +1927,18 @@ namespace bpr::app {
 		// only under a root a rule can name (never on Windows); a folder
 		// full at its last turn's end is full until it is measured again.
 		facts.ScratchPlace = !AgentScratchRoot.empty();
-		if (const auto full = AgentScratchFull.find(core::entry_profile_id(aEntry).value()); full != AgentScratchFull.end()) {
-			facts.ScratchFull = full->second;
-		}
-		facts.Refusal = agent_grant_refusal_for(aEntry);
-		if (const auto key = grant_key(aEntry.Id); key && AgentConversationStore) {
-			facts.ScratchChoice = AgentConversationStore->load_scratch_choice(*key);
-			facts.BuildAnswer   = AgentConversationStore->load_build_answer(*key);
+		facts.Refusal      = agent_grant_refusal_for(aEntry);
+		// Re-review N3: by pull request and agent, so another pull request's
+		// full folder is not this one's, and a restart reads it from disk.
+		if (const auto key = grant_key(aEntry.Id); key) {
+			if (const auto full = AgentScratchFull.find(*key); full != AgentScratchFull.end()) {
+				facts.ScratchFull = full->second;
+			}
+			facts.ScratchUnmade = AgentScratchUnmade.contains(*key);
+			if (AgentConversationStore) {
+				facts.ScratchChoice = AgentConversationStore->load_scratch_choice(*key);
+				facts.BuildAnswer   = AgentConversationStore->load_build_answer(*key);
+			}
 		}
 		return core::resolve_agent_grant(facts);
 	}
@@ -1979,14 +1986,16 @@ namespace bpr::app {
 		// configured one and asks for no approval, so it is passed only where
 		// the reviewer's own configuration (the user's and a managed one) has
 		// no permissions profile and does not ask before commands.
-		auto home = qEnvironmentVariable("CODEX_HOME");
-		if (home.isEmpty()) {
-			home = QDir::homePath() + QStringLiteral("/.codex");
-		}
-		auto texts      = std::vector<std::string>{ };
-		auto unreadable = false;
-		for (const auto& path : { home + QStringLiteral("/config.toml"), QStringLiteral("/etc/codex/managed_config.toml") }) {
-			auto file = QFile{ path };
+		// Re-review N1b, N1d: the files the launched Codex reads. BPR passes
+		// it its home and no `CODEX_HOME`, so its configuration is the home's
+		// `.codex` (on Unix `QDir::homePath()` is that home, falling back as
+		// Codex does), whatever `CODEX_HOME` BPR itself was started with; and
+		// the system's and the managed file.
+		const auto paths      = core::codex_configuration_paths(QDir::homePath().toStdString());
+		auto       texts      = std::vector<std::string>{ };
+		auto       unreadable = !paths.has_value();
+		for (const auto& path : paths.value_or(std::vector<std::string>{ })) {
+			auto file = QFile{ QString::fromStdString(path) };
 			if (!file.exists()) {
 				continue;
 			}
@@ -1998,6 +2007,35 @@ namespace bpr::app {
 		}
 		auto views = std::vector<std::string_view>{ texts.begin(), texts.end() };
 		return core::codex_grant_refusal(views, unreadable, aEntry.Arguments);
+	}
+
+	void github_application::implementation::derive_agent_scratch()
+	{
+		if (Closing || !AgentSetup || !AgentConversationStore || AgentScratchRoot.empty()) {
+			return;
+		}
+		const auto setup = AgentSetup->projection();
+		const auto limit = core::agent_scratch_limit_bytes(setup.Preferences.ScratchLimitMiB);
+		for (const auto& entry : setup.Preferences.Agents) {
+			const auto key = grant_key(entry.Id);
+			if (!key) {
+				continue;
+			}
+			const auto name = AgentConversationStore->load_scratch_folder(*key);
+			if (!name || !application::valid_agent_scratch_key(*name)) {
+				continue;
+			}
+			const auto folder = AgentScratchRoot / *name;
+			auto       error  = std::error_code{ };
+			const auto status = std::filesystem::symlink_status(folder, error);
+			if (error || !std::filesystem::is_directory(status)) {
+				AgentScratchFolders.erase(*key);
+				AgentScratchFull.erase(*key);
+				continue;
+			}
+			AgentScratchFolders[*key] = folder.string();
+			AgentScratchFull[*key]    = application::agent_scratch_full(application::list_agent_scratch_folder(folder), limit);
+		}
 	}
 
 	void github_application::implementation::present_scratch_usage(const QString& aSaid)
@@ -2029,14 +2067,23 @@ namespace bpr::app {
 			}
 			return;
 		}
-		// A folder a turn of this window uses now stays; the others go.
+		// Re-review N4: the open pull request's folders stay, by its
+		// identity (read from the store when it opened, so after a restart
+		// or a switch too); the others go.
+		const auto isOpen = [this](const application::agent_conversation_key& aKey) {
+			const auto here = grant_key(aKey.Agent);
+			return here && *here == aKey;
+		};
 		auto keep = std::vector<std::string>{ };
-		for (const auto& [profile, folder] : AgentScratchFolders) {
-			keep.push_back(std::filesystem::path{ folder }.filename().string());
+		for (const auto& [key, folder] : AgentScratchFolders) {
+			if (isOpen(key)) {
+				keep.push_back(std::filesystem::path{ folder }.filename().string());
+			}
 		}
 		const auto cleanup = application::remove_agent_scratch_folders(AgentScratchRoot, aBeforeSeconds, keep);
+		std::erase_if(AgentScratchFolders, [&](const auto& aEntry) { return !isOpen(aEntry.first) && !std::filesystem::exists(std::filesystem::path{ aEntry.second }); });
 		if (!aBeforeSeconds) {
-			AgentScratchFull.clear();
+			std::erase_if(AgentScratchFull, [&](const auto& aEntry) { return !isOpen(aEntry.first); });
 		}
 		if (aSay) {
 			auto said = cleanup.Removed == 0U ? QStringLiteral("Nothing to clear.")
@@ -2051,7 +2098,9 @@ namespace bpr::app {
 
 	void github_application::implementation::open_agent_scratch(const std::uint64_t aProfile)
 	{
-		const auto found = AgentScratchFolders.find(aProfile);
+		const auto* const entry = AgentSetup ? core::entry_of_profile(AgentSetup->projection().Preferences.Agents, core::agent_profile_id{ aProfile }) : nullptr;
+		const auto        key   = entry != nullptr ? grant_key(entry->Id) : std::nullopt;
+		const auto        found = key ? AgentScratchFolders.find(*key) : AgentScratchFolders.end();
 		if (Closing || found == AgentScratchFolders.end()) {
 			return;
 		}
@@ -2069,15 +2118,27 @@ namespace bpr::app {
 			const auto limit = AgentSetup ? AgentSetup->projection().Preferences.ScratchLimitMiB : core::default_agent_scratch_limit_mib;
 			Window->agent_panel()->refuse("Stopped: the agent's scratch folder reached its limit of " + std::to_string(limit) + " MiB. Open it to make room, clear it in Settings, or raise the limit there.");
 		}
-		if (aResult.Grant && !aResult.Grant->ScratchFolder.empty()) {
-			AgentScratchFull[aProfile.value()] = aResult.ScratchFull;
-			present_scratch_usage();
-		}
-		if (aResult.ScratchFolder.empty()) {
+		// Re-review N3: the result belongs to the pull request the turn was
+		// granted in, which may no longer be the open one.
+		const auto* const entry = AgentSetup ? core::entry_of_profile(AgentSetup->projection().Preferences.Agents, aProfile) : nullptr;
+		const auto        key   = entry != nullptr && AgentScratchTurn && AgentScratchTurn->Agent == entry->Id ? AgentScratchTurn : std::nullopt;
+		if (!key || (!aResult.Grant && !aResult.ScratchUnmade)) {
 			present_run_settings();
 			return;
 		}
-		AgentScratchFolders[aProfile.value()] = aResult.ScratchFolder;
+		if (aResult.ScratchUnmade) {
+			AgentScratchUnmade.insert(*key);
+		} else if (aResult.Grant && !aResult.Grant->ScratchFolder.empty()) {
+			AgentScratchUnmade.erase(*key);
+			AgentScratchFull[*key] = aResult.ScratchFull;
+			present_scratch_usage();
+		}
+		if (!aResult.ScratchFolder.empty()) {
+			AgentScratchFolders[*key] = aResult.ScratchFolder;
+			if (AgentConversationStore) {
+				static_cast<void>(AgentConversationStore->store_scratch_folder(*key, std::filesystem::path{ aResult.ScratchFolder }.filename().string()));
+			}
+		}
 		present_run_settings();
 	}
 
@@ -2111,6 +2172,7 @@ namespace bpr::app {
 		}
 		aInvocation.ScratchFolder   = core::scratch_granted(grant);
 		aInvocation.BuildsAndTests  = core::builds_granted(grant);
+		AgentScratchTurn            = grant_key(entry->Id);
 		aInvocation.ScratchLimitMiB = AgentSetup->projection().Preferences.ScratchLimitMiB;
 		return true;
 	}

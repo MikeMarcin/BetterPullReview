@@ -109,8 +109,15 @@ namespace {
 	}
 } // namespace
 
-auto main() -> int
+auto main(int argc, char** argv) -> int
 {
+	// Re-review N2 (2026-11-11). Whether the launch handed this process
+	// BetterPullReview's Codex grant: its permissions profile among the
+	// arguments, and the scratch folder in the frame.
+	auto granted = false;
+	for (auto index = 1; index < argc; ++index) {
+		granted = granted || std::string_view{ argv[index] } == "default_permissions=\"betterpullreview_grant\"";
+	}
 	const auto payload  = read_all_input();
 	const auto fields   = parse_context(payload);
 	const auto session  = field(fields, "session", "1");
@@ -160,7 +167,8 @@ auto main() -> int
 		+ " lines=" + field(fields, "subject.first_line", "absent") + "-" + field(fields, "subject.last_line", "absent")
 		+ " looking=" + field(fields, "looking_at.path", "absent")
 		+ " selection=" + field(fields, "selection.present", "absent")
-		+ " files=" + field(fields, "file.count", "absent") + " end";
+		+ " files=" + field(fields, "file.count", "absent") + " end"
+		+ " | BPR_GRANT_2007 permissions=" + (granted ? "yes" : "no") + " scratch=" + (fields.contains("scratch_folder") ? "yes" : "no") + " end";
 	// BPR-0538. One of the six is this fixture's silent operation: asked to
 	// shorten, it completes its turn and proposes nothing. A real agent does
 	// this whenever it has nothing to say about the comment, and it is the

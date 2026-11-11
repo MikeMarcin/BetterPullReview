@@ -142,6 +142,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # helper reaches agent-chat-composition-failure:private-test-root.
     # This names the first predicate, without inferring an unsampled cause.
     "application_agent_chat_custom_agent_contract": "private-test-root-refused",
+    # Re-review N2 of RFC-BPR-0104 (2026-11-11). The custom-agent course with a
+    # refusing Codex configuration, same private test root.
+    "application_agent_chat_custom_agent_refused_contract": "unmeasured (registered on macOS)",
     # [[BPR-2002]]. The question-subject course, same private test root.
     "application_agent_chat_subject_contract": "unmeasured (registered on macOS)",
     "application_agent_chat_helpers_public_path": "unmeasured (registered on macOS)",

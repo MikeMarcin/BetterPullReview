@@ -278,11 +278,16 @@ namespace bpr::application {
 	inline constexpr std::array<std::string_view, 5> claude_scratch_runners = {
 		"python3", "python", "node", "ruby", "perl"
 	};
-	/// \brief Review finding 2. A granted Claude run is denied any command
-	/// with a parent step in a path, so a runner rule cannot reach a file
-	/// outside the folder (`python3 FOLDER/../x.py`). A deny rule wins over
-	/// every allow rule, the reviewer's own included, for that run.
-	inline constexpr std::string_view claude_grant_denial = "Bash(*/..*)";
+	/// \brief Review finding 2. A Claude run granted a scratch folder is
+	/// denied running any runner with a parent step in a path, so a runner
+	/// rule cannot reach a file outside the folder (`python3 FOLDER/../x.py`).
+	/// A deny rule wins over every allow rule, the reviewer's own included,
+	/// for that run. Re-review N5 (2026-11-11): it names the runners, so it
+	/// never denies a build program's `cmake ../..` (Claude Code 2.1.319, live).
+	[[nodiscard]] inline auto claude_grant_denial(const std::string_view aRunner) -> std::string
+	{
+		return "Bash(" + std::string{ aRunner } + " */..*)";
+	}
 
 	struct agent_launch_options
 	{
@@ -1088,6 +1093,9 @@ namespace bpr::application {
 		/// limit when the turn ended, and the turn was stopped for passing it.
 		bool ScratchFull       = false;
 		bool ScratchOverflowed = false;
+		/// Re-review N3 (2026-11-11). The turn asked for a scratch folder
+		/// and none could be made or named, so it had none.
+		bool ScratchUnmade = false;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};

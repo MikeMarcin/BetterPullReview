@@ -3249,8 +3249,9 @@ namespace bpr::application {
 		/// `:*` prefix form matches only at a word boundary, so `FOLDER/:*`
 		/// never matched a file in it. A `*` matches any text, slashes and
 		/// spaces included, so (review finding 2) no rule runs a file
-		/// directly or changes a mode, and `Bash(*/..*)` is denied: with it,
-		/// `python3 FOLDER/../x.py` is refused. Claude checks each part of a
+		/// directly or changes a mode, and `Bash(RUNNER */..*)` is denied for
+		/// each runner: with it, `python3 FOLDER/../x.py` is refused, while a
+		/// build program's `cmake ../..` is not (re-review N5, live). Claude checks each part of a
 		/// compound command and refuses a redirect to a file on its own
 		/// (live, 2026-11-11). A quoted path does not match a rule, so a
 		/// folder whose path has a space is never granted
@@ -3259,16 +3260,21 @@ namespace bpr::application {
 		/// cannot ask, so anything else they would ask about is refused.
 		void append_claude_grant(std::vector<std::string>& aArguments, const agent_launch_grant& aGrant)
 		{
-			auto rules = std::vector<std::string>{ };
+			auto rules   = std::vector<std::string>{ };
+			auto denials = std::vector<std::string>{ };
 			if (!aGrant.ScratchFolder.empty()) {
 				aArguments.emplace_back("--add-dir");
 				aArguments.push_back(aGrant.ScratchFolder);
+				// Re-review N6 (2026-11-11): a turn that starts with the
+				// folder full is not watched, and a script Claude runs is not
+				// confined, so a full folder is only read.
 				if (!aGrant.ScratchFull) {
 					rules.push_back("Write(/" + aGrant.ScratchFolder + "/**)");
 					rules.push_back("Edit(/" + aGrant.ScratchFolder + "/**)");
-				}
-				for (const auto runner : claude_scratch_runners) {
-					rules.push_back("Bash(" + std::string{ runner } + " " + aGrant.ScratchFolder + "/*)");
+					for (const auto runner : claude_scratch_runners) {
+						rules.push_back("Bash(" + std::string{ runner } + " " + aGrant.ScratchFolder + "/*)");
+						denials.push_back(claude_grant_denial(runner));
+					}
 				}
 			}
 			if (!aGrant.BuildWorkspace.empty()) {
@@ -3279,8 +3285,10 @@ namespace bpr::application {
 			if (!rules.empty()) {
 				aArguments.emplace_back("--allowedTools");
 				aArguments.insert(aArguments.end(), std::make_move_iterator(rules.begin()), std::make_move_iterator(rules.end()));
+			}
+			if (!denials.empty()) {
 				aArguments.emplace_back("--disallowedTools");
-				aArguments.emplace_back(claude_grant_denial);
+				aArguments.insert(aArguments.end(), std::make_move_iterator(denials.begin()), std::make_move_iterator(denials.end()));
 			}
 		}
 		/// Established 2026-11-11 against Codex 0.167.0: a permissions profile

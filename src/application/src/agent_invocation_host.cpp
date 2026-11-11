@@ -154,8 +154,12 @@ namespace bpr::application {
 			bool                              ScratchKept = false;
 			agent_scratch_listing             ScratchBefore;
 			std::optional<agent_launch_grant> Grant;
+			/// Re-review N3. A folder was asked for and none could be made.
+			bool ScratchUnmade = false;
 			/// RFC-BPR-0104 as amended 2026-11-11. The folder's limit, when
-			/// it is watched during the turn (it was below it at the start);
+			/// it is watched during the turn (it was below it at the start;
+			/// a turn starting full is given no write and, for Claude, no run
+			/// allowance there, so nothing of its grant writes it);
 			/// when it was last measured; whether the turn passed it.
 			std::uint64_t        ScratchLimit        = 0U;
 			std::atomic_int64_t  ScratchMeasuredAt   = 0;
@@ -966,13 +970,21 @@ namespace bpr::application {
 				// session (or this turn's own), and the disposable checkout to
 				// build in. A folder that cannot be made, or named in a rule,
 				// is no grant; the turn reads only.
-				if ((aRequest.ScratchFolder || aRequest.BuildsAndTests) && !aRequest.WritingOnly && !aRequest.ReadOnlyTools) {
-					auto grant = agent_launch_grant{ };
+				// Re-review N1a (2026-11-11): Codex in the reviewer's own
+				// checkout reads that checkout's trusted `.codex/config.toml`,
+				// which BPR's profile would replace, so it is given nothing
+				// there (the picker says why).
+				const auto codexOwn = aRequest.ExistingCheckoutChosen
+					&& (aProfile.Protocol == core::agent_protocol::codex_jsonl_exec || aProfile.Protocol == core::agent_protocol::codex_app_server);
+				if ((aRequest.ScratchFolder || aRequest.BuildsAndTests) && !aRequest.WritingOnly && !aRequest.ReadOnlyTools && !codexOwn) {
+					auto grant                 = agent_launch_grant{ };
+					aInvocation->ScratchUnmade = aRequest.ScratchFolder;
 					if (aRequest.ScratchFolder && !ScratchRoot.empty()) {
 						const auto kept = aInvocation->Native.has_value() && valid_agent_scratch_key(aInvocation->Native->Id);
 						const auto key  = kept ? aInvocation->Native->Id
 											   : "run-" + std::to_string(aRequest.ApplicationSession.value()) + "-" + std::to_string(aInvocation->Identity.Session.Id.value());
 						if (const auto folder = prepare_agent_scratch_folder(ScratchRoot, key); folder && valid_agent_grant_path(folder->string())) {
+							aInvocation->ScratchUnmade = false;
 							aInvocation->ScratchFolder = *folder;
 							aInvocation->ScratchKey    = key;
 							aInvocation->ScratchKept   = kept;
@@ -1183,7 +1195,8 @@ namespace bpr::application {
 			}
 			// [[BPR-2007]]. What the turn left in its scratch folder; a turn's
 			// own folder goes with it.
-			aResult.Grant = aInvocation->Grant;
+			aResult.Grant         = aInvocation->Grant;
+			aResult.ScratchUnmade = aInvocation->ScratchUnmade;
 			if (!aInvocation->ScratchFolder.empty()) {
 				const auto after          = list_agent_scratch_folder(aInvocation->ScratchFolder);
 				aResult.ScratchFolder     = aInvocation->ScratchFolder.string();
