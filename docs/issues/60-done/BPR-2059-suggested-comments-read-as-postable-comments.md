@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2059"
 title: "Suggested comments read as postable comments, with an editable format prompt"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0092", "RFC-BPR-0107"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2058--BPR-2059--bd1353aea511.json","origin":"owner report, 2026-11-10 (screenshot of a private repository; nothing of it is kept)","related_cards":["BPR-1861","BPR-2051","BPR-2061"]}
 depends_on: []
-parked_on: "human-review"
+acceptance: [{"criterion":"Scope 1-5","outcome":"pass","revision":"e4aeb679e","evidence":{"kind":"command","detail":"Focused set at 52e085d57 and qt_workbench_window_scale_100/125/200 test_a_reply_drafts_all_its_suggested_comments (fence rendered as one fixed-pitch block)"}},{"criterion":"Scope 6","outcome":"pass","revision":"02200853d","evidence":{"kind":"observation","detail":"Owner accepted BPR-2059-prompt-default (session fbdd40b2, decision 1342b7f4) and BPR-2059-code-blocks (session 5ea0ce22c14ed5083b9d2e7382717df9, decision 39e0cbaa-e39b-4af0-8942-f6cce2f2767a)"}}]
 ---
 
 # Suggested comments read as postable comments, with an editable format prompt
@@ -129,3 +129,12 @@ suggestion's ```cpp fence is a code block in the code font. Now pinned:
 the fenced line is one block in a fixed-pitch font
 (`test_a_reply_drafts_all_its_suggested_comments`). Refiled with native
 renders only.
+
+## Owner hand-back, session `5ea0ce22…` (2026-11-11)
+
+Read with `attended_review.py status --after 18` (handed back at sequence
+49); host 78319/78332 stopped, root `owner-look-v003.w0k3mfr3` removed with
+`freeze_attended_build.py remove`.
+
+- `BPR-2059-code-blocks`: Accept (`39e0cbaa`). The fenced code block renders
+  as code; scope 6's formatting half passes and nothing else is open.

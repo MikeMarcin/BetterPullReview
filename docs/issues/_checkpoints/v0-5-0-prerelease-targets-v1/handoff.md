@@ -643,7 +643,7 @@ the re-review.
 Owner requests, relayed by the coordinator; nothing pushed. Owner amendments
 in force as above. Frontend-design was loaded before the Qt work. Evidence is
 on the cards ([BPR-2061](../../60-done/BPR-2061-draft-all-suggested-comments-from-a-reply.md),
-[BPR-2059](../../40-parked/BPR-2059-suggested-comments-read-as-postable-comments.md));
+[BPR-2059](../../60-done/BPR-2059-suggested-comments-read-as-postable-comments.md));
 RFC-BPR-0092 and RFC-BPR-0107 amended.
 
 | Commit | What |
