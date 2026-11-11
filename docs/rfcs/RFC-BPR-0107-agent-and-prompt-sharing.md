@@ -213,6 +213,6 @@ in its preview (X24) adds that record with the import and export.
 
 ## Proposed delivery
 
-[Portable exchange](../issues/10-backlog/BPR-2016-portable-agent-and-prompt-configuration-exchange.md), [Settings flow](../issues/10-backlog/BPR-2017-selective-settings-import-and-export.md),
+[Portable exchange](../issues/20-ready/BPR-2016-portable-agent-and-prompt-configuration-exchange.md), [Settings flow](../issues/10-backlog/BPR-2017-selective-settings-import-and-export.md),
 and [closeout](../issues/10-backlog/BPR-2018-close-rfc-0107.md) form the first milestone in the
 [canonical plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). No later RFC is a prerequisite.
