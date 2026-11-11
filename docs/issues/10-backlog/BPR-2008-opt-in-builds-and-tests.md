@@ -24,3 +24,34 @@ builds belong in this release, with these limits. Building runs the pull
 request's own code: give the allowance critical review.
 
 This is part of `agent-scratch` in the [plan](../../rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
+
+## Implementation record (2026-11-11, `882ebed54`)
+
+Built in one candidate with [[BPR-2007]] under that card's claim; this card
+could not be readied while BPR-2007 was not Done. Ledger:
+[RFC-BPR-0104](../../verification/RFC-BPR-0104.md).
+
+- AC04: pass at the unit, host and storage layers: off until turned on; in
+  the reviewer's own checkout it is unavailable with its reason and the
+  launch carries nothing; in the disposable checkout the next question asks
+  once per pull request ("Building runs this pull request's code on this
+  computer with your account's rights. Allow for this pull request?"), and
+  declining leaves the launch without the build allowance. The question's
+  composed path has no course.
+- AC07: pending. An independent critical review of both agents' launch
+  allowances is required; the implementer's self-review in the ledger is
+  input to it, not it.
+
+## Owner look (filed, not waited on)
+
+Session `e97c6a3d72ac570115fc961555b09d6d`, state
+`/Users/jaeger/.attended-review-state/agent-scratch-v001-2026-11-11/state`
+(URL in its `serve.log`), cursor 12, host PID 72034 (Tailscale child 72042).
+Frozen root `/Users/jaeger/agent-scratch-v001.weg1sgre` from `c19749f58892`
+(app SHA-256 `cb283436e169…`, launcher check passed). Candidates, ready and
+protected: `BPR-2007-grant-menu`, `BPR-2007-agent-sheet`,
+`BPR-2008-build-question`, `RFC-BPR-0104-AC03-bound`.
+
+Stays in Backlog: it cannot be readied, claimed or parked while BPR-2007 is not
+Done. Next: after BPR-2007 finishes, ready and claim it, and finish it when
+AC07's independent review and the `BPR-2008-build-question` look are in.
