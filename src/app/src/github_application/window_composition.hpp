@@ -165,6 +165,7 @@
 	#include "bpr/application/agent_comment_workshop_host.hpp"
 	#include "bpr/application/agent_conversation.hpp"
 	#include "bpr/application/agent_conversation_host.hpp"
+	#include "bpr/application/agent_finding_card_host.hpp"
 	#include "bpr/application/agent_finding_host.hpp"
 	#include "bpr/application/agent_invocation_host.hpp"
 	#include "bpr/application/agent_program_resolution.hpp"
@@ -637,6 +638,13 @@ namespace bpr::app {
 		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone);
 
 		void act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport = { });
+		/// Owner report 2026-11-10, after BPR-2052. The cards a stored
+		/// answer's findings block makes, each as the reviewer left it.
+		[[nodiscard]] auto restored_finding_cards(const std::string& aAnswer) const -> std::vector<qt::agent_restored_finding_card>;
+		/// Keeps a card's state past a restart.
+		void remember_finding_card(const qt::agent_finding_card_change& aChange);
+		/// The kept states were read: the cards shown take them.
+		void present_remembered_finding_cards();
 
 		[[nodiscard]] auto offered_agent_profiles() const -> std::vector<core::agent_profile>;
 
@@ -2126,6 +2134,10 @@ namespace bpr::app {
 		decltype(github_profile_runtime::NativeAgentSessions)&      NativeAgentSessions = Profile->NativeAgentSessions;
 		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
 		std::unique_ptr<application::agent_conversation_host>       AgentConversation;
+		/// Owner report 2026-11-10, after BPR-2052. What was done with each
+		/// finding card of a stored answer: store, then host.
+		std::unique_ptr<application::agent_finding_card_store_port> AgentFindingCardStore;
+		std::unique_ptr<application::agent_finding_card_host>       AgentFindingCards;
 		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;

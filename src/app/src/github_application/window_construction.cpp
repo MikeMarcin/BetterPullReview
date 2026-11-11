@@ -1344,6 +1344,18 @@ namespace bpr::app {
 			dependencies.Publish  = [this](const application::agent_conversation_projection& aView) { present_conversation(aView); };
 			AgentConversation     = std::make_unique<application::agent_conversation_host>(std::move(dependencies));
 		}
+		// Owner report 2026-11-10, after BPR-2052. A stored answer's finding
+		// cards come back after a restart as they were left.
+		AgentFindingCardStore = adapters::sqlite::make_agent_finding_card_store(ApplicationDataRoot);
+		{
+			auto dependencies     = application::agent_finding_card_dependencies{ };
+			dependencies.Store    = AgentFindingCardStore.get();
+			dependencies.Effects  = &WorkbenchEffects;
+			dependencies.Decision = &DecisionLane;
+			dependencies.Loaded   = [this] { present_remembered_finding_cards(); };
+			AgentFindingCards     = std::make_unique<application::agent_finding_card_host>(std::move(dependencies));
+		}
+		AgentFindingCards->load();
 		compose_agent_setup_view();
 		observe_conversation();
 #endif

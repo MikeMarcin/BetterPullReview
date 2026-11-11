@@ -1056,6 +1056,14 @@ bpr_enable_hardening(test_agent_answer_findings)
 bpr_enable_warnings(test_agent_answer_findings)
 bpr_add_network_isolated_test(NAME core_agent_answer_findings COMMAND test_agent_answer_findings)
 
+# Owner report 2026-11-10, after BPR-2052. Finding card dispositions kept by block digest and place.
+bpr_add_executable(test_agent_finding_card_memory agent_finding_card_memory_tests.cpp)
+target_link_libraries(test_agent_finding_card_memory PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_finding_card_memory)
+bpr_enable_warnings(test_agent_finding_card_memory)
+bpr_add_network_isolated_test(NAME core_agent_finding_card_memory COMMAND test_agent_finding_card_memory)
+set_tests_properties(core_agent_finding_card_memory PROPERTIES PASS_REGULAR_EXPRESSION "agent-finding-card-memory:pass" TIMEOUT 30)
+
 # [[BPR-1082]]. Header edits as commands of the existing revisioned comment draft and tour-stop owners.
 bpr_add_executable(test_feedback_draft_edit feedback_draft_edit_tests.cpp)
 target_link_libraries(test_feedback_draft_edit PRIVATE BetterPullReview::Core)

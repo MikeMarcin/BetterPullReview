@@ -130,6 +130,7 @@ add_library(
         src/feedback_header_edit.cpp
         src/agent_comment_suggestion.cpp
         src/agent_answer_findings.cpp
+        src/agent_finding_card_memory.cpp
         src/feedback_conversation.cpp
         src/feedback_partition.cpp
         src/feedback_label_columns.cpp
