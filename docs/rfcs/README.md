@@ -788,3 +788,16 @@ Mandate `v0-5-0-prerelease-targets-r1` (owner, 2026-11-10) implements the pack i
 | [RFC-BPR-0115](RFC-BPR-0115-agent-changes-in-a-local-pr-draft-worktree.md) | The agent changes a local PR draft's worktree: fixes and history operations | Proposed | RFC-BPR-0096, RFC-BPR-0103, RFC-BPR-0104, RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0110, RFC-BPR-0113, RFC-BPR-0114 |
 
 Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/local-draft-authoring-v1.LIVE_IMPORT.md); [authored plan](plans/local-draft-authoring-v1/milestone-plan.json). RFC-BPR-0114 reopens PUBLISH-01 of RFC-BPR-0111; the [proposed amendments](assets/local-draft-authoring-v1/AMENDMENTS.md) to RFC-BPR-0104, 0108 and 0111 are applied by the owning milestones, not at import.
+
+## Agent assistance
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0116](RFC-BPR-0116-a-returning-pull-request-says-what-changed-and-whether-a-comment-was-addressed.md) | A returning pull request says what changed, and whether a comment was addressed | Proposed | RFC-BPR-0009, RFC-BPR-0094, RFC-BPR-0101, RFC-BPR-0102 |
+| [RFC-BPR-0117](RFC-BPR-0117-explain-this-file-where-i-am-reading.md) | Explain this file where I am reading | Proposed | RFC-BPR-0101, RFC-BPR-0102 |
+| [RFC-BPR-0118](RFC-BPR-0118-turn-a-draft-comment-into-an-exact-suggested-change.md) | Turn a draft comment into an exact suggested change | Proposed | RFC-BPR-0090, RFC-BPR-0101 |
+| [RFC-BPR-0119](RFC-BPR-0119-ask-the-agent-why-a-check-failed.md) | Ask the agent why a check failed | Proposed | RFC-BPR-0011, RFC-BPR-0068, RFC-BPR-0101, RFC-BPR-0102 |
+| [RFC-BPR-0120](RFC-BPR-0120-the-agent-runs-a-planned-check-on-a-local-pr-draft.md) | The agent runs a planned check on a local PR draft | Proposed | RFC-BPR-0103, RFC-BPR-0104, RFC-BPR-0109, RFC-BPR-0110, RFC-BPR-0115 |
+| [RFC-BPR-0121](RFC-BPR-0121-insights-shows-what-the-agents-did-and-what-was-kept.md) | Insights shows what the agents did and which suggestions were kept | Proposed | RFC-BPR-0086, RFC-BPR-0101 |
+
+Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/agent-assistance-v1.LIVE_IMPORT.md); [authored plan](plans/agent-assistance-v1/milestone-plan.json). The [proposed amendments](assets/agent-assistance-v1/AMENDMENTS.md) change the subject rule of two agent entry points and are applied by the owning milestones, not at import.

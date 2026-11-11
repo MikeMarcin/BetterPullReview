@@ -1,0 +1,22 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2073",
+    "BPR-2074",
+    "BPR-2075",
+    "BPR-2076",
+    "BPR-2077",
+    "BPR-2078",
+    "BPR-2079",
+    "BPR-2080",
+    "BPR-2081",
+    "BPR-2082",
+    "BPR-2083",
+    "BPR-2084",
+    "BPR-2085"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "agent-assistance-v1 pack import (DRAFT-0001 to DRAFT-0013), allocated for lane claude/v0-5-0-prerelease-targets-52265d",
+  "created": "2026-11-11T03:49:50.280736+00:00",
+  "base": "e5bb712ab14268aae2a5833300a2fb931ab3f9de"
+}
