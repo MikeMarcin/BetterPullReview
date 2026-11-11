@@ -10582,6 +10582,74 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief The owner: "Clicking 'approve or comment' in the toolbar should
+	/// be a toggle to open and close the compose review dialog." The bar's
+	/// button opens the review sheet and, clicked again, closes it the way the
+	/// sheet's own Close does; it reads as checked while the sheet shows, to a
+	/// person and to assistive technology. Closing keeps the words typed,
+	/// Option-R toggles the same way, and on the expanded review page the
+	/// button closes the page rather than restoring the sheet.
+	void test_compose_review_toggles_the_review_sheet()
+	{
+		qt::workbench_window window;
+		window.resize(1'600, 900);
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const action               = window.compose_review_action();
+		auto* const button               = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(action));
+		auto* const sheet                = window.review_sheet();
+		auto* const body                 = window.review_submission_editor_view()->body_editor();
+		const auto  checkedForAssistance = [button] {
+			auto* const face = QAccessible::queryAccessibleInterface(button);
+			return face != nullptr && face->state().checkable && face->state().checked;
+		};
+		expect(button != nullptr && action->isCheckable() && button->isCheckable() && !action->isChecked() && !button->isChecked() && !window.review_sheet_open(),
+			   "Compose review is a toggle, unchecked while no review composer shows");
+
+		button->click();
+		process_events();
+		expect(window.review_sheet_open() && sheet->isVisible() && action->isChecked() && button->isChecked() && checkedForAssistance(),
+			   "the first click opens the review sheet and the button reads as checked, to assistive technology too");
+		const auto words = QStringLiteral("Typed before closing, kept for the reopen.");
+		body->setPlainText(words);
+		process_events();
+
+		button->click();
+		process_events();
+		expect(!window.review_sheet_open() && !sheet->isVisible() && !action->isChecked() && !button->isChecked() && !checkedForAssistance(),
+			   "the second click closes the sheet and the button reads as unchecked");
+		expect(body->toPlainText() == words, "closing keeps the words typed");
+
+		button->click();
+		process_events();
+		expect(window.review_sheet_open() && action->isChecked() && body->toPlainText() == words, "reopening shows the same words");
+
+		// The sheet's own Close unchecks it as well.
+		sheet->close_button()->click();
+		process_events();
+		expect(!window.review_sheet_open() && !action->isChecked(), "the sheet's Close leaves Compose review unchecked");
+
+		// Option-R is the same toggle.
+		window_key(window, Qt::Key_R, Qt::AltModifier);
+		expect(window.review_sheet_open() && action->isChecked(), "Option-R opens the sheet");
+		window_key(window, Qt::Key_R, Qt::AltModifier);
+		expect(!window.review_sheet_open() && !action->isChecked() && body->toPlainText() == words, "Option-R again closes it, the words kept");
+
+		// From the expanded page the toggle closes the review outright.
+		action->trigger();
+		process_events();
+		sheet->expand_button()->click();
+		process_events();
+		auto* const page = window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"));
+		expect(page->isVisible() && !window.review_sheet_open() && action->isChecked(), "the expanded review page keeps Compose review checked");
+		button->click();
+		process_events();
+		expect(!page->isVisible() && !window.review_sheet_open() && !action->isChecked() && body->toPlainText() == words,
+			   "Compose review on the expanded page closes it, without restoring the sheet, the words kept");
+		window.hide();
+	}
+
 	/// [[BPR-1700]]. Compose review in each state, in the built-in light
 	/// and dark themes, for a person to look at: no review, focused, a kept
 	/// draft, a review in progress, one being submitted, and the narrowest
@@ -24647,6 +24715,7 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--compose-review-entry"))) {
 		runCase("test_compose_review_marks_a_kept_draft", &test_compose_review_marks_a_kept_draft);
 		runCase("test_compose_review_says_approve_or_comment_with_no_review", &test_compose_review_says_approve_or_comment_with_no_review);
+		runCase("test_compose_review_toggles_the_review_sheet", &test_compose_review_toggles_the_review_sheet);
 		runCase("render_compose_review_entry_sheet", &render_compose_review_entry_sheet);
 		if (!listCases) {
 			std::cout << "compose-review-entry:pass\n";
@@ -24876,6 +24945,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);
 	runCase("test_compose_review_marks_a_kept_draft", &test_compose_review_marks_a_kept_draft);
 	runCase("test_compose_review_says_approve_or_comment_with_no_review", &test_compose_review_says_approve_or_comment_with_no_review);
+	runCase("test_compose_review_toggles_the_review_sheet", &test_compose_review_toggles_the_review_sheet);
 	runCase("test_settings_collection_limit_keeps_accepted_models_and_recovery_actions", &test_settings_collection_limit_keeps_accepted_models_and_recovery_actions);
 	runCase("test_settings_share_only_offered_agent_context_and_maintenance_actions", &test_settings_share_only_offered_agent_context_and_maintenance_actions);
 	runCase("test_all_four_primary_actions_follow_one_core_projection", &test_all_four_primary_actions_follow_one_core_projection);
