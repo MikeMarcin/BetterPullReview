@@ -552,7 +552,7 @@ namespace {
 /// `--agents-roster FOLDER` saves Settings › Agents & context with three
 /// agents: one passed, one not signed in, one never checked. Run it under
 /// `BPR_NATIVE_LOOK` with each `BPR_NATIVE_LOOK_SCHEME` for the owner's look.
-void render_agents_roster(const QString& aFolder)
+void render_agents_roster(const QString& aFolder, const bool aLook = false)
 {
 	qt::workbench_window window;
 	auto                 preferences = application::agent_setup_preferences{ };
@@ -565,12 +565,23 @@ void render_agents_roster(const QString& aFolder)
 	preferences.EntryChecks          = { { .Id = preferences.Agents[0].Id, .Check = { .State = core::setup_check_state::passed, .Version = "2.1.321" } },
 										 { .Id = preferences.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::not_signed_in) } };
 	window.agent_programs()->present(preferences, { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude" } });
+	if (aLook) {
+		// A row's sheet opens and its OK answers; nothing is kept.
+		window.agent_programs()->set_dispatch({ .CheckAll = [] { }, .CheckEntry = [](std::uint32_t) { }, .Update = [](core::agent_entry, qt::agent_programs_panel::answer aAnswer) { aAnswer(std::nullopt); } });
+	}
 	auto* const settings = window.settings();
 	settings->resize(980, 760);
 	settings->present(qt::settings_page::agents_and_context);
 	settings->show();
 	for (int pass = 0; pass < 4; ++pass) {
 		QApplication::processEvents();
+	}
+	if (aLook) {
+		// The owner's look: the page live. Rows open their sheet, their menu
+		// checks, moves or removes (nothing is saved: no host behind it).
+		settings->setWindowTitle(QStringLiteral("Settings › Agents & context: one agent passed, one not signed in, one never checked"));
+		QApplication::exec();
+		return;
 	}
 	const auto scheme = qEnvironmentVariable("BPR_NATIVE_LOOK_SCHEME", QStringLiteral("light"));
 	expect(settings->grab().save(QStringLiteral("%1/agents-roster-%2.png").arg(aFolder, scheme)), "the roster render saves");
@@ -583,6 +594,10 @@ void render_agents_roster(const QString& aFolder)
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (argc > 1 && std::string_view{ argv[1] } == "--agents-roster-look") {
+		render_agents_roster({ }, true);
+		return EXIT_SUCCESS;
+	}
 	if (argc > 2 && std::string_view{ argv[1] } == "--agents-roster") {
 		render_agents_roster(QString::fromLocal8Bit(argv[2]));
 		std::cout << "settings-window:rendered\n";

@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2088",
+    "BPR-2089",
+    "BPR-2090"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "v0.5.0 layout round: live-course bugs (Home open dropped while refreshing; Agent tab idle state; Home hidden while the Tour page is open)",
+  "created": "2026-11-11T07:25:03.675099+00:00",
+  "base": "01ea66bf165ab69bc8ad3fcb513624ce11e98ce7"
+}

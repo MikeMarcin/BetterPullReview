@@ -110,6 +110,28 @@ the agent reading and scripting only.
 - Network access is never granted by BPR. It stays as the agent's own
   configuration has it.
 
+### Amendment: the grant line is in the picker's menu (2026-11-11, [[BPR-2051]])
+
+The owner chose, on 2026-11-11, one agent picker for the pull request in an
+always-present footer of the pull request window ("A + footer 1", design
+[record](../design/BPR-2051-agents-roster-and-footer/README.md)), in place
+of the per-drawer pickers. The Agent tab no longer has an agent pill for a
+grant line to sit beside, so the grant moves with the picker:
+
+- The footer picker's menu states the current grant for the chosen agent in
+  this pull request, under the agent's model and effort: "Scratch folder in
+  this pull request" (checked while on), then "Builds and tests are off for
+  Claude Code" or "Builds and tests in its disposable checkout". Checking
+  or unchecking the scratch folder item is the control that turns it off or
+  on for this pull request and agent; it takes effect at the next turn, as
+  above.
+- Everything else in this RFC stands: what is remembered, for which pull
+  request and agent, the starting state in the agent's settings, and the
+  wording rules. Where this RFC says "the grant line in the Agent tab", read
+  "the grant item in the footer picker's menu". AC05 and AC09 are amended
+  to match: AC05's "Agent tab's grant line" is the footer picker's grant
+  item, and AC09 turns the scratch folder off from that item.
+
 ### Boundaries
 
 - Tour runs stay read-only. The one-shot hooks stay tool-free.
@@ -148,7 +170,7 @@ above.
 - **AC04:** Build and run tests is unavailable, with its reason, for a
   checkout the reviewer chose. In a disposable checkout it asks once per
   pull request, and declining leaves the launch without the build allowance.
-- **AC05:** The Agent tab's grant line matches the launch for each of the
+- **AC05:** The footer picker's grant item (amended 2026-11-11, [[BPR-2051]]) matches the launch for each of the
   three states, and no text calls the grant a sandbox for a runtime that
   does not enforce one.
 - **AC06:** Tour runs and one-shot hooks launch exactly as before.
@@ -158,7 +180,7 @@ above.
 - **AC08:** A newly added agent and an agent carried over from 0.4.2 both
   launch with the scratch allowance; after the agent's starting state is set
   to Off, a pull request the reviewer has not changed launches without it.
-- **AC09:** Turning the scratch folder off from the grant line in one pull
+- **AC09:** Turning the scratch folder off from the footer picker's grant item in one pull
   request holds for that pull request and agent through New session and a
   restart, takes effect at the next turn, leaves another pull request on,
   and leaves the agent's starting state unchanged.

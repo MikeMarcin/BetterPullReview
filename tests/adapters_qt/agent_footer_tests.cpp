@@ -10,7 +10,9 @@
 /// cost keep their place whatever the run region says.
 ///
 /// `--render DIR` saves the footer's states in a window's status bar (light
-/// and dark under `BPR_NATIVE_LOOK`), for the owner's look.
+/// and dark under `BPR_NATIVE_LOOK`), for the owner's look. `--look` opens a
+/// window of status bars, one footer in each state, the first one live: its
+/// run ticks, its Stop and picker work, and its run ends after a minute.
 
 #include "bpr/core/agent_activity.hpp"
 #include "bpr/core/agent_cost.hpp"
@@ -21,13 +23,16 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QStyleHints>
+#include <QTimer>
 #include <QToolButton>
+#include <QVBoxLayout>
 
 #include <array>
 #include <cstdlib>
@@ -92,6 +97,58 @@ namespace {
 	}
 }
 
+namespace {
+	/// The owner's look: each state in its own status bar, the first live.
+	auto look(const std::shared_ptr<qt::agent_run_settings_source>& aSource) -> int
+	{
+		qt::set_agent_activity_clock({ });
+		QWidget window;
+		window.setWindowTitle(QStringLiteral("Agent footer: live run, quiet, several, answered, needs setup, idle"));
+		auto* const column = new QVBoxLayout{ &window };
+		column->setSpacing(14);
+		const auto add = [&](const QString& aCaption) {
+			auto* const caption = new QLabel{ aCaption, &window };
+			auto        bold    = caption->font();
+			bold.setWeight(QFont::DemiBold);
+			caption->setFont(bold);
+			column->addWidget(caption);
+			auto* const bar    = new QStatusBar{ &window };
+			auto* const review = new QLabel{ QStringLiteral("Actionable file 2 of 4. Private progress: seen, not accepted. Review history is ready."), bar };
+			review->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			bar->addWidget(review, 1);
+			auto* const footer = new qt::agent_footer{ aSource, bar };
+			bar->addPermanentWidget(footer);
+			footer->present_cost(qt::agent_footer_place::agent_tab, core::parse_agent_cost("0.12"));
+			footer->present_cost(qt::agent_footer_place::draft_tour, core::parse_agent_cost("0.41"));
+			column->addWidget(bar);
+			return footer;
+		};
+		auto started = QElapsedTimer{ };
+		started.start();
+		auto* const live       = add(QStringLiteral("One run, live: it ticks; Stop ends it; the picker's menu chooses the agent"));
+		auto        busy       = status(qt::agent_run_stage::thinking, waiting_on_helpers());
+		busy.ActivityStartedMs = qt::agent_activity_clock_ms();
+		const auto stop        = [live, &started] { live->present_finished(qt::agent_footer_place::agent_tab, QStringLiteral("stopped after %1").arg(qt::agent_elapsed_words(started.elapsed() / 1000))); };
+		live->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = busy, .Started = started, .Stop = stop });
+		QTimer::singleShot(60'000, live, [live, &started] { live->present_finished(qt::agent_footer_place::agent_tab, QStringLiteral("answered in %1 · $1.84 · 2 findings").arg(qt::agent_elapsed_words(started.elapsed() / 1000))); });
+		auto quiet              = busy;
+		quiet.ActivityStartedMs = qt::agent_activity_clock_ms() - 130'000;
+		add(QStringLiteral("Quiet for two minutes: the tone changes; nothing else moves"))->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = quiet, .Started = started, .Stop = [] { } });
+		auto* const several = add(QStringLiteral("Several runs: a count that opens the list, each with its own Stop"));
+		several->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = busy, .Started = started, .Stop = [] { } });
+		several->present_run(qt::agent_footer_place::enhance, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::writing), .Started = started, .Stop = [] { } });
+		auto* const answered = add(QStringLiteral("Just answered (here held; in the app for a few seconds)"));
+		answered->set_finished_hold(24 * 60 * 60 * 1000);
+		answered->present_finished(qt::agent_footer_place::tour_chat, QStringLiteral("answered in 0:21 · $0.04"));
+		add(QStringLiteral("The chosen agent needs setup: it says what is missing; Agent settings… leads to Settings"))->present_setup(QStringLiteral("not signed in"));
+		add(QStringLiteral("Idle: the pull request's agent and what this session has cost"));
+		column->addStretch(1);
+		window.resize(1100, 560);
+		window.show();
+		return QApplication::exec();
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -122,6 +179,9 @@ auto main(int argc, char** argv) -> int
 	codex.Effort.clear();
 	source->present({ claude, codex });
 	panel.profile_selector()->setCurrentIndex(panel.profile_selector()->findData(QVariant::fromValue<qulonglong>(1U)));
+	if (argc > 1 && std::string_view{ argv[1] } == "--look") {
+		return look(source);
+	}
 
 	QMainWindow window;
 	auto* const review = new QLabel{ QStringLiteral("Actionable file 2 of 4. Private progress: seen, not accepted. Review history is ready."), &window };

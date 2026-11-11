@@ -65,6 +65,17 @@ While a turn runs, its place in the transcript shows:
 
 Thinking is shown as a state. Its text is not shown; that is deferred.
 
+**Amendment, 2026-11-11 ([[BPR-2051]], owner decision "A + footer 1").** A
+running summary is also in the pull request window's footer, whatever drawer
+is open: where the run started (Agent tab, Tour chat, Enhance, Draft the
+tour, Tour tab), what it is doing ("waiting on 2 helpers"), how long, and
+Stop. Several runs at once read as a count ("2 running: Agent tab,
+Enhance") that opens the list, each with its own Stop. After 120 seconds
+without a frame the footer's run turns the quiet tone and says "no activity
+for 2 min"; nothing else in the footer moves. The drawers keep the detail
+this section describes (the helpers' rows, the folded line); the footer is
+a summary of it, not a second copy.
+
 After the turn, the block folds to one line under the answer ("Worked for 7
 min: 3 helpers, 41 files read, 12 commands") that opens to the same rows.
 
