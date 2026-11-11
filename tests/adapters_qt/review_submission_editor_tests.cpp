@@ -592,6 +592,8 @@ auto main(int argc, char** argv) -> int
 			   "the held suggestion's row says why and offers Convert; the other comment's row does not");
 		expect(!verdict->isEnabled() && verdict->toolTip() == QStringLiteral("1 suggestion GitHub cannot apply is held. Convert it or delete it first."),
 			   "every verdict waits while a suggestion is held, and says why");
+		expect(!held.submit_action()->isEnabled() && held.submit_action()->toolTip() == verdict->toolTip(),
+			   "Submit advertises the same held-suggestion refusal as its verdict");
 		const auto before = heldIntents.size();
 		held.submit_action()->trigger();
 		QApplication::processEvents();
@@ -608,6 +610,8 @@ auto main(int argc, char** argv) -> int
 		const auto stillHeld = held.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
 		expect(verdict->isEnabled() == free && std::ranges::none_of(stillHeld, [](const QLabel* aLabel) { return aLabel->isVisible(); }),
 			   "once nothing is held the rows say nothing more and the verdicts are as they were");
+		expect(held.submit_action()->isEnabled() == free && held.submit_action()->toolTip() == QStringLiteral("Publish this review with the displayed account and revision."),
+			   "releasing the held suggestion restores Submit and its normal explanation");
 
 		// [[BPR-1735]]. A comment GitHub cannot place in a review is held the
 		// same way, its action Publish as file comment; Submit waits for it.
@@ -624,6 +628,8 @@ auto main(int argc, char** argv) -> int
 			   "the held comment's row says why and offers Publish as file comment beside Delete");
 		expect(!verdict->isEnabled() && verdict->toolTip() == QStringLiteral("1 comment GitHub can't place in a review is held. Publish it as a file comment or delete it first."),
 			   "every verdict waits while it is held, and says why");
+		expect(!held.submit_action()->isEnabled() && held.submit_action()->toolTip() == verdict->toolTip(),
+			   "Submit advertises the same unplaceable-comment refusal as its verdict");
 		const auto placeBefore = heldIntents.size();
 		held.submit_action()->trigger();
 		QApplication::processEvents();

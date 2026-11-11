@@ -1284,7 +1284,6 @@ namespace bpr::qt {
 		Waiting->setAccessibleDescription((unknown.isEmpty() ? fallback : unknown) + QStringLiteral(" ") + WaitingAssure->text());
 		const auto connected = Draft.has_value() && static_cast<bool>(Dispatch);
 		Body->setReadOnly(!connected || !aProjection.Controls.Edit);
-		Submit->setEnabled(connected && aProjection.Controls.Submit);
 		Discard->setEnabled(connected && aProjection.Controls.Discard);
 		const auto carried = Draft.has_value() && !Draft->Comments.empty();
 		Discard->setText(carried ? tr("Discard review") : tr("Discard"));
@@ -1297,11 +1296,6 @@ namespace bpr::qt {
 		Body->setToolTip(Body->isReadOnly() ? aProjection.Status : tr("Your summary is kept as a draft until you submit it."));
 		present_preflight(aProjection);
 		present_verdicts();
-		Submit->setToolTip(Submit->isEnabled() ? tr("Publish this review with the displayed account and revision.")
-											   : (aProjection.Status.isEmpty() ? tr("This review cannot be submitted as it is.") : aProjection.Status));
-		if (!Submit->isEnabled() && aProjection.Controls.Authored && Draft && Draft->Disposition != core::review_disposition::comment) {
-			Submit->setToolTip(Decisions[decision_index(Draft->Disposition)]->toolTip());
-		}
 		Discard->setToolTip(Discard->isEnabled() ? (carried ? tr("Delete this review's pending comments and its summary. You are asked first.")
 															: tr("Discard this unpublished review draft."))
 												 : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
@@ -1659,6 +1653,13 @@ namespace bpr::qt {
 			}
 			button->setToolTip(tip);
 			button->setAccessibleDescription(tip);
+		}
+		Submit->setEnabled(connected && Shown.Controls.Submit && held == 0U);
+		Submit->setToolTip(held > 0U                 ? heldWords
+							   : Submit->isEnabled() ? tr("Publish this review with the displayed account and revision.")
+													 : (Shown.Status.isEmpty() ? tr("This review cannot be submitted as it is.") : Shown.Status));
+		if (!Submit->isEnabled() && Shown.Controls.Authored && Draft && Draft->Disposition != core::review_disposition::comment) {
+			Submit->setToolTip(Decisions[decision_index(Draft->Disposition)]->toolTip());
 		}
 	}
 	void review_submission_editor::submit_as(const core::review_disposition aDisposition)
