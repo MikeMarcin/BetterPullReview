@@ -10,10 +10,12 @@
 #include <QElapsedTimer>
 #include <QInputMethodEvent>
 #include <QItemSelectionModel>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QThread>
@@ -214,6 +216,17 @@ auto main(int aArgc, char** aArgv) -> int
 			editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 			QApplication::processEvents();
 			say("STOPS " + outline_ids(editor));
+		} else if (verb == "accept") {
+			// [[BPR-2014]]. The author's own Accept on a stop, through the window.
+			editor.go_to_stop(core::tour_stop_id{ std::stoull(argument) });
+			QApplication::processEvents();
+			auto* const accept = editor.accept_button();
+			const bool  shown  = accept != nullptr && accept->isVisibleTo(&editor) && accept->isEnabled();
+			if (shown) {
+				accept->click();
+				QApplication::processEvents();
+			}
+			say(shown ? "ACCEPT pressed" : "ACCEPT unavailable " + editor.accept_reason()->text().toStdString());
 		} else if (verb == "outline") {
 			const auto* chosen = editor.selected_stop();
 			say("OUTLINE " + outline_ids(editor) + " selected=" + (chosen ? std::to_string(chosen->Id.value()) : "none"));

@@ -1,6 +1,7 @@
 #include "bpr/application/review_tour_source.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/core/review_preparation.hpp"
+#include <algorithm>
 namespace bpr::application {
 	auto materialize_tour_source_comparison(epoch_application_host& aEpoch, diff_line_matcher_port& aMatcher,
 											const workbench_selected_diff_request& aRequest, std::stop_token aStop) -> std::optional<tour_source_comparison>
@@ -126,4 +127,63 @@ namespace bpr::application {
 		const auto digest = core::comparison_digest(key);
 		return review_tour_source_material{ { { digest, aSource.Side, aSource.FirstLine }, { digest, aSource.Side, aSource.LastLine }, aSource.Commit, blob, aSource.Path }, bytes.substr(first, last - first) };
 	}
+
+	auto tour_changed_paths(const core::tour_owner& aOwner, const github_pull_request_snapshot* aSnapshot) -> std::vector<std::string>
+	{
+		auto paths = std::vector<std::string>{ };
+		if (aSnapshot == nullptr || aSnapshot->Host != aOwner.Host || aSnapshot->Account != aOwner.Account || aSnapshot->Repository.Repository != aOwner.Repository || aSnapshot->PullRequest.PullRequest != aOwner.PullRequest) {
+			return paths;
+		}
+		paths.reserve(aSnapshot->Files.size());
+		for (const auto& file : aSnapshot->Files) {
+			paths.push_back(file.Path);
+		}
+		return paths;
+	}
+
+	auto tour_material_compared(const core::review_tour& aTour, const tour_material_key& aKey) -> bool
+	{
+		const auto& [commit, head, path] = aKey;
+		return std::ranges::none_of(aTour.Stops, [&](const core::tour_stop& aStop) {
+			return aStop.Acceptance && std::ranges::any_of(aStop.Acceptance->Material, [&](const core::tour_material& aMaterial) {
+					   return aMaterial.Range.Commit == commit && aMaterial.Range.Path == path && (aMaterial.CheckedAt != head || aMaterial.Verdict == core::tour_material_verdict::unchecked);
+				   });
+		});
+	}
+
+	auto tour_material_ledger::may_ask(const tour_material_key& aKey) const -> bool
+	{
+		const auto failed = std::ranges::find(Failed, aKey, &std::pair<tour_material_key, unsigned>::first);
+		return std::ranges::find(Asking, aKey) == Asking.end() && (failed == Failed.end() || failed->second < maximum_attempts);
+	}
+
+	void tour_material_ledger::asked(tour_material_key aKey)
+	{
+		if (std::ranges::find(Asking, aKey) == Asking.end()) {
+			Asking.push_back(std::move(aKey));
+		}
+	}
+
+	void tour_material_ledger::answered(const tour_material_key& aKey, const bool aCompared)
+	{
+		std::erase(Asking, aKey);
+		const auto failed = std::ranges::find(Failed, aKey, &std::pair<tour_material_key, unsigned>::first);
+		if (aCompared) {
+			if (failed != Failed.end()) {
+				Failed.erase(failed);
+			}
+			return;
+		}
+		if (failed != Failed.end()) {
+			++failed->second;
+			return;
+		}
+		Failed.emplace_back(aKey, 1U);
+		// Bounded: the oldest failure is forgotten first.
+		if (Failed.size() > 4U * core::maximum_tour_stops) {
+			Failed.erase(Failed.begin());
+		}
+	}
+
+	void tour_material_ledger::dropped() noexcept { Asking.clear(); }
 }

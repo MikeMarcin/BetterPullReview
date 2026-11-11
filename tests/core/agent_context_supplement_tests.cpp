@@ -283,9 +283,11 @@ namespace {
 		// and the lines' text; no argv, environment or token.
 		static_assert(std::is_same_v<decltype(conversation), const std::optional<core::supplement_conversation>>);
 		[[maybe_unused]] const auto& [conversationSubject, conversationPath, conversationStart, conversationLine, conversationResolved, conversationOutdated,
-									  conversationComments, conversationOmitted, conversationExcerpt] = core::supplement_conversation{ };
+									  conversationComments, conversationOmitted, conversationExcerpt]              = core::supplement_conversation{ };
 		[[maybe_unused]] const auto& [briefTitle, briefDescription, briefCut, briefBase, briefFiles, briefFilesOmitted, briefThreads, briefThreadsOmitted, briefWorkspace,
-									  briefSkill, briefConversation, briefConversationOmitted]        = core::supplement_brief{ };
+									  briefSkill, briefCommentFormat, briefConversation, briefConversationOmitted] = core::supplement_brief{ };
+		// [[BPR-2059]]. The suggested-comment format: the guidance text the input gave.
+		static_assert(std::is_same_v<decltype(briefCommentFormat), const std::optional<core::supplement_feedback_guidance>>);
 		// [[BPR-1753]]. The conversation so far: questions and answers
 		// as prose, no argv, environment or token.
 		static_assert(std::is_same_v<decltype(briefConversation), const std::vector<core::brief_turn>>);

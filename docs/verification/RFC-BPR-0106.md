@@ -135,6 +135,27 @@ Overview's Solution is a Markdown view since `3d97ea548`, so the test reads
 its empty-body label); `test_network_isolation_manifest` passes with the
 missing entry for BPR-2051's `application_enhance_comment_note_public_path`.
 
+### Re-review of the fixes (2026-11-10)
+
+An independent reviewer re-reviewed `d02f13efb` and `fb94545ec` and returned
+pass-with-findings, nothing blocking. Each finding was taken test first; where
+a test could run against the unfixed code it failed there before the fix.
+
+| # | Finding | Test | Disposition |
+|---|---|---|---|
+| 1 | Accepted with nothing to compare still reachable: never-accepted lines were kept to compare only at the tour's authored `Head`, which never advances, so a stop authored at a later observed head and first accepted after a push (or Marked not accepted and accepted again) recorded no own lines | `core_tour_stop_acceptance` (`test_intermediate_head_stop_is_compared`; failed before the fix); `sqlite_review_tour_storage` (version 12 keeps the heads, version 11 reads with none); `sqlite_tour_owner_channel` (`test_version_mismatch` with a version 7 owner) | Fixed. The tour keeps the heads it observed after `Head` and left behind while a stop still has its lines there (`EarlierHeads`, at most one per stop); lines at any of them are compared against later heads. Only a stop pinned at a commit the tour never had as its head is historical. Tour payload version 12, owner protocol version 8 |
+| 2 | The walk's, the forwarded and the window's Ready or Accept file lists had no test; `live_tour` took the window's read without checking it was the tour owner's pull request | `tour_cli_process_commands` (pty walk: without changed files Ready, not Accepted; with them Accepted; failed with the walk's list dropped); `application_profile_tour_handoff_public_path` (a forwarded walk Ready and the window's Accept on a stop naming `review.cpp:1-2` against a real desktop owner; each failed with its list dropped); `application_review_tour_host` (`tour_changed_paths`: another pull request's read supplies none) | Fixed and pinned. One helper, `tour_changed_paths`, gives the changed paths only when the window's read is the tour owner's pull request; the window's Accept, the forwarded Ready and the editor's button use it. `bpr tour status --json` reports each stop's `acceptance` |
+| 3 | A comparison dropped by a pull request switch was never asked again (its key stayed "asked"), nor one read with no verdict | `application_review_tour_host` (`tour_material_ledger`: one read at a time, a dropped read asked again and uncounted, a failed or verdict-less read asked again at most three times; `tour_material_compared`) | Fixed. The window keeps only reads in flight as asked; leaving the pull request drops them uncounted; a read that leaves the code uncompared counts as a failed attempt. Read from the code; no course drives a failing or dropped realignment read through the window |
+| 4 | The editor computed Accept's need without the file list, while the core refuses Accept with none on a stop naming a file | `core_tour_stop_acceptance` (`tour_stop_accept_need` with files); `qt_tour_stop_acceptance_card` (failed before the fix: Accept was offered) | Fixed. One decision: `tour_stop_accept_need(tour, stop, files)` (`changed_files` when the text names another file and no files are known) is what `accept` and an observed Ready apply and what the button shows; the presentation carries the window's changed files. Disabled, the reason line adds "Accept it once the pull request's files load." Frontend-design was loaded before this Qt change |
+| 5 | The version 10 resume test used only `editing` stops | `staged_review_session` (`test_update_saved_before_acceptance_resumes`, now also with the old rule's Ready stops) | Covered; no defect. The carry accepts those stops as the journal's record is read, the record is otherwise exactly the one sent, and the plan the desktop discovers reconciles and resumes |
+
+Also found: two tests no earlier run had built or run still expected the five
+hooks before BPR-2051 and BPR-2059 (`tour_cli_composition` for a running
+owner, `application_profile_tour_handoff_public_path`); both now list nine.
+`agent_context_supplement` did not compile after BPR-2059 added the brief's
+comment format; its structural check names it. The CLI's capabilities named
+owner channel v6; it says v8.
+
 ## Enhance on comments and notes ([[BPR-2051]], 2026-11-10)
 
 Owner request, on the same lane. Frontend-design was loaded before the Qt

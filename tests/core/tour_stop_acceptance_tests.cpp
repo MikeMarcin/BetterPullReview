@@ -259,6 +259,10 @@ namespace {
 		expect(decide_tour_stop_acceptance(seen, seen.Stops[0]).Reason == tour_acceptance_reason::reference_changed, "a push that changes the referenced lines turns the walk-accepted stop yellow");
 		expect(apply(tour, command(tour, tour_command_kind::accept, tour.Stops[0].Id)).Refusal == tour_refusal::incomplete, "Accept without the changed files refuses a stop whose text names another file");
 		expect(apply(tour, command(tour, tour_command_kind::accept, tour.Stops[1].Id)).Refusal == tour_refusal::none, "a stop that names no other file needs no file list");
+		// Re-review finding 4: the decision the Accept button shows is the core's.
+		const auto files = std::vector<std::string>{ "src/item.cpp", "src/pool.cpp" };
+		expect(tour_stop_accept_need(tour, tour.Stops[0], { }) == tour_accept_need::changed_files && tour_stop_accept_need(tour, tour.Stops[0], files) == tour_accept_need::nothing && tour_stop_accept_need(tour, tour.Stops[1], { }) == tour_accept_need::nothing,
+			   "Accept needs the changed files exactly when its text names another file");
 	}
 
 	/// Critical review finding 3: accepting at a head where the stop's own

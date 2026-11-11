@@ -115,10 +115,8 @@ namespace bpr::app {
 				aCommand.Attention = current_tour_attention();
 				// [[BPR-2014]]. Accepting records the code at every reference
 				// the stop's text makes: the changed paths resolve them.
-				if ((aCommand.Kind == core::tour_command_kind::accept || aCommand.Kind == core::tour_command_kind::complete) && WindowRead->accepted_snapshot()) {
-					for (const auto& file : WindowRead->accepted_snapshot()->Files) {
-						aCommand.Files.push_back(file.Path);
-					}
+				if (aCommand.Kind == core::tour_command_kind::accept || aCommand.Kind == core::tour_command_kind::complete) {
+					aCommand.Files = tour_changed_files();
 				}
 				static_cast<void>(TourHost->execute({ .Command = std::move(aCommand) }));
 			} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });

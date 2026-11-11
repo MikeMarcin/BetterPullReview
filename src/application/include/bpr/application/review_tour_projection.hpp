@@ -119,6 +119,10 @@ namespace bpr::application {
 		bool                                     CanRedo = false;
 		std::string                              UndoLabel, RedoLabel;
 		tour_resume_hint                         Resume{ };
+		/// [[BPR-2014]]. The pull request's changed paths, as the window that
+		/// shows the tour knows them now; empty while it does not. Accept
+		/// resolves a stop's references against them.
+		std::vector<std::string> ChangedFiles;
 	};
 }
 #endif

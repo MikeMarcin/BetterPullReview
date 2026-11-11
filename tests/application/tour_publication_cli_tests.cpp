@@ -131,6 +131,8 @@ namespace {
 		stop.Body           = "Retain exact source and discussion.";
 		stop.Original->Blob = *core::parse_git_blob_oid("2222222222222222222222222222222222222222");
 		snapshot            = edit(aRuntime, snapshot, { .Kind = core::tour_command_kind::insert, .Value = stop });
+		// [[BPR-2014]]. Only an accepted stop publishes: the author accepts it.
+		snapshot = edit(aRuntime, snapshot, { .Kind = core::tour_command_kind::accept, .Stop = snapshot.Draft.Stops.back().Id });
 		return snapshot;
 	}
 
@@ -390,7 +392,9 @@ namespace {
 			auto stop     = snapshot.Draft.Stops.front();
 			stop.Body     = "An explicit maintained explanation.";
 			snapshot      = edit(runtime, snapshot, { .Kind = core::tour_command_kind::edit_stop, .Stop = stop.Id, .Value = stop });
-			auto update   = runtime.prepare_publication(token, false, { });
+			// [[BPR-2014]]. The edit is accepted, as Save accepts it in the desktop.
+			snapshot    = edit(runtime, snapshot, { .Kind = core::tour_command_kind::accept, .Stop = stop.Id });
+			auto update = runtime.prepare_publication(token, false, { });
 			expect(update && update->Plan && update->Plan->Update, "maintenance uses same immutable parent plan");
 			auto updated = runtime.publish(*update, false);
 			expect(updated && updated->Result.State == application::staged_publication_state::published && state.Server->StagedCreates == 1 && state.Server->StagedSubmits == 1, "maintenance preserves original remote identities");
@@ -400,7 +404,10 @@ namespace {
 			additional.Original->Blob = *core::parse_git_blob_oid("2222222222222222222222222222222222222222");
 			additional.Title          = "Second batch";
 			snapshot                  = edit(runtime, snapshot, { .Kind = core::tour_command_kind::insert, .Value = additional });
-			auto insertion            = runtime.prepare_publication(token, false, { });
+			const auto added          = std::ranges::find(snapshot.Draft.Stops, std::string{ "Second batch" }, &core::tour_stop::Title);
+			expect(added != snapshot.Draft.Stops.end(), "the second batch's stop is in the draft");
+			snapshot       = edit(runtime, snapshot, { .Kind = core::tour_command_kind::accept, .Stop = added->Id });
+			auto insertion = runtime.prepare_publication(token, false, { });
 			expect(insertion && insertion->Plan && runtime.publish(*insertion, false)->Result.State == application::staged_publication_state::published, "second actual publication batch succeeds before cold recovery");
 		}
 		cold_course(state, scratch.path());

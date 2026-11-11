@@ -115,11 +115,11 @@ if mode == "cancel": time.sleep(30)
 
 def walk_checks(binary, root, select, invoke, temporary):
     import pty
-    def terminal_run(args, actions=(), eof=False):
+    def terminal_run(args, actions=(), eof=False, extra_env=None):
         master, slave = pty.openpty()
         child = subprocess.Popen([binary, "tour", *args, "--data-root", str(root), "--no-color"],
                                  stdin=slave, stdout=slave, stderr=slave,
-                                 env=dict(os.environ, COLUMNS="24", NO_COLOR="1"))
+                                 env=dict(os.environ, COLUMNS="24", NO_COLOR="1", **(extra_env or {})))
         os.close(slave)
         output = bytearray()
         pending = list(actions)
@@ -191,6 +191,21 @@ def walk_checks(binary, root, select, invoke, temporary):
     assert code == 130, output
     refused = invoke("walk", *select, "--json")
     assert refused.returncode == 3 and json.loads(refused.stdout)["error"]["code"] == "interaction_required"
+    # [[BPR-2014]] re-review finding 2. The walk's Ready accepts a stop whose
+    # text names another file only with the changed paths its own read
+    # observed: none in a read without files, the pull request's in one with.
+    field.write_text("Read `src/quiet.cpp:1-2` with it.\n")
+    code, output = terminal_run(["add", "second.cpp:1-1", *select, "--file", str(field)])
+    assert code == 0, output
+    def walked():
+        return json.loads(invoke("status", *select, "--json").stdout)["data"]["stops"][-1]
+    assert walked()["acceptance"] == "not_accepted", walked()
+    code, output = terminal_run(["walk", *select], ["n", "r"])
+    assert code == 0, output
+    assert walked()["ready"] and walked()["completion_origin"] == "observed" and walked()["acceptance"] == "not_accepted", walked()
+    code, output = terminal_run(["walk", *select], ["n", "r"], extra_env={"BPR_TOUR_FIXTURE_FEEDBACK": "threads"})
+    assert code == 0, output
+    assert walked()["acceptance"] == "accepted", walked()
     print("tour-cli-raw-terminal-rehearsal:pass")
 
 

@@ -3462,8 +3462,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# path, and its Undo discards the drafts it made that are unchanged since;
 	# every Agent tab brief carries the suggested-comment format. All local;
 	# no grant, admission or publication boundary changes.
+	# RFC-BPR-0106 re-review: the changed paths come only from the window's
+	# read of the tour owner's own pull request; a comparison dropped by a
+	# switch, or read with no verdict, is asked again, bounded; `bpr tour
+	# status` reports each stop's acceptance. Local only; no grant,
+	# admission or publication boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "723d993221b6593a99ec46e9e2b26d6593be2a62fa2c672407b547c172d5e4bd"
+        "0ad5588d9a67dce7fefa3d002dcb6a4230732e4f7b29120f650c6ab8ef7d5879"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

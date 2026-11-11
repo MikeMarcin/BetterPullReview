@@ -4,6 +4,7 @@
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include "terminal_text.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_editor.hpp"
@@ -428,7 +429,7 @@ namespace bpr::app {
 				}
 				for (auto i = cursor; i < end; ++i) {
 					const auto& stop = draft.Stops[i];
-					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) }, { "suggested", stop.Suggestion.has_value() }, { "visited", stop.Suggestion.has_value() && stop.Suggestion->Visited }, { "remote", remote_identity(stop.Remote) }, { "source_binding", source_binding(stop) } });
+					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) }, { "acceptance", text(core::stable_name(core::decide_tour_stop_acceptance(draft, stop).State)) }, { "suggested", stop.Suggestion.has_value() }, { "visited", stop.Suggestion.has_value() && stop.Suggestion->Visited }, { "remote", remote_identity(stop.Remote) }, { "source_binding", source_binding(stop) } });
 					result.Human += QStringLiteral("%1. %2 [%3]\n").arg(QString::number(stop.Id.value()), text(stop.Title), stop.Preparation == core::tour_preparation::ready ? "Ready" : "Editing");
 				}
 				result.Data["stops"]       = stops;

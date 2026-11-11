@@ -199,10 +199,15 @@ within the stated behaviour:
   (critical review, finding 2).
 - Accept at a head where the stop's own lines are not mapped keeps them to
   compare: what was accepted of them, with the comparison's verdict, or (never
-  accepted) its lines at the tour's head before the push. The stop stays
-  yellow until they are compared unchanged or its lines are chosen at the new
-  head; only a historical stop is accepted with no lines of its own to
-  compare (finding 3).
+  accepted) its lines at a head the tour had before the push, its own or a
+  later one it observed (the tour keeps those heads while a stop has its lines
+  there). The stop stays yellow until they are compared unchanged or its lines
+  are chosen at the new head; only a stop pinned at a commit the tour never
+  had as its head is accepted with no lines of its own to compare (finding 3,
+  re-review finding 1).
+- Accept, and the button that offers it, need the pull request's changed files
+  when the stop's text names another file; the window supplies them only from
+  its read of the tour's own pull request (re-review findings 2 and 4).
 - A draft saved before acceptance carries a stop Accepted only when the
   author made it Ready (in the window or the walk), it was not suggested by
   an outline, it was reaffirmed at the current head and its text names no
@@ -211,11 +216,12 @@ within the stated behaviour:
 - A tour update already part sent resumes as it was sent: its frozen tour was
   authorized when the plan was made and is rendered without being judged
   again, so a record saved under the earlier rule still loads (finding 1).
-- A comparison of accepted code that could not be read is asked again on a
-  later presentation, at most three times at a head (finding 7). The tour
-  owner channel is protocol version 7, so a command client and a desktop on
-  either side of the tour payload's version 11 refuse each other at hello
-  (finding 8).
+- A comparison of accepted code that could not be read, or that was read and
+  left the code uncompared, is asked again on a later presentation, at most
+  three times at a head; one dropped when the window left the pull request is
+  asked again uncounted (finding 7, re-review finding 3). The tour owner
+  channel is protocol version 8, so a command client and a desktop on either
+  side of the tour payload's version 12 refuse each other at hello (finding 8).
 - Overview's stop rows say Accepted, Not accepted yet or Changed since
   accepted, as the route does.
 

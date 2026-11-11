@@ -151,6 +151,14 @@ namespace bpr::core {
 		return kept && kept->CheckedAt == head && (kept->Verdict == tour_material_verdict::changed || kept->Verdict == tour_material_verdict::missing) ? tour_accept_need::lines_at_head : tour_accept_need::nothing;
 	}
 
+	auto tour_stop_accept_need(const review_tour& aTour, const tour_stop& aStop, const std::span<const std::string> aFiles) -> tour_accept_need
+	{
+		if (const auto need = tour_stop_accept_need(aTour, aStop); need != tour_accept_need::nothing) {
+			return need;
+		}
+		return aFiles.empty() && tour_stop_names_files(aStop) ? tour_accept_need::changed_files : tour_accept_need::nothing;
+	}
+
 	auto tour_stop_material(const tour_stop& aStop, const git_commit_oid& aHead, const std::span<const std::string> aFiles) -> std::vector<tour_material>
 	{
 		auto       result = std::vector<tour_material>{ };

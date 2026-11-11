@@ -197,6 +197,8 @@ namespace bpr::app {
 		++TourMaterialGeneration;
 		TourMaterialRequests.clear();
 		TourMaterialReading = false;
+		// Re-review finding 3: what was asked and is now dropped is asked again.
+		TourMaterial.dropped();
 		TourRepairComparisons.clear();
 		TourRepairFiles.clear();
 		TourRepairCommand.reset();
@@ -232,13 +234,7 @@ namespace bpr::app {
 			return tour_draft_token(target) == aSelector;
 		};
 		if (TourHost && matches(*TourHost)) {
-			auto files = std::vector<std::string>{ };
-			if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
-				for (const auto& file : snapshot->Files) {
-					files.push_back(file.Path);
-				}
-			}
-			return { TourHost.get(), true, Window && Window->tour_editor()->composing(), std::move(files) };
+			return { TourHost.get(), true, Window && Window->tour_editor()->composing(), tour_changed_files() };
 		}
 		for (const auto& retained : RetiredTourHosts) {
 			if (matches(*retained.Host)) {
@@ -355,9 +351,11 @@ namespace bpr::app {
 		if (const auto found = std::ranges::find(RetiredTourHosts, owner, &retained_tour_host::Owner); found != RetiredTourHosts.end()) {
 			TourHost = std::move(found->Host);
 			RetiredTourHosts.erase(found);
-			TourOwner         = owner;
-			TourAttentionHead = { };
-			Window->tour_editor()->present(TourHost->presentation());
+			TourOwner          = owner;
+			TourAttentionHead  = { };
+			auto shown         = TourHost->presentation();
+			shown.ChangedFiles = tour_changed_files();
+			Window->tour_editor()->present(shown);
 			Window->prepare_tour_action()->setEnabled(static_cast<bool>(TourHost->presentation().Draft));
 			observe_tour_head();
 			return;
@@ -375,7 +373,8 @@ namespace bpr::app {
 																	   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
 																		   return;
 																	   }
-																	   auto projected = aProjection;
+																	   auto projected         = aProjection;
+																	   projected.ChangedFiles = tour_changed_files();
 																	   if (projected.Draft && WindowRead->accepted_snapshot()) {
 																		   const auto& snapshot = *WindowRead->accepted_snapshot();
 																		   if (const auto* profile = find_profile(snapshot.Profile)) {
@@ -2220,9 +2219,8 @@ namespace bpr::app {
 				// One read per file, commit and head; a file read once at a
 				// head is not asked again there. A read that failed is asked
 				// again on a later presentation, a bounded number of times.
-				auto       key    = std::tuple{ range.Commit, head, range.Path };
-				const auto failed = std::ranges::find(TourMaterialFailed, key, &decltype(TourMaterialFailed)::value_type::first);
-				if (std::ranges::find(TourMaterialAsked, key) != TourMaterialAsked.end() || (failed != TourMaterialFailed.end() && failed->second >= maximum_tour_material_attempts)) {
+				auto key = application::tour_material_key{ range.Commit, head, range.Path };
+				if (!TourMaterial.may_ask(key)) {
 					continue;
 				}
 				const auto binding = core::agent_revision_binding{ .Host = authority.Host, .Repository = authority.Repository, .PullRequest = authority.PullRequest, .BaseOid = range.Commit, .HeadOid = head, .LeftEpoch = current->Comparison.Left.Identity.Epoch, .RightEpoch = current->Comparison.Right.Identity.Epoch };
@@ -2231,10 +2229,7 @@ namespace bpr::app {
 					// Not readable yet: nothing was asked, so it is asked again.
 					continue;
 				}
-				TourMaterialAsked.push_back(std::move(key));
-				if (TourMaterialAsked.size() > 4U * core::maximum_tour_stops) {
-					TourMaterialAsked.erase(TourMaterialAsked.begin());
-				}
+				TourMaterial.asked(std::move(key));
 				application::workbench_selected_diff_request request;
 				request.Context               = { core::request_id{ requests.size() + 1U }, authority.ApplicationSession, core::request_generation{ draft->Revision } };
 				request.WorkbenchAuthority    = authority;
@@ -2270,7 +2265,7 @@ namespace bpr::app {
 		const auto context = EpochHost->realignment_context(request.WorkbenchAuthority,
 															{ .Host = request.WorkbenchAuthority.Host, .Repository = request.WorkbenchAuthority.Repository, .PullRequest = request.WorkbenchAuthority.PullRequest, .BaseOid = request.Diff.Comparison.Left.Commit, .HeadOid = request.Diff.Comparison.Right.Commit, .LeftEpoch = request.Diff.Comparison.Left.Identity.Epoch, .RightEpoch = request.Diff.Comparison.Right.Identity.Epoch });
 		if (!context) {
-			tour_material_failed(request);
+			TourMaterial.answered(tour_material_key_of(request), false);
 			read_next_tour_material();
 			return;
 		}
@@ -2290,10 +2285,15 @@ namespace bpr::app {
 						if (Closing || generation != TourMaterialGeneration) {
 							return;
 						}
+						// Re-review finding 3: a read that left the code uncompared
+						// (no verdict) is asked again like one that failed.
+						const auto key = tour_material_key_of(request);
 						if (produced && TourHost && produced->Left.Commit != produced->Right.Commit) {
 							TourHost->observe_comparison(produced->Index, produced->Left, produced->Right);
+							const auto draft = TourHost->presentation().Draft;
+							TourMaterial.answered(key, draft && application::tour_material_compared(*draft, key));
 						} else {
-							tour_material_failed(request);
+							TourMaterial.answered(key, false);
 						}
 						read_next_tour_material();
 					});
@@ -2305,25 +2305,19 @@ namespace bpr::app {
 			TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
 			TourMaterialReading = false;
 			TourMaterialRequests.clear();
+			TourMaterial.dropped();
 		}
 	}
 
-	/// Critical review finding 7. A comparison that could not be read leaves
-	/// its range "not compared yet"; forgetting that it was asked lets a later
-	/// presentation ask again, up to `maximum_tour_material_attempts` times.
-	void github_application::implementation::tour_material_failed(const application::workbench_selected_diff_request& aRequest)
+	auto github_application::implementation::tour_material_key_of(const application::workbench_selected_diff_request& aRequest) -> application::tour_material_key
 	{
-		const auto key = std::tuple{ aRequest.Diff.Comparison.Left.Commit, aRequest.Diff.Comparison.Right.Commit, aRequest.File.PresentationPath };
-		std::erase(TourMaterialAsked, key);
-		const auto failed = std::ranges::find(TourMaterialFailed, key, &decltype(TourMaterialFailed)::value_type::first);
-		if (failed != TourMaterialFailed.end()) {
-			++failed->second;
-			return;
-		}
-		TourMaterialFailed.emplace_back(key, 1U);
-		if (TourMaterialFailed.size() > 4U * core::maximum_tour_stops) {
-			TourMaterialFailed.erase(TourMaterialFailed.begin());
-		}
+		return { aRequest.Diff.Comparison.Left.Commit, aRequest.Diff.Comparison.Right.Commit, aRequest.File.PresentationPath };
+	}
+
+	auto github_application::implementation::tour_changed_files() const -> std::vector<std::string>
+	{
+		const auto& snapshot = WindowRead->accepted_snapshot();
+		return TourOwner ? application::tour_changed_paths(*TourOwner, snapshot ? &*snapshot : nullptr) : std::vector<std::string>{ };
 	}
 
 	void github_application::implementation::dispatch_tour_repair(const core::tour_stop_id aStop, const qt::tour_repair_action aAction)

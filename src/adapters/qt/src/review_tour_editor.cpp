@@ -3346,8 +3346,9 @@ namespace bpr::qt {
 		const auto decision = stop != nullptr && Shown.Draft ? core::decide_tour_stop_acceptance(*Shown.Draft, *stop) : core::tour_acceptance_decision{ };
 		const auto yellow   = stop != nullptr && Shown.Draft && !Shown.Draft->ReadOnly && decision.State != core::tour_acceptance_state::accepted;
 		const auto offered  = yellow && !ShowsStopProposal && !writing;
-		const auto need     = stop != nullptr && Shown.Draft ? core::tour_stop_accept_need(*Shown.Draft, *stop) : core::tour_accept_need::lines;
-		const auto can      = need == core::tour_accept_need::nothing;
+		// Re-review finding 4: the core's own decision, with the changed files it would be given.
+		const auto need = stop != nullptr && Shown.Draft ? core::tour_stop_accept_need(*Shown.Draft, *stop, Shown.ChangedFiles) : core::tour_accept_need::lines;
+		const auto can  = need == core::tour_accept_need::nothing;
 		Complete->setVisible(offered);
 		Complete->setEnabled(can);
 		Complete->setDefault(offered);
@@ -3357,6 +3358,7 @@ namespace bpr::qt {
 			if (!can) {
 				reason += QLatin1Char(' ') + (need == core::tour_accept_need::title ? tr("Give it a title to accept it.") : need == core::tour_accept_need::explanation ? tr("Write its explanation to accept it.")
 												  : need == core::tour_accept_need::lines_at_head                                                                       ? tr("Choose its lines again to accept it.")
+												  : need == core::tour_accept_need::changed_files                                                                       ? tr("Accept it once the pull request's files load.")
 																																										: tr("Choose its lines to accept it."));
 			}
 			AcceptReason->setText(reason);
@@ -4598,7 +4600,7 @@ namespace bpr::qt {
 		// [[BPR-2014]], RFC-BPR-0106. Save accepts the stop: the edit is the
 		// author's, made with its code on screen.
 		if (StopView.Mode == core::tour_stop_view_mode::read && Shown.Refusal == core::tour_refusal::none) {
-			if (const auto* const now = selected_stop(); now != nullptr && now->Id == id && Shown.Draft && !core::tour_stop_accepted(*Shown.Draft, *now) && core::tour_stop_accept_need(*Shown.Draft, *now) == core::tour_accept_need::nothing) {
+			if (const auto* const now = selected_stop(); now != nullptr && now->Id == id && Shown.Draft && !core::tour_stop_accepted(*Shown.Draft, *now) && core::tour_stop_accept_need(*Shown.Draft, *now, Shown.ChangedFiles) == core::tour_accept_need::nothing) {
 				accept_stop(id);
 			}
 		}

@@ -564,17 +564,18 @@ namespace bpr::app {
 		/// [[BPR-2014]]. Compares the code each stop was accepted on with the
 		/// pull request's current head, one file at a time, so a push turns
 		/// yellow only the stops whose material changed.
-		void                                                                             check_tour_material();
-		void                                                                             read_next_tour_material();
-		std::deque<application::workbench_selected_diff_request>                         TourMaterialRequests;
-		std::vector<std::tuple<core::git_commit_oid, core::git_commit_oid, std::string>> TourMaterialAsked;
-		/// Critical review finding 7: a read that failed is asked again on a
-		/// later presentation, at most `maximum_tour_material_attempts` times.
-		std::vector<std::pair<std::tuple<core::git_commit_oid, core::git_commit_oid, std::string>, unsigned>> TourMaterialFailed;
-		static constexpr unsigned                                                                             maximum_tour_material_attempts = 3U;
-		void                                                                                                  tour_material_failed(const application::workbench_selected_diff_request& aRequest);
-		std::uint64_t                                                                                         TourMaterialGeneration = 0U;
-		bool                                                                                                  TourMaterialReading    = false;
+		void                                                     check_tour_material();
+		void                                                     read_next_tour_material();
+		std::deque<application::workbench_selected_diff_request> TourMaterialRequests;
+		/// Critical review finding 7, re-review finding 3: which comparisons are
+		/// asked now, and a bounded retry of one that failed or was dropped.
+		application::tour_material_ledger TourMaterial;
+		[[nodiscard]] static auto         tour_material_key_of(const application::workbench_selected_diff_request& aRequest) -> application::tour_material_key;
+		/// [[BPR-2014]]. The tour owner's pull request's changed paths, when
+		/// the window's accepted read is that pull request's.
+		[[nodiscard]] auto tour_changed_files() const -> std::vector<std::string>;
+		std::uint64_t      TourMaterialGeneration = 0U;
+		bool               TourMaterialReading    = false;
 
 		void finish_tour_navigation();
 		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource);

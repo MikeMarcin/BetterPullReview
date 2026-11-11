@@ -1,5 +1,6 @@
 """[[BPR-1062]]. The shipped CLI and a real desktop author work one live draft, in both directions."""
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
@@ -146,7 +147,8 @@ def main():
                                     "--data-root", str(root)], capture_output=True, timeout=60)
             assert hooks.returncode == 0, hooks.stdout
             listed = json.loads(hooks.stdout)["data"]["hooks"]
-            assert [hook["name"] for hook in listed] == ["problem", "solution", "outline", "comment", "feedback"], hooks.stdout
+            assert [hook["name"] for hook in listed] == ["problem", "solution", "outline", "comment", "feedback", "enhance-stop",
+                                                         "enhance-comment", "enhance-note", "suggested-comment"], hooks.stdout
             assert all(hook["active"] for hook in listed[:4]) and listed[4]["active"] is False, hooks.stdout
             assert listed[4]["version"] == "review-feedback-v1" and listed[4]["customized"] is False, hooks.stdout
             assert ask("compose \u4e2d", "COMPOSING") == "COMPOSING"
@@ -216,6 +218,63 @@ def main():
             assert revision() == after_add and len(data(bpr("status"))["stops"]) == len(stops)
             removed_source = bpr("remove", new["stop_id"], "--expected-revision", after_add, "--request-id", "cli-source-remove")
             assert removed_source.returncode == 0, removed_source.stdout
+            # [[BPR-2014]] re-review finding 2. A stop whose text names a range in
+            # a file is accepted only with the pull request's changed files: the
+            # window showing it supplies them to a walk's forwarded Ready and to
+            # its own Accept.
+            def naming_stop(request_id):
+                added = bpr("add", "review.cpp:3-5", "--expected-revision", revision(), "--request-id", request_id,
+                            "--file", "-", data=b"Compare `review.cpp:1-2` with it.\n")
+                assert added.returncode == 0, added.stdout + added.stderr
+                return data(added)["stops"][-1]["stop_id"]
+
+            def acceptance(stop_id):
+                return next(stop for stop in data(bpr("status"))["stops"] if stop["stop_id"] == stop_id)["acceptance"]
+
+            def walk(actions):
+                import pty
+                import select as readiness
+                master, slave = pty.openpty()
+                child = subprocess.Popen([args.tour_application, "tour", "walk", "--profile", "1", "--draft", token,
+                                          "--data-root", str(root), "--no-color"], stdin=slave, stdout=slave, stderr=slave,
+                                         env=dict(os.environ, COLUMNS="80", NO_COLOR="1"))
+                os.close(slave)
+                output, pending, prompted = bytearray(), list(actions), 0
+                deadline = time.monotonic() + 60
+                try:
+                    while time.monotonic() < deadline and child.poll() is None:
+                        if readiness.select([master], [], [], 0.05)[0]:
+                            try:
+                                part = os.read(master, 8192)
+                            except OSError as error:
+                                if error.errno == errno.EIO:
+                                    break
+                                raise
+                            if not part:
+                                break
+                            output.extend(part)
+                            if output.count(b"> ") > prompted and pending:
+                                prompted = output.count(b"> ")
+                                os.write(master, pending.pop(0).encode() + b"\n")
+                    child.wait(timeout=10)
+                finally:
+                    if child.poll() is None:
+                        child.kill()
+                        child.wait(timeout=5)
+                    os.close(master)
+                assert not pending and child.returncode == 0, (child.returncode, bytes(output))
+                assert b"Source unavailable" not in output, bytes(output)
+
+            walked = naming_stop("cli-naming-walk")
+            assert acceptance(walked) == "not_accepted"
+            count = len(data(bpr("status"))["stops"])
+            walk(["n"] * (count - 1) + ["r"])
+            assert acceptance(walked) == "accepted", data(bpr("status"))["stops"]
+            pressed = naming_stop("cli-naming-accept")
+            assert ask("accept " + pressed, "ACCEPT ") == "ACCEPT pressed", "the window's Accept is offered"
+            assert acceptance(pressed) == "accepted", data(bpr("status"))["stops"]
+            for stop_id, request_id in ((walked, "cli-naming-remove-1"), (pressed, "cli-naming-remove-2")):
+                assert bpr("remove", stop_id, "--expected-revision", revision(), "--request-id", request_id).returncode == 0
             committed = expected_text
             final = data(bpr("show", "problem"))["text"]
             assert final == committed + "?", final

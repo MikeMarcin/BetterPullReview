@@ -2,7 +2,9 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/application/review_tour_source.hpp"
 #include "bpr/core/review_tour_repair.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include <stdexcept>
 namespace {
 	using namespace bpr;
@@ -41,6 +43,61 @@ namespace {
 }
 int main()
 {
+	{
+		// [[BPR-2014]] re-review finding 3. Comparisons of accepted code are
+		// asked once at a time; a failed read, or one read with no verdict, is
+		// asked again at most three times; a dropped one (the window moved to
+		// another pull request) counts nothing and is asked again.
+		const auto                        commit = *core::parse_git_commit_oid("1111111111111111111111111111111111111111");
+		const auto                        head   = *core::parse_git_commit_oid("2222222222222222222222222222222222222222");
+		const auto                        key    = application::tour_material_key{ commit, head, "src/item.cpp" };
+		const auto                        other  = application::tour_material_key{ commit, head, "src/other.cpp" };
+		application::tour_material_ledger ledger;
+		expect(ledger.may_ask(key), "a comparison not asked yet may be asked");
+		ledger.asked(key);
+		expect(!ledger.may_ask(key) && ledger.may_ask(other), "one asked is not asked again while its read is out");
+		ledger.dropped();
+		expect(ledger.may_ask(key), "a dropped read is asked again");
+		ledger.asked(key);
+		ledger.dropped();
+		ledger.asked(key);
+		ledger.dropped();
+		ledger.asked(key);
+		ledger.dropped();
+		expect(ledger.may_ask(key), "dropping counts no attempt");
+		for (unsigned attempt = 1; attempt <= application::tour_material_ledger::maximum_attempts; ++attempt) {
+			expect(ledger.may_ask(key), "attempt " + std::to_string(attempt) + " may be asked");
+			ledger.asked(key);
+			ledger.answered(key, false);
+		}
+		expect(!ledger.may_ask(key) && ledger.may_ask(other), "after three reads that compared nothing it is not asked again; others are");
+		ledger.asked(other);
+		ledger.answered(other, true);
+		expect(ledger.may_ask(other), "a read that compared its code is done: asked again only if code there is uncompared again");
+
+		// What a read must leave: no accepted code at that commit and path uncompared with the head.
+		auto tour                = tests::review_tour_fixture();
+		tour.Stops[0].Acceptance = core::tour_stop_acceptance{ .Title = tour.Stops[0].Title, .Body = tour.Stops[0].Body, .Destination = core::publication_source(tour.Stops[0]), .Head = commit, .Material = { { .Range = { .Commit = commit, .Path = "src/item.cpp", .Side = core::diff_side::right, .FirstLine = 2U, .LastLine = 4U } } } };
+		const auto pathed        = application::tour_material_key{ commit, head, "src/item.cpp" };
+		expect(!application::tour_material_compared(tour, pathed), "a read that set no verdict left the code uncompared");
+		tour.Stops[0].Acceptance->Material[0].CheckedAt = head;
+		tour.Stops[0].Acceptance->Material[0].Verdict   = core::tour_material_verdict::unchanged;
+		expect(application::tour_material_compared(tour, pathed), "a verdict at the head is compared");
+
+		// The changed files come only from the tour owner's own pull request.
+		application::github_pull_request_snapshot snapshot;
+		snapshot.Host                    = tour.Owner.Host;
+		snapshot.Account                 = tour.Owner.Account;
+		snapshot.Repository.Repository   = tour.Owner.Repository;
+		snapshot.PullRequest.PullRequest = tour.Owner.PullRequest;
+		snapshot.Files.push_back({ .Path = "src/item.cpp" });
+		snapshot.Files.push_back({ .Path = "src/pool.cpp" });
+		expect(application::tour_changed_paths(tour.Owner, &snapshot) == std::vector<std::string>{ "src/item.cpp", "src/pool.cpp" }, "the owner's pull request supplies its changed paths");
+		expect(application::tour_changed_paths(tour.Owner, nullptr).empty(), "no read supplies none");
+		auto another                    = snapshot;
+		another.PullRequest.PullRequest = core::pull_request_id{ tour.Owner.PullRequest.value() + 1U };
+		expect(application::tour_changed_paths(tour.Owner, &another).empty(), "another pull request's read supplies none");
+	}
 	{
 		// [[BPR-1980]]. Accepted-source repairs use the real local host's
 		// history and autosave, not a separate untracked edit mechanism.

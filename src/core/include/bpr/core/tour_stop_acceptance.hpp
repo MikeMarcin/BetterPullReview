@@ -79,11 +79,19 @@ namespace bpr::core {
 		/// Its own lines changed or are gone at the current head and none
 		/// are mapped there: its lines must be chosen at this head.
 		lines_at_head,
+		/// Its text names a range in a file by path and the pull request's
+		/// changed files are not known: that reference cannot be recorded.
+		changed_files,
 	};
 	[[nodiscard]] auto tour_stop_accept_need(const tour_stop& aStop) noexcept -> tour_accept_need;
 	/// \brief As above, and `lines_at_head` when Accept at the tour's current
 	/// head could only keep its own lines changed (critical review finding 3).
 	[[nodiscard]] auto tour_stop_accept_need(const review_tour& aTour, const tour_stop& aStop) -> tour_accept_need;
+	/// \brief What `accept` with the changed files `aFiles` decides: as above,
+	/// and `changed_files` when the stop's text names another file and
+	/// `aFiles` is empty (re-review finding 4: one decision for the core and
+	/// the Accept button).
+	[[nodiscard]] auto tour_stop_accept_need(const review_tour& aTour, const tour_stop& aStop, std::span<const std::string> aFiles) -> tour_accept_need;
 
 	/// \brief The code a stop is accepted on at `aHead`: its own lines when
 	/// they are at that head (as authored, or as mapped there), then each range

@@ -163,13 +163,20 @@ auto main(int argc, char** argv) -> int
 	auto refusal = core::tour_refusal::none;
 	auto actions = std::vector<qt::tour_editor_action>{ };
 	auto sent    = std::vector<core::tour_command_kind>{ };
+	// The window showing the pull request knows its changed files.
+	auto files = std::vector<std::string>{ "src/renderer.cpp", "src/frame_pool.cpp", "src/renderer_test.cpp" };
 
 	qt::review_tour_editor editor;
-	const auto             show = [&] { editor.present({ .Draft = std::make_shared<const core::review_tour>(draft), .Refusal = refusal, .SavedRevision = draft.Revision }); };
+	const auto             show = [&] { editor.present({ .Draft = std::make_shared<const core::review_tour>(draft), .Refusal = refusal, .SavedRevision = draft.Revision, .ChangedFiles = files }); };
 	editor.set_dispatch(
 		[&](const core::tour_command aCommand) {
 			sent.push_back(aCommand.Kind);
-			auto outcome = core::apply(draft, aCommand);
+			auto command = aCommand;
+			// As the window does: the changed files it knows go with Accept.
+			if (command.Kind == core::tour_command_kind::accept || command.Kind == core::tour_command_kind::complete) {
+				command.Files = files;
+			}
+			auto outcome = core::apply(draft, command);
 			refusal      = outcome.Refusal;
 			if (outcome.Refusal == core::tour_refusal::none) {
 				draft = std::move(outcome.Accepted);
@@ -341,6 +348,26 @@ auto main(int argc, char** argv) -> int
 	editor.accept_stop(core::tour_stop_id{ 3 });
 	settle();
 	expect(std::ranges::count(sent, core::tour_command_kind::accept) == acceptsBefore + 1 && state(3) == core::tour_acceptance_state::changed, "an Accept that reaches the core anyway is refused");
+
+	// Re-review finding 4. A stop whose text names another file is accepted
+	// with the pull request's changed files; while the window does not know
+	// them the button says so, as the core decides, instead of being refused.
+	auto& naming = *std::ranges::find(draft.Stops, core::tour_stop_id{ 4 }, &core::tour_stop::Id);
+	naming.Body  = "The pool hands back the frame (`src/frame_pool.cpp:41-47`), so clear first.";
+	naming.Acceptance.reset();
+	const auto known = files;
+	files.clear();
+	show();
+	editor.go_to_stop(core::tour_stop_id{ 4 });
+	settle();
+	expect(accept->isVisibleTo(&editor) && !accept->isEnabled() && reason->text() == QStringLiteral("Not accepted yet. Accept it once the pull request's files load."), "without the changed files Accept is disabled and says why: " + reason->text().toStdString());
+	files = known;
+	show();
+	settle();
+	expect(accept->isVisibleTo(&editor) && accept->isEnabled() && reason->text() == QStringLiteral("Not accepted yet."), "with them Accept is offered: " + reason->text().toStdString());
+	accept->click();
+	settle();
+	expect(state(4) == core::tour_acceptance_state::accepted, "and accepts the stop with its reference");
 	std::cout << "tour-stop-card:pass\n";
 	return EXIT_SUCCESS;
 }

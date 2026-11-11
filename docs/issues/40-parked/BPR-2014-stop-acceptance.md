@@ -61,8 +61,10 @@ design.
 - Critical review of the publication rule: an independent reviewer returned
   pass-with-findings, provisional, on `93b1045a8`. Each finding was
   reproduced by a test and fixed or recorded in the post-review round (the
-  [record's table](../../verification/RFC-BPR-0106.md#critical-review)). A
-  re-review of the fixes by an independent reviewer is owed.
+  [record's table](../../verification/RFC-BPR-0106.md#critical-review)). An
+  independent re-review of the fixes returned pass-with-findings, nothing
+  blocking; its five findings were taken test first and fixed or covered
+  ([re-review table](../../verification/RFC-BPR-0106.md#re-review-of-the-fixes-2026-11-10)).
 
 ## Owner look (filed, not waited on)
 
