@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2096"
 title: "Fit the agent picker to effective native control widths"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
