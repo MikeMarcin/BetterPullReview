@@ -468,6 +468,13 @@ namespace bpr::app {
 		if (!PendingWriting) {
 			return;
 		}
+		// [[BPR-2051]]. An Enhance run is the Agent tab host's, and its field
+		// is told it ended.
+		if (const auto enhance = PendingWriting->Enhance) {
+			cancel_enhancement(*enhance);
+			answer_enhancement(*enhance, std::nullopt, QStringLiteral("Stopped. Your text is unchanged."));
+			return;
+		}
 		PendingWriting.reset();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1900]]. Only the tour session's own run is stopped; the
@@ -703,11 +710,12 @@ namespace bpr::app {
 		// repository in the background; a small rewrite stays tool-free.
 		const auto kind     = core::tour_request_of(aHook, request->Scope);
 		const auto readOnly = core::tools_for(kind) == core::tour_agent_tools::read_only;
-		PendingWriting      = writing_operation{ *request, std::move(sources), { }, false, readOnly };
+		PendingWriting      = writing_operation{ *request, std::move(sources), { }, false, readOnly, std::nullopt };
 		Window->tour_editor()->show_writing_notice(readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable."));
 		const auto asked = Window->tour_editor()->request_name(aHook);
-		// [[BPR-1916]]. The skills the hook names, inline.
-		auto skills = skill_run_for(aHook);
+		// [[BPR-1916]]. The skills the hook names, inline. [[BPR-2051]] A
+		// stop's Enhance sends the stop's Enhance prompt, and its skills.
+		auto skills = skill_run_for(core::writing_instructions_for(aHook, request->Scope));
 		auto text   = (readOnly ? std::string{ application::read_only_writing_preamble() } + *prompt : *prompt) + skills.Directive;
 		if (skills.Note) {
 			Window->tour_editor()->show_writing_notice((readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable.")) + QStringLiteral(" ")
@@ -717,7 +725,7 @@ namespace bpr::app {
 			cancel_writing();
 		}
 #else
-		PendingWriting = writing_operation{ *request, std::move(sources), { }, false };
+		PendingWriting = writing_operation{ *request, std::move(sources), { }, false, false, std::nullopt };
 		cancel_writing();
 #endif
 	}
@@ -936,6 +944,12 @@ namespace bpr::app {
 		}
 		present_tour_session();
 		if (!PendingWriting) {
+			return;
+		}
+		if (const auto enhance = PendingWriting->Enhance) {
+			PendingWriting.reset();
+			WritingState.cancel();
+			answer_enhancement(*enhance, std::nullopt, QStringLiteral("The agent refused this request. Your text is unchanged."));
 			return;
 		}
 		const bool test = PendingWriting->Test;
@@ -1825,6 +1839,37 @@ namespace bpr::app {
 		}
 		const auto  result = aResult.Outcome == application::agent_run_outcome::success && bounded ? application::decode_writing_result(json, operation.Request.Target.Hook, operation.Sources, operation.Request.Scope == core::writing_scope::empty_field) : std::nullopt;
 		const auto& prefs  = Profile->WorkbenchPreferences->accepted();
+		// [[BPR-2051]]. Enhance on a comment or a note: a suggestion for the
+		// field that asked, whatever the prompt says now (it ran with the one
+		// saved when pressed), while the pull request is the one it read.
+		if (operation.Enhance) {
+			WritingState.cancel();
+			const auto id = *operation.Enhance;
+			if (result && enhancement_context_key() == operation.Request.Target.ContextDigest) {
+				if (result->Insufficient) {
+					answer_enhancement(id, std::nullopt, QStringLiteral("The agent needs more to go on: %1 Your text is unchanged.").arg(QString::fromStdString(result->Reason)));
+				} else if (result->Replacement == std::string_view{ operation.Request.Raw }.substr(operation.Request.Selection.Begin, operation.Request.Selection.End - operation.Request.Selection.Begin)) {
+					answer_enhancement(id, std::nullopt, QStringLiteral("The agent suggested no change. Your text is unchanged."));
+				} else {
+					answer_enhancement(id, result->Replacement, { });
+				}
+			} else if (aResult.Outcome == application::agent_run_outcome::cancelled) {
+				answer_enhancement(id, std::nullopt, QStringLiteral("Stopped. Your text is unchanged."));
+			} else if (aResult.Outcome == application::agent_run_outcome::success) {
+				answer_enhancement(id, std::nullopt,
+								   result ? QStringLiteral("The pull request changed while Enhance ran. Your text is unchanged; Enhance again.")
+										  : QStringLiteral("The agent's answer could not be used. Your text is unchanged."));
+			} else if (aResult.ProtocolFailure == application::agent_protocol_failure::not_signed_in) {
+				answer_enhancement(id, std::nullopt, QStringLiteral("Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged."));
+			} else {
+#if defined(BPR_AGENT_INTEGRATIONS)
+				answer_enhancement(id, std::nullopt, qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(operation.Request.Target.Agent)) + QStringLiteral(" Your text is unchanged."));
+#else
+				answer_enhancement(id, std::nullopt, QStringLiteral("Enhance did not finish. Your text is unchanged."));
+#endif
+			}
+			return;
+		}
 		if (result && prefs && prefs->WritingHooks.Revision == operation.Request.Target.HookRevision && writing_context_key() == operation.Request.Target.ContextDigest) {
 			message = apply_writing_result(operation, *result);
 		} else if (aResult.Outcome == application::agent_run_outcome::success) {
@@ -1855,6 +1900,123 @@ namespace bpr::app {
 		}
 	}
 
+	auto github_application::implementation::enhancement_context_key() const -> std::array<std::uint8_t, 32>
+	{
+		// [[BPR-2051]]. The pull request at the head Enhance read; the tour,
+		// the comparison and the selected lines may move while it runs.
+		auto key = std::string{ "enhance" };
+		if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
+			key += ":" + std::to_string(snapshot->Snapshot.value()) + ":" + std::string{ snapshot->PullRequest.HeadOid.value() };
+		}
+		return core::writing_digest(key);
+	}
+
+	void github_application::implementation::answer_enhancement(const std::uint64_t aRequest, std::optional<std::string> aReplacement, const QString& aNotice)
+	{
+		if (Closing || Window == nullptr) {
+			return;
+		}
+		static_cast<void>(Window->present_enhancement(qt::enhance_outcome{ .Id = aRequest, .Replacement = std::move(aReplacement), .Notice = aNotice }));
+	}
+
+	void github_application::implementation::cancel_enhancement(const std::uint64_t aRequest)
+	{
+		if (!PendingWriting || PendingWriting->Enhance != std::optional{ aRequest }) {
+			return;
+		}
+		PendingWriting.reset();
+		WritingState.cancel();
+#if defined(BPR_AGENT_INTEGRATIONS)
+		if (AgentHost != nullptr) {
+			AgentHost->cancel();
+		}
+#endif
+	}
+
+	void github_application::implementation::request_enhancement(qt::enhance_request aRequest)
+	{
+		const auto  id     = aRequest.Id;
+		const auto  refuse = [this, id](const QString& aWhy) { answer_enhancement(id, std::nullopt, aWhy); };
+		const auto  hook   = aRequest.Surface == qt::enhance_surface::comment ? core::writing_hook::enhance_comment : core::writing_hook::enhance_note;
+		const auto& prefs  = Profile->WorkbenchPreferences->accepted();
+		const auto  agent  = writing_agent();
+		if (Closing || !prefs || !WindowRead->accepted_snapshot()) {
+			refuse(QStringLiteral("Open a pull request to use Enhance. Your text is unchanged."));
+			return;
+		}
+		if (Window->agent_panel()->offered_count() == 0 || !agent) {
+			refuse(QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or choose one at the bottom of the Agent tab. Your text is unchanged."));
+			return;
+		}
+		if (!writes_tool_free(*agent)) {
+			refuse(QStringLiteral("Enhance needs an agent that speaks Claude Code's stream JSON. Choose one at the bottom of the Agent tab. Your text is unchanged."));
+			return;
+		}
+		if (PendingWriting || !tour_session_idle()) {
+			refuse(QStringLiteral("The agent is already writing. Wait for it to finish, then Enhance again. Your text is unchanged."));
+			return;
+		}
+		if (aRequest.Begin > aRequest.End || aRequest.End > aRequest.Raw.size() || !core::valid_writing_utf8(aRequest.Raw) || !core::writing_boundary(aRequest.Raw, aRequest.Begin)
+			|| !core::writing_boundary(aRequest.Raw, aRequest.End) || core::writing_blank(std::string_view{ aRequest.Raw }.substr(aRequest.Begin, aRequest.End - aRequest.Begin))) {
+			refuse(QStringLiteral("Enhance improves what you have written. Write or select some text first."));
+			return;
+		}
+		auto request                 = core::writing_request{ };
+		request.Id                   = id;
+		request.Target.Hook          = hook;
+		request.Target.Window        = DraftWindow;
+		request.Target.Agent         = *agent;
+		request.Target.HookRevision  = prefs->WritingHooks.Revision;
+		request.Target.ContextDigest = enhancement_context_key();
+		request.Scope                = aRequest.Selection ? core::writing_scope::selection : core::writing_scope::field;
+		request.Selection.Begin      = aRequest.Begin;
+		request.Selection.End        = aRequest.End;
+		request.Raw                  = std::move(aRequest.Raw);
+		request.RawDigest            = core::writing_digest(request.Raw);
+		auto        sources          = std::vector<application::writing_source>{ };
+		std::size_t total            = 0;
+		const auto  add              = [&](std::string aId, std::string_view aText, const std::size_t aLimit) {
+			auto size = std::min({ aText.size(), aLimit, std::size_t{ 8192 } - total });
+			while (size > 0 && !core::writing_boundary(aText, size)) {
+				--size;
+			}
+			if (size == 0 || sources.size() == 8 || !core::valid_writing_utf8(aText.substr(0, size))) {
+				return;
+			}
+			sources.push_back({ std::move(aId), std::string{ aText.substr(0, size) } });
+			total += size;
+		};
+		// What the field is about: the pull request's description and, for a
+		// comment, the lines it is on.
+		add("pr-description", WindowRead->accepted_snapshot()->PullRequest.Body, 2048);
+		if (aRequest.Surface == qt::enhance_surface::comment) {
+			if (const auto source = selected_writing_source(true)) {
+				add("comment-lines", source->Text, 3072);
+			}
+		}
+		if (request.Scope == core::writing_scope::selection) {
+			add("field-before", std::string_view{ request.Raw }.substr(0, request.Selection.Begin), 512);
+			add("field-after", std::string_view{ request.Raw }.substr(request.Selection.End), 512);
+		}
+		// The prompt saved now is the one this run uses.
+		const auto prompt = application::build_writing_prompt(prefs->WritingHooks, request, sources);
+		if (!prompt) {
+			refuse(QStringLiteral("This text is too long for Enhance. Select a shorter passage, or shorten the Enhance prompt in Settings. Your text is unchanged."));
+			return;
+		}
+#if defined(BPR_AGENT_INTEGRATIONS)
+		auto skills     = skill_run_for(hook);
+		PendingWriting  = writing_operation{ .Request = request, .Sources = std::move(sources), .Invocation = { }, .Test = false, .ReadOnly = false, .Enhance = id };
+		const auto text = *prompt + skills.Directive;
+		if (!dispatch_agent_invocation(*agent, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true, tour_launch{ .Skills = std::move(skills) })) {
+			PendingWriting.reset();
+			refuse(QStringLiteral("The agent could not start. Check it in the Agent tab, then Enhance again. Your text is unchanged."));
+		}
+#else
+		refuse(QStringLiteral("This build has no agent. Your text is unchanged."));
+#endif
+	}
+
 	void github_application::implementation::test_writing_hook(core::writing_hook aHook)
 	{
 		if (aHook >= core::writing_hook::feedback) {
@@ -1870,7 +2032,9 @@ namespace bpr::app {
 			return;
 		}
 		core::writing_request request;
-		request.Target.Hook                              = aHook;
+		// [[BPR-2051]] A stop's Enhance prompt is tried as a stop's Enhance:
+		// the stop with text, whose instructions it is.
+		request.Target.Hook                              = aHook == core::writing_hook::enhance_stop ? core::writing_hook::comment : aHook;
 		request.Target.HookRevision                      = prefs->WritingHooks.Revision;
 		request.Target.ContextDigest                     = writing_context_key();
 		request.Raw                                      = "The cache reduces repeated work.";
@@ -1881,7 +2045,7 @@ namespace bpr::app {
 			Window->writing_hooks()->show_notice("Hook instructions exceed the test context limit.");
 			return;
 		}
-		PendingWriting = writing_operation{ request, std::move(sources), { }, true };
+		PendingWriting = writing_operation{ request, std::move(sources), { }, true, false, std::nullopt };
 		auto skills    = skill_run_for(aHook);
 		Window->writing_hooks()->show_notice(skills.Note ? "Testing saved prompt… Nothing will be inserted or published. " + *skills.Note : std::string{ "Testing saved prompt… Nothing will be inserted or published." });
 #if defined(BPR_AGENT_INTEGRATIONS)

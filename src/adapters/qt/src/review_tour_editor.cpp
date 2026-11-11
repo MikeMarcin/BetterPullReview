@@ -2610,8 +2610,13 @@ namespace bpr::qt {
 		case core::writing_hook::comment:  return selected_stop() && Body->isVisible() && !Body->viewport()->visibleRegion().isEmpty();
 		// [[BPR-2013]]. Suggest an outline left the application; the
 		// `bpr tour outline` commands keep the hook.
-		case core::writing_hook::outline:  return false;
-		case core::writing_hook::feedback: return false; // [[BPR-1090]] No tour field takes the feedback hook.
+		case core::writing_hook::outline: return false;
+		case core::writing_hook::feedback:
+			return false; // [[BPR-1090]] No tour field takes the feedback hook.
+		// [[BPR-2051]] The Enhance prompts are instructions, not tour fields.
+		case core::writing_hook::enhance_stop:
+		case core::writing_hook::enhance_comment:
+		case core::writing_hook::enhance_note:    return false;
 		}
 		return false;
 	}

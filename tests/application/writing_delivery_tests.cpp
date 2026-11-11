@@ -3,6 +3,7 @@
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/sha256.hpp"
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -160,6 +161,56 @@ int main()
 		feedbackRequest.Selection.End = feedbackRequest.Raw.size();
 		expect(!application::build_writing_prompt(settings, feedbackRequest, sources), "no tour writing prompt is built from the feedback hook");
 		expect(!application::decode_writing_result(prefix + R"("x","notes":[]})", core::writing_hook::feedback, sources, false), "and no writing result decodes against it");
+	}
+	// [[BPR-2051]] Each surface's Enhance prompt: a tour stop with text, a
+	// draft comment and a note. Their own defaults, versions, stable purpose
+	// IDs and digests; the run takes the prompt it was built with.
+	{
+		const auto rewrite = std::string{ R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":)" };
+		const auto stop    = application::default_writing_hook(core::writing_hook::enhance_stop);
+		const auto comment = application::default_writing_hook(core::writing_hook::enhance_comment);
+		const auto note    = application::default_writing_hook(core::writing_hook::enhance_note);
+		expect(stop.starts_with("# Enhance a tour stop") && comment.starts_with("# Enhance a draft comment") && note.starts_with("# Enhance a note"), "each Enhance prompt ships its own default");
+		expect(application::writing_hook_version_of(core::writing_hook::enhance_stop) == "enhance-tour-stop-v1" && application::writing_hook_version_of(core::writing_hook::enhance_comment) == "enhance-comment-v1"
+				   && application::writing_hook_version_of(core::writing_hook::enhance_note) == "enhance-note-v1",
+			   "each Enhance prompt has its own built-in version");
+		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.problem", "tour.solution", "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.comment", "enhance.note" };
+		for (std::size_t index = 0; index < core::writing_hook_count; ++index) {
+			const auto hook = static_cast<core::writing_hook>(index);
+			expect(application::writing_hook_purpose(hook) == purposes[index] && application::writing_hook_of_purpose(purposes[index]) == hook, "every prompt has one stable purpose ID, and the ID names it");
+			expect(application::default_writing_hook_digest(hook) == core::writing_digest(application::default_writing_hook(hook)), "the built-in digest is the default text's");
+		}
+		expect(!application::writing_hook_of_purpose("enhance.unknown") && !application::writing_hook_of_purpose(""), "an unrecognized purpose names no prompt");
+
+		core::writing_hook_settings settings;
+		core::writing_request       enhanceRequest;
+		enhanceRequest.Target.Hook   = core::writing_hook::enhance_comment;
+		enhanceRequest.Raw           = "nit: this could maybe be simpler i think";
+		enhanceRequest.Selection.End = enhanceRequest.Raw.size();
+		auto built                   = application::build_writing_prompt(settings, enhanceRequest, sources);
+		expect(built && built->find("# Enhance a draft comment") != std::string::npos && built->find("# Tour-stop comment") == std::string::npos, "a comment's Enhance sends the comment's Enhance prompt");
+		settings.Overrides[static_cast<std::size_t>(core::writing_hook::enhance_comment)] = "Team voice: short and kind.";
+		built                                                                             = application::build_writing_prompt(settings, enhanceRequest, sources);
+		expect(built && built->find("Team voice: short and kind.") != std::string::npos && built->find("# Enhance a draft comment") == std::string::npos, "an override is what the next press sends");
+		enhanceRequest.Target.Hook = core::writing_hook::enhance_note;
+		built                      = application::build_writing_prompt(settings, enhanceRequest, sources);
+		expect(built && built->find("# Enhance a note") != std::string::npos, "a note's Enhance sends the note's prompt");
+		enhanceRequest.Target.Hook = core::writing_hook::comment;
+		built                      = application::build_writing_prompt(settings, enhanceRequest, sources);
+		expect(built && built->find("# Enhance a tour stop") != std::string::npos && built->find("# Tour-stop comment") == std::string::npos, "a stop with text is Enhance and sends the stop's Enhance prompt");
+		enhanceRequest.Scope = core::writing_scope::empty_field;
+		enhanceRequest.Raw.clear();
+		enhanceRequest.Selection.End = 0;
+		built                        = application::build_writing_prompt(settings, enhanceRequest, sources);
+		expect(built && built->find("# Tour-stop comment") != std::string::npos && built->find("# Enhance a tour stop") == std::string::npos, "an empty stop is Generate comment and keeps the stop-comment prompt");
+		enhanceRequest.Target.Hook   = core::writing_hook::enhance_stop;
+		enhanceRequest.Scope         = core::writing_scope::field;
+		enhanceRequest.Raw           = "text";
+		enhanceRequest.Selection.End = enhanceRequest.Raw.size();
+		expect(!application::build_writing_prompt(settings, enhanceRequest, sources), "the stop's Enhance prompt is instructions, never a target");
+		expect(application::decode_writing_result(rewrite + R"("Clearer.","notes":[]})", core::writing_hook::enhance_comment, sources, false)
+				   && application::decode_writing_result(rewrite + R"("Clearer.","notes":[]})", core::writing_hook::enhance_note, sources, false),
+			   "a comment's and a note's Enhance decode the same rewrite result as a stop's");
 	}
 	std::cout << "writing-delivery-tests:pass\n";
 }

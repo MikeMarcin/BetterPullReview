@@ -13,12 +13,23 @@ namespace bpr::core {
 	/// `feedback` is the review-feedback guidance: it writes no tour field, so
 	/// no `writing_target` names it, and a comment workshop request carries it
 	/// only while the label helper is on.
+	///
+	/// [[BPR-2051]] The three Enhance prompts came later and sit last, one for
+	/// each surface that offers Enhance: a tour stop, a draft comment and a
+	/// private note. `enhance_stop` is never a target; it is the instructions
+	/// a stop's Enhance sends (`writing_instructions_for`). `enhance_comment`
+	/// and `enhance_note` are both: their surfaces are not tour fields.
 	enum class writing_hook : std::uint8_t { problem,
 											 solution,
 											 outline,
 											 comment,
-											 feedback };
-	inline constexpr std::size_t writing_hook_count = 5;
+											 feedback,
+											 enhance_stop,
+											 enhance_comment,
+											 enhance_note };
+	inline constexpr std::size_t writing_hook_count = 8;
+	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
+	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop; }
 	/// \brief The review-preparation hooks, `problem` to `comment`.
 	inline constexpr std::size_t review_preparation_hook_count     = 4;
 	inline constexpr std::size_t maximum_writing_instruction_bytes = 8192;
@@ -83,6 +94,15 @@ namespace bpr::core {
 		std::string     Replacement;
 		std::string     Text;
 	};
+	/// \brief [[BPR-2051]] Whose instructions a request on \p aTarget with
+	/// \p aScope sends. A tour stop with text (the whole comment or a
+	/// selection) is Enhance and sends the stop's Enhance prompt; an empty stop
+	/// is Generate comment and sends the stop-comment prompt. Every other
+	/// target sends its own.
+	[[nodiscard]] constexpr auto writing_instructions_for(const writing_hook aTarget, const writing_scope aScope) noexcept -> writing_hook
+	{
+		return aTarget == writing_hook::comment && aScope != writing_scope::empty_field ? writing_hook::enhance_stop : aTarget;
+	}
 	[[nodiscard]] auto writing_digest(std::string_view aText) noexcept -> std::array<std::uint8_t, 32>;
 	[[nodiscard]] auto writing_blank(std::string_view aText) noexcept -> bool;
 	[[nodiscard]] auto writing_boundary(std::string_view aText, std::size_t aOffset) noexcept -> bool;

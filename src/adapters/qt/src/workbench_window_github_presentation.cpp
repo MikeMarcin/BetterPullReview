@@ -1732,6 +1732,22 @@ namespace bpr::qt {
 
 	auto workbench_window::private_notes() const noexcept -> private_notes_panel* { return PrivateNotes; }
 
+	void workbench_window::set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel)
+	{
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->set_enhance_dispatch(aDispatch, aCancel);
+		}
+		if (PrivateNotes != nullptr) {
+			PrivateNotes->set_enhance_dispatch(std::move(aDispatch), std::move(aCancel));
+		}
+	}
+
+	auto workbench_window::present_enhancement(const enhance_outcome& aOutcome) -> bool
+	{
+		const auto comment = ConversationPanel != nullptr && ConversationPanel->cards() != nullptr && ConversationPanel->cards()->present_enhancement(aOutcome);
+		return comment || (PrivateNotes != nullptr && PrivateNotes->present_enhancement(aOutcome));
+	}
+
 	void workbench_window::withdraw_agent_surfaces()
 	{
 		for (auto* const widget : std::initializer_list<QWidget*>{ AgentPanel, SideChat, FindingQueue, ClaudeWrapper }) {
@@ -1764,7 +1780,8 @@ namespace bpr::qt {
 		}
 		for (const auto* name : { "reviewWorkshopOriginal", "reviewWorkshopProposal", "reviewWorkshopOperation", "reviewWorkshopCandidate",
 								  "tourProblemMagic", "tourSolutionMagic", "tourStopMagic", "tourSuggestOutline", "tourSuggestedOutline", "tourInsertOutline",
-								  "privateAgentProfile", "privateRequestedModel", "privateRequestedEffort", "privateAskAgent", "privateCompositionAsk" }) {
+								  "privateAgentProfile", "privateRequestedModel", "privateRequestedEffort", "privateAskAgent", "privateCompositionAsk",
+								  "noteEnhance", "noteEnhanceSuggestion" }) {
 			for (auto* const widget : findChildren<QWidget*>(QString::fromLatin1(name))) {
 				widget->hide();
 			}

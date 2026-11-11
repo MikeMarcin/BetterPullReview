@@ -53,7 +53,8 @@ namespace bpr::adapters::sqlite::detail {
 		/// [[BPR-1588]] Version twenty-three's Status drawer makes the window
 		/// row twenty-seven columns, under the profile row's thirty-one.
 		/// [[BPR-1816]] Version twenty-four's finish choices, thirty-two.
-		constexpr std::size_t MaximumTableColumns = 32U;
+		/// [[BPR-2051]] Version twenty-five's three Enhance prompts, thirty-five.
+		constexpr std::size_t MaximumTableColumns = 35U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -179,7 +180,13 @@ namespace bpr::adapters::sqlite::detail {
 				  // 2, Request changes 4; see `finish_review_bits`). Zero is
 				  // every verdict going Home, the default, so a migrated row
 				  // goes Home.
-				  "finish_review INTEGER NOT NULL DEFAULT 0 CHECK(finish_review BETWEEN 0 AND 7)) STRICT";
+				  "finish_review INTEGER NOT NULL DEFAULT 0 CHECK(finish_review BETWEEN 0 AND 7),"
+				  // [[BPR-2051]]. Schema version 25: the Enhance prompts of a
+				  // tour stop, a draft comment and a note, each empty for the
+				  // shipped default, so a migrated row follows the defaults.
+				  "writing_enhance_stop TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_enhance_stop AS BLOB)) <= 8192),"
+				  "writing_enhance_draft TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_enhance_draft AS BLOB)) <= 8192),"
+				  "writing_enhance_note TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_enhance_note AS BLOB)) <= 8192)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
@@ -187,12 +194,15 @@ namespace bpr::adapters::sqlite::detail {
 		/// \brief The zero-based result column of one hook's override in the
 		/// profile row's SELECT; its INSERT parameter is one more. The four
 		/// review-preparation hooks are adjacent; [[BPR-1090]] the feedback
-		/// hook came later and sits last.
+		/// hook came later, and [[BPR-2051]] the three Enhance prompts after
+		/// every other column.
 		[[nodiscard]] constexpr auto writing_hook_column(const std::size_t aHook) noexcept -> int
 		{
-			return aHook < core::review_preparation_hook_count ? static_cast<int>(15 + aHook) : 24;
+			return aHook < core::review_preparation_hook_count                    ? static_cast<int>(15 + aHook)
+				: aHook == static_cast<std::size_t>(core::writing_hook::feedback) ? 24
+																				  : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
 		}
-		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 1U, "a new hook needs its own column");
+		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 4U, "a new hook needs its own column");
 		static_assert(core::maximum_agent_wrapper_bytes == 1024U);
 		static_assert(core::maximum_claude_model_bytes == 128U);
 		static_assert(application::minimum_center_ribbon_width == 16U);
@@ -363,6 +373,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 20                       ? ",markdown_images"
 				: aVersion <= 21                       ? ",reading_width"
 				: aVersion <= 23                       ? ",finish_review"
+				: aVersion <= 24                       ? ",writing_enhance_stop"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -393,7 +404,7 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
 				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
 				+ (aVersion >= 12 ? ",feedback_marks" : "") + (aVersion >= 13 ? ",label_helper,overview_counts,label_columns" : "")
-				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "");
+				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -767,11 +778,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to twenty-three
+			// migration named here carries versions one to twenty-four
 			// specifically, written out rather than derived from the constant,
 			// so a version this build has no step for is refused rather than
 			// handed to the wrong one.
-			if (*current < 0 || *current > 23) {
+			if (*current < 0 || *current > 24) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -1119,8 +1130,9 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31) "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
+			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1139,7 +1151,8 @@ namespace bpr::adapters::sqlite::detail {
 			"label_helper = excluded.label_helper, overview_counts = excluded.overview_counts, label_columns = excluded.label_columns,"
 			"claude_wrapper = excluded.claude_wrapper, writing_feedback = excluded.writing_feedback, line_details = excluded.line_details,"
 			"claude_model = excluded.claude_model, center_ribbon_width = excluded.center_ribbon_width, markdown_images = excluded.markdown_images,"
-			"reading_width = excluded.reading_width, finish_review = excluded.finish_review");
+			"reading_width = excluded.reading_width, finish_review = excluded.finish_review,"
+			"writing_enhance_stop = excluded.writing_enhance_stop, writing_enhance_draft = excluded.writing_enhance_draft, writing_enhance_note = excluded.writing_enhance_note");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1473,7 +1486,8 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
+			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());

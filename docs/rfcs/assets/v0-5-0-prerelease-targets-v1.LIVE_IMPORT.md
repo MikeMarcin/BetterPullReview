@@ -115,3 +115,5 @@ counter and receipt
 `docs/issues/_reservations/BPR-2051--BPR-2051--efa66a8a01d3.json` moved to
 this lane and the main checkout restored. The lane's counter reads BPR-2052;
 main's reads BPR-2051 until this lane integrates. Nothing collides.
+Main then reserved BPR-2052 to BPR-2055 (skipping this lane's BPR-2051) and
+reads BPR-2056; the lane's counter follows it. Nothing collides.

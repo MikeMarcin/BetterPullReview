@@ -49,9 +49,16 @@ namespace bpr::qt {
 			{ core::writing_hook::solution, "Solution summary", "Tour tab, Solution", "How the agent writes the tour's Solution: what the change does and how it works.",
 			  "Used by Draft from PR context and Enhance on the Tour tab's Solution field." },
 			{ core::writing_hook::outline, "Tour outline", "Tour tab, Suggest an outline", "How the agent proposes the tour's stops.", "Used by Suggest an outline on the Tour tab." },
-			{ core::writing_hook::comment, "Tour-stop comment", "Tour tab, each stop", "How the agent writes one stop's comment.", "Used by Generate comment and Enhance on a tour stop." },
+			{ core::writing_hook::comment, "Tour-stop comment", "Tour tab, each stop", "How the agent writes one stop's comment.", "Used by Generate comment on an empty tour stop." },
 			{ core::writing_hook::feedback, "Review feedback", "Comment workshop", "Guidance the comment workshop follows when it helps you word a review comment.",
 			  "Sent with comment workshop requests while Comments › Comment workshop turns it on." },
+			// [[BPR-2051]] One Enhance prompt for each surface that offers it.
+			{ core::writing_hook::enhance_stop, "Enhance a stop", "Tour tab, each stop", "How the agent improves a stop's comment you have written.",
+			  "Used by Enhance on a tour stop that has text, for the whole comment or a selection." },
+			{ core::writing_hook::enhance_comment, "Enhance a comment", "Comments, a draft or reply", "How the agent improves a draft comment or reply you have written.",
+			  "Used by Enhance on a draft comment or reply. You choose whether to use what it suggests; nothing is published." },
+			{ core::writing_hook::enhance_note, "Enhance a note", "Notes, a private note", "How the agent improves a private note you have written.",
+			  "Used by Enhance on a private note. You choose whether to use what it suggests; the note stays private." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
@@ -172,7 +179,7 @@ namespace bpr::qt {
 		Hook->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Hook->setSelectionMode(QAbstractItemView::SingleSelection);
 		static_cast<void>(make_header(Hook, tr("Tour tab")));
-		for (const auto hook : { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment }) {
+		for (const auto hook : { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment, core::writing_hook::enhance_stop }) {
 			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
@@ -180,10 +187,17 @@ namespace bpr::qt {
 		// [[BPR-1090]] The review-feedback guidance is not a tour field's hook;
 		// its own group says where it is used.
 		static_cast<void>(make_header(Hook, tr("Comments")));
+		for (const auto hook : { core::writing_hook::feedback, core::writing_hook::enhance_comment }) {
+			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
+			item->setData(hook_role, static_cast<int>(hook));
+			item->setData(usage_role, tr(facts_of(hook).Where));
+		}
+		// [[BPR-2051]] A note's Enhance, in its own group.
+		static_cast<void>(make_header(Hook, tr("Notes")));
 		{
-			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::feedback).Name), Hook };
-			item->setData(hook_role, static_cast<int>(core::writing_hook::feedback));
-			item->setData(usage_role, tr(facts_of(core::writing_hook::feedback).Where));
+			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::enhance_note).Name), Hook };
+			item->setData(hook_role, static_cast<int>(core::writing_hook::enhance_note));
+			item->setData(usage_role, tr(facts_of(core::writing_hook::enhance_note).Where));
 		}
 		body->addWidget(Hook, 0);
 

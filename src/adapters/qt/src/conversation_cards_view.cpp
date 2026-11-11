@@ -3098,6 +3098,7 @@ namespace bpr::qt {
 				ReplyTextDispatch(id, aText);
 			}
 		};
+		OpenCard->bind_enhance(EnhanceDispatch, EnhanceCancel);
 		OpenCard->DraftText = [this](const QString& aText) {
 			if (DraftTextDispatch) {
 				DraftTextDispatch(aText);
@@ -4590,4 +4591,17 @@ namespace bpr::qt {
 		}
 		return QAbstractScrollArea::eventFilter(aWatched, aEvent);
 	}
+
+	void conversation_cards_view::set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel)
+	{
+		EnhanceDispatch = std::move(aDispatch);
+		EnhanceCancel   = std::move(aCancel);
+		if (OpenCard != nullptr) {
+			OpenCard->bind_enhance(EnhanceDispatch, EnhanceCancel);
+		}
+	}
+
+	auto conversation_cards_view::present_enhancement(const enhance_outcome& aOutcome) -> bool { return OpenCard != nullptr && OpenCard->present_enhancement(aOutcome); }
+	auto conversation_cards_view::enhance_control() const -> enhance_button* { return OpenCard != nullptr ? OpenCard->enhance_control() : nullptr; }
+	auto conversation_cards_view::enhance_panel() const -> enhance_suggestion* { return OpenCard != nullptr ? OpenCard->enhance_panel() : nullptr; }
 } // namespace bpr::qt

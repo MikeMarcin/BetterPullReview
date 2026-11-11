@@ -386,7 +386,7 @@ namespace {
 		expect(more.Exit == 0 && more.json()["data"].toObject()["assist"].toObject()["reason"] == "insufficient_context" && problem() == text, "insufficient context is reported and changes nothing");
 		// Hooks are shared settings: what the CLI shows and edits is what the desktop uses.
 		auto hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
-		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 5, "the four tour hooks and review feedback");
+		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 8, "the four tour hooks, review feedback and the three Enhance prompts");
 		const auto beforeHooks = hooks.json()["data"].toObject()["hooks_revision"].toString();
 		auto       pending     = context({ "--hook", "problem", "--field", "problem" });
 		auto       custom      = call({ "tour", "hooks", "edit", "problem", "--file", put("hook.txt", "Write tersely."), "--profile", "1", "--json" });
@@ -403,7 +403,9 @@ namespace {
 			for (const auto& entry : listed) {
 				names.append(entry.toObject()["name"].toString());
 			}
-			expect(names == QStringList{ "problem", "solution", "outline", "comment", "feedback" }, "the hooks are listed in their stable order, feedback last");
+			expect(names == QStringList{ "problem", "solution", "outline", "comment", "feedback", "enhance-stop", "enhance-comment", "enhance-note" }, "the hooks are listed in their stable order, [[BPR-2051]] the Enhance prompts last");
+			expect(listed[6].toObject()["purpose"] == "enhance.comment" && listed[6].toObject()["version"] == "enhance-comment-v1" && listed[3].toObject()["purpose"] == "tour.stop-comment",
+				   "[[BPR-2051]] each hook names its stable purpose and its own default's version");
 			const auto shipped = listed[4].toObject();
 			expect(shipped["version"] == "review-feedback-v1" && listed[0].toObject()["version"] == "review-preparation-v1", "each hook names its own default's version");
 			expect(shipped["customized"] == false && shipped["active"] == false && hooks.json()["data"].toObject()["label_helper"] == "off", "a new profile follows the default, and with the label helper off it is not sent");

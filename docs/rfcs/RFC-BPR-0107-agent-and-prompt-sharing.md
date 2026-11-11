@@ -34,9 +34,10 @@ Both act on the profile whose Settings window is open. A build without agent
 integrations has no Agents & context page and therefore no exchange.
 
 Export lets the user select saved agent definitions and individual saved prompt
-overrides. Version one covers the six existing prompts: the review skill and the
-five writing hooks (tour Problem, Solution, outline and stop comment, and review
-feedback). A prompt the profile has not overridden is the shipped text and is not
+overrides. Version one covers the review skill and the writing hooks: tour Problem,
+Solution, outline and stop comment, review feedback, and since [[BPR-2051]]
+Enhance on a stop, a comment and a note (see "Purposes recognized by this
+version"). A prompt the profile has not overridden is the shipped text and is not
 an exportable item. A later RFC may add recognized purposes without making this
 slice depend on them. Each prompt item names its purpose. An importer that does
 not recognize a purpose lists that item as unsupported by its version, applies
@@ -158,6 +159,32 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
   change built-in guidance and advance its versions. An override written
   against an earlier built-in version imports as before, and the preview
   names the version it was written against.
+
+### Purposes recognized by this version (2026-11-10, [[BPR-2051]])
+
+[[BPR-2051]] added three Enhance prompts as writing hooks in the same list,
+store and profile revision as the others (Settings › Agents & context ›
+Built-in prompts), so version one recognizes nine purposes, not six: the
+review skill and eight writing hooks. Each hook's purpose ID is stable and
+independent of its display name, enumeration position, text and version
+(`application::writing_hook_purpose`, `writing_hook_of_purpose`):
+
+| Purpose ID | Prompt | Built-in version |
+|---|---|---|
+| `tour.problem` | Problem statement | `review-preparation-v1` |
+| `tour.solution` | Solution summary | `review-preparation-v1` |
+| `tour.outline` | Tour outline | `review-preparation-v1` |
+| `tour.stop-comment` | Tour-stop comment (Generate comment) | `review-preparation-v1` |
+| `review.feedback` | Review feedback | `review-feedback-v1` |
+| `enhance.tour-stop` | Enhance a stop | `enhance-tour-stop-v1` |
+| `enhance.comment` | Enhance a comment | `enhance-comment-v1` |
+| `enhance.note` | Enhance a note | `enhance-note-v1` |
+
+Each built-in's digest is SHA-256 of its shipped text
+(`application::default_writing_hook_digest`). The review skill's purpose ID
+is this RFC's to assign. The store does not yet record which built-in version
+an override was written against, for any prompt; the exchange that names it
+in its preview (X24) adds that record with the import and export.
 
 ## Acceptance criteria
 

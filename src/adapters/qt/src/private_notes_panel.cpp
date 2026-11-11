@@ -400,6 +400,18 @@ namespace bpr::qt {
 			}
 		});
 		column->addWidget(field);
+		// [[BPR-2051]]. What Enhance came back with, under the note, until it
+		// is used or discarded.
+		EnhancePanel    = new enhance_suggestion{ enhance_surface::note, Card };
+		auto* const use = new note_button{ note_button::kind::primary, tr("Use suggestion"), EnhancePanel };
+		use->setObjectName(QStringLiteral("noteEnhanceUse"));
+		use->set_style(style);
+		auto* const drop = new note_button{ note_button::kind::secondary, tr("Discard"), EnhancePanel };
+		drop->setObjectName(QStringLiteral("noteEnhanceDiscard"));
+		drop->setAccessibleName(tr("Discard suggestion"));
+		drop->set_style(style);
+		EnhancePanel->set_buttons(use, drop);
+		column->addWidget(EnhancePanel);
 		Status = new QLabel{ Card };
 		Status->setObjectName(QStringLiteral("privateNoteStatus"));
 		Status->setTextFormat(Qt::PlainText);
@@ -431,6 +443,10 @@ namespace bpr::qt {
 		AskAgentButton->setAccessibleName(tr("Ask agent about this note"));
 		AskAgentButton->setFocusPolicy(Qt::StrongFocus);
 		foot->addWidget(AskAgentButton);
+		// [[BPR-2051]]. Enhance, the one control here that starts a run, in
+		// the Agent accent beside Ask agent.
+		EnhanceButton = new enhance_button{ enhance_surface::note, Card };
+		foot->addWidget(EnhanceButton);
 		foot->addStretch(1);
 		auto* const discard = new note_button{ note_button::kind::secondary, tr("Discard changes"), Card };
 		discard->setObjectName(QStringLiteral("privateNoteDiscard"));
@@ -458,6 +474,8 @@ namespace bpr::qt {
 		connect(DraftButton, &QAbstractButton::clicked, Promote, &QAction::trigger);
 		connect(AskAgentButton, &QAbstractButton::clicked, AskAgent, &QAction::trigger);
 		connect(SaveButton, &QAbstractButton::clicked, Save, &QAction::trigger);
+		Enhance          = new enhance_binding{ *Body, enhance_surface::note, *EnhanceButton, *EnhancePanel, this };
+		Enhance->Changed = [this] { relayout(); };
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] {
 			if (!Applying) {
 				Dirty    = Creating || (Editing && Body->toPlainText().toStdString() != Editing->Text);
@@ -702,8 +720,13 @@ namespace bpr::qt {
 
 	void private_notes_panel::load_editor()
 	{
-		const auto* const found = item(Selected);
-		Editing                 = found == nullptr ? std::nullopt : std::optional{ *found };
+		const auto* const found  = item(Selected);
+		const auto        before = Editing ? Editing->Id : 0U;
+		Editing                  = found == nullptr ? std::nullopt : std::optional{ *found };
+		// [[BPR-2051]]. Another note: a suggestion for the last one is dropped.
+		if (Enhance != nullptr && before != (Editing ? Editing->Id : 0U)) {
+			Enhance->reset();
+		}
 		if (!Editing) {
 			Selected = 0U;
 		}
@@ -772,7 +795,26 @@ namespace bpr::qt {
 		AskAgentButton->setVisible(Editing.has_value() && !Creating);
 		AskAgentButton->setEnabled(AskAgent->isEnabled());
 		AskAgentButton->setToolTip(AskAgent->toolTip());
+		if (Enhance != nullptr) {
+			Enhance->refresh();
+		}
 		Status->setVisible(!Status->text().isEmpty());
+	}
+
+	void private_notes_panel::set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel)
+	{
+		if (Enhance != nullptr) {
+			Enhance->set_dispatch(std::move(aDispatch), std::move(aCancel));
+		}
+	}
+
+	auto private_notes_panel::present_enhancement(const enhance_outcome& aOutcome) -> bool
+	{
+		const auto taken = Enhance != nullptr && Enhance->present(aOutcome);
+		if (taken) {
+			relayout();
+		}
+		return taken;
 	}
 
 	void private_notes_panel::emit_intent(const private_note_action aAction)

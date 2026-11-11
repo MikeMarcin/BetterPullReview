@@ -104,3 +104,51 @@ is the missing piece.
 and 0096). The pack asks for a critical review of it, which this lane cannot
 give itself: no separately authorized reviewer was available in this round.
 It is pending, not waived.
+
+## Enhance on comments and notes ([[BPR-2051]], 2026-11-10)
+
+Owner request, on the same lane. Frontend-design was loaded before the Qt
+work. The design is in the RFC's amendment; how it fits
+[RFC-BPR-0107](../rfcs/RFC-BPR-0107-agent-and-prompt-sharing.md) is that
+RFC's "Purposes recognized by this version".
+
+What was reused, not rebuilt: the writing contract, the rewrite result
+schema and `decode_writing_result`, `build_writing_prompt`, the skill run for
+a hook, the drafting agent choice and its tool-free check, and the Agent tab
+host's writing-only launch that the Settings prompt test already used. What is
+new: three hooks (`enhance_stop`, `enhance_comment`, `enhance_note`) with
+shipped defaults, versions, stable purpose IDs and digests; the core's
+`writing_instructions_for`; profile schema 25 (three override columns; the
+draft comment's is `writing_enhance_draft`, because the store's column names
+may not name review content); the Qt Enhance control, suggestion panel and
+binding; and the composition's request, answer and stop.
+
+Found while here: a stop's Enhance borrowed the Generate comment prompt; it
+now sends its own. `bpr tour hooks` lists the three new prompts and each
+hook's purpose.
+
+| Criterion (card scope) | Evidence |
+|---|---|
+| 1. Reuse | `application_writing_delivery` (each surface's prompt is built by the same builder and decodes the same result); `core_review_preparation` |
+| 2. Only when asked, a suggestion, nothing to GitHub | `application_enhance_comment_note_public_path` (stub claude through the real composition: comment and note unchanged until Use, Discard keeps the text, Use is one Undo, a selection is rewritten alone, mutation counters unchanged); `qt_enhance_control` (no run until pressed, an answer to another press is ignored, a changed text refuses Use, Stop cancels its own run) |
+| 3. Agent accent | `qt_enhance_control`, the course, and the window inventory (`qt_workbench_window`, in the 127-row regression set) |
+| 4. Own prompt per surface, default and restore | `qt_settings_window` (13 rows; each Enhance prompt's text, version, override and Reset), `sqlite_workbench_settings_storage` (migration from 24, each column, oversize refused), the course |
+| 5. Prompt saved at the press | the course: an override naming a canary is saved, Enhance is pressed, a different prompt is saved while it runs, and the canary's answer arrives |
+| 6. RFC-BPR-0107 fit | RFC-BPR-0107 amended; purposes and digests in `application_writing_delivery` |
+| 7. Owner look | filed (see the handoff); not waited on |
+
+Runs: the above, `application_review_tour_composition_public_path`,
+`application_review_tour_writing{,_wrapper}`,
+`application_review_tour_cli_ordinary_{native,stop}`,
+`application_composition_source_contract` and
+`application_review_round_trip_composition_contract` (app pin resealed), a
+127-row regression set (tour, writing, settings, notes, conversation cards,
+workbench window, submission composition, agent launch, every `sqlite_` row,
+skills): only the baseline `qt_drawer_parts_scale_{100,125,200}` fail;
+`coding-format-check`; documentation gate. `tour_cli_composition` (the
+listing's count and purposes) is not configured in the dev preset
+(`BPR_BUILD_TOUR_CLI`) and did not run.
+
+Not shown by a course: the owner's own Claude on a real pull request (the
+stub answers fixed text); a card rebuilt while a run is going drops its
+answer unused (the text is never changed by it).

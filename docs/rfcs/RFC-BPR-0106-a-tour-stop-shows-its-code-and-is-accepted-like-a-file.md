@@ -196,6 +196,31 @@ within the stated behaviour:
 - Overview's stop rows say Accepted, Not accepted yet or Changed since
   accepted, as the route does.
 
+### Amendment: Enhance on comments and notes (2026-11-10, [[BPR-2051]])
+
+Owner request: "I want to add enhance to draft comment and notes like we have
+it on tour stops" and "Enhance needs to be based on a prompt we can edit in
+agent settings".
+
+- A stop's Enhance (the whole comment or a selection) sends its own prompt,
+  **Enhance a stop**; Generate comment on an empty stop keeps the stop-comment
+  prompt. Before this a stop's Enhance borrowed the Generate comment prompt.
+  The core decides which (`writing_instructions_for`).
+- A draft comment (a new comment or a reply) and a private note offer Enhance
+  as an icon in the field's own tool row, wearing the Agent accent. A press
+  runs the same writing operation a stop's Enhance runs (the writing
+  contract, the structured rewrite result and its decoder) with that
+  surface's own prompt, **Enhance a comment** or **Enhance a note**.
+- On a comment or a note the answer is a suggestion under the field, beside
+  the person's own text, with Use suggestion and Discard. It is never applied
+  without Use; Use writes it in place of what was asked about as one edit
+  Undo takes back, and only while the text is still what was asked about.
+  A stop's Enhance keeps applying in place with Undo, as accepted before.
+- The three prompts live in Settings › Agents & context › Built-in prompts,
+  each with its built-in default and Reset to built-in. A run uses the prompt
+  saved when Enhance was pressed: saving a changed prompt while it runs
+  neither changes nor discards it. Enhance writes nothing to GitHub.
+
 ## Acceptance criteria
 
 - **AC01:** Each listed way of arriving at a stop, including choosing the

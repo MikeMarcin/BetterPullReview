@@ -305,6 +305,10 @@ namespace bpr::app {
 		// on one exact draft, and this composition is what decides whether
 		// there is anything to answer with. The widget holds no host, no
 		// agent, and no revision of its own.
+		// [[BPR-2051]]. Enhance on a draft comment, a reply or a private
+		// note reaches the writing operation a tour stop's Enhance uses.
+		Window->set_enhance_dispatch([this](qt::enhance_request aRequest) { request_enhancement(std::move(aRequest)); },
+									 [this](const std::uint64_t aRequest) { cancel_enhancement(aRequest); });
 		if (Window->review_editor() != nullptr) {
 			Window->review_editor()->set_workshop_dispatch(
 				[this](qt::comment_workshop_request aRequest) {
@@ -725,6 +729,12 @@ namespace bpr::app {
 				},
 				[this](std::string_view) {
 					if (!PendingWriting) {
+						return;
+					}
+					if (const auto enhance = PendingWriting->Enhance) {
+						PendingWriting.reset();
+						WritingState.cancel();
+						answer_enhancement(*enhance, std::nullopt, QStringLiteral("The agent refused this request. Your text is unchanged."));
 						return;
 					}
 					const bool test = PendingWriting->Test;
@@ -1233,7 +1243,9 @@ namespace bpr::app {
 		}
 		WritingHookSubscription = Profile->WorkbenchPreferences->subscribe(DraftWindow.Profile, [this](const auto& aPreferences) {
 			if (!Closing) {
-				if (PendingWriting && PendingWriting->Request.Target.HookRevision != aPreferences.WritingHooks.Revision) {
+				// [[BPR-2051]]. An Enhance run keeps the prompt saved when it
+				// was pressed; a later save does not stop it.
+				if (PendingWriting && !PendingWriting->Enhance && PendingWriting->Request.Target.HookRevision != aPreferences.WritingHooks.Revision) {
 					cancel_writing();
 				}
 				Window->writing_hooks()->present(aPreferences.WritingHooks);

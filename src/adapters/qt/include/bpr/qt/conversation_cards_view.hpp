@@ -13,6 +13,7 @@
 #include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
+#include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -851,6 +852,15 @@ namespace bpr::qt {
 		void set_draft_text_dispatch(std::function<void(const QString&)> aDispatch);
 		/// \brief [[BPR-1212]]. The draft's field, while it is being written.
 		[[nodiscard]] auto draft_editor() const -> QPlainTextEdit*;
+		/// \brief [[BPR-2051]]. Where Enhance on the draft or reply written
+		/// here goes, and how a run it started is stopped.
+		void set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel);
+		/// \brief [[BPR-2051]]. The answer to one press; false when no field
+		/// shown here asked it.
+		auto present_enhancement(const enhance_outcome& aOutcome) -> bool;
+		/// \brief [[BPR-2051]]. The open card's Enhance control and panel.
+		[[nodiscard]] auto enhance_control() const -> enhance_button*;
+		[[nodiscard]] auto enhance_panel() const -> enhance_suggestion*;
 		/// \brief [[BPR-1212]]. The identity the draft's note and composer carry.
 		[[nodiscard]] static auto draft_identity() -> const std::string&;
 		/// \brief The reply's label chip and menu ([[BPR-1083]]'s
@@ -1077,6 +1087,8 @@ namespace bpr::qt {
 		bool                                       Writing = false;
 		std::optional<draft_composer_presentation> Composer;
 		std::function<void(const QString&)>        DraftTextDispatch;
+		enhance_dispatch                           EnhanceDispatch;
+		enhance_cancel                             EnhanceCancel;
 		QString                                    Viewer;
 		std::string                                Current;
 		bool                                       PullRequestComments = false;

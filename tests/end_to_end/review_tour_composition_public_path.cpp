@@ -3,13 +3,19 @@
 #include "../support/diagnostic_files.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/enhance_control.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
+#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -479,7 +485,9 @@ auto main(int argc, char** argv) -> int
 	// takes its stub away again once the setup has finished.
 	const auto defaultCourse = argc > 1 && !std::string_view{ argv[1] }.starts_with("--");
 	auto       stubAgent     = std::filesystem::path{ };
-	if (argc > 2 && (std::string_view{ argv[1] } == "--writing" || wrapperCourse)) {
+	// [[BPR-2051]]. The Enhance course runs on the same stub as the writing course.
+	const auto enhanceCourse = argc > 2 && std::string_view{ argv[1] } == "--enhance";
+	if (argc > 2 && (std::string_view{ argv[1] } == "--writing" || wrapperCourse || enhanceCourse)) {
 		stubAgent = argv[2];
 	} else if (const auto configured = qEnvironmentVariable("BPR_TOUR_COURSE_CLAUDE"); defaultCourse && !configured.isEmpty()) {
 		stubAgent = app::native_filesystem_path(configured);
@@ -495,7 +503,7 @@ auto main(int argc, char** argv) -> int
 	auto make = [&] {
 		std::unique_ptr<app::github_application> started;
 		bool                                     terminal = false;
-		auto                                     options  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper" || installedCourse), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && std::string_view{ argv[1] } == "--writing" ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt };
+		auto                                     options  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper" || installedCourse || enhanceCourse), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && (std::string_view{ argv[1] } == "--writing" || enhanceCourse) ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt };
 		// [[BPR-1894]]. The default course offers the built-in Claude on its
 		// stub, as the writing course and BPR-1881's tour-authoring look do:
 		// with nothing offered the Agent tab counts as not set up.
@@ -912,6 +920,167 @@ auto main(int argc, char** argv) -> int
 				   "the restarted entry keeps the exact stored program and model independently of native path display");
 			shutdown(*application);
 			std::cout << "review-tour-writing-wrapper:pass\n";
+			return EXIT_SUCCESS;
+		}
+		// [[BPR-2051]]. Enhance on a draft comment and a private note, through
+		// the real composition and the stub claude: each press runs the
+		// writing operation a stop's Enhance uses, with its surface's own
+		// prompt; the answer is a suggestion beside the text, applied only by
+		// Use suggestion; nothing reaches GitHub. `--enhance STUB --attended`
+		// stops with a draft comment and a note written, for the owner's look.
+		if (enhanceCourse) {
+			const auto attended       = argc > 3 && std::string_view{ argv[3] } == "--attended";
+			const auto mutationBefore = access::review_mutation_evidence(*application);
+			auto*      panel          = window.agent_panel();
+			auto*      selector       = panel->profile_selector();
+			select_file(window, "review.cpp");
+			wait([&] { return selector->count() > 0; }, "agent offerings follow accepted source");
+			const auto claude = selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value()));
+			expect(claude >= 0, "existing Claude profile offered");
+			selector->setCurrentIndex(claude);
+			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == core::claude_stream_json_profile_id; }, "writing host ready");
+			window.open_review_tour();
+			editor.show_problem();
+			agent_ready(window);
+			// A draft comment on a line of the head.
+			window.tray_tabs()->setCurrentIndex(0);
+			wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, 2U); }, "a head line is selected");
+			wait([&] { return window.comment_action()->isEnabled(); }, "Comment is offered on it");
+			window.comment_action()->trigger();
+			auto* const cards = window.conversation_panel()->cards();
+			wait([&] { return cards->writing_draft() && cards->draft_editor() != nullptr && cards->draft_editor()->isVisible() && !cards->draft_editor()->isReadOnly(); }, "Comment opens a draft in the drawer");
+			const auto original = QStringLiteral("nit: this could maybe be simpler i think, the loop does the same thing twice?");
+			cards->draft_editor()->setPlainText(original);
+			wait([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Body == original.toStdString(); }, "the draft comment is kept locally");
+			wait([&] { return cards->enhance_control() != nullptr && cards->enhance_control()->isVisible() && cards->enhance_control()->isEnabled(); }, "the draft offers Enhance");
+			expect(qt::agent_run_control(*cards->enhance_control()) && cards->enhance_control()->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(window.palette()), "Enhance wears the Agent accent");
+			// The note.
+			const auto writeNote = [&] {
+				window.tray_tabs()->setCurrentIndex(1);
+				QApplication::processEvents();
+				auto* const notes = window.private_notes();
+				wait([&] { return notes->new_review_action()->isEnabled(); }, "private notes available");
+				notes->new_review_action()->trigger();
+				notes->body_editor()->setPlainText(QStringLiteral("check the cache invalidation here, looks like it might be missing the delete path?? ask about tests"));
+				notes->save_action()->trigger();
+				wait([&] { return notes->notes().size() == 1U && !notes->save_action()->isEnabled(); }, "the note is saved privately");
+				notes->open_note(notes->notes().front().Id);
+				wait([&] { return notes->enhance_control() != nullptr && notes->enhance_control()->isVisible() && notes->enhance_control()->isEnabled(); }, "the open note offers Enhance");
+				return notes;
+			};
+			if (attended) {
+				auto* const notes = writeNote();
+				static_cast<void>(notes);
+				window.tray_tabs()->setCurrentIndex(0);
+				window.resize(1440, 960);
+				window.setWindowTitle(QStringLiteral("Enhance on a draft comment and a note — synthetic data — close to finish"));
+				QApplication::setQuitOnLastWindowClosed(true);
+				window.set_profile_management_dispatch({ }, { }, [] { QApplication::quit(); });
+				QTimer::singleShot(60 * 60 * 1000, &qtApplication, &QApplication::quit);
+				std::cout << "review-tour-enhance-attended:ready qpa=" << QApplication::platformName().toStdString() << '\n'
+						  << std::flush;
+				const auto result = QApplication::exec();
+				shutdown(*application);
+				return result;
+			}
+			const auto launched = [&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations; };
+			const auto ran      = [&](std::size_t aBefore, const char* aWhat) { wait([&] { return launched() > aBefore && access::agent_invocation_evidence(*application).Quiescent; }, aWhat); };
+			auto       before   = launched();
+			cards->enhance_control()->click();
+			ran(before, "the comment's Enhance runs the writing agent once");
+			if (!e2e::wait_until_plain([&] { return !cards->enhance_panel()->suggestion_text().isEmpty(); }, e2e::default_queue_budget)) {
+				std::cerr << "enhance notice: " << cards->enhance_panel()->notice_text().toStdString() << '\n';
+				throw std::runtime_error{ "a suggestion comes back" };
+			}
+			expect(cards->enhance_panel()->suggestion_text() == QStringLiteral("Nit: the loop does the same work twice. Could it run once?") && cards->draft_editor()->toPlainText() == original && window.review_editor()->shown_draft()->Body == original.toStdString(),
+				   "the suggestion is shown beside the comment; the comment is unchanged");
+			if (argc > 3) {
+				expect(window.grab().save(QString::fromLocal8Bit(argv[3]) + QStringLiteral("-comment.png")), "comment render saved");
+			}
+			cards->enhance_panel()->discard_button()->click();
+			QApplication::processEvents();
+			expect(cards->enhance_panel()->isHidden() && cards->draft_editor()->toPlainText() == original, "Discard keeps the comment as written");
+			before = launched();
+			cards->enhance_control()->click();
+			ran(before, "Enhance again");
+			wait([&] { return !cards->enhance_panel()->suggestion_text().isEmpty() && cards->enhance_panel()->use_button()->isEnabled(); }, "the second suggestion can be used");
+			cards->enhance_panel()->use_button()->click();
+			wait([&] { return window.review_editor()->shown_draft() && QString::fromStdString(window.review_editor()->shown_draft()->Body) == QStringLiteral("Nit: the loop does the same work twice. Could it run once?"); }, "Use puts the suggestion in the draft, kept locally");
+			cards->draft_editor()->undo();
+			wait([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Body == original.toStdString(); }, "one Undo restores the comment");
+			// A selection is enhanced alone.
+			{
+				auto cursor = cards->draft_editor()->textCursor();
+				cursor.setPosition(5);
+				cursor.setPosition(24, QTextCursor::KeepAnchor);
+				cards->draft_editor()->setTextCursor(cursor);
+				before = launched();
+				cards->enhance_control()->click();
+				ran(before, "Enhance on a selection");
+				wait([&] { return !cards->enhance_panel()->suggestion_text().isEmpty(); }, "the selection's suggestion");
+				cards->enhance_panel()->use_button()->click();
+				const auto expected = original.left(5) + cards->enhance_panel()->suggestion_text() + original.mid(24);
+				static_cast<void>(expected);
+				wait([&] { const auto text = cards->draft_editor()->toPlainText(); return text.startsWith(QStringLiteral("nit: Rewritten")) && text.endsWith(original.mid(24)); }, "only the selection is rewritten");
+				cards->draft_editor()->undo();
+				wait([&] { return cards->draft_editor()->toPlainText() == original; }, "and Undo restores it");
+			}
+			// The comment's prompt is the one saved in Settings, and a run
+			// keeps the prompt saved when it was pressed: a save while it runs
+			// neither changes nor discards it.
+			{
+				auto* const hooks  = window.writing_hooks();
+				auto* const text   = hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions"));
+				auto* const save   = hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave"));
+				auto* const source = hooks->findChild<QLabel*>(QStringLiteral("writingHookSource"));
+				hooks->select_hook(core::writing_hook::enhance_comment);
+				text->setPlainText(QStringLiteral("TEAM_PROMPT_CANARY WAIT_CANARY Keep it short."));
+				save->click();
+				wait([&] { return source->text().contains(QStringLiteral("Changed from built-in")); }, "the comment's Enhance prompt is saved");
+				before = launched();
+				cards->enhance_control()->click();
+				wait([&] { return launched() > before; }, "Enhance runs with the saved prompt");
+				text->setPlainText(QStringLiteral("Changed while it ran."));
+				save->click();
+				ran(before, "the run finishes");
+				wait([&] { return !cards->enhance_panel()->suggestion_text().isEmpty(); }, "its suggestion arrives");
+				expect(cards->enhance_panel()->suggestion_text() == QStringLiteral("Team voice applied."), "the run used the prompt saved when Enhance was pressed, and a save meanwhile did not discard it");
+				cards->enhance_panel()->discard_button()->click();
+				hooks->findChild<QPushButton*>(QStringLiteral("writingHookReset"))->click();
+				wait([&] { return source->text().startsWith(QStringLiteral("Built-in")); }, "Reset to built-in restores the shipped prompt");
+			}
+			// The note.
+			auto* const notes = writeNote();
+			const auto  saved = notes->notes().front().Text;
+			auto* const noted = notes->enhance_panel();
+			before            = launched();
+			notes->enhance_control()->click();
+			ran(before, "the note's Enhance runs");
+			wait([&] { return !noted->suggestion_text().isEmpty(); }, "the note's suggestion comes back");
+			expect(notes->body_editor()->toPlainText().toStdString() == saved, "the note is unchanged by the suggestion");
+			noted->use_button()->click();
+			QApplication::processEvents();
+			expect(notes->body_editor()->toPlainText().startsWith(QStringLiteral("Check cache invalidation:")) && notes->save_action()->isEnabled() && notes->notes().front().Text == saved,
+				   "Use puts it in the note to save; nothing is saved until Save");
+			notes->discard_action()->trigger();
+			QApplication::processEvents();
+			// Each prompt in Settings, with its built-in and its restore.
+			auto* const hooks = window.writing_hooks();
+			for (const auto& [hook, title] : std::array{ std::pair{ core::writing_hook::enhance_comment, "Enhance a comment" }, std::pair{ core::writing_hook::enhance_note, "Enhance a note" }, std::pair{ core::writing_hook::enhance_stop, "Enhance a stop" } }) {
+				hooks->select_hook(hook);
+				QApplication::processEvents();
+				expect(hooks->findChild<QLabel*>(QStringLiteral("writingHookTitle"))->text() == QString::fromUtf8(title) && hooks->findChild<QPushButton*>(QStringLiteral("writingHookReset")) != nullptr,
+					   "each Enhance prompt is in Built-in prompts with its restore");
+			}
+			const auto mutationAfter = access::review_mutation_evidence(*application);
+			expect(mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies
+					   && mutationAfter.Resolutions == mutationBefore.Resolutions,
+				   "Enhance writes nothing to GitHub");
+			if (argc > 3) {
+				expect(window.grab().save(QString::fromLocal8Bit(argv[3]) + QStringLiteral("-end.png")), "render saved");
+			}
+			shutdown(*application);
+			std::cout << "review-tour-enhance:pass\n";
 			return EXIT_SUCCESS;
 		}
 		if (argc > 2 && std::string_view{ argv[1] } == "--writing") {

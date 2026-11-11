@@ -2308,7 +2308,8 @@ namespace bpr::application {
 	auto build_writing_prompt(const core::writing_hook_settings& aSettings, const core::writing_request& aRequest, std::span<const writing_source> aSources) -> std::optional<std::string>
 	{
 		// [[BPR-1090]] The review-feedback hook writes no tour field, so it builds no writing prompt.
-		if (!core::valid(aSettings) || aRequest.Target.Hook >= core::writing_hook::feedback || aSources.size() > 8 || aRequest.Selection.Begin > aRequest.Selection.End || aRequest.Selection.End > aRequest.Raw.size()) {
+		// [[BPR-2051]] `enhance_stop` is a stop's instructions, never a target.
+		if (!core::valid(aSettings) || aRequest.Target.Hook == core::writing_hook::feedback || aRequest.Target.Hook == core::writing_hook::enhance_stop || aSources.size() > 8 || aRequest.Selection.Begin > aRequest.Selection.End || aRequest.Selection.End > aRequest.Raw.size()) {
 			return std::nullopt;
 		}
 		for (std::size_t index = 0; index < aSources.size(); ++index) {
@@ -2320,7 +2321,7 @@ namespace bpr::application {
 		if (selected.size() > 6000 || !core::valid_writing_utf8(selected)) {
 			return std::nullopt;
 		}
-		auto prompt = std::string{ writing_application_contract() } + "\nSelected writing instructions:\n" + std::string{ effective_writing_hook(aSettings, aRequest.Target.Hook) };
+		auto prompt = std::string{ writing_application_contract() } + "\nSelected writing instructions:\n" + std::string{ effective_writing_hook(aSettings, core::writing_instructions_for(aRequest.Target.Hook, aRequest.Scope)) };
 		prompt += "\nReturn exactly one JSON object. Schema: {\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":string,\"notes\":[{\"kind\":\"recovered\"|\"inferred\"|\"uncertain\",\"text\":string,\"source_refs\":[supplied IDs]}]}. Insufficient context: {\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"insufficient_context\",\"reason\":string}. No extra keys, fences or wrappers. Empty input requires cited evidence notes.\n";
 		// [[BPR-1915]]. A field's text is Markdown that renders in the app and
 		// on GitHub; the outline writes no field text.
@@ -2357,7 +2358,7 @@ namespace bpr::application {
 	}
 	auto decode_writing_result(std::string_view aJson, core::writing_hook aHook, std::span<const writing_source> aSources, bool aRequiresEvidence) -> std::optional<writing_result>
 	{
-		if (aHook >= core::writing_hook::feedback || aSources.size() > 8 || aJson.size() > 32768 || !core::valid_writing_utf8(aJson)) {
+		if (aHook == core::writing_hook::feedback || aHook == core::writing_hook::enhance_stop || aSources.size() > 8 || aJson.size() > 32768 || !core::valid_writing_utf8(aJson)) {
 			return std::nullopt;
 		}
 		for (std::size_t index = 0; index < aSources.size(); ++index) {

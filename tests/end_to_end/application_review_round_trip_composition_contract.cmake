@@ -3446,8 +3446,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# next. No grant, admission or publication boundary is relaxed:
 	# publication now also requires every stop accepted. Full-app and
 	# mutation pins unchanged.
+	# [[BPR-2051]]: Enhance on a draft comment, a reply and a private note
+	# runs the tour writing operation (prompt contract, rewrite result and
+	# decoder) on the Agent tab's writing-only path with that surface's own
+	# prompt and answers the field as a suggestion; a stop's Enhance sends
+	# the stop's Enhance prompt. Nothing reaches GitHub; no grant, admission
+	# or publication boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "dbbbf1c443411d850832d43e640002ed67bc118a28a4e761ad559acd9707f645"
+        "9a1267b60a9af3887e16f373b4f7a213f786dce239560fca0c98f9986b788956"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

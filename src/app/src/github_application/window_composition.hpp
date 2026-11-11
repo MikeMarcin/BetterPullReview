@@ -597,6 +597,10 @@ namespace bpr::app {
 			/// [[BPR-1900]]. Run in the workspace with read-only tools; its
 			/// answer is the agent's last message.
 			bool ReadOnly = false;
+			/// [[BPR-2051]]. Enhance on a draft comment or a note: the press
+			/// it answers. Its answer is a suggestion for that field, never
+			/// an edit, and its prompt is the one built when it was pressed.
+			std::optional<std::uint64_t> Enhance;
 		};
 		core::scoped_writing_state       WritingState;
 		std::optional<writing_operation> PendingWriting;
@@ -760,6 +764,13 @@ namespace bpr::app {
 		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string;
 		void finish_writing(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
 		void test_writing_hook(core::writing_hook aHook);
+		/// [[BPR-2051]]. Enhance on a draft comment, a reply or a note: the
+		/// writing operation a tour stop's Enhance uses, with that surface's
+		/// own prompt, answered as a suggestion.
+		void               request_enhancement(qt::enhance_request aRequest);
+		void               cancel_enhancement(std::uint64_t aRequest);
+		void               answer_enhancement(std::uint64_t aRequest, std::optional<std::string> aReplacement, const QString& aNotice);
+		[[nodiscard]] auto enhancement_context_key() const -> std::array<std::uint8_t, 32>;
 
 		void dispatch_tour_action(qt::tour_editor_action aAction);
 

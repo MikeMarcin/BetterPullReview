@@ -3,6 +3,7 @@
 
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/note_placement.hpp"
+#include "bpr/qt/enhance_control.hpp"
 #include <QColor>
 #include <QPointer>
 #include <QRect>
@@ -177,6 +178,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto promote_action() const noexcept -> QAction*;
 		[[nodiscard]] auto discard_action() const noexcept -> QAction*;
 		[[nodiscard]] auto close_action() const noexcept -> QAction*;
+		/// \brief [[BPR-2051]]. Where Enhance on the open note goes, and how
+		/// a run it started is stopped.
+		void set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel);
+		/// \brief [[BPR-2051]]. The answer to one press; false when this
+		/// panel did not ask it.
+		auto               present_enhancement(const enhance_outcome& aOutcome) -> bool;
+		[[nodiscard]] auto enhance_control() const noexcept -> enhance_button* { return EnhanceButton; }
+		[[nodiscard]] auto enhance_panel() const noexcept -> enhance_suggestion* { return EnhancePanel; }
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -264,6 +273,9 @@ namespace bpr::qt {
 		QAbstractButton*                                    SaveButton      = nullptr;
 		QAbstractButton*                                    DraftButton     = nullptr;
 		QToolButton*                                        AskAgentButton  = nullptr;
+		enhance_button*                                     EnhanceButton   = nullptr;
+		enhance_suggestion*                                 EnhancePanel    = nullptr;
+		enhance_binding*                                    Enhance         = nullptr;
 		QAbstractButton*                                    DeleteButton    = nullptr;
 		QAbstractButton*                                    CloseButton     = nullptr;
 		QAbstractButton*                                    DiscardButton   = nullptr;

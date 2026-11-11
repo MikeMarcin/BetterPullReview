@@ -8,7 +8,49 @@ namespace bpr::application {
 		const auto index = static_cast<std::size_t>(aHook);
 		return index < detail::WritingDefaults.size() ? detail::WritingDefaults[index] : std::string_view{ };
 	}
-	auto writing_hook_version_of(core::writing_hook aHook) noexcept -> std::string_view { return aHook == core::writing_hook::feedback ? review_feedback_hook_version : writing_hook_version; }
+	auto writing_hook_version_of(core::writing_hook aHook) noexcept -> std::string_view
+	{
+		switch (aHook) {
+		case core::writing_hook::feedback:        return review_feedback_hook_version;
+		case core::writing_hook::enhance_stop:    return enhance_stop_hook_version;
+		case core::writing_hook::enhance_comment: return enhance_comment_hook_version;
+		case core::writing_hook::enhance_note:    return enhance_note_hook_version;
+		case core::writing_hook::problem:
+		case core::writing_hook::solution:
+		case core::writing_hook::outline:
+		case core::writing_hook::comment:         return writing_hook_version;
+		}
+		return writing_hook_version;
+	}
+	namespace {
+		/// [[BPR-2051]] Indexed by `core::writing_hook`. Written out, never
+		/// derived from names or order: an ID once shipped is kept.
+		constexpr auto Purposes = std::array<std::string_view, core::writing_hook_count>{
+			"tour.problem",
+			"tour.solution",
+			"tour.outline",
+			"tour.stop-comment",
+			"review.feedback",
+			"enhance.tour-stop",
+			"enhance.comment",
+			"enhance.note",
+		};
+	}
+	auto writing_hook_purpose(const core::writing_hook aHook) noexcept -> std::string_view
+	{
+		const auto index = static_cast<std::size_t>(aHook);
+		return index < Purposes.size() ? Purposes[index] : std::string_view{ };
+	}
+	auto writing_hook_of_purpose(const std::string_view aPurpose) noexcept -> std::optional<core::writing_hook>
+	{
+		for (std::size_t index = 0; index < Purposes.size(); ++index) {
+			if (Purposes[index] == aPurpose) {
+				return static_cast<core::writing_hook>(index);
+			}
+		}
+		return std::nullopt;
+	}
+	auto default_writing_hook_digest(const core::writing_hook aHook) -> std::array<std::uint8_t, 32> { return core::writing_digest(default_writing_hook(aHook)); }
 	auto writing_application_contract() -> std::string_view { return detail::WritingContract; }
 	auto effective_writing_hook(const core::writing_hook_settings& aSettings, core::writing_hook aHook) -> std::string_view
 	{

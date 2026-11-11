@@ -136,6 +136,17 @@ The **Review feedback** hook explains comment-label conventions. It is sent
 with comment workshop requests only while **Comments > Feedback guidance** is
 on. You can also edit it with `bpr tour hooks show|edit|reset feedback`.
 
+#### Enhance prompts
+
+Each place that offers **Enhance** has its own prompt under
+**Agents & context > Built-in prompts**: **Enhance a stop** (a tour stop with
+text), **Enhance a comment** (a draft comment or reply) and **Enhance a note**
+(a private note). Each has a built-in default and **Reset to built-in**. A
+press uses the prompt saved at that moment. On a comment or a note the result
+is a suggestion under the field, used only with **Use suggestion**; Enhance
+writes nothing to GitHub. `bpr tour hooks show|edit|reset` takes
+`enhance-stop`, `enhance-comment` and `enhance-note`.
+
 See the [AI agent boundary](../architecture/ai-agent-boundary.md) for exactly
 what an agent receives and may do.
 

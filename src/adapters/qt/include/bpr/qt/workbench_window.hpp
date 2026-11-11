@@ -36,6 +36,7 @@
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -1379,6 +1380,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto side_chat() const noexcept -> side_chat_panel*;
 		[[nodiscard]] auto private_review() const noexcept -> private_review_panel* { return PrivateReview; }
 		[[nodiscard]] auto private_notes() const noexcept -> private_notes_panel*;
+		/// \brief [[BPR-2051]]. Where Enhance on a draft comment, a reply or
+		/// a private note goes, and how a run it started is stopped.
+		void set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel);
+		/// \brief [[BPR-2051]]. The answer to one Enhance press, to the field
+		/// that asked; false when none still does.
+		auto present_enhancement(const enhance_outcome& aOutcome) -> bool;
 		/// \brief The finding queue, placed above the draft the promotion fills.
 		///
 		/// \details BPR-0513, on the same terms as `side_chat()`. Its

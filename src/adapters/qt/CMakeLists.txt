@@ -27,6 +27,7 @@ add_library(
         src/quiet_push_button.cpp
         src/disclosure_button.cpp
         src/drawer_parts.cpp
+        src/enhance_control.cpp
         src/overview_status_drawer.cpp
         src/overview_tour_summary.cpp
         src/tour_publication_surfaces.cpp

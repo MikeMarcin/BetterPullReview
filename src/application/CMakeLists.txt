@@ -5,8 +5,12 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-outline
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-stop-comment.md" WRITING_COMMENT)
 # [[BPR-1090]] The review-feedback guidance, from the RFC-BPR-0051 pack fragment.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-feedback.md" WRITING_FEEDBACK)
+# [[BPR-2051]] The Enhance prompts of a tour stop, a draft comment and a note.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/enhance-tour-stop.md" WRITING_ENHANCE_STOP)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/enhance-comment.md" WRITING_ENHANCE_COMMENT)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/enhance-note.md" WRITING_ENHANCE_NOTE)
 # An edited resource reconfigures, so the built defaults never lag their text.
-foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback)
+foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-comment enhance-note)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)

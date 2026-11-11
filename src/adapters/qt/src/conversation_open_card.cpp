@@ -2377,6 +2377,8 @@ namespace bpr::qt {
 			Suggestion->setObjectName(QStringLiteral("threadReplySuggestionMark"));
 			controls->addWidget(Suggestion);
 			controls->addStretch(1);
+			// [[BPR-2051]]. Enhance, beside the reply's own sending buttons.
+			build_enhance(*controls);
 			auto* const cancel = new quiet_tool_button{ Editor };
 			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
 			cancel->setAutoRaise(true);
@@ -2392,6 +2394,7 @@ namespace bpr::qt {
 			connect(Publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_reply); } });
 			controls->addWidget(Publish);
 			editor->addLayout(controls);
+			editor->addWidget(EnhancePanel);
 			ReplyStatus = new QLabel{ Editor };
 			ReplyStatus->setObjectName(QStringLiteral("threadReplyStatus"));
 			ReplyStatus->setWordWrap(true);
@@ -2462,6 +2465,10 @@ namespace bpr::qt {
 		controls->addWidget(Suggestion);
 		controls->addStretch(1);
 		editor->addLayout(controls);
+		// [[BPR-2051]]. Enhance at the right of the field's own tool row; its
+		// suggestion under that row.
+		build_enhance(*controls);
+		editor->addWidget(EnhancePanel);
 		ReplyStatus = new QLabel{ Editor };
 		ReplyStatus->setObjectName(QStringLiteral("threadDraftStatus"));
 		ReplyStatus->setWordWrap(true);
@@ -2566,6 +2573,39 @@ namespace bpr::qt {
 		});
 	}
 
+	void open_thread_card::build_enhance(QBoxLayout& aControls)
+	{
+		// [[BPR-2051]]. The field's Enhance: an icon in its tool row, and under
+		// the field the run, then the suggestion with Use and Discard drawn as
+		// this card's own buttons. Nothing changes the field until Use.
+		EnhanceButton = new enhance_button{ enhance_surface::comment, Editor };
+		aControls.addWidget(EnhanceButton, 0, Qt::AlignVCenter);
+		EnhancePanel    = new enhance_suggestion{ enhance_surface::comment, Editor };
+		auto* const use = new note_button{ note_button::kind::primary, QStringLiteral("Use suggestion"), EnhancePanel };
+		use->setObjectName(QStringLiteral("commentEnhanceUse"));
+		use->set_style(Style);
+		auto* const discard = new note_button{ note_button::kind::secondary, QStringLiteral("Discard"), EnhancePanel };
+		discard->setObjectName(QStringLiteral("commentEnhanceDiscard"));
+		discard->setAccessibleName(QStringLiteral("Discard suggestion"));
+		discard->set_style(Style);
+		EnhancePanel->set_buttons(use, discard);
+		Enhance          = new enhance_binding{ *ReplyBox, enhance_surface::comment, *EnhanceButton, *EnhancePanel, this };
+		Enhance->Changed = [this] {
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		};
+	}
+
+	void open_thread_card::bind_enhance(enhance_dispatch aDispatch, enhance_cancel aCancel)
+	{
+		if (Enhance != nullptr) {
+			Enhance->set_dispatch(std::move(aDispatch), std::move(aCancel));
+		}
+	}
+
+	auto open_thread_card::present_enhancement(const enhance_outcome& aOutcome) -> bool { return Enhance != nullptr && Enhance->present(aOutcome); }
+
 	void open_thread_card::present_draft(const std::optional<draft_composer_presentation>& aDraft)
 	{
 		if (!Writing || ReplyBox == nullptr) {
@@ -2575,6 +2615,9 @@ namespace bpr::qt {
 		// of that same publication is still offered.
 		Publishable = aDraft.has_value() && aDraft->Publishable && (aDraft->Editable || aDraft->Retry);
 		ReplyBox->setReadOnly(!aDraft.has_value() || !aDraft->Editable);
+		if (Enhance != nullptr) {
+			Enhance->refresh();
+		}
 		if (aDraft.has_value() && ReplyBox->toPlainText() != aDraft->Body) {
 			// The draft editor's text arrives. A suggestion's caret goes to
 			// the end of the last line inside its block; any other to the end.
@@ -2827,6 +2870,9 @@ namespace bpr::qt {
 		const auto ours = aReply.has_value() && aReply->Thread == Id;
 		Publishable     = ours && aReply->Publishable;
 		ReplyBox->setReadOnly(ours && !aReply->Editable);
+		if (Enhance != nullptr) {
+			Enhance->refresh();
+		}
 
 		if (ours && ReplyBox->toPlainText() != aReply->Body) {
 			// The draft editor's text arrives; a caret at the end keeps typing

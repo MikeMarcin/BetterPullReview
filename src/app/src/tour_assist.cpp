@@ -70,6 +70,10 @@ namespace bpr::app {
 		case core::writing_hook::outline:  return "outline";
 		case core::writing_hook::comment:  return "comment";
 		case core::writing_hook::feedback: return "feedback";
+		// [[BPR-2051]] The Enhance prompts, named for `bpr tour hooks`.
+		case core::writing_hook::enhance_stop:    return "enhance-stop";
+		case core::writing_hook::enhance_comment: return "enhance-comment";
+		case core::writing_hook::enhance_note:    return "enhance-note";
 		}
 		return "problem";
 	}
@@ -274,7 +278,7 @@ namespace bpr::app {
 			// [[BPR-1090]] The feedback hook goes only with comment workshop requests, and only while the
 			// label helper is on; the review-preparation hooks apply whenever their field is assisted.
 			const bool active = hook != core::writing_hook::feedback || helper;
-			hooks.append(QJsonObject{ { "name", text(tour_hook_name(hook)) }, { "version", text(application::writing_hook_version_of(hook)) }, { "customized", !settings.Overrides[index].empty() }, { "active", active }, { "instructions", text(application::effective_writing_hook(settings, hook)) } });
+			hooks.append(QJsonObject{ { "name", text(tour_hook_name(hook)) }, { "purpose", text(application::writing_hook_purpose(hook)) }, { "version", text(application::writing_hook_version_of(hook)) }, { "customized", !settings.Overrides[index].empty() }, { "active", active }, { "instructions", text(application::effective_writing_hook(settings, hook)) } });
 		}
 		return compact(QJsonObject{ { "version", text(application::writing_hook_version) }, { "revision", id_text(settings.Revision) }, { "label_helper", helper ? "on" : "off" }, { "hooks", hooks } });
 	}

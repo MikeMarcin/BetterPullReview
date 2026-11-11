@@ -3574,6 +3574,15 @@ bpr_add_network_isolated_test(NAME application_review_tour_composition_public_pa
 set_tests_properties(application_review_tour_composition_public_path PROPERTIES
     ENVIRONMENT "${bpr_review_tour_composition_environment}"
     TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-composition:pass")
+# [[BPR-2051]]. Enhance on a draft comment and a note, on the scoped writing stub.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_network_isolated_test(NAME application_enhance_comment_note_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_review_tour_composition_public_path --enhance "$<TARGET_FILE:test_scoped_writing_agent>")
+    set_tests_properties(application_enhance_comment_note_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        TIMEOUT 120 PASS_REGULAR_EXPRESSION "review-tour-enhance:pass")
+endif()
 foreach(scale IN ITEMS 125 200)
     if(scale EQUAL 125)
         set(tour_scale_factor "1.25")

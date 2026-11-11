@@ -5,6 +5,7 @@
 
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QAbstractButton>
@@ -332,6 +333,12 @@ namespace bpr::qt {
 		/// own [[BPR-1083]] controls on the reply's text. Null on a card that
 		/// takes no reply.
 		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
+		/// \brief [[BPR-2051]]. Enhance on the draft or reply written here:
+		/// where a press goes, and its answer. None without a field.
+		void               bind_enhance(enhance_dispatch aDispatch, enhance_cancel aCancel);
+		auto               present_enhancement(const enhance_outcome& aOutcome) -> bool;
+		[[nodiscard]] auto enhance_control() const noexcept -> enhance_button* { return EnhanceButton; }
+		[[nodiscard]] auto enhance_panel() const noexcept -> enhance_suggestion* { return EnhancePanel; }
 		/// \brief [[BPR-1084]]. Beside the reply's label chip: whether a
 		/// suggested change in the reply is native in this thread or text only.
 		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
@@ -483,6 +490,11 @@ namespace bpr::qt {
 		QWidget*           Privacy      = nullptr;
 		draft_review_state Review       = draft_review_state::none;
 		suggestion_mark*   Suggestion   = nullptr;
+		/// [[BPR-2051]].
+		enhance_button*     EnhanceButton = nullptr;
+		enhance_suggestion* EnhancePanel  = nullptr;
+		enhance_binding*    Enhance       = nullptr;
+		void                build_enhance(QBoxLayout& aControls);
 		/// [[BPR-1212]]. The composer's line button, state and change view.
 		QToolButton* Where      = nullptr;
 		QWidget*     DraftState = nullptr;

@@ -560,9 +560,10 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 9 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Comments" && hook->item(6)->text() == "Review feedback" && hook->item(7)->text() == "Agent tab"
-				   && hook->item(8)->text() == "Review skill" && !text->toPlainText().isEmpty(),
-			   "[[BPR-1917]] every built-in prompt is listed under where it is used: four tour prompts, review feedback and the review skill");
+		expect(hook->count() == 13 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments" && hook->item(7)->text() == "Review feedback"
+				   && hook->item(8)->text() == "Enhance a comment" && hook->item(9)->text() == "Notes" && hook->item(10)->text() == "Enhance a note" && hook->item(11)->text() == "Agent tab"
+				   && hook->item(12)->text() == "Review skill" && !text->toPlainText().isEmpty(),
+			   "[[BPR-1917]], [[BPR-2051]] every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and a comment's Enhance, a note's Enhance, and the review skill");
 		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
 		for (const auto tourHook : tourHooks) {
 			panel->select_hook(tourHook);
@@ -596,6 +597,20 @@ auto main(int argc, char** argv) -> int
 		expect(settings.Overrides[4].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "Restore default brings back the shipped guidance");
 		panel->present_label_helper(application::review_label_helper::off);
 		expect(scope->text().startsWith("Off."), "and turning the helper off again says so");
+		// [[BPR-2051]] Each Enhance prompt: its own default and version, its
+		// own override, and its restore; the others are untouched.
+		for (const auto [enhance, version] : std::array{ std::pair{ core::writing_hook::enhance_stop, "enhance-tour-stop-v1" }, std::pair{ core::writing_hook::enhance_comment, "enhance-comment-v1" },
+														 std::pair{ core::writing_hook::enhance_note, "enhance-note-v1" } }) {
+			const auto index = static_cast<std::size_t>(enhance);
+			panel->select_hook(enhance);
+			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(enhance) && source->text().contains(QString::fromLatin1(version)) && scope->isHidden() && test->isEnabled(),
+				   "an Enhance prompt shows its shipped text and version, and can be tested");
+			text->setPlainText("Our voice");
+			panel->findChild<QPushButton*>("writingHookSave")->click();
+			expect(settings.Overrides[index] == "Our voice" && settings.Overrides[0] == "precise" && source->text().contains("Changed from built-in"), "its override is its own");
+			panel->findChild<QPushButton*>("writingHookReset")->click();
+			expect(settings.Overrides[index].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(enhance), "Reset to built-in restores it in one click");
+		}
 		// For a look at the row as drawn, when BPR_SETTINGS_RENDER_DIR is set.
 		if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
 			window.settings()->present(qt::settings_page::agents_and_context);
