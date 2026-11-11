@@ -690,3 +690,61 @@ Next: read `fbdd40b2…` from cursor 9 after hand-back. Accept of all three:
 finish BPR-2061 and BPR-2059, stop host 7089 and remove the root with
 `freeze_attended_build.py remove`. A Reject goes to a fresh implementer with
 the note.
+
+## tour-stops: re-review round (2026-11-10)
+
+An independent re-review of `d02f13efb`/`fb94545ec` returned
+pass-with-findings, nothing blocking. Each of its five findings was taken test
+first; dispositions are in the
+[record](../../../verification/RFC-BPR-0106.md#re-review-of-the-fixes-2026-11-10).
+Nothing pushed; no IDs allocated. Owner amendments in force as above.
+Frontend-design was loaded before the one Qt change (item 4).
+
+| Commit | What |
+|---|---|
+| `e06af4246` | Finding 1: the tour keeps earlier observed heads a stop has its lines at (`EarlierHeads`), so such a stop is compared, never Accepted with nothing to compare; tour payload version 12, owner protocol 8. Finding 5: the v10 staged-record test also with Ready stops |
+| `816864eb5` | Finding 2: `tour_changed_paths` (only the tour owner's pull request's read), host wiring pinned by a pty walk and a forwarded walk and window Accept against a real desktop owner; `bpr tour status` reports `acceptance`. Finding 3: `tour_material_ledger` (dropped reads asked again uncounted; failed or verdict-less reads at most three times). Finding 4: one accept need with the changed files for core and button. Stale never-built tests brought up to date; app pin resealed. Product candidate |
+| this commit | Handoff |
+
+Tests: `core_tour_stop_acceptance` (`test_intermediate_head_stop_is_compared`,
+accept need with files), `sqlite_review_tour_storage` (v12/v11),
+`sqlite_tour_owner_channel` (v7 refused), `staged_review_session`
+(`test_update_saved_before_acceptance_resumes`, Ready case),
+`application_review_tour_host` (ledger, compared, changed paths),
+`qt_tour_stop_acceptance_card`, `tour_cli_process_commands` (walk),
+`application_profile_tour_handoff_public_path` (forwarded walk, window
+Accept). Items 1 and 4 and every wiring test failed against the unfixed code;
+item 3's ledger is new and was read from the code (no course drives a dropped
+or failing realignment read).
+
+Runs at `816864eb5`: 200 `core_`/`sqlite_`/`staged_`/tour CLI/application
+rows; 69 tour, publication and workbench-window rows (Qt offscreen, both
+tour e2e courses); every `tour_cli_*` row (the dev build now configures
+`BPR_BUILD_TOUR_CLI=ON`); `application_composition_source_contract`,
+`application_review_round_trip_composition_contract`,
+`architecture_boundaries`, `test_network_isolation_manifest`; format check
+on changed files; documentation gate. All pass.
+
+Catch-up: the tour-cli rows had never run in this lane and the hooks count
+there (and in the handoff course) still said five; `tour_publication_cli`
+had not been updated for acceptance (its stops are now accepted, as Save
+does); `agent_context_supplement` did not compile after BPR-2059. All fixed
+and passing. The Draft-all round's e2e assertion
+(`application_agent_invocation_composition_contract`, the brief's comment
+format) passes, as do the ten other courses of that binary.
+
+Disk: 3.9 GB free at the end (the shared compiler cache is 19 GB and grows
+with any build). Removed from this worktree's `build/dev`, all relinkable:
+`tests/end_to_end/profile_tour_handoff_public_path`,
+`tests/end_to_end/review_tour_composition_public_path`,
+`tests/tour_publication_cli`,
+`tests/end_to_end/better_pull_review_agent_invocation_composition_public_path`.
+
+Not touched: sessions `fbdd40b2…`, `ac6e3a32…`, `679d26ab…`, `26d89bac…`,
+host 74692, PID 10695, BPR-Test #151/#152, the `-next` branch. The filed
+looks were frozen before these changes; none of them shows the new reason
+line ("Accept it once the pull request's files load."), which appears only
+while the window has no read of the tour's pull request. Not refiled.
+
+Owed: as before (the owner's looks; AC08). A further independent review of
+`e06af4246`/`816864eb5` may be filed; it is not waited on.
