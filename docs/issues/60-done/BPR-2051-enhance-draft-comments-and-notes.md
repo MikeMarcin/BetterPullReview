@@ -212,3 +212,9 @@ stopped, root `layout-round-v001.5q22yahv` removed with
 Every look the card asks for is accepted (the icon, placement and prompt list
 earlier; the roster that replaced the rejected Agents & context top and the
 footer now). The card is Done.
+
+## Footer setup state, asked again (2026-11-11)
+
+Session `246ef52c2815c6c16b3aeb5dacc5a765`: `BPR-2051-footer-setup-quiet`
+Accept (`55178b22`), no note. Needing setup reads in the calm secondary tone;
+red stays for a check that ran and failed.

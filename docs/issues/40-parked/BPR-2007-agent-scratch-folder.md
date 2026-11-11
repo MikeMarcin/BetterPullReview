@@ -132,3 +132,8 @@ and protected: `BPR-2007-picker-toggles-v2`, `RFC-BPR-0104-scratch-settings`,
 `BPR-2051-footer-setup-quiet`. Native renders (Cocoa off screen, light and
 dark) are their media. Insights disk use has no candidate: it is BPR-2101,
 not built.
+
+Handed back 2026-11-11, all Accept with no notes (`session.json`): `BPR-2007-picker-toggles-v2` (`4373c4bb`), `RFC-BPR-0104-scratch-settings` (`cbffd9d4`), `BPR-2051-footer-setup-quiet` (`55178b22`).
+Host 89403 (Tailscale child 89420) stopped with `attended_review.py stop`;
+root `agent-grant-v002.y_rhztpu` removed with `freeze_attended_build.py remove`.
+The card stays parked: AC07 waits on the independent re-review of `531a039cd`.
