@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2087"
+  ],
+  "reserve_for": "release56-uiforetw-preference-completion",
+  "purpose": "Release56 fixture focused layout waits existing bounded async preference completion",
+  "created": "2026-11-11T07:22:40.083156+00:00",
+  "base": "0a6498d957342323d8b4ba8b7ace6dd77178bb43"
+}
