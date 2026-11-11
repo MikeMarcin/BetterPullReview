@@ -34,6 +34,7 @@ class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
 class QHBoxLayout;
+class QAction;
 
 class QVBoxLayout;
 
@@ -90,6 +91,30 @@ namespace bpr::qt {
 		std::size_t Turns = 0U;
 	};
 
+	/// \brief [[BPR-1995]]. The side chat's composer field: the attached
+	/// passage as a chip above the words, in one box drawn as a text field.
+	class composer_field final : public QWidget
+	{
+	public:
+		using QWidget::QWidget;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
+
+	private:
+		bool Focused = false;
+	};
+	/// \brief [[BPR-1995]]. The passage a question quotes, as a chip.
+	class passage_chip final : public QWidget
+	{
+	public:
+		using QWidget::QWidget;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+	};
+
 	/// \brief [[BPR-1914]] v003, [[BPR-1925]]. Side chats with the tour
 	/// agent: the Tour tab's second column, beside the tour.
 	///
@@ -112,9 +137,14 @@ namespace bpr::qt {
 	/// words in bubbles on the right, the agent's replies as rendered Markdown
 	/// on the left with their code highlighted ([[BPR-1919]]), Copy on each
 	/// reply and Copy chat for all of it.
-	/// One clear action, Update the part from this chat, asks for the part
-	/// rewritten from the conversation; the result is the part's proposal,
-	/// accepted, edited or discarded right in the chat.
+	/// [[BPR-1995]], RFC-BPR-0100: under an answer that changed nothing, the
+	/// link "Update the part from this chat" asks for the part rewritten from
+	/// the conversation; it is the only place the update is offered. A
+	/// part's proposal is accepted, edited or discarded right in the chat; a
+	/// whole-tour revision is a card listing its parts, with Accept all,
+	/// Review each in the tour and Discard. Under the transcript sit only a
+	/// notice when something is not as usual, the composer and the session
+	/// line.
 	///
 	/// \details [[BPR-1941]], owner 2026-11-08: "bring the agent status
 	/// updates from the agent tabs over to the tour tab's side chat". A turn
@@ -188,9 +218,6 @@ namespace bpr::qt {
 		/// \brief [[BPR-1930]]. Feedback kept until the draft proposes, shown
 		/// in the tour's chat while it waits.
 		[[nodiscard]] auto waiting_feedback() const noexcept -> QWidget* { return WaitingBubble; }
-		/// \brief [[BPR-1930]]. The tour chat's line saying where its proposal
-		/// waits, for the newest turn that proposed.
-		[[nodiscard]] auto in_tour_line() const noexcept -> QLabel* { return InTour; }
 		/// \brief [[BPR-1937]]. The newest whole-tour turn's refused parts, each
 		/// with why, when it had any.
 		[[nodiscard]] auto refused_line() const noexcept -> QLabel* { return RefusedLine; }
@@ -232,10 +259,18 @@ namespace bpr::qt {
 		void               set_history_dispatch(std::function<void(const core::tour_thread&, std::optional<std::string>)> aDispatch) { HistoryDispatch = std::move(aDispatch); }
 		void               present_native_history(const application::native_agent_history_projection&);
 		/// \brief Projects the core's revision choice without submitting a question.
-		void               present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, core::git_commit_oid aObservedHead, bool aContinued);
-		void               set_continuation_dispatch(std::function<void(const core::tour_thread&)> aDispatch) { ContinuationDispatch = std::move(aDispatch); }
-		[[nodiscard]] auto new_session_button() const noexcept -> QToolButton* { return NewSession; }
+		void present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, core::git_commit_oid aObservedHead, bool aContinued);
+		void set_continuation_dispatch(std::function<void(const core::tour_thread&)> aDispatch) { ContinuationDispatch = std::move(aDispatch); }
+		/// \brief [[BPR-1995]]. New session, an item of the Session menu.
+		[[nodiscard]] auto new_session_action() const noexcept -> QAction* { return NewSession; }
+		/// \brief [[BPR-1995]]. The Session menu at the left of the session
+		/// line: the session's ordinal; History and New session are its items.
 		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return Sessions; }
+		[[nodiscard]] auto session_button() const noexcept -> QToolButton* { return Sessions; }
+		/// \brief [[BPR-1995]]. The notice above the composer: shown only for a
+		/// transcript replay, native continuation unavailable or a moved head.
+		[[nodiscard]] auto notice() const noexcept -> QWidget* { return Notice; }
+		[[nodiscard]] auto composer_box() const noexcept -> QWidget* { return Field; }
 
 		/// \brief [[BPR-1925]]. Whether the column is open (it shows while the
 		/// Tour tab does), and the part it is about while it is.
@@ -250,7 +285,27 @@ namespace bpr::qt {
 		[[nodiscard]] auto chat_parts() const -> std::size_t;
 		[[nodiscard]] auto composer() const noexcept -> QPlainTextEdit* { return Composer; }
 		[[nodiscard]] auto send_button() const noexcept -> QPushButton* { return Send; }
-		[[nodiscard]] auto update_button() const noexcept -> QPushButton* { return Update; }
+		/// \brief [[BPR-1995]], RFC-BPR-0100 AC02. Whether the open chat's
+		/// update could be asked for now, and asks for it: what the link under
+		/// an answer that changed nothing does.
+		[[nodiscard]] auto can_update() const -> bool;
+		auto               request_update() -> bool;
+		/// \brief [[BPR-1995]], RFC-BPR-0100 AC05. Enhance: opens `aThread`'s
+		/// chat and sends its update turn in that part's session; with
+		/// `aPassage`, the update of that passage alone. Answers whether it
+		/// was sent.
+		auto enhance(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage) -> bool;
+		/// \brief [[BPR-1995]], RFC-BPR-0100 AC04. Review each in the tour on
+		/// a revision card: the tour shows that run's first waiting part.
+		void set_review_dispatch(std::function<void(core::tour_agent_run_id)> aReview) { ReviewDispatch = std::move(aReview); }
+		/// \brief The newest whole-tour revision card shown, and its actions
+		/// while any part of it waits.
+		[[nodiscard]] auto revision_card() const noexcept -> QWidget* { return RevisionCard; }
+		[[nodiscard]] auto revision_operations() const noexcept -> QLabel* { return RevisionOperations; }
+		[[nodiscard]] auto revision_state() const noexcept -> QLabel* { return RevisionState; }
+		[[nodiscard]] auto revision_accept_all() const noexcept -> QPushButton* { return RevisionAcceptAll; }
+		[[nodiscard]] auto revision_review() const noexcept -> QPushButton* { return RevisionReview; }
+		[[nodiscard]] auto revision_discard() const noexcept -> QPushButton* { return RevisionDiscard; }
 		[[nodiscard]] auto close_button() const noexcept -> QToolButton* { return ClosePane; }
 		[[nodiscard]] auto copy_chat_button() const noexcept -> QToolButton* { return CopyChat; }
 		[[nodiscard]] auto show_button() const noexcept -> QPushButton* { return ShowPart; }
@@ -298,7 +353,7 @@ namespace bpr::qt {
 		bool                                                                      RevisionChoiceRequired = false;
 		QMenu*                                                                    SessionMenu            = nullptr;
 		QToolButton*                                                              Sessions               = nullptr;
-		QToolButton*                                                              NewSession             = nullptr;
+		QAction*                                                                  NewSession             = nullptr;
 		bool                                                                      HistoryLoading         = false;
 		void                                                                      rebuild();
 		void                                                                      changed();
@@ -308,7 +363,7 @@ namespace bpr::qt {
 		void               refresh_header();
 		void               refresh_actions();
 		void               show_passage();
-		void               send(const QString& aQuestion, bool aUpdate);
+		void               send(const QString& aQuestion, bool aUpdate, std::optional<core::tour_passage> aUpdatePassage = std::nullopt);
 		/// [[BPR-1934]]. A suggested prompt chosen: sent, or put in the
 		/// composer to edit or finish, as the core decides for the Agent tab.
 		void               choose_prompt(const QString& aPrompt, bool aEditFirst);
@@ -350,7 +405,6 @@ namespace bpr::qt {
 		bool                                                                        Running       = false;
 		bool                                                                        Drafting      = false;
 		QWidget*                                                                    WaitingBubble = nullptr;
-		QLabel*                                                                     InTour        = nullptr;
 		QLabel*                                                                     RefusedLine   = nullptr;
 		QLabel*                                                                     UnchangedLine = nullptr;
 		QLabel*                                                                     FocusLine     = nullptr;
@@ -367,31 +421,46 @@ namespace bpr::qt {
 		qreal                                                                       TabStop = 0.0;
 		std::optional<markdown_code_theme>                                          CodeTheme;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
-		int                                                                         Current         = -1;
-		QLabel*                                                                     Glyph           = nullptr;
-		QToolButton*                                                                CopyChat        = nullptr;
-		QToolButton*                                                                ClosePane       = nullptr;
-		QLabel*                                                                     Subject         = nullptr;
-		QLabel*                                                                     Quote           = nullptr;
-		QPushButton*                                                                ShowPart        = nullptr;
-		QScrollArea*                                                                Scroll          = nullptr;
-		QVBoxLayout*                                                                Turns           = nullptr;
-		QPushButton*                                                                Update          = nullptr;
-		QWidget*                                                                    PassageRow      = nullptr;
-		QLabel*                                                                     PassageLine     = nullptr;
-		QToolButton*                                                                ClearPassage    = nullptr;
-		QPlainTextEdit*                                                             Composer        = nullptr;
-		QPushButton*                                                                Send            = nullptr;
-		skill_completer*                                                            SkillCompletion = nullptr;
-		std::vector<QWidget*>                                                       Bubbles;
-		std::vector<markdown_body_view*>                                            Replies;
-		std::vector<agent_run_status_line*>                                         Endings;
-		std::vector<agent_activity_view*>                                           ActivityViews;
-		std::map<std::uint64_t, std::pair<core::agent_turn_activity, qint64>>       RunActivity;
-		QPointer<agent_activity_view>                                               LiveActivity;
-		std::vector<QToolButton*>                                                   Copies;
-		std::vector<QPushButton*>                                                   Resends;
-		std::vector<QPushButton*>                                                   Deletes;
+		int                                                                         Current            = -1;
+		QLabel*                                                                     Glyph              = nullptr;
+		QToolButton*                                                                CopyChat           = nullptr;
+		QToolButton*                                                                ClosePane          = nullptr;
+		QLabel*                                                                     Subject            = nullptr;
+		QLabel*                                                                     Quote              = nullptr;
+		QPushButton*                                                                ShowPart           = nullptr;
+		QScrollArea*                                                                Scroll             = nullptr;
+		QVBoxLayout*                                                                Turns              = nullptr;
+		QWidget*                                                                    Notice             = nullptr;
+		QWidget*                                                                    Field              = nullptr;
+		QWidget*                                                                    RevisionCard       = nullptr;
+		QLabel*                                                                     RevisionOperations = nullptr;
+		QLabel*                                                                     RevisionState      = nullptr;
+		QPushButton*                                                                RevisionAcceptAll  = nullptr;
+		QPushButton*                                                                RevisionReview     = nullptr;
+		QPushButton*                                                                RevisionDiscard    = nullptr;
+		std::function<void(core::tour_agent_run_id)>                                ReviewDispatch;
+		std::size_t                                                                 SessionOrdinal = 0U;
+		/// The update turn's words for the open chat's part.
+		[[nodiscard]] auto update_question() const -> QString;
+		[[nodiscard]] auto part_words() const -> QString;
+		/// A revision's parts in plain words, one per line.
+		[[nodiscard]] auto                                                    revision_words(core::tour_agent_run_id aRun) const -> QStringList;
+		void                                                                  refresh_unchanged_line();
+		QWidget*                                                              PassageRow      = nullptr;
+		QLabel*                                                               PassageLine     = nullptr;
+		QToolButton*                                                          ClearPassage    = nullptr;
+		QPlainTextEdit*                                                       Composer        = nullptr;
+		QPushButton*                                                          Send            = nullptr;
+		skill_completer*                                                      SkillCompletion = nullptr;
+		std::vector<QWidget*>                                                 Bubbles;
+		std::vector<markdown_body_view*>                                      Replies;
+		std::vector<agent_run_status_line*>                                   Endings;
+		std::vector<agent_activity_view*>                                     ActivityViews;
+		std::map<std::uint64_t, std::pair<core::agent_turn_activity, qint64>> RunActivity;
+		QPointer<agent_activity_view>                                         LiveActivity;
+		std::vector<QToolButton*>                                             Copies;
+		std::vector<QPushButton*>                                             Resends;
+		std::vector<QPushButton*>                                             Deletes;
 		/// [[BPR-1941]]. The running request: what it does, its clock, the
 		/// lines saying it, and the agent each turn ran with.
 		std::optional<agent_run_status>              Live;

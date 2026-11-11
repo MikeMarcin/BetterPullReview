@@ -54,7 +54,10 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QAbstractButton>
@@ -73,6 +76,7 @@
 #include <QTabBar>
 #include <QTemporaryDir>
 
+#include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -390,6 +394,154 @@ namespace {
 		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 	}
 
+	/// \brief [[BPR-1995]], RFC-BPR-0100 AC03. The opt-in installed-agent
+	/// course for the whole tour's chat: Draft the tour on a fixture pull
+	/// request, accept it, then five fixed change requests, each sent once in
+	/// the tour's chat. Each must come back in its first answer as a revision:
+	/// a card in the chat with parts waiting. Each revision is discarded from
+	/// its card, so every request meets the same tour.
+	[[nodiscard]] auto live_tour_requests_course(const char* const aClaude, const std::string& aModel, const bool aFlagMove) -> int
+	{
+		auto       data = QTemporaryDir{ };
+		const auto root = data.isValid() ? e2e::private_data_root(data) : std::nullopt;
+		if (!root) {
+			return EXIT_FAILURE;
+		}
+		{
+			auto preferences        = application::agent_setup_preferences{ };
+			preferences.AgentsMoved = true;
+			auto entry              = core::agent_entry{ };
+			entry.Id                = 1U;
+			entry.Name              = "Claude Code";
+			entry.Protocol          = core::agent_protocol::claude_stream_json;
+			entry.Program           = aClaude;
+			entry.Model             = aModel;
+			entry.Identity          = std::string(32U, 'c');
+			preferences.Agents.push_back(std::move(entry));
+			preferences.PreferredAgent = 1U;
+			if (!adapters::sqlite::make_agent_setup_store(*root)->store(preferences)) {
+				return EXIT_FAILURE;
+			}
+		}
+		std::unique_ptr<app::github_application> application;
+		auto                                     terminal = false;
+		auto                                     startup  = app::detail::github_application_fixture_access::start(
+			aFlagMove ? app::detail::github_public_path_fixture::flag_move_v1 : app::detail::github_public_path_fixture::nested_folders_v1,
+			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			[&](auto aResult) {
+				terminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+		const auto minutes = [](const int aMinutes) { return std::chrono::milliseconds{ aMinutes * 60'000 }; };
+		if (!e2e::wait_until_plain([&] { return terminal && startup && startup->is_quiescent(); }, minutes(1)) || !application) {
+			std::cerr << "live-tour-requests: startup\n";
+			return EXIT_FAILURE;
+		}
+		application->show();
+		auto& window = application->window();
+		window.resize(1'440, 900);
+		window.github_connect_action()->trigger();
+		if (!e2e::wait_until_plain([&] { return window.github_open_action()->isEnabled(); }, minutes(1))) {
+			return fail(*application, "live-tour-connect");
+		}
+		window.home_open_bar()->setText(aFlagMove ? QStringLiteral("bpr-fixtures/flag-move#41") : QStringLiteral("bpr-fixtures/nested-folders#21"));
+		window.home_open_action()->trigger();
+		auto* const panel = window.agent_panel();
+		if (!e2e::wait_until_plain([&] { return window.files_drawer()->contents_view()->model()->rowCount() >= 5 && panel->profile_selector()->count() > 0; }, minutes(1))) {
+			return fail(*application, "live-tour-open");
+		}
+		window.open_review_tour();
+		auto* const editor = window.tour_editor();
+		auto* const chat   = editor->side_chat();
+		auto* const tour   = editor->tour_agent();
+		if (!e2e::wait_until_plain([&] { return editor->shown().Draft && !editor->shown().Loading && tour->draft_button()->isEnabled(); }, minutes(2))) {
+			return fail(*application, "live-tour-ready");
+		}
+		const auto idle = [&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent; };
+		// The fixture tour: drafted by the installed agent, accepted whole.
+		tour->draft_button()->click();
+		if (!e2e::wait_until_plain([&] { const auto& runs = tour->session().Runs; return !runs.empty() && runs.back().Request == core::tour_agent_request::draft_tour && runs.back().State != core::tour_agent_run_state::running; }, minutes(15))
+			|| tour->session().Runs.back().State != core::tour_agent_run_state::answered) {
+			return fail(*application, "live-tour-draft", tour->transcript_text().toStdString());
+		}
+		static_cast<void>(e2e::wait_until_plain(idle, minutes(2)));
+		if (tour->accept_all_button()->isVisible()) {
+			tour->accept_all_button()->click();
+		}
+		if (!e2e::wait_until_plain([&] { return editor->shown().Draft && editor->shown().Draft->Stops.size() >= 3U && !editor->shown().Saving; }, minutes(1))) {
+			return fail(*application, "live-tour-accepted", std::to_string(editor->shown().Draft ? editor->shown().Draft->Stops.size() : 0U));
+		}
+		std::cout << "live-tour-requests fixture: stops=" << editor->shown().Draft->Stops.size() << " model=" << aModel << std::endl;
+		// [[BPR-1996]], RFC-BPR-0100 AC08. The drafted tour of the flag-move
+		// pull request, written out whole for the owner to judge.
+		if (aFlagMove) {
+			const auto& drafted = *editor->shown().Draft;
+			auto        text    = "# Drafted tour of bpr-fixtures/flag-move#41 (" + aModel + ")\n\n## Problem\n\n" + drafted.Problem + "\n\n## Solution\n\n" + drafted.Solution + "\n";
+			for (std::size_t index = 0U; index < drafted.Stops.size(); ++index) {
+				const auto& stop   = drafted.Stops[index];
+				const auto& source = stop.Mapped ? stop.Mapped : stop.Original;
+				text += "\n## Stop " + std::to_string(index + 1U) + ": " + stop.Title;
+				if (source) {
+					text += " (" + source->Path + ", lines " + std::to_string(source->First.Line + 1U) + " to " + std::to_string(source->Last.Line + 1U) + ")";
+				} else if (stop.Destination) {
+					text += " (" + stop.Destination->Path + ", lines " + std::to_string(stop.Destination->FirstLine + 1U) + " to " + std::to_string(stop.Destination->LastLine + 1U) + ")";
+				}
+				text += "\n\n" + stop.Body + "\n";
+			}
+			std::cout << text << std::endl;
+			if (qEnvironmentVariableIsSet("BPR_LIVE_TOUR_DRAFT_OUT")) {
+				auto out = std::ofstream{ qEnvironmentVariable("BPR_LIVE_TOUR_DRAFT_OUT").toStdString() };
+				out << text;
+			}
+			if (!shutdown(*application)) {
+				return EXIT_FAILURE;
+			}
+			std::cout << "agent-chat-live-tour-draft-flag-move:done\n";
+			return EXIT_SUCCESS;
+		}
+		editor->open_side_chat(core::tour_thread{ });
+		const auto requests = std::array{
+			QStringLiteral("Remove the last stop."),
+			QStringLiteral("Reverse the order of the stops."),
+			QStringLiteral("Rewrite the Problem in one sentence."),
+			QStringLiteral("Make the first stop's explanation half as long."),
+			QStringLiteral("Add a stop on the test that covers this change."),
+		};
+		auto carded = 0;
+		for (const auto& request : requests) {
+			static_cast<void>(e2e::wait_until_plain(idle, minutes(2)));
+			const auto before = tour->session().Runs.size();
+			chat->composer()->setPlainText(request);
+			chat->send_button()->click();
+			const auto ended = e2e::wait_until_plain(
+				[&] {
+					const auto& runs = tour->session().Runs;
+					return runs.size() > before && runs.back().Request == core::tour_agent_request::ask && runs.back().State != core::tour_agent_run_state::running;
+				},
+				minutes(15));
+			QApplication::processEvents();
+			const auto* const run  = ended ? &tour->session().Runs.back() : nullptr;
+			const auto        card = run != nullptr && chat->revision_card() != nullptr && chat->revision_discard() != nullptr;
+			std::cout << "live-tour-requests \"" << request.toStdString() << "\": state=" << (run ? static_cast<int>(run->State) : -1) << " card=" << card
+					  << " parts=\"" << (chat->revision_operations() ? chat->revision_operations()->text().replace(QLatin1Char('\n'), QStringLiteral(" | ")).toStdString() : std::string{ }) << "\""
+					  << " refused=" << (run ? run->Proposed.Refused.size() : 0U) << " link=" << (chat->unchanged_line() != nullptr) << " reply=\"" << (run ? QString::fromStdString(run->Reply).left(200).replace(QLatin1Char('\n'), QLatin1Char(' ')).toStdString() : std::string{ }) << "\"" << std::endl;
+			if (card) {
+				++carded;
+				chat->revision_discard()->click();
+				QApplication::processEvents();
+			}
+		}
+		if (!shutdown(*application)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "live-tour-requests carded=" << carded << "/" << requests.size() << '\n';
+		const auto passed = carded == static_cast<int>(requests.size());
+		std::cout << (passed ? "agent-chat-live-tour-requests:pass\n" : "agent-chat-live-tour-requests:fail\n");
+		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+
 	/// [[BPR-2004]], [[BPR-2005]], RFC-BPR-0103 AC02, AC03, AC05, AC06. The
 	/// Agent tab's turn on a scripted Claude replaying the installed runtime's
 	/// own frames: three background helpers, a message's result while they
@@ -543,6 +695,18 @@ auto main(int argc, char** argv) -> int
 	// explicit run of `live-claude` reaches it.
 	if (course == "live-claude") {
 		return live_claude_course(argv[2]);
+	}
+	// [[BPR-1995]], RFC-BPR-0100 AC03. Opt-in, never registered with ctest;
+	// spends the owner's Claude account. BPR_LIVE_TOUR_MODEL names the model
+	// (sonnet when unset).
+	if (course == "live-tour-requests") {
+		return live_tour_requests_course(argv[2], qEnvironmentVariableIsSet("BPR_LIVE_TOUR_MODEL") ? qEnvironmentVariable("BPR_LIVE_TOUR_MODEL").toStdString() : std::string{ "sonnet" }, false);
+	}
+	// [[BPR-1996]], RFC-BPR-0100 AC08. Opt-in: the installed agent drafts a
+	// tour of the flag-move fixture; BPR_LIVE_TOUR_DRAFT_OUT names a file
+	// the drafted tour is written to, for the owner's judgement.
+	if (course == "live-tour-draft-flag-move") {
+		return live_tour_requests_course(argv[2], qEnvironmentVariableIsSet("BPR_LIVE_TOUR_MODEL") ? qEnvironmentVariable("BPR_LIVE_TOUR_MODEL").toStdString() : std::string{ "sonnet" }, true);
 	}
 	if (course == "helpers" || course == "helpers-unfinished") {
 		return helpers_course(argv[2], course == "helpers-unfinished");

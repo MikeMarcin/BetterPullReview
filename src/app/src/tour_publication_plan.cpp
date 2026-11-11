@@ -1,6 +1,7 @@
 #include "tour_publication_plan.hpp"
 #include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "bpr/core/tour_references.hpp"
 #include "review_comment_permalink.hpp"
 #include <algorithm>
 #include <array>
@@ -98,6 +99,31 @@ namespace bpr::app {
 		const bool                                 compatibility = aOptions.Compatibility;
 		std::vector<core::tour_destination_plan>   decisions;
 		std::vector<application::staged_tour_stop> stops;
+		// [[BPR-1996]], RFC-BPR-0100 AC06. A stop text's references are
+		// published as commit-pinned permalinks at the tour's pinned head (the
+		// base for "before the change"): inline as a Markdown link, alone on
+		// its line as the bare permalink, which GitHub shows as a snippet. A
+		// reference that names no file of the pull request is left as written
+		// and said before publishing.
+		auto files = core::agent_reference_files{ };
+		for (const auto& file : aFiles) {
+			files.Changed.push_back(file.Path);
+		}
+		const auto scope     = adapters::github::detail::tour_permalink_scope{ std::string{ aBinding.Target.Hostname.value() }, aBinding.Target.Repository };
+		const auto published = [&](const core::tour_text_reference& aReference) -> std::optional<std::string> {
+			auto destination      = core::tour_code_destination{ };
+			destination.Commit    = aReference.Before ? draft.Base : draft.Head;
+			destination.Path      = aReference.Path;
+			destination.Side      = aReference.Before ? core::diff_side::left : core::diff_side::right;
+			destination.FirstLine = aReference.First - 1U;
+			destination.LastLine  = aReference.Last - 1U;
+			const auto link       = aReference.First == 0U ? std::nullopt : adapters::github::detail::compile_tour_permalink(scope, destination);
+			if (!link) {
+				return std::nullopt;
+			}
+			return aReference.Alone ? *link : "[" + aReference.Written + "](" + *link + ")";
+		};
+		auto unlinked = std::vector<std::string>{ };
 		for (const auto& stop : draft.Stops) {
 			const auto source = core::publication_source(stop);
 			if (!source) {
@@ -112,8 +138,23 @@ namespace bpr::app {
 			if (decisions.back().Representation == core::tour_representation::file_permalink && ((!stop.FileCommentRequested && !aOptions.FileComments) || decisions.back().JoinsPendingReview)) {
 				decisions.back() = { };
 			}
-			const auto link = adapters::github::detail::compile_tour_permalink({ std::string{ aBinding.Target.Hostname.value() }, aBinding.Target.Repository }, *source);
-			stops.push_back({ stop.Id, *source, stop.Title, stop.Body, link.value_or(std::string{ }), decisions.back().Representation });
+			const auto link      = adapters::github::detail::compile_tour_permalink({ std::string{ aBinding.Target.Hostname.value() }, aBinding.Target.Repository }, *source);
+			auto       narrative = core::rewrite_tour_references(stop.Body, files, published);
+			if (!narrative.Unresolved.empty()) {
+				auto said = std::string{ };
+				for (const auto& written : narrative.Unresolved) {
+					said += (said.empty() ? "" : ", ") + written;
+				}
+				unlinked.push_back("stop " + std::to_string(stops.size() + 1U) + " (" + said + ")");
+			}
+			stops.push_back({ stop.Id, *source, stop.Title, std::move(narrative.Text), link.value_or(std::string{ }), decisions.back().Representation, stop.Body });
+		}
+		if (!unlinked.empty()) {
+			result.Unlinked = (unlinked.size() == 1U ? "A reference in " : "References in ") + unlinked.front();
+			for (std::size_t i = 1U; i < unlinked.size(); ++i) {
+				result.Unlinked += (i + 1U == unlinked.size() ? " and " : ", ") + unlinked[i];
+			}
+			result.Unlinked += " will not link: they name no file of this pull request. They are published as written.";
 		}
 		result.Decisions     = decisions;
 		const auto readiness = draft.Remote ? core::assess_tour_update(draft, decisions, compatibility, aQualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown, aOptions.Mixed) : core::assess_tour_publication(draft, decisions, compatibility, aOptions.Mixed);
@@ -364,6 +405,9 @@ namespace bpr::app {
 			if (count > 0U) {
 				result.Form += count == 1U ? (plan.Update ? " The added stop goes in one review." : " The stop goes in one review.") : (plan.Update ? " The " + count_words(count, false) + " added stops go in one review." : " All " + count_words(count, false) + " stops go in one review.");
 			}
+			if (!chosen.Unlinked.empty()) {
+				result.Form += " " + chosen.Unlinked;
+			}
 			return result;
 		}
 		// The stops that forced the form, grouped by why and how they go.
@@ -397,6 +441,9 @@ namespace bpr::app {
 			const auto single = group.Numbers.size() == 1U;
 			result.Form += " " + capital(application::staged_stop_list(group.Numbers)) + " " + forced_reason(group.Problem, single);
 			result.Form += plan.Mixed ? (single ? ", so it is sent as a " + group.How + "." : ", so they are sent as " + group.How + "s.") : ", so no single review can carry the tour.";
+		}
+		if (!chosen.Unlinked.empty()) {
+			result.Form += " " + chosen.Unlinked;
 		}
 		return result;
 	}

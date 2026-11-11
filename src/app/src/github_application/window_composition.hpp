@@ -639,6 +639,9 @@ namespace bpr::app {
 		[[nodiscard]] auto skill_run_for(core::writing_hook aHook) const -> skill_run;
 		[[nodiscard]] auto agent_idle() const -> bool;
 		[[nodiscard]] auto tour_session_idle() const -> bool;
+		/// [[BPR-1996]]. The commit-pinned permalink of lines of a pull
+		/// request file at the tour's pinned head (or base), for snippets.
+		[[nodiscard]] auto tour_permalink(const std::string& aPath, std::uint32_t aFirst, std::uint32_t aLast, bool aBefore) const -> std::optional<std::string>;
 		void               refresh_tour_host_idle();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto locate_claude() const -> application::claude_locator;

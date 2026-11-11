@@ -23,6 +23,9 @@ namespace bpr::app {
 		core::tour_publication_readiness            Readiness = core::tour_publication_readiness::incomplete;
 		std::vector<core::tour_destination_plan>    Decisions;
 		std::vector<core::tour_destination_problem> Problems;
+		/// [[BPR-1996]], RFC-BPR-0100. The references in stop texts that will
+		/// not link on GitHub, said in one sentence; empty when there are none.
+		std::string Unlinked;
 	};
 	/// \brief [[BPR-1992]]. RFC-BPR-0099, the plan chooses the form: the first
 	/// of one review, a mixed tour and compatibility comments that carries

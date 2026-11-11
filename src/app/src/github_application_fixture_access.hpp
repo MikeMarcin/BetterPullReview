@@ -96,6 +96,9 @@ namespace bpr::app::detail {
 		/// JSON, unwrapped Markdown, a long SQL literal and call, and a
 		/// twelve-thousand-character minified line, for judging Line details.
 		line_details_v1,
+		/// [[BPR-1996]], RFC-BPR-0100 AC08. A settings loader moved unchanged
+		/// behind `--strict-toml`, beside the new loader the flag selects.
+		flag_move_v1,
 		/// [[BPR-1537]]. Five files of everyday changed lines (renames,
 		/// arguments, strings, operators, spacing, numbers, rewritten lines
 		/// and prose, non-Latin text), for judging intraline emphasis.

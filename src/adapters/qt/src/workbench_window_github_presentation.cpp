@@ -298,6 +298,18 @@ namespace bpr::qt {
 		}
 		OverviewPage->body_view()->set_permalink_repository(repository);
 		ConversationPanel->set_permalink_repository(repository);
+		// [[BPR-1996]], RFC-BPR-0100 AC06. A stop's references open their lines
+		// in Review; one alone on its line is a snippet at the tour's pinned
+		// head; other links are admitted as the conversation's are.
+		if (TourEditor != nullptr) {
+			TourEditor->set_permalink_repository(repository);
+			TourEditor->set_reference_links([this] { return core::agent_reference_files{ .Changed = review_changed_files() }; },
+											[this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(go_to_file_line(aPath, aFirst, aBefore, aLast)); },
+											[this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) -> std::optional<std::string> {
+												return TourPermalinkSource ? TourPermalinkSource(aPath, aFirst, aLast, aBefore) : std::nullopt;
+											},
+											[dispatch](const std::string& aDestination) { dispatch({ }, aDestination); });
+		}
 		OverviewPage->set_check_link_dispatch(dispatch);
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
@@ -554,6 +566,9 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_permalink_dispatch(relay);
 		}
+		if (TourEditor != nullptr) {
+			TourEditor->set_permalink_dispatch(relay);
+		}
 	}
 
 	void workbench_window::apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet)
@@ -564,6 +579,9 @@ namespace bpr::qt {
 		}
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->apply_markdown_permalink_snippet(aSnippet);
+		}
+		if (TourEditor != nullptr) {
+			TourEditor->apply_permalink_snippet(aSnippet);
 		}
 	}
 
@@ -913,6 +931,9 @@ namespace bpr::qt {
 		ConversationPanel->set_link_dispatch({ });
 		OverviewPage->body_view()->set_permalink_repository(std::nullopt);
 		ConversationPanel->set_permalink_repository(std::nullopt);
+		if (TourEditor != nullptr) {
+			TourEditor->set_permalink_repository(std::nullopt);
+		}
 		RefreshConversationAnchor.reset();
 		RefreshConversationContext.reset();
 		LastWorkbenchContext.reset();

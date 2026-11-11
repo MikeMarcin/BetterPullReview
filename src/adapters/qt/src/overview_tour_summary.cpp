@@ -296,6 +296,14 @@ namespace bpr::qt {
 		present({ });
 	}
 
+	void overview_tour_summary::set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate)
+	{
+		ReferenceFiles    = std::move(aFiles);
+		ReferenceNavigate = std::move(aNavigate);
+		for (auto* const view : { Problem, Solution }) {
+			view->set_link_dispatch([this](const std::string& aLink) { static_cast<void>(follow_agent_reference(this, QString::fromStdString(aLink), ReferenceNavigate)); });
+		}
+	}
 	void overview_tour_summary::set_dispatch(gesture_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
@@ -339,9 +347,9 @@ namespace bpr::qt {
 		Invitation->setVisible(kind == core::overview_tour_kind::prepare);
 		// A writer sees an empty field as still to write; a reader sees only
 		// what was written.
-		const auto field = [writer](QLabel* aHeading, markdown_body_view* aBody, const std::string& aValue, const char* aKey) {
+		const auto field = [this, writer](QLabel* aHeading, markdown_body_view* aBody, const std::string& aValue, const char* aKey) {
 			const auto empty = aValue.empty();
-			aBody->set_body(aValue, std::string{ "overview-tour-" } + aKey);
+			aBody->set_body(ReferenceFiles && ReferenceNavigate ? tour_markdown_with_references(aValue, ReferenceFiles(), { }) : aValue, std::string{ "overview-tour-" } + aKey);
 			const auto shown = writer || !empty;
 			aHeading->setVisible(shown);
 			aBody->setVisible(shown);

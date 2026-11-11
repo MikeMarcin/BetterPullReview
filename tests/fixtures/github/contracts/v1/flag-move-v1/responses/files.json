@@ -1,0 +1,65 @@
+[
+	{
+		"additions": 3,
+		"changes": 3,
+		"deletions": 0,
+		"filename": "README.md",
+		"patch": "@@ -1,3 +1,6 @@\n # Settings loader\n \n Reads `settings.conf`: one `key = value` per line, `#` starts a comment.\n+\n+Pass `--strict-toml` to read `settings.toml` with the TOML loader instead: tables, quoted strings,\n+and an error for anything it cannot read.",
+		"sha": "4e3bf8259dc4237c7c82ce584abf47d13f6011ca",
+		"status": "modified"
+	},
+	{
+		"additions": 23,
+		"changes": 23,
+		"deletions": 0,
+		"filename": "src/config/legacy_loader.cpp",
+		"patch": "@@ -0,0 +1,23 @@\n+#include \"loader.h\"\n+\n+#include <fstream>\n+\n+// The key=value reader every release has used, unchanged.\n+Config load_legacy_config(const std::string& aPath)\n+{\n+\tauto file   = std::ifstream{ aPath };\n+\tauto config = Config{ };\n+\tauto line   = std::string{ };\n+\twhile (std::getline(file, line)) {\n+\t\tif (line.empty() || line.front() == '#') {\n+\t\t\tcontinue;\n+\t\t}\n+\t\tconst auto equals = line.find('=');\n+\t\tif (equals == std::string::npos) {\n+\t\t\tcontinue;\n+\t\t}\n+\t\t// A later key replaces an earlier one; values keep inner spaces.\n+\t\tconfig.Values[trim(line.substr(0, equals))] = trim(line.substr(equals + 1));\n+\t}\n+\treturn config;\n+}",
+		"sha": "491c86f57fabe1ed57e17f6033d2b4522e65ad6f",
+		"status": "added"
+	},
+	{
+		"additions": 4,
+		"changes": 21,
+		"deletions": 17,
+		"filename": "src/config/loader.cpp",
+		"patch": "@@ -1,22 +1,9 @@\n #include \"loader.h\"\n \n-#include <fstream>\n-\n-Config load_config(const std::string& aPath)\n+Config load_config(const std::string& aPath, const LoadOptions& aOptions)\n {\n-\tauto file   = std::ifstream{ aPath };\n-\tauto config = Config{ };\n-\tauto line   = std::string{ };\n-\twhile (std::getline(file, line)) {\n-\t\tif (line.empty() || line.front() == '#') {\n-\t\t\tcontinue;\n-\t\t}\n-\t\tconst auto equals = line.find('=');\n-\t\tif (equals == std::string::npos) {\n-\t\t\tcontinue;\n-\t\t}\n-\t\t// A later key replaces an earlier one; values keep inner spaces.\n-\t\tconfig.Values[trim(line.substr(0, equals))] = trim(line.substr(equals + 1));\n+\tif (aOptions.StrictToml) {\n+\t\treturn load_toml_config(aPath);\n \t}\n-\treturn config;\n+\treturn load_legacy_config(aPath);\n }",
+		"sha": "212f201b2d70b78bfe01c69c2e0d95a3e38e38b2",
+		"status": "modified"
+	},
+	{
+		"additions": 10,
+		"changes": 11,
+		"deletions": 1,
+		"filename": "src/config/loader.h",
+		"patch": "@@ -8,5 +8,14 @@\n \tstd::map<std::string, std::string> Values;\n };\n \n+struct LoadOptions\n+{\n+\t/// Read TOML with `load_toml_config`; off keeps the key=value reader.\n+\tbool StrictToml = false;\n+};\n+\n [[nodiscard]] auto trim(const std::string& aText) -> std::string;\n-Config load_config(const std::string& aPath);\n+Config load_config(const std::string& aPath, const LoadOptions& aOptions = { });\n+Config load_legacy_config(const std::string& aPath);\n+/// Throws `config_error` naming the line it could not read.\n+Config load_toml_config(const std::string& aPath);",
+		"sha": "ebbe11e4474c1b6ceed0d5440d3fd3689318549f",
+		"status": "modified"
+	},
+	{
+		"additions": 42,
+		"changes": 42,
+		"deletions": 0,
+		"filename": "src/config/toml_loader.cpp",
+		"patch": "@@ -0,0 +1,42 @@\n+#include \"loader.h\"\n+\n+#include <fstream>\n+#include <stdexcept>\n+\n+struct config_error : std::runtime_error\n+{\n+\tusing std::runtime_error::runtime_error;\n+};\n+\n+Config load_toml_config(const std::string& aPath)\n+{\n+\tauto file    = std::ifstream{ aPath };\n+\tauto config  = Config{ };\n+\tauto table   = std::string{ };\n+\tauto line    = std::string{ };\n+\tauto number  = 0;\n+\twhile (std::getline(file, line)) {\n+\t\t++number;\n+\t\tconst auto text = trim(line);\n+\t\tif (text.empty() || text.front() == '#') {\n+\t\t\tcontinue;\n+\t\t}\n+\t\tif (text.front() == '[') {\n+\t\t\tif (text.back() != ']') {\n+\t\t\t\tthrow config_error{ \"line \" + std::to_string(number) + \": a table name needs ]\" };\n+\t\t\t}\n+\t\t\ttable = trim(text.substr(1, text.size() - 2)) + \".\";\n+\t\t\tcontinue;\n+\t\t}\n+\t\tconst auto equals = text.find('=');\n+\t\tif (equals == std::string::npos) {\n+\t\t\tthrow config_error{ \"line \" + std::to_string(number) + \": expected key = value\" };\n+\t\t}\n+\t\tauto value = trim(text.substr(equals + 1));\n+\t\tif (value.size() >= 2 && value.front() == '\"' && value.back() == '\"') {\n+\t\t\tvalue = value.substr(1, value.size() - 2);\n+\t\t}\n+\t\tconfig.Values[table + trim(text.substr(0, equals))] = value;\n+\t}\n+\treturn config;\n+}",
+		"sha": "f48d98d163ac4529e138d913e8265c4d3ade2424",
+		"status": "added"
+	},
+	{
+		"additions": 12,
+		"changes": 13,
+		"deletions": 1,
+		"filename": "src/main.cpp",
+		"patch": "@@ -1,10 +1,21 @@\n #include \"config/loader.h\"\n \n #include <iostream>\n+#include <string_view>\n \n int main(int argc, char** argv)\n {\n-\tconst auto config = load_config(argc > 1 ? argv[1] : \"settings.conf\");\n+\tauto options = LoadOptions{ };\n+\tauto path    = std::string{ \"settings.conf\" };\n+\tfor (int index = 1; index < argc; ++index) {\n+\t\tif (std::string_view{ argv[index] } == \"--strict-toml\") {\n+\t\t\toptions.StrictToml = true;\n+\t\t\tpath               = \"settings.toml\";\n+\t\t} else {\n+\t\t\tpath = argv[index];\n+\t\t}\n+\t}\n+\tconst auto config = load_config(path, options);\n \tstd::cout << config.Values.size() << \" settings\\n\";\n \treturn 0;\n }",
+		"sha": "c1b862863432bdd865383007922d680251e3baf3",
+		"status": "modified"
+	},
+	{
+		"additions": 13,
+		"changes": 13,
+		"deletions": 0,
+		"filename": "tests/config/toml_loader_tests.cpp",
+		"patch": "@@ -0,0 +1,13 @@\n+#include \"config/loader.h\"\n+\n+#include <cassert>\n+#include <fstream>\n+\n+int main()\n+{\n+\tstd::ofstream{ \"t.toml\" } << \"[window]\\nwidth = 800\\ntitle = \\\"Main view\\\"\\n\";\n+\tconst auto config = load_toml_config(\"t.toml\");\n+\tassert(config.Values.at(\"window.width\") == \"800\");\n+\tassert(config.Values.at(\"window.title\") == \"Main view\");\n+\treturn 0;\n+}",
+		"sha": "8735df1d73af0ef9e7b7c8d4a731e89916c83990",
+		"status": "added"
+	}
+]

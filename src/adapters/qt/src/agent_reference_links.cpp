@@ -125,6 +125,22 @@ namespace bpr::qt {
 		return QString::fromUtf8(bytes);
 	}
 
+	auto tour_markdown_with_references(const std::string& aMarkdown, const core::agent_reference_files& aFiles, const tour_permalink_source& aPermalink) -> std::string
+	{
+		const auto form = [&aPermalink](const core::tour_text_reference& aReference) -> std::optional<std::string> {
+			auto target = agent_reference_target{ .First = aReference.First, .Last = aReference.Last, .Before = aReference.Before };
+			target.Paths << QString::fromStdString(aReference.Path);
+			const auto link = agent_reference_link_text(target).toStdString();
+			if (aReference.Alone && aPermalink) {
+				if (const auto snippet = aPermalink(aReference.Path, aReference.First, core::tour_reference_snippet_last(aReference), aReference.Before)) {
+					return *snippet + "\n\n[" + QObject::tr("Show in Review").toStdString() + "](" + link + ")";
+				}
+			}
+			return "[" + aReference.Written + "](" + link + ")";
+		};
+		return core::rewrite_tour_references(aMarkdown, aFiles, form).Text;
+	}
+
 	auto follow_agent_reference(QWidget* const aOwner, const QString& aLink, const agent_reference_navigation& aNavigate, const agent_reference_chooser& aChoose) -> bool
 	{
 		const auto target = agent_reference_link_target(aLink);

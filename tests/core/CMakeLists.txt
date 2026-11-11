@@ -753,6 +753,15 @@ bpr_enable_warnings(test_better_pull_review_agent_reference_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_reference COMMAND test_better_pull_review_agent_reference_core_tests)
 set_tests_properties(core_agent_reference PROPERTIES PASS_REGULAR_EXPRESSION "agent-reference-tests:pass")
 
+# [[BPR-1995]], [[BPR-1996]], RFC-BPR-0100. References in a tour's text and
+# Enhance on a selection.
+bpr_add_executable(test_better_pull_review_tour_references_core_tests tour_references_tests.cpp)
+target_link_libraries(test_better_pull_review_tour_references_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_tour_references_core_tests)
+bpr_enable_warnings(test_better_pull_review_tour_references_core_tests)
+bpr_add_network_isolated_test(NAME core_tour_references COMMAND test_better_pull_review_tour_references_core_tests)
+set_tests_properties(core_tour_references PROPERTIES PASS_REGULAR_EXPRESSION "tour-references-tests:pass")
+
 # [[BPR-2002]]. A question's subject, decided from what the reviewer did.
 bpr_add_executable(test_better_pull_review_agent_question_core_tests agent_question_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_question_core_tests PRIVATE BetterPullReview::Core)

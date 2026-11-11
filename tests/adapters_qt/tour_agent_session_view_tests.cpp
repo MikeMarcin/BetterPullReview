@@ -298,7 +298,37 @@ namespace {
 		QApplication::processEvents();
 		const auto mark = [&editor](const int aRow) { return editor.route_mark(aRow); };
 		expect(mark(0).first == 0 && mark(1) == std::pair{ 2, QStringLiteral("Merge with 3") } && mark(2) == std::pair{ 2, QStringLiteral("Merges into 2") } && mark(3) == std::pair{ 1, QStringLiteral("Remove") }, "the stops it changes are marked on the route, in place");
-		expect(chat->in_tour_line() != nullptr && chat->in_tour_line()->text().startsWith(QStringLiteral("2 changes wait in the tour")), "the tour's chat says where its proposal waits");
+		// [[BPR-1995]], RFC-BPR-0100 AC04. The revision is also a card in the
+		// chat: its parts in plain words, Accept all, Review each in the tour
+		// and Discard; deciding in the tour settles the card.
+		expect(chat->revision_card() != nullptr && chat->revision_operations()->text() == QStringLiteral("Merge stops 2 and 3 into \u201CBoth\u201D\nRemove stop 4"), "the card lists the revision's parts: " + (chat->revision_operations() == nullptr ? std::string{ } : chat->revision_operations()->text().toStdString()));
+		expect(chat->revision_accept_all() != nullptr && chat->revision_review() != nullptr && chat->revision_discard() != nullptr && chat->revision_accept_all()->text() == QStringLiteral("Accept all") && chat->revision_review()->accessibleName() == QStringLiteral("Review each in the tour"),
+			   "with its three actions");
+		expect(chat->revision_accept_all()->sizeHint().height() == chat->revision_discard()->sizeHint().height() && chat->revision_review()->sizeHint().height() == chat->revision_discard()->sizeHint().height(), "the three are buttons of one height");
+		render(*chat, aPrefix, "whole-tour-revision-card");
+		chat->revision_review()->click();
+		expect(editor.reviewed_revision() == turn, "Review each in the tour shows the revision's first waiting part");
+		{
+			const auto before = decided.size();
+			chat->revision_accept_all()->click();
+			expect(decided.size() == before + 2U && std::get<1>(decided[before]) == core::tour_proposal_decision::accepted && std::get<1>(decided[before + 1U]) == core::tour_proposal_decision::accepted, "Accept all accepts every part of the revision");
+			auto settled = proposal;
+			for (auto& item : settled.Items) {
+				item.Decision = core::tour_proposal_decision::accepted;
+			}
+			editor.present_tour_session(session, settled);
+			QApplication::processEvents();
+			expect(chat->revision_card() != nullptr && chat->revision_accept_all() == nullptr && chat->revision_state()->text() == QStringLiteral("Accepted into the private draft."), "settled in the tour, the card is settled too");
+			settled.Items[1].Decision = core::tour_proposal_decision::discarded;
+			editor.present_tour_session(session, settled);
+			QApplication::processEvents();
+			expect(chat->revision_state()->text() == QStringLiteral("1 of 2 parts accepted.") && chat->revision_operations()->text().contains(QStringLiteral("Remove stop 4: discarded")), "a part decided each way says so");
+			editor.present_tour_session(session, proposal);
+			QApplication::processEvents();
+			const auto discarded = decided.size();
+			chat->revision_discard()->click();
+			expect(decided.size() == discarded + 2U && std::get<1>(decided.back()) == core::tour_proposal_decision::discarded, "Discard discards every part still waiting");
+		}
 		expect(chat->findChildren<QPushButton*>(QStringLiteral("tourSideChatAccept")).isEmpty(), "nothing of it is decided in the chat");
 		expect(panel->proposal_title()->text().contains(QStringLiteral("2 parts wait in the tour")), "the panel's one line counts them");
 		expect(accept_named(editor, QStringLiteral("Set focus")) == nullptr && accept_named(*panel, QStringLiteral("Accept")) == nullptr, "no Set focus to press: the focus is not a proposal");

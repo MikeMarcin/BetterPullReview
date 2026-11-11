@@ -15,10 +15,10 @@ namespace bpr::application {
 		case core::writing_hook::enhance_stop:      return enhance_stop_hook_version;
 		case core::writing_hook::enhance_writing:   return enhance_writing_hook_version;
 		case core::writing_hook::suggested_comment: return suggested_comment_hook_version;
+		case core::writing_hook::comment:           return tour_stop_comment_hook_version;
 		case core::writing_hook::problem:
 		case core::writing_hook::solution:
-		case core::writing_hook::outline:
-		case core::writing_hook::comment:           return writing_hook_version;
+		case core::writing_hook::outline:           return writing_hook_version;
 		}
 		return writing_hook_version;
 	}

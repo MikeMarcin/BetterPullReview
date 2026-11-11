@@ -1657,6 +1657,9 @@ namespace bpr::qt {
 		SideChat = new tour_side_chat{ };
 		SideChat->setParent(this, Qt::Window);
 		SideChat->set_reveal_dispatch([this](const core::tour_thread& aThread) { reveal_part(aThread); });
+		// [[BPR-1995]], RFC-BPR-0100 AC04. Review each in the tour: the tour
+		// goes to the revision's first part still waiting, marked grey.
+		SideChat->set_review_dispatch([this](const core::tour_agent_run_id aRun) { review_revision(aRun); });
 		// [[BPR-2014]]. Accept on a stop's own proposal accepts that stop.
 		TourAgentPanel->set_own_accept_dispatch([this](const core::tour_stop_id aStop, const std::string& aText) { accept_proposed_stop_text(aStop, aText); });
 		SideChat->set_own_accept_dispatch([this](const core::tour_stop_id aStop, const std::string& aText) { accept_proposed_stop_text(aStop, aText); });
@@ -2588,13 +2591,13 @@ namespace bpr::qt {
 				button->setText({ });
 				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", tr("Enhance selection"));
-				button->setToolTip(enhance_tooltip(enhance_surface::comment, true));
+				button->setToolTip(tr("Enhance the selection in this part's side chat. Only the selection changes."));
 			} else if (!core::writing_blank(aEditor->raw())) {
 				button->setText({ });
 				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", whole);
-				button->setToolTip(aHook == core::writing_hook::problem ? tr("Enhance writing for the Problem with agent.") : aHook == core::writing_hook::solution ? tr("Enhance writing for the Solution with agent.")
-																																									: tr("Enhance writing for this stop with agent."));
+				button->setToolTip(aHook == core::writing_hook::problem ? tr("Enhance the Problem in its side chat.") : aHook == core::writing_hook::solution ? tr("Enhance the Solution in its side chat.")
+																																							  : tr("Enhance this stop in its side chat."));
 			} else if (aHook == core::writing_hook::comment) {
 				button->setText(tr("Generate comment"));
 				button->setToolTip(tr("Asks the drafting agent to write this stop's comment from its code. Undo removes it."));
@@ -2673,6 +2676,25 @@ namespace bpr::qt {
 			if (RunningHook == aHook) {
 				if (WritingCancel) {
 					WritingCancel();
+				}
+				return;
+			}
+			// [[BPR-1995]], RFC-BPR-0100 AC05, owner note 8. Enhance runs in
+			// the part's own conversation: it opens the part's side chat and
+			// sends its update turn in that session, with what the chat
+			// established and its read-only tools; a selection is rewritten
+			// alone. The result is a proposal in the chat; nothing is written
+			// to the tour until the author accepts it. The one-shot writing
+			// hooks stay for the `bpr tour` CLI and for an empty field's draft.
+			if (!aEditor->isReadOnly() && button->property("enhanceOnly").toBool() && !OneShotWriting) {
+				clear_agent_failure(aHook);
+				const auto chosen = aEditor->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')).replace(QChar::LineSeparator, QLatin1Char('\n'));
+				if (auto subject = subject_about(aHook, chosen)) {
+					if (subject->Thread.Kind == core::tour_thread_kind::stop) {
+						trigger(tour_editor_action::navigate_stop);
+					}
+					static_cast<void>(SideChat->enhance(subject->Thread, std::move(subject->Passage)));
+					mark_side_chat();
 				}
 				return;
 			}
@@ -3060,8 +3082,79 @@ namespace bpr::qt {
 		}
 		SideChat->open(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id }, std::move(code));
 	}
+	void review_tour_editor::request_field_writing(const core::writing_hook aHook)
+	{
+		auto* const button = findChild<QPushButton*>(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
+																																									   : QStringLiteral("tourStopMagic"));
+		if (button == nullptr) {
+			return;
+		}
+		OneShotWriting = true;
+		button->click();
+		OneShotWriting = false;
+	}
+	auto review_tour_editor::shown_stop_body(const core::tour_stop& aStop) const -> std::string
+	{
+		if (!ReferenceFiles || !ReferenceNavigate) {
+			return aStop.Body;
+		}
+		return tour_markdown_with_references(aStop.Body, ReferenceFiles(), ReferencePermalink);
+	}
+	void review_tour_editor::set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate, tour_permalink_source aPermalink, std::function<void(const std::string&)> aOtherLink)
+	{
+		ReferenceFiles     = std::move(aFiles);
+		ReferenceNavigate  = std::move(aNavigate);
+		ReferencePermalink = std::move(aPermalink);
+		OtherLink          = std::move(aOtherLink);
+		// A reference opens its lines in Review; any other link goes where the
+		// window sends links.
+		StopReader->set_link_dispatch([this](const std::string& aLink) {
+			if (!follow_agent_reference(this, QString::fromStdString(aLink), ReferenceNavigate) && OtherLink) {
+				OtherLink(aLink);
+			}
+		});
+	}
+	void review_tour_editor::set_permalink_repository(std::optional<core::markdown_repository> aRepository) { StopReader->set_permalink_repository(std::move(aRepository)); }
+	void review_tour_editor::set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch) { StopReader->set_permalink_dispatch(std::move(aDispatch)); }
+	void review_tour_editor::apply_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet) { StopReader->apply_permalink_snippet(aSnippet); }
+	void review_tour_editor::review_revision(const core::tour_agent_run_id aRun)
+	{
+		if (!ShownProposal || !Shown.Draft) {
+			return;
+		}
+		const auto first = std::ranges::find_if(ShownProposal->Items, [aRun](const core::tour_proposal_item& aItem) { return aItem.Run == aRun && aItem.Decision == core::tour_proposal_decision::pending; });
+		if (first == ShownProposal->Items.end()) {
+			return;
+		}
+		ReviewedRun = aRun;
+		switch (first->Part) {
+		case core::tour_proposal_part::problem:  open_step(core::tour_step::problem); return;
+		case core::tour_proposal_part::solution: open_step(core::tour_step::solution); return;
+		case core::tour_proposal_part::stop:     {
+			show_stops();
+			if (ProposedStops != nullptr && ProposedStops->isVisible()) {
+				reveal_focus(ProposedStops);
+			}
+			return;
+		}
+		case core::tour_proposal_part::stop_text:
+		case core::tour_proposal_part::remove_stop:
+		case core::tour_proposal_part::split_stop:
+		case core::tour_proposal_part::merge_stops:
+		case core::tour_proposal_part::reorder:     {
+			const auto stop = first->StopId.value() != 0U ? first->StopId : first->Stops.empty() ? core::tour_stop_id{ }
+																								 : first->Stops.front();
+			show_stops();
+			if (stop.value() != 0U && std::ranges::find(Shown.Draft->Stops, stop, &core::tour_stop::Id) != Shown.Draft->Stops.end()) {
+				go_to_stop(stop);
+			}
+			return;
+		}
+		}
+	}
 	void review_tour_editor::present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal)
 	{
+		ShownProposal = aProposal;
 		// [[BPR-1930]]. A structural part names the stops by the tour's numbers.
 		TourAgentPanel->set_draft(Shown.Draft);
 		TourAgentPanel->present(aSession, aProposal);
@@ -4394,7 +4487,7 @@ namespace bpr::qt {
 		} else if (stop->Destination) {
 			StopReader->set_inline_code_selector(stop->Destination->Path);
 		}
-		StopReader->set_body(stop->Body, "tour-stop-" + std::to_string(stop->Id.value()));
+		StopReader->set_body(shown_stop_body(*stop), "tour-stop-" + std::to_string(stop->Id.value()));
 		view_stop(core::tour_stop_view_event::open);
 		// [[BPR-1783]]. A stop with no title yet, a new one above all, takes
 		// the keyboard in its title; Tab goes on to the body.

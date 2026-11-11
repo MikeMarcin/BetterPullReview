@@ -731,6 +731,28 @@ namespace bpr::app::detail {
 				};
 			// [[BPR-1334]]. Constructed by `scripts/build_line_details_fixture.py`:
 			// four files whose changed lines are long, one head.
+			// [[BPR-1996]]. Constructed by `scripts/build_flag_move_fixture.py`:
+			// an existing loader moved unchanged behind a flag, one head.
+			case github_public_path_fixture::flag_move_v1:
+				return {
+					.ContractDirectory   = "flag-move-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 41U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "flag-move",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "9f5812311f7c6b00b87197a5ab81703624f870b3",
+					.HeadOneOid          = "07540b0c68876f9f8e35c967447c38b55d591a12",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "flag-move-v1/objects.pack" },
+				};
 			case github_public_path_fixture::line_details_v1:
 				return {
 					.ContractDirectory   = "line-details-v1",

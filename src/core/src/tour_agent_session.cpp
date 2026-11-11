@@ -719,6 +719,59 @@ namespace bpr::core {
 		return true;
 	}
 
+	auto confine_to_passage(tour_ask_answer aAnswer, const review_tour& aSubmitted, const tour_thread& aThread, const tour_passage& aPassage) -> tour_ask_answer
+	{
+		auto        result = tour_ask_answer{ .Reply = std::move(aAnswer.Reply) };
+		const auto* field  = static_cast<const std::string*>(nullptr);
+		auto        number = std::size_t{ 0U };
+		auto        given  = std::optional<std::string>{ };
+		switch (aThread.Kind) {
+		case tour_thread_kind::problem:
+			field = &aSubmitted.Problem;
+			given = std::move(aAnswer.Changes.Problem);
+			break;
+		case tour_thread_kind::solution:
+			field = &aSubmitted.Solution;
+			given = std::move(aAnswer.Changes.Solution);
+			break;
+		case tour_thread_kind::stop: {
+			const auto found = std::ranges::find(aSubmitted.Stops, aThread.Stop, &tour_stop::Id);
+			if (found == aSubmitted.Stops.end()) {
+				return result;
+			}
+			field  = &found->Body;
+			number = static_cast<std::size_t>(found - aSubmitted.Stops.begin()) + 1U;
+			if (const auto text = std::ranges::find(aAnswer.StopTexts, number, &proposed_stop_text::Stop); text != aAnswer.StopTexts.end()) {
+				given = std::move(text->Explanation);
+			}
+			break;
+		}
+		case tour_thread_kind::tour: return result;
+		}
+		const auto& passage = aPassage.Text;
+		const auto  at      = passage.empty() ? std::string::npos : field->find(passage);
+		if (!given || at == std::string::npos || field->find(passage, at + 1U) != std::string::npos) {
+			return result;
+		}
+		const auto before = std::string_view{ *field }.substr(0U, at);
+		const auto after  = std::string_view{ *field }.substr(at + passage.size());
+		auto       middle = std::string_view{ *given };
+		if (!(before.empty() && after.empty()) && middle.size() >= before.size() + after.size() && middle.starts_with(before) && middle.ends_with(after)) {
+			middle = middle.substr(before.size(), middle.size() - before.size() - after.size());
+		}
+		if (middle.find_first_not_of(" \t\r\n") == std::string_view::npos) {
+			return result;
+		}
+		auto whole = std::string{ before } + std::string{ middle } + std::string{ after };
+		switch (aThread.Kind) {
+		case tour_thread_kind::problem:  result.Changes.Problem = std::move(whole); break;
+		case tour_thread_kind::solution: result.Changes.Solution = std::move(whole); break;
+		case tour_thread_kind::stop:     result.StopTexts.push_back({ number, std::move(whole) }); break;
+		case tour_thread_kind::tour:     break;
+		}
+		return result;
+	}
+
 	auto keep_thread_part(tour_proposal aProposal, const tour_thread& aThread) -> tour_proposal
 	{
 		if (aThread.Kind == tour_thread_kind::tour) {

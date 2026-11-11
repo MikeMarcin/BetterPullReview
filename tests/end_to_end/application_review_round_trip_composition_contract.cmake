@@ -3531,8 +3531,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# keeps each kept scratch folder by pull request and agent (stored, read
 	# when a pull request opens) and keeps the open pull request's folders
 	# when clearing. Admission and publication unchanged; no network grant.
+	# [[BPR-1995]], [[BPR-1996]], RFC-BPR-0100: the tour's chats change the
+	# tour in the turn that asked, Enhance runs as the part's update turn in
+	# its own read-only tour session (no one-shot hook from those buttons),
+	# and a stop's code references are shown as links and snippets and
+	# published as commit-pinned permalinks to the pull request's own
+	# repository through the existing publication. The flag-move fixture is
+	# added. No grant, admission or publication boundary changes; no network
+	# grant.
 	set(bpr_expected_production_app_manifest_digest
-        "26eb77c229084d7dddda2b1ca8571c2e46bde579925b9ea8ea96ad6f9ad05839"
+        "7f0d18e0ee41be14744426ccae344051bc15a079da643ce47a74822945caf121"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

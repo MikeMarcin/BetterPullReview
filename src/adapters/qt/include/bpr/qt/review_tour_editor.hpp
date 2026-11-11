@@ -8,6 +8,7 @@
 #include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/core/tour_stop_view.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
@@ -171,6 +172,18 @@ namespace bpr::qt {
 		/// \brief [[BPR-1900]]. The tour session and its proposal, as last
 		/// decided.
 		void present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);
+		/// \brief [[BPR-1995]], RFC-BPR-0100 AC04. Review each in the tour on a
+		/// revision card in the chat: shows that run's first waiting part.
+		void review_revision(core::tour_agent_run_id aRun);
+		/// \brief [[BPR-1995]]. The one-shot writing request a field's Enhance
+		/// made before RFC-BPR-0100 moved Enhance into the part's side chat:
+		/// the field's text, or its selection, rewritten by the writing hook
+		/// in place, with one native undo. RFC-BPR-0100 keeps the one-shot
+		/// hooks for the `bpr tour` CLI and RFC-BPR-0051's convention hooks;
+		/// the composed courses drive the restricted writing launch with it.
+		void request_field_writing(core::writing_hook aHook);
+		/// \brief The run whose revision Review each last showed, if any.
+		[[nodiscard]] auto reviewed_revision() const noexcept -> std::optional<core::tour_agent_run_id> { return ReviewedRun; }
 		/// \brief [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour
 		/// (confirmed) and Undo reset; the host performs each.
 		void set_tour_shape_dispatch(std::function<void()> aClearFocus, std::function<void()> aReset, std::function<void()> aUndoReset);
@@ -209,6 +222,16 @@ namespace bpr::qt {
 		void set_side_chat_observer(std::function<void()> aObserver) { SideChatObserver = std::move(aObserver); }
 		/// \brief The chat column, for the window to place in the Tour tab.
 		[[nodiscard]] auto side_chat() const noexcept -> tour_side_chat* { return SideChat; }
+		/// \brief [[BPR-1996]], RFC-BPR-0100 AC06. A stop's references: which
+		/// files they may name, where a link goes, the permalink a reference
+		/// alone on its line is shown as (a snippet), and where other links of
+		/// the stop go.
+		void set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate, tour_permalink_source aPermalink, std::function<void(const std::string&)> aOtherLink);
+		/// \brief [[BPR-1996]]. The stop's snippets, as the conversation's are
+		/// read: the pull request's repository, the request and the answer.
+		void set_permalink_repository(std::optional<core::markdown_repository> aRepository);
+		void set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch);
+		void apply_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet);
 		/// \brief Opens the side chat about `aThread`, quoting `aPassage`.
 		void open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage = std::nullopt);
 		/// \brief [[BPR-1925]] v002. What a part's chat toggle does: opens the
@@ -529,14 +552,24 @@ namespace bpr::qt {
 		/// [[BPR-1805]]. The stop read: its title, its rendered explanation,
 		/// the pencil. [[BPR-1936]]: written, Cancel and Save at its foot, as
 		/// the overview's description editor has them.
-		core::tour_stop_view StopView;
-		QLabel*              ReadTitle  = nullptr;
-		markdown_body_view*  StopReader = nullptr;
-		QToolButton*         EditStop   = nullptr;
-		QPushButton*         SaveStop   = nullptr;
-		QPushButton*         CancelStop = nullptr;
-		QPushButton*         UseLines   = nullptr;
-		QAction*             Retarget   = nullptr;
+		core::tour_stop_view                    StopView;
+		QLabel*                                 ReadTitle  = nullptr;
+		markdown_body_view*                     StopReader = nullptr;
+		std::optional<core::tour_proposal>      ShownProposal;
+		bool                                    OneShotWriting = false;
+		agent_reference_files_source            ReferenceFiles;
+		agent_reference_navigation              ReferenceNavigate;
+		tour_permalink_source                   ReferencePermalink;
+		std::function<void(const std::string&)> OtherLink;
+		/// The open stop's text as it is shown: its references made links
+		/// and snippets.
+		[[nodiscard]] auto                     shown_stop_body(const core::tour_stop& aStop) const -> std::string;
+		std::optional<core::tour_agent_run_id> ReviewedRun;
+		QToolButton*                           EditStop   = nullptr;
+		QPushButton*                           SaveStop   = nullptr;
+		QPushButton*                           CancelStop = nullptr;
+		QPushButton*                           UseLines   = nullptr;
+		QAction*                               Retarget   = nullptr;
 		/// [[BPR-1936]]. The card's trash, and the stop menu its card and row share.
 		QToolButton* RemoveStop = nullptr;
 		/// [[BPR-1936]] v003. The trash's question under the foot, and its stop.

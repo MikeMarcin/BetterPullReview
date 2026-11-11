@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/flag-move",
+	"id": 2,
+	"name": "flag-move",
+	"node_id": "R_flag-move",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

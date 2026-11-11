@@ -20,6 +20,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #include "private_data_root.hpp"
@@ -849,11 +850,10 @@ auto main(int argc, char** argv) -> int
 			// so the request below finds none.
 			std::filesystem::remove(claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string()));
 			auto* prose  = editor.writing_editor(core::writing_hook::problem);
-			auto* magic  = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			saved(editor);
-			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;magic->click();wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
+			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;editor.request_field_writing(core::writing_hook::problem);wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
 			const auto select = [&] {auto cursor=prose->textCursor();cursor.setPosition(3);cursor.setPosition(7,QTextCursor::KeepAnchor);prose->setTextCursor(cursor); };
 			const auto edit   = [&](const char* aWhat) {
 				agents->agent_list()->setCurrentRow(0);
@@ -863,7 +863,7 @@ auto main(int argc, char** argv) -> int
 			select();
 			const auto captured = *prose->capture();
 			const auto before   = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			wait([&] { return status->text() == QStringLiteral("Assistance did not complete; your text is unchanged.") && access::agent_invocation_evidence(*application).Quiescent; },
 				 "the request with no claude found ends");
 			expect(prose->raw() == captured.Raw && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == before,
@@ -1104,11 +1104,30 @@ auto main(int argc, char** argv) -> int
 			auto* prose  = editor.writing_editor(core::writing_hook::problem);
 			auto* magic  = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			expect(!prose->raw().empty(), "recovery gesture accepted");
 			saved(editor);
 			expect(prose->raw() == "\r\n**Keep raw** problem.\r\n\r\n" && status->text().contains("Recovered") && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "empty description section recovered exactly before inference");
-			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;magic->click();wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
+			// [[BPR-1995]], RFC-BPR-0100 AC05. Enhance on a selection runs in the
+			// Problem's side chat: an update turn of that passage in the part's
+			// own session; nothing is written until the author accepts.
+			{
+				saved(editor);
+				auto selection = prose->textCursor();
+				selection.setPosition(3);
+				selection.setPosition(7, QTextCursor::KeepAnchor);
+				prose->setTextCursor(selection);
+				const auto rawBefore  = prose->raw();
+				const auto runsBefore = editor.tour_agent()->session().Runs.size();
+				magic->click();
+				wait([&] { const auto& runs = editor.tour_agent()->session().Runs; return runs.size() > runsBefore && runs.back().State != core::tour_agent_run_state::running && access::agent_invocation_evidence(*application).Quiescent; }, "the Enhance turn ends");
+				const auto& last = editor.tour_agent()->session().Runs.back();
+				expect(last.Request == core::tour_agent_request::ask && last.Update && last.Passage && last.Passage->Field == core::tour_passage_field::problem && last.Thread.Kind == core::tour_thread_kind::problem
+						   && editor.side_chat()->current() == std::optional{ last.Thread } && prose->raw() == rawBefore && editor.shown().Draft->Problem == rawBefore,
+					   "Enhance on a selection sends the Problem's update turn with the passage, in its side chat, and changes nothing by itself");
+				std::cout << "review-tour-enhance-in-chat: passage=\"" << last.Passage->Text << "\" state=" << static_cast<int>(last.State) << '\n';
+			}
+			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;editor.request_field_writing(core::writing_hook::problem);wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
 			auto       cursor = prose->textCursor();
 			cursor.setPosition(3);
 			cursor.setPosition(7, QTextCursor::KeepAnchor);
@@ -1186,7 +1205,7 @@ auto main(int argc, char** argv) -> int
 			expect(prose->raw() == "INSUFFICIENT_CANARY" && status->text().contains("More context"), "insufficient context remains private and unchanged");
 			set("WAIT_CANARY");
 			const auto before = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			wait([&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations > before; }, "delayed child starts");
 			prose->insertPlainText(QStringLiteral(" newer"));
 			saved(editor);
@@ -1194,7 +1213,7 @@ auto main(int argc, char** argv) -> int
 			expect(prose->raw() == "WAIT_CANARY newer", "late result cannot overwrite local edit");
 			set("WAIT_CANARY");
 			const auto leavingCalls = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			wait([&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations > leavingCalls; }, "leaving request starts");
 			editor.show_stops();
 			wait([&] { return access::agent_invocation_evidence(*application).Quiescent; }, "leaving request drains");
@@ -1282,7 +1301,7 @@ auto main(int argc, char** argv) -> int
 			editor.show_problem();
 			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value())));
 			const auto beforeUnsupported = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			expect(status->text().contains("no qualified") && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == beforeUnsupported, "unqualified protocol fails closed before process start");
 			const auto mutationAfter = access::review_mutation_evidence(*application);
 			expect(mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies && mutationAfter.Resolutions == mutationBefore.Resolutions, "all writing responses leave remote mutation counters unchanged");

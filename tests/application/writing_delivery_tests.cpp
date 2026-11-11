@@ -139,7 +139,7 @@ int main()
 			hex += pair;
 		}
 		expect(application::review_feedback_hook_version == "review-feedback-v1" && hex == "45579439d8fefcba722d502241f9ba8b96fe39eb035b90e03a71c76c701773fc", "review-feedback-v1 names exactly this default text");
-		expect(application::writing_hook_version_of(core::writing_hook::feedback) == application::review_feedback_hook_version && application::writing_hook_version_of(core::writing_hook::comment) == application::writing_hook_version, "each hook reports its own default's version");
+		expect(application::writing_hook_version_of(core::writing_hook::feedback) == application::review_feedback_hook_version && application::writing_hook_version_of(core::writing_hook::comment) == application::tour_stop_comment_hook_version && application::writing_hook_version_of(core::writing_hook::problem) == application::writing_hook_version, "each hook reports its own default's version");
 
 		core::writing_hook_settings settings;
 		expect(application::effective_writing_hook(settings, core::writing_hook::feedback) == feedback, "an empty override follows the shipped default");

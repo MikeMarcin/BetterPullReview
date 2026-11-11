@@ -212,8 +212,10 @@ namespace {
 		cursor.setPosition(5, QTextCursor::KeepAnchor);
 		prose->setTextCursor(cursor);
 		auto* magic = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
-		expect(magic && magic->text().isEmpty() && magic->accessibleName() == QStringLiteral("Enhance selection") && magic->toolTip().contains(QStringLiteral("selected text")), "whitespace has the selection's tooltip");
-		magic->click();
+		expect(magic && magic->text().isEmpty() && magic->accessibleName() == QStringLiteral("Enhance selection") && magic->toolTip().contains(QStringLiteral("Only the selection changes")), "whitespace has the selection's tooltip");
+		// [[BPR-1995]]. Enhance runs in the side chat; the one-shot request
+		// (kept for the CLI's hooks) still captures the exact selection.
+		editor.request_field_writing(core::writing_hook::problem);
 		expect(calls == 1 && captured && captured->Raw.substr(captured->Selection.Begin, captured->Selection.End - captured->Selection.Begin) == "  \t", "toolbar preserves captured whitespace selection");
 		editor.roadmap()->setCurrentIndex(1);
 		editor.present(p);

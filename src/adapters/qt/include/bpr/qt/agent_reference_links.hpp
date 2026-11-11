@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_REFERENCE_LINKS_HPP
 
 #include "bpr/core/agent_reference.hpp"
+#include "bpr/core/tour_references.hpp"
 
 #include <QString>
 #include <QStringList>
@@ -9,6 +10,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
 
 class QWidget;
 
@@ -41,6 +43,19 @@ namespace bpr::qt {
 	/// \brief `aMarkdown` with every reference that will open made a link,
 	/// as the core's recogniser decides. Copy keeps the text as written.
 	[[nodiscard]] auto agent_markdown_with_reference_links(const QString& aMarkdown, const core::agent_reference_files& aFiles, const QString& aContextFile = { }) -> QString;
+
+	/// \brief [[BPR-1996]], RFC-BPR-0100. The commit-pinned permalink of
+	/// one-based lines of a pull request's file, at the tour's pinned head (or,
+	/// `aBefore`, its base), made by the host; none when it cannot be made.
+	using tour_permalink_source = std::function<std::optional<std::string>(const std::string& aPath, std::uint32_t aFirst, std::uint32_t aLast, bool aBefore)>;
+
+	/// \brief [[BPR-1996]], RFC-BPR-0100 AC06. A tour text as the application
+	/// shows it: each reference that resolves to one file is a link that opens
+	/// its lines in Review; one alone on its line is, with `aPermalink`, the
+	/// permalink of at most `core::tour_reference_snippet_lines` of them (a
+	/// reader shows it as a snippet) followed by Show in Review. A reference
+	/// that does not resolve is left as written.
+	[[nodiscard]] auto tour_markdown_with_references(const std::string& aMarkdown, const core::agent_reference_files& aFiles, const tour_permalink_source& aPermalink) -> std::string;
 
 	/// \brief Chooses one of several files a shared name matches; none when
 	/// the reviewer chose none.

@@ -463,6 +463,27 @@ namespace bpr::app {
 		TourHost->observe_imports(observe_published_tours(seed, snapshot, profile->hostname()));
 	}
 
+	auto github_application::implementation::tour_permalink(const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) const -> std::optional<std::string>
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (!draft || !WindowRead->accepted_snapshot() || aFirst == 0U || aLast < aFirst) {
+			return std::nullopt;
+		}
+		const auto& snapshot = *WindowRead->accepted_snapshot();
+		const auto* profile  = find_profile(snapshot.Profile);
+		if (profile == nullptr) {
+			return std::nullopt;
+		}
+		const auto scope       = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
+		auto       destination = core::tour_code_destination{ };
+		destination.Commit     = aBefore ? draft->Base : draft->Head;
+		destination.Path       = aPath;
+		destination.Side       = aBefore ? core::diff_side::left : core::diff_side::right;
+		destination.FirstLine  = aFirst - 1U;
+		destination.LastLine   = aLast - 1U;
+		return adapters::github::detail::compile_tour_permalink(scope, destination);
+	}
+
 	/// [[BPR-1900]]. Whether the tour session can take a request now: its
 	/// own host is idle and no run of it is still running. The Agent tab's
 	/// chat being busy does not matter.
@@ -1441,13 +1462,18 @@ namespace bpr::app {
 	void github_application::implementation::finish_tour_ask(const core::tour_agent_run_id aRun, const application::agent_run_result& aResult)
 	{
 		const auto said   = aResult.AssistantItems.empty() ? std::string{ } : aResult.AssistantItems.back();
-		const auto answer = application::decode_tour_ask_answer(said);
+		auto       answer = application::decode_tour_ask_answer(said);
 		if (!answer) {
 			static_cast<void>(core::finish_tour_run(TourAgent, aRun, core::tour_agent_run_state::failed, "The agent's answer wasn't one this app can read. Nothing in the tour changed.\n\n" + said.substr(0U, std::min<std::size_t>(said.size(), 1500U))));
 			return;
 		}
-		const auto draft    = TourHost ? TourHost->presentation().Draft : nullptr;
-		auto       proposal = std::optional<core::tour_proposal>{ };
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		// [[BPR-1995]], RFC-BPR-0100. Enhance on a selection replaces only the
+		// selection: the core puts the passage's new text back in its place.
+		if (const auto* const asked = core::find_tour_run(TourAgent, aRun); draft && asked != nullptr && asked->Update && asked->Passage && asked->Passage->Field != core::tour_passage_field::stop_code) {
+			answer = core::confine_to_passage(std::move(*answer), TourSubmittedDraft.value_or(*draft), asked->Thread, *asked->Passage);
+		}
+		auto proposal = std::optional<core::tour_proposal>{ };
 		if (draft) {
 			auto files = tour_anchor_files(aResult);
 			proposal   = core::propose_tour_changes(aRun, *answer, files, TourSubmittedDraft.value_or(*draft), *draft, TourWorkspaceHead);

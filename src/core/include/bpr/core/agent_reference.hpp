@@ -77,6 +77,22 @@ namespace bpr::core {
 		auto operator<=>(const agent_reference_link&) const = default;
 	};
 
+	/// \brief [[BPR-1996]]. A reference of a Markdown text, resolved or not.
+	struct agent_markdown_reference
+	{
+		/// Offsets into the whole text; a code span whose whole content is
+		/// the reference covers the span, backticks included.
+		agent_reference Reference;
+		/// Written as a code span.
+		bool Code = false;
+		/// Nothing else on its line but spaces.
+		bool Alone                                              = false;
+		auto operator<=>(const agent_markdown_reference&) const = default;
+	};
+	/// \brief Every reference of `aMarkdown` in prose, emphasis and a code
+	/// span that holds only it, in order; fenced code, other code spans and
+	/// existing links are left out. `aBare` admits "line 12" alone.
+	[[nodiscard]] auto agent_markdown_references(std::string_view aMarkdown, bool aBare) -> std::vector<agent_markdown_reference>;
 	/// \brief Every reference of `aMarkdown` that will open, and where.
 	///
 	/// \details In prose and emphasis, and an inline code span whose whole

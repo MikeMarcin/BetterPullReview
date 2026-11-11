@@ -448,17 +448,9 @@ namespace bpr::core {
 		}
 	} // namespace
 
-	auto agent_markdown_reference_links(const std::string_view aMarkdown, const agent_reference_files& aFiles, const std::string_view aContextFile) -> std::vector<agent_reference_link>
+	auto agent_markdown_references(const std::string_view aMarkdown, const bool aBare) -> std::vector<agent_markdown_reference>
 	{
-		auto       links   = std::vector<agent_reference_link>{ };
-		const auto context = aContextFile.empty() ? std::vector<std::string>{ } : resolve_agent_reference(aContextFile, aFiles);
-		const auto link    = [&](const agent_reference& aReference, const std::size_t aBegin, const std::size_t aLength) -> std::optional<agent_reference_link> {
-			auto paths = aReference.Path.empty() ? context : resolve_agent_reference(aReference.Path, aFiles);
-			if (paths.empty()) {
-				return std::nullopt;
-			}
-			return agent_reference_link{ .Begin = aBegin, .Length = aLength, .Paths = std::move(paths), .First = aReference.First, .Last = aReference.Last, .Before = aReference.Before };
-		};
+		auto found = std::vector<agent_markdown_reference>{ };
 		auto fence = std::string_view{ };
 		for (auto start = std::size_t{ 0U }; start <= aMarkdown.size();) {
 			auto end = aMarkdown.find('\n', start);
@@ -467,6 +459,7 @@ namespace bpr::core {
 			}
 			const auto line   = aMarkdown.substr(start, end - start);
 			const auto marker = fence_of(line);
+			const auto alone  = [&](const std::size_t aBegin, const std::size_t aLength) { return trimmed(line).size() == aLength && line.find_first_not_of(" \t\r") == aBegin; };
 			if (!fence.empty()) {
 				if (!marker.empty() && marker.front() == fence.front() && marker.size() >= fence.size() && trimmed(line) == marker) {
 					fence = { };
@@ -476,8 +469,8 @@ namespace bpr::core {
 			} else {
 				const auto code     = code_spans(line);
 				const auto existing = link_spans(line);
-				// A code span whose whole content is one reference: the link
-				// covers the span.
+				// A code span whose whole content is one reference: the
+				// reference covers the span.
 				for (const auto& span : code) {
 					if (inside(existing, span.Begin, span.End)) {
 						continue;
@@ -487,20 +480,21 @@ namespace bpr::core {
 						++run;
 					}
 					const auto content = trimmed(line.substr(span.Begin + run, span.End - span.Begin - 2U * run));
-					const auto found   = find_agent_references(content, !aContextFile.empty());
-					if (found.size() == 1U && found.front().Begin == 0U && found.front().Length == content.size()) {
-						if (auto made = link(found.front(), start + span.Begin, span.End - span.Begin)) {
-							links.push_back(std::move(*made));
-						}
+					const auto inner   = find_agent_references(content, aBare);
+					if (inner.size() == 1U && inner.front().Begin == 0U && inner.front().Length == content.size()) {
+						auto reference   = inner.front();
+						reference.Begin  = start + span.Begin;
+						reference.Length = span.End - span.Begin;
+						found.push_back({ .Reference = std::move(reference), .Code = true, .Alone = alone(span.Begin, span.End - span.Begin) });
 					}
 				}
-				for (const auto& reference : find_agent_references(line, !aContextFile.empty())) {
+				for (auto reference : find_agent_references(line, aBare)) {
 					if (inside(code, reference.Begin, reference.Begin + reference.Length) || inside(existing, reference.Begin, reference.Begin + reference.Length)) {
 						continue;
 					}
-					if (auto made = link(reference, start + reference.Begin, reference.Length)) {
-						links.push_back(std::move(*made));
-					}
+					const auto lone = alone(reference.Begin, reference.Length);
+					reference.Begin += start;
+					found.push_back({ .Reference = std::move(reference), .Code = false, .Alone = lone });
 				}
 			}
 			if (end == aMarkdown.size()) {
@@ -508,7 +502,21 @@ namespace bpr::core {
 			}
 			start = end + 1U;
 		}
-		std::ranges::sort(links, { }, &agent_reference_link::Begin);
+		std::ranges::sort(found, { }, [](const agent_markdown_reference& aFound) { return aFound.Reference.Begin; });
+		return found;
+	}
+
+	auto agent_markdown_reference_links(const std::string_view aMarkdown, const agent_reference_files& aFiles, const std::string_view aContextFile) -> std::vector<agent_reference_link>
+	{
+		auto       links   = std::vector<agent_reference_link>{ };
+		const auto context = aContextFile.empty() ? std::vector<std::string>{ } : resolve_agent_reference(aContextFile, aFiles);
+		for (const auto& each : agent_markdown_references(aMarkdown, !aContextFile.empty())) {
+			const auto& reference = each.Reference;
+			auto        paths     = reference.Path.empty() ? context : resolve_agent_reference(reference.Path, aFiles);
+			if (!paths.empty()) {
+				links.push_back(agent_reference_link{ .Begin = reference.Begin, .Length = reference.Length, .Paths = std::move(paths), .First = reference.First, .Last = reference.Last, .Before = reference.Before });
+			}
+		}
 		return links;
 	}
 } // namespace bpr::core

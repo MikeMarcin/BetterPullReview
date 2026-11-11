@@ -14,8 +14,12 @@ namespace bpr::application {
 		core::tour_stop_id          Id;
 		core::tour_code_destination Source;
 		std::string                 Title, Narrative, SourceLink;
-		core::tour_representation   Representation                                    = core::tour_representation::native_line;
-		auto                        operator==(const staged_tour_stop&) const -> bool = default;
+		core::tour_representation   Representation = core::tour_representation::native_line;
+		/// [[BPR-1996]]. The stop's text as the author wrote it; `Narrative` is
+		/// its published form, references made permalinks. Empty in a plan
+		/// journaled before, whose narrative was the text itself.
+		std::string Authored                                          = { };
+		auto        operator==(const staged_tour_stop&) const -> bool = default;
 	};
 	struct staged_description_edit
 	{

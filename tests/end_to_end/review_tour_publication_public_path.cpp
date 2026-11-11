@@ -224,7 +224,8 @@ auto main(int argc, char** argv) -> int
 			select_range(window, core::diff_side::right, mode == "mixed" ? 2U : 1U, mode == "mixed" ? 4U : 3U);
 			window.add_tour_stop_action()->trigger();
 			editor.stop_title()->setPlainText(QStringLiteral("Use the retained source"));
-			editor.stop_body()->setPlainText(QStringLiteral("Connect the explanation to the original decision."));
+			editor.stop_body()->setPlainText(mode == "native" ? QStringLiteral("Connect the explanation to the original decision (`review.cpp:2-4`).\n\nsecondary.cpp:1-3\n\nNot in this change: elsewhere.cpp:9.")
+															  : QStringLiteral("Connect the explanation to the original decision."));
 		}
 		saved(editor);
 
@@ -872,6 +873,19 @@ auto main(int argc, char** argv) -> int
 					const auto stop = core::map_tour_stop(comment.Body);
 					expect(stop.Heading && comment.Body.substr(stop.Heading->Begin, stop.Heading->End - stop.Heading->Begin).starts_with("### PR Tour · "), "the comment published to GitHub is headed PR Tour");
 					expect(stop.Footer && comment.Body.ends_with(")\n" + std::string{ core::tour_navigation_note } + "\n"), "each published stop carries the navigation note directly under its links");
+				}
+				// [[BPR-1996]], RFC-BPR-0100 AC06. A stop's references are
+				// published as commit-pinned permalinks: inline a Markdown
+				// link, alone on its line the bare permalink GitHub draws as a
+				// snippet; one naming no file of the pull request as written.
+				if (mode == "native") {
+					const auto cited = std::ranges::find_if(server->StagedComments, [](const auto& aComment) { return aComment.Body.find("original decision") != std::string::npos; });
+					expect(cited != server->StagedComments.end(), "the citing stop was published");
+					const auto& body = cited->Body;
+					std::cout << "tour-references-published: " << QString::fromStdString(body).replace(QLatin1Char('\n'), QStringLiteral(" | ")).toStdString() << '\n';
+					expect(body.find("([`review.cpp:2-4`](https://github.com/") != std::string::npos && body.find("#L2-L4)") != std::string::npos, "the inline reference is a Markdown link to the commit-pinned permalink");
+					expect(body.find("\n\nhttps://github.com/") != std::string::npos && body.find("secondary.cpp#L1-L3\n") != std::string::npos, "the reference alone on its line is the bare permalink");
+					expect(body.find("Not in this change: elsewhere.cpp:9.") != std::string::npos, "a reference naming no file of the pull request is published as written");
 				}
 			}
 			// [[BPR-1787]]. The brief is published in exactly one place.

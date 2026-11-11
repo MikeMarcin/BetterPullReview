@@ -3,6 +3,7 @@
 
 #include "bpr/core/overview_tour.hpp"
 #include "bpr/core/tour_publication_head.hpp"
+#include "bpr/qt/agent_reference_links.hpp"
 
 #include <QScrollArea>
 
@@ -56,6 +57,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1993]]. The head's actions, as the Tour tab's do.
 		void               set_head_dispatch(std::function<void(core::tour_head_action)> aDispatch);
 		[[nodiscard]] auto head_bar() const noexcept -> tour_head_bar* { return Head; }
+		/// \brief [[BPR-1996]], RFC-BPR-0100. A code reference in the Problem
+		/// or the Solution is a link that opens its lines in Review.
+		void set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate);
 		/// \brief [[BPR-1993]]. Problem and Solution, rendered as Markdown.
 		[[nodiscard]] auto problem_view() const noexcept -> markdown_body_view* { return Problem; }
 		[[nodiscard]] auto solution_view() const noexcept -> markdown_body_view* { return Solution; }
@@ -91,6 +95,8 @@ namespace bpr::qt {
 		void refresh_colours();
 
 		core::overview_tour                         Shown;
+		agent_reference_files_source                ReferenceFiles;
+		agent_reference_navigation                  ReferenceNavigate;
 		core::tour_head                             ShownHead;
 		gesture_dispatch                            Dispatch;
 		std::function<void(core::tour_stop_id)>     StopDispatch;

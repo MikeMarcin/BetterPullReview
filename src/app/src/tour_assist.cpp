@@ -225,7 +225,7 @@ namespace bpr::app {
 		const auto        selected = std::string_view{ raw }.substr(begin, end - begin);
 		const QJsonObject packet{ { "schema", "bpr.tour.assist-context.v1" },
 								  { "ticket", id_text(issued->Id) },
-								  { "hook", QJsonObject{ { "name", text(tour_hook_name(aQuery.Hook)) }, { "version", text(application::writing_hook_version) }, { "revision", id_text(aSettings.Revision) }, { "instructions", text(application::effective_writing_hook(aSettings, aQuery.Hook)) } } },
+								  { "hook", QJsonObject{ { "name", text(tour_hook_name(aQuery.Hook)) }, { "version", text(application::writing_hook_version_of(aQuery.Hook)) }, { "revision", id_text(aSettings.Revision) }, { "instructions", text(application::effective_writing_hook(aSettings, aQuery.Hook)) } } },
 								  { "contract", text(application::writing_application_contract()) },
 								  { "scope", describe_range(*issued) },
 								  { "field", outline ? QString{ } : aQuery.Hook == core::writing_hook::comment ? "stop:" + id_text(aQuery.Stop.value())

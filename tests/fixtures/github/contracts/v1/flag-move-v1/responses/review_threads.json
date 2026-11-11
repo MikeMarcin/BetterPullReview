@@ -1,0 +1,57 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_flag-move",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "README.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/config/legacy_loader.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/config/loader.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/config/loader.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/config/toml_loader.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/main.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/config/toml_loader_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/flag-move:41:files",
+						"hasNextPage": false
+					},
+					"totalCount": 7
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_41",
+				"locked": false,
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

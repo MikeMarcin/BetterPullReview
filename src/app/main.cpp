@@ -7031,6 +7031,13 @@ namespace {
 						return;
 					}
 					QTextStream{ stdout } << "ATTENDED_TOUR_FOCUS_LINE:" << chat->focus_line()->text() << '\n';
+					// [[BPR-1995]], RFC-BPR-0100 AC04. The revision is a card in
+					// the chat too, with Accept all, Review each and Discard.
+					if (chat->revision_card() == nullptr || chat->revision_accept_all() == nullptr) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-revision-card"));
+						return;
+					}
+					QTextStream{ stdout } << "ATTENDED_TOUR_REVISION_CARD:" << chat->revision_operations()->text().replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
 					*step = 43;
 					return;
 				}
@@ -7205,11 +7212,10 @@ namespace {
 						return;
 					}
 					QTextStream{ stdout } << "ATTENDED_TOUR_FOLLOW_UP:" << QString::fromStdString(panel->session().Runs.back().Reply).replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
-					if (!chat->update_button()->isEnabled()) {
+					if (!chat->request_update()) {
 						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-update"));
 						return;
 					}
-					chat->update_button()->click();
 					*step = 23;
 					return;
 				}
@@ -11265,6 +11271,21 @@ auto main(int argc, char** argv) -> int
 					.Repository               = "line-details",
 					.Number                   = 34,
 					.ExpectedTitle            = "Explain export failures in one sentence and widen the weekly totals",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
+			} else if (*fixture == "flag-move-v1") {
+				// [[BPR-1996]], RFC-BPR-0100 AC08. A loader moved unchanged behind
+				// a flag; see `scripts/build_flag_move_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::flag_move_v1;
+				fixtureName            = "flag-move-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "flag-move",
+					.Number                   = 41,
+					.ExpectedTitle            = "Read settings as TOML behind --strict-toml",
 					.ExpectedAccountText      = "fixture-author (@fixture-author)",
 					.ExpectedConversationRows = 0,
 					.ExpectedThreadId         = std::nullopt,

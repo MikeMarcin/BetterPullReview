@@ -110,6 +110,7 @@ add_library(
         src/agent_chat_scope.cpp
         src/agent_question.cpp
         src/agent_reference.cpp
+        src/tour_references.cpp
         src/agent_activity.cpp
         src/agent_cost.cpp
         src/agent_context_supplement.cpp

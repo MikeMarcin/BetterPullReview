@@ -1678,6 +1678,9 @@ namespace bpr::qt {
 		// tray has, borrowed while Overview shows, and the tour's summary.
 		if (auto* const drawer = OverviewPage->status_drawer(); drawer != nullptr) {
 			drawer->tour_summary()->set_dispatch([this](const overview_tour_gesture aGesture) { follow_overview_tour(aGesture); });
+			// [[BPR-1996]]. The Problem's and the Solution's references open their lines in Review.
+			drawer->tour_summary()->set_reference_links([this] { return core::agent_reference_files{ .Changed = review_changed_files() }; },
+														[this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(go_to_file_line(aPath, aFirst, aBefore, aLast)); });
 			// [[BPR-1993]]. A stop row opens its stop in Review; the head's
 			// actions do what the Tour tab head's do.
 			drawer->tour_summary()->set_stop_dispatch([this](const core::tour_stop_id aStop) {

@@ -1675,6 +1675,7 @@ namespace bpr::app {
 				MarkdownSnippets->request(aRequests);
 			}
 		});
+		Window->set_tour_permalink_source([this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { return Closing ? std::nullopt : tour_permalink(aPath, aFirst, aLast, aBefore); });
 
 		AppearanceProjections.set_span_sink(
 			[this](const application::token_span_publication& aSpans) {

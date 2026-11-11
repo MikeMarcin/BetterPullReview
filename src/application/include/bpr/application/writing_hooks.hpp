@@ -42,6 +42,11 @@ namespace bpr::application {
 	[[nodiscard]] auto decode_writing_result(std::string_view aJson, core::writing_hook aHook, std::span<const writing_source> aSources, bool aRequiresEvidence) -> std::optional<writing_result>;
 
 	inline constexpr std::string_view writing_hook_version = "review-preparation-v1";
+	/// \brief [[BPR-1996]], RFC-BPR-0100. Version of the shipped stop-comment
+	/// guidance, `resources/review-preparation/tour-stop-comment.md`, which
+	/// gained the citation and moved-code rules; the other tour hooks keep
+	/// `writing_hook_version`.
+	inline constexpr std::string_view tour_stop_comment_hook_version = "tour-stop-comment-v2";
 	/// \brief [[BPR-1090]] Version of the shipped review-feedback guidance,
 	/// `resources/review-preparation/review-feedback.md`. A change to that text
 	/// changes this name; a profile override is kept whatever it says.

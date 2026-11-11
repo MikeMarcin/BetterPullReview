@@ -30,6 +30,7 @@
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -1899,6 +1900,9 @@ namespace bpr::qt {
 		/// description and the open thread's posts to the application's
 		/// snippet host.
 		void set_markdown_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch);
+		/// \brief [[BPR-1996]]. The permalinks a tour stop's references are
+		/// shown as (snippets), made by the host at the tour's pinned head.
+		void set_tour_permalink_source(tour_permalink_source aSource) { TourPermalinkSource = std::move(aSource); }
 		/// \brief Shows the answer's lines in every reader that holds the permalink.
 		void apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet);
 		/// \brief Asks every reader again for the permalinks it does not show
@@ -3503,6 +3507,7 @@ namespace bpr::qt {
 		std::string                                                                 MarkdownAuthority;
 		/// [[BPR-1802]]. The standing permalinks' lane to the snippet host.
 		std::function<void(std::vector<application::markdown_blob_snippet_request>)> MarkdownPermalinkDispatch;
+		tour_permalink_source                                                        TourPermalinkSource;
 		/// [[BPR-1338]]. Open on GitHub and what it names.
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;
 		std::function<core::markdown_link_result(core::reference_page)>                         ReferenceDispatch;

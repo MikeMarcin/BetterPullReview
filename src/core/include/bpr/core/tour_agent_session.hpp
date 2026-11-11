@@ -748,6 +748,14 @@ namespace bpr::core {
 	/// \brief Resolves numbers through the submitted draft and refuses changed targets.
 	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id, const tour_ask_answer&, const std::vector<tour_anchor_file>&, const review_tour& aSubmitted, const review_tour& aCurrent, const std::optional<git_commit_oid>& aReadHead) -> tour_proposal;
 	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead = std::nullopt) -> tour_proposal;
+	/// \brief [[BPR-1995]], RFC-BPR-0100. Enhance on a selection: the
+	/// answer's new text for the passage's part is the passage's new text,
+	/// and the proposal is the part as submitted with only that passage
+	/// replaced. The passage must stand exactly once in the part; otherwise
+	/// the answer proposes nothing for it. An answer that gave the whole part
+	/// back, unchanged outside the passage, is read as its passage alone.
+	/// The other fields of the answer are emptied.
+	[[nodiscard]] auto confine_to_passage(tour_ask_answer aAnswer, const review_tour& aSubmitted, const tour_thread& aThread, const tour_passage& aPassage) -> tour_ask_answer;
 	/// \brief What a proposal holds, counted.
 	[[nodiscard]] auto tally_of(const tour_proposal& aProposal) -> tour_proposal_tally;
 	/// \brief The proposal shown after `aIncoming` arrives: `aIncoming`'s items,
