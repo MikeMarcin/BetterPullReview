@@ -50,6 +50,13 @@ under the extensions contract.
 
 ### Native branch decision
 
+> **Reopened, 2026-11-10.** The owner reopened PUBLISH-01 after this section
+> was written: on the author's press BPR itself commits and pushes through the
+> author's own Git, and naming the push below remains the fallback. See
+> [RFC-BPR-0114](RFC-BPR-0114-commit-and-push-a-local-pr-draft-through-the-authors-own-git.md)
+> and the [proposed amendment](assets/local-draft-authoring-v1/AMENDMENTS.md).
+> This section's text is unchanged until that RFC's milestone reconciles it.
+
 **PUBLISH-01 is settled.** On 2026-11-10 the owner chose to create native pull
 requests from an already-pushed exact branch. The author pushes with their own
 Git, so their credentials, hooks and remotes apply unchanged. BPR verifies that

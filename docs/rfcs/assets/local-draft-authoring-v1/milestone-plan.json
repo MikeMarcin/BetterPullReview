@@ -1,0 +1,121 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "local-draft-authoring-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-DRAFT-0001",
+      "RFC-DRAFT-0002",
+      "RFC-DRAFT-0003"
+    ],
+    "issues": [
+      "DRAFT-0001",
+      "DRAFT-0002",
+      "DRAFT-0003",
+      "DRAFT-0004",
+      "DRAFT-0005",
+      "DRAFT-0006",
+      "DRAFT-0007",
+      "DRAFT-0008",
+      "DRAFT-0009",
+      "DRAFT-0010"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "edit-and-save",
+      "outcome": "The author edits a listed file of a local PR draft in the existing code editor and saves it to the worktree, and the save returns as a successor candidate.",
+      "work": [
+        {
+          "issue": "DRAFT-0001"
+        },
+        {
+          "issue": "DRAFT-0002"
+        },
+        {
+          "issue": "DRAFT-0003"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A saved edit is on disk byte for byte and nothing is staged or committed.",
+        "A file changed on disk since it was opened is never overwritten, and a not-editable file refuses with its reason.",
+        "The draft offers one refresh with the saved files selected; the previous candidate is retained.",
+        "No Qt widget or model performs the write, and the workspace adapter is still read-only."
+      ],
+      "boundary": "Editing and saving only: no commit, no push and no agent. Needs the local draft's durable candidates from RFC-BPR-0108 first."
+    },
+    {
+      "id": "commit-and-push",
+      "outcome": "The author commits the selected files and pushes the draft's branch from the local draft through their own Git, and Create draft PR follows without leaving the application.",
+      "work": [
+        {
+          "issue": "DRAFT-0004"
+        },
+        {
+          "issue": "DRAFT-0005"
+        },
+        {
+          "issue": "DRAFT-0006"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A commit holds exactly the selected files' captured content with the author's identity, signing and hooks, and leaves every other change as it was.",
+        "A push reaches the resolved hosted repository by its configured URL with the author's credentials and pre-push hooks, and never forces.",
+        "The isolated runner is unchanged, and the own-Git catalogue holds commit and push only.",
+        "Declining the one-time question leaves the named commands of RFC-BPR-0111 as the path.",
+        "RFC-BPR-0111's live text and BPR-2029 are reconciled with the reopened PUBLISH-01."
+      ],
+      "boundary": "Reopened PUBLISH-01: BPR commits and pushes on the author's press. No merge, squash, rebase or force push. Needs the native pull request creation of RFC-BPR-0111 first."
+    },
+    {
+      "id": "agent-fixes",
+      "outcome": "The author has an agent review their own change under a prompt of its own, fix a note or a finding in the local draft's worktree, keeps or reverts each changed file, and checks the fix.",
+      "work": [
+        {
+          "issue": "DRAFT-0007"
+        },
+        {
+          "issue": "DRAFT-0008"
+        }
+      ],
+      "depends_on": [
+        "edit-and-save"
+      ],
+      "exit_criteria": [
+        "A change run starts only on the author's press and under the Edits this worktree grant, never in a pull request review.",
+        "The candidate and everything attached to it are unchanged until the author accepts a refresh.",
+        "Keep and Revert act per file, and Revert restores exactly the recorded bytes.",
+        "Self-review runs read-only under its own editable prompt from Agent settings, separate from the review skill.",
+        "Findings become notes on a local draft, and Check the fix shows the agent's answer as a claim.",
+        "RFC-BPR-0104's live text is reconciled with the new grant."
+      ],
+      "boundary": "Fix runs change files and make no commit. Needs the agent grant line of RFC-BPR-0104, the local-draft sessions of RFC-BPR-0110 and the prompt sharing format of RFC-BPR-0107 first."
+    },
+    {
+      "id": "agent-history-operations",
+      "outcome": "The author has an agent merge the target in, squash or rebase the draft's branch, and BPR reports what it can establish about the result.",
+      "work": [
+        {
+          "issue": "DRAFT-0009"
+        },
+        {
+          "issue": "DRAFT-0010"
+        }
+      ],
+      "depends_on": [
+        "agent-fixes",
+        "commit-and-push"
+      ],
+      "exit_criteria": [
+        "A history run refuses to start on an unclean or mismatched worktree and records the earlier head.",
+        "Identical content after a squash keeps notes, evidence and tour attached; changed content is reviewed as a successor candidate.",
+        "An incomplete merge or rebase makes no successor candidate; a complete one marks every file changed on both sides.",
+        "Rewriting commits observed on the hosted branch stops first, and nothing in BPR force-pushes.",
+        "The agent-changes RFC closeout judges every criterion with an installed agent as well as the fixture agent."
+      ],
+      "boundary": "History operations exist only as agent runs. BPR itself performs none and offers no reset."
+    }
+  ]
+}

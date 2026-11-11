@@ -778,3 +778,13 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 | [RFC-BPR-0112](RFC-BPR-0112-optional-workflow-extensions.md) | Optional shareable workflow extensions and companion skills | Proposed | RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0109, RFC-BPR-0110, RFC-BPR-0111 |
 
 Mandate `v0-5-0-prerelease-targets-r1` (owner, 2026-11-10) implements the pack in the plan's order, starting with `dependable-session`. [Import](assets/v0-5-0-prerelease-targets-v1.LIVE_IMPORT.md); [authored plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). Owner looks on frozen builds, installed-agent facts and live BPR-Test courses remain unaccepted until their evidence is supplied.
+
+## Local draft authoring
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0113](RFC-BPR-0113-edit-and-save-files-in-a-local-pr-draft.md) | Edit and save files in a local PR draft | Proposed | RFC-BPR-0108 |
+| [RFC-BPR-0114](RFC-BPR-0114-commit-and-push-a-local-pr-draft-through-the-authors-own-git.md) | Commit and push a local PR draft through the author's own Git | Proposed | RFC-BPR-0108, RFC-BPR-0111 |
+| [RFC-BPR-0115](RFC-BPR-0115-agent-changes-in-a-local-pr-draft-worktree.md) | The agent changes a local PR draft's worktree: fixes and history operations | Proposed | RFC-BPR-0096, RFC-BPR-0103, RFC-BPR-0104, RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0110, RFC-BPR-0113, RFC-BPR-0114 |
+
+Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/local-draft-authoring-v1.LIVE_IMPORT.md); [authored plan](plans/local-draft-authoring-v1/milestone-plan.json). RFC-BPR-0114 reopens PUBLISH-01 of RFC-BPR-0111; the [proposed amendments](assets/local-draft-authoring-v1/AMENDMENTS.md) to RFC-BPR-0104, 0108 and 0111 are applied by the owning milestones, not at import.

@@ -1,0 +1,20 @@
+{
+  "mapping": {
+    "DRAFT-0001": "BPR-2062",
+    "DRAFT-0002": "BPR-2063",
+    "DRAFT-0003": "BPR-2064",
+    "DRAFT-0004": "BPR-2065",
+    "DRAFT-0005": "BPR-2066",
+    "DRAFT-0006": "BPR-2067",
+    "DRAFT-0007": "BPR-2068",
+    "DRAFT-0008": "BPR-2069",
+    "DRAFT-0009": "BPR-2070",
+    "DRAFT-0010": "BPR-2071",
+    "RFC-DRAFT-0001": "RFC-BPR-0113",
+    "RFC-DRAFT-0002": "RFC-BPR-0114",
+    "RFC-DRAFT-0003": "RFC-BPR-0115"
+  },
+  "plan_path": "docs/rfcs/plans/local-draft-authoring-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "4db3be165a95a23fa9bdb45f06c109f02d1f431b5b510da37eda290b78eb045d"
+}
