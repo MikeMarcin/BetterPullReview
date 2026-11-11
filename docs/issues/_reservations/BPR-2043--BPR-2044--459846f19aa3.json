@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2043",
+    "BPR-2044"
+  ],
+  "reserve_for": "v0-5-0-prerelease-targets",
+  "purpose": "Last round's live-freeze diagnosis (RFC-BPR-0099 record): BPR-2043 an update-lifetime refusal is reported as unavailable and offers the profile recovery dialog; BPR-2044 an owned but unwritable update control folder is treated as busy, not read-only",
+  "created": "2026-11-10T19:08:15.479423+00:00",
+  "base": "1e82f86b250ae9a7ab54c8b700d48cb6e192e884"
+}

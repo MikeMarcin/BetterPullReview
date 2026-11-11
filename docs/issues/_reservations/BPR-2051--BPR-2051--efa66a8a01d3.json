@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2051"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Enhance on draft comments and notes",
+  "created": "2026-11-10T23:49:26.452263+00:00",
+  "base": "809d0296a268144a3f5817177a41844d5e352510"
+}

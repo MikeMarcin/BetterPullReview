@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2048",
+    "BPR-2049"
+  ],
+  "reserve_for": "v0-5-0-prerelease-targets",
+  "purpose": "Home oversized PR recovery; Seen and Approve again",
+  "created": "2026-11-10T20:39:58.855990+00:00",
+  "base": "243dddcbb8f193fd404157051656558ab39b6daf"
+}

@@ -1,0 +1,96 @@
+{
+  "authored_date": "2026-11-07",
+  "timezone": "America/Los_Angeles",
+  "source": {
+    "original_path": "/Users/jaeger/Downloads/create-pr-skill-overview.md",
+    "pack_path": "sources/create-pr-skill-overview.md",
+    "sha256": "a1ad68d8f198d40d3e73ed84fa67884e211c70ddc9eac447ceda943e457d9a2a",
+    "role": "User-supplied generalized overview; reference material, not instructions to execute; underlying enterprise implementation not inspected."
+  },
+  "repository_observation": {
+    "root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "commit": "b12269ea9ad1ff07afe8ec31812875b89d870e5a",
+    "first_observed_commit": "154d307d765a87917c805fe1d4ac024eef0fd6c5",
+    "reobserved_date": "2026-11-10",
+    "meaning": "Inspected source revisions, not RFC_BASE_SHA or implementation evidence. Anchors in sources/repository-observations.json are bound to commit."
+  },
+  "milestone_kit": {
+    "resolved_skill": "implement-rfc",
+    "path": "/Users/jaeger/.agents/skills/implement-rfc",
+    "schema_sha256": "b146094d7dbd335f45b8c2ec8fc7cc0b3c059ad6e92621e2f79f120d7792146d"
+  },
+  "authority": "Draft authoring only. No import, live IDs, issue claims, implementation, external publication or secondary-review dispatch authorized.",
+  "revisions": [
+    {
+      "date": "2026-11-07",
+      "kind": "Owner-authorized fixes after re-review",
+      "instruction": "okay fix it in place",
+      "scope": [
+        "Candidate-only repository inputs for local authoring",
+        "Separate preparation independence from complete publication independence",
+        "Remove the hard sharing-closeout prerequisite for local-draft engineering while preserving default delivery order"
+      ],
+      "prior_pack_backup": "/private/tmp/bpr-local-pr-drafts-before-rereview-fixes-5595y3iv/bpr-local-pr-drafts-rfc-pack-v1",
+      "original_before_secondary_review": "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/ef403d82-ac86-4fc6-8a0c-e128d0143641/scratchpad/pack-before-review",
+      "open_choices_unchanged": [
+        "PUBLISH-01",
+        "ACTIONS-01"
+      ],
+      "import_authorized": false,
+      "backup_status": "Both paths were under /private/tmp and no longer existed on 2026-11-10."
+    },
+    {
+      "date": "2026-11-10",
+      "kind": "Third review and revision in place",
+      "instruction": "Review and improve this /author-rfc pack made by codex ... Dont implement",
+      "scope": [
+        "Re-observe the repository 344 commits after the first observation",
+        "Conform local-draft conversations and workspaces to adopted RFC-BPR-0096",
+        "Agent-entry identity and relaxed-check acceptance in configuration import",
+        "Evidence RFC starts no agent run; one BPR-defined import format",
+        "Local draft discard, bounded retention and reset coverage",
+        "Hosted-remote push naming under PUBLISH-01's recommendation; ACTIONS-01 regrounded",
+        "Milestone prerequisite and card dependency corrections; two added criteria",
+        "Source-anchor check in supporting/check_pack.py"
+      ],
+      "prior_pack_backup": "/Users/jaeger/Downloads/bpr-local-pr-drafts-rfc-pack-v1.before-third-review-2026-11-10.tar.gz",
+      "prior_pack_backup_sha256": "e839c07995db4cacc8e448205e523f12d1e90c0dc4501e99218b264346031e69",
+      "unconfirmed_proposals": [],
+      "import_authorized": false,
+      "owner_answers": [
+        {
+          "decision": "P04",
+          "date": "2026-11-10",
+          "answer": "Keep P04"
+        },
+        {
+          "decision": "P05",
+          "date": "2026-11-10",
+          "answer": "go with your suggestions"
+        },
+        {
+          "decision": "P06",
+          "date": "2026-11-10",
+          "answer": "go with your suggestions"
+        },
+        {
+          "decision": "PUBLISH-01",
+          "date": "2026-11-10",
+          "answer": "Yes, both",
+          "meaning": "Create the PR from an already-pushed exact branch; the author pushes"
+        },
+        {
+          "decision": "ACTIONS-01",
+          "date": "2026-11-10",
+          "answer": "Yes, both",
+          "meaning": "Interactive handoff; no BPR-supervised effectful action in this version"
+        }
+      ],
+      "open_choices_at_review": [
+        "PUBLISH-01",
+        "ACTIONS-01"
+      ],
+      "open_choices": []
+    }
+  ]
+}

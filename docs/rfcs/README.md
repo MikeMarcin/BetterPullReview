@@ -756,3 +756,48 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 | [RFC-BPR-0097](RFC-BPR-0097-go-to-line.md) | Go to a source line in the main diff | Auto-Verified | None |
 
 [Import](assets/go-to-line-v1.LIVE_IMPORT.md), owner request 2026-11-08.
+
+## 0.5.0 prerelease targets
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0098](RFC-BPR-0098-home-says-whose-move-my-pull-request-is.md) | Home says whose move each of my pull requests is | Proposed | None |
+| [RFC-BPR-0099](RFC-BPR-0099-tour-publishing-in-reach-and-reported.md) | Keep tour publishing in reach, report each step and choose its form | Proposed | None |
+| [RFC-BPR-0100](RFC-BPR-0100-tour-conversation-that-changes-the-tour-in-one-turn.md) | A tour conversation that changes the tour in one turn | Proposed | None |
+| [RFC-BPR-0101](RFC-BPR-0101-agent-chat-conventions.md) | One set of conventions for every agent chat: references, send key, cost and colour | Proposed | None |
+| [RFC-BPR-0102](RFC-BPR-0102-agent-questions-say-what-they-point-at.md) | An agent question says what it points at, and a suggestion always sends | Proposed | None |
+| [RFC-BPR-0103](RFC-BPR-0103-agent-work-is-visible-and-a-turn-ends-when-the-work-does.md) | Agent work is visible, and a turn ends when the work does | Proposed | None |
+| [RFC-BPR-0104](RFC-BPR-0104-agent-scratch-folder-and-opt-in-builds.md) | A scratch folder for agent scripts, and opt-in builds and tests | Proposed | None |
+| [RFC-BPR-0105](RFC-BPR-0105-a-review-opens-fresh-and-a-submission-always-ends.md) | A review opens fresh, and a submission always ends | Proposed | None |
+| [RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) | A tour stop shows its code on arrival and is accepted the way a file is | Proposed | None |
+| [RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md) | Share selected agents and prompts | Proposed | None |
+| [RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md) | Prepare a local PR draft from a worktree | Proposed | None |
+| [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) | Build evidence while preparing a local PR draft | Proposed | RFC-BPR-0108 |
+| [RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md) | Prepare the description and Review Tour before a PR exists | Proposed | RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0109 |
+| [RFC-BPR-0111](RFC-BPR-0111-draft-publication-and-continuity.md) | Publish a prepared draft and preserve its evidence and tour | Proposed | RFC-BPR-0108, RFC-BPR-0109, RFC-BPR-0110 |
+| [RFC-BPR-0112](RFC-BPR-0112-optional-workflow-extensions.md) | Optional shareable workflow extensions and companion skills | Proposed | RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0109, RFC-BPR-0110, RFC-BPR-0111 |
+
+Mandate `v0-5-0-prerelease-targets-r1` (owner, 2026-11-10) implements the pack in the plan's order, starting with `dependable-session`. [Import](assets/v0-5-0-prerelease-targets-v1.LIVE_IMPORT.md); [authored plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). Owner looks on frozen builds, installed-agent facts and live BPR-Test courses remain unaccepted until their evidence is supplied.
+
+## Local draft authoring
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0113](RFC-BPR-0113-edit-and-save-files-in-a-local-pr-draft.md) | Edit and save files in a local PR draft | Proposed | RFC-BPR-0108 |
+| [RFC-BPR-0114](RFC-BPR-0114-commit-and-push-a-local-pr-draft-through-the-authors-own-git.md) | Commit and push a local PR draft through the author's own Git | Proposed | RFC-BPR-0108, RFC-BPR-0111 |
+| [RFC-BPR-0115](RFC-BPR-0115-agent-changes-in-a-local-pr-draft-worktree.md) | The agent changes a local PR draft's worktree: fixes and history operations | Proposed | RFC-BPR-0096, RFC-BPR-0103, RFC-BPR-0104, RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0110, RFC-BPR-0113, RFC-BPR-0114 |
+
+Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/local-draft-authoring-v1.LIVE_IMPORT.md); [authored plan](plans/local-draft-authoring-v1/milestone-plan.json). RFC-BPR-0114 reopens PUBLISH-01 of RFC-BPR-0111; the [proposed amendments](assets/local-draft-authoring-v1/AMENDMENTS.md) to RFC-BPR-0104, 0108 and 0111 are applied by the owning milestones, not at import.
+
+## Agent assistance
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0116](RFC-BPR-0116-a-returning-pull-request-says-what-changed-and-whether-a-comment-was-addressed.md) | A returning pull request says what changed, and whether a comment was addressed | Proposed | RFC-BPR-0009, RFC-BPR-0094, RFC-BPR-0101, RFC-BPR-0102 |
+| [RFC-BPR-0117](RFC-BPR-0117-explain-this-file-where-i-am-reading.md) | Explain this file where I am reading | Proposed | RFC-BPR-0101, RFC-BPR-0102 |
+| [RFC-BPR-0118](RFC-BPR-0118-turn-a-draft-comment-into-an-exact-suggested-change.md) | Turn a draft comment into an exact suggested change | Proposed | RFC-BPR-0090, RFC-BPR-0101 |
+| [RFC-BPR-0119](RFC-BPR-0119-ask-the-agent-why-a-check-failed.md) | Ask the agent why a check failed | Proposed | RFC-BPR-0011, RFC-BPR-0068, RFC-BPR-0101, RFC-BPR-0102 |
+| [RFC-BPR-0120](RFC-BPR-0120-the-agent-runs-a-planned-check-on-a-local-pr-draft.md) | The agent runs a planned check on a local PR draft | Proposed | RFC-BPR-0103, RFC-BPR-0104, RFC-BPR-0109, RFC-BPR-0110, RFC-BPR-0115 |
+| [RFC-BPR-0121](RFC-BPR-0121-insights-shows-what-the-agents-did-and-what-was-kept.md) | Insights shows what the agents did and which suggestions were kept | Proposed | RFC-BPR-0086, RFC-BPR-0101 |
+
+Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/agent-assistance-v1.LIVE_IMPORT.md); [authored plan](plans/agent-assistance-v1/milestone-plan.json). The [proposed amendments](assets/agent-assistance-v1/AMENDMENTS.md) change the subject rule of two agent entry points and are applied by the owning milestones, not at import.

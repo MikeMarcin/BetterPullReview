@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2061"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Draft all suggested comments (renumbered from the lane's BPR-2058, which main reserved meanwhile)",
+  "created": "2026-11-11T02:32:47.839555+00:00",
+  "base": "f09384dc4c3c0edb547930c29a3b384fbd6b439f"
+}

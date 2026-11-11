@@ -101,6 +101,17 @@ filter matches a row's words, so a filter for "syntax" missed the two new
 rows. It now lists all 28. Stable names, counts and order are unchanged.
 This status is unchanged.
 
+**Additive accent amendment, 2026-11-10 ([[RFC-BPR-0101]], [[BPR-2000]]).**
+The owner settled that the agent accent is a colour a reviewer can change per
+theme, indigo being its default ("Yes, configurable"). `agent_accent` appends to
+the vocabulary, labelled "Agent accent" in Surfaces and text, held to the text
+floor on the application surface. The vocabulary is now 65 roles and the Colours
+card offers 63. Its built-in values are `#4A3FD6` (Light), `#A3A0FF` (Dark),
+`#3A2FC4` (High Contrast Light) and `#B8B5FF` (High Contrast Dark). It uses this
+RFC's existing preview, Keep changes, Reset, Import and Export; an older document
+or stored palette without it reads its variant's built-in value. RFC-BPR-0101
+owns its qualification. This status is unchanged.
+
 **Follow-on from that verdict, 2026-09-24 ([[BPR-1107]]).** BPR-1107 builds
 the owner's white-space model. The preview and the review panes draw a space
 as a dot and a tab as a line to its stop, through one shared painter. The Type

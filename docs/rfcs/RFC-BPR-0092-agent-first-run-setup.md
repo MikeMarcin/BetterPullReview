@@ -1618,6 +1618,47 @@ above stays, but only as a secondary, copyable record; nothing is asked there.
   profile). A block in a language the highlighter does not know stays plain
   monospace. The published GitHub form is unchanged.
 
+### Amendment [[BPR-2061]], [[BPR-2059]] (2026-11-10): Draft all, and comments worth posting
+
+The owner, 2026-11-10: "Can we get a draft all suggested comments from an
+agent response with several", and of a finding card's suggested comment,
+"just a big wall of text" (a screenshot of a private repository; nothing of it
+is kept here).
+
+- **Draft all ([[BPR-2061]]).** A reply whose cards carry two or more suggested
+  comments shows **Draft all (N)** above its cards. N counts the suggestions it
+  would draft: not already drafted, not dismissed, not under way, and placeable
+  (the file is in the pull request at the current head and, for the file on
+  screen, the line is in it; `core::plan_draft_all`). A press drafts each, in
+  the cards' order, through the card's own Add as draft comment path, so each
+  draft is the one that card would make; nothing reaches GitHub. The reply then
+  says how many it drafted and how many it skipped and why (already drafted, no
+  longer in the diff, dismissed, under way, or refused with the card saying
+  why), and offers one **Undo**, which discards every draft of the batch still
+  at the revision it was made at; a draft edited since is kept and the reply
+  says so. Draft all starts no run and wears no Agent accent.
+- **The card reads as the comment would ([[BPR-2059]]).** The claim, the
+  evidence and the suggested comment are each rendered as Markdown (code spans,
+  fences, emphasis, line breaks), in their own blocks with space between them.
+  The suggested comment is upright, in an inset with a quiet caption, and a
+  Conventional Comments label it leads with is shown once beside the caption
+  rather than as text; the draft still opens with that label chosen. The
+  severity and kind keep their whole width; the file and lines shorten in the
+  middle instead.
+- **The comment format is the reviewer's ([[BPR-2059]]).** A writing hook,
+  **Suggested comments** (purpose `review.suggested-comment`, built-in
+  `suggested-comment-v1`), rides every Agent tab brief as
+  `brief.comment_format.*`. Its default asks for a short, postable comment: the
+  problem in one sentence, then the fix, code in code spans, no severity or
+  label prefix, no restated claim or evidence. The review skill, at bpr-version
+  5, follows it and no longer asks for a Conventional Comments header itself;
+  that is now the prompt's to ask for. This amends [[BPR-1861]]'s design point
+  1; its reading of a label the agent does write is unchanged.
+- **No internal status line.** The continuation line no longer says "Replay
+  omits N retained turns and cuts N text bytes…". The counts stay on the label
+  as properties for diagnostics and tests, and its tooltip names them only when
+  a replay actually left something out.
+
 ## Acceptance criteria
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a

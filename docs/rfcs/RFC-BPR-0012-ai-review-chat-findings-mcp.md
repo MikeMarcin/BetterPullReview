@@ -125,3 +125,15 @@ into a separate generation and fresh private workspaces, with omissions and abse
 tool/filesystem state visible. Every send retains current authority/provider/tool
 checks. Original closeout remains historical; new native/runtime qualification
 is recorded separately in the [RFC-BPR-0096 ledger](../verification/RFC-BPR-0096.md).
+
+## Question subject amendment (RFC-BPR-0102, 2026-11-10)
+
+[RFC-BPR-0102](RFC-BPR-0102-agent-questions-say-what-they-point-at.md) retires
+the File, Pull request and Repository levels of the side chat's scope, which
+bounded nothing that was sent. The Agent tab offers no scope list: each question
+states a subject the core decides (the pull request, a file a suggestion names,
+the attached lines, or a conversation), the open file and reading position go
+as where the reviewer is looking, and selected lines attach as a chip the
+reviewer can detach. Navigation still adds no context, and private notes and
+drafts are still added only by their own explicit actions. The core's scope
+types remain for the hidden panel and stored sessions.
