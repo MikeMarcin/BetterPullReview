@@ -15044,7 +15044,7 @@ namespace {
 		window.hide();
 	}
 
-	/// [[BPR-2058]], [[BPR-2059]], owner 2026-11-10. A reply with several
+	/// [[BPR-2061]], [[BPR-2059]], owner 2026-11-10. A reply with several
 	/// suggested comments offers Draft all, counting only those it would draft;
 	/// it drafts through the host, says what it drafted and skipped and why, and
 	/// one Undo removes the batch. The cards read as Markdown in three spaced

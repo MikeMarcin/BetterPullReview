@@ -127,3 +127,15 @@ at `86653eacd` (counter BPR-2058), its counter and receipt
 `docs/issues/_reservations/BPR-2058--BPR-2059--bd1353aea511.json` moved to
 this lane and the main checkout restored. The lane's counter reads BPR-2060;
 main's reads BPR-2058 until this lane integrates. Nothing collides.
+Collision, found while parking: between this lane's allocation and its
+receipt commit (`b583bb919`), main reserved BPR-2058 for another card
+(`b2a10cccd`, BPR-2058 failure-first repair tests, Done on main) and later
+BPR-2060, skipping BPR-2059. The lane's Draft all card is renumbered to
+BPR-2061, allocated against main at `f09384dc4` (counter BPR-2061), its
+counter and receipt `docs/issues/_reservations/BPR-2061--BPR-2061--37ecd03b9111.json`
+moved to this lane (`38ef8e5e0`) and the main checkout restored; every lane
+reference to BPR-2058 now names BPR-2061, except the immutable receipt
+`BPR-2058--BPR-2059--bd1353aea511.json`, earlier commit messages and the open
+attended candidate `BPR-2058-draft-all`. BPR-2059 keeps its number (main has
+no BPR-2059). The lane's counter reads BPR-2062, main's BPR-2061 until this
+lane integrates.

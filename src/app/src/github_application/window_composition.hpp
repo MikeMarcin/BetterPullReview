@@ -650,11 +650,11 @@ namespace bpr::app {
 		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone);
 
 		void act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport = { });
-		/// [[BPR-2058]]. Set by `act_on_agent_card` just before it refuses
+		/// [[BPR-2061]]. Set by `act_on_agent_card` just before it refuses
 		/// because the finding's file or line is not in the pull request at
 		/// the current head; Draft all reads it with that refusal.
 		bool CardRefusalGone = false;
-		/// [[BPR-2058]]. Draft all: one reply's suggested comments drafted
+		/// [[BPR-2061]]. Draft all: one reply's suggested comments drafted
 		/// one after another through the card's own path, then reported as
 		/// one outcome; the drafts each batch made, for its one Undo.
 		struct draft_all_made

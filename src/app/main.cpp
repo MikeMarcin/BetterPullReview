@@ -7252,7 +7252,7 @@ namespace {
 				return;
 			}
 			auto* const tab = window.agent_tab();
-			// [[BPR-2058]]. An unfinished setup (the fixture `codex` found and
+			// [[BPR-2061]]. An unfinished setup (the fixture `codex` found and
 			// chosen) is finished as a person would: Check it works.
 			if (*step == 0) {
 				auto* const setup = window.agent_setup();
@@ -7297,7 +7297,7 @@ namespace {
 				QCoreApplication::processEvents();
 				static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent.png"), "PNG"));
 			}
-			// [[BPR-2058]]. `--attended-agent-draft-all-check`: once shown, a
+			// [[BPR-2061]]. `--attended-agent-draft-all-check`: once shown, a
 			// course presses the reply's Draft all, reports what it says and
 			// each card's state, then its Undo, as the person would. A look
 			// for the person leaves both to them.
@@ -11745,7 +11745,7 @@ auto main(int argc, char** argv) -> int
 		}
 		if (attendedAgentLook.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentLook } };
-			// [[BPR-2058]]. A fixture built as `codex` is the only agent the
+			// [[BPR-2061]]. A fixture built as `codex` is the only agent the
 			// setup finds, never the person's own, and the look finishes the
 			// setup on it.
 			if (const auto agent = std::filesystem::path{ std::string{ *attendedAgentLook } }; agent.stem() == "codex") {

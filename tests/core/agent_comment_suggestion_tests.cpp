@@ -169,7 +169,7 @@ namespace {
 			   "stable names");
 	}
 
-	/// [[BPR-2058]]. The draft keeps the suggestion's Markdown: code spans, a
+	/// [[BPR-2061]]. The draft keeps the suggestion's Markdown: code spans, a
 	/// fenced block and its line breaks pass from reply to draft unchanged,
 	/// with or without a label in front.
 	void test_markdown_survives_into_the_draft()

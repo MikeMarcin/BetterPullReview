@@ -1618,14 +1618,14 @@ above stays, but only as a secondary, copyable record; nothing is asked there.
   profile). A block in a language the highlighter does not know stays plain
   monospace. The published GitHub form is unchanged.
 
-### Amendment [[BPR-2058]], [[BPR-2059]] (2026-11-10): Draft all, and comments worth posting
+### Amendment [[BPR-2061]], [[BPR-2059]] (2026-11-10): Draft all, and comments worth posting
 
 The owner, 2026-11-10: "Can we get a draft all suggested comments from an
 agent response with several", and of a finding card's suggested comment,
 "just a big wall of text" (a screenshot of a private repository; nothing of it
 is kept here).
 
-- **Draft all ([[BPR-2058]]).** A reply whose cards carry two or more suggested
+- **Draft all ([[BPR-2061]]).** A reply whose cards carry two or more suggested
   comments shows **Draft all (N)** above its cards. N counts the suggestions it
   would draft: not already drafted, not dismissed, not under way, and placeable
   (the file is in the pull request at the current head and, for the file on

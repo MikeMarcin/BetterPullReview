@@ -1126,7 +1126,7 @@ bpr_enable_hardening(test_agent_comment_suggestion)
 bpr_enable_warnings(test_agent_comment_suggestion)
 bpr_add_network_isolated_test(NAME core_agent_comment_suggestion COMMAND test_agent_comment_suggestion)
 
-# [[BPR-2058]]. Draft all: which suggested comments one reply drafts, and why the rest are passed over.
+# [[BPR-2061]]. Draft all: which suggested comments one reply drafts, and why the rest are passed over.
 bpr_add_executable(test_agent_draft_all agent_draft_all_tests.cpp)
 target_link_libraries(test_agent_draft_all PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_agent_draft_all)

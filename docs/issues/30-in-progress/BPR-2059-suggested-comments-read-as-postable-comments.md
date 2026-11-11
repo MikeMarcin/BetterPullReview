@@ -4,7 +4,7 @@ id: "BPR-2059"
 title: "Suggested comments read as postable comments, with an editable format prompt"
 status: "In Progress"
 rfcs: ["RFC-BPR-0092", "RFC-BPR-0107"]
-metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2058--BPR-2059--bd1353aea511.json","origin":"owner report, 2026-11-10 (screenshot of a private repository; nothing of it is kept)","related_cards":["BPR-1861","BPR-2051","BPR-2058"]}
+metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2058--BPR-2059--bd1353aea511.json","origin":"owner report, 2026-11-10 (screenshot of a private repository; nothing of it is kept)","related_cards":["BPR-1861","BPR-2051","BPR-2061"]}
 depends_on: []
 ---
 
@@ -46,3 +46,63 @@ and image are not copied anywhere, and the tests use synthetic text):
    formatting (before and after), and the format prompt's default.
 
 Load frontend-design before the Qt work.
+
+## Implementation (2026-11-10, `52e085d57`)
+
+Frontend-design was loaded before the Qt work.
+
+- Card (`agent_tab_view::make_card`): claim, evidence and suggested comment are
+  `markdown_body_view`s (the reply's own renderer: code spans, fences, line
+  breaks), each fitted to the card's width, in spaced blocks; the suggestion is
+  upright in an inset with a quiet "Suggested comment" caption, and a leading
+  Conventional Comments label is shown once beside the caption rather than as
+  text (the draft still opens with it chosen). Severity and kind keep their
+  width; the anchor elides in the middle (`eliding_anchor`).
+- The replay counts left the continuation line in the Agent tab and the tour
+  chat; they stay as `replayTurnsOmitted`/`replayTextCutBytes` properties, and
+  the tooltip names them only when a replay left something out. The typed
+  diagnostic log carries no free text, so no new diagnostic event was added.
+- Writing hook `suggested_comment`: purpose `review.suggested-comment`, version
+  `suggested-comment-v1`, default
+  `src/application/resources/review-preparation/suggested-comment.md`, listed
+  under Built-in prompts › Agent tab with Reset; Test is off for it (it writes
+  no passage). Profile schema 26 (`writing_suggestion_format`; the schema test
+  bans "comment" in column names). `bpr tour hooks … suggested-comment`.
+- Every Agent tab brief carries `brief.comment_format.{source,version,text}`
+  (`core::supplement_brief::CommentFormat`, bounded and validated). The review
+  skill is bpr-version 5: it follows that format and no longer asks for a
+  Conventional Comments header itself (amends BPR-1861 design point 1; the
+  label reader is unchanged).
+- Reply → draft keeps Markdown: `core_agent_comment_suggestion`
+  `test_markdown_survives_into_the_draft` (code span, fence and line breaks,
+  with and without a label).
+
+## Verification
+
+Focused set at the candidate, 29 rows, all pass: `core_agent_draft_all`,
+`core_agent_comment_suggestion`, `core_review_skill`, `core_review_preparation`,
+`core_agent_finding_promotion`, `core_agent_answer_findings`,
+`application_writing_delivery`, `application_agent_launch`
+(`brief.comment_format.*` encoded), `application_review_skill_host`,
+`sqlite_workbench_settings_storage` (25 → 26 migration, override survives),
+`qt_settings_window` and its scales (list, default, version, override, Reset),
+`qt_workbench_window_scale_100/125/200` (Markdown, no raw backticks, upright,
+narrow card keeps kind whole and elides the anchor, no "Replay omits"),
+`qt_composed_github_scale_*`, `qt_agent_launch_panel`, `qt_agent_setup_view`,
+`qt_side_chat_panel`, `qt_finding_queue_view`, `qt_enhance_control`,
+`qt_agent_activity_view`, `qt_tour_side_chat`, `architecture_boundaries`,
+`application_review_round_trip_composition_contract` (pin resealed). Also
+`application_composition_source_contract`, `test_network_isolation_manifest`,
+the format check on changed files and the documentation gate.
+
+Not run (disk): the tour-cli preset (`tour_cli_composition`, edited to list
+the ninth hook in `a823552f6`), the e2e `application_agent_*` courses (the
+brief assertion added to `agent_invocation_composition_public_path`), the
+core-only preset and `coding-tidy`.
+
+## Owner look (pending)
+
+Session `fbdd40b2768761881d2a420844cb4ec2` (see BPR-2061), candidates
+`BPR-2059-card-formatting` (before/after renders of the same synthetic
+findings from the Qt harness, and the live frozen build) and
+`BPR-2059-prompt-default`.

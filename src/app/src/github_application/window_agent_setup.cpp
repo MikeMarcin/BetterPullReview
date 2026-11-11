@@ -254,7 +254,7 @@ namespace bpr::app {
 		}
 	}
 
-	/// [[BPR-2058]]. Whether a finding's lines can take a draft now: its
+	/// [[BPR-2061]]. Whether a finding's lines can take a draft now: its
 	/// file is in the pull request at the current head and, when that file is
 	/// the one on screen, its first line is in it. A file not on screen is
 	/// opened when its turn comes, and a line found gone then is counted so.
@@ -278,7 +278,7 @@ namespace bpr::app {
 		return aFinding.Lines.Begin < (side == core::diff_side::left ? alignment.LeftLineCount : alignment.RightLineCount);
 	}
 
-	/// [[BPR-2058]], owner 2026-11-10: "Can we get a draft all suggested
+	/// [[BPR-2061]], owner 2026-11-10: "Can we get a draft all suggested
 	/// comments from an agent response with several." Each card is drafted
 	/// in turn through `act_on_agent_card`, exactly as its own Add as draft
 	/// comment does, so a batch makes the drafts a reviewer pressing each
@@ -364,7 +364,7 @@ namespace bpr::app {
 		QTimer::singleShot(0, Window.get(), [this] { next_draft_all_card(); });
 	}
 
-	/// [[BPR-2058]]. One Undo removes the batch: each draft it made that is
+	/// [[BPR-2061]]. One Undo removes the batch: each draft it made that is
 	/// still at the revision it was made at, and still a draft, is discarded
 	/// in one write and its card is open again. A draft edited since is kept.
 	void github_application::implementation::undo_draft_all(const std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone)
@@ -1168,7 +1168,7 @@ namespace bpr::app {
 		// conversation about the open pull request.
 		QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
 		tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
-		// [[BPR-2058]]. Draft all and its Undo, and whether a suggestion's
+		// [[BPR-2061]]. Draft all and its Undo, and whether a suggestion's
 		// lines are still in the pull request.
 		tab->set_draft_all_dispatch([this](qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone) { draft_all_agent_cards(std::move(aRequest), std::move(aDone)); },
 									[this](const std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone) { undo_draft_all(aBatch, std::move(aDone)); });

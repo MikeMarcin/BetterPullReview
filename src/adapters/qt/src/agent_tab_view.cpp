@@ -1202,7 +1202,7 @@ namespace bpr::qt {
 		dress_answer(*answer);
 		answer->hide();
 		replyColumn->addWidget(answer);
-		// [[BPR-2058]], owner 2026-11-10. A reply with several suggested
+		// [[BPR-2061]], owner 2026-11-10. A reply with several suggested
 		// comments drafts them all at once: one quiet action over its cards,
 		// what the last press did, and the Undo of that batch. It starts no
 		// run, so it wears no Agent accent.

@@ -8,7 +8,7 @@
 #include <vector>
 
 /// \file
-/// \brief [[BPR-2058]]. Draft all: every suggested comment one agent reply
+/// \brief [[BPR-2061]]. Draft all: every suggested comment one agent reply
 /// carries, drafted at once as local drafts.
 /// \details Owner, 2026-11-10: "Can we get a draft all suggested comments from
 /// an agent response with several." Which of a reply's suggested comments the

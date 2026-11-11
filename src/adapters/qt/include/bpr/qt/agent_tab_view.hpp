@@ -117,7 +117,7 @@ namespace bpr::qt {
 		agent_finding_card_action Action = agent_finding_card_action::draft_comment;
 	};
 	using agent_finding_card_dispatch = std::function<void(const agent_finding_card_request&)>;
-	/// \brief [[BPR-2058]]. Draft all: the suggested comments of one reply
+	/// \brief [[BPR-2061]]. Draft all: the suggested comments of one reply
 	/// to draft, in its cards' order, as one batch; `Planned` already counts
 	/// those passed over before drafting.
 	struct agent_draft_all_request
@@ -353,7 +353,7 @@ namespace bpr::qt {
 		void               set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
 		void               present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
 		[[nodiscard]] auto finding_card_state(std::size_t aCard) const -> agent_finding_card_state;
-		/// \brief [[BPR-2058]]. Where a reply's Draft all and its Undo go, and
+		/// \brief [[BPR-2061]]. Where a reply's Draft all and its Undo go, and
 		/// what says whether a suggestion's lines are still in the diff (none:
 		/// the anchor the finding arrived with).
 		void set_draft_all_dispatch(agent_draft_all_dispatch aDispatch, agent_draft_all_undo aUndo);
@@ -506,10 +506,10 @@ namespace bpr::qt {
 			/// The turn it is under; none for a card no turn brought.
 			std::optional<std::size_t> Turn;
 			QPointer<QWidget>          Widget;
-			/// [[BPR-2058]]. Its claim, evidence and suggested comment as
+			/// [[BPR-2061]]. Its claim, evidence and suggested comment as
 			/// Markdown, each fitted to the card's width.
 			std::vector<QPointer<markdown_body_view>> Texts;
-			/// [[BPR-2058]]. Found not at the head when it was drafted.
+			/// [[BPR-2061]]. Found not at the head when it was drafted.
 			bool Gone = false;
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
@@ -631,7 +631,7 @@ namespace bpr::qt {
 			/// [[BPR-1876]], [[BPR-1880]]. Delete: an error turn leaves the
 			/// thread.
 			QPointer<QPushButton> Delete;
-			/// [[BPR-2058]]. Draft all over its cards, what the last press
+			/// [[BPR-2061]]. Draft all over its cards, what the last press
 			/// did, and the Undo of that batch.
 			QPointer<QWidget>          DraftAllRow;
 			QPointer<QPushButton>      DraftAll;
@@ -642,7 +642,7 @@ namespace bpr::qt {
 			std::vector<std::uint64_t> DraftAllCards;
 		};
 		std::vector<turn> Turns;
-		/// [[BPR-2058]].
+		/// [[BPR-2061]].
 		void                       refresh_draft_all(std::size_t aTurn);
 		void                       draft_all(std::size_t aTurn);
 		void                       undo_draft_all(std::size_t aTurn);

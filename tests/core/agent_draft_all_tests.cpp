@@ -1,4 +1,4 @@
-// [[BPR-2058]]. Draft all: which of one reply's suggested comments are
+// [[BPR-2061]]. Draft all: which of one reply's suggested comments are
 // drafted, which are passed over and why, and what the reply then counts.
 
 #include "bpr/core/agent_draft_all.hpp"
