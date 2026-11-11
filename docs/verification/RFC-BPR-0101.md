@@ -146,3 +146,7 @@ reads the same way. A run with the agent in the setup showed no cost on the
 first turn: the host read whether a run resumed after the launch had saved
 the new session's handle. It now records that at launch
 (`ResumedNative`), and the run above is after the fix.
+
+## Closeout (2026-11-11)
+
+[[BPR-2001]] judged every criterion against the evidence above; all pass. AC06 rests on unit and composed courses; no installed-agent tour run was made. Evidence reused unchanged; no product change in the closeout round. Not run: Windows and Linux, the whole dev suite. RFC-BPR-0101 is Auto-Verified.
