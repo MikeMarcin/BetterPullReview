@@ -28,7 +28,8 @@ This is part of `accepted-scope` in the [plan](../../rfcs/plans/v0-5-0-prereleas
 ## Execution checkpoint
 
 Milestone `dependable-session` engineered at `31f900910`; AC01–AC07 have
-public-path evidence, AC08 is the owner's and pending. Checkpoint:
+public-path evidence; AC08 (amended to an agent-run live course) passed on
+`33c282ccd`. Checkpoint:
 [handoff](../_checkpoints/v0-5-0-prerelease-targets-v1/handoff.md). No
 task-owned command or attended candidate is running.
 
@@ -45,4 +46,4 @@ RFC base: `dc5453afa3ba0e1620fe30bf97b17211e09ba4bd`.
 | **AC05:** The diagnostic log of the blocked-lane, bounded-wait and superseded-completion courses contains the request, each wait with its subject and duration, each drop with its reason, and the ending. | application_dependable_session_public_path step 5 (normal diagnostic log) | Pass | `31f900910` |
 | **AC06:** After a review with the Tour tab and a side chat open, opening a different pull request from Home shows the tray on Comments with no side chat, and the same holds when the same pull request is reopened. | application_dependable_session_public_path step 6 | Pass from Home; notification open not exercised | `31f900910` |
 | **AC07:** The remembered filter defaults and the window's drawer widths are the same before and after opening the different pull request. | application_dependable_session_public_path step 6 | Pass | `31f900910` |
-| **AC08:** The owner approves a pull request on MikeMarcin/BPR-Test from a frozen build after a course of at least five pull requests with agent and tour use, and it publishes. | Owner's live course on a frozen build | Pending: owner-attended; no live frozen build path (see handoff) | Not run |
+| **AC08:** A pull request on MikeMarcin/BPR-Test is approved through the window's own Approve after a course of at least five pull requests with agent and tour use, and it publishes. (Amended 2026-11-10 by the owner: it was the owner's own run on a frozen build, which proved "way too many manual steps"; an agent-run live course through the same window and actions replaces it.) | Agent-run live course `tests/end_to_end/live_session_course.py` (six pull requests, agent and tour use, Approve on #151) | Pass: #151 has MikeMarcin's APPROVED review 5854726479 (read with `gh`) | `33c282ccd` |

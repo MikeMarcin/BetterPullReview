@@ -50,7 +50,7 @@ the baseline, not a defect.
 | AC05 | Course step 5 reads the normal diagnostic log: `review_submit_request`, `review_submit_wait` with `submit_subject` and `duration_ms`, `review_submit_send`, `review_submit_drop submit_subject=retired`, `review_submit_end` with `published` and `wait_expired` | Pass |
 | AC06 | Course step 6: #17 left on the Tour tab with the tour side chat open; #18 opens on Comments with no side chat and no tour page; the same again when #18 is reopened from Home | Pass from Home (side chat opened through its own widget entry point, not an agent run). Links and restored reviews take the same signalled path; a notification's open was not exercised |
 | AC07 | Course step 6: `view_filters()` and the Comments drawer width are equal before and after | Pass |
-| AC08 | Owner's approval on BPR-Test from a frozen build after five or more pull requests with agent and tour use | Pending: owner pressed Accept but #151 holds no review; see RFC-BPR-0099 AC08 |
+| AC08 | Approval on BPR-Test through the window's own Approve after five or more pull requests with agent and tour use (amended 2026-11-10: agent-run, not the owner's run) | Pass: the agent-run live course approved #151 after six pull requests; see [the run](#agent-run-live-course-2026-11-10) |
 
 Focused unit evidence: `core_operation_diagnosis` (new submission lines and
 their refusals), `application_review_submission_application_host` (abandon
@@ -122,3 +122,37 @@ agent-run live course on BPR-Test in a later round. BPR-Test is left as is
 (the owner pushed `929b028f7` to #152's branch). Host 36810/36892 stopped and
 the root removed with `freeze_attended_build.py remove` after the owner's app
 (PID 46168) had exited.
+
+## Agent-run live course (2026-11-10)
+
+The owner moved AC08 to an agent-run course on the real public path; the
+course and its composition seam are described under
+[RFC-BPR-0099](RFC-BPR-0099.md#agent-run-live-course-2026-11-10) (lane commit
+`33c282ccd`). The approval is the course's last step, in the same window and
+session: #1, #2, #3 and #43 opened (Tour tab shown on each, one question to
+the installed Claude Code from #1's Agent tab), the disposable #177 opened,
+its tour written, accepted and published, then Back to the code, Home, and
+`MikeMarcin/BPR-Test#151` opened from Home's bar: six pull requests. On #151
+(authored by MikeMarcinTest; the course signed in as MikeMarcin through `gh`)
+it opened the review page and pressed Approve.
+
+What the page said, at each change (`live-session.jsonl`, 2026-11-11 UTC):
+
+| Draft | Review page | Window |
+|---|---|---|
+| drafting | Approve offered | |
+| submitting | Waiting panel: "Sending your review to GitHub…" | |
+| (next review) drafting | page closed | "Review submitted. Closed the review of MikeMarcin/BPR-Test#151." |
+
+The editor counted one confirmed submission. GitHub's answer, read with
+`gh`: #151 (open, head `e5a0b157…`) has one review, id 5854726479, by
+MikeMarcin, **APPROVED**, at `e5a0b157…`, submitted 2026-11-11T06:27:43Z.
+
+Rate limit: 4,694 remaining before the run, 2,860 after reading the evidence
+(the account's limit is shared with other work).
+
+Observed, not changed: the first open from Home, made while the window still
+read "Refreshing the pull request." after the tour's publication, was dropped
+without a word; the course opened again and it took. The Agent tab never
+reported idle before the question (the course waited 120 s, then sent; the
+question was answered).

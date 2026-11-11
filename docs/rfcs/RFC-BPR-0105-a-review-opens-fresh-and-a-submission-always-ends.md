@@ -179,6 +179,9 @@ RFC-BPR-0025.
   chat, and the same holds when the same pull request is reopened.
 - **AC07:** The remembered filter defaults and the window's drawer widths
   are the same before and after opening the different pull request.
-- **AC08:** The owner approves a pull request on MikeMarcin/BPR-Test from a
-  frozen build after a course of at least five pull requests with agent and
-  tour use, and it publishes.
+- **AC08:** A pull request on MikeMarcin/BPR-Test is approved through the
+  window's own Approve after a course of at least five pull requests with
+  agent and tour use, and it publishes. (Amended 2026-11-10 by the owner: it
+  was the owner's own run on a frozen build, which proved "way too many
+  manual steps"; an agent-run live course through the same window and
+  actions replaces it.)

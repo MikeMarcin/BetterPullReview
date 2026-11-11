@@ -815,3 +815,58 @@ Next: read `5ea0ce22…` after hand-back. An icon other than 1 sets
 search test for "Private draft" changes). Accept of placement, code blocks
 and both stop looks: finish BPR-2051, BPR-2059 and BPR-2014 (AC08), stop host
 78319, remove the root. Card moves from now on are mirrored to main.
+
+## Live-evidence round: agent-run live course (2026-11-10)
+
+Owner amendments in force as above, plus: "I mean the cards should be on
+main" (every card move mirrored to main; rule added to `AGENTS.md`), and
+RFC-BPR-0099 AC08 and RFC-BPR-0105 AC08 moved off the owner to an agent-run
+live course ("way too many manual steps"). Nothing pushed; no pull request
+other than disposable BPR-Test ones.
+
+| Commit | What |
+|---|---|
+| `c3765a50f`, `df5216947`, `15a3709bc` | Owner look `5ea0ce22…` folded in (handed back at sequence 49): stop at rest, icon (option 1, already the default), placement and code blocks accepted; stop editing (`1d39ba1e`: the text at the bottom wastes space; no "Enhance" label beside the icon) and Agents & context top (`06aceb8f`: "all ugly", mockups by a deep worker with frontend-design) rejected, recorded on BPR-2014 and BPR-2051 and not implemented (next layout round). BPR-2059 Done, moved by hand: `issue_board.py finish` refused because the protected RFC-DRAFT-0003 asset linked the parked path; that one link repaired. Host 78319/78332 stopped, root `owner-look-v003.w0k3mfr3` removed |
+| `823b3c796` | `AGENTS.md`: mirror every card move to main |
+| `33c282ccd` | `DesignatedLivePublication` (tests-enabled, no fixture, BPR-Test only: shipped live provider and the gesture's one-use grant); `live_second_account_course --course live-session` and `tests/end_to_end/live_session_course.py`; fix: tour repair and acceptance comparisons between two heads read each side as a pinned source (sparse reviews could never compare a stop after a push); `application_epoch_host` test; app source digest resealed; `tests/AGENTS.md` |
+| `e88e6a90d` | RFC-BPR-0105 AC08 amended; records, card notes, closeout rows (BPR-2012, BPR-1994) |
+| `a87f08b10`, `8d6e6b3d8` | BPR-2010 and BPR-1992 Done |
+
+Evidence run (2026-11-11 06:20–06:28 UTC, `live_session_course.py --reads
+1,2,3,43 --approve 151 --agent /opt/homebrew/bin/claude --cleanup`): six pull
+requests in one window, a Haiku question from #1's Agent tab, a two-stop tour
+on disposable #177 published as a mixed tour (stop 2 the reason) in six
+steps waiting/sending/sent with the head's count equal to the panel's, then
+Approve on #151. `gh`: #177 has one COMMENT review (5854708476) carrying stop
+1, one conversation comment (6788770868) for stop 2 at the earlier head, the
+review body as the tour index, the description linking the review; #151 has
+MikeMarcin's APPROVED review 5854726479. #177 closed and its branches
+deleted; every debug run's pull requests (#153–#176) closed and branches
+deleted (upstream and the test account's fork); #151, #152 and the `-next`
+branch untouched otherwise. Rate limit 2,841 remaining at the end.
+
+Runs: `application_epoch_host`; the 17 tour publication, tour host, tour
+stop acceptance, tour composition, profile handoff and dependable-session
+rows; `application_composition_source_contract`,
+`application_review_round_trip_composition_contract`,
+`architecture_boundaries`, `test_network_isolation_manifest`; format check
+on the changed C++; documentation gate (lane and main).
+
+Milestones: `dependable-session` (BPR-2010, BPR-2011) and `tour-publishing`
+(BPR-1991, BPR-1992, BPR-1993) have every card Done; their closeouts BPR-2012
+and BPR-1994 belong to `accepted-scope`.
+
+Observed, not changed (no card allocated): during publication the tour's
+status line still reads "Saved locally. Nothing published."; Home does not
+show while the Tour page is open; an open from Home during "Refreshing the
+pull request." after a publication is dropped silently; the tour's "Drafting
+help needs the agent." band shows with an agent set up; the Agent tab never
+reported idle before the course's question.
+
+Owed: BPR-2014 (stop editing look, critical review) and BPR-2051 (Agents &
+context top) wait on the next layout round. Evidence files stay outside the
+repository (the session scratchpad root `evidence1`); nothing of them is
+tracked.
+
+Next: the coordinator's choice among `agent-scratch`, `tour-conversation`
+(needs `tour-stops` accepted) and the layout round for the two rejections.

@@ -45,11 +45,11 @@ are nongating; nothing below is a timing claim.
 | AC01 | `qt_review_tour_publication_working` (`test_bands`): 24 stops in a 380 × 620 tab; the route scrolls; the head is the top band and the agent bar the bottom one, outside the route, and both stay put and visible at the route's end; no bottom Preview and publish. `qt_tour_click_scroll` holds the route's place through clicks in the new scroll area; `application_review_tour_composition_public_path` (and its 125 % and 200 % runs) show no sideways clipping in wide, narrow and large-font windows | Pass |
 | AC02 | `core_tour_publication_head`: every row of the table, the counts and the order of actions. `qt_review_tour_publication_working` (`test_head_states`): each state's text and actions in the tab; Publish… disabled with its tooltip naming what is missing; Publish… opens the tour page and computes the preview; Resume and On GitHub dispatch. `application_review_tour_publication_stop`: the head reads Publishing at step 1 while the first write is held, and after a restart reads stopped at step 2 of 4 with Resume first | Pass |
 | AC03 | No mode list (`qt_review_tour_publication_working`, `application_review_tour_publication_mixed`). Fixture courses choose each form: `native` one review; `mixed` "Two stops go in one review. Stop 2 points at an earlier version of the code, so it is sent as a conversation comment."; `file` first compatibility comments while no file comment is offered ("Stop 2 sits outside the lines GitHub shows in this diff"), then a mixed tour with a file comment once one is; `compat` (both stops at an earlier head) "Every stop goes as its own conversation comment. Stops 1 and 2 point at an earlier version of the code, so no single review can carry the tour." Keep it to one review instead lists the stop and its moves and changes nothing (`mixed`, `repairs`) | Pass |
-| AC04 | `review_submission_application_host` (`test_publication_stages_and_link`): steps and confirmation counts for one-review, mixed and compatibility records. `qt_review_tour_publication_working`: waiting, sending, sent in order with the head's count equal to the panel's at every step. `application_review_tour_publication_stop`: with the first write held, step 1 is sending and nothing reads as sent. `native` and `compat`: the pressed checklist names the plan's own steps and the head's M equals the panel's | Pass (fixture); live in AC08 |
+| AC04 | `review_submission_application_host` (`test_publication_stages_and_link`): steps and confirmation counts for one-review, mixed and compatibility records. `qt_review_tour_publication_working`: waiting, sending, sent in order with the head's count equal to the panel's at every step. `application_review_tour_publication_stop`: with the first write held, step 1 is sending and nothing reads as sent. `native` and `compat`: the pressed checklist names the plan's own steps and the head's M equals the panel's | Pass (fixture); live in [AC08](#agent-run-live-course-2026-11-10): six steps waiting, sending, sent in order, the head's step equal to the panel's at every change |
 | AC05 | `qt_review_tour_publication_working`: the banner names the step, the reason, what is and is not on GitHub, with Resume primary and Check status after it; the failed row carries "Refused by GitHub (422)"; no failure text in the placeholder colour; the head is stopped too. `application_review_tour_publication_conflict` and `_description`: banners with Check status; `_stop`: the restarted banner "Publishing stopped at step 2 of 4" with Resume | Pass |
 | AC06 | `application_review_tour_publication_unsupported`: on an unqualified connection Preview shows "This connection cannot publish this tour", "Stops 1 and 2 need review comments on their lines, and this connection cannot create them.", "Nothing was sent.", Move those stops and Use another connection, with zero writes and no status line | Pass |
 | AC07 | `qt_workbench_window_scale_{100,125,200}` (Overview's Tour tab): Problem renders as Markdown, the row has "item.cpp, lines 4–6" and its first sentence, the row opens its stop in Review's Tour tab, and the state line and actions equal the head's. `core_tour_publication_head`: rows carry one-based lines and the first sentence | Pass |
-| AC08 | Live mixed tour on MikeMarcin/BPR-Test | Pending: owner pressed Accept but GitHub holds no published tour; see [AC08](#ac08-the-live-course) |
+| AC08 | Live mixed tour on MikeMarcin/BPR-Test | Pass: the agent-run live course published a mixed tour on BPR-Test #177 through the window's own Publish; see [the run](#agent-run-live-course-2026-11-10) |
 | AC09 | The owner's look at the Tour tab, the running and stopped panel and Overview on a frozen build (the running and stopped panel as renders of the candidate's own test, since a fixture build cannot publish) | Pass: the owner accepted all four candidates in attended session `5127270e92b1b77ceae8f9df8356c1f6` (frozen build of `bce0d0eba`, handed back 2026-11-10 16:43 UTC): `BPR-1991-tour-tab-head` (decision `2aee010d`), `BPR-1992-publication-running` (`a2474ee8`), `BPR-1992-publication-stopped` (`d5357557`), `BPR-1993-overview-tour` (`918d6411`, note: "It's weird that you didn't set it up to load a fixture that included a tour to look at.", recorded as a rule in `AGENTS.md`) |
 
 ## AC08: the live course
@@ -110,6 +110,111 @@ assertions written for the hand-chosen mixed mode before this change (one
 pending review, the standalone comment, cross-kind navigation from returned
 identities, one submission, six writes), and the provider path that writes to
 GitHub is unchanged.
+
+## Agent-run live course (2026-11-10)
+
+The owner moved AC08 off the owner ("way too many manual steps", session
+`26d89bac…`) to an agent-run course on the real public path. Lane commit
+`33c282ccd`.
+
+**Design.** `github_application_config::DesignatedLivePublication` lets a
+tests-enabled composition with no fixture compose the shipped live review
+submission provider over the window's mutation lease, and issue the same
+one-use, five-minute grant the Publish or Submit gesture issues in a shipped
+build, only when the target is github.com MikeMarcin/BPR-Test (name and
+repository ID 1328277631, `designated_live_publication_target`). Nothing is
+bypassed: the course is the author and the reviewer, and authorizes only by
+pressing the window's own Publish and Approve; the core's plan, acceptance
+gate and author rule and the host's grant consumption are the shipped ones,
+and any question a gesture raises would be answered as a person answers it
+and logged word for word (the only one met was the GitHub CLI sign-in).
+`tests/end_to_end/live_session_course.py` (opt-in, by hand, never a ctest
+row) builds a disposable pull request with the Git data API (base with
+`retry.cpp` and `helper.cpp`, a head changing retry.cpp 10–11 and helper.cpp
+20 and 35, and a prepared next commit putting helper.cpp 20 back), runs
+`live_second_account_course --course live-session` offscreen signed in
+through `gh`'s active account (MikeMarcin), pushes the next commit when the
+course waits at `at-push`, reads GitHub's answer with `gh`, reads
+`X-RateLimit-Remaining` on every call (stops below 500), and with
+`--cleanup` closes what it opened and deletes its branches.
+
+The course, in one window: opens #1, #2, #3 and #43 (Tour tab shown on each;
+on #1 one question to the installed Claude Code, Haiku, from the Agent tab:
+answered, "< $0.01"); opens the disposable pull request; Prepare review
+tour; Problem and Solution; stop 1 on retry.cpp 10–11 and stop 2 on
+helper.cpp 21–22 (context of the line-20 change), each through Add stop and
+the stop's own Accept; waits for the push; refreshes; waits until both stops
+are compared at the new head; Preview. The plan first chose compatibility
+comments ("Stops 1 and 2 point at an earlier version of the code"), since
+both stops were pinned to the earlier head. As an author does, the course
+pressed Keep it to one review instead and Re-pin to current head on stop 1
+(its lines are the same there and inside the diff), accepted it again and
+previewed: "Publishes in 6 steps. One stop goes in one review. Stop 2 points
+at an earlier version of the code, so it is sent as a conversation
+comment." Then Publish.
+
+**Run** (2026-11-11 06:20–06:28 UTC; root
+`…/scratchpad/evidence1`, `live-session.jsonl`; rate limit 4,694 before):
+disposable [#177](https://github.com/MikeMarcin/BPR-Test/pull/177), head
+`b7e44137…`, pushed to `a56e6102…` (parent `b7e44137…`). The steps, each
+change as the panel and the head showed it:
+
+| Panel | Head |
+|---|---|
+| all six Waiting | Private draft, 2 stops, all accepted |
+| Sending: Stop 1, in the pending review | Publishing, step 1 of 6 |
+| Sent 1; Sending: Stop 2, as a conversation comment | step 2 of 6 |
+| Sent 1–2; Sending: Links for stop 1 | step 3 of 6 |
+| Sent 1–3; Sending: Links for stop 2 | step 4 of 6 |
+| Sent 1–4; Sending: Submit the review as a comment | step 5 of 6 |
+| Sent 1–5; Sending: The description link | step 6 of 6 |
+| all Sent | Published |
+
+Ending: "Published: one COMMENT review and the previewed standalone
+comments, with verified tour links."
+
+**GitHub's answer** (read with `gh` after the run):
+
+- one review by MikeMarcin, COMMENTED, at `a56e6102…`, id 5854708476, its
+  body the tour's index ("Review tour — Start here", stop 1 linking
+  `#r4534683457`, stop 2 linking `#issuecomment-6788770868`);
+- one review comment in that review, retry.cpp RIGHT 10–11 at `a56e6102…`
+  ("PR Tour · 1 — Bound the doubling");
+- one conversation comment by MikeMarcin, `#issuecomment-6788770868`, a
+  permalink to helper.cpp L21–L22 at the earlier head `b7e44137…` ("PR Tour ·
+  2 — The helper beside it", with Previous/Next navigation);
+- the description begins with `[Review tour](…#pullrequestreview-5854708476)`
+  and the Problem and Solution, the original text kept below.
+
+That is the shape the hand-chosen mixed mode produced before this change and
+the fixture `mixed` course still asserts: one pending review created, the
+historical stop as its one conversation remainder, cross-kind navigation from
+the returned identities, one COMMENT submission. #177 and its branches were
+closed and deleted by the course.
+
+**Defect found and fixed on the way.** Run 2 to 5 never got past "The pull
+request has a new head; the code under this stop is not compared yet": after
+a push, the window's acceptance check (BPR-2014) and the publication's
+repair check compared a stop's file between the two heads with an ordinary
+blob read, and in a sparse review (a live pull request read through `gh`)
+that read has no grant to fetch a blob the cache lacks, so every read failed
+(`diff_blob_status::failure`, traced) and no tour could be published again
+after any push. Each side is now read as a pinned source, its
+identical-commit pair granted on the decision lane just before its read, as a
+stop's excerpt is (`materialize_pinned_tour_file`,
+`compare_tour_source_files`, `read_tour_comparison`).
+`application_epoch_host` (`tour_comparison_reads_sparse_heads_as_pinned_sources`)
+shows the ordinary read failing and the pinned reads succeeding on the sparse
+fixture; no fixture course had a second readable head, which is why the
+fixture courses never met it.
+
+Observed, not changed (for the coordinator): during publication the status
+line under the route still reads "Saved locally. Nothing published."; while
+the Tour page is open, Home does not show (the course goes Back to the code
+first); an open from Home during "Refreshing the pull request." after a
+publication is dropped silently (the course opens again); the tour's
+"Drafting help needs the agent." band shows although an agent is set up for
+the window.
 
 ## Runs
 
