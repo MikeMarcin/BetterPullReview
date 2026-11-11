@@ -6,6 +6,7 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 
+#include "button_surface.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
 
@@ -14,6 +15,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/identity_avatar.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
@@ -24,9 +26,12 @@
 #include <QTextEdit>
 
 #include <QAbstractTextDocumentLayout>
+#include <QEvent>
+#include <QFocusEvent>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QHelpEvent>
+#include <QIcon>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -646,6 +651,94 @@ namespace bpr::qt {
 			button->setCursor(Qt::ArrowCursor);
 			return button;
 		}
+
+		/// \brief The header's line link: "Line 40", or a thread's number,
+		/// with the target glyph before it.
+		///
+		/// \details The owner, 2026-11-10, on macOS in Dark: the draft's
+		/// "Line 329" was blue on a light grey face. A plain `QToolButton`
+		/// is drawn by the platform style, and macOS gives it a native
+		/// bezel in the system appearance's grey, whatever the profile's
+		/// ink. The link draws itself on the card instead, in every style:
+		/// no face at rest, hovered or pressed (the words are underlined),
+		/// so its ink reads on the card's own colour, and a focus ring
+		/// while keyboard focus is on it. Qt still owns its signals, focus,
+		/// keyboard activation and accessibility.
+		class line_link final : public QToolButton
+		{
+		public:
+			explicit line_link(QWidget* const aParent)
+				: QToolButton{ aParent }
+			{
+				setAttribute(Qt::WA_Hover, true);
+				setAutoRaise(true);
+				setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			}
+
+			/// \brief The words' ink; the palette's button text when unset.
+			void set_ink(const QColor& aInk)
+			{
+				Ink = aInk;
+				update();
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto content = chip_content_size(*this, iconSize(), !icon().isNull());
+				return QSize{ (2 * chip_padding) + content.width(), content.height() + 6 };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return sizeHint();
+			}
+
+		protected:
+			void focusInEvent(QFocusEvent* const aEvent) override
+			{
+				update_button_keyboard_focus(KeyboardFocus, *aEvent);
+				QToolButton::focusInEvent(aEvent);
+			}
+
+			void changeEvent(QEvent* const aEvent) override
+			{
+				QToolButton::changeEvent(aEvent);
+				if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange) {
+					updateGeometry();
+				}
+			}
+
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				if (isEnabled() && hasFocus() && KeyboardFocus) {
+					const auto inset = focus_ring_width / 2.0;
+					painter.setPen(QPen{ focus_ring_colour(palette(), QPalette::Base), focus_ring_width });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), 3.0, 3.0);
+				}
+				const auto content = rect().adjusted(chip_padding, 0, -chip_padding, 0);
+				const auto extent  = chip_content_size(*this, iconSize(), !icon().isNull());
+				auto       place   = QRect{ content.left() + std::max(0, (content.width() - extent.width()) / 2), content.top(), extent.width(), content.height() };
+				if (!icon().isNull()) {
+					const auto image = icon().pixmap(iconSize(), devicePixelRatioF(), isEnabled() ? QIcon::Normal : QIcon::Disabled);
+					const auto spot  = QRect{ place.left(), place.top() + ((place.height() - iconSize().height()) / 2), iconSize().width(), iconSize().height() };
+					style()->drawItemPixmap(&painter, QStyle::visualRect(layoutDirection(), rect(), spot), Qt::AlignCenter, image);
+					place.setLeft(place.left() + iconSize().width() + chip_icon_gap);
+				}
+				auto words = font();
+				words.setUnderline(isEnabled() && (underMouse() || isDown()));
+				painter.setFont(words);
+				painter.setPen(!isEnabled() ? palette().color(QPalette::Disabled, QPalette::ButtonText) : Ink.value_or(palette().color(QPalette::Active, QPalette::ButtonText)));
+				painter.drawText(QStyle::visualRect(layoutDirection(), rect(), place), static_cast<int>(Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine | Qt::TextHideMnemonic), text());
+			}
+
+		private:
+			std::optional<QColor> Ink;
+			bool                  KeyboardFocus = false;
+		};
 
 		/// \brief [[BPR-1757]]. A header word that gives up its room
 		/// before the words beside it: it elides, says itself whole in its
@@ -1829,14 +1922,12 @@ namespace bpr::qt {
 			row->addWidget(verdict);
 		}
 		if (aCard.Line.has_value()) {
-			auto* const where = new QToolButton{ header };
+			auto* const where = new line_link{ header };
 			where->setObjectName(QStringLiteral("threadShowLine"));
-			where->setAutoRaise(true);
 			where->setFocusPolicy(Qt::StrongFocus);
 			where->setIcon(conversation_icon(conversation_glyph::target, palette));
 			where->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::target));
 			where->setIconSize(QSize{ 12, 12 });
-			where->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 			auto mono = semibold(Style.CodeFont);
 			mono.setPointSizeF(font().pointSizeF() > 0.0 ? font().pointSizeF() * 0.92 : mono.pointSizeF());
 			if (!Style.Feed) {
@@ -1862,10 +1953,8 @@ namespace bpr::qt {
 			}
 			if (aCard.Writing) {
 				// [[BPR-1212]]. The lines being written on, in the writing blue.
-				Where    = where;
-				auto ink = where->palette();
-				ink.setColor(QPalette::ButtonText, Style.Colours.SignalInk);
-				where->setPalette(ink);
+				Where = where;
+				where->set_ink(Style.Colours.SignalInk);
 				where->setIcon(conversation_icon(conversation_glyph::target, Style.Colours.SignalInk));
 				where->setProperty("conversationGlyph", QVariant{ });
 				// [[BPR-1212]] slice 1. "Lines a–b" for a draft on several.
