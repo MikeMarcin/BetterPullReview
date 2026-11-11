@@ -2041,6 +2041,22 @@ in light, dark and high contrast. State-loss reconstruction uses a fresh host
 without a database or receipt; it is not an actual uninstall or power-loss test.
 The [criterion ledger](RFC-BPR-0022.md) records exact producing candidates.
 
+## Flag-move pull request (RFC-BPR-0100 AC08)
+
+`flag-move-v1` is a synthetic seven-file pull request, bpr-fixtures/flag-move#41,
+"Read settings as TOML behind --strict-toml". The existing key=value settings
+loader is deleted from `src/config/loader.cpp` and added byte for byte to
+`src/config/legacy_loader.cpp`; `load_config` now chooses between it and a new
+TOML loader by a `--strict-toml` flag. It exists so the owner can judge whether
+a drafted tour narrates the moved, unchanged path (RFC-BPR-0100's moved-code
+rule). `scripts/build_flag_move_fixture.py` writes the construction;
+`build_recorded_pull_request_contract.py` and `build_recorded_pull_request_pack.py`
+write the committed contract and Git objects. The base is
+`9f5812311f7c6b00b87197a5ab81703624f870b3` and the head is
+`07540b0c68876f9f8e35c967447c38b55d591a12`. `github_recorded_fixture_contract`
+regenerates and compares it; the opt-in `live-tour-draft-flag-move` course
+drafts a tour of it with an installed agent.
+
 ## Header/source navigation course (RFC-BPR-0074)
 
 `header-source-v1` is a synthetic 16-file PR with cross-folder pairs, exact-folder
