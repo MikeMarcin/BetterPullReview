@@ -801,3 +801,13 @@ Imported 2026-11-10 at the owner's request; no implementation mandate has been g
 | [RFC-BPR-0121](RFC-BPR-0121-insights-shows-what-the-agents-did-and-what-was-kept.md) | Insights shows what the agents did and which suggestions were kept | Proposed | RFC-BPR-0086, RFC-BPR-0101 |
 
 Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/agent-assistance-v1.LIVE_IMPORT.md); [authored plan](plans/agent-assistance-v1/milestone-plan.json). The [proposed amendments](assets/agent-assistance-v1/AMENDMENTS.md) change the subject rule of two agent entry points and are applied by the owning milestones, not at import.
+
+## Address review feedback
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0122](RFC-BPR-0122-address-feedback-opens-my-pull-request-with-each-conversation-as-an-item.md) | Address feedback opens my pull request as a local draft, with each conversation as an item | Proposed | RFC-BPR-0098, RFC-BPR-0108, RFC-BPR-0111 |
+| [RFC-BPR-0123](RFC-BPR-0123-the-agent-evaluates-feedback-fixes-what-i-accept-and-drafts-the-replies.md) | The agent evaluates feedback, fixes what I accept and drafts the replies | Proposed | RFC-BPR-0101, RFC-BPR-0103, RFC-BPR-0107, RFC-BPR-0110, RFC-BPR-0115, RFC-BPR-0122 |
+| [RFC-BPR-0124](RFC-BPR-0124-one-press-publishes-the-response-push-then-replies.md) | One press publishes the response: push, then replies | Proposed | RFC-BPR-0069, RFC-BPR-0091, RFC-BPR-0098, RFC-BPR-0099, RFC-BPR-0105, RFC-BPR-0111, RFC-BPR-0114, RFC-BPR-0122 |
+
+Imported 2026-11-11 at the owner's request ("/author-rfc a pack for this and message the other session to add it to it's work"); no implementation mandate has been given. [Import](assets/address-review-feedback-v1.LIVE_IMPORT.md); [authored plan](plans/address-review-feedback-v1/milestone-plan.json). P01 to P09 of the [decision record](assets/address-review-feedback-v1/DECISIONS.md) are unconfirmed proposals; P09 changes an adopted rule of RFC-BPR-0098 and is put to the owner before BPR-2113 is built. The [proposed amendments](assets/address-review-feedback-v1/AMENDMENTS.md) are applied by the owning milestones, not at import.
