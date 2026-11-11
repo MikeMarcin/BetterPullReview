@@ -935,3 +935,264 @@ with `freeze_attended_build.py remove`. Not built in this round: the
 mockup's restyled agent sheet, RFC-BPR-0107's Import/Export (placement
 recorded), RFC-BPR-0104's grant item (placement recorded), a fixture with
 configured agents and a running run in the frozen app (the looks stand in).
+
+## Drafts round: find my drafts, Overview, Finish review (2026-11-11)
+
+Owner requests: "I don't seem to have an easy way to find all my draft
+comments"; Home: "I dunno if I'd put it there. I feel like discuss or threads
+is probably better" (no Home change); "finish review should note draft comments
+that haven't been added to the review"; Overview: "we already have a comments
+column so probably something there". Owner amendments in force as above.
+Frontend-design was loaded before the Qt work. Nothing pushed.
+
+How drafts worked: a saved line comment is a private draft; Start a review /
+Add review comment gives it a pending mark (path at the head) and Submit sends
+it; without the mark it is "not in the review" and only its own Publish sends
+it; a reply is never in a review. A draft recorded no file, so a draft in a
+file not shown this session could not be listed by file.
+
+| Commit | What |
+|---|---|
+| main `783dac754` | BPR-2092..2094 reserved and carded (counter BPR-2095) |
+| `d61b3ee42`, `61aad5dec`, `34d96d2dc`, `93c754fd1`, `2b3b496ab`; main `e76a725a8` | Cards to the lane, Ready, claimed; claims mirrored |
+| `7cd7fab2b` | Core `review_draft_place` and `draft_roster`; private-store record v4; host place stamping, roster, Add/Add all/Leave out; Threads drafts rows and My drafts; Overview drafts chip; Finish review drafts section; `--attended-drafts-look` (+ `BPR_ATTENDED_DRAFTS_CHECK`); native-look startup only for Qt Widgets tests (fixes `agent_launch_canary`, `claude_process_wrapper` compiling); app pin resealed. Product candidate |
+| `ee4724b2a`; main `9b0aa6423` | Card records (BPR-2092 AC4 amended: My drafts is not remembered); mirrored. Frozen |
+| this commit | Cards parked `human-review`; session recorded; handoff |
+
+Placement: Threads (file groups, filter bar, goes to a line); not a close call
+against Discuss, so no option list; a Reject note can ask for Discuss.
+
+Runs at `7cd7fab2b`: `core_draft_roster` (new), `application_comment_range_draft_store`
+(new place round trip), `qt_conversation_finder_scale_100` (new
+`test_my_drafts`), `qt_pull_request_overview_page` (new drafts chip test),
+`qt_pull_request_overview_chips_scale_125`,
+`qt_review_submission_editor_scale_{100,125,200}`, `qt_agent_launch_canary`,
+`qt_agent_launch_canary_durable_course`, `qt_claude_process_wrapper`, and the
+draft/review/composition rows: `core_{draft_state,review_submission,revisioned_review_draft,private_review,reply_draft_standing}`,
+`application_{review_submission_contract,review_submission_application_host,shared_draft_application_host,private_review_host,feedback_draft_store,reply_draft_survival,composition_source_contract,review_round_trip_composition_contract,draft_state_contract,private_draft_restore,reply_draft_contract,start_review_contract,draft_delete_contract,line_draft_contract,review_submission_composition_public_path}`,
+`sqlite_{private_review_storage,review_submission_recovery_storage}`,
+`qt_{workbench_line_draft,workbench_overview,workbench_window_scale_100,review_draft_editor,private_review_panel,feedback_label_threads}`,
+`architecture_boundaries`, `test_network_isolation_manifest` (39 rows, all
+pass); composed public path `--attended-drafts-look` with
+`BPR_ATTENDED_DRAFTS_CHECK=1`: THREADS 5,2; OVERVIEW 3,2; OUTSIDE 2; ADDED 5;
+`coding-format-check`; clang-tidy on the new and changed core, Qt and host
+sources; documentation gate. Native renders (Cocoa off screen, light and
+dark) are in the session's candidates.
+
+Filed, not waited on (URL in the session state's `serve.log`): session
+`585d18246da0bd78411dee4b26777a2d`, state
+`/Users/jaeger/.attended-review-state/drafts-round-v001-2026-11-11/state`,
+cursor 9, host PID 24810 (tailscale child 24818), three candidates, ready and
+protected: `BPR-2092-threads-drafts`, `BPR-2093-overview-drafts`,
+`BPR-2094-finish-drafts-line`. Frozen root
+`/Users/jaeger/drafts-round-v001.yva0tan3` from `ee4724b2a984` (SHA-256
+`56ba5f7f9482…`, launcher check reached `ATTENDED_FINISH_REVIEW_SHOWN`).
+
+Not touched: session `7c920675…` (host 73758/73768, root
+`layout-round-v001.5q22yahv`), host 74692, PID 10695, BPR-Test #152 and its
+`-next` branch.
+
+Known limits: a draft saved before this change has no recorded place until it
+is edited or its file is shown in the window (Finish review says "Open it to
+add it"); a left-side or filtered-diff draft is listed but not addable from
+the sheet (open it). Pre-existing clang-tidy naming warnings in
+`window_review_drafts.cpp` (`invalidate_all`, `live_factory`) left as they
+were.
+
+Next: read `585d1824…` from cursor 9 after hand-back. Accept of each finishes
+its card (`issue_board.py finish`, mirrored to main); a Reject is a new
+candidate. When all three are decided, stop host 24810 and remove the root
+with `freeze_attended_build.py remove`.
+
+## agent-scratch (2026-11-11)
+
+Milestone `agent-scratch` (RFC-BPR-0104, [[BPR-2007]], [[BPR-2008]]), on the
+same lane; nothing pushed. Frontend-design was loaded before the Qt work.
+Ledger: [RFC-BPR-0104](../../../verification/RFC-BPR-0104.md). Owner
+amendments in force as above.
+
+| Commit | What |
+|---|---|
+| `5592956a4`, `b83072662`; main `26d1474eb` | Ready and claim BPR-2007 (BPR-2008 cannot be readied before BPR-2007 is Done; it was built under BPR-2007's claim). The protected `local-draft-authoring-v1/AMENDMENTS.md` links the card by lane path, so each move repaired that one link path by hand (the board helper refuses protected files) |
+| `882ebed54` | Product candidate: core grant, launch arguments, scratch folders, storage, footer grant item, agent sheet settings, build question, folded Ran/Wrote lines, live `agent-scratch` course; app source pin resealed (its note says this is a grant) |
+| `c19749f58` | Ledger, RFC-BPR-0104 implementation record, RFC-BPR-0011 grant amendment, card records. Frozen |
+| `8a56ee009`; main `fa6adc3f0`, `ae0f44726` | BPR-2007 parked `human-review`; BPR-2008 records (stays Backlog); session recorded; handoff; mirrored with the RFC-BPR-0104 ledger the cards link |
+
+Facts established (installed Claude Code 2.1.319, Codex 0.167.0): Claude takes
+`--add-dir` and `--allowedTools` rules; `Bash(DIR/:*)` never matches a file in
+the folder and no rule matches a quoted path, so the rules are globs and the
+folder's path has no space (macOS: the user's cache folder, since "Application
+Support" has one). Codex takes `-c permissions.NAME.filesystem={…}` with
+`-c default_permissions="NAME"`, which replaces the configured sandbox mode and
+is enforced by Seatbelt with network off; granted runs add
+`approval_policy="never"`.
+
+State: AC01, AC02, AC05, AC06, AC08 pass; AC09 passes except a separate New
+session course; AC04 passes at unit, host and storage layers (the question's
+composed path has no course); AC03 is partly met (the 256 MiB bound is checked
+at turn start, not during a turn), asked of the owner; AC07 (independent
+critical review of both agents' allowances) is pending and not done by the
+implementer, whose self-review in the ledger is input to it.
+
+Disk: 34 relinkable executables removed from this worktree's
+`build/dev/tests/end_to_end` (about 7 GB; list in the session scratchpad
+`deleted-binaries.txt`); `agent_invocation`, `agent_chat` and
+`agent_finding` composition binaries were rebuilt for their contract rows.
+
+Filed, not waited on (URL in the session state's `serve.log`): session
+`e97c6a3d72ac570115fc961555b09d6d`, state
+`/Users/jaeger/.attended-review-state/agent-scratch-v001-2026-11-11/state`,
+cursor 12, host PID 72034 (Tailscale child 72042), four candidates, ready and
+protected: `BPR-2007-grant-menu` (footer picker's grant item; `agent_footer
+--look`), `BPR-2007-agent-sheet` (Scratch folder starts and Build and run
+tests; `--agents-roster-look`), `BPR-2008-build-question` (the look's "Show
+the build question…"), `RFC-BPR-0104-AC03-bound` (accept the turn-start
+256 MiB bound, or reject to stop a turn that passes it). Frozen root
+`/Users/jaeger/agent-scratch-v001.weg1sgre` from `c19749f58892` (app SHA-256
+`cb283436e169…`, launcher check reached `ATTENDED_FILE_SHOWN`). The frozen app
+itself opens conventional-comments-v1 with no agents added; the looks carry the
+surface, as in the layout round. Native renders (Cocoa off screen, light and
+dark) are the candidates' media.
+
+Not touched: sessions `585d1824…` (24810/24818, root
+`drafts-round-v001.yva0tan3`) and `7c920675…` (73758/73768, root
+`layout-round-v001.5q22yahv`), host 74692, PID 10695, BPR-Test #152 and its
+`-next` branch. A Tailscale serve process 44738 (parent 1) that is not this
+round's was seen and left.
+
+Pending: AC07 needs an independent critical review of both agents' launch
+allowances (coordinator to file; the ledger's self-review is input). Next:
+read `e97c6a3d…` from cursor 12 after hand-back; Accept of all four finishes
+nothing alone (AC07 also). With the looks and AC03 accepted and AC07 passed,
+finish BPR-2007, then ready, claim and finish BPR-2008, mirroring each to
+main; a Reject goes to a fresh implementer. Then stop host 72034 and remove
+the root with `freeze_attended_build.py remove`. BPR-2009 (closeout) belongs
+to `accepted-scope`.
+
+## agent-scratch post-review round (2026-11-11)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner amendments in force
+as above. Frontend-design was loaded before the Qt work.
+
+Hand-backs read from each `session.json` and recorded; hosts stopped with
+`attended_review.py stop` (73758/73768, 24810/24818, 72034/72042, all gone);
+roots removed with `freeze_attended_build.py remove`
+(`layout-round-v001.5q22yahv`, `drafts-round-v001.yva0tan3`,
+`agent-scratch-v001.weg1sgre`).
+
+- `7c920675…`: all Accept. BPR-2051 and BPR-2014 Done (RFC-BPR-0106 AC08
+  met; its critical review and re-review are in RFC-BPR-0106's ledger). The
+  footer note "Why is it red?": the frozen build had no agent checked, so the
+  footer showed its setup state in the failed check's red; now quiet unless a
+  check failed (asked again below).
+- `585d1824…`: all Accept. BPR-2092, BPR-2093, BPR-2094 Done.
+- `e97c6a3d…`: agent sheet and build question Accept; grant menu and AC03
+  bound Reject (verbatim in the RFC-BPR-0104 ledger).
+
+| Commit | What |
+|---|---|
+| `80b63a805` | Counter and reservations synced from main (BPR-2100) |
+| `9c6e7811e`, `850bc3905`, `d98535a21`, `34122c7c0`, `54a1807df`; main `28d6a2cc7` | BPR-2092, 2093, 2094, 2051, 2014 Done; mirrored |
+| main `06e187baa` | BPR-2101 reserved and carded (Backlog): Insights disk use, workspace cleanup, cleanup by pull request state |
+| `cf8a9c12d` | Product candidate: picker toggles (Use scratch folder, Allow build and run tests) with tooltips; /model and /effort hints only where true; quiet setup state; Codex grant refused where it would replace the reviewer's profile or approval; Claude rules tightened (no direct-run or chmod, `Bash(*/..*)` denied); glob paths refused; picker and launch from one set of facts; build question re-checks the pull request; scratch limit a setting with a stop during a turn; unused folders removed after the kept days; Settings size and Clear; app pin resealed |
+| `b2edc1fa3`; main `0958234d7` | RFC-BPR-0104 amendments, ledger, BPR-2007 record, BPR-2009 checklist; mirrored. Frozen |
+| this commit | Live results in the ledger, BPR-2008 record, session, handoff |
+
+Critical review findings 1–8: dispositions in the
+[ledger](../../../verification/RFC-BPR-0104.md#dispositions). **A re-review of
+the grant fixes by an independent reviewer is owed** (AC07 stays pending).
+
+Runs: `core_agent_grant`, `application_agent_launch`,
+`application_agent_scratch_folder`, `application_agent_invocation_host`,
+`application_agent_setup_host`, `sqlite_agent_setup_storage`,
+`qt_agent_footer`, `qt_agent_setup_view`, `qt_settings_window`,
+`qt_agent_launch_panel`, `qt_agent_activity_view`,
+`qt_workbench_agent_send_refusal`, `core_agent_entry`, `core_agent_activity`,
+`application_agent_{chat,finding,invocation}_composition_contract`,
+`application_agent_chat_custom_agent_contract`,
+`application_composition_source_contract`,
+`application_review_round_trip_composition_contract`,
+`architecture_boundaries`, `test_network_isolation_manifest`; format check;
+clang-tidy on the changed sources (two pre-existing warnings left:
+`words_ink` naming in the picker, a concatenation at `agent_launch.cpp:1692`);
+documentation gate (lane and main). Live: Claude rule probes by hand and the
+`agent-scratch` course for Claude and Codex (all five probes refused, every
+workspace clean). Not run: the whole dev suite, the core-only preset.
+
+Rebuilt for these rows (not deleted): `live_second_account_course`,
+`better_pull_review_agent_{chat,finding,invocation}_composition_public_path`.
+Nothing deleted from `build/dev` this round (disk 50 GiB free).
+
+Filed, not waited on: Session `246ef52c2815c6c16b3aeb5dacc5a765`, state
+`/Users/jaeger/.attended-review-state/agent-grant-v002-2026-11-11/state`
+(URL in `../serve.log` beside it), cursor 9, host PID 89403 (Tailscale child
+89420). Frozen root `/Users/jaeger/agent-grant-v002.y_rhztpu` from
+`b2edc1fa3b56` (launcher check reached `ATTENDED_PULL_REQUEST_OPENED`; the
+looks `agent_footer --look` and `better_pull_review_qt_settings_window_tests
+--agents-roster-look` are in its build). Candidates, one question each, ready
+and protected: `BPR-2007-picker-toggles-v2`, `RFC-BPR-0104-scratch-settings`,
+`BPR-2051-footer-setup-quiet`. Native renders (Cocoa off screen, light and
+dark) are their media. Insights disk use has no candidate: it is BPR-2101,
+not built.
+
+Pending: the owner's three answers; an independent re-review of the grant
+fixes (AC07); BPR-2101 (Backlog). Next: read `246ef52c…` from cursor 9 after
+hand-back. Accept of the picker and the settings with a passing re-review
+finishes BPR-2007 (then ready, claim and finish BPR-2008, mirrored); the
+footer answer is recorded on BPR-2051 (Done; a Reject is a new card). Then
+stop host 89403 and remove the root with `freeze_attended_build.py remove`.
+Not touched: host 74692 (its Tailscale child 74706), PID 10695, BPR-Test #152
+and its `-next` branch, Tailscale serve 44738.
+
+Main mirror commits this round: `28d6a2cc7`, `06e187baa`, `0958234d7`, `fbf3c6be6`.
+
+## share-agent-prompts (2026-11-11)
+
+Milestone `share-agent-prompts` (RFC-BPR-0107, [[BPR-2016]], [[BPR-2017]],
+[[BPR-2018]]), same lane; nothing pushed. Frontend-design was loaded before
+the Qt work. Ledger: [RFC-BPR-0107](../../../verification/RFC-BPR-0107.md).
+Owner amendments in force as above, plus the owner's decision to export the
+shipped defaults too, recorded in the RFC with the nine recognized purposes and
+the written-against record.
+
+| Commit | What |
+|---|---|
+| `b827cd0db` | Counter and BPR-2102 reservation synced from main |
+| `f7bd397eb`, `985d3bf9d` | Ready and claim BPR-2016 |
+| `7ae9b389c` | Product candidate: core format and import decisions (glaze after `json_preflight`), `application::agent_configuration_host`, all-or-nothing store across `agent-setup.sqlite3` and the workbench settings (journal, recovery at profile start, `changed_since`), written-against record for hook overrides (Settings and `bpr` saves), Settings share row and both dialogs, `--attended-share-look` and its two composed checks, committed import fixture `tests/fixtures/agent-configuration/team-agents.bpr-config.json`, RFC owner decision and implementation record, app pin resealed (no grant change) |
+| `9be81a9c2` | Ledger. Frozen |
+| `4ef38b5c1`, `4213f98d8` | BPR-2016 record; Done (AC02, AC03, AC04, AC05, AC07) |
+| `fd3f112b9`, `61bd263de`, `6ef228058`, `677d7b0a3` | Ready, claim, record BPR-2017; parked `human-review` (AC01 pass, AC06 pending) |
+| `d9131f5ca` | BPR-2018 checklist filled; stays Backlog until BPR-2017 is Done |
+
+Runs: see the ledger (`core_agent_configuration`, `sqlite_agent_configuration_storage`,
+`qt_agent_configuration_dialogs` new; agent setup, review skill, workbench
+preferences and settings rows; composition source contract;
+`architecture_boundaries`; network-isolation manifest (new uncontained row
+added); format check; clang-tidy on the new sources). Composed courses through
+the real app, run by hand: sender `ATTENDED_SHARE_CHECKED`, recipient
+`ATTENDED_SHARE_RECEIVED` (ledger). Not run: whole dev suite, core-only preset,
+Windows and Linux.
+
+Filed, not waited on (URL in the session state's `../serve.log`): session
+`629d64c72746157219d2473892973d7f`, state
+`/Users/jaeger/.attended-review-state/share-agent-prompts-v001-2026-11-11/state`,
+cursor 9, host PID 76865 (Tailscale child 76875), three candidates, ready and
+protected: `BPR-2017-export-selection`, `BPR-2017-import-preview-bind`,
+`RFC-BPR-0107-default-prompt-round-trip`. Frozen root
+`/Users/jaeger/share-agent-prompts-v001.h9i51jwq` from `9be81a9c2141` (app
+SHA-256 `1088de08cc6a…`, launcher check reached `ATTENDED_SHARE_SHOWN:agents=2`).
+The import question names
+`/Users/jaeger/share-agent-prompts-v001.h9i51jwq/src/tests/fixtures/agent-configuration/team-agents.bpr-config.json`.
+
+Not touched: session `246ef52c…` (89403/89420, root
+`agent-grant-v002.y_rhztpu`), host 74692/74706, PID 10695, Tailscale 44738,
+BPR-Test #152 and its `-next` branch.
+
+Next: read `629d64c7…` from cursor 9 after hand-back. Accept of all three
+finishes BPR-2017 (AC06 macOS; record Windows and Linux as not run or run them
+on a station), then BPR-2018 closes RFC-BPR-0107 (ready, claim, finish,
+mirrored). A Reject goes to a fresh implementer. Then stop host 76865 and
+remove the root with `freeze_attended_build.py remove`. Known limit: another
+open window of the same profile can write its older agent list over an import
+(true of any agent edit today).

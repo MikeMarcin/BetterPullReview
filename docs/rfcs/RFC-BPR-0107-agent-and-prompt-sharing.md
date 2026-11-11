@@ -197,9 +197,83 @@ brief as `brief.comment_format.{source,version,text}`; the review skill
 
 Each built-in's digest is SHA-256 of its shipped text
 (`application::default_writing_hook_digest`). The review skill's purpose ID
-is this RFC's to assign. The store does not yet record which built-in version
-an override was written against, for any prompt; the exchange that names it
-in its preview (X24) adds that record with the import and export.
+is this RFC's to assign: `review.skill`, with built-in version
+`bpr-pr-review-vN` from the skill's `metadata.bpr-version`.
+
+The owner folded Enhance a comment and Enhance a note into one prompt,
+**Enhance writing** (`enhance.writing`, `enhance-writing-v1`, profile schema
+27), on 2026-11-10. So this version recognizes nine purposes: the review skill
+and eight writing hooks (`tour.problem`, `tour.solution`, `tour.outline`,
+`tour.stop-comment`, `review.feedback`, `enhance.tour-stop`,
+`enhance.writing`, `review.suggested-comment`). The retired IDs
+`enhance.comment` and `enhance.note` are read as `enhance.writing`. The
+earlier counts in this section, six, then nine with three Enhance prompts,
+then ten, describe the list as it was at each step.
+
+### Owner decision: export the shipped defaults too (2026-11-11)
+
+The owner asked: "Part of the export process will let me export all prompts
+so I can improve them agenticly with context from my org and import them back
+right?" The answer is yes, and it changes the selective export above:
+
+1. Export can include the **shipped default** of any recognized prompt, not
+   only the profile's overrides. Such an item is marked `"origin":
+   "built-in"` and carries its built-in version and SHA-256 digest. An edited
+   prompt is marked `"origin": "edited"` and carries the version it was
+   written against, when that is recorded. The sentence "A prompt the profile
+   has not overridden is the shipped text and is not an exportable item" no
+   longer holds.
+2. Importing an improved copy makes it the profile's override, written
+   against the version the file names. Restore default (Reset to built-in)
+   still brings the shipped text back. Importing text identical to the shipped
+   default leaves the prompt on the default instead of storing a copy of it.
+3. Every current purpose is recognized, as listed above.
+4. The store records which built-in version each override was written
+   against. A writing hook's record is kept beside the profile's agent setup
+   and is tied to the SHA-256 of the override's text, so an override changed
+   later by a path that did not record it reads as unrecorded rather than
+   wrongly dated. The review skill already recorded the version its copy came
+   from.
+
+## Implementation record (2026-11-11, [[BPR-2016]], [[BPR-2017]])
+
+- **Format and decisions in core.** `core/agent_configuration.hpp`: the
+  versioned file (`bpr.agent-configuration`, version 1, at most 1 MiB) read
+  and written with glaze after `json_preflight`, which refuses duplicate keys.
+  A field this version does not know refuses the whole file rather than being
+  dropped. Item problems (unsupported protocol or purpose, a portable ID or
+  purpose twice, values the agent or prompt validators refuse) are listed per
+  item. Portable IDs are slugs of the names. The program's location is
+  replaced by its file name as a binding hint; numeric IDs, identities, paths
+  and the profile's other agent settings are not in the format. The import
+  rules (relaxed checks and builds only when accepted for that entry, scratch
+  Off applied, popular agents strict, identity kept only when protocol,
+  program, arguments and strict checks are unchanged) are
+  `core::imported_entry` and `core::apply_agent_configuration`, which applies
+  all chosen items or none and checks the final list against the profile's
+  bounds.
+- **Host.** `application::agent_configuration_host` reads and writes the file
+  and the stores on the effect lane, mints identities and launches nothing.
+  `adapters::sqlite::make_agent_configuration_store` revalidates the stored
+  agents, review skill and hooks against the snapshot the preview was made
+  from (an edit through `bpr` or another window answers "changed since"), and
+  writes the two settings files all or nothing: the hooks it replaces are
+  journalled in `agent-setup.sqlite3` first, the agent list, review skill and
+  provenance commit together with the journal's removal, and a crash between
+  the files is undone at the next profile start before either is read.
+- **Settings.** The share row sits where the design record placed it, above
+  Remove every agent and set up again. Export configuration… lists every
+  agent and every prompt (edited ones chosen, shipped ones offered, Choose
+  every prompt), refuses a prompt with unsaved edits, and shows the exact file
+  text. Import configuration… shows each item with what importing it would do:
+  Add, Replace the entry it meets (every changed field and whether its
+  conversations stay continuable), Use an existing entry of the same kind, or
+  Leave out; Choose program… binds a custom agent; a prompt compares yours
+  with the file's and names the version it was written against and any skill
+  it names that is not installed.
+- **Scratch limit.** The scratch folder limit and keep days became profile
+  settings in RFC-BPR-0104's 2026-11-11 amendment, so like the run time limit
+  they are not exported. The two per-agent settings X17 names are.
 
 ## Acceptance criteria
 
@@ -213,6 +287,6 @@ in its preview (X24) adds that record with the import and export.
 
 ## Proposed delivery
 
-[Portable exchange](../issues/10-backlog/BPR-2016-portable-agent-and-prompt-configuration-exchange.md), [Settings flow](../issues/10-backlog/BPR-2017-selective-settings-import-and-export.md),
+[Portable exchange](../issues/60-done/BPR-2016-portable-agent-and-prompt-configuration-exchange.md), [Settings flow](../issues/40-parked/BPR-2017-selective-settings-import-and-export.md),
 and [closeout](../issues/10-backlog/BPR-2018-close-rfc-0107.md) form the first milestone in the
 [canonical plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). No later RFC is a prerequisite.
