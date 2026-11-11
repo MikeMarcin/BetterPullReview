@@ -227,7 +227,9 @@ auto main(int argc, char** argv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir data;
 	const auto    dataRoot = e2e::private_data_root(data);
-	if (!dataRoot) {
+	QTemporaryDir finishingData;
+	const auto    finishingRoot = e2e::private_data_root(finishingData);
+	if (!dataRoot || !finishingRoot) {
 		std::cerr << "review-submission-composition:fail private data root\n";
 		return EXIT_FAILURE;
 	}
@@ -236,10 +238,10 @@ auto main(int argc, char** argv) -> int
 	auto                        server = std::make_shared<app::detail::review_submission_fixture_state>();
 	server->CliStrictCourse            = cliMode;
 	auto make                          = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, bool aRepeatReads = false,
-											 bool aMergeBaseUnavailable = false, bool aViewerAuthors = false) {
+											 bool aMergeBaseUnavailable = false, bool aViewerAuthors = false, std::optional<std::filesystem::path> aDataRoot = std::nullopt) {
 		std::unique_ptr<app::github_application> started;
 		auto                                     startupTerminal = false;
-		auto                                     options         = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads };
+		auto                                     options         = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = aDataRoot ? aDataRoot : dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads };
 		options.MergeBaseUnavailable                             = aMergeBaseUnavailable;
 		options.ViewerAuthors                                    = aViewerAuthors;
 		cli.configure(options);
@@ -1268,7 +1270,9 @@ auto main(int argc, char** argv) -> int
 		// verdict's own choice, once GitHub confirms it; a refused review
 		// stays open with its draft.
 		// The pull request is read again when it reopens, so its read script replays.
-		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true);
+		// These finish-navigation cases are independent of the earlier
+		// off-hunk refusal, whose pending comment is deliberately retained.
+		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true, false, false, finishingRoot);
 		open(*application, cli);
 		{
 			auto& finishing = application->window();
@@ -1364,7 +1368,7 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1853]]. The signed-in account opened this pull request:
 		// Comment only, as on GitHub. Approve and
 		// Request changes are shown, off, and say why; nothing sends them.
-		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, false, false, true);
+		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, false, false, true, finishingRoot);
 		open(*application, cli);
 		{
 			auto&       own     = *application->window().review_submission_editor_view();
