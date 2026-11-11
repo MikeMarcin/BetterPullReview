@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2058",
+    "BPR-2059"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Draft all suggested comments; suggested comment formatting and prompt",
+  "created": "2026-11-11T01:26:30.605305+00:00",
+  "base": "86653eacdc46bea300934805b6bc1da3067410d0"
+}

@@ -120,3 +120,10 @@ reads BPR-2056; the lane's counter follows it. Nothing collides.
 Main then recorded BPR-2056 and reserved BPR-2057 (`86653eacd`) and reads
 BPR-2058; the lane's counter follows it in the critical-review round. Nothing
 is imported and nothing collides.
+
+The owner feature round on suggested comments (2026-11-10) allocated BPR-2058
+and BPR-2059 against main the same way: the allocator ran in the main checkout
+at `86653eacd` (counter BPR-2058), its counter and receipt
+`docs/issues/_reservations/BPR-2058--BPR-2059--bd1353aea511.json` moved to
+this lane and the main checkout restored. The lane's counter reads BPR-2060;
+main's reads BPR-2058 until this lane integrates. Nothing collides.
