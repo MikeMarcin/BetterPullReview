@@ -3048,7 +3048,9 @@ namespace bpr::qt {
 				++count;
 			}
 		}
-		needed += AskRow->spacing() * std::max(0, count - 1) + run_settings_gap;
+		// The scope-to-picker gap includes its ordinary layout spacing.
+		const auto rowSpacing = AskRow->spacing();
+		needed += rowSpacing * std::max(0, count - 1) + std::max(0, run_settings_gap - rowSpacing);
 		const auto wrap = RunSettings->isVisibleTo(Field) && needed > available;
 		if (wrap == RunSettingsWrapped) {
 			return;

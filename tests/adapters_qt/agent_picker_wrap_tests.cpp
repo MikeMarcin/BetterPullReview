@@ -155,6 +155,42 @@ namespace {
 		return std::max(aWidget.minimumWidth(), std::min(preferred, aWidget.maximumWidth()));
 	}
 
+	void test_total_gap_at_exact_row_width()
+	{
+		auto settings                = qt::default_appearance_settings();
+		settings.Mode                = core::appearance_mode::light;
+		auto                 profile = qt::appearance_profile{ settings };
+		qt::workbench_window window;
+		open_review(window, profile, 900U);
+		window.tray_tabs()->setCurrentIndex(3);
+		settle();
+		choose_agent(window);
+		auto* const agent  = window.agent_tab();
+		auto* const picker = agent->run_settings_button();
+		auto* const field  = picker->parentWidget();
+		auto* const scope  = window.side_chat()->scope_selector();
+		auto* const ask    = agent->ask_button();
+		expect(field != nullptr, "the exact-gap control has the question field");
+		auto* const context     = field->findChild<QToolButton*>(QStringLiteral("agentAddContext"));
+		auto* const suggestions = field->findChild<QToolButton*>(QStringLiteral("agentSuggestionsToggle"));
+		for (auto* const widget : { static_cast<QWidget*>(context), static_cast<QWidget*>(suggestions), static_cast<QWidget*>(scope), static_cast<QWidget*>(picker), static_cast<QWidget*>(ask) }) {
+			expect(widget != nullptr && widget->isVisibleTo(field), "all five controls participate at the exact gap boundary");
+			widget->setFixedWidth(effective_width(*widget));
+		}
+		settle();
+		const auto margins     = field->layout()->contentsMargins();
+		const auto required    = scope->mapTo(field, QPoint{ 0, 0 }).x() + effective_width(*scope) + 12 + effective_width(*picker) + 2 + effective_width(*ask);
+		const auto exactDrawer = window.conversations_drawer()->width() + required + margins.right() - field->width();
+		drag_drawer(window, exactDrawer);
+		expect(field->width() - margins.right() == required, "the control reaches the exact total twelve-pixel gap boundary");
+		expect(!agent->run_settings_wrapped(), "the picker shares a row that fits the total twelve-pixel gap exactly");
+		expect(in(*picker, *field).left() >= in(*scope, *field).right() + 12, "the exact boundary preserves the original twelve-pixel mapped gap");
+		drag_drawer(window, exactDrawer - 1);
+		expect(field->width() - margins.right() == required - 1, "the control reaches the adjacent non-fitting width");
+		expect(agent->run_settings_wrapped(), "one pixel less than the total gap boundary requires wrapping");
+		window.hide();
+	}
+
 	void test_an_explicit_minimum_is_not_lost()
 	{
 		auto                 profile = qt::appearance_profile{ qt::default_appearance_settings() };
@@ -291,6 +327,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_total_gap_at_exact_row_width();
 	test_an_explicit_minimum_is_not_lost();
 	test_the_picker_wraps_and_stays_whole();
 	std::cout << "agent-picker-wrap:pass\n";
