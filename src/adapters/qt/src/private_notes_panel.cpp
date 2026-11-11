@@ -3,6 +3,7 @@
 #include "bpr/core/revisioned_review_draft.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
@@ -296,7 +297,9 @@ namespace bpr::qt {
 		BackChip = back;
 		headerRow->addWidget(BackChip);
 		headerRow->addStretch(1);
-		NewReviewButton = new QToolButton{ ListHeader };
+		auto* const newReview = new quiet_tool_button{ ListHeader };
+		newReview->set_tinted(true);
+		NewReviewButton = newReview;
 		NewReviewButton->setObjectName(QStringLiteral("privateNotesNewReviewButton"));
 		NewReviewButton->setDefaultAction(NewReview);
 		NewReviewButton->setAutoRaise(true);
@@ -423,7 +426,9 @@ namespace bpr::qt {
 		foot->addWidget(DeleteButton);
 		// [[BPR-1773]]. Ask the agent about this note, with the Agent tab's
 		// own mark.
-		AskAgentButton = new QToolButton{ Card };
+		auto* const askAgent = new quiet_tool_button{ Card };
+		askAgent->set_tinted(true);
+		AskAgentButton = askAgent;
 		AskAgentButton->setObjectName(QStringLiteral("privateNoteAskAgent"));
 		AskAgentButton->setAutoRaise(true);
 		AskAgentButton->setIcon(drawer_icon(drawer_glyph::agent, palette()));

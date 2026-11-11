@@ -306,12 +306,16 @@ namespace bpr::qt {
 		ShowPart->setFlat(true);
 		ShowPart->setFocusPolicy(Qt::TabFocus);
 		top->addWidget(ShowPart, 0, Qt::AlignTop);
-		CopyChat = new QToolButton{ this };
+		auto* const copyChat = new quiet_tool_button{ this };
+		copyChat->set_tinted(true);
+		CopyChat = copyChat;
 		CopyChat->setObjectName(QStringLiteral("tourSideChatCopy"));
 		CopyChat->setAutoRaise(true);
 		CopyChat->setToolTip(tr("Copy this chat as text"));
 		CopyChat->setAccessibleName(tr("Copy chat"));
-		ClosePane = new QToolButton{ this };
+		auto* const closePane = new quiet_tool_button{ this };
+		closePane->set_tinted(true);
+		ClosePane = closePane;
 		ClosePane->setObjectName(QStringLiteral("tourSideChatClose"));
 		ClosePane->setAutoRaise(true);
 		ClosePane->setToolTip(tr("Close the chat. Every part's chat is kept; its glyph in the tour opens it again."));
@@ -394,7 +398,9 @@ namespace bpr::qt {
 		PassageLine->setObjectName(QStringLiteral("tourSideChatPassage"));
 		PassageLine->setTextFormat(Qt::PlainText);
 		PassageLine->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		ClearPassage = new QToolButton{ PassageRow };
+		auto* const clearPassage = new quiet_tool_button{ PassageRow };
+		clearPassage->set_tinted(true);
+		ClearPassage = clearPassage;
 		ClearPassage->setObjectName(QStringLiteral("tourSideChatPassageClear"));
 		ClearPassage->setAutoRaise(true);
 		ClearPassage->setToolTip(tr("Ask without this passage"));
@@ -1395,7 +1401,9 @@ namespace bpr::qt {
 				row->addWidget(ending, 1, Qt::AlignVCenter);
 				auto* copy = static_cast<QToolButton*>(nullptr);
 				if (actions.Copy) {
-					copy = new QToolButton{ answer };
+					auto* const quietCopy = new quiet_tool_button{ answer };
+					quietCopy->set_tinted(true);
+					copy = quietCopy;
 					copy->setObjectName(QStringLiteral("tourSideChatCopyReply"));
 					copy->setAutoRaise(true);
 					copy->setToolTip(answered ? tr("Copy this reply") : tr("Copy what went wrong"));

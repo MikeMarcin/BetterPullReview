@@ -1,5 +1,7 @@
 #include "bpr/qt/folder_list_editor.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include <QDir>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -103,7 +105,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto tool(QWidget* aParent, const QStyle::StandardPixmap aIcon, const QString& aName, const QString& aObjectName) -> QToolButton*
 		{
-			auto* const button = new QToolButton{ aParent };
+			auto* const button = new quiet_tool_button{ aParent };
 			button->setObjectName(aObjectName);
 			button->setIcon(aParent->style()->standardIcon(aIcon));
 			button->setToolTip(aName);

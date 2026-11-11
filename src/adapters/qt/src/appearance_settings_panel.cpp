@@ -2,6 +2,7 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/type_preview.hpp"
 
@@ -183,7 +184,9 @@ namespace bpr::qt {
 			const QString& aAccessibleName,
 			const QString& aObjectName) -> QPushButton*
 		{
-			auto* const button = new QPushButton{ aText, aParent };
+			// A flat quiet chip: its hover and press faces come from the
+			// palette, not the macOS style's bezel in the system's grey.
+			auto* const button = new quiet_push_button{ aText, aParent };
 			button->setObjectName(aObjectName);
 			button->setAccessibleName(aAccessibleName);
 			button->setFlat(true);

@@ -620,7 +620,7 @@ namespace bpr::qt {
 		ReadyTitle->setFont(bold);
 		ReadyTitle->setWordWrap(true);
 		readyTop->addWidget(ReadyTitle, 1);
-		auto* const dismiss = new QToolButton{ ReadyCard };
+		auto* const dismiss = new quiet_tool_button{ ReadyCard };
 		dismiss->setObjectName(QStringLiteral("agentReadyDismiss"));
 		dismiss->setAutoRaise(true);
 		dismiss->setText(QString{ QChar{ 0x2715 } });
@@ -770,6 +770,7 @@ namespace bpr::qt {
 		ConversationText->setWordWrap(true);
 		chipRow->addWidget(ConversationText, 1);
 		ConversationClose = make_drawer_tool(ConversationChip, drawer_icon(drawer_glyph::close, palette()), tr("Stop asking about this conversation"), QStringLiteral("agentConversationChipClose"));
+		ConversationClose->set_surface(QPalette::Base);
 		connect(ConversationClose, &QToolButton::clicked, this, [this] {
 			if (ConversationDismiss) {
 				ConversationDismiss();
@@ -802,6 +803,7 @@ namespace bpr::qt {
 		askRow->setSpacing(2);
 		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), Chat.add_context_action()->toolTip().isEmpty() ? tr("Add the lines selected in the code") : Chat.add_context_action()->toolTip(),
 								   QStringLiteral("agentAddContext"));
+		Context->set_surface(QPalette::Base);
 		connect(Context, &QToolButton::clicked, Chat.add_context_action(), &QAction::trigger);
 		askRow->addWidget(Context);
 		// Owner look v004 ("I would like the suggestions to come back where
@@ -810,6 +812,7 @@ namespace bpr::qt {
 		// prompts stay above the field, and this shows or hides them; the
 		// host keeps the choice.
 		SuggestionsMenu = make_drawer_tool(field, drawer_icon(drawer_glyph::agent, palette()), tr("Hide the suggested prompts"), QStringLiteral("agentSuggestionsToggle"));
+		SuggestionsMenu->set_surface(QPalette::Base);
 		SuggestionsMenu->setCheckable(true);
 		SuggestionsMenu->setChecked(true);
 		SuggestionsMenu->setAccessibleName(tr("Suggested prompts"));
@@ -1315,6 +1318,7 @@ namespace bpr::qt {
 		auto* const footerRow = new QHBoxLayout{ };
 		footerRow->setSpacing(2);
 		auto* const copy = make_drawer_tool(reply, drawer_icon(drawer_glyph::copy, palette()), tr("Copy the response as Markdown"), QStringLiteral("agentTurnCopy"));
+		copy->set_surface(QPalette::Base);
 		copy->hide();
 		footerRow->addWidget(copy);
 		// Save as note: the whole reply, or the part selected in it.

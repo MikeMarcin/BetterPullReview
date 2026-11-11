@@ -38,6 +38,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPoint>
+#include <QScopeGuard>
 #include <QStringList>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -831,9 +832,19 @@ namespace {
 	/// cancel out on every platform.
 	[[nodiscard]] auto mark_to_word_gap(QToolButton& aButton) -> qreal
 	{
-		const auto shown = aButton.grab().toImage();
-		const auto icon  = aButton.icon();
-		auto       blank = icon.pixmap(aButton.iconSize(), aButton.devicePixelRatioF());
+		// The menu's choices are quiet chips whose selected face and border
+		// are mixed toward their ink, so hiding the words would change the
+		// whole face of the chosen one. Each is measured unselected.
+		const auto checked = aButton.isChecked();
+		const auto blocked = aButton.blockSignals(true);
+		aButton.setChecked(false);
+		const auto restore = qScopeGuard([&aButton, checked, blocked] {
+			aButton.setChecked(checked);
+			aButton.blockSignals(blocked);
+		});
+		const auto shown   = aButton.grab().toImage();
+		const auto icon    = aButton.icon();
+		auto       blank   = icon.pixmap(aButton.iconSize(), aButton.devicePixelRatioF());
 		blank.fill(Qt::transparent);
 		aButton.setIcon(QIcon{ blank });
 		const auto noMark = aButton.grab().toImage();

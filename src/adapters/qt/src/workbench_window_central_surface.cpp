@@ -987,7 +987,9 @@ namespace bpr::qt {
 		commentsLayout->setContentsMargins(0, 0, 0, 0);
 		// [[BPR-1290]]. Next new reply sits on the tab row with the filters;
 		// the defect queue's row shows only while there are defects.
-		NextNewCommentButton = new QToolButton{ commentsContents };
+		auto* const nextNewComment = new quiet_tool_button{ commentsContents };
+		nextNewComment->set_tinted(true);
+		NextNewCommentButton = nextNewComment;
 		NextNewCommentButton->setObjectName(QStringLiteral("workbenchNextNewCommentButton"));
 		NextNewCommentButton->setDefaultAction(NextNewCommentAction);
 		NextNewCommentButton->setToolButtonStyle(Qt::ToolButtonIconOnly);

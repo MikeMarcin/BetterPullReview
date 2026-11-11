@@ -9,6 +9,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
 #include <QAbstractTextDocumentLayout>
@@ -393,7 +394,7 @@ namespace bpr::qt {
 		FocusText->setObjectName(QStringLiteral("tourFocusText"));
 		FocusText->setTextFormat(Qt::PlainText);
 		chipRow->addWidget(FocusText);
-		FocusClear = new QToolButton{ FocusChip };
+		FocusClear = new quiet_tool_button{ FocusChip };
 		FocusClear->setObjectName(QStringLiteral("tourFocusClear"));
 		FocusClear->setAutoRaise(true);
 		FocusClear->setText(QStringLiteral("×"));

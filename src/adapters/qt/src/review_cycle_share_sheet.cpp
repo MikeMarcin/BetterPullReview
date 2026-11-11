@@ -7,6 +7,7 @@
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/review_cycle_share_marks.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 
@@ -1127,7 +1128,7 @@ namespace bpr::qt {
 		NotesHeading->setFont(sectionFont);
 		NotesHeading->setToolTip(QStringLiteral("In the order they will be read"));
 		notesHeader->addWidget(NotesHeading, 1);
-		AllCode = new QToolButton{ this };
+		AllCode = new quiet_tool_button{ this };
 		AllCode->setObjectName(QStringLiteral("cycleShareAllCode"));
 		AllCode->setText(QStringLiteral("Show All Changes"));
 		AllCode->setAutoRaise(true);

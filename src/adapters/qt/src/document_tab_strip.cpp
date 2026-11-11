@@ -1,5 +1,7 @@
 #include "bpr/qt/document_tab_strip.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include <QAction>
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -182,7 +184,7 @@ namespace bpr::qt {
 		Scroll->setWidget(Bar);
 		layout->addWidget(Scroll, 1);
 
-		NewTab = new QToolButton{ this };
+		NewTab = new quiet_tool_button{ this };
 		NewTab->setObjectName(QStringLiteral("documentTabNew"));
 		NewTab->setAutoRaise(true);
 		NewTab->setText(QStringLiteral("+"));
