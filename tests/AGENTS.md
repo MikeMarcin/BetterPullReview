@@ -22,6 +22,14 @@ Tests are direct evidence, not naming evidence.
   uses Qt's basic Windows style to avoid the offscreen Fusion cached-painter
   fault; native-style UX remains a separate target-native gate.
 - End-to-end tests use the real composition root.
+- The one course that writes to live GitHub is
+  `tests/end_to_end/live_session_course.py` (RFC-BPR-0099 AC08, RFC-BPR-0105
+  AC08). It is run by hand, opt-in, and never registered as a ctest row. Its
+  tests-enabled composition sets `DesignatedLivePublication`, which composes
+  the shipped publishing connection only for MikeMarcin/BPR-Test, and writes
+  only through the window's own Publish and Approve with the grant those
+  gestures issue. It makes, and with `--cleanup` closes, its own disposable
+  pull requests.
 - A scratch root in the system temporary directory is made by the test at a
   random name, only if nothing is at that name, owner-private, and removed
   only by the test that made it: `mkdtemp`, `QTemporaryDir`, the SQLite

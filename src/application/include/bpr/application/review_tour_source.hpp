@@ -20,6 +20,24 @@ namespace bpr::application {
 	};
 	[[nodiscard]] auto materialize_tour_source_comparison(epoch_application_host&, diff_line_matcher_port&,
 														  const workbench_selected_diff_request&, std::stop_token) -> std::optional<tour_source_comparison>;
+	/// \brief One whole file at one commit, read as a pinned source.
+	struct tour_pinned_file
+	{
+		core::git_blob_oid        Blob;
+		std::string               Path;
+		std::vector<std::uint8_t> Bytes;
+	};
+	/// \brief Reads `aRequest`'s file at its identical-commit pair, which the
+	/// decision lane authorized just before (`review_tour_source_context`).
+	/// \details RFC-BPR-0099 AC08. A sparse review (a live pull request read
+	/// through `gh`) holds no blob it was not asked for, and an ordinary blob
+	/// read of a comparison between two heads has no grant to fetch one, so a
+	/// tour's repair and acceptance checks read each side as a pinned source,
+	/// as a stop's excerpt does. At most 256 KiB; runs on a source worker.
+	[[nodiscard]] auto materialize_pinned_tour_file(epoch_application_host&, const workbench_selected_diff_request&, std::stop_token) -> std::optional<tour_pinned_file>;
+	/// \brief Compares two pinned files read at the two commits of
+	/// `aComparison` (a realignment context between them) for `aFile`.
+	[[nodiscard]] auto compare_tour_source_files(diff_line_matcher_port&, const workbench_selected_diff_request& aComparison, const tour_pinned_file& aLeft, const tour_pinned_file& aRight, std::stop_token) -> std::optional<tour_source_comparison>;
 	/// Decision-lane admission of one pinned commit, including a file absent on the other PR side.
 	[[nodiscard]] auto review_tour_source_context(epoch_application_host&, const workbench_pull_request_authority&, const core::tour_code_destination&) -> std::optional<workbench_selected_diff_context>;
 	struct review_tour_source_material

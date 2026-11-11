@@ -214,8 +214,17 @@ namespace bpr::app {
 		auto& reviewDecisions = DecisionLane;
 #endif
 #if defined(BPR_BUILD_TESTING)
+		// RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. The agent-run live course
+		// issues the same one-use grant the gesture issues in a shipped build
+		// (five minutes, this request), and only for BPR-Test.
 		review_submission_workflow::grant_factory issueReviewGrant = [this](auto aSession, auto aGeneration, const auto& aRequest) {
-			return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aRequest) : application::review_submission_execution_grant{ };
+			if (Fixture) {
+				return application::make_review_submission_testing_grant(aSession, aGeneration, aRequest);
+			}
+			if (DesignatedLivePublication && aRequest.LiveBinding && designated_live_publication_target(aRequest.LiveBinding->Target)) {
+				return application::make_review_submission_testing_grant(aSession, aGeneration, aRequest, std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+			}
+			return application::review_submission_execution_grant{ };
 		};
 #else
 		review_submission_workflow::grant_factory issueReviewGrant = [](auto session, auto generation, const application::review_submission_request& request) { return application::detail::review_submission_user_authority_issuer::issue(session, generation, request); };
@@ -227,7 +236,13 @@ namespace bpr::app {
 																		[] { return std::make_unique<worker_executor>(); }, DiagnosticLog);
 #if defined(BPR_BUILD_TESTING)
 		review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {
-			return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aPlan) : application::review_submission_execution_grant{ };
+			if (Fixture) {
+				return application::make_review_submission_testing_grant(aSession, aGeneration, aPlan);
+			}
+			if (DesignatedLivePublication && aPlan.Submission.LiveBinding && designated_live_publication_target(aPlan.Submission.LiveBinding->Target)) {
+				return application::make_review_submission_testing_grant(aSession, aGeneration, aPlan, std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+			}
+			return application::review_submission_execution_grant{ };
 		};
 #else
 		review_tour_publication_workflow::grant_factory issueTourGrant = [](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {

@@ -1,3 +1,18 @@
+# RFC-BPR-0099 AC08, RFC-BPR-0105 AC08 reseal: the agent-run live course.
+# github_application_config gains DesignatedLivePublication, read only by a
+# tests-enabled build without a fixture. There, and only for github.com
+# MikeMarcin/BPR-Test (designated_live_publication_target: name and
+# repository ID), window_review_drafts.cpp composes the shipped live review
+# submission provider over the window's mutation lease, and
+# window_construction.cpp's review and tour grant factories issue the same
+# one-use, five-minute grant the Submit or Publish gesture issues in a
+# shipped build. The tests-disabled branch is the same code moved into a
+# shared lambda; its provider, lease check, grant issuer and messages are
+# unchanged. window_tours.cpp reads a tour's repair and acceptance
+# comparisons between two heads as two pinned-source reads (each side's
+# identical-commit pair granted on the decision lane just before its read):
+# a sparse review had no grant to fetch either blob. The mutation-branch pin
+# is unchanged.
 # [[BPR-1943]] fixture-input reseal: the tests-only roundtrip waits for
 # current publication/display/private readiness before its unchanged off-hunk
 # gesture. One test-state bool keeps the existing Review choice once while
@@ -3490,7 +3505,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# and adds a writing-kind source). No grant, admission or publication
 	# boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "7b0f932bd0c963c4132f2487e976cc7c3483e116d12b0e6a4dbafa0ee2f8ef8b"
+        "5a9db27af04ac5a3f0cae13d29ebf34a58aadf7df282a83e264b53b66fcb962b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -135,6 +135,9 @@ namespace bpr::app {
 		// the gate this exists for selects no fixture: it drives the
 		// shipped composition and only wants the connect denied.
 		NetworkDenied = aConfig.NetworkDenied;
+		// RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. Never with a fixture: the
+		// fixture's own server answers its writes.
+		DesignatedLivePublication = aConfig.DesignatedLivePublication && !aFixture.has_value();
 		// [[BPR-0797]]. Decided here for the same reason: the marker
 		// answers a question that has nothing to do with which fixture
 		// this run selected. A selected fixture answers it too, on its

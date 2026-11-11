@@ -548,14 +548,19 @@ namespace bpr::app {
 		std::optional<core::tour_code_destination>                       PendingTourSource;
 		/// [[BPR-1227]]. Source reads a forwarded `bpr tour` command has on the diff lane. Counted and
 		/// atomic because the worker ends its read; shutdown stops them and waits for none.
-		std::atomic_size_t                                       TourSourceReadsInFlight{ 0U };
-		std::stop_source                                         TourSourceStop;
-		auto                                                     selected_tour_source() const -> std::optional<core::tour_source_range>;
-		auto                                                     current_tour_attention() const -> core::tour_attention;
-		void                                                     observe_tour_visit();
-		void                                                     observe_tour_comparison();
-		void                                                     prepare_tour_repairs();
-		void                                                     read_next_tour_repair();
+		std::atomic_size_t TourSourceReadsInFlight{ 0U };
+		std::stop_source   TourSourceStop;
+		auto               selected_tour_source() const -> std::optional<core::tour_source_range>;
+		auto               current_tour_attention() const -> core::tour_attention;
+		void               observe_tour_visit();
+		void               observe_tour_comparison();
+		void               prepare_tour_repairs();
+		void               read_next_tour_repair();
+		/// RFC-BPR-0099 AC08. Reads both sides of one tour comparison between
+		/// two commits as pinned sources, each granted on the decision lane
+		/// just before its read, and answers there. A sparse review has no
+		/// grant to fetch a blob for a comparison between two heads.
+		void                                                     read_tour_comparison(application::workbench_selected_diff_request aComparison, std::function<void(std::optional<application::tour_source_comparison>)> aDone);
 		std::shared_ptr<const core::review_tour>                 TourRepairDraft;
 		std::deque<application::workbench_selected_diff_request> TourRepairRequests;
 		void                                                     dispatch_tour_repair(core::tour_stop_id, qt::tour_repair_action);
@@ -1799,6 +1804,8 @@ namespace bpr::app {
 		// [[BPR-0515]]. Whether this run composes its device wire against the
 		// closed loopback port rather than the discovered system proxy.
 		decltype(github_profile_runtime::NetworkDenied)& NetworkDenied = Profile->NetworkDenied;
+		// The agent-run live course's publication to BPR-Test only.
+		decltype(github_profile_runtime::DesignatedLivePublication)& DesignatedLivePublication = Profile->DesignatedLivePublication;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		// RFC-BPR-0017 courses. The first forces the shipped selection

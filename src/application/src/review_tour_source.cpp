@@ -19,23 +19,62 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		const core::diff_request_context context{ aRequest.Context.Request, diff.ApplicationSession, key, aRequest.Context.Generation };
-		auto                             read = [&](core::diff_side aSide, core::git_blob_oid aBlob) -> std::optional<std::vector<std::uint8_t>> {
+		auto                             read = [&](core::diff_side aSide, core::git_blob_oid aBlob, const std::filesystem::path& aPath) -> std::optional<tour_pinned_file> {
 			const diff_blob_request request{ .Context = context, .Side = aSide, .Blob = aBlob, .MaximumBytes = 256U * 1024U };
 			auto                    material = aEpoch.materialize(request, aStop);
 			if (material.Status != diff_blob_status::available || material.Context != context || material.Side != aSide
 				|| material.Blob != aBlob || material.Bytes.size() > request.MaximumBytes || aStop.stop_requested()) {
 				return std::nullopt;
 			}
-			return std::move(material.Bytes);
+			const auto path = aPath.generic_u8string();
+			return tour_pinned_file{ aBlob, std::string{ path.begin(), path.end() }, std::move(material.Bytes) };
 		};
-		const auto left  = read(core::diff_side::left, *resolved.LeftBlob);
-		const auto right = read(core::diff_side::right, *resolved.RightBlob);
+		const auto left  = read(core::diff_side::left, *resolved.LeftBlob, *resolved.LeftPath);
+		const auto right = read(core::diff_side::right, *resolved.RightBlob, *resolved.RightPath);
 		if (!left || !right) {
+			return std::nullopt;
+		}
+		return compare_tour_source_files(aMatcher, aRequest, *left, *right, aStop);
+	}
+
+	auto materialize_pinned_tour_file(epoch_application_host& aEpoch, const workbench_selected_diff_request& aRequest, std::stop_token aStop) -> std::optional<tour_pinned_file>
+	{
+		const auto& diff = aRequest.Diff;
+		if (aStop.stop_requested() || diff.Comparison.Left.Commit != diff.Comparison.Right.Commit) {
+			return std::nullopt;
+		}
+		const auto resolved = aEpoch.resolve(aRequest, aStop);
+		if (aStop.stop_requested() || resolved.Request != aRequest || resolved.Status != workbench_selected_diff_status::available
+			|| !resolved.RightBlob || !resolved.RightPath || !resolved.RightEndpoint
+			|| !valid(*resolved.RightEndpoint, aRequest, core::diff_side::right, *resolved.RightBlob, *resolved.RightPath)) {
+			return std::nullopt;
+		}
+		const core::file_comparison_key key{ diff.Authority, diff.Authority.Repository, diff.Authority.PullRequest, diff.Comparison.Left.Identity, diff.Comparison.Right.Identity, resolved.LeftBlob, resolved.RightBlob, aRequest.File.File, diff.OptionsDigest, diff.Algorithm, std::nullopt };
+		if (!core::valid(key)) {
+			return std::nullopt;
+		}
+		const diff_blob_request request{ .Context = { aRequest.Context.Request, diff.ApplicationSession, key, aRequest.Context.Generation }, .Side = core::diff_side::right, .Blob = *resolved.RightBlob, .MaximumBytes = 256U * 1024U };
+		auto                    material = aEpoch.materialize_pinned_source_blob(resolved, request, aStop);
+		if (aStop.stop_requested() || material.Status != diff_blob_status::available || material.Context != request.Context || material.Side != request.Side
+			|| material.Blob != request.Blob || material.Bytes.size() > request.MaximumBytes) {
+			return std::nullopt;
+		}
+		const auto path = resolved.RightPath->generic_u8string();
+		return tour_pinned_file{ *resolved.RightBlob, std::string{ path.begin(), path.end() }, std::move(material.Bytes) };
+	}
+
+	auto compare_tour_source_files(diff_line_matcher_port& aMatcher, const workbench_selected_diff_request& aComparison, const tour_pinned_file& aLeft, const tour_pinned_file& aRight, std::stop_token aStop) -> std::optional<tour_source_comparison>
+	{
+		const auto&                     diff = aComparison.Diff;
+		const core::file_comparison_key key{ diff.Authority, diff.Authority.Repository, diff.Authority.PullRequest,
+											 diff.Comparison.Left.Identity, diff.Comparison.Right.Identity, aLeft.Blob, aRight.Blob,
+											 aComparison.File.File, diff.OptionsDigest, diff.Algorithm, std::nullopt };
+		if (aStop.stop_requested() || !core::valid(key)) {
 			return std::nullopt;
 		}
 		auto limits                = core::diff_compute_limits{ };
 		limits.MaximumBytesPerSide = 256U * 1024U;
-		const core::diff_compute_input input{ .Key = key, .Options = diff.Options, .LeftBytes = std::span<const std::uint8_t>{ *left }, .RightBytes = std::span<const std::uint8_t>{ *right }, .Limits = limits };
+		const core::diff_compute_input input{ .Key = key, .Options = diff.Options, .LeftBytes = std::span<const std::uint8_t>{ aLeft.Bytes }, .RightBytes = std::span<const std::uint8_t>{ aRight.Bytes }, .Limits = limits };
 		auto                           stop     = stop_token_check{ aStop };
 		auto                           matching = diff_line_matching{ aMatcher };
 		auto                           computed = core::compute_file_diff(input, { .Stop = &stop }, matching);
@@ -46,10 +85,9 @@ namespace bpr::application {
 		if (!index || aStop.stop_requested()) {
 			return std::nullopt;
 		}
-		const auto lpath = resolved.LeftPath->generic_u8string(), rpath = resolved.RightPath->generic_u8string();
 		return tour_source_comparison{ std::move(*index),
-									   { diff.Comparison.Left.Commit, resolved.LeftBlob, std::string{ lpath.begin(), lpath.end() }, core::diff_side::left, 0U, 0U },
-									   { diff.Comparison.Right.Commit, resolved.RightBlob, std::string{ rpath.begin(), rpath.end() }, core::diff_side::right, 0U, 0U } };
+									   { diff.Comparison.Left.Commit, aLeft.Blob, aLeft.Path, core::diff_side::left, 0U, 0U },
+									   { diff.Comparison.Right.Commit, aRight.Blob, aRight.Path, core::diff_side::right, 0U, 0U } };
 	}
 	auto review_tour_source_context(epoch_application_host& aEpoch, const workbench_pull_request_authority& aAuthority, const core::tour_code_destination& aSource) -> std::optional<workbench_selected_diff_context>
 	{

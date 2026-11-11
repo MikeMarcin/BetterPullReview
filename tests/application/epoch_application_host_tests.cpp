@@ -5996,6 +5996,73 @@ namespace {
 		}
 	}
 
+	/// RFC-BPR-0099 AC08. A tour's repair and acceptance checks compare a
+	/// stop's file between two heads of a sparse review. An ordinary blob
+	/// read of that comparison has no grant to fetch a blob the cache lacks
+	/// (the live course on BPR-Test never compared a stop after a push); each
+	/// side read as a pinned source, granted just before its read, is.
+	void tour_comparison_reads_sparse_heads_as_pinned_sources()
+	{
+		fixture value;
+		value.State.SupportsSparse = true;
+		value.State.SparseObjects  = true;
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		value.State.CachedBlobMissing = true;
+		const auto blob               = sha1_blob("exact selected blob");
+		const auto on_worker          = [&](const auto& aWork) {
+			auto done = std::atomic_bool{ false };
+			{
+				auto worker = std::jthread{ [&] {
+					aWork();
+					done.store(true);
+				} };
+				while (!done.load()) {
+					if (value.Effects.pending() != 0U) {
+						value.Effects.run_next();
+					} else {
+						std::this_thread::yield();
+					}
+				}
+			}
+		};
+		auto       comparison = file_request(value, "pinned.cpp");
+		const auto authority  = comparison.WorkbenchAuthority;
+		// The stop's earlier head against the current one: a pair that is not
+		// the accepted comparison (here its two commits the other way round).
+		const auto left       = comparison.Diff.Comparison.Right.Commit;
+		const auto right      = comparison.Diff.Comparison.Left.Commit;
+		const auto leftEpoch  = comparison.Diff.Comparison.Left.Identity.Epoch;
+		const auto rightEpoch = comparison.Diff.Comparison.Right.Identity.Epoch;
+		const auto between    = value.Host->realignment_context(authority, { authority.Host, authority.Repository, authority.PullRequest, left, right, leftEpoch, rightEpoch });
+		expect(between.has_value(), "the comparison between the two heads is authorized");
+		comparison.Diff = *between;
+		value.State.TreeEntryResults.emplace_back(blob);
+		value.State.TreeEntryResults.emplace_back(blob);
+		auto ordinary = std::optional<application::tour_source_comparison>{ };
+		on_worker([&] { ordinary = application::materialize_tour_source_comparison(*value.Host, *bpr::tests::product_line_matcher(), comparison, { }); });
+		expect(!ordinary, "an ordinary read between two heads compares nothing");
+		expect(value.State.ExactBlobRequests.empty(), "an ordinary read between two heads fetches no blob the sparse cache lacks");
+
+		auto pinned = std::array<std::optional<application::tour_pinned_file>, 2U>{ };
+		for (const auto side : { 0U, 1U }) {
+			const auto commit  = side == 0U ? left : right;
+			const auto context = value.Host->realignment_context(authority, { authority.Host, authority.Repository, authority.PullRequest, commit, commit, leftEpoch, rightEpoch });
+			expect(context.has_value(), "each side's identical-commit pair is authorized before its read");
+			auto request        = comparison;
+			request.Diff        = *context;
+			request.File.Change = application::workbench_file_change_kind::unchanged;
+			value.State.TreeEntryResults.emplace_back(blob);
+			value.State.TreeEntryResults.emplace_back(blob);
+			on_worker([&] { pinned[side] = application::materialize_pinned_tour_file(*value.Host, request, { }); });
+			expect(pinned[side] && pinned[side]->Blob == blob && pinned[side]->Path == "pinned.cpp", "each side is read as a pinned source");
+		}
+		// Both sides hold the same blob here; the second may be the first's retained bytes.
+		expect(!value.State.ExactBlobRequests.empty(), "the pinned reads fetch the blob the sparse cache lacks");
+		const auto compared = application::compare_tour_source_files(*bpr::tests::product_line_matcher(), comparison, *pinned[0], *pinned[1], { });
+		expect(compared && compared->Left.Commit == left && compared->Right.Commit == right && compared->Left.Path == "pinned.cpp" && compared->Right.Blob == blob,
+			   "the two pinned files compare between the two heads");
+	}
+
 	/// [[BPR-1377]]. Pinned reads carry sealed endpoint proof for this call only.
 	void pinned_source_sparse_read_does_not_grant_ordinary_blob_reads()
 	{
@@ -10202,6 +10269,7 @@ int main(int argc, char** argv)
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
 	selected_blob_reads_only_the_exact_missing_object();
 	tour_source_materializes_sparse_tree_without_selected_file();
+	tour_comparison_reads_sparse_heads_as_pinned_sources();
 	pinned_source_sparse_read_does_not_grant_ordinary_blob_reads();
 	prepared_files_read_their_missing_blobs_in_one_batch();
 	preparation_jobs_are_counted_apart_from_the_reviewers();

@@ -86,6 +86,13 @@ namespace bpr::app {
 		const bool                                        aAdmitClosed = false)
 		-> std::optional<designated_review_mutation_selection>;
 #if defined(BPR_BUILD_TESTING)
+	/// RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. Whether a tests-enabled
+	/// composition's agent-run live course may publish to this target: only
+	/// github.com MikeMarcin/BPR-Test, by name and repository identity. Any
+	/// pull request there qualifies, so a course can open its own.
+	[[nodiscard]] auto designated_live_publication_target(
+		const application::review_mutation_target_binding& aTarget) -> bool;
+
 	/// Holds decision posts for deterministic fixture races.
 	class gated_review_mutation_decision_executor final
 		: public application::decision_executor

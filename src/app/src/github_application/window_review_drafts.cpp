@@ -21,9 +21,7 @@
 
 #include <algorithm>
 
-#if !defined(BPR_BUILD_TESTING)
-	#include "live_review_submission_provider.hpp"
-#endif
+#include "live_review_submission_provider.hpp"
 #if defined(BPR_BUILD_TESTING)
 	#include "review_submission_fixture.hpp"
 #endif
@@ -41,7 +39,7 @@ namespace bpr::app {
 			return;
 		}
 #if defined(BPR_BUILD_TESTING)
-		if (!Fixture) {
+		if (!Fixture && !DesignatedLivePublication) {
 			ReviewSubmission->invalidate(QStringLiteral("This window is read-only. Open a fixture to try review composition, or use a configured publishing build for your pull request."));
 			if (TourPublication) {
 				TourPublication->invalidate();
@@ -70,38 +68,64 @@ namespace bpr::app {
 		auto configuration = adapters::sqlite::review_mutation_recovery_configuration{
 			.StorageRoot = ApplicationDataRoot, .Host = std::string{ binding.Target.Hostname.value() }, .Account = std::to_string(binding.ActingIdentity.Account.value()), .Repository = binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name, .PullRequest = static_cast<std::int64_t>(binding.Target.Number.value())
 		};
-#if defined(BPR_BUILD_TESTING)
-		auto factory = [configuration, binding, server = ReviewSubmissionServer]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
-			auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
-			if (!store) {
-				return std::unexpected(application::review_mutation_failure::unavailable);
-			}
-			return detail::make_review_submission_fixture_provider(server, std::move(*store), binding);
-		};
-#else
-		auto acceptedLease = WindowRead->mutation_transport();
-		if (!acceptedLease) {
-			ReviewSubmission->invalidate(QStringLiteral("This window is read-only because no publishing connection is available. Connect an account with access, then reopen the pull request."));
+		const auto invalidate_all = [this](const QString& aWhy) {
+			ReviewSubmission->invalidate(aWhy);
 			if (TourPublication) {
 				TourPublication->invalidate();
 				if (ConversationReply) {
 					ConversationReply->invalidate();
 				}
 			}
+		};
+		// The shipped publishing connection. A tests-enabled build composes it
+		// only for the agent-run live course, and only for BPR-Test.
+		const auto live_factory = [&]() -> std::optional<application::review_submission_provider_factory> {
+			auto acceptedLease = WindowRead->mutation_transport();
+			if (!acceptedLease) {
+				invalidate_all(QStringLiteral("This window is read-only because no publishing connection is available. Connect an account with access, then reopen the pull request."));
+				return std::nullopt;
+			}
+			// [[BPR-1540]]. Why a submission stays unknown reaches the diagnostics log.
+			return application::review_submission_provider_factory{ [configuration, binding, lease = std::move(acceptedLease), log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+				if (!store) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
+				}
+				auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store), log);
+				if (!provider) {
+					return std::unexpected(provider.error());
+				}
+				return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
+			} };
+		};
+#if defined(BPR_BUILD_TESTING)
+		const auto designatedLive = !Fixture && DesignatedLivePublication;
+		if (designatedLive && !designated_live_publication_target(binding.Target)) {
+			invalidate_all(QStringLiteral("This test build publishes only to MikeMarcin/BPR-Test. Open a pull request there to publish."));
 			return;
 		}
-		// [[BPR-1540]]. Why a submission stays unknown reaches the diagnostics log.
-		auto factory = [configuration, binding, lease = std::move(acceptedLease), log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
-			auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
-			if (!store) {
-				return std::unexpected(application::review_mutation_failure::unavailable);
+		auto factory = application::review_submission_provider_factory{ };
+		if (designatedLive) {
+			auto live = live_factory();
+			if (!live) {
+				return;
 			}
-			auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store), log);
-			if (!provider) {
-				return std::unexpected(provider.error());
-			}
-			return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
-		};
+			factory = std::move(*live);
+		} else {
+			factory = [configuration, binding, server = ReviewSubmissionServer]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+				if (!store) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
+				}
+				return detail::make_review_submission_fixture_provider(server, std::move(*store), binding);
+			};
+		}
+#else
+		auto live = live_factory();
+		if (!live) {
+			return;
+		}
+		auto factory = std::move(*live);
 #endif
 		if (TourPublication) {
 #if defined(BPR_BUILD_TESTING)
@@ -118,10 +142,18 @@ namespace bpr::app {
 				}
 				return detail::make_staged_review_fixture_provider(server, std::move(*store), binding, description, log);
 			};
-			if (ConversationReply) {
-				ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, tourFactory, insights_capture(aHandoff));
+			if (designatedLive) {
+				// As a shipped build: the publishing connection, qualified.
+				if (ConversationReply) {
+					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, factory, insights_capture(aHandoff));
+				}
+				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body, true, insights_capture(aHandoff));
+			} else {
+				if (ConversationReply) {
+					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, tourFactory, insights_capture(aHandoff));
+				}
+				TourPublication->adopt(binding, workbench_authority(aHandoff), tourFactory, WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified, insights_capture(aHandoff));
 			}
-			TourPublication->adopt(binding, workbench_authority(aHandoff), tourFactory, WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified, insights_capture(aHandoff));
 #else
 			// [[BPR-1222]]. Live publication is on (owner amendment 2026-10-09);
 			// Publish still asks the write confirmation and spends a one-use grant.

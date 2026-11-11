@@ -83,9 +83,18 @@ namespace bpr::app {
 		/// included by a target that links the composition without defining
 		/// the guard, and a conditionally-sized record passed by value across
 		/// that seam would disagree about its own layout.
-		bool                        NetworkDenied       = false;
-		core::bpr_profile_id        Profile             = core::default_bpr_profile_id;
-		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
+		bool NetworkDenied = false;
+		/// RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. The agent-run live course:
+		/// a tests-enabled composition with no fixture may publish, and only
+		/// to github.com MikeMarcin/BPR-Test (repository 1328277631). Every
+		/// write still waits for the window's own Publish or Submit, its
+		/// write confirmation and the one-use grant that gesture issues; the
+		/// core and host checks are the shipped ones. Read only by a
+		/// tests-enabled build (the field stays outside the guard for the
+		/// reason `NetworkDenied` gives); nothing in a shipped binary sets it.
+		bool                        DesignatedLivePublication = false;
+		core::bpr_profile_id        Profile                   = core::default_bpr_profile_id;
+		core::profile_launch_intent ProfileLaunchIntent       = core::profile_launch_intent::activate;
 		/// [[BPR-1602]]. A confirmed reset of this profile's local data, run once
 		/// under the runtime lease after recovery and before any store opens.
 		std::optional<core::profile_data_reset_request> DataReset;

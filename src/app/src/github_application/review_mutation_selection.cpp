@@ -173,6 +173,16 @@ namespace bpr::app {
 			: std::nullopt;
 	}
 #if defined(BPR_BUILD_TESTING)
+	auto designated_live_publication_target(
+		const application::review_mutation_target_binding& aTarget) -> bool
+	{
+		return aTarget.Hostname.value() == designated_review_hostname
+			&& aTarget.Repository.Owner == designated_review_owner
+			&& aTarget.Repository.Name == designated_review_name
+			&& aTarget.RepositoryDatabaseId == designated_review_repository_id
+			&& aTarget.Semantic.Repository.value() == designated_review_repository_id;
+	}
+
 	gated_review_mutation_decision_executor::gated_review_mutation_decision_executor(
 		application::decision_executor& aTarget)
 		: Target{ aTarget }

@@ -496,6 +496,8 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool NetworkDenied = false;
+		/// See `github_application_config::DesignatedLivePublication`.
+		bool DesignatedLivePublication = false;
 		std::optional<std::vector<detail::github_public_path_fixture_options::github_cli_discovery_account>>
 											GithubCliDiscoveryAccounts;
 		std::shared_ptr<std::atomic_size_t> GithubCliInventoryChecks;

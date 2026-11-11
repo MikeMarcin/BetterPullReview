@@ -2241,39 +2241,86 @@ namespace bpr::app {
 			read_next_tour_repair();
 			return;
 		}
-		request.Diff      = *context;
-		auto* const epoch = EpochHost.get();
-		auto* const lane  = &DecisionLane;
-		TourSourceReadsInFlight.fetch_add(1U, std::memory_order_acq_rel);
-		try {
-			DiffEffects.post([this, epoch, lane, matcher = LineMatcher, request, generation = TourRepairGeneration, token = TourSourceStop.get_token()] {
-				auto comparison = std::optional<application::tour_source_comparison>{ };
-				try {
-					comparison = application::materialize_tour_source_comparison(*epoch, *matcher, request, token);
-				} catch (...) { }
-				try {
-					lane->post([this, generation, produced = std::move(comparison)]() mutable {
-						TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
-						if (Closing || generation != TourRepairGeneration) {
-							return;
-						}
-						if (produced) {
-							const auto found = std::ranges::find(TourRepairFiles, produced->Right.Path, &core::tour_anchor_file::Path);
-							if (found != TourRepairFiles.end() && produced->Index.diff().RightDocument) {
-								found->HeadLines = static_cast<std::uint32_t>(produced->Index.diff().RightDocument->Lines.size());
-							}
-							TourRepairComparisons.push_back(std::move(*produced));
-						}
-						read_next_tour_repair();
-					});
-				} catch (...) {
-					TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+		request.Diff = *context;
+		read_tour_comparison(std::move(request), [this, generation = TourRepairGeneration](std::optional<application::tour_source_comparison> aProduced) {
+			if (Closing || generation != TourRepairGeneration) {
+				return;
+			}
+			if (aProduced) {
+				const auto found = std::ranges::find(TourRepairFiles, aProduced->Right.Path, &core::tour_anchor_file::Path);
+				if (found != TourRepairFiles.end() && aProduced->Index.diff().RightDocument) {
+					found->HeadLines = static_cast<std::uint32_t>(aProduced->Index.diff().RightDocument->Lines.size());
 				}
-			});
-		} catch (...) {
-			TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
-			Window->tour_editor()->show_notice(QStringLiteral("The source check could not start. Keep preparing locally and preview again."));
-		}
+				TourRepairComparisons.push_back(std::move(*aProduced));
+			}
+			read_next_tour_repair();
+		});
+	}
+
+	void github_application::implementation::read_tour_comparison(application::workbench_selected_diff_request aComparison, std::function<void(std::optional<application::tour_source_comparison>)> aDone)
+	{
+		struct comparison_read
+		{
+			application::workbench_selected_diff_request                            Comparison;
+			std::function<void(std::optional<application::tour_source_comparison>)> Done;
+			std::optional<application::tour_pinned_file>                            Left;
+		};
+		auto read = std::make_shared<comparison_read>(comparison_read{ std::move(aComparison), std::move(aDone), std::nullopt });
+		// One side: grant its identical-commit pair here, read it on the diff
+		// lane, and come back here for the other side or the answer.
+		auto side = std::make_shared<std::function<void(core::diff_side)>>();
+		*side     = [this, read, weak = std::weak_ptr{ side }](const core::diff_side aSide) {
+			const auto& comparison = read->Comparison;
+			const auto  commit     = aSide == core::diff_side::left ? comparison.Diff.Comparison.Left.Commit : comparison.Diff.Comparison.Right.Commit;
+			const auto  current    = Closing || !EpochHost ? std::optional<application::workbench_selected_diff_context>{ } : EpochHost->context(comparison.WorkbenchAuthority);
+			const auto  context    = current ? EpochHost->realignment_context(comparison.WorkbenchAuthority, { comparison.WorkbenchAuthority.Host, comparison.WorkbenchAuthority.Repository, comparison.WorkbenchAuthority.PullRequest, commit, commit, current->Comparison.Left.Identity.Epoch, current->Comparison.Right.Identity.Epoch })
+											 : std::optional<application::workbench_selected_diff_context>{ };
+			if (!context) {
+				read->Done(std::nullopt);
+				return;
+			}
+			auto request        = comparison;
+			request.Diff        = *context;
+			request.File.Change = application::workbench_file_change_kind::unchanged;
+			auto* const epoch   = EpochHost.get();
+			auto* const lane    = &DecisionLane;
+			TourSourceReadsInFlight.fetch_add(1U, std::memory_order_acq_rel);
+			try {
+				DiffEffects.post([this, epoch, lane, matcher = LineMatcher, read, request, aSide, next = weak.lock(), token = TourSourceStop.get_token()] {
+					auto produced = std::optional<application::tour_source_comparison>{ };
+					auto file     = std::optional<application::tour_pinned_file>{ };
+					try {
+						file = application::materialize_pinned_tour_file(*epoch, request, token);
+						if (file && aSide == core::diff_side::right && read->Left) {
+							produced = application::compare_tour_source_files(*matcher, read->Comparison, *read->Left, *file, token);
+						}
+					} catch (...) {
+						file.reset();
+						produced.reset();
+					}
+					try {
+						lane->post([this, read, aSide, next, pinned = std::move(file), answer = std::move(produced)]() mutable {
+							TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+							if (Closing) {
+								return;
+							}
+							if (aSide == core::diff_side::left && pinned && next) {
+								read->Left = std::move(pinned);
+								(*next)(core::diff_side::right);
+								return;
+							}
+							read->Done(std::move(answer));
+						});
+					} catch (...) {
+						TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+					}
+				});
+			} catch (...) {
+				TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+				read->Done(std::nullopt);
+			}
+		};
+		(*side)(core::diff_side::left);
 	}
 
 	void github_application::implementation::check_tour_material()
@@ -2354,44 +2401,23 @@ namespace bpr::app {
 			read_next_tour_material();
 			return;
 		}
-		request.Diff      = *context;
-		auto* const epoch = EpochHost.get();
-		auto* const lane  = &DecisionLane;
-		TourSourceReadsInFlight.fetch_add(1U, std::memory_order_acq_rel);
-		try {
-			DiffEffects.post([this, epoch, lane, matcher = LineMatcher, request, generation = TourMaterialGeneration, token = TourSourceStop.get_token()] {
-				auto comparison = std::optional<application::tour_source_comparison>{ };
-				try {
-					comparison = application::materialize_tour_source_comparison(*epoch, *matcher, request, token);
-				} catch (...) { }
-				try {
-					lane->post([this, generation, request, produced = std::move(comparison)]() mutable {
-						TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
-						if (Closing || generation != TourMaterialGeneration) {
-							return;
-						}
-						// Re-review finding 3: a read that left the code uncompared
-						// (no verdict) is asked again like one that failed.
-						const auto key = tour_material_key_of(request);
-						if (produced && TourHost && produced->Left.Commit != produced->Right.Commit) {
-							TourHost->observe_comparison(produced->Index, produced->Left, produced->Right);
-							const auto draft = TourHost->presentation().Draft;
-							TourMaterial.answered(key, draft && application::tour_material_compared(*draft, key));
-						} else {
-							TourMaterial.answered(key, false);
-						}
-						read_next_tour_material();
-					});
-				} catch (...) {
-					TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
-				}
-			});
-		} catch (...) {
-			TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
-			TourMaterialReading = false;
-			TourMaterialRequests.clear();
-			TourMaterial.dropped();
-		}
+		request.Diff = *context;
+		read_tour_comparison(request, [this, request, generation = TourMaterialGeneration](std::optional<application::tour_source_comparison> aProduced) {
+			if (Closing || generation != TourMaterialGeneration) {
+				return;
+			}
+			// Re-review finding 3: a read that left the code uncompared
+			// (no verdict) is asked again like one that failed.
+			const auto key = tour_material_key_of(request);
+			if (aProduced && TourHost && aProduced->Left.Commit != aProduced->Right.Commit) {
+				TourHost->observe_comparison(aProduced->Index, aProduced->Left, aProduced->Right);
+				const auto draft = TourHost->presentation().Draft;
+				TourMaterial.answered(key, draft && application::tour_material_compared(*draft, key));
+			} else {
+				TourMaterial.answered(key, false);
+			}
+			read_next_tour_material();
+		});
 	}
 
 	auto github_application::implementation::tour_material_key_of(const application::workbench_selected_diff_request& aRequest) -> application::tour_material_key
