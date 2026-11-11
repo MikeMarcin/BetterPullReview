@@ -935,3 +935,71 @@ with `freeze_attended_build.py remove`. Not built in this round: the
 mockup's restyled agent sheet, RFC-BPR-0107's Import/Export (placement
 recorded), RFC-BPR-0104's grant item (placement recorded), a fixture with
 configured agents and a running run in the frozen app (the looks stand in).
+
+## Drafts round: find my drafts, Overview, Finish review (2026-11-11)
+
+Owner requests: "I don't seem to have an easy way to find all my draft
+comments"; Home: "I dunno if I'd put it there. I feel like discuss or threads
+is probably better" (no Home change); "finish review should note draft comments
+that haven't been added to the review"; Overview: "we already have a comments
+column so probably something there". Owner amendments in force as above.
+Frontend-design was loaded before the Qt work. Nothing pushed.
+
+How drafts worked: a saved line comment is a private draft; Start a review /
+Add review comment gives it a pending mark (path at the head) and Submit sends
+it; without the mark it is "not in the review" and only its own Publish sends
+it; a reply is never in a review. A draft recorded no file, so a draft in a
+file not shown this session could not be listed by file.
+
+| Commit | What |
+|---|---|
+| main `783dac754` | BPR-2092..2094 reserved and carded (counter BPR-2095) |
+| `d61b3ee42`, `61aad5dec`, `34d96d2dc`, `93c754fd1`, `2b3b496ab`; main `e76a725a8` | Cards to the lane, Ready, claimed; claims mirrored |
+| `7cd7fab2b` | Core `review_draft_place` and `draft_roster`; private-store record v4; host place stamping, roster, Add/Add all/Leave out; Threads drafts rows and My drafts; Overview drafts chip; Finish review drafts section; `--attended-drafts-look` (+ `BPR_ATTENDED_DRAFTS_CHECK`); native-look startup only for Qt Widgets tests (fixes `agent_launch_canary`, `claude_process_wrapper` compiling); app pin resealed. Product candidate |
+| `ee4724b2a`; main `9b0aa6423` | Card records (BPR-2092 AC4 amended: My drafts is not remembered); mirrored. Frozen |
+| this commit | Cards parked `human-review`; session recorded; handoff |
+
+Placement: Threads (file groups, filter bar, goes to a line); not a close call
+against Discuss, so no option list; a Reject note can ask for Discuss.
+
+Runs at `7cd7fab2b`: `core_draft_roster` (new), `application_comment_range_draft_store`
+(new place round trip), `qt_conversation_finder_scale_100` (new
+`test_my_drafts`), `qt_pull_request_overview_page` (new drafts chip test),
+`qt_pull_request_overview_chips_scale_125`,
+`qt_review_submission_editor_scale_{100,125,200}`, `qt_agent_launch_canary`,
+`qt_agent_launch_canary_durable_course`, `qt_claude_process_wrapper`, and the
+draft/review/composition rows: `core_{draft_state,review_submission,revisioned_review_draft,private_review,reply_draft_standing}`,
+`application_{review_submission_contract,review_submission_application_host,shared_draft_application_host,private_review_host,feedback_draft_store,reply_draft_survival,composition_source_contract,review_round_trip_composition_contract,draft_state_contract,private_draft_restore,reply_draft_contract,start_review_contract,draft_delete_contract,line_draft_contract,review_submission_composition_public_path}`,
+`sqlite_{private_review_storage,review_submission_recovery_storage}`,
+`qt_{workbench_line_draft,workbench_overview,workbench_window_scale_100,review_draft_editor,private_review_panel,feedback_label_threads}`,
+`architecture_boundaries`, `test_network_isolation_manifest` (39 rows, all
+pass); composed public path `--attended-drafts-look` with
+`BPR_ATTENDED_DRAFTS_CHECK=1`: THREADS 5,2; OVERVIEW 3,2; OUTSIDE 2; ADDED 5;
+`coding-format-check`; clang-tidy on the new and changed core, Qt and host
+sources; documentation gate. Native renders (Cocoa off screen, light and
+dark) are in the session's candidates.
+
+Filed, not waited on (URL in the session state's `serve.log`): session
+`585d18246da0bd78411dee4b26777a2d`, state
+`/Users/jaeger/.attended-review-state/drafts-round-v001-2026-11-11/state`,
+cursor 9, host PID 24810 (tailscale child 24818), three candidates, ready and
+protected: `BPR-2092-threads-drafts`, `BPR-2093-overview-drafts`,
+`BPR-2094-finish-drafts-line`. Frozen root
+`/Users/jaeger/drafts-round-v001.yva0tan3` from `ee4724b2a984` (SHA-256
+`56ba5f7f9482…`, launcher check reached `ATTENDED_FINISH_REVIEW_SHOWN`).
+
+Not touched: session `7c920675…` (host 73758/73768, root
+`layout-round-v001.5q22yahv`), host 74692, PID 10695, BPR-Test #152 and its
+`-next` branch.
+
+Known limits: a draft saved before this change has no recorded place until it
+is edited or its file is shown in the window (Finish review says "Open it to
+add it"); a left-side or filtered-diff draft is listed but not addable from
+the sheet (open it). Pre-existing clang-tidy naming warnings in
+`window_review_drafts.cpp` (`invalidate_all`, `live_factory`) left as they
+were.
+
+Next: read `585d1824…` from cursor 9 after hand-back. Accept of each finishes
+its card (`issue_board.py finish`, mirrored to main); a Reject is a new
+candidate. When all three are decided, stop host 24810 and remove the root
+with `freeze_attended_build.py remove`.

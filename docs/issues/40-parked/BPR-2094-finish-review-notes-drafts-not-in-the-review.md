@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2094"
 title: "Finish your review notes drafts that are not in the review"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0085"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2092--BPR-2094--a28677e4b291.json","origin":"owner request, 2026-11-11 (drafts round)","related_cards":["BPR-1345","BPR-1590","BPR-2092"]}
 depends_on: []
+parked_on: "human-review"
 ---
 
 # Finish your review notes drafts that are not in the review
@@ -57,3 +58,14 @@ Frontend-design was loaded before the Qt work.
   conventional-comments-v1: ATTENDED_DRAFTS_THREADS:5,2,
   ATTENDED_DRAFTS_OVERVIEW:3,2, ATTENDED_DRAFTS_OUTSIDE:2,
   ATTENDED_DRAFTS_ADDED:5.
+
+## Owner look (filed 2026-11-11, not waited on)
+
+Session `585d18246da0bd78411dee4b26777a2d`, state
+`/Users/jaeger/.attended-review-state/drafts-round-v001-2026-11-11/state`,
+candidate `BPR-2094-finish-drafts-line` (one Accept or Reject), cursor 9. Frozen root
+`/Users/jaeger/drafts-round-v001.yva0tan3` from `ee4724b2a984` (executable
+SHA-256 `56ba5f7f9482…`, launcher check reached
+`ATTENDED_FINISH_REVIEW_SHOWN`); look `--attended-drafts-look` on
+conventional-comments-v1 (renderer.cpp: threads, three comments in the review,
+two drafts left out). The URL stays in the session state.
