@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2092",
+    "BPR-2093",
+    "BPR-2094"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Drafts round: find my drafts (Threads/Discuss), drafts in Overview's Comments column, Finish review notes drafts not in the review",
+  "created": "2026-11-11T07:54:16.465969+00:00",
+  "base": "f6e134ba89ff0ec2372641b1880603e7f1045431"
+}
