@@ -2,6 +2,7 @@
 
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/platform/windows_sharing_retry.hpp"
+#include "git_artifact_lifetime.hpp"
 
 // The cache manifest discriminates the access mode, and `epoch_model.hpp`
 // declares that enumeration without its enumerators. This is the header that
@@ -80,7 +81,9 @@ namespace bpr::adapters::git {
 		};
 		inline constexpr std::size_t   maximum_repository_entries = 1'000'000U;
 		inline constexpr std::uint64_t maximum_pack_index_bytes   = 4ULL * 1024ULL * 1024ULL * 1024ULL;
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_LINUX)
+		inline constexpr std::uint8_t artifact_identity_scheme = 3U;
+#elif defined(Q_OS_UNIX)
 		inline constexpr std::uint8_t artifact_identity_scheme = 1U;
 #elif defined(Q_OS_WIN)
 		inline constexpr std::uint8_t artifact_identity_scheme = 2U;
@@ -306,6 +309,9 @@ namespace bpr::adapters::git {
 			std::uint64_t       Volume     = 0U;
 			std::uint64_t       ObjectHigh = 0U;
 			std::uint64_t       ObjectLow  = 0U;
+			// Only persisted Linux artifact proofs bind inode generation. Live
+			// directory, cache-manifest and lock identities retain their format.
+			bool LifetimeBound = false;
 
 			auto operator<=>(const exact_artifact_identity&) const = default;
 		};
@@ -417,6 +423,81 @@ namespace bpr::adapters::git {
 			return std::nullopt;
 #endif
 		}
+
+#if defined(Q_OS_LINUX)
+		[[nodiscard]] auto durable_identity(const int aDescriptor)
+			-> std::optional<exact_artifact_identity>
+		{
+			auto identity = exact_identity(aDescriptor, exact_artifact_kind::regular_file);
+			if (!identity) {
+				return std::nullopt;
+			}
+			const auto generation = detail::file_generation(aDescriptor);
+			if (!generation) {
+				return std::nullopt;
+			}
+			identity->ObjectHigh    = *generation;
+			identity->LifetimeBound = true;
+			return identity;
+		}
+#endif
+
+		[[nodiscard]] auto durable_identity(const std::filesystem::path& aPath)
+			-> std::optional<exact_artifact_identity>
+		{
+#if defined(Q_OS_LINUX)
+			const auto descriptor = detail::open_observed_file(aPath);
+			if (descriptor < 0) {
+				return std::nullopt;
+			}
+			const auto identity = durable_identity(descriptor);
+			static_cast<void>(::close(descriptor));
+			return identity;
+#else
+			return exact_identity(aPath, exact_artifact_kind::regular_file);
+#endif
+		}
+
+		[[nodiscard]] auto observed_identity(
+			const std::filesystem::path&   aPath,
+			const exact_artifact_identity& aExpected)
+			-> std::optional<exact_artifact_identity>
+		{
+			return aExpected.LifetimeBound ? durable_identity(aPath) : exact_identity(aPath, aExpected.Kind);
+		}
+
+#if defined(Q_OS_LINUX)
+		// Keep the matched inode allocated throughout rename/unlink. Querying
+		// generation alone cannot close a check-to-mutation lifetime window.
+		class mutation_file_pin final
+		{
+		public:
+			mutation_file_pin(const std::filesystem::path& aPath, const exact_artifact_identity& aExpected)
+			{
+				if (aExpected.Kind != exact_artifact_kind::regular_file) {
+					Matches = true;
+					return;
+				}
+				Descriptor = detail::open_observed_file(aPath);
+				if (Descriptor >= 0) {
+					Matches = (aExpected.LifetimeBound ? durable_identity(Descriptor) : exact_identity(Descriptor, aExpected.Kind)) == aExpected;
+				}
+			}
+			mutation_file_pin(const mutation_file_pin&)                    = delete;
+			auto operator=(const mutation_file_pin&) -> mutation_file_pin& = delete;
+			~mutation_file_pin()
+			{
+				if (Descriptor >= 0) {
+					static_cast<void>(::close(Descriptor));
+				}
+			}
+			[[nodiscard]] auto matches() const noexcept -> bool { return Matches; }
+
+		private:
+			int  Descriptor = -1;
+			bool Matches    = false;
+		};
+#endif
 
 		[[nodiscard]] auto missing(const std::filesystem::path& aPath) -> bool
 		{
@@ -678,7 +759,11 @@ namespace bpr::adapters::git {
 			const exact_artifact_identity& aIdentity)
 			-> std::optional<application::git_artifact_identity>
 		{
-			if (aIdentity.Kind != exact_artifact_kind::regular_file) {
+			if (aIdentity.Kind != exact_artifact_kind::regular_file
+#if defined(Q_OS_LINUX)
+				|| !aIdentity.LifetimeBound
+#endif
+			) {
 				return std::nullopt;
 			}
 			auto result      = application::git_artifact_identity{ };
@@ -722,12 +807,18 @@ namespace bpr::adapters::git {
 			const auto low    = read_u64(bytes, 24U);
 			return volume.has_value() && high.has_value()
 					&& low.has_value()
+#if defined(Q_OS_LINUX)
+					&& *high <= std::numeric_limits<std::uint32_t>::max()
+#endif
 				? std::optional<exact_artifact_identity>{
 					  exact_artifact_identity{
 						  .Kind       = exact_artifact_kind::regular_file,
 						  .Volume     = *volume,
 						  .ObjectHigh = *high,
 						  .ObjectLow  = *low,
+#if defined(Q_OS_LINUX)
+						  .LifetimeBound = true,
+#endif
 					  }
 				  }
 				: std::nullopt;
@@ -2076,30 +2167,24 @@ namespace bpr::adapters::git {
 				return true;
 			}
 
-			[[nodiscard]] auto synchronize_and_close() -> bool
+			[[nodiscard]] auto synchronize() -> bool
 			{
 #if defined(Q_OS_UNIX)
 				if (Descriptor < 0) {
 					return false;
 				}
-				const auto synchronized = ::fsync(Descriptor) == 0;
-				const auto closed       = ::close(Descriptor) == 0;
-				Descriptor              = -1;
-				return synchronized && closed;
+				return ::fsync(Descriptor) == 0;
 #elif defined(Q_OS_WIN)
 				if (Handle == INVALID_HANDLE_VALUE) {
 					return false;
 				}
-				const auto synchronized = FlushFileBuffers(Handle) != 0;
-				const auto closed       = CloseHandle(Handle) != 0;
-				Handle                  = INVALID_HANDLE_VALUE;
-				return synchronized && closed;
+				return FlushFileBuffers(Handle) != 0;
 #else
 				return false;
 #endif
 			}
 
-			[[nodiscard]] auto identity() const
+			[[nodiscard]] auto live_identity() const
 				-> std::optional<exact_artifact_identity>
 			{
 #if defined(Q_OS_UNIX)
@@ -2116,6 +2201,28 @@ namespace bpr::adapters::git {
 					: std::nullopt;
 #else
 				return std::nullopt;
+#endif
+			}
+
+			[[nodiscard]] auto identity() const -> std::optional<exact_artifact_identity>
+			{
+#if defined(Q_OS_LINUX)
+				return Descriptor >= 0 ? durable_identity(Descriptor) : std::nullopt;
+#else
+				return live_identity();
+#endif
+			}
+
+			[[nodiscard]] auto close_checked() noexcept -> bool
+			{
+#if defined(Q_OS_UNIX)
+				const auto descriptor = std::exchange(Descriptor, -1);
+				return descriptor >= 0 && ::close(descriptor) == 0;
+#elif defined(Q_OS_WIN)
+				const auto handle = std::exchange(Handle, INVALID_HANDLE_VALUE);
+				return handle != INVALID_HANDLE_VALUE && CloseHandle(handle) != 0;
+#else
+				return false;
 #endif
 			}
 
@@ -2207,10 +2314,12 @@ namespace bpr::adapters::git {
 		};
 
 		[[nodiscard]] auto publish_spool(
-			const std::filesystem::path& aReceiving,
-			const std::filesystem::path& aCompleted) -> spool_publish_result
+			const std::filesystem::path&   aReceiving,
+			const std::filesystem::path&   aCompleted,
+			const exact_artifact_identity& aExpected) -> spool_publish_result
 		{
-			if (!missing(aCompleted) || !private_regular_file(aReceiving)) {
+			if (!missing(aCompleted) || !private_regular_file(aReceiving)
+				|| observed_identity(aReceiving, aExpected) != aExpected) {
 				return { };
 			}
 #if defined(Q_OS_UNIX)
@@ -2230,7 +2339,7 @@ namespace bpr::adapters::git {
 			const auto synchronized = ::fsync(directory) == 0;
 			static_cast<void>(::close(directory));
 			return {
-				.Success        = synchronized && private_regular_file(aCompleted),
+				.Success        = synchronized && private_regular_file(aCompleted) && observed_identity(aCompleted, aExpected) == aExpected,
 				.CompletedOwned = true,
 			};
 #elif defined(Q_OS_WIN)
@@ -2238,7 +2347,7 @@ namespace bpr::adapters::git {
 				return { };
 			}
 			return {
-				.Success        = private_regular_file(aCompleted),
+				.Success        = private_regular_file(aCompleted) && observed_identity(aCompleted, aExpected) == aExpected,
 				.CompletedOwned = true,
 			};
 #else
@@ -2284,7 +2393,15 @@ namespace bpr::adapters::git {
 					return false;
 				}
 				ReceivingIdentity = File.identity();
-				Registered        = ReceivingIdentity.has_value()
+				if (!ReceivingIdentity) {
+					const auto live = File.live_identity();
+					if (live) {
+						static_cast<void>(remove_exact_private_file(Receiving, *live));
+					}
+					File.close();
+					return false;
+				}
+				Registered = ReceivingIdentity.has_value()
 					&& State->register_spool({
 						.Operation = Operation,
 						.Receiving = Receiving,
@@ -2421,29 +2538,40 @@ namespace bpr::adapters::git {
 							malformed_pack
 					};
 				}
-				if (!File.synchronize_and_close()) {
+				if (!File.synchronize()) {
 					return std::unexpected{
 						application::git_pack_stream_failure::storage
 					};
 				}
+#if !defined(Q_OS_LINUX)
+				if (!File.close_checked()) {
+					return std::unexpected{ application::git_pack_stream_failure::storage };
+				}
+#endif
 				const auto maximumIndex = maximum_index_bytes(Algorithm, Header);
 				if (!maximumIndex.has_value()) {
 					return std::unexpected{
 						application::git_pack_stream_failure::input_limit
 					};
 				}
-				const auto publication = publish_spool(Receiving, Completed);
+				if (!ReceivingIdentity) {
+					return std::unexpected{ application::git_pack_stream_failure::storage };
+				}
+				const auto publication = publish_spool(Receiving, Completed, *ReceivingIdentity);
 				CompletedOwned         = publication.CompletedOwned;
 				if (
 					!publication.Success || !ReceivingIdentity.has_value()
-					|| exact_identity(
-						   Completed,
-						   exact_artifact_kind::regular_file)
+					|| observed_identity(Completed, *ReceivingIdentity)
 						!= ReceivingIdentity) {
 					return std::unexpected{
 						application::git_pack_stream_failure::storage
 					};
 				}
+#if defined(Q_OS_LINUX)
+				if (!File.close_checked()) {
+					return std::unexpected{ application::git_pack_stream_failure::storage };
+				}
+#endif
 				auto pack = application::git_pack_oid{
 					.Algorithm = Algorithm
 				};
@@ -2503,7 +2631,9 @@ namespace bpr::adapters::git {
 							static_cast<void>(
 								State->mark_operation_aborted(Operation));
 						}
+#if !defined(Q_OS_LINUX)
 						File.close();
+#endif
 						Aborted = true;
 					}
 					auto cleaned = missing(Receiving);
@@ -2532,6 +2662,7 @@ namespace bpr::adapters::git {
 					}
 				} catch (...) {
 				}
+				File.close();
 			}
 
 		private:
@@ -2652,12 +2783,22 @@ namespace bpr::adapters::git {
 			const std::filesystem::path&   aDestination,
 			const exact_artifact_identity& aExpected) -> bool
 		{
+#if defined(Q_OS_LINUX)
+			// An absent file needs no pin and remains idempotent.
+			if (missing(aSource)) {
+				return false;
+			}
+			const auto pin = mutation_file_pin{ aSource, aExpected };
+			if (!pin.matches()) {
+				return false;
+			}
+#endif
 			const auto privateSource = aExpected.Kind == exact_artifact_kind::regular_file
 				? private_regular_file(aSource)
 				: private_directory(aSource);
 			if (
 				!privateSource
-				|| exact_identity(aSource, aExpected.Kind) != aExpected
+				|| observed_identity(aSource, aExpected) != aExpected
 				|| !private_directory(aSource.parent_path())
 				|| !private_directory(aDestination.parent_path())) {
 				return false;
@@ -2667,7 +2808,7 @@ namespace bpr::adapters::git {
 				return false;
 			}
 			return missing(aSource)
-				&& exact_identity(aDestination, aExpected.Kind) == aExpected
+				&& observed_identity(aDestination, aExpected) == aExpected
 				&& synchronize_directory(aSource.parent_path())
 				&& (aSource.parent_path() == aDestination.parent_path()
 					|| synchronize_directory(aDestination.parent_path()));
@@ -2677,12 +2818,22 @@ namespace bpr::adapters::git {
 			const std::filesystem::path&   aPath,
 			const exact_artifact_identity& aExpected) -> bool
 		{
+#if defined(Q_OS_LINUX)
+			// An absent file needs no pin and remains idempotent.
+			if (missing(aPath)) {
+				return true;
+			}
+			const auto pin = mutation_file_pin{ aPath, aExpected };
+			if (!pin.matches()) {
+				return false;
+			}
+#endif
 			if (missing(aPath)) {
 				return true;
 			}
 			if (
 				aExpected.Kind != exact_artifact_kind::regular_file
-				|| exact_identity(aPath, aExpected.Kind) != aExpected
+				|| observed_identity(aPath, aExpected) != aExpected
 				|| !private_regular_file(aPath)) {
 				return false;
 			}
@@ -2695,12 +2846,12 @@ namespace bpr::adapters::git {
 				!renamed
 				&& !(
 					missing(aPath)
-					&& exact_identity(*quarantine, aExpected.Kind)
+					&& observed_identity(*quarantine, aExpected)
 						== aExpected
 					&& synchronize_directory(aPath.parent_path()))) {
 				return false;
 			}
-			if (exact_identity(*quarantine, aExpected.Kind) != aExpected) {
+			if (observed_identity(*quarantine, aExpected) != aExpected) {
 				return false;
 			}
 			return remove_file_name(*quarantine)
@@ -2811,9 +2962,7 @@ namespace bpr::adapters::git {
 			if (!private_regular_file(aPath)) {
 				return { .Kind = recovery_file_kind::invalid };
 			}
-			const auto identity = exact_identity(
-				aPath,
-				exact_artifact_kind::regular_file);
+			const auto      identity = durable_identity(aPath);
 			std::error_code error;
 			const auto      bytes = std::filesystem::file_size(aPath, error);
 			return !error && identity.has_value()
@@ -2835,12 +2984,8 @@ namespace bpr::adapters::git {
 				return std::nullopt;
 			}
 			const auto packDirectory = paths->Pack.parent_path();
-			const auto packIdentity  = exact_identity(
-				paths->Pack,
-				exact_artifact_kind::regular_file);
-			const auto indexIdentity = exact_identity(
-				paths->Index,
-				exact_artifact_kind::regular_file);
+			const auto packIdentity  = durable_identity(paths->Pack);
+			const auto indexIdentity = durable_identity(paths->Index);
 			return private_directory(packDirectory)
 					&& private_regular_file(paths->Pack)
 					&& private_regular_file(paths->Index)
@@ -2883,13 +3028,9 @@ namespace bpr::adapters::git {
 			const auto indexPath   = packDirectory / (stem + ".idx");
 			const auto reversePath = packDirectory / (stem + ".rev");
 			if (
-				exact_identity(
-					packPath,
-					exact_artifact_kind::regular_file)
+				observed_identity(packPath, aExpectedArtifacts.Pack)
 					!= aExpectedArtifacts.Pack
-				|| exact_identity(
-					   indexPath,
-					   exact_artifact_kind::regular_file)
+				|| observed_identity(indexPath, aExpectedArtifacts.Index)
 					!= aExpectedArtifacts.Index
 				|| !private_regular_file(packPath)
 				|| !private_regular_file(indexPath) || !missing(reversePath)) {
@@ -2906,7 +3047,7 @@ namespace bpr::adapters::git {
 							   aDestination,
 							   aIdentity)
 						|| (missing(aSource)
-							&& exact_identity(aDestination, aIdentity.Kind)
+							&& observed_identity(aDestination, aIdentity)
 								== aIdentity
 							&& synchronize_directory(
 								aDestination.parent_path()));
@@ -3242,7 +3383,7 @@ namespace bpr::adapters::git {
 				!renamed
 				&& !(
 					missing(aPath)
-					&& exact_identity(*quarantine, aExpected.Kind)
+					&& observed_identity(*quarantine, aExpected)
 						== aExpected
 					&& synchronize_directory(aPath.parent_path()))) {
 				return false;
@@ -3376,9 +3517,7 @@ namespace bpr::adapters::git {
 				if (
 					!recorded.has_value()
 					|| !private_regular_file(recorded->Spool)
-					|| exact_identity(
-						   recorded->Spool,
-						   exact_artifact_kind::regular_file)
+					|| observed_identity(recorded->Spool, recorded->SpoolIdentity)
 						!= recorded->SpoolIdentity) {
 					return std::unexpected{
 						application::git_cache_failure::spool_failure
@@ -3557,9 +3696,7 @@ namespace bpr::adapters::git {
 				if (
 					!recordedReceipt.has_value()
 					|| !private_regular_file(recordedReceipt->Spool)
-					|| exact_identity(
-						   recordedReceipt->Spool,
-						   exact_artifact_kind::regular_file)
+					|| observed_identity(recordedReceipt->Spool, recordedReceipt->SpoolIdentity)
 						!= recordedReceipt->SpoolIdentity) {
 					return std::unexpected{
 						application::git_cache_failure::spool_failure
