@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2058"
 title: "Rotate repair qualification at the failed test"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-2057"]
 priority: "P1"
