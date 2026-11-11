@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2103"
 title: "Account for the two-hour clean release target"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-2057", "BPR-2058", "BPR-2100"]
 priority: "P1"
