@@ -85,8 +85,19 @@ namespace bpr::qt {
 		constexpr std::size_t maximum_beads   = 9U;
 		constexpr std::size_t preview_lines   = 4U;
 		constexpr auto        draft_identity  = std::string_view{ "draft:unpublished" };
-		constexpr auto        file_key_prefix = std::string_view{ "file:" };
-		constexpr auto        row_key_prefix  = std::string_view{ "row:" };
+
+		/// [[BPR-2092]]. A draft row's words.
+		[[nodiscard]] auto finder_draft_tag_text(const bool aReply) -> QString
+		{
+			return aReply ? QStringLiteral("Draft reply") : QStringLiteral("Draft");
+		}
+
+		[[nodiscard]] auto finder_not_in_review_text() -> QString
+		{
+			return QStringLiteral("Not in review");
+		}
+		constexpr auto file_key_prefix = std::string_view{ "file:" };
+		constexpr auto row_key_prefix  = std::string_view{ "row:" };
 
 		[[nodiscard]] auto blend(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
 		{
@@ -519,6 +530,9 @@ namespace bpr::qt {
 		QRect Discuss;
 		/// [[BPR-1582]]. The Review button, left of the Discuss button.
 		QRect Review;
+		/// [[BPR-2092]]. A draft's "Draft" pill, and "Not in review" beside it.
+		QRect Tag;
+		QRect NotInReview;
 	};
 
 	/// \brief The shown subsequence of the finder's items, applied by
@@ -1267,6 +1281,10 @@ namespace bpr::qt {
 		bar->addWidget(OnlyNew);
 		bar->addWidget(HideResolved);
 		bar->addWidget(LabelChip);
+		// [[BPR-2092]]. My drafts: only my drafts, with how many.
+		DraftsChip = new finder_chip{ conversation_glyph::edit, false, Bar };
+		DraftsChip->setObjectName(QStringLiteral("threadFinderMyDrafts"));
+		bar->addWidget(DraftsChip);
 		bar->addStretch(0);
 		column->addWidget(Bar);
 
@@ -1363,6 +1381,12 @@ namespace bpr::qt {
 		QObject::connect(OnlyNew, &QAbstractButton::clicked, this, [this] { tell_filter_choice(); });
 		QObject::connect(HideResolved, &QAbstractButton::clicked, this, [this] { tell_filter_choice(); });
 		QObject::connect(LabelChip, &QAbstractButton::clicked, this, [this] { open_label_menu(); });
+		QObject::connect(DraftsChip, &QAbstractButton::toggled, this, [this](const bool aOn) {
+			if (Filters.OnlyDrafts != aOn) {
+				Filters.OnlyDrafts = aOn;
+				apply_filters();
+			}
+		});
 		QObject::connect(List->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex& aCurrent) {
 			const auto key = aCurrent.isValid() ? item_key(Model->Shown[static_cast<std::size_t>(aCurrent.row())]) : std::string{ };
 			if (key != Cursor) {
@@ -1398,6 +1422,7 @@ namespace bpr::qt {
 		Labels.reset();
 		LabelMembers.clear();
 		Draft.reset();
+		SavedDrafts.clear();
 		Reading = { };
 		Filters = { };
 		Folded.clear();
@@ -1514,6 +1539,58 @@ namespace bpr::qt {
 	{
 		CodeFont = aFont;
 		List->viewport()->update();
+	}
+
+	void conversation_finder::set_saved_drafts(std::vector<finder_saved_draft> aDrafts)
+	{
+		std::erase_if(aDrafts, [](const finder_saved_draft& aDraft) { return aDraft.Path.isEmpty(); });
+		if (SavedDrafts == aDrafts) {
+			return;
+		}
+		SavedDrafts = std::move(aDrafts);
+		Dirty       = true;
+		if (isVisible()) {
+			refresh();
+		} else {
+			refresh_bar();
+		}
+	}
+
+	auto conversation_finder::saved_drafts() const noexcept -> const std::vector<finder_saved_draft>&
+	{
+		return SavedDrafts;
+	}
+
+	auto conversation_finder::show_drafts(const QString& aPath) -> bool
+	{
+		refresh();
+		set_filters({ .OnlyDrafts = true });
+		const auto inPath = [&aPath](const QString& aFile) {
+			return aPath.isEmpty() || aFile == aPath || aFile.startsWith(aPath + QLatin1Char{ '/' });
+		};
+		const auto found = std::ranges::find_if(Conversations, [&inPath](const finder_conversation& aConversation) {
+			return aConversation.Draft && inPath(aConversation.Path);
+		});
+		if (found == Conversations.end()) {
+			return false;
+		}
+		Folded.erase(found->Path);
+		apply_filters();
+		return reveal(found->Id, std::string{ });
+	}
+
+	void conversation_finder::set_attention_colour(const QColor& aColour)
+	{
+		if (Attention == aColour) {
+			return;
+		}
+		Attention = aColour;
+		List->viewport()->update();
+	}
+
+	auto conversation_finder::drafts_button() const noexcept -> QAbstractButton*
+	{
+		return DraftsChip;
 	}
 
 	void conversation_finder::set_draft(std::optional<finder_draft> aDraft)
@@ -1645,9 +1722,11 @@ namespace bpr::qt {
 			const QSignalBlocker search{ Search };
 			const QSignalBlocker onlyNew{ OnlyNew };
 			const QSignalBlocker hideResolved{ HideResolved };
+			const QSignalBlocker drafts{ DraftsChip };
 			Search->setText(Filters.Search);
 			OnlyNew->setChecked(Filters.OnlyNew);
 			HideResolved->setChecked(Filters.HideResolved);
+			DraftsChip->setChecked(Filters.OnlyDrafts);
 		}
 		apply_filters();
 	}
@@ -1877,7 +1956,34 @@ namespace bpr::qt {
 				conversation.Resolved = projected->second;
 			}
 		}
-		if (Draft.has_value()) {
+		// [[BPR-2092]]. Every saved draft of mine, in its file's group, which
+		// it opens when no thread does. The draft open in the drawer is its
+		// saved row when it has one.
+		auto savedOpen = false;
+		for (const auto& saved : SavedDrafts) {
+			auto draft     = finder_conversation{ };
+			draft.Id       = std::string{ finder_saved_draft_prefix } + std::to_string(saved.Id);
+			draft.Path     = saved.Path;
+			draft.Line     = saved.Line;
+			draft.Draft    = true;
+			draft.DraftId  = saved.Id;
+			draft.InReview = saved.InReview;
+			draft.Reply    = saved.Reply;
+			auto post      = make_post(draft.Id, Viewer, saved.Body.toStdString(), Viewer);
+			post.Mine      = true;
+			draft.Posts    = { std::move(post) };
+			draft.Rows     = finder_rows_of(draft.Posts);
+			Conversations.push_back(std::move(draft));
+			savedOpen = savedOpen || (Draft.has_value() && Draft->Id == saved.Id);
+		}
+		if (!SavedDrafts.empty()) {
+			std::ranges::stable_sort(Conversations, [](const finder_conversation& aLeft, const finder_conversation& aRight) {
+				const auto left  = aLeft.Path.toStdString();
+				const auto right = aRight.Path.toStdString();
+				return left.empty() != right.empty() ? !left.empty() : (left != right ? left < right : aLeft.Line < aRight.Line);
+			});
+		}
+		if (Draft.has_value() && !savedOpen) {
 			// My draft sits in its file's group, which a conversation names.
 			const auto file = std::ranges::find_if(Conversations, [this](const finder_conversation& aConversation) {
 				return core::file_identity_of(aConversation.Path.toStdString()) == Draft->File;
@@ -1943,14 +2049,22 @@ namespace bpr::qt {
 
 	auto conversation_finder::matches(const finder_conversation& aConversation) const -> bool
 	{
-		if (Filters.OnlyNew && aConversation.Unread == 0U) {
-			return false;
-		}
-		if (Filters.HideResolved && aConversation.Resolved) {
-			return false;
-		}
-		if (const auto* const members = label_members(); members != nullptr && !members->contains(aConversation.Id)) {
-			return false;
+		if (Filters.OnlyDrafts) {
+			// [[BPR-2092]]. My drafts shows every draft of mine and nothing
+			// else, so no other filter can hide one.
+			if (!aConversation.Draft) {
+				return false;
+			}
+		} else {
+			if (Filters.OnlyNew && aConversation.Unread == 0U) {
+				return false;
+			}
+			if (Filters.HideResolved && aConversation.Resolved) {
+				return false;
+			}
+			if (const auto* const members = label_members(); members != nullptr && !members->contains(aConversation.Id)) {
+				return false;
+			}
 		}
 		const auto search = Filters.Search.trimmed();
 		if (search.isEmpty()) {
@@ -2023,12 +2137,19 @@ namespace bpr::qt {
 													 : QStringLiteral("Only threads with a label");
 		LabelChip->setToolTip(label);
 		LabelChip->setAccessibleName(label);
+		const auto drafts = SavedDrafts.size();
+		DraftsChip->set_count(QString::number(drafts));
+		const auto mine = drafts == 0U ? QStringLiteral("Only my drafts: you have no drafts in this pull request")
+									   : QStringLiteral("Only my drafts (%1), each labelled Draft; amber when it isn't in your review").arg(drafts);
+		DraftsChip->setToolTip(mine);
+		DraftsChip->setAccessibleName(mine);
+		DraftsChip->setEnabled(drafts != 0U || Filters.OnlyDrafts);
 	}
 
 	void conversation_finder::refresh_colours()
 	{
 		const auto colours = note_colours_of(palette(), New, Route);
-		for (auto* const chip : { OnlyNew, HideResolved, LabelChip }) {
+		for (auto* const chip : { OnlyNew, HideResolved, LabelChip, DraftsChip }) {
 			if (chip != nullptr) {
 				chip->set_colours(colours, MarkTheme);
 			}
@@ -2630,6 +2751,19 @@ namespace bpr::qt {
 		auto       wordsRight = x + bead_gap - people_gap;
 		const auto label      = weighted(sized(font(), 0.82), QFont::DemiBold);
 		const auto pillTop    = box.top() + (row_height - discuss_height) / 2;
+		if (conversation.Draft && Items[aItem]->Row == 0U) {
+			// [[BPR-2092]]. My draft says so in words, and, amber, when the
+			// review does not carry it; the people stay where they are.
+			const auto tagMetrics = QFontMetrics{ label };
+			if (conversation.DraftId != 0U && !conversation.InReview && !conversation.Reply) {
+				const auto amberWidth = tagMetrics.horizontalAdvance(finder_not_in_review_text()) + 2 * discuss_padding;
+				geometry.NotInReview  = QRect{ wordsRight - amberWidth, pillTop, amberWidth, discuss_height };
+				wordsRight            = geometry.NotInReview.left() - bead_gap * 2;
+			}
+			const auto tagWidth = tagMetrics.horizontalAdvance(finder_draft_tag_text(conversation.Reply)) + 2 * discuss_padding;
+			geometry.Tag        = QRect{ wordsRight - tagWidth, pillTop, tagWidth, discuss_height };
+			wordsRight          = geometry.Tag.left() - discuss_gap;
+		}
 		if (discuss_shown(aItem)) {
 			// [[BPR-1356]]. The button takes the end of the words, so the
 			// people never move when it shows.
@@ -2689,7 +2823,11 @@ namespace bpr::qt {
 		text += first_words(first.Words, 80);
 		if (entry.Row == 0U) {
 			text += conversation.Posts.size() == 1U ? QStringLiteral(", one post") : QStringLiteral(", %1 posts").arg(conversation.Posts.size());
-			if (conversation.Draft) {
+			if (conversation.Draft && conversation.Reply) {
+				text += QStringLiteral(", your draft reply, sent on its own");
+			} else if (conversation.Draft && conversation.DraftId != 0U) {
+				text += conversation.InReview ? QStringLiteral(", your draft, in your review") : QStringLiteral(", your draft, not in your review");
+			} else if (conversation.Draft) {
 				text += QStringLiteral(", your draft");
 			} else if (conversation.Unread > 0U) {
 				text += QStringLiteral(", %1 new").arg(conversation.Unread);
@@ -2977,8 +3115,10 @@ namespace bpr::qt {
 		// The state: my draft's lock, the new count, or resolved's tick.
 		if (entry.Row == 0U) {
 			const auto state = geometry.State;
-			if (conversation.Draft) {
+			if (conversation.Draft && conversation.DraftId == 0U) {
 				paint_conversation_glyph(aPainter, QRectF{ state.right() - 14.0, mid - 7.0, 14.0, 14.0 }, conversation_glyph::lock, colours.Faint);
+			} else if (conversation.Draft) {
+				// [[BPR-2092]]. A saved draft's words say what it is.
 			} else if (conversation.Unread > 0U) {
 				const auto text  = QString::number(conversation.Unread);
 				const auto bold  = weighted(sized(font(), 0.8), QFont::Bold);
@@ -3011,6 +3151,31 @@ namespace bpr::qt {
 			aPainter.setPen(aOn ? colours.Ink : colours.Ink2);
 			aPainter.drawText(aPill, Qt::AlignCenter, aWord);
 		};
+		// [[BPR-2092]]. Draft: a dashed outline, as the draft's own mark is
+		// drawn; Not in review: the theme's attention amber, outlined and
+		// washed, so it reads at a glance without a new colour.
+		if (!geometry.Tag.isEmpty()) {
+			const auto pill  = QRectF{ geometry.Tag }.adjusted(0.5, 0.5, -0.5, -0.5);
+			const auto small = weighted(sized(font(), 0.82), QFont::DemiBold);
+			auto       edge  = QPen{ colours.Faint, 1.0 };
+			edge.setStyle(Qt::DashLine);
+			aPainter.setOpacity(1.0);
+			aPainter.setPen(edge);
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+			aPainter.setFont(small);
+			aPainter.setPen(colours.Ink2);
+			aPainter.drawText(geometry.Tag, Qt::AlignCenter, finder_draft_tag_text(conversation.Reply));
+			if (!geometry.NotInReview.isEmpty()) {
+				const auto amber    = Attention.value_or(default_feedback_state_colours(palette()).Open);
+				const auto amberBox = QRectF{ geometry.NotInReview }.adjusted(0.5, 0.5, -0.5, -0.5);
+				aPainter.setPen(QPen{ amber, 1.0 });
+				aPainter.setBrush(blend(ground, amber, colours.Dark ? 0.22 : 0.12));
+				aPainter.drawRoundedRect(amberBox, amberBox.height() / 2.0, amberBox.height() / 2.0);
+				aPainter.setPen(colours.Dark ? amber.lighter(125) : amber.darker(135));
+				aPainter.drawText(geometry.NotInReview, Qt::AlignCenter, finder_not_in_review_text());
+			}
+		}
 		paintPill(geometry.Review, HoveredItem == aItem && HoveredReview, QStringLiteral("Review"));
 		paintPill(geometry.Discuss, HoveredItem == aItem && HoveredDiscuss, QStringLiteral("Discuss"));
 		aPainter.restore();

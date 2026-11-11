@@ -211,6 +211,7 @@ namespace bpr::app {
 		auto replies = core::decide_reply_drafts(drafts, reply_threads());
 		Window->present_saved_drafts(std::move(drafts), std::move(replies));
 		publish_review_comments(saved);
+		present_draft_roster();
 		// [[BPR-1733]]. A carried or deleted suggestion leaves its note.
 		present_moved_suggestions();
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -694,6 +695,99 @@ namespace bpr::app {
 			return false;
 		}
 		return editor->change_pending(std::move(mark));
+	}
+
+	/// [[BPR-2092]]. Where the shown draft is written: the file shown, and,
+	/// when Start a review would take it at its own line now, the head it
+	/// would be marked at, decided exactly as Start a review decides it.
+	auto github_application::implementation::shown_draft_place(const std::string& aBody) const -> std::optional<core::review_draft_place>
+	{
+		if (Closing || Window == nullptr || !ReviewDraft || !SelectedDiffPublication || !SharedDrafts
+			|| core::comparison_digest(SelectedDiffPublication->Key) != ReviewDraft->Anchor.Comparison || core::thread_bound_anchor(ReviewDraft->Anchor)) {
+			return std::nullopt;
+		}
+		auto       place   = core::review_draft_place{ .Path = shown_right_path(), .ReviewHead = std::nullopt };
+		const auto written = std::ranges::any_of(aBody, [](const char aValue) { return aValue != ' ' && aValue != '\t' && aValue != '\r' && aValue != '\n' && aValue != '\v' && aValue != '\f'; });
+		if (written && !ReviewDraft->ReplyToThread && SelectedSemanticSelection && SelectedSemanticSelection->PreferredLine == ReviewDraft->Anchor && ReviewMutationHost != nullptr) {
+			auto request               = application::review_mutation_publication_request{ };
+			request.Proposal.Draft     = ReviewDraft->Id;
+			request.Proposal.Anchor    = ReviewDraft->Anchor;
+			request.Proposal.Body      = aBody;
+			request.Proposal.StartLine = ReviewDraft->StartLine;
+			request.Selection          = *SelectedSemanticSelection;
+			request.SelectedDiff       = *SelectedDiffPublication;
+			const auto& filtered       = Window->filtered_comment_placement();
+			const auto  fileComment    = filtered && filtered->Selection == request.Selection.PreferredLine && filtered->Target.Placement == core::filtered_comment_placement::file_comment;
+			if (const auto destination = fileComment ? std::nullopt : std::optional{ ReviewMutationHost->comment_destination(request) };
+				destination && *destination && !(*destination)->RemoteLine && (*destination)->Commit == SharedDrafts->authority().Target.ExpectedHead) {
+				place.Path       = (*destination)->Path;
+				place.ReviewHead = (*destination)->Commit;
+			}
+		}
+		return core::valid(place) ? std::optional{ std::move(place) } : std::nullopt;
+	}
+
+	/// [[BPR-2092]]. The roster of every unsent draft: the saved drafts, the
+	/// comparisons this window has shown, and the threads' files.
+	auto github_application::implementation::draft_roster() const -> core::draft_roster
+	{
+		if (!SharedDrafts) {
+			return { };
+		}
+		const auto saved   = SharedDrafts->recovery_snapshot();
+		auto       shown   = std::vector<std::pair<core::file_comparison_digest, std::string>>{ };
+		auto       threads = std::vector<std::pair<std::string, std::string>>{ };
+		for (const auto& comparison : ShownComparisons) {
+			shown.emplace_back(comparison.Digest, comparison.Path);
+		}
+		if (WindowRead && WindowRead->accepted_snapshot()) {
+			for (const auto& thread : WindowRead->accepted_snapshot()->ReviewThreads) {
+				if (!thread.Path.empty()) {
+					threads.emplace_back(std::string{ thread.Thread.value() }, thread.Path);
+				}
+			}
+		}
+		return core::project_draft_roster(saved, { .Head = SharedDrafts->authority().Target.ExpectedHead, .Shown = shown, .Threads = threads });
+	}
+
+	void github_application::implementation::present_draft_roster()
+	{
+		if (Closing || Window == nullptr) {
+			return;
+		}
+		Window->present_draft_roster(draft_roster());
+	}
+
+	/// [[BPR-2094]]. Add, or Add all, from Finish your review: each chosen
+	/// draft a review can take is marked as the core plans it, in one write.
+	void github_application::implementation::add_drafts_to_review(const std::vector<core::review_draft_id>& aDrafts)
+	{
+		auto commands = core::plan_add_to_review(draft_roster(), aDrafts);
+		change_review_drafts(std::move(commands), [](bool) { });
+	}
+
+	/// [[BPR-2094]]. Leave out, from Finish your review: the draft leaves the
+	/// review and stays saved, at the revision it was listed at.
+	void github_application::implementation::leave_drafts_out_of_review(const std::vector<core::review_draft_id>& aDrafts)
+	{
+		if (Closing || !SharedDrafts) {
+			return;
+		}
+		auto commands = std::vector<core::revisioned_review_draft_command>{ };
+		for (const auto& id : aDrafts) {
+			const auto read = SharedDrafts->read(DraftConsumer, id);
+			if (!read.Accepted || !core::pending_in_review(read.Accepted->Draft)) {
+				continue;
+			}
+			commands.push_back(core::revisioned_review_draft_command{
+				.Command          = { .Id = id, .Kind = core::review_draft_command_kind::edit, .Body = read.Accepted->Draft.Body },
+				.ExpectedRevision = read.Accepted->Revision,
+				.Scope            = read.Accepted->Scope,
+				.ChangePending    = true,
+				.Pending          = std::nullopt,
+			});
+		}
+		change_review_drafts(std::move(commands), [](bool) { });
 	}
 
 	/// [[BPR-1345]]. Changes several drafts in one durable write, then

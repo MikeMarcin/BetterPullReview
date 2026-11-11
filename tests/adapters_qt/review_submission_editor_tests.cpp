@@ -49,6 +49,39 @@ auto main(int argc, char** argv) -> int
 																								 .ActingAccount = core::github_account_id{ 4U },
 																								 .Body          = "Literal <summary>" };
 	auto                                             projection = qt::review_submission_editor_projection{ .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("github.com · owner/repository#17\nHead: abcdef0123456789abcdef0123456789abcdef01\nSubmitting as reviewer (account 4)"), .Status = QStringLiteral("Ready <literal>") };
+	// [[BPR-2094]]. The owner's look of Finish your review with drafts outside
+	// the review, as the sheet is wide, with no focus checks.
+	if (const auto look = qEnvironmentVariable("BPR_FINISH_DRAFTS_LOOK"); !look.isEmpty()) {
+		qt::review_submission_editor lookEditor{ [](auto) { } };
+		auto                         carried = draft;
+		carried.Body                         = { };
+		auto pending                         = core::review_submission_comment{ .Draft = core::review_draft_id{ 7U }, .DraftRevision = 2U, .Path = "src/engine/renderer.cpp", .Line = 30U, .Body = "issue (blocking): The retry budget resets every frame." };
+		auto second                          = pending;
+		second.Draft                         = core::review_draft_id{ 8U };
+		second.Line                          = 41U;
+		second.Body                          = "question: Does the second view share the depth buffer?";
+		carried.Comments                     = { pending, second };
+		auto shown                           = projection;
+		shown.Draft                          = carried;
+		shown.Controls                       = core::controls(carried);
+		shown.Status                         = { };
+		shown.Prepared                       = core::prepare_review_decision(carried, { });
+		lookEditor.set_outside_dispatch([](auto) { }, [](const auto&) { });
+		lookEditor.present(shown);
+		lookEditor.set_outside_drafts({
+			{ .Id = core::review_draft_id{ 21U }, .Path = QStringLiteral("src/engine/renderer.cpp"), .Line = 11U, .Body = QStringLiteral("thought: The clear and the draw race on the second view."), .Addable = true },
+			{ .Id = core::review_draft_id{ 22U }, .Path = QStringLiteral("src/engine/scale.cpp"), .Line = 4U, .StartLine = 2U, .Body = QStringLiteral("nitpick (non-blocking): `std::max` reads better than the ternary here."), .Addable = true },
+			{ .Id = core::review_draft_id{ 23U }, .Path = QStringLiteral("src/engine/scale.cpp"), .Body = QStringLiteral("Agreed, I'll follow up in a separate pull request."), .Why = QStringLiteral("A reply is sent to its thread on its own, never in a review."), .Reply = true },
+		});
+		lookEditor.resize(540, 760);
+		lookEditor.show();
+		QApplication::processEvents();
+		lookEditor.resize(540, lookEditor.sizeHint().height());
+		QApplication::processEvents();
+		expect(lookEditor.grab().save(look, "PNG"), "drafts look saved");
+		std::cout << "review-submission-editor-drafts-look:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1541]] v002 comparison render: the unknown-status block in Light and Dark.
 	if (const auto look = qEnvironmentVariable("BPR_UNKNOWN_STATE_RENDER"); !look.isEmpty()) {
 		qt::review_submission_editor lookEditor{ [](auto) { } };
@@ -441,6 +474,51 @@ auto main(int argc, char** argv) -> int
 	expect(editor.title_label()->text() == QStringLiteral("Finish your review") && editor.pending_list()->isVisible()
 			   && editor.pending_rows() == QStringList{ QStringLiteral("renderer.cpp, line 431: question: Where does 0.01 come from?"), QStringLiteral("renderer.cpp, base lines 434–435: nit: scale could be constexpr.") },
 		   "Finish review lists the pending comments, each where it is and its first line");
+	auto leftOut = std::vector<core::review_draft_id>{ };
+	{
+		// [[BPR-2094]]. Drafts the review does not carry: one line counting
+		// them, each with its file and lines, Add where a review can take it,
+		// Add all, and a row's click going to the draft. Nothing is added
+		// unasked; no drafts, no line. A pending row offers Leave out.
+		expect(!editor.outside_list()->isVisible(), "no drafts outside the review, no line");
+		auto added = std::vector<std::vector<core::review_draft_id>>{ };
+		auto went  = std::vector<core::review_draft_id>{ };
+		editor.set_outside_dispatch([&](std::vector<core::review_draft_id> aIds) { added.push_back(std::move(aIds)); },
+									[&](const qt::review_submission_editor::outside_draft& aDraft) { went.push_back(aDraft.Id); });
+		editor.set_pending_leave_out([&](const core::review_submission_comment& aComment) { leftOut.push_back(aComment.Draft); });
+		editor.set_outside_drafts({
+			{ .Id = core::review_draft_id{ 21U }, .Path = QStringLiteral("src/engine/renderer.cpp"), .Line = 11U, .Body = QStringLiteral("thought: the clear races the draw."), .Addable = true },
+			{ .Id = core::review_draft_id{ 22U }, .Path = QStringLiteral("src/engine/scale.cpp"), .Line = 4U, .StartLine = 2U, .Body = QStringLiteral("nitpick: `std::max` reads better."), .Addable = true },
+			{ .Id = core::review_draft_id{ 23U }, .Path = QStringLiteral("src/engine/scale.cpp"), .Body = QStringLiteral("Agreed."), .Why = QStringLiteral("A reply is sent to its thread on its own."), .Reply = true },
+		});
+		QApplication::processEvents();
+		expect(editor.outside_list()->isVisible() && editor.outside_heading()->text() == QStringLiteral("3 drafts aren't in this review"), "the line counts the drafts outside the review");
+		expect(editor.outside_rows() == QStringList{ QStringLiteral("renderer.cpp, line 12: thought: the clear races the draw."), QStringLiteral("scale.cpp, lines 3–5: nitpick: `std::max` reads better."), QStringLiteral("scale.cpp, reply: Agreed.") },
+			   "each with its file and lines");
+		expect(added.empty() && editor.pending_rows().size() == 2, "nothing is added unasked");
+		const auto adds = editor.outside_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewOutsideAdd"));
+		expect(adds.size() == 2 && editor.outside_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewOutsideWhy")).size() == 1, "Add where a review can take it, why where not");
+		adds.front()->click();
+		expect(added.size() == 1 && added.back() == std::vector{ core::review_draft_id{ 21U } }, "a row's Add asks for that draft");
+		editor.outside_add_all()->click();
+		expect(added.size() == 2 && added.back() == std::vector{ core::review_draft_id{ 21U }, core::review_draft_id{ 22U } }, "Add all asks for every draft a review can take");
+		auto* const row = editor.outside_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewOutsideOpen")).front();
+		{
+			const auto at      = QPointF{ row->rect().center() };
+			auto       pressed = QMouseEvent{ QEvent::MouseButtonPress, at, row->mapToGlobal(at), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(row, &pressed);
+		}
+		expect(went == std::vector{ core::review_draft_id{ 21U } }, "a row's click goes to its draft");
+
+		if (const auto draftsLook = qEnvironmentVariable("BPR_FINISH_DRAFTS_RENDER"); !draftsLook.isEmpty()) {
+			editor.resize(560, editor.sizeHint().height() + 120);
+			QApplication::processEvents();
+			static_cast<void>(editor.grab().save(draftsLook, "PNG"));
+		}
+		editor.set_outside_drafts({ });
+		QApplication::processEvents();
+		expect(!editor.outside_list()->isVisible(), "all in: the line is gone");
+	}
 	expect(editor.carries_label()->isVisible() && editor.carries_label()->text() == QStringLiteral("2 pending comments")
 			   && editor.body_editor()->placeholderText() == QStringLiteral("Leave a summary (optional)"),
 		   "the list says how many comments the review holds, and the summary is optional");
@@ -576,8 +654,13 @@ auto main(int argc, char** argv) -> int
 				threads = action;
 			}
 		}
-		expect(said == QStringList{ QStringLiteral("Open in Review"), QStringLiteral("Open in Discuss"), QStringLiteral("Show in Threads"), QStringLiteral("|"), QStringLiteral("Copy") } && menu->defaultAction() == menu->actions().front() && threads != nullptr,
-			   "the row menu offers Open in Review, Open in Discuss and Show in Threads, as a thread row's does, then Copy");
+		expect(said == QStringList{ QStringLiteral("Open in Review"), QStringLiteral("Open in Discuss"), QStringLiteral("Show in Threads"), QStringLiteral("|"), QStringLiteral("Copy"), QStringLiteral("Leave Out of Review") } && menu->defaultAction() == menu->actions().front() && threads != nullptr,
+			   "the row menu offers Open in Review, Open in Discuss and Show in Threads, as a thread row's does, then Copy and Leave Out of Review");
+		// [[BPR-2094]]. Leave Out of Review: out of the review, still a draft.
+		auto* const leave = menu->findChild<QAction*>(QStringLiteral("wholeReviewPendingLeaveOut"));
+		expect(leave != nullptr && leave->isEnabled(), "a pending row's menu offers Leave Out of Review while the review is written");
+		leave->trigger();
+		expect(leftOut == std::vector{ core::review_draft_id{ 7U } }, "Leave Out of Review names its draft");
 		threads->trigger();
 		menu->close();
 		expect(opened.size() == 4U && opened[3].first == first && opened[3].second == core::workbench_thread_destination::threads, "Show in Threads goes to Threads");
@@ -811,7 +894,7 @@ auto main(int argc, char** argv) -> int
 			}
 			return nullptr;
 		};
-		const auto expectedWords = QStringList{ QStringLiteral("Open in Review"), QStringLiteral("Open in Discuss"), QStringLiteral("Show in Threads"), QStringLiteral("Copy") };
+		const auto expectedWords = QStringList{ QStringLiteral("Open in Review"), QStringLiteral("Open in Discuss"), QStringLiteral("Show in Threads"), QStringLiteral("Copy"), QStringLiteral("Leave Out of Review") };
 		keyOn(pickRows.at(1), Qt::Key_Menu);
 		auto* menu = menuOf(pickRows.at(1));
 		expect(menu != nullptr && menuWords(menu) == expectedWords && copyIn(menu)->isEnabled() && copyIn(menu)->shortcut() == QKeySequence{ QKeySequence::Copy },

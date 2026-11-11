@@ -7,6 +7,7 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QContextMenuEvent>
+#include <QDir>
 #include <QFile>
 #include <QHelpEvent>
 #include <QImage>
@@ -458,6 +459,62 @@ namespace {
 		expect(finder.label_button()->accessibleName() == QStringLiteral("Only threads with a issue"), "the chip names the label");
 		finder.set_filters({ });
 		expect(shown_rows(finder).size() == 11U, "Show all clears everything");
+	}
+
+	/// \brief [[BPR-2092]]. My saved drafts are rows in their files' groups,
+	/// labelled Draft, amber when not in the review; My drafts shows only
+	/// them; a draft row's pick names the draft; show_drafts finds a file's.
+	[[nodiscard]] auto saved_drafts() -> std::vector<qt::finder_saved_draft>
+	{
+		return {
+			{ .Id = 41U, .Path = QStringLiteral("src/core/thread_map.cpp"), .Line = 3U, .Body = QStringLiteral("question: Is this map ever empty?"), .InReview = true },
+			{ .Id = 42U, .Path = QStringLiteral("src/core/thread_map.cpp"), .Line = 20U, .Body = QStringLiteral("nitpick: name this `entries`."), .InReview = false },
+			{ .Id = 43U, .Path = QStringLiteral("src/new/file.cpp"), .Line = 1U, .Body = QStringLiteral("A file with no thread yet."), .InReview = false },
+			{ .Id = 44U, .Path = QStringLiteral("src/renderer.cpp"), .Line = 0U, .Body = QStringLiteral("Agreed, will follow up."), .Reply = true },
+		};
+	}
+
+	void test_my_drafts()
+	{
+		auto  shown  = page{ };
+		auto& finder = shown.Finder;
+		expect(!finder.drafts_button()->isEnabled(), "My drafts is off with no drafts");
+		finder.set_saved_drafts(saved_drafts());
+		QApplication::processEvents();
+		const auto rows = shown_rows(finder);
+		expect(rows.size() == 15U, "every thread row and four draft rows");
+		const auto keys = finder.shown_keys();
+		expect(std::ranges::find(keys, std::string{ "file:src/new/file.cpp" }) != keys.end(), "a draft opens its file's group when no thread does");
+		expect(finder.drafts_button()->isEnabled() && finder.drafts_button()->accessibleName().startsWith(QStringLiteral("Only my drafts (4)")), "My drafts counts them");
+		finder.drafts_button()->click();
+		expect(finder.filters().OnlyDrafts, "My drafts filters");
+		const auto drafts = shown_rows(finder);
+		expect(drafts.size() == 4U && std::ranges::all_of(drafts, [](const std::string& aRow) { return aRow.starts_with("row:draft:saved:"); }), "My drafts shows only my drafts");
+		expect(finder.row_text("row:draft:saved:42/draft:saved:42").contains(QStringLiteral("not in your review")), "a draft not in the review says so");
+		expect(finder.row_text("row:draft:saved:41/draft:saved:41").contains(QStringLiteral("in your review")), "a draft in the review says so");
+		expect(finder.row_text("row:draft:saved:44/draft:saved:44").contains(QStringLiteral("draft reply")), "a reply says it is one");
+		finder.only_new_button()->click();
+		expect(shown_rows(finder).size() == 4U, "no other filter hides a draft under My drafts");
+		finder.set_filters({ });
+		expect(shown_rows(finder).size() == 15U && !finder.drafts_button()->isChecked(), "clearing shows every row again");
+		expect(finder.show_drafts(QStringLiteral("src/core/thread_map.cpp")) && finder.filters().OnlyDrafts && finder.cursor_key() == "row:draft:saved:41/draft:saved:41",
+			   "a file's drafts: My drafts on, the cursor on its first");
+		expect(finder.show_drafts(QStringLiteral("src/new")) && finder.cursor_key() == "row:draft:saved:43/draft:saved:43", "a folder's drafts: its files' first");
+		expect(!finder.show_drafts(QStringLiteral("src/none")), "no drafts there");
+		const auto row = finder.row_rect("row:draft:saved:42/draft:saved:42");
+		press(*finder.list(), row.center());
+		key(*finder.list(), Qt::Key_Return);
+		expect(!shown.Picks.empty() && shown.Picks.back().Thread == "draft:saved:42" && shown.Destinations.back() == core::workbench_thread_destination::review,
+			   "Return on a draft row picks the draft, in Review");
+		if (const auto directory = qEnvironmentVariable("BPR_QT_FINDER_DRAFTS_RENDER"); !directory.isEmpty()) {
+			QDir{ }.mkpath(directory);
+			finder.set_filters({ });
+			QApplication::processEvents();
+			static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-drafts-all.png"), "PNG"));
+			finder.drafts_button()->click();
+			QApplication::processEvents();
+			static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-drafts-only.png"), "PNG"));
+		}
 	}
 
 	/// \brief Folding: a file's header, and a row's oldest read posts past nine.
@@ -1008,6 +1065,23 @@ int main(int aArgc, char** aArgv)
 {
 	QApplication::setStyle(QStyleFactory::create(QStringLiteral("Windows")));
 	QApplication application{ aArgc, aArgv };
+	// [[BPR-2092]]. The owner's look of Threads with my drafts, all rows and
+	// My drafts on, without the course's focus checks.
+	if (aArgc > 2 && std::string_view{ aArgv[1] } == "--render-bpr-2092") {
+		auto  shown  = page{ };
+		auto& finder = shown.Finder;
+		finder.resize(1100, 560);
+		finder.set_saved_drafts(saved_drafts());
+		const auto directory = QString::fromLocal8Bit(aArgv[2]);
+		QDir{ }.mkpath(directory);
+		QApplication::processEvents();
+		static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-drafts-all.png"), "PNG"));
+		finder.set_filters({ .OnlyDrafts = true });
+		QApplication::processEvents();
+		static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-drafts-only.png"), "PNG"));
+		std::cout << "render-bpr-2092:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (aArgc > 3 && std::string_view{ aArgv[1] } == "--render-bpr-1779") {
 		render_owner_186(QString::fromLocal8Bit(aArgv[2]), QString::fromLocal8Bit(aArgv[3]));
 		std::cout << "render-bpr-1779:pass\n";
@@ -1017,6 +1091,7 @@ int main(int aArgc, char** aArgv)
 	test_rows_branch_only_where_replies_have_replies();
 	test_conversations_are_the_ones_on_a_file();
 	test_search_and_filters();
+	test_my_drafts();
 	test_folding();
 	test_keys_and_pick();
 	test_discuss_button_shift_return_and_menu();

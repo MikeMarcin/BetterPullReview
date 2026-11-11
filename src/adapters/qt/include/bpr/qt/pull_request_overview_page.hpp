@@ -27,6 +27,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -105,6 +106,9 @@ namespace bpr::qt {
 			/// The round qualifier: units the count leaves out or cannot
 			/// classify, or a count that is not exact.
 			uncertain,
+			/// [[BPR-2093]]. My drafts on the row: `Count` of them, of which
+			/// `NotInReview` the review does not carry.
+			drafts,
 		};
 		kind                                Kind = kind::label;
 		std::optional<core::feedback_label> Label;
@@ -112,7 +116,9 @@ namespace bpr::qt {
 		core::feedback_state_counts         States{ };
 		/// For `more`: the folded chips, in order.
 		std::vector<overview_comment_chip> Folded;
-		QRectF                             Box;
+		/// For `drafts`: how many the review does not carry.
+		std::size_t NotInReview = 0U;
+		QRectF      Box;
 	};
 
 	/// \brief [[BPR-1089]]. The chips of one Comments cell, laid out in it: the
@@ -122,6 +128,27 @@ namespace bpr::qt {
 	/// this one layout.
 	[[nodiscard]] auto overview_comment_chips(const core::feedback_counter_projection& aCounts, const QRect& aCell, const QFont& aFont)
 		-> std::vector<overview_comment_chip>;
+
+	/// \brief [[BPR-2093]]. A row's drafts: in the review and not in it.
+	struct overview_draft_count
+	{
+		std::size_t InReview    = 0U;
+		std::size_t NotInReview = 0U;
+
+		[[nodiscard]] auto total() const noexcept -> std::size_t { return InReview + NotInReview; }
+		auto               operator==(const overview_draft_count&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-2093]]. The Comments cell with my drafts: the drafts chip
+	/// keeps its place at the cell's right end, before the qualifier, and the
+	/// comment chips fold into "+n" before they reach it. Without counts only
+	/// the drafts chip is laid out.
+	[[nodiscard]] auto overview_comment_chips(const core::feedback_counter_projection* aCounts, const QRect& aCell, const QFont& aFont, std::optional<overview_draft_count> aDrafts)
+		-> std::vector<overview_comment_chip>;
+
+	/// \brief [[BPR-2093]]. What the drafts chip says, in its tooltip and to
+	/// a screen reader.
+	[[nodiscard]] auto overview_drafts_text(const overview_comment_chip& aChip) -> QString;
 
 	/// \brief [[BPR-1089]]. The chip the keyboard is on: Tab steps from a row
 	/// onto its chips, and the row and the chip's kind and label name it, so it
@@ -240,6 +267,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto feedback() const noexcept -> const std::optional<application::overview_feedback_projection>&;
 		/// \brief The counts of a file, folder or remainder row, or none.
 		[[nodiscard]] auto feedback_at(const QModelIndex& aIndex) const -> const core::feedback_counter_projection*;
+		/// \brief [[BPR-2093]]. My drafts per file, by path; only the
+		/// Comments column changes.
+		void apply_drafts(std::map<QString, overview_draft_count> aDrafts);
+		/// \brief A file row's drafts, a folder row's files' drafts together,
+		/// or none.
+		[[nodiscard]] auto drafts_at(const QModelIndex& aIndex) const -> std::optional<overview_draft_count>;
+		/// \brief The path a drafts chip names: a file's, or a folder's.
+		[[nodiscard]] auto path_at(const QModelIndex& aIndex) const -> QString;
 		/// \brief The row a drill-down from this index names.
 		[[nodiscard]] auto feedback_row(const QModelIndex& aIndex) const
 			-> std::optional<std::pair<application::overview_feedback_row_kind, std::string>>;
@@ -279,6 +314,8 @@ namespace bpr::qt {
 		std::optional<application::overview_feedback_projection> Feedback;
 		QHash<QString, std::size_t>                              FileFeedback;
 		QHash<QString, std::size_t>                              FolderFeedback;
+		/// [[BPR-2093]]. My drafts per file, by path.
+		std::map<QString, overview_draft_count> Drafts;
 	};
 
 	/// \brief Paints the overview table's marks: operation, changed, read, comments.
@@ -326,7 +363,11 @@ namespace bpr::qt {
 		void                      paint_cell(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
 		void                      paint_folder(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
 		void                      paint_disclosure(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
-		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts, core::feedback_resolution_mode aMode) const;
+		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection* aCounts, core::feedback_resolution_mode aMode) const;
+		/// [[BPR-2093]]. The drafts chip: a pencil in a dashed outline, the
+		/// draft's own mark, its count, and an amber dot while any draft is
+		/// not in the review.
+		void paint_drafts_chip(QPainter& aPainter, const QStyleOptionViewItem& aOption, const overview_comment_chip& aChip) const;
 
 		const overview_colours&            Colours;
 		std::optional<overview_chip_focus> ChipFocus;
@@ -629,6 +670,12 @@ namespace bpr::qt {
 		void set_attention_colour(const QColor& aColour);
 		void set_feedback_dispatch(overview_feedback_dispatch aDispatch);
 		void set_drill_down_dispatch(overview_drill_down_dispatch aDispatch);
+		/// \brief [[BPR-2093]]. My drafts per file, by path; the Comments
+		/// column shows them. Empty clears them.
+		void set_drafts(std::map<QString, overview_draft_count> aDrafts);
+		/// \brief [[BPR-2093]]. Where a drafts chip goes: the file's (or the
+		/// folder's) path, to list its drafts.
+		void set_drafts_dispatch(std::function<void(const QString&)> aDispatch);
 		/// \brief The view's current request: its chips, mode and sort.
 		[[nodiscard]] auto feedback_request() const -> application::overview_feedback_request;
 		/// \brief Chooses the mode, as the switch does.
@@ -954,6 +1001,7 @@ namespace bpr::qt {
 		std::optional<application::overview_feedback_request> AskedFeedback;
 		overview_feedback_dispatch                            FeedbackDispatch;
 		overview_drill_down_dispatch                          DrillDownDispatch;
+		std::function<void(const QString&)>                   DraftsDispatch;
 		QToolButton*                                          OpenCounts    = nullptr;
 		QToolButton*                                          AllCounts     = nullptr;
 		QToolButton*                                          Uncertain     = nullptr;

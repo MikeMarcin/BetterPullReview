@@ -23,6 +23,7 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QClipboard>
+#include <QDir>
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QGuiApplication>
@@ -2402,6 +2403,65 @@ namespace {
 	/// Left and Right stay the tree's; Tab steps onto a row's chips with a
 	/// ring and a tooltip; the current cell and chip survive a refresh and a
 	/// sort.
+	/// [[BPR-2093]]. The Comments cell shows the file's drafts as one chip at
+	/// its right end, before the qualifier; a folder adds its files up; the
+	/// comment chips fold before reaching it; its tooltip says how many are in
+	/// the review; a click or Enter asks for that row's drafts. Without counts
+	/// the drafts chip still shows.
+	void test_drafts_chip_counts_and_goes_to_the_drafts(const QString& aRender = { })
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1'300, 760);
+		auto asked  = std::vector<application::overview_feedback_request>{ };
+		auto wanted = std::vector<QString>{ };
+		auto opened = std::vector<QString>{ };
+		page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+		page.set_drafts_dispatch([&](const QString& aPath) { wanted.push_back(aPath); });
+		page.set_file_dispatch([&](const QString& aPath) { opened.push_back(aPath); });
+		page.present(projection());
+		page.show();
+		settle();
+		page.set_drafts({ { QString::fromStdString(lighting), qt::overview_draft_count{ .InReview = 2U, .NotInReview = 1U } },
+						  { QString::fromStdString(voxel), qt::overview_draft_count{ .InReview = 1U, .NotInReview = 0U } } });
+		settle();
+		auto* const view    = page.files_view();
+		auto* const model   = page.file_model();
+		const auto  drafted = [&](const QModelIndex& aCell) {
+			const auto chips = qt::overview_comment_chips(model->feedback_at(aCell), view->visualRect(aCell), view->font(), model->drafts_at(aCell));
+			const auto found = std::ranges::find(chips, qt::overview_comment_chip::kind::drafts, &qt::overview_comment_chip::Kind);
+			return found == chips.end() ? std::optional<qt::overview_comment_chip>{ } : std::optional{ *found };
+		};
+		const auto before = drafted(cell(page, lighting));
+		expect(before && before->Count == 3U && before->NotInReview == 1U, "without counts the cell shows the file's drafts");
+		const auto review = mixed_review();
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
+		settle();
+		const auto chip = drafted(cell(page, lighting));
+		const auto rect = view->visualRect(cell(page, lighting));
+		expect(chip && chip->Count == 3U && chip->NotInReview == 1U && chip->Box.right() <= rect.right() && chip->Box.left() >= rect.left(), "with counts the drafts chip is in the cell");
+		const auto all = qt::overview_comment_chips(model->feedback_at(cell(page, lighting)), rect, view->font(), model->drafts_at(cell(page, lighting)));
+		expect(std::ranges::none_of(all, [&](const qt::overview_comment_chip& aOther) { return aOther.Kind != qt::overview_comment_chip::kind::drafts && aOther.Box.intersects(chip->Box); }),
+			   "no comment chip covers it");
+		const auto folder = model->index_for_path(QString::fromStdString(lighting)).parent().siblingAtColumn(qt::overview_file_model::comments_column);
+		const auto summed = drafted(folder);
+		expect(summed && summed->Count == 4U && summed->NotInReview == 1U, "a folder adds up its files' drafts");
+		expect(qt::overview_drafts_text(*chip).startsWith(QStringLiteral("3 drafts of yours here. 2 in your review, 1 not.")), "the tooltip says how many are in the review");
+		expect(qt::overview_drafts_text(*drafted(cell(page, voxel))).startsWith(QStringLiteral("1 draft of yours here. It is in your review.")), "one draft, in the review");
+		click_at(*view->viewport(), chip->Box.center());
+		expect(wanted.size() == 1U && wanted.back() == QString::fromStdString(lighting) && opened.empty(), "a click asks for that file's drafts and opens no file");
+		click_at(*view->viewport(), summed->Box.center());
+		expect(wanted.size() == 2U && wanted.back() == QStringLiteral("Engine/Renderer"), "a folder's chip asks for the folder's drafts");
+		if (!aRender.isEmpty()) {
+			QDir{ }.mkpath(aRender);
+			view->clearSelection();
+			settle();
+			static_cast<void>(page.grab().save(aRender + QStringLiteral("/overview-drafts.png"), "PNG"));
+		}
+		page.set_drafts({ });
+		settle();
+		expect(!drafted(cell(page, lighting)), "no drafts, no chip");
+	}
+
 	void test_chip_activation_names_exactly_its_count()
 	{
 		qt::pull_request_overview_page page;
@@ -4088,12 +4148,19 @@ auto main(int argc, char** argv) -> int
 		std::cout << "pull-request-overview-status-look:pass\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-2093]]. The drafts chip's look, for the owner's review.
+	if (argc > 2 && std::string_view{ argv[1] } == "--drafts-look") {
+		test_drafts_chip_counts_and_goes_to_the_drafts(QString::fromLocal8Bit(argv[2]));
+		std::cout << "pull-request-overview-drafts-look:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1331]] v003. The read column's marks alone.
 	if (argc > 1 && std::string_view{ argv[1] } == "--read-marks") {
 		test_the_read_column_shows_the_mark();
 		std::cout << "pull-request-overview-read-marks:pass\n";
 		return EXIT_SUCCESS;
 	}
+	test_drafts_chip_counts_and_goes_to_the_drafts();
 	test_checks_load_independently_of_remaining_status();
 	test_local_progress_loads_independently();
 	test_history_publication_does_not_touch_file_rows();

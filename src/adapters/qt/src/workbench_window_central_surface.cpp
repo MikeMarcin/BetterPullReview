@@ -403,6 +403,8 @@ namespace bpr::qt {
 												&& (!result || result->Alignment.Content != core::diff_content_state::text));
 		});
 		OverviewPage = new pull_request_overview_page{ CentreStack };
+		// [[BPR-2093]]. A drafts chip lists the row's drafts in Threads.
+		OverviewPage->set_drafts_dispatch([this](const QString& aPath) { static_cast<void>(show_drafts_in_threads(aPath)); });
 		// [[BPR-1588]]. Status's tab row carries Open on GitHub too.
 		if (OpenOnGithubAction != nullptr) {
 			OverviewPage->set_open_on_github_action(OpenOnGithubAction);
@@ -1094,6 +1096,11 @@ namespace bpr::qt {
 		ThreadsPage->setMinimumSize(1, 1);
 		CentreStack->addWidget(ThreadsPage);
 		Finder->set_pick_dispatch([this](const finder_location& aLocation, const core::workbench_thread_destination aDestination) {
+			// [[BPR-2092]]. A saved draft's row goes to the draft.
+			if (aLocation.Thread.starts_with(finder_saved_draft_prefix)) {
+				static_cast<void>(open_roster_draft(core::review_draft_id{ std::stoull(aLocation.Thread.substr(finder_saved_draft_prefix.size())) }));
+				return;
+			}
 			static_cast<void>(open_thread_from_threads(aLocation.Thread, aLocation.Post, aDestination));
 		});
 		Finder->set_leave_dispatch([this] { leave_threads(); });
@@ -1265,6 +1272,20 @@ namespace bpr::qt {
 		// [[BPR-1590]] v003. Threads' gestures on a pending row.
 		ReviewSubmissionEditor->set_pending_open([this](const core::review_submission_comment& aComment, const core::workbench_thread_destination aDestination) {
 			open_pending_comment(aComment, aDestination);
+		});
+		// [[BPR-2094]]. Drafts not in the review: Add and Add all, a row's
+		// click, and a pending row's Leave out.
+		ReviewSubmissionEditor->set_outside_dispatch(
+			[this](std::vector<core::review_draft_id> aDrafts) {
+				if (DraftReviewDispatch) {
+					DraftReviewDispatch(std::move(aDrafts), true);
+				}
+			},
+			[this](const review_submission_editor::outside_draft& aDraft) { static_cast<void>(open_roster_draft(aDraft.Id)); });
+		ReviewSubmissionEditor->set_pending_leave_out([this](const core::review_submission_comment& aComment) {
+			if (DraftReviewDispatch) {
+				DraftReviewDispatch({ aComment.Draft }, false);
+			}
 		});
 		ReviewSubmissionEditor->set_pending_delete([this](const core::review_submission_comment& aComment) {
 			if (PendingCommentDeleteDispatch) {

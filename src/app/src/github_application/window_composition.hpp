@@ -80,6 +80,7 @@
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/diff_transition.hpp"
 #include "bpr/core/document_tabs.hpp"
+#include "bpr/core/draft_roster.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/filtered_comment.hpp"
@@ -896,6 +897,16 @@ namespace bpr::app {
 		void discard_review_comments(const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead);
 
 		void delete_pending_comment(const core::review_draft_id aDraft, const std::uint64_t aRevision);
+		/// [[BPR-2092]]. Every unsent draft, as the core places and stands it,
+		/// to Threads, Overview and Finish your review.
+		void               present_draft_roster();
+		[[nodiscard]] auto draft_roster() const -> core::draft_roster;
+		/// [[BPR-2092]]. Where the shown draft is written, for an edit to record.
+		[[nodiscard]] auto shown_draft_place(const std::string& aBody) const -> std::optional<core::review_draft_place>;
+		/// [[BPR-2094]]. Add the chosen drafts to the review, or take them out
+		/// of it, in one durable write.
+		void add_drafts_to_review(const std::vector<core::review_draft_id>& aDrafts);
+		void leave_drafts_out_of_review(const std::vector<core::review_draft_id>& aDrafts);
 
 		void leave_deleted_draft();
 

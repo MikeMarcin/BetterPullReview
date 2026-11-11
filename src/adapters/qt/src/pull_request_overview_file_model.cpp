@@ -184,8 +184,31 @@ namespace bpr::qt {
 
 	auto overview_comment_chips(const core::feedback_counter_projection& aCounts, const QRect& aCell, const QFont& aFont) -> std::vector<overview_comment_chip>
 	{
-		const auto metrics = QFontMetrics{ chip_font(aFont) };
-		auto       chips   = std::vector<overview_comment_chip>{ };
+		return overview_comment_chips(&aCounts, aCell, aFont, std::nullopt);
+	}
+
+	auto overview_drafts_text(const overview_comment_chip& aChip) -> QString
+	{
+		const auto drafts = aChip.Count == 1U ? QStringLiteral("1 draft of yours") : QStringLiteral("%1 drafts of yours").arg(aChip.Count);
+		const auto in     = aChip.Count - aChip.NotInReview;
+		auto       where  = QString{ };
+		if (aChip.NotInReview == 0U) {
+			where = aChip.Count == 1U ? QStringLiteral("It is in your review.") : QStringLiteral("All are in your review.");
+		} else if (in == 0U) {
+			where = aChip.Count == 1U ? QStringLiteral("It isn't in your review.") : QStringLiteral("None is in your review.");
+		} else {
+			where = QStringLiteral("%1 in your review, %2 not.").arg(in).arg(aChip.NotInReview);
+		}
+		return QStringLiteral("%1 here. %2\nClick or press Enter to list them in Threads.").arg(drafts, where);
+	}
+
+	auto overview_comment_chips(const core::feedback_counter_projection* const aCountsOrNull, const QRect& aCell, const QFont& aFont, const std::optional<overview_draft_count> aDrafts)
+		-> std::vector<overview_comment_chip>
+	{
+		static const auto none    = core::feedback_counter_projection{ .Exact = true };
+		const auto&       aCounts = aCountsOrNull != nullptr ? *aCountsOrNull : none;
+		const auto        metrics = QFontMetrics{ chip_font(aFont) };
+		auto              chips   = std::vector<overview_comment_chip>{ };
 		for (const auto& column : aCounts.Dedicated) {
 			if (column.Count != 0U) {
 				auto chip   = overview_comment_chip{ };
@@ -206,9 +229,20 @@ namespace bpr::qt {
 		const auto qualified = aCounts.Uncertain != 0U || !aCounts.Exact;
 		const auto top       = static_cast<qreal>(aCell.center().y()) - chip_mark / 2.0 + 0.5;
 		const auto left      = aCell.left() + 6.0;
-		const auto right     = aCell.right() - 4.0 - (qualified ? chip_mark + 4.0 : 0.0);
 		const auto widthOf   = [&](const overview_comment_chip& aChip) { return chip_mark + count_gap + count_width(metrics, aChip.Count); };
-		auto       total     = 0.0;
+		// [[BPR-2093]]. My drafts keep the right end, before the qualifier.
+		auto drafts = std::optional<overview_comment_chip>{ };
+		if (aDrafts && aDrafts->total() != 0U) {
+			drafts              = overview_comment_chip{ };
+			drafts->Kind        = overview_comment_chip::kind::drafts;
+			drafts->Count       = aDrafts->total();
+			drafts->NotInReview = aDrafts->NotInReview;
+		}
+		// Always left of the qualifier's place, so the drafts line up down the
+		// column whether or not a row has a qualifier.
+		const auto draftsRight = aCell.right() - 4.0 - (chip_mark + 4.0);
+		const auto right       = drafts ? draftsRight - widthOf(*drafts) - chip_gap - 2.0 : aCell.right() - 4.0 - (qualified ? chip_mark + 4.0 : 0.0);
+		auto       total       = 0.0;
 		for (const auto& chip : chips) {
 			total += widthOf(chip) + chip_gap;
 		}
@@ -238,6 +272,10 @@ namespace bpr::qt {
 			more.Folded = std::vector<overview_comment_chip>{ chips.begin() + static_cast<std::ptrdiff_t>(shown), chips.end() };
 			more.Box    = QRectF{ x, top, metrics.horizontalAdvance(QStringLiteral("+%1").arg(more.Count)) + 10.0, chip_mark };
 			result.push_back(std::move(more));
+		}
+		if (drafts) {
+			drafts->Box = QRectF{ draftsRight - widthOf(*drafts), top, widthOf(*drafts), chip_mark };
+			result.push_back(std::move(*drafts));
 		}
 		if (qualified) {
 			auto qualifier  = overview_comment_chip{ };
@@ -436,6 +474,57 @@ namespace bpr::qt {
 		if (had != Feedback.has_value()) {
 			emit headerDataChanged(Qt::Horizontal, comments_column, comments_column);
 		}
+	}
+
+	void overview_file_model::apply_drafts(std::map<QString, overview_draft_count> aDrafts)
+	{
+		if (Drafts == aDrafts) {
+			return;
+		}
+		Drafts       = std::move(aDrafts);
+		auto pending = std::vector<const node*>{ &Root };
+		while (!pending.empty()) {
+			const auto* parent = pending.back();
+			pending.pop_back();
+			if (!parent->Children.empty()) {
+				emit dataChanged(index(0, comments_column, index_of(*parent)), index(static_cast<int>(parent->Children.size()) - 1, comments_column, index_of(*parent)));
+			}
+			for (const auto& child : parent->Children) {
+				if (!child->File && !child->Remainder) {
+					pending.push_back(child.get());
+				}
+			}
+		}
+	}
+
+	auto overview_file_model::drafts_at(const QModelIndex& aIndex) const -> std::optional<overview_draft_count>
+	{
+		const auto* item = node_at(aIndex);
+		if (item == nullptr || item->Remainder || Drafts.empty()) {
+			return std::nullopt;
+		}
+		auto count = overview_draft_count{ };
+		if (item->File) {
+			if (const auto found = Drafts.find(item->Path); found != Drafts.end()) {
+				count = found->second;
+			}
+		} else {
+			for (const auto& child : item->Children) {
+				if (child->File) {
+					if (const auto found = Drafts.find(child->Path); found != Drafts.end()) {
+						count.InReview += found->second.InReview;
+						count.NotInReview += found->second.NotInReview;
+					}
+				}
+			}
+		}
+		return count.total() == 0U ? std::nullopt : std::optional{ count };
+	}
+
+	auto overview_file_model::path_at(const QModelIndex& aIndex) const -> QString
+	{
+		const auto* item = node_at(aIndex);
+		return item == nullptr || item->Remainder ? QString{ } : item->Path;
 	}
 
 	void overview_file_model::sync_remainder()

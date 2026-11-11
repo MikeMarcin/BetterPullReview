@@ -3505,7 +3505,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# and adds a writing-kind source). No grant, admission or publication
 	# boundary changes.
 	set(bpr_expected_production_app_manifest_digest
-        "e47e512e4b66b25133ff986d0d822a14aaef528d83bdccd2841b8b59500ef597"
+        "7211be57501740617fd3a121010b33626f4fb8d675a164a57eca7205ee8477fb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

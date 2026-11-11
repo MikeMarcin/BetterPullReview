@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #include "bpr/core/conversation_reply.hpp"
+#include "bpr/core/draft_roster.hpp"
 #include "bpr/core/identity_avatar_picture.hpp"
 
 #include "bpr/application/commit_filter_projection.hpp"
@@ -767,6 +768,20 @@ namespace bpr::qt {
 		/// draft at the revision the page listed. Nothing is published.
 		void set_comment_draft_unavailable(QString aReason);
 		void set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
+		/// \brief [[BPR-2092]] [[BPR-2093]] [[BPR-2094]]. Every unsent draft
+		/// of mine, as the core's roster places and stands it: Threads lists
+		/// them, Overview's Comments column counts them per file, and Finish
+		/// your review lists those the review does not carry.
+		void               present_draft_roster(core::draft_roster aRoster);
+		[[nodiscard]] auto draft_roster() const noexcept -> const core::draft_roster&;
+		/// \brief [[BPR-2092]]. Goes to one draft: its lines in Review with it
+		/// open beside them, or a reply's thread.
+		auto open_roster_draft(core::review_draft_id aDraft) -> bool;
+		/// \brief [[BPR-2093]]. Threads with My drafts on, at the first draft
+		/// in \p aPath (a file or a folder; empty for all).
+		auto show_drafts_in_threads(const QString& aPath) -> bool;
+		/// \brief [[BPR-2094]]. Where Add (true) and Leave out (false) go.
+		void set_draft_review_dispatch(std::function<void(std::vector<core::review_draft_id>, bool)> aDispatch);
 		/// \brief [[BPR-1733]]. My kept suggestions written on an earlier head
 		/// of the file shown, as the core decided them at this head: each a
 		/// note at its lines, offering Carry to the new head or Copy change.
@@ -2624,7 +2639,10 @@ namespace bpr::qt {
 		/// sink and the drawer Delete's question.
 		QAction*                                                  FinishReviewAction = nullptr;
 		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
-		std::function<void(core::review_draft_id, std::uint64_t)> CarriedSuggestionDispatch;
+		/// [[BPR-2092]].
+		core::draft_roster                                            DraftRoster;
+		std::function<void(std::vector<core::review_draft_id>, bool)> DraftReviewDispatch;
+		std::function<void(core::review_draft_id, std::uint64_t)>     CarriedSuggestionDispatch;
 		/// [[BPR-1733]]. The moved suggestions the composition last presented.
 		std::vector<moved_suggestion_card> MovedSuggestions;
 		/// [[BPR-1733]]. A suggestion being carried to this head: the draft it

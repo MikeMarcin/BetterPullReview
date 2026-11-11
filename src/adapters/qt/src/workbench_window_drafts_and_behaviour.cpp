@@ -1553,6 +1553,9 @@ namespace bpr::qt {
 		}
 		if (Finder != nullptr) {
 			Finder->set_label_marks(theme);
+			if (AttentionColour.has_value()) {
+				Finder->set_attention_colour(*AttentionColour);
+			}
 		}
 		if (FeedbackMarksPreview != nullptr) {
 			FeedbackMarksPreview->set_theme(theme);

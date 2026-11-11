@@ -140,6 +140,11 @@ namespace bpr::core {
 			result.Refusal = revisioned_draft_refusal::invalid_command;
 			return result;
 		}
+		if ((aCommand.ChangePlace && aCommand.Command.Kind != review_draft_command_kind::edit) || (!aCommand.ChangePlace && aCommand.Place)
+			|| (aCommand.Place && !valid(*aCommand.Place))) {
+			result.Refusal = revisioned_draft_refusal::invalid_command;
+			return result;
+		}
 		// [[BPR-1745]]. A reply bound to its thread has no line, so it
 		// cannot become a new comment, answer another thread, take a range or
 		// go pending in a review: each would put it on a line it does not have.
@@ -188,6 +193,9 @@ namespace bpr::core {
 				result.Policy  = review_draft_rejection::invalid_range;
 				return result;
 			}
+		}
+		if (aCommand.ChangePlace) {
+			next.Place = aCommand.Place;
 		}
 		// [[BPR-1345]]. A reply is anchored by its thread and is never
 		// pending in a review.

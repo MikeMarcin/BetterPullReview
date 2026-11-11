@@ -655,7 +655,8 @@ namespace bpr::qt {
 		anchor_tooltips(*Files->viewport(), [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
 			if (const auto chip = chip_at(aPosition)) {
 				const auto* counts = Model->feedback_at(chip->first);
-				return anchored_tooltip_target{ .Anchor = chip->second.Box.toAlignedRect(), .Text = chip_tooltip(chip->second, *counts, any_columns(Model->feedback())) };
+				const auto  tip    = chip->second.Kind == overview_comment_chip::kind::drafts ? overview_drafts_text(chip->second) : chip_tooltip(chip->second, *counts, any_columns(Model->feedback()));
+				return anchored_tooltip_target{ .Anchor = chip->second.Box.toAlignedRect(), .Text = tip };
 			}
 			const auto index = Files->indexAt(aPosition);
 			const auto text  = index.isValid() ? index.data(Qt::ToolTipRole).toString() : QString{ };

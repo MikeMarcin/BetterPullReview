@@ -166,6 +166,7 @@ add_library(
         src/workbench_window_construction.cpp
         src/workbench_window_defects_and_home_rows.cpp
         src/workbench_window_drafts_and_behaviour.cpp
+        src/workbench_window_draft_roster.cpp
         src/workbench_window_github_presentation.cpp
         src/workbench_window_header_and_queue_settings.cpp
         src/workbench_window_home_landing.cpp

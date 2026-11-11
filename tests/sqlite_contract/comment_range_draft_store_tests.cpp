@@ -339,6 +339,43 @@ namespace {
 		}
 		expect(reopened->find_publication()->Records.empty(), "a pending review publishes nothing through the comment journal");
 	}
+
+	/// [[BPR-2092]]. A draft that records where it was written is version 4,
+	/// and comes back after a restart with its place, its range and its mark;
+	/// a draft without one keeps its earlier version.
+	void a_draft_place_survives_a_restart()
+	{
+		fixture    f;
+		const auto place = review_draft_place{ .Path = "src/engine/renderer.cpp", .ReviewHead = f.Binding.Revision.HeadOid };
+		const auto mark  = review_pending_mark{ .Path = place.Path, .Head = f.Binding.Revision.HeadOid };
+		auto       one   = review_draft_id{ };
+		{
+			desktop app(f, *f.Store);
+			auto    first = app.Drafts.allocate_draft(f.line(1), f.Index, "question: Where does 0.01 come from?");
+			expect(first && app.Shared.adopt(app.Authority, *first), "a draft");
+			one                 = first->records().front().Draft.Draft.Id;
+			auto stamp          = pending(*app.Shared.read(app.Window, one).Accepted, review_draft_command_kind::edit, std::nullopt);
+			stamp.ChangePending = false;
+			stamp.ChangePlace   = true;
+			stamp.Place         = place;
+			const auto placed   = app.commit(stamp);
+			expect(placed && placed->Draft.Place == place && !placed->Draft.InReview && record_version(f.ledger(), one) == 4U, "a placed draft is version 4");
+			const auto started = app.commit(pending(*placed, review_draft_command_kind::edit, mark));
+			expect(started && started->Draft.Place == place && started->Draft.InReview == mark && record_version(f.ledger(), one) == 4U, "pending and placed is still version 4");
+			auto bad          = pending(*started, review_draft_command_kind::edit, mark);
+			bad.ChangePending = false;
+			bad.Pending.reset();
+			bad.ChangePlace = true;
+			bad.Place       = review_draft_place{ .Path = std::string(maximum_pending_mark_path_bytes + 1U, 'a') };
+			expect(!app.Drafts.change_draft(bad) && f.Store->load_draft(one)->Draft.Draft.Place == place, "an unbounded place is refused and the stored one kept");
+		}
+		auto reopened = std::move(*make_private_review_store(f.Config));
+		{
+			desktop    app(f, *reopened);
+			const auto first = app.restore(one);
+			expect(first.Draft.Place == place && first.Draft.InReview == mark && first.Draft.Body == "question: Where does 0.01 come from?", "after a restart the place, mark and text are back");
+		}
+	}
 } // namespace
 
 int main()
@@ -346,6 +383,7 @@ int main()
 	a_range_survives_a_restart_and_one_line_keeps_its_bytes();
 	a_label_edit_keeps_the_range_and_its_record_version();
 	a_pending_mark_survives_a_restart_and_a_review_holds_its_drafts();
+	a_draft_place_survives_a_restart();
 	std::cout << "COMMENT_RANGE_DRAFT_STORE_OK\n";
 	return EXIT_SUCCESS;
 }

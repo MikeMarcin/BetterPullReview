@@ -76,6 +76,28 @@ namespace bpr::core {
 	/// \brief Checks a bounded path, a valid head and a bounded printable key.
 	[[nodiscard]] auto valid(const review_pending_mark& aMark) noexcept -> bool;
 
+	/// \brief [[BPR-2092]]. Where a draft was written, so it can be found
+	/// from outside its file.
+	///
+	/// \details The owner, 2026-11-11: "I don't seem to have an easy way to
+	/// find all my draft comments". A draft names its line by comparison
+	/// digest, which says nothing about the file; the window records the
+	/// file's path at the head when the draft is written, and, when a review
+	/// could take the draft at its own line, that head: the pending mark Start
+	/// a review would give it is then `{ Path, *ReviewHead }`. Absent on a
+	/// draft kept before it was recorded. Finding only: nothing is published
+	/// or placed by it.
+	struct review_draft_place
+	{
+		std::string                   Path;
+		std::optional<git_commit_oid> ReviewHead;
+
+		auto operator<=>(const review_draft_place&) const = default;
+	};
+
+	/// \brief A bounded, non-empty path without NUL, and a valid head when one is given.
+	[[nodiscard]] auto valid(const review_draft_place& aPlace) noexcept -> bool;
+
 	/// \brief Holds one comment a reviewer is composing.
 	///
 	/// \details The anchor is RFC-BPR-0004's semantic source-line identity, not
@@ -107,6 +129,8 @@ namespace bpr::core {
 		/// new comment on a line or range of either side can be; a reply
 		/// cannot.
 		std::optional<review_pending_mark> InReview = { };
+		/// [[BPR-2092]]. Where the draft was written, or none when not recorded.
+		std::optional<review_draft_place> Place = { };
 
 		[[nodiscard]] auto shared() const noexcept -> bool
 		{

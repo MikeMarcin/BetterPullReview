@@ -14,6 +14,7 @@
 #include <QWidget>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
@@ -266,6 +267,42 @@ namespace bpr::qt {
 		/// Inspect all retained inline comments, including earlier revisions.
 		void set_saved_comments_reveal(std::function<void()>);
 
+		/// \brief [[BPR-2094]]. One of my drafts the review does not carry, as
+		/// the core's roster lists it.
+		struct outside_draft
+		{
+			core::review_draft_id        Id;
+			QString                      Path;
+			core::diff_side              Side = core::diff_side::right;
+			std::uint32_t                Line = 0U;
+			std::optional<std::uint32_t> StartLine;
+			QString                      Body;
+			/// The review can take it: its row offers Add.
+			bool Addable = false;
+			/// Why it cannot, when it cannot.
+			QString Why;
+			/// A reply bound to its thread: no line to name.
+			bool Reply = false;
+
+			auto operator==(const outside_draft&) const -> bool = default;
+		};
+		/// \brief [[BPR-2094]]. "N drafts aren't in this review", under the
+		/// pending comments, each with its file and lines; none hides it.
+		/// Nothing is added unless a row's Add or Add all is pressed.
+		void               set_outside_drafts(std::vector<outside_draft> aDrafts);
+		[[nodiscard]] auto outside_drafts() const noexcept -> const std::vector<outside_draft>&;
+		/// \brief [[BPR-2094]]. Add and Add all ask for these drafts to join the
+		/// review; a row's click goes to its draft.
+		void set_outside_dispatch(std::function<void(std::vector<core::review_draft_id>)> aAdd, std::function<void(const outside_draft&)> aOpen);
+		/// \brief [[BPR-2094]]. A pending row's Leave out: the draft leaves the
+		/// review and stays saved.
+		void               set_pending_leave_out(std::function<void(const core::review_submission_comment&)> aLeaveOut);
+		[[nodiscard]] auto outside_list() const noexcept -> QWidget*;
+		[[nodiscard]] auto outside_heading() const noexcept -> QLabel*;
+		[[nodiscard]] auto outside_add_all() const noexcept -> QToolButton*;
+		/// \brief The rows' words, in order: "renderer.cpp, line 431: …".
+		[[nodiscard]] auto outside_rows() const -> QStringList;
+
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 
@@ -276,21 +313,34 @@ namespace bpr::qt {
 
 	protected:
 	private:
-		void                                                                                            present_preflight(const review_submission_editor_projection& aProjection);
-		void                                                                                            present_pending();
-		void                                                                                            present_verdicts();
-		void                                                                                            submit_as(core::review_disposition aDisposition);
-		void                                                                                            confirm_discard();
-		void                                                                                            discard_now();
-		void                                                                                            confirm_delete(const core::review_submission_comment& aComment);
-		void                                                                                            emit_command(core::review_submission_command_kind aKind, std::optional<core::review_disposition> aDisposition = std::nullopt);
-		void                                                                                            emit_operation(review_submission_editor_operation aOperation);
-		void                                                                                            pick_pending(std::size_t aIndex, Qt::KeyboardModifiers aModifiers);
-		void                                                                                            step_pending(std::size_t aIndex, bool aDown, bool aExtend);
-		void                                                                                            select_all_pending();
-		void                                                                                            restyle_pending_selection();
-		void                                                                                            prepare_pending_menu(std::size_t aIndex);
-		std::function<void()>                                                                           SavedCommentsReveal;
+		void                  present_preflight(const review_submission_editor_projection& aProjection);
+		void                  present_pending();
+		void                  present_outside();
+		void                  present_verdicts();
+		void                  submit_as(core::review_disposition aDisposition);
+		void                  confirm_discard();
+		void                  discard_now();
+		void                  confirm_delete(const core::review_submission_comment& aComment);
+		void                  emit_command(core::review_submission_command_kind aKind, std::optional<core::review_disposition> aDisposition = std::nullopt);
+		void                  emit_operation(review_submission_editor_operation aOperation);
+		void                  pick_pending(std::size_t aIndex, Qt::KeyboardModifiers aModifiers);
+		void                  step_pending(std::size_t aIndex, bool aDown, bool aExtend);
+		void                  select_all_pending();
+		void                  restyle_pending_selection();
+		void                  prepare_pending_menu(std::size_t aIndex);
+		std::function<void()> SavedCommentsReveal;
+		/// [[BPR-2094]].
+		std::vector<outside_draft>                                                                      OutsideDrafts;
+		std::vector<outside_draft>                                                                      OutsideListed;
+		QStringList                                                                                     OutsideRowWords;
+		std::function<void(std::vector<core::review_draft_id>)>                                         OutsideAdd;
+		std::function<void(const outside_draft&)>                                                       OutsideOpen;
+		std::function<void(const core::review_submission_comment&)>                                     PendingLeaveOut;
+		QWidget*                                                                                        Outside        = nullptr;
+		QWidget*                                                                                        OutsideRule    = nullptr;
+		QLabel*                                                                                         OutsideHeading = nullptr;
+		QToolButton*                                                                                    OutsideAddAll  = nullptr;
+		QVBoxLayout*                                                                                    OutsideRows    = nullptr;
 		QString                                                                                         LastAnnouncement;
 		review_submission_editor_dispatch                                                               Dispatch;
 		std::optional<core::review_submission_draft>                                                    Draft;

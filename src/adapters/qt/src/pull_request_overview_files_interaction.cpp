@@ -496,6 +496,17 @@ namespace bpr::qt {
 		dispatch_feedback_request();
 	}
 
+	void pull_request_overview_page::set_drafts(std::map<QString, overview_draft_count> aDrafts)
+	{
+		Model->apply_drafts(std::move(aDrafts));
+		Files->viewport()->update();
+	}
+
+	void pull_request_overview_page::set_drafts_dispatch(std::function<void(const QString&)> aDispatch)
+	{
+		DraftsDispatch = std::move(aDispatch);
+	}
+
 	void pull_request_overview_page::set_drill_down_dispatch(overview_drill_down_dispatch aDispatch)
 	{
 		DrillDownDispatch = std::move(aDispatch);
@@ -520,10 +531,11 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		const auto* counts = Model->feedback_at(index);
-		if (counts == nullptr) {
+		const auto  drafts = Model->drafts_at(index);
+		if (counts == nullptr && !drafts) {
 			return std::nullopt;
 		}
-		for (auto& chip : overview_comment_chips(*counts, Files->visualRect(index), Files->font())) {
+		for (auto& chip : overview_comment_chips(counts, Files->visualRect(index), Files->font(), drafts)) {
 			if (chip.Box.contains(QPointF{ aViewportPosition })) {
 				return std::pair{ index, std::move(chip) };
 			}
@@ -784,10 +796,11 @@ namespace bpr::qt {
 	{
 		const auto  cell   = aRow.siblingAtColumn(overview_file_model::comments_column);
 		const auto* counts = cell.isValid() ? Model->feedback_at(cell) : nullptr;
-		if (counts == nullptr || Files->isColumnHidden(overview_file_model::comments_column)) {
+		const auto  drafts = cell.isValid() ? Model->drafts_at(cell) : std::nullopt;
+		if ((counts == nullptr && !drafts) || Files->isColumnHidden(overview_file_model::comments_column)) {
 			return { };
 		}
-		return overview_comment_chips(*counts, Files->visualRect(cell), Files->font());
+		return overview_comment_chips(counts, Files->visualRect(cell), Files->font(), drafts);
 	}
 
 	auto pull_request_overview_page::focused_chip_position(const std::vector<overview_comment_chip>& aChips) const -> std::optional<std::size_t>
@@ -829,10 +842,10 @@ namespace bpr::qt {
 		// a screen reader hears the same words.
 		const auto  cell   = aRow.siblingAtColumn(overview_file_model::comments_column);
 		const auto* counts = Model->feedback_at(cell);
-		if (counts == nullptr) {
+		if (counts == nullptr && aChip->Kind != overview_comment_chip::kind::drafts) {
 			return;
 		}
-		const auto tip = chip_tooltip(*aChip, *counts, any_columns(Model->feedback()));
+		const auto tip = aChip->Kind == overview_comment_chip::kind::drafts ? overview_drafts_text(*aChip) : chip_tooltip(*aChip, *counts, any_columns(Model->feedback()));
 		show_anchored_tooltip(*Files->viewport(), aChip->Box.toAlignedRect(), tip, anchored_tooltip_hold::focus);
 		QAccessibleAnnouncementEvent announcement{ Files, QString{ tip }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }) };
 		announcement.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);

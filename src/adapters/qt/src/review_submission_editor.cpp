@@ -1059,6 +1059,54 @@ namespace bpr::qt {
 		PendingRows->setSpacing(0);
 		Pending->hide();
 		inside->addWidget(Pending);
+		// [[BPR-2094]]. My drafts the review does not carry: a heading that
+		// counts them, with Add all, then each with its file and lines and
+		// its own Add. The owner: "finish review should note draft comments
+		// that haven't been added to the review."
+		OutsideRule = new box_rule{ whole };
+		OutsideRule->hide();
+		inside->addWidget(OutsideRule);
+		Outside = new QWidget{ whole };
+		Outside->setObjectName(QStringLiteral("wholeReviewOutside"));
+		Outside->setAccessibleName(tr("Drafts not in this review"));
+		auto* const outside = new QVBoxLayout{ Outside };
+		outside->setContentsMargins(0, 0, 0, 2);
+		outside->setSpacing(0);
+		auto* const outsideHeading = new QWidget{ Outside };
+		auto* const outsideTop     = new QHBoxLayout{ outsideHeading };
+		outsideTop->setContentsMargins(14, 8, 10, 4);
+		outsideTop->setSpacing(8);
+		OutsideHeading = new QLabel{ outsideHeading };
+		OutsideHeading->setObjectName(QStringLiteral("wholeReviewOutsideHeading"));
+		OutsideHeading->setTextFormat(Qt::PlainText);
+		OutsideHeading->setFont(headingFont);
+		outsideTop->addWidget(OutsideHeading);
+		outsideTop->addStretch();
+		auto* const addAll = new quiet_tool_button{ outsideHeading };
+		addAll->setObjectName(QStringLiteral("wholeReviewOutsideAddAll"));
+		addAll->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		addAll->setFocusPolicy(Qt::StrongFocus);
+		addAll->setText(tr("Add all"));
+		OutsideAddAll = addAll;
+		connect(addAll, &QToolButton::clicked, this, [this] {
+			auto ids = std::vector<core::review_draft_id>{ };
+			for (const auto& draft : OutsideListed) {
+				if (draft.Addable) {
+					ids.push_back(draft.Id);
+				}
+			}
+			if (OutsideAdd && !ids.empty()) {
+				OutsideAdd(std::move(ids));
+			}
+		});
+		outsideTop->addWidget(addAll);
+		outside->addWidget(outsideHeading);
+		OutsideRows = new QVBoxLayout{ };
+		OutsideRows->setContentsMargins(4, 0, 4, 0);
+		OutsideRows->setSpacing(0);
+		outside->addLayout(OutsideRows);
+		Outside->hide();
+		inside->addWidget(Outside);
 		SummaryRule = new box_rule{ whole };
 		SummaryRule->hide();
 		inside->addWidget(SummaryRule);
@@ -1547,7 +1595,7 @@ namespace bpr::qt {
 				open->Copy        = [this] { copy_pending(); };
 				open->Focused     = [this, index] { PendingCurrent = index; };
 				open->MenuOpening = [this, index] { prepare_pending_menu(index); };
-				open->ExtendMenu  = [this](QMenu& aMenu) {
+				open->ExtendMenu  = [this, comment](QMenu& aMenu) {
 					auto* const copy = aMenu.addAction(tr("Copy"));
 					copy->setObjectName(QStringLiteral("wholeReviewPendingCopy"));
 					copy->setShortcut(shortcut_key(shortcut_command::copy_pending_comments));
@@ -1556,6 +1604,16 @@ namespace bpr::qt {
 					copy->setToolTip(tr("Copy the selected comments with their files and lines"));
 					copy->setEnabled(!pending_copy_text().isEmpty());
 					connect(copy, &QAction::triggered, this, [this] { copy_pending(); });
+					// [[BPR-2094]]. Leave out: out of the review, still a draft.
+					auto* const leave = aMenu.addAction(tr("Leave Out of Review"));
+					leave->setObjectName(QStringLiteral("wholeReviewPendingLeaveOut"));
+					leave->setToolTip(tr("Take this comment out of your review. It stays saved as a draft."));
+					leave->setEnabled(static_cast<bool>(PendingLeaveOut) && Draft.has_value() && Draft->State == core::review_submission_state::drafting);
+					connect(leave, &QAction::triggered, this, [this, comment] {
+						if (PendingLeaveOut) {
+							PendingLeaveOut(comment);
+						}
+					});
 				};
 				if (std::ranges::find(keptSelected, comment.Draft) != keptSelected.end()) {
 					PendingSelected[index] = true;
@@ -1630,6 +1688,7 @@ namespace bpr::qt {
 			remove->setVisible(writing);
 			remove->setEnabled(writing);
 		}
+
 		Pending->setVisible(!comments.empty());
 		// The heading holds my blocking feedback's chip whenever there is a
 		// draft, and the count when the review carries comments.
@@ -1641,6 +1700,7 @@ namespace bpr::qt {
 		Carries->setText(comments.size() == 1U ? tr("1 pending comment") : tr("%1 pending comments").arg(comments.size()));
 		Carries->setVisible(!comments.empty());
 		Body->setPlaceholderText(!comments.empty() ? tr("Leave a summary (optional)") : tr("Write a review summary…"));
+		present_outside();
 	}
 	void review_submission_editor::present_verdicts()
 	{
@@ -2068,6 +2128,153 @@ namespace bpr::qt {
 		}
 	}
 	void review_submission_editor::set_saved_comments_reveal(std::function<void()> aReveal) { SavedCommentsReveal = std::move(aReveal); }
+
+	void review_submission_editor::set_outside_drafts(std::vector<outside_draft> aDrafts)
+	{
+		if (OutsideDrafts == aDrafts) {
+			return;
+		}
+		OutsideDrafts = std::move(aDrafts);
+		present_outside();
+	}
+
+	auto review_submission_editor::outside_drafts() const noexcept -> const std::vector<outside_draft>&
+	{
+		return OutsideDrafts;
+	}
+
+	void review_submission_editor::set_outside_dispatch(std::function<void(std::vector<core::review_draft_id>)> aAdd, std::function<void(const outside_draft&)> aOpen)
+	{
+		OutsideAdd  = std::move(aAdd);
+		OutsideOpen = std::move(aOpen);
+	}
+
+	void review_submission_editor::set_pending_leave_out(std::function<void(const core::review_submission_comment&)> aLeaveOut)
+	{
+		PendingLeaveOut = std::move(aLeaveOut);
+	}
+
+	auto review_submission_editor::outside_list() const noexcept -> QWidget*
+	{
+		return Outside;
+	}
+
+	auto review_submission_editor::outside_heading() const noexcept -> QLabel*
+	{
+		return OutsideHeading;
+	}
+
+	auto review_submission_editor::outside_add_all() const noexcept -> QToolButton*
+	{
+		return OutsideAddAll;
+	}
+
+	auto review_submission_editor::outside_rows() const -> QStringList
+	{
+		return OutsideRowWords;
+	}
+
+	void review_submission_editor::present_outside()
+	{
+		// [[BPR-2094]]. Only while a review is written: a submitted review's
+		// page changes nothing, so it offers nothing to add.
+		const auto writing = Draft.has_value() && Draft->State == core::review_submission_state::drafting;
+		const auto drafts  = writing ? OutsideDrafts : std::vector<outside_draft>{ };
+		if (drafts != OutsideListed || (drafts.empty() && OutsideRows->count() != 0)) {
+			OutsideListed = drafts;
+			OutsideRowWords.clear();
+			while (OutsideRows->count() > 0) {
+				auto* const item = OutsideRows->takeAt(0);
+				if (auto* const widget = item->widget(); widget != nullptr) {
+					widget->hide();
+					widget->deleteLater();
+				}
+				delete item;
+			}
+			auto code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+			code.setPointSizeF(font().pointSizeF() * 0.95);
+			const auto theme       = MarkTheme.value_or(default_feedback_mark_theme(palette()));
+			auto       fileColumn  = 0;
+			auto       linesColumn = pending_row::lines_width(QStringLiteral("0000"), code);
+			auto       made        = std::vector<pending_row*>{ };
+			for (std::size_t index = 0U; index < drafts.size(); ++index) {
+				const auto& draft = drafts[index];
+				const auto  name  = draft.Path.section(QLatin1Char{ '/' }, -1);
+				const auto  lines = draft.Reply ? tr("reply")
+					: draft.StartLine           ? QStringLiteral("%1–%2").arg(*draft.StartLine + 1U).arg(draft.Line + 1U)
+												: QString::number(draft.Line + 1U);
+				const auto  where = !draft.Reply && draft.Side == core::diff_side::left ? tr("base %1").arg(lines) : lines;
+				auto        first = draft.Body.section(QLatin1Char{ '\n' }, 0, 0).trimmed();
+				const auto  said  = draft.Reply ? tr("%1, reply: %2").arg(name, first)
+					: draft.StartLine           ? tr("%1, lines %2: %3").arg(name, lines, first)
+												: tr("%1, line %2: %3").arg(name, lines, first);
+				auto* const row   = new QWidget{ Outside };
+				row->setObjectName(QStringLiteral("wholeReviewOutsideItem"));
+				auto* const across = new QHBoxLayout{ row };
+				across->setContentsMargins(0, 0, 4, 0);
+				across->setSpacing(2);
+				auto* const open = new pending_row{ name, where, draft.Body, theme, row };
+				open->setObjectName(QStringLiteral("wholeReviewOutsideOpen"));
+				open->set_repeat(index > 0U && drafts[index - 1U].Path == draft.Path);
+				fileColumn  = std::max(fileColumn, std::min(open->file_width(), 200));
+				linesColumn = std::max(linesColumn, pending_row::lines_width(where, code));
+				made.push_back(open);
+				open->setAccessibleName(said);
+				open->setToolTip(tr("Click to go to this draft.\n%1, %2\n\n%3").arg(draft.Path, where, draft.Body));
+				const auto go = [this, draft](const auto&...) {
+					if (OutsideOpen) {
+						OutsideOpen(draft);
+					}
+				};
+				open->Open = go;
+				open->Pick = go;
+				if (draft.Addable) {
+					across->addWidget(open, 1);
+					auto* const add = new quiet_tool_button{ row };
+					add->setObjectName(QStringLiteral("wholeReviewOutsideAdd"));
+					add->setToolButtonStyle(Qt::ToolButtonTextOnly);
+					add->setFocusPolicy(Qt::StrongFocus);
+					add->setText(tr("Add"));
+					add->setToolTip(tr("Add this draft to your review. It is sent when you submit."));
+					add->setAccessibleName(tr("Add to review: %1").arg(said));
+					connect(add, &QToolButton::clicked, this, [this, id = draft.Id] {
+						if (OutsideAdd) {
+							OutsideAdd({ id });
+						}
+					});
+					across->addWidget(add, 0, Qt::AlignVCenter);
+				} else {
+					auto* const column = new QVBoxLayout{ };
+					column->setContentsMargins(0, 0, 0, 0);
+					column->setSpacing(1);
+					column->addWidget(open);
+					auto* const why = new QLabel{ draft.Why, row };
+					why->setObjectName(QStringLiteral("wholeReviewOutsideWhy"));
+					why->setWordWrap(true);
+					why->setTextFormat(Qt::PlainText);
+					why->setContentsMargins(6, 0, 0, 2);
+					why->setForegroundRole(QPalette::PlaceholderText);
+					column->addWidget(why);
+					across->addLayout(column, 1);
+					open->setAccessibleDescription(draft.Why);
+				}
+				OutsideRowWords.push_back(said);
+				OutsideRows->addWidget(row);
+			}
+			for (auto* const open : made) {
+				open->set_columns(fileColumn, linesColumn, code);
+			}
+		}
+		const auto addable = static_cast<std::size_t>(std::ranges::count_if(drafts, &outside_draft::Addable));
+		OutsideHeading->setText(drafts.size() == 1U ? tr("1 draft isn't in this review") : tr("%1 drafts aren't in this review").arg(drafts.size()));
+		OutsideAddAll->setVisible(addable > 1U || (addable == 1U && drafts.size() > 1U));
+		OutsideAddAll->setEnabled(addable != 0U && static_cast<bool>(OutsideAdd));
+		OutsideAddAll->setToolTip(addable == drafts.size() ? tr("Add every draft listed here to your review.")
+														   : tr("Add the %1 drafts a review can take; the rest stay saved as they are.").arg(addable));
+		OutsideAddAll->setAccessibleName(tr("Add all %1 to your review").arg(addable));
+		Outside->setVisible(!drafts.empty());
+		OutsideRule->setVisible(!drafts.empty() && Pending->isVisibleTo(this));
+	}
 	auto review_submission_editor::body_editor() const noexcept -> QPlainTextEdit* { return Body; }
 	auto review_submission_editor::disposition_button(core::review_disposition aDisposition) const noexcept -> QToolButton* { return Decisions[decision_index(aDisposition)]; }
 	auto review_submission_editor::preflight_button() const noexcept -> QToolButton* { return Preflight; }

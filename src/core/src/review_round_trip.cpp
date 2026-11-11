@@ -97,6 +97,12 @@ namespace bpr::core {
 			&& std::ranges::all_of(aMark.Submission, printable);
 	}
 
+	auto valid(const review_draft_place& aPlace) noexcept -> bool
+	{
+		return !aPlace.Path.empty() && aPlace.Path.size() <= maximum_pending_mark_path_bytes && aPlace.Path.find('\0') == std::string::npos
+			&& (!aPlace.ReviewHead || aPlace.ReviewHead->valid());
+	}
+
 	auto apply(
 		const review_comment_draft& aDraft,
 		const review_draft_command& aCommand) -> review_draft_outcome

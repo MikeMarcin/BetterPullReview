@@ -890,7 +890,9 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto valid_review_mark(const private_draft_record& aRecord) -> bool
 		{
 			const auto& draft = aRecord.Draft.Draft;
-			return !draft.InReview || (valid(*draft.InReview) && !draft.ReplyToThread && draft.InReview->Head == aRecord.Binding.Revision.HeadOid);
+			// [[BPR-2092]]. And a recorded place is bounded.
+			return (!draft.Place || valid(*draft.Place))
+				&& (!draft.InReview || (valid(*draft.InReview) && !draft.ReplyToThread && draft.InReview->Head == aRecord.Binding.Revision.HeadOid));
 		}
 		private_draft_record read_draft(private_database& aDb, std::uint64_t aId)
 		{

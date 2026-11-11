@@ -24,6 +24,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 class QAbstractButton;
@@ -101,6 +102,12 @@ namespace bpr::qt {
 		/// verdict: "Approved" or "Changes requested". Its row shows the word;
 		/// no comment's body is shown as the review's.
 		QString Verdict;
+		/// [[BPR-2092]]. One of my saved drafts: its identity, whether the
+		/// review carries it, and whether it is a reply. Its `Id` is
+		/// `draft:saved:<identity>`.
+		std::uint64_t DraftId  = 0U;
+		bool          InReview = false;
+		bool          Reply    = false;
 	};
 
 	/// \brief The rows a conversation draws as.
@@ -134,6 +141,9 @@ namespace bpr::qt {
 		bool HideResolved = false;
 		/// Only conversations whose label this is ([[BPR-1087]]'s counting).
 		std::optional<core::feedback_label> Label;
+		/// [[BPR-2092]]. Only my drafts, whatever the other filters say. A way
+		/// to find them, not a view to keep: a window starts without it.
+		bool OnlyDrafts = false;
 
 		auto operator==(const finder_filters&) const -> bool = default;
 	};
@@ -149,9 +159,29 @@ namespace bpr::qt {
 		std::uint32_t Line = 0U;
 		QString       Body;
 		QString       Author;
+		/// [[BPR-2092]]. The saved draft it is, or 0 before it is saved.
+		std::uint64_t Id = 0U;
 
 		auto operator==(const finder_draft&) const -> bool = default;
 	};
+
+	/// \brief [[BPR-2092]]. One of my saved drafts, as the core's roster
+	/// places it: Threads lists it in its file's group, labelled Draft.
+	struct finder_saved_draft
+	{
+		std::uint64_t Id = 0U;
+		QString       Path;
+		/// One-based; 0 for a reply bound to its thread.
+		std::uint32_t Line = 0U;
+		QString       Body;
+		bool          InReview = false;
+		bool          Reply    = false;
+
+		auto operator==(const finder_saved_draft&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-2092]]. The thread identity a saved draft's row has.
+	inline constexpr std::string_view finder_saved_draft_prefix = "draft:saved:";
 
 	/// \brief Where Review is: the file it shows, the thread open in its
 	/// drawer and the post a pick named in it.
@@ -217,8 +247,18 @@ namespace bpr::qt {
 		void set_label_marks(const feedback_mark_theme& aTheme);
 		/// \brief The blue of what is new and the amber of where you are.
 		void set_colours(const QColor& aNew, const QColor& aRoute);
+		/// \brief [[BPR-2092]]. The theme's attention amber, which marks a
+		/// draft the review does not carry.
+		void set_attention_colour(const QColor& aColour);
 		void set_code_font(const QFont& aFont);
 		void set_draft(std::optional<finder_draft> aDraft);
+		/// \brief [[BPR-2092]]. Every saved draft of mine on a file.
+		void               set_saved_drafts(std::vector<finder_saved_draft> aDrafts);
+		[[nodiscard]] auto saved_drafts() const noexcept -> const std::vector<finder_saved_draft>&;
+		/// \brief [[BPR-2092]]. My drafts: shows only my drafts, with the
+		/// cursor on the first in \p aPath (a file, or a folder's files), or
+		/// on the first of all with an empty path.
+		auto show_drafts(const QString& aPath) -> bool;
 		void set_reading(finder_reading aReading);
 		/// \brief Shown as the page: the search has focus and the cursor is on
 		/// the conversation open in Review, or kept, or on the first row.
@@ -297,6 +337,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto search_field() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto only_new_button() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto hide_resolved_button() const noexcept -> QAbstractButton*;
+		/// \brief [[BPR-2092]]. My drafts, with their count.
+		[[nodiscard]] auto drafts_button() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto label_button() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto list() const noexcept -> QListView*;
 		/// \brief The preview of one post, while it is shown.
@@ -364,6 +406,7 @@ namespace bpr::qt {
 		std::map<core::feedback_label, std::set<std::string>>      LabelMembers;
 		feedback_mark_theme                                        MarkTheme;
 		std::optional<finder_draft>                                Draft;
+		std::vector<finder_saved_draft>                            SavedDrafts;
 		finder_reading                                             Reading;
 		QColor                                                     New{ 0x2F, 0x6F, 0xD6 };
 		QColor                                                     Route{ 0xC9, 0x8F, 0x12 };
@@ -402,17 +445,19 @@ namespace bpr::qt {
 		core::reading_width                        ReadingWidth = core::default_reading_width;
 		std::function<void()>                      LeaveDispatch;
 
-		QWidget*        Bar          = nullptr;
-		QLineEdit*      Search       = nullptr;
-		finder_chip*    OnlyNew      = nullptr;
-		finder_chip*    HideResolved = nullptr;
-		finder_chip*    LabelChip    = nullptr;
-		QStackedWidget* Pages        = nullptr;
-		finder_list*    List         = nullptr;
-		finder_model*   Model        = nullptr;
-		QWidget*        Empty        = nullptr;
-		QWidget*        NoneOnFile   = nullptr;
-		finder_preview* Preview      = nullptr;
+		QWidget*              Bar          = nullptr;
+		QLineEdit*            Search       = nullptr;
+		finder_chip*          OnlyNew      = nullptr;
+		finder_chip*          HideResolved = nullptr;
+		finder_chip*          LabelChip    = nullptr;
+		finder_chip*          DraftsChip   = nullptr;
+		std::optional<QColor> Attention;
+		QStackedWidget*       Pages      = nullptr;
+		finder_list*          List       = nullptr;
+		finder_model*         Model      = nullptr;
+		QWidget*              Empty      = nullptr;
+		QWidget*              NoneOnFile = nullptr;
+		finder_preview*       Preview    = nullptr;
 	};
 } // namespace bpr::qt
 

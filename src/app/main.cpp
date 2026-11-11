@@ -5,6 +5,7 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/bundled_code_font.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -259,6 +260,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-preflight-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-unknown-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
+		bpr::app::command_line_option{ .Name = "attended-drafts-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
@@ -5171,6 +5173,7 @@ namespace {
 				stream << "START_REVIEW_RESTORED_EVIDENCE:" << evidence.ReasonRestored << evidence.ReasonReplaced << '\n';
 				break;
 			case bpr::app::detail::start_review_course::showcase:
+			case bpr::app::detail::start_review_course::drafts_showcase:
 				break;
 			}
 			stream << "START_REVIEW_DIAGNOSTIC:" << QString::fromStdString(aRun.StartReviewDiagnostic) << '\n';
@@ -5944,7 +5947,10 @@ namespace {
 			if (alive.expired()) {
 				return;
 			}
-			const auto result = bpr::app::detail::github_application_fixture_access::exercise_start_review(aApplication, bpr::app::detail::start_review_course::showcase);
+			// [[BPR-2092]]. `--attended-drafts-look`: three comments in the
+			// review and two drafts left out of it, with the threads the fixture has.
+			const auto drafts = QCoreApplication::arguments().contains(QStringLiteral("--attended-drafts-look"));
+			const auto result = bpr::app::detail::github_application_fixture_access::exercise_start_review(aApplication, drafts ? bpr::app::detail::start_review_course::drafts_showcase : bpr::app::detail::start_review_course::showcase);
 			if (result == bpr::app::detail::start_review_probe_result::pending) {
 				return;
 			}
@@ -5967,6 +5973,36 @@ namespace {
 					QCoreApplication::processEvents();
 				}
 				QTextStream{ stdout } << "ATTENDED_FINISH_REVIEW_SHOWN\n";
+				// [[BPR-2092]] [[BPR-2093]] [[BPR-2094]]. Verification only:
+				// with BPR_ATTENDED_DRAFTS_CHECK, the three surfaces agree on
+				// the drafts, and Add all takes both left out into the review.
+				if (QCoreApplication::arguments().contains(QStringLiteral("--attended-drafts-look")) && !qEnvironmentVariable("BPR_ATTENDED_DRAFTS_CHECK").isEmpty()) {
+					auto&       window  = aApplication.window();
+					const auto& saved   = window.finder()->saved_drafts();
+					const auto  out     = static_cast<int>(std::ranges::count_if(saved, [](const bpr::qt::finder_saved_draft& aDraft) { return !aDraft.InReview; }));
+					const auto  model   = window.overview_page()->file_model();
+					const auto  counted = model->drafts_at(model->index_for_path(QStringLiteral("src/engine/renderer.cpp")));
+					auto* const editor  = window.review_submission_editor_view();
+					QTextStream{ stdout } << "ATTENDED_DRAFTS_THREADS:" << saved.size() << ',' << out << '\n'
+										  << "ATTENDED_DRAFTS_OVERVIEW:" << (counted ? counted->InReview : 0U) << ',' << (counted ? counted->NotInReview : 0U) << '\n'
+										  << "ATTENDED_DRAFTS_OUTSIDE:" << editor->outside_rows().size() << '\n';
+					editor->outside_add_all()->click();
+					auto* const poll = new QTimer{ &window };
+					poll->setInterval(50);
+					QObject::connect(poll, &QTimer::timeout, poll, [poll, editor, ticks = 0]() mutable {
+						if (editor->pending_rows().size() == 5 && editor->outside_rows().isEmpty()) {
+							QTextStream{ stdout } << "ATTENDED_DRAFTS_ADDED:5\n";
+						} else if (++ticks < 200) {
+							return;
+						} else {
+							QTextStream{ stdout } << "ATTENDED_DRAFTS_ADD_FAILED:" << editor->pending_rows().size() << ',' << editor->outside_rows().size() << '\n';
+						}
+						QTextStream{ stdout }.flush();
+						poll->stop();
+						poll->deleteLater();
+					});
+					poll->start();
+				}
 			} else {
 				QTextStream{ stdout } << "ATTENDED_FINISH_REVIEW_FAILED:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::start_review_diagnostic(aApplication)) << '\n';
 			}
@@ -11685,7 +11721,7 @@ auto main(int argc, char** argv) -> int
 		const auto attendedPreflightLook = launch.value("--attended-preflight-look");
 		// [[BPR-1541]]. The held review that says why it is unknown.
 		const auto attendedUnknownReviewLook = launch.has("--attended-unknown-review-look");
-		const auto attendedFinishReviewLook  = launch.has("--attended-finish-review-look");
+		const auto attendedFinishReviewLook  = launch.has("--attended-finish-review-look") || launch.has("--attended-drafts-look");
 		// [[BPR-1592]]. Private notes written at their lines.
 		const auto attendedNotesLook = launch.has("--attended-notes-look");
 		// [[BPR-1593]]. A private tour written on renderer.cpp.

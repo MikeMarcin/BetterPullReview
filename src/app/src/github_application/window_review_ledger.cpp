@@ -258,6 +258,14 @@ namespace bpr::app {
 			aRevisionedCommand.ChangePending = true;
 			aRevisionedCommand.Pending.reset();
 		}
+		// [[BPR-2092]]. An edit records where the draft is written, so it can
+		// be found from outside its file.
+		if (aCommand.Kind == core::review_draft_command_kind::edit && !aRevisionedCommand.ChangePlace && aCommand.Id == ReviewDraft->Id) {
+			if (auto place = shown_draft_place(aCommand.Body); place && place != ReviewDraft->Place) {
+				aRevisionedCommand.ChangePlace = true;
+				aRevisionedCommand.Place       = std::move(place);
+			}
+		}
 		if (Window->review_editor()->workshop_accepting(aRevisionedCommand)) {
 			Window->begin_dif_draft(aRevisionedCommand);
 		}

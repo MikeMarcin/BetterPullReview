@@ -1731,3 +1731,9 @@ bpr_add_network_isolated_test(
     NAME core_pull_request_activity
     COMMAND test_better_pull_review_pull_request_activity_core_tests
 )
+
+bpr_add_executable(test_draft_roster draft_roster_tests.cpp)
+target_link_libraries(test_draft_roster PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_draft_roster)
+bpr_enable_warnings(test_draft_roster)
+bpr_add_network_isolated_test(NAME core_draft_roster COMMAND test_draft_roster)

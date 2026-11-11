@@ -721,6 +721,7 @@ namespace bpr::app {
 			if (ShownComparisons.size() > maximum_shown_comparisons) {
 				ShownComparisons.erase(ShownComparisons.begin());
 			}
+			present_draft_roster();
 		}
 		for (const auto& candidate : moved_candidates()) {
 			if (EpochHost == nullptr || std::ranges::find(HeadMoveLinesAsked, candidate.Request) != HeadMoveLinesAsked.end()) {

@@ -429,7 +429,9 @@ namespace bpr::app {
 		// [[BPR-1590]] v002. The owner's look: real-looking pending comments,
 		// each written on a free line through the drawer's own Start a review
 		// and Add review comment, then a summary in Finish review.
-		if (aCourse == course::showcase) {
+		if (aCourse == course::showcase || aCourse == course::drafts_showcase) {
+			// [[BPR-2092]]. The drafts look leaves its last two out of the review.
+			const auto inReview = aCourse == course::drafts_showcase ? std::size_t{ 3U } : std::size_t{ 5U };
 			const auto showcase = std::array{
 				QStringLiteral("issue (blocking): The retry budget resets every frame, so a view that keeps failing never stops retrying. Move the counter onto the view."),
 				QStringLiteral("suggestion: Compute the scale once per frame and pass it in.\n```suggestion\n    const auto scale = device_scale(view);\n```"),
@@ -480,7 +482,10 @@ namespace bpr::app {
 				if (!written(showcase[index - 1U])) {
 					return ++probe.Waited < 2'000U ? result::pending : fail("showcase-text");
 				}
-				probe.Phase = state_type::phase::awaiting_first_offer;
+				// A draft kept out of the review is left as written: the next
+				// line chosen leaves it, saved, at its own.
+				probe.Phase  = index > inReview ? state_type::phase::awaiting_first_line : state_type::phase::awaiting_first_offer;
+				probe.Waited = 0U;
 				return result::pending;
 			case state_type::phase::awaiting_first_offer: {
 				auto* const review = composerButton("threadReviewDraft");
@@ -505,7 +510,8 @@ namespace bpr::app {
 					QCoreApplication::processEvents();
 					return result::pending;
 				}
-				if (summary->pending_rows().size() != static_cast<qsizetype>(showcase.size()) || summary->body_editor()->isReadOnly()) {
+				if (summary->pending_rows().size() != static_cast<qsizetype>(inReview) || summary->body_editor()->isReadOnly()
+					|| (aCourse == course::drafts_showcase && summary->outside_rows().size() != static_cast<qsizetype>(showcase.size() - inReview))) {
 					return ++probe.Waited < 2'000U ? result::pending : fail("showcase-finish");
 				}
 				summary->body_editor()->setPlainText(QStringLiteral("Nice cleanup overall. The retry budget on the second view needs fixing before this lands; everything else is small and can follow."));

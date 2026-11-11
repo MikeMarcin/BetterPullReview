@@ -1512,6 +1512,9 @@ namespace bpr::app::detail {
 		/// pending comments in a review and a written summary, then Finish
 		/// review opens and the window is left to the person.
 		showcase,
+		/// [[BPR-2092]] [[BPR-2094]]. `showcase` with its last two comments
+		/// left as drafts the review does not carry: three pending, two not.
+		drafts_showcase,
 	};
 
 	enum class start_review_probe_result {

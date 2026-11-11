@@ -281,6 +281,14 @@ namespace bpr::app {
 		Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 		Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 		Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
+		// [[BPR-2094]]. Finish your review's Add, Add all and Leave out.
+		Window->set_draft_review_dispatch([this](const std::vector<core::review_draft_id>& aDrafts, const bool aAdd) {
+			if (aAdd) {
+				add_drafts_to_review(aDrafts);
+			} else {
+				leave_drafts_out_of_review(aDrafts);
+			}
+		});
 		Window->set_carried_suggestion_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { discard_carried_suggestion(aDraft, aRevision); });
 		Window->set_review_draft_dispatch(
 			[this](core::review_draft_command aCommand) {

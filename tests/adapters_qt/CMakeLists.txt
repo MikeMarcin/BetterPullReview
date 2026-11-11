@@ -2810,9 +2810,11 @@ if(APPLE)
     foreach(bpr_qt_test_target IN LISTS bpr_qt_test_targets)
         get_target_property(bpr_qt_test_type "${bpr_qt_test_target}" TYPE)
         get_target_property(bpr_qt_test_links "${bpr_qt_test_target}" LINK_LIBRARIES)
-        # Only an executable that already links Qt: a helper such as the
-        # agent canary links nothing on purpose, and must stay that way.
-        if(bpr_qt_test_target MATCHES "^test_" AND bpr_qt_test_type STREQUAL "EXECUTABLE" AND "${bpr_qt_test_links}" MATCHES "Qt")
+        # Only an executable that already links Qt Widgets, directly or
+        # through the Qt adapter: a helper such as the agent canary links
+        # nothing on purpose, and the launch and process-wrapper courses link
+        # Qt Core alone, which has no QApplication to start.
+        if(bpr_qt_test_target MATCHES "^test_" AND bpr_qt_test_type STREQUAL "EXECUTABLE" AND "${bpr_qt_test_links}" MATCHES "Qt6::Widgets|AdapterQt")
             target_sources("${bpr_qt_test_target}" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/native_look_startup.cpp")
         endif()
     endforeach()

@@ -134,6 +134,7 @@ add_library(
         src/feedback_header_edit.cpp
         src/agent_comment_suggestion.cpp
         src/agent_draft_all.cpp
+        src/draft_roster.cpp
         src/agent_answer_findings.cpp
         src/agent_finding_card_memory.cpp
         src/feedback_conversation.cpp
