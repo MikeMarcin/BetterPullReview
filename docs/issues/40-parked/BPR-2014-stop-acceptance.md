@@ -97,3 +97,23 @@ The ring states and Accept pass. AC08 is not complete while the stop frames
 are reworked: the redundant "Not accepted yet." beside Accept goes, Save
 becomes Accept, the editing tools are labelled and explain themselves, and
 Cancel and Accept are one size. The card stays parked for that look.
+
+## Rework after the owner's look (2026-11-10, `90785ae34`)
+
+Frontend-design was loaded before the Qt work.
+
+- A stop never accepted shows Accept alone: "Not accepted yet." is gone
+  (the reason line stays for a stop changed since accepted, and for what
+  Accept needs when it cannot accept).
+- The editor's Save reads Accept (it keeps the edit and accepts the stop),
+  with tooltip "Keep this edit and accept the stop (⌘↩)"; Cancel is the
+  platform's own push button like it, and both take the wider one's width.
+- The editing tools say what they do: Use selected lines, Link selected
+  lines (on the row in the route too while there is room) and Unlink; each
+  tooltip starts "Select lines in the code first."; one hint under them
+  while the stop is edited; More's items read "Link selected lines" and
+  "Unlink the chosen linked code".
+
+Tests: `qt_tour_stop_acceptance_card` (no reason beside a never-accepted
+stop's Accept; Cancel and Accept one kind and one size; the hint and each
+tool's words), `application_review_tour_composition_public_path`.

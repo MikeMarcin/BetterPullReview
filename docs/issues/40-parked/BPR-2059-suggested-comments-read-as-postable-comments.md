@@ -117,3 +117,15 @@ root `suggested-comments-v001.irz2s4en` removed.
   shows ```cpp which doesnt look like it's rendering the markdown correctly."
   A fence with a language must render as a code block.
 - `BPR-2059-prompt-default`: Accept (`1342b7f4`). Scope 6's prompt half passes.
+
+## Code blocks after the owner's look (2026-11-10)
+
+The first image of `BPR-2059-card-formatting` was the "before" render (the
+build before this card), which showed the fence as text; the "after" render
+already drew it as a code block, but offscreen, in a fallback face that did
+not read as code. Rendered natively (Cocoa, QMacStyle, Dark, off screen) the
+suggestion's ```cpp fence is a code block in the code font. Now pinned:
+`qt_workbench_window_scale_*` asserts no fence or language word is shown and
+the fenced line is one block in a fixed-pitch font
+(`test_a_reply_drafts_all_its_suggested_comments`). Refiled with native
+renders only.

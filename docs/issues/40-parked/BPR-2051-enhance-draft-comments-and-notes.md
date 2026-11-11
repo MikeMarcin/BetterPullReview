@@ -78,3 +78,51 @@ stopped, root `enhance-v001.dzk_0xf4` removed.
 Rework (next round): nib-and-spark icon; one placement on every surface;
 context tooltips; one `enhance.writing` prompt for comments and notes (the
 tour stop keeps `enhance.tour-stop`); a redesigned top of Agents & context.
+
+## Rework after the owner's look (2026-11-10, `90785ae34`)
+
+Frontend-design was loaded before the Qt work.
+
+- Icon: three nib glyphs drawn in `enhance_control.cpp`, light and dark:
+  `nib_cut` (a solid nib with the spark cut out of its body, after the
+  owner's picture; the product default until the owner chooses),
+  `nib_outline` (outline nib, slit and hole, spark above) and `nib_spark`
+  (solid nib, spark above). The tour fields' Enhance wears the same nib.
+- Placement: Enhance is the first control of the row directly under the
+  field on every surface: a new draft comment and a reply (before the label
+  chip), a private note (before Delete and Ask agent), a tour stop and the
+  Problem and Solution (first in their helper rows, as before).
+- Tooltip: "Enhance writing for this comment with agent." (reply, note,
+  stop, the Problem, the Solution in their words); "Enhance writing for the
+  selected text with agent." while text is selected; it follows the
+  selection (`enhance_tooltip`, `enhance_button::set_selection`). New
+  surface `enhance_surface::reply`.
+- Prompt: one `enhance.writing` prompt ("Enhance writing", version
+  `enhance-writing-v1`, `resources/review-preparation/enhance-writing.md`)
+  for comments, replies and notes; a stop keeps `enhance.tour-stop`. Each run
+  carries a `writing-kind` source saying whether the text is a comment or a
+  private note. Built-in prompts lists it under "Comments and notes" with
+  Review feedback. `bpr tour hooks` names it `enhance-writing`.
+- Migration (profile schema 27): the comment's override is kept; a profile
+  that changed only the note's keeps the note's for every surface; the
+  note's column (`writing_enhance_note`) is retired and always empty. The
+  retired purpose IDs `enhance.comment` and `enhance.note` name
+  `enhance.writing`. Neither had shipped outside this lane.
+- Settings › Agents & context top: three options behind
+  `set_agents_context_top` (a look switch, default "Next request group"):
+  1 the next request's choices in one titled group with a one-line caption;
+  2 Agents first (no per-request choices; one line says the Agent tab holds
+  them); 3 a one-line summary with Change… opening the same choices. Each
+  moves the long account of what the agent receives into a tooltip; the
+  working copy is a check box like the draft's.
+
+Tests: `qt_enhance_control` (tooltips per surface and selection, default
+glyph), `qt_settings_window` (prompt list, Enhance writing's default,
+version, override and Reset), `core_review_preparation`,
+`application_writing_delivery` (default, version, purpose IDs and retired
+aliases, override), `sqlite_workbench_settings_storage` (v24, v25 and the
+v26 fold in its four cases), `tour_cli_composition`,
+`application_profile_tour_handoff_public_path`,
+`application_enhance_comment_note_public_path` (the stub answers only when
+the `writing-kind` source names the comment or the note) and
+`application_review_tour_composition_public_path`.
