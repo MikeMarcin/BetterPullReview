@@ -18,6 +18,7 @@ CMakeUserPresets.json
 __pycache__/
 /bpr-public-path-*/
 .remote-station.json
+/.codex-attachments/
 
 # MASK shared workflow deployment and local sessions
 /.agents/skills/implement-rfc
