@@ -2,10 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2094"
 title: "Finish your review notes drafts that are not in the review"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2092--BPR-2094--a28677e4b291.json","origin":"owner request, 2026-11-11 (drafts round)","related_cards":["BPR-1345","BPR-1590","BPR-2092"]}
-depends_on: ["BPR-2092"]
+depends_on: []
 ---
 
 # Finish your review notes drafts that are not in the review

@@ -2,10 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2093"
 title: "Overview's Comments column shows each file's drafts"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085", "RFC-BPR-0049"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2092--BPR-2094--a28677e4b291.json","origin":"owner request, 2026-11-11 (drafts round)","related_cards":["BPR-1089","BPR-2092","BPR-2094"]}
-depends_on: ["BPR-2092"]
+depends_on: []
 ---
 
 # Overview's Comments column shows each file's drafts

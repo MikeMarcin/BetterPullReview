@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2092"
 title: "My drafts are found in Threads, labelled Draft, with a filter for only my drafts"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2092--BPR-2094--a28677e4b291.json","origin":"owner request, 2026-11-11 (drafts round)","related_cards":["BPR-1293","BPR-1345","BPR-2093","BPR-2094"]}
 depends_on: []
