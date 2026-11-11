@@ -4057,7 +4057,7 @@ namespace bpr::qt {
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
 		// How the tools are used, said once under them while the stop is edited.
-		StopToolsHint = new QLabel{ tr("Select lines in the code first. Use selected lines moves this stop to them; Link selected lines adds them as other code the reader can open from here."), StopFields };
+		StopToolsHint = new QLabel{ tr("Select lines in the code first. Use selected lines moves this stop to them; Link selected lines (under … when the card is narrow) adds them as code the reader can open from this stop."), StopFields };
 		StopToolsHint->setObjectName(QStringLiteral("tourStopToolsHint"));
 		StopToolsHint->setWordWrap(true);
 		StopToolsHint->setTextFormat(Qt::PlainText);
