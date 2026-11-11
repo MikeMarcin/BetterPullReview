@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2007"
 title: "Give an agent session a scratch folder it may write and run in"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0104"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0019-agent-scratch-folder.md"}
 depends_on: ["BPR-2005"]
+parked_on: "human-review"
 ---
 
 # Give an agent session a scratch folder it may write and run in
@@ -56,3 +57,13 @@ work. Facts, criteria and runs: [ledger](../../verification/RFC-BPR-0104.md).
 - Settings live on `agent_entry` (`ScratchStarts`, `BuildsAndTests`), so
   RFC-BPR-0107's export carries them; the per-pull-request choice and
   answer are local state. Export is not implemented here.
+
+## Owner look (filed, not waited on)
+
+Session `e97c6a3d72ac570115fc961555b09d6d`, state
+`/Users/jaeger/.attended-review-state/agent-scratch-v001-2026-11-11/state`
+(URL in its `serve.log`), cursor 12, host PID 72034 (Tailscale child 72042).
+Frozen root `/Users/jaeger/agent-scratch-v001.weg1sgre` from `c19749f58892`
+(app SHA-256 `cb283436e169…`, launcher check passed). Candidates, ready and
+protected: `BPR-2007-grant-menu`, `BPR-2007-agent-sheet`,
+`BPR-2008-build-question`, `RFC-BPR-0104-AC03-bound`.

@@ -1003,3 +1003,68 @@ Next: read `585d1824…` from cursor 9 after hand-back. Accept of each finishes
 its card (`issue_board.py finish`, mirrored to main); a Reject is a new
 candidate. When all three are decided, stop host 24810 and remove the root
 with `freeze_attended_build.py remove`.
+
+## agent-scratch (2026-11-11)
+
+Milestone `agent-scratch` (RFC-BPR-0104, [[BPR-2007]], [[BPR-2008]]), on the
+same lane; nothing pushed. Frontend-design was loaded before the Qt work.
+Ledger: [RFC-BPR-0104](../../../verification/RFC-BPR-0104.md). Owner
+amendments in force as above.
+
+| Commit | What |
+|---|---|
+| `5592956a4`, `b83072662`; main `26d1474eb` | Ready and claim BPR-2007 (BPR-2008 cannot be readied before BPR-2007 is Done; it was built under BPR-2007's claim). The protected `local-draft-authoring-v1/AMENDMENTS.md` links the card by lane path, so each move repaired that one link path by hand (the board helper refuses protected files) |
+| `882ebed54` | Product candidate: core grant, launch arguments, scratch folders, storage, footer grant item, agent sheet settings, build question, folded Ran/Wrote lines, live `agent-scratch` course; app source pin resealed (its note says this is a grant) |
+| `c19749f58` | Ledger, RFC-BPR-0104 implementation record, RFC-BPR-0011 grant amendment, card records. Frozen |
+| this commit | BPR-2007 parked `human-review`; BPR-2008 records (stays Backlog); session recorded; handoff |
+
+Facts established (installed Claude Code 2.1.319, Codex 0.167.0): Claude takes
+`--add-dir` and `--allowedTools` rules; `Bash(DIR/:*)` never matches a file in
+the folder and no rule matches a quoted path, so the rules are globs and the
+folder's path has no space (macOS: the user's cache folder, since "Application
+Support" has one). Codex takes `-c permissions.NAME.filesystem={…}` with
+`-c default_permissions="NAME"`, which replaces the configured sandbox mode and
+is enforced by Seatbelt with network off; granted runs add
+`approval_policy="never"`.
+
+State: AC01, AC02, AC05, AC06, AC08 pass; AC09 passes except a separate New
+session course; AC04 passes at unit, host and storage layers (the question's
+composed path has no course); AC03 is partly met (the 256 MiB bound is checked
+at turn start, not during a turn), asked of the owner; AC07 (independent
+critical review of both agents' allowances) is pending and not done by the
+implementer, whose self-review in the ledger is input to it.
+
+Disk: 34 relinkable executables removed from this worktree's
+`build/dev/tests/end_to_end` (about 7 GB; list in the session scratchpad
+`deleted-binaries.txt`); `agent_invocation`, `agent_chat` and
+`agent_finding` composition binaries were rebuilt for their contract rows.
+
+Filed, not waited on (URL in the session state's `serve.log`): session
+`e97c6a3d72ac570115fc961555b09d6d`, state
+`/Users/jaeger/.attended-review-state/agent-scratch-v001-2026-11-11/state`,
+cursor 12, host PID 72034 (Tailscale child 72042), four candidates, ready and
+protected: `BPR-2007-grant-menu` (footer picker's grant item; `agent_footer
+--look`), `BPR-2007-agent-sheet` (Scratch folder starts and Build and run
+tests; `--agents-roster-look`), `BPR-2008-build-question` (the look's "Show
+the build question…"), `RFC-BPR-0104-AC03-bound` (accept the turn-start
+256 MiB bound, or reject to stop a turn that passes it). Frozen root
+`/Users/jaeger/agent-scratch-v001.weg1sgre` from `c19749f58892` (app SHA-256
+`cb283436e169…`, launcher check reached `ATTENDED_FILE_SHOWN`). The frozen app
+itself opens conventional-comments-v1 with no agents added; the looks carry the
+surface, as in the layout round. Native renders (Cocoa off screen, light and
+dark) are the candidates' media.
+
+Not touched: sessions `585d1824…` (24810/24818, root
+`drafts-round-v001.yva0tan3`) and `7c920675…` (73758/73768, root
+`layout-round-v001.5q22yahv`), host 74692, PID 10695, BPR-Test #152 and its
+`-next` branch. A Tailscale serve process 44738 (parent 1) that is not this
+round's was seen and left.
+
+Pending: AC07 needs an independent critical review of both agents' launch
+allowances (coordinator to file; the ledger's self-review is input). Next:
+read `e97c6a3d…` from cursor 12 after hand-back; Accept of all four finishes
+nothing alone (AC07 also). With the looks and AC03 accepted and AC07 passed,
+finish BPR-2007, then ready, claim and finish BPR-2008, mirroring each to
+main; a Reject goes to a fresh implementer. Then stop host 72034 and remove
+the root with `freeze_attended_build.py remove`. BPR-2009 (closeout) belongs
+to `accepted-scope`.
