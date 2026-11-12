@@ -1832,6 +1832,18 @@ DECISIONS (P02 Settled). Cards BPR-2138..2142 reserved against main
 | `524361ba7` | Core `agent_run_policy` (paths, session modes, MCP, instructions); launch options; argument order; sign-in failures; store; app wiring |
 | next two WIP commits | Fresh tour Enhance with a proposal, Settings rows, footer MCP tooltip; tests follow the new order |
 | `5286b69c2` | clang-format 22, canary printer, app source pin resealed |
+| `1257a42c7` | Courses follow fresh Draft Tour and tour Enhance and the MCP-off argv; Enhance tooltips; stale purpose list in `writing_delivery_tests` corrected. Product candidate |
+| `8c7b285db` | Counter to main's BPR-2144 |
+| `901f67d44`, `8ac34ae9b` | BPR-2142, BPR-2139 Done (main mirror `d9b0d6656`) |
+
+Integration pass at `1257a42c7`: 115 agent, tour, writing, local-draft,
+Review Cycle and composition rows; all pass but two that predate this round
+(`tour_cli_composition` and `application_profile_tour_handoff_public_path`
+expect eight writing hooks; the local-draft hooks made eleven before this
+round). Also `architecture_boundaries`, `test_network_isolation_manifest`,
+`application_composition_source_contract`, `coding-format-check`, clang-tidy
+on the touched sources (two findings, both in lines this round did not
+touch), documentation gate and its tests. Canary: `CANARY_PASS: 'ok\n\nPINEAPPLE'`.
 
 Status: BPR-2139 (MCP) and BPR-2142 (sign-in, argument order) are complete
 against their criteria. BPR-2138, 2140 and 2141 stay In Progress with the
