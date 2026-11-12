@@ -1,0 +1,39 @@
+{
+  "schema": "bpr.tour-push.v1",
+  "commits": {
+    "base": "174ae350caa04146cfe8d77b701cb7b3907d46db",
+    "head1": "d590bd57b16bb78a2bd8b78beb7976a146d26ba4",
+    "head2": "c8a86ccf72f2c7f7f325d053ad9a2a3241c0c933"
+  },
+  "blobs": {
+    "base": {
+      "review.cpp": "3456e31deaf7dc9a4c9a56b384c1b0ee9ff24e5b",
+      "secondary.cpp": "8b8c75513544d9785d4553ee45b75c5a180286e6"
+    },
+    "head1": {
+      "review.cpp": "1522997381f979112468fccd2be62e69f93b96c9",
+      "secondary.cpp": "759cc1dad40a0cac755521cf12099d81e5352cac"
+    },
+    "head2": {
+      "review.cpp": "17236fd325114a264d311648e225e38a8bf8cec7",
+      "secondary.cpp": "33ff4aafb6f4efea0c61609dbdd171a37adfd824"
+    }
+  },
+  "trees": {
+    "base": "4dc853816a802343f29ed550f4b66484b025be72",
+    "head1": "c854f6aa99399da0547ca6215f307b7c6fa69052",
+    "head2": "0189eda642026474111573b1e2481847ad3262e7"
+  },
+  "packs": {
+    "initial.pack": {
+      "sha256": "2290bb92a2e58e135cf77ec1c2cbfd1d881ae946521a423269cc2c6a08e49422",
+      "bytes": 770,
+      "contains_old_head": true
+    },
+    "replacement.pack": {
+      "sha256": "592ed5ba8b81b93a5f561f15db0a2302c42caf6748572ab9ca54b74059047ea4",
+      "bytes": 1157,
+      "contains_old_head": true
+    }
+  }
+}

@@ -149,7 +149,7 @@ auto main(int argc, char** argv) -> int
 	auto          currentDataRoot      = dataRoot;
 	auto          server               = std::make_shared<app::detail::review_submission_fixture_state>();
 	server->CliStrictCourse            = cliMode;
-	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};options.ViewerAuthors=mode=="compat";options.TourDestinationRepairsCourse=mode=="repairs" || mode=="mixed" || mode=="file" || mode=="compat";cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto aResult){terminal=true;if(aResult){started=std::move(*aResult);
+	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};options.ViewerAuthors=mode=="compat";options.TourDestinationRepairsCourse=mode=="repairs" || mode=="mixed" || mode=="file" || mode=="compat";options.TourPushCourse=mode=="push";cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto aResult){terminal=true;if(aResult){started=std::move(*aResult);
 }});wait([&]{return terminal && startup && startup->is_quiescent();},"publication app starts");expect(started!=nullptr,"publication startup accepted");return started; };
 	const std::string originalTemplate = "# Existing template\r\n\r\nKeep [the ticket](https://example.invalid/123) and this checklist.\r\n- [ ] Original check\r\n";
 	if (mode != "description") {
@@ -207,6 +207,74 @@ auto main(int argc, char** argv) -> int
 		const auto button = [&](const char* aName) {auto* value=editor.findChild<QPushButton*>(QString::fromUtf8(aName));expect(value!=nullptr,"normal publication control exists");return value; };
 		auto*      status = editor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
 		wait([&] { return status->text().contains(QStringLiteral("Saved locally")); }, "read-only recovery discovery completes");
+		// [[BPR-2117]], RFC-BPR-0106 AC04. Three stops accepted at the first
+		// head; a push changes one stop's own lines and the lines a second
+		// stop links to. Through the window, exactly those two turn Changed
+		// since accepted, each with its reason, the third stays Accepted, and
+		// Accept at the new head turns the first green.
+		if (mode == "push") {
+			const auto add = [&](const char* aFile, const int aFirst, const int aLast, const char* aTitle, const char* aBody) {
+				select_file(window, aFile);
+				select_range(window, core::diff_side::right, aFirst, aLast);
+				window.add_tour_stop_action()->trigger();
+				editor.stop_title()->setPlainText(QString::fromUtf8(aTitle));
+				editor.stop_body()->setPlainText(QString::fromUtf8(aBody));
+				saved(editor);
+			};
+			add("review.cpp", 1, 2, "Its own lines change", "The second line is pushed again.");
+			add("review.cpp", 3, 4, "It links to lines that change", "These lines read `secondary.cpp:5-6`.");
+			add("secondary.cpp", 0, 1, "Nothing of it changes", "Neither these lines nor `review.cpp:6` change.");
+			const auto first = *editor.shown().Draft;
+			expect(first.Stops.size() == 3U, "three stops");
+			for (const auto& stop : first.Stops) {
+				const auto& range = stop.Original;
+				std::cout << "tour-push-stop: " << stop.Title << " " << (range ? range->Path + ":" + std::to_string(range->First.Line + 1U) + "-" + std::to_string(range->Last.Line + 1U) : std::string{ "none" }) << '\n';
+			}
+			expect(first.Stops[0].Original && first.Stops[0].Original->Path == "review.cpp" && first.Stops[0].Original->First.Line == 1U && first.Stops[0].Original->Last.Line == 2U, "the first stop is review.cpp lines 2 to 3");
+			expect(first.Stops[1].Original && first.Stops[1].Original->First.Line == 3U && first.Stops[2].Original && first.Stops[2].Original->Path == "secondary.cpp" && first.Stops[2].Original->Last.Line == 1U, "the other stops are review.cpp 4 to 5 and secondary.cpp 1 to 2");
+			accept_every_stop(editor);
+			const auto decided = [&](const std::size_t aIndex) {
+				const auto& draft = *editor.shown().Draft;
+				return core::decide_tour_stop_acceptance(draft, draft.Stops[aIndex]);
+			};
+			for (std::size_t i = 0U; i < 3U; ++i) {
+				expect(decided(i).State == core::tour_acceptance_state::accepted, "each stop is accepted at the first head");
+			}
+			const auto spoken = [&](const int aRow) { return editor.outline()->item(aRow)->data(Qt::AccessibleTextRole).toString(); };
+			expect(access::reaccept_fixture_revision(*application, true), "the push arrives as the pull request's new head");
+			wait([&] { return editor.shown().Draft && editor.shown().Draft->ObservedHead && core::canonical_hex(*editor.shown().Draft->ObservedHead).view() == "c8a86ccf72f2c7f7f325d053ad9a2a3241c0c933"; }, "the tour observes the pushed head");
+			// The comparison of the new head on screen is what the window
+			// checks the accepted code against.
+			select_file(window, "review.cpp");
+			select_file(window, "secondary.cpp");
+			select_file(window, "review.cpp");
+			wait([&] { return decided(0).Reason != core::tour_acceptance_reason::unchecked && decided(1).Reason != core::tour_acceptance_reason::unchecked && decided(2).Reason != core::tour_acceptance_reason::unchecked; }, "every stop is compared with the pushed head");
+			for (int row = 0; row < 3; ++row) {
+				std::cout << "tour-push-after: " << spoken(row).toStdString() << " reason=" << static_cast<int>(decided(static_cast<std::size_t>(row)).Reason) << " reference=" << decided(static_cast<std::size_t>(row)).Reference << '\n';
+			}
+			expect(decided(0).State == core::tour_acceptance_state::changed && decided(0).Reason == core::tour_acceptance_reason::lines_changed && spoken(0).contains(QStringLiteral("Changed since accepted")), "the stop whose lines changed is Changed since accepted: its lines");
+			expect(decided(1).State == core::tour_acceptance_state::changed && decided(1).Reason == core::tour_acceptance_reason::reference_changed && decided(1).Reference == "secondary.cpp:5-6" && spoken(1).contains(QStringLiteral("Changed since accepted")),
+				   "the stop that links to changed lines is Changed since accepted: the link");
+			expect(decided(2).State == core::tour_acceptance_state::accepted && spoken(2).contains(QStringLiteral("Accepted")) && !spoken(2).contains(QStringLiteral("Changed")), "the stop nothing of which changed stays Accepted");
+			// Accept at the new head: its lines chosen there, then Accept.
+			editor.go_to_stop(editor.shown().Draft->Stops[0].Id);
+			select_file(window, "review.cpp");
+			select_range(window, core::diff_side::right, 1, 2);
+			editor.findChild<QAction*>(QStringLiteral("tourRetarget"))->trigger();
+			saved(editor);
+			editor.accept_stop(editor.shown().Draft->Stops[0].Id);
+			saved(editor);
+			expect(decided(0).State == core::tour_acceptance_state::accepted && spoken(0).contains(QStringLiteral("Accepted")) && !spoken(0).contains(QStringLiteral("Changed")), "Accept at the new head turns the first stop green");
+			expect(decided(2).State == core::tour_acceptance_state::accepted, "the unchanged stop is still Accepted");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 0U, "the push and accepting write nothing to GitHub");
+			}
+			cli.check();
+			shutdown(*application);
+			std::cout << "review-tour-publication:push:pass\n";
+			return EXIT_SUCCESS;
+		}
 		accept_every_stop(editor);
 		button("tourPreparePublication")->click();
 		expect(!button("tourPublish")->isEnabled(), "unfinished draft cannot publish");

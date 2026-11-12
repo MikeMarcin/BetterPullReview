@@ -565,6 +565,10 @@ namespace bpr::app::detail {
 		bool ModifiedMissingEndpointCourse = false;
 		/// BPR-1979: retained historical bytes and one off-hunk destination.
 		bool TourDestinationRepairsCourse = false;
+		/// [[BPR-2117]], RFC-BPR-0106 AC04. The reading graph with a second
+		/// head pushed on the first that changes `review.cpp` line 2 and
+		/// `secondary.cpp` line 5 only (`tour-push-v1`).
+		bool TourPushCourse = false;
 		/// Test-owned gate before catalogue reads; absent from production builds.
 		std::function<void(std::stop_token)> BeforeFilesPage;
 		/// [[BPR-1895]]. Test-owned gate after check results, before remaining status.

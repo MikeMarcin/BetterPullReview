@@ -6059,6 +6059,16 @@ namespace bpr::app::detail {
 				served.Packs           = { .File = "tour-repairs-v1/objects.pack" };
 				served.TourRepairHunks = true;
 			}
+			if (aOptions.TourPushCourse) {
+				if (aFixture != github_public_path_fixture::profile_window_restoration_v1 || aOptions.TourDestinationRepairsCourse) {
+					throw std::runtime_error{ "The tour push course requires the reading fixture" };
+				}
+				served.BaseOid     = "174ae350caa04146cfe8d77b701cb7b3907d46db";
+				served.HeadOneOid  = "d590bd57b16bb78a2bd8b78beb7976a146d26ba4";
+				served.HeadTwoOid  = "c8a86ccf72f2c7f7f325d053ad9a2a3241c0c933";
+				served.HeadTwoBlob = "17236fd325114a264d311648e225e38a8bf8cec7";
+				served.Packs       = { .File = "tour-push-v1/initial.pack", .SecondFile = "tour-push-v1/replacement.pack" };
+			}
 			if (aOptions.ModifiedMissingEndpointCourse) {
 				if (aFixture != github_public_path_fixture::profile_window_restoration_v1
 					|| aOptions.EpochPhase != github_epoch_fixture_phase::single) {
