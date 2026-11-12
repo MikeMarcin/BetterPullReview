@@ -157,17 +157,6 @@ namespace bpr::app {
 			},
 					   aIntent);
 		});
-		Window->set_sign_in_cancel_dispatch([this] {
-			retire_cli_discovery();
-			retire_setup_effects();
-			SetupOwner = next_setup_owner();
-			if (SetupDestination) {
-				SetupDestination->cancel();
-			}
-			if (DeviceHost && !core::terminal(DeviceHost->state().Stage)) {
-				DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
-			}
-		});
 		Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
 		Window->set_recent_removal_dispatch([this](application::recent_review_row aRow) { forget_recent(aRow); });
 		Window->set_review_window_dispatch([this](const application::review_window_intent& aIntent) { return request_review_window(aIntent); });

@@ -255,12 +255,11 @@ namespace bpr::qt {
 			add_server_card(profile);
 		}
 		place_device_sign_in();
-		// [[BPR-0660]], [[BPR-0774]]. The enterprise servers the reviewer keeps,
-		// so a GitHub Enterprise host is offered at the next launch without
-		// being typed again. There is no list of them: a kept server is its
-		// host's card, with Remember and Forget, and one bordered button under
-		// the cards adds another as a card in its edit state. No token is kept.
-		build_enterprise_server_draft(accounts, *accountsColumn);
+		// [[BPR-0660]], [[BPR-0774]]. A kept enterprise server is its host's
+		// card, with Remember and Forget. RFC-BPR-0032 amendment r1: Add account
+		// under the cards opens Home's account setup, where an enterprise
+		// server is added by choosing it as the server.
+		build_account_additions(accounts, *accountsColumn);
 		SettingsWindow->adopt_panel(settings_page::accounts_and_hosts, accounts);
 		build_repositories_page();
 		// [[BPR-0652]]. Home & queue (Reviews & queue until [[BPR-1597]]):

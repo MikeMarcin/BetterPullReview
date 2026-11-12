@@ -3,10 +3,12 @@
 
 #include "bpr/application/account_setup_projection.hpp"
 #include "bpr/core/account_setup.hpp"
+#include "bpr/qt/sensitive_text_input.hpp"
 
 #include <QString>
 #include <QWidget>
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -24,9 +26,11 @@ namespace bpr::qt {
 		std::function<void(core::account_setup_event)> Dispatch;
 		/// Opens the code's address, through the host that validated it.
 		std::function<void()> OpenVerificationAddress;
-		/// GitHub Enterprise Server keeps its existing way in (Accounts and
-		/// hosts); the setup offers it as a link.
-		std::function<void()> AddEnterpriseServer;
+		/// The token step's Sign in: the token as erasable bytes, handed to
+		/// the host before the setup event that asks it to enroll them.
+		std::function<void(sensitive_bytes)> SubmitToken;
+		/// The longest token the host accepts, in bytes.
+		std::size_t MaximumTokenBytes = 0U;
 	};
 
 	/// \brief RFC-BPR-0032 amendment r1. Home's account setup: How to
@@ -66,7 +70,9 @@ namespace bpr::qt {
 	private:
 		void               announce();
 		void               rebuild();
+		void               build_server(QVBoxLayout& aBody);
 		void               build_way(QVBoxLayout& aBody);
+		void               build_token(QVBoxLayout& aBody);
 		void               build_browser(QVBoxLayout& aBody);
 		void               build_github_cli(QVBoxLayout& aBody);
 		void               build_confirm(QVBoxLayout& aBody);
@@ -76,8 +82,13 @@ namespace bpr::qt {
 
 		account_setup_intents                 Intents;
 		application::account_setup_projection Projection;
-		core::account_setup_way               Picked      = core::account_setup_way::browser;
-		bool                                  DetailsOpen = false;
+		core::account_setup_way               Picked       = core::account_setup_way::browser;
+		bool                                  DetailsOpen  = false;
+		core::account_setup_server            PickedServer = core::account_setup_server::github_com;
+		QString                               EnterpriseHost;
+		QString                               TokenNotice;
+		QPushButton*                          Close = nullptr;
+		QLabel*                               Title = nullptr;
 		QString                               LastAnnouncement;
 		std::uint64_t                         Announcements = 0U;
 		QVBoxLayout*                          Steps         = nullptr;

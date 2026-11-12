@@ -2850,8 +2850,6 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/blob_sources.hpp"
         "src/github_application/cli_accounts.cpp"
         "src/github_application/cli_accounts.hpp"
-        "src/github_application/credential_prompt.cpp"
-        "src/github_application/credential_prompt.hpp"
         "src/github_application/defect_identity.cpp"
         "src/github_application/defect_identity.hpp"
         "src/github_application/device_authorization_composition.cpp"
@@ -2904,6 +2902,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/theme_document_file.hpp"
         "src/github_application/tour_owner_replies.cpp"
         "src/github_application/tour_owner_replies.hpp"
+        "src/github_application/window_account_setup.cpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
         "src/github_application/window_commit_filter.cpp"
@@ -3032,8 +3031,6 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/blob_sources.hpp"
         "src/github_application/cli_accounts.cpp"
         "src/github_application/cli_accounts.hpp"
-        "src/github_application/credential_prompt.cpp"
-        "src/github_application/credential_prompt.hpp"
         "src/github_application/defect_identity.cpp"
         "src/github_application/defect_identity.hpp"
         "src/github_application/device_authorization_composition.cpp"
@@ -3086,6 +3083,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/theme_document_file.hpp"
         "src/github_application/tour_owner_replies.cpp"
         "src/github_application/tour_owner_replies.hpp"
+        "src/github_application/window_account_setup.cpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
         "src/github_application/window_commit_filter.cpp"
@@ -3430,8 +3428,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# window_composition.hpp declares them. No grant, credential, provider,
 	# mutation branch, publication or source-inventory change; the full-app and
 	# mutation pins are unchanged.
+	# Account setup in the window reseal (2026-11-12, RFC-BPR-0032 amendment
+	# r1): window_account_setup.cpp composes the one account setup (server,
+	# way, sign in, confirm, ready) over the saved-server add, gh discovery, the
+	# device host and manual enrollment; every sign-in way in routes there, and
+	# github_application/credential_prompt.{cpp,hpp} and the modal gh read
+	# question are removed (the setup's Connect records CliConsent). The
+	# source inventory loses credential_prompt and gains window_account_setup.
+	# No grant, provider, mutation branch or publication change; the mutation
+	# pin is unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "2cbe1999453c9e59fefd70d27a3a7ead53b8cae8b9944faabfa80fe38dcda16d"
+        "3da807649aa392e0da85a024e125136bdae3c54a50a1d9ed8c0426d2b3aeff66"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

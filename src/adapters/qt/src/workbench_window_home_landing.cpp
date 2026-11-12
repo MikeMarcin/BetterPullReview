@@ -388,7 +388,9 @@ namespace bpr::qt {
 		if (landing == landing_state::sign_in && AccountSetupDispatch && !AccountSetupBeginning && AccountSetup != nullptr
 			&& AccountSetup->projection().State.Phase == core::account_setup_phase::idle) {
 			AccountSetupBeginning = true;
-			AccountSetupDispatch(core::begin_account_setup{ });
+			auto automatic        = core::begin_account_setup{ };
+			automatic.Automatic   = true;
+			AccountSetupDispatch(std::move(automatic));
 			AccountSetupBeginning = false;
 		}
 		place_home_landing();
@@ -435,7 +437,11 @@ namespace bpr::qt {
 		const auto unconfirmed = loading && !LoadingOverviewShown && !answered;
 		const auto nothing     = !HasGithubPullRequest && !HasCachedOverview && !comparing
 			&& (!loading || unconfirmed) && (!active || readUnavailable || unconfirmed);
-		const auto home = (nothing && !LocalCycleShown) || HomeRequested || SetupDestinationNeedsHome;
+		// RFC-BPR-0032 amendment r1. The account setup is Home's; while it is
+		// open Home stays, unless a pull request is opening or open, or its
+		// cached overview is shown.
+		const auto setupHolds = account_setup_shown() && !HasGithubPullRequest && !HasCachedOverview && !loading;
+		const auto home       = (nothing && !LocalCycleShown) || HomeRequested || SetupDestinationNeedsHome || setupHolds;
 		// [[BPR-1157]]. A local cycle takes the review surface's place, and the
 		// title row keeps only what Home keeps plus the cycle's name.
 		const auto cycle = !home && LocalCycleShown && LocalCyclePage != nullptr;
@@ -811,8 +817,7 @@ namespace bpr::qt {
 		const auto state = HomeLanding->state();
 		// RFC-BPR-0032 amendment r1. The account setup, once begun, is the
 		// sign-in surface until it is finished; the card gives way to it.
-		const auto setupShown = AccountSetup != nullptr && static_cast<bool>(AccountSetupDispatch)
-			&& AccountSetup->projection().State.Phase != core::account_setup_phase::idle;
+		const auto setupShown = account_setup_shown();
 		if (AccountSetup != nullptr) {
 			AccountSetup->setVisible(setupShown);
 		}
@@ -843,20 +848,13 @@ namespace bpr::qt {
 		}
 	}
 
-	void workbench_window::set_account_setup_dispatch(std::function<void(core::account_setup_event)> aDispatch, std::function<void()> aOpenAddress)
+	void workbench_window::set_account_setup_intents(account_setup_intents aIntents)
 	{
-		AccountSetupDispatch = std::move(aDispatch);
+		AccountSetupDispatch = aIntents.Dispatch;
 		if (AccountSetup == nullptr) {
 			return;
 		}
-		AccountSetup->set_intents({ .Dispatch =
-										[this](core::account_setup_event aEvent) {
-											if (AccountSetupDispatch) {
-												AccountSetupDispatch(std::move(aEvent));
-											}
-										},
-									.OpenVerificationAddress = std::move(aOpenAddress),
-									.AddEnterpriseServer     = [this] { begin_enterprise_server_from_home(); } });
+		AccountSetup->set_intents(std::move(aIntents));
 		update_home_landing();
 	}
 
@@ -873,7 +871,24 @@ namespace bpr::qt {
 			update_home_landing();
 			return;
 		}
+		if (wasShown != shown && !AccountSetupBeginning) {
+			update_home_surface();
+			update_home_landing();
+			return;
+		}
 		place_home_landing();
+	}
+
+	auto workbench_window::account_setup_shown() const -> bool
+	{
+		if (AccountSetup == nullptr || !AccountSetupDispatch) {
+			return false;
+		}
+		const auto phase = AccountSetup->projection().State.Phase;
+		// A remembered connection being validated is said by Home's Connecting
+		// card; a setup that has not left its first step waits behind it.
+		const auto connecting = HomeLanding != nullptr && HomeLanding->state() == landing_state::connecting && phase == core::account_setup_phase::choosing_server;
+		return phase != core::account_setup_phase::idle && !connecting;
 	}
 
 	auto workbench_window::account_setup() const noexcept -> account_setup_view* { return AccountSetup; }
@@ -917,23 +932,9 @@ namespace bpr::qt {
 		Dif->show();
 	}
 
-	void workbench_window::begin_enterprise_server_from_home()
-	{
-		open_sign_in();
-		// The same draft the page's own button opens, under the same readiness.
-		open_enterprise_server_draft();
-	}
+	void workbench_window::begin_enterprise_server_from_home() { begin_account_setup(core::account_setup_server::enterprise); }
 
-	void workbench_window::begin_github_cli_from_home()
-	{
-		if (SessionPanel != nullptr && !SessionPanel->connect_enabled()) {
-			return;
-		}
-		open_sign_in({ }, true);
-		if (GithubCliDiscoveryDispatch && GithubCliDiscoveryState != github_cli_discovery_state::discovering) {
-			GithubCliDiscoveryDispatch();
-		}
-	}
+	void workbench_window::begin_github_cli_from_home() { begin_account_setup(core::account_setup_server::github_com, "github.com", core::account_setup_way::github_cli); }
 
 	auto workbench_window::session_signed_in() const -> bool
 	{
@@ -1798,10 +1799,6 @@ namespace bpr::qt {
 			}
 			SessionPanel->apply_session(*aUpdate.Session);
 			update_server_cards();
-			if (SignInDialog && SignInDialog->isVisible() && aUpdate.Session->Account.value() != 0U
-				&& (SignInHostname.empty() || (server_card_for(aUpdate.Session->Profile) && server_card_for(aUpdate.Session->Profile)->hostname() == SignInHostname))) {
-				SignInDialog->accept();
-			}
 			// [[BPR-0775]]. Home's line names the accepted session's login, which
 			// arrives after the transition that already decided the line.
 			if (StatusLabel != nullptr) {

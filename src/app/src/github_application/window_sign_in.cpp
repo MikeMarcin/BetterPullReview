@@ -14,7 +14,6 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/server_card.hpp"
 #include "github_application/cli_accounts.hpp"
-#include "github_application/credential_prompt.hpp"
 #include "github_application/profile_hosts.hpp"
 #include "github_application/queue_notifications.hpp"
 #include "github_cli_process.hpp"
@@ -711,7 +710,6 @@ namespace bpr::app {
 						Profile->GithubCliInventory        = std::move(*discovered);
 						Profile->GithubCliInventoryChecked = true;
 						present_github_cli_accounts();
-						Window->present_cli_account_choices(choices);
 						Window->present_github_cli_discovery(
 							choices.empty()
 								? (hadAccounts ? qt::github_cli_discovery_state::ineligible_accounts : qt::github_cli_discovery_state::empty)
@@ -739,6 +737,9 @@ namespace bpr::app {
 			return;
 		}
 		SetupQueueReady = aProjection.Status == application::queue_landing_status::ready;
+		if (aProjection.Failure) {
+			settle_account_setup_server(true);
+		}
 		if (SetupConfigurationRequest && aProjection.Failure) {
 			SetupConfigurationRequest.reset();
 			SetupConfigurationSubmitted = false;
@@ -775,6 +776,9 @@ namespace bpr::app {
 		for (const auto& option : ProfileOptions) {
 			Window->add_setup_profile(option);
 		}
+		// RFC-BPR-0032 amendment r1. A server the account setup asked for now
+		// has its profile.
+		settle_account_setup_server(false);
 		if (const auto pending = SetupDestination->pending(); pending && pending->Stage == core::setup_destination_stage::add_server) {
 			SetupDestination->configured(pending->Request);
 			if (SetupDestination->pending() && SetupDestination->pending()->Stage != core::setup_destination_stage::add_server) {
@@ -888,7 +892,12 @@ namespace bpr::app {
 		} else
 #endif
 		{
-			material = prompt_for_credential(Window.get());
+			// RFC-BPR-0032 amendment r1. The token is entered in the account
+			// setup for the link's host; its enroll stages it for this link.
+			if (const auto* const profile = aPending.Profile ? find_profile(*aPending.Profile) : nullptr; profile != nullptr) {
+				begin_account_setup_for(*profile);
+				return;
+			}
 		}
 		if (!material) {
 			retire_setup_effects();

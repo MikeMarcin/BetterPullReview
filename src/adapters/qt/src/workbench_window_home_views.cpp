@@ -893,7 +893,7 @@ namespace bpr::qt {
 		if (aProjection.Addition) {
 			present_repository_addition(*aProjection.Addition);
 		}
-		update_enterprise_server_actions();
+		update_server_cards();
 		update_discovery_controls();
 		update_pull_request_queue_actions();
 		update_pending_panes();
@@ -1179,83 +1179,19 @@ namespace bpr::qt {
 		}
 	}
 
-	void workbench_window::build_enterprise_server_draft(QWidget* const aParent, QVBoxLayout& aLayout)
+	/// RFC-BPR-0032 amendment r1 (owner, 2026-11-12). Adding an account from
+	/// Settings is the same setup as Home's: Add account opens it on Home at
+	/// its first step, the server. The GitHub CLI and enterprise servers are
+	/// chosen there, not here.
+	void workbench_window::build_account_additions(QWidget* const aParent, QVBoxLayout& aLayout)
 	{
-		auto* const draft     = new card_surface{ aParent };
-		EnterpriseServerDraft = draft;
-		draft->setObjectName(QStringLiteral("enterpriseServerDraft"));
-		draft->setAccessibleName(QStringLiteral("New enterprise server"));
-		auto* const grid = new QGridLayout{ draft };
-		grid->setContentsMargins(16, 12, 16, 12);
-		grid->setHorizontalSpacing(16);
-		grid->setVerticalSpacing(8);
-		grid->setColumnMinimumWidth(0, 150);
-		grid->setColumnStretch(1, 1);
-		auto* const title = new QLabel{ QStringLiteral("Enterprise server"), draft };
-		title->setObjectName(QStringLiteral("enterpriseServerDraftTitle"));
-		auto titleFont = title->font();
-		titleFont.setWeight(QFont::DemiBold);
-		title->setFont(titleFont);
-		auto* const hostnameName = new QLabel{ QStringLiteral("Hostname"), draft };
-		EnterpriseServerHostname = new QLineEdit{ draft };
-		EnterpriseServerHostname->setObjectName(QStringLiteral("enterpriseServerHostname"));
-		EnterpriseServerHostname->setAccessibleName(QStringLiteral("Hostname"));
-		EnterpriseServerHostname->setAccessibleDescription(QStringLiteral("The hostname of a GitHub Enterprise server, without a scheme"));
-		EnterpriseServerHostname->setPlaceholderText(QStringLiteral("github.example.com"));
-		EnterpriseServerHostname->setMaxLength(253);
-		hostnameName->setBuddy(EnterpriseServerHostname);
-		auto* const accountName = new QLabel{ QStringLiteral("Account"), draft };
-		EnterpriseServerAccount = new QLineEdit{ draft };
-		EnterpriseServerAccount->setObjectName(QStringLiteral("enterpriseServerAccount"));
-		EnterpriseServerAccount->setAccessibleName(QStringLiteral("Account"));
-		EnterpriseServerAccount->setAccessibleDescription(QStringLiteral("The account you sign in with there, if you know it"));
-		EnterpriseServerAccount->setPlaceholderText(QStringLiteral("optional"));
-		EnterpriseServerAccount->setMaxLength(128);
-		accountName->setBuddy(EnterpriseServerAccount);
-		EnterpriseServerRefusal = new QLabel{ draft };
-		EnterpriseServerRefusal->setObjectName(QStringLiteral("enterpriseServerRefusal"));
-		EnterpriseServerRefusal->setTextFormat(Qt::PlainText);
-		EnterpriseServerRefusal->setWordWrap(true);
-		EnterpriseServerRefusal->hide();
-		EnterpriseServerAdd = new QPushButton{ QStringLiteral("Add"), draft };
-		EnterpriseServerAdd->setObjectName(QStringLiteral("enterpriseServerAdd"));
-		EnterpriseServerAdd->setAutoDefault(false);
-		EnterpriseServerAdd->setAccessibleName(QStringLiteral("Add enterprise server"));
-		EnterpriseServerAdd->setAccessibleDescription(QStringLiteral("Keeps this server so it is offered as a host. No sign-in is stored."));
-		EnterpriseServerCancel = new quiet_push_button{ QStringLiteral("Cancel"), draft };
-		EnterpriseServerCancel->setObjectName(QStringLiteral("enterpriseServerCancel"));
-		EnterpriseServerCancel->setAutoDefault(false);
-		EnterpriseServerCancel->setFlat(true);
-		auto* const actions = new QHBoxLayout{ };
-		actions->setContentsMargins(0, 0, 0, 0);
-		actions->addStretch(1);
-		actions->addWidget(EnterpriseServerAdd);
-		actions->addWidget(EnterpriseServerCancel);
-		grid->addWidget(title, 0, 0, 1, 2);
-		grid->addWidget(hostnameName, 1, 0);
-		grid->addWidget(EnterpriseServerHostname, 1, 1);
-		grid->addWidget(accountName, 2, 0);
-		grid->addWidget(EnterpriseServerAccount, 2, 1);
-		grid->addWidget(EnterpriseServerRefusal, 3, 0, 1, 2);
-		grid->addLayout(actions, 4, 0, 1, 2);
-		draft->hide();
-		aLayout.addWidget(draft);
-
-		UseGithubCliButton = new QPushButton{ QStringLiteral("Use GitHub CLI"), aParent };
-		UseGithubCliButton->setObjectName(QStringLiteral("accountsUseGithubCli"));
-		UseGithubCliButton->setAutoDefault(false);
-		UseGithubCliButton->setAccessibleDescription(QStringLiteral(
-			"Checks active authenticated hosts with the installed gh. Tokens are never requested or shown."));
-		UseGithubCliButton->hide();
-
-		AddEnterpriseServerButton = new QPushButton{ QStringLiteral("Add enterprise server"), aParent };
-		AddEnterpriseServerButton->setObjectName(QStringLiteral("accountsAddEnterpriseServer"));
-		AddEnterpriseServerButton->setAutoDefault(false);
-		AddEnterpriseServerButton->setAccessibleDescription(QStringLiteral("Adds a GitHub Enterprise server as a card, offered again at the next start. No sign-in is stored."));
+		AddAccountButton = new QPushButton{ tr("Add account"), aParent };
+		AddAccountButton->setObjectName(QStringLiteral("accountsAddAccount"));
+		AddAccountButton->setAutoDefault(false);
+		AddAccountButton->setAccessibleDescription(tr("Opens the account setup on Home: choose the server, then how to sign in."));
 		auto* const addRow = new QHBoxLayout{ };
 		addRow->setContentsMargins(0, 0, 0, 0);
-		addRow->addWidget(UseGithubCliButton);
-		addRow->addWidget(AddEnterpriseServerButton);
+		addRow->addWidget(AddAccountButton);
 		addRow->addStretch(1);
 		aLayout.addLayout(addRow);
 		GithubCliDiscoveryStatus = new QLabel{ aParent };
@@ -1266,27 +1202,13 @@ namespace bpr::qt {
 		GithubCliDiscoveryStatus->setForegroundRole(QPalette::PlaceholderText);
 		GithubCliDiscoveryStatus->hide();
 		aLayout.addWidget(GithubCliDiscoveryStatus);
-
-		connect(UseGithubCliButton, &QPushButton::clicked, this, [this] {
-			if (GithubCliDiscoveryDispatch
-				&& GithubCliDiscoveryState != github_cli_discovery_state::discovering) {
-				open_sign_in(SignInHostname, true);
-				GithubCliDiscoveryDispatch();
-			}
-		});
-		connect(AddEnterpriseServerButton, &QPushButton::clicked, this, [this] { open_enterprise_server_draft(); });
-		connect(EnterpriseServerAdd, &QPushButton::clicked, this, [this] { add_enterprise_server(); });
-		connect(EnterpriseServerHostname, &QLineEdit::returnPressed, this, [this] { add_enterprise_server(); });
-		connect(EnterpriseServerAccount, &QLineEdit::returnPressed, this, [this] { add_enterprise_server(); });
-		connect(EnterpriseServerCancel, &QPushButton::clicked, this, [this] { close_enterprise_server_draft(); });
-		connect(EnterpriseServerHostname, &QLineEdit::textEdited, this, [this] { EnterpriseServerRefusal->hide(); });
-		update_enterprise_server_actions();
+		connect(AddAccountButton, &QPushButton::clicked, this, [this] { begin_account_setup(); });
 	}
 
 	void workbench_window::set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch)
 	{
 		SavedServerDispatch = std::move(aDispatch);
-		update_enterprise_server_actions();
+		update_server_cards();
 	}
 
 	void workbench_window::set_github_cli_discovery_dispatch(github_cli_discovery_dispatch aDispatch)
@@ -1295,11 +1217,6 @@ namespace bpr::qt {
 		if (HomeLanding != nullptr) {
 			HomeLanding->set_github_cli_available(
 				static_cast<bool>(GithubCliDiscoveryDispatch));
-		}
-		if (UseGithubCliButton != nullptr) {
-			UseGithubCliButton->setVisible(static_cast<bool>(GithubCliDiscoveryDispatch));
-			UseGithubCliButton->setEnabled(
-				GithubCliDiscoveryState != github_cli_discovery_state::discovering);
 		}
 	}
 
@@ -1319,12 +1236,9 @@ namespace bpr::qt {
 		const github_cli_discovery_state aState, const std::size_t aAccounts)
 	{
 		GithubCliDiscoveryState = aState;
-		if (UseGithubCliButton == nullptr || GithubCliDiscoveryStatus == nullptr) {
+		if (GithubCliDiscoveryStatus == nullptr) {
 			return;
 		}
-		UseGithubCliButton->setEnabled(
-			static_cast<bool>(GithubCliDiscoveryDispatch)
-			&& aState != github_cli_discovery_state::discovering);
 		switch (aState) {
 		case github_cli_discovery_state::idle:
 			GithubCliDiscoveryStatus->clear();
@@ -1394,90 +1308,13 @@ namespace bpr::qt {
 			break;
 		}
 		update_server_cards();
-		update_sign_in_surface();
 	}
 
-	auto workbench_window::use_github_cli_button() const noexcept -> QPushButton*
-	{
-		return UseGithubCliButton;
-	}
+	auto workbench_window::add_account_button() const noexcept -> QPushButton* { return AddAccountButton; }
 
 	auto workbench_window::github_cli_discovery_status() const noexcept -> QLabel*
 	{
 		return GithubCliDiscoveryStatus;
-	}
-
-	void workbench_window::open_enterprise_server_draft()
-	{
-		if (EnterpriseServerDraft == nullptr || !QueueReady || !SavedServerDispatch) {
-			return;
-		}
-		EnterpriseDraftOpen = true;
-		EnterpriseServerRefusal->hide();
-		update_enterprise_server_actions();
-		EnterpriseServerHostname->setFocus(Qt::OtherFocusReason);
-	}
-
-	void workbench_window::close_enterprise_server_draft()
-	{
-		if (EnterpriseServerDraft == nullptr) {
-			return;
-		}
-		const auto hadFocus = EnterpriseServerDraft->isAncestorOf(QApplication::focusWidget());
-		EnterpriseDraftOpen = false;
-		EnterpriseServerHostname->clear();
-		EnterpriseServerAccount->clear();
-		EnterpriseServerRefusal->hide();
-		update_enterprise_server_actions();
-		if (hadFocus && AddEnterpriseServerButton->isVisible()) {
-			AddEnterpriseServerButton->setFocus(Qt::OtherFocusReason);
-		}
-	}
-
-	void workbench_window::add_enterprise_server()
-	{
-		if (!EnterpriseDraftOpen) {
-			return;
-		}
-		// A refusal sits beside what was refused, and the fields stay as typed.
-		if (!QueueReady || !SavedServerDispatch) {
-			EnterpriseServerRefusal->setText(QStringLiteral("Servers can be kept once the review queue has loaded."));
-			EnterpriseServerRefusal->show();
-			return;
-		}
-		auto server = application::saved_server{
-			.Hostname = EnterpriseServerHostname->text().trimmed().toLower().toStdString(),
-			.Account  = EnterpriseServerAccount->text().trimmed().toStdString(),
-		};
-		if (!application::valid(server)) {
-			EnterpriseServerRefusal->setText(QStringLiteral("Enter a hostname such as github.example.com, without a scheme or a path."));
-			EnterpriseServerRefusal->show();
-			return;
-		}
-		SavedServerDispatch(application::saved_server_intent{
-			.Action = application::saved_server_action::add,
-			.Server = std::move(server),
-		});
-		close_enterprise_server_draft();
-	}
-
-	void workbench_window::update_enterprise_server_actions()
-	{
-		if (EnterpriseServerDraft == nullptr || AddEnterpriseServerButton == nullptr) {
-			return;
-		}
-		// A server is kept without an account and without signing in: only the
-		// queue's own durable state is needed, so adding waits for it.
-		const auto admitted = QueueReady && static_cast<bool>(SavedServerDispatch);
-		if (!admitted && EnterpriseDraftOpen) {
-			EnterpriseDraftOpen = false;
-			EnterpriseServerHostname->clear();
-			EnterpriseServerAccount->clear();
-			EnterpriseServerRefusal->hide();
-		}
-		EnterpriseServerDraft->setVisible(admitted && EnterpriseDraftOpen);
-		AddEnterpriseServerButton->setVisible(admitted && !EnterpriseDraftOpen);
-		update_server_cards();
 	}
 
 	void workbench_window::remember_enterprise_server(const std::string& aHostname)
@@ -1548,41 +1385,6 @@ namespace bpr::qt {
 			});
 		});
 		box->open();
-	}
-
-	auto workbench_window::add_enterprise_server_button() const noexcept -> QPushButton*
-	{
-		return AddEnterpriseServerButton;
-	}
-
-	auto workbench_window::enterprise_server_draft() const noexcept -> QWidget*
-	{
-		return EnterpriseServerDraft;
-	}
-
-	auto workbench_window::enterprise_server_hostname() const noexcept -> QLineEdit*
-	{
-		return EnterpriseServerHostname;
-	}
-
-	auto workbench_window::enterprise_server_account() const noexcept -> QLineEdit*
-	{
-		return EnterpriseServerAccount;
-	}
-
-	auto workbench_window::enterprise_server_add() const noexcept -> QPushButton*
-	{
-		return EnterpriseServerAdd;
-	}
-
-	auto workbench_window::enterprise_server_cancel() const noexcept -> QPushButton*
-	{
-		return EnterpriseServerCancel;
-	}
-
-	auto workbench_window::enterprise_server_refusal() const noexcept -> QLabel*
-	{
-		return EnterpriseServerRefusal;
 	}
 
 	auto workbench_window::forget_server_confirmation() const noexcept -> QMessageBox*

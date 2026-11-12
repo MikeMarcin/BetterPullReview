@@ -514,10 +514,6 @@ namespace bpr::app {
 		// both are the real ones.
 		bool InsideAutomatedTestBoundary = false;
 #endif
-		/// RFC-BPR-0032 amendment r1. Home signs in through the in-window
-		/// account setup. Always in a tests-off build; inside the test boundary
-		/// only for a fixture that asks.
-		bool AccountSetupInWindow = true;
 		// [[BPR-0797]]. Which browser capability this run bound, reported so a
 		// course can assert the identity rather than the mere presence.
 		composed_device_browser ComposedDeviceBrowser

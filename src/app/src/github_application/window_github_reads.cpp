@@ -14,7 +14,6 @@
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/workbench_strip.hpp"
-#include "github_application/credential_prompt.hpp"
 #include "github_cli_runtime.hpp"
 
 #include <QByteArrayView>
@@ -309,20 +308,15 @@ namespace bpr::app {
 					// A run inside the boundary composes no factory that
 					// can serve a CLI read, so it never reaches here.
 #if defined(BPR_GITHUB_CLI_PLATFORM)
-						if (profile->cli_account_login().empty()) {
-							discover_github_cli_accounts(true);
-							return;
-						}
+						// RFC-BPR-0032 amendment r1 (owner, 2026-11-12). An
+						// account not yet chosen, or one without consent, is
+						// chosen and consented to in the account setup, where
+						// Connect as LOGIN is the consent; no question opens.
 						const auto remembered = Profile->selected_connection(profile->hostname());
-						if (Profile->cli_read_offered_here() && !Profile->CliConsent.contains(aValue.Profile) && (!remembered || remembered->Profile != aValue.Profile)) {
-							// [[BPR-0933]]. A short decision; the full
-							// residual-risk list is behind Show Details.
-							const auto consent = qt::ask_github_cli_read_consent(
-								Window.get(), QStringLiteral("Use configured GitHub CLI"),
-								QString::fromStdString(std::string{ profile->hostname() }), QString::fromStdString(std::string{ profile->cli_account_login() }));
-							if (!consent) {
-								return;
-							}
+						if (profile->cli_account_login().empty()
+							|| (Profile->cli_read_offered_here() && !Profile->CliConsent.contains(aValue.Profile) && (!remembered || remembered->Profile != aValue.Profile))) {
+							begin_account_setup_for(*profile);
+							return;
 						}
 #endif
 						if (Closing || GithubCliDiscoveryGeneration != discoveryGeneration || (setupActivation && SetupDestination->pending() != expectedSetup)) {
@@ -359,7 +353,9 @@ namespace bpr::app {
 					} else
 #endif
 					{
-						credential = prompt_for_credential(Window.get());
+						// RFC-BPR-0032 amendment r1. A sign-in is the account setup.
+						begin_account_setup_for(*profile);
+						return;
 					}
 					if (credential.has_value()) {
 						DeviceHost->release_refresh_authority();

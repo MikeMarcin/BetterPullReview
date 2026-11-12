@@ -519,11 +519,7 @@ namespace bpr::app::detail {
 		/// enables discovery inside the test boundary without inspecting the
 		/// developer's real CLI configuration.
 		std::optional<std::vector<github_cli_discovery_account>> GithubCliDiscoveryAccounts;
-		/// RFC-BPR-0032 amendment r1. Home's sign-in is the in-window account
-		/// setup rather than the shared sign-in dialog. Off for a fixture
-		/// unless a course asks, so courses written for the dialog keep it.
-		bool                                AccountSetupInWindow = false;
-		std::shared_ptr<std::atomic_size_t> GithubCliInventoryChecks;
+		std::shared_ptr<std::atomic_size_t>                      GithubCliInventoryChecks;
 		/// Selected fixture capability cut; absent uses the strict synthetic CLI path.
 		std::shared_ptr<std::atomic_bool>    GithubCliStrictCapability;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;

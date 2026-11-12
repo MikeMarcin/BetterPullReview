@@ -378,8 +378,12 @@ namespace bpr::qt {
 		// [[BPR-0776]]. The queue's surface holds its status, Home's list and
 		// the queue's controls. An account shows all of them; without one only
 		// Recently viewed can have anything to list.
+		// RFC-BPR-0032 amendment r1. While the account setup is open over an
+		// account (Add account) it has Home to itself; signed out, Recently
+		// viewed (a public preview's reading) stays beneath it.
+		const auto setup = account_setup_shown();
 		if (QueueSurface != nullptr) {
-			QueueSurface->setVisible(HomeAccount || !RecentReviews.Entries.empty());
+			QueueSurface->setVisible(HomeAccount ? !setup : !RecentReviews.Entries.empty());
 		}
 		// Without an account the surface is shown only for Recently viewed, and
 		// then the queue's status is hidden itself; otherwise it follows the
@@ -398,7 +402,7 @@ namespace bpr::qt {
 			if (!rows && !HomeFilter->query().isEmpty()) {
 				HomeFilter->clear_query();
 			}
-			HomeFilter->setVisible(rows);
+			HomeFilter->setVisible(rows && !(setup && HomeAccount));
 		}
 	}
 
@@ -601,11 +605,6 @@ namespace bpr::qt {
 			SetupDestinationRequest = aProjection.Pending ? std::optional{ aProjection.Pending->Request } : std::nullopt;
 			if (aProjection.Pending && (aProjection.Pending->Stage == core::setup_destination_stage::add_server || aProjection.Pending->Stage == core::setup_destination_stage::sign_in)) {
 				open_sign_in(aProjection.Pending->Destination.Hostname);
-				if (aProjection.Pending->Stage == core::setup_destination_stage::add_server) {
-					open_enterprise_server_draft();
-					EnterpriseServerHostname->setText(QString::fromStdString(aProjection.Pending->Destination.Hostname));
-					update_enterprise_server_actions();
-				}
 			} else if (!aProjection.Pending) {
 				open_repository_addition();
 				repository_addition_notice(aProjection.RepositoryPrepared
@@ -638,15 +637,12 @@ namespace bpr::qt {
 		const auto actionable = aProjection.Pending && (aProjection.Pending->Stage == core::setup_destination_stage::add_server || aProjection.Pending->Stage == core::setup_destination_stage::sign_in);
 		SetupContinueButton->hide();
 		if (actionable) {
+			// RFC-BPR-0032 amendment r1. A link that needs an account, or an
+			// unknown server, opens the account setup for its host.
 			open_sign_in(aProjection.Pending->Destination.Hostname);
-			if (aProjection.Pending->Stage == core::setup_destination_stage::add_server) {
-				open_enterprise_server_draft();
-				EnterpriseServerHostname->setText(QString::fromStdString(aProjection.Pending->Destination.Hostname));
-				update_enterprise_server_actions();
-			}
 		}
 		SetupContinueButton->setText(aProjection.Pending && aProjection.Pending->Stage == core::setup_destination_stage::add_server ? tr("Add server and continue") : tr("Sign in and continue"));
-		SetupCancelButton->setVisible(aProjection.Pending && aProjection.Pending->Stage != core::setup_destination_stage::opening && (!SignInDialog || !SignInDialog->isVisible()));
+		SetupCancelButton->setVisible(aProjection.Pending && aProjection.Pending->Stage != core::setup_destination_stage::opening);
 		update_home_landing();
 		ApplyingSetupProjection = false;
 	}
@@ -1154,9 +1150,6 @@ namespace bpr::qt {
 			return;
 		}
 		if (HomeOpenBar && SetupDestinationDispatch) {
-			if (SignInDialog && SignInDialog->isVisible()) {
-				SignInDialog->reject();
-			}
 			SetupDestinationDispatch(application::submit_setup_destination{ HomeOpenBar->text().toStdString() });
 		}
 	}

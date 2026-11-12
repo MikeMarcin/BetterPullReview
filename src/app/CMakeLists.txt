@@ -143,7 +143,6 @@ if(BPR_BUILD_QT)
             src/github_application/application_windows.cpp
             src/github_application/blob_sources.cpp
             src/github_application/cli_accounts.cpp
-            src/github_application/credential_prompt.cpp
             src/github_application/defect_identity.cpp
             src/github_application/device_authorization_composition.cpp
             src/github_application/fixture_appearance_course.cpp
@@ -539,8 +538,6 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/blob_sources.hpp
 		src/app/src/github_application/cli_accounts.cpp
 		src/app/src/github_application/cli_accounts.hpp
-		src/app/src/github_application/credential_prompt.cpp
-		src/app/src/github_application/credential_prompt.hpp
 		src/app/src/github_application/defect_identity.cpp
 		src/app/src/github_application/defect_identity.hpp
 		src/app/src/github_application/device_authorization_composition.cpp
