@@ -1813,3 +1813,42 @@ main as before.
 Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
 BPR-Test #152 and `-next`. Live GitHub: one disposable BPR-Test branch,
 deleted.
+
+## Agent launch policy round (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner decisions of
+2026-11-12 (fresh vs resumed per action; MCP per agent, Off by default; P02
+settled with built-in prompts in the inline system prompt; one call per fresh
+click; the corporate wrapper's sign-in failure and argument order), recorded
+in RFC-BPR-0101, 0103, 0104, 0107, 0116 to 0120 and agent-assistance-v1
+DECISIONS (P02 Settled). Cards BPR-2138..2142 reserved against main
+(counter BPR-2143). Frontend-design loaded before the Qt work. Record:
+[RFC-BPR-0101 ledger](../../../verification/RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141).
+
+| Commit | What |
+|---|---|
+| `224170753` | Owner decisions in the RFCs and DECISIONS; BPR-2138..2142 Ready (main mirror `18b9ed121`) |
+| `f54978e89`..`451f6eac7` | Claim BPR-2142, 2139, 2140, 2138, 2141 |
+| `524361ba7` | Core `agent_run_policy` (paths, session modes, MCP, instructions); launch options; argument order; sign-in failures; store; app wiring |
+| next two WIP commits | Fresh tour Enhance with a proposal, Settings rows, footer MCP tooltip; tests follow the new order |
+| `5286b69c2` | clang-format 22, canary printer, app source pin resealed |
+
+Status: BPR-2139 (MCP) and BPR-2142 (sign-in, argument order) are complete
+against their criteria. BPR-2138, 2140 and 2141 stay In Progress with the
+remaining work in the ledger's "Not done" and "Pending" lists: the local
+draft's discussion as a native resumed session; an explicit Ask more control;
+the remaining built-in prompts (tour conversation, Draft Tour, local draft,
+review skill) moved to the system prompt; Draft Tour, field drafts and the
+outline as one tool-free call with their context up front.
+
+No owner look filed: the Settings rows and the tooltip line follow the
+existing rows, and a part's Enhance now shows its result in the tour's
+existing proposal (already accepted surfaces). Behavioural confirmation of
+the inline system prompt through the corporate wrapper is the owner's
+pending rerun; the per-agent "Instructions: In the message" switch is the
+fallback.
+
+Not touched: attended session 6d00826a… (host 75022/75032, root
+`local-draft-pr-window-v002.lyqc133b`), PIDs 74290, 74692/74706, 10695,
+39804, Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use. Two
+canary model calls (Claude haiku, Codex), recorded in the RFC-BPR-0107 ledger.

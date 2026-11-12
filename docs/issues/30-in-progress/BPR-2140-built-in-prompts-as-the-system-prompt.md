@@ -26,3 +26,9 @@ own behavioural confirmation of the inline route is pending the owner's
 rerun.
 
 Acceptance: AC09 as amended on 2026-11-12.
+
+## Progress (2026-11-12)
+
+Partly built; see the [RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141)
+for what passes and what remains (its "Not done" list, and the RFC-BPR-0107
+ledger's "Pending" list for the prompts still pasted).

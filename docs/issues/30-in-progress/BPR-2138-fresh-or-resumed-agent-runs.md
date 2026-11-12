@@ -31,3 +31,9 @@ and fix loops, address-feedback runs).
 - A test asserts each launch path's session mode (AC10).
 
 Acceptance: AC10, AC11, AC12 as amended on 2026-11-12.
+
+## Progress (2026-11-12)
+
+Partly built; see the [RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141)
+for what passes and what remains (its "Not done" list, and the RFC-BPR-0107
+ledger's "Pending" list for the prompts still pasted).

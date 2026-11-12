@@ -86,3 +86,35 @@ Not run: the whole dev suite, the core-only preset, Windows and Linux.
   agent edit today).
 - The composed courses are run by hand, like the earlier attended-look checks;
   they are not ctest rows.
+
+## MCP exported; built-in prompts in the system prompt (owner, 2026-11-12, [[BPR-2139]], [[BPR-2140]])
+
+AC08 passes: `core_agent_configuration`
+(`test_mcp_and_instructions_ride_the_agent`): `mcp_servers` and
+`instructions` are written by name, read back, applied on import and shown
+among a replacement's differences; a file without them reads Off and System
+prompt; an unknown value refuses the file. The import preview lists both.
+
+AC09, partly: `build_writing_prompt_parts` splits a writing prompt into its
+instructions (contract, hook text, schema, style) and its material (the
+untrusted evidence). Enhance on a comment, reply or note, a tour field's
+rewrite, draft and outline, and Test send the instructions as Claude's inline
+`--append-system-prompt` (never `-file`) or Codex `exec`'s
+`-c developer_instructions=…`; the App Server, an agent switched to
+"In the message", and instructions past 24 KiB once quoted are pasted.
+Canary with installed Claude Code 2.1.319, 2026-11-12:
+`python3 tests/scripts/claude_system_prompt_canary.py --launch-printer build/dev/tests/application/better_pull_review_agent_launch_policy_tests`
+ran BPR's exact Enhance argv with the rule only in the system prompt and
+answered `ok … PINEAPPLE` (one turn, $0.00056, haiku). It used the person's
+own sign-in: an isolated `HOME` answered "Not logged in", so the run kept the
+real `HOME` with the launch's own isolation (no settings source, no MCP, no
+tools, no saved session, an empty folder). Codex 0.167.0:
+`codex exec --ephemeral --ignore-user-config -c developer_instructions="…"`
+answered `ok PINEAPPLE` (one canary call, 2026-11-12).
+
+Pending: the tour conversation's and Draft Tour's prompts, the local
+draft's description, discussion and commit message prompts, and the review
+skill still paste their instructions; the owner's rerun of the inline route
+through the corporate wrapper is pending (the per-agent switch is the
+fallback). Round record:
+[RFC-BPR-0101](RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141).
