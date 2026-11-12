@@ -145,7 +145,7 @@ the grants the Agent tab already has.
 
 ## Proposed delivery
 
-[What changed since my review](../issues/30-in-progress/BPR-2073-what-changed-since-my-review.md),
+[What changed since my review](../issues/60-done/BPR-2073-what-changed-since-my-review.md),
 [Was this addressed?](../issues/10-backlog/BPR-2074-was-this-addressed-on-a-thread.md) and
 [closeout](../issues/10-backlog/BPR-2075-close-rfc-0116.md) form the first
 [milestone](plans/agent-assistance-v1/milestone-plan.json).
