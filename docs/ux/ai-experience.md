@@ -8,8 +8,20 @@ The functional core decides whether an explicit AI action is legal, what local c
 
 - Ask about selection
 - Analyze current file
-- Analyze latest upload
-- Evaluate proposed fix
+- Analyze latest upload: **What changed since my review**
+  (RFC-BPR-0116, [[BPR-2073]]). Offered when the pull request has commits
+  newer than the reviewer's last submitted review or Seen, in the Pull
+  Request menu beside Seen and among the Agent tab's suggestions. Its
+  question names both revisions and carries the change between them; when
+  the earlier revision cannot be read the control is unavailable and says
+  so, and nothing else is sent in its place.
+- Evaluate proposed fix: **Was this addressed?** (RFC-BPR-0116,
+  [[BPR-2074]]). Its subject is a review thread the reviewer commented in,
+  never a selection; it is offered once the pull request has commits newer
+  than the reviewer's last comment there, on the thread and among its
+  conversation's prompts. The answer leads with Addressed, Partly, Not
+  addressed or Cannot tell and is shown as the agent's claim: it resolves,
+  verifies and posts nothing.
 - Workshop comment
 - Run AI review
 - Open full agent session

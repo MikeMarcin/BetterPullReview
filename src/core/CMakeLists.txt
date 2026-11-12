@@ -127,6 +127,7 @@ add_library(
         src/clone_discovery.cpp
         src/local_draft.cpp
         src/local_changes.cpp
+        src/returning_review.cpp
         src/local_draft_publication.cpp
         src/local_draft_tour.cpp
         src/review_skill.cpp

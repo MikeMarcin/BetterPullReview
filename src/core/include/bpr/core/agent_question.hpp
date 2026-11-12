@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_QUESTION_HPP
 
 #include "bpr/core/agent_chat_scope.hpp"
+#include "bpr/core/returning_review.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -71,6 +72,9 @@ namespace bpr::core {
 		bool Review = false;
 		/// The path of the file open in Review; empty when none is.
 		std::string OpenFile;
+		/// RFC-BPR-0116. A returning question was pressed: What changed since
+		/// my review, or Was this addressed?
+		std::optional<returning_operation> Returning;
 
 		auto operator<=>(const agent_question_facts&) const = default;
 	};
@@ -90,6 +94,10 @@ namespace bpr::core {
 	///
 	/// \details Pure. In order:
 	///
+	/// 0. RFC-BPR-0116. What changed since my review is about the pull
+	///    request (`analyze_latest_upload`) whatever is attached; Was this
+	///    addressed? is about the attached conversation
+	///    (`evaluate_proposed_fix`) and is not sent without one.
 	/// 1. A conversation chip makes the conversation the subject
 	///    (`ask_about_conversation`).
 	/// 2. A suggestion names its own subject: the pull request, the open file

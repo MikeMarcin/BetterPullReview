@@ -63,16 +63,19 @@ namespace bpr::core {
 
 	/// \brief Whether an entry point acts on what the reviewer has selected.
 	///
-	/// \details True for the three actions that have no subject without one:
-	/// asking about the selection, analyzing the current file — the selection
-	/// is the only input that names a file, so with nothing selected there is
-	/// no current file and the core will not guess which one was meant — and
-	/// evaluating a proposed fix, which is a fix *to* something.
+	/// \details True for the two actions that have no subject without one:
+	/// asking about the selection, and analyzing the current file — the
+	/// selection is the only input that names a file, so with nothing selected
+	/// there is no current file and the core will not guess which one was
+	/// meant.
 	///
-	/// False for the four that take their subject from the session's own
-	/// `agent_revision_binding`: the latest upload, a workshopped comment
-	/// (which may be a pull-request-level comment anchored to no line at all),
-	/// the review, and a full agent session.
+	/// False for the others. The latest upload, a workshopped comment (which
+	/// may be a pull-request-level comment anchored to no line at all), the
+	/// review, and a full agent session take their subject from the session's
+	/// own `agent_revision_binding`. Asking about a conversation and, since
+	/// RFC-BPR-0116 ([[BPR-2074]]), evaluating a proposed fix act on the
+	/// conversation the reviewer chose: a fix is a fix *to* what a review
+	/// thread asked for, and Was this addressed? needs no selection.
 	[[nodiscard]] auto acts_on_selection(agent_entry_point aEntryPoint) noexcept
 		-> bool;
 

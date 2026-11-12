@@ -47,8 +47,10 @@ namespace bpr::core {
 		switch (aEntryPoint) {
 		case agent_entry_point::ask_about_selection:
 		case agent_entry_point::analyze_current_file:
-		case agent_entry_point::evaluate_proposed_fix:
 			return true;
+		// RFC-BPR-0116 ([[BPR-2074]]): a fix is evaluated against the
+		// conversation that asked for it, not against a selection.
+		case agent_entry_point::evaluate_proposed_fix:
 		case agent_entry_point::analyze_latest_upload:
 		case agent_entry_point::workshop_comment:
 		case agent_entry_point::run_ai_review:

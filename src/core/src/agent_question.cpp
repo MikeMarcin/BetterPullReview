@@ -32,6 +32,17 @@ namespace bpr::core {
 
 	auto decide_agent_question(const agent_question_facts& aFacts) -> std::optional<agent_question>
 	{
+		if (aFacts.Returning) {
+			switch (*aFacts.Returning) {
+			case returning_operation::latest_upload: return agent_question{ .Subject = agent_question_subject::pull_request, .EntryPoint = agent_entry_point::analyze_latest_upload };
+			case returning_operation::proposed_fix:
+				if (!aFacts.ConversationAttached) {
+					return std::nullopt;
+				}
+				return agent_question{ .Subject = agent_question_subject::conversation, .EntryPoint = agent_entry_point::evaluate_proposed_fix };
+			}
+			return std::nullopt;
+		}
 		if (aFacts.ConversationAttached) {
 			return agent_question{ .Subject = agent_question_subject::conversation, .EntryPoint = agent_entry_point::ask_about_conversation };
 		}
