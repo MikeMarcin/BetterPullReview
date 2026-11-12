@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2120"
 title: "Give composed terminal-diagnostic children a bounded Debug watchdog"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2120--BPR-2120--94c21bf5d692.json","source_baseline":"70324127b116e45988b8ffa3a77370209ba7aef4","branch_baseline":"000b2ad0b70b760d4e366f8e94709300ceb9ae96","mandate_revision":"release58-debug-terminal-watchdog-r1","milestone_plan":{"id":"bpr-2120-debug-terminal-watchdog","path":"docs/rfcs/plans/bpr-2120-debug-terminal-watchdog/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3ce169df1ea16c33a653e3f52429b806785118a2","evidence":{"kind":"artifact","detail":"Original10s Debugcutoff and interrupted fullsuite retained; exactone privatefunctionalcourse0/28.120627/all18oracles/31inputsexact. Allchildrenunder10 inprobe: no latencyreproduction/fullqualification claim."}},{"criterion":"AC2","outcome":"pass","revision":"3ce169df1ea16c33a653e3f52429b806785118a2","evidence":{"kind":"artifact","detail":"Actualrunfunction15configuration/childmappings +5virtual11spolarities +4parsercontrols0. Original18assertions/coursebodyAST exact and effectiveDebugrun equalscompletedprobe. Sixactualsingle/multi CMakeconfiggraphs0; Release10/60 exact, Debuglogging30/other10/outer180 only. No extra nativecourse."}},{"criterion":"AC3","outcome":"pass","revision":"3ce169df1ea16c33a653e3f52429b806785118a2","evidence":{"kind":"artifact","detail":"Isolatedowned2testpathsource contributed to canonicalmain; exactsourcepayloads matchprivate/canonical. Docsstructure+67contracts pass; diffcheck0; frozenR/source/privateauthor2118 untouched, no sharedRfuturebranch. Normalcounter/highwater/foreignwork preserved; no humancriterion."}}]
 ---
 
 # Keep the child watchdog outside its functional waits
