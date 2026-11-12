@@ -1100,6 +1100,13 @@ auto main(int argc, char** argv) -> int
 			const auto before   = access::review_mutation_evidence(*application);
 			course.open_review_composition();
 			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 9U && !composer.held_comments().empty(); }, "this build reads GitHub's diff and holds the off-hunk comment");
+			// Held state precedes the queued show of a relisted row.
+			wait([&] {
+				const auto shown = [](const auto& aWidgets) { return std::ranges::count_if(aWidgets, [](const QWidget* aWidget) { return aWidget->isVisible(); }); };
+				return shown(composer.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"))) == 1
+					&& shown(composer.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingConvert"))) == 1;
+			},
+				 "the held row's reason and action are visible");
 			const auto& carried = composer.shown_draft()->Comments;
 			const auto  held    = std::ranges::find(carried, offHunkBody, &core::review_submission_comment::Body);
 			expect(held != carried.end() && composer.held_comments().size() == 1U && composer.held_comments().contains(held->Draft), "exactly the off-hunk comment is held");
