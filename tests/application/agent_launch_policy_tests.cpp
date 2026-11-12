@@ -220,6 +220,46 @@ namespace {
 		expect(none && none->InstructionsRoute == application::agent_instructions_route::none && !has(none->Arguments, "--append-system-prompt"), "a launch without instructions carries none");
 	}
 
+	/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]), RFC-BPR-0101 AC13. A
+	/// returning question's first answer: a fresh, tool-free Claude call with
+	/// its own prompt in the system prompt and its material, both revisions
+	/// and the change or the thread's lines then and now, in the request.
+	void test_a_returning_question_is_one_fresh_tool_free_call()
+	{
+		const auto claude = profile(core::agent_protocol::claude_stream_json);
+		const auto earlier = std::string(40U, 'a');
+		const auto current = std::string(40U, 'b');
+		for (const auto hook : { core::writing_hook::review_latest_upload, core::writing_hook::review_proposed_fix }) {
+			const auto latest   = hook == core::writing_hook::review_latest_upload;
+			auto       material = core::supplement_returning{ .Operation = latest ? core::returning_operation::latest_upload : core::returning_operation::proposed_fix, .EarlierHead = earlier, .CurrentHead = current };
+			if (latest) {
+				material.Changes    = "--- a/src/a.cpp\n+++ b/src/a.cpp\n@@ -1,1 +1,1 @@\n-old\n+new\n";
+				material.FilesShown = 1U;
+			} else {
+				material.Then = core::returning_lines{ .Commit = earlier, .Path = "src/a.cpp", .FirstLine = 1U, .Lines = { "old" } };
+				material.Now  = core::returning_lines{ .Commit = current, .Path = "src/a.cpp", .FirstLine = 1U, .Lines = { "new" } };
+			}
+			expect(core::valid(material), "the returning material is within its bounds");
+			auto value      = supplement();
+			value.Returning = material;
+			const auto prompt = std::string{ application::default_writing_hook(hook) };
+			expect(!prompt.empty() && application::writing_hook_purpose(hook) == (latest ? "review.latest-upload" : "review.proposed-fix")
+					   && application::writing_hook_of_purpose(application::writing_hook_purpose(hook)) == hook && !application::writing_hook_version_of(hook).empty(),
+				   "each returning question has its own prompt, purpose and version");
+			const auto launch = application::build_agent_launch(claude, value, reader(), { .WritingOnly = true, .Path = core::agent_run_path::assistance_first_answer, .SystemInstructions = prompt });
+			expect(launch && has(launch->Arguments, "--no-session-persistence") && !has(launch->Arguments, "--resume"), "a fresh run: no session saved or resumed");
+			expect(launch && index_of(launch->Arguments, "--tools") + 1U < launch->Arguments.size() && launch->Arguments[index_of(launch->Arguments, "--tools") + 1U].empty(), "no tools");
+			expect(launch && has(launch->Arguments, "--strict-mcp-config"), "no MCP server");
+			expect(launch && launch->Arguments[index_of(launch->Arguments, "--append-system-prompt") + 1U] == prompt, "its own prompt is the system prompt");
+			expect(launch && launch->Input.find("returning.earlier_head") != std::string::npos && launch->Input.find(earlier) != std::string::npos && launch->Input.find(current) != std::string::npos,
+				   "the request names both revisions");
+			expect(launch && (latest ? launch->Input.find("+new") != std::string::npos : launch->Input.find("returning.then.line.0") != std::string::npos && launch->Input.find("returning.now.line.0") != std::string::npos),
+				   "and carries the change, or the lines then and now, up front");
+		}
+		expect(application::default_writing_hook(core::writing_hook::review_latest_upload) != application::default_writing_hook(core::writing_hook::review_proposed_fix), "two prompts, not one");
+		expect(core::ask_more_path(core::agent_run_path::assistance_first_answer) == core::agent_run_path::agent_tab, "Ask more continues in the Agent tab's conversation");
+	}
+
 	/// [[BPR-2140]]. The writing prompt splits into the instructions and the
 	/// material, and joined they are the prompt as before.
 	void test_the_writing_prompt_splits_into_instructions_and_material()
@@ -419,6 +459,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_the_review_skill_rides_the_system_prompt();
 	test_a_fresh_draft_carries_its_diff_up_front();
 	test_a_failed_sign_in_ends_the_run_at_once();
+	test_a_returning_question_is_one_fresh_tool_free_call();
 	std::cout << "agent-launch-policy-tests:pass\n";
 	return EXIT_SUCCESS;
 }

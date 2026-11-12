@@ -709,6 +709,8 @@ namespace bpr::app {
 			.Text    = QStringLiteral("%1, %2").arg(where, count == 1U ? QStringLiteral("1 comment") : QStringLiteral("%1 comments").arg(count)),
 			.Detail  = QStringLiteral("The agent gets this conversation's comments and the lines it is on, as the head has them. Nothing is published."),
 			.Replies = thread->ViewerReplyPermission != application::github_permission_state::denied,
+			// RFC-BPR-0116. Its prompts offer Was this addressed? when it is.
+			.Addressed = ReturningReview.Threads.contains(aIdentity),
 		};
 		Window->agent_tab()->set_conversation_chip(std::move(chip));
 		Window->open_agent_question();
@@ -1284,6 +1286,14 @@ namespace bpr::app {
 		// comment writes it as a private draft where core places it when
 		// it was asked, and Go to draft opens that draft.
 		Window->set_conversation_ask_dispatch([this](const std::string& aIdentity) { ask_agent_about_thread(aIdentity); });
+		// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). The returning questions:
+		// a thread's Was this addressed?, the Pull Request menu's What
+		// changed since my review, and Ask more on either's answer.
+		Window->set_conversation_addressed_dispatch([this](const std::string& aIdentity) { ask_was_addressed(aIdentity); });
+		Window->set_what_changed_dispatch([this] { ask_what_changed(); });
+		tab->set_ask_more_dispatch([this](const QString& aQuestion, const QString& aAnswer) {
+			AskMoreSeed = std::pair{ aQuestion.toStdString(), aAnswer.toStdString() };
+		});
 		tab->set_conversation_dismiss([this] { dismiss_asked_conversation(); });
 		tab->set_answer_draft_target([this] { return decide_answer_draft(); });
 		tab->set_answer_draft_dispatch([this](const std::string& aKey, const QString& aText, qt::agent_answer_draft_done aDone) { draft_agent_answer(aKey, aText, std::move(aDone)); });

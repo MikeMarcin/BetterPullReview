@@ -11546,6 +11546,22 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 6,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "returning-review-v1" || *fixture == "returning-review-gone-v1") {
+				// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). conventional-comments-v1
+				// read by a returning reviewer; see
+				// `scripts/build_returning_review_fixture.py`.
+				selectedFixture        = *fixture == "returning-review-v1" ? bpr::app::detail::github_public_path_fixture::returning_review_v1 : bpr::app::detail::github_public_path_fixture::returning_review_gone_v1;
+				fixtureName            = std::string{ *fixture };
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move renderer, shaders and widgets into nested folders",
+					.ExpectedAccountText      = "jiayin (@jiayin)",
+					.ExpectedConversationRows = 6,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "overview-labels-v1" || *fixture == "insights-budget-v1") {
 				// [[BPR-1089]]. The nested-folders pull request with many
 				// labelled conversations; see `scripts/build_overview_labels_fixture.py`.

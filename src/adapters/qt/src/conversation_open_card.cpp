@@ -10,6 +10,7 @@
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
 
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
@@ -2039,6 +2040,26 @@ namespace bpr::qt {
 					}
 				});
 				row->addWidget(askAgent);
+				// RFC-BPR-0116 ([[BPR-2074]]). Asks the agent at once, so it
+				// wears the Agent accent; at the header's own tool height.
+				if (Style.AddressedOffered) {
+					auto* const addressed = card_button(header);
+					addressed->setObjectName(QStringLiteral("threadWasAddressed"));
+					addressed->setAutoRaise(true);
+					addressed->setToolButtonStyle(Qt::ToolButtonTextOnly);
+					addressed->setText(QStringLiteral("Was this addressed?"));
+					addressed->setAccessibleName(addressed->text());
+					addressed->setFocusPolicy(Qt::StrongFocus);
+					addressed->setCursor(Qt::ArrowCursor);
+					addressed->setFixedHeight(askAgent->sizeHint().height());
+					wear_agent_accent(*addressed, palette);
+					connect(addressed, &QToolButton::clicked, this, [this] {
+						if (Action) {
+							Action(card_action::was_addressed);
+						}
+					});
+					row->addWidget(addressed);
+				}
 			}
 			const auto  unread = aCard.UnreadCount;
 			auto* const read   = tool(header, QStringLiteral("threadMarkRead"),

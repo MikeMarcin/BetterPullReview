@@ -804,6 +804,11 @@ namespace bpr::qt {
 						ConversationAskDispatch(aIdentity);
 					}
 					break;
+				case card_action::was_addressed:
+					if (ConversationAddressedDispatch) {
+						ConversationAddressedDispatch(aIdentity);
+					}
+					break;
 				case card_action::show_line:
 					reveal_thread_line(aIdentity);
 					break;

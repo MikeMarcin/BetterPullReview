@@ -568,6 +568,15 @@ namespace bpr::qt {
 		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
 		Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });
 		contentCol->addWidget(Suggestions);
+		// RFC-BPR-0116 ([[BPR-2073]]). Why What changed since my review is not
+		// offered when the earlier revision cannot be read, said where the
+		// suggestion would stand.
+		LatestUploadNote = new QLabel{ content };
+		LatestUploadNote->setObjectName(QStringLiteral("agentLatestUploadUnavailable"));
+		LatestUploadNote->setWordWrap(true);
+		LatestUploadNote->setForegroundRole(QPalette::PlaceholderText);
+		LatestUploadNote->hide();
+		contentCol->addWidget(LatestUploadNote);
 		// [[BPR-1847]], owner 2026-11-03: "doesn't make sense to show
 		// suggested prompts before the wizard completes." While the setup
 		// is unfinished and not on screen, its way in stands where they would.
@@ -759,6 +768,7 @@ namespace bpr::qt {
 			PendingReview     = false;
 			PendingKeepsField = KeepingDraft;
 			PendingAbout      = ConversationShown;
+			PendingReturning  = SendingReturning;
 			// [[BPR-1773]]. Where its answer's Draft comment would go is
 			// decided now, while what it was asked on is on screen.
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
@@ -1107,6 +1117,7 @@ namespace bpr::qt {
 			next.Question    = *PendingQuestion;
 			next.About       = PendingAbout;
 			next.DraftTarget = PendingDraftTarget;
+			next.Returning   = PendingReturning;
 			// Sent: the field is ready for the next question, unless it
 			// holds what the reviewer typed before a suggestion was sent.
 			if (!PendingKeepsField) {
@@ -1117,6 +1128,7 @@ namespace bpr::qt {
 		PendingQuestion.reset();
 		PendingAbout.reset();
 		PendingDraftTarget.reset();
+		PendingReturning.reset();
 		PendingReview  = false;
 		FindingsAtTurn = FindingsPresented;
 		next.AskedAt   = QDateTime::currentDateTime();
@@ -1208,6 +1220,14 @@ namespace bpr::qt {
 		answer->set_link_dispatch([this](const std::string& aLink) { follow_link(QString::fromStdString(aLink)); });
 		dress_answer(*answer);
 		answer->hide();
+		// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed?'s lead word, said
+		// as the agent's claim above its answer; nothing follows from it.
+		auto* const claim = new QLabel{ reply };
+		claim->setObjectName(QStringLiteral("agentTurnClaim"));
+		claim->setForegroundRole(QPalette::PlaceholderText);
+		claim->hide();
+		replyColumn->addWidget(claim);
+		aTurn.Claim = claim;
 		replyColumn->addWidget(answer);
 		// [[BPR-2061]], owner 2026-11-10. A reply with several suggested
 		// comments drafts them all at once: one quiet action over its cards,
@@ -1304,6 +1324,26 @@ namespace bpr::qt {
 																				 : tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
 		draft->hide();
 		footerRow->addWidget(draft);
+		// [[BPR-2138]], RFC-BPR-0116. Ask more on a returning question's
+		// fresh answer: the next question here opens with it.
+		auto* const askMore = new quiet_push_button{ tr("Ask more"), reply };
+		askMore->setObjectName(QStringLiteral("agentTurnAskMore"));
+		askMore->setFlat(true);
+		askMore->hide();
+		footerRow->addWidget(askMore);
+		aTurn.AskMore = askMore;
+		connect(askMore, &QPushButton::clicked, this, [this, askMore] {
+			for (const auto& kept : Turns) {
+				if (kept.AskMore == askMore) {
+					if (AskMoreDispatch) {
+						AskMoreDispatch(kept.Question, kept.AnswerText);
+					}
+					Chat.composer()->setPlaceholderText(tr("Ask more about this answer…"));
+					Chat.composer()->setFocus(Qt::OtherFocusReason);
+					return;
+				}
+			}
+		});
 		// [[BPR-1847]]. An error's one way back, in place of Save as note
 		// and Draft comment, which an error never offers.
 		auto* const recovery = new quiet_push_button{ reply };
@@ -1478,6 +1518,11 @@ namespace bpr::qt {
 			}
 		}
 		show_answer(aTurn);
+		if (aTurn.Claim != nullptr) {
+			const auto claim = aTurn.Returning == core::returning_operation::proposed_fix ? core::read_addressed_claim(aTurn.AnswerText.toStdString()) : std::nullopt;
+			aTurn.Claim->setText(claim ? tr("Agent's claim: %1").arg(QString::fromUtf8(core::claim_words(*claim).data(), static_cast<qsizetype>(core::claim_words(*claim).size()))) : QString{ });
+			aTurn.Claim->setVisible(claim.has_value());
+		}
 	}
 
 	void agent_tab_view::show_answer(turn& aTurn)
@@ -1932,6 +1977,11 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
+		// RFC-BPR-0116. A returning suggestion asks its own question.
+		if (const auto returning = ReturningPrompts.find(aPrompt); returning != ReturningPrompts.end() && !aEditFirst) {
+			ask_returning(returning->second);
+			return;
+		}
 		auto* const composer  = Chat.composer();
 		const auto  draft     = composer->toPlainText();
 		const auto  found     = SuggestionSubjects.find(aPrompt);
@@ -1991,6 +2041,7 @@ namespace bpr::qt {
 		// [[BPR-2002]], RFC-BPR-0102. A suggestion is a subject and a text;
 		// one that could not be sent as it stands is not offered.
 		SuggestionSubjects.clear();
+		ReturningPrompts.clear();
 		auto       prompts = QStringList{ };
 		const auto offer   = [this, &prompts](const QString& aText, const core::agent_suggested_subject aSubject, const bool aReview) {
 			prompts << aText;
@@ -1999,13 +2050,25 @@ namespace bpr::qt {
 		if (ConversationShown) {
 			// [[BPR-1773]]. While a conversation is attached the prompts are
 			// about it; a reply is offered only where one can be written.
-			prompts = QStringList{ tr("Summarize this conversation"), tr("Is the concern raised here right?") };
+			prompts = QStringList{ };
+			// RFC-BPR-0116 ([[BPR-2074]]). First on a thread I commented in
+			// once commits followed.
+			if (ConversationShown->Addressed) {
+				prompts << tr("Was this addressed?");
+				ReturningPrompts[prompts.back()] = core::returning_operation::proposed_fix;
+			}
+			prompts << tr("Summarize this conversation") << tr("Is the concern raised here right?");
 			if (ConversationShown->Replies) {
 				prompts << tr("Draft a reply to this conversation");
 			} else {
 				prompts << tr("Explain the code this note is on");
 			}
 		} else {
+			// RFC-BPR-0116 ([[BPR-2073]]). First when commits followed my review.
+			if (LatestUpload.State == core::latest_upload_state::offered) {
+				prompts << tr("What changed since my review");
+				ReturningPrompts[prompts.back()] = core::returning_operation::latest_upload;
+			}
 			offer(tr("Review this pull request"), core::agent_suggested_subject::pull_request, true);
 			if (!context.OpenFile.isEmpty()) {
 				offer(tr("Review %1").arg(context.OpenFile), core::agent_suggested_subject::open_file, true);
@@ -2036,6 +2099,11 @@ namespace bpr::qt {
 		// check's Ready line does not hold them back ([[BPR-1877]]).
 		const auto verdict = suggestions_verdict();
 		Suggestions->setVisible(verdict == core::agent_suggestions_verdict::shown);
+		if (LatestUploadNote != nullptr) {
+			const auto unavailable = LatestUpload.State == core::latest_upload_state::unavailable && LatestUpload.Earlier && !ConversationShown;
+			LatestUploadNote->setText(unavailable ? tr("What changed since my review: the code at %1 can't be read here.").arg(QString::fromStdString(LatestUpload.Earlier->Head.substr(0U, 7U))) : QString{ });
+			LatestUploadNote->setVisible(unavailable && verdict == core::agent_suggestions_verdict::shown);
+		}
 		SuggestionsMenu->setVisible(conversing && verdict != core::agent_suggestions_verdict::setup_unfinished);
 		// The setup's way in, unless the setup is on screen. Only once the
 		// setup knows what is missing: not while agents are still being
@@ -2064,6 +2132,40 @@ namespace bpr::qt {
 			.Toggled        = SuggestionsMenu->isChecked(),
 		});
 	}
+
+	void agent_tab_view::present_latest_upload(const core::latest_upload_offer& aOffer)
+	{
+		if (aOffer == LatestUpload) {
+			return;
+		}
+		LatestUpload = aOffer;
+		refresh_suggestions();
+	}
+
+	void agent_tab_view::ask_returning(const core::returning_operation aOperation)
+	{
+		if (!panels_alive() || State == agent_tab_state::working || !Chat.send_action()->isEnabled()) {
+			return;
+		}
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		composer->setPlainText(aOperation == core::returning_operation::latest_upload ? tr("What changed since my review") : tr("Was this addressed?"));
+		// Sent alone, as a suggestion is; what the reviewer had typed stays.
+		KeepingDraft     = !draft.trimmed().isEmpty();
+		SendingReturning = aOperation;
+		ask();
+		SendingReturning.reset();
+		if (KeepingDraft) {
+			composer->setPlainText(draft);
+		}
+		KeepingDraft = false;
+	}
+
+	auto agent_tab_view::turn_claim(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].Claim.data() : nullptr; }
+
+	auto agent_tab_view::turn_ask_more_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].AskMore.data() : nullptr; }
+
+	auto agent_tab_view::turn_returning(const std::size_t aTurn) const -> std::optional<core::returning_operation> { return aTurn < Turns.size() ? Turns[aTurn].Returning : std::nullopt; }
 
 	void agent_tab_view::set_suggestions_shown(const bool aShown)
 	{
@@ -2315,6 +2417,9 @@ namespace bpr::qt {
 			}
 			if (kept.Draft != nullptr) {
 				kept.Draft->setVisible(actions.DraftComment);
+			}
+			if (kept.AskMore != nullptr) {
+				kept.AskMore->setVisible(kept.Returning.has_value() && actions.SaveNote);
 			}
 			kept.RecoveryKind = actions.Recovery;
 			if (kept.Recovery != nullptr) {
@@ -3304,6 +3409,7 @@ namespace bpr::qt {
 			.Suggested            = SendingSuggestion ? std::optional{ SendingSuggestion->first } : std::nullopt,
 			.Review               = SendingSuggestion && SendingSuggestion->second,
 			.OpenFile             = context.OpenFile.toStdString(),
+			.Returning            = SendingReturning,
 		};
 		LastQuestion = core::decide_agent_question(facts);
 		if (!LastQuestion) {

@@ -144,6 +144,8 @@ namespace bpr::app {
 				.Hostname = "github.com",
 				.Label    = "GitHub.com — Constructed commit filter",
 			};
+		case detail::github_public_path_fixture::returning_review_v1:
+		case detail::github_public_path_fixture::returning_review_gone_v1:
 		case detail::github_public_path_fixture::conventional_comments_v1:
 			return {
 				.Profile = core::host_profile_id{ 1U },

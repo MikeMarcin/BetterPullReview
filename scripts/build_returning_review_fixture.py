@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). Writes the returning-review
+contracts from conventional-comments-v1.
+
+The same nested-folders pull request, read by `jiayin`, a reviewer who
+reviewed it at its first head and commented in the line-12 thread there:
+
+- `returning-review-v1`: the review and the comment are on the first head,
+  `b20cb443`, which the next push's pack holds. Served under
+  `--epoch-fixture-phase reuse`, the head is the next push and both returning
+  questions are offered.
+- `returning-review-gone-v1`: the same, but the review is on a commit no
+  pack holds (a rewritten branch), so What changed since my review is
+  unavailable.
+
+Synthetic public test data; nothing is fetched. Two runs write the same
+bytes.
+
+    python3 scripts/build_returning_review_fixture.py tests/fixtures/github/contracts/v1
+"""
+
+import copy
+import json
+import shutil
+import sys
+from pathlib import Path
+
+FIRST_HEAD = "b20cb443428212543f5911e091a0ffeb407d23cf"
+GONE_HEAD = "0badc0de0badc0de0badc0de0badc0de0badc0d"
+REVIEWER = {"login": "jiayin", "node_id": "U_fixture_jiayin"}
+
+
+def write(path: Path, value) -> None:
+    path.write_text(json.dumps(value, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def build(root: Path, name: str, reviewed: str) -> None:
+    source = root / "conventional-comments-v1"
+    target = root / name
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(source, target)
+    responses = target / "responses"
+    viewer = json.loads((responses / "viewer.json").read_text(encoding="utf-8"))
+    viewer.update({"login": REVIEWER["login"], "name": REVIEWER["login"], "node_id": REVIEWER["node_id"]})
+    write(responses / "viewer.json", viewer)
+    write(responses / "reviews.json", [{
+        "body": "suggestion: Clamp the resize before the next frame.",
+        "commit_id": reviewed,
+        "id": 7101,
+        "node_id": "PRR_rr_1",
+        "state": "COMMENTED",
+        "user": copy.deepcopy(REVIEWER),
+    }])
+    threads = json.loads((responses / "review_threads.json").read_text(encoding="utf-8"))
+    for thread in threads["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]:
+        for comment in thread["comments"]["nodes"]:
+            # The reviewer's own comments: only the line-12 thread's carries
+            # the commit it was written on, so only it is offered.
+            if thread["id"] == "PRRT_cc_2" and comment["author"]["login"] == REVIEWER["login"]:
+                comment["originalCommit"] = {"oid": reviewed}
+                comment["commit"] = {"oid": reviewed}
+    write(responses / "review_threads.json", threads)
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print(__doc__)
+        return 2
+    root = Path(sys.argv[1])
+    build(root, "returning-review-v1", FIRST_HEAD)
+    build(root, "returning-review-gone-v1", GONE_HEAD)
+    print("RETURNING_REVIEW_FIXTURE_OK")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

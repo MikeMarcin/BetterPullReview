@@ -638,6 +638,10 @@ namespace bpr::app {
 								   !context.Receipts.empty());
 		}
 		Window->publish(*PublishedOverview);
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// RFC-BPR-0116. What the returning questions offer follows the read.
+		refresh_returning_review();
+#endif
 	}
 
 	/// \brief [[BPR-1841]]. The threads the viewer resolved or reopened

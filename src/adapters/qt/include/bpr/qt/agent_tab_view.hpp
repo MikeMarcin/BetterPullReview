@@ -191,6 +191,9 @@ namespace bpr::qt {
 		/// The conversation takes replies (a review thread, not a note): its
 		/// prompts offer to draft one.
 		bool Replies = false;
+		/// RFC-BPR-0116 ([[BPR-2074]]). I commented in it and commits followed:
+		/// its prompts lead with Was this addressed?
+		bool Addressed = false;
 
 		auto operator==(const agent_conversation_chip&) const -> bool = default;
 	};
@@ -419,6 +422,21 @@ namespace bpr::qt {
 		/// is shown. Its close button calls `set_conversation_dismiss`'s
 		/// callback; nothing else removes it.
 		void               set_conversation_chip(std::optional<agent_conversation_chip> aChip);
+		/// RFC-BPR-0116 ([[BPR-2073]]). What What changed since my review
+		/// offers now: a suggestion while offered, a quiet line saying why
+		/// while unavailable, nothing otherwise.
+		void present_latest_upload(const core::latest_upload_offer& aOffer);
+		[[nodiscard]] auto latest_upload_offer() const noexcept -> const core::latest_upload_offer& { return LatestUpload; }
+		[[nodiscard]] auto latest_upload_note() const noexcept -> QLabel* { return LatestUploadNote; }
+		/// RFC-BPR-0116. Asks a returning question, as its suggestion does.
+		void ask_returning(core::returning_operation aOperation);
+		/// [[BPR-2138]]. Ask more on a returning answer: the host keeps its
+		/// question and answer for the next question here.
+		void set_ask_more_dispatch(std::function<void(const QString& aQuestion, const QString& aAnswer)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
+		[[nodiscard]] auto turn_claim(std::size_t aTurn) const -> QLabel*;
+		[[nodiscard]] auto turn_ask_more_button(std::size_t aTurn) const -> QPushButton*;
+		/// Whether a turn's question was a returning one, and which.
+		[[nodiscard]] auto turn_returning(std::size_t aTurn) const -> std::optional<core::returning_operation>;
 		void               set_conversation_dismiss(std::function<void()> aDismiss);
 		[[nodiscard]] auto conversation_chip() const noexcept -> QWidget* { return ConversationChip; }
 		[[nodiscard]] auto conversation_chip_text() const -> QString;
@@ -698,6 +716,11 @@ namespace bpr::qt {
 			std::optional<agent_answer_draft_target> DraftTarget;
 			QPointer<QPushButton>                    Draft;
 			bool                                     Drafted = false;
+			/// RFC-BPR-0116. A returning question's fresh first answer: the
+			/// claim it leads with, and Ask more.
+			std::optional<core::returning_operation> Returning;
+			QPointer<QLabel>                         Claim;
+			QPointer<QPushButton>                    AskMore;
 			QPointer<QWidget>                        Asked;
 			/// [[BPR-1847]]. How it ended, its reply card, and the one way
 			/// back an error offers.
@@ -850,6 +873,14 @@ namespace bpr::qt {
 		std::map<QString, std::pair<core::agent_suggested_subject, bool>> SuggestionSubjects;
 		/// The suggestion being sent, while it is.
 		std::optional<std::pair<core::agent_suggested_subject, bool>> SendingSuggestion;
+		/// RFC-BPR-0116. The returning prompts by their words, the one being
+		/// sent, the one a sent question was, and what the host offers.
+		std::map<QString, core::returning_operation>                       ReturningPrompts;
+		std::optional<core::returning_operation>                           SendingReturning;
+		std::optional<core::returning_operation>                           PendingReturning;
+		core::latest_upload_offer                                          LatestUpload;
+		QLabel*                                                            LatestUploadNote = nullptr;
+		std::function<void(const QString&, const QString&)>                AskMoreDispatch;
 		std::optional<core::agent_question>                           LastQuestion;
 		[[nodiscard]] auto                                            current_suggestion_context() const -> agent_suggestion_context;
 		void                                                          present_lines_chip(const agent_suggestion_context& aContext);

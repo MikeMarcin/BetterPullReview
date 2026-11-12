@@ -673,13 +673,38 @@ namespace bpr::app {
 				return false;
 			}
 		}
+		// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning question
+		// carries its material up front, or is refused here by name.
+		const auto returning = aEntryPoint == core::agent_entry_point::analyze_latest_upload || aEntryPoint == core::agent_entry_point::evaluate_proposed_fix;
+		if (returning && !compose_returning(observation, aEntryPoint)) {
+			return false;
+		}
+		// [[BPR-2138]]. Ask more: the next Agent tab question opens with the
+		// one-off question and answer it continues, once.
+		if (!aWritingOnly && !returning && AskMoreSeed && aEntryPoint != core::agent_entry_point::workshop_comment) {
+			auto seeded = "Earlier, outside this conversation, I asked: " + AskMoreSeed->first + "\n\nYou answered:\n" + AskMoreSeed->second + "\n\nNow: ";
+			if (seeded.size() + observation.ChatMessage.size() > core::maximum_chat_message_bytes) {
+				seeded.resize(core::maximum_chat_message_bytes > observation.ChatMessage.size() + 8U ? core::maximum_chat_message_bytes - observation.ChatMessage.size() - 8U : 0U);
+				while (!seeded.empty() && (static_cast<unsigned char>(seeded.back()) & 0xC0U) == 0x80U) {
+					seeded.pop_back();
+				}
+				if (!seeded.empty() && static_cast<unsigned char>(seeded.back()) >= 0xC0U) {
+					seeded.pop_back();
+				}
+				seeded += "\nNow: ";
+			}
+			observation.ChatMessage = seeded + observation.ChatMessage;
+			AskMoreSeed.reset();
+		}
 		observation.CurrentDraft = current_agent_draft_observation();
 		// [[BPR-1752]], RFC-BPR-0092. A review request carries the
 		// brief: what the reviewer can read on GitHub about this pull
 		// request, bounded, and the review skill's text (Q9 A). A comment
 		// workshop press and a writing request are not review requests.
 		if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
-			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
+			// RFC-BPR-0116. A returning question's own prompt is its
+			// instructions; the review skill is not sent with it.
+			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill && !returning ? ReviewSkill->brief_skill() : std::nullopt);
 			// [[BPR-2059]]. How the reviewer wants suggested comments
 			// written, read now from the profile's saved prompts.
 			if (Profile && Profile->WorkbenchPreferences) {
@@ -692,6 +717,11 @@ namespace bpr::app {
 			}
 
 			observation.Brief = core::bound_review_brief(std::move(brief));
+			// A fresh first answer carries no earlier conversation.
+			if (returning && observation.Brief) {
+				observation.Brief->Conversation.clear();
+				observation.Brief->ConversationOmitted = 0U;
+			}
 		}
 		// Which file, and where in it. The two are told apart because
 		// only one of them names a comparison. The file is a path and a
@@ -935,7 +965,11 @@ namespace bpr::app {
 			TourSession->dispatch(std::move(invocation));
 			return true;
 		}
-		if (AgentSetup && !aExistingCheckoutChosen) {
+		// RFC-BPR-0116, RFC-BPR-0101 as amended 2026-11-12. A returning
+		// question's first answer is a fresh one-off: no native session and
+		// no grant, and its own prompt as the system prompt.
+		const auto returning = invocation.Context.EntryPoint == core::agent_entry_point::analyze_latest_upload || invocation.Context.EntryPoint == core::agent_entry_point::evaluate_proposed_fix;
+		if (AgentSetup && !aExistingCheckoutChosen && !returning) {
 			const auto preferences = AgentSetup->projection().Preferences;
 			if (const auto* const entry = core::entry_of_profile(preferences.Agents, aProfile); entry != nullptr) {
 				invocation.NativeAgentIdentity          = entry->Identity;
@@ -947,8 +981,10 @@ namespace bpr::app {
 			}
 		}
 		invocation.Path = core::agent_run_path::agent_tab;
-		// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The turn's grant.
-		if (!grant_agent_turn(invocation)) {
+		if (returning) {
+			launch_returning(invocation, aProfile);
+		} else if (!grant_agent_turn(invocation)) {
+			// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The turn's grant.
 			return false;
 		}
 		AgentHost->dispatch(std::move(invocation));
@@ -1643,8 +1679,12 @@ namespace bpr::app {
 			}
 			// [[BPR-1773]]. With a conversation attached the turn is
 			// about it, whatever is selected.
-			const auto action   = AskedConversation ? core::agent_action_intent{ core::agent_entry_point::ask_about_conversation } : send->Action;
-			const auto question = AskedConversation ? std::optional{ core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation } } : send->Question;
+			// RFC-BPR-0116. Was this addressed? and What changed since my
+			// review keep the entry point the core gave them.
+			const auto returning = send->Question
+				&& (send->Question->EntryPoint == core::agent_entry_point::evaluate_proposed_fix || send->Question->EntryPoint == core::agent_entry_point::analyze_latest_upload);
+			const auto action   = AskedConversation && !returning ? core::agent_action_intent{ core::agent_entry_point::ask_about_conversation } : send->Action;
+			const auto question = AskedConversation && !returning ? std::optional{ core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation } } : send->Question;
 			static_cast<void>(
 				ChatHost->send(application::agent_chat_send{
 					.Session  = send->Session,

@@ -1545,6 +1545,17 @@ namespace bpr::qt {
 			}
 			update_pull_request_queue_actions();
 		});
+		// RFC-BPR-0116 ([[BPR-2073]]). Beside Seen: asks the agent what the
+		// commits since my review changed. Offered only while there are some
+		// and the code I reviewed can be read.
+		WhatChangedPullRequest = PullRequestMenu->addAction(QStringLiteral("What &Changed Since My Review"));
+		WhatChangedPullRequest->setObjectName(QStringLiteral("whatChangedPullRequestAction"));
+		WhatChangedPullRequest->setEnabled(false);
+		connect(WhatChangedPullRequest, &QAction::triggered, this, [this] {
+			if (WhatChangedDispatch) {
+				WhatChangedDispatch();
+			}
+		});
 		SavePullRequestRepository = PullRequestMenu->addAction(QStringLiteral("&Save Repository"));
 		SavePullRequestRepository->setObjectName(QStringLiteral("savePullRequestRepositoryAction"));
 		SavePullRequestRepository->setEnabled(false);

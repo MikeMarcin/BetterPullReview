@@ -87,6 +87,7 @@ class QTabWidget;
 #include <memory>
 #include <optional>
 #include <span>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -805,6 +806,19 @@ namespace bpr::qt {
 		/// \brief [[BPR-1773]]. Where a thread's Ask agent goes, by the
 		/// thread's card identity.
 		void set_conversation_ask_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief RFC-BPR-0116 ([[BPR-2074]]). A thread's Was this addressed?,
+		/// on the threads named here.
+		void set_conversation_addressed_dispatch(std::function<void(const std::string&)> aDispatch);
+		void set_addressed_threads(std::set<std::string> aThreads);
+		/// \brief RFC-BPR-0116 ([[BPR-2073]]). The Pull Request menu's What
+		/// Changed Since My Review, beside Seen, and the Agent tab's
+		/// suggestion: offered, unavailable with why, or not shown.
+		void present_latest_upload(const core::latest_upload_offer& aOffer);
+		void set_what_changed_dispatch(std::function<void()> aDispatch);
+		[[nodiscard]] auto what_changed_action() const noexcept -> QAction* { return WhatChangedPullRequest; }
+		/// \brief [[BPR-2049]]. The head I said Seen on, for the open pull
+		/// request's queue item; empty when never said.
+		[[nodiscard]] auto open_pull_request_seen_head() const -> std::string;
 		/// \brief [[BPR-1773]]. Opens the drawer on the Agent tab with the
 		/// keyboard in its question field; nothing is sent.
 		void open_agent_question();
@@ -3296,6 +3310,7 @@ namespace bpr::qt {
 		QMenu*                                             PullRequestMenu           = nullptr;
 		QAction*                                           FollowPullRequest         = nullptr;
 		QAction*                                           SeenPullRequest           = nullptr;
+		QAction*                                           WhatChangedPullRequest    = nullptr;
 		QAction*                                           SavePullRequestRepository = nullptr;
 		workbench_queue_follow_dispatch                    QueueFollowDispatch;
 		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
@@ -3383,6 +3398,8 @@ namespace bpr::qt {
 		bool                                    DeferredReplyInPlace = false;
 		workbench_thread_resolution_dispatch    ThreadResolutionDispatch;
 		std::function<void(const std::string&)> ConversationAskDispatch;
+		std::function<void(const std::string&)> ConversationAddressedDispatch;
+		std::function<void()>                   WhatChangedDispatch;
 		/// [[BPR-1773]]. Words waiting for a thread's reply to open, and how
 		/// many more times to look for it.
 		std::optional<std::pair<std::string, QString>> PendingReplyText;

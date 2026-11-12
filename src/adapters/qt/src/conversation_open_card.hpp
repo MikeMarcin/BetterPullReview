@@ -105,6 +105,8 @@ namespace bpr::qt {
 		bool CommentEditOffered = false;
 		/// [[BPR-1806]]. Open in tour is offered on a published tour stop.
 		bool TourOpenOffered = false;
+		/// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed? is offered here.
+		bool AddressedOffered = false;
 		/// [[BPR-1802]]. The pull request's repository, whose permalinks show
 		/// as snippet boxes.
 		std::optional<core::markdown_repository> PermalinkRepository;

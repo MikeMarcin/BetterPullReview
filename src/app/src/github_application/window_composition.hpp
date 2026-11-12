@@ -92,6 +92,7 @@
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_preparation.hpp"
+#include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_queue.hpp"
 #include "bpr/core/review_round_trip.hpp"
@@ -752,6 +753,22 @@ namespace bpr::app {
 		void present_agent_pull_request();
 
 		void ask_agent_about_thread(const std::string& aIdentity);
+
+		/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). The returning
+		/// questions: what each offers now, the material they carry up front,
+		/// and the two presses. Defined in `window_returning_review.cpp`.
+		void refresh_returning_review();
+		void read_returning_material(const core::returning_point& aEarlier, const core::git_commit_oid& aHead);
+		void finish_returning_material(const std::string& aKey, std::optional<core::returning_changes> aChanges);
+		void read_addressed_then(const std::string& aIdentity, const std::string& aCommit, const std::string& aPath, std::uint32_t aFirst, std::uint32_t aLast);
+		void ask_what_changed();
+		void ask_was_addressed(const std::string& aIdentity);
+		/// The material a returning turn carries, or a refusal said on the
+		/// panel; true when the turn may go on.
+		[[nodiscard]] auto compose_returning(application::agent_context_observation& aObservation, core::agent_entry_point aEntryPoint) -> bool;
+		/// Sets a returning turn's launch: fresh, tool-free where the agent
+		/// has the mode, with its own prompt as the system prompt.
+		void launch_returning(application::agent_invocation_request& aInvocation, core::agent_profile_id aProfile);
 
 		void ask_agent_about_note(const application::local_note_record& aNote);
 
@@ -2077,6 +2094,32 @@ namespace bpr::app {
 			std::optional<std::vector<std::string>> Changed;
 		};
 		std::optional<changed_since_review_state> ChangedSinceReview;
+		/// RFC-BPR-0116. What the returning questions know now.
+		struct returning_review_state final
+		{
+			/// Earlier and current head, joined: which material this is.
+			std::string                                Key;
+			std::optional<core::returning_point>       Earlier;
+			std::string                                CurrentHead;
+			core::latest_upload_offer                  Offer;
+			std::optional<core::supplement_returning> Material;
+			bool                                       Reading = false;
+			bool                                       Readable = false;
+			/// Review threads Was this addressed? is offered on, by identity:
+			/// the commit of my last comment there, and its lines then once read.
+			struct thread_offer
+			{
+				std::string                          Commit;
+				std::string                          Path;
+				std::optional<core::returning_lines> Then;
+				bool                                 Read = false;
+			};
+			std::map<std::string, thread_offer> Threads;
+		};
+		returning_review_state ReturningReview;
+		/// [[BPR-2138]]. Ask more on a returning answer: the question and the
+		/// answer the next Agent tab turn opens with.
+		std::optional<std::pair<std::string, std::string>> AskMoreSeed;
 		std::optional<core::file_receipt>         ReviewLedgerReceipt;
 		/// [[BPR-0647]]. The update rows the epoch host published, for the overview.
 		application::epoch_row_ledger                   EpochRows;

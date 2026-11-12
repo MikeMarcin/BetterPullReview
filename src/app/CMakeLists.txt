@@ -190,6 +190,7 @@ if(BPR_BUILD_QT)
             src/github_application/window_github_reads.cpp
             src/github_application/window_navigation.cpp
             src/github_application/window_read_state.cpp
+            src/github_application/window_returning_review.cpp
             src/github_application/window_review_drafts.cpp
             src/github_application/window_review_lanes.cpp
             src/github_application/window_review_ledger.cpp
@@ -606,6 +607,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/window_navigation.cpp
 		src/app/src/github_application/window_probe_states.hpp
 		src/app/src/github_application/window_read_state.cpp
+		src/app/src/github_application/window_returning_review.cpp
 		src/app/src/github_application/window_review_drafts.cpp
 		src/app/src/github_application/window_review_lanes.cpp
 		src/app/src/github_application/window_review_lanes.hpp

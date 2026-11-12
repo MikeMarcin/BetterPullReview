@@ -572,6 +572,21 @@ int main(int argc, char** argv)
 	if (!model.empty()) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Model )" + model + R"(.","notes":[]})";
 	}
+	// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning question's
+	// fresh first answer: one tool-free call with its material in the
+	// request and its own prompt as the system prompt. It answers in prose
+	// and says what it was given, so a course can read it back.
+	if (const auto at = input.find("returning.operation"); at != std::string::npos) {
+		const auto has = [&input](const std::string_view aText) { return input.find(aText) != std::string::npos ? 1 : 0; };
+		const auto echo = "RETURNING_ECHO system=" + std::to_string(has("The reviewer reviewed this pull request before") + 2 * has("The reviewer commented in a review thread")) + " changes="
+			+ std::to_string(has("+++ b/src/engine/renderer.cpp")) + " then=" + std::to_string(has("returning.then.present\\t1")) + " now=" + std::to_string(has("returning.now.present\\t1"))
+			+ " conversation=" + std::to_string(has("conversation.comment.count"));
+		if (input.find("proposed_fix", at) != std::string::npos && input.find("proposed_fix", at) < at + 40U) {
+			result = "**Partly**\n\nThe resize is now clamped to one pixel at `src/engine/renderer.cpp:12`, as the thread asked; no test covers the zero-width case yet.\n\n" + echo;
+		} else {
+			result = "The new commits change one file. `src/engine/renderer.cpp:12` now clamps the width and height to at least one pixel before resizing.\n\nYour conversation at `src/engine/renderer.cpp:12` is touched by this change.\n\n" + echo;
+		}
+	}
 	if (input.find("OVERSIZE_CANARY") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":")" + std::string(40000, 'x') + R"(","notes":[]})";
 	}

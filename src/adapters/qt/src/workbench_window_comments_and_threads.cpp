@@ -1848,6 +1848,46 @@ namespace bpr::qt {
 		ConversationAskDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::set_conversation_addressed_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		ConversationAddressedDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_addressed_threads(std::set<std::string> aThreads)
+	{
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->cards()->set_addressed_threads(std::move(aThreads));
+		}
+	}
+
+	void workbench_window::set_what_changed_dispatch(std::function<void()> aDispatch)
+	{
+		WhatChangedDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_latest_upload(const core::latest_upload_offer& aOffer)
+	{
+		if (AgentTab != nullptr) {
+			AgentTab->present_latest_upload(aOffer);
+		}
+		if (WhatChangedPullRequest == nullptr) {
+			return;
+		}
+		// Owner rule: no explainer tooltips. The reason it is unavailable
+		// is in its words, and the item stays where it is.
+		const auto unavailable = aOffer.State == core::latest_upload_state::unavailable && aOffer.Earlier;
+		WhatChangedPullRequest->setText(unavailable ? QStringLiteral("What Changed Since My Review (code at %1 can't be read here)").arg(QString::fromStdString(aOffer.Earlier->Head.substr(0U, 7U)))
+													: QStringLiteral("What &Changed Since My Review"));
+		WhatChangedPullRequest->setEnabled(aOffer.State == core::latest_upload_state::offered && static_cast<bool>(WhatChangedDispatch));
+	}
+
+	auto workbench_window::open_pull_request_seen_head() const -> std::string
+	{
+		const auto ref  = open_queue_ref();
+		const auto item = ref && QueueLanding != nullptr ? QueueLanding->item_for(*ref) : std::nullopt;
+		return item ? item->Facts.SeenHead : std::string{ };
+	}
+
 	void workbench_window::open_agent_question()
 	{
 		show_agent(false);

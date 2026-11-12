@@ -134,6 +134,9 @@ namespace bpr::qt {
 		/// [[BPR-1773]]. Ask the agent about this conversation: the Agent
 		/// tab opens with it attached to the next question. Nothing is sent.
 		ask_agent,
+		/// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed?: the Agent tab
+		/// asks it of this conversation. Nothing is resolved or posted.
+		was_addressed,
 	};
 
 	/// \brief [[BPR-1733]]. My kept suggestion written on an earlier head of
@@ -710,6 +713,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1806]]. Offers Open in tour on a published tour stop,
 		/// or withdraws it: offered while the window has the tour to follow.
 		void               set_tour_open_offered(bool aOffered);
+		/// \brief RFC-BPR-0116 ([[BPR-2074]]). The threads Was this addressed?
+		/// is offered on, by identity.
+		void               set_addressed_threads(std::set<std::string> aThreads);
+		[[nodiscard]] auto addressed_threads() const noexcept -> const std::set<std::string>& { return AddressedThreads; }
 		[[nodiscard]] auto tour_open_offered() const noexcept -> bool;
 		/// \brief [[BPR-1806]]. Where Open in tour goes: the post's identity
 		/// and the stop it was read as. Nothing is opened by the view.
@@ -1140,6 +1147,7 @@ namespace bpr::qt {
 		};
 		bool                                                                      CommentEditOffered = false;
 		bool                                                                      TourOpenOffered    = false;
+		std::set<std::string>                                                     AddressedThreads;
 		std::function<void(const std::string&, const core::published_tour_stop&)> TourOpenDispatch;
 		/// [[BPR-1810]]. Where a stop's chevrons go, and which chevron the
 		/// stepped-to thread's plate takes focus on ("" for none).

@@ -124,6 +124,12 @@ namespace bpr::app::detail {
 		/// description and comments hold fenced code in many languages and
 		/// diff blocks, and whose threads suggest changes to its lines.
 		markdown_code_v1,
+		/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). conventional-comments-v1
+		/// read by a reviewer who reviewed its first head and commented in its
+		/// line-12 thread there; and the same with the review on a commit no
+		/// pack holds. See `scripts/build_returning_review_fixture.py`.
+		returning_review_v1,
+		returning_review_gone_v1,
 		/// [[BPR-1560]]. The recorded base is ahead of the merge base: the
 		/// base branch moved on, reverting nothing of the pull request's but
 		/// landing its `b.txt` change separately. GitHub's Files changed is
