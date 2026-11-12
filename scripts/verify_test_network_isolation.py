@@ -151,6 +151,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # RFC-BPR-0108, 0109 and 0110. The local PR draft courses run installed Git
     # on a real worktree under the test root, as the review-cycle courses do.
     "local_draft": "unmeasured (registered on macOS)",
+    "local_draft_publication": "unmeasured (registered on macOS)",
     "application_local_draft_desktop_public_path": "unmeasured (registered on macOS)",
     "application_local_draft_evidence_desktop_public_path": "unmeasured (registered on macOS)",
     "application_local_draft_tour_desktop_public_path": "unmeasured (registered on macOS)",
