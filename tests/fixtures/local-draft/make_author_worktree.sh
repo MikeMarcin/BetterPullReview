@@ -9,7 +9,8 @@
 # it without a network and no real repository is touched.
 # Usage: make_author_worktree.sh ROOT.
 set -eu
-root="$1"
+mkdir -p "$1"
+root=$(cd "$1" && pwd)
 g() { git -c user.name="BPR fixture" -c user.email=fixture@example.invalid -c init.defaultBranch=main -c core.hooksPath=/nonexistent -c commit.gpgsign=false "$@"; }
 mkdir -p "$root/seed"
 cd "$root/seed"
