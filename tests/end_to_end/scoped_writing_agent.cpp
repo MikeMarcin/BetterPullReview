@@ -557,6 +557,18 @@ int main(int argc, char** argv)
 			result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Check cache invalidation: the delete path may be missing.\nAsk about tests.","notes":[]})";
 		}
 	}
+	// [[BPR-2141]]. A fresh Draft Tour is one tool-free call with the pull
+	// request's diff in its request: it answers with a tour from the files
+	// it was given (as `draft_in_workspace` does from the workspace), and in
+	// `attended-drafting-claude` takes a few seconds, so a look sees it run.
+	if (!readOnlyRun && input.find("bpr.tour-draft.v1") != std::string::npos) {
+		if (argc > 0 && std::filesystem::path{ argv[0] }.parent_path().filename() == "attended-drafting-claude") {
+			std::this_thread::sleep_for(std::chrono::seconds{ 3 });
+		}
+		const auto renderer = input.find("src/engine/renderer.cpp") != std::string::npos && input.find("src/engine/renderer.h") != std::string::npos && input.find("src/main.cpp") != std::string::npos;
+		result              = R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other, so the second view showed the first one's scene.","solution":"Each view now clears and draws its own scene between begin and present, so the frames no longer overlap.","stops":[)"
+			+ (renderer ? renderer_stops() : std::string{ }) + "]}";
+	}
 	if (!model.empty()) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Model )" + model + R"(.","notes":[]})";
 	}
