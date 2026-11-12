@@ -421,12 +421,12 @@ namespace bpr::qt {
 		if (const auto chain = chain_text(view); !chain.isEmpty()) {
 			tip << chain;
 		}
-		const auto* target_choice = view.Draft ? &view.Draft->Target : view.Target ? &*view.Target
-																				   : nullptr;
-		if (target_choice != nullptr) {
+		const auto* targetChoice = view.Draft ? &view.Draft->Target : view.Target ? &*view.Target
+																				  : nullptr;
+		if (targetChoice != nullptr) {
 			tip << QStringLiteral("Target remote: %1 (%2)")
-					   .arg(text_of(target_choice->Target.Remote),
-							target_choice->Origin == core::target_origin::chosen ? QStringLiteral("chosen") : QStringLiteral("its default branch"));
+					   .arg(text_of(targetChoice->Target.Remote),
+							targetChoice->Origin == core::target_origin::chosen ? QStringLiteral("chosen") : QStringLiteral("its default branch"));
 		}
 		const core::local_draft_candidate* shown = nullptr;
 		if (view.Draft) {

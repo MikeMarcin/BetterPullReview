@@ -98,55 +98,55 @@ namespace bpr::core::detail {
 template <>
 struct glz::meta<bpr::core::detail::wire_identity>
 {
-	using T                     = bpr::core::detail::wire_identity;
-	static constexpr auto value = object("volume", &T::Volume, "high", &T::ObjectHigh, "low", &T::ObjectLow);
+	using value_type            = bpr::core::detail::wire_identity;
+	static constexpr auto value = object("volume", &value_type::Volume, "high", &value_type::ObjectHigh, "low", &value_type::ObjectLow);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_side>
 {
-	using T                     = bpr::core::detail::wire_side;
-	static constexpr auto value = object("mode", &T::Mode, "object", &T::Object, "size", &T::Size, "working", &T::Working);
+	using value_type            = bpr::core::detail::wire_side;
+	static constexpr auto value = object("mode", &value_type::Mode, "object", &value_type::Object, "size", &value_type::Size, "working", &value_type::Working);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_change>
 {
-	using T                     = bpr::core::detail::wire_change;
-	static constexpr auto value = object("path", &T::Path, "change", &T::Change, "left", &T::Left, "right", &T::Right);
+	using value_type            = bpr::core::detail::wire_change;
+	static constexpr auto value = object("path", &value_type::Path, "change", &value_type::Change, "left", &value_type::Left, "right", &value_type::Right);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_candidate>
 {
-	using T                     = bpr::core::detail::wire_candidate;
-	static constexpr auto value = object("ordinal", &T::Ordinal, "head", &T::Head, "target_tip", &T::TargetTip, "base", &T::Base, "included", &T::Included, "changes", &T::Changes,
-										 "qualifications", &T::Qualifications, "captured_at", &T::CapturedAt);
+	using value_type            = bpr::core::detail::wire_candidate;
+	static constexpr auto value = object("ordinal", &value_type::Ordinal, "head", &value_type::Head, "target_tip", &value_type::TargetTip, "base", &value_type::Base, "included", &value_type::Included, "changes", &value_type::Changes,
+										 "qualifications", &value_type::Qualifications, "captured_at", &value_type::CapturedAt);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_note>
 {
-	using T                     = bpr::core::detail::wire_note;
-	static constexpr auto value = object("id", &T::Id, "text", &T::Text, "path", &T::Path, "candidate", &T::Candidate, "origin", &T::Origin);
+	using value_type            = bpr::core::detail::wire_note;
+	static constexpr auto value = object("id", &value_type::Id, "text", &value_type::Text, "path", &value_type::Path, "candidate", &value_type::Candidate, "origin", &value_type::Origin);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_hop>
 {
-	using T                     = bpr::core::detail::wire_hop;
-	static constexpr auto value = object("remote", &T::Remote, "location", &T::Location);
+	using value_type            = bpr::core::detail::wire_hop;
+	static constexpr auto value = object("remote", &value_type::Remote, "location", &value_type::Location);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_association>
 {
-	using T                     = bpr::core::detail::wire_association;
-	static constexpr auto value = object("host", &T::Host, "owner", &T::Owner, "name", &T::Name, "number", &T::Number, "head_ref", &T::HeadRef);
+	using value_type            = bpr::core::detail::wire_association;
+	static constexpr auto value = object("host", &value_type::Host, "owner", &value_type::Owner, "name", &value_type::Name, "number", &value_type::Number, "head_ref", &value_type::HeadRef);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_draft>
 {
-	using T                     = bpr::core::detail::wire_draft;
-	static constexpr auto value = object("format", &T::Format, "version", &T::Version, "id", &T::Id, "revision", &T::Revision, "title", &T::Title, "location", &T::Location,
-										 "repository", &T::Repository, "worktree", &T::Worktree, "branch", &T::Branch, "target_remote", &T::TargetRemote, "target_host",
-										 &T::TargetHost, "target_owner", &T::TargetOwner, "target_name", &T::TargetName, "target_branch", &T::TargetBranch, "target_origin",
-										 &T::TargetOrigin, "chain", &T::Chain, "candidates", &T::Candidates, "notes", &T::Notes, "next_note", &T::NextNote, "association",
-										 &T::Association, "created", &T::Created, "updated", &T::Updated);
+	using value_type            = bpr::core::detail::wire_draft;
+	static constexpr auto value = object("format", &value_type::Format, "version", &value_type::Version, "id", &value_type::Id, "revision", &value_type::Revision, "title", &value_type::Title, "location", &value_type::Location,
+										 "repository", &value_type::Repository, "worktree", &value_type::Worktree, "branch", &value_type::Branch, "target_remote", &value_type::TargetRemote, "target_host",
+										 &value_type::TargetHost, "target_owner", &value_type::TargetOwner, "target_name", &value_type::TargetName, "target_branch", &value_type::TargetBranch, "target_origin",
+										 &value_type::TargetOrigin, "chain", &value_type::Chain, "candidates", &value_type::Candidates, "notes", &value_type::Notes, "next_note", &value_type::NextNote, "association",
+										 &value_type::Association, "created", &value_type::Created, "updated", &value_type::Updated);
 };
 
 namespace bpr::core {

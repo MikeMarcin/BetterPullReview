@@ -11,6 +11,13 @@
 
 namespace bpr::application {
 	namespace {
+		/// New draft identities come from the composition's seed.
+		[[nodiscard]] auto seeded(const std::array<std::uint8_t, 32>& aSeed) -> std::mt19937_64
+		{
+			auto sequence = std::seed_seq(aSeed.begin(), aSeed.end());
+			return std::mt19937_64{ sequence };
+		}
+
 		[[nodiscard]] auto recovery_for(const local_draft_discovery& aDiscovery) -> local_draft_recovery
 		{
 			switch (aDiscovery.Source) {
@@ -237,9 +244,8 @@ namespace bpr::application {
 			, Port{ aPort }
 			, Now{ std::move(aNow) }
 			, Matcher{ std::move(aMatcher) }
+			, Random{ seeded(aSeed) }
 		{
-			auto sequence = std::seed_seq(aSeed.begin(), aSeed.end());
-			Random.seed(sequence);
 		}
 
 		// --- effect lane ---------------------------------------------------
@@ -754,7 +760,10 @@ namespace bpr::application {
 							return std::vector<std::uint8_t>{ };
 						}
 						auto bytes = stored->object(aSide->Object);
-						return bytes && *bytes ? std::optional{ std::move(**bytes) } : std::nullopt;
+						if (!bytes) {
+							return std::nullopt;
+						}
+						return std::move(*bytes);
 					};
 					const auto left  = side(wanted.Left);
 					const auto right = side(wanted.Right);
