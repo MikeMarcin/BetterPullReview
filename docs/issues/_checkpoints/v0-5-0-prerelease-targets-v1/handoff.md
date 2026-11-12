@@ -1736,3 +1736,27 @@ redesign: `local-tour-preparation` (its prerequisites now exclude
 Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
 BPR-Test #152 and `-next`. No live GitHub use. Every build named its targets
 with -j4; the composition contract's own sub-build ran inside its test.
+
+## local-draft redesign: PR window, author state, Local Changes (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner chose mockup A +
+Home 1, author state and Local Changes variant a, and the agent's commit
+message ([accepted design](../../../design/local-draft-pr-window-v1/README.md),
+owner words verbatim there and in the RFC amendments). Frontend-design loaded
+first. RFC-BPR-0113/0114 pulled forward (amended 2026-11-12).
+
+Plan of the round (status in brackets, updated as it goes):
+
+1. Design record and owner amendments (0108, 0113, 0114, 0122) [done `a735c6a44`]
+2. Core `local_changes`: status model, three comparisons, change hunks,
+   stage/unstage-one-change texts, commit and push decisions, commit-message
+   request and answer [in progress]
+3. Author-Git runner (adapter) + application host; real-repo course with a
+   local bare remote
+4. Qt: Local Changes tab, commit box, push line; segmented view picker with
+   Edit; local draft in the PR window (A); Home 1; old UI removed
+5. Agent commit message (`local.commit-message`, profile schema 29, 0107)
+6. App pin reseal, focused tests, native renders, live BPR-Test push,
+   freeze, one attended session
+
+Tab name decided: **Local Changes** (recorded in the design README).
