@@ -73,3 +73,23 @@ Filed, not waited on (session in the [handoff](../issues/_checkpoints/v0-5-0-pre
 Root `/Users/jaeger/local-draft-v001.h8pe0ibf` removed with `freeze_attended_build.py remove` and the host
 stopped (2026-11-12). The coordinator: a redesign from mockups comes first;
 no new look is filed until then.
+
+## Owner redesign, 2026-11-12: the pull request window and Home 1
+
+Amendment in the [RFC](../rfcs/RFC-BPR-0108-local-pr-drafts.md#owner-amendment-2026-11-12-the-pull-request-window-and-home-1);
+[accepted design](../design/local-draft-pr-window-v1/README.md). The draft
+page is laid out as mockup A: the title row's modalities (Overview, Review;
+Discuss and Threads wait), the bar (candidate pop-up with Refresh and
+Discard…, branch into target or, in author state, the branch with ahead and
+behind and the comparison, the view picker, Create Draft PR…), Files and
+Local Changes at the left, Status, Notes and Tour at the right, the status in
+the window's status bar. Home variant 1: Prepare Pull Request… in the Open
+row, one 26 px row per draft, no band and no visible title. Courses:
+`application_local_draft_desktop_public_path`, `_tour_`, `_publication_` and
+the new `application_local_draft_author_desktop_public_path` pass; the window
+suites pass at three scales. Native renders (Cocoa, off screen, light and
+dark) were made from the author course. Not built: the accepted PR-window
+Tour panel bound to a local draft's tour (the Tour drawer tab hosts the local
+tour editor), the Status tab's three-step strip (it hosts the publication
+area), a capped Home list with Show All, and Address feedback opening a pull
+request into author state (RFC-BPR-0122).

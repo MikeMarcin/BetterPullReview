@@ -108,6 +108,22 @@ are [the agent RFC](RFC-BPR-0123-the-agent-evaluates-feedback-fixes-what-i-accep
 Proposals in this RFC that the owner has not separately confirmed are P01
 and P02 in the [decision record](assets/address-review-feedback-v1/DECISIONS.md#decisions).
 
+### Owner direction, 2026-11-12: the window it opens is author state
+
+When the owner chose the pull request window for local drafts, they said
+"Local draft is more of a state than a mode since we're talking about letting
+this same mode be used for addressing PR feedback"
+([accepted design](../design/local-draft-pr-window-v1/README.md)). The window
+Address feedback opens is therefore the pull request window in author state
+(branch beside the title with ahead and behind, the Edit view, Local Changes
+with staging, commit and push), as amended into
+[RFC-BPR-0113](RFC-BPR-0113-edit-and-save-files-in-a-local-pr-draft.md) and
+[RFC-BPR-0114](RFC-BPR-0114-commit-and-push-a-local-pr-draft-through-the-authors-own-git.md)
+and built on lane `claude/v0-5-0-prerelease-targets-52265d`. The Feedback area
+and its dispositions in this RFC are unchanged and not yet built; where this
+RFC says "Feedback area beside Changes, Evidence, Description and Tour", read
+a drawer tab of that window (Evidence is cut from 0.5.0).
+
 ## Acceptance criteria
 
 - **AC01:** A Returned row and the header of an authored pull request with the same facts offer Address feedback; a pull request the account did not author offers none; and pressing it starts no agent.

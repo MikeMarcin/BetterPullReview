@@ -160,6 +160,54 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
   preparation resumes; view state does not. A local draft opens on Changes
   with no chat open, as [RFC-BPR-0105](RFC-BPR-0105-a-review-opens-fresh-and-a-submission-always-ends.md) opens every pull request on Comments.
 
+### Owner amendment, 2026-11-12: the pull request window and Home 1
+
+The owner chose mockup A and Home variant 1 and asked for author state
+([accepted design](../design/local-draft-pr-window-v1/README.md)):
+
+> So I think A + Home 1, but A needs a little bit of extra love for being able
+> to edit locally. Local draft is more of a state than a mode since we're
+> talking about letting this same mode be used for addressing PR feedback.
+
+This changes the requirements above as follows; the rest stands.
+
+- **The window.** A local draft opens in the pull request window, not on a
+  page of its own. Overview holds the title, description and files; Review
+  holds the proposed diff and the accepted Tour panel; Discuss and Threads
+  wait until a pull request exists. The candidate is one pop-up in the
+  Comparing slot whose menu holds the captured candidates, Refresh and
+  Discard…. Create Draft PR… stands where Submit review stands, and a Status
+  drawer tab holds the publish steps. Once the pull request is created the
+  same window becomes it. "Changes, Description and Tour are working areas"
+  becomes: Overview and Review are the window's own modalities, and the
+  draft's notes, tour and status are drawer tabs.
+- **Opening state (X23).** A local draft opens on Review with no chat open,
+  in place of Changes: Review is where the changes are.
+- **Home (X01, AC06).** No band and no visible In preparation title: each
+  local draft is one 26 px row in the Open row's grid, first on Home, saying
+  Local draft, with In preparation as the group's accessible name. Prepare
+  Pull Request… is a button in the Open row. Home's four sections are
+  unchanged.
+- **Author state.** A window on the author's own worktree (a local draft, or
+  a pull request opened by its author) shows the branch beside the title with
+  ahead and behind counts, a third view (Edit) in the review bar's view
+  picker, and a Local Changes drawer tab with three comparisons (Uncommitted,
+  Not pushed, Whole PR), staging, commit and push. Those behaviours are
+  specified in [RFC-BPR-0113](RFC-BPR-0113-edit-and-save-files-in-a-local-pr-draft.md)
+  and [RFC-BPR-0114](RFC-BPR-0114-commit-and-push-a-local-pr-draft-through-the-authors-own-git.md)
+  as amended the same day, and are delivered on this lane.
+- **What may change the worktree.** "Source reads and indexes remain
+  unchanged by BPR preparation" becomes amendment A3 of the
+  local-draft-authoring pack: opening, reading, refreshing and preparing
+  change no source and no index; the worktree and its index change only
+  through Save, Stage, Unstage, Commit and Push, each pressed by the author.
+
+AC06 reads: Home makes Prepare Pull Request… and each local draft reachable
+in the Open row while existing Review Cycles remain reachable and unchanged,
+with native keyboard and accessibility and ordinary pull request navigation
+preserved. AC08's last clause reads: a resumed local draft opens on Review
+with no chat open.
+
 ## Acceptance criteria
 
 - **AC01:** From Home, a signed-out author selects a clean Git worktree, including an isolated local clone of their primary clone, and reaches the correctly based proposed branch diff with source, target and Local draft identity visible, without launching an agent or changing the checkout.

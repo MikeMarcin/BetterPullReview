@@ -179,6 +179,30 @@ local-draft screens are redesigned from mockups made separately.
 The [authored plan's](../../plans/v0-5-0-prerelease-targets-v1/milestone-plan.json)
 generated view is regenerated from it.
 
+## Owner redesign of local drafts (2026-11-12)
+
+After the local-draft looks of 2026-11-11 and 12 were rejected, the owner
+chose mockup A (the pull request window) and Home variant 1, asked for author
+state ("Local draft is more of a state than a mode"), a no-diff Edit view in
+a segmented view picker, three comparisons (merge base, pull request head,
+uncommitted), staging, commit and push ("Oh and we need to be able to stage
+and commit and push obviously"), Changes variant a, and the agent filling the
+commit's subject and description ("I like variant a, just make sure we can
+use the agent to fill in the commit (subject and message)"). Their words and
+the drawings are in the [accepted design](../../../design/local-draft-pr-window-v1/README.md).
+
+- An owner change of requirements, recorded here and as owner amendments in
+  RFC-BPR-0108, RFC-BPR-0113, RFC-BPR-0114, RFC-BPR-0107 (the
+  `local.commit-message` purpose) and RFC-BPR-0122 (a note).
+- RFC-BPR-0113 and RFC-BPR-0114 are pulled forward from the
+  local-draft-authoring plan into this lane (cards BPR-2062 to 2067), so that
+  pack does not build them twice; its [decision record](../local-draft-authoring-v1/DECISIONS.md)
+  says so. The authored plan JSON is not re-adopted; this record and the
+  cards carry the change.
+- Decided by the implementer, recorded with the design: the drawer tab is
+  named Local Changes; opening reads no network (GitHub is read on Check
+  Again or Push); in a review the view picker is two segments wide.
+
 ## Continuation
 
 Next action: none is owed by the owner for authoring. Implementation starts

@@ -210,6 +210,16 @@ and eight writing hooks (`tour.problem`, `tour.solution`, `tour.outline`,
 earlier counts in this section, six, then nine with three Enhance prompts,
 then ten, describe the list as it was at each step.
 
+RFC-BPR-0114 as amended by the owner on 2026-11-12 ("make sure we can use the
+agent to fill in the commit (subject and message)") adds the purpose
+`local.commit-message` (Commit message, `local-commit-message-v1`): how the
+agent writes a commit's subject and description from the staged change. It is
+a writing hook in the same list, store and revision, listed under Built-in
+prompts › Local drafts, and exported and imported like the others; it is
+built on lane `claude/v0-5-0-prerelease-targets-52265d` with the
+local-authoring prompts of RFC-BPR-0110. An older importer reports it as a
+purpose it does not recognize.
+
 ### Owner decision: export the shipped defaults too (2026-11-11)
 
 The owner asked: "Part of the export process will let me export all prompts

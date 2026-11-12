@@ -173,6 +173,103 @@ catalogue to the two operations above.
 Proposals in this RFC that the owner has not separately confirmed are listed
 in the [decision record](assets/local-draft-authoring-v1/DECISIONS.md#decisions) as P01, P02 and P08.
 
+### Owner amendment, 2026-11-12: Local Changes, staging, Amend and the agent's message
+
+The owner, choosing the pull request window for local drafts and its author
+state ([accepted design](../design/local-draft-pr-window-v1/README.md)):
+
+> And then we probably need a better way to see changes. There are a few kinds
+> that matter. Changes relative to merge base, changes relative to PR head,
+> and local changes not yet committed even locally.
+
+> Oh and we need to be able to stage and commit and push obviously.
+
+> I like variant a, just make sure we can use the agent to fill in the commit
+> (subject and message)
+
+Changed requirements; everything not named here stands, including the
+author-Git runner, the one-time hooks-and-configuration question, bounded and
+cancellable operations, never forcing, and the observation after each
+operation.
+
+- **Local Changes.** A drawer tab in author state (named Local Changes, not
+  Changes, because the review bar already says "Changes 2 of 3"). A three-way
+  pick heads it: **Uncommitted** (left side: the last commit), **Not pushed**
+  (left side: the pull request's head on GitHub; before a pull request, the
+  branch on GitHub; before that, unavailable) and **Whole PR** (left side:
+  the target at the merge base). The right side is always the files on disk.
+  The pick is the review bar's Comparing pop-up in a second place.
+- **Staging.** Uncommitted lists Unstaged over Staged, each a folder tree with
+  a status letter per file and one header button, Stage or Unstage, acting on
+  the selected file (a double-click does the same). In the diff, each change
+  of an Uncommitted comparison has Stage Change or Unstage Change. A file with
+  some changes staged is in both lists. "There is no amend, no staging view,
+  no commit of part of a file" is withdrawn: partial commits are made by
+  staging changes. Staging writes only the index; staging a change writes the
+  file's index entry with exactly that change applied to the staged text.
+- **Commit.** A box pinned under the lists: subject, description, Amend, and
+  one counting button, **Commit N Files**, enabled when something is staged,
+  the subject is not empty and nothing is unmerged. It commits the index
+  (what is staged, and only that) through the author's own Git, with their
+  identity, signing and hooks. The Commit… sheet over ticked candidate files
+  is replaced by staging; "every other change in the worktree, staged or not,
+  is left as it was" becomes "every unstaged change is left as it was".
+  Commit's preconditions are on the branch (checked out, not detached, the
+  draft's branch) rather than on a candidate.
+- **Amend** is offered only while the last commit is not on GitHub (not
+  reachable from the hosted branch or the pull request's head). After that it
+  dims and its tooltip says amending would need a forced push.
+- **Push.** One line under the commit box says where the branch stands against
+  the pull request or hosted branch (ahead, up to date, behind), with Push and
+  the exact command as it will run, always on show; the preview sheet is
+  replaced by that line and the Not pushed list. When the hosted branch has
+  commits the local branch does not, Push is refused before anything runs:
+  the line turns red, says what GitHub has that the branch does not and that
+  nothing was sent, and offers Check Again. No control forces.
+- **The agent fills the commit.** A control beside the subject asks the agent
+  chosen in the status-bar footer for a subject and description. It is a
+  one-shot, fresh (never resumed), tool-free run whose input is the staged
+  diff and the branch's recent commit subjects, under its own editable prompt
+  purpose `local.commit-message` (Settings, beside the local-authoring
+  prompts), which [RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md)'s
+  sharing format recognises. Its answer fills the two fields as an editable
+  suggestion and never commits. The control carries the Agent accent, and the
+  checkout guards of [RFC-BPR-0104](RFC-BPR-0104-agent-scratch-folder-and-opt-in-builds.md)
+  apply: the run gets no tools and no worktree.
+- **Where.** Author state includes a pull request opened by its author on
+  their worktree (the same window [RFC-BPR-0122](RFC-BPR-0122-address-feedback-opens-my-pull-request-with-each-conversation-as-an-item.md)
+  opens for Address feedback), not only a local draft.
+
+- **Reads.** Local Changes reads the worktree through the author's own Git,
+  read-only (status, the changed paths against a commit, blob bytes, the
+  staged diff), with no optional locks and no fsmonitor. Such a read runs no
+  hook, but Git may run a repository's configured clean filter as any Git
+  client's status does. Opening the window reads only the worktree: GitHub is
+  read (`ls-remote`, through the author's credentials) only when the author
+  presses Check Again or Push, so ahead and behind say "Not checked with
+  GitHub" until then. (Implementation decision, 2026-11-12, keeping P01's
+  "only on a press" for anything that leaves the computer.)
+
+The operation catalogue becomes: stage a path, unstage a path, stage one
+change, unstage one change, commit (with or without amend), and push the
+draft's branch. Force, delete, tag, reset of the worktree, stash and checkout
+still exist nowhere.
+
+AC01 reads: Commit N Files makes one commit on the checked-out branch holding
+exactly the staged content, recorded with the author's Git identity and
+signing configuration after the repository's commit hooks ran, and every
+unstaged change is as it was before; Stage Change stages exactly that change.
+AC02 reads: Commit runs no Git when nothing is staged, the subject is empty,
+the head is detached or a path is unmerged; a refusing hook leaves no commit
+and its output is shown; Amend is refused while the last commit is on GitHub.
+AC08 reads: on a frozen build, the owner accepts Local Changes with staging,
+the commit box with the agent's message, the push line and its refused state,
+and the one-time question.
+
+Delivery: pulled forward from the local-draft-authoring plan into
+`v0-5-0-prerelease-targets-v1` on lane
+`claude/v0-5-0-prerelease-targets-52265d` (BPR-2065, BPR-2066, BPR-2067).
+
 ## Acceptance criteria
 
 - **AC01:** With selected uncommitted files, Commit… makes one commit on the draft's branch holding exactly those files' captured content, recorded with the author's Git identity and signing configuration and after the repository's commit hooks ran, and every other staged or unstaged change is as it was before.
@@ -186,7 +283,7 @@ in the [decision record](assets/local-draft-authoring-v1/DECISIONS.md#decisions)
 
 ## Proposed delivery
 
-[The author-Git runner and Commit](../issues/10-backlog/BPR-2065-author-git-runner-and-commit.md),
+[The author-Git runner and Commit](../issues/30-in-progress/BPR-2065-author-git-runner-and-commit.md),
 [Push and its meeting with Create draft PR](../issues/10-backlog/BPR-2066-push-and-create-draft-pr-in-one-flow.md)
 and [closeout](../issues/10-backlog/BPR-2067-close-rfc-0114.md) form the second
 [milestone](plans/local-draft-authoring-v1/milestone-plan.json). Push needs the native pull request

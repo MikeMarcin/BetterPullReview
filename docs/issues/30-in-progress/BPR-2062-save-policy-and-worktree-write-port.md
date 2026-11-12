@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2062"
 title: "Save policy and the worktree write port"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0113"]
 metadata: {"criteria":["AC02","AC03","AC06"],"milestone_plan":{"id":"local-draft-authoring-v1","path":"docs/rfcs/plans/local-draft-authoring-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2062--BPR-2071--3110069c9cbb.json","imported_from":"docs/rfcs/assets/local-draft-authoring-v1/cards/DRAFT-0001-save-policy-and-worktree-write-port.md"}
 depends_on: ["BPR-2020"]
@@ -25,3 +25,12 @@ Core tests over the save decision and every not-editable reason. Host tests agai
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/local-draft-authoring-v1/IMPLEMENTATION_PROMPT.md).
+
+## Pulled forward (owner redesign, 2026-11-12)
+
+Delivered on lane `claude/v0-5-0-prerelease-targets-52265d` under the owner's
+redesign of local drafts ([accepted design](../../design/local-draft-pr-window-v1/README.md));
+the RFC's amendment of 2026-11-12 is authoritative for scope. The
+local-draft-authoring milestones must not build this again. Evidence:
+[RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md),
+[RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md).
