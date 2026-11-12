@@ -1669,7 +1669,7 @@ rejected looks' redesign; cards not readied, claimed or moved.
 | `a8bd8d684` | Owner verdicts recorded (see above) |
 | `62f740fc6` | gh catalog under the lease's scoped operation (the fix the live run found); live-draft course and driver |
 | `433068905` | Journal steps re-read on a competing write; progress to the page; desktop course |
-| (this commit) | clang-format 22, tidy fixes, ledger, RFC record, threat model, card notes, this checkpoint |
+| `96bd411cf` | clang-format 22, tidy fixes, boundary fixes, app pin resealed, ledger, RFC record, threat model, card notes, this checkpoint |
 
 Live: `python3 tests/end_to_end/live_draft_course.py --course
 build/dev/tests/end_to_end/live_second_account_course --root DIR --cleanup`
