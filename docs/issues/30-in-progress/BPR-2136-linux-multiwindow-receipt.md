@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2136"
 title: "Preserve accepted PR17 receipt and notes after a multi-window replacement"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
