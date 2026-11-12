@@ -16,7 +16,10 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-discus
 # RFC-BPR-0114 as amended 2026-11-12: the agent's commit message.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-commit-message.md" WRITING_LOCAL_COMMIT_MESSAGE)
 # An edited resource reconfigures, so the built defaults never lag their text.
-foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message)
+# RFC-BPR-0116: the returning questions' prompts.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-latest-upload.md" WRITING_REVIEW_LATEST_UPLOAD)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-proposed-fix.md" WRITING_REVIEW_PROPOSED_FIX)
+foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)

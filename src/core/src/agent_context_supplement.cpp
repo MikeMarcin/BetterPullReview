@@ -181,7 +181,7 @@ namespace bpr::core {
 			}
 			const auto& prompt = *aRequest.TourPrompt;
 			return prompt.Session == aRequest.Session.Id && !prompt.Text.empty() && prompt.Text.size() <= maximum_tour_prompt_bytes && valid_writing_utf8(prompt.Text) && !aRequest.Message && !aRequest.Operation
-				&& !aRequest.FeedbackGuidance && !aRequest.Brief && !aRequest.Conversation && !aRequest.Selection && aRequest.SelectedNotes.empty() && aRequest.SelectedDrafts.empty() && !aRequest.Subject && !aRequest.LookingAt;
+				&& !aRequest.FeedbackGuidance && !aRequest.Brief && !aRequest.Conversation && !aRequest.Selection && aRequest.SelectedNotes.empty() && aRequest.SelectedDrafts.empty() && !aRequest.Subject && !aRequest.LookingAt && !aRequest.Returning;
 		}
 
 		/// \brief [[BPR-1091]]. Guidance rides only on a workshop request,
@@ -248,7 +248,8 @@ namespace bpr::core {
 			|| aRequest.Skills.size() > maximum_supplement_skills
 			|| !std::ranges::all_of(aRequest.Skills, valid_skill)
 			|| (aRequest.Subject && !valid(*aRequest.Subject))
-			|| (aRequest.LookingAt && !valid(*aRequest.LookingAt))) {
+			|| (aRequest.LookingAt && !valid(*aRequest.LookingAt))
+			|| (aRequest.Returning && !valid(*aRequest.Returning))) {
 			return std::nullopt;
 		}
 		if (
@@ -289,6 +290,7 @@ namespace bpr::core {
 			.TourPrompt         = aRequest.TourPrompt ? aRequest.TourPrompt->Text : std::string{ },
 			.Subject            = aRequest.Subject,
 			.LookingAt          = aRequest.LookingAt,
+			.Returning          = aRequest.Returning,
 		};
 	}
 

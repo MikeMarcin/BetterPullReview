@@ -70,9 +70,21 @@ namespace bpr::qt {
 			// RFC-BPR-0114 as amended 2026-11-12. The agent's commit message.
 			{ core::writing_hook::local_commit_message, "Commit message", "Local Changes, commit box", "How the agent writes a commit's subject and description from what is staged.",
 			  "Sent when you ask the agent to fill in a commit. Its answer fills the fields for you to edit; nothing is committed." },
+			// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). The returning questions.
+			{ core::writing_hook::review_latest_upload, "What changed", "Agent tab, What changed since my review",
+			  "What the agent is told when you ask what changed since your last review.",
+			  "Sent with What changed since my review. The answer is the agent's; nothing is marked Seen or posted." },
+			{ core::writing_hook::review_proposed_fix, "Was this addressed", "Review threads, Was this addressed?",
+			  "What the agent is told when you ask whether a thread you commented in was addressed.",
+			  "Sent with Was this addressed? The answer is the agent's claim; nothing is resolved or posted." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
+
+		[[nodiscard]] constexpr auto returning_hook(const core::writing_hook aHook) noexcept -> bool
+		{
+			return aHook == core::writing_hook::review_latest_upload || aHook == core::writing_hook::review_proposed_fix;
+		}
 
 		/// A prompt's row: its name, where it is used on a quieter second
 		/// line, and on the right whether it is changed or has unsaved edits.
@@ -219,6 +231,12 @@ namespace bpr::qt {
 			item->setData(hook_role, static_cast<int>(core::writing_hook::suggested_comment));
 			item->setData(usage_role, tr(facts_of(core::writing_hook::suggested_comment).Where));
 		}
+		// RFC-BPR-0116. The returning questions, before the review skill.
+		for (const auto hook : { core::writing_hook::review_latest_upload, core::writing_hook::review_proposed_fix }) {
+			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
+			item->setData(hook_role, static_cast<int>(hook));
+			item->setData(usage_role, tr(facts_of(hook).Where));
+		}
 		body->addWidget(Hook, 0);
 
 		// The prompt shown and the review skill's own editor share the pane;
@@ -360,7 +378,7 @@ namespace bpr::qt {
 		});
 		connect(TestButton, &QPushButton::clicked, this, [this] {
 			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment && selected_hook() != core::writing_hook::local_description
-				&& selected_hook() != core::writing_hook::local_discussion && selected_hook() != core::writing_hook::local_commit_message) {
+				&& selected_hook() != core::writing_hook::local_discussion && selected_hook() != core::writing_hook::local_commit_message && !returning_hook(selected_hook())) {
 				Test(selected_hook());
 			}
 		});
@@ -618,9 +636,12 @@ namespace bpr::qt {
 		const bool suggested = hook == core::writing_hook::suggested_comment;
 		// RFC-BPR-0110 The local-authoring prompts are tried in a local draft.
 		const bool local = hook == core::writing_hook::local_description || hook == core::writing_hook::local_discussion || hook == core::writing_hook::local_commit_message;
-		TestButton->setEnabled(!feedback && !suggested && !local);
+		// RFC-BPR-0116. The returning questions are tried on a returning pull request.
+		const bool returning = returning_hook(hook);
+		TestButton->setEnabled(!feedback && !suggested && !local && !returning);
 		TestButton->setToolTip(feedback        ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
 								   : suggested ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
+								   : returning ? tr("Test uses a tour field. Ask it on a pull request with commits since your review to try this prompt.")
 								   : local     ? tr("Test uses a tour field. Ask in a local draft's conversation to try this prompt.")
 											   : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
 		refresh_state();

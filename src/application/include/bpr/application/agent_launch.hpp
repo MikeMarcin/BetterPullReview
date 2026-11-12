@@ -126,6 +126,10 @@ namespace bpr::application {
 		/// is about, already within its bounds (`core::bound_conversation`);
 		/// absent for every other launch.
 		std::optional<core::supplement_conversation> Conversation;
+		/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning question's
+		/// material, up front: both revisions and the change between them,
+		/// or a thread's lines then and now. Absent for every other launch.
+		std::optional<core::supplement_returning> Returning;
 		/// [[BPR-1916]]. Skills the prompt named, carried inline
 		/// (`application::inline_skills`); empty for every launch that named
 		/// none.

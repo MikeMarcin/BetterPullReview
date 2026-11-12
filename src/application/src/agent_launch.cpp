@@ -2571,6 +2571,7 @@ namespace bpr::application {
 			.Skills             = aObservation.Skills,
 			.Subject            = aObservation.Subject,
 			.LookingAt          = aObservation.LookingAt,
+			.Returning          = aObservation.Returning,
 		};
 		if (tourRun) {
 			request.TourPrompt = core::agent_tour_prompt{ .Session = aSession.Id, .Text = aObservation.TourPrompt };
@@ -2771,6 +2772,40 @@ namespace bpr::application {
 					append_field(aResult, "conversation.excerpt.line." + std::to_string(index), excerpt.Lines[index]);
 				}
 			}
+		}
+
+		template <typename TSink>
+		void encode_returning_lines_into(TSink& aResult, const std::string& aPrefix, const std::optional<core::returning_lines>& aLines)
+		{
+			append_number(aResult, aPrefix + ".present", aLines ? 1 : 0);
+			if (!aLines) {
+				return;
+			}
+			append_field(aResult, aPrefix + ".commit", aLines->Commit);
+			append_field(aResult, aPrefix + ".path", aLines->Path);
+			append_number(aResult, aPrefix + ".first_line", aLines->FirstLine);
+			append_number(aResult, aPrefix + ".line.count", aLines->Lines.size());
+			for (auto index = std::size_t{ 0U }; index < aLines->Lines.size(); ++index) {
+				append_field(aResult, aPrefix + ".line." + std::to_string(index), aLines->Lines[index]);
+			}
+		}
+
+		/// RFC-BPR-0116. What a returning question carries up front.
+		template <typename TSink>
+		void encode_returning_into(TSink& aResult, const core::supplement_returning& aReturning)
+		{
+			append_field(aResult, "returning.operation", core::stable_name(aReturning.Operation));
+			append_field(aResult, "returning.basis", core::stable_name(aReturning.Basis));
+			append_field(aResult, "returning.earlier_head", aReturning.EarlierHead);
+			append_field(aResult, "returning.current_head", aReturning.CurrentHead);
+			if (aReturning.Operation == core::returning_operation::latest_upload) {
+				append_number(aResult, "returning.files.shown", aReturning.FilesShown);
+				append_number(aResult, "returning.files.omitted", aReturning.FilesOmitted);
+				append_field(aResult, "returning.changes", aReturning.Changes);
+				return;
+			}
+			encode_returning_lines_into(aResult, "returning.then", aReturning.Then);
+			encode_returning_lines_into(aResult, "returning.now", aReturning.Now);
 		}
 
 		template <typename TSink>
@@ -3162,6 +3197,12 @@ namespace bpr::application {
 			// oldest first and the lines it is attached to.
 			if (aSupplement.Conversation) {
 				encode_conversation_into(aResult, *aSupplement.Conversation);
+			}
+			// RFC-BPR-0116. A returning question's material, written only
+			// when present: both revisions, the change between them or the
+			// thread's lines then and now.
+			if (aSupplement.Returning) {
+				encode_returning_into(aResult, *aSupplement.Returning);
 			}
 		}
 

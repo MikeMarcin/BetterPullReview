@@ -80,6 +80,9 @@ namespace bpr::app {
 		case core::writing_hook::local_description:    return "local-description";
 		case core::writing_hook::local_discussion:     return "local-discussion";
 		case core::writing_hook::local_commit_message: return "local-commit-message";
+		// RFC-BPR-0116 The returning questions.
+		case core::writing_hook::review_latest_upload: return "review-latest-upload";
+		case core::writing_hook::review_proposed_fix:  return "review-proposed-fix";
 		}
 		return "problem";
 	}

@@ -160,6 +160,8 @@ namespace bpr::qt {
 		case core::writing_hook::local_description:    return QObject::tr("Description writing");
 		case core::writing_hook::local_discussion:     return QObject::tr("Change discussion");
 		case core::writing_hook::local_commit_message: return QObject::tr("Commit message");
+		case core::writing_hook::review_latest_upload: return QObject::tr("What changed");
+		case core::writing_hook::review_proposed_fix:  return QObject::tr("Was this addressed");
 		}
 		return text_of(aPurpose);
 	}

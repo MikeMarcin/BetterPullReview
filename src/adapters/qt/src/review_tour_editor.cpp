@@ -2568,6 +2568,8 @@ namespace bpr::qt {
 		case core::writing_hook::local_description: // RFC-BPR-0110 Nor the local-authoring prompts.
 		case core::writing_hook::local_discussion:     return false;
 		case core::writing_hook::local_commit_message: return false;
+		case core::writing_hook::review_latest_upload: // RFC-BPR-0116 Nor the returning questions.
+		case core::writing_hook::review_proposed_fix:  return false;
 		}
 		return false;
 	}
