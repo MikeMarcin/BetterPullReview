@@ -362,6 +362,7 @@ namespace bpr::application {
 		void publish()
 		{
 			if (!Stopped) {
+				Projection.AgentAvailable = AgentRunner && AgentLane != nullptr;
 				Port.publish(Projection);
 			}
 		}
@@ -1079,7 +1080,7 @@ namespace bpr::application {
 																  .Omitted    = aPrepared.Request->Omitted };
 					aSelf.publish();
 					auto owner = aSelf.shared_from_this();
-					auto made  = local_draft_agent_run{ .Agent = question.Agent, .AgentName = question.AgentName, .Prompt = std::move(aPrepared.Request->Text) };
+					auto made  = local_draft_agent_run{ .Agent = question.Agent, .AgentName = question.AgentName, .Profile = question.Profile, .Prompt = std::move(aPrepared.Request->Text) };
 					++aSelf.AgentPending;
 					aSelf.AgentLane->post([owner, asked = aSelf.Generation, ordinal, launch = std::move(made), sent = std::move(question), read = std::move(aPrepared.Files),
 										   runner = aSelf.AgentRunner, stop = aSelf.AskStop.get_token()]() mutable {
@@ -1210,9 +1211,7 @@ namespace bpr::application {
 			ImportStop.request_stop();
 			AskStop.request_stop();
 			++Generation;
-			const auto available      = Projection.AgentAvailable;
-			Projection                = { };
-			Projection.AgentAvailable = available;
+			Projection = { };
 			Discovery.reset();
 			publish();
 		}

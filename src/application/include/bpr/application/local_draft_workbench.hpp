@@ -180,9 +180,10 @@ namespace bpr::application {
 		std::uint32_t FirstLine = 0;
 		std::uint32_t LastLine  = 0;
 		std::string   Text;
-		/// The agent entry's identity and name.
-		std::string Agent;
-		std::string AgentName;
+		/// The agent entry's identity and name, and the profile it runs.
+		std::string   Agent;
+		std::string   AgentName;
+		std::uint64_t Profile = 0;
 		/// The prompt purpose's effective text and version.
 		std::string Instructions;
 		std::string Version;
@@ -193,9 +194,10 @@ namespace bpr::application {
 	/// worktree).
 	struct local_draft_agent_run
 	{
-		std::string Agent;
-		std::string AgentName;
-		std::string Prompt;
+		std::string   Agent;
+		std::string   AgentName;
+		std::uint64_t Profile = 0;
+		std::string   Prompt;
 	};
 	struct local_draft_agent_answer
 	{

@@ -181,7 +181,7 @@ try {
 		auto* const page = window.local_draft();
 		expect(page != nullptr && page->projection().Draft, "a local draft");
 		draftId = page->projection().Draft->Id;
-		expect(page->areas()->count() == 2 && page->areas()->currentIndex() == 0, "the page opens on Changes; Evidence is beside it");
+		expect(page->areas()->count() == 4 && page->areas()->currentIndex() == 0, "the page opens on Changes; Evidence, Description and Tour are beside it");
 		page->areas()->setCurrentIndex(1);
 		settle(s.Lanes);
 		auto* const evidence = page->evidence();

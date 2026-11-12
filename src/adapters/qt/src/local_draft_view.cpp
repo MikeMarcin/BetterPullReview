@@ -175,6 +175,10 @@ namespace bpr::qt {
 		Candidates->setObjectName(QStringLiteral("localDraftCandidates"));
 		Candidates->setAccessibleName(QStringLiteral("Candidate shown"));
 		Candidates->setToolTip(QStringLiteral("Each refresh records a candidate; earlier ones stay as they were captured"));
+		// Wide enough for "Candidate 32 of 32" from the start, so the words
+		// are never cut and the chooser never changes width.
+		Candidates->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+		Candidates->setMinimumContentsLength(static_cast<int>(QStringLiteral("Candidate %1 of %1").arg(core::maximum_local_draft_candidates).size()) + 1);
 		identityRow->addWidget(Candidates);
 		Refresh = new QPushButton{ QStringLiteral("Refresh"), this };
 		Refresh->setObjectName(QStringLiteral("localDraftRefresh"));
@@ -284,11 +288,23 @@ namespace bpr::qt {
 		Areas->addTab(QStringLiteral("Changes"));
 		Areas->addTab(QStringLiteral("Evidence"));
 		Areas->setTabToolTip(1, QStringLiteral("Claims, the checks of them and their reported results, and open questions"));
+		Areas->addTab(QStringLiteral("Description"));
+		Areas->setTabToolTip(2, QStringLiteral("The pull request's title and whole description"));
+		Areas->addTab(QStringLiteral("Tour"));
+		Areas->setTabToolTip(3, QStringLiteral("The route a reviewer takes through the change"));
 		column->addWidget(Areas);
 		AreaStack = new QStackedWidget{ this };
 		Evidence  = new local_draft_evidence_area{ AreaStack };
 		AreaStack->addWidget(splitter);
 		AreaStack->addWidget(Evidence);
+		DescriptionArea = new local_draft_description_area{ AreaStack };
+		TourArea        = new local_draft_tour_area{ AreaStack };
+		AreaStack->addWidget(DescriptionArea);
+		AreaStack->addWidget(TourArea);
+		Links.Selection = [this] { return selected_lines(); };
+		Links.Reveal    = [this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) { reveal(aPath, aFirst, aLast); };
+		DescriptionArea->set_dispatch(&PreparationDispatch, &Links);
+		TourArea->set_dispatch(&PreparationDispatch, &Links);
 		column->addWidget(AreaStack, 1);
 		connect(Areas, &QTabBar::currentChanged, AreaStack, &QStackedWidget::setCurrentIndex);
 
@@ -383,6 +399,82 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 	}
 
+	void local_draft_view::set_preparation_dispatch(local_draft_preparation_dispatch aDispatch)
+	{
+		PreparationDispatch = std::move(aDispatch);
+	}
+
+	auto local_draft_view::selected_lines() const -> std::optional<local_draft_lines>
+	{
+		const auto& view   = Projection;
+		const auto* latest = view.Draft ? core::latest_candidate(*view.Draft) : nullptr;
+		if (latest == nullptr || view.Shown != latest->Ordinal || !view.File || view.File->Status != application::review_material_status::available) {
+			return std::nullopt;
+		}
+		const auto cursor = Diff->textCursor();
+		if (!cursor.hasSelection()) {
+			return std::nullopt;
+		}
+		auto       from   = Diff->document()->findBlock(cursor.selectionStart()).blockNumber();
+		auto       to     = Diff->document()->findBlock(cursor.selectionEnd()).blockNumber();
+		if (cursor.hasSelection() && cursor.selectionEnd() > cursor.selectionStart() && Diff->document()->findBlock(cursor.selectionEnd()).position() == cursor.selectionEnd() && to > from) {
+			--to;
+		}
+		auto first = std::uint32_t{ 0U };
+		auto last  = std::uint32_t{ 0U };
+		for (auto row = std::max(from, 0); row <= to && static_cast<std::size_t>(row) < view.File->Rows.size(); ++row) {
+			if (const auto line = view.File->Rows[static_cast<std::size_t>(row)].RightLine) {
+				first = first == 0U ? *line : first;
+				last  = *line;
+			}
+		}
+		if (first == 0U) {
+			return std::nullopt;
+		}
+		return local_draft_lines{ .Path = view.File->Path, .First = first, .Last = last };
+	}
+
+	void local_draft_view::reveal(const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast)
+	{
+		const auto* latest = Projection.Draft ? core::latest_candidate(*Projection.Draft) : nullptr;
+		if (latest == nullptr) {
+			return;
+		}
+		PendingReveal = local_draft_lines{ .Path = aPath, .First = aFirst, .Last = aLast };
+		Areas->setCurrentIndex(0);
+		if (Projection.Shown != latest->Ordinal && Dispatch.ShowCandidate) {
+			Dispatch.ShowCandidate(latest->Ordinal);
+		}
+		if ((!Projection.File || Projection.File->Path != aPath) && Dispatch.OpenFile) {
+			Dispatch.OpenFile(aPath);
+		}
+		apply_reveal();
+	}
+
+	void local_draft_view::apply_reveal()
+	{
+		if (!PendingReveal || !Projection.File || Projection.File->Path != PendingReveal->Path || Projection.File->Status != application::review_material_status::available) {
+			return;
+		}
+		const auto& rows  = Projection.File->Rows;
+		auto        first = -1;
+		auto        last  = -1;
+		for (std::size_t row = 0U; row < rows.size(); ++row) {
+			if (rows[row].RightLine && *rows[row].RightLine >= PendingReveal->First && *rows[row].RightLine <= PendingReveal->Last) {
+				first = first < 0 ? static_cast<int>(row) : first;
+				last  = static_cast<int>(row);
+			}
+		}
+		PendingReveal.reset();
+		if (first < 0) {
+			return;
+		}
+		auto cursor = QTextCursor{ Diff->document()->findBlockByNumber(first) };
+		cursor.setPosition(Diff->document()->findBlockByNumber(last).position() + Diff->document()->findBlockByNumber(last).length() - 1, QTextCursor::KeepAnchor);
+		Diff->setTextCursor(cursor);
+		Diff->centerCursor();
+	}
+
 	void local_draft_view::set_code_font(const QFont& aFont)
 	{
 		Diff->setFont(aFont);
@@ -427,12 +519,15 @@ namespace bpr::qt {
 			Areas->setCurrentIndex(0);
 		}
 		Evidence->present(aProjection);
+		DescriptionArea->present(aProjection);
+		TourArea->present(aProjection);
 		present_header();
 		present_recovery();
 		present_changes();
 		present_working();
 		present_notes();
 		present_diff();
+		apply_reveal();
 		Presenting = false;
 	}
 
@@ -735,5 +830,15 @@ namespace bpr::qt {
 	auto local_draft_view::evidence() const noexcept -> local_draft_evidence_area*
 	{
 		return Evidence;
+	}
+
+	auto local_draft_view::description() const noexcept -> local_draft_description_area*
+	{
+		return DescriptionArea;
+	}
+
+	auto local_draft_view::tour() const noexcept -> local_draft_tour_area*
+	{
+		return TourArea;
 	}
 }

@@ -55,6 +55,21 @@ namespace bpr::app {
 		using link_opener = std::function<bool(std::string_view)>;
 		void set_link_opener(link_opener aOpener);
 		void set_code_font(const QFont& aFont);
+		/// \brief RFC-BPR-0110. The agent a question goes to, as the window
+		/// has it chosen, with the local-authoring prompts' text and versions.
+		struct agent_choice
+		{
+			std::string   Identity;
+			std::string   Name;
+			std::uint64_t Profile = 0;
+			std::string   Description;
+			std::string   DescriptionVersion;
+			std::string   Discussion;
+			std::string   DiscussionVersion;
+		};
+		using agent_chooser = std::function<std::optional<agent_choice>()>;
+		/// \brief Composes the agent runs; a null runner leaves authoring by hand only.
+		void set_agent(application::local_draft_agent_runner aRunner, application::effect_executor* aLane, agent_chooser aChooser);
 		/// \brief Shows a draft another interface opened (`bpr draft open`).
 		void               show_draft(const core::local_draft_id& aId);
 		[[nodiscard]] auto host() noexcept -> application::local_draft_workbench&;
@@ -71,6 +86,7 @@ namespace bpr::app {
 		folder_chooser                                      Chooser;
 		folder_chooser                                      EvidenceChooser;
 		link_opener                                         LinkOpener;
+		agent_chooser                                       AgentChooser;
 		/// The page comes forward only when the author asked for it.
 		bool BringForward = false;
 		bool Closing      = false;

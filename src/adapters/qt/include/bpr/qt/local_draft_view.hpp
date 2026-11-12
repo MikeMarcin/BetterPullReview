@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_LOCAL_DRAFT_VIEW_HPP
 
 #include "bpr/application/local_draft_workbench.hpp"
+#include "bpr/qt/local_draft_preparation_area.hpp"
 
 #include <QWidget>
 
@@ -42,9 +43,8 @@ namespace bpr::qt {
 	/// \brief A local PR draft's page (RFC-BPR-0108, [[BPR-2021]]): the
 	/// draft's title, its source and target identity, the Changes of the
 	/// shown candidate with the exact diff, working edits to include, and
-	/// notes; and Evidence (RFC-BPR-0109). Description and Tour come with
-	/// later RFCs and are not shown. Each draft opens on Changes with no chat
-	/// (X23).
+	/// notes; Evidence (RFC-BPR-0109); and Description and Tour
+	/// (RFC-BPR-0110). Each draft opens on Changes with no chat (X23).
 	/// \details It decides nothing and performs no effect: gestures leave
 	/// through `local_draft_dispatch`. Secondary identity (exact commits, the
 	/// remote chain, qualifications) is in tooltips, not on the page.
@@ -76,9 +76,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto use_target_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto rebind_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto projection() const noexcept -> const application::local_draft_workbench_projection&;
-		/// \brief Changes and Evidence.
+		/// \brief Changes, Evidence, Description and Tour.
 		[[nodiscard]] auto areas() const noexcept -> QTabBar*;
 		[[nodiscard]] auto evidence() const noexcept -> local_draft_evidence_area*;
+		[[nodiscard]] auto description() const noexcept -> local_draft_description_area*;
+		[[nodiscard]] auto tour() const noexcept -> local_draft_tour_area*;
+		/// \brief RFC-BPR-0110. The Description and Tour areas' gestures.
+		void set_preparation_dispatch(local_draft_preparation_dispatch aDispatch);
+		/// \brief The new-side lines selected in Changes, when they are the latest candidate's.
+		[[nodiscard]] auto selected_lines() const -> std::optional<local_draft_lines>;
+		/// \brief Arrives at lines: Changes, that file, those lines selected.
+		void reveal(const std::string& aPath, std::uint32_t aFirst, std::uint32_t aLast);
 		/// \brief Replaces the discard question, for a course that cannot answer one.
 		void set_discard_question(std::function<bool()> aQuestion);
 
@@ -90,6 +98,7 @@ namespace bpr::qt {
 		void present_diff();
 		void present_recovery();
 		void ask_discard();
+		void apply_reveal();
 
 		local_draft_dispatch                          Dispatch;
 		application::local_draft_workbench_projection Projection;
@@ -118,6 +127,12 @@ namespace bpr::qt {
 		QTabBar*                   Areas            = nullptr;
 		QStackedWidget*            AreaStack        = nullptr;
 		local_draft_evidence_area* Evidence         = nullptr;
+		local_draft_description_area*    DescriptionArea = nullptr;
+		local_draft_tour_area*           TourArea        = nullptr;
+		local_draft_preparation_dispatch PreparationDispatch;
+		local_draft_page_links           Links;
+		/// Lines to select once their file is shown.
+		std::optional<local_draft_lines> PendingReveal;
 		/// The draft last presented; another draft opens on Changes.
 		std::string PresentedDraft;
 	};

@@ -2173,6 +2173,11 @@ namespace bpr::qt {
 		reveal_focus(RepairPreview);
 	}
 	auto review_tour_editor::description_publication() const -> bool { return DescriptionEdit->isChecked(); }
+	void review_tour_editor::set_description_publication_default(const bool aOn)
+	{
+		const auto blocker = QSignalBlocker{ DescriptionEdit };
+		DescriptionEdit->setChecked(aOn);
+	}
 	void review_tour_editor::present_publication(const application::tour_publication_presentation& aProjection)
 	{
 		if (ShownRepairs != aProjection.Repairs) {

@@ -109,6 +109,37 @@ namespace bpr::app {
 				},
 			.CloseArtifact = [this] { Host->close_artifact(); },
 		});
+		// RFC-BPR-0110: the Description and Tour areas. Nothing here publishes.
+		View->set_preparation_dispatch({
+			.SaveDescription = [this](const std::string& aTitle, const std::string& aBody) { Host->save_description(aTitle, aBody); },
+			.SaveBrief       = [this](const std::string& aProblem, const std::string& aSolution) { Host->save_brief(aProblem, aSolution); },
+			.Transfer        = [this](const std::string& aPassage) { Host->transfer_to_description(aPassage); },
+			.AddStop = [this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const std::string& aTitle,
+							  const std::string& aText) { Host->add_stop(aPath, aFirst, aLast, aTitle, aText); },
+			.SaveStop = [this](const std::uint64_t aStop, const std::string& aTitle, const std::string& aText, const std::string& aPath, const std::uint32_t aFirst,
+							   const std::uint32_t aLast) { Host->save_stop(aStop, aTitle, aText, aPath, aFirst, aLast); },
+			.AcceptStop     = [this](const std::uint64_t aStop) { Host->accept_stop(aStop); },
+			.RemoveStop     = [this](const std::uint64_t aStop) { Host->remove_stop(aStop); },
+			.MoveStop       = [this](const std::uint64_t aStop, const std::size_t aIndex) { Host->move_stop(aStop, aIndex); },
+			.Cite           = [this](const std::uint64_t aStop, const std::uint64_t aRecord, const bool aCited) { Host->cite(aStop, aRecord, aCited); },
+			.DecideProposal = [this](const std::uint64_t aProposal, const bool aAccept) { Host->decide_proposal(aProposal, aAccept); },
+			.Ask =
+				[this](application::local_draft_question aQuestion) {
+					const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
+					if (!choice) {
+						return;
+					}
+					const auto describing   = aQuestion.Subject == core::local_subject::title || aQuestion.Subject == core::local_subject::description;
+					aQuestion.Agent        = choice->Identity;
+					aQuestion.AgentName    = choice->Name;
+					aQuestion.Profile      = choice->Profile;
+					aQuestion.Instructions = describing ? choice->Description : choice->Discussion;
+					aQuestion.Version      = describing ? choice->DescriptionVersion : choice->DiscussionVersion;
+					Host->ask(std::move(aQuestion));
+				},
+			.StopAsking = [this] { Host->stop_asking(); },
+			.NewSession = [this](const std::uint64_t aConversation) { Host->new_session(aConversation); },
+		});
 		Window.set_local_draft_entry_dispatch(
 			[this] {
 				const auto chosen = Chooser ? Chooser() : QFileDialog::getExistingDirectory(&Window, QStringLiteral("Prepare Pull Request"));
@@ -188,6 +219,12 @@ namespace bpr::app {
 		View->set_code_font(aFont);
 	}
 
+	void local_draft_desktop::set_agent(application::local_draft_agent_runner aRunner, application::effect_executor* const aLane, agent_chooser aChooser)
+	{
+		AgentChooser = std::move(aChooser);
+		Host->set_agent(std::move(aRunner), aLane);
+	}
+
 	auto local_draft_desktop::host() noexcept -> application::local_draft_workbench&
 	{
 		return *Host;
@@ -207,6 +244,7 @@ namespace bpr::app {
 		if (View) {
 			View->set_dispatch({ });
 			View->evidence()->set_dispatch({ });
+			View->set_preparation_dispatch({ });
 			Window.set_local_draft_entry_dispatch({ }, { });
 		}
 		if (Host) {
