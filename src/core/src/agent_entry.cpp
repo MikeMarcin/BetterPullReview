@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <initializer_list>
 #include <iterator>
 #include <utility>
 
@@ -294,6 +295,87 @@ namespace bpr::core {
 	{
 		const auto found = std::ranges::find(aEntries, std::optional{ aPreset }, &agent_entry::Preset);
 		return found == aEntries.end() ? nullptr : &*found;
+	}
+
+	namespace {
+		[[nodiscard]] auto found_of(const std::span<const agent_detection> aFound, const setup_agent aAgent) noexcept -> const agent_detection*
+		{
+			const auto found = std::ranges::find_if(aFound, [aAgent](const agent_detection& aDetection) {
+				return aDetection.Agent == aAgent && !aDetection.Path.empty() && aDetection.Path.size() <= maximum_agent_text_bytes;
+			});
+			return found == aFound.end() ? nullptr : &*found;
+		}
+
+		[[nodiscard]] auto verdict_for(const agent_setup_choice_facts& aFacts, const agent_protocol aProtocol) -> agent_invocation_verdict
+		{
+			const auto profile = std::ranges::find(aFacts.Profiles, aProtocol, &agent_profile::Protocol);
+			if (profile == aFacts.Profiles.end()) {
+				return { .Refusal = agent_invocation_refusal::profile_unknown };
+			}
+			return decide_agent_invocation(*profile, aFacts.Policy);
+		}
+
+		[[nodiscard]] auto entry_choice(const agent_setup_choice_facts& aFacts, const agent_entry& aEntry) -> agent_setup_choice
+		{
+			auto choice = agent_setup_choice{ .Entry = aEntry.Id, .Agent = setup_agent_of(aEntry.Protocol), .Name = aEntry.Name };
+			if (!aEntry.Program.empty()) {
+				choice.Path = aEntry.Program;
+				choice.How  = agent_found_how::saved_program;
+			} else if (const auto* const located = found_of(aFacts.Located, choice.Agent); located != nullptr) {
+				choice.Path = located->Path;
+				choice.How  = located->How;
+			}
+			choice.Verdict = verdict_for(aFacts, aEntry.Protocol);
+			return choice;
+		}
+
+		/// The card that is the setup's choice: as `preferred_entry` picks it.
+		void mark_chosen(std::vector<agent_setup_choice>& aChoices, const agent_setup_choice_facts& aFacts)
+		{
+			if (!aFacts.Chosen) {
+				return;
+			}
+			const auto kind      = *aFacts.Chosen;
+			const auto preferred = std::ranges::find_if(aChoices, [&aFacts, kind](const agent_setup_choice& aChoice) {
+				return aFacts.Preferred != 0U && aChoice.Entry == aFacts.Preferred && aChoice.Agent == kind;
+			});
+			if (preferred != aChoices.end()) {
+				preferred->Chosen = true;
+				return;
+			}
+			const auto* const preset = find_preset_entry(aFacts.Entries, kind);
+			const auto        target = preset != nullptr ? preset->Id : 0U;
+			const auto        chosen = std::ranges::find_if(aChoices, [kind, target](const agent_setup_choice& aChoice) { return aChoice.Entry == target && aChoice.Agent == kind; });
+			if (chosen != aChoices.end()) {
+				chosen->Chosen = true;
+			}
+		}
+	} // namespace
+
+	auto agent_setup_choices(const agent_setup_choice_facts& aFacts) -> std::vector<agent_setup_choice>
+	{
+		auto choices = std::vector<agent_setup_choice>{ };
+		std::ranges::transform(aFacts.Entries, std::back_inserter(choices), [&aFacts](const agent_entry& aEntry) { return entry_choice(aFacts, aEntry); });
+		// Popular agents found and not added: picking one adds it.
+		for (const auto agent : { setup_agent::claude_code, setup_agent::codex }) {
+			const auto* const located = found_of(aFacts.Located, agent);
+			if (located == nullptr || find_preset_entry(aFacts.Entries, agent) != nullptr) {
+				continue;
+			}
+			const auto protocol = preset_agent_entry(agent, aFacts.Codex, { }).Protocol;
+			choices.push_back({ .Agent = agent, .Name = std::string{ plain_name(agent) }, .Path = located->Path, .How = located->How, .Verdict = verdict_for(aFacts, protocol) });
+		}
+		// A saved harness program no entry runs yet.
+		if (const auto* const harness = found_of(aFacts.Found, setup_agent::plain_text_harness); harness != nullptr && harness->How == agent_found_how::saved_program) {
+			const auto added = std::ranges::any_of(aFacts.Entries, [harness](const agent_entry& aEntry) {
+				return aEntry.Protocol == agent_protocol::external_terminal && aEntry.Program == harness->Path;
+			});
+			if (!added) {
+				choices.push_back({ .Agent = setup_agent::plain_text_harness, .Name = std::string{ plain_name(setup_agent::plain_text_harness) }, .Path = harness->Path, .How = harness->How, .Verdict = verdict_for(aFacts, agent_protocol::external_terminal) });
+			}
+		}
+		mark_chosen(choices, aFacts);
+		return choices;
 	}
 
 	auto migrate_agent_entries(const legacy_agent_settings& aSettings) -> std::vector<agent_entry>

@@ -544,7 +544,7 @@ namespace bpr::qt {
 			Active = false;
 			Ready  = true;
 		}
-		if (Editing && *Editing == core::setup_step::agent && Picked && Setup.State.Chosen == Picked) {
+		if (Editing && *Editing == core::setup_step::agent && Picked && Setup.State.Chosen == Picked && (PickedEntry == 0U || Setup.Preferences.PreferredAgent == PickedEntry)) {
 			Editing.reset();
 		}
 		if (Editing && *Editing == core::setup_step::repository && Setup.State.RepositoryChosen && Clones.Linked) {
@@ -562,6 +562,7 @@ namespace bpr::qt {
 		Ready   = false;
 		Editing = aStep == core::setup_step::ready ? std::optional<core::setup_step>{ } : std::optional{ aStep };
 		Picked.reset();
+		PickedEntry = 0U;
 		rebuild();
 		if (Changed) {
 			Changed();
@@ -703,6 +704,7 @@ namespace bpr::qt {
 				connect(change, &QPushButton::clicked, this, [this, target] {
 					Editing = target;
 					Picked.reset();
+					PickedEntry = 0U;
 					PickedClone.reset();
 					if (target == core::setup_step::repository && Intents.FindClones) {
 						Intents.FindClones();
@@ -726,6 +728,7 @@ namespace bpr::qt {
 						}
 					}
 					Picked.reset();
+					PickedEntry = 0U;
 					rebuild();
 				};
 				headerRow->setToolTip(target == current ? tr("Continue setting up") : tr("Change this step"));
@@ -770,8 +773,10 @@ namespace bpr::qt {
 			aBody.addWidget(muted(tr("Looking for agents on this computer…"), parent));
 			return;
 		}
-		const auto& rows = Setup.State.Rows;
-		if (rows.empty()) {
+		// Owner report: the cards are the agent list as it is now, so an agent
+		// added, edited or removed in Settings shows here at once.
+		const auto& choices = Setup.Choices;
+		if (choices.empty()) {
 			auto* const none = words(tr("No agent found on this computer"), parent);
 			none->setObjectName(QStringLiteral("agentSetupNoneFound"));
 			auto bold = none->font();
@@ -808,57 +813,69 @@ namespace bpr::qt {
 			aBody.addWidget(chosen, 0, Qt::AlignLeft);
 			return;
 		}
-		const auto chosen = Picked ? Picked : Setup.State.Chosen;
-		for (const auto& row : rows) {
-			auto* const card = new choice_card{ parent };
+		for (const auto& choice : choices) {
+			const auto  available = choice.Verdict.Permitted && choice.How.has_value();
+			const auto  name      = text_of(choice.Name);
+			auto* const card      = new choice_card{ parent };
 			card->setObjectName(QStringLiteral("agentSetupAgentRow"));
-			card->Chosen     = chosen == row.Agent;
-			card->Disabled   = !row.Verdict.Permitted;
+			card->Chosen     = Picked ? *Picked == choice.Agent && PickedEntry == choice.Entry : choice.Chosen;
+			card->Disabled   = !available;
 			auto* const grid = new QHBoxLayout{ card };
 			grid->setContentsMargins(12, 10, 12, 10);
 			grid->setSpacing(10);
 			auto* const radio = new QRadioButton{ card };
 			radio->setObjectName(QStringLiteral("agentSetupAgentChoice"));
 			radio->setChecked(card->Chosen);
-			radio->setEnabled(row.Verdict.Permitted);
-			radio->setAccessibleName(name_for(row.Agent));
+			radio->setEnabled(available);
+			radio->setAccessibleName(name);
 			grid->addWidget(radio, 0, Qt::AlignTop);
 			auto* const lines = new QVBoxLayout{ };
 			lines->setSpacing(2);
-			auto* const name = words(name_for(row.Agent), card);
-			auto        bold = name->font();
+			auto* const title = words(name, card);
+			auto        bold  = title->font();
 			bold.setWeight(QFont::DemiBold);
-			name->setFont(bold);
-			lines->addWidget(name);
-			auto* const path = words(shown_path(row.Path), card);
-			path->setFont(code_font(font()));
-			path->setToolTip(text_of(row.Path));
-			lines->addWidget(path);
-			auto how = QString{ };
-			switch (row.How) {
-			case core::agent_found_how::on_path:       how = tr("Found on PATH."); break;
-			case core::agent_found_how::usual_folder:  how = tr("Found in a usual install folder."); break;
-			case core::agent_found_how::saved_program: how = row.Agent == core::setup_agent::claude_code ? tr("Your process wrapper.") : tr("The program you chose."); break;
+			title->setFont(bold);
+			lines->addWidget(title);
+			if (!choice.Path.empty()) {
+				auto* const path = words(shown_path(choice.Path), card);
+				path->setFont(code_font(font()));
+				path->setToolTip(text_of(choice.Path));
+				lines->addWidget(path);
 			}
-			if (!row.Verdict.Permitted) {
+			auto how = tr("Not found on this computer.");
+			if (choice.How) {
+				switch (*choice.How) {
+				case core::agent_found_how::on_path:       how = tr("Found on PATH."); break;
+				case core::agent_found_how::usual_folder:  how = tr("Found in a usual install folder."); break;
+				case core::agent_found_how::saved_program: how = choice.Agent == core::setup_agent::claude_code ? tr("Your process wrapper.") : tr("The program you chose."); break;
+				}
+			}
+			if (!choice.Verdict.Permitted) {
 				how = tr("Not allowed for this pull request's host.");
 			}
 			lines->addWidget(muted(how, card));
 			grid->addLayout(lines, 1);
-			const auto agent = row.Agent;
-			card->Activate   = [this, agent] {
-				Picked = agent;
-				if (Setup.State.Chosen == agent) {
+			const auto agent = choice.Agent;
+			const auto entry = choice.Entry;
+			const auto taken = choice.Chosen;
+			card->Activate   = [this, agent, entry, taken] {
+				Picked      = agent;
+				PickedEntry = entry;
+				if (taken) {
 					// The agent already chosen: keep it and go on.
 					Editing.reset();
 					rebuild();
 					return;
 				}
-				if (Intents.Choose) {
+				if (entry != 0U) {
+					if (Intents.ChooseEntry) {
+						Intents.ChooseEntry(entry);
+					}
+				} else if (Intents.Choose) {
 					Intents.Choose(agent);
 				}
 			};
-			card->setAccessibleName(name_for(row.Agent));
+			card->setAccessibleName(name);
 			card->settle();
 			aBody.addWidget(card);
 		}
@@ -870,6 +887,7 @@ namespace bpr::qt {
 			connect(keep, &QPushButton::clicked, this, [this] {
 				Editing.reset();
 				Picked.reset();
+				PickedEntry = 0U;
 				rebuild();
 			});
 			aBody.addWidget(keep, 0, Qt::AlignLeft);
