@@ -8,6 +8,7 @@
 #include <expected>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -17,6 +18,8 @@ namespace bpr::adapters::git {
 #if defined(BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION)
 	/// Test executable supplies checkpoints; absent from production builds.
 	void installed_workspace_checkpoint(std::string_view aName);
+	/// Bounded migration I/O fault controls supplied only by that executable.
+	[[nodiscard]] auto installed_workspace_migration_io(std::string_view aOperation, std::size_t aRequested) -> std::optional<std::size_t>;
 #endif
 
 	enum class workspace_ownership_failure { unavailable,

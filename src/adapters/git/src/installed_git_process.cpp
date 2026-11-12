@@ -3263,6 +3263,9 @@ namespace bpr::adapters::git {
 		using ownership_identity                              = std::array<std::uint64_t, 4U>;
 		constexpr std::size_t maximum_workspace_records       = 64U;
 		constexpr std::size_t maximum_workspace_journal_bytes = 64U * 1024U;
+		// [[BPR-2125]]. Deliberately not JSON. Durable before any migration
+		// body write; removed only after the complete replacement is durable.
+		constexpr char workspace_migration_marker = '!';
 
 	#if defined(Q_OS_WIN)
 		// [[BPR-0622]]. The Windows journal primitives. Privacy is the exact
@@ -3541,37 +3544,103 @@ namespace bpr::adapters::git {
 			return ::ftruncate(aHandle, static_cast<off_t>(aSize)) == 0 && ::fsync(aHandle) == 0;
 	#endif
 		}
-		/// [[BPR-2118]]. Replaces the journal's whole content through its own
-		/// descriptor, so the record file keeps the inode its lines name. The
-		/// new bytes are written from the start, then the file is cut to their
-		/// length and made durable; it is never emptied first.
+		/// [[BPR-2125]]. Keep the same inode but never expose a replacement
+		/// prefix as cleanup authority. The invalid first byte is durable
+		/// before the body is touched, and stays invalid through its truncate
+		/// and flush. Publishing the opening JSON byte is the last write.
 		[[nodiscard]] auto journal_rewrite(const journal_native aHandle, const std::string_view aBytes) -> bool
 		{
-			if (aBytes.empty() || aBytes.size() > maximum_workspace_journal_bytes) {
+			if (aBytes.empty() || aBytes.front() != '{' || aBytes.size() > maximum_workspace_journal_bytes) {
 				return false;
 			}
-			std::size_t written = 0U;
-			while (written < aBytes.size()) {
-	#if defined(Q_OS_WIN)
-				auto overlapped       = OVERLAPPED{ };
-				overlapped.Offset     = static_cast<DWORD>(written & 0xFFFF'FFFFU);
-				overlapped.OffsetHigh = static_cast<DWORD>(static_cast<std::uint64_t>(written) >> 32U);
-				auto count            = DWORD{ 0U };
-				if (WriteFile(aHandle, aBytes.data() + written, static_cast<DWORD>(aBytes.size() - written), &count, &overlapped) == FALSE || count == 0U) {
-					return false;
-				}
+			const auto admitted = [](const std::string_view aOperation, const std::size_t aRequested) -> std::optional<std::size_t> {
+	#if defined(BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION)
+				return installed_workspace_migration_io(aOperation, aRequested);
 	#else
-				const auto count = ::pwrite(aHandle, aBytes.data() + written, aBytes.size() - written, static_cast<off_t>(written));
-				if (count < 0 && errno == EINTR) {
-					continue;
+				static_cast<void>(aOperation);
+				return aRequested;
+	#endif
+			};
+			const auto write = [&](const std::string_view aOperation, const std::size_t aStart, const std::string_view aPart) {
+				std::size_t written = 0U;
+				while (written < aPart.size()) {
+					const auto allowed = admitted(aOperation, aPart.size() - written);
+					if (!allowed || *allowed == 0U || *allowed > aPart.size() - written) {
+						return false;
+					}
+					const auto offset = aStart + written;
+	#if defined(Q_OS_WIN)
+					auto overlapped       = OVERLAPPED{ };
+					overlapped.Offset     = static_cast<DWORD>(offset & 0xFFFF'FFFFU);
+					overlapped.OffsetHigh = static_cast<DWORD>(static_cast<std::uint64_t>(offset) >> 32U);
+					auto count            = DWORD{ 0U };
+					if (WriteFile(aHandle, aPart.data() + written, static_cast<DWORD>(*allowed), &count, &overlapped) == FALSE || count == 0U) {
+						return false;
+					}
+	#else
+					const auto count = ::pwrite(aHandle, aPart.data() + written, *allowed, static_cast<off_t>(offset));
+					if (count < 0 && errno == EINTR) {
+						continue;
+					}
+					if (count <= 0) {
+						return false;
+					}
+	#endif
+					written += static_cast<std::size_t>(count);
 				}
-				if (count <= 0) {
+				return true;
+			};
+			const auto flush = [&](const std::string_view aOperation) {
+				if (!admitted(aOperation, 0U)) {
 					return false;
 				}
+	#if defined(Q_OS_WIN)
+				return FlushFileBuffers(aHandle) != FALSE;
+	#else
+				return ::fsync(aHandle) == 0;
 	#endif
-				written += static_cast<std::size_t>(count);
+			};
+			workspace_checkpoint("migration-before-marker-write");
+			if (!write("marker-write", 0U, std::string_view{ &workspace_migration_marker, 1U })) {
+				return false;
 			}
-			return journal_truncate(aHandle, aBytes.size());
+			workspace_checkpoint("migration-after-marker-write");
+			if (!flush("marker-flush")) {
+				return false;
+			}
+			workspace_checkpoint("migration-after-marker-flush");
+			if (!write("body-write", 1U, aBytes.substr(1U))) {
+				return false;
+			}
+			workspace_checkpoint("migration-after-body-write");
+			if (!admitted("truncate", 0U)) {
+				return false;
+			}
+	#if defined(Q_OS_WIN)
+			auto position     = LARGE_INTEGER{ };
+			position.QuadPart = static_cast<LONGLONG>(aBytes.size());
+			if (SetFilePointerEx(aHandle, position, nullptr, FILE_BEGIN) == FALSE || SetEndOfFile(aHandle) == FALSE) {
+				return false;
+			}
+	#else
+			if (::ftruncate(aHandle, static_cast<off_t>(aBytes.size())) != 0) {
+				return false;
+			}
+	#endif
+			workspace_checkpoint("migration-after-truncate");
+			if (!flush("body-flush")) {
+				return false;
+			}
+			workspace_checkpoint("migration-after-body-flush");
+			if (!write("commit-write", 0U, aBytes.substr(0U, 1U))) {
+				return false;
+			}
+			workspace_checkpoint("migration-after-commit-write");
+			if (!flush("commit-flush")) {
+				return false;
+			}
+			workspace_checkpoint("migration-after-commit-flush");
+			return true;
 		}
 		/// Appends within the journal bound and makes it durable. A partial or
 		/// unflushed write poisons the owner.
@@ -4221,6 +4290,9 @@ namespace bpr::adapters::git {
 			std::string bytes(static_cast<std::size_t>(status->Size), '\0');
 			if (!journal_read(aFd, bytes)) {
 				return std::unexpected{ workspace_record_problem{ } };
+			}
+			if (bytes.front() == workspace_migration_marker) {
+				return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_cleanup_failed } };
 			}
 			auto       end   = std::size_t{ 0U };
 			auto       lines = parse_workspace_lines(bytes, aToken, end);
