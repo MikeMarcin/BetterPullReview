@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2125"
+  ],
+  "reserve_for": "bpr2118-interrupted-migration",
+  "purpose": "Prevent retained workspace deletion after interrupted v1-to-v2 ownership journal migration; native local counterexample confirmed",
+  "created": "2026-11-12T03:30:33.551961+00:00",
+  "base": "4fcd5d9e87ecceef160793b4811de39390187706"
+}
