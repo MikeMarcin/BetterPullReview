@@ -29,3 +29,12 @@ implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
 
 `PUBLISH-01` was answered on 2026-11-10: the author pushes and BPR creates the pull request from the verified remote head. See the [decision record](../../rfcs/assets/v0-5-0-prerelease-targets-v1/local-drafts/DECISIONS.md#resolved-product-choices).
+
+## Implementation record (not claimed)
+
+Engineered on the lane while its dependencies wait (the owner rejected the
+RFC-BPR-0109 and 0110 looks on 2026-11-12); this card was not readied or
+claimed. Commits `387f7298d` (core), `4675974cf` and `62f740fc6` (gh pull
+request catalog), `6bc5217f5` and `433068905` (application), `36dcd7e21` (Qt
+area, composition), `75c035a49` (real-worktree course). Evidence, including
+the live BPR-Test drafts #178 and #179: [ledger](../../verification/RFC-BPR-0111.md).

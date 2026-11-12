@@ -3572,8 +3572,18 @@ function(bpr_verify_app_source_tree app_source_root)
 	# description default from Home's marks. The attended look gains
 	# --attended-local-draft-tour with a scripted agent. No grant, account,
 	# provider, admission, mutation or publication change; no network grant.
+	# [[BPR-2029]], [[BPR-2030]], RFC-BPR-0111 (reviewed 2026-11-12): a
+	# publication change. window_construction gives local_draft_desktop the
+	# accepted account's pull request catalog (accepted_pull_request_account:
+	# repository, branch and pull request reads and one POST pulls; a gh
+	# connection carries it, Git-data writes refused). In a tests-enabled
+	# build it is composed only with DesignatedLivePublication and no fixture,
+	# wrapped by designated_pull_request_account so every repository but
+	# MikeMarcin/BPR-Test is refused before a request. local_draft_desktop runs
+	# it on its own worker lane and copies the named push to the clipboard.
+	# No push, Git credential, review mutation or admission change.
 	set(bpr_expected_production_app_manifest_digest
-        "4aee7bd57753093e99dded88f9e27e4e3d21b88a7ffc637061e730eea926bed5"
+        "23c45383e6f3dc7ede39760d674549a7a18d4c50b19f80b807c6f0d967ca56b5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

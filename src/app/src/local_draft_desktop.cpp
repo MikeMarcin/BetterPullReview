@@ -11,8 +11,8 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "system_browser_opener.hpp"
 
-#include <QDateTime>
 #include <QClipboard>
+#include <QDateTime>
 #include <QFileDialog>
 #include <QGuiApplication>
 #include <QRandomGenerator>

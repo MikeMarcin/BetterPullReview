@@ -185,3 +185,28 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
 and [closeout](../issues/10-backlog/BPR-2031-close-rfc-0111.md) form the fifth [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
 The [decision record](assets/v0-5-0-prerelease-targets-v1/local-drafts/DECISIONS.md#resolved-product-choices) holds the owner's
 answer on native branch behavior.
+
+## Implementation record
+
+Milestone `publish-prepared-draft`, lane `claude/v0-5-0-prerelease-targets-52265d`
+(2026-11-12). Built under PUBLISH-01 as settled: the author pushes, BPR names
+the push and creates the draft pull request from the verified hosted head.
+The reopening above is reconciled by the commit-and-push milestone.
+
+- Core `local_draft_publication`: the hosted-branch decision, the named push,
+  the plan and its digest, the journal and follow-ups, stored in the draft's
+  record.
+- The pull request slice of the GitHub publication catalog
+  (`acquire_pull_request_session`): reads and `POST pulls`, carried by the
+  native connection and by `gh` (`gh_cli_transport::perform_publication`,
+  under the lease's scoped operation); Git-data writes are refused on `gh`.
+- Application steps check, create, recover and associate, on the draft
+  desktop's own lane; each journal step re-reads and re-applies on a competing
+  write.
+- A minimal Pull request area on the draft page from existing controls.
+
+Not built: the tour follow-up (no path carries the local tour to the pull
+request's tour store, so `map_local_publication` is still unused by any
+publication). Fork heads and GHES are not supported. Results and live
+evidence: [ledger](../verification/RFC-BPR-0111.md).
+

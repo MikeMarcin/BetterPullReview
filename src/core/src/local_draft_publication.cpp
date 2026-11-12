@@ -17,30 +17,30 @@
 namespace bpr::core::detail {
 	struct wire_publication_plan
 	{
-		std::string                  Draft;
-		std::uint64_t                Candidate = 0;
-		std::string                  Head;
-		std::string                  Base;
-		std::string                  TargetTip;
-		std::optional<std::string>   ObservedTargetTip;
-		std::string                  Host;
-		std::uint64_t                Account = 0;
-		std::string                  Login;
-		std::string                  Owner;
-		std::string                  Repository;
-		std::string                  BaseBranch;
-		std::string                  HeadBranch;
-		std::string                  Title;
-		std::string                  Body;
-		bool                         Draft_ = true;
-		std::vector<std::uint64_t>   Evidence;
-		std::vector<std::uint64_t>   Stale;
-		std::uint64_t                PrivateRecords       = 0;
-		std::uint64_t                PrivateNotes         = 0;
-		std::uint64_t                PrivateConversations = 0;
-		bool                         TourFollowUp         = false;
-		std::vector<std::uint64_t>   Unaccepted;
-		std::uint64_t                Stops = 0;
+		std::string                Draft;
+		std::uint64_t              Candidate = 0;
+		std::string                Head;
+		std::string                Base;
+		std::string                TargetTip;
+		std::optional<std::string> ObservedTargetTip;
+		std::string                Host;
+		std::uint64_t              Account = 0;
+		std::string                Login;
+		std::string                Owner;
+		std::string                Repository;
+		std::string                BaseBranch;
+		std::string                HeadBranch;
+		std::string                Title;
+		std::string                Body;
+		bool                       PullDraft = true;
+		std::vector<std::uint64_t> Evidence;
+		std::vector<std::uint64_t> Stale;
+		std::uint64_t              PrivateRecords       = 0;
+		std::uint64_t              PrivateNotes         = 0;
+		std::uint64_t              PrivateConversations = 0;
+		bool                       TourFollowUp         = false;
+		std::vector<std::uint64_t> Unaccepted;
+		std::uint64_t              Stops = 0;
 	};
 	struct wire_publication_link
 	{
@@ -84,7 +84,7 @@ struct glz::meta<bpr::core::detail::wire_publication_plan>
 	static constexpr auto value = object("draft", &value_type::Draft, "candidate", &value_type::Candidate, "head", &value_type::Head, "base", &value_type::Base, "target_tip", &value_type::TargetTip,
 										 "observed_target_tip", &value_type::ObservedTargetTip, "host", &value_type::Host, "account", &value_type::Account, "login", &value_type::Login, "owner",
 										 &value_type::Owner, "repository", &value_type::Repository, "base_branch", &value_type::BaseBranch, "head_branch", &value_type::HeadBranch, "title",
-										 &value_type::Title, "body", &value_type::Body, "draft_pull_request", &value_type::Draft_, "evidence", &value_type::Evidence, "stale", &value_type::Stale,
+										 &value_type::Title, "body", &value_type::Body, "draft_pull_request", &value_type::PullDraft, "evidence", &value_type::Evidence, "stale", &value_type::Stale,
 										 "private_records", &value_type::PrivateRecords, "private_notes", &value_type::PrivateNotes, "private_conversations", &value_type::PrivateConversations,
 										 "tour_follow_up", &value_type::TourFollowUp, "unaccepted", &value_type::Unaccepted, "stops", &value_type::Stops);
 };
@@ -92,7 +92,7 @@ template <>
 struct glz::meta<bpr::core::detail::wire_publication_link>
 {
 	using value_type            = bpr::core::detail::wire_publication_link;
-	static constexpr auto value = object("number", &value_type::Number, "url", &value_type::Url, "node_id", &value_type::NodeId, "owner", &value_type::Owner, "repository", &value_type::Repository,
+	static constexpr auto value = object("number", &value_type::Number, "url", &value_type::Url, "node", &value_type::NodeId, "owner", &value_type::Owner, "repository", &value_type::Repository,
 										 "head_branch", &value_type::HeadBranch, "head", &value_type::Head, "base_branch", &value_type::BaseBranch, "author", &value_type::Author, "draft",
 										 &value_type::Draft, "drifted", &value_type::Drifted, "adopted", &value_type::Adopted);
 };
@@ -209,8 +209,8 @@ namespace bpr::core {
 		/// Associates the draft with the linked pull request and starts its follow-ups.
 		[[nodiscard]] auto link(local_draft aDraft, local_publication_link aLink) -> local_draft
 		{
-			auto& publication = *aDraft.Publication;
-			aLink             = settle_link(publication.Plan, std::move(aLink));
+			auto& publication  = *aDraft.Publication;
+			aLink              = settle_link(publication.Plan, std::move(aLink));
 			aDraft.Association = local_draft_association{
 				.Host = publication.Plan.Destination.Host, .Owner = aLink.Owner, .Name = aLink.Repository, .Number = aLink.Number, .HeadRef = aLink.HeadBranch
 			};
@@ -245,7 +245,7 @@ namespace bpr::core {
 				.HeadBranch           = aPlan.Destination.HeadBranch,
 				.Title                = aPlan.Title,
 				.Body                 = aPlan.Body,
-				.Draft_               = aPlan.Draft,
+				.PullDraft            = aPlan.Draft,
 				.Evidence             = aPlan.Evidence,
 				.Stale                = aPlan.Stale,
 				.PrivateRecords       = aPlan.PrivateRecords,
@@ -273,24 +273,24 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			return local_publication_plan{
-				.DraftId           = aWire.Draft,
-				.Candidate         = aWire.Candidate,
-				.Head              = *head,
-				.Base              = *base,
-				.TargetTip         = *tip,
-				.ObservedTargetTip = seen,
-				.Destination       = { .Host       = aWire.Host,
-									   .Account    = github_account_id{ aWire.Account },
-									   .Login      = aWire.Login,
-									   .Owner      = aWire.Owner,
-									   .Repository = aWire.Repository,
-									   .BaseBranch = aWire.BaseBranch,
-									   .HeadBranch = aWire.HeadBranch },
-				.Title             = aWire.Title,
-				.Body              = aWire.Body,
-				.Draft             = aWire.Draft_,
-				.Evidence          = aWire.Evidence,
-				.Stale             = aWire.Stale,
+				.DraftId              = aWire.Draft,
+				.Candidate            = aWire.Candidate,
+				.Head                 = *head,
+				.Base                 = *base,
+				.TargetTip            = *tip,
+				.ObservedTargetTip    = seen,
+				.Destination          = { .Host       = aWire.Host,
+										  .Account    = github_account_id{ aWire.Account },
+										  .Login      = aWire.Login,
+										  .Owner      = aWire.Owner,
+										  .Repository = aWire.Repository,
+										  .BaseBranch = aWire.BaseBranch,
+										  .HeadBranch = aWire.HeadBranch },
+				.Title                = aWire.Title,
+				.Body                 = aWire.Body,
+				.Draft                = aWire.PullDraft,
+				.Evidence             = aWire.Evidence,
+				.Stale                = aWire.Stale,
 				.PrivateRecords       = static_cast<std::size_t>(aWire.PrivateRecords),
 				.PrivateNotes         = static_cast<std::size_t>(aWire.PrivateNotes),
 				.PrivateConversations = static_cast<std::size_t>(aWire.PrivateConversations),
@@ -409,9 +409,9 @@ namespace bpr::core {
 	{
 		const auto& repository = aDraft.Target.Target.Repository;
 		auto        push       = named_push{
-					   .Directory  = aDraft.Worktree.Location,
-					   .Repository = "https://" + repository.Host + "/" + repository.Owner + "/" + repository.Name + ".git",
-					   .Command    = { },
+			.Directory  = aDraft.Worktree.Location,
+			.Repository = "https://" + repository.Host + "/" + repository.Owner + "/" + repository.Name + ".git",
+			.Command    = { },
 		};
 		push.Command = "git -C " + shell_word(push.Directory) + " push " + shell_word(push.Repository) + " " + hex(aCandidate.Head) + ":refs/heads/" + shell_word(aDraft.Branch);
 		return push;
@@ -449,25 +449,25 @@ namespace bpr::core {
 		}
 		const auto preview = compose_local_publication(aDraft);
 		auto       plan    = local_publication_plan{
-					   .DraftId           = aDraft.Id.Value,
-					   .Candidate         = candidate->Ordinal,
-					   .Head              = candidate->Head,
-					   .Base              = candidate->Base,
-					   .TargetTip         = candidate->TargetTip,
-					   .ObservedTargetTip = aObserved.TargetTip,
-					   .Destination       = { .Host       = aObserved.Host,
-											  .Account    = aObserved.Account,
-											  .Login      = aObserved.Login,
-											  .Owner      = target.Repository.Owner,
-											  .Repository = target.Repository.Name,
-											  .BaseBranch = target.Branch,
-											  .HeadBranch = aDraft.Branch },
-					   .Title             = preview.Title,
-					   .Body              = preview.Body,
-					   .Draft             = true,
-					   .TourFollowUp      = aTourFollowUp && !aDraft.Preparation.Tour.Stops.empty(),
-					   .Unaccepted        = preview.Unaccepted,
-					   .Stops             = aDraft.Preparation.Tour.Stops.size(),
+			.DraftId           = aDraft.Id.Value,
+			.Candidate         = candidate->Ordinal,
+			.Head              = candidate->Head,
+			.Base              = candidate->Base,
+			.TargetTip         = candidate->TargetTip,
+			.ObservedTargetTip = aObserved.TargetTip,
+			.Destination       = { .Host       = aObserved.Host,
+								   .Account    = aObserved.Account,
+								   .Login      = aObserved.Login,
+								   .Owner      = target.Repository.Owner,
+								   .Repository = target.Repository.Name,
+								   .BaseBranch = target.Branch,
+								   .HeadBranch = aDraft.Branch },
+			.Title             = preview.Title,
+			.Body              = preview.Body,
+			.Draft             = true,
+			.TourFollowUp      = aTourFollowUp && !aDraft.Preparation.Tour.Stops.empty(),
+			.Unaccepted        = preview.Unaccepted,
+			.Stops             = aDraft.Preparation.Tour.Stops.size(),
 		};
 		const auto chosen = selected_evidence(aDraft);
 		for (const auto& claim : chosen.Claims) {
@@ -484,9 +484,9 @@ namespace bpr::core {
 			plan.Evidence.push_back(question.Id);
 		}
 		std::ranges::sort(plan.Evidence);
-		const auto& evidence = aDraft.Evidence;
-		const auto  records  = evidence.Claims.size() + evidence.Checks.size() + evidence.Results.size() + evidence.Questions.size();
-		plan.PrivateRecords  = records - std::min(records, plan.Evidence.size() + chosen.Checks.size());
+		const auto& evidence      = aDraft.Evidence;
+		const auto  records       = evidence.Claims.size() + evidence.Checks.size() + evidence.Results.size() + evidence.Questions.size();
+		plan.PrivateRecords       = records - std::min(records, plan.Evidence.size() + chosen.Checks.size());
 		plan.PrivateNotes         = aDraft.Notes.size();
 		plan.PrivateConversations = aDraft.Preparation.Conversations.size();
 		if (!valid(plan)) {
@@ -645,9 +645,9 @@ namespace bpr::core {
 		if (!valid(aPlan) || aPlan.DraftId != aDraft.Id.Value) {
 			return std::unexpected{ local_publication_refusal::invalid };
 		}
-		auto draft      = advanced(aDraft, aNow);
-		auto next       = aDraft.Publication ? aDraft.Publication->Journal.NextGeneration : std::uint64_t{ 1U };
-		auto digest     = local_publication_digest(aPlan);
+		auto draft        = advanced(aDraft, aNow);
+		auto next         = aDraft.Publication ? aDraft.Publication->Journal.NextGeneration : std::uint64_t{ 1U };
+		auto digest       = local_publication_digest(aPlan);
 		draft.Publication = local_draft_publication{
 			.Plan    = std::move(aPlan),
 			.Journal = { .Digest = std::move(digest), .Phase = local_publication_phase::prepared, .Generation = 0U, .NextGeneration = next },
@@ -684,10 +684,10 @@ namespace bpr::core {
 		if (latest == nullptr || latest->Ordinal != aDraft.Publication->Plan.Candidate) {
 			return std::unexpected{ local_publication_refusal::stale_plan };
 		}
-		auto  draft          = advanced(aDraft, aNow);
-		auto& next           = draft.Publication->Journal;
-		next.Phase           = local_publication_phase::authorized;
-		next.Generation      = next.NextGeneration;
+		auto  draft     = advanced(aDraft, aNow);
+		auto& next      = draft.Publication->Journal;
+		next.Phase      = local_publication_phase::authorized;
+		next.Generation = next.NextGeneration;
 		next.NextGeneration += 1U;
 		next.Reason.clear();
 		next.Create = local_step_state::waiting;

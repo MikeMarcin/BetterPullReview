@@ -56,7 +56,7 @@ namespace {
 												 { .Location = "/work/my search", .Repository = { .Volume = 1, .ObjectLow = 10 }, .Worktree = { .Volume = 1, .ObjectLow = 11 } },
 												 "feature/search", { .Target = { .Remote = "origin", .Repository = { .Host = "github.com", .Owner = "acme", .Name = "engine" }, .Branch = "main" } },
 												 { }, candidate('a', aWorking), 100),
-						 "a draft is created");
+						"a draft is created");
 		return ok(core::edit_description(draft, draft.Version, "Cancel searches promptly", "## Why\n\nSearches kept running.\n", 101), "the description saves");
 	}
 
@@ -87,8 +87,8 @@ namespace {
 
 	void test_hosted_branch_and_named_push()
 	{
-		const auto draft = make_draft();
-		const auto& c    = *core::latest_candidate(draft);
+		const auto  draft = make_draft();
+		const auto& c     = *core::latest_candidate(draft);
 		expect(core::decide_hosted_branch(c, true, commit('a')) == core::hosted_branch_state::matches, "the pushed candidate matches");
 		expect(core::decide_hosted_branch(c, true, std::nullopt) == core::hosted_branch_state::missing, "no branch is missing");
 		expect(core::decide_hosted_branch(c, true, commit('d')) == core::hosted_branch_state::differs, "another head differs");
@@ -130,7 +130,7 @@ namespace {
 		auto       body   = plan;
 		body.Body += "x";
 		expect(core::local_publication_digest(body) != digest, "the body changes the digest");
-		auto account               = plan;
+		auto account                = plan;
 		account.Destination.Account = core::github_account_id{ 8U };
 		expect(core::local_publication_digest(account) != digest, "the account changes the digest");
 		const auto preview = core::render_local_publication_preview(plan);
@@ -153,7 +153,7 @@ namespace {
 			   "another account authorizes nothing");
 		expect(core::begin_local_creation(draft, draft.Version, 1U, core::github_account_id{ 7U }, 111).error() == core::local_publication_refusal::unauthorized,
 			   "nothing is sent unconfirmed");
-		draft = ok(core::authorize_local_publication(draft, draft.Version, digest, core::github_account_id{ 7U }, 111), "confirmed");
+		draft                 = ok(core::authorize_local_publication(draft, draft.Version, digest, core::github_account_id{ 7U }, 111), "confirmed");
 		const auto generation = draft.Publication->Journal.Generation;
 		auto       refreshed  = ok(core::add_candidate(draft, draft.Version, candidate('d', false), 112), "a successor candidate");
 		expect(core::authorize_local_publication(refreshed, refreshed.Version, digest, core::github_account_id{ 7U }, 113).error() == core::local_publication_refusal::stale_plan,

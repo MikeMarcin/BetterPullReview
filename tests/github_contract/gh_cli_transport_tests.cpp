@@ -2137,7 +2137,8 @@ namespace {
 		gh_cli_transport            transport{ *profile, scoped_configuration(*configuration, *profile), process, synthetic_operation_credential() };
 		const auto                  context = mutation_request_for(*profile).Context;
 		const auto                  target  = application::github_publication_target{
-								.Host = std::string{ profile->hostname() }, .Server = profile->server_contract(), .Account = context.Authority.Account, .Login = "fixture-reviewer", .Owner = "acme", .Repository = "engine" };
+			.Host = std::string{ profile->hostname() }, .Server = profile->server_contract(), .Account = context.Authority.Account, .Login = "fixture-reviewer", .Owner = "acme", .Repository = "engine"
+		};
 		expect(!transport.carries_git_data(), "a gh connection does not carry Git-data writes");
 		const auto create = compile_create_pull_request(target, { .Title = "Cancel", .Body = "Why", .Head = "feature/search", .Base = "main", .Draft = true });
 		expect(create.has_value(), "the creation compiles");
@@ -2156,8 +2157,8 @@ namespace {
 		const auto blob  = compile_create_blob(target, bytes);
 		expect(blob.has_value() && std::holds_alternative<github_publication_wire_error>(transport.perform_publication({ .Context = context, .Wire = *blob }, { })) && process.Calls == calls,
 			   "an object write never launches over gh");
-		auto other    = target;
-		other.Account = core::github_account_id{ context.Authority.Account.value() + 1U };
+		auto other         = target;
+		other.Account      = core::github_account_id{ context.Authority.Account.value() + 1U };
 		const auto foreign = compile_create_pull_request(other, { .Title = "Cancel", .Body = "Why", .Head = "feature/search", .Base = "main", .Draft = true });
 		expect(foreign.has_value() && std::holds_alternative<github_publication_wire_error>(transport.perform_publication({ .Context = context, .Wire = *foreign }, { })) && process.Calls == calls,
 			   "another account's creation never launches");

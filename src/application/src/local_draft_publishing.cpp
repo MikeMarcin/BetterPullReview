@@ -69,7 +69,7 @@ namespace bpr::application {
 		[[nodiscard]] auto reason_of(const github_publication_error& aError) -> std::string
 		{
 			switch (aError.Failure) {
-			case github_publication_failure::unavailable:     return "GitHub did not answer.";
+			case github_publication_failure::unavailable:      return "GitHub did not answer.";
 			case github_publication_failure::unsupported_host: return "This account's host is not qualified for creating pull requests here.";
 			case github_publication_failure::refused:
 				return aError.HttpStatus == 422U ? std::string{ "GitHub refused it (HTTP 422): a pull request may already exist, or the branch has no commits the target lacks." }
@@ -245,7 +245,7 @@ namespace bpr::application {
 		}
 		// A lost answer is read for at once: recovery reads, it never resends.
 		if (step.Draft->Publication->Journal.Phase == core::local_publication_phase::uncertain && !aStop.stop_requested()) {
-			auto recovered = recover_local_publication(aStore, *step.Draft, aAccount, aNow, aStop);
+			auto recovered     = recover_local_publication(aStore, *step.Draft, aAccount, aNow, aStop);
 			recovered.Provider = recovered.Provider ? recovered.Provider : step.Provider;
 			return recovered;
 		}

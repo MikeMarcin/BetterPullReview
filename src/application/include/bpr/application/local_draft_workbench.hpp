@@ -240,6 +240,8 @@ namespace bpr::application {
 		/// The recorded plan in words, and the digest Create confirms.
 		std::string Preview;
 		std::string Digest;
+		/// Where GitHub shows the linked pull request, as text to read and copy.
+		std::string Linked;
 		/// What GitHub's answer was, in the author's words, when it failed.
 		std::string Failure;
 		auto        operator<=>(const local_draft_publishing_view&) const = default;

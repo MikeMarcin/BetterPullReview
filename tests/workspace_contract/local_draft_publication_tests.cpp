@@ -59,7 +59,7 @@ namespace {
 		/// The next creation reaches GitHub and its answer is lost.
 		bool LoseAnswer = false;
 		/// The next creation's answer is lost before it reaches GitHub.
-		bool LoseRequest = false;
+		bool                  LoseRequest = false;
 		std::function<void()> OnCreate;
 
 		auto head(const std::string& aBranch) const -> std::optional<core::git_commit_oid>
@@ -135,17 +135,17 @@ namespace {
 				return std::unexpected{ application::github_publication_error{ .Failure = application::github_publication_failure::refused, .HttpStatus = 422U } };
 			}
 			auto pull = application::github_pull_request_observation{ .Number         = 100U + Pulls.size(),
-																	   .NodeId         = "PR_" + std::to_string(Pulls.size()),
-																	   .Url            = "https://github.com/acme/engine/pull/" + std::to_string(100U + Pulls.size()),
-																	   .State          = "open",
-																	   .Draft          = aDraft.Draft,
-																	   .Title          = aDraft.Title,
-																	   .HeadRef        = aDraft.Head,
-																	   .HeadOwner      = aTarget.Owner,
-																	   .HeadRepository = aTarget.Repository,
-																	   .HeadCommit     = *at,
-																	   .BaseRef        = aDraft.Base,
-																	   .Author         = aTarget.Login };
+																	  .NodeId         = "PR_" + std::to_string(Pulls.size()),
+																	  .Url            = "https://github.com/acme/engine/pull/" + std::to_string(100U + Pulls.size()),
+																	  .State          = "open",
+																	  .Draft          = aDraft.Draft,
+																	  .Title          = aDraft.Title,
+																	  .HeadRef        = aDraft.Head,
+																	  .HeadOwner      = aTarget.Owner,
+																	  .HeadRepository = aTarget.Repository,
+																	  .HeadCommit     = *at,
+																	  .BaseRef        = aDraft.Base,
+																	  .Author         = aTarget.Login };
 			Pulls.push_back(pull);
 			Bodies[pull.Number] = aDraft.Body;
 			if (LoseAnswer) {
@@ -283,9 +283,9 @@ namespace {
 		auto checked = application::check_local_publication(*aFixture.Store, draft, &account, false, 1'300, { });
 		expect(checked.Branch == core::hosted_branch_state::matches && !checked.Refusal && !checked.Push && checked.Draft && checked.Draft->Publication,
 			   "AC01: the pushed branch is the candidate: a plan is recorded");
-		draft             = *checked.Draft;
-		const auto digest = draft.Publication->Journal.Digest;
-		const auto& plan  = draft.Publication->Plan;
+		draft              = *checked.Draft;
+		const auto  digest = draft.Publication->Journal.Digest;
+		const auto& plan   = draft.Publication->Plan;
 		expect(plan.Title == "Search results" && plan.Body == "## Why\n\nResults were slow.\n" && plan.Destination.Login == "author" && plan.Destination.BaseBranch == "main",
 			   "AC02: the plan binds title, body, destination and account");
 
@@ -355,8 +355,8 @@ namespace {
 		// Lost after GitHub created it: the read finds it, nothing is sent again.
 		const auto lost = make_primary(aFixture, "lost", "feature/lost");
 		aFixture.push(lost, "feature/lost");
-		auto draft = aFixture.open(lost);
-		draft      = *application::check_local_publication(*aFixture.Store, draft, &account, false, 1'200, { }).Draft;
+		auto draft                  = aFixture.open(lost);
+		draft                       = *application::check_local_publication(*aFixture.Store, draft, &account, false, 1'200, { }).Draft;
 		aFixture.GitHub->LoseAnswer = true;
 		const auto creates          = aFixture.GitHub->Creates;
 		auto       found            = application::create_local_pull_request(*aFixture.Store, draft, account, draft.Publication->Journal.Digest, 1'300, { });

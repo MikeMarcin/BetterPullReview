@@ -43,11 +43,11 @@ namespace bpr::qt {
 			out.push_back({ .Label  = adopted ? "Create the draft pull request (one was open already)" : "Create the draft pull request",
 							.State  = step_of(journal.Create),
 							.Reason = journal.Create == core::local_step_state::failed ? journal.Reason : std::string{ } });
-			auto link  = application::tour_publication_step_view{ .Label = "Link it to this draft" };
-			auto tour  = application::tour_publication_step_view{ .Label = "Publish the tour" };
+			auto link = application::tour_publication_step_view{ .Label = "Link it to this draft" };
+			auto tour = application::tour_publication_step_view{ .Label = "Publish the tour" };
 			for (const auto& step : journal.FollowUps) {
-				auto& row = step.Kind == core::local_follow_up::association ? link : tour;
-				row.State = step_of(step.State);
+				auto& row  = step.Kind == core::local_follow_up::association ? link : tour;
+				row.State  = step_of(step.State);
 				row.Reason = step.State == core::local_step_state::failed ? step.Reason : std::string{ };
 			}
 			if (journal.Phase == core::local_publication_phase::refused || journal.Phase == core::local_publication_phase::cancelled) {
@@ -106,7 +106,7 @@ namespace bpr::qt {
 				return std::nullopt;
 			case core::local_publication_phase::authorized:
 			case core::local_publication_phase::creating:
-			case core::local_publication_phase::cancelled: return std::nullopt;
+			case core::local_publication_phase::cancelled:  return std::nullopt;
 			}
 			return std::nullopt;
 		}
@@ -151,7 +151,7 @@ namespace bpr::qt {
 		case core::hosted_branch_state::differs:     return QObject::tr("%1 on GitHub is at another commit. Push this candidate, then check again.").arg(branch);
 		case core::hosted_branch_state::uncommitted: return QObject::tr("This candidate includes uncommitted files. Commit them and refresh.");
 		case core::hosted_branch_state::unobserved:
-			return !view.Failure.empty()  ? text_of(view.Failure)
+			return !view.Failure.empty() ? text_of(view.Failure)
 				: !view.AccountAvailable ? QObject::tr("Sign in to GitHub to check %1.").arg(branch)
 										 : QObject::tr("%1 could not be read on GitHub.").arg(branch);
 		case core::hosted_branch_state::matches: break;
@@ -323,7 +323,7 @@ namespace bpr::qt {
 			Preview->setPlainText(text_of(view.Preview));
 		}
 		Link->setVisible(linked);
-		Link->setText(linked ? text_of(draft->Publication->Journal.Link->Url) : QString{ });
+		Link->setText(linked ? text_of(view.Linked) : QString{ });
 		const auto rows = draft != nullptr && phase != core::local_publication_phase::prepared ? steps_of(*draft) : std::vector<application::tour_publication_step_view>{ };
 		Steps->setVisible(!rows.empty());
 		Steps->present(rows);

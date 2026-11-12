@@ -1632,3 +1632,53 @@ associated pull request (RFC-BPR-0111 creates one).
 Not touched: sessions `5f049205…` (host 6288/6298) and `7fc09e75…` (host
 4867/4877) and their roots, host 74692/74706, PIDs 10695 and 39804,
 Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use.
+
+## publish-prepared-draft (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Milestone
+`publish-prepared-draft` (RFC-BPR-0111, BPR-2029..2031). Frontend-design was
+loaded before the Qt work. Ledger:
+[RFC-BPR-0111](../../../verification/RFC-BPR-0111.md); implementation record
+in the RFC. PUBLISH-01 built as settled (the author pushes, BPR names the
+push); amendment A1 of the local-draft authoring pack belongs to
+`commit-and-push` and was not applied here.
+
+**Coordinator direction mid-round (2026-11-12).** The owner rejected the
+local-draft looks (draft page accepted; Home entry, evidence area and result
+wording, and the tour, description and candidate screens rejected). Verdicts
+recorded verbatim on BPR-2021, BPR-2023, BPR-2024 and the RFC-BPR-0108, 0109
+and 0110 ledgers (`a8bd8d684`; main mirror `344360c01` for the cards and the
+0108 ledger, the 0109/0110 ledgers are not on main). Hosts 6288/6298,
+4867/4877 and 71192/71200 stopped through the attended-review `stop`; roots
+`local-draft-v001.h8pe0ibf`, `local-draft-evidence-v001.pdc9rq1b` and
+`local-draft-tour-v001.3hs4zi83` removed with `freeze_attended_build.py
+remove`. This round: engine and live evidence only, a minimal Qt area from
+existing controls, no freeze and no look filed.
+
+**Dependency.** BPR-2029 depends on BPR-2025 and BPR-2028, which wait on the
+rejected looks' redesign; cards not readied, claimed or moved.
+
+| Commit | What |
+|---|---|
+| `1ed42caa0` | Network isolation manifest green: opt-in live agent row through `bpr_add_live_agent_course`; push course pinned |
+| `387f7298d` | Core `local_draft_publication` and `core_local_draft_publication` |
+| `4675974cf` | Pull request catalog over gh; `accepted_pull_request_account` |
+| `6bc5217f5` | Application check/create/recover/associate; workbench projection |
+| `75c035a49` | Real-worktree course `local_draft_publication` |
+| `36dcd7e21` | Pull request area (existing controls); desktop lane; BPR-Test guard |
+| `a8bd8d684` | Owner verdicts recorded (see above) |
+| `62f740fc6` | gh catalog under the lease's scoped operation (the fix the live run found); live-draft course and driver |
+| `433068905` | Journal steps re-read on a competing write; progress to the page; desktop course |
+| (this commit) | clang-format 22, tidy fixes, ledger, RFC record, threat model, card notes, this checkpoint |
+
+Live: `python3 tests/end_to_end/live_draft_course.py --course
+build/dev/tests/end_to_end/live_second_account_course --root DIR --cleanup`
+(DIR new, outside the repository). Runs 4 and 5 (#178, #179) passed; both
+closed and branches deleted; three earlier failed runs pushed nothing.
+Evidence files in the session scratchpad `live-draft-4`, `live-draft-5`.
+
+Open for the closeout: the tour follow-up (not built), the review-submission
+clause of AC07 (structural only), fork heads and GHES (unsupported, stated).
+
+Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
+BPR-Test #152 and `-next`.

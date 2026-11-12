@@ -62,20 +62,20 @@ namespace bpr::qt {
 	private:
 		local_draft_publication_dispatch              Dispatch;
 		application::local_draft_workbench_projection Projection;
-		QLabel*                                       State     = nullptr;
-		QPushButton*                                  Check     = nullptr;
-		QPushButton*                                  Create    = nullptr;
-		QWidget*                                      PushRow   = nullptr;
-		QLineEdit*                                    Push      = nullptr;
-		QPushButton*                                  Copy      = nullptr;
-		QWidget*                                      Existing  = nullptr;
+		QLabel*                                       State        = nullptr;
+		QPushButton*                                  Check        = nullptr;
+		QPushButton*                                  Create       = nullptr;
+		QWidget*                                      PushRow      = nullptr;
+		QLineEdit*                                    Push         = nullptr;
+		QPushButton*                                  Copy         = nullptr;
+		QWidget*                                      Existing     = nullptr;
 		QLabel*                                       ExistingText = nullptr;
-		QPushButton*                                  Associate = nullptr;
-		QCheckBox*                                    Tour      = nullptr;
-		QPlainTextEdit*                               Preview   = nullptr;
-		tour_step_list*                               Steps     = nullptr;
-		tour_publication_banner_view*                 Banner    = nullptr;
-		QLabel*                                       Link      = nullptr;
+		QPushButton*                                  Associate    = nullptr;
+		QCheckBox*                                    Tour         = nullptr;
+		QPlainTextEdit*                               Preview      = nullptr;
+		tour_step_list*                               Steps        = nullptr;
+		tour_publication_banner_view*                 Banner       = nullptr;
+		QLabel*                                       Link         = nullptr;
 	};
 
 	/// \brief The area's state line, for the page and a course.

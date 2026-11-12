@@ -2364,7 +2364,7 @@ namespace bpr::adapters::github::detail {
 		if (!safe_relative_endpoint(endpoint)) {
 			return github_publication_wire_error{ };
 		}
-		const auto                 method = wire.Method == http_method::post ? std::string{ "POST" } : std::string{ "GET" };
+		const auto                 method        = wire.Method == http_method::post ? std::string{ "POST" } : std::string{ "GET" };
 		constexpr auto             responseLimit = std::size_t{ 8U * 1024U * 1024U };
 		github_cli_process_request invocation{
 			.Executable              = path_bytes(Configuration.Executable),

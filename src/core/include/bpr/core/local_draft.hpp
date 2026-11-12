@@ -436,9 +436,9 @@ namespace bpr::core {
 		local_draft_preparation Preparation;
 		/// RFC-BPR-0111: the current pull request creation, its journal and follow-ups.
 		std::optional<local_draft_publication> Publication;
-		std::int64_t            Created                               = 0;
-		std::int64_t            Updated                               = 0;
-		auto                    operator<=>(const local_draft&) const = default;
+		std::int64_t                           Created                               = 0;
+		std::int64_t                           Updated                               = 0;
+		auto                                   operator<=>(const local_draft&) const = default;
 	};
 	/// \brief Every field within its bound and every identity well formed.
 	[[nodiscard]] auto valid(const local_draft& aDraft) -> bool;

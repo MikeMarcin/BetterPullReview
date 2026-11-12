@@ -140,7 +140,7 @@ namespace {
 			while (Hold.load()) {
 				std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
 			}
-			Holding        = false;
+			Holding         = false;
 			const auto lock = std::scoped_lock{ Mutex };
 			auto       pull = application::github_pull_request_observation{ .Number         = 7U,
 																			.NodeId         = "PR_7",
@@ -250,8 +250,7 @@ try {
 	// AC04, AC07: a lost answer is read for, said in the error role and never resent.
 	github->LoseRequest = true;
 	area->create_button()->click();
-	await(lanes, [&] { return !page->projection().Publishing.Creating && page->projection().Draft->Publication->Journal.Phase == core::local_publication_phase::prepared; },
-		  "the lost answer is read for");
+	await(lanes, [&] { return !page->projection().Publishing.Creating && page->projection().Draft->Publication->Journal.Phase == core::local_publication_phase::prepared; }, "the lost answer is read for");
 	expect(github->Creates == 1 && area->banner()->isVisibleTo(page) && area->banner()->title()->text() == QStringLiteral("The draft pull request was not created.")
 			   && area->banner()->buttons().size() == 1U && area->banner()->buttons().front()->text() == QStringLiteral("Preview again"),
 		   "AC07: nothing found after the lost answer: an error-role banner with its recovering action, and nothing resent");
@@ -271,8 +270,7 @@ try {
 	settle(lanes);
 	expect(page->projection().Draft->Notes.size() == notes + 1U, "AC07: the page's own lane works while the creation is in flight");
 	github->Hold = false;
-	await(lanes, [&] { return !page->projection().Publishing.Creating && page->projection().Draft->Publication->Journal.Phase == core::local_publication_phase::linked; },
-		  "the creation answers");
+	await(lanes, [&] { return !page->projection().Publishing.Creating && page->projection().Draft->Publication->Journal.Phase == core::local_publication_phase::linked; }, "the creation answers");
 	const auto rows = area->steps()->row_texts();
 	for (const auto& row : rows) {
 		std::cout << "STEP " << row.toStdString() << '\n';

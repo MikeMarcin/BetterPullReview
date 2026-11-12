@@ -120,7 +120,7 @@ namespace bpr::core {
 		/// Stops not Accepted: listed, they do not block creating the draft
 		/// pull request, but block the tour's publication (X20).
 		std::vector<std::uint64_t> Unaccepted;
-		std::size_t                Stops = 0;
+		std::size_t                Stops                                            = 0;
 		auto                       operator<=>(const local_publication_plan&) const = default;
 	};
 

@@ -1282,10 +1282,14 @@ namespace bpr::application {
 			auto& view = Projection.Publishing;
 			view.Preview.clear();
 			view.Digest.clear();
+			view.Linked.clear();
 			if (Projection.Draft && Projection.Draft->Publication) {
 				const auto& publication = *Projection.Draft->Publication;
 				view.Preview            = core::render_local_publication_preview(publication.Plan);
 				view.Digest             = publication.Journal.Digest;
+				if (publication.Journal.Link) {
+					view.Linked = publication.Journal.Link->Url;
+				}
 			}
 		}
 
@@ -1295,7 +1299,7 @@ namespace bpr::application {
 			if (PublishLane == nullptr || !Projection.Draft || Projection.Publishing.Checking || Projection.Publishing.Creating) {
 				return;
 			}
-			auto& view = Projection.Publishing;
+			auto& view                                  = Projection.Publishing;
 			(aCreating ? view.Creating : view.Checking) = true;
 			view.Failure.clear();
 			publish();
@@ -1376,7 +1380,7 @@ namespace bpr::application {
 			};
 			publishing(
 				[chosen = std::move(*signedIn), digest = std::move(aDigest), progress = std::move(reported)](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow,
-																											   std::stop_token aStop) {
+																											 std::stop_token aStop) {
 					return create_local_pull_request(aStore, aDraft, chosen, digest, aNow, aStop, progress);
 				},
 				true);
@@ -1389,7 +1393,7 @@ namespace bpr::application {
 				return;
 			}
 			publishing([chosen = std::move(*signedIn)](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow,
-													 std::stop_token aStop) { return recover_local_publication(aStore, aDraft, chosen, aNow, aStop); },
+													   std::stop_token aStop) { return recover_local_publication(aStore, aDraft, chosen, aNow, aStop); },
 					   true);
 		}
 
@@ -1400,7 +1404,7 @@ namespace bpr::application {
 				return;
 			}
 			publishing([chosen = std::move(*signedIn), aNumber](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow,
-															  std::stop_token aStop) { return associate_local_pull_request(aStore, aDraft, chosen, aNumber, aNow, aStop); },
+																std::stop_token aStop) { return associate_local_pull_request(aStore, aDraft, chosen, aNumber, aNow, aStop); },
 					   true);
 		}
 
@@ -1753,9 +1757,9 @@ namespace bpr::application {
 
 	void local_draft_workbench::set_publishing(std::function<std::optional<github_publication_account>()> aAccount, effect_executor* const aLane)
 	{
-		auto& self                                = *Implementation;
-		self.Account                              = std::move(aAccount);
-		self.PublishLane                          = aLane;
+		auto& self                                  = *Implementation;
+		self.Account                                = std::move(aAccount);
+		self.PublishLane                            = aLane;
 		self.Projection.Publishing.AccountAvailable = self.account().has_value();
 		self.publish();
 	}

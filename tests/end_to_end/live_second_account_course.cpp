@@ -109,6 +109,9 @@
 
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/review_queue.hpp"
+#include "bpr/qt/local_draft_publication_area.hpp"
+#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -133,10 +136,6 @@
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
-#include "bpr/qt/local_draft_publication_area.hpp"
-#include "bpr/qt/local_draft_view.hpp"
-#include "bpr/qt/tour_publication_surfaces.hpp"
-#include <QTabBar>
 #include <QWindow>
 #include <algorithm>
 #include <array>
@@ -1777,7 +1776,6 @@ namespace {
 		dump(aWindow);
 	}
 
-
 	/// RFC-BPR-0111 ([[BPR-2029]]). Create draft PR from a local draft on
 	/// MikeMarcin/BPR-Test, through the window's own Pull request area and the
 	/// account the profile signed in with gh. `--path` is a clone of BPR-Test on a
@@ -1829,7 +1827,7 @@ namespace {
 					&& draft->Publication->Journal.Phase != core::local_publication_phase::authorized;
 			},
 			"Create draft PR answers", std::chrono::seconds{ 180 });
-		const auto& draft = *view->projection().Draft;
+		const auto& draft   = *view->projection().Draft;
 		const auto& journal = draft.Publication->Journal;
 		say("live-draft:phase " + std::string{ core::name(journal.Phase) } + " state " + text(area->state()->text()));
 		for (const auto& row : area->steps()->row_texts()) {
