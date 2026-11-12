@@ -311,14 +311,33 @@ def check_remount_and_record_refusals(exe: Path, parent: Path) -> None:
         legacy = as_version_one(lines, lambda field: mount + 4 if field == "Child" else mount)
     else:
         legacy = as_version_one(lines, None)
-        legacy[-1]["Registry"] = [legacy[-1]["Registry"][0], legacy[-1]["Registry"][1] + 4,
-                                  legacy[-1]["Registry"][2], legacy[-1]["Registry"][3]]
+        for line in legacy:
+            identity = line["Registry"]
+            line["Registry"] = [identity[0], identity[1] + 4, identity[2], identity[3]]
     write_lines(record, legacy)
     before = record.read_bytes()
     check(exe, "recover-check", root,
           f"failure=1 check=record-moved folder=registry/{record.name} records=1 finding=other-volume")
     if record.read_bytes() != before:
         raise RuntimeError("a refused record was rewritten")
+    print(f"agent-workspace-ownership:wrong-volume:{sys.platform}:preserved", flush=True)
+
+    # [[BPR-2131]]. Changing an immutable identity only at phase 7 is a
+    # malformed chain, before any live-volume comparison can be reached.
+    root = create_root(parent, "remount-malformed-chain")
+    check(exe, "retained-abandon", root, "retained")
+    record = journal(root)
+    malformed_mount = record.stat().st_dev + 4
+    legacy = as_version_one(lines_of(record), lambda _field: malformed_mount)
+    legacy[-1]["Registry"] = [legacy[-1]["Registry"][0], legacy[-1]["Registry"][1] + 4,
+                              legacy[-1]["Registry"][2], legacy[-1]["Registry"][3]]
+    write_lines(record, legacy)
+    before = record.read_bytes()
+    check(exe, "recover-check", root,
+          f"failure=1 check=record-malformed folder=registry/{record.name} records=1")
+    if record.read_bytes() != before:
+        raise RuntimeError("a malformed record was rewritten")
+    print(f"agent-workspace-ownership:malformed-chain:{sys.platform}:preserved", flush=True)
 
     root = create_root(parent, "remount-inode")
     check(exe, "retained-abandon", root, "retained")
