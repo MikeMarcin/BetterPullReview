@@ -1938,7 +1938,7 @@ the Qt work. Record: [RFC-BPR-0116](../../../verification/RFC-BPR-0116.md).
 | `98dfeb91a` | Outdated thread read at the head by number (from the live check). Product candidate |
 | `4d157eb36` | BPR-2073 Done (AC01, AC02, AC05, AC06) |
 | `c95b68ace`, `72288736c` | Ready and claim BPR-2074 |
-| next commit | BPR-2074 parked `human-review` (AC03, AC04, AC05 pass; AC07 pending) |
+| `5e6cc6cd1` | BPR-2074 parked `human-review` (AC03, AC04, AC05 pass; AC07 pending) |
 
 Runs at the candidate: `core_returning_review`, `core_agent_chat_scope`,
 `core_agent_question`, `core_review_preparation`, `core_agent_configuration`,
