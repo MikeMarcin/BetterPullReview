@@ -33,3 +33,13 @@ The corrected fixture passed complete native Linux Release and Debug courses
 with original compiled60 apps, all original public oracles and live-object
 unlink/sentinel/no-reset proof. This is a fixture correction, not a product
 reset or Qt fix. [Exact source and proof](../../verification/BPR-2135-reset-file-identity.md).
+
+## Historical follow-up
+
+BPR-2137 records the subsequent SQLite context-lifetime and missing-ledger
+fixture-precondition corrections. The original Linux evidence and acceptance
+records above remain tied to script4fec3110; they supply no Windows pass or
+current-candidate qualification. BPR-2135 remains terminal. The final2137
+script2ef08b3c separately passes full Linux/Windows Release/Debug and retained
+handle positive/leak-negative controls. See the historical follow-up note in
+[the identity proof](../../verification/BPR-2135-reset-file-identity.md).

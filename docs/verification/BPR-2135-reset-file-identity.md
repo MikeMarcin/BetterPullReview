@@ -89,3 +89,21 @@ Windows native pass is claimed; their affected fixture gates can be selected
 by the coordinator for successor verification without rebuilding unchanged
 product inputs. Unrelated latency/submission/multi-window blockers remain
 separate issues, and global foreign plan-schema drift remains recorded.
+
+## Historical candidate follow-up: BPR-2137
+
+The Linux results above remain evidence only for script4fec3110 and do not
+supply Windows credit. Subsequent root review found that its two SQLite
+connection contexts ended transactions without closing their handles; the
+main-local writer could remain live across Windows reset. Its additional
+ledger-exists guard also assumed Overview had already created the store,
+although original60 allowed an absent ledger. A later Windows Debug course
+failed that new guard before the sentinel operations; no product reset fault
+or observed Windows delete lock is inferred.
+
+BPR-2137 closes both handles explicitly and deliberately seeds the stopped
+fixture's disposable prior data even when no ledger exists. Its final script
+2ef08b3c passes retained-object positive/forced-leak-negative controls and full
+native Linux and Windows Release/Debug courses. BPR-2135 stays Done as the
+historical identity slice; final successor intake must use the corrected
+BPR-2137 fixture and its separate exact-candidate proof.
