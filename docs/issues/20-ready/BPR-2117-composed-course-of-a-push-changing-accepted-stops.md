@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2117"
 title: "A composed course shows a push changing accepted tour stops"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0106"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2116--BPR-2117--f5d986a0e8bc.json","origin":"RFC-BPR-0106 closeout review, 2026-11-11 (ledger, What no course shows yet)","related_cards":["BPR-2014","BPR-2015"]}
 depends_on: []
