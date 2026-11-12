@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2140"
 title: "Built-in prompts reach the agent as its system prompt, verified, with a paste fallback"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0107"]
 depends_on: []
 priority: "P1"
