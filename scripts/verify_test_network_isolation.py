@@ -911,6 +911,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_tour_publication_repairs": "private-test-root-refused",
     "application_review_tour_publication_reconciliation": "dos-volume-name",
     "application_review_tour_publication_stop": "dos-volume-name",
+    # [[BPR-2117]]. The composed push course, same private test root as its
+    # siblings; not yet measured on Windows.
+    "application_review_tour_publication_push": "unmeasured (registered on macOS)",
     "application_review_tour_publication_unsupported": "dos-volume-name",
     "application_diagnostic_controls_public_path": "dos-volume-name",
     "application_review_submission_composition_scale_125": "dos-volume-name",

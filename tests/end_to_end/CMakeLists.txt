@@ -4869,10 +4869,9 @@ if(APPLE AND BPR_BUILD_AGENT_INTEGRATIONS)
             list(APPEND bpr_live_agent_arguments --claude "${bpr_live_claude}")
         endif()
         if(bpr_live_agent_arguments)
-            add_test(NAME live_agent_checkout_settings
-                COMMAND test_live_agent_checkout_settings_course --root "${CMAKE_CURRENT_BINARY_DIR}/live-agent-checkout-settings" --replace ${bpr_live_agent_arguments})
-            set_tests_properties(live_agent_checkout_settings PROPERTIES
-                LABELS live-agent TIMEOUT 900 PASS_REGULAR_EXPRESSION "live-agent-checkout-settings-course:pass")
+            bpr_add_live_agent_course(NAME live_agent_checkout_settings
+                COMMAND test_live_agent_checkout_settings_course --root "${CMAKE_CURRENT_BINARY_DIR}/live-agent-checkout-settings" --replace ${bpr_live_agent_arguments}
+                PASS "live-agent-checkout-settings-course:pass")
         endif()
     endif()
 endif()
