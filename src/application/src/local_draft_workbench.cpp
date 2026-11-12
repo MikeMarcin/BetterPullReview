@@ -12,6 +12,23 @@
 
 namespace bpr::application {
 	namespace {
+		/// RFC-BPR-0111. A failed GitHub call, in the author's words.
+		[[nodiscard]] auto publication_failure_words(const github_publication_error& aError) -> std::string
+		{
+			const auto sent = aError.Transmission == github_publication_transmission::indeterminate;
+			switch (aError.Failure) {
+			case github_publication_failure::unsupported_host: return "This connection cannot create pull requests on this host.";
+			case github_publication_failure::refused:
+				return "GitHub refused it" + (aError.HttpStatus != 0U ? " (HTTP " + std::to_string(aError.HttpStatus) + ")" : std::string{ }) + ".";
+			case github_publication_failure::rate_limited: return "GitHub's rate limit for this account is spent.";
+			case github_publication_failure::mismatch:     return "GitHub answered about something else.";
+			case github_publication_failure::too_large:    return "The description is larger than GitHub takes.";
+			case github_publication_failure::cancelled:    return sent ? "Stopped after sending: it may have reached GitHub." : "Stopped. Nothing was sent.";
+			case github_publication_failure::unavailable:  break;
+			}
+			return sent ? "GitHub did not answer after it was sent: it may have reached GitHub." : "GitHub did not answer. Nothing was sent.";
+		}
+
 		/// RFC-BPR-0110. The captured candidate's files as the private store
 		/// holds them (or as the capture just made them), never the worktree:
 		/// `aFirst` first, then the rest, until `aBudget` bytes of text are
@@ -426,9 +443,12 @@ namespace bpr::application {
 			view.Shown         = latest == nullptr ? 0U : latest->Ordinal;
 			view.Included      = latest == nullptr ? std::vector<std::string>{ } : still_listed(latest->Included, view.Working);
 			update_refresh();
+			Projection.Publishing.AccountAvailable = account().has_value();
+			project_plan();
 			publish();
 			open_first_file();
 			refresh_home();
+			settle_after_restart();
 		}
 
 		/// Takes a new observation of the worktree into the view.
@@ -591,6 +611,7 @@ namespace bpr::application {
 						}
 					}
 					aSelf.update_refresh();
+					aSelf.project_plan();
 					aSelf.publish();
 					if (!aSelf.Projection.File) {
 						aSelf.open_first_file();
@@ -1207,6 +1228,181 @@ namespace bpr::application {
 				});
 		}
 
+		// --- RFC-BPR-0111: Create draft PR… ------------------------------------
+
+		/// The store, one call at a time under the effect lane's lock, for
+		/// the publication lane: GitHub is never called under the lock.
+		class locked_store final : public local_draft_store
+		{
+		public:
+			explicit locked_store(implementation& aSelf)
+				: Self{ aSelf }
+			{
+			}
+			auto list() -> local_draft_store_result<std::vector<core::local_draft>> override
+			{
+				const auto lock = std::scoped_lock{ Self.EffectMutex };
+				auto*      held = Self.store();
+				return held == nullptr ? std::unexpected{ local_draft_store_error{ } } : held->list();
+			}
+			auto find(const core::local_draft_id& aId) -> local_draft_store_result<core::local_draft> override
+			{
+				const auto lock = std::scoped_lock{ Self.EffectMutex };
+				auto*      held = Self.store();
+				return held == nullptr ? local_draft_store_result<core::local_draft>{ std::unexpected{ local_draft_store_error{ } } } : held->find(aId);
+			}
+			auto put(const core::local_draft& aDraft, std::optional<std::uint64_t> aPrevious, std::span<const local_draft_object> aObjects) -> local_draft_store_result<void> override
+			{
+				const auto lock = std::scoped_lock{ Self.EffectMutex };
+				auto*      held = Self.store();
+				return held == nullptr ? local_draft_store_result<void>{ std::unexpected{ local_draft_store_error{ } } } : held->put(aDraft, aPrevious, aObjects);
+			}
+			auto remove(const core::local_draft_id& aId) -> local_draft_store_result<void> override
+			{
+				const auto lock = std::scoped_lock{ Self.EffectMutex };
+				auto*      held = Self.store();
+				return held == nullptr ? local_draft_store_result<void>{ std::unexpected{ local_draft_store_error{ } } } : held->remove(aId);
+			}
+			auto object(const core::git_entry_oid& aObject) -> local_draft_store_result<std::optional<std::vector<std::uint8_t>>> override
+			{
+				const auto lock = std::scoped_lock{ Self.EffectMutex };
+				auto*      held = Self.store();
+				return held == nullptr ? local_draft_store_result<std::optional<std::vector<std::uint8_t>>>{ std::unexpected{ local_draft_store_error{ } } } : held->object(aObject);
+			}
+
+		private:
+			implementation& Self;
+		};
+
+		[[nodiscard]] auto account() const -> std::optional<github_publication_account> { return Account ? Account() : std::nullopt; }
+
+		/// The recorded plan in words, and the digest Create confirms.
+		void project_plan()
+		{
+			auto& view = Projection.Publishing;
+			view.Preview.clear();
+			view.Digest.clear();
+			if (Projection.Draft && Projection.Draft->Publication) {
+				const auto& publication = *Projection.Draft->Publication;
+				view.Preview            = core::render_local_publication_preview(publication.Plan);
+				view.Digest             = publication.Journal.Digest;
+			}
+		}
+
+		template <typename TEffect>
+		void publishing(TEffect aEffect, const bool aCreating)
+		{
+			if (PublishLane == nullptr || !Projection.Draft || Projection.Publishing.Checking || Projection.Publishing.Creating) {
+				return;
+			}
+			auto& view = Projection.Publishing;
+			(aCreating ? view.Creating : view.Checking) = true;
+			view.Failure.clear();
+			publish();
+			auto self = shared_from_this();
+			++PublishPending;
+			PublishLane->post([self, effect = std::move(aEffect), draft = *Projection.Draft, generation = Generation, stop = PublishStop.get_token()]() mutable {
+				auto store = locked_store{ *self };
+				auto step  = effect(store, draft, self->Now(), stop);
+				self->Decisions.post([host = self, result = std::move(step), generation]() mutable {
+					--host->PublishPending;
+					if (host->Stopped) {
+						return;
+					}
+					host->published(generation, std::move(result));
+				});
+			});
+		}
+
+		void published(const std::uint64_t aGeneration, local_publication_step aStep)
+		{
+			auto& view    = Projection.Publishing;
+			view.Checking = false;
+			view.Creating = false;
+			if (aGeneration != Generation) {
+				publish();
+				return;
+			}
+			view.Checked          = true;
+			view.Branch           = aStep.Branch;
+			view.Push             = std::move(aStep.Push);
+			view.Refusal          = aStep.Refusal;
+			view.Existing         = std::move(aStep.Existing);
+			view.AccountAvailable = account().has_value();
+			view.Failure          = aStep.Provider ? publication_failure_words(*aStep.Provider) : std::string{ };
+			if (aStep.Store) {
+				Projection.Store  = aStep.Store;
+				Projection.Reread = aStep.Store->Failure == local_draft_store_failure::stale;
+			}
+			if (aStep.Draft) {
+				Projection.Draft = std::move(aStep.Draft);
+			}
+			project_plan();
+			publish();
+			refresh_home();
+		}
+
+		void check_publication(const bool aTour)
+		{
+			auto signedIn = account();
+			publishing(
+				[chosen = std::move(signedIn), aTour](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow, std::stop_token aStop) {
+					return check_local_publication(aStore, aDraft, chosen ? &*chosen : nullptr, aTour, aNow, aStop);
+				},
+				false);
+		}
+
+		void create_pull_request(std::string aDigest)
+		{
+			auto signedIn = account();
+			if (!signedIn) {
+				Projection.Publishing.AccountAvailable = false;
+				Projection.Publishing.Refusal          = core::local_publication_refusal::no_account;
+				publish();
+				return;
+			}
+			publishing(
+				[chosen = std::move(*signedIn), digest = std::move(aDigest)](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow, std::stop_token aStop) {
+					return create_local_pull_request(aStore, aDraft, chosen, digest, aNow, aStop);
+				},
+				true);
+		}
+
+		void recover_publication()
+		{
+			auto signedIn = account();
+			if (!signedIn) {
+				return;
+			}
+			publishing([chosen = std::move(*signedIn)](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow,
+													 std::stop_token aStop) { return recover_local_publication(aStore, aDraft, chosen, aNow, aStop); },
+					   true);
+		}
+
+		void associate_pull_request(const std::uint64_t aNumber)
+		{
+			auto signedIn = account();
+			if (!signedIn) {
+				return;
+			}
+			publishing([chosen = std::move(*signedIn), aNumber](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow,
+															  std::stop_token aStop) { return associate_local_pull_request(aStore, aDraft, chosen, aNumber, aNow, aStop); },
+					   true);
+		}
+
+		/// After a restart or a reopen: a creation recorded and never answered
+		/// is uncertain, and no confirmation survives.
+		void settle_after_restart()
+		{
+			if (!Projection.Draft || !Projection.Draft->Publication || PublishPending != 0U) {
+				return;
+			}
+			const auto phase = Projection.Draft->Publication->Journal.Phase;
+			if (phase == core::local_publication_phase::creating || phase == core::local_publication_phase::authorized) {
+				write(core::restart_local_publication(*Projection.Draft));
+			}
+		}
+
 		void close()
 		{
 			ImportStop.request_stop();
@@ -1239,6 +1435,12 @@ namespace bpr::application {
 		effect_executor*           AgentLane = nullptr;
 		std::stop_source           AskStop;
 		std::atomic<std::uint64_t> AgentPending{ 0U };
+		/// RFC-BPR-0111. Create draft PR…: the account, asked on the decision
+		/// lane, and the lane GitHub is called on.
+		std::function<std::optional<github_publication_account>()> Account;
+		effect_executor*                                           PublishLane = nullptr;
+		std::stop_source                                           PublishStop;
+		std::atomic<std::uint64_t>                                 PublishPending{ 0U };
 
 		/// Decision lane.
 		local_draft_workbench_projection     Projection;
@@ -1535,6 +1737,46 @@ namespace bpr::application {
 		}
 	}
 
+	void local_draft_workbench::set_publishing(std::function<std::optional<github_publication_account>()> aAccount, effect_executor* const aLane)
+	{
+		auto& self                                = *Implementation;
+		self.Account                              = std::move(aAccount);
+		self.PublishLane                          = aLane;
+		self.Projection.Publishing.AccountAvailable = self.account().has_value();
+		self.publish();
+	}
+
+	void local_draft_workbench::check_publication(const bool aTour)
+	{
+		Implementation->check_publication(aTour);
+	}
+
+	void local_draft_workbench::create_pull_request(std::string aDigest)
+	{
+		Implementation->create_pull_request(std::move(aDigest));
+	}
+
+	void local_draft_workbench::recover_publication()
+	{
+		Implementation->recover_publication();
+	}
+
+	void local_draft_workbench::associate_pull_request(const std::uint64_t aNumber)
+	{
+		Implementation->associate_pull_request(aNumber);
+	}
+
+	void local_draft_workbench::cancel_publication()
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft && !self.Projection.Publishing.Creating) {
+			auto changed = core::cancel_local_publication(*self.Projection.Draft, self.Projection.Draft->Version, self.Now());
+			if (changed) {
+				self.write(std::move(*changed));
+			}
+		}
+	}
+
 	void local_draft_workbench::rebind()
 	{
 		Implementation->rebind();
@@ -1567,11 +1809,12 @@ namespace bpr::application {
 			Implementation->Stop.request_stop();
 			Implementation->ImportStop.request_stop();
 			Implementation->AskStop.request_stop();
+			Implementation->PublishStop.request_stop();
 		}
 	}
 
 	auto local_draft_workbench::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Pending == 0U && Implementation->HomePending == 0U && Implementation->AgentPending == 0U;
+		return Implementation->Pending == 0U && Implementation->HomePending == 0U && Implementation->AgentPending == 0U && Implementation->PublishPending == 0U;
 	}
 }

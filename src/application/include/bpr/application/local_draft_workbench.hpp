@@ -4,6 +4,7 @@
 #include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/local_draft_discovery.hpp"
 #include "bpr/application/local_draft_evidence_import.hpp"
+#include "bpr/application/local_draft_publishing.hpp"
 #include "bpr/application/local_draft_store.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_material_bridge.hpp"
@@ -220,6 +221,30 @@ namespace bpr::application {
 		auto        operator<=>(const local_draft_request_coverage&) const = default;
 	};
 
+	/// \brief RFC-BPR-0111. Create draft PR… as the page shows it.
+	struct local_draft_publishing_view
+	{
+		/// An account that can create pull requests is signed in.
+		bool AccountAvailable = false;
+		/// GitHub is being read for the plan.
+		bool Checking = false;
+		/// The creation (or a recovery read) is under way.
+		bool Creating = false;
+		/// The last check ran.
+		bool                      Checked = false;
+		core::hosted_branch_state Branch  = core::hosted_branch_state::unobserved;
+		/// The push to run, when the hosted branch is not the candidate.
+		std::optional<core::named_push>                Push;
+		std::optional<core::local_publication_refusal> Refusal;
+		std::optional<core::local_publication_link>    Existing;
+		/// The recorded plan in words, and the digest Create confirms.
+		std::string Preview;
+		std::string Digest;
+		/// What GitHub's answer was, in the author's words, when it failed.
+		std::string Failure;
+		auto        operator<=>(const local_draft_publishing_view&) const = default;
+	};
+
 	struct local_draft_workbench_projection
 	{
 		local_draft_stage        Stage    = local_draft_stage::closed;
@@ -276,6 +301,8 @@ namespace bpr::application {
 		/// Why the last question was not answered.
 		std::string                                 AskFailure;
 		std::optional<local_draft_request_coverage> Coverage;
+		/// RFC-BPR-0111. Create draft PR….
+		local_draft_publishing_view Publishing;
 		/// A write lost to another writer was re-read.
 		bool Reread                                                     = false;
 		bool Busy                                                       = false;
@@ -366,6 +393,19 @@ namespace bpr::application {
 		void stop_asking();
 		/// \brief New session: the open conversation ends and stays readable.
 		void new_session(std::uint64_t aConversation);
+		// RFC-BPR-0111: Create draft PR…. BPR pushes nothing.
+		/// \brief The account creation acts as, asked each time, and the lane
+		/// its GitHub calls run on, apart from every review submission.
+		void set_publishing(std::function<std::optional<github_publication_account>()> aAccount, effect_executor* aLane);
+		/// \brief Reads GitHub and records the plan for the latest candidate.
+		void check_publication(bool aTour);
+		/// \brief The author's confirmation of the plan they saw, by its digest.
+		void create_pull_request(std::string aDigest);
+		/// \brief Reads GitHub after a lost answer. Sends nothing.
+		void recover_publication();
+		/// \brief Associates the open pull request from the draft's branch the check found.
+		void associate_pull_request(std::uint64_t aNumber);
+		void cancel_publication();
 		/// \brief Confirms the rebind a moved worktree offered.
 		void rebind();
 		/// \brief Removes the open draft's private preparation. The caller
