@@ -572,3 +572,26 @@ pull request state is [[BPR-2101]], outside AC03 as amended. Evidence reused
 unchanged, plus the fourth round's rows and live course. Not run: Windows
 and Linux, the whole dev suite, the core-only preset. RFC-BPR-0104 is
 Auto-Verified. The shipped-build exposure is [[BPR-2119]] (main).
+
+## MCP servers per agent; argument order (owner, 2026-11-12, [[BPR-2139]], [[BPR-2142]])
+
+AC10 passes: `core::agent_entry::McpServers` (Off by default), stored in
+`agent_entry_launch` (a profile without the table reads Off:
+`sqlite_agent_setup_storage` drops the table and reopens), Settings › agent
+row "MCP servers" (Off / Use the agent's own configuration), the footer
+picker's tooltip line "MCP servers: on, from the agent's own configuration".
+Off: Claude `--strict-mcp-config --mcp-config {"mcpServers":{}}`, Codex
+`-c mcp_servers={}` (App Server and `exec`), Review Cycle rounds too; own:
+nothing; a fresh path stays Off (`application_agent_launch_policy`).
+The pull request's checkout's servers stay out either way (third-round
+amendment, unchanged). The reviewer's own checkout under "own" loads what
+Claude or Codex would load there.
+
+AC11 passes: every Claude launch (chat, writing, read-only, granted with a
+checkout, with instructions, a round) puts `--add-dir`, `--allowedTools`,
+`--disallowedTools`, `--tools` and `--mcp-config` before `-p`, each followed
+by another option (`test_options_with_several_values_come_before_the_prompt_flag`).
+A restricted run no longer also gets `--setting-sources user` (its own empty
+`--setting-sources` was the last one and won before; now it is the only one).
+Round record:
+[RFC-BPR-0101](RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141).

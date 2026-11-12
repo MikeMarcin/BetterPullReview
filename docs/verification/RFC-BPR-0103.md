@@ -179,3 +179,18 @@ slowly and goes silent for 130 seconds before its last part.
 ## Closeout (2026-11-11)
 
 [[BPR-2006]] judged every criterion against the evidence above; all pass. BPR-2089 (Backlog) is a later observation outside the criteria. Evidence reused unchanged; no product change in the closeout round. Not run: Windows and Linux, the whole dev suite. RFC-BPR-0103 is Auto-Verified.
+
+## A failed sign-in ends the turn (owner, 2026-11-12, [[BPR-2142]])
+
+AC10 passes: `application_agent_launch_policy`
+(`test_a_failed_sign_in_ends_the_run_at_once`) decodes the wrapper's shapes
+from the owner's corporate tests: a `system/api_retry` frame with
+`authentication_failed` (or `error_status` 401) ends the run at that frame as
+`not_signed_in`; a plain-text `401 {"error":"missing gateway token"}` line, a
+`result` error naming a 401 and Claude's own "Not logged in" result do too; a
+retry for another reason and a wrapper's banner line do not. The run's
+refusal reason says "The agent isn't signed in, or its wrapper couldn't get a
+sign-in token. Sign in again in a terminal, or try again later."
+(`agent_protocol_loop`), which the Agent tab and the tour show instead of
+"answered in a form this app can't read". Round record:
+[RFC-BPR-0101](RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141).

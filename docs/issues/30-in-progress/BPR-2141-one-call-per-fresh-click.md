@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2141"
 title: "A fresh one-off is one model call: no tools, its context up front"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0101"]
 depends_on: []
 priority: "P1"
@@ -22,3 +22,9 @@ server and their context in the request; one that cannot be filled up front
 is named where it is chosen.
 
 Acceptance: AC13 as amended on 2026-11-12.
+
+## Progress (2026-11-12)
+
+Partly built; see the [RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141)
+for what passes and what remains (its "Not done" list, and the RFC-BPR-0107
+ledger's "Pending" list for the prompts still pasted).

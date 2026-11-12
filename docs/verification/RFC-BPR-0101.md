@@ -150,3 +150,58 @@ the new session's handle. It now records that at launch
 ## Closeout (2026-11-11)
 
 [[BPR-2001]] judged every criterion against the evidence above; all pass. AC06 rests on unit and composed courses; no installed-agent tour run was made. Evidence reused unchanged; no product change in the closeout round. Not run: Windows and Linux, the whole dev suite. RFC-BPR-0101 is Auto-Verified.
+
+## Agent launch policy (owner, 2026-11-12, [[BPR-2138]], [[BPR-2141]])
+
+The owner's classification of fresh and resumed runs and the record of the
+whole round (MCP servers, system-prompt instructions, argument order, sign-in
+failures; their own ledgers point here). Frontend-design was loaded before
+the Qt work.
+
+What was built:
+
+- `core::agent_run_path` names sixteen launch paths and `session_mode_of`
+  gives the owner's classification; `ask_more_path` names where a fresh
+  answer's Ask more continues. `application::agent_launch_options::Path`
+  carries it to the launch: a fresh path gets Claude
+  `--no-session-persistence` (and keeps MCP off), Codex `exec --ephemeral`;
+  `prepare_native_agent_turn` refuses a native turn on it, and the
+  invocation host opens no native session for it.
+- The app names the path at each launch: Agent tab (`agent_tab`), tour side
+  chat and whole-tour conversation, Draft Tour (`draft_tour_first_draft`,
+  now fresh: no native scope), a field draft or outline (`tour_field_draft`),
+  a rewrite and a part's Enhance (`tour_enhance`), Enhance on a comment,
+  reply or note (`enhance_writing`), a local draft's discussion and its commit
+  message, Review Cycle rounds (`build_round_launch`, resumed by session
+  name as before), agent checks (`agent_check`).
+- A tour stop's or part's Enhance (AC11) is a fresh run: `tour_side_chat::enhance`
+  neither opens the side chat nor sends it a turn; it dispatches a fresh
+  update ask (`tour_ask::Fresh`), whose answer becomes the existing tour
+  proposal on the part (marked grey, Accept or Discard). The run is marked
+  `tour_agent_run::Fresh` so no conversation replays it.
+- Ask more for Draft Tour (AC12, partial): the fresh first draft's answer
+  (Problem, Solution, stop count) seeds the next whole-tour conversation
+  turn, which then resumes as before.
+
+Runs at `5286b69c2`: `application_agent_launch_policy` (new: AC10's table
+and per-path launches, MCP, argument order, instructions, sign-in failures),
+`application_agent_launch`, `application_review_cycle_round_launch`,
+`qt_tour_side_chat` (AC11), `application_enhance_comment_note_public_path`,
+`application_review_cycle_send_public_path`, `core_agent_configuration`,
+`sqlite_agent_setup_storage`, `architecture_boundaries`,
+`test_network_isolation_manifest`, `application_composition_source_contract`
+(pin resealed), `coding-format-check`; integration pass below.
+
+Not done (cards stay In Progress):
+
+- [[BPR-2138]]: the local draft's discussion still replays its history in
+  each request rather than resuming a native session; its first description
+  is not yet a separate fresh path; Ask more is implicit for Draft Tour (the
+  next whole-tour turn) with no control of its own, and the agent-assistance
+  actions (RFC-BPR-0116 to 0121) are not built yet. A fresh part Enhance
+  still lists its run in the part's transcript (it is not replayed).
+- [[BPR-2141]] (AC13): Enhance, field rewrites, the commit message and the
+  local draft's runs are already one tool-free call; Draft Tour, a field's
+  draft from PR context and Suggest an outline still read the repository with
+  read-only tools (several calls). Supplying their context up front is the
+  remaining work.
