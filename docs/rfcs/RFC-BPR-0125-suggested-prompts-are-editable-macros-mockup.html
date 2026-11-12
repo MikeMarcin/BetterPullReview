@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RFC-BPR-0125 frames: suggested prompts as macros</title>
+<style>
+/* Static frames, no script and no external resource. The controls are drawn
+   as the accepted Agents roster (BPR-2051) draws QMacStyle; the one new
+   device is the variable tint that ties what is written to what is sent. */
+:root{color-scheme:light dark;
+--page:#dcdde1;--doc:#1b1c20;--doc2:#3b3d44;--win:#fff;--base:#fff;--sel:#d6d6d6;--ctl:rgba(0,0,0,.078);--text:rgba(0,0,0,.88);--text2:rgba(0,0,0,.55);--text3:rgba(0,0,0,.32);--hair:rgba(0,0,0,.10);--edge:rgba(0,0,0,.17);--group:rgba(0,0,0,.035);--groupedge:rgba(0,0,0,.05);--accent:#007aff;--agent:#4a3fd6;--wash:rgba(74,63,214,.10);--needs:#9a6100;--ok:#1a7f37;--sheet:#f7f7f7;--winedge:rgba(0,0,0,.24);--shadow:0 22px 54px rgba(0,0,0,.20),0 3px 10px rgba(0,0,0,.10);--link:#0b4fd6}
+@media (prefers-color-scheme:dark){:root{--page:#101113;--doc:#ececee;--doc2:#b6b8bf;--win:#1e1e1e;--base:#171717;--sel:#393939;--ctl:rgba(255,255,255,.092);--text:rgba(255,255,255,.90);--text2:rgba(255,255,255,.56);--text3:rgba(255,255,255,.32);--hair:rgba(255,255,255,.10);--edge:rgba(255,255,255,.15);--group:rgba(255,255,255,.05);--groupedge:rgba(255,255,255,.06);--accent:#0a84ff;--agent:#a3a0ff;--wash:rgba(163,160,255,.15);--needs:#e0a23c;--ok:#3fb950;--sheet:#272727;--winedge:rgba(255,255,255,.17);--shadow:0 22px 54px rgba(0,0,0,.6),0 3px 10px rgba(0,0,0,.4);--link:#7fb0ff}}
+*{box-sizing:border-box}
+html{background:var(--page)}
+body{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--doc);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1060px;margin:0 auto;padding:48px 40px 110px}
+.crumbs{font-size:13.5px;margin:0 0 26px;color:var(--doc2)}
+.crumbs a{color:var(--link);text-underline-offset:3px}
+.crumbs a:focus-visible{outline:2px solid var(--link);outline-offset:3px;border-radius:3px}
+h1{font-size:31px;line-height:1.14;font-weight:700;letter-spacing:-.024em;margin:0 0 12px}
+.intro{max-width:64ch;margin:0;color:var(--doc2);font-size:16.5px;line-height:1.5}
+h2{font-size:19px;font-weight:680;letter-spacing:-.012em;margin:60px 0 4px}
+h2 + p{max-width:70ch;margin:0 0 20px;color:var(--doc2)}
+.scroll{overflow-x:auto;padding:6px 6px 40px;margin:0 -6px -22px}
+.pair{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.note{max-width:70ch;margin:10px 0 0;color:var(--doc2);font-size:14px}
+
+.mac{font:13px/16px -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--text);cursor:default;text-align:left}
+.mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;letter-spacing:-.01em}
+.win{flex:none;border-radius:12px;background:var(--win);box-shadow:0 0 0 .5px var(--winedge),var(--shadow);overflow:hidden}
+.pad{padding:18px 28px 22px}
+.cap{color:var(--text2)}
+.t3{color:var(--text3)}
+.sp{flex:1}
+.sec{font-size:15px;line-height:20px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+.sec + p{margin:0 0 12px;color:var(--text2);max-width:62ch}
+.gh{display:flex;align-items:baseline;gap:10px;margin:14px 0 6px;font-weight:600}
+.gh span{font-weight:400;color:var(--text2);margin-left:auto}
+.group{border-radius:9px;background:var(--group);box-shadow:inset 0 0 0 1px var(--groupedge)}
+.row{position:relative;display:flex;align-items:flex-start;gap:9px;padding:8px 11px 9px 9px}
+.row + .row::before{content:"";position:absolute;left:54px;right:0;top:0;height:1px;background:var(--hair)}
+.grip{flex:none;width:8px;height:14px;margin-top:2px;background:radial-gradient(circle,var(--text3) 1px,transparent 1.3px) 0 0/4px 4.6px}
+.chk{flex:none;width:15px;height:15px;margin-top:1px;border-radius:4.5px;background:var(--ctl);box-shadow:inset 0 0 0 .5px var(--edge);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1}
+.chk.on{background:var(--accent);box-shadow:none}
+.who{flex:1;min-width:0}
+.who b{display:block;font-weight:600;line-height:17px}
+.who > span{display:block;color:var(--text2);font-size:11.5px;line-height:15px}
+.off .who b{color:var(--text2)}
+.st{flex:none;white-space:nowrap;color:var(--text2);margin-top:1px}
+.st.ch{color:var(--needs)}
+.go{flex:none;color:var(--text3);margin-top:1px}
+.tok{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:.92em;color:var(--agent);background:var(--wash);border-radius:4px;padding:0 3px}
+.val{color:var(--agent);background:var(--wash);border-radius:4px;padding:0 2px}
+.btn{display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:7px;background:var(--ctl);white-space:nowrap}
+.btn.pri{background:var(--accent);color:#fff}
+.pop{display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px 0 10px;border-radius:7px;background:var(--ctl);white-space:nowrap}
+.pop::after{content:"";width:0;height:0;border:3.5px solid transparent;border-top-color:var(--text2);margin-top:4px}
+.field{display:flex;align-items:center;min-height:22px;padding:2px 7px;border-radius:5.5px;background:var(--base);box-shadow:inset 0 0 0 1px var(--edge)}
+.under{display:flex;align-items:center;gap:8px;margin:10px 0 12px}
+.grow{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 9px 0 13px}
+
+.sheet{width:620px;background:var(--sheet)}
+.sheet .hd{padding:13px 18px 10px;font-weight:600;font-size:14px;border-bottom:1px solid var(--hair)}
+.sheet .bd{padding:14px 18px 6px;display:grid;grid-template-columns:74px 1fr;gap:9px 10px;align-items:start}
+.sheet .bd > label{color:var(--text2);padding-top:4px}
+.line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.radio{display:inline-flex;align-items:center;gap:6px;margin-right:12px}
+.radio i{width:14px;height:14px;border-radius:50%;background:var(--ctl);box-shadow:inset 0 0 0 .5px var(--edge)}
+.radio.on i{background:var(--accent);box-shadow:inset 0 0 0 4px var(--accent),inset 0 0 0 7px #fff}
+.ed{background:var(--base);box-shadow:inset 0 0 0 1px var(--edge);border-radius:6px;padding:8px 10px;font:11.5px/17px "SF Mono",ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
+.ed.ro{background:transparent;box-shadow:inset 0 0 0 1px var(--hair)}
+.yes{color:var(--ok);font-weight:600}
+.cond{display:flex;align-items:center;gap:6px;margin:0 0 6px}
+.cond .field{flex:1}
+.x{color:var(--text3);padding:0 4px}
+.sheet .ft{display:flex;align-items:center;gap:6px;padding:10px 14px;border-top:1px solid var(--hair);margin-top:8px}
+
+.drawer{width:372px}
+.drawer .pad{padding:14px 14px 12px}
+.lead{color:var(--text3);margin:0 0 6px}
+.chips{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:7px;background:var(--wash);color:var(--agent)}
+.chip.hot{box-shadow:0 0 0 2px var(--agent)}
+.chip.q{background:var(--ctl);color:var(--text2)}
+.ask{margin-top:14px;border-radius:9px;background:var(--base);box-shadow:inset 0 0 0 1px var(--edge);padding:8px 9px}
+.att{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 7px;border-radius:6px;background:var(--ctl);font-size:11.5px;margin:0 4px 6px 0}
+.att.m{background:var(--wash);color:var(--agent)}
+.ask p{margin:0 0 10px}
+.tip{width:290px;border-radius:8px;background:var(--sheet);box-shadow:0 0 0 .5px var(--winedge),0 10px 28px rgba(0,0,0,.22);padding:8px 10px;font-size:12px;line-height:16px}
+.tip p{margin:0 0 6px}
+.tip p:last-child{margin:0;color:var(--text2)}
+.bubble{border-radius:9px;box-shadow:inset 0 0 0 1px var(--edge);padding:7px 10px;margin-top:12px}
+.bubble b{display:block;font-weight:600;margin-bottom:2px}
+.menu{width:262px;padding:5px;border-radius:9px;background:var(--sheet);box-shadow:0 0 0 .5px var(--winedge),0 12px 34px rgba(0,0,0,.26)}
+.menu .mh{padding:4px 9px 2px;font-size:11px;font-weight:600;color:var(--text2)}
+.menu .mi{display:flex;gap:8px;height:22px;align-items:center;padding:0 9px;border-radius:5px;white-space:nowrap}
+.menu .mi.on{background:var(--accent);color:#fff}
+.menu .mi .r{margin-left:auto;color:var(--text2);overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.menu hr{border:0;height:1px;margin:5px 9px;background:var(--hair)}
+@media (max-width:760px){.wrap{padding:28px 18px 80px}}
+</style></head>
+<body>
+<main class="wrap">
+<p class="crumbs"><a href="RFC-BPR-0125-suggested-prompts-are-editable-macros.md">RFC-BPR-0125</a>, design frames. Static drawings, not the application.</p>
+<h1>The chip is the name. The prompt is what it sends.</h1>
+<p class="intro">Each suggested prompt gets a short name, a longer text it expands to, and a few conditions for when it shows. Everything that will be filled in is tinted the same way where you write it and where you read it.</p>
+
+<h2>Settings, Agents &amp; context: the list</h2>
+<p>A roster like the agents'. One row a prompt, in the order the chips appear. A row opens its sheet.</p>
+<div class="scroll"><div class="mac win" style="width:760px"><div class="pad">
+<h3 class="sec">Suggested prompts</h3>
+<p>The questions offered as one-click chips. A click sends what the prompt expands to. Shift-click puts it in the question field first.</p>
+<div class="gh">Agent tab <span>5 show at once; the rest are under More</span></div>
+<div class="group">
+ <div class="row"><i class="grip"></i><i class="chk on">✓</i><div class="who"><b>Review this pull request</b><span>A review of the pull request. Always shown.</span></div><span class="st">Built-in</span><span class="go">›</span></div>
+ <div class="row"><i class="grip"></i><i class="chk on">✓</i><div class="who"><b>Review <span class="tok" style="display:inline">{file}</span></b><span>A review of the open file.</span></div><span class="st">Built-in</span><span class="go">›</span></div>
+ <div class="row off"><i class="grip"></i><i class="chk"></i><div class="who"><b>What could this change break?</b><span>A question about the pull request. Always shown.</span></div><span class="st">Built-in, off</span><span class="go">›</span></div>
+ <div class="row"><i class="grip"></i><i class="chk on">✓</i><div class="who"><b>Security pass on <span class="tok" style="display:inline">{file.name}</span></b><span>A question about the open file, when its path matches src/**, *.cpp and the pull request is not a draft.</span></div><span class="go">›</span></div>
+ <div class="row"><i class="grip"></i><i class="chk on">✓</i><div class="who"><b>Explain <span class="tok" style="display:inline">{file}</span> <span class="tok" style="display:inline">{lines}</span></b><span>A question about the selected lines, when one line is selected.</span></div><span class="st ch">Changed</span><span class="go">›</span></div>
+</div>
+<div class="gh">Tour chat: the whole tour</div>
+<div class="group">
+ <div class="row"><i class="grip"></i><i class="chk on">✓</i><div class="who"><b>Too many stops?</b><span>A question about the tour, while the chat is empty.</span></div><span class="st">Built-in</span><span class="go">›</span></div>
+ <div class="row"><i class="grip"></i><i class="chk on">✓</i><div class="who"><b>Focus on …</b><span>Put in the question field to finish, while the chat is empty.</span></div><span class="st">Built-in</span><span class="go">›</span></div>
+</div>
+<div class="under"><span class="btn">Add prompt…</span></div>
+<div class="group"><div class="grow"><span class="sp">Bring back the built-in prompts as shipped</span><span class="btn">Restore built-ins…</span></div></div>
+</div></div></div>
+<p class="note">Three of the five places are left out of this drawing. State is always in words: Built-in, Changed, off.</p>
+
+<h2>A prompt's sheet</h2>
+<p>What it is called, what it sends, and when it shows. The preview is the message, filled in from the pull request Settings was opened from.</p>
+<div class="scroll"><div class="mac win sheet">
+<div class="hd">Suggested prompt</div>
+<div class="bd">
+ <label>Shown as</label><div><div class="field">Security pass on&nbsp;<span class="tok">{file.name}</span></div><div class="cap" style="margin-top:4px">The chip reads: Security pass on <span class="val">renderer.cpp</span></div></div>
+ <label>Where</label><div class="line"><span class="pop">Agent tab</span><span class="cap">About</span><span class="pop">The open file</span></div>
+ <label>Ask as</label><div class="line"><span class="radio on"><i></i>A question</span><span class="radio"><i></i>A review with findings</span></div>
+ <label>Sends</label><div><div class="line" style="margin-bottom:6px"><span class="sp"></span><span class="pop">Insert</span></div><div class="ed">Check <span class="tok">{file}</span> for injection, unsafe deserialisation and missing authorisation checks. Say which lines, and what an attacker could do. /security-review</div><div class="cap" style="margin-top:4px">168 of 8,192 bytes</div></div>
+ <label>Preview</label><div><div class="line" style="margin-bottom:6px"><span class="cap">with</span><span class="pop">This pull request (#482)</span><span class="sp"></span><span>Shows now: <span class="yes">yes</span></span></div><div class="ed ro">Check <span class="val">src/render/renderer.cpp</span> for injection, unsafe deserialisation and missing authorisation checks. Say which lines, and what an attacker could do. /security-review</div></div>
+ <label>Shows when</label><div><div class="cap" style="margin:4px 0 8px">all of these are true</div>
+  <div class="cond"><span class="pop">The open file's path</span><span class="pop">matches</span><span class="field mono">src/**, *.cpp</span><span class="x">✕</span></div>
+  <div class="cond"><span class="pop">The pull request</span><span class="pop">is not</span><span class="pop">a draft</span><span class="sp"></span><span class="x">✕</span></div>
+  <div style="color:var(--accent);margin:2px 0 8px">Add a condition</div>
+  <div class="cap">It also needs a file open in Review, because it uses <span class="tok">{file}</span>.</div></div>
+</div>
+<div class="ft"><span class="btn">Delete…</span><span class="btn">Duplicate</span><span class="sp"></span><span class="btn">Cancel</span><span class="btn pri">Save prompt</span></div>
+</div></div>
+
+<h2>In the Agent tab</h2>
+<p>The chips keep their look. Pointing at one shows what it will send. Shift-click puts that text in the field, and the draft keeps its prompt as a chip you can remove.</p>
+<div class="scroll"><div class="pair">
+<div class="mac win drawer"><div class="pad">
+ <p class="lead">Ask about this pull request, or try:</p>
+ <div class="chips">
+  <span class="chip">Review this pull request</span>
+  <span class="chip">Review src/render/renderer.cpp</span>
+  <span class="chip hot">Security pass on renderer.cpp</span>
+  <span class="chip">Explain renderer.cpp lines 5–8</span>
+  <span class="chip">Too clever?</span>
+  <span class="chip q">More prompts (2)…</span>
+ </div>
+ <div class="ask"><span class="att">renderer.cpp 5–8 ✕</span><span class="att m">Security pass ✕</span>
+  <p>Check src/render/renderer.cpp for injection, unsafe deserialisation and missing authorisation checks. Start with the parser.</p>
+  <div class="line"><span class="cap">Claude Code</span><span class="sp"></span><span class="btn pri" style="background:var(--agent)">Send</span></div>
+ </div>
+ <div class="bubble"><b>Security pass on renderer.cpp</b>Check src/render/renderer.cpp for injection, unsafe deserialisation and missing authorisation checks. Say which lines, and…<div style="color:var(--accent);margin-top:3px">Show all</div></div>
+</div></div>
+<div>
+ <div class="mac tip"><p>Check src/render/renderer.cpp for injection, unsafe deserialisation and missing authorisation checks. Say which lines, and what an attacker could do. /security-review</p><p>Click to send. Shift-click to edit before sending.</p></div>
+ <div class="mac menu" style="margin-top:22px"><div class="mi on">Edit this prompt…</div><div class="mi">Turn off</div><hr><div class="mi">Suggested prompts settings…</div></div>
+ <p class="note" style="max-width:290px">Above, the tooltip of the outlined chip. Below it, the chip's own menu. The last box in the drawer is the turn once sent: the name, then the text that went.</p>
+</div>
+</div></div>
+
+<h2>Typing its name</h2>
+<p>The popup that completes a skill also finds a prompt by any word of its name. Choosing one fills the field in. Nothing is sent.</p>
+<div class="scroll"><div class="mac" style="width:372px">
+ <div class="ask" style="margin:0"><p>/sec</p></div>
+ <div class="menu" style="width:372px;margin-top:6px">
+  <div class="mh">Suggested prompts</div>
+  <div class="mi on">Security pass on renderer.cpp<span class="r" style="color:rgba(255,255,255,.8)">fills the field</span></div>
+  <hr><div class="mh">Skills</div>
+  <div class="mi">/security-review<span class="r">~/.claude/skills</span></div>
+ </div>
+</div></div>
+</main>
+</body></html>
