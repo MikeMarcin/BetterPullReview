@@ -1,0 +1,60 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "linux-release-blockers-r1",
+  "scope": {
+    "issues": [
+      "BPR-2133",
+      "BPR-2134"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "bound-initial-review-load",
+      "outcome": "Bound the common initial review-load GUI latency. The actual cause is corrected on Main with meaningful exact-candidate native regression evidence, preserving original limits and frozen60 evidence.",
+      "work": [
+        {
+          "issue": "BPR-2133",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Actual original failure and bounded diagnostic establish cause before corrective product design.",
+        "Minimal correction and regression preserve original100ms Release/20s functional oracles; exact affected source/input closure and native platform/configuration gates recorded.",
+        "Focused exact-source native verification and scoped static/documentation checks pass; original failures and protected producer seals retained.",
+        "Own explicit commits land Main; no broad intake/frozenR-W edits/private product deviation; host leases and commands reconciled; coordinator retains release acceptance."
+      ],
+      "boundary": "Owner mandate linux-release-blockers-r1; independent frozen60 source6efba00e1afbf874c88c7e5de2623a33528ff36f baseline. Root reserves PC after actual fullR2 Release+Debug/controller terminal, TaskReady, nativeforests empty and pc-build-idle12 idle. Initial approved diagnostics only: exact sealed revision3 ordinaryUID one-shot perf history probe; one failure-only submission testTU/private link against unchanged60libs preserving exact20s predicate/allassertions. No root/install/sysctl/fallback/repeat/native retries; further diagnostic needs concrete bounded proposal. Product fixes must landMain; coordinator selectively integrates own slices and chooses justified affected native gates/bridges."
+    },
+    {
+      "id": "admit-submission-comparison",
+      "outcome": "Restore the selected comparison in the submission composition course. The actual cause is corrected on Main with meaningful exact-candidate native regression evidence, preserving original limits and frozen60 evidence.",
+      "work": [
+        {
+          "issue": "BPR-2134",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Actual original failure and bounded diagnostic establish cause before corrective product design.",
+        "Minimal correction and regression preserve original100ms Release/20s functional oracles; exact affected source/input closure and native platform/configuration gates recorded.",
+        "Focused exact-source native verification and scoped static/documentation checks pass; original failures and protected producer seals retained.",
+        "Own explicit commits land Main; no broad intake/frozenR-W edits/private product deviation; host leases and commands reconciled; coordinator retains release acceptance."
+      ],
+      "boundary": "Owner mandate linux-release-blockers-r1; independent frozen60 source6efba00e1afbf874c88c7e5de2623a33528ff36f baseline. Root reserves PC after actual fullR2 Release+Debug/controller terminal, TaskReady, nativeforests empty and pc-build-idle12 idle. Initial approved diagnostics only: exact sealed revision3 ordinaryUID one-shot perf history probe; one failure-only submission testTU/private link against unchanged60libs preserving exact20s predicate/allassertions. No root/install/sysctl/fallback/repeat/native retries; further diagnostic needs concrete bounded proposal. Product fixes must landMain; coordinator selectively integrates own slices and chooses justified affected native gates/bridges."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
