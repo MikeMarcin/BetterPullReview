@@ -3602,10 +3602,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# fresh, tool-free run of the window's agent on its own worker lane with
 	# `local.commit-message`'s text. github_application gains a look-only
 	# association of the shown draft (attended look); tour_assist names the
-	# new prompt. No credential is read, stored or passed; no review
+	# new prompt; the attended look reads BPR_ATTENDED_LOCAL_DRAFT_PATH and
+	# BPR_ATTENDED_LOCAL_DRAFT_PULL_REQUEST so one frozen root serves both its
+	# looks. No credential is read, stored or passed; no review
 	# mutation, admission or GitHub write is added.
 	set(bpr_expected_production_app_manifest_digest
-        "63c437eaff732c13ff5974672481a28a4c2b162db5e586aae2463b58f2ef8651"
+        "bc55eced5aa80062c95fda40c4db18db5ee52b5bd19d349b8b0711a8bbb03e9b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

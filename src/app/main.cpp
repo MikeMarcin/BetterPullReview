@@ -12857,6 +12857,15 @@ auto main(int argc, char** argv) -> int
 						if (const auto number = launch.value("--attended-local-draft-pull-request"); number.has_value()) {
 							AttendedLocalDraftPullRequest = std::strtoull(std::string{ *number }.c_str(), nullptr, 10);
 						}
+						// One frozen look serves two: its launcher passes the
+						// environment through, so the owner's command can name
+						// the second generated worktree and its pull request.
+						if (const auto other = qEnvironmentVariable("BPR_ATTENDED_LOCAL_DRAFT_PATH"); !other.isEmpty()) {
+							AttendedLocalDraftPath = other.toStdString();
+						}
+						if (const auto number = qEnvironmentVariable("BPR_ATTENDED_LOCAL_DRAFT_PULL_REQUEST"); !number.isEmpty()) {
+							AttendedLocalDraftPullRequest = number.toULongLong();
+						}
 						look = std::string{ "local-draft" };
 					}
 					if (attendedConversationLook) {
