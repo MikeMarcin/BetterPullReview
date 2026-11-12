@@ -1750,9 +1750,11 @@ Plan of the round (status in brackets, updated as it goes):
 1. Design record and owner amendments (0108, 0113, 0114, 0122) [done `a735c6a44`]
 2. Core `local_changes`: status model, three comparisons, change hunks,
    stage/unstage-one-change texts, commit and push decisions, commit-message
-   request and answer [in progress]
+   request and answer [done `0f766be13`; `core_local_changes` passes]
 3. Author-Git runner (adapter) + application host; real-repo course with a
-   local bare remote
+   local bare remote [done `73f3b9109`; `local_changes` passes: stage/unstage
+   one change, hooks, refusing hook, amend, push to a bare remote,
+   refused-when-behind, Save, agent message, declined question]
 4. Qt: Local Changes tab, commit box, push line; segmented view picker with
    Edit; local draft in the PR window (A); Home 1; old UI removed
 5. Agent commit message (`local.commit-message`, profile schema 29, 0107)
