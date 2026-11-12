@@ -113,6 +113,23 @@ namespace bpr::qt {
 		ScratchStarts->setCurrentIndex(aEntry.ScratchStarts ? 0 : 1);
 		ScratchStarts->setToolTip(tr("Whether a pull request starts with the agent's scratch folder: a folder of its own, outside your repository, where it may write and run scripts. Each pull request remembers a change you make in the agent picker."));
 		form->addRow(tr("Scratch folder starts"), ScratchStarts);
+		// [[BPR-2139]], RFC-BPR-0104 (owner, 2026-11-12: "default MCPs to off").
+		McpServers = new QComboBox{ this };
+		McpServers->setObjectName(QStringLiteral("agentEntryMcpServers"));
+		McpServers->addItem(tr("Off"), static_cast<int>(core::agent_mcp_servers::off));
+		McpServers->addItem(tr("Use the agent's own configuration"), static_cast<int>(core::agent_mcp_servers::own));
+		McpServers->setCurrentIndex(aEntry.McpServers == core::agent_mcp_servers::own ? 1 : 0);
+		McpServers->setToolTip(tr("Off: the agent starts with no MCP servers. Own: the servers its own configuration names load in conversations; a pull request's servers never do, and one-off runs such as Enhance keep them off."));
+		form->addRow(tr("MCP servers"), McpServers);
+		// [[BPR-2140]], RFC-BPR-0107. The fallback for a wrapper that drops
+		// the system prompt.
+		Instructions = new QComboBox{ this };
+		Instructions->setObjectName(QStringLiteral("agentEntryInstructions"));
+		Instructions->addItem(tr("System prompt"), static_cast<int>(core::agent_instruction_delivery::system_prompt));
+		Instructions->addItem(tr("In the message"), static_cast<int>(core::agent_instruction_delivery::message));
+		Instructions->setCurrentIndex(aEntry.Instructions == core::agent_instruction_delivery::message ? 1 : 0);
+		Instructions->setToolTip(tr("Where a built-in prompt's instructions go. Choose In the message if this agent's wrapper ignores the system prompt."));
+		form->addRow(tr("Instructions"), Instructions);
 		column->addLayout(form);
 		// [[BPR-2008]]. Off until turned on; what it means right under it.
 		Builds = new QCheckBox{ tr("Build and run tests"), this };
@@ -192,6 +209,8 @@ namespace bpr::qt {
 		const auto grants = core::entry_settings_program(protocol).has_value();
 		ScratchStarts->setEnabled(grants);
 		Builds->setEnabled(grants);
+		McpServers->setEnabled(grants);
+		Instructions->setEnabled(grants);
 	}
 
 	auto agent_entry_dialog::entry() const -> core::agent_entry
@@ -221,6 +240,8 @@ namespace bpr::qt {
 		}
 		result.ScratchStarts  = ScratchStarts->currentData().toBool();
 		result.BuildsAndTests = Builds->isChecked();
+		result.McpServers     = static_cast<core::agent_mcp_servers>(McpServers->currentData().toInt());
+		result.Instructions   = static_cast<core::agent_instruction_delivery>(Instructions->currentData().toInt());
 		// A popular agent keeps its sign-in check and strict run checks.
 		result.StrictRunChecks = StrictChecks == nullptr || StrictChecks->isChecked();
 		if (result.Preset) {

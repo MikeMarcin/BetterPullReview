@@ -1709,6 +1709,8 @@ namespace bpr::app {
 				break;
 			}
 			}
+			// [[BPR-2139]]. Said in the tooltip when the agent's MCP servers load.
+			settings.McpOn = entry.McpServers == core::agent_mcp_servers::own && core::entry_settings_program(entry.Protocol).has_value();
 			// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11
 			// (owner look e97c6a3d, review findings 4 to 6). The two toggles,
 			// decided from the facts the launch is decided from.

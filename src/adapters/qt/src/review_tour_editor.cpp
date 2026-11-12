@@ -2701,8 +2701,8 @@ namespace bpr::qt {
 					if (subject->Thread.Kind == core::tour_thread_kind::stop) {
 						trigger(tour_editor_action::navigate_stop);
 					}
+					// [[BPR-2138]]. A fresh run; its proposal waits on the part.
 					static_cast<void>(SideChat->enhance(subject->Thread, std::move(subject->Passage)));
-					mark_side_chat();
 				}
 				return;
 			}

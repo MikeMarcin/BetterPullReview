@@ -1016,10 +1016,11 @@ namespace bpr::app {
 		// [[BPR-2140]]. This run's instructions, never the next one's.
 		auto instructions = std::move(TourRunInstructions);
 		TourRunInstructions.clear();
+		const auto fresh  = std::exchange(TourAskFresh, false) && aKind == core::tour_agent_request::ask;
 		// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). Only a turn of a
 		// side chat or of the whole-tour conversation resumes; Draft Tour's
 		// first draft, a field's draft and an Enhance run fresh.
-		const auto conversational = aKind == core::tour_agent_request::ask;
+		const auto conversational = aKind == core::tour_agent_request::ask && !fresh;
 		const auto continued      = conversational ? continued_tour_session(aThread) : std::nullopt;
 		const auto key            = tour_native_agent() + ":" + tour_native_scope(aThread);
 		const auto session        = TourNativeSessions.find(key);
@@ -1035,7 +1036,12 @@ namespace bpr::app {
 			return false;
 		}
 		TourRunScope.clear();
-		if ((aKind == core::tour_agent_request::ask || aKind == core::tour_agent_request::draft_tour) && !tour_native_agent().empty()) {
+		if (fresh) {
+			if (auto found = std::ranges::find(TourAgent.Runs, *run, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
+				found->Fresh = true;
+			}
+		}
+		if ((conversational || aKind == core::tour_agent_request::draft_tour) && !tour_native_agent().empty()) {
 			TourRunScope = tour_native_agent() + ":" + tour_native_scope(aThread);
 			if (auto found = std::ranges::find(TourAgent.Runs, *run, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
 				found->ConversationScope = TourRunScope;
@@ -1057,7 +1063,7 @@ namespace bpr::app {
 		TourWorkspaceHead.reset();
 		auto launch = tour_launch{ .NativeScope = TourRunScope.empty() || !conversational ? std::string{ } : tour_native_scope(aThread), .NativeQuestion = aAsked, .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
 		launch.Path = aKind == core::tour_agent_request::draft_tour ? core::agent_run_path::draft_tour_first_draft
-			: aKind == core::tour_agent_request::rewrite            ? core::agent_run_path::tour_enhance
+			: aKind == core::tour_agent_request::rewrite || fresh   ? core::agent_run_path::tour_enhance
 			: aKind == core::tour_agent_request::ask                ? (aThread.Kind == core::tour_thread_kind::tour ? core::agent_run_path::tour_conversation : core::agent_run_path::tour_side_chat)
 																	: core::agent_run_path::tour_field_draft;
 		launch.SystemInstructions = std::move(instructions);
@@ -1551,7 +1557,9 @@ namespace bpr::app {
 		// directive is part of the prompt the bound below is checked on.
 		const auto texts  = std::array{ std::string_view{ question } };
 		auto       skills = prepare_skill_run(SkillLibrary, texts);
-		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, (tour_native_agent().empty() ? core::tour_conversation_of(TourAgent, aThread) : decltype(core::tour_conversation_of(TourAgent, aThread)){ }), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive, capture_tour_agent_context(aThread));
+		// [[BPR-2138]]. An Enhance is fresh: no conversation goes with it.
+		const auto fresh  = TourAskFresh;
+		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, (tour_native_agent().empty() && !fresh ? core::tour_conversation_of(TourAgent, aThread) : decltype(core::tour_conversation_of(TourAgent, aThread)){ }), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive, capture_tour_agent_context(aThread));
 		if (!prompt) {
 			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
 			return;
@@ -1563,7 +1571,7 @@ namespace bpr::app {
 		// whole-tour conversation's next turn, so the conversation that
 		// resumes from here holds it.
 		auto       seeded = *prompt;
-		const auto seed   = aThread.Kind == core::tour_thread_kind::tour && !TourDraftSeed.empty();
+		const auto seed   = aThread.Kind == core::tour_thread_kind::tour && !TourDraftSeed.empty() && !fresh;
 		if (seed) {
 			seeded = "Earlier, Draft Tour drafted this tour in a separate run. Its answer, as context for this conversation:\n" + TourDraftSeed + "\n\n" + seeded;
 		}

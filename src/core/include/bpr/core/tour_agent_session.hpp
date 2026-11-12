@@ -314,7 +314,11 @@ namespace bpr::core {
 		std::string FocusSet;
 		std::string FocusBefore;
 		bool        FocusUndone                                     = false;
-		auto        operator==(const tour_agent_run&) const -> bool = default;
+		/// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). An Enhance on a
+		/// stop or a part: a fresh run, never a turn of its side chat, so no
+		/// conversation replays it.
+		bool Fresh                                              = false;
+		auto operator==(const tour_agent_run&) const -> bool = default;
 	};
 
 	inline constexpr std::size_t maximum_tour_agent_runs         = 32U;

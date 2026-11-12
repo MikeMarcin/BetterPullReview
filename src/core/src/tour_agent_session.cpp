@@ -794,7 +794,7 @@ namespace bpr::core {
 	{
 		auto turns = std::vector<tour_conversation_turn>{ };
 		for (const auto& run : aSession.Runs) {
-			if (run.State != tour_agent_run_state::answered) {
+			if (run.State != tour_agent_run_state::answered || run.Fresh) {
 				continue;
 			}
 			// [[BPR-1914]] v003. A side chat replays its own turns; the

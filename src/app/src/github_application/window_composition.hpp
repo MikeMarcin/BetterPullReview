@@ -2399,6 +2399,8 @@ namespace bpr::app {
 		std::string TourDraftSeed;
 		/// [[BPR-2140]]. The next tour run's built-in instructions.
 		std::string TourRunInstructions;
+		/// [[BPR-2138]]. The tour ask being made is an Enhance: fresh.
+		bool TourAskFresh = false;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		/// [[BPR-1931]]. What the last Reset tour cleared, for its Undo, while

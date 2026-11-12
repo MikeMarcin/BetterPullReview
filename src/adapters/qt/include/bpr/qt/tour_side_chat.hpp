@@ -52,6 +52,9 @@ namespace bpr::qt {
 		std::optional<core::tour_passage> Passage;
 		QString                           Question;
 		bool                              Update = false;
+		/// [[BPR-2138]]. Enhance: a fresh run whose result is a proposal on
+		/// the part; nothing is sent into its side chat.
+		bool Fresh = false;
 	};
 
 	/// \brief The side chat's glyph: a small speech bubble, in the colour of

@@ -1327,15 +1327,22 @@ namespace bpr::qt {
 
 	auto tour_side_chat::enhance(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage) -> bool
 	{
-		open(aThread, std::nullopt, false);
-		const auto thread = current();
-		if (!thread || !(Draft == nullptr || core::active_tour_thread(*Draft, *thread)) || !HostIdle || RevisionChoiceRequired || HistoryLoading || !Ready || Running || !AskDispatch) {
+		// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). Enhance is a fresh
+		// run: the side chat is neither opened nor sent a turn, and no
+		// conversation's history is needed, so neither its revision choice
+		// nor its loading history holds it back. Its result is a proposal on
+		// the part, accepted or dismissed there.
+		if (!(Draft == nullptr || core::active_tour_thread(*Draft, aThread)) || !HostIdle || !Ready || Running || !AskDispatch) {
 			return false;
 		}
 		const auto selection = aPassage && !aPassage->Text.empty();
-		const auto question  = selection ? tr("Enhance the selected text of %1.").arg(thread->Kind == core::tour_thread_kind::stop ? tr("this stop") : part_words())
-										 : tr("Enhance the writing of %1.").arg(thread->Kind == core::tour_thread_kind::stop ? tr("this stop's explanation") : part_words());
-		send(question, true, selection ? std::move(aPassage) : std::nullopt);
+		const auto part      = aThread.Kind == core::tour_thread_kind::stop ? tr("this stop")
+				 : aThread.Kind == core::tour_thread_kind::problem          ? tr("the Problem")
+				 : aThread.Kind == core::tour_thread_kind::solution         ? tr("the Solution")
+																			: tr("the tour");
+		const auto question  = selection ? tr("Enhance the selected text of %1.").arg(part)
+										 : tr("Enhance the writing of %1.").arg(aThread.Kind == core::tour_thread_kind::stop ? tr("this stop's explanation") : part);
+		AskDispatch(tour_ask{ .Thread = aThread, .Passage = selection ? std::move(aPassage) : std::nullopt, .Question = question, .Update = true, .Fresh = true });
 		return true;
 	}
 

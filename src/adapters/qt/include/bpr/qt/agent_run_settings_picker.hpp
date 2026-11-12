@@ -63,6 +63,9 @@ namespace bpr::qt {
 		/// /effort only when it does for this agent; empty otherwise.
 		QString ModelHint;
 		QString EffortHint;
+		/// [[BPR-2139]], RFC-BPR-0104 (owner, 2026-11-12). The agent's own MCP
+		/// servers load in its conversations; the tooltip says so.
+		bool McpOn = false;
 	};
 
 	/// \brief Where a model or effort chosen in the picker goes; answers

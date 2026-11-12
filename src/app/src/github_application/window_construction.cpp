@@ -1518,7 +1518,11 @@ namespace bpr::app {
 		// and each proposed field's or stop's Accept and Discard.
 		Window->tour_editor()->side_chat()->set_continuation_dispatch([this](const core::tour_thread& aThread) { choose_tour_continuation(aThread); });
 		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) { observe_tour_native_history(aThread, std::move(aChoice)); });
-		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) { request_tour_ask(aAsk.Thread, aAsk.Passage, aAsk.Question, aAsk.Update); });
+		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) { 
+			TourAskFresh = aAsk.Fresh;
+			request_tour_ask(aAsk.Thread, aAsk.Passage, aAsk.Question, aAsk.Update);
+			TourAskFresh = false;
+		});
 		// [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour and its Undo.
 		Window->tour_editor()->set_tour_shape_dispatch([this] { clear_tour_focus(); }, [this] { reset_tour(); }, [this] { undo_tour_reset(); });
 		Window->tour_editor()->side_chat()->set_focus_undo_dispatch([this](const core::tour_agent_run_id aRun) { undo_tour_focus(aRun); });

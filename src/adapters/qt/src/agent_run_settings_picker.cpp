@@ -181,6 +181,9 @@ namespace bpr::qt {
 		if (settings->EffortChoosable) {
 			line(settings->Effort.empty() ? tr("Effort: the agent's own default") : tr("Effort: %1").arg(QString::fromStdString(settings->Effort)));
 		}
+		if (settings->McpOn) {
+			line(tr("MCP servers: on, from the agent's own configuration"));
+		}
 		if (!settings->Note.isEmpty()) {
 			line(settings->Note);
 		}
