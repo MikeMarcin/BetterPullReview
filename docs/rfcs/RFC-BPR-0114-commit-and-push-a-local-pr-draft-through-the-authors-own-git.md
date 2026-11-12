@@ -283,7 +283,7 @@ Delivery: pulled forward from the local-draft-authoring plan into
 
 ## Proposed delivery
 
-[The author-Git runner and Commit](../issues/20-ready/BPR-2065-author-git-runner-and-commit.md),
+[The author-Git runner and Commit](../issues/30-in-progress/BPR-2065-author-git-runner-and-commit.md),
 [Push and its meeting with Create draft PR](../issues/10-backlog/BPR-2066-push-and-create-draft-pr-in-one-flow.md)
 and [closeout](../issues/10-backlog/BPR-2067-close-rfc-0114.md) form the second
 [milestone](plans/local-draft-authoring-v1/milestone-plan.json). Push needs the native pull request
