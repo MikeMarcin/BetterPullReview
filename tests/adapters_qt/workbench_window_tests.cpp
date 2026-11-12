@@ -48,6 +48,7 @@
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -971,10 +972,11 @@ namespace {
 				&& ordered[9] == navigation[3]
 				&& named(ordered, 10, "reviewBarProgressGapAction")
 				&& named(ordered, 11, "workbenchProgressTrackAction")
-				// [[BPR-1815]]. A rule, the layout toggle and Go to
-				// header/source: the View menu's own actions.
+				// [[BPR-1815]]. A rule, the view picker (owner, 2026-11-12:
+				// the layout toggle as a segmented pick) and Go to
+				// header/source.
 				&& named(ordered, 12, "reviewBarViewDividerAction")
-				&& ordered[13] == window.one_pane_action()
+				&& named(ordered, 13, "workbenchViewPickerAction")
 				&& ordered[14] == window.header_source_action()
 				&& named(ordered, 15, "reviewBarSpacerAction")
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
@@ -1556,36 +1558,35 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 
-		auto* const bar      = window.review_bar();
-		auto* const layout   = window.findChild<QToolButton*>(QStringLiteral("workbenchOnePaneButton"));
+		auto* const bar = window.review_bar();
+		// Owner, 2026-11-12: the layout toggle is a segmented pick, two icons in
+		// a review (the third, Edit, only in author state).
+		auto* const picker   = window.review_view_picker();
+		auto* const twoPanes = picker != nullptr ? picker->segment(qt::review_view::two_panes) : nullptr;
+		auto* const layout   = picker != nullptr ? picker->segment(qt::review_view::one_pane) : nullptr;
 		auto* const header   = window.findChild<QToolButton*>(QStringLiteral("workbenchHeaderSourceButton"));
 		auto* const progress = window.findChild<QWidget*>(QStringLiteral("workbenchProgressTrack"));
-		expect(layout != nullptr && header != nullptr && progress != nullptr
-				   && bar->widgetForAction(window.one_pane_action()) == layout
-				   && bar->widgetForAction(window.header_source_action()) == header
-				   && layout->toolButtonStyle() == Qt::ToolButtonIconOnly && header->toolButtonStyle() == Qt::ToolButtonIconOnly
-				   && layout->focusPolicy() == Qt::StrongFocus && header->focusPolicy() == Qt::StrongFocus,
-			   "the review bar presents the View menu's One pane and Go to header/source as icon buttons");
-		expect(layout->geometry().left() > progress->geometry().right() && header->geometry().left() > layout->geometry().right()
-				   && layout->geometry().top() == header->geometry().top()
-				   && qAbs(layout->geometry().center().y() - progress->geometry().center().y()) <= 1,
-			   "the layout toggle and Go to header/source sit right of Seen, Read and Accept, on their row");
-		const auto order = window.focus_order();
-		expect(order.indexOf(window.review_controls_button()) >= 0
-				   && order.indexOf(layout) == order.indexOf(window.review_controls_button()) + 1
-				   && order.indexOf(header) == order.indexOf(layout) + 1,
-			   "the keyboard reaches them after private progress, as they sit");
+		expect(picker != nullptr && header != nullptr && progress != nullptr && bar->isAncestorOf(picker) && !picker->author()
+				   && twoPanes->isVisible() && layout->isVisible() && !picker->segment(qt::review_view::edit)->isVisible()
+				   && bar->widgetForAction(window.header_source_action()) == header && header->toolButtonStyle() == Qt::ToolButtonIconOnly,
+			   "the review bar presents the view picker, two icons, and Go to header/source");
+		const auto inBar    = [bar](const QWidget* aWidget) { return QRect{ aWidget->mapTo(bar, QPoint{ }), aWidget->size() }; };
+		const auto pickerAt = inBar(picker);
+		expect(pickerAt.left() > inBar(progress).right() && inBar(header).left() > pickerAt.right() && qAbs(pickerAt.center().y() - inBar(progress).center().y()) <= 3,
+			   "the picker and Go to header/source sit right of Seen, Read and Accept, on their row");
+		expect(picker->width() == picker->sizeHint().width() && picker->width() < 3 * twoPanes->width(), "in a review the picker is two segments wide");
 
 		const auto image = [](const QIcon& aIcon) {
 			return aIcon.pixmap(QSize{ 16, 16 }, 2.0).toImage().convertToFormat(QImage::Format_ARGB32);
 		};
-		const auto key     = QKeySequence{ QStringLiteral("Alt+Shift+P") }.toString(QKeySequence::NativeText);
+		const auto key = QKeySequence{ QStringLiteral("Alt+Shift+P") }.toString(QKeySequence::NativeText);
+		static_cast<void>(image);
 		const auto showing = [&](const qt::strip_glyph aGlyph) {
-			return image(layout->icon()) == image(qt::strip_icon(aGlyph, window.palette()));
+			return aGlyph == qt::strip_glyph::one_pane ? layout->isChecked() : twoPanes->isChecked();
 		};
 		expect(layout->isEnabled() && !layout->isChecked() && showing(qt::strip_glyph::two_panes) && !showing(qt::strip_glyph::one_pane)
 				   && layout->toolTip().startsWith(QStringLiteral("One pane (%1)\n").arg(key)),
-			   "two panes showing: the toggle shows two panes and names One pane with its key");
+			   "two panes showing: Two panes is picked and One pane names its key");
 		expect(header->isEnabled() && image(header->icon()) == image(qt::strip_icon(qt::strip_glyph::header_source, window.palette()))
 				   && header->toolTip().startsWith(QStringLiteral("Go to header/source (%1)\n").arg(window.header_source_action()->shortcut().toString(QKeySequence::NativeText)))
 				   && header->accessibleName() == QStringLiteral("Go to header/source"),
@@ -1612,7 +1613,7 @@ namespace {
 		process_events();
 		expect(toggles() == 1 && std::get_if<core::toggle_workbench_one_pane_intent>(&log.Workbench.back()) != nullptr
 				   && !layout->isChecked() && showing(qt::strip_glyph::two_panes),
-			   "a press sends one toggle intent and the toggle keeps the layout the core last decided");
+			   "a press sends one toggle intent and the picker keeps the layout the core last decided");
 		// The key from a control that takes no typed text, so no text field
 		// has lifted it.
 		window.activateWindow();
@@ -1639,9 +1640,9 @@ namespace {
 			window.publish(projection);
 			process_events();
 			expect(layout->isChecked() && showing(qt::strip_glyph::one_pane) && !showing(qt::strip_glyph::two_panes)
-					   && layout->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key))
+					   && twoPanes->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key))
 					   && window.comparison_surface()->one_pane_enabled(),
-				   "one pane showing: the toggle is checked, shows one pane and names Two panes with its key");
+				   "one pane showing: One pane is picked and Two panes names its key");
 			save(QStringLiteral("one-pane-%1").arg(name));
 		}
 
@@ -1650,8 +1651,8 @@ namespace {
 			= refused(core::workbench_command_id::toggle_one_pane, core::workbench_reason_code::no_active_workbench);
 		window.publish(refusedProjection);
 		process_events();
-		expect(!layout->isEnabled() && !header->isEnabled() && layout->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key)),
-			   "refused commands disable both buttons, and the toggle still names its key and says why");
+		expect(!layout->isEnabled() && !twoPanes->isEnabled() && !header->isEnabled() && twoPanes->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key)),
+			   "refused commands disable the picker and Go to header/source, and the picker still names its key and says why");
 		window.hide();
 	}
 
@@ -8015,8 +8016,9 @@ namespace {
 			window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep")),
 			window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")),
 			window.review_controls_button(),
-			// [[BPR-1815]]. The layout toggle and Go to header/source.
-			barStop(window.one_pane_action()),
+			// [[BPR-1815]]. The view picker's two segments and Go to header/source.
+			window.review_view_picker()->segment(qt::review_view::two_panes),
+			window.review_view_picker()->segment(qt::review_view::one_pane),
 			barStop(window.header_source_action()),
 			barStop(window.compose_review_action()),
 			barStop(window.comment_action()),
@@ -23670,6 +23672,7 @@ namespace {
 			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::full },
 			core::motion_observation::reduced));
 		process_events();
+		;
 		expect(provider->load_attempts() == 0U && window.dif() == nullptr,
 			   "compact Home does not decode art that has no presentation space");
 		window.resize(1'280, 820);

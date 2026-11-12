@@ -19,8 +19,11 @@ namespace bpr::qt {
 
 	/// \brief The review bar's view picker (owner, 2026-11-12): a segmented
 	/// pick of two icons in a review and three in author state.
-	/// \details The slot is three segments wide either way, so the third
-	/// arrives in room already kept and nothing beside it moves. The picked
+	/// \details Two segments wide in a review, three in author state. A
+	/// window is in author state from the moment it shows a worktree, so the
+	/// third never arrives under the pointer (a departure from the mockup's
+	/// three-wide slot, recorded with the design: it keeps the review bar's
+	/// room for the file and change labels). The picked
 	/// segment is raised and neutral, never the accent: blue stays for where
 	/// you are in the window. Each segment is a button with its own accessible
 	/// name and tooltip; the picker decides nothing and reports a pick.

@@ -740,7 +740,9 @@ namespace bpr::qt {
 		// header/source, icon buttons on no rail. They are the View menu's
 		// own actions, so the bar, the menu and the keys are one command
 		// each, and the core decides the layout.
-		rowWidget(ReviewBar, new strip_divider{ ReviewBar }, QStringLiteral("reviewBarViewDividerAction"));
+		// Owner, 2026-11-12: the view picker's own well marks the group, so
+		// the rule before it stands hidden and the bar keeps its width.
+		rowWidget(ReviewBar, new strip_divider{ ReviewBar }, QStringLiteral("reviewBarViewDividerAction"))->setVisible(false);
 		// Owner, 2026-11-12: the layout toggle becomes a pick of the views,
 		// two icons in a review and three in author state. One pane stays
 		// the View menu's action and key; the picker sends the same intent.

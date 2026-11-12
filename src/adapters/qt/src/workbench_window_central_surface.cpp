@@ -2112,6 +2112,9 @@ namespace bpr::qt {
 			HomePrepare->setEnabled(false);
 			if (HomePrepareSlot != nullptr) {
 				HomePrepareSlot->addWidget(HomePrepare, 0, Qt::AlignVCenter);
+				// The Open field gives the button its room, so Home's
+				// narrowest width is what it was before the button joined.
+				HomeOpenBar->setMinimumWidth(std::max(0, HomeOpenBar->minimumSizeHint().width() - HomePrepare->sizeHint().width() - 12));
 			}
 			// Home variant 1: no band and no visible title. Each local draft is
 			// one line in Home's row grid, first on the page; In preparation is

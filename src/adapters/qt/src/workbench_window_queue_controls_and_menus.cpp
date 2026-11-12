@@ -17,6 +17,7 @@
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "conversation_glyphs.hpp"
 #include "github_presentation_text.hpp"
@@ -758,7 +759,11 @@ namespace bpr::qt {
 			append(AcceptFileButton);
 			append(ReviewControlsButton);
 			// [[BPR-1815]]. The view controls, as they sit.
-			append(barPresenter(OnePaneAction));
+			// Owner, 2026-11-12: the view picker's segments, as they sit.
+			if (ReviewViewPicker != nullptr) {
+				append(ReviewViewPicker->segment(review_view::two_panes));
+				append(ReviewViewPicker->segment(review_view::one_pane));
+			}
 			append(barPresenter(HeaderSourceAction));
 			append(barPresenter(ComposeReviewAction));
 			append(barPresenter(CommentAction));

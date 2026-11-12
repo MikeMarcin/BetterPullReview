@@ -10,8 +10,8 @@
 
 namespace bpr::qt {
 	namespace {
-		constexpr int segment_width  = 30;
-		constexpr int segment_height = 24;
+		constexpr int segment_width  = 20;
+		constexpr int segment_height = 22;
 
 		/// One segment: a glyph on the picker's ground, raised when picked.
 		class view_segment final : public QAbstractButton
@@ -36,7 +36,7 @@ namespace bpr::qt {
 				auto painter = QPainter{ this };
 				painter.setRenderHint(QPainter::Antialiasing);
 				const auto& colours = palette();
-				const auto  box     = QRectF{ rect() }.adjusted(2.0, 2.0, -2.0, -2.0);
+				const auto  box     = QRectF{ rect() }.adjusted(1.5, 1.5, -1.5, -1.5);
 				if (isChecked()) {
 					// Raised and neutral: the control's own face, a hairline and a soft shadow.
 					auto shadow = colours.color(QPalette::Shadow);
@@ -57,7 +57,7 @@ namespace bpr::qt {
 					painter.drawRoundedRect(box, 4.0, 4.0);
 				}
 				const auto icon = strip_icon(Glyph, colours);
-				icon.paint(&painter, QRect{ (width() - 18) / 2, (height() - 18) / 2, 18, 18 }, Qt::AlignCenter, isEnabled() ? QIcon::Normal : QIcon::Disabled);
+				icon.paint(&painter, QRect{ (width() - 14) / 2, (height() - 14) / 2, 14, 14 }, Qt::AlignCenter, isEnabled() ? QIcon::Normal : QIcon::Disabled);
 				if (hasFocus()) {
 					auto focus = QStyleOptionFocusRect{ };
 					focus.initFrom(this);
@@ -123,6 +123,9 @@ namespace bpr::qt {
 		if (!aAuthor && View == review_view::edit) {
 			set_view(review_view::two_panes);
 		}
+		// A window is in author state from its start, so the width follows
+		// the segments shown and the review bar keeps its room.
+		setFixedSize(sizeHint());
 		update();
 	}
 
@@ -140,14 +143,14 @@ namespace bpr::qt {
 
 	void view_picker::set_picked(std::function<void(review_view)> aPicked) { Picked = std::move(aPicked); }
 
-	auto view_picker::sizeHint() const -> QSize { return { segment_width * 3 + 4, segment_height + 4 }; }
+	auto view_picker::sizeHint() const -> QSize { return { segment_width * (Author ? 3 : 2) + 2, segment_height + 2 }; }
 
 	auto view_picker::minimumSizeHint() const -> QSize { return sizeHint(); }
 
 	void view_picker::place()
 	{
 		for (std::size_t index = 0U; index < Segments.size(); ++index) {
-			Segments[index]->move(2 + static_cast<int>(index) * segment_width, 2);
+			Segments[index]->move(1 + static_cast<int>(index) * segment_width, 1);
 		}
 	}
 
@@ -161,7 +164,7 @@ namespace bpr::qt {
 		ground.setAlpha(14);
 		painter.setPen(Qt::NoPen);
 		painter.setBrush(ground);
-		painter.drawRoundedRect(QRectF{ 0.5, 0.5, static_cast<qreal>(shown * segment_width + 3), static_cast<qreal>(segment_height + 3) }, 6.0, 6.0);
+		painter.drawRoundedRect(QRectF{ 0.5, 0.5, static_cast<qreal>(shown * segment_width + 1), static_cast<qreal>(segment_height + 1) }, 5.0, 5.0);
 	}
 
 	void view_picker::changeEvent(QEvent* const aEvent)
