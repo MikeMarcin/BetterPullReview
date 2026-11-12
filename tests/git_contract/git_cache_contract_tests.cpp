@@ -47,6 +47,8 @@
 	#include <fcntl.h>
 	#include <sys/stat.h>
 	#include <unistd.h>
+
+	#include "bpr/platform/durable_volume_identity.hpp"
 #endif
 
 #if defined(Q_OS_LINUX)
@@ -1885,6 +1887,23 @@ namespace {
 			const auto path       = repository / "betterpullreview-cache-manifest-v1";
 			const auto stable     = read_file(path);
 			require(stable.size() == 141U && stable[11U] == 2U, "new Mac manifest declares durable volume identity");
+			{
+				// [[BPR-2118]]. The manifest's lock identity is the one shared
+				// volume UUID helper's, the same the agent workspace journal
+				// stores: volume, second volume word and inode, big-endian.
+				const auto lockFile = root.Path / "locks/v1" / (lower_hex(expected.Authority.Cache.bytes()) + ".lock");
+				const auto opened   = ::open(lockFile.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+				const auto durable  = bpr::platform::durable_volume_identity::of_descriptor(opened, 1U);
+				static_cast<void>(::close(opened));
+				require(durable.has_value(), "the shared helper reads the lock's durable identity");
+				auto manifestWords = std::array<std::uint64_t, 3U>{ };
+				for (std::size_t index = 0U; index < 24U; ++index) {
+					auto& word = manifestWords[index / 8U];
+					word       = (word << 8U) | stable[stable.size() - 24U + index];
+				}
+				require(manifestWords == std::array{ (*durable)[1], (*durable)[2], (*durable)[3] },
+						"the manifest and the workspace journal persist the same durable identity for one file");
+			}
 			auto legacy = stable;
 			legacy[11U] = 1U;
 			legacy.resize(legacy.size() - 24U);

@@ -55,6 +55,7 @@
 	#include <sys/types.h>
 	#include <unistd.h>
 
+	#include "bpr/platform/durable_volume_identity.hpp"
 	#include "bpr/platform/unix_descriptor_sweep.hpp"
 #endif
 
@@ -2148,7 +2149,9 @@ namespace bpr::adapters::git {
 				if (Guard < 0 || ::fstat(Guard, &original) != 0
 					|| !S_ISREG(original.st_mode) || original.st_uid != ::geteuid()
 					|| (original.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) != 0 || original.st_nlink != 1
-					|| aGuard.FileIdentity != std::array<std::uint64_t, 4U>{ 1U, static_cast<std::uint64_t>(original.st_dev), 0U, static_cast<std::uint64_t>(original.st_ino) }
+					// [[BPR-2118]]. The journal's durable identity, as the
+					// ownership journal records it.
+					|| bpr::platform::durable_volume_identity::of_descriptor(Guard, 1U) != aGuard.FileIdentity
 					|| ::flock(Guard, LOCK_SH | LOCK_NB) != 0
 					|| ::lstat(path.c_str(), &named) != 0 || named.st_dev != original.st_dev || named.st_ino != original.st_ino
 					|| ::socketpair(AF_UNIX, SOCK_STREAM, 0, Channel.data()) != 0
@@ -3462,6 +3465,9 @@ namespace bpr::adapters::git {
 			ownership_identity File{ };
 			std::uint64_t      Size    = 0U;
 			bool               Private = false;
+			/// [[BPR-2118]]. The live mount number, for the Version 1 upgrade
+			/// rule only; on macOS the stored identity never carries it.
+			std::uint64_t Device = 0U;
 		};
 		/// Exact identity, size and privacy of an open journal: a single-link
 		/// regular file owned privately by the current user.
@@ -3478,16 +3484,24 @@ namespace bpr::adapters::git {
 				.File    = *identity,
 				.Size    = static_cast<std::uint64_t>(size.QuadPart),
 				.Private = win_guard::windows_private_to_current_user(aHandle, *principals, false),
+				.Device  = (*identity)[1],
 			};
 	#else
 			struct stat info{ };
 			if (::fstat(aHandle, &info) != 0 || !S_ISREG(info.st_mode) || info.st_nlink != 1 || info.st_size < 0) {
 				return std::nullopt;
 			}
+			// [[BPR-2118]]. Durable: the volume UUID on macOS, so a remount
+			// does not orphan the record.
+			const auto durable = bpr::platform::durable_volume_identity::of_descriptor(aHandle, 1U);
+			if (!durable || (*durable)[3] != static_cast<std::uint64_t>(info.st_ino)) {
+				return std::nullopt;
+			}
 			return journal_status{
-				.File    = { 1U, static_cast<std::uint64_t>(info.st_dev), 0U, static_cast<std::uint64_t>(info.st_ino) },
+				.File    = *durable,
 				.Size    = static_cast<std::uint64_t>(info.st_size),
 				.Private = info.st_uid == ::geteuid() && (info.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0,
+				.Device  = static_cast<std::uint64_t>(info.st_dev),
 			};
 	#endif
 		}
@@ -3526,6 +3540,38 @@ namespace bpr::adapters::git {
 	#else
 			return ::ftruncate(aHandle, static_cast<off_t>(aSize)) == 0 && ::fsync(aHandle) == 0;
 	#endif
+		}
+		/// [[BPR-2118]]. Replaces the journal's whole content through its own
+		/// descriptor, so the record file keeps the inode its lines name. The
+		/// new bytes are written from the start, then the file is cut to their
+		/// length and made durable; it is never emptied first.
+		[[nodiscard]] auto journal_rewrite(const journal_native aHandle, const std::string_view aBytes) -> bool
+		{
+			if (aBytes.empty() || aBytes.size() > maximum_workspace_journal_bytes) {
+				return false;
+			}
+			std::size_t written = 0U;
+			while (written < aBytes.size()) {
+	#if defined(Q_OS_WIN)
+				auto overlapped       = OVERLAPPED{ };
+				overlapped.Offset     = static_cast<DWORD>(written & 0xFFFF'FFFFU);
+				overlapped.OffsetHigh = static_cast<DWORD>(static_cast<std::uint64_t>(written) >> 32U);
+				auto count            = DWORD{ 0U };
+				if (WriteFile(aHandle, aBytes.data() + written, static_cast<DWORD>(aBytes.size() - written), &count, &overlapped) == FALSE || count == 0U) {
+					return false;
+				}
+	#else
+				const auto count = ::pwrite(aHandle, aBytes.data() + written, aBytes.size() - written, static_cast<off_t>(written));
+				if (count < 0 && errno == EINTR) {
+					continue;
+				}
+				if (count <= 0) {
+					return false;
+				}
+	#endif
+				written += static_cast<std::size_t>(count);
+			}
+			return journal_truncate(aHandle, aBytes.size());
 		}
 		/// Appends within the journal bound and makes it durable. A partial or
 		/// unflushed write poisons the owner.
@@ -3763,9 +3809,13 @@ namespace bpr::adapters::git {
 			return make_private_directory(aPath);
 	#endif
 		}
+		/// [[BPR-2118]]. Version 2 lines store durable identities
+		/// (`ownership_id`); Version 1 lines stored the mount's `st_dev` on
+		/// macOS and are read once and rewritten.
+		constexpr std::uint32_t workspace_record_version = 2U;
 		struct workspace_record
 		{
-			std::uint32_t Version = 1U;
+			std::uint32_t Version = workspace_record_version;
 			// 0 reserved, 1 parent owned, 2 materializing, 3 ready,
 			// 4 child cleanup planned, 5 parent cleanup planned, 6 removed,
 			// 7 retained by a durable conversation.
@@ -3791,10 +3841,51 @@ namespace bpr::adapters::git {
 			};
 		};
 
+		/// [[BPR-2118]]. The identity the ownership journal stores and a
+		/// retained conversation keeps: the exact identity of \p aPath, with
+		/// the volume's APFS UUID in place of the mount's `st_dev` on macOS.
+		/// Elsewhere it is the exact identity unchanged. All zero when the
+		/// path is not this user's folder or single-link file of that kind.
 		[[nodiscard]] auto ownership_id(const std::filesystem::path& aPath, exact_artifact_kind aKind) -> ownership_identity
 		{
 			const auto identity = exact_identity(aPath, aKind);
-			return identity ? workspace_directory_identity(*identity).Opaque : ownership_identity{ };
+			if (!identity) {
+				return { };
+			}
+	#if defined(Q_OS_MACOS)
+			const auto directory  = aKind == exact_artifact_kind::directory;
+			const auto descriptor = workspace_descriptor{ ::open(aPath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK | (directory ? O_DIRECTORY : 0)) };
+			if (!descriptor.valid() || exact_identity(descriptor.get(), aKind) != identity) {
+				return { };
+			}
+			const auto durable = bpr::platform::durable_volume_identity::of_descriptor(descriptor.get(), workspace_directory_identity(*identity).Opaque[0]);
+			if (!durable || (*durable)[3] != identity->ObjectLow || exact_identity(aPath, aKind) != identity) {
+				return { };
+			}
+			return *durable;
+	#else
+			return workspace_directory_identity(*identity).Opaque;
+	#endif
+		}
+		/// [[BPR-2118]]. Kind and inode agree: the same object, perhaps named
+		/// through another mount number.
+		[[nodiscard]] constexpr auto same_object(const ownership_identity& aLeft, const ownership_identity& aRight) noexcept -> bool
+		{
+			return aLeft != ownership_identity{ } && aLeft[0] == aRight[0] && aLeft[3] == aRight[3];
+		}
+		/// [[BPR-2118]]. A retained conversation's stored identity names the
+		/// one its journal records when they are equal, or, on macOS, when it
+		/// is that object's Version 1 form: kind and inode equal, with the mount
+		/// number it was made on where the volume UUID now stands. The caller
+		/// has just checked the journal against the live paths, so the journal,
+		/// not the stored copy, says which volume the object is on.
+		[[nodiscard]] constexpr auto retained_identity_names(const ownership_identity& aStored, const ownership_identity& aRecorded) noexcept -> bool
+		{
+	#if defined(Q_OS_MACOS)
+			return aStored == aRecorded || (same_object(aStored, aRecorded) && aStored[2] == 0U);
+	#else
+			return aStored == aRecorded;
+	#endif
 		}
 		[[nodiscard]] auto record_transition(const workspace_record& aOld, const workspace_record& aNew) -> bool
 		{
@@ -3984,42 +4075,201 @@ namespace bpr::adapters::git {
 			bool validate_trailing_whitespace = true;
 			constexpr workspace_json_options() { error_on_missing_keys = true; }
 		};
-		[[nodiscard]] auto load_workspace_record(journal_native aFd, const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::string_view aToken) -> std::optional<workspace_record>
+		/// [[BPR-2118]]. Why a record was not loaded: the check, and for
+		/// `record_moved` what stood at the recorded path.
+		struct workspace_record_problem
 		{
-			const auto status = journal_stat(aFd);
-			if (!status || !status->Private || status->Size == 0U || status->Size > maximum_workspace_journal_bytes) {
-				return std::nullopt;
-			}
-			std::string bytes(static_cast<std::size_t>(status->Size), '\0');
-			if (!journal_read(aFd, bytes)) {
-				return std::nullopt;
-			}
-			std::optional<workspace_record> previous;
-			std::size_t                     offset = 0U;
-			while (offset < bytes.size()) {
-				const auto end = bytes.find('\n', offset);
-				if (end == std::string::npos) {
+			workspace_refusal_check  Check   = workspace_refusal_check::record_malformed;
+			workspace_record_finding Finding = workspace_record_finding::none;
+		};
+		[[nodiscard]] auto record_moved(const ownership_identity& aRecorded, const ownership_identity& aLive) -> std::unexpected<workspace_record_problem>
+		{
+			const auto finding = aLive == ownership_identity{ } ? workspace_record_finding::missing
+				: same_object(aRecorded, aLive)                 ? workspace_record_finding::other_volume
+																: workspace_record_finding::replaced;
+			return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_moved, .Finding = finding } };
+		}
+		/// Every line of a record, parsed, with each line's own fields and the
+		/// phase chain checked. Identities are left to the caller. \p aEnd is
+		/// where the last complete line ends.
+		[[nodiscard]] auto parse_workspace_lines(const std::string_view aBytes, const std::string_view aToken, std::size_t& aEnd) -> std::optional<std::vector<workspace_record>>
+		{
+			std::vector<workspace_record> lines;
+			aEnd = 0U;
+			while (aEnd < aBytes.size()) {
+				const auto end = aBytes.find('\n', aEnd);
+				if (end == std::string_view::npos) {
 					break;
 				}
 				workspace_record record;
-				if (glz::read<workspace_json_options{ }>(record, std::string_view{ bytes }.substr(offset, end - offset))
-					|| record.Version != 1U || record.Token != aToken || record.Registry != ownership_id(aRegistry, exact_artifact_kind::directory)
-					|| record.Neighbourhood != ownership_id(aNeighbourhood, exact_artifact_kind::directory)
-					|| record.File != status->File
+				const auto*      previous = lines.empty() ? nullptr : &lines.back();
+				if (glz::read<workspace_json_options{ }>(record, aBytes.substr(aEnd, end - aEnd))
+					|| (record.Version != 1U && record.Version != workspace_record_version)
+					|| (previous != nullptr && record.Version != previous->Version)
+					|| record.Token != aToken
 					|| (record.Head.size() != 40U && record.Head.size() != 64U)
 					|| !std::ranges::all_of(record.Head, [](char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f'); })
 					|| std::ranges::any_of(record.Scope, [](auto aId) { return aId == 0U; })
 					|| std::ranges::any_of(record.AuthorityFingerprints, [](const auto& aFingerprint) { return std::ranges::all_of(aFingerprint, [](auto aByte) { return aByte == 0U; }); })
-					|| (previous ? !record_transition(*previous, record) : record.Phase != 0U || record.Parent != ownership_identity{ } || record.Child != ownership_identity{ })) {
+					|| (previous != nullptr ? !record_transition(*previous, record) : record.Phase != 0U || record.Parent != ownership_identity{ } || record.Child != ownership_identity{ })) {
 					return std::nullopt;
 				}
-				previous = std::move(record);
-				offset   = end + 1U;
+				lines.push_back(std::move(record));
+				aEnd = end + 1U;
 			}
-			if (!previous || (offset != bytes.size() && !journal_truncate(aFd, offset))) {
+			if (lines.empty()) {
 				return std::nullopt;
 			}
-			return previous;
+			return lines;
+		}
+		/// The live identities a record's `Registry`, `Neighbourhood` and `File`
+		/// must name, and the mount each is on now.
+		struct workspace_record_boundary
+		{
+			ownership_identity Registry{ };
+			ownership_identity Neighbourhood{ };
+			ownership_identity File{ };
+			std::uint64_t      RegistryDevice      = 0U;
+			std::uint64_t      NeighbourhoodDevice = 0U;
+			std::uint64_t      FileDevice          = 0U;
+		};
+		[[nodiscard]] auto live_device(const std::filesystem::path& aPath) -> std::uint64_t
+		{
+	#if defined(Q_OS_UNIX)
+			struct stat information{ };
+			return ::lstat(aPath.c_str(), &information) == 0 ? static_cast<std::uint64_t>(information.st_dev) : 0U;
+	#else
+			const auto identity = exact_identity(aPath, exact_artifact_kind::directory);
+			return identity ? identity->Volume : 0U;
+	#endif
+		}
+		/// [[BPR-2118]]. Checks a Version 1 record against the live boundary
+		/// and converts its lines to Version 2.
+		///
+		/// \details On macOS a Version 1 identity holds the mount number the
+		/// record was written on, which a restart can renumber. Kind and inode
+		/// must still match exactly; a different volume number is accepted
+		/// only when every identity in the record carries one and the same
+		/// recorded number (the record was written on one mount) and the
+		/// registry, neighbourhood and record are on one mount now. The
+		/// recorded `Parent` and `Child` move to the neighbourhood's volume,
+		/// where they were made. Elsewhere Version 1 and Version 2 identities
+		/// are equal, and only the version changes.
+		[[nodiscard]] auto upgrade_version_one(std::vector<workspace_record>& aLines, const workspace_record_boundary& aLive) -> std::expected<void, workspace_record_problem>
+		{
+	#if defined(Q_OS_MACOS)
+			std::set<std::uint64_t> volumes;
+			for (const auto& line : aLines) {
+				for (const auto* identity : { &line.Registry, &line.Neighbourhood, &line.File, &line.Parent, &line.Child }) {
+					if (*identity == ownership_identity{ }) {
+						continue;
+					}
+					if ((*identity)[2] != 0U) {
+						return std::unexpected{ workspace_record_problem{ } };
+					}
+					volumes.insert((*identity)[1]);
+				}
+			}
+			const auto oneMountNow = aLive.RegistryDevice != 0U && aLive.RegistryDevice == aLive.NeighbourhoodDevice && aLive.RegistryDevice == aLive.FileDevice;
+			if (volumes.size() != 1U || !oneMountNow) {
+				return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_moved, .Finding = workspace_record_finding::other_volume } };
+			}
+			const auto moved = [](const ownership_identity& aRecorded, const ownership_identity& aVolume) {
+				return aRecorded == ownership_identity{ } ? aRecorded : ownership_identity{ aRecorded[0], aVolume[1], aVolume[2], aRecorded[3] };
+			};
+			for (auto& line : aLines) {
+				if (!same_object(line.Registry, aLive.Registry)) {
+					return record_moved(line.Registry, aLive.Registry);
+				}
+				if (!same_object(line.Neighbourhood, aLive.Neighbourhood)) {
+					return record_moved(line.Neighbourhood, aLive.Neighbourhood);
+				}
+				if (!same_object(line.File, aLive.File)) {
+					return record_moved(line.File, aLive.File);
+				}
+				line.Registry      = aLive.Registry;
+				line.Neighbourhood = aLive.Neighbourhood;
+				line.File          = aLive.File;
+				line.Parent        = moved(line.Parent, aLive.Neighbourhood);
+				line.Child         = moved(line.Child, aLive.Neighbourhood);
+				line.Version       = workspace_record_version;
+			}
+	#else
+			for (auto& line : aLines) {
+				line.Version = workspace_record_version;
+			}
+	#endif
+			return { };
+		}
+		/// Loads a record and checks it against the live registry,
+		/// neighbourhood and record file.
+		///
+		/// \details [[BPR-2118]]. A Version 1 record passes through
+		/// `upgrade_version_one`. With \p aUpgrade, which only a caller holding
+		/// the record's exclusive lock passes, it is then rewritten in place as
+		/// Version 2 lines; otherwise only the returned record is upgraded.
+		[[nodiscard]] auto load_workspace_record(journal_native aFd, const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::string_view aToken,
+												 const bool aUpgrade = false) -> std::expected<workspace_record, workspace_record_problem>
+		{
+			const auto status = journal_stat(aFd);
+			if (!status || !status->Private) {
+				return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_not_private } };
+			}
+			if (status->Size == 0U || status->Size > maximum_workspace_journal_bytes) {
+				return std::unexpected{ workspace_record_problem{ } };
+			}
+			std::string bytes(static_cast<std::size_t>(status->Size), '\0');
+			if (!journal_read(aFd, bytes)) {
+				return std::unexpected{ workspace_record_problem{ } };
+			}
+			auto       end   = std::size_t{ 0U };
+			auto       lines = parse_workspace_lines(bytes, aToken, end);
+			const auto live  = workspace_record_boundary{
+				.Registry            = ownership_id(aRegistry, exact_artifact_kind::directory),
+				.Neighbourhood       = ownership_id(aNeighbourhood, exact_artifact_kind::directory),
+				.File                = status->File,
+				.RegistryDevice      = live_device(aRegistry),
+				.NeighbourhoodDevice = live_device(aNeighbourhood),
+				.FileDevice          = status->Device,
+			};
+			if (!lines) {
+				return std::unexpected{ workspace_record_problem{ } };
+			}
+			const auto versionOne = lines->front().Version == 1U;
+			if (versionOne) {
+				if (auto upgraded = upgrade_version_one(*lines, live); !upgraded) {
+					return std::unexpected{ upgraded.error() };
+				}
+			}
+			for (const auto& line : *lines) {
+				if (line.Registry != live.Registry) {
+					return record_moved(line.Registry, live.Registry);
+				}
+				if (line.Neighbourhood != live.Neighbourhood) {
+					return record_moved(line.Neighbourhood, live.Neighbourhood);
+				}
+				if (line.File != live.File) {
+					return record_moved(line.File, live.File);
+				}
+			}
+			if (versionOne && aUpgrade) {
+				std::string rewritten;
+				for (const auto& line : *lines) {
+					std::string text;
+					if (glz::write_json(line, text)) {
+						return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_cleanup_failed } };
+					}
+					rewritten += text;
+					rewritten += '\n';
+				}
+				if (!journal_rewrite(aFd, rewritten)) {
+					return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_cleanup_failed } };
+				}
+				workspace_checkpoint("journal-upgraded");
+			} else if (end != bytes.size() && !journal_truncate(aFd, end)) {
+				return std::unexpected{ workspace_record_problem{ } };
+			}
+			return std::move(lines->back());
 		}
 		/// [[BPR-1857]]. Records which check refused and where, when asked,
 		/// and answers false so a check can return it.
@@ -4129,17 +4379,30 @@ namespace bpr::adapters::git {
 					return refuse_recovery(aRefusal, workspace_refusal_check::unrecorded_leftover, entry.path(), workspace_ownership_failure::repair_required);
 				}
 			}
+			// [[BPR-2118]]. Every record is checked before a refusal, so the
+			// refusal can say how many there are, not only the first.
+			auto refused = std::size_t{ 0U };
+			auto refuse  = [&](const workspace_refusal_check aCheck, const std::filesystem::path& aPath, const workspace_record_finding aFinding = workspace_record_finding::none) {
+				if (refused++ == 0U && aRefusal != nullptr) {
+					aRefusal->Check   = aCheck;
+					aRefusal->Folder  = aPath;
+					aRefusal->Account = { };
+					aRefusal->Finding = aFinding;
+				}
+			};
 			for (const auto& path : records) {
 				if (aStop.stop_requested()) {
 					return std::unexpected{ workspace_ownership_failure::cancelled };
 				}
 				if (!admit_workspace_object(path, false, workspace_refusal_check::record_not_private, aRefusal)) {
-					return refuse_recovery(aRefusal, workspace_refusal_check::record_not_private, path, workspace_ownership_failure::repair_required);
+					refuse(workspace_refusal_check::record_not_private, path);
+					continue;
 				}
 				workspace_descriptor descriptor{ open_journal(path) };
 				const auto           fd = descriptor.get();
 				if (!descriptor.valid()) {
-					return refuse_recovery(aRefusal, workspace_refusal_check::record_not_private, path, workspace_ownership_failure::repair_required);
+					refuse(workspace_refusal_check::record_not_private, path);
+					continue;
 				}
 				if (!journal_lock(fd, true)) {
 					const auto busy = lock_busy();
@@ -4149,9 +4412,12 @@ namespace bpr::adapters::git {
 					++result.Live;
 					continue;
 				}
-				auto record = load_workspace_record(fd, aRegistry, aNeighbourhood, path.stem().string());
+				// The exclusive lock is held, so a Version 1 record is rewritten
+				// as Version 2 in place.
+				auto record = load_workspace_record(fd, aRegistry, aNeighbourhood, path.stem().string(), true);
 				if (!record) {
-					return refuse_recovery(aRefusal, workspace_refusal_check::record_unreadable, path, workspace_ownership_failure::repair_required);
+					refuse(record.error().Check, path, record.error().Finding);
+					continue;
 				}
 				// A retained conversation owns this tree even with no live process.
 				// Modified/unverifiable retained work is never startup garbage.
@@ -4162,9 +4428,16 @@ namespace bpr::adapters::git {
 				workspace_ownership owner{ aRegistry, aNeighbourhood, std::move(*record), fd };
 				static_cast<void>(descriptor.release());
 				if (!owner.cleanup_locked()) {
-					return refuse_recovery(aRefusal, workspace_refusal_check::record_unreadable, path, workspace_ownership_failure::repair_required);
+					refuse(workspace_refusal_check::record_cleanup_failed, path);
+					continue;
 				}
 				++result.Recovered;
+			}
+			if (refused != 0U) {
+				if (aRefusal != nullptr) {
+					aRefusal->Count = refused;
+				}
+				return std::unexpected{ workspace_ownership_failure::repair_required };
 			}
 			return result;
 		}
@@ -4548,8 +4821,10 @@ namespace bpr::adapters::git {
 					workspaceOwner = std::move(*prepared);
 					parent         = workspaceOwner->layout().Parent;
 					destination    = workspaceOwner->layout().Workspace;
-					identity       = exact_directory_identity(workspaceOwner->layout().WorkspaceIdentity);
-					if (!identity || exact_identity(destination, exact_artifact_kind::directory) != identity || !empty_private_directory(destination)) {
+					// [[BPR-2118]]. The journal's durable identity, which the
+					// retained conversation keeps as its DirectoryIdentity.
+					identity = exact_directory_identity(workspaceOwner->layout().WorkspaceIdentity);
+					if (!identity || ownership_id(destination, exact_artifact_kind::directory) != workspaceOwner->layout().WorkspaceIdentity.Opaque || !empty_private_directory(destination)) {
 						return std::unexpected{ git_process_failure::invalid_repository };
 					}
 				} else {
@@ -5026,7 +5301,7 @@ namespace bpr::adapters::git {
 			}
 
 			[[nodiscard]] auto inspect_agent_workspace(const application::owned_agent_workspace& aWorkspace, const std::stop_token aStop)
-				-> git_process_result<void> override
+				-> git_process_result<application::owned_agent_workspace> override
 			{
 				auto boundary = process_boundary_lock{ IsolationRoot, aStop };
 				if (!boundary.valid() || !application::valid(aWorkspace) || !aWorkspace.LifetimeGuard || !WorkspaceRegistry) {
@@ -5035,22 +5310,30 @@ namespace bpr::adapters::git {
 				const auto path    = std::filesystem::path{ aWorkspace.Workspace.Path };
 				const auto journal = std::filesystem::path{ aWorkspace.LifetimeGuard->Path };
 				if (journal.parent_path() != *WorkspaceRegistry || journal.extension() != ".jsonl"
-					|| ownership_id(path, exact_artifact_kind::directory) != aWorkspace.DirectoryIdentity.Opaque
-					|| !workspace_private_directory(path) || !read_exact_file(path / ".git" / "bpr-owned-workspace", aWorkspace.OwnershipMarker)
-					|| ownership_id(journal, exact_artifact_kind::regular_file) != aWorkspace.LifetimeGuard->FileIdentity) {
+					|| !workspace_private_directory(path) || !read_exact_file(path / ".git" / "bpr-owned-workspace", aWorkspace.OwnershipMarker)) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
 				workspace_descriptor descriptor{ open_journal(journal) };
 				if (!descriptor.valid()) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
+				// [[BPR-2118]]. The journal is checked against the live paths
+				// first; the identities the conversation stored must then name
+				// what it records, and the reattached workspace carries the
+				// journal's durable identities from here on.
 				auto record = load_workspace_record(descriptor.get(), *WorkspaceRegistry, aWorkspace.ParentDirectory.parent_path(), journal.stem().string());
-				if (!record || record->Phase != 7U || record->Child != aWorkspace.DirectoryIdentity.Opaque) {
+				if (!record || record->Phase != 7U || ownership_id(path, exact_artifact_kind::directory) != record->Child
+					|| ownership_id(journal, exact_artifact_kind::regular_file) != record->File
+					|| !retained_identity_names(aWorkspace.DirectoryIdentity.Opaque, record->Child)
+					|| !retained_identity_names(aWorkspace.LifetimeGuard->FileIdentity, record->File)) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
-				const auto  head          = std::string{ core::canonical_hex(*aWorkspace.Workspace.PinnedHead).view() };
-				const auto& authority     = aWorkspace.Authority;
-				const auto  expectedScope = std::array<std::uint64_t, 10U>{ record->Scope[0], authority.Host.value(), authority.Repository.value(), authority.PullRequest.value(), aWorkspace.Session.value(), authority.Profile.value(), authority.ProfileRevision.value(), authority.Account.value(), authority.Viewer.value(), authority.Number.value() };
+				auto reattached                        = aWorkspace;
+				reattached.DirectoryIdentity.Opaque    = record->Child;
+				reattached.LifetimeGuard->FileIdentity = record->File;
+				const auto  head                       = std::string{ core::canonical_hex(*aWorkspace.Workspace.PinnedHead).view() };
+				const auto& authority                  = aWorkspace.Authority;
+				const auto  expectedScope              = std::array<std::uint64_t, 10U>{ record->Scope[0], authority.Host.value(), authority.Repository.value(), authority.PullRequest.value(), aWorkspace.Session.value(), authority.Profile.value(), authority.ProfileRevision.value(), authority.Account.value(), authority.Viewer.value(), authority.Number.value() };
 				if (record->Scope != expectedScope || record->Head != head
 					|| record->AuthorityFingerprints[0] != authority.HostAuthority.bytes()
 					|| record->AuthorityFingerprints[1] != authority.Cache.bytes()
@@ -5081,7 +5364,7 @@ namespace bpr::adapters::git {
 					if (checked->StandardOutput != expected) {
 						return std::unexpected(git_process_failure::object_unavailable);
 					}
-					return { };
+					return reattached;
 				}
 				auto arguments = workspace_git_arguments(path, HooksRoot);
 				append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", head, "HEAD");
@@ -5097,7 +5380,7 @@ namespace bpr::adapters::git {
 				if (!missing || !permitted || !std::includes(permitted->begin(), permitted->end(), missing->begin(), missing->end())) {
 					return std::unexpected(git_process_failure::object_unavailable);
 				}
-				return { };
+				return reattached;
 			}
 
 			[[nodiscard]] auto cleanup_agent_workspace(
@@ -7817,7 +8100,9 @@ namespace bpr::adapters::git {
 		case workspace_refusal_check::registry_unexpected_entry:   return "registry-unexpected-entry";
 		case workspace_refusal_check::unrecorded_leftover:         return "unrecorded-leftover";
 		case workspace_refusal_check::record_not_private:          return "record-not-private";
-		case workspace_refusal_check::record_unreadable:           return "record-unreadable";
+		case workspace_refusal_check::record_malformed:            return "record-malformed";
+		case workspace_refusal_check::record_moved:                return "record-moved";
+		case workspace_refusal_check::record_cleanup_failed:       return "record-cleanup-failed";
 		case workspace_refusal_check::limit_reached:               return "limit-reached";
 		case workspace_refusal_check::lock_unavailable:            return "lock-unavailable";
 		}

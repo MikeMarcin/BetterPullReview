@@ -50,12 +50,29 @@ namespace bpr::adapters::git {
 		unrecorded_leftover,
 		/// A record is not a private file of this user, or cannot be opened.
 		record_not_private,
-		/// A record could not be read, or its workspace could not be cleaned up.
-		record_unreadable,
+		/// [[BPR-2118]]. A record's line does not parse, its phases do not
+		/// follow one another, or it names another record's token.
+		record_malformed,
+		/// [[BPR-2118]]. A folder or file a record names is not the one at its
+		/// path: gone, replaced, or the same inode on another volume.
+		record_moved,
+		/// [[BPR-2118]]. A record was read, but it could not be rewritten in
+		/// place, or its workspace could not be cleaned up exactly.
+		record_cleanup_failed,
 		/// More records or neighbourhood entries than the fixed limit.
 		limit_reached,
 		/// The registry's process lock or a record's lock could not be taken.
 		lock_unavailable,
+	};
+	/// \brief [[BPR-2118]]. What `record_moved` found at a recorded path.
+	enum class workspace_record_finding : std::uint8_t {
+		none,
+		/// Nothing of the recorded kind is there, or it is not this user's.
+		missing,
+		/// The same inode, named through a different volume.
+		other_volume,
+		/// A different folder or file.
+		replaced,
 	};
 	/// \brief [[BPR-1857]]. The check that refused, the folder or file it
 	/// refused, and, where the platform can say, the account involved.
@@ -65,6 +82,13 @@ namespace bpr::adapters::git {
 		std::filesystem::path   Folder;
 		/// An account name or SID the refusal is about; empty when none.
 		std::string Account;
+		/// [[BPR-2118]]. Every record is checked before recovery refuses.
+		/// `Check`, `Folder` and `Finding` describe the first record refused;
+		/// this counts all of them. Zero for a refusal that is not about a
+		/// record.
+		std::size_t Count = 0U;
+		/// [[BPR-2118]]. For `record_moved`, what was found at the path.
+		workspace_record_finding Finding = workspace_record_finding::none;
 		/// [[BPR-1870]]. Checks that found one of the application's own
 		/// workspace folders or records wider than private and narrowed it in
 		/// place instead of refusing (this user's, a real folder or
