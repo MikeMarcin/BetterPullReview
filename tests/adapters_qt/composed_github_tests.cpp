@@ -20,6 +20,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/workbench_strip.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractItemDelegate>
@@ -5393,6 +5394,157 @@ namespace {
 		return aView.selectionModel() != nullptr ? aView.selectionModel()->selectedIndexes().size() : 0;
 	}
 
+	/// The owner, 2026-11-11: "The Home button should turn into a return
+	/// button when you're on Home with a PR open." With nothing open it is
+	/// Home; over an open review it is that review's return, named, with its
+	/// own glyph and no checked state; it returns where the review was left,
+	/// and is Home again once the review is back or closed. A second pull
+	/// request opened in the window is the one it names. Set
+	/// BPR_HOME_RETURN_RENDER_DIR to keep the strip in both faces, light and
+	/// dark.
+	auto test_home_button_returns_to_the_open_review() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		QApplication::processEvents();
+		auto* const home   = window.home_action();
+		auto* const button = qobject_cast<QToolButton*>(window.primary_toolbar()->widgetForAction(home));
+		const auto  key    = home->shortcut().toString(QKeySequence::NativeText);
+		const auto  image  = [](const QIcon& aIcon) {
+			return aIcon.pixmap(QSize{ 16, 16 }, 2.0).toImage().convertToFormat(QImage::Format_ARGB32);
+		};
+		const auto showing = [&](const qt::strip_glyph aGlyph) {
+			return image(home->icon()) == image(qt::strip_icon(aGlyph, window.palette()));
+		};
+		const auto isHome = [&] {
+			return home->isCheckable() && !window.home_action_returns() && home->text() == QStringLiteral("&Home")
+				&& button != nullptr && button->accessibleName() == QStringLiteral("Home")
+				&& home->toolTip().startsWith(QStringLiteral("Show Home (%1)").arg(key)) && showing(qt::strip_glyph::home)
+				&& !showing(qt::strip_glyph::return_to_review);
+		};
+		expect(window.showing_home() && home->isChecked() && isHome(), "with nothing open the button is Home, checked");
+
+		const auto directory = qEnvironmentVariable("BPR_HOME_RETURN_RENDER_DIR");
+		const auto render    = [&](const QString& aFace) {
+			if (directory.isEmpty()) {
+				return;
+			}
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				window.setPalette(profile.derive(QApplication::palette()));
+				for (auto turn = 0; turn < 4; ++turn) {
+					QApplication::processEvents();
+				}
+				expect(showing(window.home_action_returns() ? qt::strip_glyph::return_to_review : qt::strip_glyph::home),
+					   "a theme change repaints the button's glyph in the new ink");
+				const auto strip = window.primary_toolbar()->grab();
+				expect(strip.save(QStringLiteral("%1/home-button-%2-%3.png").arg(directory, aFace, name)), "the strip render is written");
+			}
+			window.setPalette(QPalette{ });
+			QApplication::processEvents();
+		};
+		render(QStringLiteral("home"));
+
+		publish_pull_request(window);
+		QApplication::processEvents();
+		expect(!window.showing_home() && !home->isChecked() && isHome(), "with the review shown the button is Home, unchecked");
+		window.choose_modality(qt::review_modality::discuss);
+		QApplication::processEvents();
+		auto* const reviewControl = window.primary_toolbar()->widgetForAction(window.files_drawer_toggle_action());
+		reviewControl->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+
+		home->trigger();
+		QApplication::processEvents();
+		const auto title = QStringLiteral("<b>& literal pull request title");
+		expect(window.showing_home() && window.home_action_returns() && !home->isCheckable() && !home->isChecked()
+				   && showing(qt::strip_glyph::return_to_review) && !showing(qt::strip_glyph::home)
+				   && home->text() == QStringLiteral("Return to #27 <b>&& literal pull request title")
+				   && home->iconText() == QStringLiteral("Return")
+				   && home->toolTip() == QStringLiteral("Return to openai/better-pull-review#27: %1 (%2).").arg(title, key)
+				   && home->statusTip() == home->toolTip()
+				   && button->accessibleName() == QStringLiteral("Return to #27 ") + title
+				   && button->accessibleDescription() == home->toolTip() && button->isVisible(),
+			   "on Home over the review the button is its return, named for it: " + home->text().toStdString() + " / " + button->accessibleName().toStdString());
+		{
+			auto* const accessible = QAccessible::queryAccessibleInterface(button);
+			expect(accessible != nullptr && accessible->text(QAccessible::Name) == button->accessibleName()
+					   && !accessible->state().checkable && !accessible->state().checked,
+				   "assistive technology reads the return by its name, not as a checked Home");
+		}
+		render(QStringLiteral("return"));
+
+		button->click();
+		QApplication::processEvents();
+		expect(!window.showing_home() && window.current_modality() == qt::review_modality::discuss
+				   && window.focusWidget() == reviewControl && !home->isChecked() && isHome(),
+			   std::string{ "the return brings the review back on Discuss with its focus, and the button is Home again: home=" } + (window.showing_home() ? "1" : "0")
+				   + " modality=" + std::to_string(static_cast<int>(window.current_modality())) + " focus="
+				   + (window.focusWidget() == nullptr ? std::string{ "none" } : window.focusWidget()->objectName().toStdString()) + " checked=" + (home->isChecked() ? "1" : "0")
+				   + " home-face=" + (isHome() ? "1" : "0"));
+
+		// The key is Home's on the review and the return on Home.
+		home->trigger();
+		QApplication::processEvents();
+		expect(window.showing_home() && window.home_action_returns(), "the key shows Home over the review");
+		home->trigger();
+		QApplication::processEvents();
+		expect(!window.showing_home() && isHome(), "the key on Home returns to the review");
+
+		// A second pull request opened in the window is the one it returns to.
+		auto second         = pull_request_projection();
+		second.Number       = core::pull_request_number{ 28U };
+		second.PullRequest  = core::pull_request_id{ 82U };
+		second.Snapshot     = core::provider_snapshot_id{ 92U };
+		second.Title        = "Second change, a title long enough that the button's name elides it well before it ends";
+		auto summary        = core::github_pull_request_summary{ };
+		summary.Locator     = { .Owner = second.Owner, .Name = second.RepositoryName };
+		summary.Number      = second.Number;
+		summary.Repository  = second.Repository;
+		summary.PullRequest = second.PullRequest;
+		summary.Snapshot    = second.Snapshot;
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands    = enabled_commands(),
+				.Status      = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+				.PullRequest = core::pull_request_summary_delta{ .Summary = summary },
+			},
+			.PullRequest = std::move(second),
+		});
+		QApplication::processEvents();
+		home->trigger();
+		QApplication::processEvents();
+		expect(window.showing_home() && window.home_action_returns() && home->text().startsWith(QStringLiteral("Return to #28 Second change"))
+				   && home->text().endsWith(QStringLiteral("…")) && home->toolTip().contains(QStringLiteral("before it ends ("))
+				   && home->toolTip().startsWith(QStringLiteral("Return to openai/better-pull-review#28: ")),
+			   "Home over the second pull request returns to it, its long title elided in the name and whole in the tooltip: " + home->text().toStdString());
+
+		// Closing the review while on Home leaves Home, plainly.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands    = enabled_commands(),
+				.PullRequest = core::pull_request_summary_delta{ },
+			},
+		});
+		QApplication::processEvents();
+		expect(window.showing_home() && home->isChecked() && isHome(), "with the review closed on Home the button is Home, checked");
+		home->trigger();
+		QApplication::processEvents();
+		expect(window.showing_home() && home->isChecked() && isHome(), "with nothing open Home cannot be left");
+		window.hide();
+	}
+
 	/// [[BPR-1365]]. The owner, accepting BPR-1364: "Separate problem: the color
 	/// of recent is the same as the color of selected." Recently viewed made its
 	/// first row current, and so selected, on every publication, and the style
@@ -6688,7 +6840,7 @@ namespace {
 				   && !window.status_text().contains(QStringLiteral("No pull request is open")),
 			   "over a review Home's line is the session line; it says: " + window.status_text().toStdString());
 		expect(
-			window.showing_home() && window.home_action()->isChecked()
+			window.showing_home() && !window.home_action()->isChecked() && window.home_action_returns()
 				&& window.modality()->isVisible()
 				&& !window.primary_toolbar()
 						->widgetForAction(window.files_drawer_toggle_action())
@@ -6699,7 +6851,7 @@ namespace {
 				&& landing->title_label()->text().contains(QStringLiteral("#"))
 				&& landing->primary_button()->text()
 					== QStringLiteral("Back to the review"),
-			"the Home button shows Home over an open review, names the review "
+			"the Home button is the return to the open review, the card names it "
 			"at the top with the way back, and keeps the modalities");
 		landing->primary_button()->click();
 		QApplication::processEvents();
@@ -9615,6 +9767,11 @@ auto main(int argc, char** argv) -> int
 		std::cout << "long-thread:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--home-return"))) {
+		test_home_button_returns_to_the_open_review();
+		std::cout << "home-return:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--resident-drawer-filters"))) {
 		test_drawer_filters_are_resident_and_keep_the_open_views();
 		std::cout << "resident-drawer-filters:pass\n";
@@ -9649,6 +9806,7 @@ auto main(int argc, char** argv) -> int
 	test_home_lists_recently_viewed_pull_requests();
 	test_home_side_lists_select_on_a_single_click();
 	test_home_shows_one_selection_and_the_open_review_quietly();
+	test_home_button_returns_to_the_open_review();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_one_pane_places_github_threads_on_their_own_rows();

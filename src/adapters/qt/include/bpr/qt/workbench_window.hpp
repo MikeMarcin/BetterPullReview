@@ -1209,7 +1209,13 @@ namespace bpr::qt {
 			const core::agent_session&            aSession,
 			const core::agent_continuation_offer& aOffer);
 		/// \brief The strip's Home button: Home on demand, checked while shown.
+		///
+		/// \details While Home shows over an open review it is that review's
+		/// way back instead: unchecked and uncheckable, a return arrow, and
+		/// named "Return to #123 …" in its text, tooltip and accessible name.
 		[[nodiscard]] auto home_action() const noexcept -> QAction*;
+		/// \brief True while the Home button is the way back to an open review.
+		[[nodiscard]] auto home_action_returns() const noexcept -> bool;
 		/// \brief Shows Home, or returns to the review when Home was asked for.
 		void choose_home(bool aHome);
 		/// \brief Home: the whole centre while nothing is open.
@@ -2017,6 +2023,9 @@ namespace bpr::qt {
 		void observe_handle_drag();
 		void configure_tool_buttons();
 		void refresh_toolbar_icons();
+		/// \brief Presents the Home button for where the window is: Home,
+		/// checked on Home, or the return to the review open behind Home.
+		void present_home_action(bool aHome);
 		/// \brief [[BPR-1331]] v003. Paints the review bar's progress button
 		/// with the selected file's mark and each of its menu's actions with
 		/// the mark it names, all from one painter in the theme's colours.
@@ -2760,6 +2769,10 @@ namespace bpr::qt {
 		/// [[BPR-1592]]. Opens a note waiting for its file once it shows.
 		void     resume_private_note_open();
 		QWidget* TrayCommentsCount = nullptr;
+
+		/// The Home button is the way back to the review behind Home.
+		bool HomeActionReturns = false;
+
 		/// [[BPR-0775]]. Where focus was in the review when Home covered it.
 		QPointer<QWidget> FocusBeforeHome;
 		QAction*          HomeAction           = nullptr;

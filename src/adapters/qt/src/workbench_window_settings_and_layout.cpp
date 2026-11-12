@@ -33,6 +33,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFlags>
+#include <QFontMetrics>
 #include <QFrame>
 #include <QIcon>
 #include <QKeySequence>
@@ -1020,6 +1021,80 @@ namespace bpr::qt {
 		update_home_landing();
 	}
 
+	auto workbench_window::home_action_returns() const noexcept -> bool
+	{
+		return HomeActionReturns;
+	}
+
+	void workbench_window::present_home_action(const bool aHome)
+	{
+		if (HomeAction == nullptr) {
+			return;
+		}
+		// The owner, 2026-11-11: "The Home button should turn into a return
+		// button when you're on Home with a PR open." Over an open review the
+		// button is that review's way back, as the Active review card's Back
+		// to the review is, and names it. Its key stays Home's, which on Home
+		// already returns. There it is a command rather than a place, so it is
+		// not checkable: a checked Return would read as the place shown. A
+		// setup destination that holds Home has no way back to offer.
+		const auto returns = aHome && HasGithubPullRequest && !SetupDestinationNeedsHome && !IdentityNumber.isEmpty();
+		const auto key     = HomeAction->shortcut().toString(QKeySequence::NativeText);
+		auto       name    = QStringLiteral("Home");
+		auto       text    = QStringLiteral("&Home");
+		auto       tip     = QStringLiteral("Show Home (%1): sign-in or the review queue, and the way back to the review.").arg(key);
+		if (returns) {
+			// The number always, then as much of the title as reads at a
+			// glance; the tooltip carries the whole name.
+			constexpr auto titleWidth = 280;
+			const auto     title      = QString::fromStdString(OpenQueueTitle);
+			const auto     number     = QStringLiteral("#%1").arg(IdentityNumber);
+			const auto     metrics    = QFontMetrics{ PrimaryToolbar != nullptr ? PrimaryToolbar->font() : font() };
+			name                      = QStringLiteral("Return to %1").arg(title.isEmpty() ? number : number + QLatin1Char{ ' ' } + metrics.elidedText(title, Qt::ElideRight, titleWidth));
+			text                      = QString{ name }.replace(QLatin1Char{ '&' }, QStringLiteral("&&"));
+			const auto whole          = IdentityOwner.isEmpty() || IdentityRepository.isEmpty()
+				? number
+				: QStringLiteral("%1/%2%3").arg(IdentityOwner, IdentityRepository, number);
+			tip                       = title.isEmpty() ? QStringLiteral("Return to %1 (%2).").arg(whole, key)
+														: QStringLiteral("Return to %1: %2 (%3).").arg(whole, title, key);
+		}
+		const auto flipped = returns != HomeActionReturns;
+		HomeActionReturns  = returns;
+		// Unchecked before it stops being checkable: QAction keeps the checked
+		// flag of an uncheckable action and reports it with every trigger, so
+		// the return would otherwise ask for Home again.
+		if (returns) {
+			HomeAction->setChecked(false);
+			HomeAction->setCheckable(false);
+		} else {
+			HomeAction->setCheckable(true);
+			if (HomeAction->isChecked() != aHome) {
+				HomeAction->setChecked(aHome);
+			}
+		}
+		if (HomeAction->text() != text) {
+			HomeAction->setText(text);
+			HomeAction->setIconText(returns ? QStringLiteral("Return") : QStringLiteral("Home"));
+		}
+		if (HomeAction->toolTip() != tip) {
+			HomeAction->setToolTip(tip);
+			HomeAction->setStatusTip(tip);
+		}
+		if (flipped) {
+			HomeAction->setIcon(strip_icon(returns ? strip_glyph::return_to_review : strip_glyph::home, palette()));
+		}
+		if (PrimaryToolbar != nullptr) {
+			if (auto* const button = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(HomeAction)); button != nullptr) {
+				if (button->accessibleName() != name) {
+					button->setAccessibleName(name);
+				}
+				if (button->accessibleDescription() != tip) {
+					button->setAccessibleDescription(tip);
+				}
+			}
+		}
+	}
+
 	void workbench_window::refresh_toolbar_icons()
 	{
 		auto* const nativeStyle = style();
@@ -1030,7 +1105,7 @@ namespace bpr::qt {
 		// ink, so a theme change repaints them here exactly as the arrows were.
 		const auto& ink = palette();
 		if (HomeAction != nullptr) {
-			HomeAction->setIcon(strip_icon(strip_glyph::home, ink));
+			HomeAction->setIcon(strip_icon(HomeActionReturns ? strip_glyph::return_to_review : strip_glyph::home, ink));
 		}
 #if defined(_WIN32)
 		// [[BPR-1596]]. The menu control stands first in the Windows row; left
