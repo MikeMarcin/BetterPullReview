@@ -60,6 +60,8 @@ The final source is connected to that proof through focused controls:
   single/multi-configuration graphs: Debug180 and Release/RelWithDebInfo60, with
   matching explicit configuration argv. The imported-target shim supplies no
   normal graph or native execution claim.
+- Documentation structure and all67 documentation contract tests pass;
+  `git diff --check` is clean. No unrelated native or architecture replay.
 
 External evidence:
 `/Users/jaeger/.codex/release-runs/v0.4.2-20261104/implementer58-terminal-diagnostics-debug-triage-r1`;
