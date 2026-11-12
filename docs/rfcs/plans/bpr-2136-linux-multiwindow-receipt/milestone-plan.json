@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2136-linux-multiwindow-receipt",
+  "scope": {
+    "issues": [
+      "BPR-2136"
+    ]
+  },
+  "coverage": "complete",
+  "unplanned_work": [],
+  "milestones": [
+    {
+      "id": "accepted-pr-replacement",
+      "outcome": "A multi-window replacement accepts PR17 own receipt and private notes while rejecting latePR18 delivery, with causally justified fixture/product handling.",
+      "work": [
+        {
+          "issue": "BPR-2136",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Identify the exact failed PR17 receipt/private-note conjunct and its accepted/stale authority, retaining the original Linux60 Debug failure and actual Release counterpart. Prove the cause through one serialized bounded native diagnostic or deterministic targeted control before choosing a fixture or production correction.",
+        "Implement the smallest proven correction without relaxing any original receipt, material, PR, private-note or late-delivery assertion. Preserve bounded waits/outer watchdog and public gestures; a fixture-only synchronization repair must have a meaningful controlled negative.",
+        "Run focused exact-candidate public-path and affected closure checks through the shared native lease, preserve original failures/unreached checks, pass documentation/format/source controls, and land only own reviewed commits on canonical main with exact mapping for selective release intake."
+      ],
+      "boundary": "Only the newly failed application_profile_multi_window_public_path course and minimal causally proven production closure; independent source6ef, no broadmain intake/frozenR/W changes. Native build/test prohibited until /root/integrate_2118 serializes a grant. Distinct from issues2133/34/35; no assertion weakening or Qt/timing waiver."
+    }
+  ]
+}
