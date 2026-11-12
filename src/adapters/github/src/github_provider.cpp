@@ -1337,7 +1337,19 @@ namespace bpr::adapters::github::detail {
 			/// changed account sends nothing and reports a sent write as possibly sent.
 			auto perform_publication(const github_publication_wire_call& aCall, std::stop_token aStop) -> github_publication_wire_completion override
 			{
-				auto*       inner     = dynamic_cast<github_publication_wire_transport*>(Transport.get());
+				// The lease's transport may be a layer over gh; its mutation
+				// operation scope is the gh transport itself, holding one
+				// named credential for this exchange.
+				auto* inner  = dynamic_cast<github_publication_wire_transport*>(Transport.get());
+				auto  scoped = std::shared_ptr<github_mutation_wire_transport>{ };
+				if (inner == nullptr) {
+					if (auto* const mutation = dynamic_cast<github_mutation_wire_transport*>(Transport.get()); mutation != nullptr && Transport->strict_cli()) {
+						if (auto acquired = mutation->begin_mutation_operation(aStop); acquired && *acquired) {
+							scoped = std::move(*acquired);
+							inner  = dynamic_cast<github_publication_wire_transport*>(scoped.get());
+						}
+					}
+				}
 				const auto& session   = std::get<core::github_session_request_context>(Viewer.Correlation.Parent);
 				const auto& authority = aCall.Context.Authority;
 				if (inner == nullptr || !pull_request_publication_operation(aCall.Wire.Operation) || !application::valid(aCall.Context) || authority.Account != Account

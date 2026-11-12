@@ -133,6 +133,10 @@
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
+#include "bpr/qt/local_draft_publication_area.hpp"
+#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
+#include <QTabBar>
 #include <QWindow>
 #include <algorithm>
 #include <array>
@@ -248,7 +252,7 @@ namespace {
 			}
 		}
 		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
-			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment" && result.Course != "agent-helpers" && result.Course != "agent-scratch" && result.Course != "live-session")
+			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment" && result.Course != "agent-helpers" && result.Course != "agent-scratch" && result.Course != "live-session" && result.Course != "live-draft")
 			|| result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))
 			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment" || result.Course == "agent-helpers" || result.Course == "agent-scratch") && result.Path.empty())
@@ -1773,6 +1777,77 @@ namespace {
 		dump(aWindow);
 	}
 
+
+	/// RFC-BPR-0111 ([[BPR-2029]]). Create draft PR from a local draft on
+	/// MikeMarcin/BPR-Test, through the window's own Pull request area and the
+	/// account the profile signed in with gh. `--path` is a clone of BPR-Test on a
+	/// new branch with one commit, not pushed. The course reads GitHub (the
+	/// branch is missing: the push is named), writes `at-push` with the named
+	/// command and waits; the driver runs exactly that push with the author's own
+	/// Git and answers `go-push`. Then Check GitHub finds the candidate, Create
+	/// draft PR creates it, and the course writes DIR/live-draft.json.
+	void live_draft_course(const options& aOptions, app::github_application& aOwner, qt::workbench_window& aWindow)
+	{
+		aOwner.open_local_draft(aOptions.Path);
+		qt::local_draft_view* view = nullptr;
+		require(
+			[&] {
+				for (auto* const widget : aWindow.findChildren<QWidget*>()) {
+					if (auto* const page = dynamic_cast<qt::local_draft_view*>(widget)) {
+						view = page;
+					}
+				}
+				return view != nullptr && view->projection().Draft.has_value() && !view->projection().Busy;
+			},
+			"the local draft opens");
+		auto* const area = view->publication();
+		view->areas()->setCurrentIndex(4);
+		const auto checked = [&](const std::string& aWhat) {
+			require([&] { return area->check_button()->isEnabled(); }, "Check GitHub is available");
+			area->check_button()->click();
+			require([&] { return !view->projection().Publishing.Checking && view->projection().Publishing.Checked; }, aWhat, std::chrono::seconds{ 120 });
+			say("live-draft:state " + text(area->state()->text()));
+		};
+		checked("GitHub is read before the push");
+		const auto& first = view->projection().Publishing;
+		if (first.Branch != core::hosted_branch_state::missing || !first.Push || area->create_button()->isEnabled()) {
+			fail("an unpushed branch must name the push and offer no creation: " + text(area->state()->text()));
+		}
+		say("live-draft:push " + first.Push->Command);
+		checkpoint(aOptions.Root, "push", "{\"command\":" + json_text(first.Push->Command) + "}");
+		checked("GitHub is read after the push");
+		const auto& second = view->projection().Publishing;
+		if (second.Branch != core::hosted_branch_state::matches || !area->create_button()->isEnabled()) {
+			fail("the pushed branch must be the candidate: " + text(area->state()->text()));
+		}
+		say("live-draft:preview " + second.Preview);
+		area->create_button()->click();
+		require(
+			[&] {
+				const auto& draft = view->projection().Draft;
+				return !view->projection().Publishing.Creating && draft && draft->Publication && draft->Publication->Journal.Phase != core::local_publication_phase::prepared
+					&& draft->Publication->Journal.Phase != core::local_publication_phase::authorized;
+			},
+			"Create draft PR answers", std::chrono::seconds{ 180 });
+		const auto& draft = *view->projection().Draft;
+		const auto& journal = draft.Publication->Journal;
+		say("live-draft:phase " + std::string{ core::name(journal.Phase) } + " state " + text(area->state()->text()));
+		for (const auto& row : area->steps()->row_texts()) {
+			say("live-draft:step " + text(row));
+		}
+		if (journal.Phase != core::local_publication_phase::linked || !journal.Link || !draft.Association) {
+			fail("the draft pull request was not created and linked: " + journal.Reason);
+		}
+		if (area->check_button()->isEnabled() || area->create_button()->isEnabled()) {
+			fail("a linked draft must offer no second creation");
+		}
+		std::ofstream out{ aOptions.Root / "live-draft.json" };
+		out << "{\"number\":" << journal.Link->Number << ",\"url\":" << json_text(journal.Link->Url) << ",\"head\":" << json_text(std::string{ core::canonical_hex(journal.Link->Head).view() })
+			<< ",\"candidate_head\":" << json_text(std::string{ core::canonical_hex(draft.Publication->Plan.Head).view() }) << ",\"draft\":" << (journal.Link->Draft ? "true" : "false")
+			<< ",\"drifted\":" << (journal.Link->Drifted ? "true" : "false") << ",\"title\":" << json_text(draft.Publication->Plan.Title) << ",\"author\":" << json_text(journal.Link->Author)
+			<< "}\n";
+		say("live-draft:linked #" + std::to_string(journal.Link->Number));
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -1816,7 +1891,7 @@ try {
 
 	app::github_application* owner    = nullptr;
 	auto                     terminal = false;
-	auto                     desktop  = app::profile_desktop::start(app::github_application_config{ .ApplicationDataRoot = chosen.Root / "data", .DesignatedLivePublication = chosen.Course == "live-session" }, [&](app::profile_desktop_startup_result aResult) {
+	auto                     desktop  = app::profile_desktop::start(app::github_application_config{ .ApplicationDataRoot = chosen.Root / "data", .DesignatedLivePublication = chosen.Course == "live-session" || chosen.Course == "live-draft" }, [&](app::profile_desktop_startup_result aResult) {
 		terminal = true;
 		if (aResult) {
 			owner = *aResult;
@@ -1855,6 +1930,8 @@ try {
 		agent_scratch_course(chosen, *window);
 	} else if (chosen.Course == "live-session") {
 		live_session_course(chosen, *window);
+	} else if (chosen.Course == "live-draft") {
+		live_draft_course(chosen, *owner, *window);
 	} else {
 		reader_course(chosen, *window);
 	}
