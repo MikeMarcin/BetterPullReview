@@ -577,7 +577,7 @@ int main(int argc, char** argv)
 	// request and its own prompt as the system prompt. It answers in prose
 	// and says what it was given, so a course can read it back.
 	if (const auto at = input.find("returning.operation"); at != std::string::npos) {
-		const auto has = [&input](const std::string_view aText) { return input.find(aText) != std::string::npos ? 1 : 0; };
+		const auto has  = [&input](const std::string_view aText) { return input.find(aText) != std::string::npos ? 1 : 0; };
 		const auto echo = "RETURNING_ECHO system=" + std::to_string(has("The reviewer reviewed this pull request before") + 2 * has("The reviewer commented in a review thread")) + " changes="
 			+ std::to_string(has("+++ b/src/engine/renderer.cpp")) + " then=" + std::to_string(has("returning.then.present\\t1")) + " now=" + std::to_string(has("returning.now.present\\t1"))
 			+ " conversation=" + std::to_string(has("conversation.comment.count"));

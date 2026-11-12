@@ -40,11 +40,11 @@ namespace bpr::app {
 		};
 		struct returning_gather final
 		{
-			std::string                Key;
+			std::string                 Key;
 			std::vector<returning_read> Files;
-			std::size_t                Waiting  = 0U;
-			bool                       Failed   = false;
-			std::size_t                Omitted  = 0U;
+			std::size_t                 Waiting = 0U;
+			bool                        Failed  = false;
+			std::size_t                 Omitted = 0U;
 		};
 	}
 
@@ -75,11 +75,11 @@ namespace bpr::app {
 				facts.ReviewedHead = std::string{ review.Commit->value() };
 			}
 		}
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 		if (!ReturningReviewHeadForTesting.empty()) {
 			facts.ReviewedHead = ReturningReviewHeadForTesting;
 		}
-#endif
+	#endif
 		facts.SeenHead = Window->open_pull_request_seen_head();
 		for (const auto& commit : snapshot->Commits) {
 			facts.Commits.emplace_back(commit.Oid.value());
@@ -98,9 +98,9 @@ namespace bpr::app {
 				read_returning_material(*earlier, head);
 			}
 		}
-		facts.Material = ReturningReview.Reading ? core::returning_material::reading
-			: ReturningReview.Readable           ? core::returning_material::readable
-												 : core::returning_material::unreadable;
+		facts.Material        = ReturningReview.Reading ? core::returning_material::reading
+			: ReturningReview.Readable                  ? core::returning_material::readable
+														: core::returning_material::unreadable;
 		ReturningReview.Offer = core::decide_latest_upload(facts);
 		Window->present_latest_upload(ReturningReview.Offer);
 
@@ -115,7 +115,7 @@ namespace bpr::app {
 					mine = &comment;
 				}
 			}
-			const auto commit = mine == nullptr                         ? std::string{ }
+			const auto commit = mine == nullptr             ? std::string{ }
 				: !mine->Observation.OriginalCommit.empty() ? mine->Observation.OriginalCommit
 															: mine->Observation.Commit;
 			const auto asked  = core::proposed_fix_facts{ .ReviewerCommented = mine != nullptr, .LastCommentCommit = commit, .CurrentHead = headHex };
@@ -128,9 +128,9 @@ namespace bpr::app {
 				threads.insert(*kept);
 				continue;
 			}
-			const auto last   = mine->OriginalLine ? mine->OriginalLine : thread.OriginalLine;
-			const auto first  = mine->Observation.OriginalStartLine ? mine->Observation.OriginalStartLine : last;
-			auto       offer  = returning_review_state::thread_offer{ .Commit = commit, .Path = thread.Path };
+			const auto last  = mine->OriginalLine ? mine->OriginalLine : thread.OriginalLine;
+			const auto first = mine->Observation.OriginalStartLine ? mine->Observation.OriginalStartLine : last;
+			auto       offer = returning_review_state::thread_offer{ .Commit = commit, .Path = thread.Path };
 			if (last) {
 				offer.ThenFirst = *first;
 				offer.ThenLast  = *last;
@@ -164,8 +164,8 @@ namespace bpr::app {
 	/// A commit the objects do not hold makes the question unavailable.
 	void github_application::implementation::read_returning_material(const core::returning_point& aEarlier, const core::git_commit_oid& aHead)
 	{
-		const auto key     = ReturningReview.Key;
-		const auto earlier = core::parse_git_commit_oid(aEarlier.Head);
+		const auto  key      = ReturningReview.Key;
+		const auto  earlier  = core::parse_git_commit_oid(aEarlier.Head);
 		const auto& snapshot = WindowRead->accepted_snapshot();
 		if (!earlier || !LastAcceptedHandoff || !snapshot) {
 			finish_returning_material(key, std::nullopt);
@@ -244,9 +244,9 @@ namespace bpr::app {
 			};
 			for (auto index = std::size_t{ 0U }; index < gather->Files.size(); ++index) {
 				for (const auto earlierSide : { true, false }) {
-					auto read = application::permalink_source_request{ .WorkbenchAuthority = authority, .Head = head, .Commit = earlierSide ? earlierOid : head, .Path = gather->Files[index].Path };
+					auto       read         = application::permalink_source_request{ .WorkbenchAuthority = authority, .Head = head, .Commit = earlierSide ? earlierOid : head, .Path = gather->Files[index].Path };
 					const auto admittedRead = EpochHost->resolve_permalink_source(std::move(read), [gather, index, earlierSide, done](const application::permalink_source_observation& aRead) {
-						auto& file = gather->Files[index];
+						auto& file   = gather->Files[index];
 						using status = application::permalink_source_status;
 						if (aRead.Status == status::resolved) {
 							(earlierSide ? file.Earlier : file.Current) = aRead.Bytes;
@@ -318,15 +318,15 @@ namespace bpr::app {
 	/// or as they are at the head, from the review's own objects.
 	void github_application::implementation::read_addressed_lines(const std::string& aIdentity, const bool aThen)
 	{
-		auto& offer  = ReturningReview.Threads.at(aIdentity);
+		auto&      offer  = ReturningReview.Threads.at(aIdentity);
 		const auto commit = aThen ? core::parse_git_commit_oid(offer.Commit) : std::optional{ LastAcceptedHandoff ? LastAcceptedHandoff->Head : core::git_commit_oid{ } };
 		if (!commit || !LastAcceptedHandoff || EpochHost == nullptr) {
 			(aThen ? offer.ThenSettled : offer.NowSettled) = true;
 			return;
 		}
-		auto request = application::permalink_source_request{ .WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff), .Head = LastAcceptedHandoff->Head, .Commit = *commit, .Path = offer.Path };
+		auto request                                 = application::permalink_source_request{ .WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff), .Head = LastAcceptedHandoff->Head, .Commit = *commit, .Path = offer.Path };
 		(aThen ? offer.ThenAsking : offer.NowAsking) = true;
-		const auto admitted = EpochHost->resolve_permalink_source(std::move(request), [this, aIdentity, aThen, commitHex = hex(*commit), wanted = offer.Commit](const application::permalink_source_observation& aRead) {
+		const auto admitted                          = EpochHost->resolve_permalink_source(std::move(request), [this, aIdentity, aThen, commitHex = hex(*commit), wanted = offer.Commit](const application::permalink_source_observation& aRead) {
 			if (Closing) {
 				return;
 			}
@@ -334,9 +334,9 @@ namespace bpr::app {
 			if (found == ReturningReview.Threads.end() || found->second.Commit != wanted) {
 				return;
 			}
-			auto& kept = found->second;
+			auto& kept                                 = found->second;
 			(aThen ? kept.ThenAsking : kept.NowAsking) = false;
-			using status = application::permalink_source_status;
+			using status                               = application::permalink_source_status;
 			if (aRead.Status == status::stale || aRead.Status == status::cancelled) {
 				return;
 			}
@@ -384,7 +384,7 @@ namespace bpr::app {
 				Window->agent_panel()->refuse(ReturningReview.Offer.State == core::latest_upload_state::unavailable
 												  ? QStringLiteral("What changed since my review: the code at %1 can't be read here. Nothing was sent.").arg(earlier).toStdString()
 												  : QStringLiteral("What changed since my review: there are no commits since your review. Nothing was sent.")
-												  .toStdString());
+														.toStdString());
 				return false;
 			}
 			aObservation.Returning = ReturningReview.Material;
@@ -422,7 +422,7 @@ namespace bpr::app {
 		case core::agent_entry_point::workshop_comment:
 		case core::agent_entry_point::run_ai_review:
 		case core::agent_entry_point::open_full_agent_session:
-		case core::agent_entry_point::ask_about_conversation: return true;
+		case core::agent_entry_point::ask_about_conversation:  return true;
 		}
 		// A fresh first answer carries no earlier conversation (RFC-BPR-0101,
 		// 2026-11-12): it is one call, and its context is the request.
@@ -439,22 +439,22 @@ namespace bpr::app {
 		// one tool-free call where the agent has the mode (Claude), with its
 		// own built-in prompt as the system prompt. No native session, no
 		// scratch folder, no private run, nothing saved.
-		aInvocation.Path                 = core::agent_run_path::assistance_first_answer;
-		const auto hook                  = aInvocation.Context.EntryPoint == core::agent_entry_point::analyze_latest_upload ? core::writing_hook::review_latest_upload : core::writing_hook::review_proposed_fix;
-		auto       text                  = std::string{ application::default_writing_hook(hook) };
+		aInvocation.Path = core::agent_run_path::assistance_first_answer;
+		const auto hook  = aInvocation.Context.EntryPoint == core::agent_entry_point::analyze_latest_upload ? core::writing_hook::review_latest_upload : core::writing_hook::review_proposed_fix;
+		auto       text  = std::string{ application::default_writing_hook(hook) };
 		if (Profile && Profile->WorkbenchPreferences) {
 			if (const auto& preferences = Profile->WorkbenchPreferences->accepted(); preferences) {
 				text = std::string{ application::effective_writing_hook(preferences->WritingHooks, hook) };
 			}
 		}
-		aInvocation.SystemInstructions   = std::move(text);
+		aInvocation.SystemInstructions = std::move(text);
 		aInvocation.NativeAgentIdentity.clear();
 		aInvocation.NativeScope.clear();
-		aInvocation.TranscriptReplay     = false;
+		aInvocation.TranscriptReplay = false;
 		aInvocation.SelectedConversation.clear();
-		aInvocation.ScratchFolder        = false;
-		aInvocation.BuildsAndTests       = false;
-		auto protocol = std::optional<core::agent_protocol>{ };
+		aInvocation.ScratchFolder  = false;
+		aInvocation.BuildsAndTests = false;
+		auto protocol              = std::optional<core::agent_protocol>{ };
 		if (AgentSetup) {
 			const auto agents = AgentSetup->projection().Preferences.Agents;
 			if (const auto* const entry = core::entry_of_profile(agents, aProfile); entry != nullptr) {
@@ -462,7 +462,7 @@ namespace bpr::app {
 			}
 		}
 		if (aProfile == core::claude_stream_json_profile_id || protocol == core::agent_protocol::claude_stream_json) {
-			aInvocation.WritingOnly         = true;
+			aInvocation.WritingOnly = true;
 			aInvocation.PrivateRun.reset();
 			aInvocation.HistoryClone.reset();
 			aInvocation.HistoryCloneManaged = false;

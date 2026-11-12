@@ -86,8 +86,8 @@ class QTabWidget;
 #include <map>
 #include <memory>
 #include <optional>
-#include <span>
 #include <set>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -813,8 +813,8 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0116 ([[BPR-2073]]). The Pull Request menu's What
 		/// Changed Since My Review, beside Seen, and the Agent tab's
 		/// suggestion: offered, unavailable with why, or not shown.
-		void present_latest_upload(const core::latest_upload_offer& aOffer);
-		void set_what_changed_dispatch(std::function<void()> aDispatch);
+		void               present_latest_upload(const core::latest_upload_offer& aOffer);
+		void               set_what_changed_dispatch(std::function<void()> aDispatch);
 		[[nodiscard]] auto what_changed_action() const noexcept -> QAction* { return WhatChangedPullRequest; }
 		/// \brief [[BPR-2049]]. The head I said Seen on, for the open pull
 		/// request's queue item; empty when never said.

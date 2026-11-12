@@ -119,9 +119,9 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "usage: returning_review_public_path latest|addressed|gone STUB [--attended]\n";
 		return EXIT_FAILURE;
 	}
-	const auto course   = std::string_view{ argv[1] };
-	const auto stub     = std::filesystem::path{ argv[2] };
-	const auto attended = argc > 3 && std::string_view{ argv[3] } == "--attended";
+	const auto    course   = std::string_view{ argv[1] };
+	const auto    stub     = std::filesystem::path{ argv[2] };
+	const auto    attended = argc > 3 && std::string_view{ argv[3] } == "--attended";
 	QTemporaryDir data;
 	auto          dataRoot = e2e::private_data_root(data);
 	if (!dataRoot) {

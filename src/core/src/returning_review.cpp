@@ -202,8 +202,8 @@ namespace bpr::core {
 
 	auto render_returning_change(const std::string_view aPath, const computed_material_diff& aDiff) -> std::string
 	{
-		const auto from = aDiff.Alignment.Key.LeftPresent ? "a/" + std::string{ aPath } : std::string{ "/dev/null" };
-		const auto to   = aDiff.Alignment.Key.RightPresent ? "b/" + std::string{ aPath } : std::string{ "/dev/null" };
+		const auto from   = aDiff.Alignment.Key.LeftPresent ? "a/" + std::string{ aPath } : std::string{ "/dev/null" };
+		const auto to     = aDiff.Alignment.Key.RightPresent ? "b/" + std::string{ aPath } : std::string{ "/dev/null" };
 		const auto binary = "Binary file " + std::string{ aPath } + " changed\n";
 		if (aDiff.Alignment.Content != diff_content_state::text || (aDiff.Alignment.Key.LeftPresent && !aDiff.LeftDocument)
 			|| (aDiff.Alignment.Key.RightPresent && !aDiff.RightDocument)) {
@@ -213,9 +213,9 @@ namespace bpr::core {
 		if (hunks.empty()) {
 			return { };
 		}
-		static const auto empty = decoded_text_document{ };
-		const auto&       left  = aDiff.LeftDocument ? *aDiff.LeftDocument : empty;
-		const auto&       right = aDiff.RightDocument ? *aDiff.RightDocument : empty;
+		static const auto empty      = decoded_text_document{ };
+		const auto&       left       = aDiff.LeftDocument ? *aDiff.LeftDocument : empty;
+		const auto&       right      = aDiff.RightDocument ? *aDiff.RightDocument : empty;
 		const auto        leftCount  = static_cast<std::uint32_t>(left.Lines.size());
 		const auto        rightCount = static_cast<std::uint32_t>(right.Lines.size());
 		// Hunks whose context would touch are one hunk, as Git's are.
@@ -268,7 +268,7 @@ namespace bpr::core {
 
 	auto bound_returning_changes(std::vector<returning_change_file> aFiles) -> returning_changes
 	{
-		std::ranges::sort(aFiles, {}, &returning_change_file::Path);
+		std::ranges::sort(aFiles, { }, &returning_change_file::Path);
 		auto result = returning_changes{ };
 		for (const auto& file : aFiles) {
 			if (file.Text.empty()) {

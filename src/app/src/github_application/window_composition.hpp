@@ -90,9 +90,9 @@
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
+#include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_preparation.hpp"
-#include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_queue.hpp"
 #include "bpr/core/review_round_trip.hpp"
@@ -2099,15 +2099,15 @@ namespace bpr::app {
 		struct returning_review_state final
 		{
 			/// Earlier and current head, joined: which material this is.
-			std::string                                Key;
-			std::optional<core::returning_point>       Earlier;
-			std::string                                CurrentHead;
-			core::latest_upload_offer                  Offer;
+			std::string                               Key;
+			std::optional<core::returning_point>      Earlier;
+			std::string                               CurrentHead;
+			core::latest_upload_offer                 Offer;
 			std::optional<core::supplement_returning> Material;
-			bool                                       Reading = false;
-			bool                                       Readable = false;
+			bool                                      Reading  = false;
+			bool                                      Readable = false;
 			/// Asks made before the cache served the head; bounded.
-			std::uint32_t                              Retries = 0U;
+			std::uint32_t Retries = 0U;
 			/// Review threads Was this addressed? is offered on, by identity:
 			/// the commit of my last comment there, and its lines then once read.
 			struct thread_offer
@@ -2133,7 +2133,7 @@ namespace bpr::app {
 		/// [[BPR-2138]]. Ask more on a returning answer: the question and the
 		/// answer the next Agent tab turn opens with.
 		std::optional<std::pair<std::string, std::string>> AskMoreSeed;
-		std::optional<core::file_receipt>         ReviewLedgerReceipt;
+		std::optional<core::file_receipt>                  ReviewLedgerReceipt;
 		/// [[BPR-0647]]. The update rows the epoch host published, for the overview.
 		application::epoch_row_ledger                   EpochRows;
 		bool                                            ReviewLedgerAvailable = false;

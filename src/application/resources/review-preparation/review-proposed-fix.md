@@ -1,3 +1,5 @@
+# Was this addressed?
+
 The reviewer commented in a review thread, and the author has pushed since.
 Say whether what the thread asked for was addressed.
 

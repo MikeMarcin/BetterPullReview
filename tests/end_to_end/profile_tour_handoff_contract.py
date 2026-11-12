@@ -149,7 +149,8 @@ def main():
             listed = json.loads(hooks.stdout)["data"]["hooks"]
             assert [hook["name"] for hook in listed] == ["problem", "solution", "outline", "comment", "feedback", "enhance-stop",
                                                          "enhance-writing", "suggested-comment", "local-description",
-                                                         "local-discussion", "local-commit-message"], hooks.stdout
+                                                         "local-discussion", "local-commit-message", "review-latest-upload",
+                                                         "review-proposed-fix"], hooks.stdout
             assert all(hook["active"] for hook in listed[:4]) and listed[4]["active"] is False, hooks.stdout
             assert listed[4]["version"] == "review-feedback-v1" and listed[4]["customized"] is False, hooks.stdout
             assert ask("compose \u4e2d", "COMPOSING") == "COMPOSING"

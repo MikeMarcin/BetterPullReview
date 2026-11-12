@@ -127,7 +127,7 @@ namespace bpr::core {
 		cannot_tell,
 	};
 	inline constexpr std::size_t addressed_claim_count = 4U;
-	[[nodiscard]] auto stable_name(addressed_claim aClaim) noexcept -> std::string_view;
+	[[nodiscard]] auto           stable_name(addressed_claim aClaim) noexcept -> std::string_view;
 	/// \brief The claim as the answer's header shows it: "Addressed",
 	/// "Partly", "Not addressed", "Cannot tell".
 	[[nodiscard]] auto claim_words(addressed_claim aClaim) noexcept -> std::string_view;
@@ -201,7 +201,7 @@ namespace bpr::core {
 	};
 
 	/// \brief Lines kept around a thread's lines, each side.
-	inline constexpr std::uint32_t returning_excerpt_context = 6U;
+	inline constexpr std::uint32_t returning_excerpt_context       = 6U;
 	inline constexpr std::size_t   maximum_returning_excerpt_lines = 64U;
 	inline constexpr std::size_t   maximum_returning_line_bytes    = 512U;
 

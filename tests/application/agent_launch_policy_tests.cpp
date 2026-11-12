@@ -226,7 +226,7 @@ namespace {
 	/// and the change or the thread's lines then and now, in the request.
 	void test_a_returning_question_is_one_fresh_tool_free_call()
 	{
-		const auto claude = profile(core::agent_protocol::claude_stream_json);
+		const auto claude  = profile(core::agent_protocol::claude_stream_json);
 		const auto earlier = std::string(40U, 'a');
 		const auto current = std::string(40U, 'b');
 		for (const auto hook : { core::writing_hook::review_latest_upload, core::writing_hook::review_proposed_fix }) {
@@ -240,8 +240,8 @@ namespace {
 				material.Now  = core::returning_lines{ .Commit = current, .Path = "src/a.cpp", .FirstLine = 1U, .Lines = { "new" } };
 			}
 			expect(core::valid(material), "the returning material is within its bounds");
-			auto value      = supplement();
-			value.Returning = material;
+			auto value        = supplement();
+			value.Returning   = material;
 			const auto prompt = std::string{ application::default_writing_hook(hook) };
 			expect(!prompt.empty() && application::writing_hook_purpose(hook) == (latest ? "review.latest-upload" : "review.proposed-fix")
 					   && application::writing_hook_of_purpose(application::writing_hook_purpose(hook)) == hook && !application::writing_hook_version_of(hook).empty(),
@@ -259,7 +259,7 @@ namespace {
 		expect(application::default_writing_hook(core::writing_hook::review_latest_upload) != application::default_writing_hook(core::writing_hook::review_proposed_fix), "two prompts, not one");
 		// AC05. An edit reaches that operation's prompt and no other; Reset
 		// (an empty override) is the shipped default again.
-		auto edited = core::writing_hook_settings{ };
+		auto edited                                                                          = core::writing_hook_settings{ };
 		edited.Overrides[static_cast<std::size_t>(core::writing_hook::review_latest_upload)] = "TEAM_LATEST_UPLOAD";
 		expect(application::effective_writing_hook(edited, core::writing_hook::review_latest_upload) == "TEAM_LATEST_UPLOAD", "the edit is the operation's prompt");
 		for (auto index = std::size_t{ 0U }; index < core::writing_hook_count; ++index) {

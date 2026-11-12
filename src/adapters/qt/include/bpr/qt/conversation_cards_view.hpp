@@ -712,7 +712,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto comment_edit_offered() const noexcept -> bool;
 		/// \brief [[BPR-1806]]. Offers Open in tour on a published tour stop,
 		/// or withdraws it: offered while the window has the tour to follow.
-		void               set_tour_open_offered(bool aOffered);
+		void set_tour_open_offered(bool aOffered);
 		/// \brief RFC-BPR-0116 ([[BPR-2074]]). The threads Was this addressed?
 		/// is offered on, by identity.
 		void               set_addressed_threads(std::set<std::string> aThreads);

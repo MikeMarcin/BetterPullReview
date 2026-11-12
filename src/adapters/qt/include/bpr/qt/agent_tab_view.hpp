@@ -421,18 +421,18 @@ namespace bpr::qt {
 		/// it), with conversation prompts in place of the usual ones while it
 		/// is shown. Its close button calls `set_conversation_dismiss`'s
 		/// callback; nothing else removes it.
-		void               set_conversation_chip(std::optional<agent_conversation_chip> aChip);
+		void set_conversation_chip(std::optional<agent_conversation_chip> aChip);
 		/// RFC-BPR-0116 ([[BPR-2073]]). What What changed since my review
 		/// offers now: a suggestion while offered, a quiet line saying why
 		/// while unavailable, nothing otherwise.
-		void present_latest_upload(const core::latest_upload_offer& aOffer);
+		void               present_latest_upload(const core::latest_upload_offer& aOffer);
 		[[nodiscard]] auto latest_upload_offer() const noexcept -> const core::latest_upload_offer& { return LatestUpload; }
 		[[nodiscard]] auto latest_upload_note() const noexcept -> QLabel* { return LatestUploadNote; }
 		/// RFC-BPR-0116. Asks a returning question, as its suggestion does.
 		void ask_returning(core::returning_operation aOperation);
 		/// [[BPR-2138]]. Ask more on a returning answer: the host keeps its
 		/// question and answer for the next question here.
-		void set_ask_more_dispatch(std::function<void(const QString& aQuestion, const QString& aAnswer)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
+		void               set_ask_more_dispatch(std::function<void(const QString& aQuestion, const QString& aAnswer)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
 		[[nodiscard]] auto turn_claim(std::size_t aTurn) const -> QLabel*;
 		[[nodiscard]] auto turn_ask_more_button(std::size_t aTurn) const -> QPushButton*;
 		/// Whether a turn's question was a returning one, and which.
@@ -875,21 +875,21 @@ namespace bpr::qt {
 		std::optional<std::pair<core::agent_suggested_subject, bool>> SendingSuggestion;
 		/// RFC-BPR-0116. The returning prompts by their words, the one being
 		/// sent, the one a sent question was, and what the host offers.
-		std::map<QString, core::returning_operation>                       ReturningPrompts;
-		std::optional<core::returning_operation>                           SendingReturning;
-		std::optional<core::returning_operation>                           PendingReturning;
-		core::latest_upload_offer                                          LatestUpload;
-		QLabel*                                                            LatestUploadNote = nullptr;
-		std::function<void(const QString&, const QString&)>                AskMoreDispatch;
-		std::optional<core::agent_question>                           LastQuestion;
-		[[nodiscard]] auto                                            current_suggestion_context() const -> agent_suggestion_context;
-		void                                                          present_lines_chip(const agent_suggestion_context& aContext);
-		std::function<void()>                                         ConversationDismiss;
-		std::function<agent_answer_draft_target()>                    DraftTargetSource;
-		agent_answer_draft_dispatch                                   DraftDispatch;
-		agent_answer_draft_navigation                                 DraftNavigate;
-		QLabel*                                                       Log      = nullptr;
-		bool                                                          LogShown = false;
+		std::map<QString, core::returning_operation>        ReturningPrompts;
+		std::optional<core::returning_operation>            SendingReturning;
+		std::optional<core::returning_operation>            PendingReturning;
+		core::latest_upload_offer                           LatestUpload;
+		QLabel*                                             LatestUploadNote = nullptr;
+		std::function<void(const QString&, const QString&)> AskMoreDispatch;
+		std::optional<core::agent_question>                 LastQuestion;
+		[[nodiscard]] auto                                  current_suggestion_context() const -> agent_suggestion_context;
+		void                                                present_lines_chip(const agent_suggestion_context& aContext);
+		std::function<void()>                               ConversationDismiss;
+		std::function<agent_answer_draft_target()>          DraftTargetSource;
+		agent_answer_draft_dispatch                         DraftDispatch;
+		agent_answer_draft_navigation                       DraftNavigate;
+		QLabel*                                             Log      = nullptr;
+		bool                                                LogShown = false;
 		/// [[BPR-1876]]. The latest turn says its cause is fixed since, so
 		/// the stopped banner stands down.
 		bool LatestFixedSince = false;

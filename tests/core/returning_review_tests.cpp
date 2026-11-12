@@ -126,10 +126,10 @@ namespace {
 		const auto near = change("src/c.cpp", "a\nb\nc\nd\ne\nf\ng\n", "A\nb\nc\nd\ne\nf\nG\n");
 		expect(near.find("@@ -1,7 +1,7 @@") != std::string::npos && near.find("@@ -", near.find("@@ -") + 1U) == std::string::npos, "changes whose context touches are one hunk:\n" + near);
 
-		auto files = std::vector<core::returning_change_file>{ { .Path = "z.cpp", .Text = "Z\n" }, { .Path = "a.cpp", .Text = "A\n" }, { .Path = "m.cpp", .Text = { } } };
+		auto       files  = std::vector<core::returning_change_file>{ { .Path = "z.cpp", .Text = "Z\n" }, { .Path = "a.cpp", .Text = "A\n" }, { .Path = "m.cpp", .Text = { } } };
 		const auto joined = core::bound_returning_changes(files);
 		expect(joined.Text == "A\nZ\n" && joined.FilesShown == 2U && joined.FilesOmitted == 0U, "in path order; an unchanged file is not counted");
-		auto big = std::vector<core::returning_change_file>{ { .Path = "a", .Text = std::string(core::maximum_returning_change_bytes - 1U, 'x') }, { .Path = "b", .Text = "yy" } };
+		auto       big     = std::vector<core::returning_change_file>{ { .Path = "a", .Text = std::string(core::maximum_returning_change_bytes - 1U, 'x') }, { .Path = "b", .Text = "yy" } };
 		const auto bounded = core::bound_returning_changes(big);
 		expect(bounded.FilesShown == 1U && bounded.FilesOmitted == 1U && bounded.Text.size() <= core::maximum_returning_change_bytes, "past the bound a file is counted, not cut");
 	}

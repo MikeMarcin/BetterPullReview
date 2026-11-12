@@ -482,8 +482,8 @@ namespace bpr::app::detail {
 			case github_public_path_fixture::returning_review_v1:
 				return {
 					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_code_v1 ? "markdown-code-v1"
-						: aFixture == github_public_path_fixture::returning_review_v1           ? "returning-review-v1"
-																								: "conventional-comments-v1",
+						: aFixture == github_public_path_fixture::returning_review_v1               ? "returning-review-v1"
+																									: "conventional-comments-v1",
 					.CapabilityDirectory = "github-com",
 					.Server              = server_contract::github_com,
 					.AccountId           = core::github_account_id{ 1U },

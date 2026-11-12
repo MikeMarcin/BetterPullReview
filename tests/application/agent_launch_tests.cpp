@@ -1480,7 +1480,7 @@ namespace {
 	/// sign-in: the exact restriction set, no `--bare`, in that order.
 	void test_claude_writing_argv_reads_the_account_sign_in()
 	{
-		const auto writing = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } }, .WritingOnly = true });
+		const auto writing = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } }, .WritingOnly = true, .Path = core::agent_run_path::enhance_writing });
 		// [[BPR-2142]]. The restrictions, whose options take several values,
 		// come before `-p`.
 		const auto expected = std::vector<std::string>{ "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "",

@@ -110,6 +110,28 @@ the grants the Agent tab already has.
   no native session, nothing saved. It is one model call with no tools: the context it needs is in the request. Ask more on the answer promotes it into a
   resumed session whose first turn carries the answer.
 
+### Implementation notes (2026-11-12)
+
+- The earlier revision is the later of my last submitted review and my Seen,
+  ordered by the pull request's commits. The change between it and the head
+  is read from the review's own objects (the files that differ, each at both
+  commits, compared with the review's diff engine) and carried in the
+  request as unified text, at most 96 KiB and 64 files, the rest counted.
+  Only the pull request's files are compared.
+- Was this addressed? is offered on a review thread I commented in when the
+  head differs from the commit my last comment there was written on. Its
+  request carries the thread, my comment's lines at that commit and the
+  thread's lines at the head.
+- Both run on `assistance_first_answer`: fresh, one tool-free Claude call
+  (an agent without a tool-free mode runs the same request fresh with the
+  Agent tab's tools and no scratch folder), with the action's own prompt as
+  the system prompt and neither the review skill nor earlier Agent tab turns.
+  The answer is shown in the Agent tab with Ask more; Was this addressed?'s
+  lead word is shown above it as "Agent's claim: …".
+- While the earlier revision cannot be read, the Pull Request menu item's
+  words say why and the Agent tab shows the same reason where its suggestion
+  would stand. Record: [verification](../verification/RFC-BPR-0116.md).
+
 ## Acceptance criteria
 
 - **AC01:** What changed since my review is offered only when the pull request has commits newer than the reviewer's last review or Seen; a press sends `analyze_latest_upload` with both revisions named in the brief; and the reply's code references open as links.

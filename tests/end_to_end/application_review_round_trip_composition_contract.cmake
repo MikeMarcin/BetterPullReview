@@ -2931,6 +2931,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_navigation.cpp"
         "src/github_application/window_probe_states.hpp"
         "src/github_application/window_read_state.cpp"
+        "src/github_application/window_returning_review.cpp"
         "src/github_application/window_review_drafts.cpp"
         "src/github_application/window_review_lanes.cpp"
         "src/github_application/window_review_lanes.hpp"
@@ -3113,6 +3114,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_navigation.cpp"
         "src/github_application/window_probe_states.hpp"
         "src/github_application/window_read_state.cpp"
+        "src/github_application/window_returning_review.cpp"
         "src/github_application/window_review_drafts.cpp"
         "src/github_application/window_review_lanes.cpp"
         "src/github_application/window_review_lanes.hpp"
@@ -3614,8 +3616,18 @@ function(bpr_verify_app_source_tree app_source_root)
 	# they read the repository; tour prompts' instructions split off for the
 	# system prompt; Ask more arms the next turn's seed. No provider request,
 	# credential, grant, mutation or inventory change.
+	# RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]) reseal: window_returning_review.cpp
+	# (new) decides what the returning questions offer from the accepted read,
+	# reads the earlier revision's material and a thread's lines then and now
+	# from the review's own objects (no fetch), and sets a returning turn's
+	# launch fresh and tool-free with its own prompt; window_agent_chat.cpp
+	# composes the returning material, keeps one dispatch call site and seeds
+	# Ask more; window_read_state.cpp refreshes the offers after a read;
+	# window_agent_setup.cpp wires the controls; github_public_path_fixture.cpp
+	# serves returning-review-v1. No provider request, credential, grant,
+	# mutation or inventory change beyond the new source file.
 	set(bpr_expected_production_app_manifest_digest
-        "ea080e2528fcd61e0a802d95ac71b7d97df8ae0793ab895da0cf85501caf2418"
+        "9eb7e8dcaf9a7dc23c7b2ca8566b57e5a4df33d0e96bc2ef50dd35f131462c01"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
