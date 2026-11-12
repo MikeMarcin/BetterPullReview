@@ -825,6 +825,34 @@ auto main(int argc, char** argv) -> int
 		editor.set_tour_host_idle(false);
 		expect(!chat->enhance(core::tour_thread{ .Kind = core::tour_thread_kind::problem }, std::nullopt), "Enhance waits while the agent is busy");
 		editor.set_tour_host_idle(true);
+		// [[BPR-2138]], RFC-BPR-0101 AC12. The fresh Enhance's suggestion
+		// offers Ask more, flat beside Discard; it names the fresh run.
+		{
+			auto       freshSession  = core::tour_agent_session{ };
+			const auto problemThread = core::tour_thread{ .Kind = core::tour_thread_kind::problem };
+			const auto enhanced      = core::begin_tour_ask(freshSession, problemThread, std::nullopt, "Enhance the writing of the Problem.", true);
+			expect(enhanced.has_value(), "a fresh Enhance run begins");
+			for (auto& made : freshSession.Runs) {
+				if (made.Id == *enhanced) {
+					made.Fresh = true;
+				}
+			}
+			auto suggested            = core::tour_ask_answer{ };
+			suggested.Reply           = "Tightened the Problem.";
+			suggested.Changes.Problem = "Two views drew into one frame.";
+			const auto suggestion     = core::propose_tour_changes(*enhanced, suggested, { }, draft);
+			static_cast<void>(core::answer_tour_ask(freshSession, *enhanced, suggested.Reply, core::tally_of(suggestion)));
+			auto askedMore = std::vector<core::tour_agent_run_id>{ };
+			editor.set_tour_ask_more_dispatch([&askedMore](const core::tour_agent_run_id aRun) { askedMore.push_back(aRun); });
+			editor.present_tour_session(freshSession, suggestion);
+			chat->open(problemThread);
+			settle();
+			auto* const more = chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAskMore"));
+			expect(more != nullptr && more->text() == QStringLiteral("Ask more") && more->isFlat(), "AC12 the fresh suggestion offers Ask more, quiet");
+			more->click();
+			expect(askedMore.size() == 1U && askedMore[0] == *enhanced, "AC12 Ask more names the fresh run whose answer the chat continues from");
+			render(*chat, prefix, "side-chat-ask-more");
+		}
 	}
 	// (9) [[BPR-1995]], RFC-BPR-0100 AC03, AC04. A change request in the
 	// whole tour's chat, answered in its turn with a revision: the card.

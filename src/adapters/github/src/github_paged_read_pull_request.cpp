@@ -48,6 +48,11 @@ namespace bpr::adapters::github::detail {
 			}
 			return spans;
 		}
+		/// [[BPR-2141]]. A patch the snapshot keeps, within its bound.
+		[[nodiscard]] auto kept_patch(std::string aPatch) -> std::optional<std::string>
+		{
+			return aPatch.size() <= application::maximum_github_file_patch_bytes ? std::optional{ std::move(aPatch) } : std::nullopt;
+		}
 
 		constexpr std::uint32_t maximum_graphql_sequence = 1'024U;
 
@@ -418,6 +423,8 @@ namespace bpr::adapters::github::detail {
 				.ViewedState  = application::github_file_viewed_state::unavailable,
 				// [[BPR-1900]]. Where the change is, for the tour's stops.
 				.HeadHunks = object.contains("patch") && json_is_string(json_member(object, "patch")) ? head_hunks(std::optional<std::string>{ text(json_member(object, "patch")) }) : std::nullopt,
+				// [[BPR-2141]]. The diff a fresh tour draft carries up front.
+				.Patch = object.contains("patch") && json_is_string(json_member(object, "patch")) ? kept_patch(text(json_member(object, "patch"))) : std::nullopt,
 			};
 		}
 

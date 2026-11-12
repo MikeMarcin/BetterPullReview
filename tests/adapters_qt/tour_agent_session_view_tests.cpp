@@ -547,6 +547,19 @@ auto main(int argc, char** argv) -> int
 	// A presentation of the same proposal keeps what the author typed.
 	editor.present_tour_session(session, proposal);
 	expect(panel->proposal_editor(0)->toPlainText() == QStringLiteral("Edited by the author."), "an edit in a pending part survives");
+	// [[BPR-2138]], RFC-BPR-0101 AC12. Ask more, as quiet as Discard, on a
+	// part Draft Tour's fresh first draft proposed: it names that run.
+	{
+		auto askedMore = std::vector<core::tour_agent_run_id>{ };
+		editor.set_tour_ask_more_dispatch([&askedMore](const core::tour_agent_run_id aRun) { askedMore.push_back(aRun); });
+		editor.present_tour_session(session, std::nullopt);
+		editor.present_tour_session(session, proposal);
+		auto* const more = panel->accept_button(1)->parentWidget()->findChild<QPushButton*>(QStringLiteral("tourProposalAskMore"));
+		expect(more != nullptr && more->text() == QStringLiteral("Ask more") && more->isFlat() && more->toolTip().contains(QStringLiteral("tour's chat")), "Ask more is offered on Draft Tour's proposal, flat");
+		more->click();
+		expect(askedMore.size() == 1U && askedMore[0] == *run, "Ask more names the fresh run it continues from");
+		panel->proposal_editor(0)->setPlainText(QStringLiteral("Edited by the author."));
+	}
 	render(editor, prefix, "proposal");
 	panel->accept_button(0)->click();
 	expect(decided.size() == 1U && std::get<0>(decided[0]) == 0U && std::get<1>(decided[0]) == core::tour_proposal_decision::accepted && std::get<2>(decided[0]) == QStringLiteral("Edited by the author."), "Accept sends the author's edit");

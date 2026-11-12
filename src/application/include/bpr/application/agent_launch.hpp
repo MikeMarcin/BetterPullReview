@@ -175,6 +175,10 @@ namespace bpr::application {
 		/// [[BPR-1935]]. A read-only tour run ([[BPR-1900]]): the only launch
 		/// a tour prompt is admitted on, and one that must carry one.
 		read_only_tour,
+		/// [[BPR-2141]]. A tool-free tour run whose context is up front (a
+		/// fresh Draft Tour, field draft or outline): its prompt, the pull
+		/// request's diff in it, travels in the tour prompt's carrier too.
+		tool_free_tour,
 	};
 
 	/// \brief Builds context only from caller-supplied bounded observations.

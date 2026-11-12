@@ -2527,7 +2527,7 @@ namespace bpr::application {
 		// a tour run carries one: refused by name either way, never dropped
 		// or sent as something else. One over its bound is refused as too
 		// large, so the side chat can say so in words.
-		const auto tourRun = aRun == agent_context_run::read_only_tour;
+		const auto tourRun = aRun != agent_context_run::ordinary;
 		if (!tourRun && !aObservation.TourPrompt.empty()) {
 			return std::unexpected(agent_context_failure::tour_prompt_outside_tour_run);
 		}

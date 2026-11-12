@@ -7,6 +7,7 @@
 /// ([[BPR-2142]], RFC-BPR-0104 AC11, RFC-BPR-0103 AC10).
 
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_run_policy.hpp"
 
@@ -287,6 +288,46 @@ namespace {
 		expect(appServer && appServer->DeferredContext.find("SKILL-RULE") != std::string::npos, "the App Server keeps it in the message");
 	}
 
+	/// [[BPR-2141]], RFC-BPR-0101 AC13. Draft Tour, a field's draft and an
+	/// outline are one tool-free call with the diff up front, within a
+	/// budget; past it, or with an agent that has no tool-free mode, they
+	/// read the repository and say so. Their instructions split off for the
+	/// system prompt ([[BPR-2140]]).
+	void test_a_fresh_draft_carries_its_diff_up_front()
+	{
+		expect(core::choose_tour_context(0U, true) == core::tour_context_route::up_front && core::choose_tour_context(core::maximum_up_front_diff_bytes, true) == core::tour_context_route::up_front,
+			   "a diff within the budget goes up front");
+		expect(core::choose_tour_context(core::maximum_up_front_diff_bytes + 1U, true) == core::tour_context_route::reads_repository_diff_too_large, "one past it reads the repository, by name");
+		expect(core::choose_tour_context(10U, false) == core::tour_context_route::reads_repository_no_tool_free_mode, "an agent without a tool-free mode reads the repository, by name");
+		expect(core::stable_name(core::tour_context_route::reads_repository_diff_too_large) == "reads_repository_diff_too_large", "the route is named");
+
+		const auto patch = std::string{ "@@ -1,2 +1,3 @@\n int cache_size()\n+{ return PATCH_MARKER; }\n" };
+		const auto files = std::vector<application::tour_draft_file>{
+			{ .Path = "src/cache.cpp", .Change = "modified", .Hunks = std::vector<std::pair<std::uint32_t, std::uint32_t>>{ { 1U, 3U } }, .Patch = patch },
+			{ .Path = "art/logo.png", .Change = "added" },
+		};
+		expect(application::tour_diff_bytes(files) == patch.size(), "the diff's bytes are its patches'");
+		const auto upFront = application::build_tour_draft_prompt("Cache", "Adds a cache.", files, core::review_tour{ }, { }, { }, { }, true);
+		const auto reading = application::build_tour_draft_prompt("Cache", "Adds a cache.", files, core::review_tour{ });
+		expect(upFront && upFront->find("PATCH_MARKER") != std::string::npos && upFront->find("You have no tools") != std::string::npos && upFront->find("read-only git") == std::string::npos,
+			   "the up-front draft carries each patch and is told it has no tools");
+		expect(reading && reading->find("PATCH_MARKER") == std::string::npos && reading->find("read-only git") != std::string::npos, "the repository-reading draft is told to read");
+		const auto parts = application::split_tour_prompt(*upFront);
+		expect(parts.Instructions + parts.Message == *upFront && parts.Message.starts_with("Untrusted evidence JSON") && parts.Instructions.find("PATCH_MARKER") == std::string::npos
+				   && parts.Instructions.find("bpr.tour-draft.v1") != std::string::npos,
+			   "[[BPR-2140]] the instructions split from the evidence, and joined they are the prompt");
+		expect(parts.Instructions.size() <= core::maximum_system_prompt_argument_bytes, "Draft Tour's instructions fit the system prompt argument");
+		const auto diff = application::render_up_front_diff(files);
+		expect(diff.find("PATCH_MARKER") != std::string::npos && diff.find("art/logo.png") != std::string::npos && diff.find("No patch") != std::string::npos,
+			   "a field draft's diff names each patch and the files without one");
+		expect(application::up_front_writing_preamble().find("no tools") != std::string::npos, "and its preamble says it has no tools");
+		const auto launch = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement(), reader(),
+															{ .WritingOnly = true, .Path = core::agent_run_path::draft_tour_first_draft, .SystemInstructions = parts.Instructions });
+		expect(launch && has(launch->Arguments, "--tools") && launch->Arguments[index_of(launch->Arguments, "--tools") + 1U].empty() && has(launch->Arguments, "--strict-mcp-config")
+				   && has(launch->Arguments, "--no-session-persistence") && has(launch->Arguments, "--append-system-prompt"),
+			   "AC13 the fresh draft launches with no tool, no MCP server and no saved session, its instructions in the system prompt");
+	}
+
 	/// RFC-BPR-0103 AC10. A wrapper's failed sign-in ends the run as one.
 	void test_a_failed_sign_in_ends_the_run_at_once()
 	{
@@ -345,6 +386,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_the_writing_prompt_splits_into_instructions_and_material();
 	test_a_local_draft_discussion_resumes_its_native_session();
 	test_the_review_skill_rides_the_system_prompt();
+	test_a_fresh_draft_carries_its_diff_up_front();
 	test_a_failed_sign_in_ends_the_run_at_once();
 	std::cout << "agent-launch-policy-tests:pass\n";
 	return EXIT_SUCCESS;

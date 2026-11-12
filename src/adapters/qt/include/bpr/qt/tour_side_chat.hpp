@@ -172,6 +172,9 @@ namespace bpr::qt {
 		explicit tour_side_chat(QWidget* aParent = nullptr);
 		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Accept all.
 		void set_own_accept_dispatch(std::function<void(core::tour_stop_id, const std::string&)> aDispatch) { OwnAcceptDispatch = std::move(aDispatch); }
+		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh
+		/// Enhance's suggestion: this thread's next turn starts from it.
+		void set_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
 		void set_dispatch(ask_dispatch aAsk, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief Show: brings the tour to the chat's part, and a stop's code
 		/// into the diff.
@@ -394,6 +397,7 @@ namespace bpr::qt {
 		std::function<void()>                                                       StopDispatch;
 		decide_dispatch                                                             DecideDispatch;
 		std::function<void(core::tour_stop_id, const std::string&)>                 OwnAcceptDispatch;
+		std::function<void(core::tour_agent_run_id)>                                AskMoreDispatch;
 		std::function<void(const core::tour_thread&)>                               RevealDispatch;
 		std::function<void(bool)>                                                   VisibilityDispatch;
 		std::function<void()>                                                       ChangeObserver;

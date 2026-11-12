@@ -176,6 +176,9 @@ namespace bpr::app {
 		core::agent_run_path Path = core::agent_run_path::tour_side_chat;
 		/// [[BPR-2140]]. A built-in prompt's instructions, kept apart.
 		std::string SystemInstructions;
+		/// [[BPR-2141]]. A tool-free run whose context (the diff) is in its
+		/// prompt up front: the prompt travels in the tour prompt's carrier.
+		bool UpFront = false;
 	};
 
 	/// \brief [[BPR-1900]]. The tour session's projection: its own, so a tour

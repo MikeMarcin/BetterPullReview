@@ -1521,6 +1521,22 @@ namespace bpr::qt {
 			// primary action at the right, as Ready, next is on a stop.
 			buttons->addWidget(editText);
 			buttons->addWidget(discard);
+			// [[BPR-2138]], RFC-BPR-0101 AC12. Draft Tour's first draft is a
+			// fresh run; Ask more continues from it in the tour's chat, as
+			// quiet as Discard: it changes nothing here.
+			if (const auto* const made = core::find_tour_run(Session, item.Run); made != nullptr && made->Request == core::tour_agent_request::draft_tour && AskMoreDispatch) {
+				auto* const more = new quiet_push_button{ tr("Ask more"), box };
+				more->setObjectName(QStringLiteral("tourProposalAskMore"));
+				more->setFlat(true);
+				more->setFocusPolicy(Qt::TabFocus);
+				more->setToolTip(tr("Ask about this draft in the tour's chat. The chat starts from what the draft said and keeps the conversation."));
+				connect(more, &QPushButton::clicked, this, [this, run = item.Run] {
+					if (AskMoreDispatch) {
+						AskMoreDispatch(run);
+					}
+				});
+				buttons->addWidget(more);
+			}
 			buttons->addStretch(1);
 			buttons->addWidget(accept);
 			itemColumn->addLayout(buttons);

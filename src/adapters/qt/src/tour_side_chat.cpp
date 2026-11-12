@@ -1971,6 +1971,21 @@ namespace bpr::qt {
 					buttons->addWidget(accept);
 					buttons->addWidget(edit);
 					buttons->addWidget(discard);
+					// [[BPR-2138]], RFC-BPR-0101 AC12. An Enhance is a fresh
+					// run; Ask more continues from its suggestion in this chat.
+					if (run->Fresh && AskMoreDispatch) {
+						auto* const more = new quiet_push_button{ tr("Ask more"), card };
+						more->setObjectName(QStringLiteral("tourSideChatAskMore"));
+						more->setFlat(true);
+						more->setFocusPolicy(Qt::TabFocus);
+						more->setToolTip(tr("Ask about this suggestion here. Your next message starts from it, and the chat keeps the conversation."));
+						connect(more, &QPushButton::clicked, this, [this, made = run->Id] {
+							if (AskMoreDispatch) {
+								AskMoreDispatch(made);
+							}
+						});
+						buttons->addWidget(more);
+					}
 					buttons->addStretch(1);
 					lines->addLayout(buttons);
 					Accepts[index] = accept;

@@ -493,7 +493,10 @@ namespace bpr::application {
 			// travels in the tour prompt's own carrier; a refusal for size or
 			// for a misplaced prompt says so by name.
 			auto supplement = build_agent_context_supplement(
-				aRequest.Context, provisionalSession, aRequest.ReadOnlyTools ? agent_context_run::read_only_tour : agent_context_run::ordinary);
+				aRequest.Context, provisionalSession,
+				aRequest.ReadOnlyTools                                       ? agent_context_run::read_only_tour
+					: aRequest.WritingOnly && !aRequest.Context.TourPrompt.empty() ? agent_context_run::tool_free_tour
+																				   : agent_context_run::ordinary);
 			if (!supplement.has_value()) {
 				project_refuse(refusal_name(supplement.error()));
 				return;

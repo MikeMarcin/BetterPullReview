@@ -183,6 +183,7 @@
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
 	#include "bpr/application/review_skill_host.hpp"
 	#include "bpr/application/tour_agent_context.hpp"
+	#include "bpr/application/tour_agent_drafting.hpp"
 	#include "bpr/core/agent_chat_scope.hpp"
 	#include "bpr/core/agent_finding.hpp"
 	#include "bpr/core/agent_grant.hpp"
@@ -844,6 +845,10 @@ namespace bpr::app {
 		void               finish_tour_draft(const std::optional<core::tour_agent_run_id> aRun, const application::agent_run_result& aResult, const QString& aWords);
 		void               decide_tour_proposal(const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText);
 		void               relocate_tour_proposal(const std::size_t aIndex);
+		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh run's
+		/// answer: its thread's chat opens, and its next turn starts its
+		/// session with the answer.
+		void ask_more_from(core::tour_agent_run_id aRun);
 		void               present_tour_session();
 		void               cancel_tour_run();
 		/// [[BPR-1930]]. Sends the feedback kept while Draft the tour ran, as
@@ -2399,6 +2404,22 @@ namespace bpr::app {
 		std::string TourDraftSeed;
 		/// [[BPR-2140]]. The next tour run's built-in instructions.
 		std::string TourRunInstructions;
+		/// [[BPR-2141]]. The next tour run is one tool-free call with the
+		/// pull request's diff in its request.
+		bool TourRunUpFront = false;
+		/// [[BPR-2138]]. Ask more, pressed on a fresh answer: the next turn
+		/// of that thread starts its session with the answer as context.
+		struct tour_ask_more
+		{
+			core::tour_thread Thread;
+			std::string       Seed;
+		};
+		std::optional<tour_ask_more> TourAskMore;
+		/// [[BPR-2141]]. The snapshot's files as a tour request names them,
+		/// with their patches.
+		[[nodiscard]] auto tour_request_files() const -> std::vector<application::tour_draft_file>;
+		/// [[BPR-2141]]. Where a fresh drafting run's notice says it reads.
+		[[nodiscard]] auto tour_context_notice(core::tour_context_route aRoute, std::size_t aDiffBytes) const -> QString;
 		/// [[BPR-2138]]. The tour ask being made is an Enhance: fresh.
 		bool TourAskFresh = false;
 		/// [[BPR-1900]]. The files the proposal was anchored against.

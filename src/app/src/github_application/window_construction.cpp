@@ -1533,6 +1533,7 @@ namespace bpr::app {
 			}
 		});
 		Window->tour_editor()->set_tour_session_dispatch([this] { request_tour_draft(); }, [this] { cancel_tour_run(); }, [this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decide_tour_proposal(aIndex, aDecision, aText); }, [this](const std::size_t aIndex) { relocate_tour_proposal(aIndex); });
+		Window->tour_editor()->set_tour_ask_more_dispatch([this](const core::tour_agent_run_id aRun) { ask_more_from(aRun); });
 #endif
 		WorkbenchHost = std::make_unique<
 			application::workbench_application_host>(

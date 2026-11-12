@@ -235,6 +235,16 @@ namespace bpr::core {
 		return tour_agent_tools::none;
 	}
 
+	auto stable_name(const tour_context_route aRoute) noexcept -> std::string_view
+	{
+		switch (aRoute) {
+		case tour_context_route::up_front:                           return "up_front";
+		case tour_context_route::reads_repository_diff_too_large:    return "reads_repository_diff_too_large";
+		case tour_context_route::reads_repository_no_tool_free_mode: return "reads_repository_no_tool_free_mode";
+		}
+		return "up_front";
+	}
+
 	auto tour_request_of(const writing_hook aHook, const writing_scope aScope) noexcept -> tour_agent_request
 	{
 		if (aHook == writing_hook::outline) {

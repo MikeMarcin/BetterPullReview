@@ -55,6 +55,33 @@ namespace bpr::core {
 	/// \brief The split the card asks to record: drafting reads the
 	/// repository, small rewrites stay tool-free and fast.
 	[[nodiscard]] auto tools_for(tour_agent_request aRequest) noexcept -> tour_agent_tools;
+	/// \brief [[BPR-2141]], RFC-BPR-0101 AC13 (owner, 2026-11-12: "One API
+	/// call per click for fresh one-offs: no tools, context supplied up
+	/// front"). The most diff a fresh Draft Tour, field draft or outline
+	/// carries in its one request: well inside the tour prompt's carrier
+	/// (`maximum_tour_prompt_bytes`) with its instructions and evidence.
+	inline constexpr std::size_t maximum_up_front_diff_bytes = 96U * 1024U;
+	/// \brief How a fresh drafting run gets the pull request's code.
+	enum class tour_context_route : std::uint8_t {
+		/// One tool-free call with the diff in its request.
+		up_front,
+		/// The diff is past `maximum_up_front_diff_bytes`: the agent reads
+		/// the repository with read-only tools (several calls), and says so.
+		reads_repository_diff_too_large,
+		/// The agent has no tool-free mode (only Claude's stream JSON has
+		/// one): it reads the repository, and says so.
+		reads_repository_no_tool_free_mode,
+	};
+	[[nodiscard]] auto stable_name(tour_context_route aRoute) noexcept -> std::string_view;
+	/// \brief The route for a fresh drafting run whose diff is `aDiffBytes`.
+	[[nodiscard]] constexpr auto choose_tour_context(const std::size_t aDiffBytes, const bool aToolFreeAgent) noexcept -> tour_context_route
+	{
+		if (!aToolFreeAgent) {
+			return tour_context_route::reads_repository_no_tool_free_mode;
+		}
+		return aDiffBytes <= maximum_up_front_diff_bytes ? tour_context_route::up_front : tour_context_route::reads_repository_diff_too_large;
+	}
+
 	/// \brief The request a writing hook press is: the outline, an empty
 	/// Problem or Solution ("Draft from PR context"), or a rewrite.
 	[[nodiscard]] auto tour_request_of(writing_hook aHook, writing_scope aScope) noexcept -> tour_agent_request;

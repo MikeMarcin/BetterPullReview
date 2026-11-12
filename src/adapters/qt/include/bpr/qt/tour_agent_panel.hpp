@@ -73,6 +73,10 @@ namespace bpr::qt {
 		void set_dispatch(std::function<void()> aDraft, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief [[BPR-1900]]. Move to nearest change on a stop off the change.
 		void set_relocate_dispatch(std::function<void(std::size_t)> aRelocate) { RelocateDispatch = std::move(aRelocate); }
+		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a part Draft
+		/// Tour's fresh first draft proposed: the run whose answer the tour's
+		/// chat continues from.
+		void set_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore) { AskMoreDispatch = std::move(aAskMore); }
 		/// \brief [[BPR-1925]] v003, owner on v002: "I think this whole section
 		/// probably just goes away and we move the accept into the stops
 		/// directly". Each pending part of a proposal is offered to `aPlace`,
@@ -213,6 +217,7 @@ namespace bpr::qt {
 		decide_dispatch                                             DecideDispatch;
 		std::function<void(core::tour_stop_id, const std::string&)> OwnAcceptDispatch;
 		std::function<void(std::size_t)>                            RelocateDispatch;
+		std::function<void(core::tour_agent_run_id)>                AskMoreDispatch;
 		std::function<void()>                                       PlaceBegin;
 		proposal_placer                                             Place;
 		QPushButton*                                                AcceptAll = nullptr;

@@ -822,20 +822,38 @@ namespace bpr::app {
 		// [[BPR-1900]]. Draft from PR context and Suggest an outline read the
 		// repository in the background; a small rewrite stays tool-free.
 		const auto kind     = core::tour_request_of(aHook, request->Scope);
-		const auto readOnly = core::tools_for(kind) == core::tour_agent_tools::read_only;
-		PendingWriting      = writing_operation{ *request, std::move(sources), { }, false, readOnly, std::nullopt };
-		Window->tour_editor()->show_writing_notice(readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable."));
+		auto       readOnly = core::tools_for(kind) == core::tour_agent_tools::read_only;
+		// [[BPR-2141]], RFC-BPR-0101 AC13. Draft from PR context and Suggest
+		// an outline are one tool-free call with the diff up front; past the
+		// budget they read the repository, and the notice says so.
+		auto       files = std::vector<application::tour_draft_file>{ };
+		auto       bytes = std::size_t{ 0U };
+		auto       route = core::tour_context_route::up_front;
+		if (readOnly) {
+			files    = tour_request_files();
+			bytes    = application::tour_diff_bytes(files);
+			route    = core::choose_tour_context(bytes, true);
+			readOnly = route != core::tour_context_route::up_front;
+		}
+		const auto upFront = core::tools_for(kind) == core::tour_agent_tools::read_only && !readOnly;
+		const auto notice  = readOnly || upFront ? tour_context_notice(route, bytes) : QStringLiteral("Writing assistance running… Your text remains editable.");
+		PendingWriting     = writing_operation{ *request, std::move(sources), { }, false, readOnly, std::nullopt };
+		Window->tour_editor()->show_writing_notice(notice);
 		const auto asked = Window->tour_editor()->request_name(aHook);
 		// [[BPR-1916]]. The skills the hook names, inline. [[BPR-2051]] A
 		// stop's Enhance sends the stop's Enhance prompt, and its skills.
 		auto skills         = skill_run_for(core::writing_instructions_for(aHook, request->Scope));
-		auto text           = prompt->Message + skills.Directive;
-		TourRunInstructions = (readOnly ? std::string{ application::read_only_writing_preamble() } : std::string{ }) + prompt->Instructions;
+		auto text           = prompt->Message + (upFront ? application::render_up_front_diff(files) : std::string{ }) + skills.Directive;
+		TourRunInstructions = (readOnly ? std::string{ application::read_only_writing_preamble() }
+							   : upFront ? std::string{ application::up_front_writing_preamble() }
+										 : std::string{ })
+			+ prompt->Instructions;
+		TourRunUpFront = upFront;
 		if (skills.Note) {
-			Window->tour_editor()->show_writing_notice((readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable.")) + QStringLiteral(" ")
-													   + QString::fromStdString(*skills.Note));
+			Window->tour_editor()->show_writing_notice(notice + QStringLiteral(" ") + QString::fromStdString(*skills.Note));
 		}
-		if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), text, readOnly ? std::optional{ aHook } : std::nullopt, std::nullopt, core::tour_thread{ }, false, std::move(skills))) {
+		if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), text, readOnly || upFront ? std::optional{ aHook } : std::nullopt, std::nullopt, core::tour_thread{ }, false, std::move(skills))) {
+			TourRunUpFront = false;
 			cancel_writing();
 		}
 #else
@@ -1056,8 +1074,10 @@ namespace bpr::app {
 			present_tour_continuation();
 			return false;
 		}
-		const auto tools = core::tools_for(aKind);
-		const auto run   = aKind == core::tour_agent_request::ask ? core::begin_tour_ask(TourAgent, aThread, aPassage, aAsked, aUpdate) : core::begin_tour_run(TourAgent, aKind, tools, aAsked);
+		// [[BPR-2141]]. A drafting run with its context up front has no tools.
+		const auto upFront = std::exchange(TourRunUpFront, false) && aKind != core::tour_agent_request::ask;
+		const auto tools   = upFront ? core::tour_agent_tools::none : core::tools_for(aKind);
+		const auto run     = aKind == core::tour_agent_request::ask ? core::begin_tour_ask(TourAgent, aThread, aPassage, aAsked, aUpdate) : core::begin_tour_run(TourAgent, aKind, tools, aAsked);
 		if (!run) {
 			return false;
 		}
@@ -1093,6 +1113,7 @@ namespace bpr::app {
 			: aKind == core::tour_agent_request::ask                              ? (aThread.Kind == core::tour_thread_kind::tour ? core::agent_run_path::tour_conversation : core::agent_run_path::tour_side_chat)
 																				  : core::agent_run_path::tour_field_draft;
 		launch.SystemInstructions = std::move(instructions);
+		launch.UpFront            = upFront;
 		if ((aKind == core::tour_agent_request::draft_tour || aKind == core::tour_agent_request::ask) && WindowRead->accepted_snapshot()) {
 			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
 				if (file.Change != application::github_file_change::removed) {
@@ -1593,19 +1614,23 @@ namespace bpr::app {
 		if (skills.Note) {
 			Window->tour_editor()->show_writing_notice(QString::fromStdString(*skills.Note));
 		}
-		// [[BPR-2138]]. Ask more: Draft Tour's fresh first draft opens the
-		// whole-tour conversation's next turn, so the conversation that
-		// resumes from here holds it.
-		auto       seeded = *prompt;
-		const auto seed   = aThread.Kind == core::tour_thread_kind::tour && !TourDraftSeed.empty() && !fresh;
+		// [[BPR-2140]]. The turn's instructions are the system prompt; the
+		// message is the pull request, the tour and the conversation.
+		auto parts = application::split_tour_prompt(*prompt);
+		// [[BPR-2138]], RFC-BPR-0101 AC12. Ask more, pressed on a fresh
+		// answer (Draft Tour's first draft, a part's Enhance), puts that
+		// answer in this thread's next turn: the session that resumes from
+		// here holds it.
+		const auto seed = !fresh && TourAskMore && TourAskMore->Thread == aThread;
 		if (seed) {
-			seeded = "Earlier, Draft Tour drafted this tour in a separate run. Its answer, as context for this conversation:\n" + TourDraftSeed + "\n\n" + seeded;
+			parts.Message = "Earlier, in a separate run, the agent answered this. It is context for this conversation:\n" + TourAskMore->Seed + "\n\n" + parts.Message;
 		}
-		TourAskPending = true;
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, seeded, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
+		TourRunInstructions = std::move(parts.Instructions);
+		TourAskPending      = true;
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, parts.Message, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
 			TourAskPending = false;
 		} else if (seed) {
-			TourDraftSeed.clear();
+			TourAskMore.reset();
 		}
 	}
 
@@ -1858,8 +1883,39 @@ namespace bpr::app {
 		return words + ".";
 	}
 
+	auto github_application::implementation::tour_request_files() const -> std::vector<application::tour_draft_file>
+	{
+		auto        files    = std::vector<application::tour_draft_file>{ };
+		const auto* snapshot = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+		if (snapshot == nullptr) {
+			return files;
+		}
+		for (const auto& file : snapshot->Files) {
+			const auto change = file.Change == application::github_file_change::added ? "added"
+				: file.Change == application::github_file_change::removed             ? "removed"
+				: file.Change == application::github_file_change::renamed             ? "renamed"
+																					  : "modified";
+			files.push_back({ .Path = file.Path, .Change = change, .Hunks = file.HeadHunks, .Patch = file.Patch });
+		}
+		return files;
+	}
+
+	auto github_application::implementation::tour_context_notice(const core::tour_context_route aRoute, const std::size_t aDiffBytes) const -> QString
+	{
+		switch (aRoute) {
+		case core::tour_context_route::up_front: return QStringLiteral("Drafting in the background from the pull request's diff, in one request. Keep writing.");
+		case core::tour_context_route::reads_repository_diff_too_large:
+			return QStringLiteral("This pull request's diff (%1 KiB) is more than one request carries (%2 KiB), so the agent reads the repository instead, in several requests. Keep writing.")
+				.arg(aDiffBytes / 1024U)
+				.arg(core::maximum_up_front_diff_bytes / 1024U);
+		case core::tour_context_route::reads_repository_no_tool_free_mode:
+			return QStringLiteral("This agent has no tool-free mode, so it reads the repository, in several requests. Keep writing.");
+		}
+		return tour_reading_notice();
+	}
+
 	/// [[BPR-1900]], owner addition. Draft the tour: the whole tour,
-	/// drafted in the background from the workspace, as a proposal.
+	/// drafted in the background from the pull request, as a proposal.
 	void github_application::implementation::request_tour_draft()
 	{
 		const auto* const snapshot = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
@@ -1874,20 +1930,27 @@ namespace bpr::app {
 															  : QStringLiteral("The tour session is drafting. Wait for it to finish or stop it, or keep writing yourself."));
 			return;
 		}
-		if (!reads_read_only(*agent)) {
-			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("%1 has no read-only drafting mode. Choose Claude or Codex with the agent picker in the window's footer.").arg(agent_display_name(*agent)));
+		// [[BPR-2141]], RFC-BPR-0101 AC13. One tool-free call with the diff
+		// up front; a diff past the budget, or an agent with no tool-free
+		// mode, reads the repository instead, and the notice says so.
+		const auto files = tour_request_files();
+		const auto bytes = application::tour_diff_bytes(files);
+		auto       route = core::choose_tour_context(bytes, writes_tool_free(*agent));
+		if (route != core::tour_context_route::up_front && !reads_read_only(*agent)) {
+			Window->tour_editor()->show_tour_draft_failure(route == core::tour_context_route::reads_repository_diff_too_large
+															   ? QStringLiteral("This pull request's diff (%1 KiB) is more than one request carries (%2 KiB), and %3 cannot read the repository instead. Choose Claude or Codex with the agent picker in the window's footer.")
+																	 .arg(bytes / 1024U)
+																	 .arg(core::maximum_up_front_diff_bytes / 1024U)
+																	 .arg(agent_display_name(*agent))
+															   : QStringLiteral("%1 has no drafting mode. Choose Claude or Codex with the agent picker in the window's footer.").arg(agent_display_name(*agent)));
 			return;
 		}
-		auto files = std::vector<application::tour_draft_file>{ };
-		for (const auto& file : snapshot->Files) {
-			const auto change = file.Change == application::github_file_change::added ? "added"
-				: file.Change == application::github_file_change::removed             ? "removed"
-				: file.Change == application::github_file_change::renamed             ? "renamed"
-																					  : "modified";
-			files.push_back({ file.Path, change, file.HeadHunks });
-		}
 		adopt_tour_conversation();
-		const auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus, { }, capture_tour_agent_context());
+		auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus, { }, capture_tour_agent_context(), route == core::tour_context_route::up_front);
+		if (!prompt && route == core::tour_context_route::up_front && reads_read_only(*agent)) {
+			route  = core::tour_context_route::reads_repository_diff_too_large;
+			prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus, { }, capture_tour_agent_context());
+		}
 		if (!prompt) {
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("This pull request is too large to describe to the agent in one request."));
 			return;
@@ -1895,8 +1958,14 @@ namespace bpr::app {
 		core::remember_tour_proposal(TourAgent, TourProposal, std::nullopt);
 		TourProposal.reset();
 		TourDraftPending = true;
-		Window->tour_editor()->show_writing_notice(tour_reading_notice());
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft Tour", *prompt, std::nullopt)) {
+		TourAskMore.reset();
+		Window->tour_editor()->show_writing_notice(tour_context_notice(route, bytes));
+		// [[BPR-2140]]. Its instructions are the system prompt; the message
+		// is the pull request and the tour so far.
+		auto parts          = application::split_tour_prompt(*prompt);
+		TourRunInstructions = std::move(parts.Instructions);
+		TourRunUpFront      = route == core::tour_context_route::up_front;
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft Tour", parts.Message, std::nullopt)) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The tour session could not start this request."));
 		}
@@ -1945,6 +2014,39 @@ namespace bpr::app {
 		static_cast<void>(core::note_finished_tour_run(TourAgent, *aRun, core::left_out_entries(*TourProposal)));
 		Window->tour_editor()->show_writing_notice(TourProposal->Items.empty() ? QStringLiteral("The agent proposed nothing for this tour.")
 																			   : QStringLiteral("A proposed tour is ready to review. Nothing changes until you accept it."));
+	}
+
+	void github_application::implementation::ask_more_from(const core::tour_agent_run_id aRun)
+	{
+		const auto* const run = core::find_tour_run(TourAgent, aRun);
+		if (Closing || Window == nullptr || run == nullptr) {
+			return;
+		}
+		auto more = tour_ask_more{ };
+		if (run->Request == core::tour_agent_request::draft_tour) {
+			// Draft Tour continues in the chat about the tour as a whole.
+			more.Seed = TourDraftSeed.empty() ? std::string{ "Draft Tour proposed a tour." } : TourDraftSeed;
+		} else if (run->Fresh) {
+			// An Enhance continues in its part's own chat.
+			more.Thread = run->Thread;
+			more.Seed   = "Enhance, asked: " + run->Question + "\n\nIt answered: " + run->Reply;
+			if (TourProposal) {
+				for (const auto& item : TourProposal->Items) {
+					if (item.Run == aRun && !item.Text.empty()) {
+						more.Seed += "\n\nIts suggestion:\n" + item.Text;
+					}
+				}
+			}
+		} else {
+			return;
+		}
+		if (more.Seed.size() > 8192U) {
+			more.Seed.resize(8192U);
+		}
+		const auto thread = more.Thread;
+		TourAskMore       = std::move(more);
+		Window->tour_editor()->side_chat()->open(thread);
+		Window->tour_editor()->show_writing_notice(QStringLiteral("Ask your follow-up in the chat. It starts from that answer and keeps the conversation."));
 	}
 
 	/// [[BPR-1900]]. The author accepts (with their edit) or discards one

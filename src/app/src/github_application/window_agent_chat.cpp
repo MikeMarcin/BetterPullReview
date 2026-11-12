@@ -619,7 +619,7 @@ namespace bpr::app {
 		}
 		// [[BPR-1935]]. A read-only tour run's prompt is composed, not typed,
 		// and travels in the tour prompt's own carrier and bound.
-		const auto tourPrompt  = aWritingOnly && aTour.ReadOnly;
+		const auto tourPrompt  = aWritingOnly && (aTour.ReadOnly || aTour.UpFront);
 		auto       observation = application::agent_context_observation{
 			.ApplicationSession = state.ApplicationSession,
 			.Binding            = turnBinding,
