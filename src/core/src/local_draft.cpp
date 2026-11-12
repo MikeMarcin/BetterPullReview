@@ -1,6 +1,7 @@
 #include "bpr/core/local_draft.hpp"
 
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/local_draft_evidence.hpp"
 #include "bpr/core/review_cycle_publication.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/core/utf8.hpp"
@@ -90,8 +91,10 @@ namespace bpr::core::detail {
 		std::vector<wire_note>          Notes;
 		std::uint64_t                   NextNote = 1;
 		std::optional<wire_association> Association;
-		std::int64_t                    Created = 0;
-		std::int64_t                    Updated = 0;
+		/// RFC-BPR-0109. Absent while the draft has no evidence.
+		std::optional<glz::raw_json> Evidence;
+		std::int64_t                 Created = 0;
+		std::int64_t                 Updated = 0;
 	};
 } // namespace bpr::core::detail
 
@@ -146,7 +149,7 @@ struct glz::meta<bpr::core::detail::wire_draft>
 										 "repository", &value_type::Repository, "worktree", &value_type::Worktree, "branch", &value_type::Branch, "target_remote", &value_type::TargetRemote, "target_host",
 										 &value_type::TargetHost, "target_owner", &value_type::TargetOwner, "target_name", &value_type::TargetName, "target_branch", &value_type::TargetBranch, "target_origin",
 										 &value_type::TargetOrigin, "chain", &value_type::Chain, "candidates", &value_type::Candidates, "notes", &value_type::Notes, "next_note", &value_type::NextNote, "association",
-										 &value_type::Association, "created", &value_type::Created, "updated", &value_type::Updated);
+										 &value_type::Association, "evidence", &value_type::Evidence, "created", &value_type::Created, "updated", &value_type::Updated);
 };
 
 namespace bpr::core {
@@ -567,7 +570,10 @@ namespace bpr::core {
 				return false;
 			}
 		}
-		return valid(aDraft.Id) && aDraft.Version > 0U && !aDraft.Title.empty() && plain_text(aDraft.Title, maximum_local_draft_title_bytes, false)
+		const auto boundResults = std::ranges::all_of(aDraft.Evidence.Results, [&ordinals](const evidence_result& aResult) {
+			return aResult.Candidate == 0U || ordinals.contains(aResult.Candidate);
+		});
+		return boundResults && valid(aDraft.Evidence) && valid(aDraft.Id) && aDraft.Version > 0U && !aDraft.Title.empty() && plain_text(aDraft.Title, maximum_local_draft_title_bytes, false)
 			&& !aDraft.Worktree.Location.empty() && valid_publication_branch(aDraft.Branch) && validTarget && aDraft.Chain.size() <= maximum_local_remote_hops
 			&& !aDraft.Candidates.empty() && aDraft.Candidates.size() <= maximum_local_draft_candidates && aDraft.Notes.size() <= maximum_local_draft_notes
 			&& std::ranges::is_sorted(aDraft.Candidates, { }, &local_draft_candidate::Ordinal);
@@ -637,6 +643,8 @@ namespace bpr::core {
 		case draft_refusal::unknown_note:    return "unknown_note";
 		case draft_refusal::unchanged:       return "unchanged";
 		case draft_refusal::invalid:         return "invalid";
+		case draft_refusal::unknown_record:  return "unknown_record";
+		case draft_refusal::evidence_full:   return "evidence_full";
 		}
 		return "unknown";
 	}
@@ -925,6 +933,13 @@ namespace bpr::core {
 				.Host = association.Host, .Owner = association.Owner, .Name = association.Name, .Number = association.Number, .HeadRef = association.HeadRef
 			};
 		}
+		if (aDraft.Evidence != draft_evidence{ }) {
+			auto evidence = encode_draft_evidence(aDraft.Evidence);
+			if (evidence.empty()) {
+				return { };
+			}
+			wire.Evidence = glz::raw_json{ std::move(evidence) };
+		}
 		auto text = std::string{ };
 		if (glz::write_json(wire, text)) {
 			return { };
@@ -1008,6 +1023,13 @@ namespace bpr::core {
 			draft.Association       = local_draft_association{
 				.Host = association.Host, .Owner = association.Owner, .Name = association.Name, .Number = association.Number, .HeadRef = association.HeadRef
 			};
+		}
+		if (wire.Evidence) {
+			auto evidence = decode_draft_evidence(wire.Evidence->str);
+			if (!evidence) {
+				return std::nullopt;
+			}
+			draft.Evidence = std::move(*evidence);
 		}
 		if (failed || !valid(draft)) {
 			return std::nullopt;

@@ -3,6 +3,7 @@
 
 #include "bpr/core/clone_discovery.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/draft_evidence.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/core/review_cycle_workspace.hpp"
@@ -427,9 +428,11 @@ namespace bpr::core {
 		std::vector<local_draft_note>          Notes;
 		std::uint64_t                          NextNote = 1;
 		std::optional<local_draft_association> Association;
-		std::int64_t                           Created                               = 0;
-		std::int64_t                           Updated                               = 0;
-		auto                                   operator<=>(const local_draft&) const = default;
+		/// RFC-BPR-0109: claims, checks, results and questions.
+		draft_evidence Evidence;
+		std::int64_t   Created                               = 0;
+		std::int64_t   Updated                               = 0;
+		auto           operator<=>(const local_draft&) const = default;
 	};
 	/// \brief Every field within its bound and every identity well formed.
 	[[nodiscard]] auto valid(const local_draft& aDraft) -> bool;
@@ -482,6 +485,10 @@ namespace bpr::core {
 		/// The candidate repeats the latest exactly.
 		unchanged,
 		invalid,
+		/// No evidence record has that identity, or it is not of that kind.
+		unknown_record,
+		/// The evidence holds as many records of that kind as it keeps.
+		evidence_full,
 	};
 	[[nodiscard]] auto name(draft_refusal aRefusal) noexcept -> std::string_view;
 
