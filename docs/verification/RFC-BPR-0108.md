@@ -64,3 +64,12 @@ translation units. Documentation gate: `DOCUMENTATION_OK`.
 ## Owner look
 
 Filed, not waited on (session in the [handoff](../issues/_checkpoints/v0-5-0-prerelease-targets-v1/handoff.md)).
+
+## Owner verdicts (attended session 5f049205ae4d7f19c1593afa81ea39df, handed back 2026-11-12T06:21:00Z)
+
+- `BPR-2021-draft-page`: **Accept** (decision `6974c627-dede-4ab8-9c5a-5ef4b1f554a6`, 2026-11-12T06:17:03Z, actor human), no note
+- `BPR-2021-home-author-entry`: **Reject** (decision `6f6e8d54-e3f0-4f34-9c4a-b3491e9643f0`, 2026-11-12T06:20:58Z, actor human), the owner: "Seems like a waste of vertical space to have it like this."
+
+Root `/Users/jaeger/local-draft-v001.h8pe0ibf` removed with `freeze_attended_build.py remove` and the host
+stopped (2026-11-12). The coordinator: a redesign from mockups comes first;
+no new look is filed until then.
