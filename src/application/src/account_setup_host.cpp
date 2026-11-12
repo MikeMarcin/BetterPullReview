@@ -30,7 +30,7 @@ namespace bpr::application {
 		}
 		// The CLI way is not offered where gh cannot be inspected, so a
 		// request for it is refused here rather than started and failed.
-		const auto* const begin = std::get_if<core::begin_account_setup>(&aEvent);
+		const auto* const begin  = std::get_if<core::begin_account_setup>(&aEvent);
 		const auto* const choose = std::get_if<core::choose_account_setup_way>(&aEvent);
 		if (!Projection.GithubCliOffered
 			&& ((begin != nullptr && begin->Way == core::account_setup_way::github_cli) || (choose != nullptr && choose->Way == core::account_setup_way::github_cli))) {
