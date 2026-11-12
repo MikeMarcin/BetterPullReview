@@ -65,7 +65,11 @@ def main():
         ledger = root / "ledger.sqlite3"
         marker = "fixture-owned-sentinel"
         with retained_connections() as retained:
+            assert not ledger.exists(), "the fixture must support an app that has not made a ledger"
             course.write_reset_sentinel(ledger, marker)
+            assert ledger.exists()
+            if course.os.name == "posix":
+                assert ledger.stat().st_mode & 0o777 == 0o600
             require_closed(retained)
             committed = real_connect(ledger)
             try:

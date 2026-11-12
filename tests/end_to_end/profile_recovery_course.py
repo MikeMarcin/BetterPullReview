@@ -125,6 +125,8 @@ def write_reset_sentinel(path, marker):
     """Commit the disposable row and release the handle before public reset."""
     database = sqlite3.connect(path)
     try:
+        if os.name == "posix":
+            path.chmod(0o600)
         with database:
             database.execute("CREATE TABLE bpr_reset_course_sentinel(marker TEXT NOT NULL)")
             database.execute("INSERT INTO bpr_reset_course_sentinel VALUES(?)", (marker,))
@@ -213,9 +215,8 @@ def main():
 
         ledger = state / "review-ledger.sqlite3"
         connections = state / "remembered-connections.sqlite3"
-        if not ledger.exists():
-            fail("the fixture made review data before Reset everything")
         # The prior run has stopped; only this disposable course owns the store.
+        # Opening Overview need not have made a ledger; seed prior data either way.
         marker = os.urandom(16).hex()
         write_reset_sentinel(ledger, marker)
         if not has_reset_sentinel(ledger, scratch / "review-data-without-reset", marker):
