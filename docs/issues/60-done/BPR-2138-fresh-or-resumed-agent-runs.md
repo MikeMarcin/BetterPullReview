@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2138"
 title: "Each agent action runs fresh or resumes, as the owner classified them"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0101"]
 depends_on: []
 priority: "P1"
 platforms: []
 metadata: {"mandate_revision": "v0-5-0-prerelease-targets-r1", "reservation": "docs/issues/_reservations/BPR-2138--BPR-2142--6b47e1d85608.json", "origin": "owner agent launch policy, 2026-11-12 (coordinator brief), corporate wrapper test results and their correction of 2026-11-11", "criteria": ["AC10", "AC11", "AC12"]}
+acceptance: [{"criterion":"AC10","outcome":"pass","revision":"76100684fe14b299e3936876b62f7de098b66ecf","evidence":{"kind":"command","detail":"Every launch path named with its session mode; fresh paths save no session and refuse a native turn, resumed paths resume, the tool-free local discussion included","command":"ctest --preset dev -R '^application_agent_launch_policy$'"}},{"criterion":"AC11","outcome":"pass","revision":"76100684fe14b299e3936876b62f7de098b66ecf","evidence":{"kind":"command","detail":"A tour part's Enhance is a fresh run; nothing is sent to the side chat; its result is a proposal on the part","command":"ctest --preset dev -R '^(qt_tour_side_chat|review_tour_agent_help)$'"}},{"criterion":"AC12","outcome":"pass","revision":"76100684fe14b299e3936876b62f7de098b66ecf","evidence":{"kind":"command","detail":"Ask more (Draft Tour's proposal, a fresh Enhance's suggestion) seeds the thread's next turn with the answer, which then resumes; the local draft's first description seeds the discussion's session, whose next turn resumes it by handle with no replay; live installed Claude resumed a tool-free discussion session (CANARY_PASS KUMQUAT same_session=True)","command":"ctest --preset dev -R '^(application_agent_launch_policy|core_local_draft_tour|qt_tour_agent_session_view|qt_tour_side_chat|application_local_draft_tour_desktop_public_path)$' && python3 tests/scripts/claude_resume_canary.py --launch-printer build/dev/tests/application/better_pull_review_agent_launch_policy_tests"}}]
 ---
 
 # Each agent action runs fresh or resumes, as the owner classified them
