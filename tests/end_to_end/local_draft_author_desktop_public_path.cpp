@@ -211,6 +211,8 @@ try {
 	auto prompts = std::make_shared<std::vector<std::string>>();
 	s.Drafts->set_agent(
 		[prompts](const application::local_draft_agent_run& aRun, std::stop_token) {
+			expect(aRun.Path == core::agent_run_path::local_commit_message && aRun.Instructions == "Write the commit message." && aRun.Handle.empty(),
+				   "[[BPR-2138]] [[BPR-2140]] the commit message is a fresh run whose purpose text travels apart");
 			prompts->push_back(aRun.Prompt);
 			return application::local_draft_agent_answer{ .Answered = true, .Text = "Subject: Test leading zeros and document ports\n\nA port with leading zeros parses to its value." };
 		},
@@ -225,8 +227,8 @@ try {
 	settle_until(s.Lanes, [&] { return changes->subject()->text().contains(QStringLiteral("leading zeros")); });
 	expect(changes->subject()->text() == QStringLiteral("Test leading zeros and document ports") && changes->description()->toPlainText() == QStringLiteral("A port with leading zeros parses to its value."),
 		   "the suggestion fills subject and description");
-	expect(prompts->size() == 1U && prompts->front().find("Write the commit message.") != std::string::npos && prompts->front().find("0080") != std::string::npos,
-		   "the request is the purpose's text and the staged diff");
+	expect(prompts->size() == 1U && prompts->front().find("Write the commit message.") == std::string::npos && prompts->front().find("0080") != std::string::npos,
+		   "the request is the staged diff; the purpose's text is its instructions");
 	expect(git->output(worktree, { "rev-list", "--count", "HEAD" }, scratch / "count.txt") == "4", "a suggestion commits nothing");
 	capture(window, QStringLiteral("local-changes-agent-message"));
 

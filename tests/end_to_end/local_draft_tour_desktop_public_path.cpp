@@ -123,6 +123,7 @@ namespace {
 		std::unique_ptr<app::review_cycle_desktop> Cycles;
 		std::unique_ptr<app::local_draft_desktop>  Drafts;
 		std::vector<std::string>                   Prompts;
+		std::vector<application::local_draft_agent_run> Runs;
 		std::string                                Answer;
 
 		session(const std::filesystem::path& aProfile, const std::filesystem::path& aGit, const QString& aChosen)
@@ -137,7 +138,12 @@ namespace {
 			Drafts->set_agent(
 				[this](const application::local_draft_agent_run& aRun, std::stop_token) {
 					Prompts.push_back(aRun.Prompt);
-					return application::local_draft_agent_answer{ .Answered = true, .Text = Answer, .CostMicros = 23000U };
+					Runs.push_back(aRun);
+					// Like Claude: a run that resumes keeps its session's identity.
+					return application::local_draft_agent_answer{ .Answered   = true,
+																  .Text       = Answer,
+																  .Handle     = aRun.Handle.empty() ? "session-" + std::to_string(Runs.size()) : aRun.Handle,
+																  .CostMicros = 23000U };
 				},
 				&Lanes,
 				[] {
@@ -292,7 +298,10 @@ try {
 		settle(s.Lanes);
 		expect(s.Prompts.size() == 1U, "the agent was asked once");
 		const auto& prompt = s.Prompts[0];
-		expect(prompt.starts_with("DISCUSSION-PROMPT") && prompt.find("stop_worker();") != std::string::npos, "AC03: the request carries the candidate's captured bytes");
+		expect(s.Runs[0].Instructions.starts_with("DISCUSSION-PROMPT") && prompt.find("DISCUSSION-PROMPT") == std::string::npos && prompt.find("stop_worker();") != std::string::npos,
+			   "AC03: the request carries the candidate's captured bytes; [[BPR-2140]] the purpose's text travels as its instructions");
+		expect(s.Runs[0].Path == core::agent_run_path::local_draft_discussion && s.Runs[0].Handle.empty() && !s.Runs[0].Draft.empty(),
+			   "[[BPR-2138]] the discussion's first turn starts its session");
 		expect(prompt.find("LIVE_HELPER_EDIT") == std::string::npos && prompt.find("src/helper.cpp") == std::string::npos, "AC03: an unselected live helper edit never enters");
 		const auto& prep = page->projection().Draft->Preparation;
 		expect(prep.Conversations.size() == 1U && prep.Conversations[0].Turns.size() == 2U && prep.Proposals.size() == 4U, "the turn, the answer and its proposals are kept");
@@ -300,6 +309,23 @@ try {
 				   && chat->session_line()->text().contains(QStringLiteral("$0.02")),
 			   "AC08: the transcript and the session line with its cost");
 		expect(chat->proposals()->count() == 4, "the proposals sit beside the tour");
+		expect(prep.Conversations[0].Handle == "session-1", "[[BPR-2138]] the session the agent kept is recorded with the conversation");
+		// [[BPR-2138]]. The next turn resumes that session: no transcript
+		// replay, no files again, only the question.
+		{
+			const auto keep = s.Answer;
+			s.Answer        = "It waits for the worker.";
+			chat->composer()->setText(QStringLiteral("And the join?"));
+			chat->ask_button()->click();
+			settle(s.Lanes);
+			expect(s.Runs.size() == 2U && s.Runs[1].Path == core::agent_run_path::local_draft_discussion && s.Runs[1].Handle == "session-1"
+					   && s.Prompts[1].find("Earlier in this conversation") == std::string::npos && s.Prompts[1].find("stop_worker();") == std::string::npos
+					   && s.Prompts[1].find("And the join?") != std::string::npos,
+				   "[[BPR-2138]] the follow-up resumes the native session instead of replaying the transcript");
+			expect(page->projection().Draft->Preparation.Conversations.size() == 1U && page->projection().Draft->Preparation.Conversations[0].Turns.size() == 4U,
+				   "the follow-up is in the same conversation");
+			s.Answer = keep;
+		}
 		auto* const outside = row_of(*chat->proposals(), QStringLiteral("New stop"));
 		chat->proposals()->setCurrentItem(outside);
 		expect(!chat->accept_button()->isEnabled(), "AC03: a stop outside the candidate cannot be accepted as written");
@@ -349,8 +375,8 @@ try {
 		chat->ask_button()->click();
 		settle(s.Lanes);
 		const auto& conversations = page->projection().Draft->Preparation.Conversations;
-		expect(conversations.size() == 2U && conversations[1].Candidate == 3U && conversations[0].Turns.size() == 2U, "AC03: a new session on the successor; the earlier stays");
-		expect(s.Prompts[1].find("Earlier in this conversation") == std::string::npos, "the new session replays nothing from the earlier candidate");
+		expect(conversations.size() == 2U && conversations[1].Candidate == 3U && conversations[0].Turns.size() == 4U, "AC03: a new session on the successor; the earlier stays");
+		expect(s.Prompts[2].find("Earlier in this conversation") == std::string::npos && s.Runs[2].Handle.empty(), "the new session replays nothing from the earlier candidate and resumes nothing");
 		chat->session_menu()->menu()->aboutToShow();
 		auto* const earlier = chat->session_menu()->menu()->actions().last();
 		expect(earlier->text().startsWith(QStringLiteral("Candidate 2")), "the Session menu lists the earlier conversation as history");

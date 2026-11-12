@@ -1307,9 +1307,14 @@ namespace bpr::core {
 		}
 		const auto& prep    = aDraft.Preparation;
 		auto        request = local_request{ .FilesTotal = latest->Changes.size() };
-		auto&       out     = request.Text;
-		out += aQuestion.Instructions;
-		out += "\n\n## The local draft\n\nTitle: " + aDraft.Title + "\nTarget: " + aDraft.Target.Target.Repository.Owner + "/" + aDraft.Target.Target.Repository.Name + " "
+		request.Resumed     = aConversation != nullptr && !aConversation->Handle.empty();
+		request.Instructions = aQuestion.Instructions;
+		request.Instructions += "\n\n## Answer format\n\nAnswer in prose. To propose a change, end with one fenced block whose info string is bpr-proposals, holding a JSON array of "
+								"objects: {\"target\": \"title\"|\"description\"|\"problem\"|\"solution\", \"text\": the whole new text}, {\"target\": \"stop\", \"stop\": its number, "
+								"\"title\", \"text\"} or {\"target\": \"new_stop\", \"path\", \"first\", \"last\" (lines of this candidate), \"title\", \"text\"}. "
+								"The author accepts or rejects each.\n";
+		auto& out = request.Text;
+		out += "## The local draft\n\nTitle: " + aDraft.Title + "\nTarget: " + aDraft.Target.Target.Repository.Owner + "/" + aDraft.Target.Target.Repository.Name + " "
 			+ aDraft.Target.Target.Branch + ", from " + aDraft.Branch + ".\nCandidate " + std::to_string(latest->Ordinal)
 			+ (latest->Included.empty() ? std::string{ ", the committed branch." } : std::string{ ", the branch with uncommitted files the author included." })
 			+ " No pull request exists yet.\n";
@@ -1331,7 +1336,7 @@ namespace bpr::core {
 					+ (exact ? std::string{ } : " on an earlier candidate; " + std::string{ name(stop.Current.Correspondence) } + " now") + ")\n" + stop.Text + "\n";
 			}
 		}
-		if (aConversation != nullptr && !aConversation->Turns.empty()) {
+		if (aConversation != nullptr && !aConversation->Turns.empty() && !request.Resumed) {
 			const auto replay = replay_turns(*aConversation);
 			request.Replayed  = replay.Turns.size();
 			request.Omitted   = replay.Omitted;
@@ -1358,12 +1363,16 @@ namespace bpr::core {
 			break;
 		}
 		question += "\n\n" + aQuestion.Text + "\n";
-		question += "\n## Answer format\n\nAnswer in prose. To propose a change, end with one fenced block whose info string is bpr-proposals, holding a JSON array of "
-					"objects: {\"target\": \"title\"|\"description\"|\"problem\"|\"solution\", \"text\": the whole new text}, {\"target\": \"stop\", \"stop\": its number, "
-					"\"title\", \"text\"} or {\"target\": \"new_stop\", \"path\", \"first\", \"last\" (lines of this candidate), \"title\", \"text\"}. "
-					"The author accepts or rejects each.\n";
-		if (out.size() + question.size() > maximum_local_request_bytes) {
+		const auto fixed = request.Instructions.size() + out.size() + question.size();
+		if (fixed > maximum_local_request_bytes) {
 			return std::nullopt;
+		}
+		// The resumed session read the candidate's files on its first turn
+		// (a conversation is on one candidate); only the question goes now.
+		if (request.Resumed) {
+			out += "\n(The candidate's changed files are as sent earlier in this session.)\n";
+			out += question;
+			return request;
 		}
 		// The candidate's own bytes, the subject's file first; never the worktree.
 		auto order = std::vector<const local_file_reading*>{ };
@@ -1392,7 +1401,7 @@ namespace bpr::core {
 			} else {
 				block += "```\n" + *file->Text + (file->Text->ends_with('\n') ? "" : "\n") + "```\n";
 			}
-			if (out.size() + question.size() + files.size() + block.size() + 64U > maximum_local_request_bytes) {
+			if (fixed + files.size() + block.size() + 64U > maximum_local_request_bytes) {
 				continue;
 			}
 			files += block;

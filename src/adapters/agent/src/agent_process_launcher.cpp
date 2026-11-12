@@ -424,7 +424,11 @@ namespace bpr::adapters::agent {
 		// starts, and nothing the agent leaves behind outlives the request.
 		auto writingFolder  = std::optional<writing_directory>{ };
 		auto writingRequest = std::optional<application::agent_launch_request>{ };
-		if (aGiven.WritingOnly) {
+		// [[BPR-2138]]. A resumed tool-free conversation (a local draft's
+		// discussion) runs in the empty folder its host keeps for it, so the
+		// agent finds its saved session there on the next turn.
+		const auto keptFolder = aGiven.WritingOnly && core::session_mode_of(aGiven.Path) == core::agent_session_mode::resumed && !aGiven.WorkingDirectory.empty();
+		if (aGiven.WritingOnly && !keptFolder) {
 			writingFolder.emplace(QDir{ QDir::tempPath() }.filePath(QStringLiteral("bpr-writing-XXXXXX")));
 			if (!writingFolder->isValid()) {
 				return { .Session = aGiven.Session, .Outcome = application::agent_run_outcome::failed_to_start, .StandardError = "tool-free writing folder could not be created", .Run = aGiven.Run };

@@ -155,6 +155,8 @@ namespace bpr::application {
 		/// The prompt purpose's effective text and version.
 		std::string Instructions;
 		std::string Version;
+		/// [[BPR-2140]]. Where the instructions go (the agent's switch).
+		core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 	};
 
 	/// \brief One run of an agent for a local draft: tool-free, with only the
@@ -166,14 +168,28 @@ namespace bpr::application {
 		std::string   AgentName;
 		std::uint64_t Profile = 0;
 		std::string   Prompt;
-		/// [[BPR-2138]]. The launch path: the draft's discussion unless the
-		/// run is its commit message.
+		/// [[BPR-2140]]. The prompt purpose's instructions, apart from
+		/// `Prompt`: the agent's system prompt unless its switch says
+		/// otherwise.
+		std::string Instructions;
+		/// [[BPR-2138]]. The launch path: the draft's discussion, its first
+		/// description (fresh) or its commit message (fresh).
 		core::agent_run_path Path = core::agent_run_path::local_draft_discussion;
+		/// [[BPR-2138]]. The discussion's saved session to resume; empty
+		/// starts one. Only a resumed path has one.
+		std::string Handle;
+		/// The draft's identity: the runner keeps one empty folder per draft
+		/// for its resumed sessions.
+		std::string Draft;
+		/// [[BPR-2140]]. Where `Instructions` go (the agent's switch).
+		core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 	};
 	struct local_draft_agent_answer
 	{
 		bool                         Answered = false;
 		std::string                  Text;
+		/// [[BPR-2138]]. The session the run kept, to resume next turn.
+		std::string Handle;
 		std::optional<std::uint64_t> CostMicros;
 		/// Why it did not answer, in the person's words.
 		std::string Failure;

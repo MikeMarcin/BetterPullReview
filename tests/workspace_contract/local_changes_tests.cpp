@@ -245,7 +245,9 @@ namespace {
 		aCourse.drain();
 		expect(aCourse.view().Suggestion && aCourse.view().Suggestion->Subject == "Add the CRLF sample" && aCourse.view().Suggestion->Description == "It keeps Windows line endings.",
 			   "the suggestion fills subject and description");
-		expect(aCourse.Prompt.find("src/crlf.txt") != std::string::npos && aCourse.Prompt.find("Add notes") != std::string::npos, "the prompt has the staged diff and recent subjects");
+		expect(aCourse.Prompt.find("src/crlf.txt") != std::string::npos && aCourse.Prompt.find("Add notes") != std::string::npos
+				   && aCourse.Prompt.find("Write it.") == std::string::npos,
+			   "the prompt has the staged diff and recent subjects; [[BPR-2140]] the purpose's instructions travel apart");
 		expect(aCourse.out(aCourse.Work, { "diff", "--cached", "--name-only" }) == "src/crlf.txt", "a suggestion commits nothing");
 	}
 

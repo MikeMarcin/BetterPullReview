@@ -448,7 +448,14 @@ namespace bpr::core {
 	/// \brief The request's text and what it left out.
 	struct local_request
 	{
+		/// [[BPR-2140]]. The prompt purpose's instructions and the answer
+		/// format: the agent's system prompt, or pasted ahead of `Text`.
+		std::string Instructions;
+		/// The run's material: the draft, the files, the question.
 		std::string Text;
+		/// [[BPR-2138]]. The conversation's own session is resumed: it holds
+		/// the earlier turns and the files already, so neither is sent again.
+		bool Resumed = false;
 		/// Changed files of the candidate sent whole, and in all.
 		std::size_t FilesSent  = 0;
 		std::size_t FilesTotal = 0;
@@ -460,6 +467,10 @@ namespace bpr::core {
 	/// `aFiles`, that candidate's readings from the private store (never the
 	/// worktree), the subject's file first, within `maximum_local_request_bytes`.
 	/// Absent when even the question and instructions do not fit.
+	/// [[BPR-2138]]. A conversation with a handle resumes its session: no
+	/// earlier turn and no file is sent again. One without a handle starts
+	/// the session with its earlier turns replayed (a fresh first draft's
+	/// question and answer among them: Ask more). No conversation is a fresh run.
 	[[nodiscard]] auto compose_local_request(const local_draft& aDraft, const local_question& aQuestion, const local_conversation* aConversation,
 											 std::span<const local_file_reading> aFiles) -> std::optional<local_request>;
 

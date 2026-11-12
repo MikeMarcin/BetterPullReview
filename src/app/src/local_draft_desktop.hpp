@@ -68,6 +68,8 @@ namespace bpr::app {
 			std::string   DiscussionVersion;
 			/// RFC-BPR-0114 as amended 2026-11-12: `local.commit-message`.
 			std::string CommitMessage;
+			/// [[BPR-2140]]. Where the agent's instructions go (its switch).
+			core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 		};
 		using agent_chooser = std::function<std::optional<agent_choice>()>;
 		/// \brief Composes the agent runs; a null runner leaves authoring by hand only.

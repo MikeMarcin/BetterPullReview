@@ -990,8 +990,16 @@ namespace bpr::application {
 				std::optional<core::local_source_binding> Lines;
 			};
 			const auto first = !aQuestion.LinesPath.empty() ? aQuestion.LinesPath : std::string{ };
+			// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). The draft's
+			// discussion is a resumed session; its first description is a
+			// fresh run, unless a session it would leave out is already open.
+			const auto* open       = core::current_conversation(*Projection.Draft, aQuestion.Thread, aQuestion.Agent);
+			const auto  describing = aQuestion.Subject == core::local_subject::title || aQuestion.Subject == core::local_subject::description;
+			const auto  fresh      = describing && Projection.Draft->Preparation.Description.Body.empty() && (open == nullptr || open->Handle.empty());
+			const auto  path       = fresh ? core::agent_run_path::local_description_first_draft : core::agent_run_path::local_draft_discussion;
+			const auto  handle     = fresh || open == nullptr ? std::string{ } : open->Handle;
 			run(
-				[draft = *Projection.Draft, candidate = *latest, question = aQuestion, first](implementation& aSelf, std::stop_token) -> prepared {
+				[draft = *Projection.Draft, candidate = *latest, question = aQuestion, first, fresh](implementation& aSelf, std::stop_token) -> prepared {
 					auto  out    = prepared{ };
 					auto* stored = aSelf.store();
 					if (stored == nullptr) {
@@ -1023,11 +1031,11 @@ namespace bpr::application {
 							}
 						}
 					}
-					out.Request = core::compose_local_request(draft, local, core::current_conversation(draft, question.Thread, question.Agent), out.Files);
+					out.Request = core::compose_local_request(draft, local, fresh ? nullptr : core::current_conversation(draft, question.Thread, question.Agent), out.Files);
 					return out;
 				},
 				// Both lanes read their own copy: argument order is unspecified.
-				[question = aQuestion, ordinal = latest->Ordinal](implementation& aSelf, prepared aPrepared) mutable {
+				[question = aQuestion, ordinal = latest->Ordinal, path, handle](implementation& aSelf, prepared aPrepared) mutable {
 					auto& view = aSelf.Projection;
 					if (!aPrepared.Request) {
 						view.Asking     = false;
@@ -1041,24 +1049,33 @@ namespace bpr::application {
 																  .Omitted    = aPrepared.Request->Omitted };
 					aSelf.publish();
 					auto owner = aSelf.shared_from_this();
-					auto made  = local_draft_agent_run{ .Agent = question.Agent, .AgentName = question.AgentName, .Profile = question.Profile, .Prompt = std::move(aPrepared.Request->Text) };
+					auto made  = local_draft_agent_run{ .Agent        = question.Agent,
+														.AgentName    = question.AgentName,
+														.Profile      = question.Profile,
+														.Prompt       = std::move(aPrepared.Request->Text),
+														.Instructions = std::move(aPrepared.Request->Instructions),
+														.Path         = path,
+														.Handle       = aPrepared.Request->Resumed ? handle : std::string{ },
+														.Draft        = view.Draft ? view.Draft->Id.Value : std::string{ },
+														.Delivery     = question.Delivery };
 					++aSelf.AgentPending;
 					aSelf.AgentLane->post([owner, asked = aSelf.Generation, ordinal, launch = std::move(made), sent = std::move(question), read = std::move(aPrepared.Files),
 										   runner = aSelf.AgentRunner, stop = aSelf.AskStop.get_token()]() mutable {
 						auto reply = runner(launch, stop);
-						owner->Decisions.post([host = owner, asked, ordinal, answer = std::move(reply), posed = std::move(sent), files = std::move(read)]() mutable {
+						owner->Decisions.post([host = owner, asked, ordinal, answer = std::move(reply), posed = std::move(sent), files = std::move(read), ran = launch.Path,
+											   resumed = launch.Handle]() mutable {
 							--host->AgentPending;
 							if (host->Stopped) {
 								return;
 							}
-							host->answered(asked, ordinal, std::move(posed), std::move(files), std::move(answer));
+							host->answered(asked, ordinal, std::move(posed), std::move(files), std::move(answer), ran, resumed);
 						});
 					});
 				});
 		}
 
 		void answered(const std::uint64_t aGeneration, const std::uint64_t aOrdinal, local_draft_question aQuestion, std::vector<core::local_file_reading> aFiles,
-					  local_draft_agent_answer aAnswer)
+					  local_draft_agent_answer aAnswer, const core::agent_run_path aPath, const std::string& aResumed)
 		{
 			auto& view  = Projection;
 			view.Asking = false;
@@ -1076,6 +1093,15 @@ namespace bpr::application {
 			}
 			if (!aAnswer.Answered) {
 				view.AskFailure = aAnswer.Failure.empty() ? std::string{ "The agent did not answer." } : aAnswer.Failure;
+				// [[BPR-2138]]. A session that could not be resumed is let go:
+				// the next question starts one from this conversation's turns.
+				if (const auto* open = core::current_conversation(*view.Draft, aQuestion.Thread, aQuestion.Agent); !aResumed.empty() && open != nullptr && open->Handle == aResumed) {
+					if (auto cleared = core::record_handle(*view.Draft, view.Draft->Version, open->Id, { }, Now())) {
+						view.AskFailure += " Ask again to start a new session from this conversation.";
+						prepare(std::move(*cleared));
+						return;
+					}
+				}
 				publish();
 				return;
 			}
@@ -1106,6 +1132,16 @@ namespace bpr::application {
 			if (!reply) {
 				prepare(std::unexpected{ reply.error() });
 				return;
+			}
+			// [[BPR-2138]]. The discussion's session, kept to resume next turn.
+			if (core::session_mode_of(aPath) == core::agent_session_mode::resumed && !aAnswer.Handle.empty()) {
+				const auto* kept = core::current_conversation(reply->first, aQuestion.Thread, aQuestion.Agent);
+				if (kept != nullptr && kept->Handle != aAnswer.Handle) {
+					if (auto recorded = core::record_handle(reply->first, reply->first.Version, kept->Id, std::move(aAnswer.Handle), now)) {
+						prepare(std::move(*recorded));
+						return;
+					}
+				}
 			}
 			prepare(std::move(reply->first));
 		}

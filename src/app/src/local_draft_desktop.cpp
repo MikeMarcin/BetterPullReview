@@ -91,7 +91,7 @@ namespace bpr::app {
 				[this] {
 					const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
 					if (choice) {
-						Changes->suggest_message({ .Agent = choice->Identity, .AgentName = choice->Name, .Profile = choice->Profile, .Instructions = choice->CommitMessage });
+						Changes->suggest_message({ .Agent = choice->Identity, .AgentName = choice->Name, .Profile = choice->Profile, .Instructions = choice->CommitMessage, .Delivery = choice->Delivery });
 					}
 				},
 			.Consent = [this](const bool aAllow) { Changes->answer_consent(aAllow); },
@@ -149,6 +149,7 @@ namespace bpr::app {
 					aQuestion.Profile      = choice->Profile;
 					aQuestion.Instructions = describing ? choice->Description : choice->Discussion;
 					aQuestion.Version      = describing ? choice->DescriptionVersion : choice->DiscussionVersion;
+					aQuestion.Delivery     = choice->Delivery;
 					Host->ask(std::move(aQuestion));
 				},
 			.StopAsking = [this] { Host->stop_asking(); },
@@ -330,7 +331,7 @@ namespace bpr::app {
 		// the request is its only input, and nothing resumes.
 		auto commit = aRunner ? application::local_commit_message_runner{ [aRunner](const application::local_commit_message_agent& aAgent, const std::string& aPrompt,
 																					const std::stop_token aStop) -> std::expected<std::string, std::string> {
-			auto answer = aRunner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aPrompt, .Path = core::agent_run_path::local_commit_message }, aStop);
+			auto answer = aRunner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aPrompt, .Instructions = aAgent.Instructions, .Path = core::agent_run_path::local_commit_message, .Delivery = aAgent.Delivery }, aStop);
 			if (!answer.Answered) {
 				return std::unexpected{ answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure };
 			}

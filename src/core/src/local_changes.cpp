@@ -603,7 +603,7 @@ namespace bpr::core {
 	auto compose_commit_message_prompt(const commit_message_request& aRequest) -> std::string
 	{
 		auto prompt = std::string{ trimmed(aRequest.Instructions) };
-		prompt += "\n\nBranch: " + aRequest.Branch + "\n";
+		prompt += (prompt.empty() ? "Branch: " : "\n\nBranch: ") + aRequest.Branch + "\n";
 		if (!aRequest.RecentSubjects.empty()) {
 			prompt += "\nRecent commit subjects on this branch, newest first, for style:\n";
 			const auto count = std::min(aRequest.RecentSubjects.size(), maximum_commit_message_subjects);

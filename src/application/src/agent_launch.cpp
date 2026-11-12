@@ -2827,7 +2827,12 @@ namespace bpr::application {
 			if (aBrief.Skill) {
 				append_field(aResult, "brief.skill.source", core::stable_name(aBrief.Skill->Source));
 				append_field(aResult, "brief.skill.version", aBrief.Skill->Version ? std::to_string(*aBrief.Skill->Version) : std::string{ });
-				append_field(aResult, "brief.skill.text", aBrief.Skill->Text);
+				// [[BPR-2140]]. Empty when the launch put it in the system prompt.
+				if (aBrief.Skill->Text.empty()) {
+					append_field(aResult, "brief.skill.location", "system_prompt");
+				} else {
+					append_field(aResult, "brief.skill.text", aBrief.Skill->Text);
+				}
 			}
 			// [[BPR-2059]]. How the reviewer wants suggested comments written;
 			// the skill defers to it. Absent, no line is written.
@@ -3504,9 +3509,14 @@ namespace bpr::application {
 		// [[BPR-2140]]. Where the instructions go: the system prompt when the
 		// agent takes one there (Claude inline, Codex `exec`), the switch
 		// allows it and it fits a Windows command line; otherwise the message.
-		const auto systemPrompt = !aOptions.SystemInstructions.empty() && aOptions.Instructions == core::agent_instruction_delivery::system_prompt
+		// The review skill a review request's brief carries is a built-in
+		// prompt too: it joins the instructions and leaves the brief.
+		const auto  skilled      = aSupplement.Brief && aSupplement.Brief->Skill && !aSupplement.Brief->Skill->Text.empty();
+		const auto  instructions = skilled ? (aOptions.SystemInstructions.empty() ? aSupplement.Brief->Skill->Text : aOptions.SystemInstructions + "\n\n" + aSupplement.Brief->Skill->Text)
+										   : aOptions.SystemInstructions;
+		const auto systemPrompt = !instructions.empty() && aOptions.Instructions == core::agent_instruction_delivery::system_prompt
 			&& (aProfile.Protocol == core::agent_protocol::claude_stream_json || aProfile.Protocol == core::agent_protocol::codex_jsonl_exec)
-			&& quoted_argument_bytes(aOptions.SystemInstructions) <= core::maximum_system_prompt_argument_bytes;
+			&& quoted_argument_bytes(instructions) <= core::maximum_system_prompt_argument_bytes;
 		switch (aProfile.Protocol) {
 		case core::agent_protocol::codex_app_server:
 			arguments.emplace_back("app-server");
@@ -3540,7 +3550,7 @@ namespace bpr::application {
 			// Established 2026-11-12 against Codex 0.167.0 with a canary: a
 			// rule given only in `developer_instructions` is followed.
 			if (systemPrompt) {
-				arguments.insert(arguments.end(), { "-c", "developer_instructions=" + toml_string(aOptions.SystemInstructions) });
+				arguments.insert(arguments.end(), { "-c", "developer_instructions=" + toml_string(instructions) });
 			}
 			if (fresh) {
 				arguments.emplace_back("--ephemeral");
@@ -3556,7 +3566,13 @@ namespace bpr::application {
 				append_claude_grant(arguments, *aOptions.Grant);
 			}
 			if (aOptions.WritingOnly) {
-				arguments.insert(arguments.end(), claude_writing_restrictions.begin(), claude_writing_restrictions.end());
+				// [[BPR-2138]]. A resumed tool-free conversation (a local
+				// draft's discussion) keeps its session to resume.
+				for (const auto argument : claude_writing_restrictions) {
+					if (fresh || argument != "--no-session-persistence") {
+						arguments.emplace_back(argument);
+					}
+				}
 			} else if (aOptions.ReadOnlyTools) {
 				arguments.insert(arguments.end(), claude_read_only_restrictions.begin(), claude_read_only_restrictions.end());
 			} else {
@@ -3572,7 +3588,7 @@ namespace bpr::application {
 			// owner's corporate wrapper drops the file form and keeps this one.
 			if (systemPrompt) {
 				arguments.emplace_back("--append-system-prompt");
-				arguments.push_back(aOptions.SystemInstructions);
+				arguments.push_back(instructions);
 			}
 			arguments.emplace_back("-p");
 			arguments.emplace_back("--input-format");
@@ -3603,6 +3619,12 @@ namespace bpr::application {
 		if (!aOptions.SystemInstructions.empty() && !systemPrompt) {
 			pasted          = aSupplement;
 			pasted->Message = aOptions.SystemInstructions + (aSupplement.Message.empty() ? std::string{ } : "\n\n" + aSupplement.Message);
+		}
+		if (skilled && systemPrompt) {
+			if (!pasted) {
+				pasted = aSupplement;
+			}
+			pasted->Brief->Skill->Text.clear();
 		}
 		auto payload = encode_agent_supplement(pasted ? *pasted : aSupplement);
 		encode_private_into(payload, aOptions);
@@ -3639,7 +3661,7 @@ namespace bpr::application {
 		}
 		request.ReadOnlyTools     = aOptions.ReadOnlyTools;
 		request.Path              = aOptions.Path;
-		request.InstructionsRoute = aOptions.SystemInstructions.empty() ? agent_instructions_route::none
+		request.InstructionsRoute = instructions.empty() ? agent_instructions_route::none
 			: systemPrompt                                              ? agent_instructions_route::system_prompt
 																		: agent_instructions_route::pasted;
 		request.RunChecks         = aOptions.RunChecks;
@@ -4009,7 +4031,9 @@ namespace bpr::application {
 		-> std::expected<agent_launch_request, agent_launch_failure>
 	{
 		// [[BPR-2138]]. A fresh path never starts or resumes a native session.
-		if (aRequest.WritingOnly || aRequest.NativeTurn < 2U || aRequest.Protocol == core::agent_protocol::external_terminal
+		// A tool-free run resumes only on a resumed path (a local draft's
+		// discussion), and only Claude's: it has no connected session.
+		if ((aRequest.WritingOnly && (aConnected || aRequest.Protocol != core::agent_protocol::claude_stream_json)) || aRequest.NativeTurn < 2U || aRequest.Protocol == core::agent_protocol::external_terminal
 			|| core::session_mode_of(aRequest.Path) == core::agent_session_mode::fresh || (!aRequest.NativeHandle.empty() && !core::send_session_name(aRequest.NativeHandle))) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}

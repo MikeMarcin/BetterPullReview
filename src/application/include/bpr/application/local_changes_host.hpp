@@ -4,6 +4,7 @@
 #include "bpr/application/author_git_port.hpp"
 #include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/local_changes.hpp"
 
 #include <cstdint>
@@ -140,6 +141,8 @@ namespace bpr::application {
 		std::string   AgentName;
 		std::uint64_t Profile = 0;
 		std::string   Instructions;
+		/// [[BPR-2140]]. Where the instructions go (the agent's switch).
+		core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 	};
 	/// \brief Runs one prompt; blocking, stoppable. Returns the answer text or a failure sentence.
 	using local_commit_message_runner = std::function<std::expected<std::string, std::string>(const local_commit_message_agent&, const std::string&, std::stop_token)>;

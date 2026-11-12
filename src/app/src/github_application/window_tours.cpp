@@ -1,6 +1,7 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/review_tour_source.hpp"
@@ -915,7 +916,7 @@ namespace bpr::app {
 																						locate_agent_program());
 		LocalDraftEntryProcess   = std::make_unique<application::agent_entry_process>(*LocalDraftProcess, *LocalDraftLocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper,
 																					  locate_claude(), locate_agent_program());
-		auto runner              = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get()](
+		auto runner              = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get(), root = ApplicationDataRoot](
 									   const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
 			const auto profile = std::ranges::find_if(*profiles, [&aRun](const core::agent_profile& aProfile) { return aProfile.Id.value() == aRun.Profile; });
 			if (profile == profiles->end()) {
@@ -932,20 +933,37 @@ namespace bpr::app {
 					}
 					return qEnvironmentVariable(aName.c_str()).toStdString();
 				},
-				application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path });
+				application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery });
 			if (!launch) {
 				return { .Failure = launch.error() == application::agent_launch_failure::input_too_large
 							 ? "The question is longer than one request can carry."
 							 : "This agent cannot answer without tools here. Choose one that speaks Claude Code's stream JSON." };
 			}
-			const auto result = process->run(*launch, 10 * 60 * 1000, { }, aStop);
+			auto request = *launch;
+			// [[BPR-2138]]. The draft's discussion is a native session: it
+			// runs in an empty folder kept for the draft, where the agent
+			// saves it, and a later turn resumes it there by its handle.
+			if (core::session_mode_of(aRun.Path) == core::agent_session_mode::resumed) {
+				const auto folder = root / "local-draft-sessions-v1" / aRun.Draft;
+				if (!core::valid(core::local_draft_id{ aRun.Draft }) || !adapters::sqlite::create_storage_root_owner_private(folder)) {
+					return { .Failure = "The folder this draft's conversation runs in could not be made." };
+				}
+				request.NativeHandle = aRun.Handle;
+				auto resumed         = application::prepare_native_agent_turn(std::move(request), false);
+				if (!resumed) {
+					return { .Failure = "This agent cannot resume the conversation's session." };
+				}
+				request                  = std::move(*resumed);
+				request.WorkingDirectory = folder.string();
+			}
+			const auto result = process->run(request, 10 * 60 * 1000, { }, aStop);
 			if (aStop.stop_requested()) {
 				return { .Failure = "Stopped." };
 			}
 			if (result.Outcome != application::agent_run_outcome::success) {
 				return { .Failure = "The agent did not answer (" + std::string{ application::name(result.Outcome) } + ")." };
 			}
-			auto answer = application::local_draft_agent_answer{ .Answered = true };
+			auto answer = application::local_draft_agent_answer{ .Answered = true, .Handle = result.NativeHandle };
 			for (const auto& item : result.AssistantItems) {
 				answer.Text += answer.Text.empty() ? item : "\n\n" + item;
 			}
@@ -970,6 +988,13 @@ namespace bpr::app {
 			if (identity.empty()) {
 				identity = "profile-" + std::to_string(profile->value());
 			}
+			// [[BPR-2140]]. The agent's own switch says where instructions go.
+			auto delivery = core::agent_instruction_delivery::system_prompt;
+			if (AgentSetup) {
+				if (const auto* const entry = core::entry_of_profile(AgentSetup->projection().Preferences.Agents, *profile); entry != nullptr) {
+					delivery = entry->Instructions;
+				}
+			}
 			return local_draft_desktop::agent_choice{
 				.Identity           = std::move(identity),
 				.Name               = agent_display_name(*profile).toStdString(),
@@ -979,6 +1004,7 @@ namespace bpr::app {
 				.Discussion         = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_discussion) },
 				.DiscussionVersion  = std::string{ application::writing_hook_version_of(core::writing_hook::local_discussion) },
 				.CommitMessage      = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_commit_message) },
+				.Delivery           = delivery,
 			};
 		});
 	}

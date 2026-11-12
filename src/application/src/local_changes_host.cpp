@@ -683,8 +683,9 @@ namespace bpr::application {
 					return std::unexpected{ std::string{ "The staged change could not be read." } };
 				}
 				const auto subjects = aSelf.Git.recent_subjects(aSubject.Worktree, core::maximum_commit_message_subjects, aStop);
-				const auto prompt   = core::compose_commit_message_prompt({ .Instructions   = agent.Instructions,
-																			.Branch         = aSubject.Branch,
+				// [[BPR-2140]]. The purpose's instructions travel apart (the
+				// runner's system prompt); the prompt is the run's material.
+				const auto prompt   = core::compose_commit_message_prompt({ .Branch         = aSubject.Branch,
 																			.StagedDiff     = std::move(*diff),
 																			.RecentSubjects = subjects.value_or(std::vector<std::string>{ }) });
 				auto       answer   = aSelf.Runner(agent, prompt, aStop);

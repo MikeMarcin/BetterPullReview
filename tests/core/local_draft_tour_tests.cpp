@@ -288,12 +288,28 @@ namespace {
 		const auto files    = std::vector{ file(first_text) };
 		const auto question = core::local_question{ .Subject = core::local_subject::whole_change, .Thread = "change", .Text = "What could break?", .Instructions = "RULES" };
 		const auto request  = core::compose_local_request(draft, question, nullptr, files);
-		expect(request && request->Text.starts_with("RULES") && request->Text.find("void cancel()") != std::string::npos && request->FilesSent == 1U,
-			   "the request carries the instructions and the candidate's captured file");
+		expect(request && request->Instructions.starts_with("RULES") && request->Instructions.find("bpr-proposals") != std::string::npos
+				   && request->Text.find("RULES") == std::string::npos && request->Text.find("void cancel()") != std::string::npos && request->FilesSent == 1U && !request->Resumed,
+			   "[[BPR-2140]] the instructions and answer format apart from the material, which carries the candidate's captured file");
 		expect(request->Text.find("LIVE EDIT") == std::string::npos, "nothing else");
 		auto       big     = std::vector{ core::local_file_reading{ .Path = "src/search.cpp", .Text = std::string(200U * 1024U, 'x') } };
 		const auto bounded = core::compose_local_request(draft, question, nullptr, big);
-		expect(bounded && bounded->FilesSent == 0U && bounded->Text.size() <= core::maximum_local_request_bytes, "a file past the bound is left out, and said so");
+		expect(bounded && bounded->FilesSent == 0U && bounded->Instructions.size() + bounded->Text.size() <= core::maximum_local_request_bytes, "a file past the bound is left out, and said so");
+		// [[BPR-2138]]. A conversation with its session's handle resumes it:
+		// neither the earlier turns nor the files go again. Without a handle,
+		// the session starts with the earlier turns (a fresh answer: Ask more).
+		{
+			auto conversation   = core::local_conversation{ .Id = 1U, .Candidate = 1U, .Thread = "change", .Agent = "agent-1" };
+			conversation.Turns  = { core::local_turn{ .Author = true, .Text = "Draft the description." }, core::local_turn{ .Author = false, .Text = "FRESH ANSWER" } };
+			const auto seeding  = core::compose_local_request(draft, question, &conversation, files);
+			conversation.Handle = "session-1";
+			const auto resumed  = core::compose_local_request(draft, question, &conversation, files);
+			expect(seeding && !seeding->Resumed && seeding->Replayed == 2U && seeding->Text.find("FRESH ANSWER") != std::string::npos && seeding->FilesSent == 1U,
+				   "a session's first turn carries the earlier answer");
+			expect(resumed && resumed->Resumed && resumed->Replayed == 0U && resumed->Text.find("FRESH ANSWER") == std::string::npos && resumed->FilesSent == 0U
+					   && resumed->Text.find("void cancel()") == std::string::npos && resumed->Text.find("What could break?") != std::string::npos,
+				   "a resumed turn sends the question, not the history or the files again");
+		}
 		const auto answer = core::parse_local_answer(
 			"The timer path.\n\n```bpr-proposals\n[{\"target\":\"problem\",\"text\":\"The timer outlives cancel.\"},"
 			"{\"target\":\"new_stop\",\"path\":\"src/search.cpp\",\"first\":2,\"last\":4,\"title\":\"Cancel\",\"text\":\"Here.\"}]\n```\n");
