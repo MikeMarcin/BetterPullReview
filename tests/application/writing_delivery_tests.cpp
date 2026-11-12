@@ -173,7 +173,8 @@ int main()
 		expect(stop.starts_with("# Enhance a tour stop") && writing.starts_with("# Enhance writing") && writing.find("writing-kind") != std::string_view::npos, "each Enhance prompt ships its own default; the writing one reads which kind of text it is");
 		expect(application::writing_hook_version_of(core::writing_hook::enhance_stop) == "enhance-tour-stop-v1" && application::writing_hook_version_of(core::writing_hook::enhance_writing) == "enhance-writing-v1",
 			   "each Enhance prompt has its own built-in version");
-		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.problem", "tour.solution", "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.writing", "review.suggested-comment" };
+		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.problem", "tour.solution", "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.writing", "review.suggested-comment",
+																					  "local.description", "local.discussion", "local.commit-message" };
 		for (std::size_t index = 0; index < core::writing_hook_count; ++index) {
 			const auto hook = static_cast<core::writing_hook>(index);
 			expect(application::writing_hook_purpose(hook) == purposes[index] && application::writing_hook_of_purpose(purposes[index]) == hook, "every prompt has one stable purpose ID, and the ID names it");

@@ -1108,10 +1108,13 @@ auto main(int argc, char** argv) -> int
 			expect(!prose->raw().empty(), "recovery gesture accepted");
 			saved(editor);
 			expect(prose->raw() == "\r\n**Keep raw** problem.\r\n\r\n" && status->text().contains("Recovered") && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "empty description section recovered exactly before inference");
-			// [[BPR-1995]], RFC-BPR-0100 AC05. Enhance on a selection runs in the
-			// Problem's side chat: an update turn of that passage in the part's
-			// own session; nothing is written until the author accepts.
+			// [[BPR-1995]], RFC-BPR-0100 AC05, as amended by [[BPR-2138]]
+			// (RFC-BPR-0101 AC11, owner 2026-11-12). Enhance on a selection is
+			// a fresh update of that passage: no turn of the Problem's side
+			// chat and no native session; nothing is written until the author
+			// accepts its proposal.
 			{
+				const auto shownBefore = editor.side_chat()->current();
 				saved(editor);
 				auto selection = prose->textCursor();
 				selection.setPosition(3);
@@ -1122,9 +1125,9 @@ auto main(int argc, char** argv) -> int
 				magic->click();
 				wait([&] { const auto& runs = editor.tour_agent()->session().Runs; return runs.size() > runsBefore && runs.back().State != core::tour_agent_run_state::running && access::agent_invocation_evidence(*application).Quiescent; }, "the Enhance turn ends");
 				const auto& last = editor.tour_agent()->session().Runs.back();
-				expect(last.Request == core::tour_agent_request::ask && last.Update && last.Passage && last.Passage->Field == core::tour_passage_field::problem && last.Thread.Kind == core::tour_thread_kind::problem
-						   && editor.side_chat()->current() == std::optional{ last.Thread } && prose->raw() == rawBefore && editor.shown().Draft->Problem == rawBefore,
-					   "Enhance on a selection sends the Problem's update turn with the passage, in its side chat, and changes nothing by itself");
+				expect(last.Request == core::tour_agent_request::ask && last.Update && last.Fresh && last.Passage && last.Passage->Field == core::tour_passage_field::problem && last.Thread.Kind == core::tour_thread_kind::problem
+						   && editor.side_chat()->current() == shownBefore && prose->raw() == rawBefore && editor.shown().Draft->Problem == rawBefore,
+					   "Enhance on a selection is a fresh update of the Problem's passage, leaves its side chat as it was, and changes nothing by itself");
 				std::cout << "review-tour-enhance-in-chat: passage=\"" << last.Passage->Text << "\" state=" << static_cast<int>(last.State) << '\n';
 			}
 			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;editor.request_field_writing(core::writing_hook::problem);wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };

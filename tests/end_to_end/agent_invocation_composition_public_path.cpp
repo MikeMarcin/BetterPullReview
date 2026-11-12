@@ -1485,7 +1485,9 @@ auto main(int argc, char** argv) -> int
 						if (!wait_until([&] { const auto& runs=editor->tour_agent()->session().Runs; return !runs.empty() && runs.back().Request==core::tour_agent_request::draft_tour && runs.back().State==core::tour_agent_run_state::answered; }, extended_agent_budget)) {
 							return fail(*application, "tour-native-draft-proposal", editor->tour_agent()->transcript_text().toStdString());
 						}
-						++expectedSaved;
+						// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). Draft
+						// Tour's first draft is a fresh run: it saves no turn in
+						// the whole-tour conversation; its answer seeds the next.
 					}
 					QMetaObject::invokeMethod(chat->history_button()->menu(), "aboutToShow");
 					auto priorId = QString{ };

@@ -2599,13 +2599,13 @@ namespace bpr::qt {
 				button->setText({ });
 				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", tr("Enhance selection"));
-				button->setToolTip(tr("Enhance the selection in this part's side chat. Only the selection changes."));
+				button->setToolTip(tr("Enhance the selection. The suggestion waits for you to accept it; only the selection changes."));
 			} else if (!core::writing_blank(aEditor->raw())) {
 				button->setText({ });
 				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", whole);
-				button->setToolTip(aHook == core::writing_hook::problem ? tr("Enhance the Problem in its side chat.") : aHook == core::writing_hook::solution ? tr("Enhance the Solution in its side chat.")
-																																							  : tr("Enhance this stop in its side chat."));
+				button->setToolTip(aHook == core::writing_hook::problem ? tr("Enhance the Problem. The suggestion waits for you to accept it.") : aHook == core::writing_hook::solution ? tr("Enhance the Solution. The suggestion waits for you to accept it.")
+																																														: tr("Enhance this stop. The suggestion waits for you to accept it."));
 			} else if (aHook == core::writing_hook::comment) {
 				button->setText(tr("Generate comment"));
 				button->setToolTip(tr("Asks the drafting agent to write this stop's comment from its code. Undo removes it."));

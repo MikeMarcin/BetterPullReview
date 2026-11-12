@@ -104,15 +104,19 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	// Owner look 2026-11-11: "We also don't need the \"Enhance\" label if
 	// we're using the new enhance icon." The nib alone, named and explained.
-	expect(magic->text().isEmpty() && !magic->icon().isNull() && magic->accessibleName() == QStringLiteral("Enhance problem statement") && magic->toolTip().contains(QStringLiteral("Enhance the Problem in its side chat")),
+	expect(magic->text().isEmpty() && !magic->icon().isNull() && magic->accessibleName() == QStringLiteral("Enhance problem statement") && magic->toolTip().contains(QStringLiteral("Enhance the Problem. The suggestion waits for you to accept it.")),
 		   "a written field's helper is Enhance: its icon, its name and its tooltip");
-	// [[BPR-1995]], RFC-BPR-0100 AC05: Enhance runs in the Problem's side
-	// chat, not as the one-shot writing hook, which stays for the CLI.
+	// [[BPR-1995]], RFC-BPR-0100 AC05, as amended by [[BPR-2138]] (RFC-BPR-0101
+	// AC11): Enhance is a fresh update whose suggestion waits on the part; it
+	// neither opens nor sends a turn to the side chat, and is not the
+	// one-shot writing hook, which stays for the CLI.
 	asked.reset();
 	auto chatAsked = std::vector<qt::tour_ask>{ };
 	editor.set_tour_ask_dispatch([&chatAsked](const qt::tour_ask& aAsk) { chatAsked.push_back(aAsk); });
+	const auto shownBefore = editor.side_chat()->current();
 	magic->click();
-	expect(!asked && chatAsked.size() == 1U && chatAsked[0].Update && chatAsked[0].Thread.Kind == core::tour_thread_kind::problem && editor.side_chat()->current() == chatAsked[0].Thread, "Enhance sends the Problem's update turn in its side chat");
+	expect(!asked && chatAsked.size() == 1U && chatAsked[0].Update && chatAsked[0].Fresh && chatAsked[0].Thread.Kind == core::tour_thread_kind::problem && editor.side_chat()->current() == shownBefore,
+		   "Enhance asks for a fresh update of the Problem and leaves the side chat as it was");
 	editor.request_field_writing(core::writing_hook::problem);
 	expect(asked == core::writing_hook::problem && editor.request_name(core::writing_hook::problem) == QStringLiteral("Enhance problem statement"), "the one-shot request keeps its whole name");
 	expect(!editor.problem_editor()->isReadOnly(), "writing by hand stays open");

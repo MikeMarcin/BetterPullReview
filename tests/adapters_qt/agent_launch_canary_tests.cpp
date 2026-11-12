@@ -525,8 +525,9 @@ namespace {
 
 		const auto arguments = event_values(result, "argv");
 		expect(
-			arguments.size() == 4U && arguments.at(1) == "exec"
-				&& arguments.at(2) == "--json" && arguments.at(3) == "-",
+			// [[BPR-2139]]. MCP servers off by default.
+			arguments.size() == 6U && arguments.at(1) == "exec"
+				&& arguments.at(2) == "--json" && arguments.at(3) == "-c" && arguments.at(4) == "mcp_servers={}" && arguments.at(5) == "-",
 			"the child reports only its executable and exact protocol switches");
 		for (const auto& argument : arguments) {
 			expect(
