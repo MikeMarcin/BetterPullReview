@@ -5,6 +5,7 @@
 #include "bpr/adapters/sqlite/local_draft_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
+#include "bpr/application/local_draft_evidence_import.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
 #include "workspace_fixture.hpp"
 
@@ -349,6 +350,90 @@ namespace {
 		(void)drafts;
 	}
 
+	/// RFC-BPR-0109 AC01, AC03, AC05 and AC07 ([[BPR-2023]]): an import
+	/// document and its artifacts read from a real folder, bound to the exact
+	/// material of a real dirty candidate, refused whole when it should be,
+	/// and kept, restarted and discarded with the draft.
+	void test_evidence_import(fixture& aFixture)
+	{
+		const auto primary = make_primary(aFixture, "evidence");
+		auto       opened  = aFixture.open(primary);
+		expect(opened && opened->Draft, "a draft to build evidence for");
+		// A dirty candidate: src/search.cpp edited and included.
+		write_file(primary / "src/search.cpp", "int search() { return 7; }\n");
+		auto again   = aFixture.open(primary);
+		auto capture = application::capture_local_draft(*aFixture.Source, *aFixture.Reader, again->Discovery, std::vector<std::string>{ "src/search.cpp" }, 3'000, { });
+		expect(capture.has_value(), "the dirty candidate is captured");
+		auto dirty = core::add_candidate(*again->Draft, again->Draft->Version, capture->Candidate, 3'000);
+		expect(dirty && aFixture.Store->put(*dirty, again->Draft->Version, capture->Objects).has_value(), "candidate 2 includes the working file");
+		const auto id    = dirty->Id;
+		const auto head  = aFixture.rev(primary, "HEAD");
+		const auto blob  = aFixture.Git.output(primary, { "hash-object", "src/search.cpp" }, aFixture.Root / "hash.txt");
+		const auto other = std::string(40U, '8');
+
+		const auto folder = aFixture.Root / "evidence-import";
+		std::filesystem::create_directories(folder / "logs");
+		write_file(folder / "logs/run.txt", "search_cancel_test: 3 passed\n");
+		write_file(aFixture.Root / "outside-secret.txt", "not for the store\n");
+		const auto linked   = tests::workspace_contract::try_symlink(aFixture.Root / "outside-secret.txt", folder / "logs/linked.txt", false);
+		const auto document = std::string{ R"({"format":"bpr.evidence-import","version":1,"producer":{"kind":"tool","name":"ctest-bridge","version":"1.0"},)" }
+			+ R"("claims":[{"key":"c1","kind":"bug_fix","text":"Cancelling a search releases its worker."}],)"
+			+ R"("checks":[{"key":"k1","method":"test","title":"search_cancel_test","command":"ctest -R search_cancel","claims":["c1"]}],)"
+			+ R"("results":[{"check":"k1","outcome":"pass","class":"reported","material":{"head":")" + head + R"(","working":[{"path":"src/search.cpp","object":")" + blob
+			+ R"("}]},"inputs":["src/"],"environment":"macOS 26, Debug","artifacts":[{"name":"run log","path":"logs/run.txt"},{"name":"linked","path":"logs/linked.txt"},{"name":"gone","path":"logs/gone.txt"},{"name":"CI","url":"https://ci.example/run/1"}]},)"
+			+ R"({"check":"k1","outcome":"pass","class":"reported","material":{"head":")" + head + R"("}}],)"
+			+ R"("questions":[{"text":"Does the timer path need the same fix?","claim":"c1"}]})";
+		write_file(folder / "evidence.json", document);
+
+		// Refused whole: nothing of the draft changes.
+		const auto before = aFixture.Store->find(id);
+		write_file(folder / "observed.json", std::string{ document }.replace(document.find(R"("class":"reported")"), 18U, R"("class":"observed")"));
+		auto observed = application::import_local_draft_evidence(*aFixture.Store, *aFixture.Source, id, (folder / "observed.json").string(), 3'100, { });
+		expect(!observed && observed.error().Refusal && observed.error().Refusal->Reason == core::evidence_import_refusal::observed, "AC02: an observed claim is refused");
+		write_file(folder / "huge.json", std::string(core::maximum_evidence_import_bytes + 1U, ' '));
+		auto huge = application::import_local_draft_evidence(*aFixture.Store, *aFixture.Source, id, (folder / "huge.json").string(), 3'100, { });
+		expect(!huge && huge.error().Refusal && huge.error().Refusal->Reason == core::evidence_import_refusal::too_large, "AC05: an oversized document is refused");
+		write_file(folder / "broken.json", document.substr(0U, document.size() / 2U));
+		auto broken = application::import_local_draft_evidence(*aFixture.Store, *aFixture.Source, id, (folder / "broken.json").string(), 3'100, { });
+		expect(!broken && broken.error().Refusal && broken.error().Refusal->Reason == core::evidence_import_refusal::malformed, "AC05: a malformed document is refused");
+		auto missing = application::import_local_draft_evidence(*aFixture.Store, *aFixture.Source, id, (folder / "absent.json").string(), 3'100, { });
+		expect(!missing && missing.error().Failure == application::evidence_import_failure::unreadable, "AC05: a missing document is reported");
+		auto stop = std::stop_source{ };
+		stop.request_stop();
+		auto cancelled = application::import_local_draft_evidence(*aFixture.Store, *aFixture.Source, id, (folder / "evidence.json").string(), 3'100, stop.get_token());
+		expect(!cancelled && cancelled.error().Failure == application::evidence_import_failure::cancelled, "AC05: a cancelled import applies nothing");
+		expect(aFixture.Store->find(id) == before, "AC05: no refused or cancelled import left a partial record");
+
+		auto imported = application::import_local_draft_evidence(*aFixture.Store, *aFixture.Source, id, (folder / "evidence.json").string(), 3'200, { });
+		expect(imported.has_value(), "AC01: the import applies");
+		const auto& evidence = imported->Draft.Evidence;
+		expect(evidence.Results.size() == 2U && evidence.Results[0].Candidate == 2U && imported->Bound == 2U, "AC03: the exact commit and working bytes bind candidate 2");
+		expect(evidence.Results[1].Candidate == 1U, "AC03: the commit alone binds only the clean candidate of that commit");
+		expect(core::currency(imported->Draft, evidence.Results[1], 2U) == core::evidence_currency::needs_recheck, "AC03: a result of the clean commit needs a recheck for the dirty candidate");
+		const auto& artifacts = evidence.Results[0].Artifacts;
+		expect(artifacts.size() == 4U && artifacts[0].State == core::artifact_state::stored && artifacts[2].State == core::artifact_state::missing
+				   && artifacts[3].State == core::artifact_state::link,
+			   "AC01, AC05: a stored log, a missing file and a link");
+		expect(!linked || artifacts[1].State == core::artifact_state::refused, "AC05: an artifact through a link is not read");
+		const auto log = aFixture.Store->object(*artifacts[0].Object);
+		expect(log && *log && tests::workspace_contract::text(**log) == "search_cancel_test: 3 passed\n", "AC01: the artifact can be followed from the store");
+		auto twice = application::import_local_draft_evidence(*aFixture.Store, *aFixture.Source, id, (folder / "evidence.json").string(), 3'300, { });
+		expect(!twice && twice.error().Refusal->Reason == core::evidence_import_refusal::duplicate, "the same document is not applied twice");
+
+		// AC07: an Agent tab agent's build on the pull request's checkout.
+		write_file(folder / "agent.json", std::string{ R"({"format":"bpr.evidence-import","version":1,"producer":{"kind":"agent","name":"Claude Code"},)" } + R"("results":[{"check_id":)" + std::to_string(evidence.Checks[0].Id) + R"(,"outcome":"pass","class":"reported","material":{"head":")" + other + R"("},"environment":"the pull request's disposable checkout"}]})");
+		auto agent = application::import_local_draft_evidence(*aFixture.Store, *aFixture.Source, id, (folder / "agent.json").string(), 3'400, { });
+		expect(agent && agent->Draft.Evidence.Results.back().Origin.Source == core::evidence_source::agent && agent->Draft.Evidence.Results.back().Candidate == 0U,
+			   "AC07: an agent's result arrives reported, bound to the checkout it tested and not to a candidate");
+
+		// Restart keeps the evidence; discard removes its artifacts.
+		aFixture.Store = adapters::sqlite::open_local_draft_store(aFixture.Profile);
+		auto resumed   = aFixture.open(primary);
+		expect(resumed && resumed->Draft && resumed->Draft->Evidence == agent->Draft.Evidence, "AC01: the evidence history resumes after a restart");
+		expect(aFixture.Store->remove(id).has_value() && !aFixture.Store->object(*artifacts[0].Object).value().has_value(), "the draft's artifacts go with it");
+		aFixture.Git(primary, { "checkout", "--quiet", "--", "src/search.cpp" });
+	}
+
 	void test_store_bounds(fixture& aFixture)
 	{
 		// AC07: a full store refuses a new draft with its reason and evicts nothing.
@@ -401,6 +486,7 @@ auto main(int argc, char** argv) -> int
 	test_primary_clone(fixture);
 	test_isolated_clones(fixture);
 	test_ambiguity_and_missing_base(fixture);
+	test_evidence_import(fixture);
 	test_store_bounds(fixture);
 	std::cout << "local-draft:pass\n";
 	return EXIT_SUCCESS;

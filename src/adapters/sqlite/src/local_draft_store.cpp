@@ -37,10 +37,13 @@ namespace bpr::adapters::sqlite {
 			sqlite3_bind_text(aRow, aIndex, aText.data(), static_cast<int>(aText.size()), SQLITE_TRANSIENT);
 		}
 
-		/// Every object a draft's candidates name.
+		/// Every object a draft's candidates and evidence artifacts name.
 		[[nodiscard]] auto named_objects(const core::local_draft& aDraft) -> std::set<std::string>
 		{
 			auto names = std::set<std::string>{ };
+			for (const auto& object : core::evidence_objects(aDraft.Evidence)) {
+				names.emplace(core::canonical_hex(object).view());
+			}
 			for (const auto& candidate : aDraft.Candidates) {
 				for (const auto& change : candidate.Changes) {
 					for (const auto* side : { &change.Left, &change.Right }) {
