@@ -1,8 +1,11 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_LOCAL_DRAFT_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_LOCAL_DRAFT_VIEW_HPP
 
+#include "bpr/application/local_changes_host.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
+#include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_preparation_area.hpp"
+#include "bpr/qt/view_picker.hpp"
 
 #include <QWidget>
 
@@ -11,6 +14,7 @@
 #include <string>
 
 class QComboBox;
+class QMenu;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -18,10 +22,13 @@ class QPlainTextEdit;
 class QPushButton;
 class QStackedWidget;
 class QTabBar;
+class QToolButton;
 class QWidget;
 
 namespace bpr::qt {
 	class local_draft_publication_area;
+	class local_diff_view;
+	class suggestion_editor;
 
 	/// \brief The gestures the local draft page sends to its host.
 	struct local_draft_dispatch
@@ -38,13 +45,25 @@ namespace bpr::qt {
 		/// The page has asked; the host removes the private preparation.
 		std::function<void()> Discard;
 		std::function<void()> Close;
+		/// Author state: a Stage Change or Unstage Change on the shown comparison.
+		std::function<void(const std::string&, core::local_change_hunk, bool)> StageChange;
+		/// Author state: opens a file of Local Changes' comparison.
+		std::function<void(const std::string&)> OpenLocalFile;
+		/// Author state: Save writes the edited bytes if the disk still holds the read ones.
+		std::function<void(const std::string&, std::vector<std::uint8_t>, std::vector<std::uint8_t>)> Save;
+		/// Create Draft PR…: opens the Status tab's steps.
+		std::function<void()> CreatePullRequest;
 	};
 
-	/// \brief A local PR draft's page (RFC-BPR-0108, [[BPR-2021]]): the
-	/// draft's title, its source and target identity, the Changes of the
-	/// shown candidate with the exact diff, working edits to include, and
-	/// notes; Description and Tour (RFC-BPR-0110); and Pull request
-	/// (RFC-BPR-0111). Each draft opens on Changes with no chat (X23).
+	/// \brief A local PR draft in the pull request window (RFC-BPR-0108 as
+	/// amended by the owner 2026-11-12, mockup A): Overview holds the title,
+	/// description and files; Review holds the proposed diff; the Files and
+	/// Local Changes drawer tabs at the left; Status (the publish steps),
+	/// Notes and Tour at the right; the candidate pop-up, the view picker and
+	/// Create Draft PR… on the bar. On the author's own worktree (author
+	/// state) the bar has the branch with ahead and behind, the picker its
+	/// Edit view, and Local Changes its staging, commit and push. Each draft
+	/// opens on Review with no chat (X23 as amended).
 	/// \details It decides nothing and performs no effect: gestures leave
 	/// through `local_draft_dispatch`. Secondary identity (exact commits, the
 	/// remote chain, qualifications) is in tooltips, not on the page.
@@ -70,14 +89,35 @@ namespace bpr::qt {
 		[[nodiscard]] auto refresh_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto discard_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto close_button() const noexcept -> QPushButton*;
-		[[nodiscard]] auto candidates() const noexcept -> QComboBox*;
+		/// \brief The candidate pop-up; its menu lists the candidates, Refresh and Discard….
+		[[nodiscard]] auto candidates() const noexcept -> QToolButton*;
+		[[nodiscard]] auto candidate_actions() const -> QList<QAction*>;
 		[[nodiscard]] auto target_repository() const noexcept -> QComboBox*;
 		[[nodiscard]] auto target_branch() const noexcept -> QComboBox*;
 		[[nodiscard]] auto use_target_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto rebind_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto projection() const noexcept -> const application::local_draft_workbench_projection&;
-		/// \brief Changes, Description, Tour and Pull request.
+		/// \brief The right drawer's tabs: Status, Notes and Tour.
 		[[nodiscard]] auto areas() const noexcept -> QTabBar*;
+		/// \brief The left drawer's tabs: Files and, in author state, Local Changes.
+		[[nodiscard]] auto drawer() const noexcept -> QTabBar*;
+		/// \brief Overview (true) or Review.
+		void               set_overview(bool aOverview);
+		[[nodiscard]] auto overview() const noexcept -> bool;
+		[[nodiscard]] auto review_diff() const noexcept -> local_diff_view*;
+		[[nodiscard]] auto picker() const noexcept -> view_picker*;
+		[[nodiscard]] auto local_changes() const noexcept -> local_changes_panel*;
+		[[nodiscard]] auto editor() const noexcept -> suggestion_editor*;
+		[[nodiscard]] auto save_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto create_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto branch_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto comparing_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto status_line() const noexcept -> QLabel*;
+		/// \brief Author state's projection, from its own host.
+		void present_local(const application::local_changes_projection& aProjection);
+		[[nodiscard]] auto local_projection() const noexcept -> const application::local_changes_projection&;
+		/// \brief The window's title row text: the repository, the title and Local draft.
+		[[nodiscard]] auto window_title() const -> QString;
 		[[nodiscard]] auto description() const noexcept -> local_draft_description_area*;
 		[[nodiscard]] auto tour() const noexcept -> local_draft_tour_area*;
 		/// \brief RFC-BPR-0111. The Pull request area.
@@ -92,6 +132,13 @@ namespace bpr::qt {
 		void set_discard_question(std::function<bool()> aQuestion);
 
 	private:
+		void build_bar();
+		void build_body();
+		void present_bar();
+		void present_center();
+		void present_edit();
+		void present_status_line();
+		void show_view(review_view aView);
 		void present_header();
 		void present_changes();
 		void present_working();
@@ -115,7 +162,35 @@ namespace bpr::qt {
 		QComboBox*                       TargetBranch     = nullptr;
 		QPushButton*                     UseTarget        = nullptr;
 		QPushButton*                     Rebind           = nullptr;
-		QComboBox*                       Candidates       = nullptr;
+		QToolButton*                     Candidates       = nullptr;
+		QMenu*                           CandidateMenu    = nullptr;
+		QToolButton*                     Branch           = nullptr;
+		QToolButton*                     Comparing        = nullptr;
+		view_picker*                     Picker           = nullptr;
+		QLabel*                          PublishState     = nullptr;
+		QPushButton*                     Create           = nullptr;
+		QTabBar*                         Drawer           = nullptr;
+		QStackedWidget*                  DrawerStack      = nullptr;
+		local_changes_panel*             LocalChanges     = nullptr;
+		QStackedWidget*                  Center           = nullptr;
+		QWidget*                         OverviewPage     = nullptr;
+		QListWidget*                     OverviewFiles    = nullptr;
+		QStackedWidget*                  ReviewStack      = nullptr;
+		local_diff_view*                 ReviewDiff       = nullptr;
+		QWidget*                         EditPage         = nullptr;
+		QLabel*                          EditName         = nullptr;
+		QLabel*                          EditState        = nullptr;
+		QPushButton*                     Save             = nullptr;
+		suggestion_editor*               Editor           = nullptr;
+		QLabel*                          StatusLine       = nullptr;
+		application::local_changes_projection LocalProjection;
+		/// Which source the centre shows: the candidate's file or Local Changes'.
+		bool ShowingLocal = false;
+		/// The Edit view's file, the bytes it read or last wrote, and its edits.
+		std::string               EditPath;
+		std::vector<std::uint8_t> EditRead;
+		bool                      EditDirty = false;
+		std::vector<core::local_change_hunk> ShownHunks;
 		QPushButton*                     Refresh          = nullptr;
 		QPushButton*                     Discard          = nullptr;
 		QPushButton*                     Close            = nullptr;
