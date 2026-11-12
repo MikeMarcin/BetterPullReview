@@ -28,6 +28,7 @@
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/view_filter_memory.hpp"
+#include "bpr/qt/account_setup_view.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -885,6 +886,15 @@ namespace bpr::qt {
 		void set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch);
 		/// \brief Adopts the explicit `Use GitHub CLI` gesture; absent means hidden.
 		void set_github_cli_discovery_dispatch(github_cli_discovery_dispatch aDispatch);
+		/// \brief RFC-BPR-0032 amendment r1. Where Home's account setup sends
+		/// its gestures. Once set, a signed-out Home shows the setup in place of
+		/// the first-launch card and begins it; absent keeps the card and its
+		/// shared sign-in dialog.
+		/// \param aDispatch The setup host's dispatch.
+		/// \param aOpenAddress Opens the device code's address through the host.
+		void set_account_setup_dispatch(std::function<void(core::account_setup_event)> aDispatch, std::function<void()> aOpenAddress);
+		/// \brief RFC-BPR-0032 amendment r1. The setup host's projection.
+		void present_account_setup(const application::account_setup_projection& aProjection);
 		/// \brief [[BPR-1373]]. Where a card's Check gh again goes: the same
 		/// inventory, without opening sign-in or connecting.
 		void set_github_cli_check_dispatch(github_cli_discovery_dispatch aDispatch);
@@ -1157,6 +1167,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto modality() const noexcept -> modality_control*;
 		/// \brief Home's landing while nothing is open: sign in, or choose.
 		[[nodiscard]] auto home_landing() const noexcept -> workbench_landing*;
+		/// \brief RFC-BPR-0032 amendment r1. Home's account setup.
+		[[nodiscard]] auto account_setup() const noexcept -> account_setup_view*;
 		/// \brief The decorative Home presentation, absent when assets were refused.
 		[[nodiscard]] auto dif() const noexcept -> dif_widget*;
 		/// \brief The explicit action that reveals the private Notes area.
@@ -2665,8 +2677,13 @@ namespace bpr::qt {
 		/// [[BPR-1022]]. Alt is down, and nothing has yet made it a modifier.
 		bool StripMenuAltAlone = false;
 #endif
-		core::workbench_reason_code           LastRefusal = core::workbench_reason_code::none;
-		workbench_landing*                    HomeLanding = nullptr;
+		core::workbench_reason_code LastRefusal = core::workbench_reason_code::none;
+		workbench_landing*          HomeLanding = nullptr;
+		/// RFC-BPR-0032 amendment r1. Home's account setup, beside the card.
+		account_setup_view*                            AccountSetup = nullptr;
+		std::function<void(core::account_setup_event)> AccountSetupDispatch;
+		/// A begin is being dispatched; its own publication must not begin again.
+		bool                                  AccountSetupBeginning = false;
 		std::shared_ptr<dif_catalog_provider> DifCatalog;
 		std::unique_ptr<dif_cue_router>       DifCues;
 		std::unique_ptr<QElapsedTimer>        DifCueClock;

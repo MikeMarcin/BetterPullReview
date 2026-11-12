@@ -6,22 +6,20 @@
 #include <QWidget>
 
 namespace bpr::qt {
-	namespace {
-		// The supporting detail behind Show Details. Every residual risk the
-		// earlier one-paragraph warning named is still here; only its place
-		// changed. Platform confinement and full-diff availability use the
-		// same wording as the server card.
-		[[nodiscard]] auto github_cli_read_consent_details() -> QString
-		{
-			return QObject::tr(
-					   "Account: each operation uses the chosen account's existing gh sign-in. BetterPullReview retrieves its credential into memory, validates the account, and uses the same credential for that operation. Changing gh's active account does not redirect it.\n\n"
-					   "Token: BetterPullReview does not save the token or change gh's sign-in. It clears its owned sensitive buffers when the operation and child processes finish. Copies in system or child-process memory, swap and crash dumps remain outside exact erasure guarantees.\n\n"
-					   "Machine trust: the configured gh executable, CA certificates, redirects and child processes remain trusted. Each call uses private account configuration; ambient socket routing and CLI configuration overrides are excluded.\n\n"
-					   "File writes and full diffs: ")
-				+ detail::cli_platform_confinement_text().trimmed()
-				+ QObject::tr("\n\nConnection: a successful choice is reused until you sign out or replace it. Remembered metadata saves no token and is checked again before use.\n\n"
-							  "Publishing: connecting for reads does not authorize publishing. Submit review, inline Publish and the explicit tour preview supply their own exact-operation authority.");
-		}
+	// The supporting detail behind Show Details. Every residual risk the
+	// earlier one-paragraph warning named is still here; only its place
+	// changed. Platform confinement and full-diff availability use the
+	// same wording as the server card.
+	auto github_cli_read_consent_details() -> QString
+	{
+		return QObject::tr(
+				   "Account: each operation uses the chosen account's existing gh sign-in. BetterPullReview retrieves its credential into memory, validates the account, and uses the same credential for that operation. Changing gh's active account does not redirect it.\n\n"
+				   "Token: BetterPullReview does not save the token or change gh's sign-in. It clears its owned sensitive buffers when the operation and child processes finish. Copies in system or child-process memory, swap and crash dumps remain outside exact erasure guarantees.\n\n"
+				   "Machine trust: the configured gh executable, CA certificates, redirects and child processes remain trusted. Each call uses private account configuration; ambient socket routing and CLI configuration overrides are excluded.\n\n"
+				   "File writes and full diffs: ")
+			+ detail::cli_platform_confinement_text().trimmed()
+			+ QObject::tr("\n\nConnection: a successful choice is reused until you sign out or replace it. Remembered metadata saves no token and is checked again before use.\n\n"
+						  "Publishing: connecting for reads does not authorize publishing. Submit review, inline Publish and the explicit tour preview supply their own exact-operation authority.");
 	}
 
 	auto make_github_cli_read_consent(

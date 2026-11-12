@@ -28,6 +28,12 @@ namespace bpr::qt {
 		const QString& aHost,
 		const QString& aLogin) -> std::unique_ptr<QMessageBox>;
 
+	/// \brief The consent's complete residual-risk text, which the question
+	/// keeps behind Show Details. RFC-BPR-0032 amendment r1: the in-window
+	/// account setup shows the same text behind its own disclosure, so the
+	/// two ways to consent say exactly the same thing.
+	[[nodiscard]] auto github_cli_read_consent_details() -> QString;
+
 	/// \brief Asks the question from make_github_cli_read_consent() modally.
 	/// \returns True only when the reviewer chose Connect.
 	[[nodiscard]] auto ask_github_cli_read_consent(

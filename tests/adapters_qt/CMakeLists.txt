@@ -1027,6 +1027,30 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+# RFC-BPR-0032 amendment r1. Home's account setup with a stubbed gh and device flow.
+bpr_add_executable(
+    test_better_pull_review_qt_account_setup_view_tests
+    account_setup_view_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_account_setup_view_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_account_setup_view_tests)
+bpr_enable_warnings(test_better_pull_review_qt_account_setup_view_tests)
+bpr_add_network_isolated_test(
+    NAME qt_account_setup_view
+    COMMAND test_better_pull_review_qt_account_setup_view_tests
+)
+set_tests_properties(
+    qt_account_setup_view
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "account-setup-view-tests:pass"
+        TIMEOUT 120
+)
+
 # The side chat sits beside the launch panel and is proven the same way: it
 # holds no launcher and no process, so an intent is the only thing that can
 # leave it.

@@ -382,6 +382,15 @@ namespace bpr::qt {
 		}
 		HomeLanding->set_held_height(HomeLandingHold);
 		HomeLanding->set_state(landing);
+		// RFC-BPR-0032 amendment r1. Signed out, Home begins the account setup
+		// in place of the first-launch card. Beginning asks the host for
+		// nothing; the setup's first step is the reviewer's choice.
+		if (landing == landing_state::sign_in && AccountSetupDispatch && !AccountSetupBeginning && AccountSetup != nullptr
+			&& AccountSetup->projection().State.Phase == core::account_setup_phase::idle) {
+			AccountSetupBeginning = true;
+			AccountSetupDispatch(core::begin_account_setup{ });
+			AccountSetupBeginning = false;
+		}
 		place_home_landing();
 		if (HomeOpenAction != nullptr && HomeOpenBar != nullptr) {
 			HomeOpenAction->setEnabled(status != core::github_status::establishing_session && !HomeOpenBar->text().trimmed().isEmpty());
@@ -800,9 +809,16 @@ namespace bpr::qt {
 			return;
 		}
 		const auto state = HomeLanding->state();
+		// RFC-BPR-0032 amendment r1. The account setup, once begun, is the
+		// sign-in surface until it is finished; the card gives way to it.
+		const auto setupShown = AccountSetup != nullptr && static_cast<bool>(AccountSetupDispatch)
+			&& AccountSetup->projection().State.Phase != core::account_setup_phase::idle;
+		if (AccountSetup != nullptr) {
+			AccountSetup->setVisible(setupShown);
+		}
 		// [[BPR-1865]]. Over a review the card is filtered with the lists; the
 		// sign-in and first-launch cards are not rows and always stand.
-		HomeLanding->setVisible((state != landing_state::choose_pull_request || HomeLandingHold > 0)
+		HomeLanding->setVisible(!setupShown && (state != landing_state::choose_pull_request || HomeLandingHold > 0)
 								&& !(HomeLandingFiltered && state == landing_state::back_to_review));
 		// [[BPR-1843]]. Over a review the Active review card follows the bar
 		// and stands above every list, as the first-launch card does signed
@@ -812,15 +828,55 @@ namespace bpr::qt {
 			return HomeFilter != nullptr ? HomeColumn->indexOf(HomeFilter) : HomeColumn->indexOf(HomeSetupRow);
 		};
 		const auto wanted = anchor() + 1;
-		if (HomeColumn->indexOf(HomeLanding) == wanted) {
+		if (HomeColumn->indexOf(HomeLanding) != wanted) {
+			if (HomeOpenRow != nullptr) {
+				HomeOpenRow->removeWidget(HomeLanding);
+			}
+			HomeColumn->removeWidget(HomeLanding);
+			HomeColumn->insertWidget(anchor() + 1, HomeLanding);
+		}
+		// The setup stands directly under the card's place, taking Home's
+		// remaining height.
+		if (AccountSetup != nullptr && HomeColumn->indexOf(AccountSetup) != HomeColumn->indexOf(HomeLanding) + 1) {
+			HomeColumn->removeWidget(AccountSetup);
+			HomeColumn->insertWidget(HomeColumn->indexOf(HomeLanding) + 1, AccountSetup, 1);
+		}
+	}
+
+	void workbench_window::set_account_setup_dispatch(std::function<void(core::account_setup_event)> aDispatch, std::function<void()> aOpenAddress)
+	{
+		AccountSetupDispatch = std::move(aDispatch);
+		if (AccountSetup == nullptr) {
 			return;
 		}
-		if (HomeOpenRow != nullptr) {
-			HomeOpenRow->removeWidget(HomeLanding);
-		}
-		HomeColumn->removeWidget(HomeLanding);
-		HomeColumn->insertWidget(anchor() + 1, HomeLanding);
+		AccountSetup->set_intents({ .Dispatch =
+										[this](core::account_setup_event aEvent) {
+											if (AccountSetupDispatch) {
+												AccountSetupDispatch(std::move(aEvent));
+											}
+										},
+									.OpenVerificationAddress = std::move(aOpenAddress),
+									.AddEnterpriseServer     = [this] { begin_enterprise_server_from_home(); } });
+		update_home_landing();
 	}
+
+	void workbench_window::present_account_setup(const application::account_setup_projection& aProjection)
+	{
+		if (AccountSetup == nullptr) {
+			return;
+		}
+		const auto wasShown = AccountSetup->projection().State.Phase != core::account_setup_phase::idle;
+		AccountSetup->present(aProjection);
+		const auto shown = aProjection.State.Phase != core::account_setup_phase::idle;
+		if (wasShown && !shown && !AccountSetupBeginning) {
+			// Finished: Home shows what a signed-in window shows.
+			update_home_landing();
+			return;
+		}
+		place_home_landing();
+	}
+
+	auto workbench_window::account_setup() const noexcept -> account_setup_view* { return AccountSetup; }
 
 	void workbench_window::focus_home_bar()
 	{
