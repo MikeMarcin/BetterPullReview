@@ -21,6 +21,11 @@ A pending PR resumes after acceptance for its exact host. Cancel or a replacemen
 link retires pending setup and ignores late discovery completion. Credential
 storage, CLI trust and separate publication approval requirements are unchanged.
 
+Proposed amendment r1, 2026-11-11, awaiting the owner's look: Home's first-run
+sign-in becomes [an in-window account setup](amendments/RFC-BPR-0032-account-setup-in-window-r1.md)
+with numbered steps, the device code and the GitHub CLI consent in the window,
+replacing the shared dialog and the consent message box for that entry only.
+
 ## Summary and scope
 
 Home and the Accounts & hosts page of Settings are the surfaces a reviewer
