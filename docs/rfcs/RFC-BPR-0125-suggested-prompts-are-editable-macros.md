@@ -590,8 +590,11 @@ Each has a recommendation. A recommendation is not an answer.
 
 Owner answers (2026-11-12): **Q1** closed-variable substitution, no template
 library. **Q2** a drafted macro keeps its subject and kind as a removable chip.
-**Q3** names and numbers only, no content variables. Q4 to Q10 are open; the
-owner is reviewing them.
+**Q3** names and numbers only, no content variables. **Q4** the nine conditions as listed. **Q5** sharing through RFC-BPR-0107 in
+this RFC. **Q6** `/` alone searches skills only; prompts are reached with
+`/p <prompt name>`, and only after `/p ` does the popup search prompts.
+**Q7** five chips, then More. **Q8** one place per macro. **Q9** "Suggested
+prompts" in the product. **Q10** a section with a sheet.
 
 1. **Q1. Is closed-variable substitution enough, or is a template language
    wanted?** It gates the template scan of milestone 1. *Recommended:*
