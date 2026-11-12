@@ -2050,9 +2050,54 @@ namespace bpr::qt {
 			connect(HomeRecentRemoveAction, &QAction::triggered, this, [this] {
 				remove_recent_review(HomeRecentList->currentRow());
 			});
+			// RFC-BPR-0108. The author entry leads Home, above its sections
+			// (X01): Prepare pull request… and the local drafts In preparation.
+			// It needs no account, so it stays whether or not one is signed in.
+			HomeAuthor = new QWidget{ HomePage };
+			HomeAuthor->setObjectName(QStringLiteral("homeAuthor"));
+			HomeAuthor->setAccessibleName(QStringLiteral("Prepare a pull request"));
+			HomeAuthor->setContentsMargins(24, 4, 24, 4);
+			auto* const authorColumn = new QVBoxLayout{ HomeAuthor };
+			authorColumn->setContentsMargins(0, 0, 0, 0);
+			HomePrepare = new QPushButton{ QStringLiteral("Prepare Pull Request…"), HomeAuthor };
+			HomePrepare->setObjectName(QStringLiteral("homePrepareButton"));
+			HomePrepare->setToolTip(QStringLiteral("Choose a Git worktree to see the pull request its branch proposes. No account, push or agent needed"));
+			HomePrepare->setEnabled(false);
+			authorColumn->addWidget(HomePrepare, 0, Qt::AlignLeft);
+			HomeDrafts = new QWidget{ HomeAuthor };
+			HomeDrafts->setObjectName(QStringLiteral("homeInPreparation"));
+			auto* const draftsColumn = new QVBoxLayout{ HomeDrafts };
+			draftsColumn->setContentsMargins(0, 6, 0, 0);
+			auto* const draftsTitle = new QLabel{ QStringLiteral("In preparation"), HomeDrafts };
+			draftsTitle->setObjectName(QStringLiteral("homeInPreparationTitle"));
+			auto draftsFont = draftsTitle->font();
+			draftsFont.setWeight(QFont::DemiBold);
+			draftsTitle->setFont(draftsFont);
+			draftsColumn->addWidget(draftsTitle);
+			HomeDraftsList = new QListWidget{ HomeDrafts };
+			HomeDraftsList->setObjectName(QStringLiteral("homeInPreparationList"));
+			HomeDraftsList->setAccessibleName(QStringLiteral("Local drafts in preparation"));
+			HomeDraftsList->setAccessibleDescription(home_open_description());
+			HomeDraftsList->installEventFilter(this);
+			HomeDraftsList->setMaximumHeight(HomeDraftsList->fontMetrics().lineSpacing() * 5 + 8);
+			draftsColumn->addWidget(HomeDraftsList);
+			HomeDrafts->hide();
+			authorColumn->addWidget(HomeDrafts);
+			homeColumn->addWidget(HomeAuthor);
+			connect(HomePrepare, &QPushButton::clicked, this, [this] {
+				if (PrepareDispatch) {
+					PrepareDispatch();
+				}
+			});
+			connect(HomeDraftsList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* const aItem) {
+				resume_home_draft(aItem == nullptr ? -1 : HomeDraftsList->row(aItem));
+			});
+
 			// [[BPR-1157]]. Review Cycles beside the pull request ways in: Open
 			// Project and the cycles this profile keeps, most recent first. It
 			// needs no account, so it stays whether or not one is signed in.
+			// RFC-BPR-0108 moves it below Home's sections, compact and
+			// secondary; File > Open Project… is unchanged.
 			HomeCycles = new QWidget{ HomePage };
 			HomeCycles->setObjectName(QStringLiteral("homeReviewCycles"));
 			HomeCycles->setAccessibleName(QStringLiteral("Review Cycles"));
@@ -2062,9 +2107,6 @@ namespace bpr::qt {
 			auto* const cyclesHeader = new QHBoxLayout{ };
 			auto* const cyclesTitle  = new QLabel{ QStringLiteral("Review Cycles"), HomeCycles };
 			cyclesTitle->setObjectName(QStringLiteral("homeReviewCyclesTitle"));
-			auto cyclesFont = cyclesTitle->font();
-			cyclesFont.setWeight(QFont::DemiBold);
-			cyclesTitle->setFont(cyclesFont);
 			cyclesHeader->addWidget(cyclesTitle);
 			cyclesHeader->addStretch(1);
 			auto* const openProject = new quiet_tool_button{ HomeCycles };
@@ -2081,10 +2123,9 @@ namespace bpr::qt {
 			// because on macOS it is an item view's editing key.
 			HomeCyclesList->setAccessibleDescription(home_open_description());
 			HomeCyclesList->installEventFilter(this);
-			HomeCyclesList->setMaximumHeight(HomeCyclesList->fontMetrics().lineSpacing() * 5 + 8);
+			HomeCyclesList->setMaximumHeight(HomeCyclesList->fontMetrics().lineSpacing() * 3 + 8);
 			HomeCyclesList->hide();
 			cyclesColumn->addWidget(HomeCyclesList);
-			homeColumn->addWidget(HomeCycles);
 			connect(openProject, &QToolButton::clicked, this, [this] {
 				if (OpenProjectAction != nullptr) {
 					OpenProjectAction->trigger();
@@ -2107,6 +2148,7 @@ namespace bpr::qt {
 				landing->setContentsMargins(24, 0, 24, 12);
 				homeColumn->setStretchFactor(landing, 1);
 			}
+			homeColumn->addWidget(HomeCycles);
 			// [[BPR-1200]]. With no list to fill it, Home's slack is a fill below
 			// the last thing shown, as the accepted board puts it under the
 			// first-launch card, so a refusal or a load in progress is said

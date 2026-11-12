@@ -839,6 +839,26 @@ namespace bpr::qt {
 		if (HomeRecentResumeAction != nullptr) {
 			HomeRowMenu->addAction(HomeRecentResumeAction);
 		}
+		// RFC-BPR-0108 (X02). A pull request a local draft became opens its
+		// preparation from its own row: the row's mark, and this item.
+		HomeOpenPreparationAction = new QAction{ QStringLiteral("Open Local Preparation"), this };
+		HomeOpenPreparationAction->setObjectName(QStringLiteral("homeOpenPreparationAction"));
+		HomeOpenPreparationAction->setStatusTip(QStringLiteral("Opens the local draft this pull request was prepared from"));
+		HomeOpenPreparationAction->setVisible(false);
+		HomeRowMenu->addAction(HomeOpenPreparationAction);
+		connect(HomeOpenPreparationAction, &QAction::triggered, this, [this] {
+			const auto target = home_review_target();
+			if (!target || !std::holds_alternative<core::queue_item>(*target) || !ResumeDraftDispatch) {
+				return;
+			}
+			const auto& ref = std::get<core::queue_item>(*target).Ref;
+			for (const auto& mark : DraftHome.Marks) {
+				if (mark.Owner + "/" + mark.Name == ref.Repository && static_cast<std::int64_t>(mark.Number) == ref.Number) {
+					ResumeDraftDispatch(mark.Id);
+					return;
+				}
+			}
+		});
 		HomeRowMenu->addSeparator();
 		HomeRowMenu->addAction(OpenOnGithubAction);
 		HomeRowMenu->addSeparator();

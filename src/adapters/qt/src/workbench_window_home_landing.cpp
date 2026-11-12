@@ -13,6 +13,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/identity_avatar_pictures.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -429,8 +430,10 @@ namespace bpr::qt {
 			&& (!loading || unconfirmed) && (!active || readUnavailable || unconfirmed);
 		const auto home = (nothing && !LocalCycleShown) || HomeRequested || SetupDestinationNeedsHome;
 		// [[BPR-1157]]. A local cycle takes the review surface's place, and the
-		// title row keeps only what Home keeps plus the cycle's name.
-		const auto cycle = !home && LocalCycleShown && LocalCyclePage != nullptr;
+		// title row keeps only what Home keeps plus the cycle's name. RFC-BPR-0108:
+		// a local draft takes the same place the same way.
+		auto* const localPage = LocalDraftShown ? static_cast<QWidget*>(LocalDraftPage) : static_cast<QWidget*>(LocalCyclePage);
+		const auto  cycle     = !home && LocalCycleShown && localPage != nullptr;
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
 		}
@@ -450,8 +453,7 @@ namespace bpr::qt {
 					? focused
 					: nullptr;
 			}
-			CentralStack->setCurrentWidget(home ? HomePage : cycle ? static_cast<QWidget*>(LocalCyclePage)
-																   : ReviewSurface);
+			CentralStack->setCurrentWidget(home ? HomePage : cycle ? localPage : ReviewSurface);
 			// [[BPR-0732]], [[BPR-0775]]. The bar has focus when Home appears,
 			// signed in or out. Only on arrival, so a projection cannot steal
 			// focus from wherever the reviewer has moved it since.
@@ -704,6 +706,7 @@ namespace bpr::qt {
 		}
 		LocalCycleTitle = aTitle;
 		LocalCycleShown = true;
+		LocalDraftShown = false;
 		HomeRequested   = false;
 		update_home_landing();
 		update_strip_identity();
@@ -722,7 +725,7 @@ namespace bpr::qt {
 
 	void workbench_window::leave_local_cycle()
 	{
-		if (!LocalCycleShown) {
+		if (!LocalCycleShown || LocalDraftShown) {
 			return;
 		}
 		LocalCycleShown = false;
@@ -735,6 +738,101 @@ namespace bpr::qt {
 	auto workbench_window::showing_local_cycle() const noexcept -> bool
 	{
 		return LocalCycleShown && CentralStack != nullptr && LocalCyclePage != nullptr && CentralStack->currentWidget() == static_cast<QWidget*>(LocalCyclePage);
+	}
+
+	void workbench_window::adopt_local_draft(local_draft_view* const aView)
+	{
+		if (LocalDraftPage != nullptr || aView == nullptr || CentralStack == nullptr) {
+			return;
+		}
+		LocalDraftPage = aView;
+		CentralStack->addWidget(static_cast<QWidget*>(aView));
+	}
+
+	auto workbench_window::local_draft() const noexcept -> local_draft_view*
+	{
+		return LocalDraftPage;
+	}
+
+	void workbench_window::show_local_draft(const QString& aTitle)
+	{
+		if (ReviewNavigationDispatch) {
+			ReviewNavigationDispatch(std::nullopt);
+		}
+		LocalCycleTitle = aTitle;
+		LocalCycleShown = true;
+		LocalDraftShown = true;
+		HomeRequested   = false;
+		update_home_landing();
+		update_strip_identity();
+		apply_strip_width();
+	}
+
+	void workbench_window::leave_local_draft()
+	{
+		if (!LocalDraftShown) {
+			return;
+		}
+		LocalDraftShown = false;
+		LocalCycleShown = false;
+		LocalCycleTitle.clear();
+		update_home_landing();
+		update_strip_identity();
+		apply_strip_width();
+	}
+
+	auto workbench_window::showing_local_draft() const noexcept -> bool
+	{
+		return LocalDraftShown && LocalCycleShown && CentralStack != nullptr && LocalDraftPage != nullptr
+			&& CentralStack->currentWidget() == static_cast<QWidget*>(LocalDraftPage);
+	}
+
+	void workbench_window::present_local_drafts(const application::local_draft_home_projection& aHome)
+	{
+		DraftHome = aHome;
+		if (HomeDraftsList == nullptr) {
+			return;
+		}
+		HomeDraftsList->clear();
+		const auto text = [](const std::string& aText) { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); };
+		for (const auto& row : DraftHome.InPreparation) {
+			// X03: In preparation's rows say Local draft; Draft alone is GitHub's.
+			auto* const item = new QListWidgetItem{ QStringLiteral("%1  —  %2, %3  ·  Local draft").arg(text(row.Title), text(row.Repository), text(row.Branch)), HomeDraftsList };
+			item->setToolTip(QStringLiteral("Local draft of %1 into %2").arg(text(row.Branch), text(row.Repository)));
+		}
+		HomeDrafts->setVisible(!DraftHome.InPreparation.empty());
+		if (HomeList != nullptr) {
+			auto prepared = QSet<QString>{ };
+			for (const auto& mark : DraftHome.Marks) {
+				prepared.insert(QStringLiteral("%1/%2#%3").arg(text(mark.Owner), text(mark.Name)).arg(mark.Number));
+			}
+			HomeList->set_prepared(std::move(prepared));
+		}
+		update_home_surface();
+	}
+
+	void workbench_window::set_local_draft_entry_dispatch(std::function<void()> aPrepare, std::function<void(const core::local_draft_id&)> aResume)
+	{
+		PrepareDispatch     = std::move(aPrepare);
+		ResumeDraftDispatch = std::move(aResume);
+		if (HomePrepare != nullptr) {
+			HomePrepare->setEnabled(static_cast<bool>(PrepareDispatch));
+		}
+	}
+
+	auto workbench_window::home_prepare_button() const noexcept -> QPushButton*
+	{
+		return HomePrepare;
+	}
+
+	auto workbench_window::home_drafts_list() const noexcept -> QListWidget*
+	{
+		return HomeDraftsList;
+	}
+
+	auto workbench_window::home_open_preparation_action() const noexcept -> QAction*
+	{
+		return HomeOpenPreparationAction;
 	}
 
 	void workbench_window::present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents)
@@ -1152,7 +1250,7 @@ namespace bpr::qt {
 		if (LocalCycleShown && !showing_home()) {
 			// [[BPR-1157]]. A local cycle is named by its title and badged as
 			// local: no repository, number or account.
-			const auto badge = QStringLiteral("  ·  Local cycle");
+			const auto badge = LocalDraftShown ? QStringLiteral("  ·  Local draft") : QStringLiteral("  ·  Local cycle");
 			text             = metrics.elidedText(LocalCycleTitle, Qt::ElideRight, std::max(room - metrics.horizontalAdvance(badge), identity_fragment_width)) + badge;
 			IdentityLabel->setText(text);
 			IdentityLabel->setToolTip(LocalCycleTitle + badge);

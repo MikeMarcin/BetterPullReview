@@ -12,6 +12,7 @@
 #include "bpr/application/document_tabs_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/public_preview_projection.hpp"
+#include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
@@ -169,6 +170,7 @@ namespace bpr::qt {
 	// not need the panel's shape to ask for it.
 	class device_authorization_panel;
 	class review_cycle_view;
+	class local_draft_view;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -1280,6 +1282,24 @@ namespace bpr::qt {
 		void               present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents);
 		void               set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume);
 		[[nodiscard]] auto home_cycles_list() const noexcept -> QListWidget*;
+		/// \brief RFC-BPR-0108. Takes the local draft page as the review
+		/// surface's other alternative, as the local cycle page is taken.
+		void               adopt_local_draft(local_draft_view* aView);
+		[[nodiscard]] auto local_draft() const noexcept -> local_draft_view*;
+		/// \brief Shows the local draft page, titled in the title row with its
+		/// Local draft badge. A pull request stays open behind it.
+		void show_local_draft(const QString& aTitle);
+		/// \brief Returns to Home or to the open pull request.
+		void               leave_local_draft();
+		[[nodiscard]] auto showing_local_draft() const noexcept -> bool;
+		/// \brief Home's author entry: Prepare pull request… and In
+		/// preparation, above Home's sections (X01), and the marks on pull
+		/// request rows a draft became (X02).
+		void present_local_drafts(const application::local_draft_home_projection& aHome);
+		void set_local_draft_entry_dispatch(std::function<void()> aPrepare, std::function<void(const core::local_draft_id&)> aResume);
+		[[nodiscard]] auto home_prepare_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto home_drafts_list() const noexcept -> QListWidget*;
+		[[nodiscard]] auto home_open_preparation_action() const noexcept -> QAction*;
 		/// [[BPR-0727]]. The reason of the last gesture the core refused, as
 		/// published; `none` until one is.
 		[[nodiscard]] auto last_refusal() const noexcept -> core::workbench_reason_code;
@@ -2156,6 +2176,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1157]] [[BPR-1364]]. Resumes one of Home's recent review
 		/// cycles, by a double-click or Return on its row.
 		void resume_home_cycle(int aRow);
+		/// RFC-BPR-0108. Resumes the In preparation row `aRow`.
+		void resume_home_draft(int aRow);
 		/// [[BPR-1365]]. Home's lists: the queue (every arrangement's rows),
 		/// Recently viewed and Review Cycles.
 		enum class home_selection_list : std::uint8_t {
@@ -2728,6 +2750,17 @@ namespace bpr::qt {
 		bool                                                  LocalCycleShown = false;
 		QString                                               LocalCycleTitle;
 		QAction*                                              OpenProjectAction = nullptr;
+		/// RFC-BPR-0108.
+		local_draft_view*                                     LocalDraftPage   = nullptr;
+		bool                                                  LocalDraftShown  = false;
+		QWidget*                                              HomeAuthor       = nullptr;
+		QPushButton*                                          HomePrepare      = nullptr;
+		QWidget*                                              HomeDrafts       = nullptr;
+		QListWidget*                                          HomeDraftsList   = nullptr;
+		QAction*                                              HomeOpenPreparationAction = nullptr;
+		application::local_draft_home_projection              DraftHome;
+		std::function<void()>                                 PrepareDispatch;
+		std::function<void(const core::local_draft_id&)>      ResumeDraftDispatch;
 		QWidget*                                              HomeCycles        = nullptr;
 		QListWidget*                                          HomeCyclesList    = nullptr;
 		std::vector<application::review_cycle_recent>         CycleRecents;

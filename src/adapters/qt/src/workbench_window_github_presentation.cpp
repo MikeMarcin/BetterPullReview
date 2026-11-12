@@ -328,6 +328,7 @@ namespace bpr::qt {
 			|| IdentityNumber != QString::number(aPullRequest.Number.value());
 		if (arriving && LocalCycleShown) {
 			LocalCycleShown = false;
+			LocalDraftShown = false;
 			LocalCycleTitle.clear();
 		}
 		// [[BPR-1575]]. What a refresh compares. Another pull request starts
@@ -864,6 +865,16 @@ namespace bpr::qt {
 		// [[BPR-1683]]. Ignore is a queue row's; a Recently viewed row is
 		// not ignored from there.
 		HomeIgnoreAction->setVisible(!recent);
+		if (HomeOpenPreparationAction != nullptr) {
+			auto prepared = false;
+			if (target && std::holds_alternative<core::queue_item>(*target)) {
+				const auto& ref = std::get<core::queue_item>(*target).Ref;
+				prepared        = std::ranges::any_of(DraftHome.Marks, [&ref](const application::local_draft_mark& aMark) {
+                    return aMark.Owner + "/" + aMark.Name == ref.Repository && static_cast<std::int64_t>(aMark.Number) == ref.Number;
+                });
+			}
+			HomeOpenPreparationAction->setVisible(prepared);
+		}
 		HomeRowMenu->popup(aGlobal);
 	}
 

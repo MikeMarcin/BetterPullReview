@@ -13,6 +13,7 @@
 #include <QScrollArea>
 #include <QSize>
 #include <QSizePolicy>
+#include <QSet>
 #include <QSortFilterProxyModel>
 #include <QString>
 #include <QToolButton>
@@ -121,6 +122,9 @@ namespace bpr::qt {
 		/// \details A row drops the chip where its group already says the account:
 		/// under Account grouping, and in a group whose rows are all one account.
 		void set_chips(bool aChips);
+		/// \brief RFC-BPR-0108. The pull requests ("owner/name#123") a local
+		/// draft was associated with; the list owns the set.
+		void set_prepared(const QSet<QString>* aPrepared) noexcept;
 
 		[[nodiscard]] auto state() const noexcept -> std::optional<home_group>;
 		[[nodiscard]] auto key() const -> home_group_key;
@@ -147,6 +151,7 @@ namespace bpr::qt {
 		std::optional<home_group>    State;
 		bool                         StateOrdered = false;
 		bool                         Chips        = true;
+		const QSet<QString>*         Prepared     = nullptr;
 	};
 
 	/// \brief [[BPR-0776]]. A list view exactly as tall as its rows, inside a panel.
@@ -276,6 +281,10 @@ namespace bpr::qt {
 
 		/// \brief Takes Recently viewed as the last panel.
 		void adopt_recent(home_recent_view& aRecent);
+		/// \brief RFC-BPR-0108 (X02). Marks the rows of these pull requests
+		/// ("owner/name#123") as prepared here.
+		void set_prepared(QSet<QString> aPrepared);
+		[[nodiscard]] auto prepared() const noexcept -> const QSet<QString>&;
 		void set_open_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		void set_settings_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1580]]. The filtered sentence's Clear filters.
@@ -466,7 +475,9 @@ namespace bpr::qt {
 			QAbstractItemView* Rows  = nullptr;
 		};
 
-		void schedule_refresh();
+		/// RFC-BPR-0108. The associated pull requests every slice reads.
+		QSet<QString> Prepared;
+		void          schedule_refresh();
 		/// \brief [[BPR-1865]]. Ranks again once whatever changed has landed.
 		void schedule_filter();
 		void apply_filter();

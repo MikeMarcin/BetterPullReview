@@ -444,6 +444,13 @@ namespace bpr::qt {
 		update_home_review_actions();
 	}
 
+	void workbench_window::resume_home_draft(const int aRow)
+	{
+		if (aRow >= 0 && static_cast<std::size_t>(aRow) < DraftHome.InPreparation.size() && ResumeDraftDispatch) {
+			ResumeDraftDispatch(DraftHome.InPreparation[static_cast<std::size_t>(aRow)].Id);
+		}
+	}
+
 	void workbench_window::resume_home_cycle(const int aRow)
 	{
 		if (aRow >= 0 && static_cast<std::size_t>(aRow) < CycleRecents.size() && ResumeCycleDispatch) {
@@ -526,6 +533,13 @@ namespace bpr::qt {
 		if (aWatched == ReviewBar && aEvent != nullptr
 			&& (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange)) {
 			apply_strip_width();
+		}
+		if (aWatched == HomeDraftsList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
+			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
+				resume_home_draft(HomeDraftsList->currentRow());
+				return true;
+			}
 		}
 		if (aWatched == HomeCyclesList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
