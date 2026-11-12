@@ -256,6 +256,29 @@ hooks, `apiKeyHelper` and `.mcp.json` servers, with no grant at all.
 - The agent's own `-c` arguments are read as Codex reads them, including
   `-c=KEY=VALUE` (one `=` is the flag's); a `-c` with no key refuses.
 
+### Amendment: MCP servers are a per-agent setting, off by default; options that take several values come first (owner, 2026-11-12, [[BPR-2139]], [[BPR-2142]])
+
+The owner, 2026-11-12: "The MCP thing seems like it's an agent config we can
+add to settings and default MCPs to off". The corporate wrapper tests showed
+an empty `--mcp-config` with `--strict-mcp-config` is honoured and removes
+every MCP server (about 2.4k tokens a call; kept for safety more than cost).
+
+- **MCP servers** is a setting of each agent with two values: **Off** (the
+  default, for a new agent and one carried over) and **Use the agent's own
+  configuration**. Off gives Claude `--strict-mcp-config --mcp-config
+  {"mcpServers":{}}` and Codex `-c mcp_servers={}`. Own passes nothing for
+  MCP. Either way the pull request's checkout's own servers never load
+  (the third-round amendment above), and a fresh one-off run (RFC-BPR-0101's
+  amendment of 2026-11-12) keeps MCP off whatever the setting says.
+- The footer picker's tooltip says when MCP servers are on for the agent.
+- The setting is exported with the agent (RFC-BPR-0107).
+- **Argument order.** Claude's options that take several values
+  (`--add-dir`, `--allowedTools`, `--disallowedTools`, `--tools`,
+  `--mcp-config`) come before `-p`, and each is followed by another option,
+  so none can take a prompt or anything after it as one of its values (the
+  wrapper tests: `--add-dir` or `--allowedTools` placed before the prompt
+  swallowed it).
+
 ### Boundaries
 
 - Tour runs stay read-only. The one-shot hooks stay tool-free.
@@ -354,3 +377,9 @@ installed agents and their own help and protocol schema
   request holds for that pull request and agent through New session and a
   restart, takes effect at the next turn, leaves another pull request on,
   and leaves the agent's starting state unchanged.
+- **AC10:** (amended 2026-11-12) A new agent and one carried over launch
+  with MCP servers off on Claude and Codex; set to the agent's own
+  configuration the launch carries no MCP argument; a fresh one-off run
+  carries MCP off either way; the footer picker's tooltip names MCP when on.
+- **AC11:** (amended 2026-11-12) In every Claude launch, each option that
+  takes several values comes before `-p` and is followed by another option.

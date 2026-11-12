@@ -147,6 +147,26 @@ when this window draws the thread again from its history; they are not saved
 with the history, so a restarted application shows the history's answer
 without them.
 
+### Amendment: a sign-in failure ends the turn at once (owner, 2026-11-12, [[BPR-2142]])
+
+From the owner's corporate wrapper tests (2026-11-11; the correction of the
+same day supersedes the first report): after about 25 headless runs the
+wrapper failed every run with about ten `api_retry` events carrying
+`authentication_failed` and then `401 {"error":"missing <gateway> token"}`,
+after several minutes, sometimes as a stream-JSON `result` and sometimes as
+plain text on standard output. BPR reported it as an answer in a form it
+cannot read. Owner decision: report it as a sign-in problem, and stop at the
+first `authentication_failed` retry instead of waiting minutes.
+
+- A Claude `system/api_retry` frame whose error is `authentication_failed`
+  ends the run at once as a sign-in failure; the process is stopped.
+- A `result` that is an error naming a 401, `authentication_failed`, "Not
+  logged in" or "Invalid API key", and a run that wrote no frame but whose
+  plain-text output names a 401 or an authentication failure, end as a
+  sign-in failure too, never as "answered in a form this app can't read".
+- The words say the agent is not signed in, or its wrapper could not get a
+  token, and what to do: sign in again in a terminal, or try again later.
+
 ## Acceptance criteria
 
 - **AC01:** For each installed agent and transport BPR supports, a recorded
@@ -171,3 +191,7 @@ without them.
 - **AC08:** The tour side chat shows the same block and the same endings.
 - **AC09:** The owner accepts the running, quiet and ended states on a
   frozen build.
+- **AC10:** (amended 2026-11-12) A scripted Claude run that reports one
+  `api_retry` with `authentication_failed` ends at that frame as a sign-in
+  failure; a run whose only output is a plain-text 401 and one whose
+  `result` is a 401 error end the same way.

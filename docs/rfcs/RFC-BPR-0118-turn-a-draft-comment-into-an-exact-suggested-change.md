@@ -52,10 +52,20 @@ control.
 - One Undo restores the draft as it was. Nothing is sent to GitHub: the
   draft is still a draft.
 - It is briefed by a built-in prompt of its own, `review.suggest-change`
-  (a proposal; P02 in the [decision record](assets/agent-assistance-v1/DECISIONS.md#decisions)).
+  (P02, settled by the owner on 2026-11-12, in the [decision record](assets/agent-assistance-v1/DECISIONS.md#decisions)).
 
 Suggesting a change for a finding card that has not been made a draft, for
 several comments at once, or spanning files is not in this RFC.
+
+### Owner decisions of 2026-11-12
+
+- P02 is settled: this action has one editable prompt of its own. Its
+  instructions reach Claude as an inline `--append-system-prompt` and Codex
+  `exec` as `developer_instructions`, pasted where unverified or switched off
+  (RFC-BPR-0107's amendment of 2026-11-12).
+- Its first answer is a fresh run (RFC-BPR-0101's amendment of 2026-11-12):
+  no native session, nothing saved. It is one model call with no tools: the context it needs is in the request. Ask more on the answer promotes it into a
+  resumed session whose first turn carries the answer.
 
 ## Acceptance criteria
 

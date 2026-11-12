@@ -254,6 +254,29 @@ right?" The answer is yes, and it changes the selective export above:
    wrongly dated. The review skill already recorded the version its copy came
    from.
 
+### Owner decisions: MCP exported with the agent; built-in prompts as the system prompt (2026-11-12, [[BPR-2139]], [[BPR-2140]])
+
+- **MCP servers** (RFC-BPR-0104's amendment of 2026-11-12) is exported with
+  the agent as `mcp_servers`, `off` or `own`. A file written before it reads
+  as `off`. Importing `own` is shown in the preview like any other setting.
+- **P02, settled** (agent-assistance-v1 [DECISIONS](assets/agent-assistance-v1/DECISIONS.md)):
+  each agent-assistance action has one editable prompt, a purpose of its own.
+- **How a built-in prompt reaches the agent.** The prompt's instructions go
+  in the system prompt and the run's material in the message. For Claude it
+  is the inline `--append-system-prompt "<text>"`, never the `-file` form
+  (the owner's corporate wrapper drops `--append-system-prompt-file`; it
+  keeps the inline form, which added the same tokens to the first call as
+  pasting). For Codex 0.167 it is `-c developer_instructions="<text>"` on
+  `exec`, verified with a canary (2026-11-12, [ledger](../verification/RFC-BPR-0107.md));
+  an App Server run pastes.
+- **Fallbacks.** Instructions too long for a Windows command line (more
+  than 24 KiB once quoted) are pasted at the start of the message. Each agent
+  has a switch, **Instructions: System prompt / In the message**, for a
+  wrapper that drops the system prompt; a custom agent's switch is exported
+  with it.
+- **Verified.** A canary course launches the installed Claude with a rule
+  given only in the appended system prompt and checks the answer follows it.
+
 ## Implementation record (2026-11-11, [[BPR-2016]], [[BPR-2017]])
 
 - **Format and decisions in core.** `core/agent_configuration.hpp`: the
@@ -303,6 +326,14 @@ right?" The answer is yes, and it changes the selective export above:
 - **AC05:** Selecting, inspecting and applying an import produces no process launch, network operation, credential access or harness-configuration change; an explicit subsequent agent check remains distinguishable.
 - **AC06:** Public Settings flows are usable with keyboard and accessibility, survive restart, and retain built-in restoration and prompt skill-reference behavior on supported native platforms.
 - **AC07:** An exported agent definition carries both added settings; importing one that requests builds leaves builds off for that entry unless accepted in the preview, a requested scratch Off is applied, the entry's identity is unchanged by either, and no pull request's remembered scratch choice appears in the file.
+- **AC08:** (amended 2026-11-12) An exported agent carries its MCP servers
+  setting and its instructions switch; a file without them imports as Off and
+  System prompt.
+- **AC09:** (amended 2026-11-12) A built-in prompt reaches Claude as one
+  inline `--append-system-prompt` argument and Codex `exec` as
+  `developer_instructions`, with only the run's material in the message; it
+  is pasted when the agent's switch says so, on the App Server, and past the
+  Windows bound; a canary with the installed Claude shows the rule applied.
 
 ## Proposed delivery
 

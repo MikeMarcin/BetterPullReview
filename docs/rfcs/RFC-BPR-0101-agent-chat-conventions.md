@@ -191,6 +191,46 @@ accent.
   renamed by it. The one addition is the Agent accent row on Appearance ›
   Colours.
 
+### Amendment: which agent runs are fresh and which resume (owner, 2026-11-12, [[BPR-2138]], [[BPR-2141]])
+
+The owner, 2026-11-12: "so I think some of our one-off things like enhance
+writing buttons can be non-resumed disposable sessions. But I think a large
+number of our interactions do benefit from being able to reference the chat
+history. So I would classify which actions can be fresh and which need
+resume". The classification, agreed with the coordinator the same day:
+
+| Fresh: a disposable run, no history, nothing saved | Resumed: a native session that keeps its history |
+|---|---|
+| Enhance on a comment, reply or note, and on a tour stop or part | The Agent tab conversation |
+| Generate a stop's comment; draft an empty field | A tour side chat and the whole-tour conversation |
+| The review-feedback hook | The local draft's discussion |
+| Draft Tour's first draft | Review Cycle rounds |
+| A local draft's first description; its commit message | Self-review and fix loops |
+| An agent check and its probes | Address-feedback runs |
+| The first answer of each agent-assistance action (RFC-BPR-0116 to 0121) | |
+
+- **A fresh run** starts no native session and resumes none: Claude gets
+  `--no-session-persistence` and no `--resume`, Codex runs `exec` without a
+  thread to resume. Its result lands where the action is, never in a chat's
+  history.
+- **A tour stop's Enhance** is a fresh run like every other Enhance. It no
+  longer sends a turn into the stop's side chat: its result is a proposal on
+  the stop (the stop's text against the suggestion, Accept or Dismiss), and
+  nothing is written until the author accepts it.
+- **Ask more.** A fresh answer that offers a conversation (Draft Tour's
+  first draft, an agent-assistance answer) has Ask more. It promotes the
+  answer into a resumed session: the session's first turn carries the
+  fresh question and answer as its opening context, and every later turn
+  resumes it.
+- **One call per click** ([[BPR-2141]]). A fresh one-off is one model call:
+  no tools, and the context it needs is in the request up front. A run
+  whose request the app cannot fill up front (a draft that reads the
+  repository) says so where it is chosen.
+- Every launch path names its session mode in the core
+  (`core::agent_run_path`), and the launch builder enforces it: a fresh
+  path that carries a resume, or a resumed path that saves nothing, is
+  refused.
+
 ## Acceptance criteria
 
 - **AC01:** Each listed form, in prose, in emphasis and as a whole code
@@ -222,3 +262,15 @@ accent.
   it for one theme changes every accented surface in that theme and no
   other theme; Reset restores the built-in value; and a theme document
   written before the role existed imports with the built-in value.
+- **AC10:** (amended 2026-11-12) A test names every agent launch path with
+  its session mode and asserts each one's launch: a fresh path carries no
+  resume and saves no session, a resumed path resumes its native session.
+- **AC11:** (amended 2026-11-12) A tour stop's Enhance starts a fresh run,
+  sends nothing into the stop's side chat, and shows its result as a
+  proposal on the stop that changes nothing until accepted.
+- **AC12:** (amended 2026-11-12) Ask more on a fresh answer starts a resumed
+  session whose first turn carries that answer, and the next turn resumes
+  the same session.
+- **AC13:** (amended 2026-11-12) A fresh one-off launch carries no tool and
+  no MCP server, and its request holds its context up front; a launch that
+  cannot is named.
