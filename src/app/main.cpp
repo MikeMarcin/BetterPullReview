@@ -11546,12 +11546,12 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 6,
 					.ExpectedThreadId         = std::nullopt,
 				};
-			} else if (*fixture == "returning-review-v1" || *fixture == "returning-review-gone-v1") {
+			} else if (*fixture == "returning-review-v1") {
 				// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). conventional-comments-v1
 				// read by a returning reviewer; see
 				// `scripts/build_returning_review_fixture.py`.
-				selectedFixture        = *fixture == "returning-review-v1" ? bpr::app::detail::github_public_path_fixture::returning_review_v1 : bpr::app::detail::github_public_path_fixture::returning_review_gone_v1;
-				fixtureName            = std::string{ *fixture };
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::returning_review_v1;
+				fixtureName            = "returning-review-v1";
 				expectedActiveHostText = "github.com";
 				fixtureExpectations    = {
 					.Owner                    = "bpr-fixtures",

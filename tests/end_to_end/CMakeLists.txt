@@ -4741,6 +4741,22 @@ add_custom_command(TARGET test_scoped_writing_agent POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-failing-claude"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-failing-claude/claude$<$<PLATFORM_ID:Windows>:.exe>"
     VERBATIM)
+# RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning pull request's two
+# questions, on returning-review-v1 at its next push, with the scoped writing
+# stub as the installed Claude.
+bpr_add_executable(test_returning_review_public_path returning_review_public_path.cpp)
+target_link_libraries(test_returning_review_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_returning_review_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_returning_review_public_path)
+bpr_enable_warnings(test_returning_review_public_path)
+add_dependencies(test_returning_review_public_path test_scoped_writing_agent)
+foreach(course IN ITEMS latest addressed gone)
+    bpr_add_network_isolated_test(NAME application_returning_review_${course}_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_returning_review_public_path ${course} "$<TARGET_FILE:test_scoped_writing_agent>")
+    set_tests_properties(application_returning_review_${course}_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "returning-review-${course}:pass")
+endforeach()
 bpr_add_network_isolated_test(NAME application_review_tour_writing
     WINDOWS_UNCONTAINED
     COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")

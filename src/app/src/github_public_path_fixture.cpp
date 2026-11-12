@@ -480,11 +480,9 @@ namespace bpr::app::detail {
 			case github_public_path_fixture::markdown_code_v1:
 			// RFC-BPR-0116. The same pull request, read by a returning reviewer.
 			case github_public_path_fixture::returning_review_v1:
-			case github_public_path_fixture::returning_review_gone_v1:
 				return {
 					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_code_v1 ? "markdown-code-v1"
 						: aFixture == github_public_path_fixture::returning_review_v1           ? "returning-review-v1"
-						: aFixture == github_public_path_fixture::returning_review_gone_v1      ? "returning-review-gone-v1"
 																								: "conventional-comments-v1",
 					.CapabilityDirectory = "github-com",
 					.Server              = server_contract::github_com,

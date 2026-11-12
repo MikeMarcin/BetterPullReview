@@ -10,6 +10,8 @@
 #include "bpr/core/diff_compute.hpp"
 
 #include <algorithm>
+
+#include <QTimer>
 #include <memory>
 #include <set>
 
@@ -73,6 +75,11 @@ namespace bpr::app {
 				facts.ReviewedHead = std::string{ review.Commit->value() };
 			}
 		}
+#if defined(BPR_BUILD_TESTING)
+		if (!ReturningReviewHeadForTesting.empty()) {
+			facts.ReviewedHead = ReturningReviewHeadForTesting;
+		}
+#endif
 		facts.SeenHead = Window->open_pull_request_seen_head();
 		for (const auto& commit : snapshot->Commits) {
 			facts.Commits.emplace_back(commit.Oid.value());
@@ -84,6 +91,7 @@ namespace bpr::app {
 			ReturningReview.Earlier     = earlier;
 			ReturningReview.CurrentHead = headHex;
 			ReturningReview.Material.reset();
+			ReturningReview.Retries  = key.empty() ? 0U : ReturningReview.Retries;
 			ReturningReview.Readable = false;
 			ReturningReview.Reading  = false;
 			if (!key.empty()) {
@@ -120,22 +128,34 @@ namespace bpr::app {
 				threads.insert(*kept);
 				continue;
 			}
-			threads[identity] = { .Commit = commit, .Path = thread.Path };
 			const auto last   = mine->OriginalLine ? mine->OriginalLine : thread.OriginalLine;
 			const auto first  = mine->Observation.OriginalStartLine ? mine->Observation.OriginalStartLine : last;
+			auto       offer  = returning_review_state::thread_offer{ .Commit = commit, .Path = thread.Path };
 			if (last) {
-				read_addressed_then(identity, commit, thread.Path, *first, *last);
+				offer.ThenFirst = *first;
+				offer.ThenLast  = *last;
 			} else {
-				threads[identity].Read = true;
+				offer.ThenSettled = true;
 			}
-		}
-		// Reads started above may already have answered into the old map.
-		for (auto& [identity, offer] : threads) {
-			if (const auto kept = ReturningReview.Threads.find(identity); kept != ReturningReview.Threads.end() && kept->second.Commit == offer.Commit && kept->second.Read) {
-				offer = kept->second;
+			if (thread.Line && !thread.Outdated) {
+				offer.NowLast  = *thread.Line;
+				offer.NowFirst = thread.Comments.empty() || !thread.Comments.front().Observation.StartLine ? *thread.Line : *thread.Comments.front().Observation.StartLine;
+			} else {
+				offer.NowSettled = true;
 			}
+			threads[identity] = std::move(offer);
 		}
 		ReturningReview.Threads = std::move(threads);
+		// Each thread's lines then and now, asked once the map holds it; one
+		// not admitted yet is asked again at the next refresh.
+		for (auto& [identity, offer] : ReturningReview.Threads) {
+			if (!offer.ThenSettled && !offer.ThenAsking) {
+				read_addressed_lines(identity, true);
+			}
+			if (!offer.NowSettled && !offer.NowAsking) {
+				read_addressed_lines(identity, false);
+			}
+		}
 		Window->set_addressed_threads(std::move(offered));
 	}
 
@@ -166,9 +186,8 @@ namespace bpr::app {
 				return;
 			}
 			if (aChanged.Status == application::changed_paths_status::stale || aChanged.Status == application::changed_paths_status::cancelled) {
-				// Asked again at the next refresh, once the cache serves the head.
-				ReturningReview.Key.clear();
-				ReturningReview.Reading = false;
+				// Asked again shortly, once the cache serves the head.
+				retry_returning_material();
 				return;
 			}
 			if (aChanged.Status != application::changed_paths_status::resolved) {
@@ -251,10 +270,27 @@ namespace bpr::app {
 			done();
 		});
 		if (!admitted) {
-			// Not admitted now (ingestion in flight); asked again at the next refresh.
-			ReturningReview.Key.clear();
-			ReturningReview.Reading = false;
+			// Not admitted now (ingestion in flight); asked again shortly.
+			retry_returning_material();
 		}
+	}
+
+	/// The earlier material could not be asked for yet (the cache not yet
+	/// serving the accepted head): asked again shortly, a bounded number of
+	/// times, and reading meanwhile. Past the bound it is unavailable.
+	void github_application::implementation::retry_returning_material()
+	{
+		ReturningReview.Key.clear();
+		if (++ReturningReview.Retries > 120U) {
+			ReturningReview.Reading = false;
+			return;
+		}
+		ReturningReview.Reading = true;
+		QTimer::singleShot(250, Window.get(), [this] {
+			if (!Closing) {
+				refresh_returning_review();
+			}
+		});
 	}
 
 	void github_application::implementation::finish_returning_material(const std::string& aKey, std::optional<core::returning_changes> aChanges)
@@ -278,34 +314,39 @@ namespace bpr::app {
 		refresh_returning_review();
 	}
 
-	/// The lines a thread is on as they were when I last commented there.
-	void github_application::implementation::read_addressed_then(const std::string& aIdentity, const std::string& aCommit, const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast)
+	/// A thread's lines as they were when I last commented there (`aThen`),
+	/// or as they are at the head, from the review's own objects.
+	void github_application::implementation::read_addressed_lines(const std::string& aIdentity, const bool aThen)
 	{
-		const auto commit = core::parse_git_commit_oid(aCommit);
+		auto& offer  = ReturningReview.Threads.at(aIdentity);
+		const auto commit = aThen ? core::parse_git_commit_oid(offer.Commit) : std::optional{ LastAcceptedHandoff ? LastAcceptedHandoff->Head : core::git_commit_oid{ } };
 		if (!commit || !LastAcceptedHandoff || EpochHost == nullptr) {
-			if (const auto found = ReturningReview.Threads.find(aIdentity); found != ReturningReview.Threads.end()) {
-				found->second.Read = true;
-			}
+			(aThen ? offer.ThenSettled : offer.NowSettled) = true;
 			return;
 		}
-		auto       request  = application::permalink_source_request{ .WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff), .Head = LastAcceptedHandoff->Head, .Commit = *commit, .Path = aPath };
-		const auto admitted = EpochHost->resolve_permalink_source(std::move(request), [this, aIdentity, aCommit, aPath, aFirst, aLast](const application::permalink_source_observation& aRead) {
+		auto request = application::permalink_source_request{ .WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff), .Head = LastAcceptedHandoff->Head, .Commit = *commit, .Path = offer.Path };
+		(aThen ? offer.ThenAsking : offer.NowAsking) = true;
+		const auto admitted = EpochHost->resolve_permalink_source(std::move(request), [this, aIdentity, aThen, commitHex = hex(*commit), wanted = offer.Commit](const application::permalink_source_observation& aRead) {
 			if (Closing) {
 				return;
 			}
 			const auto found = ReturningReview.Threads.find(aIdentity);
-			if (found == ReturningReview.Threads.end() || found->second.Commit != aCommit) {
+			if (found == ReturningReview.Threads.end() || found->second.Commit != wanted) {
 				return;
 			}
-			found->second.Read = true;
-			if (aRead.Status == application::permalink_source_status::resolved && aRead.Bytes) {
-				found->second.Then = core::returning_excerpt(aCommit, aPath, *aRead.Bytes, aFirst, aLast);
+			auto& kept = found->second;
+			(aThen ? kept.ThenAsking : kept.NowAsking) = false;
+			using status = application::permalink_source_status;
+			if (aRead.Status == status::stale || aRead.Status == status::cancelled) {
+				return;
+			}
+			(aThen ? kept.ThenSettled : kept.NowSettled) = true;
+			if (aRead.Status == status::resolved && aRead.Bytes) {
+				(aThen ? kept.Then : kept.Now) = core::returning_excerpt(commitHex, kept.Path, *aRead.Bytes, aThen ? kept.ThenFirst : kept.NowFirst, aThen ? kept.ThenLast : kept.NowLast);
 			}
 		});
 		if (!admitted) {
-			if (const auto found = ReturningReview.Threads.find(aIdentity); found != ReturningReview.Threads.end()) {
-				found->second.Read = true;
-			}
+			(aThen ? offer.ThenAsking : offer.NowAsking) = false;
 		}
 	}
 
@@ -341,8 +382,9 @@ namespace bpr::app {
 			if (ReturningReview.Offer.State != core::latest_upload_state::offered || !ReturningReview.Material) {
 				const auto earlier = ReturningReview.Offer.Earlier ? short_hex(ReturningReview.Offer.Earlier->Head) : QString{ };
 				Window->agent_panel()->refuse(ReturningReview.Offer.State == core::latest_upload_state::unavailable
-												  ? QStringLiteral("What changed since my review: the code at %1 can't be read here. Nothing was sent.").arg(earlier)
-												  : QStringLiteral("What changed since my review: there are no commits since your review. Nothing was sent."));
+												  ? QStringLiteral("What changed since my review: the code at %1 can't be read here. Nothing was sent.").arg(earlier).toStdString()
+												  : QStringLiteral("What changed since my review: there are no commits since your review. Nothing was sent.")
+												  .toStdString());
 				return false;
 			}
 			aObservation.Returning = ReturningReview.Material;
@@ -352,7 +394,7 @@ namespace bpr::app {
 			const auto& state = EpochHost->state();
 			const auto  found = AskedConversation && !AskedConversation->Note ? ReturningReview.Threads.find(AskedConversation->Identity) : ReturningReview.Threads.end();
 			if (found == ReturningReview.Threads.end() || !state.AcceptedRevision) {
-				Window->agent_panel()->refuse(QStringLiteral("Was this addressed?: asked of a thread you commented in, once commits follow your comment. Nothing was sent."));
+				Window->agent_panel()->refuse("Was this addressed?: asked of a thread you commented in, once commits follow your comment. Nothing was sent.");
 				return false;
 			}
 			aObservation.Conversation = read_asked_conversation();
@@ -367,16 +409,7 @@ namespace bpr::app {
 				.CurrentHead = hex(state.AcceptedRevision->Head),
 				.Then        = found->second.Then,
 			};
-			if (const auto& excerpt = aObservation.Conversation->Excerpt; excerpt && !excerpt->Before && !excerpt->Lines.empty()) {
-				auto now = core::returning_lines{ .Commit = returning.CurrentHead, .Path = aObservation.Conversation->Path, .FirstLine = excerpt->FirstLine };
-				for (const auto& line : excerpt->Lines) {
-					if (now.Lines.size() == core::maximum_returning_excerpt_lines) {
-						break;
-					}
-					now.Lines.push_back(line.size() > core::maximum_returning_line_bytes ? line.substr(0U, core::maximum_returning_line_bytes) : line);
-				}
-				returning.Now = std::move(now);
-			}
+			returning.Now = found->second.Now;
 			if (!core::valid(returning)) {
 				returning.Then.reset();
 				returning.Now.reset();

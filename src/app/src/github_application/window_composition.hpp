@@ -759,8 +759,9 @@ namespace bpr::app {
 		/// and the two presses. Defined in `window_returning_review.cpp`.
 		void refresh_returning_review();
 		void read_returning_material(const core::returning_point& aEarlier, const core::git_commit_oid& aHead);
+		void retry_returning_material();
 		void finish_returning_material(const std::string& aKey, std::optional<core::returning_changes> aChanges);
-		void read_addressed_then(const std::string& aIdentity, const std::string& aCommit, const std::string& aPath, std::uint32_t aFirst, std::uint32_t aLast);
+		void read_addressed_lines(const std::string& aIdentity, bool aThen);
 		void ask_what_changed();
 		void ask_was_addressed(const std::string& aIdentity);
 		/// The material a returning turn carries, or a refusal said on the
@@ -2105,18 +2106,30 @@ namespace bpr::app {
 			std::optional<core::supplement_returning> Material;
 			bool                                       Reading = false;
 			bool                                       Readable = false;
+			/// Asks made before the cache served the head; bounded.
+			std::uint32_t                              Retries = 0U;
 			/// Review threads Was this addressed? is offered on, by identity:
 			/// the commit of my last comment there, and its lines then once read.
 			struct thread_offer
 			{
-				std::string                          Commit;
-				std::string                          Path;
+				std::string Commit;
+				std::string Path;
+				/// One-based lines my comment was on then, and the thread's
+				/// lines at the head (none for a thread the head lost).
+				std::uint32_t ThenFirst = 0U, ThenLast = 0U, NowFirst = 0U, NowLast = 0U;
+				/// The lines, once read, and which sides are asked or settled.
 				std::optional<core::returning_lines> Then;
-				bool                                 Read = false;
+				std::optional<core::returning_lines> Now;
+				bool                                 ThenSettled = false, NowSettled = false;
+				bool                                 ThenAsking = false, NowAsking = false;
 			};
 			std::map<std::string, thread_offer> Threads;
 		};
 		returning_review_state ReturningReview;
+#if defined(BPR_BUILD_TESTING)
+		/// Testing only: the head my last review is taken to be on.
+		std::string ReturningReviewHeadForTesting;
+#endif
 		/// [[BPR-2138]]. Ask more on a returning answer: the question and the
 		/// answer the next Agent tab turn opens with.
 		std::optional<std::pair<std::string, std::string>> AskMoreSeed;

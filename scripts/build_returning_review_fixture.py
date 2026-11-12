@@ -9,9 +9,6 @@ reviewed it at its first head and commented in the line-12 thread there:
   `b20cb443`, which the next push's pack holds. Served under
   `--epoch-fixture-phase reuse`, the head is the next push and both returning
   questions are offered.
-- `returning-review-gone-v1`: the same, but the review is on a commit no
-  pack holds (a rewritten branch), so What changed since my review is
-  unavailable.
 
 Synthetic public test data; nothing is fetched. Two runs write the same
 bytes.
@@ -26,7 +23,6 @@ import sys
 from pathlib import Path
 
 FIRST_HEAD = "b20cb443428212543f5911e091a0ffeb407d23cf"
-GONE_HEAD = "0badc0de0badc0de0badc0de0badc0de0badc0d"
 REVIEWER = {"login": "jiayin", "node_id": "U_fixture_jiayin"}
 
 
@@ -69,7 +65,6 @@ def main() -> int:
         return 2
     root = Path(sys.argv[1])
     build(root, "returning-review-v1", FIRST_HEAD)
-    build(root, "returning-review-gone-v1", GONE_HEAD)
     print("RETURNING_REVIEW_FIXTURE_OK")
     return 0
 

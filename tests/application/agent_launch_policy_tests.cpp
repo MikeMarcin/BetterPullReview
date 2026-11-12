@@ -257,6 +257,19 @@ namespace {
 				   "and carries the change, or the lines then and now, up front");
 		}
 		expect(application::default_writing_hook(core::writing_hook::review_latest_upload) != application::default_writing_hook(core::writing_hook::review_proposed_fix), "two prompts, not one");
+		// AC05. An edit reaches that operation's prompt and no other; Reset
+		// (an empty override) is the shipped default again.
+		auto edited = core::writing_hook_settings{ };
+		edited.Overrides[static_cast<std::size_t>(core::writing_hook::review_latest_upload)] = "TEAM_LATEST_UPLOAD";
+		expect(application::effective_writing_hook(edited, core::writing_hook::review_latest_upload) == "TEAM_LATEST_UPLOAD", "the edit is the operation's prompt");
+		for (auto index = std::size_t{ 0U }; index < core::writing_hook_count; ++index) {
+			const auto hook = static_cast<core::writing_hook>(index);
+			if (hook != core::writing_hook::review_latest_upload) {
+				expect(application::effective_writing_hook(edited, hook) == application::default_writing_hook(hook), "and no other prompt changes");
+			}
+		}
+		edited.Overrides[static_cast<std::size_t>(core::writing_hook::review_latest_upload)].clear();
+		expect(application::effective_writing_hook(edited, core::writing_hook::review_latest_upload) == application::default_writing_hook(core::writing_hook::review_latest_upload), "Reset restores the built-in");
 		expect(core::ask_more_path(core::agent_run_path::assistance_first_answer) == core::agent_run_path::agent_tab, "Ask more continues in the Agent tab's conversation");
 	}
 

@@ -126,10 +126,8 @@ namespace bpr::app::detail {
 		markdown_code_v1,
 		/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). conventional-comments-v1
 		/// read by a reviewer who reviewed its first head and commented in its
-		/// line-12 thread there; and the same with the review on a commit no
-		/// pack holds. See `scripts/build_returning_review_fixture.py`.
+		/// line-12 thread there. See `scripts/build_returning_review_fixture.py`.
 		returning_review_v1,
-		returning_review_gone_v1,
 		/// [[BPR-1560]]. The recorded base is ahead of the merge base: the
 		/// base branch moved on, reverting nothing of the pull request's but
 		/// landing its `b.txt` change separately. GitHub's Files changed is
@@ -2151,6 +2149,12 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1867]]. Whether the window still owes a reread.
 		[[nodiscard]] static auto reread_owed(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto held_syntax_blob_reads(const github_application& aApplication) -> std::size_t;
+		/// \brief RFC-BPR-0116 ([[BPR-2073]]). The head my last review is taken
+		/// to be on, in place of the read's: a commit the review's objects do
+		/// not hold stands for a rewritten branch whose earlier commits are
+		/// gone. (The fixture GitHub refuses to load a review on a commit it
+		/// cannot serve, so the read cannot carry one.)
+		static void force_returning_review_head(github_application& aApplication, std::string aHead);
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;

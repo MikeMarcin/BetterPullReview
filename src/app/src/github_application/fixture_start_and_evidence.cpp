@@ -160,6 +160,11 @@ namespace bpr::app {
 		aApplication.Implementation->hand_on_activity(aActive);
 	}
 
+	void detail::github_application_fixture_access::force_returning_review_head(github_application& aApplication, std::string aHead)
+	{
+		aApplication.Implementation->ReturningReviewHeadForTesting = std::move(aHead);
+	}
+
 	auto detail::github_application_fixture_access::reread_owed(const github_application& aApplication) noexcept -> bool
 	{
 		const auto& implementation = *aApplication.Implementation;
