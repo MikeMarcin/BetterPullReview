@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2138"
 title: "Each agent action runs fresh or resumes, as the owner classified them"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0101"]
 depends_on: []
 priority: "P1"
