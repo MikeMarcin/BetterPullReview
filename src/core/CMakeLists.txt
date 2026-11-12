@@ -115,6 +115,7 @@ add_library(
         src/agent_profile.cpp
         src/agent_wrapper.cpp
         src/agent_setup.cpp
+        src/account_setup.cpp
         src/agent_turn.cpp
         src/clone_discovery.cpp
         src/review_skill.cpp
