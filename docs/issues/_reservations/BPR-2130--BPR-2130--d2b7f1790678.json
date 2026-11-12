@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2130"
+  ],
+  "reserve_for": "bpr2120-plan-schema",
+  "purpose": "Repair BPR-2120 unsupported milestone keys under pinned MASK965 while preserving proof hashes and completed acceptance; future-main metadata only",
+  "created": "2026-11-12T05:25:19.897351+00:00",
+  "base": "8832500af07ec6ca048334a137701eface705f29"
+}

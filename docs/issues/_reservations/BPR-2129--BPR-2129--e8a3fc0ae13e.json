@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2129"
+  ],
+  "reserve_for": "bpr2118-nonmac-unused-parameter",
+  "purpose": "Fix GCC15 Release unused aLive parameter in non-Mac ownership journal version upgrade; Build59 compile blocker",
+  "created": "2026-11-12T04:03:40.818531+00:00",
+  "base": "c0a9ecd8e7774443765b1aab8c5f200f081b40b0"
+}
