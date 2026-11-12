@@ -183,6 +183,17 @@ namespace bpr::qt {
 			std::function<QString(std::uint64_t)> Number;
 		};
 		void set_gutter(gutter_presentation aGutter);
+		/// \brief RFC-BPR-0113 as amended 2026-11-12. A mark at the gutter's
+		/// edge for a line: a bar for an added or changed line, a wedge for
+		/// lines removed before it; dashed while the line is not saved.
+		struct gutter_mark
+		{
+			enum class kind : std::uint8_t { added, changed, removed_before };
+			kind   Kind   = kind::added;
+			QColor Colour;
+			bool   Dashed = false;
+		};
+		void set_gutter_marks(std::function<std::optional<gutter_mark>(std::uint64_t)> aMarks);
 		/// \brief [[RFC-BPR-0090]]. A full-row fill behind a line, or none.
 		void set_row_fill(std::function<std::optional<QColor>(std::uint64_t)> aFill);
 		/// \brief [[RFC-BPR-0090]]. The editable lines' wash, the edge drawn
@@ -251,6 +262,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto top_offset() const -> qreal;
 		void               place_gutter();
 		void               paint_gutter(QPainter& aPainter, const QRect& aArea);
+		void               paint_gutter_mark(QPainter& aPainter, std::uint64_t aLine, qreal aTop, qreal aWidth);
 		[[nodiscard]] auto in_editable_lines(std::uint64_t aLine) const -> bool;
 		void               copy_selection(bool aCut);
 		void               paste();
@@ -315,6 +327,7 @@ namespace bpr::qt {
 		qreal                                               ExternalOffset = 0.0;
 		gutter_presentation                                 Gutter;
 		QWidget*                                            GutterWidget = nullptr;
+		std::function<std::optional<gutter_mark>(std::uint64_t)> GutterMarks;
 		std::function<std::optional<QColor>(std::uint64_t)> RowFill;
 		QColor                                              RangeWash;
 		QColor                                              RangeEdge;

@@ -21,6 +21,7 @@
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QScrollBar>
 #include <QStyleHints>
 #include <QTextDocument>
@@ -663,6 +664,47 @@ namespace bpr::qt {
 			if (edge.isValid() && in_editable_lines(line)) {
 				aPainter.fillRect(QRectF{ width - bar, top, bar, RowHeight }, edge);
 			}
+			if (GutterMarks) {
+				paint_gutter_mark(aPainter, line, top, width);
+			}
+		}
+		// A removal after the last line is marked below it.
+		if (GutterMarks && last == state.Lines.size()) {
+			paint_gutter_mark(aPainter, last, static_cast<qreal>(last) * RowHeight - top_offset(), width);
+		}
+	}
+
+	void suggestion_editor::paint_gutter_mark(QPainter& aPainter, const std::uint64_t aLine, const qreal aTop, const qreal aWidth)
+	{
+		const auto mark = GutterMarks(aLine);
+		if (!mark || !mark->Colour.isValid()) {
+			return;
+		}
+		if (mark->Kind == gutter_mark::kind::removed_before) {
+			// A small wedge pointing into the text at the line's top edge.
+			auto wedge = QPainterPath{ };
+			wedge.moveTo(aWidth - 6.0, aTop - 4.0);
+			wedge.lineTo(aWidth - 1.0, aTop);
+			wedge.lineTo(aWidth - 6.0, aTop + 4.0);
+			wedge.closeSubpath();
+			aPainter.fillPath(wedge, mark->Colour);
+			return;
+		}
+		const auto rect = QRectF{ aWidth - 4.0, aTop, 3.0, RowHeight };
+		if (!mark->Dashed) {
+			aPainter.fillRect(rect, mark->Colour);
+			return;
+		}
+		for (auto y = rect.top(); y < rect.bottom(); y += 4.0) {
+			aPainter.fillRect(QRectF{ rect.left(), y, rect.width(), std::min(2.0, rect.bottom() - y) }, mark->Colour);
+		}
+	}
+
+	void suggestion_editor::set_gutter_marks(std::function<std::optional<gutter_mark>(std::uint64_t)> aMarks)
+	{
+		GutterMarks = std::move(aMarks);
+		if (GutterWidget != nullptr) {
+			GutterWidget->update();
 		}
 	}
 

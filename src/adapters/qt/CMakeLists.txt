@@ -95,6 +95,9 @@ add_library(
             src/diagnostic_settings_panel.cpp
         src/profile_management_window.cpp
         src/workbench_strip.cpp
+        src/view_picker.cpp
+        src/local_diff_view.cpp
+        src/local_changes_panel.cpp
         src/document_tab_strip.cpp
         src/native_window_chrome.cpp
         src/resize_handle_cursor.cpp

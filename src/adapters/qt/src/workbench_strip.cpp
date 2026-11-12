@@ -273,6 +273,16 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 9.0, 12.0 }, QPointF{ 18.0, 12.0 });
 				aPainter.drawLine(QPointF{ 6.0, 15.0 }, QPointF{ 13.0, 15.0 });
 				break;
+			case strip_glyph::edit_file:
+				aPainter.drawRect(QRectF{ 3.0, 5.0, 18.0, 14.0 });
+				aPainter.drawLine(QPointF{ 6.0, 9.0 }, QPointF{ 11.0, 9.0 });
+				aPainter.drawLine(QPointF{ 6.0, 12.0 }, QPointF{ 9.0, 12.0 });
+				aPainter.drawLine(QPointF{ 6.0, 15.0 }, QPointF{ 10.0, 15.0 });
+				// The caret: an I-beam standing across the rows.
+				aPainter.drawLine(QPointF{ 15.0, 8.0 }, QPointF{ 15.0, 16.0 });
+				aPainter.drawLine(QPointF{ 13.5, 8.0 }, QPointF{ 16.5, 8.0 });
+				aPainter.drawLine(QPointF{ 13.5, 16.0 }, QPointF{ 16.5, 16.0 });
+				break;
 			case strip_glyph::header_source: {
 				// Two pages, each with its corner folded at the upper right.
 				const auto page = [&aPainter](const qreal aLeft) {
