@@ -1864,3 +1864,61 @@ Not touched: attended session 6d00826a… (host 75022/75032, root
 `local-draft-pr-window-v002.lyqc133b`), PIDs 74290, 74692/74706, 10695,
 39804, Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use. Two
 canary model calls (Claude haiku, Codex), recorded in the RFC-BPR-0107 ledger.
+
+## Agent launch policy, second pass (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Finished BPR-2138, 2140
+and 2141 against their criteria (RFC-BPR-0101 AC10 to AC13, RFC-BPR-0107
+AC09). Frontend-design was loaded before the Ask more control. Record:
+[RFC-BPR-0101 second pass](../../../verification/RFC-BPR-0101.md#second-pass-2026-11-12-resumed-local-discussion-ask-more-one-call-per-fresh-click).
+
+| Commit | What |
+|---|---|
+| `49ef71558` | The two tests that expected eight writing hooks list eleven |
+| `726078731`, `b8e2adeac`, `b8c371613` | Local discussion resumes its native session; first description fresh; instructions apart (local, commit message, review skill, tour prompts); diff up front with the 96 KiB budget; Ask more |
+| `b423298bb` | Counter to main's BPR-2151 (main reserved BPR-2144..2150) |
+| `6c354f8f0` | clang-format 22, app source pin resealed, ledgers |
+| `f75a925ac` | Opt-in `claude_resume_canary.py`; live pass recorded |
+| `76100684f` | Drafting stub answers a tool-free Draft Tour. Product candidate |
+| `10e800150`, `7ecd2bd03`, `1c201f73c`, `59546899c` | Progress; BPR-2141, 2140, 2138 Done (main mirror `c6d71e58f`) |
+
+Verification at the candidate: `application_agent_launch_policy`,
+`core_local_draft_tour`, `core_local_changes`, `local_changes`,
+`local_draft`, `application_github_contract`,
+`application_tour_agent_conversation`, `qt_tour_agent_session_view`,
+`qt_tour_side_chat`, `qt_tour_chat_in_tab`,
+`application_local_draft_tour_desktop_public_path`,
+`application_local_draft_author_desktop_public_path`,
+`application_agent_invocation_composition_contract`,
+`application_review_tour_composition_public_path`,
+`application_review_tour_writing`, `application_review_tour_writing_wrapper`,
+`tour_cli_composition`, `application_profile_tour_handoff_public_path`,
+`application_composition_source_contract` (resealed),
+`architecture_boundaries`, `coding-format-check`, clang-tidy on the touched
+sources (two findings, both in lines this round did not touch), the
+documentation gate and its tests. Live: `claude_resume_canary.py`
+`CANARY_PASS: 'KUMQUAT' same_session=True` (two haiku calls, $0.0013).
+
+Pending: the owner's look at Ask more (non-blocking; session below); the
+owner's rerun of the inline system prompt through the corporate wrapper
+(the per-agent switch is the fallback); the agent-assistance actions
+(RFC-BPR-0116 to 0121) take `assistance_first_answer` when built.
+
+Not touched: attended session 6d00826a… (host 75022/75032, root
+`local-draft-pr-window-v002.lyqc133b`), PIDs 74290, 74692/74706, 10695,
+39804, Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use.
+
+Owner look (non-blocking, filed 2026-11-12): frozen root
+`/Users/jaeger/bpr2138-ask-more-v001.kbc0nnpf` of `76100684f` (executable
+SHA-256 `8073cae03154d670c69cbbd88b0d1360add4a4ac3d8b5e05d03e5f948d257f3e`),
+`--attended-tour-drafting` with the `attended-drafting-claude` stub on
+`conventional-comments-v1` / `src/engine/renderer.cpp`; the launcher's own
+check reached `ATTENDED_TOUR_DRAFTING_SHOWN`. New short session
+`dfc73933e0b3fc4c218f4e46d3e90998`, state
+`/Users/jaeger/.codex/attended-review/bpr2138-v001-UJfuLr/state`, host PID
+6341 (Tailscale child 6351) by `serve --tailscale`; cursor 3. One candidate,
+`BPR-2138-ask-more`, one Accept/Reject question. Status: ready, awaiting the
+owner. A Reject's note is a follow-up; BPR-2138's behavioural criteria are
+met without it. Remove the root with `scripts/freeze_attended_build.py
+remove` once answered.
+
