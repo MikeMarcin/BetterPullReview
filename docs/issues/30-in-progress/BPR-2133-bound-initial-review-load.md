@@ -25,3 +25,14 @@ immutable. No broad Main intake, unrelated refactor or private product deviation
 - AC2: Implement the smallest justified correction and meaningful regression control without loosening Release100ms input gates, the submission20s functional predicate, or unrelated assertions. Record exact affected source/dependency/input closure and native regression selection; no unproved narrowness.
 - AC3: Run meaningful focused native verification on the exact private candidate under original configured context/containment/limits. Keep actual failures and all protected producer seals; no qualification or unchanged-platform credit without an explicit bridge reviewed by the coordinator.
 - AC4: Land only owned source/test/issue/plan/proof commits on current Main, preserving unrelated work/schema drift; return explicit commit mapping and terminal host/command state for selective intake. Source/legal/native trust/signing/publication and final release acceptance remain the coordinator's obligations.
+
+## Owner release amendment, 2026-11-12
+
+The owner subsequently said: “Are the only remaining blockers latency? If so
+waive them.” The release coordinator records this as conditional acceptance of
+only the six observed optimized Linux initial-load input misses after functional
+blockers clear. Performance diagnosis/builds are held; this issue is not fixed
+or Done. Original failures and their actual/unreached checks remain evidence.
+An instrumented history diagnostic was below the limit and is a nonreproduction,
+not qualification. No product performance correction has been made or proposed
+for release on that basis.
