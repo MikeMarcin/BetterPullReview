@@ -25,6 +25,10 @@ Acceptance: AC13 as amended on 2026-11-12.
 
 ## Progress (2026-11-12)
 
-Partly built; see the [RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141)
-for what passes and what remains (its "Not done" list, and the RFC-BPR-0107
-ledger's "Pending" list for the prompts still pasted).
+Complete. Draft Tour, Draft from PR context and Suggest an outline are one
+tool-free call with every file's patch in the request when the diff is at
+most 96 KiB (`core::maximum_up_front_diff_bytes`) and the agent has a
+tool-free mode; otherwise they read the repository and the notice names
+why (`core::choose_tour_context`). Enhance, rewrites, the commit message and
+the local draft's runs were already one call. Record: the
+[RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#second-pass-2026-11-12-resumed-local-discussion-ask-more-one-call-per-fresh-click).

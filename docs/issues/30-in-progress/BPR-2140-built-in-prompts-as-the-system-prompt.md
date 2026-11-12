@@ -29,6 +29,11 @@ Acceptance: AC09 as amended on 2026-11-12.
 
 ## Progress (2026-11-12)
 
-Partly built; see the [RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141)
-for what passes and what remains (its "Not done" list, and the RFC-BPR-0107
-ledger's "Pending" list for the prompts still pasted).
+Complete. Every built-in prompt now travels as the system prompt: Enhance,
+field rewrites and drafts, the outline, Test send, Draft Tour and the tour
+conversation (`split_tour_prompt`), the local draft's description,
+discussion and commit message, and the review skill (out of the brief). The
+switch, the App Server and the 24 KiB bound paste. Canary: the installed
+Claude applied a rule given only in the system prompt. The owner's rerun
+through the corporate wrapper is still theirs to make; the per-agent switch
+is the fallback. Record: the [RFC-BPR-0107 ledger](../../verification/RFC-BPR-0107.md).

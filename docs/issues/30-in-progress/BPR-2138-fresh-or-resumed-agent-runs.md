@@ -34,6 +34,15 @@ Acceptance: AC10, AC11, AC12 as amended on 2026-11-12.
 
 ## Progress (2026-11-12)
 
-Partly built; see the [RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141)
-for what passes and what remains (its "Not done" list, and the RFC-BPR-0107
-ledger's "Pending" list for the prompts still pasted).
+Complete. The core names sixteen launch paths and their session modes and the
+launch enforces them (AC10, `application_agent_launch_policy`); a tour part's
+Enhance is a fresh run whose result is a proposal on the part (AC11,
+`qt_tour_side_chat`); the local draft's discussion resumes its native
+session by handle instead of replaying its transcript, its first
+description is its own fresh path, and an explicit Ask more on Draft Tour's
+proposal and on a fresh Enhance's suggestion starts the thread's next turn
+from that answer (AC12; `application_local_draft_tour_desktop_public_path`,
+`qt_tour_agent_session_view`, `qt_tour_side_chat`, and the live
+`claude_resume_canary.py`). The agent-assistance actions (RFC-BPR-0116 to
+0121) take `assistance_first_answer` when they are built. Record: the
+[RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#second-pass-2026-11-12-resumed-local-discussion-ask-more-one-call-per-fresh-click).
