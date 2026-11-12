@@ -108,6 +108,49 @@ write port to the save here and the Revert of
 Proposals in this RFC that the owner has not separately confirmed are listed
 in the [decision record](assets/local-draft-authoring-v1/DECISIONS.md#decisions) as P05 and P06.
 
+### Owner amendment, 2026-11-12: Edit is a view, in author state
+
+The owner, choosing the pull request window for local drafts
+([accepted design](../design/local-draft-pr-window-v1/README.md)):
+
+> Local draft is more of a state than a mode since we're talking about letting
+> this same mode be used for addressing PR feedback. Maybe that takes the form
+> of a no-diff view option (like we have 2 pane and single pane) maybe instead
+> of the 1 button toggle this current is it becomes a 2-icon pick 1 normally
+> and a 3 icon-pick one if you're in author/prepare mode.
+
+Changed requirements; everything not named here stands.
+
+- **Edit is the third view of the review bar's view picker**, not a button in
+  a Changes area. The picker is a segmented pick of two icons (two panes, one
+  pane) in a review and three in author state: a window on the author's own
+  worktree, which is a local draft or a pull request opened by its author.
+  "Nothing else in the application gains Edit: a pull request review keeps
+  Suggest change" becomes: a review of someone else's pull request, or of any
+  pull request not opened on the author's worktree, has no Edit.
+- **What Edit shows.** The worktree's file, as on disk, in the existing code
+  editor, with no diff. The file header carries a dot by the name, Not saved,
+  and Save. The gutter keeps the comparison: marks for added, changed and
+  removed lines against the comparison the window shows, dashed until saved.
+- **Changed on disk.** When the file changed on disk since it was read, Reload
+  takes Save's place and nothing is written (AC02 unchanged in substance).
+- **A file that cannot be edited** dims the third icon, and its tooltip gives
+  this RFC's reason (AC03 unchanged).
+- **After a save** the file's row and the Local Changes tab's counts follow
+  the worktree; the successor-candidate offer of AC04 is the candidate menu's
+  Refresh, which a local draft keeps. In a pull request opened by its author
+  there is no candidate, and a save is simply a worktree change.
+
+AC01 reads "In author state, Edit …"; AC06's clause "a pull request review
+offers no Edit" reads "a review not in author state offers no Edit"; AC07
+reads: on a frozen build serving a local draft, the owner accepts the view
+picker, the Edit view, its not-editable reasons and its changed-on-disk state.
+
+Delivery: pulled forward from the local-draft-authoring plan into
+`v0-5-0-prerelease-targets-v1` on lane
+`claude/v0-5-0-prerelease-targets-52265d` (BPR-2062, BPR-2063, BPR-2064), so
+the authoring pack does not build it twice.
+
 ## Acceptance criteria
 
 - **AC01:** In a local draft, Edit on a listed file opens the whole file in the existing code editor with several carets, box selection, virtual space and undo, and a saved edit is on disk byte for byte as edited, including CRLF and LF endings, tabs and a missing final newline, with the file's mode unchanged and nothing staged or committed.
