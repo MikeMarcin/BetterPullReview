@@ -86,6 +86,11 @@ namespace bpr::app {
 		if (const auto* const context = std::get_if<core::markdown_context>(&aIntent)) {
 			return WindowRead->open_pull_request_page(*context, Profile->WindowBrowser);
 		}
+		// The owner, 2026-11-11. The title's page opens while the review
+		// still loads, admitted against the read the window waits on.
+		if (const auto* const loading = std::get_if<application::loading_pull_request_page>(&aIntent)) {
+			return WindowRead->open_loading_pull_request_page(*loading, Profile->WindowBrowser);
+		}
 		const auto& session = Host->accepted_session();
 		const auto* profile = session && Host->state().Account == session->Viewer.Account ? find_profile(session->Profile) : nullptr;
 		if (profile == nullptr) {

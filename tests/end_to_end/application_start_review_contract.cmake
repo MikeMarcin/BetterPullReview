@@ -11,7 +11,12 @@ cmake_minimum_required(VERSION 4.4.2)
 #           the review; the bar says "Review · 2 pending" and both are drawn at
 #           their lines. Add single comment on a third publishes exactly that
 #           one; another file and back changes nothing.
-# finish    Restarted over the same data root: both are pending again.
+# finish    Restarted over the same data root, with the saved drafts read
+#           late: Compose review opened from the toolbar before they are read
+#           says "Loading pending comments…", and no verdict submits, even
+#           with a summary written; once read, the same open review counts
+#           both and Comment submits (the owner, 2026-11-11). Both are
+#           pending again.
 #           Finish review opens the summary in Discuss listing both; Comment
 #           with no summary is submitted as one review whose comments are
 #           exactly the two (path, lines, side, words), and each is marked
@@ -58,7 +63,7 @@ bpr_private_data_root(BPR_KEPT_ROOT)
 
 foreach(course_spec IN ITEMS
     "pending|persistent|START_REVIEW_PENDING_EVIDENCE:11111"
-    "finish|persistent|START_REVIEW_FINISH_EVIDENCE:11111111"
+    "finish|persistent|START_REVIEW_FINISH_EVIDENCE:1111111111"
     "refused|fresh|START_REVIEW_REFUSED_EVIDENCE:1111"
     "uncertain|fresh|START_REVIEW_UNCERTAIN_EVIDENCE:1111111"
     "again|fresh|START_REVIEW_AGAIN_EVIDENCE:1111111111"

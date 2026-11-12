@@ -1084,10 +1084,13 @@ namespace bpr::qt {
 		// [[BPR-1338]]. Open on GitHub goes with an accepted GitHub pull
 		// request's name, never a local cycle's, and is measured with it below.
 		// It is shown only where it acts: nothing in the title row reads as
-		// disabled.
+		// disabled. The owner, 2026-11-11: it comes with the loading title,
+		// not once the whole review has arrived.
 		const auto showPage = [this] {
+			update_open_on_github_action();
 			if (OpenOnGithubButtonAction != nullptr) {
-				OpenOnGithubButtonAction->setVisible(IdentityAction->isVisible() && !(LocalCycleShown && !showing_home()) && PageContext.has_value());
+				const auto loadingName = IdentityText.isEmpty() && LoadingIdentity.has_value();
+				OpenOnGithubButtonAction->setVisible(IdentityAction->isVisible() && !(LocalCycleShown && !showing_home()) && (PageContext.has_value() || loadingName));
 			}
 		};
 		showPage();

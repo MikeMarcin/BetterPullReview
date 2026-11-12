@@ -701,6 +701,16 @@ namespace bpr::qt {
 		if (PageContext.has_value() && HasGithubPullRequest && !LocalCycleShown) {
 			return *PageContext;
 		}
+		// The owner, 2026-11-11: the title's page opens as soon as the title
+		// shows, while the rest of the review still loads. The window names
+		// the pull request; the host admits it against the read it waits on.
+		if (!HasGithubPullRequest && !LocalCycleShown && IdentityText.isEmpty() && LoadingIdentity.has_value()) {
+			return application::loading_pull_request_page{
+				.Owner      = LoadingIdentity->Owner.toStdString(),
+				.Repository = LoadingIdentity->Repository.toStdString(),
+				.Number     = LoadingIdentity->Number.toULongLong(),
+			};
+		}
 		return std::nullopt;
 	}
 

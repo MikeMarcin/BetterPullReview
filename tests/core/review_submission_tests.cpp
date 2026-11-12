@@ -87,6 +87,25 @@ namespace {
 		expect(controls(current, "MikeMarcin", "MikeMarcin") == review_submission_controls{ .Reconcile = true, .Authored = true }, "a submission in flight can still be checked");
 	}
 
+	// The owner, 2026-11-11. Until the pending comments are read their count
+	// is unknown: the review says so and nothing submits, whatever verdict.
+	void test_awaiting_comments()
+	{
+		auto       current = draft();
+		const auto known   = controls(current);
+		expect(known.Submit && known.SubmitAs == std::array{ true, true, true } && !known.CommentsUnknown, "a read review offers every verdict");
+		const auto unknown = awaiting_comments(current, known);
+		expect(unknown.CommentsUnknown && !unknown.Submit && unknown.SubmitAs == std::array{ false, false, false } && unknown.Edit && unknown.Discard,
+			   "while the comments are unread the summary is written and kept, and nothing submits");
+		for (const auto disposition : { review_disposition::comment, review_disposition::approve, review_disposition::request_changes }) {
+			expect(!submits_as(unknown, disposition), "no verdict submits a review whose comments are unread");
+		}
+		const auto own = awaiting_comments(current, controls(current, "MikeMarcin", "MikeMarcin"));
+		expect(own.Authored && own.CommentsUnknown && own.SubmitAs == std::array{ false, false, false }, "my own pull request keeps its reason and waits too");
+		current = *apply(current, command(kind::begin_submit)).Draft;
+		expect(awaiting_comments(current, controls(current)) == controls(current), "a submission in flight carries what Submit froze and is unchanged");
+	}
+
 	// [[BPR-1129]]. Compose review's mark: a summary or a verdict while
 	// drafting, or a submission not yet settled, is kept work.
 	void test_kept_drafts()
@@ -507,6 +526,7 @@ int main()
 	test_post_answers_settle();
 	test_decided_controls();
 	test_author_controls();
+	test_awaiting_comments();
 	test_kept_drafts();
 	test_transitions();
 	test_body_policy();

@@ -130,10 +130,18 @@ Final content: Ω 日本語 🦊
 	{
 		application::github_pull_request_provider_request   Request;
 		application::github_pull_request_completion_handler Complete;
+		application::github_pull_request_overview_handler   Overview;
 		void                                                fetch_pull_request(application::github_pull_request_provider_request aRequest, application::github_pull_request_completion_handler aComplete) override
 		{
 			Request  = std::move(aRequest);
 			Complete = std::move(aComplete);
+		}
+		void fetch_pull_request_with_observations(application::github_pull_request_provider_request aRequest, application::github_pull_request_completion_handler aComplete,
+												  application::github_pull_request_progress_handler aProgress, application::github_pull_request_overview_handler aOverview) override
+		{
+			static_cast<void>(aProgress);
+			Overview = std::move(aOverview);
+			fetch_pull_request(std::move(aRequest), std::move(aComplete));
 		}
 		void cancel_pull_request(application::github_pull_request_provider_request) override { }
 	};
@@ -372,6 +380,10 @@ int main(int argc, char** argv)
 	// [[BPR-1338]]. Open on GitHub through the same real read host.
 	std::optional<core::markdown_context> lastPage;
 	window.set_pull_request_page_dispatch([&](const application::pull_request_page_intent& aIntent) {
+		// The loading title's page, routed as the composition routes it.
+		if (const auto* const loading = std::get_if<application::loading_pull_request_page>(&aIntent)) {
+			return host.open_loading_pull_request_page(*loading, &opener);
+		}
 		const auto* const context = std::get_if<core::markdown_context>(&aIntent);
 		if (context == nullptr) {
 			return core::markdown_link_result::refused;
@@ -400,6 +412,34 @@ int main(int argc, char** argv)
 		expect(window.external_link_confirmation() == nullptr && opener.Addresses.empty()
 				   && window.statusBar()->currentMessage() == QStringLiteral("Links open once the pull request finishes loading."),
 			   "a link pressed while the review loads says it will open once loaded");
+	}
+	// The owner, 2026-11-11. The title's Open on GitHub comes with the loading
+	// title, not once the whole review has arrived, and opens the pull
+	// request's page at once: it is the application's own link, not one in
+	// remote text, so nothing asks first.
+	{
+		auto* const pageButton = window.open_on_github_button();
+		expect(pageButton != nullptr && !pageButton->isVisible() && !window.open_on_github_action()->isEnabled(),
+			   "before the read names its pull request the title row offers no page");
+		const auto overview = application::github_pull_request_overview_observation{
+			.Context     = reads.Request.Context,
+			.Repository  = { .Repository = core::repository_id{ 71 }, .Node = application::github_node_id{ "repo" }, .Owner = "owner", .Name = "repo", .DefaultBranch = "main" },
+			.PullRequest = { .PullRequest = core::pull_request_id{ 81 }, .Repository = core::repository_id{ 71 }, .Number = core::pull_request_number{ 42 }, .Node = application::github_node_id{ "pr" }, .Title = "Native Markdown review", .Body = "Loading description.", .BaseOid = application::commit_oid{ std::string(40, '1') }, .HeadOid = application::commit_oid{ std::string(40, '2') }, .BaseRef = "main", .HeadRef = "topic", .ReportedCommitCount = 1U },
+		};
+		expect(static_cast<bool>(reads.Overview), "the read offers its early metadata");
+		reads.Overview(overview);
+		lane.drain();
+		settle();
+		expect(!host.accepted_snapshot().has_value() && pageButton->isVisible() && pageButton->isEnabled() && window.open_on_github_action()->isEnabled(),
+			   "the loading title row offers Open on GitHub while the review still loads");
+		pageButton->click();
+		settle();
+		expect(window.external_link_confirmation() == nullptr && opener.Addresses.size() == 1U && opener.Addresses.back() == "https://ghe.example.invalid/owner/repo/pull/42"
+				   && window.statusBar()->currentMessage() == QStringLiteral("Opened the pull request on GitHub in your browser."),
+			   "the loading title's page opens the canonical page at once, with no question");
+		expect(host.open_loading_pull_request_page({ .Owner = "owner", .Repository = "repo", .Number = 43U }, &opener) == core::markdown_link_result::stale && opener.Addresses.size() == 1U,
+			   "a gesture naming another pull request than the read opens nothing");
+		opener.Addresses.clear();
 	}
 	auto       accepted      = snapshot(reads.Request);
 	const auto discussBodies = QCoreApplication::arguments().contains(QStringLiteral("--discuss-bodies"));
@@ -488,8 +528,10 @@ int main(int argc, char** argv)
 	expect(pageButton != nullptr && pageButton->isVisible() && pageButton->isEnabled(), "the composed title row offers Open on GitHub beside the name");
 	pageButton->click();
 	settle();
-	expect(opener.Addresses.size() == count + 2 && opener.Addresses.back() == "https://ghe.example.invalid/owner/repo/pull/42",
-		   "the composed button opens the accepted host's canonical pull request page");
+	expect(opener.Addresses.size() == count + 2 && opener.Addresses.back() == "https://ghe.example.invalid/owner/repo/pull/42" && window.external_link_confirmation() == nullptr,
+		   "the composed button opens the accepted host's canonical pull request page, with no question");
+	expect(host.open_loading_pull_request_page({ .Owner = "owner", .Repository = "repo", .Number = 42U }, &opener) == core::markdown_link_result::stale && opener.Addresses.size() == count + 2,
+		   "once the review is accepted the loading page is gone");
 	const auto pageGesture = *lastPage;
 	reader->copy_source();
 	expect(QApplication::clipboard()->mimeData()->data("text/plain").toStdString() == corpus, "composed Copy source retains exact bytes");

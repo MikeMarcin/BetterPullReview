@@ -188,7 +188,7 @@ int main()
 	stale.Request                = request_id{ 99U };
 	// [[BPR-1842]]. The file list is observed only after the metadata it
 	// belongs to, once, for the exact pending read.
-	if (lane.accept_files_observation(first, read.Fetch->Context)) {
+	if (lane.accept_files_observation(first, read.Fetch->Context) || lane.loading_metadata_observed()) {
 		return EXIT_FAILURE;
 	}
 	if (lane.accept_overview_observation(wrong, read.Fetch->Context)
@@ -196,6 +196,11 @@ int main()
 		|| !lane.accept_overview_observation(first, read.Fetch->Context)
 		|| lane.accept_overview_observation(first, read.Fetch->Context)
 		|| lane.state() != beforeObservation) {
+		return EXIT_FAILURE;
+	}
+	// The owner, 2026-11-11. The window names the pull request it loads once
+	// its metadata is observed: the title's page may open from then on.
+	if (!lane.loading_metadata_observed()) {
 		return EXIT_FAILURE;
 	}
 	if (lane.accept_files_observation(wrong, read.Fetch->Context)
@@ -206,19 +211,19 @@ int main()
 		return EXIT_FAILURE;
 	}
 	static_cast<void>(lane.apply(first, pull_request_load_cancelled_event{ read.Fetch->Context }));
-	if (lane.accept_overview_observation(first, read.Fetch->Context)
+	if (lane.loading_metadata_observed() || lane.accept_overview_observation(first, read.Fetch->Context)
 		|| lane.accept_files_observation(first, read.Fetch->Context)) {
 		return EXIT_FAILURE;
 	}
 	const auto next = lane.apply(first, open_pull_request_intent{ { "owner", "other" }, pull_request_number{ 2U } });
-	if (!next.Fetch || lane.accept_files_observation(first, next.Fetch->Context)
+	if (!next.Fetch || lane.loading_metadata_observed() || lane.accept_files_observation(first, next.Fetch->Context)
 		|| !lane.accept_overview_observation(first, next.Fetch->Context)
 		|| lane.accept_overview_observation(first, read.Fetch->Context)
 		|| lane.accept_files_observation(first, read.Fetch->Context)
 		|| !lane.accept_files_observation(first, next.Fetch->Context)) {
 		return EXIT_FAILURE;
 	}
-	if (!lane.retire(session) || lane.adopt(session)) {
+	if (!lane.loading_metadata_observed() || !lane.retire(session) || lane.loading_metadata_observed() || lane.adopt(session)) {
 		return EXIT_FAILURE;
 	}
 	github_window_read unread{ first, application_session_id{ 2 } };

@@ -1032,6 +1032,16 @@ namespace bpr::app {
 		void                                           adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen);
 		[[nodiscard]] auto                             insights_capture(const application::accepted_pull_request_handoff& aHandoff) const -> application::insights_review_capture;
 
+		/// The owner, 2026-11-11. The draft owner this window has read the
+		/// saved drafts into. Until it is the current one, the pending
+		/// comments are unknown, never none.
+		std::weak_ptr<application::shared_draft_application_host> ReadDrafts;
+#if defined(BPR_BUILD_TESTING)
+		/// Testing only: the saved drafts are not read while set, as a slow
+		/// store would leave them, so a course can open the review first.
+		bool HoldDraftRestore = false;
+#endif
+
 		void compose_review_ledger(
 			const application::accepted_pull_request_handoff& aHandoff);
 

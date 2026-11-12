@@ -57,7 +57,10 @@ namespace bpr::app {
 		void set_review_comment_hooks(comment_lock, review_answer, review_discard);
 		/// [[BPR-1345]]. The pending drafts this review carries, as the draft
 		/// owner holds them now, for the review's account and head.
-		void observe_review_comments(std::vector<core::review_submission_comment> aComments);
+		/// \details The owner, 2026-11-11. `aRead` is false until the draft
+		/// owner has read this pull request's saved drafts: the comments are
+		/// then unknown, never none, and the review submits nothing.
+		void observe_review_comments(std::vector<core::review_submission_comment> aComments, bool aRead);
 		/// [[BPR-1345]]. The keys of submissions that hold drafts. Each one
 		/// this workflow is not already settling is looked up, and its answer
 		/// settles its drafts.
@@ -146,6 +149,7 @@ namespace bpr::app {
 		review_answer                                         Answer;
 		review_discard                                        DiscardReview;
 		std::vector<core::review_submission_comment>          Comments;
+		bool                                                  CommentsRead    = false;
 		core::review_submission_rejection                     CommentsRefusal = core::review_submission_rejection::none;
 		bool                                                  Locking         = false;
 		std::vector<std::string>                              Lookups;

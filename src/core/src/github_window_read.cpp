@@ -195,6 +195,10 @@ namespace bpr::core {
 		return true;
 	}
 	auto github_window_read::adoption() const noexcept -> const std::optional<github_transition_output>& { return Adoption; }
+	auto github_window_read::loading_metadata_observed() const noexcept -> bool
+	{
+		return Session.has_value() && State.PendingPullRequest.has_value() && OverviewObserved;
+	}
 	auto github_window_read::state() const noexcept -> const github_state& { return State; }
 	auto github_window_read::window() const noexcept -> bpr_window_context { return Window; }
 }

@@ -160,6 +160,11 @@ namespace bpr::application {
 		/// this window's current publication. The address is built from the accepted profile
 		/// authority's hostname and the accepted snapshot, never from remote or typed text.
 		[[nodiscard]] auto open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
+		/// \brief Opens the page of the pull request this window is still loading,
+		/// once the read's metadata was observed and while the gesture names
+		/// that read's pull request. The address is built from the pending
+		/// read's profile hostname and locator, never from the gesture's names.
+		[[nodiscard]] auto open_loading_pull_request_page(const loading_pull_request_page& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		/// \brief RFC-BPR-0089. Opens one of the accepted pull request's listed
 		/// commits on its host. A commit the accepted list does not name, or a
 		/// malformed ID, is refused before any address exists.

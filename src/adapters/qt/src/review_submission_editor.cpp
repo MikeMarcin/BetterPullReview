@@ -1587,8 +1587,12 @@ namespace bpr::qt {
 		HeadingRule->setVisible(Draft.has_value() && !comments.empty());
 		SummaryRule->setVisible(false);
 		SummaryHeading->setVisible(Draft.has_value());
-		Carries->setText(comments.size() == 1U ? tr("1 pending comment") : tr("%1 pending comments").arg(comments.size()));
-		Carries->setVisible(!comments.empty());
+		// The owner, 2026-11-11. Comments not read yet are not "none": the
+		// heading says they are loading, and the count replaces it once read.
+		const auto loading = Draft.has_value() && Draft->State == core::review_submission_state::drafting && Shown.Controls.CommentsUnknown;
+		Carries->setText(loading ? tr("Loading pending comments…") : comments.size() == 1U ? tr("1 pending comment")
+																						   : tr("%1 pending comments").arg(comments.size()));
+		Carries->setVisible(loading || !comments.empty());
 		Body->setPlaceholderText(!comments.empty() ? tr("Leave a summary (optional)") : tr("Write a review summary…"));
 	}
 	void review_submission_editor::present_verdicts()
@@ -1596,11 +1600,13 @@ namespace bpr::qt {
 		// [[BPR-1345]] v002. Each verdict submits as itself, when the core
 		// says it can; a disabled one says why.
 		const auto connected = Draft.has_value() && static_cast<bool>(Dispatch);
-		const auto editable  = connected && Shown.Controls.Edit;
-		const auto carried   = Draft.has_value() && !Draft->Comments.empty();
-		const auto blank     = Draft.has_value() && QString::fromUtf8(Draft->Body).trimmed().isEmpty();
-		const auto count     = Draft.has_value() ? Draft->Comments.size() : 0U;
-		const auto blocked   = Shown.Status.isEmpty() ? tr("This review cannot be submitted now.") : Shown.Status;
+		// The owner, 2026-11-11. While the comments are unread no verdict
+		// explains itself by a summary: the status says what it waits for.
+		const auto editable = connected && Shown.Controls.Edit && !Shown.Controls.CommentsUnknown;
+		const auto carried  = Draft.has_value() && !Draft->Comments.empty();
+		const auto blank    = Draft.has_value() && QString::fromUtf8(Draft->Body).trimmed().isEmpty();
+		const auto count    = Draft.has_value() ? Draft->Comments.size() : 0U;
+		const auto blocked  = Shown.Status.isEmpty() ? tr("This review cannot be submitted now.") : Shown.Status;
 		// [[RFC-BPR-0090]]. A held suggestion keeps the review back until it
 		// is converted or deleted (owner, Q3).
 		const auto held = Draft.has_value() ? static_cast<std::size_t>(std::ranges::count_if(Draft->Comments, [this](const core::review_submission_comment& aComment) {
