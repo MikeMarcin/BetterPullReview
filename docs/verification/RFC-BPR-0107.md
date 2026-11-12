@@ -112,9 +112,11 @@ tools, no saved session, an empty folder). Codex 0.167.0:
 `codex exec --ephemeral --ignore-user-config -c developer_instructions="…"`
 answered `ok PINEAPPLE` (one canary call, 2026-11-12).
 
-Pending: the tour conversation's and Draft Tour's prompts, the local
-draft's description, discussion and commit message prompts, and the review
-skill still paste their instructions; the owner's rerun of the inline route
-through the corporate wrapper is pending (the per-agent switch is the
-fallback). Round record:
+Second pass (2026-11-12): the tour conversation's and Draft Tour's prompts
+(`split_tour_prompt` at their evidence), the local draft's description,
+discussion and commit message prompts, and the review skill now reach the
+system prompt the same way; the switch, the App Server and the 24 KiB bound
+paste them. `application_agent_launch_policy` asserts each. Still pending:
+the owner's rerun of the inline route through the corporate wrapper (the
+per-agent switch is the fallback). Round record:
 [RFC-BPR-0101](RFC-BPR-0101.md#agent-launch-policy-owner-2026-11-12-bpr-2138-bpr-2141).

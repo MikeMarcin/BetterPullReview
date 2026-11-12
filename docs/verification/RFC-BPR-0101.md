@@ -192,16 +192,80 @@ and per-path launches, MCP, argument order, instructions, sign-in failures),
 `test_network_isolation_manifest`, `application_composition_source_contract`
 (pin resealed), `coding-format-check`; integration pass below.
 
-Not done (cards stay In Progress):
+Not done then (the cards stayed In Progress): the local draft's discussion
+as a native session, its first description as a fresh path, an explicit Ask
+more, and Draft Tour, field drafts and the outline as one call. The second
+pass below finished them.
 
-- [[BPR-2138]]: the local draft's discussion still replays its history in
-  each request rather than resuming a native session; its first description
-  is not yet a separate fresh path; Ask more is implicit for Draft Tour (the
-  next whole-tour turn) with no control of its own, and the agent-assistance
-  actions (RFC-BPR-0116 to 0121) are not built yet. A fresh part Enhance
-  still lists its run in the part's transcript (it is not replayed).
-- [[BPR-2141]] (AC13): Enhance, field rewrites, the commit message and the
-  local draft's runs are already one tool-free call; Draft Tour, a field's
-  draft from PR context and Suggest an outline still read the repository with
-  read-only tools (several calls). Supplying their context up front is the
-  remaining work.
+### Second pass (2026-11-12): resumed local discussion, Ask more, one call per fresh click
+
+- **Local draft discussion (AC10, AC12).** `local_draft_workbench::ask`
+  names the path: the discussion (`local_draft_discussion`, resumed) or,
+  for a question about the title or description while the description is
+  empty and no session is open, the first description
+  (`local_description_first_draft`, fresh); the commit message stays
+  `local_commit_message` (fresh). A resumed tool-free Claude launch keeps
+  its session (the writing restrictions without `--no-session-persistence`);
+  `prepare_native_agent_turn` now takes a tool-free turn on a resumed path
+  (Claude only, never connected) and adds `--resume <handle>`. The runner
+  runs the discussion in an owner-private empty folder kept per draft
+  (`local-draft-sessions-v1/<draft>`), so the next turn finds its session;
+  the launcher keeps a host folder only for a resumed tool-free path. The
+  handle the agent reports is recorded on the conversation
+  (`core::record_handle`); `compose_local_request` then sends only the
+  question (no replay, no files: `local_request::Resumed`). A conversation
+  with no handle starts its session with its earlier turns, so a fresh
+  first description's question and answer seed it (Ask more). A session that
+  cannot be resumed is let go and the next question starts one from the
+  conversation.
+- **Ask more (AC12).** An explicit control, flat beside Discard: on a part
+  of Draft Tour's proposal (`tourProposalAskMore`) and on a fresh Enhance's
+  suggestion in the part's side chat (`tourSideChatAskMore`). It opens that
+  thread's chat (the whole tour's for Draft Tour, the part's for Enhance;
+  `ask_more_path(tour_enhance)` is now `tour_side_chat`) and arms a seed the
+  next turn carries ahead of its message; that turn resumes as every chat
+  turn does. Nothing is seeded without the press. A commit message and an
+  Enhance on a comment, reply or note offer none. Frontend-design was loaded
+  first; render `side-chat-ask-more` from `qt_tour_side_chat`.
+- **One call per fresh click (AC13, [[BPR-2141]]).** The snapshot keeps each
+  file's patch (`github_file_record::Patch`, up to 64 KiB a file). Draft
+  Tour, Draft from PR context and Suggest an outline choose a route in the
+  core (`choose_tour_context`): with a tool-free agent and a diff of at most
+  `maximum_up_front_diff_bytes` (96 KiB) they are one tool-free call (no
+  tools, no MCP, no saved session) whose request carries every patch
+  (Draft Tour's evidence JSON; a field's `render_up_front_diff`); the prompt
+  rides the tour prompt's carrier (`agent_context_run::tool_free_tour`).
+  Past the budget, or with an agent with no tool-free mode, they read the
+  repository as before and the notice says which and why ("This pull
+  request's diff (N KiB) is more than one request carries (96 KiB), so the
+  agent reads the repository instead, in several requests"). An agent that
+  can do neither is refused by name.
+- **Instructions in the system prompt ([[BPR-2140]]).** `split_tour_prompt`
+  splits a tour prompt at its evidence: Draft Tour's and every tour
+  conversation turn's instructions go to the system prompt with the rest of
+  the round's built-in prompts; the local draft's description, discussion
+  and commit message prompts (`local_request::Instructions`, the commit
+  runner's `Instructions`) and the review skill (out of the brief, which
+  says `brief.skill.location system_prompt`) do too. The per-agent switch
+  and the 24 KiB bound paste them as before.
+
+Runs (focused, at the second pass's candidate): `application_agent_launch_policy`
+(new: the resumed local discussion and its fresh siblings, the review skill,
+up-front drafts and the route, the tour conversation's split within the
+bound), `core_local_draft_tour` (resumed and seeding requests),
+`core_local_changes`, `local_changes`, `local_draft`,
+`application_github_contract`, `application_tour_agent_conversation`,
+`qt_tour_agent_session_view` and `qt_tour_side_chat` (Ask more),
+`qt_tour_chat_in_tab`, `application_local_draft_tour_desktop_public_path`
+(the follow-up resumes `session-1`: no replay, no files),
+`application_local_draft_author_desktop_public_path`,
+`application_agent_invocation_composition_contract`,
+`application_review_tour_composition_public_path`, `tour_cli_composition`
+and `application_profile_tour_handoff_public_path` (eleven writing hooks).
+
+Live, 2026-11-12, installed Claude Code (haiku, the person's own sign-in):
+`python3 tests/scripts/claude_resume_canary.py --launch-printer build/dev/tests/application/better_pull_review_agent_launch_policy_tests`
+ran a local draft discussion's two turns exactly as BPR builds them in one
+empty folder: the first told a word, the second resumed the first by the
+session it reported (`--resume`, still tool-free) and answered
+`CANARY_PASS: 'KUMQUAT' same_session=True` (two calls, $0.0013).
