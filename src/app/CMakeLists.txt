@@ -216,6 +216,7 @@ if(BPR_BUILD_QT)
             src/tour_assist.cpp
             src/private_review_workflow.cpp
             src/review_cycle_desktop.cpp
+            src/local_draft_desktop.cpp
             src/profile_admission.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp

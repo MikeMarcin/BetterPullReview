@@ -192,6 +192,9 @@ namespace bpr::app {
 #endif
 		);
 		CycleDesktop->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
+		// RFC-BPR-0108. Local PR drafts read the chosen worktree through
+		// their own isolated Git reader; signed out as well as in.
+		DraftDesktop = std::make_unique<local_draft_desktop>(*Window, ApplicationDataRoot, Profile->InstalledGit, windows_system_root(), WorkbenchEffects, DecisionLane);
 		// [[BPR-1177]]. Publish as Pull Request acts as the account this
 		// profile's session accepted, through its own publication catalog.
 		CycleDesktop->set_publishing({

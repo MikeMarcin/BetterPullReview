@@ -149,6 +149,9 @@ namespace bpr::app {
 		if (CycleDesktop) {
 			CycleDesktop->shutdown();
 		}
+		if (DraftDesktop) {
+			DraftDesktop->shutdown();
+		}
 		for (auto& retained : RetiredTourHosts) {
 			retained.Host->shutdown();
 		}
@@ -263,6 +266,7 @@ namespace bpr::app {
 			|| (ConversationReply && !ConversationReply->is_quiescent())
 			|| (TourHost && !TourHost->is_quiescent())
 			|| (CycleDesktop && !CycleDesktop->is_quiescent())
+			|| (DraftDesktop && !DraftDesktop->is_quiescent())
 #if defined(BPR_AGENT_INTEGRATIONS)
 			|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
 			|| (AgentSetup && !AgentSetup->is_quiescent())

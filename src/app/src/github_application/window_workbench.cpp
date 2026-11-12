@@ -1396,6 +1396,9 @@ namespace bpr::app {
 			finder->set_colours(AppearanceProfile->color(core::appearance_role::state_unread), QColor{ 0xD2, 0x99, 0x22 });
 			finder->set_code_font(AppearanceProfile->code_font());
 		}
+		if (DraftDesktop) {
+			DraftDesktop->set_code_font(AppearanceProfile->code_font());
+		}
 
 		// Read back off the window rather than off the profile. The claim
 		// is that the palette reached the window; asking the profile what
