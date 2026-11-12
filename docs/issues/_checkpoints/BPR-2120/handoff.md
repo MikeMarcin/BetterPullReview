@@ -19,3 +19,10 @@ and full/native release obligations explicit. Preserve this clone's LF-terminate
 alternate to the independent successor's object store until it is dissociated or
 its reachable objects are archived. Next: finish static/docs/main contribution,
 hand exact own commits back for selective integration; no broad main intake.
+
+Canonical source562de23bc76c7255f6466bbf0c492f2f07bafa69 and proof60263decc
+are pushed; both source payload hashes equal the private candidate. Canonical
+documentation gate0; private documentation gate0/67contracttests0 and diffcheck0.
+Finish normal acceptance metadata and push it without importing unrelated main
+into the isolated release slice. Native source/configuration acceptance remains
+the coordinator's explicitly scoped bridge, not a new complete matrix result.
