@@ -588,6 +588,11 @@ Applied by the owning milestones, not at drafting.
 
 Each has a recommendation. A recommendation is not an answer.
 
+Owner answers (2026-11-12): **Q1** closed-variable substitution, no template
+library. **Q2** a drafted macro keeps its subject and kind as a removable chip.
+**Q3** names and numbers only, no content variables. Q4 to Q10 are open; the
+owner is reviewing them.
+
 1. **Q1. Is closed-variable substitution enough, or is a template language
    wanted?** It gates the template scan of milestone 1. *Recommended:*
    substitution, no library, as argued above.
