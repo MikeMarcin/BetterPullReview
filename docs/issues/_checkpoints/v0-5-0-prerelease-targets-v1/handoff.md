@@ -1763,6 +1763,25 @@ Plan of the round (status in brackets, updated as it goes):
    [done `dda67270c`; composition wired; the three local-draft desktop
    courses, `local_changes`, settings and agent configuration storage pass]
 6. App pin reseal, focused tests, native renders, live BPR-Test push,
-   freeze, one attended session
+   freeze, one attended session [pin `7550a3ee9`; window suites `a7ef7c0c5`;
+   live push `e4e053c52`; records `559a345c5`; BPR-2062 and BPR-2065
+   claimed `3a6adf516`, `316135d2b`; main mirror `962371113`; freeze and
+   session next]
+
+Decisions taken in the round (recorded in the design README, the RFC
+amendments and the v0.5.0 DECISIONS): tab named Local Changes; opening reads
+no network (Check Again or Push reads GitHub); review-bar picker two 20 px
+segments in a review (its well replaces the rule), three in author state; the
+author-Git runner is a named QProcess owner whose catalogue
+`architecture_boundaries` holds.
+
+Not built (in the ledgers): the accepted PR-window Tour panel bound to a
+local tour (the Tour tab hosts the local tour editor); the Status tab's
+three-step strip (it hosts the publication area); Address feedback opening a
+real pull request into author state (RFC-BPR-0122); leaving with unsaved
+edits does not ask; no course stops a running push.
+
+Live: BPR-Test disposable branch `bpr-local-changes-live-20261112084707`
+pushed by the author runner (tip `2dd171d1abad`), deleted (HTTP 204).
 
 Tab name decided: **Local Changes** (recorded in the design README).
