@@ -6293,13 +6293,22 @@ namespace {
 						return;
 					}
 					if (stage < 2) {
-						stage = 2;
-						if (page->local_projection().Active) {
+						// Check Again once the first read has settled, as the author would.
+						if (page->local_projection().Active && page->local_projection().Observed
+							&& page->local_projection().Running == bpr::application::local_changes_operation::none) {
+							stage = 2;
 							page->local_changes()->push_button()->click();
 						}
 						return;
 					}
-					if (page->local_projection().Running != bpr::application::local_changes_operation::none || !page->local_projection().Hosted.Observed) {
+					const auto& local = page->local_projection();
+					if (*ticks % 40 == 0) {
+						QTextStream{ stdout } << "ATTENDED_LOCAL_DRAFT_PROGRESS:active=" << local.Active << " observed=" << local.Observed << " hosted=" << local.Hosted.Observed
+											  << " running=" << QString::fromUtf8(bpr::application::name(local.Running).data()) << " failure="
+											  << (local.Failure ? QString::fromStdString(local.Failure->Message).left(200) : QString{ }) << '\n';
+						QTextStream{ stdout }.flush();
+					}
+					if (local.Running != bpr::application::local_changes_operation::none || (!local.Hosted.Observed && !local.Failure)) {
 						return;
 					}
 					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_AUTHOR_SHOWN:%1:%2").arg(QString::fromStdString(AttendedLocalDraftPath), page->local_changes()->push_state()->text()));
