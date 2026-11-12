@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2143"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Skill picker Tab completion pinned",
+  "created": "2026-11-12T17:36:16.386381+00:00",
+  "base": "ce5ffa1461c9a0006510621a997fbccc303a4e48"
+}
