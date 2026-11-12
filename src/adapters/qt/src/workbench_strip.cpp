@@ -299,6 +299,23 @@ namespace bpr::qt {
 				aPainter.drawPath(heads);
 				break;
 			}
+			case strip_glyph::return_to_review: {
+				// A return arrow: the shaft leaves to the right along the top,
+				// turns down round a half circle and comes back below; the
+				// head points left on the upper shaft, the way back.
+				auto shaft = QPainterPath{ };
+				shaft.moveTo(5.0, 9.0);
+				shaft.lineTo(14.0, 9.0);
+				shaft.arcTo(QRectF{ 9.5, 9.0, 10.0, 10.0 }, 90.0, -180.0);
+				shaft.lineTo(9.0, 19.0);
+				aPainter.drawPath(shaft);
+				auto head = QPainterPath{ };
+				head.moveTo(9.0, 5.0);
+				head.lineTo(5.0, 9.0);
+				head.lineTo(9.0, 13.0);
+				aPainter.drawPath(head);
+				break;
+			}
 			}
 		}
 

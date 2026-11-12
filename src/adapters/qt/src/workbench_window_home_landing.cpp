@@ -430,9 +430,7 @@ namespace bpr::qt {
 		// [[BPR-1157]]. A local cycle takes the review surface's place, and the
 		// title row keeps only what Home keeps plus the cycle's name.
 		const auto cycle = !home && LocalCycleShown && LocalCyclePage != nullptr;
-		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
-			HomeAction->setChecked(home);
-		}
+		present_home_action(home);
 		auto leavingHome = false;
 		auto arrivedHome = false;
 		if (CentralStack != nullptr) {

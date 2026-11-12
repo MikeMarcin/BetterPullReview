@@ -82,6 +82,9 @@ namespace bpr::qt {
 		/// [[BPR-1815]]. Go to header/source: two pages side by side, each
 		/// with its folded corner, and an arrow headed both ways between them.
 		header_source,
+		/// Return to the review: an arrow that turns back on itself, the
+		/// Home button's face while Home shows over an open review.
+		return_to_review,
 	};
 
 	/// \brief Paints one strip glyph for a palette.
