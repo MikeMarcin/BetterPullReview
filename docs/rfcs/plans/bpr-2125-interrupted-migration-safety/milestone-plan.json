@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2125-interrupted-migration-safety",
+  "scope": {
+    "issues": [
+      "BPR-2125"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "preserve-retained-work-during-migration",
+      "outcome": "A retained agent workspace survives an interrupted ownership-journal identity migration; uncertain writes refuse without acquiring cleanup authority, while ordinary temporary cleanup continues.",
+      "work": [
+        {
+          "issue": "BPR-2125",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4",
+            "AC5"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Durability ordering and actual-writer fault outputs prove no retained phase7 migration can become an admitted phase2/3 cleanup prefix; same inode/lock/authority and retained edits remain protected.",
+        "Focused Mac native positive, fault-boundary, retained-reattach and ordinary temporary cleanup controls pass; source/format/architecture/docs gates pass; Windows/Linux native qualification remains explicit and uncredited.",
+        "Intentionally land only owned corrective commits on main, preserve W363/R703 and unrelated main work, return source/canonical mapping, durable evidence and empty command state."
+      ],
+      "boundary": "Mandate bpr2125-interrupted-migration-safety-r1. Independent private source based on clean363b2d77, corrective patch separately contributed to current main. Existing Git ownership journal and test APIs only; no general parser/serializer/framework/dependency or release allocation/publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
