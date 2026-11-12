@@ -172,6 +172,10 @@ namespace bpr::app {
 		std::vector<std::string> Measure;
 		/// [[BPR-1916]]. The skills the run's prompt names, inline.
 		skill_run Skills;
+		/// [[BPR-2138]]. The launch path, whose session mode the run keeps.
+		core::agent_run_path Path = core::agent_run_path::tour_side_chat;
+		/// [[BPR-2140]]. A built-in prompt's instructions, kept apart.
+		std::string SystemInstructions;
 	};
 
 	/// \brief [[BPR-1900]]. The tour session's projection: its own, so a tour

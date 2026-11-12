@@ -812,8 +812,9 @@ namespace bpr::application {
 					aInvocation->DurableRun.store(aInvocation->PrivateAdmission->Delta.Run.value(), std::memory_order_release);
 					post_private(aInvocation, aInvocation->PrivateAdmission->Delta, { });
 				}
+				// [[BPR-2138]]. Only a resumed path keeps a native session.
 				const auto native = NativeSessions != nullptr && !aRequest.NativeAgentIdentity.empty() && !aRequest.NativeScope.empty()
-					&& !aRequest.WritingOnly && !aRequest.ExistingCheckoutChosen;
+					&& !aRequest.WritingOnly && !aRequest.ExistingCheckoutChosen && core::session_mode_of(aRequest.Path) == core::agent_session_mode::resumed;
 				const auto refuseNative = [&](const std::string& aReason, const core::operation_failure aFailure,
 											  const agent_run_outcome                                 aOutcome         = agent_run_outcome::private_storage_failure,
 											  const std::optional<agent_workspace_unavailable_reason> aWorkspaceReason = std::nullopt) {
@@ -957,6 +958,10 @@ namespace bpr::application {
 					return;
 				}
 				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly, .ReadOnlyTools = aRequest.ReadOnlyTools, .RunChecks = aRequest.RunChecks };
+				options.Path               = aRequest.Path;
+				options.McpServers         = aRequest.McpServers;
+				options.SystemInstructions = aRequest.SystemInstructions;
+				options.Instructions       = aRequest.Instructions;
 				// [[BPR-1752]]. The brief says what the workspace that
 				// was just made is, so the agent knows whether history and the
 				// base are there to compare with.

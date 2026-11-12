@@ -520,8 +520,10 @@ namespace bpr::app {
 			return;
 		}
 		auto profiles = std::vector<core::agent_profile>{ };
+		SendMcp.clear();
 		for (const auto& entry : aEntries) {
 			profiles.push_back(core::entry_profile(entry));
+			SendMcp.emplace_back(profiles.back().Id, entry.McpServers);
 		}
 		SendEntries->set(std::move(aEntries));
 		if (!profiles.empty()) {
@@ -545,6 +547,10 @@ namespace bpr::app {
 			.AccountHost = [this]() -> std::optional<std::string> {
 				const auto account = Publishing.Account ? Publishing.Account() : std::nullopt;
 				return account ? std::optional{ account->Host } : std::nullopt;
+			},
+			.McpServersOf = [settings = SendMcp](const core::agent_profile_id aProfile) {
+				const auto found = std::ranges::find(settings, aProfile, &std::pair<core::agent_profile_id, core::agent_mcp_servers>::first);
+				return found == settings.end() ? core::agent_mcp_servers::off : found->second;
 			},
 		});
 	}

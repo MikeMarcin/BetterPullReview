@@ -587,6 +587,11 @@ namespace bpr::adapters::agent::detail {
 				} else if (ProtocolFailure) {
 					Result.Outcome         = application::agent_run_outcome::protocol_failure;
 					Result.ProtocolFailure = ProtocolFailure;
+					// [[BPR-2142]], RFC-BPR-0103. A failed sign-in is said as
+					// one, never as an answer in a form the app can't read.
+					if (*ProtocolFailure == application::agent_protocol_failure::not_signed_in && Result.RefusalReason.empty()) {
+						Result.RefusalReason = std::string{ application::agent_sign_in_failure_words };
+					}
 				} else {
 					Result.Outcome = ClassifiedOutcome.value_or(
 						application::agent_run_outcome::protocol_failure);

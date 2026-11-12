@@ -862,10 +862,15 @@ namespace bpr::app {
 		}
 		// [[BPR-1753]], owner amendment 2026-10-23. An added agent runs
 		// with its own model and effort unless the request names one.
-		auto checks = application::agent_run_checks::strict;
+		auto checks       = application::agent_run_checks::strict;
+		auto mcpServers   = core::agent_mcp_servers::off;
+		auto instructions = core::agent_instruction_delivery::system_prompt;
 		if (AgentSetup) {
 			const auto agents = AgentSetup->projection().Preferences.Agents;
 			if (const auto* const entry = core::entry_of_profile(agents, aProfile); entry != nullptr) {
+				// [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12).
+				mcpServers   = entry->McpServers;
+				instructions = entry->Instructions;
 				// [[BPR-1918]]. A custom agent may opt out of strict run checks.
 				if (!entry->StrictRunChecks && !entry->Preset) {
 					checks = application::agent_run_checks::relaxed;
@@ -898,6 +903,8 @@ namespace bpr::app {
 			// Owner decision 2026-10-23: a time limit only when the reviewer set one.
 			.RunLimitMilliseconds = run_limit_milliseconds(),
 		};
+		invocation.McpServers   = mcpServers;
+		invocation.Instructions = instructions;
 		// [[BPR-1900]]. Every tour writing run is the tour session's, never
 		// the Agent tab's: a drafting run in the review's workspace with
 		// read-only tools, or a small rewrite tool-free.
@@ -911,6 +918,8 @@ namespace bpr::app {
 			invocation.HistoryCloneManaged = aTour.ReadOnly && linked_history_clone_managed(false);
 			invocation.MeasurePaths        = aTour.Measure;
 			invocation.RunChecks           = checks;
+			invocation.Path                = aTour.Path;
+			invocation.SystemInstructions  = aTour.SystemInstructions;
 			// [[BPR-1916]]. The skills the prompt names ride in the supplement.
 			invocation.Context.Skills = aTour.Skills.Inline;
 			if (!aTour.NativeScope.empty() && AgentSetup) {
@@ -937,6 +946,7 @@ namespace bpr::app {
 					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
 			}
 		}
+		invocation.Path = core::agent_run_path::agent_tab;
 		// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The turn's grant.
 		if (!grant_agent_turn(invocation)) {
 			return false;

@@ -1,0 +1,163 @@
+#ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_RUN_POLICY_HPP
+#define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_RUN_POLICY_HPP
+
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <string_view>
+
+/// \file
+/// \brief The owner's agent launch policy of 2026-11-12: which agent runs
+/// are fresh and which resume ([[BPR-2138]], RFC-BPR-0101), whether an
+/// agent's own MCP servers load ([[BPR-2139]], RFC-BPR-0104), and how a
+/// built-in prompt's instructions reach the agent ([[BPR-2140]],
+/// RFC-BPR-0107). Pure: the host reads these when it builds a launch.
+namespace bpr::core {
+	/// \brief Whether a run keeps a conversation.
+	enum class agent_session_mode : std::uint8_t {
+		/// A disposable run: no native session is started or resumed and
+		/// nothing is saved. Its result lands where the action is.
+		fresh,
+		/// A native session that keeps its history and is resumed.
+		resumed,
+	};
+	[[nodiscard]] auto stable_name(agent_session_mode aMode) noexcept -> std::string_view;
+
+	/// \brief Every way the app launches an agent, as the owner classified
+	/// them (2026-11-12): "some of our one-off things like enhance writing
+	/// buttons can be non-resumed disposable sessions. But I think a large
+	/// number of our interactions do benefit from being able to reference
+	/// the chat history."
+	enum class agent_run_path : std::uint8_t {
+		/// Enhance on a comment, a reply or a note.
+		enhance_writing,
+		/// Enhance on a tour stop or a tour part ([[BPR-2138]]: a proposal
+		/// on the stop, never a turn of its side chat).
+		tour_enhance,
+		/// Generate a stop's comment; draft an empty field; suggest an outline.
+		tour_field_draft,
+		/// The review-feedback hook.
+		review_feedback_hook,
+		/// Draft Tour's first draft.
+		draft_tour_first_draft,
+		/// A local draft's first description.
+		local_description_first_draft,
+		/// A local draft's commit message.
+		local_commit_message,
+		/// An agent check and its probes (Settings, setup).
+		agent_check,
+		/// The first answer of an agent-assistance action (RFC-BPR-0116 to 0121).
+		assistance_first_answer,
+		/// The Agent tab conversation.
+		agent_tab,
+		/// A tour side chat (a stop or a part).
+		tour_side_chat,
+		/// The whole-tour conversation.
+		tour_conversation,
+		/// A local draft's discussion.
+		local_draft_discussion,
+		/// A Review Cycle round.
+		review_cycle_round,
+		/// A self-review or fix loop.
+		self_review_loop,
+		/// An address-feedback run.
+		address_feedback_run,
+	};
+	inline constexpr std::size_t agent_run_path_count = 16U;
+	static_assert(static_cast<std::size_t>(agent_run_path::address_feedback_run) + 1U == agent_run_path_count, "agent_run_path_count must cover every launch path");
+
+	[[nodiscard]] auto stable_name(agent_run_path aPath) noexcept -> std::string_view;
+
+	/// \brief The owner's classification: one-offs are fresh, conversations
+	/// resume. Every switch over `agent_run_path` omits a `default`.
+	[[nodiscard]] constexpr auto session_mode_of(const agent_run_path aPath) noexcept -> agent_session_mode
+	{
+		switch (aPath) {
+		case agent_run_path::enhance_writing:
+		case agent_run_path::tour_enhance:
+		case agent_run_path::tour_field_draft:
+		case agent_run_path::review_feedback_hook:
+		case agent_run_path::draft_tour_first_draft:
+		case agent_run_path::local_description_first_draft:
+		case agent_run_path::local_commit_message:
+		case agent_run_path::agent_check:
+		case agent_run_path::assistance_first_answer:
+			return agent_session_mode::fresh;
+		case agent_run_path::agent_tab:
+		case agent_run_path::tour_side_chat:
+		case agent_run_path::tour_conversation:
+		case agent_run_path::local_draft_discussion:
+		case agent_run_path::review_cycle_round:
+		case agent_run_path::self_review_loop:
+		case agent_run_path::address_feedback_run:
+			return agent_session_mode::resumed;
+		}
+		return agent_session_mode::fresh;
+	}
+
+	/// \brief [[BPR-2138]]. The resumed path a fresh answer's Ask more
+	/// promotes into, seeded with that answer; none for a fresh path that
+	/// offers no conversation (an Enhance, a commit message, a check).
+	[[nodiscard]] constexpr auto ask_more_path(const agent_run_path aPath) noexcept -> std::optional<agent_run_path>
+	{
+		switch (aPath) {
+		case agent_run_path::draft_tour_first_draft:  return agent_run_path::tour_conversation;
+		case agent_run_path::assistance_first_answer: return agent_run_path::agent_tab;
+		case agent_run_path::local_description_first_draft: return agent_run_path::local_draft_discussion;
+		case agent_run_path::enhance_writing:
+		case agent_run_path::tour_enhance:
+		case agent_run_path::tour_field_draft:
+		case agent_run_path::review_feedback_hook:
+		case agent_run_path::local_commit_message:
+		case agent_run_path::agent_check:
+		case agent_run_path::agent_tab:
+		case agent_run_path::tour_side_chat:
+		case agent_run_path::tour_conversation:
+		case agent_run_path::local_draft_discussion:
+		case agent_run_path::review_cycle_round:
+		case agent_run_path::self_review_loop:
+		case agent_run_path::address_feedback_run:
+			return std::nullopt;
+		}
+		return std::nullopt;
+	}
+
+	/// \brief [[BPR-2139]], owner 2026-11-12: "The MCP thing seems like it's
+	/// an agent config we can add to settings and default MCPs to off".
+	enum class agent_mcp_servers : std::uint8_t {
+		/// No MCP server loads: Claude gets an empty strict `--mcp-config`,
+		/// Codex `mcp_servers={}`. The default.
+		off,
+		/// The agent's own configuration: BPR passes nothing for MCP. The
+		/// pull request's checkout's servers still never load.
+		own,
+	};
+	[[nodiscard]] auto stable_name(agent_mcp_servers aServers) noexcept -> std::string_view;
+	[[nodiscard]] auto parse_agent_mcp_servers(std::string_view aName) noexcept -> std::optional<agent_mcp_servers>;
+
+	/// \brief A fresh one-off keeps MCP off whatever the agent's setting says.
+	[[nodiscard]] constexpr auto mcp_servers_for(const agent_run_path aPath, const agent_mcp_servers aSetting) noexcept -> agent_mcp_servers
+	{
+		return session_mode_of(aPath) == agent_session_mode::fresh ? agent_mcp_servers::off : aSetting;
+	}
+
+	/// \brief [[BPR-2140]], P02 settled 2026-11-12. Where a built-in prompt's
+	/// instructions go.
+	enum class agent_instruction_delivery : std::uint8_t {
+		/// Claude's inline `--append-system-prompt`, Codex `exec`'s
+		/// `developer_instructions`. The default.
+		system_prompt,
+		/// Pasted at the start of the message: the fallback for a wrapper
+		/// that drops the system prompt.
+		message,
+	};
+	[[nodiscard]] auto stable_name(agent_instruction_delivery aDelivery) noexcept -> std::string_view;
+	[[nodiscard]] auto parse_agent_instruction_delivery(std::string_view aName) noexcept -> std::optional<agent_instruction_delivery>;
+
+	/// \brief Instructions longer than this once quoted are pasted, so a
+	/// Windows command line (32,767 characters with everything else on it)
+	/// never overflows.
+	inline constexpr std::size_t maximum_system_prompt_argument_bytes = 24U * 1024U;
+} // namespace bpr::core
+
+#endif

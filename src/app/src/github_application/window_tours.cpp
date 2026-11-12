@@ -810,7 +810,8 @@ namespace bpr::app {
 			Window->tour_editor()->show_writing_notice(QStringLiteral("Not enough approved context to draft an explanation. Add the author's problem or solution first."));
 			return;
 		}
-		const auto prompt = application::build_writing_prompt(Profile->WorkbenchPreferences->accepted()->WritingHooks, *request, sources);
+		// [[BPR-2140]]. The built-in prompt's instructions apart from the material.
+		const auto prompt = application::build_writing_prompt_parts(Profile->WorkbenchPreferences->accepted()->WritingHooks, *request, sources);
 		if (!prompt) {
 			WritingState.cancel();
 			Window->tour_editor()->show_writing_notice(QStringLiteral("This request exceeds the writing context limit. Select a smaller passage or shorten the hook instructions."));
@@ -827,7 +828,8 @@ namespace bpr::app {
 		// [[BPR-1916]]. The skills the hook names, inline. [[BPR-2051]] A
 		// stop's Enhance sends the stop's Enhance prompt, and its skills.
 		auto skills = skill_run_for(core::writing_instructions_for(aHook, request->Scope));
-		auto text   = (readOnly ? std::string{ application::read_only_writing_preamble() } + *prompt : *prompt) + skills.Directive;
+		auto text   = prompt->Message + skills.Directive;
+		TourRunInstructions = (readOnly ? std::string{ application::read_only_writing_preamble() } : std::string{ }) + prompt->Instructions;
 		if (skills.Note) {
 			Window->tour_editor()->show_writing_notice((readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable.")) + QStringLiteral(" ")
 													   + QString::fromStdString(*skills.Note));
@@ -930,7 +932,7 @@ namespace bpr::app {
 					}
 					return qEnvironmentVariable(aName.c_str()).toStdString();
 				},
-				application::agent_launch_options{ .WritingOnly = true });
+				application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path });
 			if (!launch) {
 				return { .Failure = launch.error() == application::agent_launch_failure::input_too_large
 							 ? "The question is longer than one request can carry."
@@ -1011,7 +1013,13 @@ namespace bpr::app {
 															   const std::optional<core::tour_passage>& aPassage, const core::tour_thread& aThread, const bool aUpdate, skill_run aSkills) -> bool
 	{
 		adopt_tour_conversation();
-		const auto conversational = aKind == core::tour_agent_request::ask || aKind == core::tour_agent_request::draft_tour;
+		// [[BPR-2140]]. This run's instructions, never the next one's.
+		auto instructions = std::move(TourRunInstructions);
+		TourRunInstructions.clear();
+		// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). Only a turn of a
+		// side chat or of the whole-tour conversation resumes; Draft Tour's
+		// first draft, a field's draft and an Enhance run fresh.
+		const auto conversational = aKind == core::tour_agent_request::ask;
 		const auto continued      = conversational ? continued_tour_session(aThread) : std::nullopt;
 		const auto key            = tour_native_agent() + ":" + tour_native_scope(aThread);
 		const auto session        = TourNativeSessions.find(key);
@@ -1047,7 +1055,12 @@ namespace bpr::app {
 		TourInvocation.reset();
 		TourWorkspacePath.clear();
 		TourWorkspaceHead.reset();
-		auto launch = tour_launch{ .NativeScope = TourRunScope.empty() ? std::string{ } : tour_native_scope(aThread), .NativeQuestion = aAsked, .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
+		auto launch = tour_launch{ .NativeScope = TourRunScope.empty() || !conversational ? std::string{ } : tour_native_scope(aThread), .NativeQuestion = aAsked, .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
+		launch.Path = aKind == core::tour_agent_request::draft_tour ? core::agent_run_path::draft_tour_first_draft
+			: aKind == core::tour_agent_request::rewrite            ? core::agent_run_path::tour_enhance
+			: aKind == core::tour_agent_request::ask                ? (aThread.Kind == core::tour_thread_kind::tour ? core::agent_run_path::tour_conversation : core::agent_run_path::tour_side_chat)
+																	: core::agent_run_path::tour_field_draft;
+		launch.SystemInstructions = std::move(instructions);
 		if ((aKind == core::tour_agent_request::draft_tour || aKind == core::tour_agent_request::ask) && WindowRead->accepted_snapshot()) {
 			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
 				if (file.Change != application::github_file_change::removed) {
@@ -1546,9 +1559,19 @@ namespace bpr::app {
 		if (skills.Note) {
 			Window->tour_editor()->show_writing_notice(QString::fromStdString(*skills.Note));
 		}
+		// [[BPR-2138]]. Ask more: Draft Tour's fresh first draft opens the
+		// whole-tour conversation's next turn, so the conversation that
+		// resumes from here holds it.
+		auto       seeded = *prompt;
+		const auto seed   = aThread.Kind == core::tour_thread_kind::tour && !TourDraftSeed.empty();
+		if (seed) {
+			seeded = "Earlier, Draft Tour drafted this tour in a separate run. Its answer, as context for this conversation:\n" + TourDraftSeed + "\n\n" + seeded;
+		}
 		TourAskPending = true;
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, *prompt, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, seeded, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
 			TourAskPending = false;
+		} else if (seed) {
+			TourDraftSeed.clear();
 		}
 	}
 
@@ -1869,6 +1892,18 @@ namespace bpr::app {
 		auto       files    = tour_anchor_files(aResult);
 		const auto proposed = core::propose_tour(*aRun, *answer, files, *draft, TourWorkspaceHead);
 		core::remember_tour_proposal(TourAgent, TourProposal, proposed);
+		// [[BPR-2138]]. What the fresh first draft said, for Ask more.
+		TourDraftSeed = "Draft Tour";
+		if (answer->Problem) {
+			TourDraftSeed += "\n\nProblem: " + *answer->Problem;
+		}
+		if (answer->Solution) {
+			TourDraftSeed += "\n\nSolution: " + *answer->Solution;
+		}
+		TourDraftSeed += "\n\nProposed stops: " + std::to_string(answer->Stops.size()) + ".";
+		if (TourDraftSeed.size() > 8192U) {
+			TourDraftSeed.resize(8192U);
+		}
 		TourProposal    = proposed;
 		TourAnchorFiles = std::move(files);
 		// [[BPR-1900]] owner look v002. Stops left out of the proposal are
@@ -2280,7 +2315,7 @@ namespace bpr::app {
 			add("field-after", std::string_view{ request.Raw }.substr(request.Selection.End), 512);
 		}
 		// The prompt saved now is the one this run uses.
-		const auto prompt = application::build_writing_prompt(prefs->WritingHooks, request, sources);
+		const auto prompt = application::build_writing_prompt_parts(prefs->WritingHooks, request, sources);
 		if (!prompt) {
 			refuse(QStringLiteral("This text is too long for Enhance. Select a shorter passage, or shorten the Enhance prompt in Settings. Your text is unchanged."));
 			return;
@@ -2288,8 +2323,11 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 		auto skills     = skill_run_for(hook);
 		PendingWriting  = writing_operation{ .Request = request, .Sources = std::move(sources), .Invocation = { }, .Test = false, .ReadOnly = false, .Enhance = id };
-		const auto text = *prompt + skills.Directive;
-		if (!dispatch_agent_invocation(*agent, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true, tour_launch{ .Skills = std::move(skills) })) {
+		const auto text = prompt->Message + skills.Directive;
+		// [[BPR-2138]], [[BPR-2140]]. A fresh run; the Enhance prompt in the
+		// system prompt.
+		if (!dispatch_agent_invocation(*agent, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true,
+									   tour_launch{ .Skills = std::move(skills), .Path = core::agent_run_path::enhance_writing, .SystemInstructions = prompt->Instructions })) {
 			PendingWriting.reset();
 			refuse(QStringLiteral("The agent could not start. Check it in the Agent tab, then Enhance again. Your text is unchanged."));
 		}
@@ -2321,7 +2359,7 @@ namespace bpr::app {
 		request.Raw                                      = "The cache reduces repeated work.";
 		request.Selection.End                            = request.Raw.size();
 		std::vector<application::writing_source> sources = { { "test-source", "The cache reuses previously computed results. No performance or test-success claim is supplied." } };
-		const auto                               prompt  = application::build_writing_prompt(prefs->WritingHooks, request, sources);
+		const auto                               prompt  = application::build_writing_prompt_parts(prefs->WritingHooks, request, sources);
 		if (!prompt) {
 			Window->writing_hooks()->show_notice("Hook instructions exceed the test context limit.");
 			return;
@@ -2330,8 +2368,9 @@ namespace bpr::app {
 		auto skills    = skill_run_for(aHook);
 		Window->writing_hooks()->show_notice(skills.Note ? "Testing saved prompt… Nothing will be inserted or published. " + *skills.Note : std::string{ "Testing saved prompt… Nothing will be inserted or published." });
 #if defined(BPR_AGENT_INTEGRATIONS)
-		const auto text = *prompt + skills.Directive;
-		if (!dispatch_agent_invocation(*selected, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true, tour_launch{ .Skills = std::move(skills) })) {
+		const auto text = prompt->Message + skills.Directive;
+		if (!dispatch_agent_invocation(*selected, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true,
+									   tour_launch{ .Skills = std::move(skills), .Path = core::agent_run_path::tour_enhance, .SystemInstructions = prompt->Instructions })) {
 			PendingWriting.reset();
 			Window->writing_hooks()->show_notice("An available agent and exact approved review context are required.");
 		}

@@ -30,6 +30,8 @@ namespace bpr::core::detail {
 		bool                       StrictRunChecks = true;
 		bool                       ScratchStarts   = true;
 		bool                       BuildsAndTests  = false;
+		std::optional<std::string> McpServers;
+		std::optional<std::string> Instructions;
 	};
 	struct wire_prompt
 	{
@@ -62,7 +64,8 @@ struct glz::meta<bpr::core::detail::wire_agent>
 	using value_type            = bpr::core::detail::wire_agent;
 	static constexpr auto value = object("id", &value_type::PortableId, "name", &value_type::Name, "protocol", &value_type::Protocol, "preset", &value_type::Preset, "program_name", &value_type::ProgramName,
 										 "arguments", &value_type::Arguments, "check_arguments", &value_type::CheckArguments, "model", &value_type::Model, "effort", &value_type::Effort,
-										 "strict_run_checks", &value_type::StrictRunChecks, "scratch_starts", &value_type::ScratchStarts, "builds_and_tests", &value_type::BuildsAndTests);
+										 "strict_run_checks", &value_type::StrictRunChecks, "scratch_starts", &value_type::ScratchStarts, "builds_and_tests", &value_type::BuildsAndTests,
+										 "mcp_servers", &value_type::McpServers, "instructions", &value_type::Instructions);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_prompt>
@@ -253,6 +256,8 @@ namespace bpr::core {
 		case agent_field::strict_run_checks: return "strict_run_checks";
 		case agent_field::scratch_starts:    return "scratch_starts";
 		case agent_field::builds_and_tests:  return "builds_and_tests";
+		case agent_field::mcp_servers:       return "mcp_servers";
+		case agent_field::instructions:      return "instructions";
 		}
 		return "name";
 	}
@@ -314,6 +319,8 @@ namespace bpr::core {
 		agent.StrictRunChecks = aEntry.StrictRunChecks;
 		agent.ScratchStarts   = aEntry.ScratchStarts;
 		agent.BuildsAndTests  = aEntry.BuildsAndTests;
+		agent.McpServers      = aEntry.McpServers;
+		agent.Instructions    = aEntry.Instructions;
 		agent.ProgramName     = needs_program(agent) ? file_name(aEntry.Program) : std::string{ };
 		return agent;
 	}
@@ -361,6 +368,8 @@ namespace bpr::core {
 			wire.StrictRunChecks = agent.StrictRunChecks;
 			wire.ScratchStarts   = agent.ScratchStarts;
 			wire.BuildsAndTests  = agent.BuildsAndTests;
+			wire.McpServers      = std::string{ stable_name(agent.McpServers) };
+			wire.Instructions    = std::string{ stable_name(agent.Instructions) };
 			file.Agents.push_back(std::move(wire));
 		}
 		for (const auto& prompt : aConfiguration.Prompts) {
@@ -430,6 +439,16 @@ namespace bpr::core {
 			item.Agent.StrictRunChecks = wire.StrictRunChecks;
 			item.Agent.ScratchStarts   = wire.ScratchStarts;
 			item.Agent.BuildsAndTests  = wire.BuildsAndTests;
+			// [[BPR-2139]], [[BPR-2140]]. Absent in a file written before
+			// them: Off and the system prompt. A value this version does not
+			// know makes the file malformed, as any other unknown value does.
+			const auto mcp          = wire.McpServers ? parse_agent_mcp_servers(*wire.McpServers) : std::optional{ agent_mcp_servers::off };
+			const auto instructions = wire.Instructions ? parse_agent_instruction_delivery(*wire.Instructions) : std::optional{ agent_instruction_delivery::system_prompt };
+			if (!mcp || !instructions) {
+				return std::unexpected(configuration_file_refusal::malformed);
+			}
+			item.Agent.McpServers   = *mcp;
+			item.Agent.Instructions = *instructions;
 			const auto protocol        = protocol_of(wire.Protocol);
 			const auto preset          = wire.Preset ? preset_of(*wire.Preset) : std::nullopt;
 			if (!protocol || (wire.Preset && !preset)) {
@@ -526,6 +545,8 @@ namespace bpr::core {
 		differ(aBefore.StrictRunChecks != aAfter.StrictRunChecks, agent_field::strict_run_checks);
 		differ(aBefore.ScratchStarts != aAfter.ScratchStarts, agent_field::scratch_starts);
 		differ(aBefore.BuildsAndTests != aAfter.BuildsAndTests, agent_field::builds_and_tests);
+		differ(aBefore.McpServers != aAfter.McpServers, agent_field::mcp_servers);
+		differ(aBefore.Instructions != aAfter.Instructions, agent_field::instructions);
 		return fields;
 	}
 
@@ -548,6 +569,10 @@ namespace bpr::core {
 		// otherwise the recipient's own starting state.
 		entry.BuildsAndTests = aAgent.BuildsAndTests && aChoice.AcceptBuilds;
 		entry.ScratchStarts  = aAgent.ScratchStarts && (aTarget == nullptr || aTarget->ScratchStarts);
+		// [[BPR-2139]], [[BPR-2140]]. Shown in the preview like any other
+		// setting and applied as the file says.
+		entry.McpServers   = aAgent.McpServers;
+		entry.Instructions = aAgent.Instructions;
 		return entry;
 	}
 

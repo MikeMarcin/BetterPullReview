@@ -11,6 +11,7 @@
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/review_composition.hpp"
@@ -315,7 +316,40 @@ namespace bpr::application {
 		/// (`codex_untrusted_project_argument`). A grant that names the
 		/// checkout, or any Codex grant, needs it.
 		std::vector<std::string> PullRequestCheckout;
+		/// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). The launch path,
+		/// whose session mode the launch keeps: a fresh path saves no
+		/// session and never resumes one.
+		core::agent_run_path Path = core::agent_run_path::agent_tab;
+		/// [[BPR-2139]], RFC-BPR-0104. The agent's MCP servers setting; a
+		/// fresh path keeps MCP off whatever it says.
+		core::agent_mcp_servers McpServers = core::agent_mcp_servers::off;
+		/// [[BPR-2140]], RFC-BPR-0107. A built-in prompt's instructions, kept
+		/// apart from the run's material: Claude's inline
+		/// `--append-system-prompt`, Codex `exec`'s `developer_instructions`,
+		/// or pasted at the start of the message (`Instructions` says
+		/// message, the App Server, or past `maximum_system_prompt_argument_bytes`).
+		std::string                      SystemInstructions;
+		core::agent_instruction_delivery Instructions = core::agent_instruction_delivery::system_prompt;
 	};
+
+	/// \brief [[BPR-2140]]. How a launch delivered its instructions, as the
+	/// launch request records it.
+	enum class agent_instructions_route : std::uint8_t {
+		none,
+		system_prompt,
+		pasted,
+	};
+
+	/// \brief [[BPR-2142]], RFC-BPR-0104 (wrapper tests, 2026-11-11). The
+	/// Claude options that take several values. Each comes before `-p` and is
+	/// followed by another option, so none can take a prompt as its value.
+	inline constexpr std::array<std::string_view, 7> claude_variadic_options = {
+		"--add-dir", "--allowedTools", "--allowed-tools", "--disallowedTools", "--disallowed-tools", "--tools", "--mcp-config"
+	};
+
+	/// \brief [[BPR-2139]]. What an MCP-off Claude launch carries when no
+	/// restriction already does.
+	inline constexpr std::array<std::string_view, 3> claude_mcp_off_arguments = { "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})" };
 
 	/// \brief RFC-BPR-0104, third review round (F1). The `-c` value that
 	/// makes Codex treat each checkout path as an untrusted project for the
@@ -382,6 +416,10 @@ namespace bpr::application {
 		std::optional<agent_launch_grant> Grant;
 		/// [[BPR-1900]]. The decoder admits only read-only tool uses.
 		bool ReadOnlyTools = false;
+		/// [[BPR-2138]]. The launch path; a fresh one is never resumed.
+		core::agent_run_path Path = core::agent_run_path::agent_tab;
+		/// [[BPR-2140]]. Where the instructions went.
+		agent_instructions_route InstructionsRoute = agent_instructions_route::none;
 		/// [[BPR-1918]]. How the decoder treats what a wrapper can trip.
 		agent_run_checks RunChecks = agent_run_checks::strict;
 		/// [[BPR-2004]], RFC-BPR-0103. The sink is told what the agent is
@@ -526,7 +564,8 @@ namespace bpr::application {
 	/// session is continued only by a harness that can (`--resume`); nothing
 	/// else is added to what the profile already launches with.
 	[[nodiscard]] auto build_round_launch(const core::agent_profile& aProfile, std::string_view aDocument, const std::optional<std::string>& aContinue, std::string aWorkingDirectory,
-										  const environment_reader& aParent) -> std::expected<agent_launch_request, agent_launch_failure>;
+										  const environment_reader& aParent, core::agent_mcp_servers aMcpServers = core::agent_mcp_servers::off)
+		-> std::expected<agent_launch_request, agent_launch_failure>;
 
 	/// \brief Configures one native turn or an exact-ID reconnect without replay.
 	[[nodiscard]] auto prepare_native_agent_turn(agent_launch_request aRequest, bool aConnected)
@@ -1003,6 +1042,10 @@ namespace bpr::application {
 	};
 
 	[[nodiscard]] auto name(agent_run_outcome aOutcome) noexcept -> std::string_view;
+	/// \brief [[BPR-2142]], RFC-BPR-0103. What a run that ended on a failed
+	/// sign-in says (`agent_protocol_failure::not_signed_in`).
+	inline constexpr std::string_view agent_sign_in_failure_words
+		= "The agent isn't signed in, or its wrapper couldn't get a sign-in token. Sign in again in a terminal, or try again later.";
 	/// \brief [[BPR-1847]]. How a turn that ran to this outcome ended, in the
 	/// thread's own vocabulary.
 	[[nodiscard]] auto turn_outcome(agent_run_outcome aOutcome) noexcept -> core::agent_turn_outcome;

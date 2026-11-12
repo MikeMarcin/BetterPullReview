@@ -7,6 +7,7 @@
 #include "bpr/application/local_draft_store.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_material_bridge.hpp"
+#include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/local_draft.hpp"
 #include "bpr/core/local_draft_tour.hpp"
 #include "bpr/core/review_cycle_views.hpp"
@@ -165,6 +166,9 @@ namespace bpr::application {
 		std::string   AgentName;
 		std::uint64_t Profile = 0;
 		std::string   Prompt;
+		/// [[BPR-2138]]. The launch path: the draft's discussion unless the
+		/// run is its commit message.
+		core::agent_run_path Path = core::agent_run_path::local_draft_discussion;
 	};
 	struct local_draft_agent_answer
 	{

@@ -58,6 +58,10 @@ namespace bpr::core {
 		/// RFC-BPR-0104 (X17): requested values, applied as RFC-BPR-0107 says.
 		bool ScratchStarts  = true;
 		bool BuildsAndTests = false;
+		/// [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12). A file written
+		/// before them reads as Off and the system prompt.
+		agent_mcp_servers          McpServers   = agent_mcp_servers::off;
+		agent_instruction_delivery Instructions = agent_instruction_delivery::system_prompt;
 
 		auto operator<=>(const portable_agent&) const = default;
 	};
@@ -216,6 +220,8 @@ namespace bpr::core {
 		strict_run_checks,
 		scratch_starts,
 		builds_and_tests,
+		mcp_servers,
+		instructions,
 	};
 	[[nodiscard]] auto stable_name(agent_field aField) noexcept -> std::string_view;
 

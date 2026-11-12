@@ -153,6 +153,14 @@ namespace bpr::adapters::sqlite {
 									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64),"
 									"scratch_starts INTEGER NOT NULL CHECK(scratch_starts IN (0,1)),"
 									"builds INTEGER NOT NULL CHECK(builds IN (0,1))) STRICT")
+				// [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12). Each added
+				// agent's MCP servers and instructions settings; an agent with
+				// no row (one carried over) has MCP off and the system prompt.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_entry_launch("
+									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64),"
+									"mcp_own INTEGER NOT NULL CHECK(mcp_own IN (0,1)),"
+									"instructions_in_message INTEGER NOT NULL CHECK(instructions_in_message IN (0,1))) STRICT")
 				// The scratch folder choice made in one pull request for one
 				// agent, and the pull request's answer to the build question.
 				|| !detail::execute(db,
@@ -448,6 +456,20 @@ namespace bpr::adapters::sqlite {
 					sqlite3_bind_int64(row->Value, 1, entry.Id);
 					sqlite3_bind_int64(row->Value, 2, entry.ScratchStarts ? 1 : 0);
 					sqlite3_bind_int64(row->Value, 3, entry.BuildsAndTests ? 1 : 0);
+					committed = sqlite3_step(row->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				committed = detail::execute(aDatabase, "DELETE FROM agent_entry_launch").has_value();
+			}
+			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
+				const auto& entry = aPreferences.Agents[index];
+				auto        row   = detail::prepare(aDatabase, "INSERT INTO agent_entry_launch VALUES(?1,?2,?3)");
+				committed         = row.has_value();
+				if (committed) {
+					sqlite3_bind_int64(row->Value, 1, entry.Id);
+					sqlite3_bind_int64(row->Value, 2, entry.McpServers == core::agent_mcp_servers::own ? 1 : 0);
+					sqlite3_bind_int64(row->Value, 3, entry.Instructions == core::agent_instruction_delivery::message ? 1 : 0);
 					committed = sqlite3_step(row->Value) == SQLITE_DONE;
 				}
 			}
@@ -850,6 +872,17 @@ namespace bpr::adapters::sqlite {
 								if (entry.Id == id) {
 									entry.ScratchStarts  = sqlite3_column_int64(grants->Value, 1) != 0;
 									entry.BuildsAndTests = sqlite3_column_int64(grants->Value, 2) != 0;
+								}
+							}
+						}
+					}
+					if (auto launch = detail::prepare(store->Database.get(), "SELECT id,mcp_own,instructions_in_message FROM agent_entry_launch"); launch) {
+						while (sqlite3_step(launch->Value) == SQLITE_ROW) {
+							const auto id = sqlite3_column_int64(launch->Value, 0);
+							for (auto& entry : loaded.Agents) {
+								if (entry.Id == id) {
+									entry.McpServers   = sqlite3_column_int64(launch->Value, 1) != 0 ? core::agent_mcp_servers::own : core::agent_mcp_servers::off;
+									entry.Instructions = sqlite3_column_int64(launch->Value, 2) != 0 ? core::agent_instruction_delivery::message : core::agent_instruction_delivery::system_prompt;
 								}
 							}
 						}

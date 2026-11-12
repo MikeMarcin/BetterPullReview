@@ -114,6 +114,13 @@ namespace bpr::application {
 		/// RFC-BPR-0104 as amended 2026-11-11. The scratch folder's limit as
 		/// set; a turn that passes it is stopped.
 		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
+		/// [[BPR-2138]], [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12). The
+		/// launch path, the agent's MCP servers setting, and a built-in
+		/// prompt's instructions with where they go (`agent_launch_options`).
+		core::agent_run_path             Path       = core::agent_run_path::agent_tab;
+		core::agent_mcp_servers          McpServers = core::agent_mcp_servers::off;
+		std::string                      SystemInstructions;
+		core::agent_instruction_delivery Instructions = core::agent_instruction_delivery::system_prompt;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};

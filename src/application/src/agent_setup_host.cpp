@@ -927,6 +927,7 @@ namespace bpr::application {
 				own->Executable  = path;
 				own->Arguments   = entry->CheckArguments;
 				own->WritingOnly = true;
+				own->Path        = core::agent_run_path::agent_check;
 				own->Environment = materialize_agent_environment(*profile, host.Dependencies.Parent);
 			}
 			struct custom

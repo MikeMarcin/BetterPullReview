@@ -94,6 +94,8 @@ namespace bpr::qt {
 			case core::agent_field::strict_run_checks: return QObject::tr("Strict run checks");
 			case core::agent_field::scratch_starts:    return QObject::tr("Scratch folder starts");
 			case core::agent_field::builds_and_tests:  return QObject::tr("Build and run tests");
+			case core::agent_field::mcp_servers:       return QObject::tr("MCP servers");
+			case core::agent_field::instructions:      return QObject::tr("Instructions");
 			}
 			return { };
 		}
@@ -120,6 +122,8 @@ namespace bpr::qt {
 			case core::agent_field::strict_run_checks: return onOff(aEntry.StrictRunChecks);
 			case core::agent_field::scratch_starts:    return onOff(aEntry.ScratchStarts);
 			case core::agent_field::builds_and_tests:  return onOff(aEntry.BuildsAndTests);
+			case core::agent_field::mcp_servers:       return aEntry.McpServers == core::agent_mcp_servers::own ? QObject::tr("the agent's own configuration") : QObject::tr("off");
+			case core::agent_field::instructions:      return aEntry.Instructions == core::agent_instruction_delivery::message ? QObject::tr("in the message") : QObject::tr("system prompt");
 			}
 			return { };
 		}
@@ -735,7 +739,7 @@ namespace bpr::qt {
 			const auto choice = core::agent_import_choice{ .Item = aItem, .Action = state.Action, .Program = state.Program.empty() ? std::string{ } : state.Program, .AcceptRelaxedChecks = state.AcceptRelaxed, .AcceptBuilds = state.AcceptBuilds };
 			const auto after  = core::imported_entry(agent, choice, nullptr);
 			for (const auto field : { core::agent_field::arguments, core::agent_field::check_arguments, core::agent_field::model, core::agent_field::effort, core::agent_field::strict_run_checks,
-									  core::agent_field::scratch_starts, core::agent_field::builds_and_tests }) {
+									  core::agent_field::scratch_starts, core::agent_field::builds_and_tests, core::agent_field::mcp_servers, core::agent_field::instructions }) {
 				words.push_back(tr("%1: %2").arg(field_words(field), field_value(after, field)));
 			}
 			words.push_back(tr("Added at the end of your agents, not yet checked on this computer."));

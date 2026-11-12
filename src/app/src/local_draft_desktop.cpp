@@ -330,7 +330,7 @@ namespace bpr::app {
 		// the request is its only input, and nothing resumes.
 		auto commit = aRunner ? application::local_commit_message_runner{ [aRunner](const application::local_commit_message_agent& aAgent, const std::string& aPrompt,
 																					const std::stop_token aStop) -> std::expected<std::string, std::string> {
-			auto answer = aRunner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aPrompt }, aStop);
+			auto answer = aRunner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aPrompt, .Path = core::agent_run_path::local_commit_message }, aStop);
 			if (!answer.Answered) {
 				return std::unexpected{ answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure };
 			}

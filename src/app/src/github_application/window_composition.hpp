@@ -2394,6 +2394,11 @@ namespace bpr::app {
 		[[nodiscard]] auto                                                        tour_footer_place() const -> qt::agent_footer_place;
 		void                                                                      finish_tour_footer(const application::agent_run_result& aResult);
 		std::optional<core::tour_proposal>                                        TourProposal;
+		/// [[BPR-2138]]. Draft Tour's first draft runs fresh; its answer
+		/// seeds the whole-tour conversation's next turn (Ask more).
+		std::string TourDraftSeed;
+		/// [[BPR-2140]]. The next tour run's built-in instructions.
+		std::string TourRunInstructions;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		/// [[BPR-1931]]. What the last Reset tour cleared, for its Undo, while

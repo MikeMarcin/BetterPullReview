@@ -39,6 +39,18 @@ namespace bpr::application {
 		std::vector<writing_outline_stop> Stops;
 	};
 	[[nodiscard]] auto build_writing_prompt(const core::writing_hook_settings& aSettings, const core::writing_request& aRequest, std::span<const writing_source> aSources) -> std::optional<std::string>;
+	/// \brief [[BPR-2140]], RFC-BPR-0107 (P02, owner 2026-11-12). The same
+	/// prompt in two parts: the instructions (the contract, the hook's text,
+	/// the answer's schema and style), which go in the system prompt, and the
+	/// run's material (the untrusted evidence), which goes in the message.
+	/// `build_writing_prompt` is the two joined.
+	struct writing_prompt_parts
+	{
+		std::string Instructions;
+		std::string Message;
+	};
+	[[nodiscard]] auto build_writing_prompt_parts(const core::writing_hook_settings& aSettings, const core::writing_request& aRequest, std::span<const writing_source> aSources)
+		-> std::optional<writing_prompt_parts>;
 	[[nodiscard]] auto decode_writing_result(std::string_view aJson, core::writing_hook aHook, std::span<const writing_source> aSources, bool aRequiresEvidence) -> std::optional<writing_result>;
 
 	inline constexpr std::string_view writing_hook_version = "review-preparation-v1";
