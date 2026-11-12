@@ -3582,8 +3582,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# MikeMarcin/BPR-Test is refused before a request. local_draft_desktop runs
 	# it on its own worker lane and copies the named push to the clipboard.
 	# No push, Git credential, review mutation or admission change.
+	# [[BPR-2023]], [[BPR-2024]], [[BPR-2025]], RFC-BPR-0109 deferred by the
+	# owner (reviewed 2026-11-12): a removal. local_draft_desktop no longer
+	# composes the Evidence area, its Import… chooser or the
+	# system_browser_opener link path; local_draft_handoff and local_draft_cli
+	# drop `--evidence` and its import (the option is refused as unknown);
+	# github_application drops import_local_draft_evidence and the attended
+	# look drops --attended-local-draft-evidence. Nothing is added: no grant,
+	# account, provider, admission, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "23c45383e6f3dc7ede39760d674549a7a18d4c50b19f80b807c6f0d967ca56b5"
+        "39a7e51cfef79bb093863811efc0fce109162b7a69e445a1dfdd4c5f2bfe0e08"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

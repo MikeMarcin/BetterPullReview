@@ -71,3 +71,14 @@ owner, the push course and this milestone's rows are pinned). Live:
 `live_draft_course.py` twice (#178, #179), `X-RateLimit-Remaining` 4,999 →
 4,869 across five runs (three failed runs before the scoped-operation fix sent
 no write and pushed nothing).
+
+## Owner amendment: no evidence (2026-11-12)
+
+The owner cut Evidence from 0.5.0; AC03 is amended to tour anchors only. The
+plan no longer binds evidence (`Evidence`, `Stale` and `PrivateRecords` are
+gone; the preview says what stays: notes and agent conversations), and a
+stored plan that bound evidence is carried forward after its digest is
+checked. `application_local_draft_evidence_desktop_public_path` and
+`core_local_draft_evidence` no longer exist. Runs: see the
+[RFC-BPR-0110 ledger](RFC-BPR-0110.md#owner-amendment-evidence-removed-2026-11-12);
+the live BPR-Test course was not rerun (no network-facing change).

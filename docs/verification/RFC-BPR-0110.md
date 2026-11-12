@@ -72,3 +72,50 @@ Windows and Linux.
 Root `/Users/jaeger/local-draft-tour-v001.3hs4zi83` removed with `freeze_attended_build.py remove` and the host
 stopped (2026-11-12). The coordinator: a redesign from mockups comes first;
 no new look is filed until then.
+
+## Owner amendment: Evidence removed (2026-11-12)
+
+The owner cut Evidence from 0.5.0 ("Mockups; cut Evidence"); RFC-BPR-0109 is
+Deferred and this RFC is amended in its own text (AC02 and AC09 amended, AC07
+withdrawn, X21 inactive). The rows above for AC02, AC07 and AC09's evidence
+half are history. What changed on the lane (`aa00b4795`, `fcbd667b4` and the
+reseal commit):
+
+- Core: no evidence record, citations, `cite_evidence`, `evidence_recheck`,
+  claim or check proposals, selected evidence in the request or the preview,
+  or artifacts held only here; `decide_local_stop` takes the stop alone. A
+  stored draft written before is read and the evidence, citations, claim and
+  method fields and claim and check proposals (with the turns' references to
+  them) are dropped. A stored publication plan that named evidence has its
+  digest checked against the form it was made in and carried to the same plan
+  without evidence; a mismatch is refused.
+- Store: version 1 migration rewrites such drafts, rebuilds their pins and
+  deletes objects nothing pins (evidence artifacts).
+- Surface: the draft page is Changes, Description, Tour and Pull request; no
+  Cite Evidence menu; the prompts `local.description` and `local.discussion`
+  no longer mention evidence, claims or planned checks.
+- App: `bpr draft open --evidence` is refused as an unknown option
+  (`unsupported_option`, exit 2, nothing opened); the attended look's
+  `--attended-local-draft-evidence` is gone; the app source pin is resealed
+  with a removal note.
+
+Runs on the dev preset (Debug), all passing: `core_local_draft`,
+`core_local_draft_tour` (new: private preparation stays out of the preview;
+a draft stored with evidence reads as the same draft without it),
+`core_local_draft_publication` (new: a plan stored with evidence keeps its
+checked digest; a tampered one is refused), `local_draft` (new: the store
+migration on a real store file), `local_draft_publication`,
+`application_local_draft_desktop_public_path`,
+`application_local_draft_tour_desktop_public_path` (four areas, a proposal
+accepted into the tour and one rejected),
+`application_local_draft_publication_desktop_public_path`,
+`architecture_boundaries`, `architecture_boundary_contract`,
+`application_composition_contract`, `application_composition_source_contract`,
+`application_review_round_trip_composition_contract` (after the reseal),
+`sqlite_tour_owner_channel`, `test_network_isolation_manifest`,
+`verify_test_network_isolation_tests.py`, `core_profile_data_reset`,
+`sqlite_profile_data_reset_files`; `bpr draft open --json --evidence x` from a
+terminal. clang-format 22 on every touched C++ file; clang-tidy (warnings as
+errors) on every touched translation unit except `src/app/main.cpp` (only
+deletions there). Not run: the whole suite, the core-only preset, Qt window
+suites, Windows and Linux.

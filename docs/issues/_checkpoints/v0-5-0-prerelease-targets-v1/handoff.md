@@ -1682,3 +1682,57 @@ clause of AC07 (structural only), fork heads and GHES (unsupported, stated).
 
 Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
 BPR-Test #152 and `-next`.
+
+## Evidence cut from 0.5.0 (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner decision, verbatim
+(2026-11-12): "Mockups; cut Evidence". No UI redesign (mockups are made
+separately), no owner look this round.
+
+Tracker and plan (lane `7640fd509`; main `59b6a8b23` + `3a52440c5`): RFC-BPR-0109
+Deferred (kept as a possible workflow extension); BPR-2023, 2024, 2025 moved to
+`50-blocked`, `blocked_by: owner-deferred`, with the decision noted; BPR-2026,
+2029 and 2033 lose their BPR-2025 dependency. RFC-BPR-0108, 0110 (AC02, AC09
+amended, AC07 withdrawn, X21 inactive), 0111 (AC03 amended) and 0112 (AC01
+amended) carry the amendment; RFC-BPR-0115 and 0120 and BPR-2082 note it
+(BPR-2082 still depends on BPR-2024 and waits on 0109's reactivation). The
+plan drops `author-evidence` and RFC-BPR-0109 and BPR-2023..2025 from scope;
+`local-tour-preparation` no longer depends on it; MILESTONES.md regenerated.
+Recorded in the pack's DECISIONS.md (an owner change of requirements, not a
+same-scope refinement, so not passed through `check-amendment`) and pointed to
+from local-drafts/DECISIONS.md. Main's mirror took the cards, RFCs, index,
+plan and decision records; 59b6a8b23 committed only the renames by mistake and
+3a52440c5 completes it.
+
+| Commit | What |
+|---|---|
+| `7640fd509` | Tracker, RFC and plan amendments, card moves |
+| `aa00b4795` | Product removal: core, application, store migration, Qt, app, tests |
+| `fcbd667b4` | clang-format 22, tidy fixes, draft-cli and architecture docs, NEXT_ID BPR-2132 from main |
+| (this commit) | App source pin resealed with a removal note, ledgers, this checkpoint |
+
+Removed: the Evidence area and tab, `bpr draft open --evidence`, the evidence
+record and import (`draft_evidence`, `local_draft_evidence`,
+`local_draft_evidence_import`), artifact pins and the artifact reader, agent
+claim and check proposals, citations and `evidence_recheck`, selected
+evidence in the request, the preview and the publication plan, the attended
+evidence look and its fixture script, `core_local_draft_evidence` and
+`application_local_draft_evidence_desktop_public_path`. Forward migration:
+core drops legacy fields on read (a stored plan's digest is checked against
+its earlier form first); the store migrates to `user_version` 1, rewriting
+such drafts and deleting objects only evidence pinned. Tab indices moved:
+Description 1, Tour 2, Pull request 3.
+
+Runs and limits: [RFC-BPR-0110 ledger](../../../verification/RFC-BPR-0110.md#owner-amendment-evidence-removed-2026-11-12).
+Documentation gate OK on lane and main.
+
+Pending obligations unchanged: the rejected local-draft looks wait on the
+mockup redesign; BPR-2021/2022 then BPR-2026..2028 and BPR-2029..2031 as
+before (now without BPR-2025); RFC-BPR-0105 AC08, RFC-BPR-0101 AC08 and the
+other parked looks as recorded above. Next milestone in plan order after the
+redesign: `local-tour-preparation` (its prerequisites now exclude
+`author-evidence`).
+
+Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
+BPR-Test #152 and `-next`. No live GitHub use. Every build named its targets
+with -j4; the composition contract's own sub-build ran inside its test.
