@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2120"
 title: "Give composed terminal-diagnostic children a bounded Debug watchdog"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
