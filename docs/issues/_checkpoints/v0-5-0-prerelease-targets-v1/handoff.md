@@ -1436,7 +1436,21 @@ as above. No Qt surface changed, so frontend-design was not loaded.
 Main mirror `1232a90dc` (BPR-2116, 1997, 2007, 2008, BPR-2119). Release
 exposure: [RFC-BPR-0104 ledger](../../../verification/RFC-BPR-0104.md#release-exposure-check-2026-11-11).
 
-Next: build and run `application_review_tour_publication_push`
-(`ninja -j4 tests/end_to_end/review_tour_publication_public_path`; the
-machine was swapping at load 50 to 150), then finish BPR-2117 and close
-RFC-BPR-0106 via BPR-2015, mirror to main.
+| `1d5558c89` | BPR-2117 course passes: the push arrives by the seeded epoch refresh (`EpochPhase` seed, `RepeatReadSessions` off); a re-accepted handoff carries no Git transport, which is why the second head was never readable before |
+| `dd241bb1d`, `90f6ff55c` | BPR-2117 Done (negative control: `check_tour_material` disabled, the course fails at "every stop is compared") |
+| `00356810c`, `d35d139d6` | BPR-2015: RFC-BPR-0106 Auto-Verified |
+
+Runs: all thirteen `application_review_tour_publication_*` courses and
+`application_review_round_trip_composition_contract` together (14/14);
+`core_review_tour_update`; 62 `tour` rows at `f042726a6`;
+`application_agent_{invocation_host,launch,scratch_folder}`, `core_agent_grant`
+at `7a5bb7de1`; the live course (20 runs, real `~/.codex` and `~/.claude`
+untouched); format and clang-tidy on the changed sources; documentation gate.
+Not completed: the 90-row `agent` ctest pass (two session restarts and a
+swapping machine cut it off; rows not run are unknown, not failed).
+
+The reviewer's probe scripts in the session scratchpad (`r4/`) were gone
+after the session restart; the ledger names them.
+
+Next: nothing owed in this round. RFC-BPR-0100, 0104 and 0106 are closed.
+BPR-2119 (main) is the hotfix for shipped builds. BPR-2101 (Backlog) remains.
