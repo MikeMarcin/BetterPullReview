@@ -1567,3 +1567,68 @@ candidate chooser clips "Candidate 2 of 2". Next milestone in plan order,
 Not touched: session `5f049205…` (host 6288/6298, root
 `/Users/jaeger/local-draft-v001.h8pe0ibf`), host 74692/74706, PIDs 10695 and
 39804, Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use.
+
+## local-tour-preparation (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Milestone
+`local-tour-preparation` (RFC-BPR-0110, BPR-2026..2028). Frontend-design was
+loaded before the Qt work. Ledger:
+[RFC-BPR-0110](../../../verification/RFC-BPR-0110.md); implementation record
+in the RFC. Owner amendments in force as above.
+
+**Dependency.** BPR-2026 depends on BPR-2022 and BPR-2025 (closeouts of
+RFC-BPR-0108 and 0109), which wait on BPR-2021's owner look (session
+`5f049205…`, not touched). The cards were not readied, claimed or moved and
+main has no mirror this round. Once BPR-2022 and BPR-2025 close: ready and
+claim BPR-2026 and BPR-2027, finish both on the ledger's evidence and this
+round's look, then BPR-2028 closes RFC-BPR-0110; mirror each move to main.
+
+| Commit | What |
+|---|---|
+| `0f11cb853` | Core `local_draft_tour`: preparation in the draft's record, binding and correspondence, acceptance, proposals, conversations, preview, mapping; `core_local_draft_tour` |
+| `8b5c8aea2` | Two writing hooks `local.description` / `local.discussion`, profile schema 28, Settings group, exchange; candidate-only request and answer parsing |
+| `1234fa739` | Workbench host: edits, refresh carry, `ask` on its own lane |
+| `79589a941` | Qt Description and Tour areas, agent bar; tool-free runner composition; X19 default; candidate chooser fix; desktop course |
+| `32509525c` | Storage migrations, Settings test, transcript links without QUrl, `--attended-local-draft-tour`, isolation entries |
+| `8fe16c86d` | Tidy fixes, narrow hook-table rebuild test, prompt round trip, app pin resealed, docs, ledger. Product candidate |
+| `13bb65bb8` | NEXT_ID and reservations BPR-2129, 2130 from main (BPR-2131) |
+
+Runs: see the ledger. Baseline failures kept: `test_network_isolation_manifest`
+(raw `add_test` for `live_agent_checkout_settings`,
+`application_review_tour_publication_push` entry), and its script test
+`test_repository_raw_registrations_match_the_exception`; both from earlier
+milestones. Documentation gate OK.
+
+Not built (recorded in the RFC): the candidate-workspace route and native
+resume for local-draft conversations (runs are tool-free with the captured
+candidate's text; every turn replays); the running block is "Asking…" with
+Stop, no activity rows; no publication calls `map_local_publication` yet
+(RFC-BPR-0111). An installed agent never answered a local draft here.
+
+Disk: no binaries were deleted this round. One accidental dependency build
+did not happen; every build named its targets with -j4.
+
+Owner look, filed and not waited on: session
+`6c8ac4dc8b4856b0f94a4b4729af0806`, state
+`/Users/jaeger/.attended-review-state/local-draft-tour-v001-2026-11-12/state`,
+cursor 9, host PID 71192 (Tailscale child 71200), URL in that directory's
+`serve.log`. Candidates `RFC-BPR-0110-tour-area` (`086ad8e2e0b1…`),
+`RFC-BPR-0110-description-area` (`d71ec0288768…`) and
+`RFC-BPR-0110-candidate-chooser` (`7f70240ac247…`). Frozen root
+`/Users/jaeger/local-draft-tour-v001.3hs4zi83` from `13bb65bb8365`
+(executable SHA-256 `91778c647a7c…`; launcher check reached
+`ATTENDED_LOCAL_DRAFT_TOUR_SHOWN`), launch
+`python3 /Users/jaeger/local-draft-tour-v001.3hs4zi83/launch.py`. The look's
+agent is scripted.
+
+Next: read `6c8ac4dc…` from cursor 9 after hand-back; a Reject is a new
+candidate. After BPR-2022 and BPR-2025 close, ready, claim and finish
+BPR-2026 and BPR-2027 (mirrored to main), then BPR-2028. Then stop host 71192
+and `freeze_attended_build.py remove` the root. Open work for the closeout to
+judge: the candidate-workspace route and native resume, RFC-BPR-0103's full
+running block, an installed agent answering a local draft, and X19 with a real
+associated pull request (RFC-BPR-0111 creates one).
+
+Not touched: sessions `5f049205…` (host 6288/6298) and `7fc09e75…` (host
+4867/4877) and their roots, host 74692/74706, PIDs 10695 and 39804,
+Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use.
