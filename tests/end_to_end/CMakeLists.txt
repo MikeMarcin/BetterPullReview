@@ -4572,8 +4572,11 @@ if(UNIX)
     bpr_enable_warnings(test_terminal_diagnostics)
     bpr_add_network_isolated_test(NAME application_terminal_diagnostics
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/terminal_diagnostic_contract.py"
-            "$<TARGET_FILE:test_terminal_diagnostics>" "$<TARGET_FILE:app_better_pull_review>" "$<TARGET_FILE:test_application_logging>")
-    set_tests_properties(application_terminal_diagnostics PROPERTIES TIMEOUT 60)
+            "$<TARGET_FILE:test_terminal_diagnostics>" "$<TARGET_FILE:app_better_pull_review>" "$<TARGET_FILE:test_application_logging>"
+            --configuration "$<CONFIG>")
+    # BPR-2120: three Debug composed children permit 30 seconds each; seven
+    # other children keep 10 seconds. Release remains 60 seconds in total.
+    set_tests_properties(application_terminal_diagnostics PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,180,60>")
 endif()
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 # Windows x64 Debug's independent enrollment course completed in 172.96 s;
