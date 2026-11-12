@@ -73,6 +73,30 @@ namespace {
 }
 
 namespace bpr::adapters::git {
+	auto installed_workspace_migration_io(const std::string_view aOperation, const std::size_t aRequested) -> std::optional<std::size_t>
+	{
+		std::ofstream trace{ root / "migration-io-trace", std::ios::app };
+		trace << aOperation << ':' << aRequested << '\n';
+		if (phase == "migration-fail-" + std::string{ aOperation }) {
+			return std::nullopt;
+		}
+		if ((phase == "migration-short-body" || phase == "migration-short-body-complete") && aOperation == "body-write") {
+			static std::size_t calls = 0U;
+			if (++calls == 1U) {
+				std::ifstream input{ root / "migration-write-limit" };
+				std::size_t   limit = 0U;
+				if (!(input >> limit) || limit == 0U) {
+					throw std::runtime_error{ "missing bounded migration write limit" };
+				}
+				return limit < aRequested ? limit : aRequested;
+			}
+			if (phase == "migration-short-body") {
+				return std::nullopt;
+			}
+		}
+		return aRequested;
+	}
+
 	void installed_workspace_checkpoint(std::string_view aName)
 	{
 		if (aName != phase) {
@@ -147,7 +171,7 @@ auto main(int argc, char** argv) -> int
 			std::cout << '\n';
 			return 0;
 		}
-		if (phase == "recover" || phase == "cancelled") {
+		if (phase == "recover" || phase == "cancelled" || phase.starts_with("migration-")) {
 			std::stop_source stop;
 			if (phase == "cancelled") {
 				stop.request_stop();

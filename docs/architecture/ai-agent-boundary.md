@@ -658,6 +658,12 @@ and the same recorded number and the registry, neighbourhood and record are on
 one mount now. Every other check is unchanged. Recovery, holding the record's
 exclusive lock, then rewrites it in place through its own descriptor as the
 same phase chain in Version 2 lines, so the record keeps its inode. A retained
+record must not become a disposable prefix if that update is interrupted
+([[BPR-2125]]). Migration flushes an invalid first-byte marker before touching
+the body, writes from offset 1, truncates and flushes the whole replacement,
+then restores and flushes the opening JSON byte last. A pending marker refuses
+as `record-cleanup-failed` and keeps the record and workspace for repair.
+Ordinary append-tail recovery and temporary phase-3 cleanup are unchanged. A retained
 conversation's stored identities in the old form are accepted on reattach when
 kind and inode match the journal just checked against the live paths, and the
 run uses the journal's durable identities; the stored copy itself is not

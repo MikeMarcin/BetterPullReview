@@ -362,6 +362,130 @@ def check_remount_and_record_refusals(exe: Path, parent: Path) -> None:
     check(exe, "recover-check", root, f"failure=1 check=record-malformed folder=registry/{record.name} records=1")
 
 
+
+def check_interrupted_migration(exe: Path, parent: Path) -> None:
+    """[[BPR-2125]]. Only a complete migration may publish JSON again.
+
+    The baseline failure was B1=2690/B2=3350/endPhase3=2653/cut2691:
+    a bare v2 prefix replaced retained phase7 with disposable phase3. The
+    corrected writer must keep its flushed invalid byte outside every body
+    write, including an actual short native pwrite at that same cut.
+    """
+    sentinel_bytes = b"retained edit survives an interrupted migration\n"
+
+    def prepare(name: str):
+        root = create_root(parent, name)
+        check(exe, "retained-abandon", root, "retained")
+        record = journal(root)
+        retained = workspace(root)
+        (retained / "retained-edit.txt").write_bytes(sentinel_bytes)
+        current = record.read_bytes()
+        lines = lines_of(record)
+        if [line["Phase"] for line in lines] != [0, 1, 2, 3, 7]:
+            raise RuntimeError("migration fixture lacks a complete retained authority")
+        inode = record.stat().st_ino
+        mount = record.stat().st_dev + 4
+        write_lines(record, as_version_one(lines, lambda _field: mount))
+        if record.stat().st_ino != inode:
+            raise RuntimeError("legacy fixture changed its journal inode")
+        return root, record, retained, current, inode
+
+    def verify(root: Path, record: Path, retained: Path, current: bytes, inode: int,
+               *, pending: bool) -> None:
+        if not record.exists() or record.stat().st_ino != inode:
+            raise RuntimeError("migration lost or replaced its authority journal")
+        before = record.read_bytes()
+        if before.startswith(b"!") != pending:
+            raise RuntimeError("unexpected migration commit state")
+        if pending:
+            check(exe, "recover-check", root,
+                  f"failure=1 check=record-cleanup-failed folder=registry/{record.name} records=1")
+            if record.read_bytes() != before:
+                raise RuntimeError("refusal modified an interrupted migration")
+        else:
+            check(exe, "recover-check", root, "recovered=0 live=1")
+            if record.read_bytes() != current:
+                raise RuntimeError("complete migration differs from original durable authority")
+        if (not retained.is_dir()
+                or (retained / "retained-edit.txt").read_bytes() != sentinel_bytes
+                or record.stat().st_ino != inode):
+            raise RuntimeError("migration recovery lost retained work or its original journal")
+
+    checkpoints = (
+        "migration-before-marker-write",
+        "migration-after-marker-write",
+        "migration-after-marker-flush",
+        "migration-after-body-write",
+        "migration-after-truncate",
+        "migration-after-body-flush",
+        "migration-after-commit-write",
+        "migration-after-commit-flush",
+    )
+    for point in checkpoints:
+        root, record, retained, current, inode = prepare(point)
+        kill_at_checkpoint(exe, point, root)
+        pending = point not in {
+            "migration-before-marker-write", "migration-after-commit-write",
+            "migration-after-commit-flush",
+        }
+        verify(root, record, retained, current, inode, pending=pending)
+
+    operations = (
+        "marker-write", "marker-flush", "body-write", "truncate",
+        "body-flush", "commit-write", "commit-flush",
+    )
+    for index, operation in enumerate(operations):
+        root, record, retained, current, inode = prepare("migration-fail-" + operation)
+        original = record.read_bytes()
+        check(exe, "migration-fail-" + operation, root, "failure=1")
+        trace = [line.split(":")[0] for line in
+                 (root / "migration-io-trace").read_text().splitlines()]
+        if trace != list(operations[:index + 1]):
+            raise RuntimeError(f"failed {operation} reached later migration I/O: {trace}")
+        if operation == "marker-write" and record.read_bytes() != original:
+            raise RuntimeError("failed invalidation changed the original authority")
+        verify(root, record, retained, current, inode,
+               pending=operation not in {"marker-write", "commit-flush"})
+
+    for complete in (False, True):
+        name = "migration-short-body-complete" if complete else "migration-short-body"
+        root, record, retained, current, inode = prepare(name)
+        old_length = record.stat().st_size
+        end_phase3 = sum(len(line) for line in current.splitlines(keepends=True)[:4])
+        expanded_cut = max(old_length + 1, end_phase3 + 1)
+        cut = expanded_cut if expanded_cut < len(current) else end_phase3 + 1
+        if not (1 < cut < len(current)):
+            raise RuntimeError("invalid bounded short migration write")
+        (root / "migration-write-limit").write_text(str(cut - 1))
+        check(exe, name, root, "recovered=0 live=1" if complete else "failure=1")
+        if not complete:
+            expected = b"!" + current[1:cut]
+            if cut > old_length and record.read_bytes() != expected:
+                raise RuntimeError("short body did not preserve the invalid byte at exact expanded EOF")
+            trace = [line.split(":")[0] for line in
+                     (root / "migration-io-trace").read_text().splitlines()]
+            if trace != ["marker-write", "marker-flush", "body-write", "body-write"]:
+                raise RuntimeError("short failed body reached truncate or commit")
+            print(f"agent-workspace-ownership:migration-short:"
+                  f"old={old_length}:full={len(current)}:phase3={end_phase3}:cut={cut}",
+                  flush=True)
+        verify(root, record, retained, current, inode, pending=not complete)
+
+    # Do not solve retention by refusing all valid phase3 prefixes: those are
+    # precisely the original disposable-workspace recovery authority.
+    for version in (1, 2):
+        root = create_root(parent, f"migration-temporary-v{version}")
+        check(exe, "ready-abandon", root, "ready")
+        record = journal(root)
+        if version == 1:
+            mount = record.stat().st_dev + 4
+            write_lines(record, as_version_one(lines_of(record), lambda _field: mount))
+        (workspace(root) / "disposable-edit.txt").write_text("temporary")
+        check(exe, "recover-check", root, "recovered=1 live=0")
+        assert_empty(root)
+    print("agent-workspace-ownership:migration-crash-safety:pass", flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--executable", required=True, type=Path)
@@ -375,6 +499,7 @@ def main() -> None:
             check_neighbourhood_parent_rule(exe, parent)
             check_own_objects_narrowed(exe, parent)
         check_remount_and_record_refusals(exe, parent)
+        check_interrupted_migration(exe, parent)
         # [[BPR-1857]]. A workspace no record accounts for is refused by name,
         # and kept exactly as it was.
         root = create_root(parent, "unrecorded-leftover")
