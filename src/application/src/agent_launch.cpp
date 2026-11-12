@@ -3511,9 +3511,9 @@ namespace bpr::application {
 		// allows it and it fits a Windows command line; otherwise the message.
 		// The review skill a review request's brief carries is a built-in
 		// prompt too: it joins the instructions and leaves the brief.
-		const auto  skilled      = aSupplement.Brief && aSupplement.Brief->Skill && !aSupplement.Brief->Skill->Text.empty();
-		const auto  instructions = skilled ? (aOptions.SystemInstructions.empty() ? aSupplement.Brief->Skill->Text : aOptions.SystemInstructions + "\n\n" + aSupplement.Brief->Skill->Text)
-										   : aOptions.SystemInstructions;
+		const auto skilled      = aSupplement.Brief && aSupplement.Brief->Skill && !aSupplement.Brief->Skill->Text.empty();
+		const auto instructions = skilled ? (aOptions.SystemInstructions.empty() ? aSupplement.Brief->Skill->Text : aOptions.SystemInstructions + "\n\n" + aSupplement.Brief->Skill->Text)
+										  : aOptions.SystemInstructions;
 		const auto systemPrompt = !instructions.empty() && aOptions.Instructions == core::agent_instruction_delivery::system_prompt
 			&& (aProfile.Protocol == core::agent_protocol::claude_stream_json || aProfile.Protocol == core::agent_protocol::codex_jsonl_exec)
 			&& quoted_argument_bytes(instructions) <= core::maximum_system_prompt_argument_bytes;
@@ -3662,8 +3662,8 @@ namespace bpr::application {
 		request.ReadOnlyTools     = aOptions.ReadOnlyTools;
 		request.Path              = aOptions.Path;
 		request.InstructionsRoute = instructions.empty() ? agent_instructions_route::none
-			: systemPrompt                                              ? agent_instructions_route::system_prompt
-																		: agent_instructions_route::pasted;
+			: systemPrompt                               ? agent_instructions_route::system_prompt
+														 : agent_instructions_route::pasted;
 		request.RunChecks         = aOptions.RunChecks;
 		request.Grant             = aOptions.Grant;
 		request.Profile           = aProfile.Id;

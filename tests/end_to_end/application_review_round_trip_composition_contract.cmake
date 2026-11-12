@@ -3606,8 +3606,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# BPR_ATTENDED_LOCAL_DRAFT_PULL_REQUEST so one frozen root serves both its
 	# looks. No credential is read, stored or passed; no review
 	# mutation, admission or GitHub write is added.
+	# [[BPR-2138]], [[BPR-2140]], [[BPR-2141]] reseal (agent launch policy,
+	# second pass): the local draft's runner resumes the discussion's native
+	# session in an owner-private empty folder kept per draft and passes the
+	# purpose's instructions apart; Draft Tour, a field's draft and the
+	# outline carry the pull request's diff up front (tool-free) or name why
+	# they read the repository; tour prompts' instructions split off for the
+	# system prompt; Ask more arms the next turn's seed. No provider request,
+	# credential, grant, mutation or inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "aaa3e68843d6b3a51e5815e98556e3d5a31594b71e2c6542df2d0e515d09a489"
+        "ea080e2528fcd61e0a802d95ac71b7d97df8ae0793ab895da0cf85501caf2418"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

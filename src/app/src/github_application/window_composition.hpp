@@ -849,8 +849,8 @@ namespace bpr::app {
 		/// answer: its thread's chat opens, and its next turn starts its
 		/// session with the answer.
 		void ask_more_from(core::tour_agent_run_id aRun);
-		void               present_tour_session();
-		void               cancel_tour_run();
+		void present_tour_session();
+		void cancel_tour_run();
 		/// [[BPR-1930]]. Sends the feedback kept while Draft the tour ran, as
 		/// the tour chat's next turn, once the session is idle.
 		void send_waiting_tour_feedback(int aTries = 0);

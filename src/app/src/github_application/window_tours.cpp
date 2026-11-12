@@ -826,9 +826,9 @@ namespace bpr::app {
 		// [[BPR-2141]], RFC-BPR-0101 AC13. Draft from PR context and Suggest
 		// an outline are one tool-free call with the diff up front; past the
 		// budget they read the repository, and the notice says so.
-		auto       files = std::vector<application::tour_draft_file>{ };
-		auto       bytes = std::size_t{ 0U };
-		auto       route = core::tour_context_route::up_front;
+		auto files = std::vector<application::tour_draft_file>{ };
+		auto bytes = std::size_t{ 0U };
+		auto route = core::tour_context_route::up_front;
 		if (readOnly) {
 			files    = tour_request_files();
 			bytes    = application::tour_diff_bytes(files);
@@ -844,9 +844,9 @@ namespace bpr::app {
 		// stop's Enhance sends the stop's Enhance prompt, and its skills.
 		auto skills         = skill_run_for(core::writing_instructions_for(aHook, request->Scope));
 		auto text           = prompt->Message + (upFront ? application::render_up_front_diff(files) : std::string{ }) + skills.Directive;
-		TourRunInstructions = (readOnly ? std::string{ application::read_only_writing_preamble() }
-							   : upFront ? std::string{ application::up_front_writing_preamble() }
-										 : std::string{ })
+		TourRunInstructions = (readOnly      ? std::string{ application::read_only_writing_preamble() }
+								   : upFront ? std::string{ application::up_front_writing_preamble() }
+											 : std::string{ })
 			+ prompt->Instructions;
 		TourRunUpFront = upFront;
 		if (skills.Note) {

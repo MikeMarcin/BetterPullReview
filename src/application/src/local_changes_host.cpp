@@ -685,10 +685,10 @@ namespace bpr::application {
 				const auto subjects = aSelf.Git.recent_subjects(aSubject.Worktree, core::maximum_commit_message_subjects, aStop);
 				// [[BPR-2140]]. The purpose's instructions travel apart (the
 				// runner's system prompt); the prompt is the run's material.
-				const auto prompt   = core::compose_commit_message_prompt({ .Branch         = aSubject.Branch,
-																			.StagedDiff     = std::move(*diff),
-																			.RecentSubjects = subjects.value_or(std::vector<std::string>{ }) });
-				auto       answer   = aSelf.Runner(agent, prompt, aStop);
+				const auto prompt = core::compose_commit_message_prompt({ .Branch         = aSubject.Branch,
+																		  .StagedDiff     = std::move(*diff),
+																		  .RecentSubjects = subjects.value_or(std::vector<std::string>{ }) });
+				auto       answer = aSelf.Runner(agent, prompt, aStop);
 				if (!answer) {
 					return std::unexpected{ answer.error() };
 				}

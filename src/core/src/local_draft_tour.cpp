@@ -1305,9 +1305,9 @@ namespace bpr::core {
 		if (latest == nullptr) {
 			return std::nullopt;
 		}
-		const auto& prep    = aDraft.Preparation;
-		auto        request = local_request{ .FilesTotal = latest->Changes.size() };
-		request.Resumed     = aConversation != nullptr && !aConversation->Handle.empty();
+		const auto& prep     = aDraft.Preparation;
+		auto        request  = local_request{ .FilesTotal = latest->Changes.size() };
+		request.Resumed      = aConversation != nullptr && !aConversation->Handle.empty();
 		request.Instructions = aQuestion.Instructions;
 		request.Instructions += "\n\n## Answer format\n\nAnswer in prose. To propose a change, end with one fenced block whose info string is bpr-proposals, holding a JSON array of "
 								"objects: {\"target\": \"title\"|\"description\"|\"problem\"|\"solution\", \"text\": the whole new text}, {\"target\": \"stop\", \"stop\": its number, "

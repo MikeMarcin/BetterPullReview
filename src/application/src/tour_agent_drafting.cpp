@@ -164,12 +164,12 @@ namespace bpr::application {
 							   : "Your working directory is a private copy of the repository at the session's pinned revision (the execution binding). Read, search and use read-only git (log, show, blame, diff) "
 								 "to understand the change before you answer. You cannot edit, write, run builds or reach the network; do not try.\n";
 		prompt += "Answer with exactly one JSON object and nothing else, in this schema:\n"
-			  "{\"schema\":\"bpr.tour-draft.v1\",\"problem\":string,\"solution\":string,\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}]}\n";
+				  "{\"schema\":\"bpr.tour-draft.v1\",\"problem\":string,\"solution\":string,\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}]}\n";
 		prompt += std::string{ "Rules: every stop's path is one of the pull request's files; first_line and last_line are one-based line numbers in that file at the head, " }
 			+ (aDiffUpFront ? "and you can see them in its patch. Strongly" : "and you have read them. Strongly")
 			+ " prefer stops on the change: a file's changed_lines are its diff hunks at the head (first and last line), and a stop "
-				  "should lie wholly inside one of them. Put a stop off them only when it adds high value a reviewer would otherwise miss, keep it to one line, "
-				  "and make the first sentence of its explanation say why it is worth reading there. At most "
+			  "should lie wholly inside one of them. Put a stop off them only when it adds high value a reviewer would otherwise miss, keep it to one line, "
+			  "and make the first sentence of its explanation say why it is worth reading there. At most "
 			+ std::to_string(requested_tour_stops)
 			+ " stops, in reading order; a title is a short phrase; an explanation says what the reader should notice there, in plain sentences. "
 			  "Write the Problem and Solution as the author would, two to four sentences each, without claims you did not check. "

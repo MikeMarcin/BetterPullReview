@@ -7,6 +7,7 @@
 /// ([[BPR-2142]], RFC-BPR-0104 AC11, RFC-BPR-0103 AC10).
 
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/tour_agent_conversation.hpp"
 #include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_run_policy.hpp"
@@ -246,8 +247,8 @@ namespace {
 		expect(first && !has(first->Arguments, "--no-session-persistence") && has(first->Arguments, "--disable-slash-commands") && has(first->Arguments, "--strict-mcp-config")
 				   && !has(first->Arguments, "--resume"),
 			   "the discussion's first turn is tool-free, saves its session and resumes none");
-		auto next         = *first;
-		next.NativeHandle = "0f8e7c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b";
+		auto next          = *first;
+		next.NativeHandle  = "0f8e7c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b";
 		const auto resumed = application::prepare_native_agent_turn(next, false);
 		expect(resumed && has(resumed->Arguments, "--resume") && resumed->Arguments[index_of(resumed->Arguments, "--resume") + 1U] == next.NativeHandle
 				   && has(resumed->Arguments, "--disable-slash-commands"),
@@ -270,8 +271,8 @@ namespace {
 	/// prompt: it rides the system prompt and leaves the brief.
 	void test_the_review_skill_rides_the_system_prompt()
 	{
-		auto value  = supplement();
-		value.Brief = core::supplement_brief{ .Title = "Cache", .BaseBranch = "main", .Skill = core::brief_review_skill{ .Text = "SKILL-RULE: review the cache's eviction first." } };
+		auto value        = supplement();
+		value.Brief       = core::supplement_brief{ .Title = "Cache", .BaseBranch = "main", .Skill = core::brief_review_skill{ .Text = "SKILL-RULE: review the cache's eviction first." } };
 		const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), value, reader(), { .Path = core::agent_run_path::agent_tab });
 		expect(claude && has(claude->Arguments, "--append-system-prompt") && claude->Arguments[index_of(claude->Arguments, "--append-system-prompt") + 1U].starts_with("SKILL-RULE")
 				   && claude->Input.find("SKILL-RULE") == std::string::npos && claude->Input.find("brief.skill.location") != std::string::npos
@@ -321,6 +322,14 @@ namespace {
 		expect(diff.find("PATCH_MARKER") != std::string::npos && diff.find("art/logo.png") != std::string::npos && diff.find("No patch") != std::string::npos,
 			   "a field draft's diff names each patch and the files without one");
 		expect(application::up_front_writing_preamble().find("no tools") != std::string::npos, "and its preamble says it has no tools");
+		// [[BPR-2140]]. The tour conversation's turn: its instructions, the
+		// longest (the whole tour's, an update), fit the system prompt.
+		const auto ask = application::build_tour_ask_prompt("Cache", "Adds a cache.", files, core::review_tour{ }, core::tour_conversation{ }, core::tour_thread{ }, std::nullopt, "Merge stops 1 and 2.", true, std::nullopt, "the cache", { }, { });
+		expect(ask.has_value(), "a whole-tour update turn builds");
+		const auto turn = application::split_tour_prompt(*ask);
+		expect(turn.Instructions + turn.Message == *ask && turn.Message.find("Merge stops 1 and 2.") != std::string::npos && turn.Instructions.find("Merge stops 1 and 2.") == std::string::npos
+				   && turn.Instructions.size() <= core::maximum_system_prompt_argument_bytes,
+			   "the tour conversation's instructions split off, within the system prompt's bound; the question stays in the message");
 		const auto launch = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement(), reader(),
 															{ .WritingOnly = true, .Path = core::agent_run_path::draft_tour_first_draft, .SystemInstructions = parts.Instructions });
 		expect(launch && has(launch->Arguments, "--tools") && launch->Arguments[index_of(launch->Arguments, "--tools") + 1U].empty() && has(launch->Arguments, "--strict-mcp-config")

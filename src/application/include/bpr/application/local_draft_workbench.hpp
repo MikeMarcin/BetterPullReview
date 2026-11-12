@@ -186,10 +186,10 @@ namespace bpr::application {
 	};
 	struct local_draft_agent_answer
 	{
-		bool                         Answered = false;
-		std::string                  Text;
+		bool        Answered = false;
+		std::string Text;
 		/// [[BPR-2138]]. The session the run kept, to resume next turn.
-		std::string Handle;
+		std::string                  Handle;
 		std::optional<std::uint64_t> CostMicros;
 		/// Why it did not answer, in the person's words.
 		std::string Failure;

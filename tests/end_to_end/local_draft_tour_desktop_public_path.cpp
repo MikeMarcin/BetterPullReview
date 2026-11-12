@@ -118,13 +118,13 @@ namespace {
 
 	struct session
 	{
-		application::manual_executor               Lanes;
-		std::unique_ptr<qt::workbench_window>      Window;
-		std::unique_ptr<app::review_cycle_desktop> Cycles;
-		std::unique_ptr<app::local_draft_desktop>  Drafts;
-		std::vector<std::string>                   Prompts;
+		application::manual_executor                    Lanes;
+		std::unique_ptr<qt::workbench_window>           Window;
+		std::unique_ptr<app::review_cycle_desktop>      Cycles;
+		std::unique_ptr<app::local_draft_desktop>       Drafts;
+		std::vector<std::string>                        Prompts;
 		std::vector<application::local_draft_agent_run> Runs;
-		std::string                                Answer;
+		std::string                                     Answer;
 
 		session(const std::filesystem::path& aProfile, const std::filesystem::path& aGit, const QString& aChosen)
 		{

@@ -494,7 +494,7 @@ namespace bpr::application {
 			// for a misplaced prompt says so by name.
 			auto supplement = build_agent_context_supplement(
 				aRequest.Context, provisionalSession,
-				aRequest.ReadOnlyTools                                       ? agent_context_run::read_only_tour
+				aRequest.ReadOnlyTools                                             ? agent_context_run::read_only_tour
 					: aRequest.WritingOnly && !aRequest.Context.TourPrompt.empty() ? agent_context_run::tool_free_tour
 																				   : agent_context_run::ordinary);
 			if (!supplement.has_value()) {
