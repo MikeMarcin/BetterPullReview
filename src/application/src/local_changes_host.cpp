@@ -259,10 +259,10 @@ namespace bpr::application {
 			count(found.Status.Staged, aSubject.Worktree, found.Status.Head, true, core::local_comparison::uncommitted, aStop);
 			count(found.Status.Unstaged, aSubject.Worktree, std::nullopt, false, core::local_comparison::uncommitted, aStop);
 			if (aCheckHost) {
-				found.Url                    = url(aSubject, aStop);
-				auto [branch, failure]       = hosted(aSubject, found.Status, *found.Url, aStop);
-				found.Hosted                 = branch;
-				found.Failure                = failure;
+				found.Url              = url(aSubject, aStop);
+				auto [branch, failure] = hosted(aSubject, found.Status, *found.Url, aStop);
+				found.Hosted           = branch;
+				found.Failure          = failure;
 			} else if (found.Hosted.Observed && found.Hosted.Tip && found.Hosted.TipKnown && found.Status.Head) {
 				// The tip is as last read; the head may have moved.
 				found.Hosted.Ahead  = Git.count_commits(aSubject.Worktree, *found.Status.Head, *found.Hosted.Tip, aStop).value_or(found.Hosted.Ahead);
@@ -282,10 +282,10 @@ namespace bpr::application {
 		[[nodiscard]] auto file(const local_changes_subject& aSubject, const core::local_comparison aComparison, const std::string& aPath, const core::local_worktree_status& aStatus,
 								const core::local_hosted_branch& aHosted, std::stop_token aStop) -> local_changes_file
 		{
-			auto shown       = local_changes_file{ .Comparison = aComparison, .Path = aPath };
-			auto worktree    = Files.read(aSubject.Worktree, aPath, maximum_side_bytes);
-			auto right       = std::optional<bytes>{ };
-			auto facts       = core::local_edit_facts{ };
+			auto shown    = local_changes_file{ .Comparison = aComparison, .Path = aPath };
+			auto worktree = Files.read(aSubject.Worktree, aPath, maximum_side_bytes);
+			auto right    = std::optional<bytes>{ };
+			auto facts    = core::local_edit_facts{ };
 			if (worktree) {
 				facts = { .Exists = worktree->Exists, .Regular = worktree->Regular, .Link = worktree->Link, .Inside = worktree->Inside, .Size = worktree->Bytes.size() };
 				if (worktree->Exists && worktree->Regular) {
@@ -314,7 +314,7 @@ namespace bpr::application {
 				shown.Reason = core::diff_reason_code::host_failure;
 				return shown;
 			}
-			const auto renamed = std::ranges::find_if(aStatus.Staged, [&aPath](const auto& aEntry) { return aEntry.Path == aPath && !aEntry.Original.empty(); });
+			const auto renamed  = std::ranges::find_if(aStatus.Staged, [&aPath](const auto& aEntry) { return aEntry.Path == aPath && !aEntry.Original.empty(); });
 			const auto leftPath = renamed != aStatus.Staged.end() ? renamed->Original : aPath;
 			const auto left     = side(aSubject.Worktree, shown.LeftCommit, leftPath, aStop);
 			auto       outcome  = compare(*Matcher, aComparison, aPath, left, right, aStop);
@@ -373,7 +373,7 @@ namespace bpr::application {
 		[[nodiscard]] auto first_path() const -> std::string
 		{
 			const auto& list = Projection.Comparison == core::local_comparison::uncommitted ? (Projection.Status.Unstaged.empty() ? Projection.Status.Staged : Projection.Status.Unstaged)
-							 : Projection.Comparison == core::local_comparison::not_pushed  ? Projection.NotPushed
+				: Projection.Comparison == core::local_comparison::not_pushed               ? Projection.NotPushed
 																							: Projection.WholePullRequest;
 			return list.empty() ? std::string{ } : list.front().Path;
 		}
@@ -566,7 +566,7 @@ namespace bpr::application {
 
 	void local_changes_host::commit(core::local_commit_request aRequest)
 	{
-		auto& self = *Implementation;
+		auto& self    = *Implementation;
 		auto  decided = core::decide_commit(self.Projection.Status, aRequest, self.Projection.HeadOnHost);
 		if (!decided) {
 			return;
@@ -637,7 +637,7 @@ namespace bpr::application {
 		self.run(
 			local_changes_operation::saving,
 			[path = aPath, read = std::move(aRead), edited = std::move(aEdited)](implementation& aSelf, const local_changes_subject& aSubject, std::stop_token) {
-				const auto now = aSelf.disk(aSubject.Worktree, path).value_or(bytes{ });
+				const auto now      = aSelf.disk(aSubject.Worktree, path).value_or(bytes{ });
 				const auto decision = core::decide_save(read, now, edited);
 				if (decision == core::local_save_decision::write) {
 					const auto written = aSelf.Files.write(aSubject.Worktree, path, read, edited);

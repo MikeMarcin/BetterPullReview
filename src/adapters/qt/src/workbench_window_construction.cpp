@@ -9,8 +9,8 @@
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
-#include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/view_picker.hpp"
+#include "bpr/qt/workbench_window.hpp"
 #include "conversation_glyphs.hpp"
 #include "workbench_window_support.hpp"
 

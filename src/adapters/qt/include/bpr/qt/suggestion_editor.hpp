@@ -188,8 +188,10 @@ namespace bpr::qt {
 		/// lines removed before it; dashed while the line is not saved.
 		struct gutter_mark
 		{
-			enum class kind : std::uint8_t { added, changed, removed_before };
-			kind   Kind   = kind::added;
+			enum class kind : std::uint8_t { added,
+											 changed,
+											 removed_before };
+			kind   Kind = kind::added;
 			QColor Colour;
 			bool   Dashed = false;
 		};
@@ -323,19 +325,19 @@ namespace bpr::qt {
 		mutable QHash<QRgb, QColor> SelectionInk;
 		mutable QRgb                InkFill = 0U;
 		/// [[RFC-BPR-0090]]. The head pane's presentation, unset on the cycle page.
-		bool                                                External       = false;
-		qreal                                               ExternalOffset = 0.0;
-		gutter_presentation                                 Gutter;
-		QWidget*                                            GutterWidget = nullptr;
+		bool                                                     External       = false;
+		qreal                                                    ExternalOffset = 0.0;
+		gutter_presentation                                      Gutter;
+		QWidget*                                                 GutterWidget = nullptr;
 		std::function<std::optional<gutter_mark>(std::uint64_t)> GutterMarks;
-		std::function<std::optional<QColor>(std::uint64_t)> RowFill;
-		QColor                                              RangeWash;
-		QColor                                              RangeEdge;
-		QColor                                              RangeFlash;
-		QString                                             EmptyRangeNote;
-		QColor                                              ReadOnlyGround;
-		mutable QHash<QRgb, QColor>                         ReadOnlyInk;
-		QElapsedTimer                                       Flash;
+		std::function<std::optional<QColor>(std::uint64_t)>      RowFill;
+		QColor                                                   RangeWash;
+		QColor                                                   RangeEdge;
+		QColor                                                   RangeFlash;
+		QString                                                  EmptyRangeNote;
+		QColor                                                   ReadOnlyGround;
+		mutable QHash<QRgb, QColor>                              ReadOnlyInk;
+		QElapsedTimer                                            Flash;
 	};
 }
 

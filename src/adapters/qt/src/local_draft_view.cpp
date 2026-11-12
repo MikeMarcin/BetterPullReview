@@ -5,14 +5,14 @@
 #include "bpr/qt/suggestion_editor.hpp"
 
 #include <QAction>
-#include <QDateTime>
-#include <QLocale>
 #include <QComboBox>
+#include <QDateTime>
 #include <QFontMetricsF>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
@@ -439,8 +439,8 @@ namespace bpr::qt {
 		body->addWidget(left);
 
 		// The centre: Overview or Review.
-		Center       = new QStackedWidget{ body };
-		OverviewPage = new QWidget{ Center };
+		Center               = new QStackedWidget{ body };
+		OverviewPage         = new QWidget{ Center };
 		auto* const overview = new QVBoxLayout{ OverviewPage };
 		overview->setContentsMargins(24, 16, 24, 16);
 		overview->setSpacing(10);
@@ -465,8 +465,8 @@ namespace bpr::qt {
 		Diff->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Diff->setTabStopDistance(QFontMetricsF{ Diff->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
 		ReviewStack->addWidget(Diff);
-		EditPage             = new QWidget{ ReviewStack };
-		auto* const edit     = new QVBoxLayout{ EditPage };
+		EditPage         = new QWidget{ ReviewStack };
+		auto* const edit = new QVBoxLayout{ EditPage };
 		edit->setContentsMargins(0, 0, 0, 0);
 		edit->setSpacing(0);
 		auto* const editHead = new QWidget{ EditPage };
@@ -1230,19 +1230,21 @@ namespace bpr::qt {
 			for (std::size_t index = 0U; index < file.Bands.size(); ++index) {
 				const auto& band  = file.Bands[index];
 				const auto  first = std::ranges::find_if(rows, [&band](const core::cycle_diff_row& aRow) {
-                    if (aRow.Kind == core::cycle_diff_row_kind::context) {
-                        return false;
-                    }
-                    const auto left  = aRow.LeftLine && *aRow.LeftLine - 1U >= band.Shown.LeftBegin && *aRow.LeftLine - 1U < band.Shown.LeftEnd;
-                    const auto right = aRow.RightLine && *aRow.RightLine - 1U >= band.Shown.RightBegin && *aRow.RightLine - 1U < band.Shown.RightEnd;
-                    return left || right;
-                });
-				const auto stage = band.Unstaged && band.Stage.has_value();
+					if (aRow.Kind == core::cycle_diff_row_kind::context) {
+						return false;
+					}
+					const auto left  = aRow.LeftLine && *aRow.LeftLine - 1U >= band.Shown.LeftBegin && *aRow.LeftLine - 1U < band.Shown.LeftEnd;
+					const auto right = aRow.RightLine && *aRow.RightLine - 1U >= band.Shown.RightBegin && *aRow.RightLine - 1U < band.Shown.RightEnd;
+					return left || right;
+				});
+				const auto  stage = band.Unstaged && band.Stage.has_value();
 				ShownHunks.push_back(stage ? *band.Stage : band.Unstage.value_or(band.Shown));
 				bands.push_back({ .Row    = static_cast<std::size_t>(std::distance(rows.begin(), first)),
 								  .Title  = QStringLiteral("Change %1 of %2").arg(index + 1U).arg(file.Bands.size()),
-								  .State  = band.Staged && band.Unstaged ? QStringLiteral("Partly staged") : band.Staged ? QStringLiteral("Staged") : QString{ },
-								  .Action = stage ? QStringLiteral("Stage Change") : band.Unstage ? QStringLiteral("Unstage Change") : QString{ },
+								  .State  = band.Staged && band.Unstaged ? QStringLiteral("Partly staged") : band.Staged ? QStringLiteral("Staged")
+																														 : QString{ },
+								  .Action = stage ? QStringLiteral("Stage Change") : band.Unstage ? QStringLiteral("Unstage Change")
+																								  : QString{ },
 								  .Change = index,
 								  .Stage  = stage });
 			}
@@ -1296,7 +1298,8 @@ namespace bpr::qt {
 		}
 		const auto changedOnDisk = LocalProjection.ChangedOnDisk == EditPath && !EditPath.empty();
 		EditName->setText(QStringLiteral("%1%2").arg(EditDirty ? QStringLiteral("● ") : QString{ }, text_of(file->Path)));
-		EditState->setText(changedOnDisk ? QStringLiteral("Changed on disk") : EditDirty ? QStringLiteral("Not saved") : QString{ });
+		EditState->setText(changedOnDisk ? QStringLiteral("Changed on disk") : EditDirty ? QStringLiteral("Not saved")
+																						 : QString{ });
 		Save->setText(changedOnDisk ? QStringLiteral("Reload") : QStringLiteral("Save"));
 		Save->setToolTip(changedOnDisk ? QStringLiteral("The file changed on disk: nothing was written. Reload reads it again; your edits are dropped")
 									   : QStringLiteral("Write this text to the file in your worktree; nothing is staged"));

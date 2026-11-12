@@ -83,8 +83,8 @@ namespace bpr::application {
 		author_git_failure      Failure   = author_git_failure::failed;
 		std::string             Message;
 		/// The push was refused before anything ran: GitHub has commits the branch lacks.
-		bool                 RefusedBeforeRunning = false;
-		bool                 operator==(const local_changes_failure&) const = default;
+		bool RefusedBeforeRunning                           = false;
+		bool operator==(const local_changes_failure&) const = default;
 	};
 
 	struct local_changes_projection
@@ -98,16 +98,16 @@ namespace bpr::application {
 		std::vector<core::local_status_entry> NotPushed;
 		std::vector<core::local_status_entry> WholePullRequest;
 		/// Not pushed has a left side (GitHub's branch exists).
-		bool                                 NotPushedAvailable = false;
-		core::local_comparison               Comparison         = core::local_comparison::uncommitted;
-		std::optional<local_changes_file>    File;
-		core::local_hosted_branch            Hosted;
-		core::local_push_decision            Push;
+		bool                                    NotPushedAvailable = false;
+		core::local_comparison                  Comparison         = core::local_comparison::uncommitted;
+		std::optional<local_changes_file>       File;
+		core::local_hosted_branch               Hosted;
+		core::local_push_decision               Push;
 		std::optional<core::local_push_command> Command;
-		bool                                 AmendOffered = false;
-		bool                                 HeadOnHost   = false;
-		local_changes_operation              Running      = local_changes_operation::none;
-		std::optional<local_changes_failure> Failure;
+		bool                                    AmendOffered = false;
+		bool                                    HeadOnHost   = false;
+		local_changes_operation                 Running      = local_changes_operation::none;
+		std::optional<local_changes_failure>    Failure;
 		/// Commit or Push was pressed before the one-time question was answered.
 		bool ConsentNeeded = false;
 		/// The question was declined: these are the commands to run instead.
@@ -129,7 +129,7 @@ namespace bpr::application {
 	class local_changes_port
 	{
 	public:
-		virtual ~local_changes_port()                                   = default;
+		virtual ~local_changes_port()                                     = default;
 		virtual void publish(const local_changes_projection& aProjection) = 0;
 	};
 

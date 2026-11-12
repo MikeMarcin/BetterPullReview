@@ -24,7 +24,6 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"
 
-#include <QDateTime>
 #include <QAbstractButton>
 #include <QAbstractListModel>
 #include <QAbstractSlider>
@@ -36,6 +35,7 @@
 #include <QChar>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDateTime>
 #include <QDialog>
 #include <QFlags>
 #include <QFont>

@@ -471,11 +471,11 @@ namespace bpr::core {
 		}
 		const auto refspec = "refs/heads/" + std::string{ aBranch } + ":refs/heads/" + std::string{ aBranch };
 		auto       command = local_push_command{
-				  .Directory = std::string{ aDirectory },
-				  .Url       = std::string{ aUrl },
-				  .Branch    = std::string{ aBranch },
-				  .Arguments = { "push", "--no-follow-tags", std::string{ aUrl }, refspec },
-				  .Text      = { },
+			.Directory = std::string{ aDirectory },
+			.Url       = std::string{ aUrl },
+			.Branch    = std::string{ aBranch },
+			.Arguments = { "push", "--no-follow-tags", std::string{ aUrl }, refspec },
+			.Text      = { },
 		};
 		command.Text = "git push --no-follow-tags " + shell_word(aUrl) + " " + shell_word(refspec);
 		return command;

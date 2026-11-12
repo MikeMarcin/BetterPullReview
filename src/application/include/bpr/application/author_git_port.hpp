@@ -56,7 +56,7 @@ namespace bpr::application {
 	/// \brief A failure with what Git and any hook said, bounded.
 	struct author_git_error
 	{
-		author_git_failure Failure = author_git_failure::failed;
+		author_git_failure Failure  = author_git_failure::failed;
 		int                ExitCode = -1;
 		/// Standard error then standard output, at most `maximum_author_git_message_bytes`.
 		std::string Message;
@@ -123,7 +123,7 @@ namespace bpr::application {
 			-> author_git_result<void> = 0;
 		/// \brief Commits the index with this message; hooks and signing apply.
 		virtual auto commit(const std::string& aWorktree, const core::local_commit_plan& aPlan, std::stop_token aStop) -> author_git_result<void> = 0;
-		/// \brief A remote's configured URL in a clone (`git config --get`), or none.
+		/// \brief A remote's configured URL in that repository, read with `git config --get`, or none.
 		virtual auto remote_url(const std::string& aClone, const std::string& aRemote, std::stop_token aStop) -> author_git_result<std::optional<std::string>> = 0;
 		/// \brief Runs exactly `aCommand`'s arguments in its directory.
 		virtual auto push(const core::local_push_command& aCommand, std::stop_token aStop) -> author_git_result<void> = 0;

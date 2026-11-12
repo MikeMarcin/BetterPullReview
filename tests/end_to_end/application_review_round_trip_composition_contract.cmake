@@ -3590,8 +3590,22 @@ function(bpr_verify_app_source_tree app_source_root)
 	# github_application drops import_local_draft_evidence and the attended
 	# look drops --attended-local-draft-evidence. Nothing is added: no grant,
 	# account, provider, admission, mutation or publication change.
+	# The owner's redesign of local drafts (reviewed 2026-11-12, mockup A,
+	# Home 1, author state, Local Changes variant a; RFC-BPR-0108, 0113, 0114
+	# as amended). local_draft_desktop composes local_changes_host over the
+	# author's own Git (`installed_author_git`, a second runner separate from
+	# the isolated reader: status, blob and diff reads, stage, unstage, one
+	# index entry, commit and a push that is never forced, on the author's
+	# press only; no network on opening) and the one worktree file Save
+	# writes; the one-time hooks question is kept per draft in
+	# `author-git-consent.txt` under the profile. The commit message is one
+	# fresh, tool-free run of the window's agent on its own worker lane with
+	# `local.commit-message`'s text. github_application gains a look-only
+	# association of the shown draft (attended look); tour_assist names the
+	# new prompt. No credential is read, stored or passed; no review
+	# mutation, admission or GitHub write is added.
 	set(bpr_expected_production_app_manifest_digest
-        "39a7e51cfef79bb093863811efc0fce109162b7a69e445a1dfdd4c5f2bfe0e08"
+        "63c437eaff732c13ff5974672481a28a4c2b162db5e586aae2463b58f2ef8651"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

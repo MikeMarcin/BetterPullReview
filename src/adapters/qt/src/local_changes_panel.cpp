@@ -44,7 +44,8 @@ namespace bpr::qt {
 			pixmap.fill(Qt::transparent);
 			auto painter = QPainter{ &pixmap };
 			painter.setRenderHint(QPainter::Antialiasing);
-			const auto ink = aLetter == 'A' ? green(aPalette) : aLetter == 'D' ? red(aPalette) : aPalette.color(QPalette::WindowText);
+			const auto ink = aLetter == 'A' ? green(aPalette) : aLetter == 'D' ? red(aPalette)
+																			   : aPalette.color(QPalette::WindowText);
 			auto       box = ink;
 			box.setAlpha(110);
 			painter.setPen(QPen{ box, 1.0 });
@@ -158,7 +159,7 @@ namespace bpr::qt {
 		pickWells->addStretch(1);
 		column->addWidget(pickRow);
 
-		Pages = new QStackedWidget{ this };
+		Pages                   = new QStackedWidget{ this };
 		auto* const uncommitted = new QWidget{ Pages };
 		auto* const lists       = new QVBoxLayout{ uncommitted };
 		lists->setContentsMargins(0, 0, 0, 0);
@@ -195,12 +196,12 @@ namespace bpr::qt {
 		Stage         = new QPushButton{ QStringLiteral("Stage"), uncommitted };
 		Stage->setObjectName(QStringLiteral("localChangesStage"));
 		Stage->setToolTip(QStringLiteral("Stage the selected files; a double-click stages one"));
-		Unstaged = tree(uncommitted, QStringLiteral("Unstaged files"), QStringLiteral("localChangesUnstaged"));
+		Unstaged    = tree(uncommitted, QStringLiteral("Unstaged files"), QStringLiteral("localChangesUnstaged"));
 		StagedTitle = heading(QStringLiteral("Staged"), uncommitted);
 		Unstage     = new QPushButton{ QStringLiteral("Unstage"), uncommitted };
 		Unstage->setObjectName(QStringLiteral("localChangesUnstage"));
 		Unstage->setToolTip(QStringLiteral("Unstage the selected files; a double-click unstages one"));
-		Staged = tree(uncommitted, QStringLiteral("Staged files"), QStringLiteral("localChangesStaged"));
+		Staged             = tree(uncommitted, QStringLiteral("Staged files"), QStringLiteral("localChangesStaged"));
 		const auto buttons = std::max(Stage->sizeHint().width(), Unstage->sizeHint().width());
 		Stage->setFixedWidth(buttons);
 		Unstage->setFixedWidth(buttons);
@@ -365,10 +366,10 @@ namespace bpr::qt {
 
 	void local_changes_panel::present(const application::local_changes_projection& aProjection)
 	{
-		Projection      = aProjection;
-		const auto hold = qScopeGuard([this, was = Presenting] { Presenting = was; });
-		Presenting      = true;
-		const auto& view = Projection;
+		Projection         = aProjection;
+		const auto hold    = qScopeGuard([this, was = Presenting] { Presenting = was; });
+		Presenting         = true;
+		const auto& view   = Projection;
 		const auto  counts = std::array{ core::uncommitted_paths(view.Status).size(), view.NotPushed.size(), view.WholePullRequest.size() };
 		const auto  names  = std::array{ QStringLiteral("Uncommitted"), QStringLiteral("Not pushed"), QStringLiteral("Whole PR") };
 		for (std::size_t index = 0U; index < Picks.size(); ++index) {
@@ -387,7 +388,7 @@ namespace bpr::qt {
 											   : QMessageBox::question(this, QStringLiteral("Run Git Hooks and Configuration?"),
 																	   QStringLiteral("Commit and Push run this repository's Git hooks and your Git configuration on this computer, with your account's rights. Allow for this local draft?"),
 																	   QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
-													 == QMessageBox::Yes;
+					== QMessageBox::Yes;
 			if (Dispatch.Consent) {
 				Dispatch.Consent(allow);
 			}
@@ -402,7 +403,7 @@ namespace bpr::qt {
 
 	void local_changes_panel::fill(QTreeWidget& aTree, const std::vector<core::local_status_entry>& aEntries, const std::string& aCurrent)
 	{
-		const auto blocker = QSignalBlocker{ &aTree };
+		const auto blocker     = QSignalBlocker{ &aTree };
 		auto       wasSelected = QStringList{ };
 		for (const auto& path : selected(aTree)) {
 			wasSelected << text_of(path);
@@ -431,7 +432,8 @@ namespace bpr::qt {
 			if (entry.Binary) {
 				item->setText(1, QStringLiteral("binary"));
 			} else if (entry.Added + entry.Removed > 0U) {
-				item->setText(1, entry.Removed == 0U ? QStringLiteral("+%1").arg(entry.Added) : entry.Added == 0U ? QStringLiteral("−%1").arg(entry.Removed) : QStringLiteral("+%1 −%2").arg(entry.Added).arg(entry.Removed));
+				item->setText(1, entry.Removed == 0U ? QStringLiteral("+%1").arg(entry.Added) : entry.Added == 0U ? QStringLiteral("−%1").arg(entry.Removed)
+																												  : QStringLiteral("+%1 −%2").arg(entry.Added).arg(entry.Removed));
 			}
 			item->setForeground(1, entry.Removed > entry.Added ? red(palette()) : green(palette()));
 			if (wasSelected.contains(path)) {
@@ -465,7 +467,8 @@ namespace bpr::qt {
 		const auto  request = core::local_commit_request{ .Subject = utf8(Subject->text()), .Description = utf8(Description->toPlainText()), .Amend = Amend->isChecked() };
 		const auto  plan    = core::decide_commit(view.Status, request, view.HeadOnHost);
 		const auto  files   = view.Status.Staged.size();
-		Commit->setText(Amend->isChecked() && files == 0U ? QStringLiteral("Amend Commit") : files == 1U ? QStringLiteral("Commit 1 File") : QStringLiteral("Commit %1 Files").arg(files));
+		Commit->setText(Amend->isChecked() && files == 0U ? QStringLiteral("Amend Commit") : files == 1U ? QStringLiteral("Commit 1 File")
+																										 : QStringLiteral("Commit %1 Files").arg(files));
 		Commit->setEnabled(idle && view.Active && plan.has_value());
 		// The blue button is the next step: Commit once it can run.
 		Commit->setDefault(Commit->isEnabled());
@@ -474,9 +477,9 @@ namespace bpr::qt {
 											: QStringLiteral("Unavailable: GitHub has your last commit, so amending it would need a forced push"));
 		const auto agent = AgentName.isEmpty() ? QStringLiteral("the agent") : AgentName;
 		Suggest->setEnabled(idle && view.AgentAvailable && !view.Status.Staged.empty());
-		Suggest->setToolTip(!view.AgentAvailable ? QStringLiteral("Needs an agent, chosen in the window's footer")
-						   : view.Status.Staged.empty() ? QStringLiteral("Stage a change first: %1 writes the message from what is staged").arg(agent)
-														: QStringLiteral("Ask %1 for a subject and description from the staged change; you can edit them before you commit").arg(agent));
+		Suggest->setToolTip(!view.AgentAvailable             ? QStringLiteral("Needs an agent, chosen in the window's footer")
+								: view.Status.Staged.empty() ? QStringLiteral("Stage a change first: %1 writes the message from what is staged").arg(agent)
+															 : QStringLiteral("Ask %1 for a subject and description from the staged change; you can edit them before you commit").arg(agent));
 		if (view.Running == application::local_changes_operation::suggesting) {
 			Suggest->setToolTip(QStringLiteral("%1 is writing the message…").arg(agent));
 		}
@@ -553,11 +556,11 @@ namespace bpr::qt {
 				banner = QStringLiteral("Push refused: %1 has commits this branch does not. Nothing was sent; nothing is forced.").arg(against(view));
 			} else {
 				const auto what = view.Failure->Operation == application::local_changes_operation::committing ? QStringLiteral("Commit stopped")
-								: view.Failure->Operation == application::local_changes_operation::pushing    ? QStringLiteral("Push stopped")
-								: view.Failure->Operation == application::local_changes_operation::staging    ? QStringLiteral("Staging stopped")
-								: view.Failure->Operation == application::local_changes_operation::checking   ? QStringLiteral("GitHub could not be read")
+					: view.Failure->Operation == application::local_changes_operation::pushing                ? QStringLiteral("Push stopped")
+					: view.Failure->Operation == application::local_changes_operation::staging                ? QStringLiteral("Staging stopped")
+					: view.Failure->Operation == application::local_changes_operation::checking               ? QStringLiteral("GitHub could not be read")
 																											  : QStringLiteral("Git could not be read");
-				auto said = text_of(view.Failure->Message).trimmed();
+				auto       said = text_of(view.Failure->Message).trimmed();
 				if (said.size() > 600) {
 					said = said.left(600) + QStringLiteral("…");
 				}
@@ -575,8 +578,8 @@ namespace bpr::qt {
 				return joined;
 			}()));
 		}
-		auto bannerPalette = Banner->palette();
-		const auto refused = view.Push.State == core::local_push_state::behind || view.Push.State == core::local_push_state::diverged || view.Push.State == core::local_push_state::unknown_tip;
+		auto       bannerPalette = Banner->palette();
+		const auto refused       = view.Push.State == core::local_push_state::behind || view.Push.State == core::local_push_state::diverged || view.Push.State == core::local_push_state::unknown_tip;
 		bannerPalette.setColor(QPalette::WindowText, view.Failure || refused ? red(colours) : colours.color(QPalette::WindowText));
 		Banner->setPalette(bannerPalette);
 		Banner->setText(banner);

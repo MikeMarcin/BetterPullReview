@@ -36,31 +36,31 @@ namespace {
 	class queue final : public application::effect_executor, public application::decision_executor
 	{
 	public:
-		void post(std::function<void()> aTask) override { Tasks.push_back(std::move(aTask)); }
+		void                              post(std::function<void()> aTask) override { Tasks.push_back(std::move(aTask)); }
 		std::deque<std::function<void()>> Tasks;
 	};
 
 	class recorder final : public application::local_changes_port
 	{
 	public:
-		void publish(const application::local_changes_projection& aProjection) override { Last = aProjection; }
+		void                                  publish(const application::local_changes_projection& aProjection) override { Last = aProjection; }
 		application::local_changes_projection Last;
 	};
 
 	struct course
 	{
-		const git_runner&                                  Git;
-		std::filesystem::path                              Root;
-		std::filesystem::path                              Hosted;
-		std::filesystem::path                              Work;
-		std::unique_ptr<application::author_git_port>      Author;
-		std::unique_ptr<application::worktree_file_port>   Files;
-		queue                                              Effects;
-		queue                                              Decisions;
-		recorder                                           Port;
-		std::vector<std::string>                           Allowed;
-		std::string                                        Prompt;
-		std::unique_ptr<application::local_changes_host>   Host;
+		const git_runner&                                Git;
+		std::filesystem::path                            Root;
+		std::filesystem::path                            Hosted;
+		std::filesystem::path                            Work;
+		std::unique_ptr<application::author_git_port>    Author;
+		std::unique_ptr<application::worktree_file_port> Files;
+		queue                                            Effects;
+		queue                                            Decisions;
+		recorder                                         Port;
+		std::vector<std::string>                         Allowed;
+		std::string                                      Prompt;
+		std::unique_ptr<application::local_changes_host> Host;
 
 		void drain()
 		{
@@ -291,15 +291,15 @@ auto main(int argc, char** argv) -> int
 	write_file(work / "src" / "port.cpp", "int parse(int value)\n{\nreturn atoi;\n}\n// one\n// two\n// three\n// four\nreturn value;\n");
 	write_file(work / "notes.txt", "draft\n");
 
-	auto author = adapters::git::make_installed_author_git(std::filesystem::path{ argv[2] });
-	auto files  = adapters::git::make_worktree_files();
-	auto c      = course{ .Git = *git, .Root = root, .Hosted = hosted, .Work = work, .Author = std::move(author), .Files = std::move(files) };
+	auto author  = adapters::git::make_installed_author_git(std::filesystem::path{ argv[2] });
+	auto files   = adapters::git::make_worktree_files();
+	auto c       = course{ .Git = *git, .Root = root, .Hosted = hosted, .Work = work, .Author = std::move(author), .Files = std::move(files) };
 	auto matcher = std::shared_ptr<application::diff_line_matcher_port>{ core::make_xdiff_line_matcher() };
 	c.Host       = std::make_unique<application::local_changes_host>(*c.Author, *c.Files, matcher, c.Effects, c.Decisions, c.Port,
-                                                                application::local_changes_consent{
-                                                                    .Allowed  = [&c](const std::string& aKey) { return std::ranges::find(c.Allowed, aKey) != c.Allowed.end(); },
-                                                                    .Remember = [&c](const std::string& aKey) { c.Allowed.push_back(aKey); },
-                                                                });
+																	 application::local_changes_consent{
+																		 .Allowed  = [&c](const std::string& aKey) { return std::ranges::find(c.Allowed, aKey) != c.Allowed.end(); },
+																		 .Remember = [&c](const std::string& aKey) { c.Allowed.push_back(aKey); },
+																	 });
 	c.Host->open({ .Worktree = work.string(), .Branch = "fix/ports", .FallbackUrl = hosted.string(), .Target = "main", .Base = core::parse_git_commit_oid(base), .ConsentKey = "draft-1" });
 	c.drain();
 	expect(!c.view().Hosted.Observed && c.view().Push.State == core::local_push_state::unobserved && !c.view().Push.Offered, "opening reads no network: GitHub is not checked yet");

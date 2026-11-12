@@ -150,8 +150,8 @@ namespace {
 
 	void push_decisions()
 	{
-		const auto clean = status({ }, { });
-		const auto dirty = status({ }, { { .Path = "a", .Status = core::local_file_status::modified } });
+		const auto clean  = status({ }, { });
+		const auto dirty  = status({ }, { { .Path = "a", .Status = core::local_file_status::modified } });
 		auto       hosted = core::local_hosted_branch{ .Observed = true, .Tip = commit('b'), .TipKnown = true, .Ahead = 2U, .Behind = 0U };
 
 		auto decision = core::decide_push(clean, hosted);

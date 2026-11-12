@@ -53,7 +53,7 @@ namespace bpr::core {
 		std::uint32_t Added   = 0U;
 		std::uint32_t Removed = 0U;
 		/// Git reported binary content; no lines are counted.
-		bool Binary                                          = false;
+		bool Binary                                       = false;
 		auto operator<=>(const local_status_entry&) const = default;
 	};
 
@@ -68,7 +68,7 @@ namespace bpr::core {
 		std::vector<local_status_entry> Staged;
 		/// The worktree against the index, untracked files included.
 		std::vector<local_status_entry> Unstaged;
-		auto operator<=>(const local_worktree_status&) const = default;
+		auto                            operator<=>(const local_worktree_status&) const = default;
 	};
 	/// \brief A path is unmerged in either list.
 	[[nodiscard]] auto has_unmerged(const local_worktree_status& aStatus) noexcept -> bool;
@@ -103,10 +103,10 @@ namespace bpr::core {
 	/// zero-based half-open line ranges on each side.
 	struct local_change_hunk
 	{
-		std::uint32_t LeftBegin  = 0U;
-		std::uint32_t LeftEnd    = 0U;
-		std::uint32_t RightBegin = 0U;
-		std::uint32_t RightEnd   = 0U;
+		std::uint32_t LeftBegin                                   = 0U;
+		std::uint32_t LeftEnd                                     = 0U;
+		std::uint32_t RightBegin                                  = 0U;
+		std::uint32_t RightEnd                                    = 0U;
 		auto          operator<=>(const local_change_hunk&) const = default;
 	};
 	/// \brief The changes of a comparison, in order.
@@ -155,8 +155,8 @@ namespace bpr::core {
 	/// \brief Added and removed lines of a comparison.
 	struct local_line_counts
 	{
-		std::uint32_t Added                                  = 0U;
-		std::uint32_t Removed                                = 0U;
+		std::uint32_t Added                                       = 0U;
+		std::uint32_t Removed                                     = 0U;
 		auto          operator<=>(const local_line_counts&) const = default;
 	};
 	[[nodiscard]] auto line_counts(const computed_material_diff& aDiff) -> local_line_counts;
@@ -167,7 +167,7 @@ namespace bpr::core {
 	{
 		std::string Subject;
 		std::string Description;
-		bool        Amend                                     = false;
+		bool        Amend                                          = false;
 		auto        operator<=>(const local_commit_request&) const = default;
 	};
 
@@ -187,8 +187,8 @@ namespace bpr::core {
 	{
 		/// The message exactly as Git receives it.
 		std::string   Message;
-		bool          Amend = false;
-		std::uint32_t Files = 0U;
+		bool          Amend                                       = false;
+		std::uint32_t Files                                       = 0U;
 		auto          operator<=>(const local_commit_plan&) const = default;
 	};
 
@@ -260,7 +260,7 @@ namespace bpr::core {
 		/// Push can be pressed.
 		bool Offered = false;
 		/// Push is the window's next step (blue): nothing is uncommitted.
-		bool Default                                         = false;
+		bool Default                                       = false;
 		auto operator<=>(const local_push_decision&) const = default;
 	};
 	[[nodiscard]] auto decide_push(const local_worktree_status& aStatus, const local_hosted_branch& aHosted) -> local_push_decision;
@@ -323,8 +323,8 @@ namespace bpr::core {
 		std::uint32_t        Line = 0U;
 		local_line_mark_kind Kind = local_line_mark_kind::added;
 		/// The left side's lines a click shows, half-open.
-		std::uint32_t LeftBegin                           = 0U;
-		std::uint32_t LeftEnd                             = 0U;
+		std::uint32_t LeftBegin                                 = 0U;
+		std::uint32_t LeftEnd                                   = 0U;
 		auto          operator<=>(const local_line_mark&) const = default;
 	};
 	[[nodiscard]] auto line_marks(const computed_material_diff& aDiff) -> std::vector<local_line_mark>;

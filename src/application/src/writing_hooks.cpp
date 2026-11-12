@@ -11,17 +11,17 @@ namespace bpr::application {
 	auto writing_hook_version_of(core::writing_hook aHook) noexcept -> std::string_view
 	{
 		switch (aHook) {
-		case core::writing_hook::feedback:          return review_feedback_hook_version;
-		case core::writing_hook::enhance_stop:      return enhance_stop_hook_version;
-		case core::writing_hook::enhance_writing:   return enhance_writing_hook_version;
-		case core::writing_hook::suggested_comment: return suggested_comment_hook_version;
-		case core::writing_hook::local_description: return local_description_hook_version;
-		case core::writing_hook::local_discussion:  return local_discussion_hook_version;
+		case core::writing_hook::feedback:             return review_feedback_hook_version;
+		case core::writing_hook::enhance_stop:         return enhance_stop_hook_version;
+		case core::writing_hook::enhance_writing:      return enhance_writing_hook_version;
+		case core::writing_hook::suggested_comment:    return suggested_comment_hook_version;
+		case core::writing_hook::local_description:    return local_description_hook_version;
+		case core::writing_hook::local_discussion:     return local_discussion_hook_version;
 		case core::writing_hook::local_commit_message: return local_commit_message_hook_version;
-		case core::writing_hook::comment:           return tour_stop_comment_hook_version;
+		case core::writing_hook::comment:              return tour_stop_comment_hook_version;
 		case core::writing_hook::problem:
 		case core::writing_hook::solution:
-		case core::writing_hook::outline:           return writing_hook_version;
+		case core::writing_hook::outline:              return writing_hook_version;
 		}
 		return writing_hook_version;
 	}

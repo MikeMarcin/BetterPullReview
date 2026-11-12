@@ -389,6 +389,17 @@ namespace bpr::app {
 		}
 	}
 
+	void github_application::associate_local_draft_for_look(const std::uint64_t aNumber)
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				session->DraftDesktop->associate_for_look(aNumber);
+				return;
+			}
+		}
+	}
+
 	void github_application::desktop_local_draft_owner_route(application::local_draft_owner_request aRequest, std::function<void(application::tour_channel_bytes)> aRespond)
 	{
 #if defined(BPR_LOCAL_AUTOMATION)

@@ -43,9 +43,9 @@ namespace bpr::qt {
 	public:
 		explicit local_diff_view(QWidget* aParent = nullptr);
 
-		void present(std::vector<core::cycle_diff_row> aRows, std::vector<local_diff_band> aBands, QString aLeft, QString aPath, QString aRight);
-		void clear(const QString& aStatus = { });
-		void set_one_pane(bool aOnePane);
+		void               present(std::vector<core::cycle_diff_row> aRows, std::vector<local_diff_band> aBands, QString aLeft, QString aPath, QString aRight);
+		void               clear(const QString& aStatus = { });
+		void               set_one_pane(bool aOnePane);
 		[[nodiscard]] auto one_pane() const noexcept -> bool;
 		void               set_code_font(const QFont& aFont);
 		/// \brief A band's button was pressed: the change and whether it stages.
@@ -53,7 +53,7 @@ namespace bpr::qt {
 		/// \brief The new-side lines selected (one-based, inclusive), if any.
 		[[nodiscard]] auto selected_lines() const -> std::optional<std::pair<std::uint32_t, std::uint32_t>>;
 		/// \brief Scrolls to and selects new-side lines.
-		void reveal(std::uint32_t aFirst, std::uint32_t aLast);
+		void               reveal(std::uint32_t aFirst, std::uint32_t aLast);
 		[[nodiscard]] auto band_buttons() const -> std::vector<QPushButton*>;
 		[[nodiscard]] auto rows() const noexcept -> const std::vector<core::cycle_diff_row>&;
 		[[nodiscard]] auto header_text() const -> QString;
@@ -76,9 +76,9 @@ namespace bpr::qt {
 			std::optional<std::size_t> Right;
 			std::optional<std::size_t> Band;
 		};
-		void layout_lines();
-		void place_buttons();
-		void update_scrollbars();
+		void               layout_lines();
+		void               place_buttons();
+		void               update_scrollbars();
 		[[nodiscard]] auto line_height() const -> int;
 		[[nodiscard]] auto band_height() const -> int;
 		[[nodiscard]] auto header_height() const -> int;
@@ -86,20 +86,20 @@ namespace bpr::qt {
 		[[nodiscard]] auto line_at(int aY) const -> std::optional<std::size_t>;
 		[[nodiscard]] auto right_line_of(std::size_t aLine) const -> std::optional<std::uint32_t>;
 
-		std::vector<core::cycle_diff_row>       Rows;
-		std::vector<local_diff_band>            Bands;
-		std::vector<line>                       Lines;
-		std::vector<int>                        Tops;
-		std::vector<QPushButton*>               Buttons;
-		QString                                 Left;
-		QString                                 Path;
-		QString                                 Right;
-		QString                                 Status;
-		QFont                                   Code;
-		bool                                    OnePane = false;
-		std::optional<std::size_t>              Anchor;
-		std::optional<std::size_t>              Cursor;
-		std::function<void(std::size_t, bool)>  Action;
+		std::vector<core::cycle_diff_row>      Rows;
+		std::vector<local_diff_band>           Bands;
+		std::vector<line>                      Lines;
+		std::vector<int>                       Tops;
+		std::vector<QPushButton*>              Buttons;
+		QString                                Left;
+		QString                                Path;
+		QString                                Right;
+		QString                                Status;
+		QFont                                  Code;
+		bool                                   OnePane = false;
+		std::optional<std::size_t>             Anchor;
+		std::optional<std::size_t>             Cursor;
+		std::function<void(std::size_t, bool)> Action;
 	};
 }
 

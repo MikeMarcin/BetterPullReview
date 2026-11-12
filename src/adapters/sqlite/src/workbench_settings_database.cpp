@@ -214,13 +214,13 @@ namespace bpr::adapters::sqlite::detail {
 		/// comment's column (32); the note's (33) is retired, always empty.
 		[[nodiscard]] constexpr auto writing_hook_column(const std::size_t aHook) noexcept -> int
 		{
-			return aHook < core::review_preparation_hook_count                             ? static_cast<int>(15 + aHook)
-				: aHook == static_cast<std::size_t>(core::writing_hook::feedback)          ? 24
-				: aHook == static_cast<std::size_t>(core::writing_hook::suggested_comment) ? 34
-				: aHook == static_cast<std::size_t>(core::writing_hook::local_description) ? 35
-				: aHook == static_cast<std::size_t>(core::writing_hook::local_discussion)  ? 36
+			return aHook < core::review_preparation_hook_count                                ? static_cast<int>(15 + aHook)
+				: aHook == static_cast<std::size_t>(core::writing_hook::feedback)             ? 24
+				: aHook == static_cast<std::size_t>(core::writing_hook::suggested_comment)    ? 34
+				: aHook == static_cast<std::size_t>(core::writing_hook::local_description)    ? 35
+				: aHook == static_cast<std::size_t>(core::writing_hook::local_discussion)     ? 36
 				: aHook == static_cast<std::size_t>(core::writing_hook::local_commit_message) ? 37
-																						   : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
+																							  : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
 		}
 		/// \brief The retired column of the note's own Enhance prompt.
 		constexpr int retired_enhance_note_column = 33;

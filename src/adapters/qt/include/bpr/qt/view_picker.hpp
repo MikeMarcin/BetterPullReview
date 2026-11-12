@@ -29,7 +29,7 @@ namespace bpr::qt {
 	public:
 		explicit view_picker(QWidget* aParent = nullptr);
 
-		void set_view(review_view aView);
+		void               set_view(review_view aView);
 		[[nodiscard]] auto view() const noexcept -> review_view;
 		/// \brief Shows the third segment (author state).
 		void               set_author(bool aAuthor);

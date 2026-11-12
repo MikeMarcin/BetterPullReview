@@ -24,17 +24,17 @@ namespace bpr::qt {
 	/// \brief The gestures Local Changes sends to its host.
 	struct local_changes_dispatch
 	{
-		std::function<void(core::local_comparison)>       Choose;
-		std::function<void(const std::string&)>           OpenFile;
-		std::function<void(std::vector<std::string>)>     Stage;
-		std::function<void(std::vector<std::string>)>     Unstage;
-		std::function<void(core::local_commit_request)>   Commit;
-		std::function<void()>                             Push;
-		std::function<void()>                             CheckAgain;
-		std::function<void()>                             Stop;
+		std::function<void(core::local_comparison)>     Choose;
+		std::function<void(const std::string&)>         OpenFile;
+		std::function<void(std::vector<std::string>)>   Stage;
+		std::function<void(std::vector<std::string>)>   Unstage;
+		std::function<void(core::local_commit_request)> Commit;
+		std::function<void()>                           Push;
+		std::function<void()>                           CheckAgain;
+		std::function<void()>                           Stop;
 		/// Asks the footer's agent for the commit's subject and description.
-		std::function<void()>                             Suggest;
-		std::function<void(bool)>                         Consent;
+		std::function<void()>     Suggest;
+		std::function<void(bool)> Consent;
 	};
 
 	/// \brief Author state's Local Changes drawer tab (owner, 2026-11-12,
@@ -77,12 +77,12 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
-		void present_lists();
-		void present_commit();
-		void present_push();
-		void fill(QTreeWidget& aTree, const std::vector<core::local_status_entry>& aEntries, const std::string& aCurrent);
+		void               present_lists();
+		void               present_commit();
+		void               present_push();
+		void               fill(QTreeWidget& aTree, const std::vector<core::local_status_entry>& aEntries, const std::string& aCurrent);
 		[[nodiscard]] auto selected(const QTreeWidget& aTree) const -> std::vector<std::string>;
-		void restyle();
+		void               restyle();
 
 		local_changes_dispatch                Dispatch;
 		application::local_changes_projection Projection;
@@ -92,24 +92,24 @@ namespace bpr::qt {
 		QString                               AgentName;
 
 		std::array<QAbstractButton*, 3> Picks{ };
-		QStackedWidget*                 Pages     = nullptr;
+		QStackedWidget*                 Pages         = nullptr;
 		QLabel*                         UnstagedTitle = nullptr;
 		QLabel*                         StagedTitle   = nullptr;
-		QTreeWidget*                    Unstaged  = nullptr;
-		QTreeWidget*                    Staged    = nullptr;
-		QTreeWidget*                    Listed    = nullptr;
-		QPushButton*                    Stage     = nullptr;
-		QPushButton*                    Unstage   = nullptr;
-		QLineEdit*                      Subject   = nullptr;
-		QPlainTextEdit*                 Description = nullptr;
-		QCheckBox*                      Amend     = nullptr;
-		QToolButton*                    Suggest   = nullptr;
-		QPushButton*                    Commit    = nullptr;
-		QLabel*                         PushDot   = nullptr;
-		QLabel*                         PushState = nullptr;
-		QPushButton*                    Push      = nullptr;
-		QLabel*                         Command   = nullptr;
-		QLabel*                         Banner    = nullptr;
+		QTreeWidget*                    Unstaged      = nullptr;
+		QTreeWidget*                    Staged        = nullptr;
+		QTreeWidget*                    Listed        = nullptr;
+		QPushButton*                    Stage         = nullptr;
+		QPushButton*                    Unstage       = nullptr;
+		QLineEdit*                      Subject       = nullptr;
+		QPlainTextEdit*                 Description   = nullptr;
+		QCheckBox*                      Amend         = nullptr;
+		QToolButton*                    Suggest       = nullptr;
+		QPushButton*                    Commit        = nullptr;
+		QLabel*                         PushDot       = nullptr;
+		QLabel*                         PushState     = nullptr;
+		QPushButton*                    Push          = nullptr;
+		QLabel*                         Command       = nullptr;
+		QLabel*                         Banner        = nullptr;
 	};
 }
 

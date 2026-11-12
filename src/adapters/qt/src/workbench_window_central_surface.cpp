@@ -79,7 +79,6 @@
 #include <QOverload>
 #include <QPaintEvent>
 #include <QPainter>
-#include <QStyledItemDelegate>
 #include <QPalette>
 #include <QPen>
 #include <QPlainTextEdit>
@@ -100,6 +99,7 @@
 #include <QStatusBar>
 #include <QString>
 #include <QStyle>
+#include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextBlock>

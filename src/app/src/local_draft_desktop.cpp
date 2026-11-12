@@ -11,8 +11,8 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QClipboard>
-#include <QFile>
 #include <QDateTime>
+#include <QFile>
 #include <QFileDialog>
 #include <QGuiApplication>
 #include <QRandomGenerator>
@@ -60,24 +60,24 @@ namespace bpr::app {
 		WorktreeFiles = adapters::git::make_worktree_files();
 		ConsentFile   = aProfileRoot / "author-git-consent.txt";
 		Changes       = std::make_unique<application::local_changes_host>(
-            *AuthorGit, *WorktreeFiles, core::make_xdiff_line_matcher(), aEffects, aDecisions, *this,
-            application::local_changes_consent{
-                .Allowed =
-                    [this](const std::string& aKey) {
-                        auto file = QFile{ QString::fromStdString(ConsentFile.string()) };
-                        if (aKey.empty() || !file.open(QIODevice::ReadOnly)) {
-                            return false;
-                        }
-                        return file.readAll().split('\n').contains(QByteArray::fromStdString(aKey));
-                    },
-                .Remember =
-                    [this](const std::string& aKey) {
-                        auto file = QFile{ QString::fromStdString(ConsentFile.string()) };
-                        if (!aKey.empty() && file.open(QIODevice::Append)) {
-                            file.write(QByteArray::fromStdString(aKey + "\n"));
-                        }
-                    },
-            });
+			*AuthorGit, *WorktreeFiles, core::make_xdiff_line_matcher(), aEffects, aDecisions, *this,
+			application::local_changes_consent{
+				.Allowed =
+					[this](const std::string& aKey) {
+						auto file = QFile{ QString::fromStdString(ConsentFile.string()) };
+						if (aKey.empty() || !file.open(QIODevice::ReadOnly)) {
+							return false;
+						}
+						return file.readAll().split('\n').contains(QByteArray::fromStdString(aKey));
+					},
+				.Remember =
+					[this](const std::string& aKey) {
+						auto file = QFile{ QString::fromStdString(ConsentFile.string()) };
+						if (!aKey.empty() && file.open(QIODevice::Append)) {
+							file.write(QByteArray::fromStdString(aKey + "\n"));
+						}
+					},
+			});
 		View->local_changes()->set_dispatch({
 			.Choose     = [this](const core::local_comparison aComparison) { Changes->choose(aComparison); },
 			.OpenFile   = [this](const std::string& aPath) { Changes->open_file(aPath); },
@@ -120,8 +120,8 @@ namespace bpr::app {
 						Changes->unstage_change(aPath, aChange);
 					}
 				},
-			.OpenLocalFile = [this](const std::string& aPath) { Changes->open_file(aPath); },
-			.Save = [this](const std::string& aPath, std::vector<std::uint8_t> aRead, std::vector<std::uint8_t> aEdited) { Changes->save(aPath, std::move(aRead), std::move(aEdited)); },
+			.OpenLocalFile     = [this](const std::string& aPath) { Changes->open_file(aPath); },
+			.Save              = [this](const std::string& aPath, std::vector<std::uint8_t> aRead, std::vector<std::uint8_t> aEdited) { Changes->save(aPath, std::move(aRead), std::move(aEdited)); },
 			.CreatePullRequest = [this] { Host->check_publication(false); },
 		});
 		// RFC-BPR-0110: the Description and Tour areas. Nothing here publishes.
@@ -204,15 +204,15 @@ namespace bpr::app {
 		const auto* const latest     = core::latest_candidate(*draft);
 		const auto&       repository = draft->Target.Target.Repository;
 		auto              subject    = application::local_changes_subject{
-						.Worktree    = draft->Worktree.Location,
-						.Branch      = draft->Branch,
-						.Clone       = draft->Chain.empty() ? draft->Worktree.Location : draft->Chain.back().Location,
-						.Remote      = draft->Target.Target.Remote,
-						.FallbackUrl = "https://" + repository.Host + "/" + repository.Owner + "/" + repository.Name + ".git",
-						.Target      = draft->Target.Target.Branch,
-						.Base        = latest != nullptr ? std::optional{ latest->Base } : std::nullopt,
-						.PullRequest = draft->Association ? std::optional{ draft->Association->Number } : std::nullopt,
-						.ConsentKey  = draft->Id.Value,
+			.Worktree    = draft->Worktree.Location,
+			.Branch      = draft->Branch,
+			.Clone       = draft->Chain.empty() ? draft->Worktree.Location : draft->Chain.back().Location,
+			.Remote      = draft->Target.Target.Remote,
+			.FallbackUrl = "https://" + repository.Host + "/" + repository.Owner + "/" + repository.Name + ".git",
+			.Target      = draft->Target.Target.Branch,
+			.Base        = latest != nullptr ? std::optional{ latest->Base } : std::nullopt,
+			.PullRequest = draft->Association ? std::optional{ draft->Association->Number } : std::nullopt,
+			.ConsentKey  = draft->Id.Value,
 		};
 		if (!Changes->projection().Active || Changes->projection().Subject != subject) {
 			Changes->open(std::move(subject));
@@ -227,6 +227,27 @@ namespace bpr::app {
 			if (Window.showing_local_draft()) {
 				Window.show_local_draft(View->window_title());
 			}
+		}
+	}
+
+	void local_draft_desktop::associate_for_look(const std::uint64_t aNumber)
+	{
+		const auto& shown = View->projection();
+		if (!shown.Draft) {
+			return;
+		}
+		auto store = adapters::sqlite::open_local_draft_store(ConsentFile.parent_path());
+		auto draft = store ? store->find(shown.Draft->Id) : std::unexpected{ application::local_draft_store_error{ } };
+		if (!draft) {
+			return;
+		}
+		const auto& repository = draft->Target.Target.Repository;
+		auto        associated = core::associate_draft(*draft, draft->Version,
+													   { .Host = repository.Host, .Owner = repository.Owner, .Name = repository.Name, .Number = aNumber, .HeadRef = draft->Branch },
+													   draft->Target.Target.Branch, static_cast<std::int64_t>(QDateTime::currentSecsSinceEpoch()));
+		if (associated && store->put(*associated, draft->Version, { })) {
+			BringForward = true;
+			Host->resume(associated->Id);
 		}
 	}
 
@@ -308,7 +329,7 @@ namespace bpr::app {
 		// The commit message is one fresh, tool-free run of the same agent:
 		// the request is its only input, and nothing resumes.
 		auto commit = aRunner ? application::local_commit_message_runner{ [aRunner](const application::local_commit_message_agent& aAgent, const std::string& aPrompt,
-																					 const std::stop_token aStop) -> std::expected<std::string, std::string> {
+																					const std::stop_token aStop) -> std::expected<std::string, std::string> {
 			auto answer = aRunner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aPrompt }, aStop);
 			if (!answer.Answered) {
 				return std::unexpected{ answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure };

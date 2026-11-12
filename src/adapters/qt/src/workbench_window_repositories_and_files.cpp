@@ -10,13 +10,13 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
-#include "bpr/qt/local_draft_view.hpp"
 #include "workbench_window_support.hpp"
 
 #include <QAbstractItemView>

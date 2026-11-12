@@ -17,6 +17,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/line_details_pane.hpp"
+#include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
@@ -272,6 +273,8 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-tour" },
+		bpr::app::command_line_option{ .Name = "attended-local-draft-author" },
+		bpr::app::command_line_option{ .Name = "attended-local-draft-pull-request", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-agent-failure" },
@@ -5629,11 +5632,16 @@ namespace {
 	/// RFC-BPR-0110. The look prepares a description and a tour through the
 	/// page, and asks a scripted agent once.
 	bool AttendedLocalDraftTour = false;
-	void prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* aTimer);
-	void schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
-	void schedule_attended_share_look(bpr::app::github_application& aApplication);
-	void schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
-	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
+	/// The owner's redesign, 2026-11-12: author state, with GitHub checked
+	/// once as the author would, and optionally the draft associated with a
+	/// pull request so the window is a pull request opened by its author.
+	bool          AttendedLocalDraftAuthor      = false;
+	std::uint64_t AttendedLocalDraftPullRequest = 0U;
+	void          prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* aTimer);
+	void          schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
+	void          schedule_attended_share_look(bpr::app::github_application& aApplication);
+	void          schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
+	void          schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
 	void schedule_attended_agent_helpers_look(bpr::app::github_application& aApplication);
@@ -6274,6 +6282,27 @@ namespace {
 					timer->stop();
 					timer->deleteLater();
 					prepare_attended_local_draft_tour(aApplication, new QTimer{ &window });
+					return;
+				}
+				if (AttendedLocalDraftAuthor) {
+					// Once: associate if asked, then Check Again as the author would.
+					static auto stage = 0;
+					if (stage == 0 && AttendedLocalDraftPullRequest != 0U) {
+						stage = 1;
+						aApplication.associate_local_draft_for_look(AttendedLocalDraftPullRequest);
+						return;
+					}
+					if (stage < 2) {
+						stage = 2;
+						if (page->local_projection().Active) {
+							page->local_changes()->push_button()->click();
+						}
+						return;
+					}
+					if (page->local_projection().Running != bpr::application::local_changes_operation::none || !page->local_projection().Hosted.Observed) {
+						return;
+					}
+					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_AUTHOR_SHOWN:%1:%2").arg(QString::fromStdString(AttendedLocalDraftPath), page->local_changes()->push_state()->text()));
 					return;
 				}
 				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
@@ -12822,9 +12851,13 @@ auto main(int argc, char** argv) -> int
 						look = std::string{ "notes" };
 					}
 					if (attendedLocalDraft.has_value() && !attendedLocalDraft->empty()) {
-						AttendedLocalDraftPath = std::string{ *attendedLocalDraft };
-						AttendedLocalDraftTour = launch.has("--attended-local-draft-tour");
-						look                   = std::string{ "local-draft" };
+						AttendedLocalDraftPath   = std::string{ *attendedLocalDraft };
+						AttendedLocalDraftTour   = launch.has("--attended-local-draft-tour");
+						AttendedLocalDraftAuthor = launch.has("--attended-local-draft-author");
+						if (const auto number = launch.value("--attended-local-draft-pull-request"); number.has_value()) {
+							AttendedLocalDraftPullRequest = std::strtoull(std::string{ *number }.c_str(), nullptr, 10);
+						}
+						look = std::string{ "local-draft" };
 					}
 					if (attendedConversationLook) {
 						look = std::string{ "conversation" };

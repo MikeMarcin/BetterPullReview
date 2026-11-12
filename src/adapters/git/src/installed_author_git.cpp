@@ -134,7 +134,9 @@ namespace bpr::adapters::git {
 				const auto fields = split_nul(run->Output);
 				for (std::size_t index = 0U; index + 1U < fields.size(); index += 2U) {
 					const auto letter = fields[index].empty() ? 'M' : fields[index].front();
-					paths.push_back({ .Path = std::string{ fields[index + 1U] }, .Original = { }, .Status = letter == 'A' ? core::local_file_status::added : letter == 'D' ? core::local_file_status::deleted : letter == 'T' ? core::local_file_status::type_changed : core::local_file_status::modified });
+					paths.push_back({ .Path = std::string{ fields[index + 1U] }, .Original = { }, .Status = letter == 'A' ? core::local_file_status::added : letter == 'D' ? core::local_file_status::deleted
+										  : letter == 'T'                                                                                                                  ? core::local_file_status::type_changed
+																																										   : core::local_file_status::modified });
 				}
 				return paths;
 			}
@@ -323,9 +325,9 @@ namespace bpr::adapters::git {
 				// The command is the one the push line shows; it is checked again here.
 				const auto& arguments = aCommand.Arguments;
 				const auto  forced    = std::ranges::any_of(arguments, [](const std::string& aArgument) {
-                    return aArgument.starts_with('+') || aArgument.find("force") != std::string::npos || aArgument == "--tags" || aArgument == "--delete" || aArgument == "-d"
-                        || aArgument == "-f" || aArgument == "--mirror" || aArgument == "--all" || aArgument == "--prune";
-                });
+					return aArgument.starts_with('+') || aArgument.find("force") != std::string::npos || aArgument == "--tags" || aArgument == "--delete" || aArgument == "-d"
+						|| aArgument == "-f" || aArgument == "--mirror" || aArgument == "--all" || aArgument == "--prune";
+				});
 				if (arguments.empty() || arguments.front() != "push" || forced) {
 					return std::unexpected{ failure(author_git_failure::malformed) };
 				}
@@ -562,7 +564,7 @@ namespace bpr::adapters::git {
 					}
 					return std::unexpected{ parent.error() };
 				}
-				file.Inside        = true;
+				file.Inside = true;
 				struct stat facts{ };
 				if (::fstatat(*parent, leaf.c_str(), &facts, AT_SYMLINK_NOFOLLOW) != 0) {
 					::close(*parent);
@@ -606,7 +608,7 @@ namespace bpr::adapters::git {
 				if (!parent) {
 					return std::unexpected{ parent.error() };
 				}
-				const auto close_parent = [&parent] { ::close(*parent); };
+				const auto  close_parent = [&parent] { ::close(*parent); };
 				struct stat facts{ };
 				if (::fstatat(*parent, leaf.c_str(), &facts, AT_SYMLINK_NOFOLLOW) != 0 || !S_ISREG(facts.st_mode)) {
 					close_parent();
@@ -720,7 +722,8 @@ namespace bpr::adapters::git {
 			if ((kind != '1' && kind != '2' && kind != 'u') || record.size() < 4U) {
 				return std::nullopt;
 			}
-			const auto path = after_fields(record, kind == '1' ? 8U : kind == '2' ? 9U : 10U);
+			const auto path = after_fields(record, kind == '1' ? 8U : kind == '2' ? 9U
+																				  : 10U);
 			if (!path) {
 				return std::nullopt;
 			}

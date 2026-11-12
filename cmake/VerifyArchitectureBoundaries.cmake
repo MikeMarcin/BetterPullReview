@@ -104,6 +104,13 @@ set(
     git_process_runner_relative
     "src/adapters/git/src/installed_git_process.cpp"
 )
+# RFC-BPR-0114 as amended 2026-11-12. The author's own Git: a second runner,
+# separate from the isolated one, in the author's worktree with their
+# configuration, hooks and credential helpers. Its catalogue is held below.
+set(
+    author_git_runner_relative
+    "src/adapters/git/src/installed_author_git.cpp"
+)
 # [[BPR-1436]]. The QProcess supervision the gh and Git runners share: one
 # serialized lane with its quarantine, and the process-group wait, kill,
 # resolution, kill-and-reap, background reap and abandonment. It is a
@@ -1843,11 +1850,28 @@ verify_effect_owner(
     "${github_process_runner_relative}"
     "${github_gh_avatar_helper_relative}"
     "${git_process_runner_relative}"
+    "${author_git_runner_relative}"
     "${process_support_source_relative}"
     "${process_support_header_relative}"
     "${agent_process_runner_relative}"
     "src/adapters/update/src/macos_release_update.cpp"
 )
+# RFC-BPR-0114 as amended 2026-11-12. The author-Git runner's catalogue:
+# reads, staging, commit and a push that is never forced. No force, stash,
+# checkout, reset, tag or branch operation may appear as a Git argument, and
+# the push refuses a forcing argument before it runs.
+if(EXISTS "${BPR_ROOT}/${author_git_runner_relative}")
+    file(READ "${BPR_ROOT}/${author_git_runner_relative}" author_git_contents)
+    if(author_git_contents MATCHES "\"(--force|--force-with-lease|--force-if-includes|stash|checkout|switch|reset|rebase|merge|tag|branch|clean|gc|prune)\"")
+        message(FATAL_ERROR "The author-Git runner may not name a force, stash, checkout, reset, rebase, merge, tag, branch or clean operation")
+    endif()
+    foreach(required_author_boundary "GIT_TERMINAL_PROMPT" "CreateNewSession" "unix_descriptor_sweep::bound()" "kill_process_group_and_reap" "aArgument.starts_with('+')")
+        string(FIND "${author_git_contents}" "${required_author_boundary}" author_boundary_found)
+        if(author_boundary_found LESS 0)
+            message(FATAL_ERROR "The author-Git runner lost its ${required_author_boundary} boundary")
+        endif()
+    endforeach()
+endif()
 # The manual tour editor is an explicit trusted-argv terminal capability.
 # It never parses a shell command, selects repository configuration, or detaches.
 if(EXISTS "${BPR_ROOT}/src/app/src/tour_editor.cpp")
@@ -1872,6 +1896,7 @@ verify_effect_owner(
     "QProcessEnvironment"
     "${github_process_runner_relative}"
     "${git_process_runner_relative}"
+    "${author_git_runner_relative}"
     "${agent_process_runner_relative}"
     "src/adapters/update/src/macos_release_update.cpp"
 )

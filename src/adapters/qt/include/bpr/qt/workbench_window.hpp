@@ -1296,7 +1296,7 @@ namespace bpr::qt {
 		/// \brief Home's author entry: Prepare pull request… and In
 		/// preparation, above Home's sections (X01), and the marks on pull
 		/// request rows a draft became (X02).
-		void               present_local_drafts(const application::local_draft_home_projection& aHome);
+		void present_local_drafts(const application::local_draft_home_projection& aHome);
 		/// \brief Home variant 1: a local draft row's age, as Home's rows say theirs.
 		[[nodiscard]] auto home_draft_age(std::int64_t aUpdated) const -> QString;
 		void               set_local_draft_entry_dispatch(std::function<void()> aPrepare, std::function<void(const core::local_draft_id&)> aResume);
@@ -2756,9 +2756,9 @@ namespace bpr::qt {
 		QString            LocalCycleTitle;
 		QAction*           OpenProjectAction = nullptr;
 		/// RFC-BPR-0108.
-		local_draft_view*                                     LocalDraftPage            = nullptr;
+		local_draft_view* LocalDraftPage = nullptr;
 		/// Home variant 1: the Open row, where Prepare Pull Request… stands.
-		QHBoxLayout* HomePrepareSlot = nullptr;
+		QHBoxLayout*                                          HomePrepareSlot           = nullptr;
 		bool                                                  LocalDraftShown           = false;
 		QWidget*                                              HomeAuthor                = nullptr;
 		QPushButton*                                          HomePrepare               = nullptr;

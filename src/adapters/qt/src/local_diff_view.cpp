@@ -41,11 +41,11 @@ namespace bpr::qt {
 
 	void local_diff_view::present(std::vector<core::cycle_diff_row> aRows, std::vector<local_diff_band> aBands, QString aLeft, QString aPath, QString aRight)
 	{
-		Rows   = std::move(aRows);
-		Bands  = std::move(aBands);
-		Left   = std::move(aLeft);
-		Path   = std::move(aPath);
-		Right  = std::move(aRight);
+		Rows  = std::move(aRows);
+		Bands = std::move(aBands);
+		Left  = std::move(aLeft);
+		Path  = std::move(aPath);
+		Right = std::move(aRight);
 		Status.clear();
 		Anchor.reset();
 		Cursor.reset();

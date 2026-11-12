@@ -84,8 +84,11 @@ namespace bpr::app {
 		[[nodiscard]] auto host() noexcept -> application::local_draft_workbench&;
 		/// \brief Author state's host, while a draft on its own worktree shows.
 		[[nodiscard]] auto changes() noexcept -> application::local_changes_host&;
+		/// \brief An attended look's pull request opened by its author: the
+		/// shown draft is associated with pull request `aNumber` in its store.
+		void associate_for_look(std::uint64_t aNumber);
 		/// \brief Replaces the one-time hooks question, for a course.
-		void set_consent_question(std::function<bool()> aQuestion);
+		void               set_consent_question(std::function<bool()> aQuestion);
 		[[nodiscard]] auto view() noexcept -> qt::local_draft_view*;
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
@@ -107,8 +110,8 @@ namespace bpr::app {
 		std::filesystem::path                            ConsentFile;
 		std::unique_ptr<worker_executor>                 CommitAgentLane;
 		void                                             follow_author_state(const application::local_draft_workbench_projection& aProjection);
-		folder_chooser                                      Chooser;
-		agent_chooser                                       AgentChooser;
+		folder_chooser                                   Chooser;
+		agent_chooser                                    AgentChooser;
 		/// The page comes forward only when the author asked for it.
 		bool BringForward = false;
 		bool Closing      = false;

@@ -688,6 +688,10 @@ namespace bpr::app {
 		/// \brief RFC-BPR-0108. Opens a worktree's local draft in the first
 		/// window, as Prepare Pull Request… does.
 		void open_local_draft(const std::string& aLocation);
+		/// \brief For an attended look of author state on a pull request
+		/// opened by its author: records the shown local draft as that pull
+		/// request's, as RFC-BPR-0111's association does, and shows it again.
+		void associate_local_draft_for_look(std::uint64_t aNumber);
 		/// \brief RFC-BPR-0110. For an attended look: the local draft's
 		/// questions go to a scripted agent that answers with proposals,
 		/// never to an installed one.

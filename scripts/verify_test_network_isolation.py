@@ -155,6 +155,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_local_draft_desktop_public_path": "unmeasured (registered on macOS)",
     "application_local_draft_tour_desktop_public_path": "unmeasured (registered on macOS)",
     "application_local_draft_publication_desktop_public_path": "unmeasured (registered on macOS)",
+    # The owner's redesign, 2026-11-12: author state's real-worktree courses.
+    "local_changes": "unmeasured (registered on macOS)",
+    "application_local_draft_author_desktop_public_path": "unmeasured (registered on macOS)",
     "application_agent_chat_helpers_unfinished_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1800]]. Source a74c9a875, native Release/Debug on 2026-10-29:
     # same-image direct baselines pass; contained runs fail the exact first
