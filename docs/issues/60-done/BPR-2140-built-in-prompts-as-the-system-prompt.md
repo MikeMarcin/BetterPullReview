@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2140"
 title: "Built-in prompts reach the agent as its system prompt, verified, with a paste fallback"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0107"]
 depends_on: []
 priority: "P1"
 platforms: []
 metadata: {"mandate_revision": "v0-5-0-prerelease-targets-r1", "reservation": "docs/issues/_reservations/BPR-2138--BPR-2142--6b47e1d85608.json", "origin": "owner agent launch policy, 2026-11-12 (coordinator brief), corporate wrapper test results and their correction of 2026-11-11", "criteria": ["AC09"]}
+acceptance: [{"criterion":"AC09","outcome":"pass","revision":"76100684fe14b299e3936876b62f7de098b66ecf","evidence":{"kind":"command","detail":"Built-in prompts (Enhance, field drafts, outline, Test send, Draft Tour, the tour conversation, the local draft's description, discussion and commit message, the review skill) reach Claude as one inline --append-system-prompt and Codex exec as developer_instructions; pasted on the switch, the App Server and past 24 KiB; the installed Claude canary applied a rule given only in the system prompt (CANARY_PASS)","command":"ctest --preset dev -R '^(application_agent_launch_policy|core_local_draft_tour|local_changes|application_local_draft_tour_desktop_public_path|application_local_draft_author_desktop_public_path|application_agent_invocation_composition_contract)$' && python3 tests/scripts/claude_system_prompt_canary.py --launch-printer build/dev/tests/application/better_pull_review_agent_launch_policy_tests"}}]
 ---
 
 # Built-in prompts reach the agent as its system prompt, verified, with a paste fallback
