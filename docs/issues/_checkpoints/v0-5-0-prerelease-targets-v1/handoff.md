@@ -1756,8 +1756,12 @@ Plan of the round (status in brackets, updated as it goes):
    one change, hooks, refusing hook, amend, push to a bare remote,
    refused-when-behind, Save, agent message, declined question]
 4. Qt: Local Changes tab, commit box, push line; segmented view picker with
-   Edit; local draft in the PR window (A); Home 1; old UI removed
+   Edit; local draft in the PR window (A); Home 1; old UI removed [done
+   `a58baed97`, `b3acafe2d`, `11b744e66`; PR window review bar has the
+   picker (workbench_window_tests' layout-toggle case still to update)]
 5. Agent commit message (`local.commit-message`, profile schema 29, 0107)
+   [done `dda67270c`; composition wired; the three local-draft desktop
+   courses, `local_changes`, settings and agent configuration storage pass]
 6. App pin reseal, focused tests, native renders, live BPR-Test push,
    freeze, one attended session
 
