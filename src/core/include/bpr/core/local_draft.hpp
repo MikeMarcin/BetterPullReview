@@ -44,7 +44,7 @@ namespace bpr::core {
 	/// \brief The most bytes one candidate keeps across its files.
 	inline constexpr std::uint64_t maximum_local_draft_candidate_bytes = 256U * 1024U * 1024U;
 	/// \brief The most notes one draft keeps.
-	inline constexpr std::size_t maximum_local_draft_notes = 512U;
+	inline constexpr std::size_t maximum_local_draft_notes       = 512U;
 	inline constexpr std::size_t maximum_local_draft_note_bytes  = 16U * 1024U;
 	inline constexpr std::size_t maximum_local_draft_title_bytes = 256U;
 	/// \brief Local file-path remotes followed from a checkout to the clone
@@ -188,7 +188,7 @@ namespace bpr::core {
 	struct chosen_target
 	{
 		local_draft_target Target;
-		target_origin      Origin = target_origin::remote_default;
+		target_origin      Origin                                  = target_origin::remote_default;
 		auto               operator<=>(const chosen_target&) const = default;
 	};
 	/// \brief A target the author must choose, and what to choose from.
@@ -269,8 +269,8 @@ namespace bpr::core {
 	{
 		std::uint32_t         Mode = 0;
 		git_entry_oid         Object;
-		std::uint64_t         Size   = 0;
-		draft_material_origin Origin = draft_material_origin::committed;
+		std::uint64_t         Size                                 = 0;
+		draft_material_origin Origin                               = draft_material_origin::committed;
 		auto                  operator<=>(const draft_side&) const = default;
 	};
 
@@ -320,8 +320,8 @@ namespace bpr::core {
 		working_edit                 Edit = working_edit::modified;
 		std::uint32_t                Mode = 0;
 		std::optional<git_entry_oid> Object;
-		std::uint64_t                Size          = 0;
-		working_qualification        Qualification = working_qualification::none;
+		std::uint64_t                Size                                   = 0;
+		working_qualification        Qualification                          = working_qualification::none;
 		auto                         operator<=>(const working_file&) const = default;
 	};
 
@@ -353,7 +353,7 @@ namespace bpr::core {
 		std::vector<draft_path_change>       Changes;
 		std::vector<candidate_qualification> Qualifications;
 		/// Seconds since the epoch, from the host's clock.
-		std::int64_t CapturedAt = 0;
+		std::int64_t CapturedAt                                      = 0;
 		auto         operator<=>(const local_draft_candidate&) const = default;
 	};
 
@@ -397,8 +397,8 @@ namespace bpr::core {
 		std::string   Text;
 		/// The path it is about; empty for the whole change.
 		std::string   Path;
-		std::uint64_t Candidate = 0;
-		note_origin   Origin    = note_origin::author;
+		std::uint64_t Candidate                                  = 0;
+		note_origin   Origin                                     = note_origin::author;
 		auto          operator<=>(const local_draft_note&) const = default;
 	};
 
@@ -420,15 +420,15 @@ namespace bpr::core {
 		std::string          Title;
 		local_draft_worktree Worktree;
 		/// The branch it prepares, without `refs/heads/`.
-		std::string                   Branch;
-		chosen_target                 Target;
-		std::vector<local_remote_hop> Chain;
+		std::string                            Branch;
+		chosen_target                          Target;
+		std::vector<local_remote_hop>          Chain;
 		std::vector<local_draft_candidate>     Candidates;
 		std::vector<local_draft_note>          Notes;
 		std::uint64_t                          NextNote = 1;
 		std::optional<local_draft_association> Association;
-		std::int64_t                           Created = 0;
-		std::int64_t                           Updated = 0;
+		std::int64_t                           Created                               = 0;
+		std::int64_t                           Updated                               = 0;
 		auto                                   operator<=>(const local_draft&) const = default;
 	};
 	/// \brief Every field within its bound and every identity well formed.

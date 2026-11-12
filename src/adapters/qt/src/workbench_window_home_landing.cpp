@@ -453,7 +453,8 @@ namespace bpr::qt {
 					? focused
 					: nullptr;
 			}
-			CentralStack->setCurrentWidget(home ? HomePage : cycle ? localPage : ReviewSurface);
+			CentralStack->setCurrentWidget(home ? HomePage : cycle ? localPage
+																   : ReviewSurface);
 			// [[BPR-0732]], [[BPR-0775]]. The bar has focus when Home appears,
 			// signed in or out. Only on arrival, so a projection cannot steal
 			// focus from wherever the reviewer has moved it since.

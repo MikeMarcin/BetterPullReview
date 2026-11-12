@@ -262,11 +262,10 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 
-		constexpr auto all_changes = std::array{ draft_change::added, draft_change::modified, draft_change::deleted, draft_change::mode };
-		constexpr auto all_qualifications =
-			std::array{ candidate_qualification::includes_working_files, candidate_qualification::sparse_checkout, candidate_qualification::working_scan_incomplete,
-						candidate_qualification::line_ending_conversion };
-		constexpr auto all_origins = std::array{ target_origin::chosen, target_origin::remote_default };
+		constexpr auto all_changes        = std::array{ draft_change::added, draft_change::modified, draft_change::deleted, draft_change::mode };
+		constexpr auto all_qualifications = std::array{ candidate_qualification::includes_working_files, candidate_qualification::sparse_checkout, candidate_qualification::working_scan_incomplete,
+														candidate_qualification::line_ending_conversion };
+		constexpr auto all_origins        = std::array{ target_origin::chosen, target_origin::remote_default };
 
 		[[nodiscard]] auto note_origin_name(const note_origin aOrigin) noexcept -> std::string_view
 		{
@@ -531,10 +530,10 @@ namespace bpr::core {
 			}
 			// The left side is always the base: a working edit changes only
 			// what the candidate proposes.
-			const auto base = std::ranges::find(aBase, path, &git_tree_entry::Path);
-			auto       left = base == aBase.end() ? std::optional<draft_side>{ } : std::optional{ side_of(*base) };
-			auto right = working->Edit == working_edit::deleted ? std::optional<draft_side>{ }
-																: std::optional{ draft_side{ .Mode = working->Mode, .Object = *working->Object, .Size = working->Size, .Origin = draft_material_origin::working } };
+			const auto base  = std::ranges::find(aBase, path, &git_tree_entry::Path);
+			auto       left  = base == aBase.end() ? std::optional<draft_side>{ } : std::optional{ side_of(*base) };
+			auto       right = working->Edit == working_edit::deleted ? std::optional<draft_side>{ }
+																	  : std::optional{ draft_side{ .Mode = working->Mode, .Object = *working->Object, .Size = working->Size, .Origin = draft_material_origin::working } };
 			byPath.erase(path);
 			if (const auto change = change_between(left, right)) {
 				byPath.emplace(path, draft_path_change{ .Path = path, .Change = *change, .Left = std::move(left), .Right = std::move(right) });
@@ -673,16 +672,16 @@ namespace bpr::core {
 		}
 		aFirst.Ordinal = 1U;
 		auto draft     = local_draft{
-				.Id         = std::move(aId),
-				.Version    = 1U,
-				.Title      = default_draft_title(aBranch),
-				.Worktree   = std::move(aWorktree),
-				.Branch     = std::move(aBranch),
-				.Target     = std::move(aTarget),
-				.Chain      = std::move(aChain),
-				.Candidates = { std::move(aFirst) },
-				.Created    = aNow,
-				.Updated    = aNow,
+			.Id         = std::move(aId),
+			.Version    = 1U,
+			.Title      = default_draft_title(aBranch),
+			.Worktree   = std::move(aWorktree),
+			.Branch     = std::move(aBranch),
+			.Target     = std::move(aTarget),
+			.Chain      = std::move(aChain),
+			.Candidates = { std::move(aFirst) },
+			.Created    = aNow,
+			.Updated    = aNow,
 		};
 		if (!valid(draft)) {
 			return std::unexpected{ draft_refusal::invalid };
@@ -842,10 +841,10 @@ namespace bpr::core {
 		constexpr auto domain = std::string_view{ "BPR-local-draft-file-comparison-v1" };
 		auto           bytes  = std::vector<std::uint8_t>(domain.begin(), domain.end());
 		const auto     append = [&bytes](const std::string_view aText) {
-            for (std::size_t shift = 0U; shift < 64U; shift += 8U) {
-                bytes.push_back(static_cast<std::uint8_t>((static_cast<std::uint64_t>(aText.size()) >> shift) & 0xFFU));
-            }
-            bytes.insert(bytes.end(), aText.begin(), aText.end());
+			for (std::size_t shift = 0U; shift < 64U; shift += 8U) {
+				bytes.push_back(static_cast<std::uint8_t>((static_cast<std::uint64_t>(aText.size()) >> shift) & 0xFFU));
+			}
+			bytes.insert(bytes.end(), aText.begin(), aText.end());
 		};
 		bytes.push_back(0U);
 		append(aDraft.Value);
@@ -923,7 +922,7 @@ namespace bpr::core {
 		if (aDraft.Association) {
 			const auto& association = *aDraft.Association;
 			wire.Association        = detail::wire_association{
-					   .Host = association.Host, .Owner = association.Owner, .Name = association.Name, .Number = association.Number, .HeadRef = association.HeadRef
+				.Host = association.Host, .Owner = association.Owner, .Name = association.Name, .Number = association.Number, .HeadRef = association.HeadRef
 			};
 		}
 		auto text = std::string{ };
@@ -942,8 +941,8 @@ namespace bpr::core {
 		const auto identity = [](const detail::wire_identity& aIdentity) {
 			return workspace_object_identity{ .Volume = aIdentity.Volume, .ObjectHigh = aIdentity.ObjectHigh, .ObjectLow = aIdentity.ObjectLow };
 		};
-		auto failed = false;
-		const auto side = [&failed](const std::optional<detail::wire_side>& aSide) -> std::optional<draft_side> {
+		auto       failed = false;
+		const auto side   = [&failed](const std::optional<detail::wire_side>& aSide) -> std::optional<draft_side> {
 			if (!aSide) {
 				return std::nullopt;
 			}
@@ -1007,7 +1006,7 @@ namespace bpr::core {
 		if (wire.Association) {
 			const auto& association = *wire.Association;
 			draft.Association       = local_draft_association{
-					  .Host = association.Host, .Owner = association.Owner, .Name = association.Name, .Number = association.Number, .HeadRef = association.HeadRef
+				.Host = association.Host, .Owner = association.Owner, .Name = association.Name, .Number = association.Number, .HeadRef = association.HeadRef
 			};
 		}
 		if (failed || !valid(draft)) {

@@ -7102,7 +7102,6 @@ namespace bpr::adapters::git {
 				return list_commit_in(*context, aCommit, aStop);
 			}
 
-
 			/// RFC-BPR-0108. Merge bases of a local draft's head and target
 			/// tip, in the private store with the worktree's and the chain's
 			/// objects as alternates. Nothing is fetched.
@@ -7204,7 +7203,7 @@ namespace bpr::adapters::git {
 				if (!size) {
 					return std::unexpected{ missing_or(size.error()) };
 				}
-				auto bytes        = std::uint64_t{ 0U };
+				auto        bytes = std::uint64_t{ 0U };
 				const auto* first = size->data();
 				const auto* last  = size->data() + size->size() - (size->ends_with('\n') ? 1U : 0U);
 				if (const auto parsed = std::from_chars(first, last, bytes); parsed.ec != std::errc{ } || parsed.ptr != last) {

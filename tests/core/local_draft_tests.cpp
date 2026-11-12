@@ -44,12 +44,12 @@ namespace {
 	{
 		// The isolated worktree: a local clone whose origin is the primary
 		// clone, which names GitHub.
-		auto       walk  = core::remote_chain_walk{ };
-		const auto first = core::step_remote_chain(walk, "/work/feature", std::vector<core::git_remote>{ { .Name = "origin", .Url = "/src/primary" } });
+		auto        walk   = core::remote_chain_walk{ };
+		const auto  first  = core::step_remote_chain(walk, "/work/feature", std::vector<core::git_remote>{ { .Name = "origin", .Url = "/src/primary" } });
 		const auto* follow = std::get_if<core::remote_chain_follow>(&first);
 		expect(follow != nullptr && follow->Path == "/src/primary" && follow->Remote == "origin", "a local origin is followed");
 		walk.Hops.push_back({ .Remote = follow->Remote, .Location = "/src/primary" });
-		const auto second   = core::step_remote_chain(walk, "/src/primary", std::vector<core::git_remote>{ { .Name = "origin", .Url = "git@github.com:acme/engine.git" } });
+		const auto  second   = core::step_remote_chain(walk, "/src/primary", std::vector<core::git_remote>{ { .Name = "origin", .Url = "git@github.com:acme/engine.git" } });
 		const auto* resolved = std::get_if<core::remote_chain_resolved>(&second);
 		expect(resolved != nullptr && resolved->Hops.size() == 1U && resolved->Destinations.size() == 1U && resolved->Destinations[0].Repository == github("acme", "engine"),
 			   "the chain resolves to the hosted remote, with its hop");
@@ -171,9 +171,7 @@ namespace {
 		drafts.push_back(make_draft(drafts, '1', "feature/search-results", 100));
 		expect(drafts[0].Title == "Search results", "the title starts from the branch");
 
-		auto observed = core::workspace_root_observation{ .Kind = core::workspace_root_kind::git_checkout, .Location = "/work/feature", .Root = { .Volume = 1, .ObjectLow = 9 },
-														  .Repository = core::workspace_object_identity{ .Volume = 1, .ObjectLow = 10 },
-														  .Worktree   = core::workspace_object_identity{ .Volume = 1, .ObjectLow = 11 } };
+		auto observed = core::workspace_root_observation{ .Kind = core::workspace_root_kind::git_checkout, .Location = "/work/feature", .Root = { .Volume = 1, .ObjectLow = 9 }, .Repository = core::workspace_object_identity{ .Volume = 1, .ObjectLow = 10 }, .Worktree = core::workspace_object_identity{ .Volume = 1, .ObjectLow = 11 } };
 		expect(core::resolve_worktree(drafts, observed, "feature/search-results").Resume == 0U, "the same worktree and branch resume");
 		const auto switched = core::resolve_worktree(drafts, observed, "other");
 		expect(!switched.Resume && switched.OtherBranches.size() == 1U, "a branch switch does not retarget the draft");
@@ -198,14 +196,14 @@ namespace {
 
 		auto full = *two;
 		for (auto ordinal = full.Candidates.size(); ordinal < core::maximum_local_draft_candidates; ++ordinal) {
-			auto candidate = first_candidate();
-			candidate.Head = commit(static_cast<char>('a' + (ordinal % 6U)));
+			auto candidate            = first_candidate();
+			candidate.Head            = commit(static_cast<char>('a' + (ordinal % 6U)));
 			candidate.Changes[0].Path = "f" + std::to_string(ordinal);
-			auto grown = core::add_candidate(full, full.Version, candidate, 130);
+			auto grown                = core::add_candidate(full, full.Version, candidate, 130);
 			expect(grown.has_value(), "candidates up to the bound");
 			full = *grown;
 		}
-		auto another = first_candidate();
+		auto another            = first_candidate();
 		another.Changes[0].Path = "z";
 		expect(core::add_candidate(full, full.Version, another, 140).error() == core::draft_refusal::candidates_full && full.Candidates.front().Ordinal == 1U,
 			   "a full draft refuses; nothing is evicted");
@@ -225,9 +223,9 @@ namespace {
 
 	void test_codec()
 	{
-		auto drafts = std::vector<core::local_draft>{ };
-		auto draft  = make_draft(drafts, '3', "topic", 5);
-		draft       = *core::add_note(draft, draft.Version, "line one\nline two", "", core::note_origin::harness, 6);
+		auto drafts        = std::vector<core::local_draft>{ };
+		auto draft         = make_draft(drafts, '3', "topic", 5);
+		draft              = *core::add_note(draft, draft.Version, "line one\nline two", "", core::note_origin::harness, 6);
 		const auto text    = core::encode_local_draft(draft);
 		const auto decoded = core::decode_local_draft(text);
 		expect(decoded && *decoded == draft, "the stored form round-trips");

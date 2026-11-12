@@ -21,10 +21,10 @@ namespace bpr::qt {
 	/// \brief The gestures the local draft page sends to its host.
 	struct local_draft_dispatch
 	{
-		std::function<void(const std::string&)>      OpenFile;
-		std::function<void(const std::string&, bool)> Include;
-		std::function<void()>                        Refresh;
-		std::function<void(std::uint64_t)>           ShowCandidate;
+		std::function<void(const std::string&)>                     OpenFile;
+		std::function<void(const std::string&, bool)>               Include;
+		std::function<void()>                                       Refresh;
+		std::function<void(std::uint64_t)>                          ShowCandidate;
 		std::function<void(const std::string&, const std::string&)> AddNote;
 		std::function<void(std::uint64_t)>                          RemoveNote;
 		std::function<void(const std::string&)>                     Rename;
@@ -83,30 +83,30 @@ namespace bpr::qt {
 		void present_recovery();
 		void ask_discard();
 
-		local_draft_dispatch                           Dispatch;
+		local_draft_dispatch                          Dispatch;
 		application::local_draft_workbench_projection Projection;
-		std::function<bool()>                          DiscardQuestion;
-		bool                                           Presenting = false;
+		std::function<bool()>                         DiscardQuestion;
+		bool                                          Presenting = false;
 
-		QLineEdit*      Title          = nullptr;
-		QLabel*         Badge          = nullptr;
-		QLabel*         Identity       = nullptr;
-		QLabel*         Notice         = nullptr;
-		QWidget*        TargetRow      = nullptr;
+		QLineEdit*      Title            = nullptr;
+		QLabel*         Badge            = nullptr;
+		QLabel*         Identity         = nullptr;
+		QLabel*         Notice           = nullptr;
+		QWidget*        TargetRow        = nullptr;
 		QComboBox*      TargetRepository = nullptr;
-		QComboBox*      TargetBranch   = nullptr;
-		QPushButton*    UseTarget      = nullptr;
-		QPushButton*    Rebind         = nullptr;
-		QComboBox*      Candidates     = nullptr;
-		QPushButton*    Refresh        = nullptr;
-		QPushButton*    Discard        = nullptr;
-		QPushButton*    Close          = nullptr;
-		QListWidget*    Changes        = nullptr;
-		QLabel*         WorkingTitle   = nullptr;
-		QListWidget*    Working        = nullptr;
-		QListWidget*    Notes          = nullptr;
-		QLineEdit*      NoteEditor     = nullptr;
-		QPlainTextEdit* Diff           = nullptr;
+		QComboBox*      TargetBranch     = nullptr;
+		QPushButton*    UseTarget        = nullptr;
+		QPushButton*    Rebind           = nullptr;
+		QComboBox*      Candidates       = nullptr;
+		QPushButton*    Refresh          = nullptr;
+		QPushButton*    Discard          = nullptr;
+		QPushButton*    Close            = nullptr;
+		QListWidget*    Changes          = nullptr;
+		QLabel*         WorkingTitle     = nullptr;
+		QListWidget*    Working          = nullptr;
+		QListWidget*    Notes            = nullptr;
+		QLineEdit*      NoteEditor       = nullptr;
+		QPlainTextEdit* Diff             = nullptr;
 	};
 }
 

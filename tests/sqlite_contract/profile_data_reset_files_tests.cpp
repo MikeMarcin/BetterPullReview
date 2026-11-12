@@ -343,8 +343,7 @@ namespace {
 			copied.insert(item.path().filename().string());
 			expect(read(item.path()) == before.at("state/v1/" + item.path().filename().string()), "each copy holds the removed bytes");
 		}
-		expect(copied == std::set<std::string>{ "review-ledger.sqlite3", "review-ledger.sqlite3-wal", "review-tours.sqlite3", "review-cycles.sqlite3", "review-mutation-recovery.sqlite3",
-												   "local-drafts.sqlite3" },
+		expect(copied == std::set<std::string>{ "review-ledger.sqlite3", "review-ledger.sqlite3-wal", "review-tours.sqlite3", "review-cycles.sqlite3", "review-mutation-recovery.sqlite3", "local-drafts.sqlite3" },
 			   "the copy holds exactly the removed review stores");
 #if !defined(_WIN32)
 		expect((fs::status(folder).permissions() & (fs::perms::group_all | fs::perms::others_all)) == fs::perms::none, "the copy is private");

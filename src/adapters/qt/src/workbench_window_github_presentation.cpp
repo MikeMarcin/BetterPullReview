@@ -870,8 +870,8 @@ namespace bpr::qt {
 			if (target && std::holds_alternative<core::queue_item>(*target)) {
 				const auto& ref = std::get<core::queue_item>(*target).Ref;
 				prepared        = std::ranges::any_of(DraftHome.Marks, [&ref](const application::local_draft_mark& aMark) {
-                    return aMark.Owner + "/" + aMark.Name == ref.Repository && static_cast<std::int64_t>(aMark.Number) == ref.Number;
-                });
+					return aMark.Owner + "/" + aMark.Name == ref.Repository && static_cast<std::int64_t>(aMark.Number) == ref.Number;
+				});
 			}
 			HomeOpenPreparationAction->setVisible(prepared);
 		}

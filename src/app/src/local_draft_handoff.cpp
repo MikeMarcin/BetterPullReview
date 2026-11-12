@@ -78,16 +78,13 @@ namespace bpr::app {
 			data.insert("candidates", static_cast<qint64>(draft.Candidates.size()));
 			data.insert("notes", static_cast<qint64>(draft.Notes.size()));
 		}
-		const auto ok = opened->Draft.has_value() && opened->Outcome != application::local_draft_open_outcome::moved;
+		const auto ok     = opened->Draft.has_value() && opened->Outcome != application::local_draft_open_outcome::moved;
 		auto       result = QJsonObject{ { "ok", ok }, { "data", data } };
 		if (!ok) {
-			result.insert("code", opened->Outcome == application::local_draft_open_outcome::moved ? QStringLiteral("rebind_needed")
-								  : opened->Outcome == application::local_draft_open_outcome::choose_target ? QStringLiteral("target_needed")
-																											  : QStringLiteral("not_ready"));
-			result.insert("message", opened->Outcome == application::local_draft_open_outcome::moved
-										 ? QStringLiteral("This worktree's draft was prepared at another location. Open it in the desktop to rebind it.")
-										 : opened->Outcome == application::local_draft_open_outcome::choose_target ? QStringLiteral("Choose the target in the desktop; it is not guessed.")
-																												   : QStringLiteral("Nothing can be prepared yet; see recovery."));
+			result.insert("code", opened->Outcome == application::local_draft_open_outcome::moved ? QStringLiteral("rebind_needed") : opened->Outcome == application::local_draft_open_outcome::choose_target ? QStringLiteral("target_needed")
+																																																			  : QStringLiteral("not_ready"));
+			result.insert("message", opened->Outcome == application::local_draft_open_outcome::moved ? QStringLiteral("This worktree's draft was prepared at another location. Open it in the desktop to rebind it.") : opened->Outcome == application::local_draft_open_outcome::choose_target ? QStringLiteral("Choose the target in the desktop; it is not guessed.")
+																																																																								: QStringLiteral("Nothing can be prepared yet; see recovery."));
 		}
 		return { .Ok = ok, .Result = std::move(result), .Draft = opened->Draft ? std::optional{ opened->Draft->Id } : std::nullopt };
 	}

@@ -695,8 +695,8 @@ namespace bpr::qt {
 
 		Delegate = new home_row_delegate{ this };
 		for (auto index = std::size_t{ 0U }; index < state_count; ++index) {
-			const auto  group   = groups[index];
-			auto* const model   = new home_slice_model{ Queue, this };
+			const auto  group = groups[index];
+			auto* const model = new home_slice_model{ Queue, this };
 			model->set_prepared(&Prepared);
 			auto* const panel   = new home_panel{ group, home_panel_style::panel, Column };
 			auto* const content = new QWidget{ panel };
@@ -1475,8 +1475,8 @@ namespace bpr::qt {
 					const auto  state = groups[index];
 					auto* const model = new home_slice_model{ Queue, aGroup.Panel };
 					model->set_prepared(&Prepared);
-					auto* const band  = new home_panel{ state, home_panel_style::band, aGroup.Content };
-					auto* const view  = new home_row_view{ band };
+					auto* const band = new home_panel{ state, home_panel_style::band, aGroup.Content };
+					auto* const view = new home_row_view{ band };
 					model->set_state(state);
 					model->set_key(Grouping, aGroup.Key);
 					band->setObjectName(QStringLiteral("homeGroupBand"));

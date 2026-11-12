@@ -94,7 +94,7 @@ namespace bpr::application {
 		/// `OWNER/NAME`.
 		std::string  Repository;
 		std::string  Branch;
-		std::int64_t Updated = 0;
+		std::int64_t Updated                                        = 0;
 		auto         operator<=>(const local_draft_home_row&) const = default;
 	};
 	struct local_draft_mark
@@ -103,7 +103,7 @@ namespace bpr::application {
 		std::string          Host;
 		std::string          Owner;
 		std::string          Name;
-		std::uint64_t        Number = 0;
+		std::uint64_t        Number                                     = 0;
 		auto                 operator<=>(const local_draft_mark&) const = default;
 	};
 	struct local_draft_home_projection
@@ -111,7 +111,7 @@ namespace bpr::application {
 		std::vector<local_draft_home_row> InPreparation;
 		std::vector<local_draft_mark>     Marks;
 		/// The store could not be read.
-		bool Unavailable = false;
+		bool Unavailable                                           = false;
 		auto operator<=>(const local_draft_home_projection&) const = default;
 	};
 
@@ -126,17 +126,17 @@ namespace bpr::application {
 	/// \brief The file the Changes area shows.
 	struct local_draft_file_view
 	{
-		std::string                         Path;
-		core::draft_change                  Change = core::draft_change::modified;
-		review_material_status              Status = review_material_status::failure;
-		std::vector<core::cycle_diff_row>   Rows;
-		core::diff_reason_code              Reason = core::diff_reason_code::none;
-		auto                                operator<=>(const local_draft_file_view&) const = default;
+		std::string                       Path;
+		core::draft_change                Change = core::draft_change::modified;
+		review_material_status            Status = review_material_status::failure;
+		std::vector<core::cycle_diff_row> Rows;
+		core::diff_reason_code            Reason                                          = core::diff_reason_code::none;
+		auto                              operator<=>(const local_draft_file_view&) const = default;
 	};
 
 	struct local_draft_workbench_projection
 	{
-		local_draft_stage        Stage = local_draft_stage::closed;
+		local_draft_stage        Stage    = local_draft_stage::closed;
 		local_draft_open_outcome Outcome  = local_draft_open_outcome::recovery;
 		local_draft_recovery     Recovery = local_draft_recovery::none;
 		std::string              Location;
@@ -145,16 +145,16 @@ namespace bpr::application {
 		/// The candidate shown, by ordinal.
 		std::uint64_t Shown = 0;
 		/// What the worktree shows now, for the header and the working edits.
-		std::string                           Branch;
-		core::source_state                    Source = core::source_state::unreadable;
-		std::optional<core::chosen_target>    Target;
-		std::vector<core::local_remote_hop>   Chain;
+		std::string                               Branch;
+		core::source_state                        Source = core::source_state::unreadable;
+		std::optional<core::chosen_target>        Target;
+		std::vector<core::local_remote_hop>       Chain;
 		std::optional<core::remote_chain_refused> ChainRefusal;
-		std::optional<core::target_selection> Selection;
-		std::optional<core::git_commit_oid>   Head;
-		std::optional<core::git_commit_oid>   TargetTip;
-		core::local_draft_comparison          Comparison;
-		std::vector<core::working_file>       Working;
+		std::optional<core::target_selection>     Selection;
+		std::optional<core::git_commit_oid>       Head;
+		std::optional<core::git_commit_oid>       TargetTip;
+		core::local_draft_comparison              Comparison;
+		std::vector<core::working_file>           Working;
 		/// Working files the next capture includes.
 		std::vector<std::string> Included;
 		bool                     ScanIncomplete     = false;
@@ -166,14 +166,14 @@ namespace bpr::application {
 		bool WorktreeMissing = false;
 		/// How the worktree read now relates to the draft: anything but
 		/// `same` leaves the draft as it is and records nothing.
-		core::worktree_match Match = core::worktree_match::same;
+		core::worktree_match                     Match = core::worktree_match::same;
 		std::optional<local_draft_file_view>     File;
 		std::optional<local_draft_store_error>   Store;
 		std::optional<local_draft_capture_error> Capture;
 		std::optional<publication_git_error>     Git;
 		/// A write lost to another writer was re-read.
-		bool Reread = false;
-		bool Busy   = false;
+		bool Reread                                                     = false;
+		bool Busy                                                       = false;
 		auto operator<=>(const local_draft_workbench_projection&) const = default;
 	};
 
@@ -183,7 +183,7 @@ namespace bpr::application {
 		virtual ~local_draft_workbench_port() = default;
 
 		virtual void publish(const local_draft_workbench_projection& aProjection) = 0;
-		virtual void publish(const local_draft_home_projection& aHome)           = 0;
+		virtual void publish(const local_draft_home_projection& aHome)            = 0;
 	};
 
 	/// \brief Makes the isolated Git reader on the effect lane, at first use.

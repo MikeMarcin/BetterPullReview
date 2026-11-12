@@ -11,9 +11,9 @@
 #include <QListWidget>
 #include <QPersistentModelIndex>
 #include <QScrollArea>
+#include <QSet>
 #include <QSize>
 #include <QSizePolicy>
-#include <QSet>
 #include <QSortFilterProxyModel>
 #include <QString>
 #include <QToolButton>
@@ -283,10 +283,10 @@ namespace bpr::qt {
 		void adopt_recent(home_recent_view& aRecent);
 		/// \brief RFC-BPR-0108 (X02). Marks the rows of these pull requests
 		/// ("owner/name#123") as prepared here.
-		void set_prepared(QSet<QString> aPrepared);
+		void               set_prepared(QSet<QString> aPrepared);
 		[[nodiscard]] auto prepared() const noexcept -> const QSet<QString>&;
-		void set_open_dispatch(std::function<void(const core::queue_item&)> aDispatch);
-		void set_settings_dispatch(std::function<void()> aDispatch);
+		void               set_open_dispatch(std::function<void(const core::queue_item&)> aDispatch);
+		void               set_settings_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1580]]. The filtered sentence's Clear filters.
 		void set_clear_filters_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1843]]. A Recently viewed row's Open on GitHub, from its

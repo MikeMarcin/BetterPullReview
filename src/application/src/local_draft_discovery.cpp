@@ -159,7 +159,7 @@ namespace bpr::application {
 			if (!tip) {
 				return;
 			}
-			aDiscovery.TargetTip = *tip;
+			aDiscovery.TargetTip  = *tip;
 			const auto repository = aDiscovery.repository();
 			auto       bases      = aGit.merge_bases(repository, *aDiscovery.Head, *tip, aStop);
 			if (!bases) {
@@ -205,11 +205,10 @@ namespace bpr::application {
 				return std::nullopt;
 			}
 			aBudget -= aEntry.Size;
-			auto hasher = core::git_object_hasher{ aAlgorithm, core::git_object_type::blob, aEntry.Size };
-			const auto read = aSession.read(aPath, aEntry.Size, [&hasher](const std::span<const std::uint8_t> aChunk) {
+			auto       hasher = core::git_object_hasher{ aAlgorithm, core::git_object_type::blob, aEntry.Size };
+			const auto read   = aSession.read(aPath, aEntry.Size, [&hasher](const std::span<const std::uint8_t> aChunk) {
 				hasher.update(aChunk);
-				return true;
-			}, aStop);
+				return true; }, aStop);
 			if (!read || read->BytesRead != aEntry.Size) {
 				return std::nullopt;
 			}
@@ -253,8 +252,7 @@ namespace bpr::application {
 					auto bytes = std::vector<std::uint8_t>{ };
 					if (aSession.read(child(entry.Name), maximum_ignore_bytes, [&bytes](const std::span<const std::uint8_t> aChunk) {
 							bytes.insert(bytes.end(), aChunk.begin(), aChunk.end());
-							return true;
-						}, aStop)) {
+							return true; }, aStop)) {
 						if (entry.Name == ".gitignore") {
 							(void)aState.Ignore.add(aDirectory, text_of(bytes));
 						} else {
@@ -290,8 +288,7 @@ namespace bpr::application {
 				}
 				const auto filtered = aState.Attributes.filter(path).Kind != core::git_attribute_state::kind::unspecified
 					&& aState.Attributes.filter(path).Kind != core::git_attribute_state::kind::unset;
-				auto file = core::working_file{ .Path = path, .Edit = tracked == aState.Tracked.end() ? core::working_edit::untracked : core::working_edit::modified,
-												.Mode = mode_of(entry), .Size = entry.Size };
+				auto file = core::working_file{ .Path = path, .Edit = tracked == aState.Tracked.end() ? core::working_edit::untracked : core::working_edit::modified, .Mode = mode_of(entry), .Size = entry.Size };
 				if (entry.Kind != workspace_entry_kind::file && entry.Kind != workspace_entry_kind::symlink) {
 					file.Qualification = core::working_qualification::unsupported;
 				} else if (filtered) {
@@ -393,8 +390,7 @@ namespace bpr::application {
 
 	auto worktree_of(const local_draft_discovery& aDiscovery) -> core::local_draft_worktree
 	{
-		return { .Location = aDiscovery.Root.Location, .Repository = aDiscovery.Root.Repository.value_or(core::workspace_object_identity{ }),
-				 .Worktree = aDiscovery.Root.Worktree.value_or(core::workspace_object_identity{ }) };
+		return { .Location = aDiscovery.Root.Location, .Repository = aDiscovery.Root.Repository.value_or(core::workspace_object_identity{ }), .Worktree = aDiscovery.Root.Worktree.value_or(core::workspace_object_identity{ }) };
 	}
 
 	auto discover_local_draft(workspace_source_port& aSource, local_draft_git_port& aGit, const std::string_view aLocation, const std::optional<core::chosen_target>& aPrior,
@@ -410,8 +406,9 @@ namespace bpr::application {
 		}
 		const auto format = read_git_repository_format(**checkout, aStop);
 		if (!format) {
-			return std::unexpected{ local_draft_open_error{ .Failure = format.error().Repository ? local_draft_open_failure::repository : local_draft_open_failure::workspace,
-															.Workspace = format.error().Workspace, .Repository = format.error().Repository } };
+			return std::unexpected{ local_draft_open_error{ .Failure    = format.error().Repository ? local_draft_open_failure::repository : local_draft_open_failure::workspace,
+															.Workspace  = format.error().Workspace,
+															.Repository = format.error().Repository } };
 		}
 		discovery.Algorithm = format->ObjectFormat;
 		if (const auto config = (*checkout)->read_git(workspace_git_area::common, "config", core::maximum_clone_config_bytes, aStop)) {
@@ -453,7 +450,7 @@ namespace bpr::application {
 		auto reached = walk_chain(aSource, discovery, std::move(*checkout), aStop);
 		if (reached != nullptr) {
 			for (const auto& destination : discovery.Chain->Destinations) {
-				discovery.Destinations.push_back({ .Destination = destination,
+				discovery.Destinations.push_back({ .Destination   = destination,
 												   .DefaultBranch = default_branch(*reached, destination.Remote, aStop),
 												   .Branches      = branch_choices(*reached, destination.Remote, discovery.Algorithm, aStop) });
 			}
@@ -531,8 +528,7 @@ namespace bpr::application {
 						bytes.assign(target->begin(), target->end());
 					} else if (!session->read(change.Path, core::maximum_local_draft_file_bytes, [&bytes](const std::span<const std::uint8_t> aChunk) {
 								   bytes.insert(bytes.end(), aChunk.begin(), aChunk.end());
-								   return true;
-							   }, aStop)) {
+								   return true; }, aStop)) {
 						return std::unexpected{ local_draft_capture_error{ .Failure = local_draft_capture_failure::changed, .Path = change.Path } };
 					}
 					// The bytes read now must be the bytes that were listed.

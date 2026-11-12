@@ -11,8 +11,8 @@
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/document_tabs_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
-#include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
+#include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
@@ -1295,8 +1295,8 @@ namespace bpr::qt {
 		/// \brief Home's author entry: Prepare pull request… and In
 		/// preparation, above Home's sections (X01), and the marks on pull
 		/// request rows a draft became (X02).
-		void present_local_drafts(const application::local_draft_home_projection& aHome);
-		void set_local_draft_entry_dispatch(std::function<void()> aPrepare, std::function<void(const core::local_draft_id&)> aResume);
+		void               present_local_drafts(const application::local_draft_home_projection& aHome);
+		void               set_local_draft_entry_dispatch(std::function<void()> aPrepare, std::function<void(const core::local_draft_id&)> aResume);
 		[[nodiscard]] auto home_prepare_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto home_drafts_list() const noexcept -> QListWidget*;
 		[[nodiscard]] auto home_open_preparation_action() const noexcept -> QAction*;
@@ -2746,23 +2746,23 @@ namespace bpr::qt {
 		bool                                  DifResolutionReady = false;
 		QWidget*                              HomePage           = nullptr;
 		/// [[BPR-1157]]. The local cycle page and Home's Review Cycles section.
-		review_cycle_view*                                    LocalCyclePage  = nullptr;
-		bool                                                  LocalCycleShown = false;
-		QString                                               LocalCycleTitle;
-		QAction*                                              OpenProjectAction = nullptr;
+		review_cycle_view* LocalCyclePage  = nullptr;
+		bool               LocalCycleShown = false;
+		QString            LocalCycleTitle;
+		QAction*           OpenProjectAction = nullptr;
 		/// RFC-BPR-0108.
-		local_draft_view*                                     LocalDraftPage   = nullptr;
-		bool                                                  LocalDraftShown  = false;
-		QWidget*                                              HomeAuthor       = nullptr;
-		QPushButton*                                          HomePrepare      = nullptr;
-		QWidget*                                              HomeDrafts       = nullptr;
-		QListWidget*                                          HomeDraftsList   = nullptr;
+		local_draft_view*                                     LocalDraftPage            = nullptr;
+		bool                                                  LocalDraftShown           = false;
+		QWidget*                                              HomeAuthor                = nullptr;
+		QPushButton*                                          HomePrepare               = nullptr;
+		QWidget*                                              HomeDrafts                = nullptr;
+		QListWidget*                                          HomeDraftsList            = nullptr;
 		QAction*                                              HomeOpenPreparationAction = nullptr;
 		application::local_draft_home_projection              DraftHome;
 		std::function<void()>                                 PrepareDispatch;
 		std::function<void(const core::local_draft_id&)>      ResumeDraftDispatch;
-		QWidget*                                              HomeCycles        = nullptr;
-		QListWidget*                                          HomeCyclesList    = nullptr;
+		QWidget*                                              HomeCycles     = nullptr;
+		QListWidget*                                          HomeCyclesList = nullptr;
 		std::vector<application::review_cycle_recent>         CycleRecents;
 		std::function<void()>                                 OpenProjectDispatch;
 		std::function<void(const core::local_cycle_subject&)> ResumeCycleDispatch;

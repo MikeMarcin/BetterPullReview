@@ -137,7 +137,7 @@ namespace bpr::application {
 		if (!discovered) {
 			return std::unexpected{ discovered.error() };
 		}
-		auto result = local_draft_open_result{ .Discovery = std::move(*discovered) };
+		auto  result    = local_draft_open_result{ .Discovery = std::move(*discovered) };
 		auto& discovery = result.Discovery;
 		if (discovery.Source != core::source_state::branch) {
 			result.Recovery = recovery_for(discovery);
@@ -200,7 +200,8 @@ namespace bpr::application {
 		if (!created) {
 			result.Recovery = local_draft_recovery::store;
 			result.Store    = local_draft_store_error{ .Failure = created.error() == core::draft_refusal::drafts_full ? local_draft_store_failure::full : local_draft_store_failure::corrupt,
-													   .Used = drafts->size(), .Limit = core::maximum_local_drafts };
+													   .Used    = drafts->size(),
+													   .Limit   = core::maximum_local_drafts };
 			return result;
 		}
 		if (auto written = aStore.put(*created, std::nullopt, capture->Objects); !written) {
@@ -339,8 +340,7 @@ namespace bpr::application {
 						}
 						for (const auto& draft : *drafts) {
 							if (draft.Association) {
-								home.Marks.push_back({ .Id = draft.Id, .Host = draft.Association->Host, .Owner = draft.Association->Owner, .Name = draft.Association->Name,
-													   .Number = draft.Association->Number });
+								home.Marks.push_back({ .Id = draft.Id, .Host = draft.Association->Host, .Owner = draft.Association->Owner, .Name = draft.Association->Name, .Number = draft.Association->Number });
 							}
 						}
 					}
@@ -359,15 +359,15 @@ namespace bpr::application {
 		/// Shows what one open or resume found.
 		void show(local_draft_open_result aResult)
 		{
-			auto& view       = Projection;
-			view.Stage       = local_draft_stage::open;
-			view.Outcome     = aResult.Outcome;
-			view.Recovery    = aResult.Recovery;
-			view.Store       = aResult.Store;
-			view.Capture     = aResult.Capture;
-			view.Git         = aResult.Discovery.Git;
-			view.Location    = aResult.Discovery.Root.Location.empty() ? view.Location : aResult.Discovery.Root.Location;
-			view.Draft       = std::move(aResult.Draft);
+			auto& view    = Projection;
+			view.Stage    = local_draft_stage::open;
+			view.Outcome  = aResult.Outcome;
+			view.Recovery = aResult.Recovery;
+			view.Store    = aResult.Store;
+			view.Capture  = aResult.Capture;
+			view.Git      = aResult.Discovery.Git;
+			view.Location = aResult.Discovery.Root.Location.empty() ? view.Location : aResult.Discovery.Root.Location;
+			view.Draft    = std::move(aResult.Draft);
 			view.File.reset();
 			observe(std::move(aResult.Discovery));
 			const auto* latest = view.Draft ? core::latest_candidate(*view.Draft) : nullptr;
@@ -382,27 +382,27 @@ namespace bpr::application {
 		/// Takes a new observation of the worktree into the view.
 		void observe(local_draft_discovery aDiscovery)
 		{
-			auto& view          = Projection;
-			view.Branch         = aDiscovery.Branch;
-			view.Source         = aDiscovery.Source;
-			view.Target         = aDiscovery.Target;
-			view.Chain          = aDiscovery.Chain ? aDiscovery.Chain->Hops : std::vector<core::local_remote_hop>{ };
-			view.ChainRefusal   = aDiscovery.ChainRefusal;
-			view.Selection      = aDiscovery.Selection;
-			view.Head           = aDiscovery.Head;
-			view.TargetTip      = aDiscovery.TargetTip;
-			view.Comparison     = aDiscovery.Comparison;
-			view.Working        = aDiscovery.Working;
-			view.ScanIncomplete = aDiscovery.ScanIncomplete;
+			auto& view              = Projection;
+			view.Branch             = aDiscovery.Branch;
+			view.Source             = aDiscovery.Source;
+			view.Target             = aDiscovery.Target;
+			view.Chain              = aDiscovery.Chain ? aDiscovery.Chain->Hops : std::vector<core::local_remote_hop>{ };
+			view.ChainRefusal       = aDiscovery.ChainRefusal;
+			view.Selection          = aDiscovery.Selection;
+			view.Head               = aDiscovery.Head;
+			view.TargetTip          = aDiscovery.TargetTip;
+			view.Comparison         = aDiscovery.Comparison;
+			view.Working            = aDiscovery.Working;
+			view.ScanIncomplete     = aDiscovery.ScanIncomplete;
 			view.FilteredUncompared = aDiscovery.FilteredUncompared;
-			view.Match = view.Draft ? core::match_worktree(*view.Draft, aDiscovery.Root, aDiscovery.Branch) : core::worktree_match::same;
-			Discovery  = std::move(aDiscovery);
+			view.Match              = view.Draft ? core::match_worktree(*view.Draft, aDiscovery.Root, aDiscovery.Branch) : core::worktree_match::same;
+			Discovery               = std::move(aDiscovery);
 		}
 
 		void update_refresh()
 		{
-			auto&       view   = Projection;
-			const auto* latest = view.Draft ? core::latest_candidate(*view.Draft) : nullptr;
+			auto&       view    = Projection;
+			const auto* latest  = view.Draft ? core::latest_candidate(*view.Draft) : nullptr;
 			view.RefreshOffered = latest != nullptr && Discovery && view.Match == core::worktree_match::same && differs(*latest, *Discovery, view.Included);
 		}
 
@@ -569,7 +569,7 @@ namespace bpr::application {
 					if (!retargeted) {
 						return std::unexpected{ retargeted.error() };
 					}
-					auto result = local_draft_open_result{ .Outcome = draft ? local_draft_open_outcome::resumed : local_draft_open_outcome::created, .Discovery = std::move(*retargeted) };
+					auto  result = local_draft_open_result{ .Outcome = draft ? local_draft_open_outcome::resumed : local_draft_open_outcome::created, .Discovery = std::move(*retargeted) };
 					auto* stored = aSelf.store();
 					if (stored == nullptr) {
 						result.Recovery = local_draft_recovery::store;
@@ -602,7 +602,7 @@ namespace bpr::application {
 						result.Capture  = capture.error();
 						return result;
 					}
-					auto drafts = stored->list();
+					auto drafts  = stored->list();
 					auto created = core::create_local_draft(drafts ? *drafts : std::vector<core::local_draft>{ }, aSelf.new_id(), worktree_of(result.Discovery), result.Discovery.Branch,
 															target, result.Discovery.Chain ? result.Discovery.Chain->Hops : std::vector<core::local_remote_hop>{ },
 															std::move(capture->Candidate), aSelf.Now());
@@ -655,9 +655,9 @@ namespace bpr::application {
 			}
 			run(
 				[draft = *Projection.Draft, included = Projection.Included](implementation& aSelf, const std::stop_token aStop) -> local_draft_open_result {
-					auto result   = local_draft_open_result{ .Outcome = local_draft_open_outcome::resumed, .Draft = draft };
-					auto reader   = aSelf.git(aStop);
-					auto* stored  = aSelf.store();
+					auto  result = local_draft_open_result{ .Outcome = local_draft_open_outcome::resumed, .Draft = draft };
+					auto  reader = aSelf.git(aStop);
+					auto* stored = aSelf.store();
 					if (!reader || stored == nullptr) {
 						result.Recovery = !reader ? local_draft_recovery::git : local_draft_recovery::store;
 						if (!reader) {
@@ -772,12 +772,12 @@ namespace bpr::application {
 					auto check    = stop_token_check{ aStop };
 					auto matching = abandonable_diff_line_matching{ aSelf.Matcher, aStop };
 					auto run      = core::compute_material_diff(
-                        { .Key        = *key,
-							   .Options    = options,
-							   .LeftBytes  = wanted.Left ? std::optional{ std::span<const std::uint8_t>{ *left } } : std::nullopt,
-							   .RightBytes = wanted.Right ? std::optional{ std::span<const std::uint8_t>{ *right } } : std::nullopt,
-							   .Limits     = core::diff_compute_limits{ } },
-                        core::diff_compute_control{ .Stop = &check }, matching);
+						{ .Key        = *key,
+						  .Options    = options,
+						  .LeftBytes  = wanted.Left ? std::optional{ std::span<const std::uint8_t>{ *left } } : std::nullopt,
+						  .RightBytes = wanted.Right ? std::optional{ std::span<const std::uint8_t>{ *right } } : std::nullopt,
+						  .Limits     = core::diff_compute_limits{ } },
+						core::diff_compute_control{ .Stop = &check }, matching);
 					if (!run.Outcome.has_value() || aStop.stop_requested()) {
 						view.Status = review_material_status::cancelled;
 						return view;
@@ -875,7 +875,7 @@ namespace bpr::application {
 		std::atomic<std::uint64_t>           Pending{ 0U };
 		/// Home's reads, which never make the page busy.
 		std::atomic<std::uint64_t> HomePending{ 0U };
-		bool                                 Stopped = false;
+		bool                       Stopped = false;
 	};
 
 	local_draft_workbench::local_draft_workbench(std::function<std::unique_ptr<local_draft_store>()> aStore, workspace_source_port& aSource, local_draft_git_factory aGit,

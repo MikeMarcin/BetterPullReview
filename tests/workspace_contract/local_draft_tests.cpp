@@ -36,13 +36,13 @@ namespace {
 
 	struct fixture
 	{
-		const git_runner&                                     Git;
-		std::filesystem::path                                 Root;
-		std::unique_ptr<application::workspace_source_port>   Source;
-		std::unique_ptr<application::local_draft_git_port>    Reader;
-		std::unique_ptr<application::local_draft_store>       Store;
-		std::filesystem::path                                 Profile;
-		int                                                   Ids = 0;
+		const git_runner&                                   Git;
+		std::filesystem::path                               Root;
+		std::unique_ptr<application::workspace_source_port> Source;
+		std::unique_ptr<application::local_draft_git_port>  Reader;
+		std::unique_ptr<application::local_draft_store>     Store;
+		std::filesystem::path                               Profile;
+		int                                                 Ids = 0;
 
 		[[nodiscard]] auto rev(const std::filesystem::path& aDirectory, const std::string& aName) const -> std::string
 		{
@@ -357,8 +357,8 @@ namespace {
 		const auto keep = existing->front();
 		auto       made = std::size_t{ existing->size() };
 		for (auto index = 0; made < core::maximum_local_drafts; ++index) {
-			auto copy = keep;
-			copy.Id   = { std::string(31U, 'e') + std::string(1U, "0123456789abcdef"[index % 16]) };
+			auto copy         = keep;
+			copy.Id           = { std::string(31U, 'e') + std::string(1U, "0123456789abcdef"[index % 16]) };
 			copy.Id.Value[30] = "0123456789abcdef"[index / 16];
 			copy.Worktree.Location += std::to_string(index);
 			if (aFixture.Store->put(copy, std::nullopt, { })) {

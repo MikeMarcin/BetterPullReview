@@ -289,8 +289,8 @@ namespace bpr::adapters::sqlite {
 			if (!handle) {
 				return { };
 			}
-			auto store = std::make_unique<sqlite_local_draft_store>(std::move(*directory), *handle);
-			auto* db   = *handle;
+			auto  store = std::make_unique<sqlite_local_draft_store>(std::move(*directory), *handle);
+			auto* db    = *handle;
 			if (!detail::configure_connection(db)) {
 				return { };
 			}

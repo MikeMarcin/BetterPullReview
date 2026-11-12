@@ -20,8 +20,8 @@
 
 namespace bpr::qt {
 	namespace {
-		constexpr int path_role   = Qt::UserRole + 1;
-		constexpr int note_role   = Qt::UserRole + 2;
+		constexpr int path_role = Qt::UserRole + 1;
+		constexpr int note_role = Qt::UserRole + 2;
 
 		auto text_of(const std::string_view aBytes) -> QString
 		{
@@ -117,7 +117,8 @@ namespace bpr::qt {
 
 		auto target_text(const application::local_draft_workbench_projection& aView) -> QString
 		{
-			const auto* target = aView.Draft ? &aView.Draft->Target : aView.Target ? &*aView.Target : nullptr;
+			const auto* target = aView.Draft ? &aView.Draft->Target : aView.Target ? &*aView.Target
+																				   : nullptr;
 			if (target == nullptr) {
 				return { };
 			}
@@ -321,7 +322,7 @@ namespace bpr::qt {
 			if (Presenting || aIndex < 0 || !Projection.Selection) {
 				return;
 			}
-			const auto& choice = Projection.Selection->Choices[static_cast<std::size_t>(aIndex)];
+			const auto& choice  = Projection.Selection->Choices[static_cast<std::size_t>(aIndex)];
 			const auto  blocker = QSignalBlocker{ TargetBranch };
 			TargetBranch->clear();
 			for (const auto& branch : choice.Branches) {
@@ -337,8 +338,7 @@ namespace bpr::qt {
 				return;
 			}
 			const auto& choice = Projection.Selection->Choices[static_cast<std::size_t>(index)];
-			Dispatch.ChooseTarget(core::local_draft_target{ .Remote = choice.Destination.Remote, .Repository = choice.Destination.Repository,
-															 .Branch = utf8(TargetBranch->currentText().trimmed()) });
+			Dispatch.ChooseTarget(core::local_draft_target{ .Remote = choice.Destination.Remote, .Repository = choice.Destination.Repository, .Branch = utf8(TargetBranch->currentText().trimmed()) });
 		});
 		connect(Rebind, &QPushButton::clicked, this, [this] {
 			if (Dispatch.Rebind) {
@@ -417,11 +417,12 @@ namespace bpr::qt {
 		auto source = text_of(view.Draft ? view.Draft->Branch : view.Branch);
 		auto target = target_text(view);
 		Identity->setText(target.isEmpty() ? source : QStringLiteral("%1 into %2").arg(source, target));
-		auto tip   = QStringList{ QStringLiteral("Worktree: %1").arg(text_of(view.Draft ? view.Draft->Worktree.Location : view.Location)) };
+		auto tip = QStringList{ QStringLiteral("Worktree: %1").arg(text_of(view.Draft ? view.Draft->Worktree.Location : view.Location)) };
 		if (const auto chain = chain_text(view); !chain.isEmpty()) {
 			tip << chain;
 		}
-		const auto* target_choice = view.Draft ? &view.Draft->Target : view.Target ? &*view.Target : nullptr;
+		const auto* target_choice = view.Draft ? &view.Draft->Target : view.Target ? &*view.Target
+																				   : nullptr;
 		if (target_choice != nullptr) {
 			tip << QStringLiteral("Target remote: %1 (%2)")
 					   .arg(text_of(target_choice->Target.Remote),
@@ -609,15 +610,14 @@ namespace bpr::qt {
 			}
 			auto* const item = new QListWidgetItem{ text, Notes };
 			item->setData(note_role, QVariant::fromValue<qulonglong>(note.Id));
-			item->setToolTip(QStringLiteral("%1 on candidate %2").arg(note.Origin == core::note_origin::harness ? QStringLiteral("From the harness") : QStringLiteral("Your note"))
-								 .arg(note.Candidate));
+			item->setToolTip(QStringLiteral("%1 on candidate %2").arg(note.Origin == core::note_origin::harness ? QStringLiteral("From the harness") : QStringLiteral("Your note")).arg(note.Candidate));
 		}
 	}
 
 	void local_draft_view::present_diff()
 	{
-		const auto& view = Projection;
-		auto        text = QString{ };
+		const auto& view  = Projection;
+		auto        text  = QString{ };
 		auto        kinds = std::vector<core::cycle_diff_row_kind>{ };
 		if (!view.File) {
 			Diff->setPlainText({ });
@@ -632,7 +632,8 @@ namespace bpr::qt {
 				break;
 			}
 			for (const auto& row : file.Rows) {
-				const auto prefix = row.Kind == core::cycle_diff_row_kind::added ? QLatin1Char{ '+' } : row.Kind == core::cycle_diff_row_kind::removed ? QLatin1Char{ '-' } : QLatin1Char{ ' ' };
+				const auto prefix = row.Kind == core::cycle_diff_row_kind::added ? QLatin1Char{ '+' } : row.Kind == core::cycle_diff_row_kind::removed ? QLatin1Char{ '-' }
+																																					   : QLatin1Char{ ' ' };
 				text += prefix + text_of(row.Text) + QLatin1Char{ '\n' };
 				kinds.push_back(row.Kind);
 			}
@@ -643,13 +644,13 @@ namespace bpr::qt {
 		case application::review_material_status::missing:
 		case application::review_material_status::too_large: text = QStringLiteral("The bytes of %1 were not kept with this candidate.").arg(text_of(file.Path)); break;
 		case application::review_material_status::failure:   text = view.Busy ? QString{ } : QStringLiteral("%1 could not be compared.").arg(text_of(file.Path)); break;
-		default:                                              break;
+		default:                                             break;
 		}
 		Diff->setPlainText(text);
 		auto       selections = QList<QTextEdit::ExtraSelection>{ };
 		const auto base       = palette().color(QPalette::Base);
 		const auto blend      = [&base](const QColor& aInk) {
-            return QColor::fromRgbF(base.redF() * 0.82F + aInk.redF() * 0.18F, base.greenF() * 0.82F + aInk.greenF() * 0.18F, base.blueF() * 0.82F + aInk.blueF() * 0.18F);
+			return QColor::fromRgbF(base.redF() * 0.82F + aInk.redF() * 0.18F, base.greenF() * 0.82F + aInk.greenF() * 0.18F, base.blueF() * 0.82F + aInk.blueF() * 0.18F);
 		};
 		const auto added   = blend(QColor{ 0x2d, 0xa4, 0x4e });
 		const auto removed = blend(QColor{ 0xcf, 0x22, 0x2e });

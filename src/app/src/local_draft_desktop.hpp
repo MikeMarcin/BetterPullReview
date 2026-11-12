@@ -50,7 +50,7 @@ namespace bpr::app {
 		void set_folder_chooser(folder_chooser aChooser);
 		void set_code_font(const QFont& aFont);
 		/// \brief Shows a draft another interface opened (`bpr draft open`).
-		void show_draft(const core::local_draft_id& aId);
+		void               show_draft(const core::local_draft_id& aId);
 		[[nodiscard]] auto host() noexcept -> application::local_draft_workbench&;
 		[[nodiscard]] auto view() noexcept -> qt::local_draft_view*;
 		void               shutdown();

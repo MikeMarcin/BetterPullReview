@@ -34,11 +34,11 @@
 #include "github_application/tour_owner_replies.hpp"
 #include "github_application/window_composition.hpp"
 #include "local_draft_handoff.hpp"
-#include <QJsonDocument>
 #include "review_cycle_desktop.hpp"
 #include "tour_assist.hpp"
 #include "tour_cli_types.hpp"
 #include "tour_owner_service.hpp"
+#include <QJsonDocument>
 
 #include <QPlainTextEdit>
 #include <QString>

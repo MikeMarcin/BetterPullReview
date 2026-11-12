@@ -307,12 +307,12 @@ namespace bpr::qt {
 				Age                 = aIndex.data(home_row_role::age).toString();
 				Comments            = aIndex.data(home_row_role::comments).toString();
 				// [[BPR-1365]]. The review this window has open says so in a word.
-				Tag   = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
+				Tag = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
 				// RFC-BPR-0108 (X02, X03). Draft is GitHub's; a row prepared
 				// here says so in the same chip, so it stays one row.
 				const auto prepared = aIndex.data(home_row_role::local_preparation).toBool();
-				Draft = aIndex.data(home_row_role::draft).toBool() ? (prepared ? QStringLiteral("Draft, prepared here") : QStringLiteral("Draft"))
-																   : (prepared ? QStringLiteral("Prepared here") : QString{ });
+				Draft               = aIndex.data(home_row_role::draft).toBool() ? (prepared ? QStringLiteral("Draft, prepared here") : QStringLiteral("Draft"))
+																				 : (prepared ? QStringLiteral("Prepared here") : QString{ });
 				// [[BPR-1718]]. My verdict leads the second line in a chip.
 				Verdict      = aIndex.data(home_row_role::verdict).toString();
 				VerdictState = static_cast<core::my_review_verdict>(aIndex.data(home_row_role::verdict_state).toInt());

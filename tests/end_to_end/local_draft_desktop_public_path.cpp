@@ -116,8 +116,8 @@ namespace {
 
 	struct session
 	{
-		application::manual_executor              Lanes;
-		std::unique_ptr<qt::workbench_window>     Window;
+		application::manual_executor               Lanes;
+		std::unique_ptr<qt::workbench_window>      Window;
 		std::unique_ptr<app::review_cycle_desktop> Cycles;
 		std::unique_ptr<app::local_draft_desktop>  Drafts;
 
@@ -242,8 +242,8 @@ try {
 
 		// AC08 (X02): once associated, the draft leaves In preparation and
 		// marks its pull request's row.
-		auto store = adapters::sqlite::open_local_draft_store(profileRoot.path());
-		auto draft = store->find(draftId);
+		auto store      = adapters::sqlite::open_local_draft_store(profileRoot.path());
+		auto draft      = store->find(draftId);
 		auto associated = core::associate_draft(*draft, draft->Version, { .Host = "github.com", .Owner = "acme", .Name = "engine", .Number = 7, .HeadRef = "feature/search-results" },
 												"main", 5'000);
 		expect(associated && store->put(*associated, draft->Version, { }).has_value(), "an association recorded");

@@ -47,8 +47,8 @@ namespace bpr::application {
 	{
 		local_draft_store_failure Failure = local_draft_store_failure::unavailable;
 		/// For `full`: what is stored and the bound.
-		std::uint64_t Used  = 0;
-		std::uint64_t Limit = 0;
+		std::uint64_t Used                                              = 0;
+		std::uint64_t Limit                                             = 0;
 		auto          operator<=>(const local_draft_store_error&) const = default;
 	};
 

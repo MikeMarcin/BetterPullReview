@@ -128,12 +128,12 @@
 #include "github_application/window_review_lanes.hpp"
 #include "github_application/workbench_composition.hpp"
 #include "github_host_profile.hpp"
+#include "local_draft_desktop.hpp"
 #include "pane_find_controller.hpp"
 #include "pr_search_controller.hpp"
 #include "private_review_workflow.hpp"
 #include "profile_window_layout_port.hpp"
 #include "review_comment_permalink.hpp"
-#include "local_draft_desktop.hpp"
 #include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
@@ -532,9 +532,9 @@ namespace bpr::app {
 
 		std::unique_ptr<application::review_tour_host> TourHost;
 		/// [[BPR-1157]]. Local Review Cycles in this window: no account needed.
-		std::unique_ptr<review_cycle_desktop>             CycleDesktop;
+		std::unique_ptr<review_cycle_desktop> CycleDesktop;
 		/// RFC-BPR-0108. Prepare pull request… and the local draft page.
-		std::unique_ptr<local_draft_desktop> DraftDesktop;
+		std::unique_ptr<local_draft_desktop>              DraftDesktop;
 		std::uint64_t                                     WritingHookSubscription = 0;
 		std::unique_ptr<review_tour_publication_workflow> TourPublication;
 		std::unique_ptr<conversation_reply_workflow>      ConversationReply;

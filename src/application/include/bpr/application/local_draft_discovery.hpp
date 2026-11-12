@@ -123,7 +123,7 @@ namespace bpr::application {
 		std::optional<core::draft_candidate_refusal> Refusal;
 		std::optional<publication_git_error>         Git;
 		std::string                                  Path;
-		auto operator<=>(const local_draft_capture_error&) const = default;
+		auto                                         operator<=>(const local_draft_capture_error&) const = default;
 	};
 
 	/// \brief One captured candidate and the exact bytes it keeps.
