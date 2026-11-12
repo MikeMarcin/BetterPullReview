@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2123",
+    "BPR-2124"
+  ],
+  "reserve_for": "windows-fixture-followups",
+  "purpose": "",
+  "created": "2026-11-12T03:18:11.881342+00:00",
+  "base": "e4cbfeab166c3a98eae96ba859752d98209e9305"
+}
