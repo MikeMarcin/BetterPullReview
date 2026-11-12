@@ -9,7 +9,7 @@
   "milestones": [
     {
       "id": "restore-pinned-plan-discovery",
-      "outcome": "Pinned MASK965 can validate and discover the completed BPR-2120 plan while its exact proof hashes and accepted scope remain intact.",
+      "outcome": "The completed BPR-2120 plan conforms to pinned MASK965 while preserving its exact proof facts; actual target discovery advances past this owned schema error and any independent foreign failure is reported separately.",
       "work": [
         {
           "issue": "BPR-2130",

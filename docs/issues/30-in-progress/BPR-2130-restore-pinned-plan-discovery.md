@@ -1,7 +1,7 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-2130"
-title: "Restore pinned workflow discovery for the completed BPR-2120 plan"
+title: "Preserve BPR-2120 proof bindings in the pinned plan schema"
 status: "In Progress"
 rfcs: []
 depends_on: ["BPR-2120"]
@@ -11,7 +11,7 @@ metadata: {"reservation":"docs/issues/_reservations/BPR-2130--BPR-2130--d2b7f179
 acceptance: []
 ---
 
-# Restore pinned workflow discovery for the completed BPR-2120 plan
+# Preserve BPR-2120 proof bindings in the pinned plan schema
 
 The pinned MASK965 schema rejects `baseline_source_sha256` and
 `existing_probe_receipt_sha256` as unknown milestone keys in BPR-2120's plan.
@@ -29,3 +29,8 @@ acceptance. This is future-main workflow metadata; release Build60 remains froze
 - AC1: The corrected BPR-2120 plan validates with the actual pinned MASK965 schema. Both proof names/hash values remain exact in its existing boundary text; every other plan value and the completed BPR-2120 card/acceptance remain unchanged.
 - AC2: Run actual focused validation and target discovery for BPR-2120 and independent BPR-2129 before and after. Verify the own schema error is removed; report any independent foreign-plan error separately without repairing it or crediting global readiness.
 - AC3: Documentation and the new owned plan validate, then land only this metadata correction and own tracker/proof paths on current main. Preserve foreign work, the pinned runtime and all release60 source/cohort/artifacts; no source/test/native/qualification change or release intake.
+
+## Verification
+
+[Exact hash preservation and actual discovery outcomes](../../verification/BPR-2130-plan-schema.md).
+Global target discovery still reports the separate unchanged release-v041 amendments field; this card does not claim global readiness.
