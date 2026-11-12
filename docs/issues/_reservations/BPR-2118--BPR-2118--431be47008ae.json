@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2118"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent workspace records refused after Mac restart",
+  "created": "2026-11-11T19:34:02.110074+00:00",
+  "base": "a3772682d67fc44bf2cceb3a7ebd6f11a1e7b1e9"
+}
