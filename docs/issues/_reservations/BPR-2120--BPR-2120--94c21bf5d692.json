@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2120"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Bound Debug composed-child watchdogs in terminal diagnostic contract without changing Release limits",
+  "created": "2026-11-12T02:13:05.901225+00:00",
+  "base": "1232a90dc563822aab3dff84558ba0aa2cf6ccef"
+}
