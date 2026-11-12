@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2139"
 title: "MCP servers are a per-agent setting, off by default, exported with the agent"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0104", "RFC-BPR-0107"]
 depends_on: []
 priority: "P1"
