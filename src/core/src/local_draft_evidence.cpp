@@ -208,143 +208,143 @@ namespace ew = bpr::core::evidence_wire;
 template <>
 struct glz::meta<ew::origin>
 {
-	using T                     = ew::origin;
-	static constexpr auto value = object("source", &T::Source, "producer", &T::Producer, "version", &T::Version, "import", &T::Import);
+	using value_type            = ew::origin;
+	static constexpr auto value = object("source", &value_type::Source, "producer", &value_type::Producer, "version", &value_type::Version, "import", &value_type::Import);
 };
 template <>
 struct glz::meta<ew::claim>
 {
-	using T                     = ew::claim;
-	static constexpr auto value = object("id", &T::Id, "kind", &T::Kind, "text", &T::Text, "earlier", &T::Earlier, "disposition", &T::Disposition, "origin", &T::Origin, "selected", &T::Selected);
+	using value_type            = ew::claim;
+	static constexpr auto value = object("id", &value_type::Id, "kind", &value_type::Kind, "text", &value_type::Text, "earlier", &value_type::Earlier, "disposition", &value_type::Disposition, "origin", &value_type::Origin, "selected", &value_type::Selected);
 };
 template <>
 struct glz::meta<ew::formal>
 {
-	using T                     = ew::formal;
-	static constexpr auto value = object("property", &T::Property, "subject", &T::Subject, "tool", &T::Tool, "assumptions", &T::Assumptions, "bounds", &T::Bounds, "correspondence",
-										 &T::Correspondence);
+	using value_type            = ew::formal;
+	static constexpr auto value = object("property", &value_type::Property, "subject", &value_type::Subject, "tool", &value_type::Tool, "assumptions", &value_type::Assumptions, "bounds", &value_type::Bounds, "correspondence",
+										 &value_type::Correspondence);
 };
 template <>
 struct glz::meta<ew::check>
 {
-	using T                     = ew::check;
-	static constexpr auto value = object("id", &T::Id, "method", &T::Method, "title", &T::Title, "command", &T::Command, "claims", &T::Claims, "formal", &T::Formal, "disposition",
-										 &T::Disposition, "origin", &T::Origin);
+	using value_type            = ew::check;
+	static constexpr auto value = object("id", &value_type::Id, "method", &value_type::Method, "title", &value_type::Title, "command", &value_type::Command, "claims", &value_type::Claims, "formal", &value_type::Formal, "disposition",
+										 &value_type::Disposition, "origin", &value_type::Origin);
 };
 template <>
 struct glz::meta<ew::working>
 {
-	using T                     = ew::working;
-	static constexpr auto value = object("path", &T::Path, "object", &T::Object);
+	using value_type            = ew::working;
+	static constexpr auto value = object("path", &value_type::Path, "object", &value_type::Object);
 };
 template <>
 struct glz::meta<ew::material>
 {
-	using T                     = ew::material;
-	static constexpr auto value = object("head", &T::Head, "working", &T::Working);
+	using value_type            = ew::material;
+	static constexpr auto value = object("head", &value_type::Head, "working", &value_type::Working);
 };
 template <>
 struct glz::meta<ew::artifact>
 {
-	using T                     = ew::artifact;
-	static constexpr auto value = object("name", &T::Name, "state", &T::State, "reference", &T::Reference, "object", &T::Object, "size", &T::Size);
+	using value_type            = ew::artifact;
+	static constexpr auto value = object("name", &value_type::Name, "state", &value_type::State, "reference", &value_type::Reference, "object", &value_type::Object, "size", &value_type::Size);
 };
 template <>
 struct glz::meta<ew::result>
 {
-	using T                     = ew::result;
-	static constexpr auto value = object("id", &T::Id, "check", &T::Check, "outcome", &T::Outcome, "class", &T::Class, "origin", &T::Origin, "material", &T::Material, "candidate",
-										 &T::Candidate, "inputs", &T::Inputs, "environment", &T::Environment, "expected", &T::Expected, "actual", &T::Actual, "limitations",
-										 &T::Limitations, "artifacts", &T::Artifacts, "recorded", &T::Recorded, "selected", &T::Selected);
+	using value_type            = ew::result;
+	static constexpr auto value = object("id", &value_type::Id, "check", &value_type::Check, "outcome", &value_type::Outcome, "class", &value_type::Class, "origin", &value_type::Origin, "material", &value_type::Material, "candidate",
+										 &value_type::Candidate, "inputs", &value_type::Inputs, "environment", &value_type::Environment, "expected", &value_type::Expected, "actual", &value_type::Actual, "limitations",
+										 &value_type::Limitations, "artifacts", &value_type::Artifacts, "recorded", &value_type::Recorded, "selected", &value_type::Selected);
 };
 template <>
 struct glz::meta<ew::question>
 {
-	using T                     = ew::question;
-	static constexpr auto value = object("id", &T::Id, "text", &T::Text, "claim", &T::Claim, "resolved", &T::Resolved, "disposition", &T::Disposition, "origin", &T::Origin, "selected",
-										 &T::Selected);
+	using value_type            = ew::question;
+	static constexpr auto value = object("id", &value_type::Id, "text", &value_type::Text, "claim", &value_type::Claim, "resolved", &value_type::Resolved, "disposition", &value_type::Disposition, "origin", &value_type::Origin, "selected",
+										 &value_type::Selected);
 };
 template <>
 struct glz::meta<ew::import_record>
 {
-	using T                     = ew::import_record;
-	static constexpr auto value = object("ordinal", &T::Ordinal, "origin", &T::Origin, "digest", &T::Digest, "claims", &T::Claims, "checks", &T::Checks, "results", &T::Results,
-										 "questions", &T::Questions, "at", &T::At);
+	using value_type            = ew::import_record;
+	static constexpr auto value = object("ordinal", &value_type::Ordinal, "origin", &value_type::Origin, "digest", &value_type::Digest, "claims", &value_type::Claims, "checks", &value_type::Checks, "results", &value_type::Results,
+										 "questions", &value_type::Questions, "at", &value_type::At);
 };
 template <>
 struct glz::meta<ew::evidence>
 {
-	using T                     = ew::evidence;
-	static constexpr auto value = object("claims", &T::Claims, "checks", &T::Checks, "results", &T::Results, "questions", &T::Questions, "imports", &T::Imports, "next_id", &T::NextId);
+	using value_type            = ew::evidence;
+	static constexpr auto value = object("claims", &value_type::Claims, "checks", &value_type::Checks, "results", &value_type::Results, "questions", &value_type::Questions, "imports", &value_type::Imports, "next_id", &value_type::NextId);
 };
 template <>
 struct glz::meta<ew::head>
 {
-	using T                     = ew::head;
-	static constexpr auto value = object("format", &T::Format, "version", &T::Version);
+	using value_type            = ew::head;
+	static constexpr auto value = object("format", &value_type::Format, "version", &value_type::Version);
 };
 template <>
 struct glz::meta<ew::producer>
 {
-	using T                     = ew::producer;
-	static constexpr auto value = object("kind", &T::Kind, "name", &T::Name, "version", &T::Version);
+	using value_type            = ew::producer;
+	static constexpr auto value = object("kind", &value_type::Kind, "name", &value_type::Name, "version", &value_type::Version);
 };
 template <>
 struct glz::meta<ew::in_claim>
 {
-	using T                     = ew::in_claim;
-	static constexpr auto value = object("key", &T::Key, "kind", &T::Kind, "text", &T::Text);
+	using value_type            = ew::in_claim;
+	static constexpr auto value = object("key", &value_type::Key, "kind", &value_type::Kind, "text", &value_type::Text);
 };
 template <>
 struct glz::meta<ew::in_formal>
 {
-	using T                     = ew::in_formal;
-	static constexpr auto value = object("property", &T::Property, "subject", &T::Subject, "tool", &T::Tool, "assumptions", &T::Assumptions, "bounds", &T::Bounds, "correspondence",
-										 &T::Correspondence);
+	using value_type            = ew::in_formal;
+	static constexpr auto value = object("property", &value_type::Property, "subject", &value_type::Subject, "tool", &value_type::Tool, "assumptions", &value_type::Assumptions, "bounds", &value_type::Bounds, "correspondence",
+										 &value_type::Correspondence);
 };
 template <>
 struct glz::meta<ew::in_check>
 {
-	using T                     = ew::in_check;
-	static constexpr auto value = object("key", &T::Key, "method", &T::Method, "title", &T::Title, "command", &T::Command, "claims", &T::Claims, "formal", &T::Formal);
+	using value_type            = ew::in_check;
+	static constexpr auto value = object("key", &value_type::Key, "method", &value_type::Method, "title", &value_type::Title, "command", &value_type::Command, "claims", &value_type::Claims, "formal", &value_type::Formal);
 };
 template <>
 struct glz::meta<ew::in_working>
 {
-	using T                     = ew::in_working;
-	static constexpr auto value = object("path", &T::Path, "object", &T::Object, "deleted", &T::Deleted);
+	using value_type            = ew::in_working;
+	static constexpr auto value = object("path", &value_type::Path, "object", &value_type::Object, "deleted", &value_type::Deleted);
 };
 template <>
 struct glz::meta<ew::in_material>
 {
-	using T                     = ew::in_material;
-	static constexpr auto value = object("head", &T::Head, "working", &T::Working);
+	using value_type            = ew::in_material;
+	static constexpr auto value = object("head", &value_type::Head, "working", &value_type::Working);
 };
 template <>
 struct glz::meta<ew::in_artifact>
 {
-	using T                     = ew::in_artifact;
-	static constexpr auto value = object("name", &T::Name, "path", &T::Path, "url", &T::Url);
+	using value_type            = ew::in_artifact;
+	static constexpr auto value = object("name", &value_type::Name, "path", &value_type::Path, "url", &value_type::Url);
 };
 template <>
 struct glz::meta<ew::in_result>
 {
-	using T                     = ew::in_result;
-	static constexpr auto value = object("check", &T::Check, "check_id", &T::CheckId, "outcome", &T::Outcome, "class", &T::Class, "material", &T::Material, "inputs", &T::Inputs,
-										 "environment", &T::Environment, "expected", &T::Expected, "actual", &T::Actual, "limitations", &T::Limitations, "artifacts", &T::Artifacts);
+	using value_type            = ew::in_result;
+	static constexpr auto value = object("check", &value_type::Check, "check_id", &value_type::CheckId, "outcome", &value_type::Outcome, "class", &value_type::Class, "material", &value_type::Material, "inputs", &value_type::Inputs,
+										 "environment", &value_type::Environment, "expected", &value_type::Expected, "actual", &value_type::Actual, "limitations", &value_type::Limitations, "artifacts", &value_type::Artifacts);
 };
 template <>
 struct glz::meta<ew::in_question>
 {
-	using T                     = ew::in_question;
-	static constexpr auto value = object("text", &T::Text, "claim", &T::Claim);
+	using value_type            = ew::in_question;
+	static constexpr auto value = object("text", &value_type::Text, "claim", &value_type::Claim);
 };
 template <>
 struct glz::meta<ew::document>
 {
-	using T                     = ew::document;
-	static constexpr auto value = object("format", &T::Format, "version", &T::Version, "producer", &T::Producer, "claims", &T::Claims, "checks", &T::Checks, "results", &T::Results,
-										 "questions", &T::Questions);
+	using value_type            = ew::document;
+	static constexpr auto value = object("format", &value_type::Format, "version", &value_type::Version, "producer", &value_type::Producer, "claims", &value_type::Claims, "checks", &value_type::Checks, "results", &value_type::Results,
+										 "questions", &value_type::Questions);
 };
 
 namespace bpr::core {
@@ -1177,7 +1177,7 @@ namespace bpr::core {
 		}
 		auto       next     = advanced(aDraft, aNow);
 		auto&      evidence = next.Evidence;
-		const auto ordinal  = static_cast<std::uint64_t>(evidence.Imports.size() + 1U);
+		const auto ordinal  = static_cast<std::uint64_t>(evidence.Imports.size()) + 1U;
 		auto       origin   = aDocument.Origin;
 		origin.Import       = ordinal;
 		auto claims         = std::map<std::string, std::uint64_t, std::less<>>{ };

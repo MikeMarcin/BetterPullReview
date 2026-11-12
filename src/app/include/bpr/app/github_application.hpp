@@ -688,6 +688,9 @@ namespace bpr::app {
 		/// \brief RFC-BPR-0108. Opens a worktree's local draft in the first
 		/// window, as Prepare Pull Request… does.
 		void open_local_draft(const std::string& aLocation);
+		/// \brief RFC-BPR-0109. Imports an evidence document into the open
+		/// local draft, as its Evidence area's Import… does.
+		void               import_local_draft_evidence(const std::string& aDocument);
 		[[nodiscard]] auto windows() const -> std::vector<core::bpr_window_context>;
 		[[nodiscard]] auto window(core::bpr_window_context aContext) noexcept -> qt::workbench_window*;
 		[[nodiscard]] auto status(core::bpr_window_context aContext) const noexcept -> std::optional<github_application_status>;

@@ -645,7 +645,7 @@ namespace bpr::qt {
 				aItem->setForeground(column, palette().color(QPalette::Disabled, QPalette::Text));
 			}
 		};
-		const auto add_results = [&](QTreeWidgetItem* const aCheckRow, const core::evidence_check& aCheck) {
+		const auto addResults = [&](QTreeWidgetItem* const aCheckRow, const core::evidence_check& aCheck) {
 			for (const auto& result : evidence.Results) {
 				if (result.Check != aCheck.Id) {
 					continue;
@@ -660,7 +660,7 @@ namespace bpr::qt {
 				}
 			}
 		};
-		const auto add_check = [&](QTreeWidgetItem* const aParent, const core::evidence_check& aCheck) {
+		const auto addCheck = [&](QTreeWidgetItem* const aParent, const core::evidence_check& aCheck) {
 			const auto  planned = std::ranges::none_of(evidence.Results, [&aCheck](const core::evidence_result& aResult) { return aResult.Check == aCheck.Id; });
 			const auto  status  = aCheck.Disposition != core::evidence_disposition::accepted ? disposition_word(aCheck.Disposition) : planned ? QStringLiteral("Planned")
 																																			  : QString{ };
@@ -670,7 +670,7 @@ namespace bpr::qt {
 			if (aCheck.Disposition == core::evidence_disposition::rejected) {
 				dimmed(item);
 			}
-			add_results(item, aCheck);
+			addResults(item, aCheck);
 			item->setExpanded(aCheck.Disposition != core::evidence_disposition::rejected);
 			return item;
 		};
@@ -684,7 +684,7 @@ namespace bpr::qt {
 			}
 			for (const auto& check : evidence.Checks) {
 				if (std::ranges::find(check.Claims, claim.Id) != check.Claims.end()) {
-					add_check(item, check);
+					addCheck(item, check);
 				}
 			}
 			item->setExpanded(claim.Disposition != core::evidence_disposition::rejected);
@@ -696,7 +696,7 @@ namespace bpr::qt {
 					other = row(new QTreeWidgetItem{ Tree }, 0U, row_kind::group, QStringLiteral("Checks of no claim"), QString{ });
 					other->setExpanded(true);
 				}
-				add_check(other, check);
+				addCheck(other, check);
 			}
 		}
 		if (!evidence.Questions.empty()) {

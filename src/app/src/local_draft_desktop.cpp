@@ -203,7 +203,8 @@ namespace bpr::app {
 		Closing = true;
 		// The page outlives this desktop in the window; a gesture it sends
 		// while it is torn down (a title losing focus) reaches nothing.
-		if (View != nullptr) {
+		// A window already gone took the page with it: nothing to detach.
+		if (View) {
 			View->set_dispatch({ });
 			View->evidence()->set_dispatch({ });
 			Window.set_local_draft_entry_dispatch({ }, { });

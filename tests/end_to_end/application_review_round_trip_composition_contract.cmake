@@ -3135,6 +3135,12 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/installed_runtime.cpp"
         "src/installed_runtime.hpp"
         "src/large_review_fixture.hpp"
+        "src/local_draft_cli.cpp"
+        "src/local_draft_cli.hpp"
+        "src/local_draft_desktop.cpp"
+        "src/local_draft_desktop.hpp"
+        "src/local_draft_handoff.cpp"
+        "src/local_draft_handoff.hpp"
         "src/pane_find_controller.cpp"
         "src/pane_find_controller.hpp"
         "src/platform_credential_vault.cpp"
@@ -3544,8 +3550,20 @@ function(bpr_verify_app_source_tree app_source_root)
 	# rewrites that stop's text in the frozen update tour), and the window
 	# observes the pull request's files before previewing a published tour's
 	# update. No grant, admission or publication boundary changes.
+	# [[BPR-2021]], [[BPR-2023]], [[BPR-2024]], RFC-BPR-0108 and RFC-BPR-0109
+	# (reviewed 2026-11-11): local PR drafts. local_draft_desktop composes the
+	# draft page over the profile's local-drafts.sqlite3 and an isolated,
+	# credential-free installed-Git reader of the chosen worktree;
+	# local_draft_handoff and local_draft_cli are `bpr draft open`, which runs
+	# on the profile's store under its lease or forwards over the same-user
+	# command channel; an evidence import reads one chosen document and the
+	# artifacts beneath its folder through the read-only workspace source and
+	# runs nothing; a link artifact goes to system_browser_opener only as a
+	# validated web address. The attended look gains --attended-local-draft
+	# and --attended-local-draft-evidence. No grant, account, provider,
+	# admission, mutation or publication change; no network grant.
 	set(bpr_expected_production_app_manifest_digest
-        "51d2bdfa2bd487a48be4e9a86298d75eda792770b71119fc54c345735638cc6f"
+        "3f5449ebf92add3df23530d1e01054ccbdb57f766f4257145e2055c46dbf5ad1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

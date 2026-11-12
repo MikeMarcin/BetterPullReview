@@ -343,6 +343,17 @@ namespace bpr::app {
 #endif
 	}
 
+	void github_application::import_local_draft_evidence(const std::string& aDocument)
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				session->DraftDesktop->host().import_evidence(aDocument);
+				return;
+			}
+		}
+	}
+
 	void github_application::open_local_draft(const std::string& aLocation)
 	{
 		for (const auto& [context, session] : Sessions) {

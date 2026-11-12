@@ -6,6 +6,7 @@
 #include "bpr/application/workspace_source_port.hpp"
 
 #include <QFont>
+#include <QPointer>
 #include <QString>
 
 #include <filesystem>
@@ -62,8 +63,9 @@ namespace bpr::app {
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 
 	private:
-		qt::workbench_window&                               Window;
-		qt::local_draft_view*                               View = nullptr;
+		qt::workbench_window& Window;
+		/// The window owns the page; a window torn down first takes it with it.
+		QPointer<qt::local_draft_view>                      View;
 		std::unique_ptr<application::workspace_source_port> Source;
 		std::unique_ptr<application::local_draft_workbench> Host;
 		folder_chooser                                      Chooser;
