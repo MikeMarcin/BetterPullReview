@@ -252,13 +252,21 @@ namespace {
 
 		std::size_t Inspections  = 0U;
 		bool        InspectFails = false;
-		auto        inspect_agent_workspace(const application::owned_agent_workspace&, std::stop_token) -> std::expected<void, application::agent_workspace_error> override
+		/// [[BPR-2118]]. When set, an inspection hands back this guard, as the
+		/// Git adapter does after a remount changed the journal's identity form.
+		std::optional<application::agent_workspace_lifetime_guard> ReattachedGuard;
+		auto                                                       inspect_agent_workspace(const application::owned_agent_workspace& aWorkspace, std::stop_token)
+			-> std::expected<application::owned_agent_workspace, application::agent_workspace_error> override
 		{
 			++Inspections;
 			if (InspectFails) {
 				return std::unexpected(application::agent_workspace_error{ application::agent_workspace_failure::unavailable, "PRIVATE_CANARY /private/path", InspectReason });
 			}
-			return { };
+			auto reattached = aWorkspace;
+			if (ReattachedGuard) {
+				reattached.LifetimeGuard = ReattachedGuard;
+			}
+			return reattached;
 		}
 
 		[[nodiscard]] auto cleanup_agent_workspace(
@@ -2019,6 +2027,30 @@ namespace {
 #endif
 	}
 
+	/// [[BPR-2118]]. A continued native turn launches with the guard the
+	/// inspection hands back, not the copy the conversation stored: after a
+	/// remount only the journal's durable identity still matches the file.
+	void continued_turn_launches_with_the_reattached_guard()
+	{
+		auto test                 = harness{ };
+		test.Workspaces.Guard     = application::agent_workspace_lifetime_guard{ .Path = "/tmp/fixture-ownership.jsonl", .FileIdentity = { 1U, 16777229U, 0U, 3U } };
+		auto input                = request(core::git_host_id{ 1 }, core::claude_stream_json_profile_id);
+		input.NativeAgentIdentity = "reattach-incarnation";
+		input.NativeScope         = "agent-tab";
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 1U && test.Processes.LastRequest->WorkspaceLifetimeGuard == test.Workspaces.Guard,
+			   "the first native turn launches with the guard materialization made");
+		const auto reattached           = application::agent_workspace_lifetime_guard{ .Path = "/tmp/fixture-ownership.jsonl", .FileIdentity = { 1U, 0x1122334455667788U, 0x99AABBCCDDEEFF00U, 3U } };
+		test.Workspaces.ReattachedGuard = reattached;
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 2U && test.Workspaces.Inspections == 1U && test.Processes.LastRequest->WorkspaceLifetimeGuard == reattached,
+			   "the continued turn launches with the inspected guard identity, not the stored one");
+	}
+
 	void pr_workspace_is_shared_across_scopes_agents_and_windows()
 	{
 		auto test                 = harness{ };
@@ -2220,6 +2252,7 @@ auto main(const int aCount, char** aArguments) -> int
 	native_workspace_and_identity_survive_window_activation();
 	shared_workspace_identity_isolates_authority_and_source();
 	pr_workspace_is_shared_across_scopes_agents_and_windows();
+	continued_turn_launches_with_the_reattached_guard();
 	native_storage_failures_remain_private();
 	native_project_size_does_not_gate_first_or_continued_turns();
 	test_tour_history_keeps_the_terminal_answer_item();

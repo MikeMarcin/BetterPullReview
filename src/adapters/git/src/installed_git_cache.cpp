@@ -1,6 +1,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 
 #include "bpr/adapters/git/installed_git_process.hpp"
+#include "bpr/platform/durable_volume_identity.hpp"
 #include "bpr/platform/windows_sharing_retry.hpp"
 #include "git_artifact_lifetime.hpp"
 
@@ -47,7 +48,6 @@
 
 #if defined(Q_OS_MACOS)
 	#include <stdio.h>
-	#include <sys/attr.h>
 #endif
 
 #if defined(Q_OS_LINUX)
@@ -1112,28 +1112,20 @@ namespace bpr::adapters::git {
 #if defined(Q_OS_MACOS)
 				// st_dev names a mount, not a durable volume. Keep it for live
 				// descriptor checks; persist the volume UUID and lock inode.
+				// [[BPR-2118]]. The one UUID reading the agent workspace
+				// ownership journal shares.
 				if (!Identity || exact_identity(Descriptor, exact_artifact_kind::regular_file) != Identity) {
 					return std::nullopt;
 				}
-				auto attributes        = attrlist{ };
-				attributes.bitmapcount = ATTR_BIT_MAP_COUNT;
-				attributes.volattr     = ATTR_VOL_INFO | ATTR_VOL_UUID;
-				struct volume_attributes
-				{
-					std::uint32_t                 Length = 0;
-					std::array<std::uint8_t, 16U> Uuid{ };
-				} volume;
-				static_assert(sizeof(volume) == 20U);
-				if (::fgetattrlist(Descriptor, &attributes, &volume, sizeof(volume), 0) != 0
-					|| volume.Length != sizeof(volume)
-					|| std::ranges::all_of(volume.Uuid, [](const auto aByte) { return aByte == 0U; })
+				const auto durable = bpr::platform::durable_volume_identity::of_descriptor(Descriptor, 1U);
+				if (!durable || (*durable)[3] != Identity->ObjectLow
 					|| exact_identity(Descriptor, exact_artifact_kind::regular_file) != Identity) {
 					return std::nullopt;
 				}
 				return exact_artifact_identity{
 					.Kind       = exact_artifact_kind::regular_file,
-					.Volume     = *read_u64(volume.Uuid, 0U),
-					.ObjectHigh = *read_u64(volume.Uuid, 8U),
+					.Volume     = (*durable)[1],
+					.ObjectHigh = (*durable)[2],
 					.ObjectLow  = Identity->ObjectLow
 				};
 #else
@@ -4894,7 +4886,7 @@ namespace bpr::adapters::git {
 			[[nodiscard]] auto inspect_agent_workspace(
 				const application::owned_agent_workspace& aWorkspace,
 				const std::stop_token                     aStop)
-				-> application::git_cache_result<void> override
+				-> application::git_cache_result<application::owned_agent_workspace> override
 			{
 				std::lock_guard operationGuard{ State->OperationMutex };
 				if (aStop.stop_requested()) {
@@ -4930,7 +4922,7 @@ namespace bpr::adapters::git {
 																																				  : reason::retained_unavailable;
 					return std::unexpected(std::move(error));
 				}
-				return { };
+				return std::move(*cleaned);
 			}
 
 			[[nodiscard]] auto cleanup_agent_workspace(

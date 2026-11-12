@@ -966,9 +966,10 @@ namespace bpr::application {
 
 	auto epoch_application_host::implementation::cleanup_agent_workspace(
 		const owned_agent_workspace& aWorkspace,
-		const std::stop_token aStop, const bool aInspect)
+		const std::stop_token aStop, owned_agent_workspace* aInspected)
 		-> std::expected<void, agent_workspace_error>
 	{
+		const auto inspect = aInspected != nullptr;
 		if (!Consumer->active() || aWorkspace.ApplicationSession != WindowApplicationSession) {
 			return std::unexpected{ agent_workspace_failure::cleanup_failed };
 		}
@@ -1025,8 +1026,9 @@ namespace bpr::application {
 		try {
 			enqueue_actor_work(
 				actor,
-				[this, actor, expected, aWorkspace, aStop, waiter, control, aInspect] {
-					auto result = std::expected<void, agent_workspace_error>{ };
+				[this, actor, expected, aWorkspace, aStop, waiter, control, inspect] {
+					auto result    = std::expected<void, agent_workspace_error>{ };
+					auto inspected = std::optional<owned_agent_workspace>{ };
 					try {
 						auto forwardCallerStop = std::stop_callback{
 							aStop,
@@ -1040,16 +1042,27 @@ namespace bpr::application {
 								agent_workspace_failure::cleanup_failed
 							};
 						} else {
-							const auto cleaned = aInspect ? actor->Cache->inspect_agent_workspace(aWorkspace, control->Stop.get_token())
-														  : actor->Cache->cleanup_agent_workspace(aWorkspace, control->Stop.get_token());
-							if (!cleaned.has_value()) {
+							// [[BPR-2118]]. An inspection hands back the workspace
+							// with the identities its journal records now.
+							auto failure = std::optional<git_cache_error>{ };
+							if (inspect) {
+								auto checked = actor->Cache->inspect_agent_workspace(aWorkspace, control->Stop.get_token());
+								if (checked.has_value()) {
+									inspected = std::move(*checked);
+								} else {
+									failure = std::move(checked.error());
+								}
+							} else if (auto cleaned = actor->Cache->cleanup_agent_workspace(aWorkspace, control->Stop.get_token()); !cleaned.has_value()) {
+								failure = std::move(cleaned.error());
+							}
+							if (failure) {
 								result = std::unexpected{ agent_workspace_error{
-									cleaned.error() == git_cache_failure::cancelled
+									*failure == git_cache_failure::cancelled
 										? agent_workspace_failure::cancelled
-										: aInspect ? agent_workspace_failure::unavailable
-												   : agent_workspace_failure::cleanup_failed,
-									std::move(cleaned.error().Detail),
-									cleaned.error().WorkspaceReason.value_or(agent_workspace_unavailable_reason::retained_unavailable) } };
+										: inspect ? agent_workspace_failure::unavailable
+												  : agent_workspace_failure::cleanup_failed,
+									std::move(failure->Detail),
+									failure->WorkspaceReason.value_or(agent_workspace_unavailable_reason::retained_unavailable) } };
 							}
 						}
 					} catch (...) {
@@ -1059,6 +1072,7 @@ namespace bpr::application {
 					}
 					auto waiterLock     = std::unique_lock{ waiter->Mutex };
 					waiter->Result      = std::move(result);
+					waiter->Inspected   = std::move(inspected);
 					const auto reserved = retire_actor_job(control);
 					struct actor_exit_reservation final
 					{
@@ -1092,12 +1106,18 @@ namespace bpr::application {
 				return waiter->Result.has_value() || waiter->Abandoned;
 			}));
 		if (waiter->Result.has_value()) {
+			if (aInspected != nullptr && waiter->Result->has_value()) {
+				if (!waiter->Inspected) {
+					return std::unexpected{ agent_workspace_failure::unavailable };
+				}
+				*aInspected = std::move(*waiter->Inspected);
+			}
 			return std::move(*waiter->Result);
 		}
 		// Abandoning this one leaves nothing behind: the removal still runs
 		// on the actor, and only its outcome goes unread. So the caller is
 		// told what released it and nothing else needs undoing. BPR-0397.
-		if (aInspect && !waiter->Abandoned) {
+		if (inspect && !waiter->Abandoned) {
 			return std::unexpected(agent_workspace_error{ agent_workspace_failure::unavailable, { }, agent_workspace_unavailable_reason::inspection_timed_out });
 		}
 		return std::unexpected{ waiter->Abandoned

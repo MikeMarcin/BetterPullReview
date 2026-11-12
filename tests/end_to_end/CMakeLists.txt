@@ -3174,6 +3174,18 @@ bpr_add_network_isolated_test(NAME application_startup_diagnostic_bounds
 set_tests_properties(application_startup_diagnostic_bounds PROPERTIES
     TIMEOUT 30 PASS_REGULAR_EXPRESSION "startup-diagnostic-bounds:pass")
 
+# [[BPR-2118]]. The agent composition's workspace-refusal sentences: one per
+# record check, with the refused-record count and the first record.
+bpr_add_executable(test_agent_workspace_refusal_text agent_workspace_refusal_text_tests.cpp)
+target_link_libraries(test_agent_workspace_refusal_text PRIVATE BetterPullReview::Composition)
+target_include_directories(test_agent_workspace_refusal_text PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+bpr_enable_hardening(test_agent_workspace_refusal_text)
+bpr_enable_warnings(test_agent_workspace_refusal_text)
+bpr_add_network_isolated_test(NAME agent_composition_refusal_text
+    COMMAND test_agent_workspace_refusal_text)
+set_tests_properties(agent_composition_refusal_text PROPERTIES
+    TIMEOUT 30 PASS_REGULAR_EXPRESSION "agent-workspace-refusal-text:pass")
+
 # [[BPR-0882]]. A startup refused as `unavailable` names the arm that refused
 # and what it threw. The run removes Git by emptying the search path, so it is
 # registered on macOS and Linux only. On Windows the build tree loads Qt through

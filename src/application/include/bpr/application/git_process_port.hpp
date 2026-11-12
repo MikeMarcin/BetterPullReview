@@ -525,8 +525,9 @@ namespace bpr::application {
 			std::stop_token                    aStop)
 			-> git_process_result<owned_agent_workspace> = 0;
 		/// \brief Checks the exact retained workspace through the same serialized Git owner.
+		/// \returns [[BPR-2118]]. The workspace with the identities its journal records now.
 		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, std::stop_token)
-			-> git_process_result<void> { return std::unexpected(git_process_failure::invalid_request); }
+			-> git_process_result<owned_agent_workspace> { return std::unexpected(git_process_failure::invalid_request); }
 		[[nodiscard]] virtual auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop) -> git_process_result<void> = 0;

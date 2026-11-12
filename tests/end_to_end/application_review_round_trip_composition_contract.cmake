@@ -3414,8 +3414,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# whole-feature native acceptance. The only additional file is the bounded
 	# tests-only focused-layout wait. Ordered142/complete197 and full-app/mutation
 	# pins stay exact. Frozen56/private44ec-to9e58 lineage remains separate.
+	# [[BPR-2118]] reseal (2026-11-11): agent_composition.cpp gives the split
+	# record checks (record-malformed, record-moved with its finding,
+	# record-cleanup-failed) their own sentences with the refused-record count;
+	# profile_runtime_construction.cpp appends `:records=<count>` to the
+	# existing path-omitted refusal line. No grant, credential, provider,
+	# mutation branch, publication or source-inventory change; the full-app and
+	# mutation pins are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "4cb4c7bb88d0c08c2dbd6d66390e2f6cbe083b0d0cdd116d1c96d25b9d9d8d63"
+        "52eb4c525570d3e10dd4559244a8034c12b91e3d5656b99452ba44af9065c631"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

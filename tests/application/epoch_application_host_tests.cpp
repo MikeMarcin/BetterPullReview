@@ -1834,15 +1834,15 @@ namespace {
 			return std::unexpected{ application::git_cache_failure::invalid_request };
 		}
 
-		[[nodiscard]] auto inspect_agent_workspace(const application::owned_agent_workspace&, const std::stop_token)
-			-> application::git_cache_result<void> override
+		[[nodiscard]] auto inspect_agent_workspace(const application::owned_agent_workspace& aWorkspace, const std::stop_token)
+			-> application::git_cache_result<application::owned_agent_workspace> override
 		{
 			if (State.WorkspaceCleanupFailure) {
 				auto failure = std::move(*State.WorkspaceCleanupFailure);
 				State.WorkspaceCleanupFailure.reset();
 				return std::unexpected(std::move(failure));
 			}
-			return { };
+			return aWorkspace;
 		}
 
 		[[nodiscard]] auto cleanup_agent_workspace(
@@ -8079,7 +8079,7 @@ namespace {
 								application::agent_workspace_unavailable_reason::retained_objects_missing }) {
 			value.State.WorkspaceCleanupFailure                  = application::git_cache_error{ application::git_cache_failure::process_failure, diagnostic };
 			value.State.WorkspaceCleanupFailure->WorkspaceReason = why;
-			auto inspected                                       = std::optional<std::expected<void, application::agent_workspace_error>>{ };
+			auto inspected                                       = std::optional<std::expected<application::owned_agent_workspace, application::agent_workspace_error>>{ };
 			auto caller                                          = std::jthread{ [&] { inspected = value.Host->inspect_agent_workspace(owned_workspace_for(value.Host->state()), { }); } };
 			value.Effects.wait_for_pending();
 			value.Effects.run_next();

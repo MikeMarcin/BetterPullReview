@@ -105,3 +105,11 @@ If the status bar says **Disposable agent workspaces are unavailable**, a
 parent folder of your data is usually writable by other users. On macOS and
 Linux run `chmod go-w` on the folder that holds the default profile; on
 Windows remove other accounts' write access.
+
+A restart alone must never cause it ([[BPR-2118]]). When the sentence names a
+workspace record, it says which check refused it, the first record, and how
+many records were refused. Quit BetterPullReview, move every refused record
+from `agent-workspace-ownership-v1` and its `betterpullreview-agent-<token>`
+folder from `BetterPullReview-agent-workspaces-v1` into a backup folder
+outside both, then restart. Leave `.git-process-boundary.lock` where it is.
+Nothing is deleted, but the app no longer knows about the moved workspaces.

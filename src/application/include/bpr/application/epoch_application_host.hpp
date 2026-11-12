@@ -117,7 +117,7 @@ namespace bpr::application {
 			std::stop_token                                aStop)
 			-> std::expected<owned_agent_workspace, agent_workspace_error> override;
 		[[nodiscard]] auto inspect_agent_workspace(const owned_agent_workspace& aWorkspace, std::stop_token aStop)
-			-> std::expected<void, agent_workspace_error> override;
+			-> std::expected<owned_agent_workspace, agent_workspace_error> override;
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop)
