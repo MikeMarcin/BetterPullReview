@@ -1509,3 +1509,61 @@ chip, and associations recorded only by the publication RFC.
 
 Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
 BPR-Test #152 and `-next`. No live GitHub use.
+
+## author-evidence (2026-11-11)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Milestone
+`author-evidence` (RFC-BPR-0109, BPR-2023..2025). Frontend-design was loaded
+before the Qt work. Ledger: [RFC-BPR-0109](../../../verification/RFC-BPR-0109.md);
+implementation record in the RFC. Owner amendments in force as above.
+
+**Dependency.** BPR-2023 depends on BPR-2022 (RFC-BPR-0108's closeout), which
+waits on BPR-2021's owner look (session `5f049205…`, not touched). The cards
+were therefore not claimed or moved, and main has no mirror this round; the
+engineering needed only the built local-draft code. Once BPR-2021 is accepted
+and BPR-2022 closes: ready and claim BPR-2023 and BPR-2024, finish both on the
+ledger's evidence (and BPR-2024's owner look), then BPR-2025 closes
+RFC-BPR-0109; mirror each move to main.
+
+| Commit | What |
+|---|---|
+| `8dbe497ba` | Core evidence record, import format, binding, currency, selection; `core_local_draft_evidence` |
+| `a70a3e432` | Import from a chosen folder through the workspace port; workbench evidence edits; artifact pins; `local_draft` course extended |
+| `be0a3d246` | Evidence area (Changes and Evidence tabs), `bpr draft open --evidence`, owner-channel field, desktop course `application_local_draft_evidence_desktop_public_path` |
+| `8f5ca195f` | Attended evidence look (`--attended-local-draft-evidence`, `tests/fixtures/local-draft/make_evidence_look.sh`); composition contract inventory and pin resealed; draft page held by `QPointer` (fixes the contract probe's shutdown crash); tidy fixes; docs. Product candidate |
+| (this commit) | `architecture_boundaries` fix (`QRandomGenerator::global()` in `local_draft_handoff.cpp`), ledger, this checkpoint |
+
+Runs at `8f5ca195f` (dev, Debug): `core_local_draft`,
+`core_local_draft_evidence`, `local_draft`, `core_profile_data_reset`,
+`sqlite_profile_data_reset_files`, `application_local_draft_desktop_public_path`,
+`application_local_draft_evidence_desktop_public_path`,
+`application_review_round_trip_composition_contract` (8/8);
+`sqlite_tour_owner_channel`, `architecture_boundary_contract`;
+`architecture_boundaries` after the fix; negative control (material without
+working files) fails `core_local_draft_evidence`; `bpr draft open --evidence`
+from a terminal (import, duplicate, observed refused); clang-format 22 and
+clang-tidy on the changed units; documentation gate OK. Not run: the whole
+suite, core-only preset, Qt window suites. An accidental untargeted build was
+stopped; the 101 binaries it linked were removed (list in the session
+scratchpad `deleted-binaries.txt`), all relinkable.
+
+Owner look, filed and not waited on: session
+`7fc09e758ebf8ac0d028da38a5d374f7`, state
+`/Users/jaeger/.attended-review-state/local-draft-evidence-v001-2026-11-11/state`,
+cursor 6, host PID 4867 (Tailscale child 4877), URL in that directory's
+`serve.log`. Candidates `BPR-2024-evidence-area` (`64c7cc55f1d2…`) and
+`BPR-2023-result-wording` (`1bb95d1a6928…`). Frozen root
+`/Users/jaeger/local-draft-evidence-v001.pdc9rq1b` from `8f5ca195f370`
+(executable SHA-256 `055e387e9e0e…`), launch
+`python3 /Users/jaeger/local-draft-evidence-v001.pdc9rq1b/launch.py`.
+
+Next: after BPR-2021's hand-back and BPR-2022, claim and finish BPR-2023 and
+BPR-2024 (BPR-2024 also on `7fc09e75…` from cursor 6), then BPR-2025; a
+Reject is a new candidate. Then stop host 4867 and `freeze_attended_build.py
+remove` the root. Known nit seen in renders, from local-draft-entry: the
+candidate chooser clips "Candidate 2 of 2". Next milestone in plan order,
+`local-tour-preparation`, depends on this one.
+
+Not touched: session `5f049205…` (host 6288/6298, root
+`/Users/jaeger/local-draft-v001.h8pe0ibf`), host 74692/74706, PIDs 10695 and
+39804, Tailscale 44738, BPR-Test #152 and `-next`. No live GitHub use.

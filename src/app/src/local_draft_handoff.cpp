@@ -29,7 +29,7 @@ namespace bpr::app {
 		{
 			auto bytes = std::array<std::uint8_t, 16>{ };
 			for (auto& byte : bytes) {
-				byte = static_cast<std::uint8_t>(QRandomGenerator::system()->bounded(256U));
+				byte = static_cast<std::uint8_t>(QRandomGenerator::global()->bounded(256U));
 			}
 			return { core::lower_hex(bytes) };
 		}
