@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0100"
 title: "A tour conversation that changes the tour in one turn"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"owner notes, 2026-11-10, notes 4, 8, 9 and 10","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
 ---
 

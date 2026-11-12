@@ -20,7 +20,7 @@ rows. Debug timings are nongating; nothing below is a timing claim.
 | AC03 the contracts state it; five fixed change requests each yield a card in the first answer | `application_tour_agent_conversation` (`test_rfc_0100_contracts`): every thread's contract answers a request with its change in the turn and a question in words; the whole tour's says it beside `bpr.tour-revise.v1`. Live, installed Claude Code 2.1.319 (Sonnet) through the composed app on nested-folders#21 after Draft the tour (8 stops): `live-tour-requests` carded 5/5, below | Pass |
 | AC04 Accept all, Review each, settling in either place | `qt_tour_agent_session_view`: the card lists "Merge stops 2 and 3 into “Both” / Remove stop 4"; Accept all dispatches both acceptances; Review each shows the run's first waiting part (`reviewed_revision`); presenting the parts accepted in the tour settles the card ("Accepted into the private draft."), one each way says "1 of 2 parts accepted."; Discard discards every waiting part. `ATTENDED_TOUR_REVISION_CARD` in the revision look | Pass (fixture); owner look accepted (AC09) |
 | AC05 Enhance sends a turn in the part's session; only Accept changes it; a selection replaces only the selection | `qt_tour_side_chat`: the Problem's Enhance opens its chat and sends its update turn ("Enhance the writing of the Problem."); on a selection the passage rides the turn. `application_review_tour_writing` (composed, scripted Claude): Enhance on a selection sends the Problem's update turn with the passage in its side chat and the field and the saved draft are unchanged after it ends. `core_tour_references`: `confine_to_passage` puts the passage's new text in its place, reads a whole field given back as its passage, proposes nothing when the passage is gone or stands twice. The session is the thread's: `request_tour_ask` runs in the thread's native scope | Pass |
-| AC06 a link and a snippet in the app; the permalink on GitHub in the established form | `qt_tour_side_chat` (10): a stop reading "Clears first (`item.cpp:4-6`) … src/item.cpp:4-30" shows a link to `src/item.cpp#L4-L6`, the alone reference as the permalink of lines 4 to 15 (12 lines) followed by Show in Review, and a reference naming no file of the pull request as written; Show in Review opens lines 4 to 30. Snippets are drawn by the BPR-1802 permalink box through the window's snippet host. `application_review_tour_publication_native`: the published stop holds ``([`review.cpp:2-4`](https://github.com/…/blob/<head>/review.cpp#L2-L4))``, the alone reference as the bare permalink, and `elsewhere.cpp:9` as written; a restarted app does not see the published tour as changed. BPR-Test, below: both comment kinds embed the bare permalink | Pass |
+| AC06 a link and a snippet in the app; the permalink on GitHub in the established form | `qt_tour_side_chat` (10): a stop reading "Clears first (`item.cpp:4-6`) … src/item.cpp:4-30" shows a link to `src/item.cpp#L4-L6`, the alone reference as the permalink of lines 4 to 15 (12 lines) followed by Show in Review, and a reference naming no file of the pull request as written; Show in Review opens lines 4 to 30. Snippets are drawn by the BPR-1802 permalink box through the window's snippet host. `application_review_tour_publication_native`: the published stop holds ``([`review.cpp:2-4`](https://github.com/…/blob/<head>/review.cpp#L2-L4))``, the alone reference as the bare permalink, and `elsewhere.cpp:9` as written; a restarted app does not see the published tour as changed. BPR-Test, below: both comment kinds embed the bare permalink. A tour update of an edited published stop ([[BPR-2116]], `f042726a6`): the same course edits the published stop to ``Edited after publishing (`review.cpp:3-4`).`` with `secondary.cpp:2-3` alone, updates, and the edited comment holds ``([`review.cpp:3-4`](https://github.com/…/blob/<head>/review.cpp#L3-L4))`` and the bare `secondary.cpp#L2-L3` permalink; the author's text stays as written and a restarted app counts no unpublished change and writes nothing | Pass |
 | AC07 both rules in the drafting prompt, the conversation contract and the stop-comment hook; versions advanced | `application_tour_agent_conversation`: both rules in the drafting prompt and in the whole-tour and part conversations, under `bpr.tour-guide.v2` (was v1); `tour-stop-comment.md` carries both and reports `tour-stop-comment-v2` (was `review-preparation-v1`, which the other tour hooks keep); `application_writing_delivery`, `qt_settings_window` | Pass |
 | AC08 the owner accepts that a drafted tour of a flag-move pull request does not describe the retained path | Fixture `flag-move-v1` (`scripts/build_flag_move_fixture.py`): the key=value loader moved byte for byte into `legacy_loader.cpp` behind `--strict-toml`. `live-tour-draft-flag-move` (Sonnet) drafted six stops; stop 3 reads "This is the old loader body moved into its own file and renamed `load_legacy_config`. Compare it with the removed lines … to check that it is unchanged." | Pass: owner accepted (`1180b2e4`, session `c46887c9`) |
 | AC09 the owner accepts the lower edge and the revision card on a frozen build | Frozen build of `e6e84653e` with the revision look; native renders | Pass: owner accepted the lower edge (`8736f969`) and the card (`e1ad5848`), session `c46887c9` |
@@ -102,10 +102,13 @@ run: the whole dev suite, the core-only preset, Windows and Linux.
 
 ## Known limits
 
-- An already published stop whose text is edited is republished by a tour
-  update with its references as written (the update path renders the stop
-  from the core, which has no permalink maker); a new publication and the
-  stops a tour update creates carry permalinks.
+- Fixed by [[BPR-2116]] (`f042726a6`): an already published stop whose text
+  is edited was republished by a tour update with its references as written.
+  Two causes: the window never handed a published tour's preview the pull
+  request's files (so nothing resolved), and the update rendered the stop
+  from the core, which has no permalink maker. The window now observes the
+  files for an update too, and the plan writes an edited published stop's
+  text in its published form in the frozen update tour.
 - The Problem and the Solution link their references on the Overview; in the
   Tour tab they are edited as source, not rendered.
 - `qt_tour_agent_session_view` fails under the native-look environment at an
@@ -135,3 +138,29 @@ published stop writes its references as written (Known limits above), so on
 that path the criterion is not met. [[BPR-2116]] (Backlog) fixes it and
 [[BPR-1997]] now depends on it. Every other criterion passes as recorded. The
 owner's suggestion to name a session is [[BPR-2115]] (Backlog).
+
+## BPR-2116: a tour update republishes references (2026-11-11)
+
+Product commit `f042726a6`. Test first: the extended
+`application_review_tour_publication_native` failed on `f35071d0e` with "the
+updated comment does not keep the reference as written" (the updated body
+read ``Edited after publishing (`review.cpp:3-4`).``). A debug run showed the
+plan had no files for a published tour (`files=0`), the first cause above.
+With both causes fixed the course passes; with the plan's rewrite disabled
+(the window still observing files) it fails at the same check (negative
+control). `core_review_tour_update` checks `tour_stop_text_edited`: a stop
+published as written, or whose author's text is the published one although
+its comment carries permalinks, is not edited; a changed stop is.
+
+Runs at `f042726a6`: `core_review_tour_update`, all twelve
+`application_review_tour_publication_*` courses, 62 `tour` ctest rows,
+`application_review_round_trip_composition_contract` (pin resealed),
+`application_composition_source_contract`, `architecture_boundaries`,
+`coding-format-check`, clang-tidy on the three changed sources (clean).
+
+## Closeout (2026-11-11)
+
+[[BPR-1997]] judged every criterion against the evidence above; all pass,
+AC06 on both the first publication and a tour update of an edited published
+stop. Evidence reused unchanged except BPR-2116's runs. Not run: Windows and
+Linux, the whole dev suite. RFC-BPR-0100 is Auto-Verified.

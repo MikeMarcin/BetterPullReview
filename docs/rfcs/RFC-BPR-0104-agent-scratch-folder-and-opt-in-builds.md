@@ -235,10 +235,15 @@ the checkout's `.claude/settings.json` and `.claude/settings.local.json`
 hooks, `apiKeyHelper` and `.mcp.json` servers, with no grant at all.
 
 - **Every launch in a checkout BPR made** names it, by the path the turn runs
-  in and its canonical path. Codex gets `-c projects={"PATH"={trust_level=
-  "untrusted"},…}`, which replaces every `projects` entry for the run: the
-  checkout's configuration, hooks and rules are not loaded and Codex writes
-  nothing to the reviewer's configuration. Claude Code gets
+  in, its canonical path and the path the system reports for the opened
+  folder (the spelling Codex keys a project by; under a macOS firmlink it is
+  not the canonical one), and a checkout that cannot be resolved is not
+  launched in. Codex gets `-c projects={"PATH"={trust_level=
+  "untrusted"},…}`, which is merged into the reviewer's `projects` table for
+  the run and overrides any entry for those paths (fourth review: it merges,
+  it does not replace the table): the checkout's configuration, hooks and
+  rules are not loaded and Codex writes nothing to the reviewer's
+  configuration. Claude Code gets
   `--setting-sources user`: no project or local settings, project MCP
   servers, skills, agents or commands. The reviewer's own checkout keeps
   their settings (and Codex is given no grant there, as before).

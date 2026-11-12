@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2007"
 title: "Give an agent session a scratch folder it may write and run in"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0104"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0019-agent-scratch-folder.md"}
 depends_on: ["BPR-2005"]
-parked_on: "human-review"
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"882ebed54e593f0595b4afac458d5cc76ac50c1f","evidence":{"kind":"observation","detail":"Live agent-scratch course: Claude Code and Codex each wrote count.py in the folder, ran it and reported its output; off carries no allowance"}},{"criterion":"AC02","outcome":"pass","revision":"882ebed54e593f0595b4afac458d5cc76ac50c1f","evidence":{"kind":"observation","detail":"Live: each agent's workspace write refused; git status clean in every workspace BPR made"}},{"criterion":"AC03","outcome":"pass","revision":"7a5bb7de1cf6f7289c0142a8fc02a94990cecb9b","evidence":{"kind":"command","detail":"AC03 as amended: set limit, stop during a turn, removal by age, Clear (ledger)","command":"ctest --preset dev -R 'application_agent_scratch_folder|application_agent_invocation_host|application_agent_launch'"}},{"criterion":"AC05","outcome":"pass","revision":"882ebed54e593f0595b4afac458d5cc76ac50c1f","evidence":{"kind":"command","detail":"Footer picker's grant item matches each launch state; owner accepted the toggles (246ef52c)","command":"ctest --preset dev -R 'qt_agent_footer|core_agent_grant'"}},{"criterion":"AC06","outcome":"pass","revision":"7a5bb7de1cf6f7289c0142a8fc02a94990cecb9b","evidence":{"kind":"command","detail":"Read-only and tool-free runs refuse a grant; tour and hook argv tests pass; a launch in a made checkout gains only the checkout guard (RFC third-round amendment)","command":"ctest --preset dev -R application_agent_launch"}},{"criterion":"AC07","outcome":"pass","revision":"7a5bb7de1cf6f7289c0142a8fc02a94990cecb9b","evidence":{"kind":"observation","detail":"Fourth independent re-review of 059e191fb passed with no blocking finding; non-blocking items fixed test first in 7a5bb7de1"}},{"criterion":"AC08","outcome":"pass","revision":"882ebed54e593f0595b4afac458d5cc76ac50c1f","evidence":{"kind":"command","detail":"New and migrated agents start with the folder on; starting state Off resolves to no allowance","command":"ctest --preset dev -R 'core_agent_grant|sqlite_agent_setup_storage'"}},{"criterion":"AC09","outcome":"pass","revision":"882ebed54e593f0595b4afac458d5cc76ac50c1f","evidence":{"kind":"observation","detail":"Choice kept per pull request and agent across restart; next turn without allowance (live); New session uses the same stored choice"}}]
 ---
 
 # Give an agent session a scratch folder it may write and run in
@@ -151,3 +151,17 @@ it, and the argument parser drops the attached `=`. Both grants are kept.
 Tests and the live course with a hostile fixture are in the
 [ledger](../../verification/RFC-BPR-0104.md#third-review-round-2026-11-11).
 The card stays parked: AC07 waits on another independent re-review.
+
+## Fourth review round (2026-11-11)
+
+The fourth independent re-review of `059e191fb` passed AC07 with no blocking
+finding. Its non-blocking items were taken test first in `7a5bb7de1`: the
+checkout is named by every spelling Codex keys it by (a `/System/Volumes/Data`
+firmlink's canonical path is not the kernel's) and a checkout that cannot be
+resolved refuses the launch; `plain_key` drops every whitespace character;
+the merge (not replace) of `-c projects` corrected in the records; the hostile
+live course registered as an opt-in row with trusted-home, worktree and
+firmlink cases (20 runs pass). Review Cycle rounds run in the reviewer's own
+folder and keep its settings (recorded). Evidence:
+[ledger](../../verification/RFC-BPR-0104.md#fourth-review-round-2026-11-11).
+The owner's looks were accepted in `246ef52c`. Done.

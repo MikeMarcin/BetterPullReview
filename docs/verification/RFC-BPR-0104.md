@@ -47,7 +47,7 @@ Three facts decided the arguments:
 | AC04 | `core_agent_grant`: off until turned on; own checkout is `own_checkout` with no allowance and nothing to ask; a disposable checkout asks once (`unasked`), declining leaves none. `application_agent_invocation_host`: the reviewer's own checkout launches with no build allowance even when asked; `qt_agent_setup_view`: the setting's words; `sqlite_agent_setup_storage`: the pull request's answer is kept across a restart | Pass at the unit, host and storage layers; the question's composed path (`grant_agent_turn`) has no course |
 | AC05 | Rejected as drawn (`5a9f122e`) and redrawn as two toggles; `qt_agent_footer` and `core_agent_grant` show each toggle checked only while the launch carries it (see [dispositions](#dispositions), finding 4). At `882ebed54`: `qt_agent_footer`: the grant line reads "Writes only in its scratch folder", "Reads only" and "Builds and tests in its disposable checkout" for the three states, the scratch item is checked while on, the builds line names the agent; Claude's words say "permission rule" and never "sandbox"; Codex's say "Codex's sandbox enforces this". Live: the line read "Writes only in its scratch folder" for the turn that wrote, "Reads only" for the turn that could not | Pass |
 | AC06 | `application_agent_launch`: a read-only (tour) run and a tool-free run refuse a grant; the plain-text harness refuses one; the existing tour and hook argv tests are unchanged and pass | Pass |
-| AC07 | Independent critical review | Reviewed 2026-11-11: pass-with-findings ([dispositions](#dispositions)); re-reviewed: pass-with-findings ([second round](#re-review-of-the-fixes-2026-11-11)); re-reviewed again: **FAIL** (F1, F2), fixed in the [third round](#third-review-round-2026-11-11). **Pending** another independent re-review |
+| AC07 | Independent critical review | Reviewed 2026-11-11: pass-with-findings ([dispositions](#dispositions)); re-reviewed: pass-with-findings ([second round](#re-review-of-the-fixes-2026-11-11)); re-reviewed again: **FAIL** (F1, F2), fixed in the [third round](#third-review-round-2026-11-11); the fourth independent re-review of `059e191fb` **passed** with no blocking finding ([fourth round](#fourth-review-round-2026-11-11)) | Pass |
 | AC08 | `core_agent_grant`: a new agent and agents migrated from the pre-list settings start with the folder on and builds off; `sqlite_agent_setup_storage`: an agent stored before the setting reads back on; with its starting state Off, a pull request with no choice resolves to no scratch allowance | Pass |
 | AC09 | `sqlite_agent_setup_storage`: the choice is kept for that pull request and agent after a restart, another pull request and another agent have none, the starting state is untouched. Live: unchecking "Scratch folder in this pull request" in the footer picker turned the line to "Reads only" and the next turn had no allowance: Claude's write of `second.py` was refused, Codex's failed with "operation not permitted", and the folder held only `count.py` | Pass for restart, other pull request and next turn; New session is the same stored choice (it is not keyed by conversation) and has no separate course |
 
@@ -380,10 +380,13 @@ both grants:
   `agent_launch_options::PullRequestCheckout`: the path the turn runs in and
   its canonical path (`std::filesystem::canonical`), set by
   `agent_invocation_host` whenever the reviewer's own checkout was not
-  chosen. Codex (`exec` and the App Server, tour runs included) gets `-c
-  projects={PATH={trust_level="untrusted"},…}`, which replaces every
-  `projects` entry for the run; Claude Code gets `--setting-sources user`.
-  The reviewer's own checkout keeps both agents' project settings (Codex
+  chosen (fourth review: also the opened folder's system path, and a
+  checkout that cannot be resolved refuses). Codex (`exec` and the App
+  Server, tour runs included) gets `-c
+  projects={PATH={trust_level="untrusted"},…}`, which is merged into the
+  reviewer's `projects` table and overrides the entries for those paths
+  (corrected in the fourth review: it does not replace the table);
+  Claude Code gets `--setting-sources user`. The reviewer's own checkout keeps both agents' project settings (Codex
   gets no grant there, as before).
 - `build_agent_launch` refuses a Codex grant without a named checkout, and a
   build grant whose checkout is not the one named, so no grant can reach a
@@ -479,3 +482,83 @@ preset, the live `agent-scratch` course (no rule changed; a launch only gains
 the checkout argument).
 
 Another independent re-review is owed; AC07 stays pending.
+
+## Fourth review round (2026-11-11)
+
+The fourth independent re-review of `059e191fb` (read only; its probe
+scripts, `cx.py`, `cx2.py`, `cl.py` and `canon.cpp`, were kept in the
+implementer session's scratchpad) **passed AC07** with no blocking finding
+and five non-blocking items. The change to `~/.codex/config.toml` it saw at
+11:05 was the coordinator removing, at the owner's request, the eight
+`trust_level = "trusted"` blocks recorded under the third round (seven
+`bpr-public-path-*` workspaces and the probe workspace); no BPR run wrote
+it.
+
+| Item | Disposition | Evidence |
+|---|---|---|
+| 1 (medium): the untrusted key came from `std::filesystem::canonical`, which keeps a `/System/Volumes/Data/…` firmlink spelling, while Codex keys a project by the kernel's path for its working folder (the reviewer's probe G: guard bypassed); and a canonicalisation error failed open (only the given path was named) | **Fixed.** `application::agent_checkout_spellings` names the given path, the canonical path and the opened folder's own path (`fcntl(F_GETPATH)` on macOS; the resolved path elsewhere); `agent_invocation_host` refuses the launch (`failed_to_start`, "the pull request's checkout could not be resolved") when it answers nothing | `application_agent_scratch_folder`: under `/System/Volumes/Data` the spellings include the kernel's `/private/…` path (failed with the old rule, test first), a missing folder and an empty path answer nothing; `application_agent_invocation_host`: a made checkout that does not exist starts no process and ends `failed_to_start`. Live: `codex-exec-builds-via-firmlink` below |
+| 2 (low): `-c projects={…}` merges with the reviewer's `[projects]` table, it does not replace it | **Corrected** in `agent_launch.hpp`, the RFC's third-round amendment and this ledger's third-round text. Merging is why every spelling must be named | The reviewer's probe H; the live `home-trusts` cases below |
+| 3 (low): `plain_key` stripped only spaces and tabs; Codex trims every whitespace character, so `-c $'\nsandbox_mode=…'` passed | **Fixed**: newline, return, vertical tab and form feed are dropped too | `core_agent_grant` (`test_codex_attached_equals`): `\nsandbox_mode`, `\r\nprojects`, `\vdefault_permissions`, `\fapproval_policy` and `profile\n` refuse (failed before, test first) |
+| 4: Review Cycle Send to Agent (`build_round_launch`) runs `codex exec --json -` or `claude -p` with no guard | **Recorded, not changed.** A round runs in `send_folder()`, the folder, file or checkout the reviewer opened with File > Open Project… or Home (product contract: "a folder, file or checkout of one's own"); BPR never makes it from a pull request, and no producer of `cycle_source_origin::provider_cache_copy` exists. It is the reviewer's own checkout, which keeps its settings by the same rule as the Agent tab's chosen checkout. Residual: a reviewer who opens someone else's pull request checkout as a cycle runs that folder's settings, as they would running the agent there themselves, except that `-p` skips Claude's trust dialog; named on [[BPR-2119]] | Code reading: `review_cycle_workbench.cpp` `send_folder`, `review_cycle_agent_sender.cpp` |
+| 5: register the hostile live course; fold in the trusted-home, worktree and resume probes | **Done** for the course, trusted home and worktree: `live_agent_checkout_settings` is registered when configured with `-DBPR_LIVE_AGENT_COURSES=ON` (label `live-agent`, never a default row), with `--replace`; new cases `codex-{exec,app-server}-builds-home-trusts`, `codex-exec-worktree-home-trusts` and their unguarded controls, and `codex-exec-builds-via-firmlink`; guarded runs name the checkout by `agent_checkout_spellings`, as the host does. **Not folded:** resume (the reviewer's `cx2.py` needs a first turn that creates a session against a live model; with dead providers the course has none to resume) | Live run below |
+
+Live, by hand, at `7a5bb7de1` (Codex 0.167.0, Claude Code
+2.1.319; isolated homes, every provider at `http://127.0.0.1:9`; this
+computer's `~/.codex/config.toml` and `~/.claude/settings.json` modification
+times and sizes the same before and after): 20 runs, every session started,
+`live-agent-checkout-settings-course:pass`.
+
+| Run | Beacons | Home configuration |
+|---|---|---|
+| Codex `exec` unguarded control | `codex-mcp` | changed (trust added) |
+| Codex `exec` and App Server: no grant, scratch, builds, builds through a link, builds with the home trusting the checkout | none | unchanged |
+| Codex `exec` unguarded, home trusts the checkout (control) | `codex-mcp` | unchanged |
+| Codex `exec` guarded in a linked worktree whose repository the home trusts | none | unchanged |
+| the same unguarded (control) | `codex-mcp` | unchanged |
+| Codex `exec` with builds, run through `/System/Volumes/Data` | none | unchanged |
+| Claude Code unguarded control | both settings files' `SessionStart` and `UserPromptSubmit`, the local file's `apiKeyHelper`, `.mcp.json` | unchanged |
+| Claude Code: no grant, scratch, builds | none | unchanged |
+
+AC07 passes. The closeout judges the rest.
+
+## Release exposure check (2026-11-11)
+
+Read-only investigation of whether shipped builds launch agents in a
+pull-request-derived checkout without the third round's guards. Code read at
+the release tags and `main`; no main build was made (the lane's live course
+above is the behavioural evidence, and the shipped launch arguments are the
+lane's unguarded control's).
+
+| Build | Guard (`--setting-sources user`, Codex untrusted project) | Agent integrations in the package |
+|---|---|---|
+| 0.4.1 (`d9d4a822d`, Latest, 2026-11-02) | none | yes: full `macos-release`, Windows and Linux packages (no `-agent-free` asset) |
+| 0.4.0 (`0941326ae`), v0.3.4 (`be4fe79d8`) | none | yes (full packages); earlier releases not read |
+| v0.4.2-build.58 (`70324127b`, prerelease) and earlier 0.4.2 builds | none | yes |
+| `main` at `8d283e744` | none | yes (`dev`, `macos-release` and the other full presets) |
+| this lane from `059e191fb` | both, hardened in the fourth round | yes |
+
+Launch paths and where they run, on `main` and the 0.4.2 prereleases (0.4.1
+has only the first row's entry points and the writing restrictions):
+
+| Path | Working folder | Transport | Shipped mitigation | Exposed |
+|---|---|---|---|---|
+| Agent tab and its entry points (Ask about the selection, Analyze file, Analyze upload, Evaluate fix, Workshop comment, Run AI review, full session, Ask about the conversation) | The disposable checkout BPR makes from the pull request's head (`materialize_agent_workspace`), unless the reviewer chose their own checkout | Claude `-p` stream JSON | none | **Yes**: the checkout's `.claude/settings*.json` hooks, `apiKeyHelper`, `statusLine` and `.mcp.json` servers run on the first turn, unsandboxed, no prompt |
+| the same | the same | Codex `exec --json` | none; exposure depends on the reviewer's own Codex settings | **Yes when** the reviewer's configuration makes the folder writable (`sandbox_mode = "workspace-write"`): Codex trusts the checkout, persists that in `~/.codex/config.toml`, and runs its `.codex/config.toml` `mcp_servers` outside the sandbox. With Codex's read-only default, not observed |
+| the same | the same | Codex App Server | none | Not observed (it did not trust the checkout in any probe) |
+| Tour drafting and conversation (read-only tools), main and 0.4.2 | the disposable checkout | Claude, Codex `exec`, App Server | Claude `--setting-sources "" --strict-mcp-config`; Codex `exec` `--sandbox read-only -c mcp_servers={}`; App Server `-c mcp_servers={}` | Mitigated (not probed live on a main build) |
+| Tour rewrites and writing hooks (`WritingOnly`) | the disposable checkout | Claude only | `--setting-sources ""`, no tools, empty strict MCP | No |
+| Review Cycle Send to Agent | the folder the reviewer opened | Claude `-p`, Codex `exec`, App Server | none | Not by pull-request content BPR made (item 4 above) |
+| `agent-free` packages | n/a | n/a | no agent launch | No |
+
+Verdict: **exposed.** Every full package checked (0.3.4, 0.4.0, 0.4.1 and
+the 0.4.2 prereleases) and `main`. Severity **high**: a pull request author
+gets code execution with the reviewer's rights, outside any sandbox and with
+no prompt, when the reviewer uses any Agent-tab action with Claude Code on
+that pull request, or with Codex `exec` under a writable sandbox mode (where
+the trust also persists in the reviewer's configuration). It needs agent
+integrations set up and one agent question; opening the pull request alone
+runs nothing. Reviewers who used Codex this way may hold
+`trust_level = "trusted"` entries for BPR workspace paths in
+`~/.codex/config.toml`, as this computer did. Hotfix needed on `main` (and in
+a patch release at the owner's choice): [[BPR-2119]] (Backlog, reserved
+against main). Nothing was changed on `main`'s product.

@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2008"
 title: "Let an agent build and run tests in its disposable checkout when asked to"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0104"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0020-opt-in-builds-and-tests.md"}
 depends_on: ["BPR-2007"]
+acceptance: [{"criterion":"AC04","outcome":"pass","revision":"882ebed54e593f0595b4afac458d5cc76ac50c1f","evidence":{"kind":"command","detail":"Unavailable with its reason in the reviewer's own checkout; asks once per pull request in the disposable checkout; declining leaves no build allowance; kept across restart (composed question path has no course)","command":"ctest --preset dev -R 'core_agent_grant|application_agent_invocation_host|qt_agent_setup_view|sqlite_agent_setup_storage'"}},{"criterion":"AC07","outcome":"pass","revision":"7a5bb7de1cf6f7289c0142a8fc02a94990cecb9b","evidence":{"kind":"observation","detail":"Fourth independent re-review of 059e191fb passed with no blocking finding; the build allowance reviewed in every round (ledger)"}}]
 ---
 
 # Let an agent build and run tests in its disposable checkout when asked to
@@ -84,3 +85,13 @@ there; a build grant now launches only with that checkout named. The builds
 tooltip's claim is true with it, and the live course passes for builds on
 both agents ([ledger](../../verification/RFC-BPR-0104.md#third-review-round-2026-11-11)).
 Another independent re-review is owed. Still Backlog until BPR-2007 is Done.
+
+## Fourth review round (2026-11-11)
+
+The fourth independent re-review of `059e191fb` passed AC07 with no blocking
+finding; its non-blocking items were fixed test first in `7a5bb7de1` (every
+spelling of the checkout named, an unresolvable checkout refused, whitespace
+keys refused, the live course with trusted-home, worktree and firmlink
+cases). AC04 holds at the unit, host and storage layers as recorded above.
+Evidence: [ledger](../../verification/RFC-BPR-0104.md#fourth-review-round-2026-11-11).
+Done.
