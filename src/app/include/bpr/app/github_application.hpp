@@ -685,6 +685,9 @@ namespace bpr::app {
 		/// The compatibility accessor names the initial session only.
 		/// Throws after that session retires; it never selects a sibling.
 		[[nodiscard]] auto window() -> qt::workbench_window&;
+		/// \brief RFC-BPR-0108. Opens a worktree's local draft in the first
+		/// window, as Prepare Pull Request… does.
+		void open_local_draft(const std::string& aLocation);
 		[[nodiscard]] auto windows() const -> std::vector<core::bpr_window_context>;
 		[[nodiscard]] auto window(core::bpr_window_context aContext) noexcept -> qt::workbench_window*;
 		[[nodiscard]] auto status(core::bpr_window_context aContext) const noexcept -> std::optional<github_application_status>;

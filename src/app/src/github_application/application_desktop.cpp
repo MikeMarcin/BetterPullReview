@@ -343,6 +343,17 @@ namespace bpr::app {
 #endif
 	}
 
+	void github_application::open_local_draft(const std::string& aLocation)
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				session->DraftDesktop->open_location(aLocation);
+				return;
+			}
+		}
+	}
+
 	void github_application::desktop_local_draft_owner_route(application::local_draft_owner_request aRequest, std::function<void(application::tour_channel_bytes)> aRespond)
 	{
 #if defined(BPR_LOCAL_AUTOMATION)

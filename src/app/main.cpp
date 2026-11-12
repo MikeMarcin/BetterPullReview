@@ -4,6 +4,7 @@
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/agent_configuration_dialogs.hpp"
+#include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/agent_entry_dialog.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -268,6 +269,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-drafts-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
+		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-agent-failure" },
@@ -5619,6 +5621,9 @@ namespace {
 	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
+	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication);
+	/// RFC-BPR-0108. The worktree `--attended-local-draft` opens.
+	std::string AttendedLocalDraftPath;
 	void schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
 	void schedule_attended_share_look(bpr::app::github_application& aApplication);
 	void schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
@@ -5714,6 +5719,8 @@ namespace {
 						schedule_attended_finish_review_look(aApplication);
 					} else if (look == "notes") {
 						schedule_attended_notes_look(aApplication);
+					} else if (look == "local-draft") {
+						schedule_attended_local_draft_look(aApplication);
 					} else if (look == "conversation") {
 						schedule_attended_conversation_look(aApplication);
 					} else if (look == "tour") {
@@ -6228,6 +6235,41 @@ namespace {
 	// are written through its own gestures: two on lines of renderer.cpp
 	// (select the line, N, write, Save) and one on the pull request. Notes is
 	// left showing them at their lines for the person. Nothing reaches GitHub.
+	/// RFC-BPR-0108. After the pull request is shown, Home's Prepare Pull
+	/// Request… opens the named worktree, as a person choosing it would, and
+	/// says when its proposed diff is shown.
+	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto finish = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (*ticks == 0) {
+				aApplication.open_local_draft(AttendedLocalDraftPath);
+			}
+			if (++*ticks > 1'200) {
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_FAILED:timeout"));
+				return;
+			}
+			auto* const page = window.local_draft();
+			if (window.showing_local_draft() && page != nullptr && page->projection().Draft && page->projection().File
+				&& page->projection().File->Status == bpr::application::review_material_status::available) {
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
+			}
+		});
+		timer->start();
+	}
+
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication)
 	{
 		struct written
@@ -11957,6 +11999,8 @@ auto main(int argc, char** argv) -> int
 		const auto attendedFinishReviewLook  = launch.has("--attended-finish-review-look") || launch.has("--attended-drafts-look");
 		// [[BPR-1592]]. Private notes written at their lines.
 		const auto attendedNotesLook = launch.has("--attended-notes-look");
+		// RFC-BPR-0108. A local draft of the named worktree, opened from Home.
+		const auto attendedLocalDraft = launch.value("--attended-local-draft");
 		// [[BPR-1593]]. A private tour written on renderer.cpp.
 		const auto attendedTourLook = launch.has("--attended-tour-look");
 		// [[BPR-1878]]. The new tour's first step, with the Claude stream-JSON
@@ -12630,6 +12674,10 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedNotesLook) {
 						look = std::string{ "notes" };
+					}
+					if (attendedLocalDraft.has_value() && !attendedLocalDraft->empty()) {
+						AttendedLocalDraftPath = std::string{ *attendedLocalDraft };
+						look                   = std::string{ "local-draft" };
 					}
 					if (attendedConversationLook) {
 						look = std::string{ "conversation" };
