@@ -43,3 +43,12 @@ RFC base: `b0d54697a6db6b17b459a751515de60aff14d65d`.
 | **AC06:** An operation that needs typed input fails within its bounded wait with that reason. After a cancellation or a lost answer BPR observes the result and repeats nothing. A review submission elsewhere completes while a push is in flight. | Pending | Pending | Not implemented |
 | **AC07:** From a local draft associated with a pull request, later commits reach the pull request's branch only on the author's Push. | Pending | Pending | Not implemented |
 | **AC08:** On a frozen build, the owner accepts the Commit… and Push previews, the one-time question and a failed-hook banner. | Pending | Pending | Not implemented |
+
+## Pulled forward (owner redesign, 2026-11-12)
+
+Delivered on lane `claude/v0-5-0-prerelease-targets-52265d` under the owner's
+redesign of local drafts ([accepted design](../../design/local-draft-pr-window-v1/README.md));
+the RFC's amendment of 2026-11-12 is authoritative for scope. The
+local-draft-authoring milestones must not build this again. Evidence:
+[RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md),
+[RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md).

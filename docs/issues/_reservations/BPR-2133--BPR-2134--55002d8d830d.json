@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2133",
+    "BPR-2134"
+  ],
+  "reserve_for": "linux-release-blockers-r1",
+  "purpose": "Fix frozen60 Linux common initial-load latency and separate review-submission comparison admission blocker",
+  "created": "2026-11-12T15:36:02.304380+00:00",
+  "base": "6713a634f72bbc63762eb5c7c92b113b2758a012"
+}

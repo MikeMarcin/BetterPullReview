@@ -40,3 +40,12 @@ RFC base: `b0d54697a6db6b17b459a751515de60aff14d65d`.
 | **AC05:** Leaving the editor, the draft or the application with unsaved edits asks first, and Discard writes nothing. | Pending | Pending | Not implemented |
 | **AC06:** Opening, reading and resuming a local draft without pressing Save writes nothing to the worktree; a pull request review offers no Edit; and no Qt widget or model performs the write. | Pending | Pending | Not implemented |
 | **AC07:** On a frozen build serving a local draft, the owner accepts the editor in Changes, its not-editable reasons and its changed-on-disk state. | Pending | Pending | Not implemented |
+
+## Pulled forward (owner redesign, 2026-11-12)
+
+Delivered on lane `claude/v0-5-0-prerelease-targets-52265d` under the owner's
+redesign of local drafts ([accepted design](../../design/local-draft-pr-window-v1/README.md));
+the RFC's amendment of 2026-11-12 is authoritative for scope. The
+local-draft-authoring milestones must not build this again. Evidence:
+[RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md),
+[RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md).

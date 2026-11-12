@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2132"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Account setup in one surface",
+  "created": "2026-11-12T09:24:49.977519+00:00",
+  "base": "951aa7f0850429b98dfa6bb2b107b7e5083f4db3"
+}

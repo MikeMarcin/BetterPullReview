@@ -35,6 +35,20 @@ chose it and the owner has not separately confirmed it.
 | P10: findings become notes on a local draft; Fix; Check the fix | Agent-changes RFC, AC05, AC06 | Proposed. Mirrors Add as draft comment and Draft all. | A local draft has no pull request to comment on. Uses the existing, uncalled `evaluate_proposed_fix` entry point. | DRAFT-0008 |
 | P11: the Self-review prompt's name, purpose ID `local-draft.self-review`, default wording and the Review my change control | Agent-changes RFC, "Self-review has its own prompt", AC13 | Proposed. The owner asked for the prompt; its name, ID, default and the control that uses it are the author's. | Follows the existing built-in prompts' list, editor, version and Reset. | DRAFT-0008 |
 
+## Owner redesign, 2026-11-12: Edit and Commit and Push pulled forward
+
+The owner's redesign of local drafts ([accepted design](../../../design/local-draft-pr-window-v1/README.md))
+pulls the editing RFC (RFC-BPR-0113) and the commit-and-push RFC
+(RFC-BPR-0114) forward into lane `claude/v0-5-0-prerelease-targets-52265d`,
+amended there: Edit is a view of the review bar's picker in author state; a
+Local Changes tab with three comparisons; staging with Stage Change per
+change; Amend while GitHub lacks the commit; the push command always on show;
+the agent's commit message under `local.commit-message`. Four deferrals below
+are therefore withdrawn: "Committing part of a file, amend, a staging view,
+an agent-drafted commit message". Cards BPR-2062 to 2067 are delivered on
+that lane; this pack's `edit-and-save` and `commit-and-push` milestones must
+not build them again. The agent-changes RFC (RFC-BPR-0115) is unchanged.
+
 ## Open frontier and explicit deferrals
 
 No question is waiting on the owner for import. P01 to P11 are proposals:

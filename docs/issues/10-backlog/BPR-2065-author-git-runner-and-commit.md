@@ -27,3 +27,12 @@ implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/local-draft-authoring-v1/IMPLEMENTATION_PROMPT.md).
 
 `PUBLISH-01` was reopened on 2026-11-10; see the [decision record](../../rfcs/assets/local-draft-authoring-v1/DECISIONS.md#decisions) and the [proposed amendment](../../rfcs/assets/local-draft-authoring-v1/AMENDMENTS.md).
+
+## Pulled forward (owner redesign, 2026-11-12)
+
+Delivered on lane `claude/v0-5-0-prerelease-targets-52265d` under the owner's
+redesign of local drafts ([accepted design](../../design/local-draft-pr-window-v1/README.md));
+the RFC's amendment of 2026-11-12 is authoritative for scope. The
+local-draft-authoring milestones must not build this again. Evidence:
+[RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md),
+[RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md).
