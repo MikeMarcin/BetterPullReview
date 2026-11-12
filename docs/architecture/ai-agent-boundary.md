@@ -639,6 +639,40 @@ without durable authority remain outside this recovery path. A startup refusal
 is stated in every window's status bar as well as in the agent panel. It is not
 a cleanup failure of the quit, so an orderly quit still exits 0 ([[BPR-0817]]).
 
+The identities the ownership journal stores, and the directory and guard
+identities a retained conversation keeps, are durable across a restart
+([[BPR-2118]]). On macOS `st_dev` numbers a mount, not a volume, and a restart
+can renumber the Data volume while no file changes; every retained record was
+then refused. A stored identity is therefore the kind, the volume's APFS UUID
+(`ATTR_VOL_UUID`, in two words) and the inode. One header-only helper,
+`bpr/platform/durable_volume_identity.hpp`, reads the UUID for the journal, the
+Unix agent launcher's and guarded Git launch's guard check, and the retained Git
+cache manifest ([[BPR-0794]]). On Linux and Windows the stored identity is the
+exact identity it always was. Checks that compare two live `stat` results in
+one process still compare `st_dev`.
+
+Journal lines carry `Version: 2`. A `Version: 1` record from an earlier release
+is read once: kind and inode must match exactly, and on macOS a different
+volume number is accepted only when every identity in the record carries one
+and the same recorded number and the registry, neighbourhood and record are on
+one mount now. Every other check is unchanged. Recovery, holding the record's
+exclusive lock, then rewrites it in place through its own descriptor as the
+same phase chain in Version 2 lines, so the record keeps its inode. A retained
+conversation's stored identities in the old form are accepted on reattach when
+kind and inode match the journal just checked against the live paths, and the
+run uses the journal's durable identities; the stored copy itself is not
+rewritten, because conversations sharing one workspace are bound to each other
+by exact directory identity in the session store.
+
+Recovery checks every record before it refuses, and the refusal names its
+check, the first refused record and how many were refused:
+`record-malformed` (a line does not parse, its phases do not follow, or its
+token is another record's), `record-moved` (a recorded folder or file is gone,
+replaced, or the same inode on another volume, each said separately) and
+`record-cleanup-failed` (the record could not be rewritten, or its workspace
+not cleaned up exactly). They replace `record-unreadable`, which no log reader
+used.
+
 The `application_agent_crash_recovery` and materialization-recovery courses
 force-kill the real composition, check child termination, Git/SQLite identity
 and repeated ordinary recovery without replay, then explicitly start the next

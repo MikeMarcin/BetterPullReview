@@ -45,3 +45,11 @@ found (`AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:<failure>:check=<name>`,
 and the full sentence on Home). Inherit-only entries on the neighbourhood's
 parent no longer refuse it. The check this machine hits is still to be read
 from that build; [[BPR-1857]] lists every condition.
+
+## Note (BPR-2118, 2026-11-11)
+
+macOS had a second cause unrelated to Windows ACLs: ownership records stored
+the mount-time `st_dev`, which a restart can renumber, so every retained record
+was refused as `record-unreadable`. [[BPR-2118]] fixed that; a Windows refusal
+now names `record-malformed`, `record-moved` or `record-cleanup-failed` with a
+record count when a record is the cause.

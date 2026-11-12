@@ -1387,7 +1387,8 @@ directory puts that parent in the system temporary directory: a shared `1777`
 `/tmp` on Linux, and `%TEMP%` with its inherited entries on Windows. The
 application then prints
 `AGENT_WORKSPACE_RECOVERY_REFUSED:<root>/agent-workspace-ownership-v1:repair-required`
-once and composes no disposable agent workspaces ([[BPR-1044]]).
+once and composes no disposable agent workspaces ([[BPR-1044]]). A refusal
+about workspace records ends in `:check=<check>:records=<count>` ([[BPR-2118]]).
 
 So a course makes its root the `data` child of a temporary directory it has
 narrowed to owner-private. Each language has one helper:

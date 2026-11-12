@@ -91,7 +91,7 @@ review-history failure and has the same cause.
 | `registry-unexpected-entry` | the registry holds anything that is not `<32 hex>.jsonl` |
 | `unrecorded-leftover` | the neighbourhood holds `betterpullreview-agent-*` or `.bpr-cleanup-*` that no record names |
 | `record-not-private` | a record is not an exact private single-link file, or cannot be opened |
-| `record-unreadable` | a record cannot be parsed, or its workspace fails exact identity cleanup |
+| `record-unreadable` | a record cannot be parsed, or its workspace fails exact identity cleanup ([[BPR-2118]] splits it into `record-malformed`, `record-moved` and `record-cleanup-failed`) |
 | `limit-reached` | more than 64 records, or 4096 neighbourhood entries |
 | `lock-unavailable` | the registry's process lock, or a record's lock, cannot be taken |
 
@@ -382,3 +382,12 @@ limitations above remain historical observations; they do not invalidate that
 LimitedInteractive course. The corporate machine and previous-upload-history
 limitations are still explicit. No remote write or owner desktop capture was
 used.
+
+## Note (BPR-2118, 2026-11-11)
+
+macOS had a second cause of this refusal, unrelated to Windows ACLs: the
+records stored the volume's mount-time `st_dev`, and a restart that renumbered
+the Data volume made every retained record unreadable. [[BPR-2118]] stores the
+APFS volume UUID instead, upgrades Version 1 records in place, and splits
+`record-unreadable` into `record-malformed`, `record-moved` and
+`record-cleanup-failed`, counting every refused record.

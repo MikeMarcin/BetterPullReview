@@ -167,6 +167,15 @@ reasons and the evidence are on the card.
 No other criterion, rule or non-goal changes. The agent workspace refusal
 itself, and the private-folder rule behind it, are unchanged.
 
+**Note, 2026-11-11 ([[BPR-2118]]).** Where B3 reports the refusal is
+unchanged; what the sentence says is narrower. A restart alone no longer
+causes it: the ownership records store a volume identity that survives a
+remount, and records from earlier releases are upgraded in place
+([agent boundary](../architecture/ai-agent-boundary.md)). A refusal about
+records names its check (`record-malformed`, `record-moved` with what was
+found, or `record-cleanup-failed`), the first record, and how many records
+were refused, so the reviewer can move them all before one restart.
+
 ## Acceptance criteria
 
 - **B1 — A close is a close.** Closing the last window of the last open profile
