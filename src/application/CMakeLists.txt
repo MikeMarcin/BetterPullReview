@@ -94,6 +94,7 @@ add_library(
         src/review_queue_facts.cpp
         src/review_queue_enrollment.cpp
         src/setup_destination.cpp
+        src/account_setup_host.cpp
         src/profile_registry.cpp
         src/profile_storage_authority.cpp
         src/profile_startup_admission.cpp
