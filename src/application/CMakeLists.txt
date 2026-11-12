@@ -47,6 +47,7 @@ add_library(
         src/review_cycle_git_metadata.cpp
         src/local_draft_discovery.cpp
         src/local_draft_publishing.cpp
+        src/local_changes_host.cpp
         src/local_draft_workbench.cpp
         src/review_cycle_comparison.cpp
         src/review_cycle_feedback.cpp

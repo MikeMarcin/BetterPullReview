@@ -131,6 +131,27 @@ namespace bpr::core {
 	/// returned to the left side (the last commit).
 	[[nodiscard]] auto revert_change(const computed_material_diff& aDiff, const local_change_hunk& aHunk) -> std::expected<std::vector<std::uint8_t>, local_stage_refusal>;
 
+	/// \brief One change of the Uncommitted comparison (last commit against
+	/// the worktree) and what its band offers: Stage Change acts on the
+	/// index-to-worktree change it overlaps, Unstage Change on the
+	/// commit-to-index change it overlaps.
+	struct local_change_band
+	{
+		local_change_hunk Shown;
+		/// Some of it is staged.
+		bool Staged = false;
+		/// Some of it is not staged.
+		bool                             Unstaged = false;
+		std::optional<local_change_hunk> Stage;
+		std::optional<local_change_hunk> Unstage;
+		auto                             operator<=>(const local_change_band&) const = default;
+	};
+	/// \brief The bands of a file's Uncommitted comparison from its three
+	/// comparisons' changes. A file with nothing staged has no `Unstage`; a
+	/// file wholly staged has no `Stage`.
+	[[nodiscard]] auto uncommitted_bands(std::span<const local_change_hunk> aHeadToWorktree, std::span<const local_change_hunk> aHeadToIndex,
+										 std::span<const local_change_hunk> aIndexToWorktree) -> std::vector<local_change_band>;
+
 	/// \brief Added and removed lines of a comparison.
 	struct local_line_counts
 	{

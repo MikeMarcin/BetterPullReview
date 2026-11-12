@@ -339,6 +339,40 @@ namespace bpr::core {
 		return splice(*aDiff.RightDocument, *aDiff.LeftDocument, std::span{ &aHunk, 1U }, false);
 	}
 
+	auto uncommitted_bands(const std::span<const local_change_hunk> aHeadToWorktree, const std::span<const local_change_hunk> aHeadToIndex,
+						   const std::span<const local_change_hunk> aIndexToWorktree) -> std::vector<local_change_band>
+	{
+		// Ranges meet when they overlap; an empty range is the point between
+		// two lines and meets a range that touches it.
+		const auto meets = [](const std::uint32_t aBegin, const std::uint32_t aEnd, const std::uint32_t aOtherBegin, const std::uint32_t aOtherEnd) {
+			if (aBegin == aEnd || aOtherBegin == aOtherEnd) {
+				return aBegin <= aOtherEnd && aOtherBegin <= aEnd;
+			}
+			return aBegin < aOtherEnd && aOtherBegin < aEnd;
+		};
+		auto bands = std::vector<local_change_band>{ };
+		bands.reserve(aHeadToWorktree.size());
+		for (const auto& shown : aHeadToWorktree) {
+			auto band = local_change_band{ .Shown = shown };
+			// Worktree lines are the right side of both the shown change and an unstaged one.
+			for (const auto& unstaged : aIndexToWorktree) {
+				if (meets(shown.RightBegin, shown.RightEnd, unstaged.RightBegin, unstaged.RightEnd)) {
+					band.Unstaged = true;
+					band.Stage    = band.Stage.value_or(unstaged);
+				}
+			}
+			// Last-commit lines are the left side of both the shown change and a staged one.
+			for (const auto& staged : aHeadToIndex) {
+				if (meets(shown.LeftBegin, shown.LeftEnd, staged.LeftBegin, staged.LeftEnd)) {
+					band.Staged  = true;
+					band.Unstage = band.Unstage.value_or(staged);
+				}
+			}
+			bands.push_back(band);
+		}
+		return bands;
+	}
+
 	auto line_counts(const computed_material_diff& aDiff) -> local_line_counts
 	{
 		auto counts = local_line_counts{ };

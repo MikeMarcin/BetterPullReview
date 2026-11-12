@@ -73,6 +73,24 @@ namespace {
 		expect(!stale && stale.error() == core::local_stage_refusal::stale, "a change that is not one of the file's is refused as stale");
 	}
 
+	void bands_say_what_each_change_offers()
+	{
+		const auto head     = std::string_view{ "a\nb\nc\nd\ne\nf\ng\nh\n" };
+		const auto index    = std::string_view{ "a\nB\nc\nd\ne\nf\ng\nh\n" };
+		const auto worktree = std::string_view{ "a\nB\nc\nd\ne\nf\nG\nh\n" };
+		const auto shown    = core::change_hunks(compare(head, worktree));
+		const auto staged   = core::change_hunks(compare(head, index));
+		const auto unstaged = core::change_hunks(compare(index, worktree));
+		const auto bands    = core::uncommitted_bands(shown, staged, unstaged);
+		expect(bands.size() == 2U, "two bands");
+		expect(bands[0].Staged && !bands[0].Unstaged && bands[0].Unstage && !bands[0].Stage, "the first change is staged: Unstage Change");
+		expect(!bands[1].Staged && bands[1].Unstaged && bands[1].Stage && !bands[1].Unstage, "the second is not: Stage Change");
+		const auto stagedSecond = core::apply_change(compare(index, worktree), *bands[1].Stage);
+		expect(stagedSecond && text(*stagedSecond) == worktree, "Stage Change writes the index the worktree has");
+		const auto unstagedFirst = core::revert_change(compare(head, index), *bands[0].Unstage);
+		expect(unstagedFirst && text(*unstagedFirst) == head, "Unstage Change returns the index to the last commit");
+	}
+
 	void line_endings_survive()
 	{
 		const auto index    = std::string_view{ "a\r\nb\r\nc" };
@@ -260,6 +278,7 @@ namespace {
 auto main() -> int
 {
 	stage_and_unstage_one_change();
+	bands_say_what_each_change_offers();
 	line_endings_survive();
 	commit_decisions();
 	push_decisions();
