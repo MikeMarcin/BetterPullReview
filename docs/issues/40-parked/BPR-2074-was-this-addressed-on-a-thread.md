@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2074"
 title: "Was this addressed? on a review thread"
-status: "Backlog"
+status: "Parked"
 rfcs: ["RFC-BPR-0116"]
 metadata: {"criteria":["AC03","AC04","AC05","AC07"],"milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2073--BPR-2085--88e53295c309.json","imported_from":"docs/rfcs/assets/agent-assistance-v1/cards/DRAFT-0002-was-this-addressed-on-a-thread.md"}
 depends_on: ["BPR-2073"]
+parked_on: "human-review"
+acceptance: [{"criterion":"AC03","outcome":"pass","revision":"98dfeb91a","evidence":{"kind":"command","detail":"core_returning_review, core_agent_chat_scope; application_returning_review_addressed_public_path: only the line-12 thread offers it; the press, with no selection, asks evaluate_proposed_fix about that conversation with its lines then and now (then=1 now=1)"}},{"criterion":"AC04","outcome":"pass","revision":"98dfeb91a","evidence":{"kind":"command","detail":"core_returning_review (four words, start only); addressed course shows \"Agent's claim: Partly\"; review mutation evidence unchanged (nothing resolved or posted)"}},{"criterion":"AC05","outcome":"pass","revision":"98dfeb91a","evidence":{"kind":"command","detail":"application_agent_launch_policy (review.proposed-fix own prompt, version, isolation, Reset); stub echoes system=2"}},{"criterion":"AC07","outcome":"pending","revision":"72288736c","evidence":{"kind":"artifact","detail":"Attended session ff82755e1b9fba2463ef8b257a6de0f5 (state /Users/jaeger/.attended-review-state/returning-review-v001-2026-11-12/state), candidates BPR-2073-what-changed and BPR-2074-was-addressed on frozen root /Users/jaeger/returning-review-v001.34b39a8g"}}]
 ---
 
 # Was this addressed? on a review thread
