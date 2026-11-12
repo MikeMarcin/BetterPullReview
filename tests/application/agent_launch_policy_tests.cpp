@@ -387,6 +387,28 @@ auto main(const int aCount, char** aArguments) -> int
 		std::cout << launch->Input;
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-2138]]. For the opt-in resume canary: a local draft discussion's
+	// turn as BPR builds it, with the message and, when given, the session
+	// to resume; printed as above.
+	if ((aCount == 3 || aCount == 4) && std::string_view{ aArguments[1] } == "--print-discussion-launch") {
+		auto launch = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement(aArguments[2]), reader(),
+													   { .WritingOnly = true, .Path = core::agent_run_path::local_draft_discussion });
+		if (!launch) {
+			return EXIT_FAILURE;
+		}
+		launch->NativeHandle = aCount == 4 ? std::string{ aArguments[3] } : std::string{ };
+		const auto turn      = application::prepare_native_agent_turn(*launch, false);
+		if (!turn) {
+			return EXIT_FAILURE;
+		}
+		std::cout << turn->Arguments.size() << '\n';
+		for (const auto& argument : turn->Arguments) {
+			std::cout << argument.size() << '\n'
+					  << argument;
+		}
+		std::cout << turn->Input;
+		return EXIT_SUCCESS;
+	}
 	test_every_launch_path_has_the_owners_session_mode();
 	test_each_launch_path_launches_in_its_session_mode();
 	test_mcp_servers_follow_the_agents_setting();

@@ -262,3 +262,10 @@ bound), `core_local_draft_tour` (resumed and seeding requests),
 `application_agent_invocation_composition_contract`,
 `application_review_tour_composition_public_path`, `tour_cli_composition`
 and `application_profile_tour_handoff_public_path` (eleven writing hooks).
+
+Live, 2026-11-12, installed Claude Code (haiku, the person's own sign-in):
+`python3 tests/scripts/claude_resume_canary.py --launch-printer build/dev/tests/application/better_pull_review_agent_launch_policy_tests`
+ran a local draft discussion's two turns exactly as BPR builds them in one
+empty folder: the first told a word, the second resumed the first by the
+session it reported (`--resume`, still tool-free) and answered
+`CANARY_PASS: 'KUMQUAT' same_session=True` (two calls, $0.0013).
