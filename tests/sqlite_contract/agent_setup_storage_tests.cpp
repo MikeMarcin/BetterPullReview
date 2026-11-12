@@ -241,7 +241,7 @@ try {
 		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
 		expect(sqlite3_exec(database, "DROP TABLE agent_entry_launch", nullptr, nullptr, nullptr) == SQLITE_OK, "a profile from before the setting");
 		sqlite3_close_v2(database);
-		store = adapters::sqlite::make_agent_setup_store(scratch.path());
+		store              = adapters::sqlite::make_agent_setup_store(scratch.path());
 		const auto carried = store->load();
 		expect(carried && carried->Agents.size() == 2U
 				   && std::ranges::all_of(carried->Agents, [](const core::agent_entry& aEntry) { return aEntry.McpServers == core::agent_mcp_servers::off && aEntry.Instructions == core::agent_instruction_delivery::system_prompt; }),

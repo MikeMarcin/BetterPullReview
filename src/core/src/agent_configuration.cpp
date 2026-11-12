@@ -449,8 +449,8 @@ namespace bpr::core {
 			}
 			item.Agent.McpServers   = *mcp;
 			item.Agent.Instructions = *instructions;
-			const auto protocol        = protocol_of(wire.Protocol);
-			const auto preset          = wire.Preset ? preset_of(*wire.Preset) : std::nullopt;
+			const auto protocol     = protocol_of(wire.Protocol);
+			const auto preset       = wire.Preset ? preset_of(*wire.Preset) : std::nullopt;
 			if (!protocol || (wire.Preset && !preset)) {
 				item.Problem     = configuration_item_problem::unsupported_protocol;
 				item.Unsupported = !protocol ? wire.Protocol : *wire.Preset;

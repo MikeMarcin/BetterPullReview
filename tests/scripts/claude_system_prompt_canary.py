@@ -33,8 +33,13 @@ def main() -> int:
         print("CANARY_SKIPPED: no claude program", file=sys.stderr)
         return 2
     printed = subprocess.run([options.launch_printer, "--print-canary-launch"], capture_output=True, check=True).stdout
-    head, _, framed = printed.partition(b"\0\0")
-    arguments = [part.decode() for part in head.split(b"\0")]
+    count, _, rest = printed.partition(b"\n")
+    arguments = []
+    for _ in range(int(count)):
+        size, _, rest = rest.partition(b"\n")
+        arguments.append(rest[: int(size)].decode())
+        rest = rest[int(size):]
+    framed = rest
     if "--append-system-prompt" not in arguments or any(a == "--append-system-prompt-file" for a in arguments):
         print("CANARY_FAILED: the launch does not carry the inline system prompt", file=sys.stderr)
         return 1

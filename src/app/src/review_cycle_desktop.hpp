@@ -201,10 +201,10 @@ namespace bpr::app {
 		std::unique_ptr<application::agent_process_port> SendLauncher;
 		/// [[BPR-1749]]. The profiles Send to Agent offers, as given,
 		/// and the one setup saved, offered first.
-		std::vector<core::agent_profile>      SendProfiles;
+		std::vector<core::agent_profile> SendProfiles;
 		/// [[BPR-2139]]. Each added agent's MCP servers setting.
 		std::vector<std::pair<core::agent_profile_id, core::agent_mcp_servers>> SendMcp;
-		std::optional<core::agent_profile_id> PreferredSendProfile;
+		std::optional<core::agent_profile_id>                                   PreferredSendProfile;
 		/// [[BPR-1748]]. The Claude wrapper's port, in front of which
 		/// `SendProcesses` gives Codex and the plain-text harness a program.
 		std::unique_ptr<application::agent_process_port>     SendClaude;

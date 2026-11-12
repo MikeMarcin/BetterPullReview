@@ -129,7 +129,7 @@ namespace {
 	/// its own, and a fresh path keeps them off regardless.
 	void test_mcp_servers_follow_the_agents_setting()
 	{
-		const auto off = std::vector<std::string>{ "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})" };
+		const auto off      = std::vector<std::string>{ "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})" };
 		const auto contains = [](const std::vector<std::string>& aArguments, const std::vector<std::string>& aRun) {
 			return std::ranges::search(aArguments, aRun).begin() != aArguments.end();
 		};
@@ -159,8 +159,8 @@ namespace {
 		const auto claude   = profile(core::agent_protocol::claude_stream_json);
 		auto       launches = std::vector<application::agent_launch_request>{ };
 		const auto add      = [&launches](std::expected<application::agent_launch_request, application::agent_launch_failure> aLaunch) {
-            expect(aLaunch.has_value(), "the launch builds");
-            launches.push_back(std::move(*aLaunch));
+			expect(aLaunch.has_value(), "the launch builds");
+			launches.push_back(std::move(*aLaunch));
 		};
 		add(application::build_agent_launch(claude, supplement(), reader()));
 		add(application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing }));
@@ -193,8 +193,8 @@ namespace {
 	/// says so, on the App Server, and past the Windows bound.
 	void test_built_in_instructions_reach_the_system_prompt()
 	{
-		const auto rule   = std::string{ "Canary rule: end every reply with the single word PINEAPPLE." };
-		const auto claude = profile(core::agent_protocol::claude_stream_json);
+		const auto rule    = std::string{ "Canary rule: end every reply with the single word PINEAPPLE." };
+		const auto claude  = profile(core::agent_protocol::claude_stream_json);
 		const auto inline_ = application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = rule });
 		expect(inline_ && index_of(inline_->Arguments, "--append-system-prompt") + 1U < inline_->Arguments.size()
 				   && inline_->Arguments[index_of(inline_->Arguments, "--append-system-prompt") + 1U] == rule,
@@ -222,14 +222,14 @@ namespace {
 	/// material, and joined they are the prompt as before.
 	void test_the_writing_prompt_splits_into_instructions_and_material()
 	{
-		auto settings     = core::writing_hook_settings{ };
-		auto request      = core::writing_request{ };
-		request.Target.Hook = core::writing_hook::enhance_writing;
-		request.Raw         = "The cache reduces repeated work.";
+		auto settings         = core::writing_hook_settings{ };
+		auto request          = core::writing_request{ };
+		request.Target.Hook   = core::writing_hook::enhance_writing;
+		request.Raw           = "The cache reduces repeated work.";
 		request.Selection.End = request.Raw.size();
-		const auto sources  = std::vector<application::writing_source>{ { "pr-description", "Adds a cache." } };
-		const auto parts    = application::build_writing_prompt_parts(settings, request, sources);
-		const auto joined   = application::build_writing_prompt(settings, request, sources);
+		const auto sources    = std::vector<application::writing_source>{ { "pr-description", "Adds a cache." } };
+		const auto parts      = application::build_writing_prompt_parts(settings, request, sources);
+		const auto joined     = application::build_writing_prompt(settings, request, sources);
 		expect(parts && joined && parts->Instructions + parts->Message == *joined, "the two parts joined are the prompt");
 		expect(parts && parts->Message.starts_with("Untrusted evidence JSON") && parts->Instructions.find("Untrusted evidence") == std::string::npos, "the evidence is the message, never the instructions");
 		expect(parts && parts->Message.find(request.Raw) != std::string::npos, "the text to enhance is in the message");
@@ -269,18 +269,20 @@ namespace {
 auto main(const int aCount, char** aArguments) -> int
 {
 	// [[BPR-2140]]. For the opt-in canary course: the exact Enhance launch
-	// BPR builds with a rule only in the system prompt, as NUL-separated
-	// arguments, then the framed input after a blank separator.
+	// BPR builds with a rule only in the system prompt: the argument count,
+	// each argument as its length and its bytes, then the framed input.
 	if (aCount == 2 && std::string_view{ aArguments[1] } == "--print-canary-launch") {
 		const auto launch = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement("Reply with: ok"), reader(),
-															 { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = "Canary rule: end every reply with the single word PINEAPPLE." });
+															{ .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = "Canary rule: end every reply with the single word PINEAPPLE." });
 		if (!launch) {
 			return EXIT_FAILURE;
 		}
+		std::cout << launch->Arguments.size() << '\n';
 		for (const auto& argument : launch->Arguments) {
-			std::cout << argument << '\0';
+			std::cout << argument.size() << '\n'
+					  << argument;
 		}
-		std::cout << '\0' << launch->Input;
+		std::cout << launch->Input;
 		return EXIT_SUCCESS;
 	}
 	test_every_launch_path_has_the_owners_session_mode();

@@ -957,7 +957,7 @@ namespace bpr::application {
 						aInvocation);
 					return;
 				}
-				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly, .ReadOnlyTools = aRequest.ReadOnlyTools, .RunChecks = aRequest.RunChecks };
+				auto options               = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly, .ReadOnlyTools = aRequest.ReadOnlyTools, .RunChecks = aRequest.RunChecks };
 				options.Path               = aRequest.Path;
 				options.McpServers         = aRequest.McpServers;
 				options.SystemInstructions = aRequest.SystemInstructions;

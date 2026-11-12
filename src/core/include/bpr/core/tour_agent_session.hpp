@@ -313,11 +313,11 @@ namespace bpr::core {
 		/// replaced, and whether the author undid it.
 		std::string FocusSet;
 		std::string FocusBefore;
-		bool        FocusUndone                                     = false;
+		bool        FocusUndone = false;
 		/// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). An Enhance on a
 		/// stop or a part: a fresh run, never a turn of its side chat, so no
 		/// conversation replays it.
-		bool Fresh                                              = false;
+		bool Fresh                                           = false;
 		auto operator==(const tour_agent_run&) const -> bool = default;
 	};
 

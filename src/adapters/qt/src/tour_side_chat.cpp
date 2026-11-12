@@ -1337,8 +1337,8 @@ namespace bpr::qt {
 		}
 		const auto selection = aPassage && !aPassage->Text.empty();
 		const auto part      = aThread.Kind == core::tour_thread_kind::stop ? tr("this stop")
-				 : aThread.Kind == core::tour_thread_kind::problem          ? tr("the Problem")
-				 : aThread.Kind == core::tour_thread_kind::solution         ? tr("the Solution")
+			: aThread.Kind == core::tour_thread_kind::problem               ? tr("the Problem")
+			: aThread.Kind == core::tour_thread_kind::solution              ? tr("the Solution")
 																			: tr("the tour");
 		const auto question  = selection ? tr("Enhance the selected text of %1.").arg(part)
 										 : tr("Enhance the writing of %1.").arg(aThread.Kind == core::tour_thread_kind::stop ? tr("this stop's explanation") : part);

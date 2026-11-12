@@ -62,8 +62,8 @@ namespace bpr::qt {
 		QCheckBox*        StrictChecks  = nullptr;
 		QComboBox*        ScratchStarts = nullptr;
 		/// [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12).
-		QComboBox* McpServers   = nullptr;
-		QComboBox* Instructions = nullptr;
+		QComboBox*        McpServers    = nullptr;
+		QComboBox*        Instructions  = nullptr;
 		QCheckBox*        Builds        = nullptr;
 		QLabel*           BuildsMeaning = nullptr;
 		QLabel*           Problem       = nullptr;

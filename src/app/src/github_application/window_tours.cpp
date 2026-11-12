@@ -827,8 +827,8 @@ namespace bpr::app {
 		const auto asked = Window->tour_editor()->request_name(aHook);
 		// [[BPR-1916]]. The skills the hook names, inline. [[BPR-2051]] A
 		// stop's Enhance sends the stop's Enhance prompt, and its skills.
-		auto skills = skill_run_for(core::writing_instructions_for(aHook, request->Scope));
-		auto text   = prompt->Message + skills.Directive;
+		auto skills         = skill_run_for(core::writing_instructions_for(aHook, request->Scope));
+		auto text           = prompt->Message + skills.Directive;
 		TourRunInstructions = (readOnly ? std::string{ application::read_only_writing_preamble() } : std::string{ }) + prompt->Instructions;
 		if (skills.Note) {
 			Window->tour_editor()->show_writing_notice((readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable.")) + QStringLiteral(" ")
@@ -1016,7 +1016,7 @@ namespace bpr::app {
 		// [[BPR-2140]]. This run's instructions, never the next one's.
 		auto instructions = std::move(TourRunInstructions);
 		TourRunInstructions.clear();
-		const auto fresh  = std::exchange(TourAskFresh, false) && aKind == core::tour_agent_request::ask;
+		const auto fresh = std::exchange(TourAskFresh, false) && aKind == core::tour_agent_request::ask;
 		// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). Only a turn of a
 		// side chat or of the whole-tour conversation resumes; Draft Tour's
 		// first draft, a field's draft and an Enhance run fresh.
@@ -1061,11 +1061,11 @@ namespace bpr::app {
 		TourInvocation.reset();
 		TourWorkspacePath.clear();
 		TourWorkspaceHead.reset();
-		auto launch = tour_launch{ .NativeScope = TourRunScope.empty() || !conversational ? std::string{ } : tour_native_scope(aThread), .NativeQuestion = aAsked, .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
-		launch.Path = aKind == core::tour_agent_request::draft_tour ? core::agent_run_path::draft_tour_first_draft
-			: aKind == core::tour_agent_request::rewrite || fresh   ? core::agent_run_path::tour_enhance
-			: aKind == core::tour_agent_request::ask                ? (aThread.Kind == core::tour_thread_kind::tour ? core::agent_run_path::tour_conversation : core::agent_run_path::tour_side_chat)
-																	: core::agent_run_path::tour_field_draft;
+		auto launch               = tour_launch{ .NativeScope = TourRunScope.empty() || !conversational ? std::string{ } : tour_native_scope(aThread), .NativeQuestion = aAsked, .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
+		launch.Path               = aKind == core::tour_agent_request::draft_tour ? core::agent_run_path::draft_tour_first_draft
+			: aKind == core::tour_agent_request::rewrite || fresh                 ? core::agent_run_path::tour_enhance
+			: aKind == core::tour_agent_request::ask                              ? (aThread.Kind == core::tour_thread_kind::tour ? core::agent_run_path::tour_conversation : core::agent_run_path::tour_side_chat)
+																				  : core::agent_run_path::tour_field_draft;
 		launch.SystemInstructions = std::move(instructions);
 		if ((aKind == core::tour_agent_request::draft_tour || aKind == core::tour_agent_request::ask) && WindowRead->accepted_snapshot()) {
 			for (const auto& file : WindowRead->accepted_snapshot()->Files) {

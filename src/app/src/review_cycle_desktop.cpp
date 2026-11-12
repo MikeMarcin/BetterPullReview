@@ -550,8 +550,7 @@ namespace bpr::app {
 			},
 			.McpServersOf = [settings = SendMcp](const core::agent_profile_id aProfile) {
 				const auto found = std::ranges::find(settings, aProfile, &std::pair<core::agent_profile_id, core::agent_mcp_servers>::first);
-				return found == settings.end() ? core::agent_mcp_servers::off : found->second;
-			},
+				return found == settings.end() ? core::agent_mcp_servers::off : found->second; },
 		});
 	}
 

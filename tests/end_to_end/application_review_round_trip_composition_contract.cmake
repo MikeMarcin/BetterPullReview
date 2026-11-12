@@ -3607,7 +3607,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# looks. No credential is read, stored or passed; no review
 	# mutation, admission or GitHub write is added.
 	set(bpr_expected_production_app_manifest_digest
-        "134f4f9715bf512d532451b825c63df8fea073120172e10008938542a81dcc52"
+        "aaa3e68843d6b3a51e5815e98556e3d5a31594b71e2c6542df2d0e515d09a489"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

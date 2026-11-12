@@ -101,8 +101,8 @@ namespace bpr::core {
 	[[nodiscard]] constexpr auto ask_more_path(const agent_run_path aPath) noexcept -> std::optional<agent_run_path>
 	{
 		switch (aPath) {
-		case agent_run_path::draft_tour_first_draft:  return agent_run_path::tour_conversation;
-		case agent_run_path::assistance_first_answer: return agent_run_path::agent_tab;
+		case agent_run_path::draft_tour_first_draft:        return agent_run_path::tour_conversation;
+		case agent_run_path::assistance_first_answer:       return agent_run_path::agent_tab;
 		case agent_run_path::local_description_first_draft: return agent_run_path::local_draft_discussion;
 		case agent_run_path::enhance_writing:
 		case agent_run_path::tour_enhance:

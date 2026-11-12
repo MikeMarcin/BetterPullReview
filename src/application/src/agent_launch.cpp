@@ -3643,8 +3643,8 @@ namespace bpr::application {
 			: systemPrompt                                              ? agent_instructions_route::system_prompt
 																		: agent_instructions_route::pasted;
 		request.RunChecks         = aOptions.RunChecks;
-		request.Grant         = aOptions.Grant;
-		request.Profile       = aProfile.Id;
+		request.Grant             = aOptions.Grant;
+		request.Profile           = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = payload;
 		}
