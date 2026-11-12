@@ -153,7 +153,7 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0110 X19: where "Update PR description after publishing"
 		/// starts for this pull request: off for one associated with a local
 		/// draft. Turning it on asks for a new Preview, as every change does.
-		void set_description_publication_default(bool aOn);
+		void               set_description_publication_default(bool aOn);
 		void               show_problem();
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);

@@ -415,8 +415,8 @@ namespace bpr::qt {
 		if (!cursor.hasSelection()) {
 			return std::nullopt;
 		}
-		auto       from   = Diff->document()->findBlock(cursor.selectionStart()).blockNumber();
-		auto       to     = Diff->document()->findBlock(cursor.selectionEnd()).blockNumber();
+		auto from = Diff->document()->findBlock(cursor.selectionStart()).blockNumber();
+		auto to   = Diff->document()->findBlock(cursor.selectionEnd()).blockNumber();
 		if (cursor.hasSelection() && cursor.selectionEnd() > cursor.selectionStart() && Diff->document()->findBlock(cursor.selectionEnd()).position() == cursor.selectionEnd() && to > from) {
 			--to;
 		}

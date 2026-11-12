@@ -272,6 +272,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-evidence", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-local-draft-tour" },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-agent-failure" },
@@ -5628,10 +5629,14 @@ namespace {
 	std::string AttendedLocalDraftPath;
 	/// RFC-BPR-0109. An evidence document the look imports into that draft.
 	std::string AttendedLocalDraftEvidence;
-	void        schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
-	void        schedule_attended_share_look(bpr::app::github_application& aApplication);
-	void        schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
-	void        schedule_attended_conversation_look(bpr::app::github_application& aApplication);
+	/// RFC-BPR-0110. The look prepares a description and a tour through the
+	/// page, and asks a scripted agent once.
+	bool AttendedLocalDraftTour = false;
+	void prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* aTimer);
+	void schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
+	void schedule_attended_share_look(bpr::app::github_application& aApplication);
+	void schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
+	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
 	void schedule_attended_agent_helpers_look(bpr::app::github_application& aApplication);
@@ -6268,6 +6273,12 @@ namespace {
 			auto* const page = window.local_draft();
 			if (window.showing_local_draft() && page != nullptr && page->projection().Draft && page->projection().File
 				&& page->projection().File->Status == bpr::application::review_material_status::available) {
+				if (AttendedLocalDraftTour) {
+					timer->stop();
+					timer->deleteLater();
+					prepare_attended_local_draft_tour(aApplication, new QTimer{ &window });
+					return;
+				}
 				if (AttendedLocalDraftEvidence.empty()) {
 					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
 					return;
@@ -6286,6 +6297,140 @@ namespace {
 			}
 		});
 		timer->start();
+	}
+
+	/// RFC-BPR-0110. Through the draft page, as an author would: include the
+	/// working README, refresh, write the description and the tour's brief,
+	/// add a stop on src/search.cpp and accept it with Save, add one on the
+	/// README left to accept, and ask the scripted agent about the change.
+	void prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* const aTimer)
+	{
+		aTimer->setInterval(50);
+		const auto stage = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		aApplication.script_local_draft_agent_for_look();
+		QObject::connect(aTimer, &QTimer::timeout, aTimer, [&aApplication, aTimer, stage, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			const auto finish = [aTimer](const QString& aLine) {
+				aTimer->stop();
+				aTimer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 2'400) {
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_FAILED:tour-%1").arg(*stage));
+				return;
+			}
+			auto* const page = aApplication.window().local_draft();
+			if (page == nullptr || !page->projection().Draft || page->projection().Busy) {
+				return;
+			}
+			const auto& view  = page->projection();
+			const auto& prep  = view.Draft->Preparation;
+			const auto  shown = [&](const char* aPath) {
+				return view.File && view.File->Path == aPath && view.File->Status == bpr::application::review_material_status::available;
+			};
+			const auto open = [&](const char* aPath) {
+				for (int row = 0; row < page->changes()->count(); ++row) {
+					if (page->changes()->item(row)->text().endsWith(QString::fromLatin1(aPath))) {
+						page->changes()->setCurrentRow(row);
+					}
+				}
+			};
+			const auto select = [&](const std::uint32_t aFirst, const std::uint32_t aLast) {
+				const auto& rows  = view.File->Rows;
+				auto        first = -1;
+				auto        last  = -1;
+				for (std::size_t row = 0U; row < rows.size(); ++row) {
+					if (rows[row].RightLine && *rows[row].RightLine >= aFirst && *rows[row].RightLine <= aLast) {
+						first = first < 0 ? static_cast<int>(row) : first;
+						last  = static_cast<int>(row);
+					}
+				}
+				auto* const document = page->diff()->document();
+				auto        cursor   = QTextCursor{ document->findBlockByNumber(std::max(first, 0)) };
+				cursor.setPosition(document->findBlockByNumber(std::max(last, 0)).position() + document->findBlockByNumber(std::max(last, 0)).length() - 1, QTextCursor::KeepAnchor);
+				page->diff()->setTextCursor(cursor);
+			};
+			auto* const tour = page->tour();
+			switch (*stage) {
+			case 0:
+				for (int row = 0; row < page->working()->count(); ++row) {
+					if (page->working()->item(row)->text() == QStringLiteral("README.md")) {
+						page->working()->item(row)->setCheckState(Qt::Checked);
+					}
+				}
+				*stage = 1;
+				return;
+			case 1:
+				if (view.RefreshOffered) {
+					page->refresh_button()->click();
+				}
+				*stage = 2;
+				return;
+			case 2:
+				if (view.Draft->Candidates.size() < 2U) {
+					return;
+				}
+				page->description()->body()->setPlainText(QStringLiteral(
+					"## Summary\n\nSearch no longer reads past an empty query, and the engine goes through search().\n\n## Testing\n\n- [x] search_tests on macOS\n- [ ] Linux not run\n"));
+				page->description()->body()->document()->setModified(true);
+				page->description()->save_button()->click();
+				tour->problem()->setPlainText(QStringLiteral("An empty query made search() read the byte after the string."));
+				tour->solution()->setPlainText(QStringLiteral("search() checks for the empty query first; engine() calls it."));
+				tour->save_brief_button()->click();
+				*stage = 3;
+				return;
+			case 3:
+				open("src/search.cpp");
+				if (shown("src/search.cpp")) {
+					select(1U, 4U);
+					tour->add_stop_button()->click();
+					*stage = 4;
+				}
+				return;
+			case 4:
+				if (prep.Tour.Stops.size() != 1U) {
+					return;
+				}
+				tour->stops()->setCurrentRow(0);
+				tour->stop_title()->setText(QStringLiteral("The empty query returns first"));
+				tour->stop_text()->setPlainText(QStringLiteral("An empty string returns 0 before anything reads aText[0]'s successor. This is the fix."));
+				tour->save_button()->click();
+				*stage = 5;
+				return;
+			case 5:
+				open("README.md");
+				if (shown("README.md")) {
+					select(3U, 3U);
+					tour->add_stop_button()->click();
+					*stage = 6;
+				}
+				return;
+			case 6:
+				if (prep.Tour.Stops.size() != 2U) {
+					return;
+				}
+				page->areas()->setCurrentIndex(3);
+				tour->stops()->setCurrentRow(-1);
+				page->diff()->setTextCursor(QTextCursor{ page->diff()->document() });
+				tour->chat()->composer()->setText(QStringLiteral("Is the empty query the only case that reads past the string?"));
+				tour->chat()->ask_button()->click();
+				*stage = 7;
+				return;
+			default:
+				if (prep.Conversations.empty() || prep.Conversations.back().Turns.size() < 2U) {
+					return;
+				}
+				page->areas()->setCurrentIndex(3);
+				tour->stops()->setCurrentRow(1);
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_TOUR_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
+				return;
+			}
+		});
+		aTimer->start();
 	}
 
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication)
@@ -12698,6 +12843,7 @@ auto main(int argc, char** argv) -> int
 					if (attendedLocalDraft.has_value() && !attendedLocalDraft->empty()) {
 						AttendedLocalDraftPath     = std::string{ *attendedLocalDraft };
 						AttendedLocalDraftEvidence = attendedLocalDraftEvidence ? std::string{ *attendedLocalDraftEvidence } : std::string{ };
+						AttendedLocalDraftTour     = launch.has("--attended-local-draft-tour");
 						look                       = std::string{ "local-draft" };
 					}
 					if (attendedConversationLook) {

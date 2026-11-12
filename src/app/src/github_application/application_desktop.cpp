@@ -15,6 +15,7 @@
 #include "bpr/application/tour_owner_channel.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/github_model.hpp"
@@ -351,6 +352,39 @@ namespace bpr::app {
 				session->DraftDesktop->host().import_evidence(aDocument);
 				return;
 			}
+		}
+	}
+
+	void github_application::script_local_draft_agent_for_look()
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (session->Closing || !session->DraftDesktop) {
+				continue;
+			}
+			auto runner = [](const application::local_draft_agent_run&, std::stop_token) {
+				return application::local_draft_agent_answer{
+					.Answered   = true,
+					.Text       = "An empty query returns 0 before it reads the first byte, so search(\"\") is safe; src/search.cpp:3 is the check. "
+								  "engine() still calls search with a literal, so nothing else reaches the empty case yet.\n\n"
+								  "```bpr-proposals\n[{\"target\":\"check\",\"method\":\"test\",\"title\":\"search_empty_query\",\"text\":\"ctest -R search_empty\"},"
+								  "{\"target\":\"new_stop\",\"path\":\"src/engine.cpp\",\"first\":3,\"last\":6,\"title\":\"The engine calls search\",\"text\":\"engine() now goes through search(); its result is still 1 for any non-empty text.\"},"
+								  "{\"target\":\"solution\",\"text\":\"search() returns 0 for an empty query before reading past the string, and engine() goes through it.\"}]\n```",
+					.CostMicros = 12000U,
+				};
+			};
+			session->DraftDesktop->set_agent(std::move(runner), &session->TourAgentEffects, [] {
+				return std::optional{ local_draft_desktop::agent_choice{
+					.Identity           = "attended-look-agent",
+					.Name               = "Claude (scripted)",
+					.Profile            = 0U,
+					.Description        = std::string{ application::default_writing_hook(core::writing_hook::local_description) },
+					.DescriptionVersion = std::string{ application::writing_hook_version_of(core::writing_hook::local_description) },
+					.Discussion         = std::string{ application::default_writing_hook(core::writing_hook::local_discussion) },
+					.DiscussionVersion  = std::string{ application::writing_hook_version_of(core::writing_hook::local_discussion) },
+				} };
+			});
+			return;
 		}
 	}
 

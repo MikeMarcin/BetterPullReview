@@ -1025,8 +1025,8 @@ namespace bpr::application {
 			AskStop = std::stop_source{ };
 			struct prepared
 			{
-				std::optional<core::local_request>  Request;
-				std::vector<core::local_file_reading> Files;
+				std::optional<core::local_request>        Request;
+				std::vector<core::local_file_reading>     Files;
 				std::optional<core::local_source_binding> Lines;
 			};
 			const auto first = !aQuestion.LinesPath.empty() ? aQuestion.LinesPath : std::string{ };
@@ -1043,7 +1043,7 @@ namespace bpr::application {
 							preferred = stop->Source.Path;
 						}
 					}
-					out.Files = read_candidate_files(*stored, candidate, { }, { }, preferred, question_read_budget);
+					out.Files  = read_candidate_files(*stored, candidate, { }, { }, preferred, question_read_budget);
 					auto local = core::local_question{ .Subject      = question.Subject,
 													   .Thread       = question.Thread,
 													   .Stop         = question.Stop,
@@ -1118,9 +1118,9 @@ namespace bpr::application {
 				publish();
 				return;
 			}
-			const auto now    = Now();
-			auto       asked  = core::append_turn(*view.Draft, view.Draft->Version, aQuestion.Thread, aQuestion.Agent, aQuestion.AgentName,
-												  core::local_turn{ .Author = true, .Subject = aQuestion.Subject, .Text = aQuestion.Text }, now);
+			const auto now   = Now();
+			auto       asked = core::append_turn(*view.Draft, view.Draft->Version, aQuestion.Thread, aQuestion.Agent, aQuestion.AgentName,
+												 core::local_turn{ .Author = true, .Subject = aQuestion.Subject, .Text = aQuestion.Text }, now);
 			if (!asked) {
 				prepare(std::unexpected{ asked.error() });
 				return;
@@ -1426,8 +1426,7 @@ namespace bpr::application {
 	void local_draft_workbench::add_stop(std::string aPath, const std::uint32_t aFirst, const std::uint32_t aLast, std::string aTitle, std::string aText)
 	{
 		auto& self = *Implementation;
-		self.with_reading(std::move(aPath), [aFirst, aLast, title = std::move(aTitle), text = std::move(aText), now = self.Now()](const core::local_draft& aDraft,
-																														   const core::local_file_reading& aFile) mutable {
+		self.with_reading(std::move(aPath), [aFirst, aLast, title = std::move(aTitle), text = std::move(aText), now = self.Now()](const core::local_draft& aDraft, const core::local_file_reading& aFile) mutable {
 			return core::add_local_stop(aDraft, aDraft.Version, std::move(title), std::move(text), aFile, core::diff_side::right, aFirst, aLast, now);
 		});
 	}
@@ -1443,8 +1442,7 @@ namespace bpr::application {
 											   0U, self.Now()));
 			return;
 		}
-		self.with_reading(std::move(aPath), [aStop, aFirst, aLast, title = std::move(aTitle), text = std::move(aText), now = self.Now()](const core::local_draft& aDraft,
-																																 const core::local_file_reading& aFile) mutable {
+		self.with_reading(std::move(aPath), [aStop, aFirst, aLast, title = std::move(aTitle), text = std::move(aText), now = self.Now()](const core::local_draft& aDraft, const core::local_file_reading& aFile) mutable {
 			return core::save_local_stop(aDraft, aDraft.Version, aStop, std::move(title), std::move(text), aFile, core::diff_side::right, aFirst, aLast, now);
 		});
 	}

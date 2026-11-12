@@ -433,9 +433,9 @@ namespace bpr::core {
 		draft_evidence Evidence;
 		/// RFC-BPR-0110: the description, the tour, proposals and conversations.
 		local_draft_preparation Preparation;
-		std::int64_t   Created                               = 0;
-		std::int64_t   Updated                               = 0;
-		auto           operator<=>(const local_draft&) const = default;
+		std::int64_t            Created                               = 0;
+		std::int64_t            Updated                               = 0;
+		auto                    operator<=>(const local_draft&) const = default;
 	};
 	/// \brief Every field within its bound and every identity well formed.
 	[[nodiscard]] auto valid(const local_draft& aDraft) -> bool;

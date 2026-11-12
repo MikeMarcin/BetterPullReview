@@ -574,7 +574,7 @@ namespace bpr::core {
 		const auto boundResults = std::ranges::all_of(aDraft.Evidence.Results, [&ordinals](const evidence_result& aResult) {
 			return aResult.Candidate == 0U || ordinals.contains(aResult.Candidate);
 		});
-		const auto boundStops = std::ranges::all_of(aDraft.Preparation.Tour.Stops, [&ordinals](const local_tour_stop& aStop) {
+		const auto boundStops   = std::ranges::all_of(aDraft.Preparation.Tour.Stops, [&ordinals](const local_tour_stop& aStop) {
 			return ordinals.contains(aStop.Source.Candidate)
 				&& std::ranges::all_of(aStop.Earlier, [&ordinals](const local_source_binding& aBinding) { return ordinals.contains(aBinding.Candidate); });
 		});

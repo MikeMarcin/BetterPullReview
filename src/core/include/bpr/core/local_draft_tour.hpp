@@ -87,10 +87,10 @@ namespace bpr::core {
 	/// \brief Where a binding lands on one candidate.
 	struct local_destination
 	{
-		std::uint64_t        Candidate      = 0;
-		local_correspondence Correspondence = local_correspondence::unavailable;
-		std::uint32_t        FirstLine      = 0;
-		std::uint32_t        LastLine       = 0;
+		std::uint64_t        Candidate                                   = 0;
+		local_correspondence Correspondence                              = local_correspondence::unavailable;
+		std::uint32_t        FirstLine                                   = 0;
+		std::uint32_t        LastLine                                    = 0;
 		auto                 operator<=>(const local_destination&) const = default;
 	};
 
@@ -148,7 +148,7 @@ namespace bpr::core {
 		std::uint64_t                ProblemRevision  = 1;
 		std::uint64_t                SolutionRevision = 1;
 		std::vector<local_tour_stop> Stops;
-		std::uint64_t                NextStop = 1;
+		std::uint64_t                NextStop                             = 1;
 		auto                         operator<=>(const local_tour&) const = default;
 	};
 
@@ -156,8 +156,8 @@ namespace bpr::core {
 	struct local_description
 	{
 		std::string   Body;
-		std::uint64_t Revision      = 1;
-		std::uint64_t TitleRevision = 1;
+		std::uint64_t Revision                                    = 1;
+		std::uint64_t TitleRevision                               = 1;
 		auto          operator<=>(const local_description&) const = default;
 	};
 
@@ -210,7 +210,7 @@ namespace bpr::core {
 		/// The agent entry's name and the prompt version it ran under.
 		std::string          Producer;
 		std::string          Version;
-		local_proposal_state State = local_proposal_state::pending;
+		local_proposal_state State                                    = local_proposal_state::pending;
 		auto                 operator<=>(const local_proposal&) const = default;
 	};
 
@@ -232,14 +232,14 @@ namespace bpr::core {
 	struct local_turn
 	{
 		/// The author's question, or the agent's answer.
-		bool          Author = true;
+		bool          Author  = true;
 		local_subject Subject = local_subject::whole_change;
 		std::string   Text;
 		/// Proposals the answer made.
 		std::vector<std::uint64_t> Proposals;
 		/// Its cost in millionths of a dollar, when the agent reported one.
 		std::optional<std::uint64_t> CostMicros;
-		std::int64_t                 At = 0;
+		std::int64_t                 At                                   = 0;
 		auto                         operator<=>(const local_turn&) const = default;
 	};
 
@@ -258,14 +258,14 @@ namespace bpr::core {
 		std::string             Handle;
 		std::vector<local_turn> Turns;
 		/// New session ended it; it stays readable.
-		bool Ended = false;
+		bool Ended                                        = false;
 		auto operator<=>(const local_conversation&) const = default;
 	};
 
 	/// \brief The session scope a local-draft conversation is keyed by:
 	/// profile-private, with no account, host or pull request in it.
-	[[nodiscard]] auto local_session_scope(std::string_view aDraft, std::uint64_t aCandidate, std::string_view aThread, std::string_view aAgent) -> std::string;
-	[[nodiscard]] auto local_stop_thread(std::uint64_t aStop) -> std::string;
+	[[nodiscard]] auto                local_session_scope(std::string_view aDraft, std::uint64_t aCandidate, std::string_view aThread, std::string_view aAgent) -> std::string;
+	[[nodiscard]] auto                local_stop_thread(std::uint64_t aStop) -> std::string;
 	inline constexpr std::string_view local_change_thread = "change";
 
 	// --- The preparation ------------------------------------------------------------
@@ -277,7 +277,7 @@ namespace bpr::core {
 		std::vector<local_proposal>     Proposals;
 		std::uint64_t                   NextProposal = 1;
 		std::vector<local_conversation> Conversations;
-		std::uint64_t                   NextConversation = 1;
+		std::uint64_t                   NextConversation                                  = 1;
 		auto                            operator<=>(const local_draft_preparation&) const = default;
 	};
 	/// \brief Every bound of RFC-BPR-0110 and of the tour (256 stops, 64 KiB a
@@ -368,16 +368,16 @@ namespace bpr::core {
 	[[nodiscard]] auto name(local_stop_reason aReason) noexcept -> std::string_view;
 	struct local_stop_decision
 	{
-		tour_acceptance_state State  = tour_acceptance_state::not_accepted;
-		local_stop_reason     Reason = local_stop_reason::not_accepted;
+		tour_acceptance_state State                                         = tour_acceptance_state::not_accepted;
+		local_stop_reason     Reason                                        = local_stop_reason::not_accepted;
 		auto                  operator<=>(const local_stop_decision&) const = default;
 	};
 	[[nodiscard]] auto decide_local_stop(const local_draft& aDraft, const local_tour_stop& aStop) -> local_stop_decision;
 	/// \brief The tour head's words: its stops and how many are still to accept.
 	struct local_tour_head
 	{
-		std::size_t Stops    = 0;
-		std::size_t ToAccept = 0;
+		std::size_t Stops                                     = 0;
+		std::size_t ToAccept                                  = 0;
 		auto        operator<=>(const local_tour_head&) const = default;
 	};
 	[[nodiscard]] auto decide_local_tour_head(const local_draft& aDraft) -> local_tour_head;
@@ -393,10 +393,10 @@ namespace bpr::core {
 		std::string           Text;
 		/// For a new stop.
 		std::string   Path;
-		std::uint32_t FirstLine = 0;
-		std::uint32_t LastLine  = 0;
-		claim_kind    Claim     = claim_kind::other;
-		check_method  Method    = check_method::test;
+		std::uint32_t FirstLine                                      = 0;
+		std::uint32_t LastLine                                       = 0;
+		claim_kind    Claim                                          = claim_kind::other;
+		check_method  Method                                         = check_method::test;
 		auto          operator<=>(const local_proposal_draft&) const = default;
 	};
 	/// \brief Records proposals an answer made on candidate `aCandidate`, each

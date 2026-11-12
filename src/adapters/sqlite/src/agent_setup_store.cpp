@@ -196,7 +196,7 @@ namespace bpr::adapters::sqlite {
 				// SHA-256 is `text_digest`: a row for other text says nothing.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_provenance("
-									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 7),"
+									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 9),"
 									"text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT")
 				// [[BPR-2016]]. An import's hooks before it, kept while the
@@ -204,7 +204,7 @@ namespace bpr::adapters::sqlite {
 				// crash between them is undone at the next start.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS configuration_import_journal("
-									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 7),"
+									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 9),"
 									"revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT")
 				// Owner decision 2026-10-23: the run time limit; none means off.
@@ -288,6 +288,33 @@ namespace bpr::adapters::sqlite {
 									"changed INTEGER NOT NULL CHECK(changed >= 0),"
 									"PRIMARY KEY(findings, ordinal)) STRICT")) {
 				return { };
+			}
+			// RFC-BPR-0110: two more writing hooks. A table an earlier build
+			// made keeps hooks 0 to 7; it is rebuilt with the wider check and
+			// its rows, in one transaction.
+			static_assert(core::writing_hook_count == 10U, "the hook tables' check names the last hook");
+			for (const auto& [table, definition] : std::array{
+					 std::pair{ std::string_view{ "prompt_provenance" },
+								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 9),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
+												  "version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)" } },
+					 std::pair{ std::string_view{ "configuration_import_journal" },
+								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 9),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
+												  "text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)" } } }) {
+				const auto narrow = detail::scalar_integer(db, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" + std::string{ table } + "' AND sql LIKE '%hook BETWEEN 0 AND 7%'");
+				if (!narrow) {
+					return { };
+				}
+				if (*narrow == 0) {
+					continue;
+				}
+				const auto name = std::string{ table };
+				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, "ALTER TABLE " + name + " RENAME TO narrow_" + name)
+					|| !detail::execute(db, "CREATE TABLE " + name + "(" + std::string{ definition } + ") STRICT")
+					|| !detail::execute(db, "INSERT INTO " + name + " SELECT * FROM narrow_" + name) || !detail::execute(db, "DROP TABLE narrow_" + name)
+					|| !detail::execute(db, "COMMIT")) {
+					static_cast<void>(detail::execute(db, "ROLLBACK"));
+					return { };
+				}
 			}
 			return result;
 		}

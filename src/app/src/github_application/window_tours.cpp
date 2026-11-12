@@ -7,8 +7,8 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/qt/agent_footer.hpp"
-#include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #include "tour_observation.hpp"
@@ -381,14 +381,14 @@ namespace bpr::app {
 			const auto& snapshot = *WindowRead->accepted_snapshot();
 			const auto& marks    = DraftDesktop->host().home().Marks;
 			const auto  local    = std::ranges::any_of(marks, [&snapshot](const application::local_draft_mark& aMark) {
-                return aMark.Owner == snapshot.Repository.Owner && aMark.Name == snapshot.Repository.Name && aMark.Number == snapshot.PullRequest.Number.value();
-            });
+				return aMark.Owner == snapshot.Repository.Owner && aMark.Name == snapshot.Repository.Name && aMark.Number == snapshot.PullRequest.Number.value();
+			});
 			Window->tour_editor()->set_description_publication_default(core::update_description_by_default(local));
 		}
-		auto       seed   = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
-		const auto weak   = std::weak_ptr<const int>{ WindowLifetime };
-		TourHost          = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
-																			[this, weak, owner](const application::tour_presentation& aProjection) {
+		auto       seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
+		const auto weak = std::weak_ptr<const int>{ WindowLifetime };
+		TourHost        = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
+																		  [this, weak, owner](const application::tour_presentation& aProjection) {
 																	   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
 																		   return;
 																	   }
@@ -913,8 +913,8 @@ namespace bpr::app {
 																						locate_agent_program());
 		LocalDraftEntryProcess   = std::make_unique<application::agent_entry_process>(*LocalDraftProcess, *LocalDraftLocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper,
 																					  locate_claude(), locate_agent_program());
-		auto runner = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get()](
-						  const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
+		auto runner              = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get()](
+									   const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
 			const auto profile = std::ranges::find_if(*profiles, [&aRun](const core::agent_profile& aProfile) { return aProfile.Id.value() == aRun.Profile; });
 			if (profile == profiles->end()) {
 				return { .Failure = "That agent is no longer set up. Choose one with the agent picker." };
@@ -923,18 +923,18 @@ namespace bpr::app {
 			supplement.Session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile->Id };
 			supplement.Message = aRun.Prompt;
 			const auto launch  = application::build_agent_launch(
-                *profile, supplement,
-                [](const std::string& aName) -> std::optional<std::string> {
-                    if (!qEnvironmentVariableIsSet(aName.c_str())) {
-                        return std::nullopt;
-                    }
-                    return qEnvironmentVariable(aName.c_str()).toStdString();
-                },
-                application::agent_launch_options{ .WritingOnly = true });
+				*profile, supplement,
+				[](const std::string& aName) -> std::optional<std::string> {
+					if (!qEnvironmentVariableIsSet(aName.c_str())) {
+						return std::nullopt;
+					}
+					return qEnvironmentVariable(aName.c_str()).toStdString();
+				},
+				application::agent_launch_options{ .WritingOnly = true });
 			if (!launch) {
 				return { .Failure = launch.error() == application::agent_launch_failure::input_too_large
-										? "The question is longer than one request can carry."
-										: "This agent cannot answer without tools here. Choose one that speaks Claude Code's stream JSON." };
+							 ? "The question is longer than one request can carry."
+							 : "This agent cannot answer without tools here. Choose one that speaks Claude Code's stream JSON." };
 			}
 			const auto result = process->run(*launch, 10 * 60 * 1000, { }, aStop);
 			if (aStop.stop_requested()) {
@@ -957,8 +957,8 @@ namespace bpr::app {
 			return answer;
 		};
 		DraftDesktop->set_agent(std::move(runner), &TourAgentEffects, [this]() -> std::optional<local_draft_desktop::agent_choice> {
-			const auto profile = writing_agent();
-			const auto& prefs  = Profile->WorkbenchPreferences->accepted();
+			const auto  profile = writing_agent();
+			const auto& prefs   = Profile->WorkbenchPreferences->accepted();
 			if (Closing || !profile || !writes_tool_free(*profile) || !prefs) {
 				DraftDesktop->view()->tour()->notice()->setText(
 					QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker, or keep writing yourself."));

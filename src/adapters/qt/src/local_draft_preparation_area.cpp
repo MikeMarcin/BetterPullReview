@@ -17,12 +17,11 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QShortcut>
 #include <QSignalBlocker>
 #include <QSplitter>
-#include <QTextBrowser>
 #include <QToolButton>
-#include <QUrl>
 #include <QVBoxLayout>
 
 #include <QAbstractButton>
@@ -183,14 +182,24 @@ namespace bpr::qt {
 		column->setContentsMargins(0, 6, 0, 0);
 		column->setSpacing(4);
 		auto* const split = new QHBoxLayout{ };
-		Transcript        = new QTextBrowser{ this };
+		// The transcript: words in a scrolling pane; a reference to the
+		// candidate is a link that opens it there.
+		TranscriptScroll = new QScrollArea{ this };
+		TranscriptScroll->setWidgetResizable(true);
+		TranscriptScroll->setFixedHeight(150);
+		TranscriptScroll->setBackgroundRole(QPalette::Base);
+		Transcript = new QLabel{ TranscriptScroll };
 		Transcript->setObjectName(QStringLiteral("localDraftTranscript"));
 		Transcript->setAccessibleName(QStringLiteral("Conversation"));
-		Transcript->setOpenLinks(false);
-		Transcript->setFixedHeight(150);
-		split->addWidget(Transcript, 3);
-		auto* const side   = new QVBoxLayout{ };
-		Proposals          = new QListWidget{ this };
+		Transcript->setWordWrap(true);
+		Transcript->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+		Transcript->setTextFormat(Qt::RichText);
+		Transcript->setTextInteractionFlags(Qt::TextBrowserInteraction);
+		Transcript->setContentsMargins(6, 4, 6, 4);
+		TranscriptScroll->setWidget(Transcript);
+		split->addWidget(TranscriptScroll, 3);
+		auto* const side = new QVBoxLayout{ };
+		Proposals        = new QListWidget{ this };
 		Proposals->setObjectName(QStringLiteral("localDraftProposals"));
 		Proposals->setAccessibleName(QStringLiteral("Proposals"));
 		Proposals->setFixedHeight(118);
@@ -263,15 +272,17 @@ namespace bpr::qt {
 		connect(Accept, &QPushButton::clicked, this, [decide_selected] { decide_selected(true); });
 		connect(Reject, &QPushButton::clicked, this, [decide_selected] { decide_selected(false); });
 		connect(Proposals, &QListWidget::currentItemChanged, this, [this] { present_proposals(); });
-		connect(Transcript, &QTextBrowser::anchorClicked, this, [this](const QUrl& aUrl) {
+		connect(Transcript, &QLabel::linkActivated, this, [this](const QString& aLink) {
 			// A reference resolves against the candidate and opens it there (X09).
-			if (aUrl.scheme() != QStringLiteral("bpr-candidate") || Links == nullptr || !Links->Reveal) {
+			constexpr auto scheme = QLatin1StringView{ "bpr-candidate:" };
+			const auto     hash   = aLink.lastIndexOf(QLatin1Char{ '#' });
+			if (!aLink.startsWith(scheme) || hash < 0 || Links == nullptr || !Links->Reveal) {
 				return;
 			}
-			const auto range = aUrl.fragment().split(QLatin1Char{ '-' });
+			const auto range = aLink.mid(hash + 1).split(QLatin1Char{ '-' });
 			const auto first = range.value(0).toUInt();
 			const auto last  = range.size() > 1 ? range.value(1).toUInt() : first;
-			Links->Reveal(utf8(aUrl.path()), first, last);
+			Links->Reveal(utf8(aLink.mid(scheme.size(), hash - scheme.size())), first, last);
 		});
 	}
 
@@ -289,9 +300,9 @@ namespace bpr::qt {
 		Thread  = std::move(aThread);
 		Subject = aSubject;
 		Stop    = aStop;
-		Composer->setPlaceholderText(aSubject == core::local_subject::stop       ? QStringLiteral("Ask about stop %1").arg(aStop)
-									 : aSubject == core::local_subject::description ? QStringLiteral("Ask about the description")
-																					: QStringLiteral("Ask about the change"));
+		Composer->setPlaceholderText(aSubject == core::local_subject::stop              ? QStringLiteral("Ask about stop %1").arg(aStop)
+										 : aSubject == core::local_subject::description ? QStringLiteral("Ask about the description")
+																						: QStringLiteral("Ask about the change"));
 		present_transcript();
 		present_session();
 	}
@@ -309,7 +320,7 @@ namespace bpr::qt {
 		if (text.isEmpty() || Projection.Asking || !Projection.AgentAvailable || Dispatch == nullptr || !Dispatch->Ask) {
 			return;
 		}
-		auto question    = application::local_draft_question{ .Thread = Thread, .Subject = Subject, .Stop = Stop, .Text = utf8(text) };
+		auto question = application::local_draft_question{ .Thread = Thread, .Subject = Subject, .Stop = Stop, .Text = utf8(text) };
 		if (Links != nullptr && Links->Selection && Subject == core::local_subject::whole_change) {
 			// Lines chosen in Changes attach to a whole-change question (X12).
 			if (const auto lines = Links->Selection(); lines && lines->First != 0U) {
@@ -396,13 +407,14 @@ namespace bpr::qt {
 				}
 				out += body.mid(last);
 				out.replace(QLatin1Char{ '\n' }, QStringLiteral("<br>"));
-				const auto who = turn.Author ? QStringLiteral("You") : text_of(shown->AgentName.empty() ? std::string{ "Agent" } : shown->AgentName);
+				const auto who  = turn.Author ? QStringLiteral("You") : text_of(shown->AgentName.empty() ? std::string{ "Agent" } : shown->AgentName);
 				const auto cost = !turn.Author && turn.CostMicros ? QStringLiteral(" <span>(%1)</span>").arg(local_cost_text(*turn.CostMicros)) : QString{ };
 				html += QStringLiteral("<p><b>%1</b>%2<br>%3</p>").arg(who.toHtmlEscaped(), cost, out);
 			}
 		}
-		Transcript->setHtml(html);
-		Transcript->moveCursor(QTextCursor::End);
+		Transcript->setText(html);
+		Transcript->adjustSize();
+		TranscriptScroll->verticalScrollBar()->setValue(TranscriptScroll->verticalScrollBar()->maximum());
 	}
 
 	void local_draft_chat::present_proposals()
@@ -457,9 +469,9 @@ namespace bpr::qt {
 			Session->clear();
 			return;
 		}
-		const auto& all    = Projection.Draft->Preparation.Conversations;
-		const auto* latest = core::latest_candidate(*Projection.Draft);
-		const core::local_conversation* open = nullptr;
+		const auto&                     all    = Projection.Draft->Preparation.Conversations;
+		const auto*                     latest = core::latest_candidate(*Projection.Draft);
+		const core::local_conversation* open   = nullptr;
 		for (const auto& conversation : std::views::reverse(all)) {
 			if (!conversation.Ended && latest != nullptr && conversation.Candidate == latest->Ordinal && conversation.Thread == Thread) {
 				open = &conversation;
@@ -469,7 +481,7 @@ namespace bpr::qt {
 		const auto  found = Shown == 0U ? all.end() : std::ranges::find(all, Shown, &core::local_conversation::Id);
 		const auto* shown = found == all.end() ? open : &*found;
 		if (shown == nullptr) {
-			Session->setText(latest == nullptr ? QString{} : QStringLiteral("New session on candidate %1").arg(latest->Ordinal));
+			Session->setText(latest == nullptr ? QString{ } : QStringLiteral("New session on candidate %1").arg(latest->Ordinal));
 		} else {
 			const auto cost = core::conversation_cost(*shown);
 			Session->setText(QStringLiteral("%1 · candidate %2%3%4")
@@ -514,7 +526,7 @@ namespace bpr::qt {
 		}
 	}
 
-	auto local_draft_chat::transcript() const noexcept -> QTextBrowser* { return Transcript; }
+	auto local_draft_chat::transcript() const noexcept -> QLabel* { return Transcript; }
 	auto local_draft_chat::proposals() const noexcept -> QListWidget* { return Proposals; }
 	auto local_draft_chat::session_line() const noexcept -> QLabel* { return Session; }
 	auto local_draft_chat::session_menu() const noexcept -> QPushButton* { return SessionMenu; }
@@ -849,14 +861,14 @@ namespace bpr::qt {
 				const auto stop   = std::ranges::find(Projection.Draft->Preparation.Tour.Stops, selected_stop(), &core::local_tour_stop::Id);
 				auto*      cite   = menu->addMenu(QStringLiteral("Cite Evidence"));
 				const auto add    = [&](const std::uint64_t aId, const QString& aLabel) {
-                    auto* const action = cite->addAction(aLabel);
-                    action->setCheckable(true);
-                    action->setChecked(std::ranges::contains(stop->Citations, aId));
-                    connect(action, &QAction::toggled, this, [this, aId, stopId = stop->Id](const bool aOn) {
-                        if (Dispatch != nullptr && Dispatch->Cite) {
-                            Dispatch->Cite(stopId, aId, aOn);
-                        }
-                    });
+					auto* const action = cite->addAction(aLabel);
+					action->setCheckable(true);
+					action->setChecked(std::ranges::contains(stop->Citations, aId));
+					connect(action, &QAction::toggled, this, [this, aId, stopId = stop->Id](const bool aOn) {
+						if (Dispatch != nullptr && Dispatch->Cite) {
+							Dispatch->Cite(stopId, aId, aOn);
+						}
+					});
 				};
 				for (const auto& claim : chosen.Claims) {
 					add(claim.Id, QStringLiteral("Claim: %1").arg(first_line(claim.Text)));
@@ -922,9 +934,9 @@ namespace bpr::qt {
 		AddStop->setEnabled(aProjection.Draft.has_value());
 		if (aProjection.Draft) {
 			const auto head = core::decide_local_tour_head(*aProjection.Draft);
-			Head->setText(head.Stops == 0U         ? QStringLiteral("No stops yet")
-						  : head.ToAccept == 0U    ? QStringLiteral("%1, all accepted").arg(counted(head.Stops, "stop", "stops"))
-												   : QStringLiteral("%1, %2 to accept").arg(counted(head.Stops, "stop", "stops")).arg(head.ToAccept));
+			Head->setText(head.Stops == 0U          ? QStringLiteral("No stops yet")
+							  : head.ToAccept == 0U ? QStringLiteral("%1, all accepted").arg(counted(head.Stops, "stop", "stops"))
+													: QStringLiteral("%1, %2 to accept").arg(counted(head.Stops, "stop", "stops")).arg(head.ToAccept));
 		} else {
 			Head->clear();
 		}
@@ -948,12 +960,12 @@ namespace bpr::qt {
 			const auto decision = core::decide_local_stop(*Projection.Draft, stop);
 			const auto exact    = stop.Current.Correspondence == core::local_correspondence::exact;
 			auto*      item     = new QListWidgetItem{ ring(decision.State),
-												   QStringLiteral("%1. %2\n%3")
-													   .arg(index)
-													   .arg(text_of(stop.Title))
-													   .arg((exact ? lines_text(stop.Source.Path, stop.Current.FirstLine, stop.Current.LastLine) : text_of(stop.Source.Path))
-															+ (decision.State == core::tour_acceptance_state::accepted ? QString{ } : QStringLiteral("  ·  ") + reason_text(decision.Reason))),
-												   Stops };
+													   QStringLiteral("%1. %2\n%3")
+														   .arg(index)
+														   .arg(text_of(stop.Title))
+														   .arg((exact ? lines_text(stop.Source.Path, stop.Current.FirstLine, stop.Current.LastLine) : text_of(stop.Source.Path))
+																+ (decision.State == core::tour_acceptance_state::accepted ? QString{ } : QStringLiteral("  ·  ") + reason_text(decision.Reason))),
+													   Stops };
 			item->setData(id_role, QVariant::fromValue<qulonglong>(stop.Id));
 			item->setToolTip(reason_text(decision.Reason));
 			item->setData(Qt::AccessibleDescriptionRole, reason_text(decision.Reason));
@@ -990,8 +1002,7 @@ namespace bpr::qt {
 		const auto exact    = stop->Current.Correspondence == core::local_correspondence::exact;
 		StopLines->setText(PendingLines ? lines_text(PendingLines->Path, PendingLines->First, PendingLines->Last) + QStringLiteral(" (not saved)")
 							   : exact  ? lines_text(stop->Source.Path, stop->Current.FirstLine, stop->Current.LastLine)
-										: QStringLiteral("%1 (%2 in this candidate)").arg(lines_text(stop->Source.Path, stop->Source.FirstLine, stop->Source.LastLine),
-																						  text_of(core::name(stop->Current.Correspondence))));
+										: QStringLiteral("%1 (%2 in this candidate)").arg(lines_text(stop->Source.Path, stop->Source.FirstLine, stop->Source.LastLine), text_of(core::name(stop->Current.Correspondence))));
 		StopLines->setToolTip(QStringLiteral("As captured on candidate %1:\n%2").arg(stop->Source.Candidate).arg(text_of(stop->Source.Excerpt)));
 		AcceptStop->setEnabled(decision.State != core::tour_acceptance_state::accepted && exact);
 		Show->setEnabled(exact);

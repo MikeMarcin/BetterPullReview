@@ -114,22 +114,22 @@ namespace bpr::app {
 			.SaveDescription = [this](const std::string& aTitle, const std::string& aBody) { Host->save_description(aTitle, aBody); },
 			.SaveBrief       = [this](const std::string& aProblem, const std::string& aSolution) { Host->save_brief(aProblem, aSolution); },
 			.Transfer        = [this](const std::string& aPassage) { Host->transfer_to_description(aPassage); },
-			.AddStop = [this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const std::string& aTitle,
-							  const std::string& aText) { Host->add_stop(aPath, aFirst, aLast, aTitle, aText); },
-			.SaveStop = [this](const std::uint64_t aStop, const std::string& aTitle, const std::string& aText, const std::string& aPath, const std::uint32_t aFirst,
-							   const std::uint32_t aLast) { Host->save_stop(aStop, aTitle, aText, aPath, aFirst, aLast); },
-			.AcceptStop     = [this](const std::uint64_t aStop) { Host->accept_stop(aStop); },
-			.RemoveStop     = [this](const std::uint64_t aStop) { Host->remove_stop(aStop); },
-			.MoveStop       = [this](const std::uint64_t aStop, const std::size_t aIndex) { Host->move_stop(aStop, aIndex); },
-			.Cite           = [this](const std::uint64_t aStop, const std::uint64_t aRecord, const bool aCited) { Host->cite(aStop, aRecord, aCited); },
-			.DecideProposal = [this](const std::uint64_t aProposal, const bool aAccept) { Host->decide_proposal(aProposal, aAccept); },
+			.AddStop         = [this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const std::string& aTitle,
+									  const std::string& aText) { Host->add_stop(aPath, aFirst, aLast, aTitle, aText); },
+			.SaveStop        = [this](const std::uint64_t aStop, const std::string& aTitle, const std::string& aText, const std::string& aPath, const std::uint32_t aFirst,
+									  const std::uint32_t aLast) { Host->save_stop(aStop, aTitle, aText, aPath, aFirst, aLast); },
+			.AcceptStop      = [this](const std::uint64_t aStop) { Host->accept_stop(aStop); },
+			.RemoveStop      = [this](const std::uint64_t aStop) { Host->remove_stop(aStop); },
+			.MoveStop        = [this](const std::uint64_t aStop, const std::size_t aIndex) { Host->move_stop(aStop, aIndex); },
+			.Cite            = [this](const std::uint64_t aStop, const std::uint64_t aRecord, const bool aCited) { Host->cite(aStop, aRecord, aCited); },
+			.DecideProposal  = [this](const std::uint64_t aProposal, const bool aAccept) { Host->decide_proposal(aProposal, aAccept); },
 			.Ask =
 				[this](application::local_draft_question aQuestion) {
 					const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
 					if (!choice) {
 						return;
 					}
-					const auto describing   = aQuestion.Subject == core::local_subject::title || aQuestion.Subject == core::local_subject::description;
+					const auto describing  = aQuestion.Subject == core::local_subject::title || aQuestion.Subject == core::local_subject::description;
 					aQuestion.Agent        = choice->Identity;
 					aQuestion.AgentName    = choice->Name;
 					aQuestion.Profile      = choice->Profile;

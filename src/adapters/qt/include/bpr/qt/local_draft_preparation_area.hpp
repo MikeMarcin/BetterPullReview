@@ -15,27 +15,27 @@ class QLineEdit;
 class QListWidget;
 class QPlainTextEdit;
 class QPushButton;
-class QTextBrowser;
+class QScrollArea;
 class QToolButton;
 
 namespace bpr::qt {
 	/// \brief RFC-BPR-0110. The gestures the Description and Tour areas send.
 	struct local_draft_preparation_dispatch
 	{
-		std::function<void(const std::string&, const std::string&)>                                                         SaveDescription;
-		std::function<void(const std::string&, const std::string&)>                                                         SaveBrief;
-		std::function<void(const std::string&)>                                                                             Transfer;
-		std::function<void(const std::string&, std::uint32_t, std::uint32_t, const std::string&, const std::string&)>       AddStop;
+		std::function<void(const std::string&, const std::string&)>                                                                  SaveDescription;
+		std::function<void(const std::string&, const std::string&)>                                                                  SaveBrief;
+		std::function<void(const std::string&)>                                                                                      Transfer;
+		std::function<void(const std::string&, std::uint32_t, std::uint32_t, const std::string&, const std::string&)>                AddStop;
 		std::function<void(std::uint64_t, const std::string&, const std::string&, const std::string&, std::uint32_t, std::uint32_t)> SaveStop;
-		std::function<void(std::uint64_t)>                                                                                   AcceptStop;
-		std::function<void(std::uint64_t)>                                                                                   RemoveStop;
-		std::function<void(std::uint64_t, std::size_t)>                                                                      MoveStop;
-		std::function<void(std::uint64_t, std::uint64_t, bool)>                                                              Cite;
-		std::function<void(std::uint64_t, bool)>                                                                             DecideProposal;
+		std::function<void(std::uint64_t)>                                                                                           AcceptStop;
+		std::function<void(std::uint64_t)>                                                                                           RemoveStop;
+		std::function<void(std::uint64_t, std::size_t)>                                                                              MoveStop;
+		std::function<void(std::uint64_t, std::uint64_t, bool)>                                                                      Cite;
+		std::function<void(std::uint64_t, bool)>                                                                                     DecideProposal;
 		/// The host fills in the agent and its prompt purpose.
 		std::function<void(application::local_draft_question)> Ask;
-		std::function<void()>                                   StopAsking;
-		std::function<void(std::uint64_t)>                      NewSession;
+		std::function<void()>                                  StopAsking;
+		std::function<void(std::uint64_t)>                     NewSession;
 	};
 
 	/// \brief Lines chosen in the Changes view: a file of the latest
@@ -51,7 +51,7 @@ namespace bpr::qt {
 	/// and arriving at lines there.
 	struct local_draft_page_links
 	{
-		std::function<std::optional<local_draft_lines>()>                Selection;
+		std::function<std::optional<local_draft_lines>()>                     Selection;
 		std::function<void(const std::string&, std::uint32_t, std::uint32_t)> Reveal;
 	};
 
@@ -70,7 +70,7 @@ namespace bpr::qt {
 		void set_subject(std::string aThread, core::local_subject aSubject, std::uint64_t aStop);
 		void present(const application::local_draft_workbench_projection& aProjection);
 
-		[[nodiscard]] auto transcript() const noexcept -> QTextBrowser*;
+		[[nodiscard]] auto transcript() const noexcept -> QLabel*;
 		[[nodiscard]] auto proposals() const noexcept -> QListWidget*;
 		[[nodiscard]] auto session_line() const noexcept -> QLabel*;
 		[[nodiscard]] auto session_menu() const noexcept -> QPushButton*;
@@ -99,16 +99,17 @@ namespace bpr::qt {
 		/// The history conversation shown, or 0 for the open one.
 		std::uint64_t Shown = 0;
 
-		QTextBrowser* Transcript = nullptr;
-		QListWidget*  Proposals  = nullptr;
-		QPushButton*  Accept     = nullptr;
-		QPushButton*  Reject     = nullptr;
-		QLabel*       Running    = nullptr;
-		QLabel*       Failure    = nullptr;
-		QLabel*       Session    = nullptr;
-		QPushButton*  SessionMenu = nullptr;
-		QLineEdit*    Composer   = nullptr;
-		QPushButton*  Ask        = nullptr;
+		QScrollArea* TranscriptScroll = nullptr;
+		QLabel*      Transcript       = nullptr;
+		QListWidget* Proposals        = nullptr;
+		QPushButton* Accept           = nullptr;
+		QPushButton* Reject           = nullptr;
+		QLabel*      Running          = nullptr;
+		QLabel*      Failure          = nullptr;
+		QLabel*      Session          = nullptr;
+		QPushButton* SessionMenu      = nullptr;
+		QLineEdit*   Composer         = nullptr;
+		QPushButton* Ask              = nullptr;
 	};
 
 	/// \brief The Description area: the pull request's full description, its
@@ -182,23 +183,23 @@ namespace bpr::qt {
 		std::optional<local_draft_lines> PendingLines;
 		std::uint64_t                    Editing = 0;
 
-		QLabel*           Head      = nullptr;
-		QPlainTextEdit*   Problem   = nullptr;
-		QPlainTextEdit*   Solution  = nullptr;
-		QPushButton*      SaveBrief = nullptr;
-		QListWidget*      Stops     = nullptr;
-		QPushButton*      AddStop   = nullptr;
-		QLineEdit*        StopTitle = nullptr;
-		QPlainTextEdit*   StopText  = nullptr;
-		QLabel*           StopLines = nullptr;
-		QPushButton*      UseLines  = nullptr;
-		QPushButton*      Show      = nullptr;
+		QLabel*           Head       = nullptr;
+		QPlainTextEdit*   Problem    = nullptr;
+		QPlainTextEdit*   Solution   = nullptr;
+		QPushButton*      SaveBrief  = nullptr;
+		QListWidget*      Stops      = nullptr;
+		QPushButton*      AddStop    = nullptr;
+		QLineEdit*        StopTitle  = nullptr;
+		QPlainTextEdit*   StopText   = nullptr;
+		QLabel*           StopLines  = nullptr;
+		QPushButton*      UseLines   = nullptr;
+		QPushButton*      Show       = nullptr;
 		QPushButton*      AcceptStop = nullptr;
-		QPushButton*      SaveStop  = nullptr;
-		QPushButton*      Remove    = nullptr;
-		QPushButton*      Move      = nullptr;
-		QLabel*           Notice    = nullptr;
-		local_draft_chat* Chat      = nullptr;
+		QPushButton*      SaveStop   = nullptr;
+		QPushButton*      Remove     = nullptr;
+		QPushButton*      Move       = nullptr;
+		QLabel*           Notice     = nullptr;
+		local_draft_chat* Chat       = nullptr;
 	};
 
 	/// \brief Words for a refused description or tour edit.

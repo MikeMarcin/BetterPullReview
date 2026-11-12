@@ -818,10 +818,10 @@ namespace bpr::app {
 		auto writing_sources(core::writing_hook aHook, const core::writing_request& aRequest) const -> std::vector<application::writing_source>;
 		void request_writing(core::writing_hook aHook, qt::prose_capture aCapture);
 #if defined(BPR_AGENT_INTEGRATIONS)
-		void               compose_tour_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies);
+		void compose_tour_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies);
 		/// \brief RFC-BPR-0110. A local draft's conversations: tool-free runs
 		/// whose only input is the request the draft's host composed.
-		void compose_local_draft_agent(const std::vector<core::agent_profile>& aProfiles);
+		void               compose_local_draft_agent(const std::vector<core::agent_profile>& aProfiles);
 		[[nodiscard]] auto tour_reading_notice() const -> QString;
 		[[nodiscard]] auto reads_read_only(const core::agent_profile_id aProfile) const -> bool;
 		[[nodiscard]] auto dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor,
@@ -2330,8 +2330,8 @@ namespace bpr::app {
 		std::unique_ptr<application::wrapped_claude_process>     LocalDraftClaudeProcess;
 		std::unique_ptr<application::located_agent_process>      LocalDraftLocatedProcess;
 		std::unique_ptr<application::agent_entry_process>        LocalDraftEntryProcess;
-		std::unique_ptr<tour_session_projection>              TourProjection;
-		std::unique_ptr<application::agent_invocation_host>   TourSession;
+		std::unique_ptr<tour_session_projection>                 TourProjection;
+		std::unique_ptr<application::agent_invocation_host>      TourSession;
 		/// [[BPR-2040]]. An editor-context observation, destroyed before its
 		/// host. It observes retirement; it never changes run or effect policy.
 		std::unique_ptr<QTimer>                   TourIdleObservation;

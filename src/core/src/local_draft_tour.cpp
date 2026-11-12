@@ -169,16 +169,16 @@ namespace bpr::core {
 
 		constexpr auto all_correspondences = std::array{ local_correspondence::exact, local_correspondence::changed, local_correspondence::ambiguous, local_correspondence::missing,
 														 local_correspondence::unavailable };
-		constexpr auto all_targets         = std::array{ local_proposal_target::title,    local_proposal_target::description, local_proposal_target::problem,
-														 local_proposal_target::solution, local_proposal_target::stop,        local_proposal_target::new_stop,
-														 local_proposal_target::claim,    local_proposal_target::check };
-		constexpr auto all_states   = std::array{ local_proposal_state::pending, local_proposal_state::accepted, local_proposal_state::rejected, local_proposal_state::outside_candidate };
-		constexpr auto all_subjects = std::array{ local_subject::whole_change, local_subject::title, local_subject::description, local_subject::problem,
-												  local_subject::solution,     local_subject::stop,  local_subject::lines };
-		constexpr auto all_claims   = std::array{ claim_kind::bug_fix,   claim_kind::preserved_behavior, claim_kind::compatibility,
-												  claim_kind::performance, claim_kind::formal_property, claim_kind::other };
-		constexpr auto all_methods  = std::array{ check_method::test,        check_method::benchmark,   check_method::fuzz,  check_method::property_test,
-												  check_method::inspection, check_method::model_check, check_method::proof, check_method::other };
+		constexpr auto all_targets         = std::array{ local_proposal_target::title, local_proposal_target::description, local_proposal_target::problem,
+														 local_proposal_target::solution, local_proposal_target::stop, local_proposal_target::new_stop,
+														 local_proposal_target::claim, local_proposal_target::check };
+		constexpr auto all_states          = std::array{ local_proposal_state::pending, local_proposal_state::accepted, local_proposal_state::rejected, local_proposal_state::outside_candidate };
+		constexpr auto all_subjects        = std::array{ local_subject::whole_change, local_subject::title, local_subject::description, local_subject::problem,
+														 local_subject::solution, local_subject::stop, local_subject::lines };
+		constexpr auto all_claims          = std::array{ claim_kind::bug_fix, claim_kind::preserved_behavior, claim_kind::compatibility,
+														 claim_kind::performance, claim_kind::formal_property, claim_kind::other };
+		constexpr auto all_methods         = std::array{ check_method::test, check_method::benchmark, check_method::fuzz, check_method::property_test,
+														 check_method::inspection, check_method::model_check, check_method::proof, check_method::other };
 
 		template <typename TEnum, std::size_t TCount>
 		[[nodiscard]] auto enum_from(const std::string_view aName, const std::array<TEnum, TCount>& aValues) -> std::optional<TEnum>
@@ -267,8 +267,8 @@ namespace bpr::core {
 
 		[[nodiscard]] auto fingerprint(const local_tour_stop& aStop) -> std::array<std::uint8_t, 32>
 		{
-			auto stream = sha256_stream{ };
-			const auto add = [&stream](const std::string_view aText) {
+			auto       stream = sha256_stream{ };
+			const auto add    = [&stream](const std::string_view aText) {
 				const auto size = std::to_string(aText.size()) + ":";
 				stream.update({ reinterpret_cast<const std::uint8_t*>(size.data()), size.size() });
 				stream.update({ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() });
@@ -385,7 +385,7 @@ namespace bpr::core {
 			}
 			case local_proposal_target::new_stop:
 			case local_proposal_target::claim:
-			case local_proposal_target::check:       return std::uint64_t{ 0U };
+			case local_proposal_target::check:    return std::uint64_t{ 0U };
 			}
 			return std::nullopt;
 		}
@@ -554,12 +554,12 @@ namespace bpr::core {
 		const auto wanted = split_lines(aBinding.Excerpt);
 		const auto count  = wanted.size();
 		const auto at     = [&](const std::size_t aStart) {
-            for (std::size_t index = 0U; index < count; ++index) {
-                if (bare(file[aStart + index]) != bare(wanted[index])) {
-                    return false;
-                }
-            }
-            return true;
+			for (std::size_t index = 0U; index < count; ++index) {
+				if (bare(file[aStart + index]) != bare(wanted[index])) {
+					return false;
+				}
+			}
+			return true;
 		};
 		destination.Correspondence = local_correspondence::changed;
 		if (count == 0U || count > file.size()) {
@@ -735,8 +735,8 @@ namespace bpr::core {
 										 .Excerpt   = aBinding.Excerpt };
 		};
 		auto preparation = local_draft_preparation{
-			.Description = { .Body = wire.Body, .Revision = wire.BodyRevision, .TitleRevision = wire.TitleRevision },
-			.Tour = { .Problem = wire.Problem, .Solution = wire.Solution, .ProblemRevision = wire.ProblemRevision, .SolutionRevision = wire.SolutionRevision, .NextStop = wire.NextStop },
+			.Description      = { .Body = wire.Body, .Revision = wire.BodyRevision, .TitleRevision = wire.TitleRevision },
+			.Tour             = { .Problem = wire.Problem, .Solution = wire.Solution, .ProblemRevision = wire.ProblemRevision, .SolutionRevision = wire.SolutionRevision, .NextStop = wire.NextStop },
 			.NextProposal     = wire.NextProposal,
 			.NextConversation = wire.NextConversation,
 		};
@@ -766,7 +766,8 @@ namespace bpr::core {
 				}
 				for (std::size_t index = 0U; index < 32U; ++index) {
 					const auto digit = [](const char aByte) -> int {
-						return aByte >= '0' && aByte <= '9' ? aByte - '0' : aByte >= 'a' && aByte <= 'f' ? aByte - 'a' + 10 : -1;
+						return aByte >= '0' && aByte <= '9' ? aByte - '0' : aByte >= 'a' && aByte <= 'f' ? aByte - 'a' + 10
+																										 : -1;
 					};
 					const auto high = digit(entry.Fingerprint[index * 2U]);
 					const auto low  = digit(entry.Fingerprint[(index * 2U) + 1U]);
@@ -911,9 +912,9 @@ namespace bpr::core {
 		if (!source) {
 			return std::unexpected{ preparation_refusal::outside_candidate };
 		}
-		auto  next = advanced(aDraft, aNow);
-		auto& tour = next.Preparation.Tour;
-		auto  stop = local_tour_stop{ .Id = tour.NextStop++, .Title = std::move(aTitle), .Text = std::move(aText), .Source = std::move(*source) };
+		auto  next   = advanced(aDraft, aNow);
+		auto& tour   = next.Preparation.Tour;
+		auto  stop   = local_tour_stop{ .Id = tour.NextStop++, .Title = std::move(aTitle), .Text = std::move(aText), .Source = std::move(*source) };
 		stop.Current = correspond(stop.Source, latest, aFile);
 		tour.Stops.push_back(std::move(stop));
 		if (!valid(next.Preparation)) {
@@ -1127,7 +1128,7 @@ namespace bpr::core {
 											.Producer     = std::string{ aProducer.substr(0U, std::min(aProducer.size(), maximum_evidence_name_bytes)) },
 											.Version      = std::string{ aVersion.substr(0U, std::min(aVersion.size(), maximum_evidence_name_bytes)) } };
 			if (draft.Target == local_proposal_target::new_stop) {
-				const auto file = std::ranges::find(aFiles, draft.Path, &local_file_reading::Path);
+				const auto file   = std::ranges::find(aFiles, draft.Path, &local_file_reading::Path);
 				auto       source = file == aFiles.end() || file->Deleted ? std::nullopt : bind(aCandidate, *file, diff_side::right, draft.FirstLine, draft.LastLine);
 				if (source) {
 					proposal.Source = std::move(source);
@@ -1305,10 +1306,10 @@ namespace bpr::core {
 		if (!thread_ok(aThread) || aAgent.empty() || !line_ok(aAgent, 256U) || !text_ok(aTurn.Text, maximum_local_turn_bytes)) {
 			return std::unexpected{ preparation_refusal::invalid };
 		}
-		auto        next    = advanced(aDraft, aNow);
-		const auto* open    = current_conversation(aDraft, aThread, aAgent);
-		auto        id      = open == nullptr ? std::uint64_t{ 0U } : open->Id;
-		auto&       prep    = next.Preparation;
+		auto        next = advanced(aDraft, aNow);
+		const auto* open = current_conversation(aDraft, aThread, aAgent);
+		auto        id   = open == nullptr ? std::uint64_t{ 0U } : open->Id;
+		auto&       prep = next.Preparation;
 		if (id == 0U) {
 			if (prep.Conversations.size() >= maximum_local_conversations) {
 				return std::unexpected{ preparation_refusal::full };
@@ -1566,11 +1567,11 @@ namespace bpr::core {
 
 	auto compose_local_publication(const local_draft& aDraft) -> local_publication_preview
 	{
-		auto preview      = local_publication_preview{ .Title = aDraft.Title, .Body = aDraft.Preparation.Description.Body };
-		const auto& tour  = aDraft.Preparation.Tour;
-		const auto  chosen = selected_evidence(aDraft);
-		const auto  latest = latest_ordinal(aDraft);
-		auto&       out    = preview.Tour;
+		auto        preview = local_publication_preview{ .Title = aDraft.Title, .Body = aDraft.Preparation.Description.Body };
+		const auto& tour    = aDraft.Preparation.Tour;
+		const auto  chosen  = selected_evidence(aDraft);
+		const auto  latest  = latest_ordinal(aDraft);
+		auto&       out     = preview.Tour;
 		if (!tour.Problem.empty()) {
 			out += "## Problem\n\n" + tour.Problem + "\n\n";
 		}
@@ -1636,9 +1637,9 @@ namespace bpr::core {
 				const auto file = std::ranges::find(aResult.Files, stop.Source.Path, &local_file_reading::Path);
 				if (file != aResult.Files.end()) {
 					// A candidate the pull request was not made from cannot claim its lines.
-					auto binding      = stop.Source;
-					binding.Candidate = 0U;
-					const auto there  = correspond(binding, std::numeric_limits<std::uint64_t>::max(), *file);
+					auto binding         = stop.Source;
+					binding.Candidate    = 0U;
+					const auto there     = correspond(binding, std::numeric_limits<std::uint64_t>::max(), *file);
 					entry.Correspondence = there.Correspondence;
 					if (there.Correspondence == local_correspondence::exact) {
 						entry.Anchor    = tour_code_destination{ .Commit    = aResult.Head,

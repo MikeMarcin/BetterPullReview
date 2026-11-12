@@ -690,7 +690,11 @@ namespace bpr::app {
 		void open_local_draft(const std::string& aLocation);
 		/// \brief RFC-BPR-0109. Imports an evidence document into the open
 		/// local draft, as its Evidence area's Import… does.
-		void               import_local_draft_evidence(const std::string& aDocument);
+		void import_local_draft_evidence(const std::string& aDocument);
+		/// \brief RFC-BPR-0110. For an attended look: the local draft's
+		/// questions go to a scripted agent that answers with proposals,
+		/// never to an installed one.
+		void               script_local_draft_agent_for_look();
 		[[nodiscard]] auto windows() const -> std::vector<core::bpr_window_context>;
 		[[nodiscard]] auto window(core::bpr_window_context aContext) noexcept -> qt::workbench_window*;
 		[[nodiscard]] auto status(core::bpr_window_context aContext) const noexcept -> std::optional<github_application_status>;

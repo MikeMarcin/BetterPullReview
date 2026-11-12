@@ -24,7 +24,6 @@
 #include <QPushButton>
 #include <QTabBar>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QToolButton>
 
 #include <cstdlib>
@@ -297,7 +296,7 @@ try {
 		expect(prompt.find("LIVE_HELPER_EDIT") == std::string::npos && prompt.find("src/helper.cpp") == std::string::npos, "AC03: an unselected live helper edit never enters");
 		const auto& prep = page->projection().Draft->Preparation;
 		expect(prep.Conversations.size() == 1U && prep.Conversations[0].Turns.size() == 2U && prep.Proposals.size() == 4U, "the turn, the answer and its proposals are kept");
-		expect(chat->transcript()->toPlainText().contains(QStringLiteral("The join can block")) && chat->session_line()->text().contains(QStringLiteral("Claude"))
+		expect(chat->transcript()->text().contains(QStringLiteral("The join can block")) && chat->session_line()->text().contains(QStringLiteral("Claude"))
 				   && chat->session_line()->text().contains(QStringLiteral("$0.02")),
 			   "AC08: the transcript and the session line with its cost");
 		expect(chat->proposals()->count() == 4, "the proposals sit beside the tour");
@@ -358,7 +357,7 @@ try {
 		auto* const earlier = chat->session_menu()->menu()->actions().last();
 		expect(earlier->text().startsWith(QStringLiteral("Candidate 2")), "the Session menu lists the earlier conversation as history");
 		earlier->trigger();
-		expect(chat->transcript()->toPlainText().contains(QStringLiteral("What could break?")) && chat->session_line()->text().contains(QStringLiteral("earlier")),
+		expect(chat->transcript()->text().contains(QStringLiteral("What could break?")) && chat->session_line()->text().contains(QStringLiteral("earlier")),
 			   "the earlier conversation is readable against its own candidate");
 		capture(window, QStringLiteral("local-draft-tour-refreshed"));
 	}
@@ -376,7 +375,7 @@ try {
 			   "AC04: description, tour, conversations and proposals resume");
 		page->areas()->setCurrentIndex(3);
 		settle(s.Lanes);
-		expect(page->tour()->chat()->transcript()->toPlainText().contains(QStringLiteral("Anything else?")), "AC04: the open conversation resumes without a process");
+		expect(page->tour()->chat()->transcript()->text().contains(QStringLiteral("Anything else?")), "AC04: the open conversation resumes without a process");
 		capture(window, QStringLiteral("local-draft-tour-restarted"));
 	}
 	{

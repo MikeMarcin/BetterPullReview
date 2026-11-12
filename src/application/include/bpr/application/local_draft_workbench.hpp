@@ -213,10 +213,10 @@ namespace bpr::application {
 	/// \brief What the last request sent (RFC-BPR-0110's disclosed coverage).
 	struct local_draft_request_coverage
 	{
-		std::size_t FilesSent  = 0;
-		std::size_t FilesTotal = 0;
-		std::size_t Replayed   = 0;
-		std::size_t Omitted    = 0;
+		std::size_t FilesSent                                              = 0;
+		std::size_t FilesTotal                                             = 0;
+		std::size_t Replayed                                               = 0;
+		std::size_t Omitted                                                = 0;
 		auto        operator<=>(const local_draft_request_coverage&) const = default;
 	};
 
