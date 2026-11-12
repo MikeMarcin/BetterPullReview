@@ -62,3 +62,13 @@ from earlier milestones; this round added the four local-draft entries.
 Not run: the whole suite, the core-only preset, Qt window suites, an
 installed agent answering a local draft (the course's runner is scripted),
 Windows and Linux.
+
+## Owner verdicts (attended session 6c8ac4dc8b4856b0f94a4b4729af0806, handed back 2026-11-12T06:36:34Z)
+
+- `RFC-BPR-0110-candidate-chooser`: **Reject** (decision `ad3145f7-d664-4cd5-9fe1-7cc07092bf89`, 2026-11-12T06:25:43Z, actor human), the owner: "This screen is so ugly besides maybe the stops, but not even those, that I dont even want to look at it."
+- `RFC-BPR-0110-description-area`: **Reject** (decision `1d41ca91-202a-4cdb-9495-97414e9f0c5e`, 2026-11-12T06:26:20Z, actor human), the owner: "This screen is so ugly that I don't even want to look at it."
+- `RFC-BPR-0110-tour-area`: **Reject** (decision `f2e3c111-e44d-4a89-a10a-2c3c354fa6ae`, 2026-11-12T06:36:33Z, actor human), the owner: "This screen is so ugly that I don't even want to look at it."
+
+Root `/Users/jaeger/local-draft-tour-v001.3hs4zi83` removed with `freeze_attended_build.py remove` and the host
+stopped (2026-11-12). The coordinator: a redesign from mockups comes first;
+no new look is filed until then.

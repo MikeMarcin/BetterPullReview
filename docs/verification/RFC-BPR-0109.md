@@ -69,3 +69,12 @@ on the frozen build of `8f5ca195f370` (root
 - Description and tour use of the selection arrive with RFC-BPR-0110; this RFC
   provides `selected_evidence` and the Use column.
 - `inputs` are the producer's statement; nothing derives dependencies.
+
+## Owner verdicts (attended session 7fc09e758ebf8ac0d028da38a5d374f7, handed back 2026-11-12T06:24:42Z)
+
+- `BPR-2023-result-wording`: **Reject** (decision `214fd32c-fb1c-4442-95a0-0fcd9f640187`, 2026-11-12T06:23:51Z, actor human), the owner: "I have no idea what I'm looking at here. This doesn't seem useful, unless you can explain how it's valuable to me."
+- `BPR-2024-evidence-area`: **Reject** (decision `40abb603-d9d5-4b6c-bd3b-3ef8576ac037`, 2026-11-12T06:24:41Z, actor human), the owner: "Same as other / I have no idea what I'm looking at here. This doesn't seem useful, unless you can explain how it's valuable to me."
+
+Root `/Users/jaeger/local-draft-evidence-v001.pdc9rq1b` removed with `freeze_attended_build.py remove` and the host
+stopped (2026-11-12). The coordinator: a redesign from mockups comes first;
+no new look is filed until then.
