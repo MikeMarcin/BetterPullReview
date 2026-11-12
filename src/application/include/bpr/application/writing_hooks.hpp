@@ -61,6 +61,10 @@ namespace bpr::application {
 	/// \brief [[BPR-2059]] Version of the shipped suggested-comment format,
 	/// `resources/review-preparation/suggested-comment.md`.
 	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v1";
+	/// \brief RFC-BPR-0110 ([[BPR-2026]]) Versions of the shipped
+	/// local-authoring prompts, `resources/review-preparation/local-*.md`.
+	inline constexpr std::string_view local_description_hook_version = "local-description-v1";
+	inline constexpr std::string_view local_discussion_hook_version  = "local-discussion-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.

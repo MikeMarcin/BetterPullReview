@@ -55,7 +55,9 @@ namespace bpr::adapters::sqlite::detail {
 		/// [[BPR-1816]] Version twenty-four's finish choices, thirty-two.
 		/// [[BPR-2051]] Version twenty-five's three Enhance prompts, thirty-five.
 		/// [[BPR-2059]] Version twenty-six's suggested-comment format, thirty-six.
-		constexpr std::size_t MaximumTableColumns = 36U;
+		/// RFC-BPR-0110 ([[BPR-2026]]) Version twenty-eight's two
+		/// local-authoring prompts, thirty-eight.
+		constexpr std::size_t MaximumTableColumns = 38U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -190,7 +192,11 @@ namespace bpr::adapters::sqlite::detail {
 				  "writing_enhance_note TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_enhance_note AS BLOB)) <= 8192),"
 				  // [[BPR-2059]]. Schema version 26: how an agent writes the
 				  // comments it suggests, empty for the shipped default.
-				  "writing_suggestion_format TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_suggestion_format AS BLOB)) <= 8192)) STRICT";
+				  "writing_suggestion_format TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_suggestion_format AS BLOB)) <= 8192),"
+				  // RFC-BPR-0110. Schema version 28: a local draft's description
+				  // writing and discussion prompts, empty for the shipped defaults.
+				  "writing_local_description TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_local_description AS BLOB)) <= 8192),"
+				  "writing_local_discussion TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_local_discussion AS BLOB)) <= 8192)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
@@ -207,11 +213,13 @@ namespace bpr::adapters::sqlite::detail {
 			return aHook < core::review_preparation_hook_count                             ? static_cast<int>(15 + aHook)
 				: aHook == static_cast<std::size_t>(core::writing_hook::feedback)          ? 24
 				: aHook == static_cast<std::size_t>(core::writing_hook::suggested_comment) ? 34
+				: aHook == static_cast<std::size_t>(core::writing_hook::local_description) ? 35
+				: aHook == static_cast<std::size_t>(core::writing_hook::local_discussion)  ? 36
 																						   : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
 		}
 		/// \brief The retired column of the note's own Enhance prompt.
 		constexpr int retired_enhance_note_column = 33;
-		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 4U, "a new hook needs its own column");
+		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 6U, "a new hook needs its own column");
 		/// \brief Version twenty-seven folds the note's Enhance prompt into the
 		/// one Enhance writing prompt: a profile that changed only the note's
 		/// keeps that text for every surface, one that changed the comment's
@@ -392,6 +400,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 23                       ? ",finish_review"
 				: aVersion <= 24                       ? ",writing_enhance_stop"
 				: aVersion <= 25                       ? ",writing_suggestion_format"
+				: aVersion <= 27                       ? ",writing_local_description"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -422,7 +431,7 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
 				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
 				+ (aVersion >= 12 ? ",feedback_marks" : "") + (aVersion >= 13 ? ",label_helper,overview_counts,label_columns" : "")
-				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "") + (aVersion >= 25 ? ",writing_enhance_stop,writing_enhance_draft,writing_enhance_note" : "");
+				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "") + (aVersion >= 25 ? ",writing_enhance_stop,writing_enhance_draft,writing_enhance_note" : "") + (aVersion >= 26 ? ",writing_suggestion_format" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -803,14 +812,14 @@ namespace bpr::adapters::sqlite::detail {
 			// Version twenty-six has today's tables; it only folds the note's
 			// Enhance prompt into the one Enhance writing prompt, as every
 			// older version's rebuild does after it.
-			if (*current < 0 || *current > 26) {
+			// RFC-BPR-0110: version twenty-eight adds two prompt columns, so
+			// twenty-six and twenty-seven are rebuilt like every older version.
+			if (*current < 0 || *current > 27) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
 			const auto fresh      = *current == 0;
-			auto       statements = fresh ? schema_version_1()
-				: *current == 26          ? std::vector<std::string>{ "UPDATE workbench_meta SET schema_format=" + std::to_string(workbench_settings_schema_version) + " WHERE singleton=1" }
-										  : migrate_from(*current);
+			auto       statements = fresh ? schema_version_1() : migrate_from(*current);
 			if (!fresh) {
 				statements.insert(statements.end() - 1, std::string{ FoldEnhanceNote });
 			}
@@ -1156,8 +1165,8 @@ namespace bpr::adapters::sqlite::detail {
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
 			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
-			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35) "
+			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format, writing_local_description, writing_local_discussion) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1178,7 +1187,8 @@ namespace bpr::adapters::sqlite::detail {
 			"claude_model = excluded.claude_model, center_ribbon_width = excluded.center_ribbon_width, markdown_images = excluded.markdown_images,"
 			"reading_width = excluded.reading_width, finish_review = excluded.finish_review,"
 			"writing_enhance_stop = excluded.writing_enhance_stop, writing_enhance_draft = excluded.writing_enhance_draft, writing_enhance_note = excluded.writing_enhance_note,"
-			"writing_suggestion_format = excluded.writing_suggestion_format");
+			"writing_suggestion_format = excluded.writing_suggestion_format, writing_local_description = excluded.writing_local_description,"
+			"writing_local_discussion = excluded.writing_local_discussion");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1516,7 +1526,7 @@ namespace bpr::adapters::sqlite::detail {
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
 			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
-			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format "
+			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format, writing_local_description, writing_local_discussion "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());

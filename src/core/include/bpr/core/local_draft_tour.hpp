@@ -442,6 +442,57 @@ namespace bpr::core {
 	/// answer reported one.
 	[[nodiscard]] auto conversation_cost(const local_conversation& aConversation) -> std::optional<std::uint64_t>;
 
+	// --- The request and the answer -----------------------------------------------------
+
+	/// \brief A request's bound, as a pull request's tour chat's.
+	inline constexpr std::size_t maximum_local_request_bytes = 160U * 1024U;
+
+	/// \brief What one question sends: the prompt purpose's text, the
+	/// question and its subject, the draft's own preparation, and only the
+	/// captured candidate's bytes the host read from its store.
+	struct local_question
+	{
+		local_subject Subject = local_subject::whole_change;
+		std::string   Thread;
+		/// For a stop's subject or thread.
+		std::uint64_t Stop = 0;
+		/// For attached lines.
+		std::optional<local_source_binding> Lines;
+		std::string                         Text;
+		/// The prompt purpose's effective text and version.
+		std::string Instructions;
+		std::string Version;
+		auto        operator<=>(const local_question&) const = default;
+	};
+	/// \brief The request's text and what it left out.
+	struct local_request
+	{
+		std::string Text;
+		/// Changed files of the candidate sent whole, and in all.
+		std::size_t FilesSent  = 0;
+		std::size_t FilesTotal = 0;
+		/// Earlier turns replayed, and left out.
+		std::size_t Replayed = 0;
+		std::size_t Omitted  = 0;
+	};
+	/// \brief Composes one request on the draft's latest candidate from
+	/// `aFiles`, that candidate's readings from the private store (never the
+	/// worktree), the subject's file first, within `maximum_local_request_bytes`.
+	/// Absent when even the question and instructions do not fit.
+	[[nodiscard]] auto compose_local_request(const local_draft& aDraft, const local_question& aQuestion, const local_conversation* aConversation,
+											 std::span<const local_file_reading> aFiles) -> std::optional<local_request>;
+
+	/// \brief An answer read: its prose, and the proposals of its one
+	/// `bpr-proposals` block. A malformed block is left in the prose and
+	/// proposes nothing.
+	struct local_answer
+	{
+		std::string                       Prose;
+		std::vector<local_proposal_draft> Proposals;
+		bool                              Malformed = false;
+	};
+	[[nodiscard]] auto parse_local_answer(std::string_view aText) -> local_answer;
+
 	// --- Publication ------------------------------------------------------------------
 
 	/// \brief What a pull request created from this draft would carry, as

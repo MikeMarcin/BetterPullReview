@@ -10,8 +10,11 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/enhance-tour
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/enhance-writing.md" WRITING_ENHANCE_WRITING)
 # [[BPR-2059]] How an agent writes the comments it suggests.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/suggested-comment.md" WRITING_SUGGESTED_COMMENT)
+# RFC-BPR-0110 ([[BPR-2026]]) The local-authoring prompts: description writing and whole-change discussion.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-description.md" WRITING_LOCAL_DESCRIPTION)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-discussion.md" WRITING_LOCAL_DISCUSSION)
 # An edited resource reconfigures, so the built defaults never lag their text.
-foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment)
+foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)

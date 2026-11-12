@@ -272,6 +272,30 @@ namespace {
 		expect(!core::update_description_by_default(true) && core::update_description_by_default(false), "the description option starts off only for a local draft's pull request");
 	}
 
+	void test_request_and_answer()
+	{
+		auto draft = make_draft();
+		draft      = ok(core::edit_description(draft, draft.Version, "Cancel", "Body.", 101), "body");
+		// The worktree may hold anything now; only the candidate's readings are sent.
+		const auto files    = std::vector{ file(first_text) };
+		const auto question = core::local_question{ .Subject = core::local_subject::whole_change, .Thread = "change", .Text = "What could break?", .Instructions = "RULES" };
+		const auto request  = core::compose_local_request(draft, question, nullptr, files);
+		expect(request && request->Text.starts_with("RULES") && request->Text.find("void cancel()") != std::string::npos && request->FilesSent == 1U,
+			   "the request carries the instructions and the candidate's captured file");
+		expect(request->Text.find("LIVE EDIT") == std::string::npos, "nothing else");
+		auto big = std::vector{ core::local_file_reading{ .Path = "src/search.cpp", .Text = std::string(200U * 1024U, 'x') } };
+		const auto bounded = core::compose_local_request(draft, question, nullptr, big);
+		expect(bounded && bounded->FilesSent == 0U && bounded->Text.size() <= core::maximum_local_request_bytes, "a file past the bound is left out, and said so");
+		const auto answer = core::parse_local_answer(
+			"The timer path.\n\n```bpr-proposals\n[{\"target\":\"check\",\"method\":\"test\",\"title\":\"cancel_timer\",\"text\":\"ctest -R timer\"},"
+			"{\"target\":\"new_stop\",\"path\":\"src/search.cpp\",\"first\":2,\"last\":4,\"title\":\"Cancel\",\"text\":\"Here.\"}]\n```\n");
+		expect(answer.Prose == "The timer path." && answer.Proposals.size() == 2U && answer.Proposals[0].Target == core::local_proposal_target::check
+				   && answer.Proposals[1].FirstLine == 2U && !answer.Malformed,
+			   "the answer's proposals are read and its prose kept");
+		const auto broken = core::parse_local_answer("Hm.\n```bpr-proposals\nnot json\n```");
+		expect(broken.Malformed && broken.Proposals.empty(), "a malformed block proposes nothing");
+	}
+
 	void test_transfer()
 	{
 		auto draft = make_draft();
@@ -291,6 +315,7 @@ auto main() -> int
 	test_proposals();
 	test_conversations();
 	test_publication_mapping();
+	test_request_and_answer();
 	test_transfer();
 	std::cout << "local draft tour tests passed\n";
 	return EXIT_SUCCESS;

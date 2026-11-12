@@ -62,6 +62,11 @@ namespace bpr::qt {
 			// [[BPR-2059]] How the agent writes the comments it suggests.
 			{ core::writing_hook::suggested_comment, "Suggested comments", "Agent tab, finding cards", "How the agent writes the comments it suggests for you to post.",
 			  "Sent with every Agent tab question. Add as draft comment and Draft all start from what it writes; nothing is published." },
+			// RFC-BPR-0110 ([[BPR-2026]]) The local-authoring prompts.
+			{ core::writing_hook::local_description, "Description writing", "Local drafts, Description", "How the agent writes a local draft's pull request description.",
+			  "Sent when you ask the agent about a local draft's title or description. You accept or reject what it proposes; nothing is published." },
+			{ core::writing_hook::local_discussion, "Change discussion", "Local drafts, conversations", "What the agent is told when you discuss a local draft's change.",
+			  "Sent with every question in a local draft's conversations. You accept or reject what it proposes; nothing is run or published." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
@@ -191,6 +196,14 @@ namespace bpr::qt {
 		// its own group says where it is used.
 		static_cast<void>(make_header(Hook, tr("Comments and notes")));
 		for (const auto hook : { core::writing_hook::feedback, core::writing_hook::enhance_writing }) {
+			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
+			item->setData(hook_role, static_cast<int>(hook));
+			item->setData(usage_role, tr(facts_of(hook).Where));
+		}
+		// RFC-BPR-0110 The local-authoring prompts, above the Agent tab so the
+		// review skill stays last under its heading.
+		static_cast<void>(make_header(Hook, tr("Local drafts")));
+		for (const auto hook : { core::writing_hook::local_description, core::writing_hook::local_discussion }) {
 			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
@@ -343,7 +356,8 @@ namespace bpr::qt {
 			show_notice("Unsaved edits discarded.");
 		});
 		connect(TestButton, &QPushButton::clicked, this, [this] {
-			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment) {
+			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment && selected_hook() != core::writing_hook::local_description
+				&& selected_hook() != core::writing_hook::local_discussion) {
 				Test(selected_hook());
 			}
 		});
@@ -599,9 +613,12 @@ namespace bpr::qt {
 		// [[BPR-2059]] The suggested-comment format writes no passage either:
 		// it is tried by asking the agent a question.
 		const bool suggested = hook == core::writing_hook::suggested_comment;
-		TestButton->setEnabled(!feedback && !suggested);
+		// RFC-BPR-0110 The local-authoring prompts are tried in a local draft.
+		const bool local = hook == core::writing_hook::local_description || hook == core::writing_hook::local_discussion;
+		TestButton->setEnabled(!feedback && !suggested && !local);
 		TestButton->setToolTip(feedback        ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
 								   : suggested ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
+								   : local     ? tr("Test uses a tour field. Ask in a local draft's conversation to try this prompt.")
 											   : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
 		refresh_state();
 		refresh_rows();

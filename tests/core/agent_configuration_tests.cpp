@@ -142,7 +142,7 @@ namespace {
 			{"id":"c","name":"C2","protocol":"claude_stream_json","program_name":"c","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false},
 			{"id":"d","name":"D","protocol":"claude_stream_json","program_name":"../d","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false}],
 			"prompts":[
-			{"purpose":"local.description","origin":"edited","text":"later"},
+			{"purpose":"release.notes","origin":"edited","text":"later"},
 			{"purpose":"enhance.comment","origin":"edited","text":"Old comment prompt"},
 			{"purpose":"enhance.writing","origin":"edited","text":"Twice"},
 			{"purpose":"tour.problem","origin":"edited","text":""},

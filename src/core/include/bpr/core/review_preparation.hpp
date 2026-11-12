@@ -25,6 +25,11 @@ namespace bpr::core {
 	/// [[BPR-2059]] `suggested_comment` came last: how an agent writes the
 	/// comments it suggests for the reviewer to post. It writes no field and
 	/// is never a target; every Agent tab request carries it in its brief.
+	///
+	/// RFC-BPR-0110 ([[BPR-2026]]) The two local-authoring prompts came
+	/// next: `local_description`, how an agent writes a local draft's full
+	/// description, and `local_discussion`, what a local draft's
+	/// conversations tell the agent. Neither is a tour field.
 	enum class writing_hook : std::uint8_t { problem,
 											 solution,
 											 outline,
@@ -32,8 +37,10 @@ namespace bpr::core {
 											 feedback,
 											 enhance_stop,
 											 enhance_writing,
-											 suggested_comment };
-	inline constexpr std::size_t writing_hook_count = 8;
+											 suggested_comment,
+											 local_description,
+											 local_discussion };
+	inline constexpr std::size_t writing_hook_count = 10;
 	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
 	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_writing; }
 	/// \brief The review-preparation hooks, `problem` to `comment`.

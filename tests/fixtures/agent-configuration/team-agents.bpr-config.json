@@ -76,7 +76,7 @@
       "text": "Improve the writing the way /team-style says, and keep every technical claim as written."
     },
     {
-      "purpose": "local.description",
+      "purpose": "release.notes",
       "origin": "edited",
       "text": "A prompt from a later version."
     }

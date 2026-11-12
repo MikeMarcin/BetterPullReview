@@ -76,6 +76,9 @@ namespace bpr::app {
 		case core::writing_hook::enhance_writing: return "enhance-writing";
 		// [[BPR-2059]] How an agent writes the comments it suggests.
 		case core::writing_hook::suggested_comment: return "suggested-comment";
+		// RFC-BPR-0110 The local-authoring prompts.
+		case core::writing_hook::local_description: return "local-description";
+		case core::writing_hook::local_discussion:  return "local-discussion";
 		}
 		return "problem";
 	}

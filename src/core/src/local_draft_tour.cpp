@@ -98,6 +98,18 @@ namespace bpr::core::preparation_wire {
 		std::vector<conversation> Conversations;
 		std::uint64_t             NextConversation = 1;
 	};
+	struct answer_item
+	{
+		std::string   target;
+		std::uint64_t stop = 0;
+		std::string   title;
+		std::string   text;
+		std::string   path;
+		std::uint32_t first = 0;
+		std::uint32_t last  = 0;
+		std::string   claim;
+		std::string   method;
+	};
 } // namespace bpr::core::preparation_wire
 
 namespace pw = bpr::core::preparation_wire;
@@ -1381,6 +1393,173 @@ namespace bpr::core {
 			any = true;
 		}
 		return any ? std::optional{ total } : std::nullopt;
+	}
+
+	// --- The request and the answer -------------------------------------------------------
+
+	auto compose_local_request(const local_draft& aDraft, const local_question& aQuestion, const local_conversation* aConversation,
+							   const std::span<const local_file_reading> aFiles) -> std::optional<local_request>
+	{
+		const auto* latest = latest_candidate(aDraft);
+		if (latest == nullptr) {
+			return std::nullopt;
+		}
+		const auto& prep    = aDraft.Preparation;
+		auto        request = local_request{ .FilesTotal = latest->Changes.size() };
+		auto&       out     = request.Text;
+		out += aQuestion.Instructions;
+		out += "\n\n## The local draft\n\nTitle: " + aDraft.Title + "\nTarget: " + aDraft.Target.Target.Repository.Owner + "/" + aDraft.Target.Target.Repository.Name + " "
+			+ aDraft.Target.Target.Branch + ", from " + aDraft.Branch + ".\nCandidate " + std::to_string(latest->Ordinal)
+			+ (latest->Included.empty() ? std::string{ ", the committed branch." } : std::string{ ", the branch with uncommitted files the author included." })
+			+ " No pull request exists yet.\n";
+		if (!prep.Description.Body.empty()) {
+			out += "\n## Description\n\n" + prep.Description.Body + "\n";
+		}
+		if (!prep.Tour.Problem.empty() || !prep.Tour.Solution.empty() || !prep.Tour.Stops.empty()) {
+			out += "\n## Tour\n";
+			if (!prep.Tour.Problem.empty()) {
+				out += "\nProblem:\n" + prep.Tour.Problem + "\n";
+			}
+			if (!prep.Tour.Solution.empty()) {
+				out += "\nSolution:\n" + prep.Tour.Solution + "\n";
+			}
+			for (const auto& stop : prep.Tour.Stops) {
+				const auto exact = stop.Current.Correspondence == local_correspondence::exact;
+				out += "\nStop " + std::to_string(stop.Id) + ": " + stop.Title + " (" + stop.Source.Path + ":"
+					+ std::to_string(exact ? stop.Current.FirstLine : stop.Source.FirstLine) + "-" + std::to_string(exact ? stop.Current.LastLine : stop.Source.LastLine)
+					+ (exact ? std::string{ } : " on an earlier candidate; " + std::string{ name(stop.Current.Correspondence) } + " now") + ")\n" + stop.Text + "\n";
+			}
+		}
+		const auto chosen = selected_evidence(aDraft);
+		if (!chosen.Claims.empty() || !chosen.Results.empty()) {
+			out += "\n## Evidence the author selected\n\n";
+			for (const auto& claim : chosen.Claims) {
+				out += "- Claim " + std::to_string(claim.Id) + " (" + std::string{ name(claim.Kind) } + "): " + claim.Text + "\n";
+			}
+			for (const auto& result : chosen.Results) {
+				const auto check = std::ranges::find(chosen.Checks, result.Check, &evidence_check::Id);
+				out += "- Result " + std::to_string(result.Id) + " of " + (check == chosen.Checks.end() ? std::string{ "a check" } : check->Title) + ": "
+					+ std::string{ name(result.Outcome) } + ", reported by " + std::string{ name(result.Origin.Source) } + " on candidate " + std::to_string(result.Candidate)
+					+ (result.Limitations.empty() ? std::string{ } : ". Limitations: " + result.Limitations) + "\n";
+			}
+		}
+		if (aConversation != nullptr && !aConversation->Turns.empty()) {
+			const auto replay = replay_turns(*aConversation);
+			request.Replayed  = replay.Turns.size();
+			request.Omitted   = replay.Omitted;
+			out += "\n## Earlier in this conversation\n";
+			if (replay.Omitted != 0U) {
+				out += "\n(" + std::to_string(replay.Omitted) + " earlier turns are left out.)\n";
+			}
+			for (const auto& turn : replay.Turns) {
+				out += std::string{ turn.Author ? "\nAuthor: " : "\nAgent: " } + turn.Text + "\n";
+			}
+		}
+		auto question = std::string{ "\n## The question\n\nIt is about " };
+		switch (aQuestion.Subject) {
+		case local_subject::whole_change: question += "the whole change."; break;
+		case local_subject::title:        question += "the title."; break;
+		case local_subject::description:  question += "the description."; break;
+		case local_subject::problem:      question += "the tour's Problem."; break;
+		case local_subject::solution:     question += "the tour's Solution."; break;
+		case local_subject::stop:         question += "stop " + std::to_string(aQuestion.Stop) + "."; break;
+		case local_subject::lines:
+			question += aQuestion.Lines ? "these lines, " + aQuestion.Lines->Path + ":" + std::to_string(aQuestion.Lines->FirstLine) + "-" + std::to_string(aQuestion.Lines->LastLine)
+					+ ":\n\n```\n" + aQuestion.Lines->Excerpt + (aQuestion.Lines->Excerpt.ends_with('\n') ? "" : "\n") + "```"
+										: std::string{ "attached lines." };
+			break;
+		}
+		question += "\n\n" + aQuestion.Text + "\n";
+		question += "\n## Answer format\n\nAnswer in prose. To propose a change, end with one fenced block whose info string is bpr-proposals, holding a JSON array of "
+					"objects: {\"target\": \"title\"|\"description\"|\"problem\"|\"solution\", \"text\": the whole new text}, {\"target\": \"stop\", \"stop\": its number, "
+					"\"title\", \"text\"}, {\"target\": \"new_stop\", \"path\", \"first\", \"last\" (lines of this candidate), \"title\", \"text\"}, {\"target\": \"claim\", "
+					"\"claim\": \"bug_fix\"|\"preserved_behavior\"|\"compatibility\"|\"performance\"|\"formal_property\"|\"other\", \"text\"} or {\"target\": \"check\", \"method\": "
+					"\"test\"|\"benchmark\"|\"fuzz\"|\"property_test\"|\"inspection\"|\"model_check\"|\"proof\"|\"other\", \"title\", \"text\": the command}. "
+					"The author accepts or rejects each; a planned check has no result.\n";
+		if (out.size() + question.size() > maximum_local_request_bytes) {
+			return std::nullopt;
+		}
+		// The candidate's own bytes, the subject's file first; never the worktree.
+		auto order = std::vector<const local_file_reading*>{ };
+		auto first = std::string{ };
+		if (aQuestion.Lines) {
+			first = aQuestion.Lines->Path;
+		} else if (const auto* stop = aQuestion.Stop == 0U ? nullptr : find_stop(aDraft, aQuestion.Stop); stop != nullptr) {
+			first = stop->Source.Path;
+		}
+		for (const auto& file : aFiles) {
+			if (file.Path == first) {
+				order.insert(order.begin(), &file);
+			} else {
+				order.push_back(&file);
+			}
+		}
+		auto files = std::string{ };
+		for (const auto* file : order) {
+			const auto change = std::ranges::find(latest->Changes, file->Path, &draft_path_change::Path);
+			if (change == latest->Changes.end()) {
+				continue;
+			}
+			auto block = "\n### " + file->Path + " (" + std::string{ name(change->Change) } + ")\n";
+			if (file->Deleted || !file->Text) {
+				block += file->Deleted ? "Deleted by this change.\n" : "Not text; not sent.\n";
+			} else {
+				block += "```\n" + *file->Text + (file->Text->ends_with('\n') ? "" : "\n") + "```\n";
+			}
+			if (out.size() + question.size() + files.size() + block.size() + 64U > maximum_local_request_bytes) {
+				continue;
+			}
+			files += block;
+			++request.FilesSent;
+		}
+		out += "\n## The candidate's changed files (" + std::to_string(request.FilesSent) + " of " + std::to_string(request.FilesTotal) + ", as captured)\n" + files;
+		out += question;
+		return request;
+	}
+
+	auto parse_local_answer(const std::string_view aText) -> local_answer
+	{
+		auto       answer = local_answer{ };
+		const auto open   = aText.find("```bpr-proposals");
+		if (open == std::string_view::npos) {
+			answer.Prose = std::string{ aText };
+			return answer;
+		}
+		const auto body  = aText.find('\n', open);
+		const auto close = body == std::string_view::npos ? std::string_view::npos : aText.find("```", body + 1U);
+		if (close == std::string_view::npos) {
+			answer.Prose     = std::string{ aText };
+			answer.Malformed = true;
+			return answer;
+		}
+		auto items = std::vector<pw::answer_item>{ };
+		if (glz::read<glz::opts{ .error_on_unknown_keys = false }>(items, aText.substr(body + 1U, close - body - 1U)) || items.size() > maximum_local_proposals) {
+			answer.Prose     = std::string{ aText };
+			answer.Malformed = true;
+			return answer;
+		}
+		for (const auto& item : items) {
+			const auto target = enum_from(item.target, all_targets);
+			if (!target) {
+				answer.Malformed = true;
+				continue;
+			}
+			answer.Proposals.push_back({ .Target    = *target,
+										 .Stop      = item.stop,
+										 .Title     = item.title,
+										 .Text      = item.text,
+										 .Path      = item.path,
+										 .FirstLine = item.first,
+										 .LastLine  = item.last,
+										 .Claim     = enum_from(item.claim, all_claims).value_or(claim_kind::other),
+										 .Method    = enum_from(item.method, all_methods).value_or(check_method::test) });
+		}
+		auto prose = std::string{ aText.substr(0U, open) } + std::string{ aText.substr(close + 3U) };
+		while (!prose.empty() && (prose.back() == '\n' || prose.back() == ' ')) {
+			prose.pop_back();
+		}
+		answer.Prose = std::move(prose);
+		return answer;
 	}
 
 	// --- Publication ------------------------------------------------------------------------
