@@ -1781,6 +1781,7 @@ foreach(
         construction-cut
         conversation
         custom-agent
+        setup-list
 )
     if(course STREQUAL "positive")
         set(chat_test_name application_agent_chat_composition_contract)
