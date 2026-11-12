@@ -357,6 +357,30 @@ auto main(int argc, char** argv) -> int
 		expect(editor.grab().save(QString::fromLocal8Bit(argv[1])), "render saved");
 	}
 
+	{
+		// The owner, 2026-11-11. Opened before the saved drafts are read, the
+		// review never says it has no comments: it says they are loading,
+		// submits as no verdict, and gives no summary as the reason.
+		auto unread                    = draft;
+		unread.Body                    = { };
+		auto loading                   = projection;
+		loading.Draft                  = unread;
+		loading.Controls               = core::awaiting_comments(unread, core::controls(unread));
+		loading.Status                 = QStringLiteral("Loading your pending comments… You can submit once they have loaded.");
+		loading.Prepared               = core::prepare_review_decision(unread, { });
+		auto* const commentButton      = editor.disposition_button(core::review_disposition::comment);
+		auto* const approveButton      = editor.disposition_button(core::review_disposition::approve);
+		auto* const requestChangesView = editor.disposition_button(core::review_disposition::request_changes);
+		editor.present(loading);
+		QApplication::processEvents();
+		expect(editor.carries_label()->isVisible() && editor.carries_label()->text() == QStringLiteral("Loading pending comments…") && editor.status_label()->isVisible()
+				   && editor.status_label()->text() == loading.Status,
+			   "unread pending comments are said to be loading, not none");
+		expect(!editor.submit_action()->isEnabled() && !commentButton->isEnabled() && !approveButton->isEnabled() && !requestChangesView->isEnabled()
+				   && commentButton->toolTip() == loading.Status && requestChangesView->toolTip() == loading.Status && editor.submit_action()->toolTip() == loading.Status,
+			   "no verdict submits while the comments are unread, and each says why");
+		expect(!editor.body_editor()->isReadOnly(), "the summary can still be written while the comments load");
+	}
 	// [[BPR-1345]]. Finish review: the review carries pending drafts, listed
 	// each where it is and what it says; Comment needs no summary; Discard is
 	// Discard review; what Submit sends is said in words.

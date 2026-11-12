@@ -104,6 +104,9 @@ namespace bpr::app {
 			// fixture; its subject is the review, so it places as a build before
 			// the hunk rule did. The BPR-1735 courses cover placement.
 			implementation->WholeDiffPlacementDisabled = true;
+			// The owner, 2026-11-11. `finish` reopens with its saved drafts
+			// read late, so its review is opened before they are known.
+			implementation->HoldDraftRestore = aCourse == course::finish;
 		}
 		auto& probe = *implementation->StartReviewProbe;
 		if (probe.Phase == state_type::phase::failed) {
@@ -548,7 +551,7 @@ namespace bpr::app {
 				return fail("file-not-revealed");
 			}
 			if (revealed == detail::fixture_file_reveal_result::shown) {
-				probe.Phase = aCourse == course::finish ? state_type::phase::awaiting_restored
+				probe.Phase = aCourse == course::finish ? state_type::phase::awaiting_unread_review
 					: aCourse == course::restored       ? state_type::phase::awaiting_restored_unknown
 					: aCourse == course::again          ? state_type::phase::awaiting_old_line
 														: state_type::phase::awaiting_first_line;
@@ -692,6 +695,65 @@ namespace bpr::app {
 			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
+		}
+		case state_type::phase::awaiting_unread_review: {
+			// The owner, 2026-11-11: "Clicking Comment or Approve before it's
+			// fully loaded pops up a window that is straight lying". The pull
+			// request is open and its review ready, its saved drafts not read.
+			const auto  loadingStatus = QStringLiteral("Loading your pending comments… You can submit once they have loaded.");
+			auto* const comment       = summary->disposition_button(core::review_disposition::comment);
+			auto* const compose       = window->compose_review_action();
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " draft=" + std::to_string(summary->shown_draft().has_value() ? 1 : 0) + " bound=" + std::to_string(implementation->PrivateReview && implementation->PrivateReview->binding() ? 1 : 0)
+				 + " status=" + summary->status_label()->text().toStdString() + " sheet=" + std::to_string(window->review_sheet_open() ? 1 : 0));
+			if (!implementation->ReadDrafts.expired()) {
+				return fail("drafts-read-before-the-review-opened");
+			}
+			if (!ready() || !summary->shown_draft().has_value() || !implementation->PrivateReview || !implementation->PrivateReview->binding() || summary->status_label()->text() != loadingStatus
+				|| compose == nullptr || !compose->isEnabled()) {
+				return ++probe.Waited < 2'000U ? result::pending : fail("unread-review-not-ready");
+			}
+			if (!window->review_sheet_open()) {
+				// The toolbar's Approve or comment (BPR-2054).
+				compose->trigger();
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			const auto saysLoading = [&] {
+				return summary->carries_label()->isVisibleTo(window) && summary->carries_label()->text() == QStringLiteral("Loading pending comments…")
+					&& summary->status_label()->isVisibleTo(window) && summary->status_label()->text() == loadingStatus && !summary->submit_action()->isEnabled()
+					&& std::ranges::none_of(std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes },
+											[&](const core::review_disposition aDisposition) { return summary->disposition_button(aDisposition)->isEnabled(); })
+					&& comment->toolTip() == loadingStatus && !chipShown->isVisible();
+			};
+			const auto blank = saysLoading();
+			// A summary written meanwhile does not make Comment send a review
+			// without the comments it does not know of yet.
+			summary->body_editor()->setPlainText(QStringLiteral("Written before the comments were read."));
+			QCoreApplication::processEvents();
+			const auto withSummary = saysLoading() && !summary->body_editor()->isReadOnly();
+			summary->body_editor()->clear();
+			QCoreApplication::processEvents();
+			probe.Evidence.UnreadSaidLoading = blank && withSummary && posts().empty();
+			if (!probe.Evidence.UnreadSaidLoading) {
+				return fail("unread-review-not-said-loading");
+			}
+			render(QStringLiteral("unread-review"));
+			implementation->HoldDraftRestore = false;
+			implementation->observe_private_review();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_unread_read;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_unread_read: {
+			// Read now: the same open review counts both, and Comment submits.
+			note("rows=" + std::to_string(summary->pending_rows().size()) + " carries=" + summary->carries_label()->text().toStdString() + " status=" + summary->status_label()->text().toStdString());
+			if (!window->review_sheet_open() || !shown(2U) || !summary->disposition_button(core::review_disposition::comment)->isEnabled() || !summary->status_label()->text().isEmpty()) {
+				return ++probe.Waited < 2'000U ? result::pending : fail("unread-review-not-updated");
+			}
+			probe.Evidence.UnreadUpdated = posts().empty();
+			probe.Waited                 = 0U;
+			probe.Phase                  = state_type::phase::awaiting_restored;
+			return result::pending;
 		}
 		case state_type::phase::awaiting_restored: {
 			// After the restart: the two the pending course left.

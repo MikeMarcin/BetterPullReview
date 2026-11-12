@@ -171,7 +171,11 @@ namespace bpr::core {
 		/// [[BPR-1853]]. The acting account opened this pull request. GitHub
 		/// takes only a Comment review from its author, so Approve and
 		/// Request changes are off for this reason, whatever else holds.
-		bool Authored                                             = false;
+		bool Authored = false;
+		/// The owner, 2026-11-11. The pending comments this review would
+		/// carry have not been read yet: their count is unknown, never none,
+		/// and nothing submits until they are.
+		bool CommentsUnknown                                      = false;
 		auto operator<=>(const review_submission_controls&) const = default;
 	};
 	[[nodiscard]] auto controls(const review_submission_draft& aDraft) noexcept -> review_submission_controls;
@@ -192,6 +196,13 @@ namespace bpr::core {
 	/// while the draft holds either verdict. An unknown author changes nothing;
 	/// GitHub's refusal then says why.
 	[[nodiscard]] auto controls(const review_submission_draft& aDraft, std::string_view aAuthor, std::string_view aViewer) noexcept -> review_submission_controls;
+	/// \brief The owner, 2026-11-11. `aControls` for `aDraft` while the
+	/// pending comments it would carry have not been read: a review being
+	/// written says so (`CommentsUnknown`) and submits as no verdict, so a
+	/// review is never sent without comments it does not know of yet. Writing
+	/// and discarding the summary stay as they were; a draft that is no
+	/// longer being written is unchanged, since Submit froze its comments.
+	[[nodiscard]] auto awaiting_comments(const review_submission_draft& aDraft, review_submission_controls aControls) noexcept -> review_submission_controls;
 	/// \brief [[BPR-1345]] v002. Whether `aControls` let the review be
 	/// submitted as `aDisposition`.
 	[[nodiscard]] auto submits_as(const review_submission_controls& aControls, review_disposition aDisposition) noexcept -> bool;

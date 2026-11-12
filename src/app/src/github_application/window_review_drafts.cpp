@@ -599,7 +599,7 @@ namespace bpr::app {
 			return std::tie(aLeft.Path, aLeft.Side, aLeft.Line, aLeft.Draft) < std::tie(aRight.Path, aRight.Side, aRight.Line, aRight.Draft);
 		});
 		PendingReviewComments = comments;
-		ReviewSubmission->observe_review_comments(std::move(comments));
+		ReviewSubmission->observe_review_comments(std::move(comments), ReadDrafts.lock() == SharedDrafts);
 		if (!held.empty()) {
 			ReviewSubmission->resolve_held(std::move(held));
 		}
@@ -945,6 +945,7 @@ namespace bpr::app {
 			const auto owner    = SharedDrafts;
 			auto       complete = [this, owner, publishing, after = std::move(aAfter)](auto aCommit) {
 				if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+					ReadDrafts = owner;
 					present_saved_drafts();
 					const auto accepted = owner->read(DraftConsumer, publishing->Draft.Id);
 					if (accepted.Accepted && ReviewDraft && ReviewDraft->Id == publishing->Draft.Id) {

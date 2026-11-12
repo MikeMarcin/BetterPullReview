@@ -109,6 +109,9 @@ namespace {
 		expect(sheet != nullptr && sheet->isVisible() && window.review_sheet_open()
 				   && sheet->isAncestorOf(window.review_submission_editor_view()),
 			   "explicit Compose review opens the retained editor in the sheet beside the code");
+		// The owner, 2026-11-11. The review submits once the saved drafts are
+		// read; until then it says they are loading rather than none.
+		wait([&] { return !window.review_submission_editor_view()->shown_projection().Controls.CommentsUnknown; }, "the review knows its pending comments");
 	}
 	void open(app::github_application& aApp, e2e::cli_publication_course& aCli)
 	{
@@ -229,7 +232,9 @@ auto main(int argc, char** argv) -> int
 	const auto    dataRoot = e2e::private_data_root(data);
 	QTemporaryDir finishingData;
 	const auto    finishingRoot = e2e::private_data_root(finishingData);
-	if (!dataRoot || !finishingRoot) {
+	QTemporaryDir approveData;
+	const auto    approveRoot = e2e::private_data_root(approveData);
+	if (!dataRoot || !finishingRoot || !approveRoot) {
 		std::cerr << "review-submission-composition:fail private data root\n";
 		return EXIT_FAILURE;
 	}
@@ -1233,8 +1238,11 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1778]]. Approve that GitHub refuses leaves Approve chosen and
 		// no summary. A new revision then arrives. The owner's next Approve
 		// did nothing until a restart: the draft froze on the old revision
-		// because a chosen verdict counted as words to keep.
-		application = make(app::detail::github_epoch_fixture_phase::seed);
+		// because a chosen verdict counted as words to keep. Its own data
+		// root: the off-hunk comment held above is pending in the shared one,
+		// and a review carries every pending comment once they are read (the
+		// owner, 2026-11-11), so this Approve would not be the empty one.
+		application = make(app::detail::github_epoch_fixture_phase::seed, app::detail::github_public_path_fixture::github_com, false, false, false, approveRoot);
 		open(*application, cli);
 		{
 			auto&       verdicts    = *application->window().review_submission_editor_view();
