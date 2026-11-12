@@ -1454,3 +1454,23 @@ after the session restart; the ledger names them.
 
 Next: nothing owed in this round. RFC-BPR-0100, 0104 and 0106 are closed.
 BPR-2119 (main) is the hotfix for shipped builds. BPR-2101 (Backlog) remains.
+
+## local-draft-entry (2026-11-11, in progress)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Milestone
+`local-draft-entry` (RFC-BPR-0108, BPR-2019..2022). BPR-2019 claimed
+(`24d0b845c`, `3f97d7aac`; main mirror pending with the round's moves).
+
+WIP commits: `fe3a4a2e1` core `local_draft` (remote chain, target, comparison,
+candidates, worktree resolution, codec); `c56f0b638` installed-Git
+local-draft reader (merge bases, trees, blobs; chain clones as alternates),
+discovery/capture, SQLite `local-drafts.sqlite3` store, workbench host; then
+the real-worktree course `local_draft` (workspace_contract) and reset
+coverage (`local-drafts` store and `local-draft-git-v1` folder are review
+data). Passing: `core_local_draft`, `local_draft`, `core_profile_data_reset`,
+`sqlite_profile_data_reset_files`. `application_profile_data_reset_public_path`
+was not run (binary removed for disk in an earlier round).
+
+Next: Qt surface (Home Prepare pull request…, In preparation, Review Cycles
+secondary route; the draft page), composition, `bpr draft open`, docs,
+ledger, cards, owner look.
