@@ -176,3 +176,29 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
 form the second milestone in the [plan's default order](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
 Sharing remains the owner's first requested delivery; its pending closeout does
 not block independent local-draft engineering within an authorized mandate.
+
+## Implementation record
+
+Milestone `local-draft-entry`, product candidate `3585dedc7`; evidence in the
+[verification ledger](../verification/RFC-BPR-0108.md). Decisions made within
+the behaviour above, for the owner to see:
+
+- **Thresholds.** 64 drafts; 32 candidates per draft; per candidate 4096
+  changed paths, 512 included working files, 16 MiB per kept file and
+  256 MiB in all; 1 GiB in the store; 512 notes of 16 KiB; four local-remote
+  hops. A full store or draft refuses with the amounts and evicts nothing.
+- **Candidate material.** Both sides of every changed file are kept in the
+  profile's store when a candidate is captured, so a candidate stays readable
+  after a rebase or garbage collection in the worktree. A side over 16 MiB is
+  named and its bytes are not kept.
+- **Home.** "Prepare Pull Request…" is a push button in the title case of
+  Home's other buttons, with In preparation beneath it, above Home's sections.
+  Review Cycles keeps its section, unchanged, below Home's sections.
+- **The mark (X02).** A pull request a draft was associated with shows
+  "Prepared here" ("Draft, prepared here" for a GitHub draft) in its row's
+  chip, and its row menu offers Open Local Preparation.
+- **Areas.** Only Changes (with notes) is shown; Evidence, Description and
+  Tour come with their RFCs and are not shown before then.
+- **Handoff.** `bpr draft open [PATH] [--context TEXT]`
+  ([guide](../development/draft-cli.md)); context becomes a note from the
+  harness.

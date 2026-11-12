@@ -258,6 +258,19 @@ commit filter when the review is adopted. A restored hidden commit the pull
 request no longer has is shown as after a force push. Versions one to six
 migrate transactionally with no filters.
 
+RFC-BPR-0108 keeps local PR drafts in `state/v1/local-drafts.sqlite3`: one
+versioned record per draft (compact JSON from `core/local_draft.hpp`), the
+exact bytes each candidate keeps (content-addressed objects, pinned per
+draft), written in one transaction with the record that names them. A write
+names the version it read and a competing one is refused; the store's 1 GiB
+and 64-draft bounds refuse a new draft or candidate with the amounts and evict
+nothing. It is review data: Reset review data and Reset everything remove it
+with `local-draft-git-v1`, the isolation root of the local-draft Git reader.
+That reader is the publication catalog's isolated store run read-only
+(`merge-base --all`, `ls-tree`, `cat-file`) with the worktree's objects and
+its remote chain's as alternates; refs, configuration, the index and working
+files are read as data through the read-only workspace port, never by Git.
+
 BPR-1844 remembers the Only new and Hide resolved filters of Discuss, Threads
 and Review's Comments for the profile, in its own
 `state/v1/view-filters.sqlite3` (one versioned row, a nullable value per view;
