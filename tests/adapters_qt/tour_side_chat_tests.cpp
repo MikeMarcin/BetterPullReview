@@ -809,13 +809,18 @@ auto main(int argc, char** argv) -> int
 		emit       chat->unchanged_line()->linkActivated(QStringLiteral("#update"));
 		expect(asked.size() == before + 1U && asked.back().Update && asked.back().Thread == stopThread && asked.back().Question == QStringLiteral("Update this stop's explanation from our chat.") && !asked.back().Passage, "following it sends the stop's update turn");
 		// AC05. Enhance from the Problem's own button, and on a selection.
+		// [[BPR-2138]], RFC-BPR-0101 AC11 (owner, 2026-11-12): a fresh run
+		// whose result is a proposal on the part; the side chat is neither
+		// opened nor sent a turn.
 		auto* const problemEnhance = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 		expect(problemEnhance != nullptr && problemEnhance->property("enhanceOnly").toBool(), "the Problem has words, so its button is Enhance");
+		const auto shownBefore = chat->current();
 		problemEnhance->click();
-		expect(asked.size() == before + 2U && asked.back().Update && asked.back().Thread.Kind == core::tour_thread_kind::problem && !asked.back().Passage && asked.back().Question == QStringLiteral("Enhance the writing of the Problem.") && chat->current() == asked.back().Thread,
-			   "AC05 Enhance opens the Problem's chat and sends its update turn there");
+		expect(asked.size() == before + 2U && asked.back().Update && asked.back().Fresh && asked.back().Thread.Kind == core::tour_thread_kind::problem && !asked.back().Passage
+				   && asked.back().Question == QStringLiteral("Enhance the writing of the Problem.") && chat->current() == shownBefore,
+			   "AC11 Enhance asks for a fresh rewrite of the Problem and leaves its side chat as it was");
 		const auto passage = core::tour_passage{ .Field = core::tour_passage_field::problem, .Text = "crash" };
-		expect(chat->enhance(core::tour_thread{ .Kind = core::tour_thread_kind::problem }, passage) && asked.back().Passage == std::optional{ passage } && asked.back().Update && asked.back().Question == QStringLiteral("Enhance the selected text of the Problem."),
+		expect(chat->enhance(core::tour_thread{ .Kind = core::tour_thread_kind::problem }, passage) && asked.back().Passage == std::optional{ passage } && asked.back().Update && asked.back().Fresh && asked.back().Question == QStringLiteral("Enhance the selected text of the Problem."),
 			   "AC05 Enhance on a selection sends the selection as the update's passage");
 		editor.set_tour_host_idle(false);
 		expect(!chat->enhance(core::tour_thread{ .Kind = core::tour_thread_kind::problem }, std::nullopt), "Enhance waits while the agent is busy");

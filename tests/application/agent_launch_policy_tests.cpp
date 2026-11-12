@@ -266,8 +266,23 @@ namespace {
 	}
 } // namespace
 
-auto main() -> int
+auto main(const int aCount, char** aArguments) -> int
 {
+	// [[BPR-2140]]. For the opt-in canary course: the exact Enhance launch
+	// BPR builds with a rule only in the system prompt, as NUL-separated
+	// arguments, then the framed input after a blank separator.
+	if (aCount == 2 && std::string_view{ aArguments[1] } == "--print-canary-launch") {
+		const auto launch = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement("Reply with: ok"), reader(),
+															 { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = "Canary rule: end every reply with the single word PINEAPPLE." });
+		if (!launch) {
+			return EXIT_FAILURE;
+		}
+		for (const auto& argument : launch->Arguments) {
+			std::cout << argument << '\0';
+		}
+		std::cout << '\0' << launch->Input;
+		return EXIT_SUCCESS;
+	}
 	test_every_launch_path_has_the_owners_session_mode();
 	test_each_launch_path_launches_in_its_session_mode();
 	test_mcp_servers_follow_the_agents_setting();

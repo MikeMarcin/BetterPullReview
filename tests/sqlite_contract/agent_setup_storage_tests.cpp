@@ -7,6 +7,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -232,6 +233,27 @@ try {
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed && !store->load()->Agents[0].ScratchStarts && store->load()->Agents[1].ScratchStarts && store->load()->Agents[1].BuildsAndTests,
 		   "and read back per agent after a restart");
+	// [[BPR-2139]], [[BPR-2140]], RFC-BPR-0104 AC10 (owner, 2026-11-12). MCP
+	// servers and the instructions switch are each agent's; a profile written
+	// before them (no such table) reads back Off and the system prompt.
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		expect(sqlite3_exec(database, "DROP TABLE agent_entry_launch", nullptr, nullptr, nullptr) == SQLITE_OK, "a profile from before the setting");
+		sqlite3_close_v2(database);
+		store = adapters::sqlite::make_agent_setup_store(scratch.path());
+		const auto carried = store->load();
+		expect(carried && carried->Agents.size() == 2U
+				   && std::ranges::all_of(carried->Agents, [](const core::agent_entry& aEntry) { return aEntry.McpServers == core::agent_mcp_servers::off && aEntry.Instructions == core::agent_instruction_delivery::system_prompt; }),
+			   "agents carried over have MCP servers off and the system prompt");
+		listed.Agents[1].McpServers   = core::agent_mcp_servers::own;
+		listed.Agents[0].Instructions = core::agent_instruction_delivery::message;
+		expect(store->store(listed), "the settings are stored");
+		store = adapters::sqlite::make_agent_setup_store(scratch.path());
+		expect(store->load() == listed && store->load()->Agents[0].McpServers == core::agent_mcp_servers::off && store->load()->Agents[1].McpServers == core::agent_mcp_servers::own
+				   && store->load()->Agents[0].Instructions == core::agent_instruction_delivery::message,
+			   "and read back per agent after a restart");
+	}
 	// AC09. The choice made in one pull request is that pull request's and
 	// that agent's alone; the build answer is the pull request's.
 	{

@@ -227,9 +227,9 @@ resume". The classification, agreed with the coordinator the same day:
   whose request the app cannot fill up front (a draft that reads the
   repository) says so where it is chosen.
 - Every launch path names its session mode in the core
-  (`core::agent_run_path`), and the launch builder enforces it: a fresh
-  path that carries a resume, or a resumed path that saves nothing, is
-  refused.
+  (`core::agent_run_path`), and the launch enforces it: a fresh path saves
+  no session (Claude `--no-session-persistence`, Codex `exec --ephemeral`)
+  and a native turn on it is refused.
 
 ## Acceptance criteria
 

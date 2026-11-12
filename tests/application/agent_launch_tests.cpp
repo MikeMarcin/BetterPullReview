@@ -678,10 +678,14 @@ namespace {
 			core::agent_protocol::claude_stream_json,
 			core::agent_protocol::external_terminal,
 		};
+		// [[BPR-2139]]. MCP servers are off unless the agent says otherwise.
 		const auto expectedArguments = std::array{
-			std::vector<std::string>{ "app-server" },
-			std::vector<std::string>{ "exec", "--json", "-" },
+			std::vector<std::string>{ "app-server", "-c", "mcp_servers={}" },
+			std::vector<std::string>{ "exec", "--json", "-c", "mcp_servers={}", "-" },
 			std::vector<std::string>{
+				"--strict-mcp-config",
+				"--mcp-config",
+				R"({"mcpServers":{}})",
 				"-p",
 				"--input-format",
 				"stream-json",
@@ -1424,12 +1428,12 @@ namespace {
 		// a level outside the agent's own vocabulary refuses.
 		{
 			const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { "gpt-5", "high" } });
-			expect(exec && exec->Arguments == std::vector<std::string>{ "exec", "--json", "-m", "gpt-5", "-c", "model_reasoning_effort=\"high\"", "-" }, "Codex exec runs the chosen model at the chosen effort");
+			expect(exec && exec->Arguments == std::vector<std::string>{ "exec", "--json", "-m", "gpt-5", "-c", "model_reasoning_effort=\"high\"", "-c", "mcp_servers={}", "-" }, "Codex exec runs the chosen model at the chosen effort");
 			// Owner look v006: the harness says its levels, so max and ultra
 			// are Codex's to take; only a word that could read as more than
 			// one argument refuses.
 			const auto maxExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max" } });
-			expect(maxExec && maxExec->Arguments[maxExec->Arguments.size() - 2U] == "model_reasoning_effort=\"max\"", "Codex takes max as its catalog lists it");
+			expect(maxExec && std::ranges::find(maxExec->Arguments, "model_reasoning_effort=\"max\"") != maxExec->Arguments.end(), "Codex takes max as its catalog lists it");
 			const auto badExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max\" -c x=\"1" } });
 			expect(!badExec && badExec.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort that is not one word refuses");
 			const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "opus", "xhigh" } });
@@ -1449,7 +1453,7 @@ namespace {
 	{
 		const auto claude   = profile(core::agent_protocol::claude_stream_json);
 		const auto launched = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } } });
-		expect(launched && launched->Arguments == std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" }
+		expect(launched && launched->Arguments == std::vector<std::string>{ "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" }
 				   && launched->Metadata.Requested.Model == "claude-sonnet-5-5",
 			   "a requested Claude model is one argument after --model and is recorded as requested");
 		auto configured                  = claude;
@@ -1477,10 +1481,12 @@ namespace {
 	void test_claude_writing_argv_reads_the_account_sign_in()
 	{
 		const auto writing  = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } }, .WritingOnly = true });
-		const auto expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5",
-														"--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "",
+		// [[BPR-2142]]. The restrictions, whose options take several values,
+		// come before `-p`.
+		const auto expected = std::vector<std::string>{ "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "",
 														"--disable-slash-commands", "--no-session-persistence", "--settings",
-														R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})" };
+														R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})",
+														"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" };
 		expect(writing && writing->WritingOnly && writing->Arguments == expected, "writing argv is the exact restricted print-mode set");
 		expect(writing && std::ranges::find(writing->Arguments, "--bare") == writing->Arguments.end(), "writing never passes --bare, which would ignore the account sign-in");
 		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::codex_jsonl_exec, core::agent_protocol::external_terminal }) {
@@ -1549,8 +1555,9 @@ namespace {
 		// No run gets the Skill tool: a read-only run is exactly BPR-1900's,
 		// whatever its prompt names, and Codex gets the skills inline too.
 		const auto readOnly = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement, reader(), { .ReadOnlyTools = true });
-		auto       expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
-		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		// [[BPR-2142]]. The restrictions come before `-p`.
+		auto expected = std::vector<std::string>{ application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end() };
+		expected.insert(expected.end(), { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
 		expect(readOnly && readOnly->Arguments == expected && std::string{ readOnly->Input.begin(), readOnly->Input.end() }.find("FIXTURE_HUMANIZER_GUIDANCE") != std::string::npos,
 			   "a read-only run keeps its exact allowlist and receives the skill inline");
 		const auto codex = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), supplement, reader(), { .ReadOnlyTools = true });
@@ -1683,8 +1690,9 @@ namespace {
 	void test_read_only_tour_drafting()
 	{
 		const auto claude   = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
-		auto       expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
-		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		// [[BPR-2142]]. The restrictions come before `-p`.
+		auto expected = std::vector<std::string>{ application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end() };
+		expected.insert(expected.end(), { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
 		expect(claude && claude->ReadOnlyTools && !claude->WritingOnly && claude->Arguments == expected, "a read-only run is print mode with the read-only allowlist");
 		expect(claude && std::ranges::find(claude->Arguments, "Read,Grep,Glob,Bash") != claude->Arguments.end() && std::ranges::find(claude->Arguments, "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task") != claude->Arguments.end(),
 			   "it loads only read, search and shell, and denies edits, writes, the network and subagents");
@@ -2328,8 +2336,8 @@ namespace {
 		expect(none && claude, "both launch");
 		const auto has = [](const auto& aLaunch, const std::string& aArgument) { return std::ranges::contains(aLaunch->Arguments, aArgument); };
 		expect(!has(none, "--add-dir") && !has(none, "--allowedTools") && none->Arguments.size() + 0U < claude->Arguments.size(), "off: no allowance at all");
-		auto expected = none->Arguments;
-		expected.insert(expected.end(), { "--add-dir", folder, "--allowedTools", "Write(/" + folder + "/**)", "Edit(/" + folder + "/**)" });
+		// [[BPR-2142]]. The grant's options, which take several values, come first.
+		auto expected = std::vector<std::string>{ "--add-dir", folder, "--allowedTools", "Write(/" + folder + "/**)", "Edit(/" + folder + "/**)" };
 		for (const auto runner : application::claude_scratch_runners) {
 			expected.push_back("Bash(" + std::string{ runner } + " " + folder + "/*)");
 		}
@@ -2339,6 +2347,7 @@ namespace {
 		for (const auto runner : application::claude_scratch_runners) {
 			expected.push_back("Bash(" + std::string{ runner } + " */..*)");
 		}
+		expected.insert(expected.end(), none->Arguments.begin(), none->Arguments.end());
 		expect(claude->Arguments == expected, "Claude: the folder, write and edit under it, running files in it with an interpreter, and no parent step; nothing else");
 		// Review finding 2 (2026-11-11): no rule runs a file directly or
 		// changes a mode; both matched commands that wrote the workspace.
@@ -2357,9 +2366,9 @@ namespace {
 
 		const auto codexNone = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { });
 		const auto codex     = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder }, .PullRequestCheckout = { ws } });
-		expect(codexNone && codex && codexNone->Arguments == std::vector<std::string>{ "app-server" }, "Codex off: as before");
+		expect(codexNone && codex && codexNone->Arguments == std::vector<std::string>{ "app-server", "-c", "mcp_servers={}" }, "Codex off: as before, MCP off");
 		expect(codex->Arguments
-				   == std::vector<std::string>{ "app-server", "-c", "projects={\"" + ws + "\"={trust_level=\"untrusted\"}}", "-c", "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\"}", "-c",
+				   == std::vector<std::string>{ "app-server", "-c", "projects={\"" + ws + "\"={trust_level=\"untrusted\"}}", "-c", "mcp_servers={}", "-c", "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\"}", "-c",
 												"default_permissions=\"betterpullreview_grant\"", "-c", "approval_policy=\"never\"" },
 			   "Codex: a profile that reads everything and writes only the folder, network unset (off)");
 		const auto builds = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws }, .PullRequestCheckout = { ws } });

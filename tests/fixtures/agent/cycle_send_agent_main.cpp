@@ -12,6 +12,7 @@
 /// structured response to that round. It reads no environment, runs no
 /// model and reaches no network.
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -167,7 +168,8 @@ auto main(const int aArgc, char** aArgv) -> int
 		return 71;
 	}
 
-	const auto claude = !arguments.empty() && arguments.front() == "-p";
+	// [[BPR-2142]]. Options with several values may come before `-p`.
+	const auto claude = std::ranges::find(arguments, std::string_view{ "-p" }) != arguments.end();
 	const auto text   = claude ? user_text(input) : input;
 	auto       reply  = text.find("SEND_PROSE_CANARY") != std::string::npos ? std::string{ "I changed it as asked; the tests pass." } : "```json\n" + response_to(text) + "\n```";
 	if (!claude) {

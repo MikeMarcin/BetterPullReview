@@ -115,6 +115,36 @@ namespace {
 		expect(decoded->Prompts[2].Prompt.Origin == core::portable_prompt_origin::built_in && !decoded->Prompts[2].Problem, "the review skill's default is exportable");
 	}
 
+	/// [[BPR-2139]], [[BPR-2140]], RFC-BPR-0107 AC08 (owner, 2026-11-12). An
+	/// agent's MCP servers and instructions settings ride its definition; a
+	/// file written before them reads as Off and the system prompt.
+	void test_mcp_and_instructions_ride_the_agent()
+	{
+		auto entry         = custom(3U, "Work Claude");
+		entry.McpServers   = core::agent_mcp_servers::own;
+		entry.Instructions = core::agent_instruction_delivery::message;
+		const auto local   = prompts();
+		const auto bytes   = exported({ entry }, local, false);
+		expect(bytes.find("\"mcp_servers\": \"own\"") != std::string::npos && bytes.find("\"instructions\": \"message\"") != std::string::npos, "both settings are written by name");
+		const auto decoded = core::decode_agent_configuration(bytes, local, Aliases);
+		expect(decoded && decoded->Agents.size() == 1U && decoded->Agents[0].Agent.McpServers == core::agent_mcp_servers::own
+				   && decoded->Agents[0].Agent.Instructions == core::agent_instruction_delivery::message,
+			   "both read back");
+		const auto imported = core::imported_entry(decoded->Agents[0].Agent, core::agent_import_choice{ .Program = "/usr/local/bin/work-claude" }, nullptr);
+		expect(imported.McpServers == core::agent_mcp_servers::own && imported.Instructions == core::agent_instruction_delivery::message, "an import applies them as the file says");
+		const auto before = core::agent_differences(core::agent_entry{ }, imported);
+		expect(std::ranges::find(before, core::agent_field::mcp_servers) != before.end() && std::ranges::find(before, core::agent_field::instructions) != before.end(), "a replacement shows them among its differences");
+		const auto older = core::decode_agent_configuration(
+			R"({"format":"bpr.agent-configuration","version":1,"exported_by":"x","agents":[{"id":"c","name":"C","protocol":"claude_stream_json","program_name":"c","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false}],"prompts":[]})",
+			local);
+		expect(older && older->Agents[0].Agent.McpServers == core::agent_mcp_servers::off && older->Agents[0].Agent.Instructions == core::agent_instruction_delivery::system_prompt,
+			   "a file written before them reads as Off and the system prompt");
+		const auto unknown = core::decode_agent_configuration(
+			R"({"format":"bpr.agent-configuration","version":1,"exported_by":"x","agents":[{"id":"c","name":"C","protocol":"claude_stream_json","program_name":"c","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false,"mcp_servers":"all"}],"prompts":[]})",
+			local);
+		expect(!unknown && unknown.error() == core::configuration_file_refusal::malformed, "a value this version does not know refuses the file");
+	}
+
 	void test_file_refusals()
 	{
 		const auto local = prompts();
@@ -281,6 +311,7 @@ auto main() -> int
 	test_final_profile_limits();
 	test_prompts_apply();
 	test_portable_ids();
+	test_mcp_and_instructions_ride_the_agent();
 	std::cout << "agent-configuration-tests:pass\n";
 	return EXIT_SUCCESS;
 }

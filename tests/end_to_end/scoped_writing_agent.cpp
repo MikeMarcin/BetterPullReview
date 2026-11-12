@@ -276,7 +276,7 @@ namespace {
 	/// does (tool uses and their results), and answers. Run as the `claude` in
 	/// `attended-drafting-claude` it takes a few seconds, so a look sees it
 	/// running in the background.
-	auto draft_in_workspace(const std::string& aModel, const bool aSlow, const bool aFailing, std::string& aInput) -> std::optional<int>
+	auto draft_in_workspace(const std::string& aModel, const bool aSlow, const bool aFailing, std::string& aInput, const std::string& aInstructions) -> std::optional<int>
 	{
 		if (!environment_present("CLAUDE_CODE_DISABLE_AUTO_MEMORY")) {
 			return 7;
@@ -287,6 +287,7 @@ namespace {
 			return 6;
 		}
 		aInput.assign(std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ });
+		aInput            = aInstructions + aInput;
 		const auto& input = aInput;
 		if (input.size() > 400000 || input.find("note.count\\t0") == std::string::npos) {
 			return 4;
@@ -427,16 +428,25 @@ int main(int argc, char** argv)
 		std::cout << "2.1.314 (Claude Code)\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-2140]]. A built-in prompt's instructions ride inline in the
+	// system prompt, before `-p`; they are read as the start of the request.
+	std::string instructions;
+	if (const auto system = std::ranges::find(actual, std::string{ "--append-system-prompt" }); system != actual.end() && system + 1 != actual.end()) {
+		instructions = *(system + 1);
+		actual.erase(system, system + 2);
+	}
+	// [[BPR-2142]]. The restrictions, whose options take several values,
+	// come before `-p`; the model follows `--verbose`.
 	std::string model;
-	if (actual.size() > 7U && actual[6] == "--model") {
-		model = actual[7];
+	if (const auto named = std::ranges::find(actual, std::string{ "--model" }); named != actual.end() && named + 1 != actual.end()) {
+		model = *(named + 1);
 		expected.insert(expected.end(), { "--model", model });
 	}
 	// [[BPR-1900]]. A read-only tour drafting run: the review's workspace,
 	// read, search and read-only git, nothing that writes.
-	auto readOnly = expected;
-	readOnly.insert(readOnly.end(), read_only_restrictions().begin(), read_only_restrictions().end());
-	expected.insert(expected.end(), restrictions.begin(), restrictions.end());
+	auto readOnly = std::vector<std::string>{ read_only_restrictions().begin(), read_only_restrictions().end() };
+	readOnly.insert(readOnly.end(), expected.begin(), expected.end());
+	expected.insert(expected.begin(), restrictions.begin(), restrictions.end());
 	// The effort the reviewer chose rides after the model.
 	auto withoutEffort = actual;
 	if (const auto effort = std::ranges::find(withoutEffort, std::string{ "--effort" }); effort != withoutEffort.end() && effort + 1 != withoutEffort.end()) {
@@ -447,10 +457,10 @@ int main(int argc, char** argv)
 	if (readOnlyRun) {
 		const auto folder  = argc > 0 ? std::filesystem::path{ argv[0] }.parent_path().filename() : std::filesystem::path{ };
 		const auto failing = folder == "attended-drafting-failing-claude";
-		if (const auto ended = draft_in_workspace(model, folder == "attended-drafting-claude" || failing, failing, input)) {
+		if (const auto ended = draft_in_workspace(model, folder == "attended-drafting-claude" || failing, failing, input, instructions)) {
 			return *ended;
 		}
-	} else if (actual != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
+	} else if (withoutEffort != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
 		return 3;
 	}
 	// [[BPR-1896]]. A writing launch turns auto-memory off in the
@@ -467,6 +477,7 @@ int main(int argc, char** argv)
 	}
 	if (!readOnlyRun) {
 		input.assign(std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ });
+		input = instructions + input;
 	}
 	if (input.size() > 400000 || input.find("PRIVATE_UNUSED_CANARY") != std::string::npos || input.find("note.count\\t0") == std::string::npos || input.find("draft.count\\t0") == std::string::npos) {
 		return 4;
