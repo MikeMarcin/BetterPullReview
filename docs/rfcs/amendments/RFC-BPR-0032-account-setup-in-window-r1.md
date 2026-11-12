@@ -124,5 +124,6 @@ signed out, Recently viewed (a public preview's reading) stays beneath it.
   courses that signed in through the shared dialog sign in through the setup.
   The composition source contract holds the gh read gate on the setup and
   refuses a restored modal question (`application_composition_source_contract`).
-- AS-5: the owner accepted the look (attended session above); the server step
-  is to be shown to the owner.
+- AS-5: the owner accepted the look (attended session above); the owner also
+  accepted the server step, Enterprise ways, token entry and Settings › Add
+  account renders (2026-11-12).

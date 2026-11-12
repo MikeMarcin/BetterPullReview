@@ -27,6 +27,5 @@ removed; Connect as LOGIN records consent.
 - AC2. Every sign-in entry point uses the one setup, and the migrated courses
   pass.
 
-Pending owner look: the new server step and Settings › Add account renders
-(amendment AS-5). Not run: live second-account course, full tests-off Release
+Owner accepted the server step and Add account renders (AS-5). Not run: live second-account course, full tests-off Release
 composition contract, Windows and Linux.
