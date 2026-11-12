@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2126",
+    "BPR-2127"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Early PR link; review sheet unknown drafts",
+  "created": "2026-11-12T03:48:48.649859+00:00",
+  "base": "b745f129902004b8512c380e91ba675e4eed49f8"
+}

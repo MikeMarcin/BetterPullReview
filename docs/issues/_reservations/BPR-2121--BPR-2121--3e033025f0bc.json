@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2121"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent setup wizard follows agent list",
+  "created": "2026-11-12T02:47:24.570015+00:00",
+  "base": "9dc0283c09a4c371c2a2d4330a509d7c6630f170"
+}
