@@ -1455,22 +1455,57 @@ after the session restart; the ledger names them.
 Next: nothing owed in this round. RFC-BPR-0100, 0104 and 0106 are closed.
 BPR-2119 (main) is the hotfix for shipped builds. BPR-2101 (Backlog) remains.
 
-## local-draft-entry (2026-11-11, in progress)
+## local-draft-entry (2026-11-11)
 
 Fresh `rfc-implementer`, same lane; nothing pushed. Milestone
-`local-draft-entry` (RFC-BPR-0108, BPR-2019..2022). BPR-2019 claimed
-(`24d0b845c`, `3f97d7aac`; main mirror pending with the round's moves).
+`local-draft-entry` (RFC-BPR-0108, BPR-2019..2022). Frontend-design was
+loaded before the Qt work. Ledger:
+[RFC-BPR-0108](../../../verification/RFC-BPR-0108.md); implementation record
+in the RFC. Owner amendments in force as above.
 
-WIP commits: `fe3a4a2e1` core `local_draft` (remote chain, target, comparison,
-candidates, worktree resolution, codec); `c56f0b638` installed-Git
-local-draft reader (merge bases, trees, blobs; chain clones as alternates),
-discovery/capture, SQLite `local-drafts.sqlite3` store, workbench host; then
-the real-worktree course `local_draft` (workspace_contract) and reset
-coverage (`local-drafts` store and `local-draft-git-v1` folder are review
-data). Passing: `core_local_draft`, `local_draft`, `core_profile_data_reset`,
-`sqlite_profile_data_reset_files`. `application_profile_data_reset_public_path`
-was not run (binary removed for disk in an earlier round).
+| Commit | What |
+|---|---|
+| `24d0b845c`, `3f97d7aac` | Ready, claim BPR-2019 |
+| `fe3a4a2e1` | Core `local_draft` (remote chain, target, comparison, candidates, worktree resolution, codec) |
+| `c56f0b638`, `1698f5b67`, `207aeb7d9` | Installed-Git local-draft reader, discovery and capture, `local-drafts.sqlite3`, workbench host; real-worktree course `local_draft`; reset coverage |
+| `7e359141b`, `1bc6cf4c1`, `d4cf5da72`, `3225243ec` | Qt page, Home author entry and In preparation, prepared mark, Review Cycles below; composition; `bpr draft open` and owner channel `local_draft`; desktop course |
+| `541a6fb9b`, `c1bd85db1` | clang-format 22, clang-tidy fixes |
+| `b6decde2d`, `3585dedc7` | Attended look `--attended-local-draft` and its generated worktree. Product candidate |
+| `3792021fe`, `a610e1ec4` | Ledger, implementation record, `docs/development/draft-cli.md`, architecture; closeout checklist |
+| `d32ad92d6`, `1e0ca5147` | NEXT_ID from main (BPR-2130 with main's reservations) |
+| `779b495c9`; `1fc526c79`, `0247e9245`, `2adb3ea77`; `e06d28549`, `1c328399f`, `446b17aa6` | BPR-2019 Done; BPR-2020 ready, claimed, Done; BPR-2021 ready, claimed, parked `human-review` |
 
-Next: Qt surface (Home Prepare pull request…, In preparation, Review Cycles
-secondary route; the draft page), composition, `bpr draft open`, docs,
-ledger, cards, owner look.
+Main mirror: `7c2a6fa31` (BPR-2019, 2020 Done; BPR-2021 parked; BPR-2022
+checklist; RFC-BPR-0108 and its ledger, the draft CLI guide link de-linked).
+
+Runs at `3585dedc7` (dev, Debug): `core_local_draft`, `local_draft`,
+`core_profile_data_reset`, `sqlite_profile_data_reset_files`,
+`application_review_cycle_desktop_public_path`,
+`application_local_draft_desktop_public_path` (6/6); negative control
+(target tip as base) fails `local_draft`; `bpr draft open` from a terminal
+(create, resume, `remote_chain`, `not_git`); the shipped composition reached
+`ATTENDED_LOCAL_DRAFT_SHOWN` (dev app and the frozen launcher check).
+Documentation gate OK on lane and main. Not run: the whole suite, core-only
+preset, `application_profile_data_reset_public_path` and the Qt window suites
+(their binaries were removed for disk: list in the session scratchpad
+`deleted-binaries.txt`); `bpr draft open` forwarded to a running desktop has
+no course.
+
+Owner look, filed and not waited on: session
+`5f049205ae4d7f19c1593afa81ea39df`, state
+`/Users/jaeger/.attended-review-state/local-draft-entry-v001-2026-11-11/state`,
+cursor 6, host PID 6288 (Tailscale child 6298), URL in that directory's
+`serve.log`. Candidates `BPR-2021-draft-page` (`cd646094638f…`) and
+`BPR-2021-home-author-entry` (`c6caca388752…`). Frozen root
+`/Users/jaeger/local-draft-v001.h8pe0ibf` from `3585dedc7f50` (executable
+SHA-256 `df0de0384dee…`), launch `python3 /Users/jaeger/local-draft-v001.h8pe0ibf/launch.py`.
+
+Next: read `5f049205…` from cursor 6 after hand-back. Accept of both finishes
+BPR-2021 (`issue_board.py finish`, mirrored to main), then BPR-2022 closes
+RFC-BPR-0108; a Reject is a new candidate. Then stop host 6288 and remove the
+root with `freeze_attended_build.py remove`. Known gaps for the closeout:
+forwarding course for `bpr draft open`, a drawn queue row with the prepared
+chip, and associations recorded only by the publication RFC.
+
+Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
+BPR-Test #152 and `-next`. No live GitHub use.
