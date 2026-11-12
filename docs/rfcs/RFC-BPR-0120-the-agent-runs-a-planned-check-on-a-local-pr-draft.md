@@ -61,11 +61,21 @@ method offers **Run with agent**, an agent control.
 - The result enters the evidence record only when the author accepts it,
   like any proposal. Nothing is published by running a check.
 - It is briefed by a built-in prompt of its own,
-  `local-draft.run-check` (a proposal; P02 in the
+  `local-draft.run-check` (P02, settled 2026-11-12; see the
   [decision record](assets/agent-assistance-v1/DECISIONS.md#decisions)).
 
 Running every planned check at once, running on a schedule or on refresh,
 and observed executions that BPR supervises itself are not in this RFC.
+
+### Owner decisions of 2026-11-12
+
+- P02 is settled: this action has one editable prompt of its own. Its
+  instructions reach Claude as an inline `--append-system-prompt` and Codex
+  `exec` as `developer_instructions`, pasted where unverified or switched off
+  (RFC-BPR-0107's amendment of 2026-11-12).
+- Its first answer is a fresh run (RFC-BPR-0101's amendment of 2026-11-12):
+  no native session, nothing saved. This action runs the planned check, so it keeps the tools the check needs; it is still fresh. Ask more on the answer promotes it into a
+  resumed session whose first turn carries the answer.
 
 ## Acceptance criteria
 

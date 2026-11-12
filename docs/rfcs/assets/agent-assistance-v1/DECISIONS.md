@@ -18,7 +18,7 @@ chose it and the owner has not separately confirmed it.
 |---|---|---|---|---|
 | D01: the other agent ideas from the first answer are wanted | All six RFCs | Settled. "The other agent ideas from the initial ask are part of our final suggestions." ([note 3](SOURCE_NOTES.md)) | The answer adopts a list the author wrote ([note 2](SOURCE_NOTES.md)). It says the ideas are wanted, not how each works. | All |
 | P01: which ideas "the other agent ideas" are | The six RFCs | Proposed. Read as the seven remaining items of this session's first answer. A forked side session gave the owner ten more ideas the same day; those not also in this list are not in this pack. | See deferrals for the ones left out. | All |
-| P02: one built-in prompt per new operation | Each RFC's prompt paragraph and criterion | Proposed. Follows the owner's request that self-review have its own prompt ([note 4](SOURCE_NOTES.md)). Against it: the owner merged the three Enhance prompts into one on 2026-11-10 (`90785ae34`). The six operations here are different tasks, not one task on three surfaces, which is why the proposal is one each. | Six new prompt purposes. If the owner prefers fewer, the six prompt criteria change and nothing else does. | DRAFT-0001, 0002, 0004, 0006, 0008, 0010; RFC-BPR-0107 |
+| P02: one built-in prompt per new operation | Each RFC's prompt paragraph and criterion | **Settled (owner, 2026-11-12):** one editable prompt per agent-assistance action. Built-in prompts reach Claude as an inline `--append-system-prompt "<text>"` (never the `-file` form, which the owner's corporate wrapper drops), with a canary that the instructions took effect, pasting past the Windows command-line bound and as the per-agent fallback; Codex uses `developer_instructions` where verified (0.167 `exec`), else pastes. Each action's first answer is a fresh, tool-free, one-call run; Ask more promotes it into a resumed session seeded with the answer (RFC-BPR-0101 amendment of 2026-11-12). | Six new prompt purposes. | DRAFT-0001, 0002, 0004, 0006, 0008, 0010; RFC-BPR-0107 ([[BPR-2140]]), RFC-BPR-0101 ([[BPR-2138]]) |
 | P03: an answer is a claim and changes no state | Returning-pull-request RFC AC04, AC06; check RFC AC03, AC04 | Proposed. Follows RFC-BPR-0009's and RFC-BPR-0012's non-goals. | No automatic Seen, resolve, verify or post. | DRAFT-0001, 0002, 0008 |
 | P04: Explain this file answers in a card at the file header | Explain-file RFC AC02, AC03 | Proposed. The first answer said only "without a trip to the Agent tab". | A new card in Review; the turn still lives in the Agent tab's history. | DRAFT-0004 |
 | P05: the checks core makes before an agent's replacement is shown as a suggestion | Suggested-change RFC AC02, AC03 | Proposed. | A reply that does not match the lines byte for byte is never shown as a suggestion. | DRAFT-0006 |
@@ -29,8 +29,7 @@ chose it and the owner has not separately confirmed it.
 ## Open frontier and explicit deferrals
 
 No question is waiting on the owner for import. P01 to P08 are proposals.
-P02 is the one to ask first, because every RFC carries it and there is a
-recent owner decision pointing the other way.
+P02 was settled by the owner on 2026-11-12 (see its row).
 
 Deferred, with the boundary each leaves:
 
@@ -65,8 +64,8 @@ Deferred, with the boundary each leaves:
 
 ## Continuation
 
-Next action: implementation needs its own mandate, and P02 needs the
-owner's answer first. Artifacts: the [overview](README.md), the six RFCs,
+Next action: implementation needs its own mandate; P02 was answered on
+2026-11-12. Artifacts: the [overview](README.md), the six RFCs,
 [cards/](cards/), the [proposed amendments](AMENDMENTS.md), the
 [plan](milestone-plan.json) and the
 [implementation entrypoint](IMPLEMENTATION_PROMPT.md).

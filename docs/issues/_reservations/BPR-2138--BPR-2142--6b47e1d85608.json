@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2138",
+    "BPR-2139",
+    "BPR-2140",
+    "BPR-2141",
+    "BPR-2142"
+  ],
+  "reserve_for": "agent-launch-policy",
+  "purpose": "Owner agent launch policy 2026-11-12: session mode per action, per-agent MCP setting, built-in prompts as system prompt, one call per fresh click, wrapper sign-in failure and argument order",
+  "created": "2026-11-12T17:15:18.733728+00:00",
+  "base": "e4e7655fe17a77595986f6d00d92179be1e051f9"
+}

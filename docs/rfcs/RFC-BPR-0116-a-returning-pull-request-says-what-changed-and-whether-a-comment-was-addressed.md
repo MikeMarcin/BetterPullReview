@@ -100,6 +100,16 @@ Nothing starts either run but the reviewer's press. Opening, refreshing or
 returning to a pull request launches no agent. Both are read-only runs under
 the grants the Agent tab already has.
 
+### Owner decisions of 2026-11-12
+
+- P02 is settled: this action has one editable prompt of its own. Its
+  instructions reach Claude as an inline `--append-system-prompt` and Codex
+  `exec` as `developer_instructions`, pasted where unverified or switched off
+  (RFC-BPR-0107's amendment of 2026-11-12).
+- Its first answer is a fresh run (RFC-BPR-0101's amendment of 2026-11-12):
+  no native session, nothing saved. It is one model call with no tools: the context it needs is in the request. Ask more on the answer promotes it into a
+  resumed session whose first turn carries the answer.
+
 ## Acceptance criteria
 
 - **AC01:** What changed since my review is offered only when the pull request has commits newer than the reviewer's last review or Seen; a press sends `analyze_latest_upload` with both revisions named in the brief; and the reply's code references open as links.
