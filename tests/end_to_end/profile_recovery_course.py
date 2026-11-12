@@ -20,6 +20,7 @@ started, by its owned child PID on Windows and process group on POSIX.
 """
 
 import os
+from contextlib import ExitStack
 from pathlib import Path
 import shutil
 import signal
@@ -200,7 +201,6 @@ def main():
         connections = state / "remembered-connections.sqlite3"
         if not ledger.exists():
             fail("the fixture made review data before Reset everything")
-        ledger_before = ledger.stat().st_ino
         # The prior run has stopped; only this disposable course owns the store.
         marker = os.urandom(16).hex()
         with sqlite3.connect(ledger) as database:
@@ -209,14 +209,27 @@ def main():
         if not has_reset_sentinel(ledger, scratch / "review-data-without-reset", marker):
             fail("the no-reset control retains the previous review data")
         connections_before = (connections.stat().st_ino, contents(connections, scratch / "connections-before")) if connections.exists() else None
-        requested = run(application, source, root, scratch / "requested.log", "--reset-profile-data", "--profile-recovery-answer", "everything")
-        if "PROFILE_RECOVERY_OFFERED:requested" not in requested or "PROFILE_RECOVERY_CHOICE:everything" not in requested or OPENED not in requested:
-            fail("--reset-profile-data offers the dialog and Reset everything opens the profile", requested)
-        if has_reset_sentinel(ledger, scratch / "review-data-after-reset", marker):
-            fail("Reset everything replaced the review data")
-        ledger_after = ledger.stat().st_ino if ledger.exists() else None
-        print(f"PROFILE_RECOVERY_RESET_EVIDENCE: inode_before={ledger_before} inode_after={ledger_after} "
-              f"inode_reused={ledger_before == ledger_after} previous_data_removed=True no_reset_replacement_rejected=True")
+        with ExitStack() as handles:
+            # POSIX permits unlink while this noninherited descriptor is open.
+            # Keep the old inode alive so replacement cannot reuse its number.
+            # Windows keeps its original check without changing delete sharing.
+            anchor = handles.enter_context(ledger.open("rb")) if os.name != "nt" else None
+            ledger_before = ledger.stat().st_ino
+            if anchor is not None and os.fstat(anchor.fileno()).st_nlink != 1:
+                fail("the no-reset control still links the previous review file")
+            requested = run(application, source, root, scratch / "requested.log", "--reset-profile-data", "--profile-recovery-answer", "everything")
+            if "PROFILE_RECOVERY_OFFERED:requested" not in requested or "PROFILE_RECOVERY_CHOICE:everything" not in requested or OPENED not in requested:
+                fail("--reset-profile-data offers the dialog and Reset everything opens the profile", requested)
+            if anchor is not None and os.fstat(anchor.fileno()).st_nlink != 0:
+                fail("Reset everything unlinks the previous review file")
+            if ledger.exists() and ledger.stat().st_ino == ledger_before:
+                fail("Reset everything replaced the review data")
+            if has_reset_sentinel(ledger, scratch / "review-data-after-reset", marker):
+                fail("Reset everything removes the previous review data")
+            ledger_after = ledger.stat().st_ino if ledger.exists() else None
+            print(f"PROFILE_RECOVERY_RESET_EVIDENCE: inode_before={ledger_before} inode_after={ledger_after} "
+                  f"old_file_unlinked={os.fstat(anchor.fileno()).st_nlink == 0 if anchor is not None else 'unobserved'} "
+                  "previous_data_removed=True no_reset_replacement_rejected=True")
         # [[BPR-1858]]. Reset everything reads this store to forget any GitHub
         # CLI connection, which may checkpoint its WAL into the file. This
         # fixture has none, so the same file keeps the same rows.
