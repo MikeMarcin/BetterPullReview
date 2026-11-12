@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_LOCAL_DRAFT_HPP
 
 #include "bpr/core/clone_discovery.hpp"
+#include "bpr/core/diff_model.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/core/review_cycle_workspace.hpp"
@@ -514,6 +515,12 @@ namespace bpr::core {
 	/// \brief The draft associated with one pull request, for its Home row's mark.
 	[[nodiscard]] auto draft_for_pull_request(std::span<const local_draft> aDrafts, std::string_view aHost, std::string_view aOwner, std::string_view aName, std::uint64_t aNumber)
 		-> std::optional<std::size_t>;
+
+	/// \brief The diff-engine identity of one path of one candidate,
+	/// domain-separated from every pull-request and cycle comparison. Absent
+	/// when neither side has content.
+	[[nodiscard]] auto local_draft_file_comparison(const local_draft_id& aDraft, std::uint64_t aCandidate, std::string_view aPath, const std::optional<git_entry_oid>& aLeft,
+												   const std::optional<git_entry_oid>& aRight, const diff_options& aOptions) -> std::optional<material_comparison_key>;
 
 	/// \brief The draft as stored: compact JSON, without working bytes.
 	[[nodiscard]] auto encode_local_draft(const local_draft& aDraft) -> std::string;

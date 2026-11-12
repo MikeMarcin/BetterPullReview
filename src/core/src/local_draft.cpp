@@ -1,6 +1,8 @@
 #include "bpr/core/local_draft.hpp"
 
+#include "bpr/core/diff_compute.hpp"
 #include "bpr/core/review_cycle_publication.hpp"
+#include "bpr/core/sha256.hpp"
 #include "bpr/core/utf8.hpp"
 
 #include <glaze/glaze.hpp>
@@ -828,6 +830,38 @@ namespace bpr::core {
 			}
 		}
 		return std::nullopt;
+	}
+
+	auto local_draft_file_comparison(const local_draft_id& aDraft, const std::uint64_t aCandidate, const std::string_view aPath, const std::optional<git_entry_oid>& aLeft,
+									 const std::optional<git_entry_oid>& aRight, const diff_options& aOptions) -> std::optional<material_comparison_key>
+	{
+		const auto options = options_digest(aOptions);
+		if ((!aLeft && !aRight) || !options || !valid(aDraft)) {
+			return std::nullopt;
+		}
+		constexpr auto domain = std::string_view{ "BPR-local-draft-file-comparison-v1" };
+		auto           bytes  = std::vector<std::uint8_t>(domain.begin(), domain.end());
+		const auto     append = [&bytes](const std::string_view aText) {
+            for (std::size_t shift = 0U; shift < 64U; shift += 8U) {
+                bytes.push_back(static_cast<std::uint8_t>((static_cast<std::uint64_t>(aText.size()) >> shift) & 0xFFU));
+            }
+            bytes.insert(bytes.end(), aText.begin(), aText.end());
+		};
+		bytes.push_back(0U);
+		append(aDraft.Value);
+		append(std::to_string(aCandidate));
+		append(aPath);
+		append(aLeft ? canonical_hex(*aLeft).view() : std::string_view{ });
+		append(aRight ? canonical_hex(*aRight).view() : std::string_view{ });
+		bytes.insert(bytes.end(), options->bytes().begin(), options->bytes().end());
+		append(std::to_string(supported_diff_algorithm_revision.value()));
+		return material_comparison_key{
+			.Comparison   = file_comparison_digest{ sha256(bytes) },
+			.LeftPresent  = aLeft.has_value(),
+			.RightPresent = aRight.has_value(),
+			.Options      = *options,
+			.Algorithm    = supported_diff_algorithm_revision,
+		};
 	}
 
 	auto encode_local_draft(const local_draft& aDraft) -> std::string
