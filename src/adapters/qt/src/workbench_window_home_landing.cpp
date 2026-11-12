@@ -24,6 +24,7 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"
 
+#include <QDateTime>
 #include <QAbstractButton>
 #include <QAbstractListModel>
 #include <QAbstractSlider>
@@ -485,7 +486,10 @@ namespace bpr::qt {
 					// way back to it.
 					|| (HasGithubPullRequest && !cycle
 						&& name == QLatin1String{ "workbenchModalityAction" })
-					|| (cycle && action == IdentityAction);
+					|| (cycle && action == IdentityAction)
+					// Mockup A: a local draft is a pull request window; its
+					// Overview and Review are the window's own modalities.
+					|| (cycle && LocalDraftShown && name == QLatin1String{ "workbenchModalityAction" });
 				action->setVisible(!stripHome || kept);
 			}
 			// [[BPR-0783]], [[BPR-1580]]. View is Home's own, and
@@ -764,6 +768,19 @@ namespace bpr::qt {
 		LocalCycleShown = true;
 		LocalDraftShown = true;
 		HomeRequested   = false;
+		// Mockup A: Discuss and Threads wait until a pull request exists.
+		if (Modality != nullptr) {
+			for (const auto waiting : { review_modality::discuss, review_modality::threads }) {
+				if (auto* const action = Modality->action(waiting); action != nullptr) {
+					if (!action->property("bprLocalDraftTip").isValid()) {
+						action->setProperty("bprLocalDraftTip", action->toolTip());
+					}
+					action->setEnabled(false);
+					action->setToolTip(QStringLiteral("Waits until the pull request exists"));
+				}
+			}
+			Modality->adopt(LocalDraftPage != nullptr && LocalDraftPage->overview() ? review_modality::overview : review_modality::review);
+		}
 		update_home_landing();
 		update_strip_identity();
 		apply_strip_width();
@@ -777,6 +794,17 @@ namespace bpr::qt {
 		LocalDraftShown = false;
 		LocalCycleShown = false;
 		LocalCycleTitle.clear();
+		if (Modality != nullptr) {
+			for (const auto waiting : { review_modality::discuss, review_modality::threads }) {
+				if (auto* const action = Modality->action(waiting); action != nullptr) {
+					action->setEnabled(true);
+					if (const auto tip = action->property("bprLocalDraftTip"); tip.isValid()) {
+						action->setToolTip(tip.toString());
+						action->setProperty("bprLocalDraftTip", QVariant{ });
+					}
+				}
+			}
+		}
 		update_home_landing();
 		update_strip_identity();
 		apply_strip_width();
@@ -788,6 +816,22 @@ namespace bpr::qt {
 			&& CentralStack->currentWidget() == static_cast<QWidget*>(LocalDraftPage);
 	}
 
+	auto workbench_window::home_draft_age(const std::int64_t aUpdated) const -> QString
+	{
+		const auto now     = QDateTime::currentSecsSinceEpoch();
+		const auto seconds = std::max<std::int64_t>(0, now - aUpdated);
+		if (aUpdated <= 0) {
+			return { };
+		}
+		if (seconds < 3600) {
+			return QStringLiteral("%1 min").arg(std::max<std::int64_t>(1, seconds / 60));
+		}
+		if (seconds < 86400) {
+			return QStringLiteral("%1 h").arg(seconds / 3600);
+		}
+		return seconds < 2 * 86400 ? QStringLiteral("yesterday") : QStringLiteral("%1 d").arg(seconds / 86400);
+	}
+
 	void workbench_window::present_local_drafts(const application::local_draft_home_projection& aHome)
 	{
 		DraftHome = aHome;
@@ -797,10 +841,17 @@ namespace bpr::qt {
 		HomeDraftsList->clear();
 		const auto text = [](const std::string& aText) { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); };
 		for (const auto& row : DraftHome.InPreparation) {
-			// X03: In preparation's rows say Local draft; Draft alone is GitHub's.
+			// X03: the rows say Local draft; Draft alone is GitHub's.
 			auto* const item = new QListWidgetItem{ QStringLiteral("%1  —  %2, %3  ·  Local draft").arg(text(row.Title), text(row.Repository), text(row.Branch)), HomeDraftsList };
+			item->setData(Qt::UserRole + 10, text(row.Title));
+			item->setData(Qt::UserRole + 11, text(row.Repository));
+			item->setData(Qt::UserRole + 12, text(row.Branch));
+			item->setData(Qt::UserRole + 13, home_draft_age(row.Updated));
 			item->setToolTip(QStringLiteral("Local draft of %1 into %2").arg(text(row.Branch), text(row.Repository)));
+			item->setSizeHint(QSize{ 0, 26 });
 		}
+		// One 26 px line each; past five the group scrolls rather than push Home down.
+		HomeDraftsList->setFixedHeight(static_cast<int>(std::min<std::size_t>(DraftHome.InPreparation.size(), 5U)) * 26 + 2);
 		HomeDrafts->setVisible(!DraftHome.InPreparation.empty());
 		if (HomeList != nullptr) {
 			auto prepared = QSet<QString>{ };

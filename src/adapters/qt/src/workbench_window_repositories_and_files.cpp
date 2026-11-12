@@ -16,6 +16,7 @@
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "bpr/qt/local_draft_view.hpp"
 #include "workbench_window_support.hpp"
 
 #include <QAbstractItemView>
@@ -1193,6 +1194,19 @@ namespace bpr::qt {
 
 	void workbench_window::choose_modality(const review_modality aModality, const core::workbench_modality_entry aEntry)
 	{
+		// Mockup A: a local draft's Overview and Review are its page's; Discuss
+		// and Threads wait until a pull request exists.
+		if (LocalDraftShown && LocalCycleShown && LocalDraftPage != nullptr && !showing_home()) {
+			if (aModality == review_modality::overview || aModality == review_modality::review) {
+				LocalDraftPage->set_overview(aModality == review_modality::overview);
+				if (Modality != nullptr) {
+					Modality->adopt(aModality);
+				}
+			} else if (Modality != nullptr) {
+				Modality->adopt(LocalDraftPage->overview() ? review_modality::overview : review_modality::review);
+			}
+			return;
+		}
 		if (ReviewNavigationDispatch) {
 			ReviewNavigationDispatch(std::nullopt);
 		}

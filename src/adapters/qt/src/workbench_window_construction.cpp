@@ -10,6 +10,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "conversation_glyphs.hpp"
 #include "workbench_window_support.hpp"
 
@@ -740,9 +741,22 @@ namespace bpr::qt {
 		// own actions, so the bar, the menu and the keys are one command
 		// each, and the core decides the layout.
 		rowWidget(ReviewBar, new strip_divider{ ReviewBar }, QStringLiteral("reviewBarViewDividerAction"));
-		ReviewBar->addAction(OnePaneAction);
+		// Owner, 2026-11-12: the layout toggle becomes a pick of the views,
+		// two icons in a review and three in author state. One pane stays
+		// the View menu's action and key; the picker sends the same intent.
+		ReviewViewPicker = new view_picker{ ReviewBar };
+		ReviewViewPicker->setObjectName(QStringLiteral("workbenchViewPicker"));
+		rowWidget(ReviewBar, ReviewViewPicker, QStringLiteral("workbenchViewPickerAction"));
+		ReviewViewPicker->set_picked([this](const review_view aView) {
+			const auto enabled = OnePaneState.State == core::workbench_one_pane::enabled;
+			if ((aView == review_view::one_pane) != enabled) {
+				dispatch_one_pane_toggle();
+			}
+			// The layout shown is the one the core last decided.
+			apply_one_pane();
+		});
 		ReviewBar->addAction(HeaderSourceAction);
-		for (const auto& [action, name] : { std::pair{ OnePaneAction, QStringLiteral("workbenchOnePaneButton") }, std::pair{ HeaderSourceAction, QStringLiteral("workbenchHeaderSourceButton") } }) {
+		for (const auto& [action, name] : { std::pair{ HeaderSourceAction, QStringLiteral("workbenchHeaderSourceButton") } }) {
 			if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(action)); button != nullptr) {
 				button->setObjectName(name);
 				button->setToolButtonStyle(Qt::ToolButtonIconOnly);

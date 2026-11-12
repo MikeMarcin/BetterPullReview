@@ -171,6 +171,7 @@ namespace bpr::qt {
 	class device_authorization_panel;
 	class review_cycle_view;
 	class local_draft_view;
+	class view_picker;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -1296,6 +1297,8 @@ namespace bpr::qt {
 		/// preparation, above Home's sections (X01), and the marks on pull
 		/// request rows a draft became (X02).
 		void               present_local_drafts(const application::local_draft_home_projection& aHome);
+		/// \brief Home variant 1: a local draft row's age, as Home's rows say theirs.
+		[[nodiscard]] auto home_draft_age(std::int64_t aUpdated) const -> QString;
 		void               set_local_draft_entry_dispatch(std::function<void()> aPrepare, std::function<void(const core::local_draft_id&)> aResume);
 		[[nodiscard]] auto home_prepare_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto home_drafts_list() const noexcept -> QListWidget*;
@@ -1377,6 +1380,8 @@ namespace bpr::qt {
 		/// [[BPR-1334]]. View > Line Details.
 		[[nodiscard]] auto line_details_action() const noexcept -> QAction*;
 		[[nodiscard]] auto one_pane_action() const noexcept -> QAction*;
+		/// \brief The review bar's view picker (two panes, one pane; Edit in author state).
+		[[nodiscard]] auto review_view_picker() const noexcept -> view_picker* { return ReviewViewPicker; }
 		/// \brief [[BPR-1336]]. View > Zoom In, Zoom Out and Actual Size.
 		[[nodiscard]] auto zoom_in_action() const noexcept -> QAction*;
 		[[nodiscard]] auto zoom_out_action() const noexcept -> QAction*;
@@ -2752,6 +2757,8 @@ namespace bpr::qt {
 		QAction*           OpenProjectAction = nullptr;
 		/// RFC-BPR-0108.
 		local_draft_view*                                     LocalDraftPage            = nullptr;
+		/// Home variant 1: the Open row, where Prepare Pull Request… stands.
+		QHBoxLayout* HomePrepareSlot = nullptr;
 		bool                                                  LocalDraftShown           = false;
 		QWidget*                                              HomeAuthor                = nullptr;
 		QPushButton*                                          HomePrepare               = nullptr;
@@ -2920,6 +2927,8 @@ namespace bpr::qt {
 
 		QAction* LineNumbersAction = nullptr;
 		QAction* OnePaneAction     = nullptr;
+		/// Owner, 2026-11-12: the review bar's view picker.
+		view_picker* ReviewViewPicker = nullptr;
 		/// [[BPR-1336]]. The zoom commands, their sink, and the accepted code record.
 		QAction*                                  ZoomInAction     = nullptr;
 		QAction*                                  ZoomOutAction    = nullptr;

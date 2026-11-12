@@ -17,6 +17,7 @@
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "conversation_glyphs.hpp"
 #include "workbench_window_support.hpp"
 
@@ -545,10 +546,19 @@ namespace bpr::qt {
 			OnePaneAction->setProperty("bprOnePane", enabled);
 			OnePaneAction->setIcon(strip_icon(enabled ? strip_glyph::one_pane : strip_glyph::two_panes, palette()));
 		}
-		if (auto* const button = ReviewBar != nullptr ? qobject_cast<QToolButton*>(ReviewBar->widgetForAction(OnePaneAction)) : nullptr;
-			button != nullptr) {
-			button->setAccessibleName(QStringLiteral("One pane"));
-			button->setAccessibleDescription(OnePaneAction->toolTip());
+		if (ReviewViewPicker != nullptr) {
+			ReviewViewPicker->set_view(enabled ? review_view::one_pane : review_view::two_panes);
+			const auto key    = presented_key(OnePaneAction);
+			const auto reason = offered ? QString{ }
+										: drawer_reason_text(projection ? projection->DisabledReason : core::workbench_reason_code::no_active_workbench);
+			const auto named  = [&key](const QString& aName) { return key.isEmpty() ? aName : QStringLiteral("%1 (%2)").arg(aName, key); };
+			for (const auto& [view, name, said] : { std::tuple{ review_view::two_panes, QStringLiteral("Two panes"), QStringLiteral("Show the comparison in two source panes.") },
+													std::tuple{ review_view::one_pane, QStringLiteral("One pane"), QStringLiteral("Show both sides in one document.") } }) {
+				auto* const segment = ReviewViewPicker->segment(view);
+				segment->setEnabled(offered);
+				segment->setToolTip(QStringLiteral("%1\n%2").arg(named(name), offered ? said : reason));
+				segment->setAccessibleDescription(segment->toolTip());
+			}
 		}
 		if (ComparisonSurface != nullptr) {
 			ComparisonSurface->set_one_pane_enabled(enabled);

@@ -79,6 +79,7 @@
 #include <QOverload>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QStyledItemDelegate>
 #include <QPalette>
 #include <QPen>
 #include <QPlainTextEdit>
@@ -239,6 +240,48 @@ namespace bpr::qt {
 
 			QTimer* Turn  = nullptr;
 			int     Frame = 0;
+		};
+
+		/// Home variant 1 (owner, 2026-11-12): one 26 px line per local draft
+		/// in Home's row grid: a quiet bar, the word Local draft where a row's
+		/// reason goes, the title, repository and branch, and the time.
+		class home_draft_delegate final : public QStyledItemDelegate
+		{
+		public:
+			using QStyledItemDelegate::QStyledItemDelegate;
+
+			[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex&) const -> QSize override { return { aOption.rect.width(), 26 }; }
+
+			void paint(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+			{
+				auto option = aOption;
+				initStyleOption(&option, aIndex);
+				option.text.clear();
+				// Native selection and focus painting stay the style's.
+				option.widget->style()->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
+				aPainter->save();
+				const auto& colours = option.palette;
+				auto        quiet   = colours.color(QPalette::WindowText);
+				quiet.setAlpha(150);
+				const auto rect = option.rect;
+				aPainter->fillRect(QRect{ rect.left(), rect.top() + 4, 3, rect.height() - 8 }, colours.color(QPalette::Mid));
+				auto bold = option.font;
+				bold.setWeight(QFont::DemiBold);
+				aPainter->setFont(bold);
+				aPainter->setPen(quiet);
+				aPainter->drawText(QRect{ rect.left() + 16, rect.top(), 110, rect.height() }, Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("Local draft"));
+				auto       x     = rect.left() + 126;
+				const auto title = aIndex.data(Qt::UserRole + 10).toString();
+				aPainter->setPen(colours.color(QPalette::WindowText));
+				aPainter->drawText(QRect{ x, rect.top(), rect.width() - x, rect.height() }, Qt::AlignVCenter | Qt::AlignLeft, title);
+				x += QFontMetrics{ bold }.horizontalAdvance(title) + 10;
+				aPainter->setFont(option.font);
+				aPainter->setPen(quiet);
+				const auto where = QStringLiteral("%1  ⎇ %2").arg(aIndex.data(Qt::UserRole + 11).toString(), aIndex.data(Qt::UserRole + 12).toString());
+				aPainter->drawText(QRect{ x, rect.top(), std::max(0, rect.right() - x - 90), rect.height() }, Qt::AlignVCenter | Qt::AlignLeft, where);
+				aPainter->drawText(QRect{ rect.right() - 90, rect.top(), 82, rect.height() }, Qt::AlignVCenter | Qt::AlignRight, aIndex.data(Qt::UserRole + 13).toString());
+				aPainter->restore();
+			}
 		};
 	}
 
@@ -1826,6 +1869,8 @@ namespace bpr::qt {
 			openRow->setContentsMargins(24, 16, 24, 0);
 			openRow->setSpacing(12);
 			openRow->addWidget(openFrame, 1);
+			// Home variant 1: Prepare Pull Request… stands in the Open row.
+			HomePrepareSlot = openRow;
 			homeColumn->addLayout(openRow);
 			HomeOpenRow = openRow;
 			// A refusal belongs beside what was refused. Silence on Return was
@@ -2061,29 +2106,36 @@ namespace bpr::qt {
 			auto* const authorColumn = new QVBoxLayout{ HomeAuthor };
 			authorColumn->setContentsMargins(0, 0, 0, 0);
 			authorColumn->setSpacing(4);
-			HomePrepare = new QPushButton{ QStringLiteral("Prepare Pull Request…"), HomeAuthor };
+			HomePrepare = new QPushButton{ QStringLiteral("Prepare Pull Request…"), HomePage };
 			HomePrepare->setObjectName(QStringLiteral("homePrepareButton"));
 			HomePrepare->setToolTip(QStringLiteral("Choose a Git worktree to see the pull request its branch proposes. No account, push or agent needed"));
 			HomePrepare->setEnabled(false);
-			authorColumn->addWidget(HomePrepare, 0, Qt::AlignLeft);
+			if (HomePrepareSlot != nullptr) {
+				HomePrepareSlot->addWidget(HomePrepare, 0, Qt::AlignVCenter);
+			}
+			// Home variant 1: no band and no visible title. Each local draft is
+			// one line in Home's row grid, first on the page; In preparation is
+			// the group's accessible name.
 			HomeDrafts = new QWidget{ HomeAuthor };
 			HomeDrafts->setObjectName(QStringLiteral("homeInPreparation"));
+			HomeDrafts->setAccessibleName(QStringLiteral("In preparation"));
 			auto* const draftsColumn = new QVBoxLayout{ HomeDrafts };
-			draftsColumn->setContentsMargins(0, 6, 0, 0);
-			draftsColumn->setSpacing(4);
-			auto* const draftsTitle = new QLabel{ QStringLiteral("In preparation"), HomeDrafts };
-			draftsTitle->setObjectName(QStringLiteral("homeInPreparationTitle"));
-			auto draftsFont = draftsTitle->font();
-			draftsFont.setWeight(QFont::DemiBold);
-			draftsTitle->setFont(draftsFont);
-			draftsColumn->addWidget(draftsTitle);
+			draftsColumn->setContentsMargins(0, 2, 0, 0);
+			draftsColumn->setSpacing(0);
 			HomeDraftsList = new QListWidget{ HomeDrafts };
 			HomeDraftsList->setObjectName(QStringLiteral("homeInPreparationList"));
-			HomeDraftsList->setAccessibleName(QStringLiteral("Local drafts in preparation"));
+			HomeDraftsList->setAccessibleName(QStringLiteral("In preparation"));
 			HomeDraftsList->setAccessibleDescription(home_open_description());
 			HomeDraftsList->installEventFilter(this);
-			HomeDraftsList->setMaximumHeight(HomeDraftsList->fontMetrics().lineSpacing() * 5 + 8);
-			HomeDraftsList->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+			HomeDraftsList->setFrameShape(QFrame::NoFrame);
+			HomeDraftsList->setItemDelegate(new home_draft_delegate{ HomeDraftsList });
+			HomeDraftsList->setUniformItemSizes(true);
+			HomeDraftsList->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+			HomeDraftsList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			HomeDraftsList->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+			auto draftsPalette = HomeDraftsList->palette();
+			draftsPalette.setColor(QPalette::Base, draftsPalette.color(QPalette::Window));
+			HomeDraftsList->setPalette(draftsPalette);
 			draftsColumn->addWidget(HomeDraftsList);
 			HomeDrafts->hide();
 			authorColumn->addWidget(HomeDrafts);
