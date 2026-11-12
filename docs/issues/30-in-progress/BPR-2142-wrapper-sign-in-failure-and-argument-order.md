@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2142"
 title: "A wrapper's sign-in failure ends the run as one; options with several values come first"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0103", "RFC-BPR-0104"]
 depends_on: []
 priority: "P1"
