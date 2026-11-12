@@ -392,7 +392,7 @@ auto main(const int aCount, char** aArguments) -> int
 	// to resume; printed as above.
 	if ((aCount == 3 || aCount == 4) && std::string_view{ aArguments[1] } == "--print-discussion-launch") {
 		auto launch = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement(aArguments[2]), reader(),
-													   { .WritingOnly = true, .Path = core::agent_run_path::local_draft_discussion });
+													  { .WritingOnly = true, .Path = core::agent_run_path::local_draft_discussion });
 		if (!launch) {
 			return EXIT_FAILURE;
 		}
