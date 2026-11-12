@@ -378,6 +378,9 @@ namespace bpr::application {
 		/// other host, account or server contract itself.
 		[[nodiscard]] auto accepted_publication_account() const
 			-> std::optional<github_publication_account>;
+		/// \brief RFC-BPR-0111. The accepted account's catalog for creating a
+		/// pull request from a pushed branch; a `gh` connection carries it.
+		[[nodiscard]] auto accepted_pull_request_account() const -> std::optional<github_publication_account>;
 		[[nodiscard]] auto rate_limits() const noexcept
 			-> const github_rate_limit_state&;
 		[[nodiscard]] auto capability_cache_size() const noexcept -> std::size_t;

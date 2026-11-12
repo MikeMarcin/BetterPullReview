@@ -5,6 +5,7 @@
 #include "github_cli_process.hpp"
 #include "github_host_profile.hpp"
 #include "github_mutation_contract.hpp"
+#include "github_publication_contract.hpp"
 #include "github_wire_transport.hpp"
 
 #include <array>
@@ -528,7 +529,7 @@ namespace bpr::adapters::github::detail {
 		numeric_process_identity_reuse_unverifiable,
 	};
 
-	class gh_cli_transport final : public github_wire_transport_port, public github_mutation_wire_transport
+	class gh_cli_transport final : public github_wire_transport_port, public github_mutation_wire_transport, public github_publication_wire_transport
 	{
 	public:
 		gh_cli_transport(
@@ -555,6 +556,12 @@ namespace bpr::adapters::github::detail {
 			const github_mutation_wire_request& aRequest, std::stop_token aStop,
 			github_mutation_transmission_witness aWitness)
 			-> github_mutation_wire_completion override;
+
+		/// \brief RFC-BPR-0111. A pull request created from a branch the
+		/// author pushed, and the reads around it, through `gh api` on this
+		/// transport's account. Object and reference writes are refused.
+		[[nodiscard]] auto perform_publication(const github_publication_wire_call& aCall, std::stop_token aStop) -> github_publication_wire_completion override;
+		[[nodiscard]] auto carries_git_data() const noexcept -> bool override { return false; }
 
 		/// \brief [[BPR-1846]]. One avatar helper launch on this transport's
 		/// own gh runner, pinned to its account; the token stays in the helper.

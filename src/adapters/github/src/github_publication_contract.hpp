@@ -242,7 +242,20 @@ namespace bpr::adapters::github::detail {
 		virtual ~github_publication_wire_transport()                                                   = default;
 
 		[[nodiscard]] virtual auto perform_publication(const github_publication_wire_call& aCall, std::stop_token aStop) -> github_publication_wire_completion = 0;
+		/// \brief Whether the wire carries the Git-data object and branch
+		/// writes. RFC-BPR-0111: a `gh` connection carries only what creating
+		/// a pull request from a pushed branch needs, and refuses the rest.
+		[[nodiscard]] virtual auto carries_git_data() const noexcept -> bool { return true; }
 	};
+	/// \brief RFC-BPR-0111. The operations a pull request created from an
+	/// already pushed branch needs: the repository, branch and pull request
+	/// reads, and the one creation. No object, tree, commit or reference write.
+	[[nodiscard]] constexpr auto pull_request_publication_operation(const publication_operation aOperation) noexcept -> bool
+	{
+		return aOperation == publication_operation::observe_repository || aOperation == publication_operation::observe_branch
+			|| aOperation == publication_operation::find_pull_requests || aOperation == publication_operation::observe_pull_request
+			|| aOperation == publication_operation::create_pull_request;
+	}
 
 	/// \brief The publication catalog over one account's transport.
 	/// \details Refuses any target whose host, account or server contract is

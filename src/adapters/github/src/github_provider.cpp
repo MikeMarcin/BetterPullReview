@@ -573,6 +573,22 @@ namespace bpr::adapters::github::detail {
 			[[nodiscard]] auto acquire_publication_session() noexcept -> std::shared_ptr<application::github_publication_port> override
 			{
 				auto* const wire = dynamic_cast<github_publication_wire_transport*>(Transport.get());
+				if (wire == nullptr || !wire->carries_git_data()) {
+					return { };
+				}
+				try {
+					auto owned = std::make_shared<github_owned_publication_session>(Transport, *wire, CredentialContext);
+					return std::shared_ptr<application::github_publication_port>{ owned, &owned->Session };
+				} catch (...) {
+					return { };
+				}
+			}
+
+			/// RFC-BPR-0111. A `gh` connection carries this catalog too; its
+			/// wire refuses every object and reference write.
+			[[nodiscard]] auto acquire_pull_request_session() noexcept -> std::shared_ptr<application::github_publication_port> override
+			{
+				auto* const wire = dynamic_cast<github_publication_wire_transport*>(Transport.get());
 				if (wire == nullptr) {
 					return { };
 				}
@@ -996,6 +1012,7 @@ namespace bpr::adapters::github::detail {
 		// gh auth switch. A mismatch permanently refuses this observed lease.
 		class cli_observed_account_transport final : public github_wire_transport_port,
 													 public github_mutation_wire_transport,
+													 public github_publication_wire_transport,
 													 public application::git_smart_transport_factory_port,
 													 public std::enable_shared_from_this<cli_observed_account_transport>
 		{
@@ -1314,6 +1331,33 @@ namespace bpr::adapters::github::detail {
 				}
 				return result;
 			}
+
+			/// RFC-BPR-0111. A pull request created from a pushed branch, and
+			/// the reads around it, between two observations of the account: a
+			/// changed account sends nothing and reports a sent write as possibly sent.
+			auto perform_publication(const github_publication_wire_call& aCall, std::stop_token aStop) -> github_publication_wire_completion override
+			{
+				auto*       inner     = dynamic_cast<github_publication_wire_transport*>(Transport.get());
+				const auto& session   = std::get<core::github_session_request_context>(Viewer.Correlation.Parent);
+				const auto& authority = aCall.Context.Authority;
+				if (inner == nullptr || !pull_request_publication_operation(aCall.Wire.Operation) || !application::valid(aCall.Context) || authority.Account != Account
+					|| authority.Profile != session.Profile || authority.Host != Viewer.Correlation.Host || authority.ProfileRevision != Viewer.Correlation.ProfileRevision
+					|| aCall.Context.ApplicationSession != session.ApplicationSession || aCall.Context.IdentityGeneration != session.IdentityGeneration) {
+					return github_publication_wire_error{ };
+				}
+				if (check(Viewer, aStop)) {
+					return aStop.stop_requested() ? github_publication_wire_completion{ github_publication_wire_cancelled{ } } : github_publication_wire_completion{ github_publication_wire_error{ } };
+				}
+				auto result = inner->perform_publication(aCall, aStop);
+				if (check(Viewer, aStop)) {
+					const auto write = publication_exchange_for(aCall.Wire.Operation).value_or(publication_exchange{ }).Write;
+					const auto sent  = write ? github_mutation_transmission::indeterminate : github_mutation_transmission::definitely_not_sent;
+					return aStop.stop_requested() ? github_publication_wire_completion{ github_publication_wire_cancelled{ .Transmission = sent } }
+												  : github_publication_wire_completion{ github_publication_wire_error{ .Transmission = sent } };
+				}
+				return result;
+			}
+			[[nodiscard]] auto carries_git_data() const noexcept -> bool override { return false; }
 
 			auto perform_capability_probe(const github_capability_probe_wire_request& aRequest, std::stop_token aStop) -> github_capability_probe_wire_completion override
 			{
