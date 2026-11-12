@@ -808,6 +808,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_chat_construction_cut_contract": "dos-volume-name",
     "application_agent_chat_continued_contract": "dos-volume-name",
     "application_agent_chat_stale_contract": "dos-volume-name",
+    # [[BPR-2121]]. The same course runner's setup-list course.
+    "application_agent_chat_setup_list_contract": "unmeasured (registered on macOS)",
     "application_agent_finding_chat_panel_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_composition_contract": "dos-volume-name",
     "application_agent_finding_workshop_press_contract": "dos-volume-name",
