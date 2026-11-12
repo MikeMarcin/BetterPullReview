@@ -118,6 +118,18 @@ namespace bpr::app {
 		Chooser = std::move(aChooser);
 	}
 
+	void local_draft_desktop::show_draft(const core::local_draft_id& aId)
+	{
+		if (Closing) {
+			return;
+		}
+		BringForward = true;
+		Host->resume(aId);
+		Window.raise();
+		Window.activateWindow();
+		Host->refresh_home();
+	}
+
 	void local_draft_desktop::set_code_font(const QFont& aFont)
 	{
 		View->set_code_font(aFont);
@@ -136,6 +148,12 @@ namespace bpr::app {
 	void local_draft_desktop::shutdown()
 	{
 		Closing = true;
+		// The page outlives this desktop in the window; a gesture it sends
+		// while it is torn down (a title losing focus) reaches nothing.
+		if (View != nullptr) {
+			View->set_dispatch({ });
+			Window.set_local_draft_entry_dispatch({ }, { });
+		}
 		if (Host) {
 			Host->shutdown();
 		}

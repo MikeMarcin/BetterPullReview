@@ -116,9 +116,20 @@ namespace bpr::adapters::sqlite {
 			aCodec.enumeration(aRequest.Operation);
 			aCodec.text(aRequest.Draft, 64);
 			aCodec.text(aRequest.Edit.RequestId, 64);
-			const bool profileWide = aRequest.Operation == application::tour_owner_operation::hooks_show || aRequest.Operation == application::tour_owner_operation::cycle;
-			if (aRequest.Operation > application::tour_owner_operation::source || aRequest.Draft.size() != (profileWide ? 0U : 64U)) {
+			const bool profileWide = aRequest.Operation == application::tour_owner_operation::hooks_show || aRequest.Operation == application::tour_owner_operation::cycle
+				|| aRequest.Operation == application::tour_owner_operation::local_draft;
+			if (aRequest.Operation > application::tour_owner_operation::local_draft || aRequest.Draft.size() != (profileWide ? 0U : 64U)) {
 				aCodec.Good = false;
+			}
+			if (aRequest.Operation == application::tour_owner_operation::local_draft) {
+				// RFC-BPR-0108. A location and an optional context; nothing else.
+				aCodec.text(aRequest.LocalDraft.Location, application::maximum_local_draft_location_bytes);
+				aCodec.optional(aRequest.LocalDraft.Context, [&](auto& aContext) { aCodec.text(aContext, application::maximum_local_draft_context_bytes); });
+				if (!aRequest.Edit.RequestId.empty() || aRequest.LocalDraft.Location.empty() || !core::valid_writing_utf8(aRequest.LocalDraft.Location)
+					|| (aRequest.LocalDraft.Context && !core::valid_writing_utf8(*aRequest.LocalDraft.Context))) {
+					aCodec.Good = false;
+				}
+				return;
 			}
 			if (aRequest.Operation == application::tour_owner_operation::cycle) {
 				if (!aRequest.Edit.RequestId.empty()) {

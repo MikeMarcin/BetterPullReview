@@ -1,5 +1,6 @@
 #include "cycle_cli.hpp"
 #include "installed_runtime.hpp"
+#include "local_draft_cli.hpp"
 #include "tour_cli.hpp"
 #include <QCoreApplication>
 #include <QtLogging>
@@ -66,13 +67,18 @@ int main(int aCount, char** aArguments)
 	if (arguments.isEmpty() || arguments == QStringList{ QStringLiteral("help") } || arguments == QStringList{ QStringLiteral("--help") }) {
 		std::fputs("bpr - BetterPullReview from a terminal\n"
 				   "bpr tour   review tours of a pull request (bpr tour capabilities)\n"
-				   "bpr cycle  local Review Cycles of a folder or file (bpr cycle capabilities)\n",
+				   "bpr cycle  local Review Cycles of a folder or file (bpr cycle capabilities)\n"
+				   "bpr draft  a local PR draft of a Git worktree (bpr draft capabilities)\n",
 				   stdout);
 		return 0;
 	}
 	// One executable, two command families on the same non-GUI composition.
 	if (arguments.front() == QStringLiteral("cycle")) {
 		return bpr::app::run_cycle_cli(arguments.mid(1));
+	}
+	// RFC-BPR-0108. The harness handoff to a local PR draft.
+	if (arguments.front() == QStringLiteral("draft")) {
+		return bpr::app::run_draft_cli(arguments.mid(1));
 	}
 	return bpr::app::run_tour_cli(arguments);
 }

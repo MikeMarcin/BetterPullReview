@@ -18,7 +18,10 @@ namespace bpr::application {
 													 cycle,
 													 /// [[BPR-1227]]. Bounded pinned source for one draft's stop, read by the
 													 /// window that holds that pull request; a read, never a mutation.
-													 source };
+													 source,
+													 /// RFC-BPR-0108. `bpr draft open`: the owner opens or resumes the
+													 /// local draft of one worktree and shows it.
+													 local_draft };
 	/// \brief What to write, chosen by the author or their agent. The owner resolves it and reads the draft
 	/// and hook itself; no context, range offsets beyond these or target ever arrive from the caller.
 	struct tour_owner_assist_query
@@ -75,6 +78,16 @@ namespace bpr::application {
 		/// Exported bytes the caller writes to its own standard output.
 		std::string Output;
 	};
+	/// \brief Most bytes of a worktree location or a harness's context.
+	inline constexpr std::size_t maximum_local_draft_location_bytes = 4096U;
+	inline constexpr std::size_t maximum_local_draft_context_bytes  = 16U * 1024U;
+	/// \brief RFC-BPR-0108. A worktree a harness hands over, already absolute,
+	/// and the context it adds as a note. Nothing is published.
+	struct local_draft_owner_request
+	{
+		std::string                Location;
+		std::optional<std::string> Context;
+	};
 	/// \brief Finite local-only command. No editor, provider or publication authority crosses here.
 	struct tour_owner_request
 	{
@@ -85,6 +98,8 @@ namespace bpr::application {
 		cycle_owner_request     Cycle{ };
 		/// [[BPR-1227]]. The pinned commit, path, side and lines a `source` request reads.
 		core::tour_code_destination Source{ };
+		/// RFC-BPR-0108. What a `local_draft` request opens.
+		local_draft_owner_request LocalDraft{ };
 	};
 	struct tour_owner_response
 	{

@@ -263,7 +263,7 @@ namespace bpr::qt {
 		column->addWidget(splitter, 1);
 
 		connect(Title, &QLineEdit::editingFinished, this, [this] {
-			if (!Presenting && Dispatch.Rename && !Title->text().trimmed().isEmpty()) {
+			if (!Presenting && Dispatch.Rename && Projection.Draft && !Title->text().trimmed().isEmpty() && Title->text().trimmed() != text_of(Projection.Draft->Title)) {
 				Dispatch.Rename(utf8(Title->text().trimmed()));
 			}
 		});

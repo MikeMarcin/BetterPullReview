@@ -319,7 +319,7 @@ namespace bpr::application {
 		void refresh_home()
 		{
 			auto self = shared_from_this();
-			++Pending;
+			++HomePending;
 			Effects.post([self] {
 				auto home = local_draft_home_projection{ };
 				{
@@ -346,7 +346,7 @@ namespace bpr::application {
 					}
 				}
 				self->Decisions.post([host = self, rows = std::move(home)]() mutable {
-					--host->Pending;
+					--host->HomePending;
 					if (host->Stopped) {
 						return;
 					}
@@ -873,6 +873,8 @@ namespace bpr::application {
 		std::optional<local_draft_discovery> Discovery;
 		std::uint64_t                        Generation = 0;
 		std::atomic<std::uint64_t>           Pending{ 0U };
+		/// Home's reads, which never make the page busy.
+		std::atomic<std::uint64_t> HomePending{ 0U };
 		bool                                 Stopped = false;
 	};
 
@@ -995,6 +997,6 @@ namespace bpr::application {
 
 	auto local_draft_workbench::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Pending == 0U;
+		return Implementation->Pending == 0U && Implementation->HomePending == 0U;
 	}
 }

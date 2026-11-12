@@ -33,6 +33,8 @@
 #include "github_application/profile_runtime.hpp"
 #include "github_application/tour_owner_replies.hpp"
 #include "github_application/window_composition.hpp"
+#include "local_draft_handoff.hpp"
+#include <QJsonDocument>
 #include "review_cycle_desktop.hpp"
 #include "tour_assist.hpp"
 #include "tour_cli_types.hpp"
@@ -153,6 +155,10 @@ namespace bpr::app {
 		}
 		if (request->Operation == application::tour_owner_operation::cycle) {
 			desktop_cycle_owner_route(std::move(aRequest), request->Cycle, std::move(aRespond));
+			return;
+		}
+		if (request->Operation == application::tour_owner_operation::local_draft) {
+			desktop_local_draft_owner_route(request->LocalDraft, std::move(aRespond));
 			return;
 		}
 		// The draft is read or written where its author is: an open window's host is the one committed
@@ -333,6 +339,45 @@ namespace bpr::app {
 		// nothing reaches here; a forwarded request is still answered, never served.
 		static_cast<void>(aRequest);
 		static_cast<void>(aCycle);
+		aRespond(tour_owner_error("owner_unavailable"));
+#endif
+	}
+
+	void github_application::desktop_local_draft_owner_route(application::local_draft_owner_request aRequest, std::function<void(application::tour_channel_bytes)> aRespond)
+	{
+#if defined(BPR_LOCAL_AUTOMATION)
+		auto& profile = *Profile;
+		if (Profile->Closing) {
+			aRespond(tour_owner_error("owner_unavailable"));
+			return;
+		}
+		// RFC-BPR-0108 AC05. The same open as Prepare Pull Request…, on the
+		// owner's store; then the window shows the draft it opened.
+		const auto liveness  = std::weak_ptr<const int>{ Liveness };
+		auto&      decisions = profile.DecisionLane;
+		profile.CycleOwnerEffects.post([root = profile.ApplicationDataRoot, git = profile.InstalledGit, request = std::move(aRequest), respond = std::move(aRespond), this, liveness, &decisions] {
+			auto opened = open_local_draft_here(root, git, std::nullopt, request.Location, request.Context);
+			opened.Result.insert("schema", QStringLiteral("bpr.draft.cli-result.v1"));
+			auto answer = application::tour_owner_response{ };
+			answer.Json = QJsonDocument{ opened.Result }.toJson(QJsonDocument::Compact).toStdString();
+			respond(adapters::sqlite::encode_tour_response(std::move(answer)));
+			if (opened.Draft) {
+				decisions.post([this, liveness, draft = *opened.Draft] {
+					if (liveness.expired()) {
+						return;
+					}
+					for (const auto& [context, session] : Sessions) {
+						static_cast<void>(context);
+						if (!session->Closing && session->DraftDesktop) {
+							session->DraftDesktop->show_draft(draft);
+							return;
+						}
+					}
+				});
+			}
+		});
+#else
+		static_cast<void>(aRequest);
 		aRespond(tour_owner_error("owner_unavailable"));
 #endif
 	}

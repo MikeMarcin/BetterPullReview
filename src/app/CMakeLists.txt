@@ -10,7 +10,7 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
 endif()
 
 if(BPR_BUILD_TOUR_CLI)
-    add_library(better_pull_review_tour_runtime STATIC src/tour_publication_plan.cpp src/tour_editor.cpp src/tour_feedback.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_owner_service.cpp src/tour_assist.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp src/profile_admission.cpp src/terminal_text.cpp src/cycle_session.cpp src/cycle_commands.cpp src/cycle_cli.cpp src/terminal_diagnostic_log.cpp)
+    add_library(better_pull_review_tour_runtime STATIC src/tour_publication_plan.cpp src/tour_editor.cpp src/tour_feedback.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_owner_service.cpp src/tour_assist.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp src/profile_admission.cpp src/terminal_text.cpp src/cycle_session.cpp src/cycle_commands.cpp src/cycle_cli.cpp src/terminal_diagnostic_log.cpp src/local_draft_handoff.cpp src/local_draft_cli.cpp)
     add_library(BetterPullReview::TourRuntime ALIAS better_pull_review_tour_runtime)
     if(BUILD_TESTING)
         # [[BPR-1302]]. BPR_NATIVE_HTTPS_TESTING makes the GitHub adapter's
@@ -217,6 +217,7 @@ if(BPR_BUILD_QT)
             src/private_review_workflow.cpp
             src/review_cycle_desktop.cpp
             src/local_draft_desktop.cpp
+            src/local_draft_handoff.cpp
             src/profile_admission.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp
