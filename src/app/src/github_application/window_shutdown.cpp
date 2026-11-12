@@ -83,6 +83,9 @@ namespace bpr::app {
 			SetupDestination->cancel();
 		}
 		Closing = true;
+		// RFC-BPR-0032 amendment r1. Nothing more is published or asked for,
+		// and a gh answer still on its way is dropped.
+		retire_account_setup();
 		RetryableReviewDraft.reset();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// The one outstanding re-alignment is told to stop here rather

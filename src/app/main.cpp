@@ -278,6 +278,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-home-look" },
+		bpr::app::command_line_option{ .Name = "attended-account-setup-look" },
 		bpr::app::command_line_option{ .Name = "attended-home-rows" },
 		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
@@ -5726,6 +5727,62 @@ namespace {
 		timer->start();
 	}
 
+	// RFC-BPR-0032 amendment r1. `--attended-account-setup-look`: the window
+	// stays signed out on Home, where the account setup stands. One line says
+	// when it shows. A code that has been shown for twelve seconds is approved
+	// by the fixture, standing in for the reviewer finishing on GitHub, so the
+	// browser way reaches its Confirm and Ready steps; a new code waits again.
+	void schedule_attended_account_setup_look(bpr::app::github_application& aApplication, std::shared_ptr<std::atomic_bool> aApproval)
+	{
+		struct look_state
+		{
+			bool                                       Shown = false;
+			std::string                                Code;
+			std::optional<automated_clock::time_point> CodeShown;
+			automated_clock::time_point                Started;
+		};
+		auto        state = std::make_shared<look_state>(look_state{ .Started = automated_clock::now() });
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(100);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, approval = std::move(aApproval), alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto* const setup = aApplication.window().account_setup();
+			if (!state->Shown) {
+				if (setup != nullptr && setup->isVisible() && setup->projection().State.Phase == bpr::core::account_setup_phase::choosing_way) {
+					state->Shown = true;
+					QTextStream{ stdout } << "ATTENDED_ACCOUNT_SETUP_SHOWN\n";
+				} else if (automated_clock::now() - state->Started > std::chrono::seconds{ 90 }) {
+					QTextStream{ stdout } << "ATTENDED_ACCOUNT_SETUP_FAILED:timeout\n";
+					timer->stop();
+					timer->deleteLater();
+				}
+				return;
+			}
+			if (setup == nullptr || !approval) {
+				return;
+			}
+			const auto& projection = setup->projection();
+			if (projection.State.Phase != bpr::core::account_setup_phase::awaiting_browser || projection.Device.UserCode.empty()) {
+				state->Code.clear();
+				state->CodeShown.reset();
+				approval->store(true);
+				return;
+			}
+			if (projection.Device.UserCode != state->Code) {
+				state->Code      = projection.Device.UserCode;
+				state->CodeShown = automated_clock::now();
+				approval->store(true);
+				return;
+			}
+			if (state->CodeShown && automated_clock::now() - *state->CodeShown > std::chrono::seconds{ 12 }) {
+				approval->store(false);
+			}
+		});
+		timer->start();
+	}
+
 	// [[BPR-1357]]. `--attended-home-look`: before a person looks, the
 	// fixture's account signs in, opens its pull request once from the Home
 	// bar (so Recently viewed holds it), saves its repository from Settings ›
@@ -10680,6 +10737,25 @@ auto main(int argc, char** argv) -> int
 		// Read here rather than beside the other device flag further down,
 		// because the fixture options are assembled before that point.
 		fixtureOptions.RegisteredDeviceCourse = launch.has("--device-authorization-registered-course");
+		// RFC-BPR-0032 amendment r1. `--attended-account-setup-look`: Home's
+		// in-window account setup, signed out, over the registered device
+		// fixture and two synthetic gh accounts. The device fixture answers
+		// pending until the look approves the shown code.
+		auto accountSetupApproval = std::shared_ptr<std::atomic_bool>{ };
+		if (launch.has("--attended-account-setup-look")) {
+			accountSetupApproval                      = std::make_shared<std::atomic_bool>(true);
+			fixtureOptions.RegisteredDeviceCourse     = true;
+			fixtureOptions.AccountSetupInWindow       = true;
+			fixtureOptions.DeviceAuthorizationPending = accountSetupApproval;
+			auto second                               = bpr::app::detail::github_public_path_fixture_options::github_cli_discovery_account{ };
+			second.Hostname                           = "github.com";
+			second.Login                              = "octo-second";
+			second.Active                             = false;
+			auto first                                = bpr::app::detail::github_public_path_fixture_options::github_cli_discovery_account{ };
+			first.Hostname                            = "github.com";
+			first.Login                               = "octo-reviewer";
+			fixtureOptions.GithubCliDiscoveryAccounts = std::vector{ std::move(first), std::move(second) };
+		}
 		// [[BPR-0536]]. The renewal course composes the registered grant and
 		// two more seams: a real second vault slot and the documented renewal
 		// answer. Read here for the same reason as the line above it.
@@ -11620,6 +11696,8 @@ auto main(int argc, char** argv) -> int
 		// a pull request whose reads fail after it; with `--attended-home-look`
 		// it is armed only once Home is ready for the person.
 		const auto attendedHomeLook = launch.has("--attended-home-look");
+		// RFC-BPR-0032 amendment r1. Home's account setup, signed out.
+		const auto attendedAccountSetupLook = launch.has("--attended-account-setup-look");
 		// [[BPR-1865]]. With the home look, sixteen more rows with titles and
 		// authors of their own, for judging Home's filter.
 		const auto attendedHomeRows = launch.has("--attended-home-rows");
@@ -12231,7 +12309,9 @@ auto main(int argc, char** argv) -> int
 						}
 						QTextStream{ stdout } << (stop ? "ATTENDED_TOUR_STOP_STAGED\n" : "ATTENDED_TOUR_STOP_FAILED\n");
 					}
-					if (attendedHomeLook) {
+					if (attendedAccountSetupLook) {
+						schedule_attended_account_setup_look(*application, accountSetupApproval);
+					} else if (attendedHomeLook) {
 						schedule_attended_home_look(*application, attendedPullRequest, readDelayFixture ? readDelayFixture : std::make_shared<bpr::app::detail::github_read_delay_fixture>(), readDelay.value_or(0U));
 					} else {
 						schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look),

@@ -158,6 +158,7 @@ namespace bpr::app {
 		GithubCliDiscoveryAccounts = aFixture.has_value()
 			? aFixtureOptions.GithubCliDiscoveryAccounts
 			: std::nullopt;
+		AccountSetupInWindow       = aFixture.has_value() ? aFixtureOptions.AccountSetupInWindow : !InsideAutomatedTestBoundary;
 		GithubCliInventoryChecks   = aFixture.has_value() ? aFixtureOptions.GithubCliInventoryChecks : nullptr;
 		DiffComputeLimits          = aFixture.has_value()
 			? aFixtureOptions.DiffComputeLimits

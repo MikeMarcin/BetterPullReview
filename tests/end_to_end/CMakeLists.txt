@@ -3474,6 +3474,19 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
 endif()
 
+# RFC-BPR-0032 amendment r1. Home's in-window account setup over the composed
+# application: the GitHub CLI and browser ways, with no dialog or modal question.
+# Registered wherever the GitHub CLI way in is composed, as the row above is.
+bpr_add_executable(test_account_setup_public_path account_setup_public_path_tests.cpp)
+target_link_libraries(test_account_setup_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_account_setup_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_account_setup_public_path)
+bpr_enable_warnings(test_account_setup_public_path)
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    bpr_add_network_isolated_test(NAME application_account_setup_public_path WINDOWS_UNCONTAINED COMMAND test_account_setup_public_path)
+    set_tests_properties(application_account_setup_public_path PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "account-setup-public-path-tests:pass")
+endif()
+
 # [[BPR-1329]]. An inline draft published from its Comments-drawer card over a
 # GitHub CLI session, through the per-publication confirmation answered Yes:
 # the drawer says it is publishing, then shows the posted thread, or says why

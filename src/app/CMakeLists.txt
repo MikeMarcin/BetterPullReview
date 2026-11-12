@@ -180,6 +180,7 @@ if(BPR_BUILD_QT)
             src/github_application/startup_failures.cpp
             src/github_application/theme_document_file.cpp
             src/github_application/tour_owner_replies.cpp
+            src/github_application/window_account_setup.cpp
             src/github_application/window_agent_chat.cpp
             src/github_application/window_agent_setup.cpp
             src/github_application/window_commit_filter.cpp
@@ -592,6 +593,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/theme_document_file.hpp
 		src/app/src/github_application/tour_owner_replies.cpp
 		src/app/src/github_application/tour_owner_replies.hpp
+		src/app/src/github_application/window_account_setup.cpp
 		src/app/src/github_application/window_agent_chat.cpp
 		src/app/src/github_application/window_agent_setup.cpp
 		src/app/src/github_application/window_commit_filter.cpp

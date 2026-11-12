@@ -678,11 +678,13 @@ namespace bpr::app {
 						}
 						if (!core::github_connection_setup_available(Host->state())) {
 							retire_cli_discovery();
+							answer_account_setup_cli(nullptr, qt::github_cli_discovery_state::process_failed);
 							return;
 						}
 						GithubCliDiscoveryPending = false;
 						if (!discovered.has_value()) {
 							Window->present_github_cli_discovery(failure);
+							answer_account_setup_cli(nullptr, failure);
 							return;
 						}
 						auto choices = std::vector<core::host_profile_id>{ };
@@ -694,6 +696,7 @@ namespace bpr::app {
 							if (registered == nullptr) {
 								Window->present_github_cli_discovery(
 									qt::github_cli_discovery_state::malformed_response);
+								answer_account_setup_cli(nullptr, qt::github_cli_discovery_state::malformed_response);
 								return;
 							}
 							if (requestedHost.empty() || account.Hostname == requestedHost) {
@@ -702,6 +705,9 @@ namespace bpr::app {
 						}
 						const auto hadAccounts = !discovered->empty();
 						bpr::app::detail::terminal_text_stream{ } << "GH_DISCOVERY stage=selection eligible=" << static_cast<qulonglong>(choices.size()) << " total=" << static_cast<qulonglong>(discovered->size()) << "\n";
+						// RFC-BPR-0032 amendment r1. The setup that asked lists the
+						// same usable accounts, each pinned to its profile.
+						answer_account_setup_cli(&*discovered, qt::github_cli_discovery_state::ready);
 						Profile->GithubCliInventory        = std::move(*discovered);
 						Profile->GithubCliInventoryChecked = true;
 						present_github_cli_accounts();

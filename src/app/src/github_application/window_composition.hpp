@@ -9,6 +9,7 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/account_setup_host.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
@@ -207,7 +208,8 @@ namespace bpr::app {
 		  public application::queue_landing_projection_port,
 		  public application::agent_session_catalog_port,
 		  public application::setup_destination_port,
-		  public application::shared_draft_context_port
+		  public application::shared_draft_context_port,
+		  public application::account_setup_effect_port
 	{
 		friend class github_application;
 		std::shared_ptr<github_profile_runtime> Profile;
@@ -1393,6 +1395,17 @@ namespace bpr::app {
 		void observe_cli_session(const application::github_presentation_update& aUpdate);
 
 		void discover_github_cli_accounts(const bool aConnectSingle = true);
+		/// RFC-BPR-0032 amendment r1. Home's in-window account setup.
+		void compose_account_setup();
+		void retire_account_setup();
+		void observe_account_setup_session(const application::github_presentation_update& aUpdate);
+		void observe_account_setup_device(const application::device_authorization_presentation& aPresentation);
+		void answer_account_setup_cli(const std::vector<adapters::github::detail::gh_cli_inventory_account>* aDiscovered, qt::github_cli_discovery_state aFailure);
+		void inspect_github_cli(std::uint64_t aRequest) override;
+		void begin_browser_sign_in() override;
+		void cancel_browser_sign_in() override;
+		void connect_github_cli(core::host_profile_id aProfile) override;
+		void open_verification_address() override;
 
 		void               synchronize_setup_servers(const application::queue_landing_projection& aProjection);
 		[[nodiscard]] auto next_setup_owner() -> core::setup_owner_id;
@@ -1806,6 +1819,10 @@ namespace bpr::app {
 		bool                                                     SetupConfigurationSubmitted  = false;
 		bool                                                     GithubCliDiscoveryPending    = false;
 		std::uint64_t                                            GithubCliDiscoveryGeneration = 0U;
+		/// RFC-BPR-0032 amendment r1. Home's account setup, and the gh check
+		/// it is waiting on.
+		std::unique_ptr<application::account_setup_host> AccountSetup;
+		std::optional<std::uint64_t>                     AccountSetupCliRequest;
 		/// [[BPR-1373]]. The pinned profile whose refusal last re-checked gh.
 		std::optional<core::host_profile_id>            GithubCliRecheckedFor;
 		core::setup_owner_id                            SetupOwner{ 1U };

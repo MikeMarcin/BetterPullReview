@@ -1352,12 +1352,14 @@ DefectThreadNames.reset();
 					HomeOpen->reconcile(WindowRead->state());
 				}
 				observe_setup_session(aUpdate);
-				observe_cli_session(aUpdate); }, .Device = [this, weak](const application::device_authorization_presentation& aPresentation) {
+				observe_cli_session(aUpdate);
+				observe_account_setup_session(aUpdate); }, .Device = [this, weak](const application::device_authorization_presentation& aPresentation) {
 				if (weak.expired() || Closing){ return;
 }
 				observe_device_stage(aPresentation);
 				if (DevicePanel){ DevicePanel->apply(aPresentation);
-} }, .Refresh = [this, weak](const application::device_authorization_refresh_observation& aObservation) {
+}
+				observe_account_setup_device(aPresentation); }, .Refresh = [this, weak](const application::device_authorization_refresh_observation& aObservation) {
 				if (!weak.expired() && !Closing && DevicePanel){ DevicePanel->apply_refresh(aObservation);
 } }, .Preview = [this, weak](const application::public_preview_presentation& aPresentation) {
 				if (!weak.expired() && !Closing){ Window->publish(aPresentation);

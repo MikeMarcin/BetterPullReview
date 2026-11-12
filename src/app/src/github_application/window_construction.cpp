@@ -564,6 +564,7 @@ namespace bpr::app {
 				[this] { discover_github_cli_accounts(false); });
 			present_github_cli_accounts();
 		}
+		compose_account_setup();
 
 		EpochHost = std::make_unique<application::epoch_application_host>(
 			core::epoch_state{
