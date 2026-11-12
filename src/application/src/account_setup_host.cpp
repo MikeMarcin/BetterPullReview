@@ -30,7 +30,7 @@ namespace bpr::application {
 		}
 		// The CLI way is not offered where gh cannot be inspected, so a
 		// request for it is refused here rather than started and failed.
-		const auto* const begin  = std::get_if<core::begin_account_setup>(&aEvent);
+		const auto* const begin = std::get_if<core::begin_account_setup>(&aEvent);
 		const auto* const choose = std::get_if<core::choose_account_setup_way>(&aEvent);
 		if (!Projection.GithubCliOffered
 			&& ((begin != nullptr && begin->Way == core::account_setup_way::github_cli) || (choose != nullptr && choose->Way == core::account_setup_way::github_cli))) {
@@ -74,7 +74,11 @@ namespace bpr::application {
 		}
 	}
 
-	void account_setup_host::complete_github_cli(core::github_cli_inspected aAnswer)
+	void account_setup_host::complete_github_cli(core::github_cli_inspected aAnswer) { marshal(std::move(aAnswer)); }
+
+	void account_setup_host::complete_enterprise_server(core::enterprise_server_prepared aAnswer) { marshal(std::move(aAnswer)); }
+
+	void account_setup_host::marshal(core::account_setup_event aAnswer)
 	{
 		auto weak = std::weak_ptr<account_setup_host*>{ Self };
 		Lane.post([weak, answer = std::move(aAnswer)]() mutable {
@@ -84,6 +88,17 @@ namespace bpr::application {
 			}
 			(*self)->dispatch(std::move(answer));
 		});
+	}
+
+	void account_setup_host::observe_signed_in(const bool aSignedIn)
+	{
+		if (Stopped || Projection.SignedIn == aSignedIn) {
+			return;
+		}
+		Projection.SignedIn = aSignedIn;
+		if (!Applying && active()) {
+			publish();
+		}
 	}
 
 	void account_setup_host::apply_pending()
@@ -125,7 +140,13 @@ namespace bpr::application {
 	void account_setup_host::perform(const core::account_setup_effect& aEffect)
 	{
 		switch (aEffect.Kind) {
-		case core::account_setup_effect_kind::inspect_github_cli:     Effects.inspect_github_cli(aEffect.Request); break;
+		case core::account_setup_effect_kind::prepare_enterprise_server: Effects.prepare_enterprise_server(aEffect.Request, aEffect.Hostname); break;
+		case core::account_setup_effect_kind::inspect_github_cli:        Effects.inspect_github_cli(aEffect.Request, aEffect.Hostname); break;
+		case core::account_setup_effect_kind::enroll_token:
+			if (aEffect.Profile.has_value()) {
+				Effects.enroll_token(*aEffect.Profile);
+			}
+			break;
 		case core::account_setup_effect_kind::begin_browser_sign_in:  Effects.begin_browser_sign_in(); break;
 		case core::account_setup_effect_kind::cancel_browser_sign_in: Effects.cancel_browser_sign_in(); break;
 		case core::account_setup_effect_kind::connect_github_cli:

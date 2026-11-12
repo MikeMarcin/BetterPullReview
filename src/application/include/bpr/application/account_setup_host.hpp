@@ -10,24 +10,30 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <string>
 
 namespace bpr::application {
 	/// \brief The effects the setup asks for, performed by the composition.
 	///
 	/// \details Each call starts work and returns; none may block the
-	/// decision lane. `inspect_github_cli` answers later through
-	/// `account_setup_host::complete_github_cli`, naming the request it was
-	/// given. The device and session outcomes are not answered here: the host
-	/// observes them as the window's device and GitHub presentations.
+	/// decision lane. `prepare_enterprise_server` and `inspect_github_cli`
+	/// answer later through `account_setup_host::complete_enterprise_server`
+	/// and `complete_github_cli`, naming the request they were given. The
+	/// device and session outcomes are not answered here: the host observes
+	/// them as the window's device and GitHub presentations.
 	class account_setup_effect_port
 	{
 	public:
 		virtual ~account_setup_effect_port() = default;
 
-		virtual void inspect_github_cli(std::uint64_t aRequest)         = 0;
-		virtual void begin_browser_sign_in()                            = 0;
-		virtual void cancel_browser_sign_in()                           = 0;
-		virtual void connect_github_cli(core::host_profile_id aProfile) = 0;
+		virtual void prepare_enterprise_server(std::uint64_t aRequest, const std::string& aHostname) = 0;
+		virtual void inspect_github_cli(std::uint64_t aRequest, const std::string& aHostname)        = 0;
+		virtual void begin_browser_sign_in()                                                         = 0;
+		virtual void cancel_browser_sign_in()                                                        = 0;
+		virtual void connect_github_cli(core::host_profile_id aProfile)                              = 0;
+		/// Signs in to the Enterprise profile with the token the composition
+		/// holds from the setup's token field; the token never enters the core.
+		virtual void enroll_token(core::host_profile_id aProfile) = 0;
 		/// Opens the device code's address. Not a setup transition: it decides
 		/// nothing about the grant.
 		virtual void open_verification_address() = 0;
@@ -56,11 +62,16 @@ namespace bpr::application {
 		void observe_device(const device_authorization_presentation& aPresentation);
 		/// \brief A GitHub session outcome for this window.
 		void observe_session(core::account_setup_session_observed aSession);
+		/// \brief Whether the window already has an account, so the setup can
+		/// be closed without one being added.
+		void observe_signed_in(bool aSignedIn);
 		/// \brief Opens the code's address in the browser, through the port.
 		void open_verification_address();
 		/// \brief gh's decoded answer. Callable from any thread: it is posted
 		/// to the decision lane and applied there as a typed event.
 		void complete_github_cli(core::github_cli_inspected aAnswer);
+		/// \brief The Enterprise server's answer, marshalled the same way.
+		void complete_enterprise_server(core::enterprise_server_prepared aAnswer);
 		void shutdown();
 
 		[[nodiscard]] auto projection() const noexcept -> const account_setup_projection& { return Projection; }
@@ -69,6 +80,7 @@ namespace bpr::application {
 
 	private:
 		void apply_pending();
+		void marshal(core::account_setup_event aAnswer);
 		void publish();
 		void perform(const core::account_setup_effect& aEffect);
 

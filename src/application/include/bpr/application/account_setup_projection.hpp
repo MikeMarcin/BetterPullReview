@@ -23,6 +23,9 @@ namespace bpr::application {
 		device_authorization_presentation Device;
 		/// The composition can inspect gh on this platform.
 		bool GithubCliOffered = false;
+		/// The window already has an account, so the setup can be closed
+		/// without adding one (Settings' Add account, Use another account).
+		bool SignedIn = false;
 		/// Raised by every published change.
 		std::uint64_t Generation = 0U;
 

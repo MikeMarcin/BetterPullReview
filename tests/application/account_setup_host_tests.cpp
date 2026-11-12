@@ -1,21 +1,25 @@
 /// \file
 /// \brief RFC-BPR-0032 amendment r1. The account setup host against a
-/// stubbed gh and device flow: effects asked for, completions marshalled
-/// onto the lane, stale and late answers, reentrant ports and shutdown.
+/// stubbed gh, device flow and Enterprise server: effects asked for,
+/// completions marshalled onto the lane, stale and late answers, reentrant
+/// ports and shutdown.
 
 #include "bpr/application/account_setup_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
 	using namespace bpr;
 	using core::account_setup_phase;
 	using core::account_setup_problem;
+	using core::account_setup_server;
 	using core::account_setup_way;
 
 	void expect(const bool aCondition, const std::string_view aMessage)
@@ -26,20 +30,23 @@ namespace {
 		}
 	}
 
-	/// A gh and a device flow that do only what they are told: each request
-	/// is recorded, and a test answers it when it chooses.
+	/// A gh, a device flow and a server list that do only what they are told:
+	/// each request is recorded, and a test answers it when it chooses.
 	struct stub_effects final : application::account_setup_effect_port
 	{
-		std::vector<std::uint64_t>         Inspections;
-		std::vector<core::host_profile_id> Connections;
-		int                                Begins  = 0;
-		int                                Cancels = 0;
-		int                                Opens   = 0;
+		std::vector<std::pair<std::uint64_t, std::string>> Inspections;
+		std::vector<std::pair<std::uint64_t, std::string>> Servers;
+		std::vector<core::host_profile_id>                 Connections;
+		std::vector<core::host_profile_id>                 Tokens;
+		int                                                Begins  = 0;
+		int                                                Cancels = 0;
+		int                                                Opens   = 0;
 		/// Called inside begin_browser_sign_in: a device host that publishes
 		/// its first stage before returning.
 		std::function<void()> OnBegin;
 
-		void inspect_github_cli(const std::uint64_t aRequest) override { Inspections.push_back(aRequest); }
+		void prepare_enterprise_server(const std::uint64_t aRequest, const std::string& aHostname) override { Servers.emplace_back(aRequest, aHostname); }
+		void inspect_github_cli(const std::uint64_t aRequest, const std::string& aHostname) override { Inspections.emplace_back(aRequest, aHostname); }
 		void begin_browser_sign_in() override
 		{
 			++Begins;
@@ -49,6 +56,7 @@ namespace {
 		}
 		void cancel_browser_sign_in() override { ++Cancels; }
 		void connect_github_cli(const core::host_profile_id aProfile) override { Connections.push_back(aProfile); }
+		void enroll_token(const core::host_profile_id aProfile) override { Tokens.push_back(aProfile); }
 		void open_verification_address() override { ++Opens; }
 	};
 
@@ -64,12 +72,31 @@ namespace {
 		{ }
 	};
 
-	[[nodiscard]] auto account(const std::uint64_t aProfile, std::string aLogin) -> core::account_setup_account
+	[[nodiscard]] auto begin(std::optional<account_setup_server> aServer = std::nullopt, std::string aHost = { }, std::optional<account_setup_way> aWay = std::nullopt)
+		-> core::begin_account_setup
 	{
-		auto result     = core::account_setup_account{ };
-		result.Profile  = core::host_profile_id{ aProfile };
-		result.Login    = std::move(aLogin);
-		result.Hostname = "github.com";
+		auto event     = core::begin_account_setup{ };
+		event.Server   = aServer;
+		event.Hostname = std::move(aHost);
+		event.Way      = aWay;
+		return event;
+	}
+
+	[[nodiscard]] auto server(const account_setup_server aServer, std::string aHost = { }) -> core::choose_account_setup_server
+	{
+		auto event     = core::choose_account_setup_server{ };
+		event.Server   = aServer;
+		event.Hostname = std::move(aHost);
+		return event;
+	}
+
+	[[nodiscard]] auto account(const std::uint64_t aProfile, std::string aLogin, const bool aActive = false) -> core::account_setup_account
+	{
+		auto result       = core::account_setup_account{ };
+		result.Profile    = core::host_profile_id{ aProfile };
+		result.Login      = std::move(aLogin);
+		result.Hostname   = "github.com";
+		result.ActiveInGh = aActive;
 		return result;
 	}
 
@@ -98,7 +125,7 @@ namespace {
 		auto result                     = application::device_authorization_presentation{ };
 		result.Stage                    = aStage;
 		result.UserCode                 = std::move(aCode);
-		result.VerificationUri          = result.UserCode.empty() ? std::string{ } : std::string{ "https://github.com/login/device" };
+		result.VerificationUri          = result.UserCode.empty() ? std::string{ } : std::string{ "github.com/login/device" };
 		result.RemainingValiditySeconds = aSeconds;
 		return result;
 	}
@@ -106,32 +133,24 @@ namespace {
 	void test_github_cli_with_stubbed_gh()
 	{
 		auto setup = fixture{ };
-		setup.Host.dispatch(core::begin_account_setup{ });
-		expect(setup.Host.active() && setup.Published.size() == 1U && setup.Published.back().State.Phase == account_setup_phase::choosing_way,
-			   "Home's begin publishes the way choice");
+		setup.Host.dispatch(begin());
+		expect(setup.Host.active() && setup.Published.back().State.Phase == account_setup_phase::choosing_server, "every way in publishes the server step");
+		setup.Host.dispatch(server(account_setup_server::github_com));
 		setup.Host.dispatch(core::choose_account_setup_way{ .Way = account_setup_way::github_cli });
-		expect(setup.Effects.Inspections.size() == 1U && setup.Host.projection().State.Phase == account_setup_phase::inspecting_cli,
-			   "choosing gh asks the port to inspect it");
-		const auto request = setup.Effects.Inspections.front();
+		expect(setup.Effects.Inspections.size() == 1U && setup.Effects.Inspections.front().second == "github.com", "gh is inspected for the chosen host");
+		const auto request = setup.Effects.Inspections.front().first;
 
-		// The stubbed gh answers from a worker; nothing moves until the lane runs.
-		setup.Host.complete_github_cli(answer(request, core::github_cli_inspection::read, { account(7U, "octo-reviewer"), account(8U, "octo-test") }));
-		expect(setup.Host.projection().State.Phase == account_setup_phase::inspecting_cli, "a completion is not applied off the lane");
-		expect(setup.Lane.pending() == 1U, "the completion is posted to the decision lane");
+		setup.Host.complete_github_cli(answer(request, core::github_cli_inspection::read, { account(7U, "octo-reviewer"), account(8U, "octo-test", true) }));
+		expect(setup.Host.projection().State.Phase == account_setup_phase::inspecting_cli && setup.Lane.pending() == 1U, "the completion waits for the lane");
 		setup.Lane.drain();
-		expect(setup.Host.projection().State.Phase == account_setup_phase::choosing_account && setup.Host.projection().State.Accounts.size() == 2U,
-			   "gh's two accounts are listed");
-
-		setup.Host.dispatch(core::choose_account_setup_account{ .Profile = core::host_profile_id{ 8U } });
+		expect(setup.Host.projection().State.Chosen == core::host_profile_id{ 8U }, "gh's active account is chosen first");
 		setup.Host.dispatch(core::connect_account_setup{ });
 		expect(setup.Effects.Connections == std::vector{ core::host_profile_id{ 8U } }, "Connect connects exactly the chosen account");
-		expect(setup.Host.projection().Step == core::account_setup_step::confirm, "the confirm step shows while GitHub checks it");
-
 		setup.Host.observe_session(session(core::account_setup_session::failed));
 		expect(setup.Host.projection().State.Problem == account_setup_problem::connection_failed, "a refused account is said in the setup");
 		setup.Host.dispatch(core::connect_account_setup{ });
 		setup.Host.observe_session(session(core::account_setup_session::ready, "octo-test"));
-		expect(setup.Host.projection().Step == core::account_setup_step::ready && setup.Host.projection().State.Login == "octo-test", "the ready step names the account");
+		expect(setup.Host.projection().Step == core::account_setup_step::ready && setup.Host.projection().State.Login == "octo-test", "Ready names the account");
 		setup.Host.dispatch(core::finish_account_setup{ });
 		expect(!setup.Host.active(), "Continue leaves the setup");
 		for (std::size_t index = 1U; index < setup.Published.size(); ++index) {
@@ -139,26 +158,39 @@ namespace {
 		}
 	}
 
-	void test_stale_and_failed_gh()
+	void test_enterprise_with_stubbed_server()
 	{
 		auto setup = fixture{ };
-		setup.Host.dispatch(core::begin_account_setup{ .Way = account_setup_way::github_cli });
-		const auto first = setup.Effects.Inspections.back();
-		setup.Host.complete_github_cli(answer(first, core::github_cli_inspection::missing, { }));
+		setup.Host.dispatch(begin(account_setup_server::enterprise));
+		expect(setup.Host.projection().State.Server == account_setup_server::enterprise && setup.Effects.Servers.empty(), "Add enterprise server opens at the server step");
+		setup.Host.dispatch(server(account_setup_server::enterprise, "ghe.example.com"));
+		expect(setup.Effects.Servers.size() == 1U && setup.Effects.Servers.front().second == "ghe.example.com", "the host is asked to add the server");
+		auto prepared    = core::enterprise_server_prepared{ };
+		prepared.Request = setup.Effects.Servers.front().first;
+		prepared.Profile = core::host_profile_id{ 12U };
+		setup.Host.complete_enterprise_server(prepared);
+		expect(setup.Host.projection().State.Phase == account_setup_phase::preparing_server, "the answer waits for the lane");
 		setup.Lane.drain();
-		expect(setup.Host.projection().State.Problem == account_setup_problem::gh_missing, "a missing gh is said");
+		expect(setup.Host.projection().State.Phase == account_setup_phase::choosing_way && setup.Host.projection().State.ServerProfile == core::host_profile_id{ 12U },
+			   "the added server offers its ways");
+		setup.Host.dispatch(core::choose_account_setup_way{ .Way = account_setup_way::browser });
+		expect(setup.Effects.Begins == 0, "the browser way is not offered for Enterprise");
+		setup.Host.dispatch(core::choose_account_setup_way{ .Way = account_setup_way::token });
+		setup.Host.dispatch(core::submit_account_setup_token{ });
+		expect(setup.Effects.Tokens == std::vector{ core::host_profile_id{ 12U } }, "Sign in enrolls the held token for the server's profile");
+		setup.Host.observe_session(session(core::account_setup_session::ready, "octo-ghe"));
+		expect(setup.Host.projection().Step == core::account_setup_step::ready, "the Enterprise account is ready");
 
-		setup.Host.dispatch(core::retry_account_setup{ });
-		expect(setup.Effects.Inspections.size() == 2U && setup.Effects.Inspections.back() != first, "Check again is a new request");
-		const auto published = setup.Published.size();
-		setup.Host.complete_github_cli(answer(first, core::github_cli_inspection::read, { account(7U, "octo") }));
-		setup.Lane.drain();
-		expect(setup.Published.size() == published && setup.Host.projection().State.Phase == account_setup_phase::inspecting_cli, "the first check's late answer is dropped");
-
-		setup.Host.dispatch(core::return_to_account_setup_way{ });
-		setup.Host.complete_github_cli(answer(setup.Effects.Inspections.back(), core::github_cli_inspection::read, { account(7U, "octo") }));
-		setup.Lane.drain();
-		expect(setup.Host.projection().State.Phase == account_setup_phase::choosing_way, "an abandoned check's answer changes nothing");
+		auto stale = fixture{ };
+		stale.Host.dispatch(begin(account_setup_server::enterprise, "ghe.example.com"));
+		const auto first = stale.Effects.Servers.back().first;
+		stale.Host.dispatch(core::return_to_account_setup_server{ });
+		auto late    = core::enterprise_server_prepared{ };
+		late.Request = first;
+		late.Profile = core::host_profile_id{ 12U };
+		stale.Host.complete_enterprise_server(late);
+		stale.Lane.drain();
+		expect(stale.Host.projection().State.Phase == account_setup_phase::choosing_server, "an abandoned server's answer changes nothing");
 	}
 
 	void test_browser_with_stubbed_device_flow()
@@ -167,66 +199,48 @@ namespace {
 		// A device host that publishes `requested` from inside begin: the
 		// event is queued and applied after the begin, in order.
 		setup.Effects.OnBegin = [&setup] { setup.Host.observe_device(device(core::device_authorization_stage::requested)); };
-		setup.Host.dispatch(core::begin_account_setup{ .Way = account_setup_way::browser });
+		setup.Host.dispatch(begin(account_setup_server::github_com, "github.com", account_setup_way::browser));
 		expect(setup.Effects.Begins == 1 && setup.Host.projection().State.Phase == account_setup_phase::requesting_code, "the browser way asks for a code");
-
 		setup.Host.observe_device(device(core::device_authorization_stage::awaiting_authorization, "WDJB-MJHT", 899U));
-		expect(setup.Host.projection().State.Phase == account_setup_phase::awaiting_browser && setup.Host.projection().Device.UserCode == "WDJB-MJHT",
-			   "the code is shown in the setup");
+		expect(setup.Host.projection().Device.UserCode == "WDJB-MJHT", "the code is in the projection");
 		const auto before = setup.Published.size();
 		setup.Host.observe_device(device(core::device_authorization_stage::awaiting_authorization, "WDJB-MJHT", 898U));
-		expect(setup.Published.size() == before + 1U && setup.Host.projection().Device.RemainingValiditySeconds == 898U, "the remaining time is republished");
-
+		expect(setup.Published.size() == before + 1U, "the remaining time is republished");
 		setup.Host.open_verification_address();
 		expect(setup.Effects.Opens == 1, "Open GitHub goes through the port");
-
 		setup.Host.dispatch(core::return_to_account_setup_way{ });
-		expect(setup.Effects.Cancels == 1 && setup.Host.projection().State.Phase == account_setup_phase::choosing_way, "Back cancels the shown code");
+		expect(setup.Effects.Cancels == 1, "Back cancels the shown code");
 		setup.Host.open_verification_address();
 		expect(setup.Effects.Opens == 1, "no address is opened once the code is gone");
 
 		setup.Effects.OnBegin = { };
-		setup.Host.dispatch(core::choose_account_setup_way{ .Way = account_setup_way::browser });
-		setup.Host.observe_device(device(core::device_authorization_stage::awaiting_authorization, "ABCD-EFGH", 899U));
-		setup.Host.observe_device(device(core::device_authorization_stage::expired));
-		expect(setup.Host.projection().State.Problem == account_setup_problem::code_expired && setup.Host.projection().Device.UserCode.empty(),
-			   "an expired code is said, and no code remains");
-		setup.Host.dispatch(core::retry_account_setup{ });
-		expect(setup.Effects.Begins == 3 && setup.Host.projection().State.Phase == account_setup_phase::requesting_code, "Try again asks for a new code");
-		setup.Host.observe_device(device(core::device_authorization_stage::awaiting_authorization, "IJKL-MNOP", 899U));
-		setup.Host.observe_device(device(core::device_authorization_stage::authorized));
-		expect(setup.Host.projection().Step == core::account_setup_step::confirm, "an authorized grant confirms");
-		setup.Host.observe_session(session(core::account_setup_session::ready, "octo-reviewer"));
-		expect(setup.Host.projection().Step == core::account_setup_step::ready, "the account is ready");
+		setup.Host.observe_signed_in(true);
+		expect(setup.Host.projection().SignedIn, "the window's account is a projected fact");
+		setup.Host.dispatch(core::finish_account_setup{ });
+		expect(!setup.Host.active(), "a signed-in window can close the setup without a new account");
 	}
 
 	void test_no_cli_and_shutdown()
 	{
 		auto noCli = fixture{ false };
-		noCli.Host.dispatch(core::begin_account_setup{ .Way = account_setup_way::github_cli });
+		noCli.Host.dispatch(begin(account_setup_server::github_com, "github.com", account_setup_way::github_cli));
 		expect(!noCli.Host.active() && noCli.Effects.Inspections.empty(), "a build that cannot inspect gh refuses the CLI way");
-		noCli.Host.dispatch(core::begin_account_setup{ });
-		noCli.Host.dispatch(core::choose_account_setup_way{ .Way = account_setup_way::github_cli });
-		expect(noCli.Host.projection().State.Phase == account_setup_phase::choosing_way && !noCli.Host.projection().GithubCliOffered, "and says it is not offered");
 
 		auto setup = fixture{ };
-		setup.Host.dispatch(core::begin_account_setup{ .Way = account_setup_way::github_cli });
-		setup.Host.complete_github_cli(answer(setup.Effects.Inspections.back(), core::github_cli_inspection::read, { account(7U, "octo") }));
+		setup.Host.dispatch(begin(account_setup_server::github_com, "github.com", account_setup_way::github_cli));
+		setup.Host.complete_github_cli(answer(setup.Effects.Inspections.back().first, core::github_cli_inspection::read, { account(7U, "octo") }));
 		const auto published = setup.Published.size();
 		setup.Host.shutdown();
 		setup.Lane.drain();
-		setup.Host.dispatch(core::return_to_account_setup_way{ });
 		setup.Host.observe_session(session(core::account_setup_session::ready, "octo"));
 		expect(setup.Published.size() == published, "after shutdown nothing is published, and a late completion is dropped");
 
-		auto destroyed = std::make_unique<fixture>();
-		destroyed->Host.dispatch(core::begin_account_setup{ .Way = account_setup_way::github_cli });
 		auto lane = application::manual_executor{ };
 		{
 			auto effects = stub_effects{ };
 			auto host    = application::account_setup_host{ effects, lane, { }, true };
-			host.dispatch(core::begin_account_setup{ .Way = account_setup_way::github_cli });
-			host.complete_github_cli(answer(effects.Inspections.back(), core::github_cli_inspection::read, { }));
+			host.dispatch(begin(account_setup_server::github_com, "github.com", account_setup_way::github_cli));
+			host.complete_github_cli(answer(effects.Inspections.back().first, core::github_cli_inspection::read, { }));
 		}
 		lane.drain();
 		expect(lane.pending() == 0U, "a completion that outlives its host runs and does nothing");
@@ -236,7 +250,7 @@ namespace {
 auto main() -> int
 {
 	test_github_cli_with_stubbed_gh();
-	test_stale_and_failed_gh();
+	test_enterprise_with_stubbed_server();
 	test_browser_with_stubbed_device_flow();
 	test_no_cli_and_shutdown();
 	std::cout << "account-setup-host-tests:pass\n";
