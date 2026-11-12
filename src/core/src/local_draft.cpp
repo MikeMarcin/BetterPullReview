@@ -94,6 +94,7 @@ namespace bpr::core::detail {
 		/// RFC-BPR-0109. Absent while the draft has no evidence.
 		std::optional<glz::raw_json> Evidence;
 		std::optional<glz::raw_json> Preparation;
+		std::optional<glz::raw_json> Publication;
 		std::int64_t                 Created = 0;
 		std::int64_t                 Updated = 0;
 	};
@@ -150,7 +151,7 @@ struct glz::meta<bpr::core::detail::wire_draft>
 										 "repository", &value_type::Repository, "worktree", &value_type::Worktree, "branch", &value_type::Branch, "target_remote", &value_type::TargetRemote, "target_host",
 										 &value_type::TargetHost, "target_owner", &value_type::TargetOwner, "target_name", &value_type::TargetName, "target_branch", &value_type::TargetBranch, "target_origin",
 										 &value_type::TargetOrigin, "chain", &value_type::Chain, "candidates", &value_type::Candidates, "notes", &value_type::Notes, "next_note", &value_type::NextNote, "association",
-										 &value_type::Association, "evidence", &value_type::Evidence, "preparation", &value_type::Preparation, "created", &value_type::Created, "updated", &value_type::Updated);
+										 &value_type::Association, "evidence", &value_type::Evidence, "preparation", &value_type::Preparation, "publication", &value_type::Publication, "created", &value_type::Created, "updated", &value_type::Updated);
 };
 
 namespace bpr::core {
@@ -952,6 +953,13 @@ namespace bpr::core {
 			}
 			wire.Preparation = glz::raw_json{ std::move(preparation) };
 		}
+		if (aDraft.Publication) {
+			auto publication = encode_local_draft_publication(*aDraft.Publication);
+			if (publication.empty()) {
+				return { };
+			}
+			wire.Publication = glz::raw_json{ std::move(publication) };
+		}
 		auto text = std::string{ };
 		if (glz::write_json(wire, text)) {
 			return { };
@@ -1049,6 +1057,13 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			draft.Preparation = std::move(*preparation);
+		}
+		if (wire.Publication) {
+			auto publication = decode_local_draft_publication(wire.Publication->str);
+			if (!publication || publication->Plan.DraftId != draft.Id.Value) {
+				return std::nullopt;
+			}
+			draft.Publication = std::move(*publication);
 		}
 		if (failed || !valid(draft)) {
 			return std::nullopt;

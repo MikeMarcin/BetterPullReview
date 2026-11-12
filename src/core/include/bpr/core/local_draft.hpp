@@ -6,6 +6,7 @@
 #include "bpr/core/draft_evidence.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/git_objects.hpp"
+#include "bpr/core/local_draft_publication.hpp"
 #include "bpr/core/local_draft_tour.hpp"
 #include "bpr/core/review_cycle_workspace.hpp"
 
@@ -433,6 +434,8 @@ namespace bpr::core {
 		draft_evidence Evidence;
 		/// RFC-BPR-0110: the description, the tour, proposals and conversations.
 		local_draft_preparation Preparation;
+		/// RFC-BPR-0111: the current pull request creation, its journal and follow-ups.
+		std::optional<local_draft_publication> Publication;
 		std::int64_t            Created                               = 0;
 		std::int64_t            Updated                               = 0;
 		auto                    operator<=>(const local_draft&) const = default;
