@@ -5,7 +5,7 @@ title: "Create the draft PR from the pushed branch"
 status: "Backlog"
 rfcs: ["RFC-BPR-0111"]
 metadata: {"criteria":["AC01","AC02","AC07"],"resolved_choices":["PUBLISH-01"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0014","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0041-create-the-draft-pr-from-the-pushed.md"}
-depends_on: ["BPR-2025", "BPR-2028"]
+depends_on: ["BPR-2028"]
 ---
 
 # Create the draft PR from the pushed branch
@@ -38,3 +38,5 @@ claimed. Commits `387f7298d` (core), `4675974cf` and `62f740fc6` (gh pull
 request catalog), `6bc5217f5` and `433068905` (application), `36dcd7e21` (Qt
 area, composition), `75c035a49` (real-worktree course). Evidence, including
 the live BPR-Test drafts #178 and #179: [ledger](../../verification/RFC-BPR-0111.md).
+
+Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred and its closeout BPR-2025 is no longer a dependency; the evidence parts of this card are inactive (see the RFC's amendment).

@@ -37,7 +37,7 @@ RFC base: `dc5453afa3ba0e1620fe30bf97b17211e09ba4bd`.
 
 | Criterion | Check | Result | Producing commit |
 |---|---|---|---|
-| **AC01:** With all extensions absent, local Changes, Evidence, Description and Tour remain usable; selecting/importing an enterprise-shaped configuration does not make unrelated drafts or existing BPR features depend on it. | Pending | Pending | Not implemented |
+| **AC01:** (Amended 2026-11-12; see above.) With all extensions absent, local Changes, Description and Tour remain usable; selecting/importing an enterprise-shaped configuration does not make unrelated drafts or existing BPR features depend on it. | Pending | Pending | Not implemented |
 | **AC02:** A shared configuration binds local agents/skills/actions explicitly, previews conflicts and updates, and never executes or changes credentials merely through import or selection. | Pending | Pending | Not implemented |
 | **AC03:** A fixture companion supplies context, proposals, repeatable checks and an input request; the author can pause, edit and resume without rerunning unrelated actions or accepting stale proposed edits. | Pending | Pending | Not implemented |
 | **AC04:** A changed upstream rule, missing helper, unsupported dry-run or required review marker produces an honest unmet requirement; BPR neither embeds those rules nor fabricates satisfaction or bypasses the chosen publisher. | Pending | Pending | Not implemented |

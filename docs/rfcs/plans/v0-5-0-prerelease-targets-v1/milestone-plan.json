@@ -14,7 +14,6 @@
       "RFC-BPR-0106",
       "RFC-BPR-0107",
       "RFC-BPR-0108",
-      "RFC-BPR-0109",
       "RFC-BPR-0110",
       "RFC-BPR-0111",
       "RFC-BPR-0112"
@@ -54,9 +53,6 @@
       "BPR-2020",
       "BPR-2021",
       "BPR-2022",
-      "BPR-2023",
-      "BPR-2024",
-      "BPR-2025",
       "BPR-2026",
       "BPR-2027",
       "BPR-2028",
@@ -329,32 +325,8 @@
       "boundary": "Second in default order; sharing remains the first requested delivery. Independent local-draft engineering may continue while sharing closeout is pending, with no hard dependency on that closeout. Local author subject and usable changes/notes flow; remote publication is not claimed."
     },
     {
-      "id": "author-evidence",
-      "outcome": "An author builds and resumes qualified evidence for the actual local candidate without mandatory agent or formal-verification infrastructure.",
-      "work": [
-        {
-          "issue": "BPR-2023"
-        },
-        {
-          "issue": "BPR-2024"
-        },
-        {
-          "issue": "BPR-2025"
-        }
-      ],
-      "depends_on": [
-        "local-draft-entry"
-      ],
-      "exit_criteria": [
-        "Reported and observed outcomes remain distinct and cannot auto-approve a claim.",
-        "Relevant candidate changes require recheck while historical scope stays inspectable.",
-        "Manual/companion imports and the public evidence flow satisfy the owning RFC."
-      ],
-      "boundary": "Useful evidence preparation without a general native execution engine or an agent run; conversation-proposed checks arrive with local-tour-preparation."
-    },
-    {
       "id": "local-tour-preparation",
-      "outcome": "The author prepares a durable description and evidence-backed tour before any PR exists.",
+      "outcome": "The author prepares a durable description and tour before any PR exists.",
       "work": [
         {
           "issue": "BPR-2026"
@@ -367,7 +339,6 @@
         }
       ],
       "depends_on": [
-        "author-evidence",
         "share-agent-prompts",
         "tour-publishing",
         "tour-stops",
@@ -377,14 +348,14 @@
       "exit_criteria": [
         "Local tour material uses genuine local identity and survives candidate changes and restart.",
         "Agent conversations read only the captured candidate, resume after restart without an account, and start anew on a successor candidate.",
-        "Description ownership is preserved and only selected private evidence enters public previews.",
+        "Description ownership is preserved and private preparation (notes, conversations and proposals) stays out of public previews.",
         "Exact simulated publication mapping retains unresolved stops truthfully."
       ],
       "boundary": "Complete local reviewer-facing preparation with no remote publication claim. Needs the sharing slice because the local-authoring prompts extend its format and Settings flow."
     },
     {
       "id": "publish-prepared-draft",
-      "outcome": "The built-in flow creates the prepared GitHub draft from the branch the author pushed and preserves its evidence, tour and recoverable follow-up.",
+      "outcome": "The built-in flow creates the prepared GitHub draft from the branch the author pushed and preserves its tour and recoverable follow-up.",
       "work": [
         {
           "issue": "BPR-2029"
@@ -402,7 +373,7 @@
       ],
       "exit_criteria": [
         "A draft PR is created from the verified pushed branch through a qualified capability; BPR names the push and performs none.",
-        "The exact outgoing and observed remote candidates are reconciled with evidence and tour sources.",
+        "The exact outgoing and observed remote candidates are reconciled with tour sources.",
         "Lost answers and partial follow-up recover without duplicate PR creation."
       ],
       "boundary": "Built-in end-to-end author flow under the settled PUBLISH-01 answer: the author pushes with their own Git."
@@ -423,7 +394,7 @@
       ],
       "exit_criteria": [
         "A synthetic companion supplies context, proposals, checks and author input through current bounded requests.",
-        "Local Changes, Evidence, Description and Tour remain usable without extensions; this milestone requires no PR creation.",
+        "Local Changes, Description and Tour remain usable without extensions; this milestone requires no PR creation.",
         "Imported organization-shaped configurations execute nothing and leave unrelated drafts unaffected.",
         "No enterprise policy, account, proprietary skill or ticket system is a built-in dependency."
       ],

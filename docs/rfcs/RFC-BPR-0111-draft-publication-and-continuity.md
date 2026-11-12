@@ -3,10 +3,25 @@ id: "RFC-BPR-0111"
 title: "Publish a prepared draft and preserve its evidence and tour"
 status: "Proposed"
 metadata: {"origin":"absorbed 2026-11-10 from the local PR drafts pack v1, where it was RFC-DRAFT-0005","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
-depends_on: ["RFC-BPR-0108", "RFC-BPR-0109", "RFC-BPR-0110"]
+depends_on: ["RFC-BPR-0108", "RFC-BPR-0110"]
 ---
 
 # Publish a prepared draft and preserve its evidence and tour
+
+## Owner amendment: no evidence in 0.5.0 (2026-11-12)
+
+The owner cut Evidence from 0.5.0 ("Mockups; cut Evidence") and
+[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Deferred. The title is
+kept for its links; in 0.5.0 a publication preserves the description and the
+tour. Every clause below about evidence (selected public evidence in the
+preview and the plan's digest, evidence reconciled against the outgoing
+candidate, evidence kept after association) is inactive until that RFC is
+reactivated; what the plan binds is the candidate, destination, account,
+title, body and the tour follow-up, and what stays private is the draft's
+notes and agent conversations. AC03 is amended below; it read: "Different
+inspected, outgoing or observed remote material cannot inherit current
+evidence or tour anchors without an explicit justified reconciliation; dirty
+material and base movement are represented honestly."
 
 ## Problem and grounded current behavior
 
@@ -173,7 +188,7 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
 
 - **AC01:** From a branch the author has pushed, the built-in path creates a GitHub draft from a local preparation without enterprise tools, publishing the author's own commits unchanged. When the remote branch is missing or differs from the candidate, BPR names the push to the hosted repository and pushes nothing itself; checkout data is unchanged throughout.
 - **AC02:** Publication previews bind exact candidate, destination, account and selected public content; changed inputs invalidate authorization and private unselected records remain local.
-- **AC03:** Different inspected, outgoing or observed remote material cannot inherit current evidence or tour anchors without an explicit justified reconciliation; dirty material and base movement are represented honestly.
+- **AC03:** Different inspected, outgoing or observed remote material cannot inherit tour anchors without an explicit justified reconciliation; dirty material and base movement are represented honestly. (Amended 2026-11-12; see above.)
 - **AC04:** Lost answers, cancellation, concurrent drift and a pre-existing PR are handled without blind retry, duplicate creation, force update or pretend rollback.
 - **AC05:** A created PR with failed follow-up remains associated and recoverable; rerunning follow-up cannot recreate the PR or overwrite an independently edited description.
 - **AC06:** The resulting ordinary GitHub draft, description and selected tour can be followed without BPR, while the author's local preparation remains resumable and native-host limitations remain explicit.
@@ -194,7 +209,8 @@ the push and creates the draft pull request from the verified hosted head.
 The reopening above is reconciled by the commit-and-push milestone.
 
 - Core `local_draft_publication`: the hosted-branch decision, the named push,
-  the plan and its digest, the journal and follow-ups, stored in the draft's
+  the plan and its digest (since the 2026-11-12 amendment it binds no
+  evidence; a stored plan that named evidence is migrated forward), the journal and follow-ups, stored in the draft's
   record.
 - The pull request slice of the GitHub publication catalog
   (`acquire_pull_request_session`): reads and `POST pulls`, carried by the

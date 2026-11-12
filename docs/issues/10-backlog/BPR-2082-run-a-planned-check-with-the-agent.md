@@ -25,3 +25,5 @@ A fixture agent that passes, fails, is interrupted and changes a file, against r
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/agent-assistance-v1/IMPLEMENTATION_PROMPT.md).
+
+Note, 2026-11-12: its prerequisite RFC-BPR-0109 is Deferred out of 0.5.0 by the owner ("Mockups; cut Evidence") and BPR-2024 is Blocked on `owner-deferred`, so this card waits on that RFC's reactivation.

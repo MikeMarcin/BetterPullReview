@@ -34,3 +34,5 @@ claimed. Commits `387f7298d` (core), `4675974cf` and `62f740fc6` (gh pull
 request catalog), `6bc5217f5` and `433068905` (application), `36dcd7e21` (Qt
 area, composition), `75c035a49` (real-worktree course). Evidence, including
 the live BPR-Test drafts #178 and #179: [ledger](../../verification/RFC-BPR-0111.md).
+
+Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred; reconciliation covers the tour only (RFC-BPR-0111 AC03 amended).
