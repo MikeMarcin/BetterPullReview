@@ -235,7 +235,7 @@ namespace bpr::adapters::git {
 						if (!oid) {
 							return std::unexpected{ failure(author_git_failure::malformed, *run) };
 						}
-						return std::optional{ *oid };
+						return oid;
 					}
 				}
 				return std::optional<core::git_commit_oid>{ };
@@ -516,10 +516,11 @@ namespace bpr::adapters::git {
 					aLeaf = part;
 					return directory;
 				}
-				const auto next = ::openat(directory, part.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+				const auto next   = ::openat(directory, part.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+				const auto opened = next < 0 ? errno : 0;
 				::close(directory);
 				if (next < 0) {
-					return std::unexpected{ errno == ELOOP || errno == ENOTDIR ? application::worktree_file_failure::link : application::worktree_file_failure::missing };
+					return std::unexpected{ opened == ELOOP || opened == ENOTDIR ? application::worktree_file_failure::link : application::worktree_file_failure::missing };
 				}
 				directory = next;
 				rest.remove_prefix(slash + 1U);
@@ -608,10 +609,10 @@ namespace bpr::adapters::git {
 				if (!parent) {
 					return std::unexpected{ parent.error() };
 				}
-				const auto  close_parent = [&parent] { ::close(*parent); };
+				const auto  closeParent = [&parent] { ::close(*parent); };
 				struct stat facts{ };
 				if (::fstatat(*parent, leaf.c_str(), &facts, AT_SYMLINK_NOFOLLOW) != 0 || !S_ISREG(facts.st_mode)) {
-					close_parent();
+					closeParent();
 					return std::unexpected{ application::worktree_file_failure::not_a_file };
 				}
 				// The disk still holds what the editor read or last wrote.
@@ -621,12 +622,12 @@ namespace bpr::adapters::git {
 					if (current >= 0) {
 						::close(current);
 					}
-					close_parent();
+					closeParent();
 					return std::unexpected{ application::worktree_file_failure::changed };
 				}
 				::close(current);
 				if (held != aExpected) {
-					close_parent();
+					closeParent();
 					return std::unexpected{ application::worktree_file_failure::changed };
 				}
 				// A complete new file beside it, then one rename: the old or the new, never half.
@@ -634,7 +635,7 @@ namespace bpr::adapters::git {
 				::unlinkat(*parent, temporary.c_str(), 0);
 				const auto created = ::openat(*parent, temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, facts.st_mode & 07777);
 				if (created < 0) {
-					close_parent();
+					closeParent();
 					return std::unexpected{ application::worktree_file_failure::io };
 				}
 				auto written = std::size_t{ 0 };
@@ -652,10 +653,10 @@ namespace bpr::adapters::git {
 				::close(created);
 				if (!complete || ::renameat(*parent, temporary.c_str(), *parent, leaf.c_str()) != 0) {
 					::unlinkat(*parent, temporary.c_str(), 0);
-					close_parent();
+					closeParent();
 					return std::unexpected{ application::worktree_file_failure::io };
 				}
-				close_parent();
+				closeParent();
 				return { };
 #else
 				static_cast<void>(aRoot);

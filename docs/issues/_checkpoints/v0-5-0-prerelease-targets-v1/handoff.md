@@ -1785,3 +1785,31 @@ Live: BPR-Test disposable branch `bpr-local-changes-live-20261112084707`
 pushed by the author runner (tip `2dd171d1abad`), deleted (HTTP 204).
 
 Tab name decided: **Local Changes** (recorded in the design README).
+
+Owner look, filed and not waited on: session
+`6d00826a4d9c2ee08fe91321c2c1d521`, state
+`/Users/jaeger/.attended-review-state/local-draft-pr-window-v002-2026-11-12/state`,
+cursor 15, host PID 75022 (Tailscale child 75032), URL in that directory's
+`serve.log`. One question per surface: `local-draft-pr-window`, `home-1`,
+`view-picker-and-edit`, `local-changes-commit-push` (its copy value opens the
+same root as pull request #128 opened by its author), `agent-commit-message`.
+Frozen root `/Users/jaeger/local-draft-pr-window-v002.lyqc133b` from
+`be709f8e6c6a` (executable SHA-256 `efc0b3fbde21…`; launcher check reached
+`ATTENDED_LOCAL_DRAFT_AUTHOR_SHOWN … 2 ahead of GitHub`), launch
+`python3 /Users/jaeger/local-draft-pr-window-v002.lyqc133b/launch.py`.
+After the freeze, `local-draft redesign: tidy fixes` changed no behaviour
+(focused courses rerun).
+
+Left on disk: `/Users/jaeger/local-draft-pr-window-v001.27acdz8g` (a failed
+freeze's exported source and generate.log; `freeze_attended_build.py remove`
+refuses it as not a frozen build, so it was not deleted by hand).
+
+Next: read `6d00826a…` from cursor 15 after hand-back; Accepts finish
+BPR-2062/2065 where their other criteria allow (see the 0113/0114 ledgers),
+a Reject is a new candidate. Then stop host 75022 with the attended-review
+`stop` and `freeze_attended_build.py remove` the root. Mirror card moves to
+main as before.
+
+Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
+BPR-Test #152 and `-next`. Live GitHub: one disposable BPR-Test branch,
+deleted.

@@ -1085,7 +1085,7 @@ namespace bpr::qt {
 	{
 		const auto* target = Projection.Draft ? &Projection.Draft->Target : Projection.Target ? &*Projection.Target
 																							  : nullptr;
-		const auto  title  = title_text();
+		auto        title  = title_text();
 		if (target == nullptr) {
 			return title;
 		}
@@ -1188,10 +1188,7 @@ namespace bpr::qt {
 		auto        ink        = palette().color(QPalette::WindowText);
 		if (!publishing.Linked.empty()) {
 			state = QStringLiteral("● On GitHub");
-		} else if (author && local.Push.State == core::local_push_state::missing) {
-			state = QStringLiteral("● Push needed");
-			ink   = QColor{ 154, 103, 0 };
-		} else if (publishing.Checked && publishing.Push) {
+		} else if ((author && local.Push.State == core::local_push_state::missing) || (publishing.Checked && publishing.Push)) {
 			state = QStringLiteral("● Push needed");
 			ink   = QColor{ 154, 103, 0 };
 		}
@@ -1216,8 +1213,8 @@ namespace bpr::qt {
 		}
 		ReviewStack->setCurrentWidget(ReviewDiff);
 		ReviewDiff->set_one_pane(view == review_view::one_pane);
-		const auto short_of = [](const std::optional<core::git_commit_oid>& aCommit) { return aCommit ? short_commit(*aCommit).left(7) : QString{ }; };
-		const auto target   = Projection.Draft ? text_of(Projection.Draft->Target.Target.Branch) : QStringLiteral("target");
+		const auto shortOf = [](const std::optional<core::git_commit_oid>& aCommit) { return aCommit ? short_commit(*aCommit).left(7) : QString{ }; };
+		const auto target  = Projection.Draft ? text_of(Projection.Draft->Target.Target.Branch) : QStringLiteral("target");
 		if (ShowingLocal && LocalProjection.Active && LocalProjection.File) {
 			const auto& file = *LocalProjection.File;
 			ShownHunks.clear();
@@ -1250,11 +1247,11 @@ namespace bpr::qt {
 			}
 			auto left = QString{ };
 			switch (file.Comparison) {
-			case core::local_comparison::uncommitted: left = QStringLiteral("Last commit %1").arg(short_of(file.LeftCommit)); break;
+			case core::local_comparison::uncommitted: left = QStringLiteral("Last commit %1").arg(shortOf(file.LeftCommit)); break;
 			case core::local_comparison::not_pushed:
-				left = LocalProjection.Hosted.PullRequest ? QStringLiteral("#%1 head %2").arg(*LocalProjection.Hosted.PullRequest).arg(short_of(file.LeftCommit)) : QStringLiteral("GitHub %1").arg(short_of(file.LeftCommit));
+				left = LocalProjection.Hosted.PullRequest ? QStringLiteral("#%1 head %2").arg(*LocalProjection.Hosted.PullRequest).arg(shortOf(file.LeftCommit)) : QStringLiteral("GitHub %1").arg(shortOf(file.LeftCommit));
 				break;
-			case core::local_comparison::whole_pull_request: left = QStringLiteral("%1 at merge base %2").arg(target, short_of(file.LeftCommit)); break;
+			case core::local_comparison::whole_pull_request: left = QStringLiteral("%1 at merge base %2").arg(target, shortOf(file.LeftCommit)); break;
 			}
 			ReviewDiff->present(std::move(rows), std::move(bands), left, text_of(file.Path), QStringLiteral("Worktree"));
 			return;

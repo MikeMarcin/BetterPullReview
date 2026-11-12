@@ -164,7 +164,10 @@ namespace bpr::application {
 		[[nodiscard]] auto side(const std::string& aWorktree, const std::optional<core::git_commit_oid>& aCommit, const std::string& aPath, std::stop_token aStop) -> std::optional<bytes>
 		{
 			auto blob = Git.read_blob(aWorktree, { .Commit = aCommit, .Path = aPath }, maximum_side_bytes, aStop);
-			return blob && *blob ? std::optional{ std::move(**blob) } : std::nullopt;
+			if (!blob) {
+				return std::nullopt;
+			}
+			return std::move(*blob);
 		}
 
 		[[nodiscard]] auto disk(const std::string& aWorktree, const std::string& aPath) -> std::optional<bytes>
