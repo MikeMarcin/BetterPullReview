@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2118"
 title: "After a Mac restart, every retained agent workspace record is refused as unreadable, because each record stores the volume's mount-time device number"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-11: after a restart, opening BPR showed 'Disposable agent workspaces are unavailable: the workspace that record …/agent-workspace-ownership-v1/6b24f4dab44ea68a8e1f41c6709393ea.jsonl names could not be read back or cleaned up exactly, so it is kept.' All 14 records in the folder were intact and refused for the same reason","related_cards":["BPR-0794","BPR-1790","BPR-1857","BPR-1870"],"related_rfcs":["RFC-BPR-0033"],"reservation":"docs/issues/_reservations/BPR-2118--BPR-2118--431be47008ae.json"}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4e36d27198ec33fce09c5d663d3583bb2fd81826","evidence":{"kind":"command","detail":"Simulated remount (macOS, scratch roots only): a retained phase-7 record rewritten as Version 1 with every Volume on one non-live mount number recovers as live=1 and is rewritten to the exact Version 2 bytes with the same inode; in git_process_contract the retained workspace, journal and the conversation's stored identities rewritten the same way recover live, and reattach accepts the old stored identities and returns the journal's durable ones (another inode refused). The launcher's guard check uses the same durable identity (qt_agent_launch_canary). A real Mac restart was not performed.","command":"ctest --preset dev -R '^(agent_workspace_ownership|git_process_contract|application_agent_invocation_host|qt_agent_launch_canary)$'"}},{"criterion":"AC2","outcome":"pass","revision":"4e36d27198ec33fce09c5d663d3583bb2fd81826","evidence":{"kind":"command","detail":"bpr/platform/durable_volume_identity.hpp is the one ATTR_VOL_UUID reader; installed_git_cache's manifest_identity, the ownership journal (ownership_id, journal_stat), the guarded Git launch and the agent launcher use it. git_pristine_remount_recovery checks the cache manifest's persisted lock identity equals the helper's for the same file; git_process_contract checks a retained workspace stores the UUID form and the guard equals the helper's.","command":"ctest --preset dev -R '^(git_pristine_remount_recovery|git_process_contract)$'"}},{"criterion":"AC3","outcome":"pass","revision":"4e36d27198ec33fce09c5d663d3583bb2fd81826","evidence":{"kind":"command","detail":"Version 1 on one mount after renumbering is accepted and rewritten in place (pwrite from 0, ftruncate, fsync on the same descriptor, inode kept). Two recorded volumes refuse as record-moved other-volume; a changed Registry inode refuses as record-moved replaced; refused records are not rewritten; the existing negative courses (phase, scope, authority, marker, substitution, hardlink, trailing, oversize) still refuse. Negative control: forcing the one-mount rule to refuse made the remount course fail with record-moved other-volume.","command":"ctest --preset dev -R '^agent_workspace_ownership$'"}},{"criterion":"AC4","outcome":"pass","revision":"4e36d27198ec33fce09c5d663d3583bb2fd81826","evidence":{"kind":"command","detail":"record_unreadable split into record_malformed, record_moved (finding missing/other_volume/replaced) and record_cleanup_failed; recovery checks every record before refusing and reports Count and the first path (three moved records -> records=3 with one of their paths); the terminal line gains :records=N; agent_composition sentences are distinct per check and finding and count all records.","command":"ctest --preset dev -R '^(agent_workspace_ownership|agent_composition_refusal_text)$'"}},{"criterion":"AC5","outcome":"pass","revision":"4e36d27198ec33fce09c5d663d3583bb2fd81826","evidence":{"kind":"observation","detail":"Code review of the platform branches: on Linux ownership_id and journal_stat produce {kind, st_dev, 0, ino} exactly as before and on Windows the identity code is untouched; a Version 1 line must equal the live identities exactly off macOS and only its Version changes. The ownership course's Linux/Windows branches of the new remount checks follow that path. Not executed on Linux or Windows in this round."}},{"criterion":"AC6","outcome":"pass","revision":"4e36d27198ec33fce09c5d663d3583bb2fd81826","evidence":{"kind":"command","detail":"architecture_boundaries and architecture_boundary_contract passed; coding-format-check (clang-format 22.1.8) passed over 2189 files; application_review_round_trip_composition_contract static pins pass after the BPR-2118 manifest reseal (its runtime probe needs the full app and was not run); verify_documentation reports only the NEXT_ID high-water error BPR-2119 vs BPR-2120 from other branches.","command":"ctest --preset dev -R '^(architecture_boundaries|architecture_boundary_contract)$'; cmake --build --preset dev --target coding-format-check; python3 scripts/verify_documentation.py --root ."}}]
 ---
 
 # BPR-2118: After a Mac restart, every retained agent workspace record is refused as unreadable, because each record stores the volume's mount-time device number
@@ -241,3 +241,28 @@ refusal to the next record.
   any does, file a separate card, since each owns its own format.
 - A repair button on Home. With the volume fixed, a restart no longer needs
   one. Real tampering still needs the user's judgment.
+
+## Done (2026-11-11)
+
+Implemented as above, with these deviations from the Change section:
+
+- The helper lives in the header-only platform target
+  (`src/platform/include/bpr/platform/durable_volume_identity.hpp`,
+  `of_descriptor`/`volume_uuid`), not in the Git adapter, because the agent
+  launcher (`agent_process_launcher.cpp`) and the guarded Git launch compare
+  the guard's `FileIdentity` against the live journal too; they would have
+  refused every newly stored durable guard. `durable_identity` was already the
+  name of the Linux inode-generation helper in `installed_git_cache.cpp`.
+- The retained conversation's stored `DirectoryIdentity` and guard identity
+  are not rewritten in the session store. `inspect_agent_workspace` now
+  returns the workspace with the journal's durable identities and the run
+  launches with those; an old stored identity is accepted on every reattach
+  when kind and inode match the journal just checked against the live paths
+  (macOS only). Conversations sharing one workspace are bound to each other by
+  exact directory identity in `agent_setup_store`, so a partial rewrite would
+  make them conflict.
+- The ownership design lives in `docs/architecture/ai-agent-boundary.md`;
+  RFC-BPR-0033 only owns where the refusal is reported, so it gets a dated
+  note and the rules go in the architecture document.
+- `record-unreadable` has no alias: no log reader used it.
+- `record_not_private` refusals are counted with the others.
