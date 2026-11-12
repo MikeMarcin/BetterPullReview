@@ -2567,6 +2567,7 @@ namespace bpr::qt {
 		case core::writing_hook::suggested_comment: // [[BPR-2059]] Not a tour field either.
 		case core::writing_hook::local_description: // RFC-BPR-0110 Nor the local-authoring prompts.
 		case core::writing_hook::local_discussion:  return false;
+		case core::writing_hook::local_commit_message: return false;
 		}
 		return false;
 	}

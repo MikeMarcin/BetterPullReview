@@ -1,5 +1,6 @@
 #include "local_draft_desktop.hpp"
 
+#include "bpr/adapters/git/installed_author_git.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/sqlite/local_draft_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -10,6 +11,7 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QClipboard>
+#include <QFile>
 #include <QDateTime>
 #include <QFileDialog>
 #include <QGuiApplication>
@@ -35,7 +37,7 @@ namespace bpr::app {
 		: Window{ aWindow }
 		, Source{ adapters::workspace::make_local_workspace_source() }
 	{
-		auto git = [root = aProfileRoot, executable = std::move(aGitExecutable), windows = std::move(aWindowsSystemRoot)](
+		auto git = [root = aProfileRoot, executable = aGitExecutable, windows = std::move(aWindowsSystemRoot)](
 					   const std::stop_token aStop) -> application::publication_git_result<std::unique_ptr<application::local_draft_git_port>> {
 			const auto isolation = root / "local-draft-git-v1";
 			if (executable.empty() || !adapters::sqlite::create_storage_root_owner_private(isolation)) {
@@ -52,6 +54,48 @@ namespace bpr::app {
 			[] { return static_cast<std::int64_t>(QDateTime::currentSecsSinceEpoch()); }, core::make_xdiff_line_matcher());
 		View = new qt::local_draft_view{ };
 		Window.adopt_local_draft(View);
+		// Author state: the author's own Git in their own worktree, separate
+		// from the isolated reader (RFC-BPR-0114 as amended 2026-11-12).
+		AuthorGit     = adapters::git::make_installed_author_git(aGitExecutable.empty() ? std::filesystem::path{ } : aGitExecutable);
+		WorktreeFiles = adapters::git::make_worktree_files();
+		ConsentFile   = aProfileRoot / "author-git-consent.txt";
+		Changes       = std::make_unique<application::local_changes_host>(
+            *AuthorGit, *WorktreeFiles, core::make_xdiff_line_matcher(), aEffects, aDecisions, *this,
+            application::local_changes_consent{
+                .Allowed =
+                    [this](const std::string& aKey) {
+                        auto file = QFile{ QString::fromStdString(ConsentFile.string()) };
+                        if (aKey.empty() || !file.open(QIODevice::ReadOnly)) {
+                            return false;
+                        }
+                        return file.readAll().split('\n').contains(QByteArray::fromStdString(aKey));
+                    },
+                .Remember =
+                    [this](const std::string& aKey) {
+                        auto file = QFile{ QString::fromStdString(ConsentFile.string()) };
+                        if (!aKey.empty() && file.open(QIODevice::Append)) {
+                            file.write(QByteArray::fromStdString(aKey + "\n"));
+                        }
+                    },
+            });
+		View->local_changes()->set_dispatch({
+			.Choose     = [this](const core::local_comparison aComparison) { Changes->choose(aComparison); },
+			.OpenFile   = [this](const std::string& aPath) { Changes->open_file(aPath); },
+			.Stage      = [this](std::vector<std::string> aPaths) { Changes->stage(std::move(aPaths)); },
+			.Unstage    = [this](std::vector<std::string> aPaths) { Changes->unstage(std::move(aPaths)); },
+			.Commit     = [this](core::local_commit_request aRequest) { Changes->commit(std::move(aRequest)); },
+			.Push       = [this] { Changes->push(); },
+			.CheckAgain = [this] { Changes->check_again(); },
+			.Stop       = [this] { Changes->stop(); },
+			.Suggest =
+				[this] {
+					const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
+					if (choice) {
+						Changes->suggest_message({ .Agent = choice->Identity, .AgentName = choice->Name, .Profile = choice->Profile, .Instructions = choice->CommitMessage });
+					}
+				},
+			.Consent = [this](const bool aAllow) { Changes->answer_consent(aAllow); },
+		});
 		View->set_dispatch({
 			.OpenFile      = [this](const std::string& aPath) { Host->open_file(aPath); },
 			.Include       = [this](const std::string& aPath, const bool aIncluded) { Host->include(aPath, aIncluded); },
@@ -68,6 +112,17 @@ namespace bpr::app {
 					Host->close();
 					Window.leave_local_draft();
 				},
+			.StageChange =
+				[this](const std::string& aPath, const core::local_change_hunk aChange, const bool aStage) {
+					if (aStage) {
+						Changes->stage_change(aPath, aChange);
+					} else {
+						Changes->unstage_change(aPath, aChange);
+					}
+				},
+			.OpenLocalFile = [this](const std::string& aPath) { Changes->open_file(aPath); },
+			.Save = [this](const std::string& aPath, std::vector<std::uint8_t> aRead, std::vector<std::uint8_t> aEdited) { Changes->save(aPath, std::move(aRead), std::move(aEdited)); },
+			.CreatePullRequest = [this] { Host->check_publication(false); },
 		});
 		// RFC-BPR-0110: the Description and Tour areas. Nothing here publishes.
 		View->set_preparation_dispatch({
@@ -124,13 +179,61 @@ namespace bpr::app {
 			return;
 		}
 		View->present(aProjection);
+		follow_author_state(aProjection);
 		if (aProjection.Stage == application::local_draft_stage::closed) {
 			Window.leave_local_draft();
 			return;
 		}
 		if (std::exchange(BringForward, false) || Window.showing_local_draft()) {
-			Window.show_local_draft(View->title_text());
+			Window.show_local_draft(View->window_title());
 		}
+	}
+
+	void local_draft_desktop::follow_author_state(const application::local_draft_workbench_projection& aProjection)
+	{
+		// Author state is the window on the author's own worktree: a draft
+		// whose worktree is where it was, on its branch.
+		const auto* const draft  = aProjection.Draft ? &*aProjection.Draft : nullptr;
+		const auto        author = draft != nullptr && aProjection.Stage == application::local_draft_stage::open && !aProjection.WorktreeMissing && aProjection.Match == core::worktree_match::same;
+		if (!author) {
+			if (Changes->projection().Active) {
+				Changes->close();
+			}
+			return;
+		}
+		const auto* const latest     = core::latest_candidate(*draft);
+		const auto&       repository = draft->Target.Target.Repository;
+		auto              subject    = application::local_changes_subject{
+						.Worktree    = draft->Worktree.Location,
+						.Branch      = draft->Branch,
+						.Clone       = draft->Chain.empty() ? draft->Worktree.Location : draft->Chain.back().Location,
+						.Remote      = draft->Target.Target.Remote,
+						.FallbackUrl = "https://" + repository.Host + "/" + repository.Owner + "/" + repository.Name + ".git",
+						.Target      = draft->Target.Target.Branch,
+						.Base        = latest != nullptr ? std::optional{ latest->Base } : std::nullopt,
+						.PullRequest = draft->Association ? std::optional{ draft->Association->Number } : std::nullopt,
+						.ConsentKey  = draft->Id.Value,
+		};
+		if (!Changes->projection().Active || Changes->projection().Subject != subject) {
+			Changes->open(std::move(subject));
+		}
+	}
+
+	void local_draft_desktop::publish(const application::local_changes_projection& aProjection)
+	{
+		if (!Closing && View) {
+			View->present_local(aProjection);
+		}
+	}
+
+	auto local_draft_desktop::changes() noexcept -> application::local_changes_host&
+	{
+		return *Changes;
+	}
+
+	void local_draft_desktop::set_consent_question(std::function<bool()> aQuestion)
+	{
+		View->local_changes()->set_consent_question(std::move(aQuestion));
 	}
 
 	void local_draft_desktop::publish(const application::local_draft_home_projection& aHome)
@@ -198,6 +301,22 @@ namespace bpr::app {
 	void local_draft_desktop::set_agent(application::local_draft_agent_runner aRunner, application::effect_executor* const aLane, agent_chooser aChooser)
 	{
 		AgentChooser = std::move(aChooser);
+		// The commit message is one fresh, tool-free run of the same agent:
+		// the request is its only input, and nothing resumes.
+		auto commit = aRunner ? application::local_commit_message_runner{ [aRunner](const application::local_commit_message_agent& aAgent, const std::string& aPrompt,
+																					 const std::stop_token aStop) -> std::expected<std::string, std::string> {
+			auto answer = aRunner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aPrompt }, aStop);
+			if (!answer.Answered) {
+				return std::unexpected{ answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure };
+			}
+			return answer.Text;
+		} }
+							  : application::local_commit_message_runner{ };
+		if (!CommitAgentLane) {
+			CommitAgentLane = std::make_unique<worker_executor>();
+		}
+		Changes->set_agent(std::move(commit), CommitAgentLane.get());
+		View->local_changes()->set_agent_name(QStringLiteral("the agent"));
 		Host->set_agent(std::move(aRunner), aLane);
 	}
 
@@ -221,7 +340,11 @@ namespace bpr::app {
 			View->set_dispatch({ });
 			View->set_preparation_dispatch({ });
 			View->publication()->set_dispatch({ });
+			View->local_changes()->set_dispatch({ });
 			Window.set_local_draft_entry_dispatch({ }, { });
+		}
+		if (Changes) {
+			Changes->shutdown();
 		}
 		if (Host) {
 			Host->shutdown();
@@ -230,6 +353,6 @@ namespace bpr::app {
 
 	auto local_draft_desktop::is_quiescent() const noexcept -> bool
 	{
-		return !Host || Host->is_quiescent();
+		return (!Host || Host->is_quiescent()) && (!Changes || Changes->is_quiescent());
 	}
 }

@@ -5,6 +5,7 @@
 #include "bpr/core/local_draft_tour.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/local_draft_preparation_area.hpp"
+#include "bpr/qt/local_diff_view.hpp"
 #include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -198,9 +199,10 @@ try {
 		auto* const page = window.local_draft();
 		expect(page != nullptr && page->projection().Draft, "a local draft, signed out");
 		draftId = page->projection().Draft->Id;
-		expect(page->areas()->count() == 4 && page->areas()->tabText(3) == QStringLiteral("Pull request") && page->areas()->tabText(1) == QStringLiteral("Description") && page->areas()->tabText(2) == QStringLiteral("Tour"),
-			   "the page has Description, Tour and Pull request beside Changes, and no Evidence");
-		expect(page->candidates()->minimumSizeHint().width() >= page->candidates()->fontMetrics().horizontalAdvance(QStringLiteral("Candidate 32 of 32")),
+		expect(page->areas()->count() == 3 && page->areas()->tabText(0) == QStringLiteral("Status") && page->areas()->tabText(1) == QStringLiteral("Notes") && page->areas()->tabText(2) == QStringLiteral("Tour")
+				   && page->description()->isAncestorOf(page->description()->body()) && !page->overview(),
+			   "mockup A: the drawer has Status, Notes and Tour; Description is Overview's; no Evidence; the draft opens on Review");
+		expect(page->candidates()->minimumWidth() >= page->candidates()->fontMetrics().horizontalAdvance(QStringLiteral("Candidate 32 of 32")),
 			   "the candidate chooser holds its longest words from the start");
 
 		// AC01: an uncommitted candidate, with a live helper edit left out.
@@ -221,7 +223,7 @@ try {
 		expect(latest->Ordinal == 2U && latest->Included == std::vector<std::string>{ "src/search.cpp" }, "AC01: candidate 2 holds the uncommitted file");
 
 		// AC01: the description and the tour's brief, by hand.
-		page->areas()->setCurrentIndex(1);
+		page->set_overview(true);
 		settle(s.Lanes);
 		auto* const description = page->description();
 		description->body()->setPlainText(QStringLiteral("<!-- team-template v3 -->\n## Summary\nCancel stops the search worker.\n- [x] I read the diff\n"));
@@ -241,7 +243,7 @@ try {
 			   "AC05: the brief never writes the description");
 
 		// AC08: a stop on lines selected in Changes; Save accepts it.
-		page->areas()->setCurrentIndex(0);
+		page->set_overview(false);
 		page->changes()->setCurrentItem(page->changes()->item(0));
 		settle(s.Lanes);
 		expect(page->projection().File && page->projection().File->Path == "src/search.cpp", "the changed file is shown");
@@ -266,7 +268,8 @@ try {
 		tour->stops()->setCurrentRow(0);
 		tour->show_button()->click();
 		settle(s.Lanes);
-		expect(page->areas()->currentIndex() == 0 && page->diff()->textCursor().selectedText().contains(QStringLiteral("stop_worker")), "AC08: arrival reveals the stop's lines");
+		expect(!page->overview() && page->diff()->textCursor().selectedText().contains(QStringLiteral("stop_worker")) && page->review_diff()->selected_lines().has_value(),
+			   "AC08: arrival reveals the stop's lines in Review");
 		capture(window, QStringLiteral("local-draft-tour-arrival"));
 
 		// AC03: a whole-change question. The request carries the
@@ -318,7 +321,7 @@ try {
 
 		// AC02, AC05: the exact preview carries the description byte for byte
 		// and the tour; nothing private.
-		page->areas()->setCurrentIndex(1);
+		page->set_overview(true);
 		settle(s.Lanes);
 		const auto preview = description->preview_text();
 		expect(preview.contains(QStringLiteral("<!-- team-template v3 -->")) && preview.contains(QStringLiteral("Cancel stops and joins")) && preview.contains(QStringLiteral("link pending"))
@@ -364,7 +367,7 @@ try {
 		emit  window.home_drafts_list()->itemDoubleClicked(window.home_drafts_list()->item(0));
 		settle(s.Lanes);
 		auto* const page = window.local_draft();
-		expect(page->projection().Draft && page->projection().Draft->Id == draftId && page->areas()->currentIndex() == 0, "X23: a resumed draft opens on Changes");
+		expect(page->projection().Draft && page->projection().Draft->Id == draftId && !page->overview() && page->areas()->currentIndex() == 0, "X23 as amended: a resumed draft opens on Review, with no chat");
 		const auto& prep = page->projection().Draft->Preparation;
 		expect(prep.Description.Body.starts_with("<!-- team-template v3 -->") && prep.Tour.Stops.size() == 1U && prep.Conversations.size() == 2U && prep.Proposals.size() == 4U,
 			   "AC04: description, tour, conversations and proposals resume");

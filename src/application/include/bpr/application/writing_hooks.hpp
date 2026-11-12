@@ -65,6 +65,9 @@ namespace bpr::application {
 	/// local-authoring prompts, `resources/review-preparation/local-*.md`.
 	inline constexpr std::string_view local_description_hook_version = "local-description-v1";
 	inline constexpr std::string_view local_discussion_hook_version  = "local-discussion-v1";
+	/// \brief RFC-BPR-0114 as amended 2026-11-12. Version of the shipped
+	/// commit-message prompt, `resources/review-preparation/local-commit-message.md`.
+	inline constexpr std::string_view local_commit_message_hook_version = "local-commit-message-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.

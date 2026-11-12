@@ -17,6 +17,7 @@ namespace bpr::application {
 		case core::writing_hook::suggested_comment: return suggested_comment_hook_version;
 		case core::writing_hook::local_description: return local_description_hook_version;
 		case core::writing_hook::local_discussion:  return local_discussion_hook_version;
+		case core::writing_hook::local_commit_message: return local_commit_message_hook_version;
 		case core::writing_hook::comment:           return tour_stop_comment_hook_version;
 		case core::writing_hook::problem:
 		case core::writing_hook::solution:
@@ -38,6 +39,7 @@ namespace bpr::application {
 			"review.suggested-comment",
 			"local.description",
 			"local.discussion",
+			"local.commit-message",
 		};
 	}
 	auto writing_hook_purpose(const core::writing_hook aHook) noexcept -> std::string_view

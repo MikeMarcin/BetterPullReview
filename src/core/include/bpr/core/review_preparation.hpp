@@ -30,6 +30,10 @@ namespace bpr::core {
 	/// next: `local_description`, how an agent writes a local draft's full
 	/// description, and `local_discussion`, what a local draft's
 	/// conversations tell the agent. Neither is a tour field.
+	///
+	/// RFC-BPR-0114 as amended 2026-11-12: `local_commit_message`, how an
+	/// agent writes a commit's subject and description from the staged
+	/// change. It writes no tour field either.
 	enum class writing_hook : std::uint8_t { problem,
 											 solution,
 											 outline,
@@ -39,8 +43,9 @@ namespace bpr::core {
 											 enhance_writing,
 											 suggested_comment,
 											 local_description,
-											 local_discussion };
-	inline constexpr std::size_t writing_hook_count = 10;
+											 local_discussion,
+											 local_commit_message };
+	inline constexpr std::size_t writing_hook_count = 11;
 	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
 	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_writing; }
 	/// \brief The review-preparation hooks, `problem` to `comment`.

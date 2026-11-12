@@ -79,6 +79,7 @@ namespace bpr::app {
 		// RFC-BPR-0110 The local-authoring prompts.
 		case core::writing_hook::local_description: return "local-description";
 		case core::writing_hook::local_discussion:  return "local-discussion";
+		case core::writing_hook::local_commit_message: return "local-commit-message";
 		}
 		return "problem";
 	}

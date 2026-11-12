@@ -456,7 +456,8 @@ namespace bpr::application {
 		self.Url        = aSubject.FallbackUrl;
 		self.Projection = local_changes_projection{ .Active = true, .Subject = std::move(aSubject), .AgentAvailable = static_cast<bool>(self.Runner) };
 		self.publish();
-		self.observe_again(true);
+		// Opening reads the worktree only; GitHub is read on Check Again or Push.
+		self.observe_again(false);
 	}
 
 	void local_changes_host::close()

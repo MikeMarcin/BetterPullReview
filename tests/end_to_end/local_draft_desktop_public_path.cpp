@@ -209,7 +209,7 @@ try {
 		emit window.home_drafts_list()->itemDoubleClicked(window.home_drafts_list()->item(0));
 		settle(s.Lanes);
 		expect(window.showing_local_draft() && page->projection().Draft->Id == draftId, "AC08: In preparation resumes the same draft");
-		expect(page->changes()->currentItem() != nullptr && !page->diff()->toPlainText().isEmpty(), "X23: a resumed draft opens on Changes, no chat");
+		expect(page->changes()->currentItem() != nullptr && !page->diff()->toPlainText().isEmpty(), "X23 as amended: a resumed draft opens on Review, no chat");
 		expect(list_texts(*page->working()) == QStringList{ QStringLiteral("notes/plan.md"), QStringLiteral("src/search.cpp") } && !page->refresh_button()->isEnabled(),
 			   "AC02: dirty and untracked files are listed and nothing is captured unasked");
 		page->working()->item(1)->setCheckState(Qt::Checked);
@@ -217,7 +217,7 @@ try {
 		expect(page->refresh_button()->isEnabled(), "including a file offers Refresh");
 		page->refresh_button()->click();
 		settle(s.Lanes);
-		expect(page->projection().Draft->Candidates.size() == 2U && page->candidates()->count() == 2 && page->candidates()->isEnabled(), "AC04: a successor candidate; the first stays");
+		expect(page->projection().Draft->Candidates.size() == 2U && page->candidate_actions().size() == 2 && page->candidates()->isEnabled(), "AC04: a successor candidate; the first stays");
 		page->changes()->setCurrentRow(1);
 		settle(s.Lanes);
 		expect(page->diff()->toPlainText().contains(QStringLiteral("+\treturn 4;")) && page->changes()->item(1)->font().italic(), "AC02: the included working bytes, marked as such");

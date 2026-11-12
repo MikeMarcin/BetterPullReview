@@ -240,6 +240,16 @@ operation.
   their worktree (the same window [RFC-BPR-0122](RFC-BPR-0122-address-feedback-opens-my-pull-request-with-each-conversation-as-an-item.md)
   opens for Address feedback), not only a local draft.
 
+- **Reads.** Local Changes reads the worktree through the author's own Git,
+  read-only (status, the changed paths against a commit, blob bytes, the
+  staged diff), with no optional locks and no fsmonitor. Such a read runs no
+  hook, but Git may run a repository's configured clean filter as any Git
+  client's status does. Opening the window reads only the worktree: GitHub is
+  read (`ls-remote`, through the author's credentials) only when the author
+  presses Check Again or Push, so ahead and behind say "Not checked with
+  GitHub" until then. (Implementation decision, 2026-11-12, keeping P01's
+  "only on a press" for anything that leaves the computer.)
+
 The operation catalogue becomes: stage a path, unstage a path, stage one
 change, unstage one change, commit (with or without amend), and push the
 draft's branch. Force, delete, tag, reset of the worktree, stash and checkout

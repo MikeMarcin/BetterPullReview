@@ -976,6 +976,7 @@ namespace bpr::app {
 				.DescriptionVersion = std::string{ application::writing_hook_version_of(core::writing_hook::local_description) },
 				.Discussion         = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_discussion) },
 				.DiscussionVersion  = std::string{ application::writing_hook_version_of(core::writing_hook::local_discussion) },
+				.CommitMessage      = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_commit_message) },
 			};
 		});
 	}

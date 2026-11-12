@@ -67,6 +67,9 @@ namespace bpr::qt {
 			  "Sent when you ask the agent about a local draft's title or description. You accept or reject what it proposes; nothing is published." },
 			{ core::writing_hook::local_discussion, "Change discussion", "Local drafts, conversations", "What the agent is told when you discuss a local draft's change.",
 			  "Sent with every question in a local draft's conversations. You accept or reject what it proposes; nothing is run or published." },
+			// RFC-BPR-0114 as amended 2026-11-12. The agent's commit message.
+			{ core::writing_hook::local_commit_message, "Commit message", "Local Changes, commit box", "How the agent writes a commit's subject and description from what is staged.",
+			  "Sent when you ask the agent to fill in a commit. Its answer fills the fields for you to edit; nothing is committed." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
@@ -203,7 +206,7 @@ namespace bpr::qt {
 		// RFC-BPR-0110 The local-authoring prompts, above the Agent tab so the
 		// review skill stays last under its heading.
 		static_cast<void>(make_header(Hook, tr("Local drafts")));
-		for (const auto hook : { core::writing_hook::local_description, core::writing_hook::local_discussion }) {
+		for (const auto hook : { core::writing_hook::local_description, core::writing_hook::local_discussion, core::writing_hook::local_commit_message }) {
 			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
@@ -357,7 +360,7 @@ namespace bpr::qt {
 		});
 		connect(TestButton, &QPushButton::clicked, this, [this] {
 			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment && selected_hook() != core::writing_hook::local_description
-				&& selected_hook() != core::writing_hook::local_discussion) {
+				&& selected_hook() != core::writing_hook::local_discussion && selected_hook() != core::writing_hook::local_commit_message) {
 				Test(selected_hook());
 			}
 		});
@@ -614,7 +617,7 @@ namespace bpr::qt {
 		// it is tried by asking the agent a question.
 		const bool suggested = hook == core::writing_hook::suggested_comment;
 		// RFC-BPR-0110 The local-authoring prompts are tried in a local draft.
-		const bool local = hook == core::writing_hook::local_description || hook == core::writing_hook::local_discussion;
+		const bool local = hook == core::writing_hook::local_description || hook == core::writing_hook::local_discussion || hook == core::writing_hook::local_commit_message;
 		TestButton->setEnabled(!feedback && !suggested && !local);
 		TestButton->setToolTip(feedback        ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
 								   : suggested ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")

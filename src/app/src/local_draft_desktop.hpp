@@ -2,6 +2,8 @@
 #define BPR_SRC_APP_SRC_LOCAL_DRAFT_DESKTOP_HPP
 
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/author_git_port.hpp"
+#include "bpr/application/local_changes_host.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/workspace_source_port.hpp"
@@ -30,7 +32,7 @@ namespace bpr::app {
 	/// (`local-draft-git-v1`), and the host over the profile's
 	/// `local-drafts.sqlite3`. Nothing here needs an account, a remote, an
 	/// agent or the network, and nothing writes the chosen worktree.
-	class local_draft_desktop final : public application::local_draft_workbench_port
+	class local_draft_desktop final : public application::local_draft_workbench_port, public application::local_changes_port
 	{
 	public:
 		local_draft_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, std::filesystem::path aGitExecutable,
@@ -43,6 +45,8 @@ namespace bpr::app {
 
 		void publish(const application::local_draft_workbench_projection& aProjection) override;
 		void publish(const application::local_draft_home_projection& aHome) override;
+		/// \brief Author state (RFC-BPR-0113, 0114 as amended 2026-11-12).
+		void publish(const application::local_changes_projection& aProjection) override;
 
 		/// \brief Opens a worktree as Prepare pull request does, with a
 		/// harness's context when one handed it over.
@@ -62,6 +66,8 @@ namespace bpr::app {
 			std::string   DescriptionVersion;
 			std::string   Discussion;
 			std::string   DiscussionVersion;
+			/// RFC-BPR-0114 as amended 2026-11-12: `local.commit-message`.
+			std::string CommitMessage;
 		};
 		using agent_chooser = std::function<std::optional<agent_choice>()>;
 		/// \brief Composes the agent runs; a null runner leaves authoring by hand only.
@@ -76,6 +82,10 @@ namespace bpr::app {
 		/// \brief Shows a draft another interface opened (`bpr draft open`).
 		void               show_draft(const core::local_draft_id& aId);
 		[[nodiscard]] auto host() noexcept -> application::local_draft_workbench&;
+		/// \brief Author state's host, while a draft on its own worktree shows.
+		[[nodiscard]] auto changes() noexcept -> application::local_changes_host&;
+		/// \brief Replaces the one-time hooks question, for a course.
+		void set_consent_question(std::function<bool()> aQuestion);
 		[[nodiscard]] auto view() noexcept -> qt::local_draft_view*;
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
@@ -89,6 +99,14 @@ namespace bpr::app {
 		QPointer<qt::local_draft_view>                      View;
 		std::unique_ptr<application::workspace_source_port> Source;
 		std::unique_ptr<application::local_draft_workbench> Host;
+		/// Author state: the author's own Git, the one file Save writes, and
+		/// the one-time question's answers (`author-git-consent.txt`).
+		std::unique_ptr<application::author_git_port>    AuthorGit;
+		std::unique_ptr<application::worktree_file_port> WorktreeFiles;
+		std::unique_ptr<application::local_changes_host> Changes;
+		std::filesystem::path                            ConsentFile;
+		std::unique_ptr<worker_executor>                 CommitAgentLane;
+		void                                             follow_author_state(const application::local_draft_workbench_projection& aProjection);
 		folder_chooser                                      Chooser;
 		agent_chooser                                       AgentChooser;
 		/// The page comes forward only when the author asked for it.

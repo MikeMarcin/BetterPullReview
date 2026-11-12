@@ -155,6 +155,7 @@ namespace bpr::qt {
 		case core::writing_hook::suggested_comment: return QObject::tr("Suggested comments");
 		case core::writing_hook::local_description: return QObject::tr("Description writing");
 		case core::writing_hook::local_discussion:  return QObject::tr("Change discussion");
+		case core::writing_hook::local_commit_message: return QObject::tr("Commit message");
 		}
 		return text_of(aPurpose);
 	}

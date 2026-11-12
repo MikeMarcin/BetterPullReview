@@ -302,6 +302,9 @@ auto main(int argc, char** argv) -> int
                                                                 });
 	c.Host->open({ .Worktree = work.string(), .Branch = "fix/ports", .FallbackUrl = hosted.string(), .Target = "main", .Base = core::parse_git_commit_oid(base), .ConsentKey = "draft-1" });
 	c.drain();
+	expect(!c.view().Hosted.Observed && c.view().Push.State == core::local_push_state::unobserved && !c.view().Push.Offered, "opening reads no network: GitHub is not checked yet");
+	c.Host->check_again();
+	c.drain();
 	status_and_comparisons(c);
 	stage_one_change(c);
 	commit_with_hooks(c);
