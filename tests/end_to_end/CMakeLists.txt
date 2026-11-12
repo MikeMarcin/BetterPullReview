@@ -4909,13 +4909,13 @@ bpr_enable_warnings(test_source_find_public_path)
 bpr_add_network_isolated_test(NAME application_source_find WINDOWS_UNCONTAINED COMMAND test_source_find_public_path)
 set_tests_properties(application_source_find PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_FIND_RENDER_ROOT=${PROJECT_BINARY_DIR}/source-find-renders"
-    TIMEOUT 120 PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
+    TIMEOUT "$<IF:$<CONFIG:Debug>,240,120>" PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
 foreach(bpr_find_scale IN ITEMS 1.25 2.0)
     string(REPLACE "." "_" bpr_find_scale_name "${bpr_find_scale}")
     bpr_add_network_isolated_test(NAME application_source_find_scale_${bpr_find_scale_name} WINDOWS_UNCONTAINED COMMAND test_source_find_public_path)
     set_tests_properties(application_source_find_scale_${bpr_find_scale_name} PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${bpr_find_scale};BPR_FIND_RENDER_ROOT=${PROJECT_BINARY_DIR}/source-find-renders-${bpr_find_scale_name}"
-        TIMEOUT 120 PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
+        TIMEOUT "$<IF:$<CONFIG:Debug>,240,120>" PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
 endforeach()
 
 bpr_add_executable(test_source_pr_find_public_path source_pr_find_public_path_tests.cpp)
