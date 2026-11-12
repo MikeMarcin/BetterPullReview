@@ -76,11 +76,12 @@ namespace bpr::core {
 			return aAccounts.size() == 1U ? std::optional{ aAccounts.front().Profile } : std::nullopt;
 		}
 
-		/// Only the request counter survives a new start.
+		/// Only the request counter and how the setup began survive a new step.
 		[[nodiscard]] auto fresh(const account_setup_state& aState) -> account_setup_state
 		{
-			auto next    = account_setup_state{ };
-			next.Request = aState.Request;
+			auto next      = account_setup_state{ };
+			next.Request   = aState.Request;
+			next.Automatic = aState.Automatic;
 			return next;
 		}
 
@@ -161,6 +162,15 @@ namespace bpr::core {
 				next.Problem = aHostname.empty() ? account_setup_problem::none : account_setup_problem::invalid_hostname;
 				return moved(std::move(next), std::move(aEffects));
 			}
+			// The GitHub CLI holds its own accounts for the host; only a token
+			// needs the server's native profile, so only it waits for the add.
+			if (aWay.has_value() && *aWay != account_setup_way::token) {
+				next.Phase = account_setup_phase::choosing_way;
+				if (account_setup_way_offered(account_setup_server::enterprise, *aWay)) {
+					return start_way(next, *aWay, std::move(aEffects));
+				}
+				return moved(std::move(next), std::move(aEffects));
+			}
 			if (exhausted(aState)) {
 				return refused(aState, account_setup_refusal::exhausted);
 			}
@@ -190,17 +200,17 @@ namespace bpr::core {
 		[[nodiscard]] auto problem_of(const device_authorization_stage aStage) noexcept -> std::optional<account_setup_problem>
 		{
 			switch (aStage) {
-			case device_authorization_stage::denied:      return account_setup_problem::code_denied;
-			case device_authorization_stage::expired:     return account_setup_problem::code_expired;
+			case device_authorization_stage::denied:                 return account_setup_problem::code_denied;
+			case device_authorization_stage::expired:                return account_setup_problem::code_expired;
 			case device_authorization_stage::disabled:
-			case device_authorization_stage::unavailable: return account_setup_problem::browser_unavailable;
-			case device_authorization_stage::failed:      return account_setup_problem::browser_failed;
+			case device_authorization_stage::unavailable:            return account_setup_problem::browser_unavailable;
+			case device_authorization_stage::failed:                 return account_setup_problem::browser_failed;
 			case device_authorization_stage::idle:
 			case device_authorization_stage::requested:
 			case device_authorization_stage::awaiting_authorization:
 			case device_authorization_stage::cancelling:
 			case device_authorization_stage::authorized:
-			case device_authorization_stage::cancelled:   break;
+			case device_authorization_stage::cancelled:              break;
 			}
 			return std::nullopt;
 		}
@@ -216,10 +226,14 @@ namespace bpr::core {
 				next.Phase = account_setup_phase::choosing_server;
 				return moved(std::move(next), std::move(effects));
 			}
-			if (*aEvent.Server == account_setup_server::enterprise && aEvent.Hostname.empty()) {
-				auto next   = fresh(aState);
-				next.Phase  = account_setup_phase::choosing_server;
-				next.Server = account_setup_server::enterprise;
+			// An Enterprise host is added only when the reviewer continues from
+			// the server step, unless a way was already asked for (a link's
+			// sign-in): a pasted link or a card names the host and waits.
+			if (*aEvent.Server == account_setup_server::enterprise && aEvent.Hostname != github_com_hostname && !aEvent.Way.has_value()) {
+				auto next     = fresh(aState);
+				next.Phase    = account_setup_phase::choosing_server;
+				next.Server   = account_setup_server::enterprise;
+				next.Hostname = aEvent.Hostname;
 				return moved(std::move(next), std::move(effects));
 			}
 			return choose_server(aState, *aEvent.Server, aEvent.Hostname, aEvent.Way, std::move(effects));
@@ -310,7 +324,7 @@ namespace bpr::core {
 			case device_authorization_stage::expired:
 			case device_authorization_stage::disabled:
 			case device_authorization_stage::unavailable:
-			case device_authorization_stage::failed:     return refused(aState, account_setup_refusal::not_now);
+			case device_authorization_stage::failed:      return refused(aState, account_setup_refusal::not_now);
 			}
 			if (next == aState) {
 				return refused(aState, account_setup_refusal::not_now);
@@ -330,7 +344,9 @@ namespace bpr::core {
 				// Before any way started there is nothing to confirm: a remembered
 				// connection validated at launch simply ends the setup.
 				if (aState.Phase == account_setup_phase::choosing_server || aState.Phase == account_setup_phase::choosing_way) {
-					return moved(fresh(aState));
+					auto next      = fresh(aState);
+					next.Automatic = false;
+					return moved(std::move(next));
 				}
 				auto next     = aState;
 				next.Phase    = account_setup_phase::connected;
@@ -387,7 +403,7 @@ namespace bpr::core {
 			case account_setup_phase::idle:
 			case account_setup_phase::choosing_server:
 			case account_setup_phase::connecting:
-			case account_setup_phase::connected:       return refused(aState, account_setup_refusal::not_now);
+			case account_setup_phase::connected:        return refused(aState, account_setup_refusal::not_now);
 			case account_setup_phase::preparing_server:
 			case account_setup_phase::choosing_way:
 			case account_setup_phase::requesting_code:
@@ -395,7 +411,7 @@ namespace bpr::core {
 			case account_setup_phase::browser_stopped:
 			case account_setup_phase::inspecting_cli:
 			case account_setup_phase::choosing_account:
-			case account_setup_phase::entering_token:  break;
+			case account_setup_phase::entering_token:   break;
 			}
 			return moved(at_server(aState), cancel_browser(aState));
 		}
@@ -459,7 +475,9 @@ namespace bpr::core {
 			if (aState.Phase == account_setup_phase::idle || aState.Phase == account_setup_phase::connecting) {
 				return refused(aState, account_setup_refusal::not_now);
 			}
-			return moved(fresh(aState), cancel_browser(aState));
+			auto next      = fresh(aState);
+			next.Automatic = false;
+			return moved(std::move(next), cancel_browser(aState));
 		}
 	} // namespace
 
@@ -588,13 +606,22 @@ namespace bpr::core {
 		return account_setup_step::server;
 	}
 
+	auto account_setup_superseded(const account_setup_state& aState) noexcept -> bool
+	{
+		return aState.Automatic && (aState.Phase == account_setup_phase::choosing_server || aState.Phase == account_setup_phase::choosing_way);
+	}
+
 	auto transition_account_setup(const account_setup_state& aState, const account_setup_event& aEvent) -> account_setup_transition
 	{
 		return std::visit(
 			[&aState](const auto& aValue) -> account_setup_transition {
 				using event = std::decay_t<decltype(aValue)>;
 				if constexpr (std::is_same_v<event, begin_account_setup>) {
-					return on_begin(aState, aValue);
+					auto result = on_begin(aState, aValue);
+					if (result.Refusal == account_setup_refusal::none) {
+						result.State.Automatic = aValue.Automatic;
+					}
+					return result;
 				} else if constexpr (std::is_same_v<event, choose_account_setup_server>) {
 					if (aState.Phase != account_setup_phase::choosing_server) {
 						return refused(aState, account_setup_refusal::not_now);

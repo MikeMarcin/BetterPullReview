@@ -174,6 +174,13 @@ namespace {
 		const auto unnamed = apply(account_setup_state{ }, begin(account_setup_server::enterprise));
 		expect(unnamed.State.Phase == account_setup_phase::choosing_server && unnamed.State.Server == account_setup_server::enterprise,
 			   "Add enterprise server opens the server step with Enterprise picked");
+		const auto viaGh = apply(account_setup_state{ }, begin(account_setup_server::enterprise, "ghe.example.com", account_setup_way::github_cli));
+		expect(viaGh.State.Phase == account_setup_phase::inspecting_cli && viaGh.Effects.size() == 1U && viaGh.Effects.front().Kind == account_setup_effect_kind::inspect_github_cli
+				   && viaGh.Effects.front().Hostname == "ghe.example.com",
+			   "gh's way for an Enterprise host asks gh directly; only a token needs the server added");
+		const auto named = apply(account_setup_state{ }, begin(account_setup_server::enterprise, "ghe.example.com"));
+		expect(named.State.Phase == account_setup_phase::choosing_server && named.State.Hostname == "ghe.example.com" && named.Effects.empty(),
+			   "a link or card naming an Enterprise host fills it in and waits: the server is added only on Continue");
 	}
 
 	void test_browser_way()
@@ -297,6 +304,22 @@ namespace {
 		expect(none.Refusal == account_setup_refusal::exhausted && none.Effects.empty(), "exhausted identities ask for nothing");
 	}
 
+	void test_automatic_setup_is_superseded()
+	{
+		auto automatic      = begin();
+		automatic.Automatic = true;
+		const auto home     = apply(account_setup_state{ }, automatic);
+		expect(home.State.Automatic && core::account_setup_superseded(home.State), "a setup Home began by itself is superseded by an account");
+		const auto way = apply(home.State, server(account_setup_server::github_com));
+		expect(core::account_setup_superseded(way.State), "still at the ways, it still is");
+		const auto started = apply(way.State, core::choose_account_setup_way{ .Way = account_setup_way::browser });
+		expect(!core::account_setup_superseded(started.State), "once a way started it is the reviewer's");
+		const auto asked = apply(account_setup_state{ }, begin());
+		expect(!core::account_setup_superseded(asked.State), "Add account and Use another account are never superseded");
+		const auto closed = apply(home.State, core::finish_account_setup{ });
+		expect(closed.State.Phase == account_setup_phase::idle && !closed.State.Automatic, "finishing clears how it began");
+	}
+
 	void test_determinism_and_names()
 	{
 		const auto state = apply(at_github_com(), core::choose_account_setup_way{ .Way = account_setup_way::github_cli }).State;
@@ -322,6 +345,7 @@ auto main() -> int
 	test_adopts_a_device_flow_begun_elsewhere();
 	test_github_cli_way();
 	test_restart_finish_and_sessions();
+	test_automatic_setup_is_superseded();
 	test_determinism_and_names();
 	std::cout << "account-setup-tests:pass\n";
 	return EXIT_SUCCESS;

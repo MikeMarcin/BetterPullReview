@@ -148,14 +148,14 @@ namespace bpr::core {
 	/// \brief The setup as values.
 	struct account_setup_state
 	{
-		account_setup_phase                Phase = account_setup_phase::idle;
+		account_setup_phase                 Phase = account_setup_phase::idle;
 		std::optional<account_setup_server> Server;
 		/// The server's hostname: `github.com`, or the Enterprise host; once
 		/// connected, the accepted session's host.
-		std::string                        Hostname;
+		std::string Hostname;
 		/// The Enterprise server's native profile, once added.
-		std::optional<host_profile_id>     ServerProfile;
-		std::optional<account_setup_way>   Way;
+		std::optional<host_profile_id>   ServerProfile;
+		std::optional<account_setup_way> Way;
 		/// A way asked for before the Enterprise server was added.
 		std::optional<account_setup_way>   Intended;
 		std::vector<account_setup_account> Accounts;
@@ -166,12 +166,20 @@ namespace bpr::core {
 		/// The identity of the newest effect the setup asked for. A completion
 		/// that names another is stale and changes nothing.
 		std::uint64_t Request = 0U;
+		/// Home began it by itself; a window that turns out to have an account
+		/// before any way started ends it (see `account_setup_superseded`).
+		bool Automatic = false;
 
 		auto operator<=>(const account_setup_state&) const = default;
 	};
 
 	/// \brief The step a state shows.
 	[[nodiscard]] auto account_setup_step_of(const account_setup_state& aState) noexcept -> account_setup_step;
+
+	/// \brief Whether a window that has an account should end this setup: one
+	/// Home began by itself that has not started a way. A setup the reviewer
+	/// asked for (Add account, Use another account) is never superseded.
+	[[nodiscard]] auto account_setup_superseded(const account_setup_state& aState) noexcept -> bool;
 
 	/// \brief Every way in begins (or begins again) the one setup: Home's
 	/// first run, Settings' Add account, Use another account, a server card's
@@ -182,6 +190,9 @@ namespace bpr::core {
 		std::optional<account_setup_server> Server;
 		std::string                         Hostname;
 		std::optional<account_setup_way>    Way;
+		/// Home began it by itself because the window had no account; no one
+		/// asked for it.
+		bool Automatic = false;
 	};
 
 	/// \brief The server step's choice. `Hostname` is the Enterprise host as

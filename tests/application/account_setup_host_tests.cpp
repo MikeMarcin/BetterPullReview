@@ -183,6 +183,8 @@ namespace {
 
 		auto stale = fixture{ };
 		stale.Host.dispatch(begin(account_setup_server::enterprise, "ghe.example.com"));
+		expect(stale.Effects.Servers.empty(), "a named host is not added before Continue");
+		stale.Host.dispatch(server(account_setup_server::enterprise, "ghe.example.com"));
 		const auto first = stale.Effects.Servers.back().first;
 		stale.Host.dispatch(core::return_to_account_setup_server{ });
 		auto late    = core::enterprise_server_prepared{ };
