@@ -767,7 +767,7 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 | [RFC-BPR-0101](RFC-BPR-0101-agent-chat-conventions.md) | One set of conventions for every agent chat: references, send key, cost and colour | Auto-Verified | None |
 | [RFC-BPR-0102](RFC-BPR-0102-agent-questions-say-what-they-point-at.md) | An agent question says what it points at, and a suggestion always sends | Auto-Verified | None |
 | [RFC-BPR-0103](RFC-BPR-0103-agent-work-is-visible-and-a-turn-ends-when-the-work-does.md) | Agent work is visible, and a turn ends when the work does | Auto-Verified | None |
-| [RFC-BPR-0104](RFC-BPR-0104-agent-scratch-folder-and-opt-in-builds.md) | A scratch folder for agent scripts, and opt-in builds and tests | Proposed | None |
+| [RFC-BPR-0104](RFC-BPR-0104-agent-scratch-folder-and-opt-in-builds.md) | A scratch folder for agent scripts, and opt-in builds and tests | Auto-Verified | None |
 | [RFC-BPR-0105](RFC-BPR-0105-a-review-opens-fresh-and-a-submission-always-ends.md) | A review opens fresh, and a submission always ends | Auto-Verified | None |
 | [RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) | A tour stop shows its code on arrival and is accepted the way a file is | Proposed | None |
 | [RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md) | Share selected agents and prompts | Auto-Verified | None |
