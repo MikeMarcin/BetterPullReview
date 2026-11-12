@@ -124,6 +124,7 @@ add_library(
         src/agent_setup.cpp
         src/agent_turn.cpp
         src/clone_discovery.cpp
+        src/local_draft.cpp
         src/review_skill.cpp
         src/agent_session.cpp
         src/review_queue_attention.cpp
