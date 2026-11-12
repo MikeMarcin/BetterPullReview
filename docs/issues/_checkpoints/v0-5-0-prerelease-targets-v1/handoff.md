@@ -1922,3 +1922,61 @@ owner. A Reject's note is a follow-up; BPR-2138's behavioural criteria are
 met without it. Remove the root with `scripts/freeze_attended_build.py
 remove` once answered.
 
+
+## agent-assistance-v1: returning-pull-request (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. The owner added the
+agent-assistance-v1 pack to this lane's queue; P02 settled (one editable
+prompt per action, system prompt). P03 (an answer is a claim, changes no
+state) is unconfirmed and taken as written. Frontend-design was loaded before
+the Qt work. Record: [RFC-BPR-0116](../../../verification/RFC-BPR-0116.md).
+
+| Commit | What |
+|---|---|
+| `421cecc34`, `e3f4e7a39` | RFC-BPR-0116 In Progress; ready and claim BPR-2073 |
+| `2567db51e`..`94854701f` | Core `returning_review` (offers, earlier revision, change text, claims, supplement); `evaluate_proposed_fix` acts on a conversation; prompts `review.latest-upload` and `review.proposed-fix` (schema 30); returning supplement; window composition (`window_returning_review.cpp`); Pull Request menu item, Agent tab suggestion and note, thread control, claim line, Ask more; stub answers; fixture `returning-review-v1`; composed courses; regressions (hook lists, settings rows, a stale argv test path in `application_agent_launch`, the settings window's prompt list); app pin resealed |
+| `98dfeb91a` | Outdated thread read at the head by number (from the live check). Product candidate |
+| `4d157eb36` | BPR-2073 Done (AC01, AC02, AC05, AC06) |
+| `c95b68ace`, `72288736c` | Ready and claim BPR-2074 |
+| next commit | BPR-2074 parked `human-review` (AC03, AC04, AC05 pass; AC07 pending) |
+
+Runs at the candidate: `core_returning_review`, `core_agent_chat_scope`,
+`core_agent_question`, `core_review_preparation`, `core_agent_configuration`,
+`application_agent_launch_policy`, `application_agent_launch`,
+`application_writing_delivery`, `sqlite_workbench_settings_storage`,
+`sqlite_agent_setup_storage`, `sqlite_agent_configuration_storage`,
+`application_profile_tour_handoff_public_path`, `tour_cli_composition`,
+`application_returning_review_{latest,addressed,gone}_public_path`,
+`qt_settings_window`, `qt_conversation_cards_view`,
+`qt_workbench_window_scale_100`, `qt_agent_configuration_dialogs`,
+`application_agent_chat_{subject,conversation,composition}_contract`,
+`application_agent_invocation_composition_contract`,
+`application_composition_source_contract`,
+`application_review_round_trip_composition_contract`,
+`architecture_boundaries`, `test_network_isolation_manifest`, clang-format 22
+on the changed files, documentation gate. Live: disposable BPR-Test #180
+(MikeMarcinTest's fork; review, push, GraphQL read; closed, branch deleted);
+no live agent call.
+
+Filed, awaiting the owner (not waited on; the URL stays in the session
+state): session `ff82755e1b9fba2463ef8b257a6de0f5`, state
+`/Users/jaeger/.attended-review-state/returning-review-v001-2026-11-12/state`,
+cursor 6, host PID 48480 (its `tailscale serve` child 48488), candidates
+`BPR-2073-what-changed` and `BPR-2074-was-addressed` (one Accept/Reject each);
+frozen root `/Users/jaeger/returning-review-v001.34b39a8g` from `72288736c`
+(app SHA-256 `7ffda3265ccf…`, launcher `--check` passed on both heads; the
+look is the composed course, `returning_review_public_path latest|addressed
+STUB --attended`, run from the root).
+
+Disk: removed my own relinkable binaries in `build/dev` (agent chat and
+invocation composition courses, profile tour handoff course, Qt workbench
+and settings window tests); a named build relinks them.
+
+Not touched: sessions 6d00826a… (75022/75032) and dfc73933… (6341/6351) and
+their roots, PIDs 74290, 74692/74706, 10695, 39804, Tailscale 44738,
+BPR-Test #152 and `-next`.
+
+Next: read session `ff82755e…` after hand-back. Accept of both: finish
+BPR-2074 (AC07), stop host 48480, remove the root with
+`freeze_attended_build.py remove`. BPR-2075 (closeout, installed agent as
+well as the stub) follows. Next milestone in plan order: `explain-file`.
