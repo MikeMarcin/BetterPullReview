@@ -13,9 +13,10 @@ namespace bpr::application {
 	/// \details The changed paths, and each review and review comment the read
 	/// identified by the provider's numeric identity, paired with the
 	/// conversation identity the window's projection gives it. An
-	/// authenticated read names review comments by node identity alone, so it
-	/// contributes no review comment here; a signed-out read names them by
-	/// their REST identity and contributes them all.
+	/// authenticated read names review comments by node identity, and
+	/// contributes those whose read also carried the numeric identity
+	/// (`github_comment_observation::DatabaseId`); a signed-out read names
+	/// them by their REST identity and contributes them all.
 	struct pull_request_link_location_facts
 	{
 		std::vector<std::string>                              ChangedPaths;

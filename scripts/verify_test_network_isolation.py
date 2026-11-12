@@ -871,6 +871,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # QTemporaryDir's canonicalFilePath: the tour courses exit there silently, the
     # others say "private data root" ("private data root exists" for the drain).
     "application_review_tour_cold_import_public_path": "dos-volume-name",
+    # The cold course's sibling: the description's tour link opens the tour.
+    "application_review_tour_link_public_path": "unmeasured (registered on macOS)",
     "application_review_tour_composition_public_path": "dos-volume-name",
     "application_review_tour_composition_scale_125": "dos-volume-name",
     "application_review_tour_composition_scale_200": "dos-volume-name",

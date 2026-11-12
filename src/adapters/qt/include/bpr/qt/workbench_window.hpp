@@ -1833,6 +1833,11 @@ namespace bpr::qt {
 		/// the gesture to `set_markdown_link_dispatch`, which admits it again before
 		/// anything opens. Without it a link answers unavailable and opens nothing.
 		void set_markdown_link_address_dispatch(std::function<std::expected<std::string, core::markdown_link_result>(const core::markdown_link_intent&)> aDispatch);
+		/// \brief Asked first when a body link is clicked: true when the
+		/// composition showed it in the window (a published tour, a place in
+		/// this pull request), so no link question is asked and nothing opens
+		/// in the browser; false keeps the question.
+		void set_markdown_in_app_link_dispatch(std::function<bool(const core::markdown_link_intent&)> aDispatch);
 		/// \brief The open link question, while one is shown.
 		[[nodiscard]] auto external_link_confirmation() const noexcept -> QDialog*;
 		/// \brief RFC-BPR-0084. Sends a rendered body's image references, with this
@@ -3428,6 +3433,7 @@ namespace bpr::qt {
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)>                             MarkdownDispatch;
 		std::function<std::expected<std::string, core::markdown_link_result>(const core::markdown_link_intent&)> MarkdownAddressDispatch;
 		QPointer<QDialog>                                                                                        LinkConfirmation;
+		std::function<bool(const core::markdown_link_intent&)>                                                   MarkdownInAppDispatch;
 		std::function<void(const core::markdown_image_intent&)>                                                  MarkdownImageDispatch;
 		qt::identity_avatar_pictures*                                                                            AvatarPictures = nullptr;
 		/// [[BPR-1807]]. The profile, host and account the pictures were asked under.

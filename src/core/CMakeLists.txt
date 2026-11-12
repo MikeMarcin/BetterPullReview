@@ -168,6 +168,7 @@ add_library(
         src/sha1_collision_detecting.cpp
         src/sha256_hacl.cpp
         src/theme_exchange.cpp
+        src/pull_request_link_route.cpp
         src/pull_request_location.cpp
         src/pull_request_refusal.cpp
         src/setup_destination.cpp

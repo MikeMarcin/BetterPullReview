@@ -3421,8 +3421,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# existing path-omitted refusal line. No grant, credential, provider,
 	# mutation branch, publication or source-inventory change; the full-app and
 	# mutation pins are unchanged.
+	# In-PR link routing reseal (2026-11-11): window_navigation.cpp binds the
+	# window's in-app link dispatch under the same weak/Closing/current-window
+	# admission as the link question; window_tours.cpp (follow_in_app_link,
+	# open_linked_tour) opens a published tour through the existing import and
+	# Start tour path, Overview's Comments or Commits tab, Review, the commit
+	# filter's show-only gesture, or the BPR-0987 pending link location;
+	# window_composition.hpp declares them. No grant, credential, provider,
+	# mutation branch, publication or source-inventory change; the full-app and
+	# mutation pins are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "52eb4c525570d3e10dd4559244a8034c12b91e3d5656b99452ba44af9065c631"
+        "2cbe1999453c9e59fefd70d27a3a7ead53b8cae8b9944faabfa80fe38dcda16d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

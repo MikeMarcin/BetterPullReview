@@ -1305,6 +1305,12 @@ DefectThreadNames.reset();
 			}
 			return WindowRead->markdown_link_address(aIntent, Profile->WindowBrowser);
 		});
+		// A link into this pull request that the window shows itself (a
+		// published tour, its conversation, Review, a file, a review or a
+		// comment) opens here, with no question and no browser.
+		Window->set_markdown_in_app_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
+			return !weak.expired() && !Closing && Profile->current_window(DraftWindow) && follow_in_app_link(aIntent);
+		});
 		Window->set_markdown_image_dispatch([this, weak](const core::markdown_image_intent& aIntent) {
 			if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
 				WindowRead->request_markdown_images(aIntent);

@@ -571,6 +571,17 @@ namespace bpr::application {
 
 	void review_tour_host::observe_imports(std::vector<core::tour_import_candidate> aCandidates) { Implementation->observe_imports(std::move(aCandidates)); }
 	void review_tour_host::import_selected(std::size_t aIndex) { Implementation->import_selected(aIndex); }
+	auto review_tour_host::import_roots() const -> std::vector<core::tour_remote_binding>
+	{
+		std::vector<core::tour_remote_binding> roots;
+		roots.reserve(Implementation->Imports.size());
+		for (const auto& candidate : Implementation->Imports) {
+			// Discovery always binds a candidate to its index comment; an
+			// unbound one keeps its place and matches nothing.
+			roots.push_back(candidate.Draft.Remote.value_or(core::tour_remote_binding{ }));
+		}
+		return roots;
+	}
 
 	void review_tour_host::observe_source(core::tour_code_destination aSource)
 	{

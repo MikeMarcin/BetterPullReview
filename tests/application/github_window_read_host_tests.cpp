@@ -2,6 +2,7 @@
 #include "bpr/application/github_read_admission.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/reference_page.hpp"
 #include <cstdlib>
 #include <expected>
@@ -1537,6 +1538,94 @@ namespace {
 		expect(host.is_quiescent() && host.open_markdown_link(gesture, &opener) == core::markdown_link_result::stale, "shutdown refuses gestures and drains terminals");
 	}
 
+	/// A link into the open pull request that the window shows itself is
+	/// decided here, with no browser and no effect; every other link keeps
+	/// its question.
+	void test_markdown_in_app_links()
+	{
+		reads                                                      provider;
+		application::manual_executor                               lane;
+		std::optional<application::github_pull_request_projection> projected;
+		application::github_window_read_host                       host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 3 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&](const auto& aUpdate) { if (aUpdate.Presentation.PullRequest) { projected = aUpdate.Presentation.PullRequest; } }
+		};
+		expect(host.adopt(session()), "in-app link fixture adopts accepted session");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 42 } });
+		auto       call             = provider.Calls.back();
+		auto       data             = snapshot(call.Request);
+		const auto page             = std::string{ "https://github.com/owner/repo/pull/42" };
+		data.PullRequest.Body       = "[Review tour](" + page + "#pullrequestreview-4001)\n";
+		auto tour                   = application::github_review_record{ .DatabaseId = 4001U, .Review = application::github_review_id{ "PRR_tour" }, .State = application::github_review_state::commented };
+		tour.Observation.DatabaseId = 4001U;
+		auto other                  = application::github_review_record{ .DatabaseId = 4002U, .Review = application::github_review_id{ "PRR_other" }, .State = application::github_review_state::commented };
+		data.Reviews                = { tour, other };
+		auto headCommit             = application::github_commit_record{ };
+		headCommit.Oid              = application::commit_oid{ "3333333333333333333333333333333333333333" };
+		headCommit.Node             = application::github_node_id{ "commit-node-3" };
+		data.Commits.push_back(std::move(headCommit));
+		call.Complete(application::github_pull_request_success{ call.Request, data });
+		lane.drain();
+		expect(projected && projected->MarkdownContext, "the body is published");
+		const auto context = *projected->MarkdownContext;
+		const auto roots   = std::vector<core::tour_remote_binding>{ { .Kind = core::tour_remote_kind::review, .DatabaseId = 4001U, .Entity = "PRR_tour", .WebUrl = page + "#pullrequestreview-4001" } };
+		const auto in      = [&](std::string aDestination) { return host.markdown_in_app_link_of({ context, { }, std::move(aDestination) }, roots, true); };
+
+		const auto opened = in(page + "#pullrequestreview-4001");
+		expect(opened && opened->Decision.Route == core::pull_request_link_route::tour && opened->Decision.Tour == 0U, "the description's tour link opens the offered tour");
+		const auto relative = in("#pullrequestreview-4001");
+		expect(relative && relative->Decision.Route == core::pull_request_link_route::tour, "a fragment written alone names the same tour");
+		const auto review = in(page + "#pullrequestreview-4002");
+		expect(review && review->Decision.Route == core::pull_request_link_route::location && review->Decision.Target.Conversation == "review:PRR_other", "a review that is no tour opens in place");
+		// A signed-in read's thread comment that carries its numeric identity
+		// (GraphQL's fullDatabaseId) is a location fact, as a review is; one
+		// that does not is not guessed.
+		{
+			auto threaded               = data;
+			auto stop                   = application::github_review_comment_record{ };
+			stop.Comment                = application::github_comment_id{ "PRRC_stop" };
+			stop.Observation.DatabaseId = 6001U;
+			auto plain                  = application::github_review_comment_record{ };
+			plain.Comment               = application::github_comment_id{ "PRRC_plain" };
+			auto thread                 = application::github_review_thread_record{ };
+			thread.Thread               = application::github_thread_id{ "PRRT_stop" };
+			thread.Path                 = "src/a.cpp";
+			thread.Comments             = { stop, plain };
+			threaded.ReviewThreads.push_back(std::move(thread));
+			const auto facts = application::pull_request_link_location_facts_of(threaded);
+			expect(facts.ReviewComments.size() == 1U && facts.ReviewComments.front().Identity == 6001U && facts.ReviewComments.front().Conversation == "review-comment:PRRC_stop",
+				   "a thread comment the read numbered is named by that number");
+		}
+		expect(in(page) && in(page)->Decision.Route == core::pull_request_link_route::conversation_page && in(page + "/files")->Decision.Route == core::pull_request_link_route::files_page,
+			   "the page itself and Files changed open in the window");
+		const auto commits = in(page + "/commits");
+		const auto commit  = in(page + "/commits/3333333333333333333333333333333333333333");
+		const auto named   = in(page + "/commits/3333333");
+		expect(commits && commits->Decision.Route == core::pull_request_link_route::commits_page && commit && commit->Decision.Route == core::pull_request_link_route::commit
+				   && commit->Decision.Commit == "3333333333333333333333333333333333333333" && named && named->Decision.Commit == commit->Decision.Commit,
+			   "the Commits page and a commit of the pull request open in the window");
+		for (const auto& external : { std::string{ "https://github.com/owner/repo/pull/43#pullrequestreview-4001" }, std::string{ "https://github.com/owner/other/pull/42#pullrequestreview-4001" },
+									  std::string{ "https://github.com.evil.example/owner/repo/pull/42#pullrequestreview-4001" }, std::string{ "http://github.com/owner/repo/pull/42#pullrequestreview-4001" },
+									  page + "#pullrequestreview-9999", page + "#issuecomment-4001", page + "/commits/0123456789abcdef", page + "/checks", page + "#discussion_r1", std::string{ "https://example.invalid/review" },
+									  std::string{ "https://github.com/owner/repo/blob/main/README.md" }, std::string{ "file:///tmp/secret" } }) {
+			expect(!in(external), "another pull request, a look-alike host, plain http, an unread identity, another page or a foreign link keeps its question");
+		}
+		expect(!host.markdown_in_app_link_of({ context, "absent", page + "#pullrequestreview-4001" }, roots, true), "an absent body lends no authority");
+		const auto untoured = host.markdown_in_app_link_of({ context, { }, page + "#pullrequestreview-4001" }, { }, true);
+		expect(untoured && untoured->Decision.Route == core::pull_request_link_route::location && untoured->Decision.Target.Conversation == "review:PRR_tour", "with no tour offered it is the review itself");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		call = provider.Calls.back();
+		call.Complete(application::github_pull_request_success{ call.Request, data });
+		lane.drain();
+		expect(!in(page + "#pullrequestreview-4001"), "a link from an earlier publication is stale and opens nothing");
+		host.shutdown();
+		lane.drain();
+		expect(host.is_quiescent(), "the host drains");
+	}
+
 }
 namespace {
 	auto limited_error(bool aSecondary, application::github_rate_limit_resource aResource = application::github_rate_limit_resource::core) -> application::github_provider_error
@@ -1770,6 +1859,7 @@ int main()
 	test_merge_observation_freshness();
 	test_durable_overview_lifecycle();
 	test_markdown_link_admission();
+	test_markdown_in_app_links();
 	test_pull_request_page_admission();
 	test_reference_page_opening();
 	test_provisional_checks_are_independent_and_bounded();
