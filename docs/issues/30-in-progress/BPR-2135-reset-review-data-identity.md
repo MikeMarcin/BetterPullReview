@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2135"
 title: "Verify reset removes old review data across file recreation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
