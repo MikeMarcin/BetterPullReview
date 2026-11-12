@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2128"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Home button returns to open review",
+  "created": "2026-11-12T04:03:24.631149+00:00",
+  "base": "5c728323906216f0691f6d66a4e5733cf8a922bf"
+}
