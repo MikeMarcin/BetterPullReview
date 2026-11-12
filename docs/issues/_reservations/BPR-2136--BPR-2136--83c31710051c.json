@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2136"
+  ],
+  "reserve_for": "linux60-multiwindow-receipt",
+  "purpose": "",
+  "created": "2026-11-12T15:47:26.969774+00:00",
+  "base": "06de4f839eaa62f9ed030aa647aedfd8ea6049f3"
+}
