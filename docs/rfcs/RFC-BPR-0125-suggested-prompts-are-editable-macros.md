@@ -773,7 +773,6 @@ weakening it.
 
 ### Milestone 7: closeout
 
-- **AC25:** [ai-experience.md](../ux/ai-experience.md) and the
-  [system architecture](../architecture/system-architecture.md)'s feature
-  allocation describe suggested prompts as macros, the amendments above are
+- **AC25:** `docs/ux/ai-experience.md` and the feature allocation in
+  `docs/architecture/system-architecture.md` describe suggested prompts as macros, the amendments above are
   applied to their RFCs, and the documentation gate passes.

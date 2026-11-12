@@ -1,0 +1,16 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2144",
+    "BPR-2145",
+    "BPR-2146",
+    "BPR-2147",
+    "BPR-2148",
+    "BPR-2149",
+    "BPR-2150"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0125 milestones 1-7",
+  "created": "2026-11-12T18:28:37.864456+00:00",
+  "base": "76657d776d13aca2869b71af44b7cd8f507e3544"
+}
