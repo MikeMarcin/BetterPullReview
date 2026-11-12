@@ -210,6 +210,16 @@ and eight writing hooks (`tour.problem`, `tour.solution`, `tour.outline`,
 earlier counts in this section, six, then nine with three Enhance prompts,
 then ten, describe the list as it was at each step.
 
+RFC-BPR-0110 ([[BPR-2026]], 2026-11-12) added the two local-authoring prompts
+as writing hooks in the same list, store and revision (profile schema 28),
+under Built-in prompts › Local drafts. This version now recognizes eleven
+purposes: the nine above, `local.description` (Description writing,
+`local-description-v1`) and `local.discussion` (Change discussion,
+`local-discussion-v1`). Both export, shipped or edited, with their version,
+and an older importer reports them as a purpose it does not recognize. The
+example of an unrecognized purpose in this RFC's tests changed from
+`local.description` to `release.notes`.
+
 ### Owner decision: export the shipped defaults too (2026-11-11)
 
 The owner asked: "Part of the export process will let me export all prompts

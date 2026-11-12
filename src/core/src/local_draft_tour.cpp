@@ -100,67 +100,74 @@ namespace bpr::core::preparation_wire {
 	};
 	struct answer_item
 	{
-		std::string   target;
-		std::uint64_t stop = 0;
-		std::string   title;
-		std::string   text;
-		std::string   path;
-		std::uint32_t first = 0;
-		std::uint32_t last  = 0;
-		std::string   claim;
-		std::string   method;
+		std::string   Target;
+		std::uint64_t Stop = 0;
+		std::string   Title;
+		std::string   Text;
+		std::string   Path;
+		std::uint32_t First = 0;
+		std::uint32_t Last  = 0;
+		std::string   Claim;
+		std::string   Method;
 	};
 } // namespace bpr::core::preparation_wire
 
 namespace pw = bpr::core::preparation_wire;
 
 template <>
+struct glz::meta<pw::answer_item>
+{
+	using value_type            = pw::answer_item;
+	static constexpr auto value = object("target", &value_type::Target, "stop", &value_type::Stop, "title", &value_type::Title, "text", &value_type::Text, "path", &value_type::Path,
+										 "first", &value_type::First, "last", &value_type::Last, "claim", &value_type::Claim, "method", &value_type::Method);
+};
+template <>
 struct glz::meta<pw::binding>
 {
-	using T                     = pw::binding;
-	static constexpr auto value = object("candidate", &T::Candidate, "path", &T::Path, "side", &T::Side, "first", &T::First, "last", &T::Last, "excerpt", &T::Excerpt);
+	using value_type            = pw::binding;
+	static constexpr auto value = object("candidate", &value_type::Candidate, "path", &value_type::Path, "side", &value_type::Side, "first", &value_type::First, "last", &value_type::Last, "excerpt", &value_type::Excerpt);
 };
 template <>
 struct glz::meta<pw::destination>
 {
-	using T                     = pw::destination;
-	static constexpr auto value = object("candidate", &T::Candidate, "correspondence", &T::Correspondence, "first", &T::First, "last", &T::Last);
+	using value_type            = pw::destination;
+	static constexpr auto value = object("candidate", &value_type::Candidate, "correspondence", &value_type::Correspondence, "first", &value_type::First, "last", &value_type::Last);
 };
 template <>
 struct glz::meta<pw::stop>
 {
-	using T                     = pw::stop;
-	static constexpr auto value = object("id", &T::Id, "title", &T::Title, "text", &T::Text, "source", &T::Source, "earlier", &T::Earlier, "citations", &T::Citations, "attention",
-										 &T::Attention, "current", &T::Current, "revision", &T::Revision, "accepted", &T::Accepted, "fingerprint", &T::Fingerprint);
+	using value_type            = pw::stop;
+	static constexpr auto value = object("id", &value_type::Id, "title", &value_type::Title, "text", &value_type::Text, "source", &value_type::Source, "earlier", &value_type::Earlier, "citations", &value_type::Citations, "attention",
+										 &value_type::Attention, "current", &value_type::Current, "revision", &value_type::Revision, "accepted", &value_type::Accepted, "fingerprint", &value_type::Fingerprint);
 };
 template <>
 struct glz::meta<pw::proposal>
 {
-	using T                     = pw::proposal;
-	static constexpr auto value = object("id", &T::Id, "target", &T::Target, "conversation", &T::Conversation, "candidate", &T::Candidate, "stop", &T::Stop, "base", &T::Base, "title",
-										 &T::Title, "text", &T::Text, "source", &T::Source, "claim", &T::Claim, "method", &T::Method, "producer", &T::Producer, "version", &T::Version,
-										 "state", &T::State);
+	using value_type            = pw::proposal;
+	static constexpr auto value = object("id", &value_type::Id, "target", &value_type::Target, "conversation", &value_type::Conversation, "candidate", &value_type::Candidate, "stop", &value_type::Stop, "base", &value_type::Base, "title",
+										 &value_type::Title, "text", &value_type::Text, "source", &value_type::Source, "claim", &value_type::Claim, "method", &value_type::Method, "producer", &value_type::Producer, "version", &value_type::Version,
+										 "state", &value_type::State);
 };
 template <>
 struct glz::meta<pw::turn>
 {
-	using T                     = pw::turn;
-	static constexpr auto value = object("author", &T::Author, "subject", &T::Subject, "text", &T::Text, "proposals", &T::Proposals, "cost", &T::Cost, "at", &T::At);
+	using value_type            = pw::turn;
+	static constexpr auto value = object("author", &value_type::Author, "subject", &value_type::Subject, "text", &value_type::Text, "proposals", &value_type::Proposals, "cost", &value_type::Cost, "at", &value_type::At);
 };
 template <>
 struct glz::meta<pw::conversation>
 {
-	using T                     = pw::conversation;
-	static constexpr auto value = object("id", &T::Id, "candidate", &T::Candidate, "thread", &T::Thread, "agent", &T::Agent, "agent_name", &T::AgentName, "handle", &T::Handle, "turns",
-										 &T::Turns, "ended", &T::Ended);
+	using value_type            = pw::conversation;
+	static constexpr auto value = object("id", &value_type::Id, "candidate", &value_type::Candidate, "thread", &value_type::Thread, "agent", &value_type::Agent, "agent_name", &value_type::AgentName, "handle", &value_type::Handle, "turns",
+										 &value_type::Turns, "ended", &value_type::Ended);
 };
 template <>
 struct glz::meta<pw::preparation>
 {
-	using T                     = pw::preparation;
-	static constexpr auto value = object("body", &T::Body, "body_revision", &T::BodyRevision, "title_revision", &T::TitleRevision, "problem", &T::Problem, "solution", &T::Solution,
-										 "problem_revision", &T::ProblemRevision, "solution_revision", &T::SolutionRevision, "stops", &T::Stops, "next_stop", &T::NextStop, "proposals",
-										 &T::Proposals, "next_proposal", &T::NextProposal, "conversations", &T::Conversations, "next_conversation", &T::NextConversation);
+	using value_type            = pw::preparation;
+	static constexpr auto value = object("body", &value_type::Body, "body_revision", &value_type::BodyRevision, "title_revision", &value_type::TitleRevision, "problem", &value_type::Problem, "solution", &value_type::Solution,
+										 "problem_revision", &value_type::ProblemRevision, "solution_revision", &value_type::SolutionRevision, "stops", &value_type::Stops, "next_stop", &value_type::NextStop, "proposals",
+										 &value_type::Proposals, "next_proposal", &value_type::NextProposal, "conversations", &value_type::Conversations, "next_conversation", &value_type::NextConversation);
 };
 
 namespace bpr::core {
@@ -1177,10 +1184,10 @@ namespace bpr::core {
 		if (proposal_stale(aDraft, *found)) {
 			return std::unexpected{ preparation_refusal::proposal_stale };
 		}
-		const auto proposal = *found;
-		auto       next     = advanced(aDraft, aNow);
-		auto&      prep     = next.Preparation;
-		const auto origin   = evidence_origin{ .Source = evidence_source::agent, .Producer = proposal.Producer.empty() ? "agent" : proposal.Producer, .Version = proposal.Version };
+		const auto& proposal = *found;
+		auto        next     = advanced(aDraft, aNow);
+		auto&       prep     = next.Preparation;
+		const auto  origin   = evidence_origin{ .Source = evidence_source::agent, .Producer = proposal.Producer.empty() ? "agent" : proposal.Producer, .Version = proposal.Version };
 		switch (proposal.Target) {
 		case local_proposal_target::title:
 			if (proposal.Text.empty() || !line_ok(proposal.Text, maximum_local_draft_title_bytes)) {
@@ -1540,20 +1547,20 @@ namespace bpr::core {
 			return answer;
 		}
 		for (const auto& item : items) {
-			const auto target = enum_from(item.target, all_targets);
+			const auto target = enum_from(item.Target, all_targets);
 			if (!target) {
 				answer.Malformed = true;
 				continue;
 			}
 			answer.Proposals.push_back({ .Target    = *target,
-										 .Stop      = item.stop,
-										 .Title     = item.title,
-										 .Text      = item.text,
-										 .Path      = item.path,
-										 .FirstLine = item.first,
-										 .LastLine  = item.last,
-										 .Claim     = enum_from(item.claim, all_claims).value_or(claim_kind::other),
-										 .Method    = enum_from(item.method, all_methods).value_or(check_method::test) });
+										 .Stop      = item.Stop,
+										 .Title     = item.Title,
+										 .Text      = item.Text,
+										 .Path      = item.Path,
+										 .FirstLine = item.First,
+										 .LastLine  = item.Last,
+										 .Claim     = enum_from(item.Claim, all_claims).value_or(claim_kind::other),
+										 .Method    = enum_from(item.Method, all_methods).value_or(check_method::test) });
 		}
 		auto prose = std::string{ aText.substr(0U, open) } + std::string{ aText.substr(close + 3U) };
 		while (!prose.empty() && (prose.back() == '\n' || prose.back() == ' ')) {

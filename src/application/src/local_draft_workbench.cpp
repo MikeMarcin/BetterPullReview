@@ -1066,7 +1066,8 @@ namespace bpr::application {
 					out.Request = core::compose_local_request(draft, local, core::current_conversation(draft, question.Thread, question.Agent), out.Files);
 					return out;
 				},
-				[question = std::move(aQuestion), ordinal = latest->Ordinal](implementation& aSelf, prepared aPrepared) mutable {
+				// Both lanes read their own copy: argument order is unspecified.
+				[question = aQuestion, ordinal = latest->Ordinal](implementation& aSelf, prepared aPrepared) mutable {
 					auto& view = aSelf.Projection;
 					if (!aPrepared.Request) {
 						view.Asking     = false;

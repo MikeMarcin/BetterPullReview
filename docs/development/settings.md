@@ -159,6 +159,16 @@ skill follows it; **Reset to built-in** restores the default. Add as draft
 comment and **Draft all** on a reply start from what it writes. `bpr tour
 hooks show|edit|reset suggested-comment` edits it too.
 
+#### Local drafts
+
+**Agents & context > Built-in prompts > Local drafts** holds the two prompts a
+local PR draft's agent questions carry (RFC-BPR-0110): **Description writing**,
+sent when you ask about the draft's title or description, and **Change
+discussion**, sent with every other question in its Tour and Description
+areas. Both cite code as `path:first-last` in the candidate and keep moved
+behaviour described as kept. Each has **Reset to built-in**, and both are
+in Export configuration… and Import configuration….
+
 See the [AI agent boundary](../architecture/ai-agent-boundary.md) for exactly
 what an agent receives and may do.
 

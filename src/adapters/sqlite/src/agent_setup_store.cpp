@@ -300,18 +300,28 @@ namespace bpr::adapters::sqlite {
 					 std::pair{ std::string_view{ "configuration_import_journal" },
 								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 9),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 												  "text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)" } } }) {
-				const auto narrow = detail::scalar_integer(db, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" + std::string{ table } + "' AND sql LIKE '%hook BETWEEN 0 AND 7%'");
+				auto query = std::string{ "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" };
+				query += table;
+				query += "' AND sql LIKE '%hook BETWEEN 0 AND 7%'";
+				const auto narrow = detail::scalar_integer(db, query);
 				if (!narrow) {
 					return { };
 				}
 				if (*narrow == 0) {
 					continue;
 				}
-				const auto name = std::string{ table };
-				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, "ALTER TABLE " + name + " RENAME TO narrow_" + name)
-					|| !detail::execute(db, "CREATE TABLE " + name + "(" + std::string{ definition } + ") STRICT")
-					|| !detail::execute(db, "INSERT INTO " + name + " SELECT * FROM narrow_" + name) || !detail::execute(db, "DROP TABLE narrow_" + name)
-					|| !detail::execute(db, "COMMIT")) {
+				const auto statement = [table](std::string aBefore, const std::string_view aMiddle, const std::string_view aAfter) {
+					aBefore += table;
+					aBefore += aMiddle;
+					aBefore += aAfter;
+					return aBefore;
+				};
+				auto rename = statement("ALTER TABLE ", " RENAME TO narrow_", { });
+				rename += table;
+				auto copy = statement("INSERT INTO ", " SELECT * FROM narrow_", { });
+				copy += table;
+				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, rename) || !detail::execute(db, statement("CREATE TABLE ", "(", definition) + ") STRICT")
+					|| !detail::execute(db, copy) || !detail::execute(db, statement("DROP TABLE narrow_", { }, { })) || !detail::execute(db, "COMMIT")) {
 					static_cast<void>(detail::execute(db, "ROLLBACK"));
 					return { };
 				}

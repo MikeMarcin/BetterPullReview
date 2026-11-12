@@ -263,14 +263,14 @@ namespace bpr::qt {
 			}
 			send();
 		});
-		const auto decide_selected = [this](const bool aAccept) {
+		const auto decideSelected = [this](const bool aAccept) {
 			const auto* const item = Proposals->currentItem();
 			if (item != nullptr && Dispatch != nullptr && Dispatch->DecideProposal) {
 				Dispatch->DecideProposal(item->data(id_role).toULongLong(), aAccept);
 			}
 		};
-		connect(Accept, &QPushButton::clicked, this, [decide_selected] { decide_selected(true); });
-		connect(Reject, &QPushButton::clicked, this, [decide_selected] { decide_selected(false); });
+		connect(Accept, &QPushButton::clicked, this, [decideSelected] { decideSelected(true); });
+		connect(Reject, &QPushButton::clicked, this, [decideSelected] { decideSelected(false); });
 		connect(Proposals, &QListWidget::currentItemChanged, this, [this] { present_proposals(); });
 		connect(Transcript, &QLabel::linkActivated, this, [this](const QString& aLink) {
 			// A reference resolves against the candidate and opens it there (X09).
@@ -818,7 +818,7 @@ namespace bpr::qt {
 			PendingLines = lines;
 			StopLines->setText(lines_text(lines->Path, lines->First, lines->Last) + QStringLiteral(" (not saved)"));
 		});
-		const auto save_stop = [this] {
+		const auto saveStop = [this] {
 			const auto stop = selected_stop();
 			if (stop == 0U || Dispatch == nullptr || !Dispatch->SaveStop) {
 				return;
@@ -829,8 +829,8 @@ namespace bpr::qt {
 			StopText->document()->setModified(false);
 			StopTitle->setModified(false);
 		};
-		connect(SaveStop, &QPushButton::clicked, this, save_stop);
-		save_on_command_return(StopText, save_stop);
+		connect(SaveStop, &QPushButton::clicked, this, saveStop);
+		save_on_command_return(StopText, saveStop);
 		connect(AcceptStop, &QPushButton::clicked, this, [this] {
 			if (const auto stop = selected_stop(); stop != 0U && Dispatch != nullptr && Dispatch->AcceptStop) {
 				Dispatch->AcceptStop(stop);

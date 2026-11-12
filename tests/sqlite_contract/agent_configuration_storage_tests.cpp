@@ -235,6 +235,46 @@ try {
 	decision.drain();
 	expect(refused && refused->Refusal == core::configuration_file_refusal::not_a_configuration, "a foreign file is refused by name");
 
+	// RFC-BPR-0110 AC04: the two local-authoring prompts are prompts like the
+	// others: an edited one and a shipped one export with their versions and
+	// are recognized on import.
+	store_hook(sender, core::writing_hook::local_discussion, "Answer in two sentences, then propose.");
+	const auto local_snapshot = sender_store->load();
+	expect(local_snapshot.has_value(), "the sender's snapshot reads again");
+	const auto local_prompts = std::vector<application::exported_prompt>{ { .Purpose = "local.discussion" }, { .Purpose = "local.description", .BuiltIn = true } };
+	const auto local_bytes   = application::export_agent_configuration(*local_snapshot, { }, local_prompts, "Local", "BetterPullReview test");
+	expect(local_bytes && local_bytes->find("local-description-v1") != std::string::npos && local_bytes->find("Answer in two sentences, then propose.") != std::string::npos,
+		   "both export, the shipped one with its version");
+	const auto local_decoded = core::decode_agent_configuration(*local_bytes, application::local_prompts(*store->load()), application::prompt_aliases());
+	expect(local_decoded && local_decoded->Prompts.size() == 2U && !local_decoded->Prompts[0].Problem && !local_decoded->Prompts[1].Problem,
+		   "this version recognizes both purposes on import");
+
+	// RFC-BPR-0110: a store an earlier build made checks hooks 0 to 7; the
+	// next open rebuilds both hook tables for ten hooks, keeping their rows.
+	{
+		auto* db = static_cast<sqlite3*>(nullptr);
+		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the file opens");
+		const auto narrow = std::string{ "DROP TABLE prompt_provenance; CREATE TABLE prompt_provenance(hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 7),"
+										 "text_digest BLOB NOT NULL CHECK(length(text_digest)=32),version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT;"
+										 "INSERT INTO prompt_provenance VALUES(0, zeroblob(32), 'review-preparation-v1');"
+										 "DROP TABLE configuration_import_journal; CREATE TABLE configuration_import_journal(hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 7),"
+										 "revision_after INTEGER NOT NULL CHECK(revision_after >= 1),text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT" };
+		expect(sqlite3_exec(db, narrow.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "an earlier build's narrow hook tables");
+		sqlite3_close(db);
+	}
+	const auto widened = adapters::sqlite::make_agent_configuration_store(recipient);
+	expect(widened->record_written_against(core::writing_hook::local_discussion, "Be brief.", application::local_discussion_hook_version), "the widened table takes hook 9");
+	{
+		auto* db = static_cast<sqlite3*>(nullptr);
+		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the file opens again");
+		auto* statement = static_cast<sqlite3_stmt*>(nullptr);
+		expect(sqlite3_prepare_v2(db, "SELECT count(*) FROM prompt_provenance WHERE hook IN (0, 9)", -1, &statement, nullptr) == SQLITE_OK && sqlite3_step(statement) == SQLITE_ROW
+				   && sqlite3_column_int(statement, 0) == 2,
+			   "the earlier row is kept beside the new one");
+		sqlite3_finalize(statement);
+		sqlite3_close(db);
+	}
+
 	host.shutdown();
 	expect(host.is_quiescent(), "quiescent after shutdown");
 	std::cout << "agent-configuration-storage:pass\n";

@@ -3562,8 +3562,18 @@ function(bpr_verify_app_source_tree app_source_root)
 	# validated web address. The attended look gains --attended-local-draft
 	# and --attended-local-draft-evidence. No grant, account, provider,
 	# admission, mutation or publication change; no network grant.
+	# [[BPR-2026]], [[BPR-2027]], RFC-BPR-0110 (reviewed 2026-11-12): a local
+	# draft's Description and Tour. local_draft_desktop dispatches the areas'
+	# edits to the draft's host and its questions to a composed runner;
+	# window_tours composes that runner as a tool-free writing launch with its
+	# own launcher (no tools, no session saved, an empty folder of its own),
+	# whose only input is the request the host made from the captured
+	# candidate, and gives a local draft's pull request tour the X19
+	# description default from Home's marks. The attended look gains
+	# --attended-local-draft-tour with a scripted agent. No grant, account,
+	# provider, admission, mutation or publication change; no network grant.
 	set(bpr_expected_production_app_manifest_digest
-        "3f5449ebf92add3df23530d1e01054ccbdb57f766f4257145e2055c46dbf5ad1"
+        "4aee7bd57753093e99dded88f9e27e4e3d21b88a7ffc637061e730eea926bed5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

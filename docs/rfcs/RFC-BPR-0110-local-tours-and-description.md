@@ -199,6 +199,74 @@ takes their behaviour from this pack's RFCs. These rules come from the
 - **AC08:** A local tour shows the three bands with no Publish action; arriving at a stop reveals its candidate lines; a stop is accepted with Accept, Save or its own proposal Accept; after an accepted refresh only stops whose correspondence is not exact are Changed since accepted, each with its reason; and its chats show the session line, cost, reference links and running block as a pull request's tour chats do.
 - **AC09:** For a pull request associated with a local draft, "Update PR description after publishing" starts off and cannot change the body without the composed preview, while a pull request with no local draft keeps the existing default; a stop citing evidence that needs recheck is Changed since accepted.
 
+## Implementation record
+
+Milestone `local-tour-preparation`; evidence in the
+[verification ledger](../verification/RFC-BPR-0110.md). Decisions made within
+the behaviour above, for the owner to see:
+
+- **Where it lives.** The description, the tour, proposals and conversations
+  are the local draft's `Preparation` (`core/local_draft_tour.hpp`), stored in
+  the draft's record in `local-drafts.sqlite3`, so they are versioned,
+  resumed, discarded and reset with the draft. Nothing in it names an
+  account, host, repository identity or pull request.
+- **Binding.** A stop binds a candidate's ordinal, path, side, lines and the
+  exact bytes of those lines. On a successor candidate the same bytes at the
+  same lines, or at exactly one other place in the file, are `exact`; at
+  several places `ambiguous`; not there `changed`; a deleted file `missing`;
+  a file the candidate does not keep as text `unavailable`. The stop's own
+  binding never moves; Accept on a later candidate rebinds it to the exact
+  lines and keeps the earlier binding.
+- **Acceptance.** A stop is Accepted on a fingerprint of its title, text,
+  lines and citations. After an accepted refresh only a stop whose
+  correspondence is not exact is Changed since accepted, with that word; a
+  cited result that needs recheck makes it Changed since accepted too.
+  Accept needs exact lines; Save with lines chosen in Changes rebinds and
+  accepts; a stop's own proposal Accept accepts it when its lines are exact.
+- **Description authority.** Title and body are saved together as one edit;
+  the body's bound is 65,536 bytes, refused rather than cut. The tour's
+  Problem and Solution never write it; Add from Tour copies one of them to its
+  end on request. Each field has a revision.
+- **Proposals.** An answer's one `bpr-proposals` block (JSON) proposes a
+  title, description, Problem, Solution, stop text, new stop, claim or
+  planned check. Each records the field revision and the candidate it read;
+  a later edit or refresh makes it stale, readable and refused. A new stop
+  outside the candidate's lines is recorded as such and never accepted. An
+  accepted claim or check enters Evidence accepted, with origin agent and
+  the agent's name and prompt version, and never a result.
+- **Conversations.** One conversation per candidate, thread (`change` or
+  `stop:N`) and agent entry identity; an accepted refresh opens a new one and
+  the Session menu lists earlier ones read-only. History is the stored turns.
+- **The agent route.** This delivery uses the tool-free writing lane only:
+  the draft's host composes one request from the instructions, the draft's
+  preparation, the selected evidence, the replayed turns (12 within 48 KiB)
+  and the candidate's changed files read from the private store, the
+  subject's file first, within 160 KiB, and says how many files it sent. The
+  agent starts in an empty folder with no tools and no saved session, so it
+  cannot read the worktree; every turn replays rather than resumes. The
+  candidate workspace (read-only tools over a materialized candidate) and
+  native resume are not built; agents other than Claude's stream JSON are
+  unavailable here and manual authoring is unaffected.
+- **Prompts.** `local.description` and `local.discussion` are writing hooks
+  (profile schema 28), listed under Built-in prompts › Local drafts,
+  exported and imported like the others (RFC-BPR-0107).
+- **Surface.** The draft page has Changes, Evidence, Description and Tour.
+  Description is the body, Add from Tour, Preview… (the exact title, body and
+  tour text, the unaccepted stops and the pending links) and Save, with the
+  agent bar. Tour is the head (its stops and how many to accept, Add Stop, no
+  Publish), the route (Problem, Solution, the stops with their rings and
+  reason, the selected stop's editor with Show, Use Selection, More, Remove,
+  Accept and Save) and the pinned agent bar (transcript with candidate links,
+  proposals with Accept and Reject, session line with cost, Session menu, Ask
+  in the agent accent).
+- **Mapping.** `map_local_publication` takes an exact publication result
+  (its head, body and files) and anchors only exact stops, with a
+  commit-pinned permalink; the rest stay local with their reason. Creating
+  the pull request is RFC-BPR-0111's; no publication route calls it yet.
+- **X19.** A pull request whose Home row carries a local draft's mark opens
+  its tour with "Update PR description after publishing" off; changing it
+  asks for a new Preview, as every change of that option does.
+
 ## Proposed delivery
 
 [Local narrative and tour ownership](../issues/10-backlog/BPR-2026-add-local-description-and-tour-ownership.md),
