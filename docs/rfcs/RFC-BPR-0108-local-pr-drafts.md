@@ -172,7 +172,7 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
 ## Proposed delivery
 
 [Workspace identity](../issues/60-done/BPR-2019-discover-the-worktree-and-prospective-pr-comparison.md), [durable draft](../issues/60-done/BPR-2020-persist-local-pr-draft-candidates-and-author.md),
-[Home/workbench flow](../issues/30-in-progress/BPR-2021-open-and-resume-local-pr-drafts-from.md), and [closeout](../issues/10-backlog/BPR-2022-close-rfc-0108.md)
+[Home/workbench flow](../issues/40-parked/BPR-2021-open-and-resume-local-pr-drafts-from.md), and [closeout](../issues/10-backlog/BPR-2022-close-rfc-0108.md)
 form the second milestone in the [plan's default order](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
 Sharing remains the owner's first requested delivery; its pending closeout does
 not block independent local-draft engineering within an authorized mandate.
