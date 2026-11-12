@@ -66,11 +66,11 @@ refuses `accept` and `unaccept` from a command client (their kinds follow
 | AC01 | `qt_tour_stop_acceptance_card`: choosing another row, the stop keys, a link to the current and to another stop (`go_to_stop`), reopening the current stop after its ring closed it, and the file-and-lines link each ask for the stop's code; no Show in code exists. Next changed stop goes through `go_to_stop`. `application_review_tour_composition_public_path` and `application_review_tour_cold_import_public_path`: the code shown after an arrival is the stop's exact admitted range | Pass |
 | AC02 | `core_tour_stop_acceptance` (`test_states_and_rings`): new stop, accepted, unchecked at a new head, own lines changed, a linked range gone, unchanged at a new head, moved, and text not accepted each yield their state and reason. `qt_tour_stop_acceptance_card`: each ring and row's accessible text draws its stop's state | Pass |
 | AC03 | `core_tour_stop_acceptance` (`test_what_accepts`): Accept and Save accept; opening (visit) and a relayed Ready do not; an edit never writes what was accepted. `qt_tour_stop_acceptance_card`: Accept on the current stop accepts it and stays; Save accepts; opening the stop and its ring accept nothing. `qt_tour_chat_in_tab`: Accept on the stop's own proposal accepts it once the tour holds its text; Accept all accepts no stop. `application_review_tour_writing`: a hidden Accept accepts nothing | Pass |
-| AC04 | `core_diff_semantics` (`test_tour_acceptance_after_push`): three stops accepted at one head, a real comparison of a push that changes one stop's lines and the lines another links to: exactly those two are Changed since accepted (lines, and `src/a.cpp:5-6`), the third stays Accepted, and Accept at the new head turns the first green. Through the window: `application_review_tour_publication_reconciliation` accepts a published stop, moves the pull request to its second head and checks the stop is Changed since accepted, not compared yet, never green; that fixture's second head is a handoff with no readable content, so no composed course yet shows a comparison of real changed code (see below) | Pass at the core; composed comparison not shown |
+| AC04 | `core_diff_semantics` (`test_tour_acceptance_after_push`): three stops accepted at one head, a real comparison of a push that changes one stop's lines and the lines another links to: exactly those two are Changed since accepted (lines, and `src/a.cpp:5-6`), the third stays Accepted, and Accept at the new head turns the first green. Through the window: `application_review_tour_publication_reconciliation` accepts a published stop, moves the pull request to its second head and checks the stop is Changed since accepted, not compared yet, never green; that fixture's second head is a handoff with no readable content, so no composed course yet shows a comparison of real changed code (see below)  Through the window, on real code ([[BPR-2117]]): `application_review_tour_publication_push` serves `tour-push-v1`, accepts three stops at the first head (review.cpp 2–3, review.cpp 4–5 linking `secondary.cpp:5-6`, secondary.cpp 1–2), refreshes to a pushed head that changes review.cpp line 2 and secondary.cpp line 5, opens the stops at that head and reads each stop's state from the core and its outline row: the first Changed since accepted (`lines_changed`), the second Changed since accepted (`reference_changed`, `secondary.cpp:5-6`), the third Accepted; with its lines chosen at the new head, Accept turns the first green. Negative control: with the window's material check disabled the course fails at "every stop is compared with the pushed head" | Pass |
 | AC05 | `core_tour_stop_acceptance` (`test_publication`): publication refused while any stop is yellow, naming `not_accepted`; allowed once every stop is accepted; Ready alone publishes nothing. The publication courses publish all-accepted tours with their write assertions unchanged (below) | Pass |
 | AC06 | `qt_tour_stop_acceptance_card`: at rest only the title, ring, file-and-lines link, text, Edit and Accept with its reason while yellow; Use selected lines, Enhance, Remove, Cancel and Save only while edited; no Ready, next, Head changed or Show in code; the stop's context menu holds Edit, Open side chat, Insert a stop after, Duplicate, Merge with next, Move up, Move down, Mark not accepted and Remove stop. `qt_tour_stop_card_cleanup`, `qt_workbench_window_scale_*`: related sources stay reachable while edited | Pass |
 | AC07 | `qt_tour_stop_acceptance_card`, `qt_review_tour_agent_setup_call`, `qt_review_tour_agent_failure`, `application_review_tour_writing`: no Suggest an outline or Insert outline. `core_tour_stop_acceptance` (`test_carry_saved_drafts`): an older draft's outline-suggested stops open Not accepted yet and can be accepted; the SQLite codec runs that carry for every payload before version 11, and `sqlite_review_tour_storage` still reads and writes drafts. `bpr tour outline` is unchanged (no change under `src/app/src/tour_cli.cpp`'s outline paths; `application_review_tour_cli_*`) | Pass |
-| AC08 | The owner's look at the stop at rest, being edited, and in each ring state on a frozen build | Pending: owner-attended (below) |
+| AC08 | The owner's look at the stop at rest, being edited, and in each ring state on a frozen build | Pass: owner accepted (sessions `679d26ab…`, `7c920675…`; closeout review below) |
 
 ## AC08: the owner's look
 
@@ -88,7 +88,8 @@ each ring state after a push). Frozen root
 
 ## What no course shows yet
 
-The window compares the accepted code with a new head through the same
+Closed by [[BPR-2117]] (2026-11-11): the push course below. Kept for the
+record: the window compares the accepted code with a new head through the same
 realignment and materialization as the tour's repair preview, once a
 comparison of the new head is on screen (`check_tour_material`, called on
 every tour presentation and every published comparison). No fixture has a
@@ -215,3 +216,31 @@ yet). The agent-run live course found the window's comparison broken on
 sparse heads while the core tests passed, so core evidence alone does not
 close AC04. [[BPR-2117]] (Backlog) adds the composed course and
 [[BPR-2015]] now depends on it.
+
+## BPR-2117: a composed course of a push (2026-11-11)
+
+Fixture `tests/fixtures/github/pull-requests/tour-push-v1` (generated and
+verified by `tests/scripts/verify_tour_push_fixture.py`): the reading
+fixture's two six-line files at a base, a first head changing every line,
+and a second head pushed on the first changing only `review.cpp` line 2 and
+`secondary.cpp` line 5. The reading descriptor serves it when
+`TourPushCourse` is set; the push arrives by the seeded epoch refresh (a
+real refresh of the pull request, which fetches the second pack), not by
+re-accepting a handoff (that path carries no Git transport, which is why the
+reconciliation course could not read the second head).
+
+Course `application_review_tour_publication_push`: output
+`1. Its own lines change. Changed since accepted reason=4`,
+`2. It links to lines that change. Changed since accepted reason=6
+reference=secondary.cpp:5-6`, `3. Nothing of it changes. Accepted`, then
+`review-tour-publication:push:pass`; zero GitHub writes. Negative control:
+`check_tour_material` returning at once, the course fails at "every stop is
+compared with the pushed head". All thirteen publication courses and the
+app source pin pass with it.
+
+## Closeout (2026-11-11)
+
+[[BPR-2015]] judged every criterion against the evidence above; all pass,
+AC04 now through the window on real code. Evidence otherwise reused
+unchanged. Not run: Windows and Linux, the whole dev suite. RFC-BPR-0106 is
+Auto-Verified.

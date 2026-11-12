@@ -1415,3 +1415,42 @@ Not touched: host 74692/74706, PIDs 10695 and 39804, Tailscale 44738,
 BPR-Test #152 and `-next`.
 
 Main mirror commit this round: `1734f1d59` (with `42fba4488`, `8e22a71b0`). Main's copies of the RFC-BPR-0099, 0101, 0102, 0103 and 0105 ledgers keep their earlier de-linked source paths; only this round's changes were applied there.
+
+## Closeout and exposure round (2026-11-11)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner amendments in force
+as above. No Qt surface changed, so frontend-design was not loaded.
+
+| Commit | What |
+|---|---|
+| `57747c640`, `653421192` | Ready, claim BPR-2116 |
+| `f042726a6` | Product: a tour update writes an edited published stop's references as permalinks (window observes the files for a published tour's preview; plan rewrites edited stops in the frozen update tour; `core::tour_stop_text_edited`); native course extended, negative control; app pin resealed |
+| `b54188c7d` | BPR-2116 Done |
+| `9e1656f92`, `7a27a84fd` | BPR-1997: RFC-BPR-0100 Auto-Verified |
+| `7a5bb7de1` | Product: RFC-BPR-0104 fourth review items (every checkout spelling incl. the kernel's path, unresolvable checkout refused, whitespace keys refused, merge wording, opt-in live course `live_agent_checkout_settings` with trusted-home, worktree and firmlink cases) |
+| `189ee5d5d` | BPR-2119 (Backlog, reserved on main): shipped builds load the pull request's agent settings |
+| `560962c3d`, `124d99297`, `38420cb03`, `c72abd4ba` | BPR-2007, BPR-2008 Done |
+| `e0ed7a27a` | WIP BPR-2117: `tour-push-v1` fixture, `TourPushCourse`, course mode `push` (row `application_review_tour_publication_push`), not yet run |
+| `b63c0bacab`, `ad6f7a18d` | BPR-2009: RFC-BPR-0104 Auto-Verified |
+
+Main mirror `1232a90dc` (BPR-2116, 1997, 2007, 2008, BPR-2119). Release
+exposure: [RFC-BPR-0104 ledger](../../../verification/RFC-BPR-0104.md#release-exposure-check-2026-11-11).
+
+| `1d5558c89` | BPR-2117 course passes: the push arrives by the seeded epoch refresh (`EpochPhase` seed, `RepeatReadSessions` off); a re-accepted handoff carries no Git transport, which is why the second head was never readable before |
+| `dd241bb1d`, `90f6ff55c` | BPR-2117 Done (negative control: `check_tour_material` disabled, the course fails at "every stop is compared") |
+| `00356810c`, `d35d139d6` | BPR-2015: RFC-BPR-0106 Auto-Verified |
+
+Runs: all thirteen `application_review_tour_publication_*` courses and
+`application_review_round_trip_composition_contract` together (14/14);
+`core_review_tour_update`; 62 `tour` rows at `f042726a6`;
+`application_agent_{invocation_host,launch,scratch_folder}`, `core_agent_grant`
+at `7a5bb7de1`; the live course (20 runs, real `~/.codex` and `~/.claude`
+untouched); format and clang-tidy on the changed sources; documentation gate.
+Not completed: the 90-row `agent` ctest pass (two session restarts and a
+swapping machine cut it off; rows not run are unknown, not failed).
+
+The reviewer's probe scripts in the session scratchpad (`r4/`) were gone
+after the session restart; the ledger names them.
+
+Next: nothing owed in this round. RFC-BPR-0100, 0104 and 0106 are closed.
+BPR-2119 (main) is the hotfix for shipped builds. BPR-2101 (Backlog) remains.

@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2117"
 title: "A composed course shows a push changing accepted tour stops"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0106"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2116--BPR-2117--f5d986a0e8bc.json","origin":"RFC-BPR-0106 closeout review, 2026-11-11 (ledger, What no course shows yet)","related_cards":["BPR-2014","BPR-2015"]}
 depends_on: []
+acceptance: [{"criterion":"AC04","outcome":"pass","revision":"1d5558c896254ba9d9a74e3a1d88661e43396138","evidence":{"kind":"command","detail":"Composed course on tour-push-v1: exactly two stops Changed since accepted (lines; link secondary.cpp:5-6), third Accepted, Accept at the new head turns the first green; negative control without the material check fails","command":"ctest --preset dev -R application_review_tour_publication_push"}}]
 ---
 
 # A composed course shows a push changing accepted tour stops
@@ -35,3 +36,13 @@ not close AC04. RFC-BPR-0106 stays open ([[BPR-2015]] depends on this card).
 
 The course itself, and a negative control that drops the comparison and
 fails.
+
+## Implementation record
+
+Commits `e0ed7a27a` and `1d5558c89` (test and fixture only; no product
+change). Fixture `tour-push-v1` with its generator and verifier, the
+`TourPushCourse` serving option, and course mode `push` (row
+`application_review_tour_publication_push`). The push reaches the window by
+the seeded refresh; the window opens each stop at the pushed head and its
+material check compares them. Result and negative control:
+[ledger](../../verification/RFC-BPR-0106.md#bpr-2117-a-composed-course-of-a-push-2026-11-11).

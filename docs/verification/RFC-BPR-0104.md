@@ -562,3 +562,13 @@ runs nothing. Reviewers who used Codex this way may hold
 `~/.codex/config.toml`, as this computer did. Hotfix needed on `main` (and in
 a patch release at the owner's choice): [[BPR-2119]] (Backlog, reserved
 against main). Nothing was changed on `main`'s product.
+
+## Closeout (2026-11-11)
+
+[[BPR-2009]] judged every criterion against the evidence above; all pass.
+AC04's question and AC09's New session have no composed course; both read
+the same stored choice the unit, host and storage tests check. Removal by
+pull request state is [[BPR-2101]], outside AC03 as amended. Evidence reused
+unchanged, plus the fourth round's rows and live course. Not run: Windows
+and Linux, the whole dev suite, the core-only preset. RFC-BPR-0104 is
+Auto-Verified. The shipped-build exposure is [[BPR-2119]] (main).
