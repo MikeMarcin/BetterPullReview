@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2134"
 title: "Restore the selected comparison in the submission composition course"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "win", "mac"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2133--BPR-2134--55002d8d830d.json","mandate_revision":"linux-release-blockers-r1","source_baseline":"6efba00e1afbf874c88c7e5de2623a33528ff36f","milestone_plan":{"id":"linux-release-blockers-r1","path":"docs/rfcs/plans/linux-release-blockers-r1/milestone-plan.json"}}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e4e7655fe17a77595986f6d00d92179be1e051f9","evidence":{"kind":"observation","detail":"Original Linux60 failure retained; controlled R4 pending publication read reaches line then fails original Comment assertion. Source-backed acknowledgement/read/epoch boundary, explicit exact-original nonreproduction limit and refuted queue/disabled-view hypotheses."}},{"criterion":"AC2","outcome":"pass","revision":"e4e7655fe17a77595986f6d00d92179be1e051f9","evidence":{"kind":"observation","detail":"Only test TU changes: settled changed snapshot/Nav before file; accepted and rendered current-head pair/file inside original20s predicate. Actual held-read negative rejects readiness. All original tail and bounds preserved, no production/config input change."}},{"criterion":"AC3","outcome":"pass","revision":"e4e7655fe17a77595986f6d00d92179be1e051f9","evidence":{"kind":"observation","detail":"Exact TU53f66e7f complete native LinuxReleasePASS14.512s and DebugPASS17.756s, one each, stock GCC15.2 compile/link/row context, configured90/600s. All1816/1803input seals, source6ef and candidate exact; empty owned forests. Exact raw receipts documented."}},{"criterion":"AC4","outcome":"pass","revision":"e4e7655fe17a77595986f6d00d92179be1e051f9","evidence":{"kind":"observation","detail":"Own source landed canonicalMaine4e7655fe, stablepatchID e118714089eef8eadefe7513c0df2d5ecd358ee2 matches frozen-compatible408bbe403. This scoped finish commits own proof/card only and preserves foreign Main/allocation work. All native jobs terminal; coordinator retains release evidence bridge/security/trust/package/stablepublication acceptance."}}]
 ---
 
 # Restore the selected comparison in the submission composition course
