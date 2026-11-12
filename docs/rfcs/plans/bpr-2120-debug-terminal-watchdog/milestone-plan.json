@@ -1,0 +1,21 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2120-debug-terminal-watchdog",
+  "scope": {"issues": ["BPR-2120"]},
+  "milestones": [{
+    "id": "debug-composed-child-backstop",
+    "outcome": "Debug terminal diagnostics can finish composed functional checks with bounded watchdogs while every Release bound and functional assertion remains unchanged.",
+    "work": [{"issue": "BPR-2120", "criteria": ["AC1", "AC2", "AC3"]}],
+    "depends_on": [],
+    "exit_criteria": [
+      "Retain original Debug10s recovery-child cutoff and unreached checks. The single authorized postboot private Debug course0/28.120627s completes all18assertions with31inputs afterexact; all children are under10s on that run, so it is not causal reproduction of latency or full qualification.",
+      "Only terminal_diagnostic_contract.py and its existing CMake registration change. Explicit config: Debuglogging30/other10/outer180; all other configs child10/outer60. Original course-body AST and18assertions exact. Actualrunfunction positive/negative controls plus CMakegenexpr checks bind final source to existing diagnostic without rerunning a native matrix.",
+      "Focused docs/source checks and normal tracker/main contribution, exact private↔canonical map, no foreign product intake/frozen703 edits/newRsharedGitbranches. All commands terminal and leases returned."
+    ],
+    "boundary": "Mandate release58-debug-terminal-watchdog-r1; independent000b2ad lineage. Two existing test paths plus own issue/plan/verification/checkpoint/counter/receipt only. No production, budget, provider, Qt or other-course change.",
+    "baseline_source_sha256": "8716981f5d46bfdf4462c0a1cd484b7e4394c5b4ea3c1888a6cb19df6aeb27cd",
+    "existing_probe_receipt_sha256": "4800b5a91d05358c76a2e4332057f3e3063872a4dcda75b959428289391a2486"
+  }],
+  "coverage": "complete",
+  "unplanned_work": []
+}
