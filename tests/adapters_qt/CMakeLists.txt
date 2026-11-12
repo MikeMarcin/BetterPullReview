@@ -2128,6 +2128,16 @@ bpr_enable_hardening(test_agent_picker_wrap)
 bpr_enable_warnings(test_agent_picker_wrap)
 bpr_add_network_isolated_test(NAME qt_agent_picker_wrap COMMAND test_agent_picker_wrap)
 set_tests_properties(qt_agent_picker_wrap PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-picker-wrap:pass" TIMEOUT 120)
+# Owner request 2026-11-12: Tab inserts the highlighted `/skill` completion.
+bpr_add_executable(test_skill_completion_keys skill_completion_keys_tests.cpp)
+target_link_libraries(test_skill_completion_keys PRIVATE BetterPullReview::AdapterQt)
+# Keys go in through QWindowSystemInterface, as the workbench course's do.
+target_include_directories(test_skill_completion_keys SYSTEM PRIVATE
+    "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+bpr_enable_hardening(test_skill_completion_keys)
+bpr_enable_warnings(test_skill_completion_keys)
+bpr_add_network_isolated_test(NAME qt_skill_completion_keys COMMAND test_skill_completion_keys)
+set_tests_properties(qt_skill_completion_keys PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "skill-completion-keys:pass" TIMEOUT 60)
 bpr_add_executable(test_agent_finding_cards_retained agent_finding_cards_retained_tests.cpp)
 target_link_libraries(test_agent_finding_cards_retained PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_agent_finding_cards_retained)

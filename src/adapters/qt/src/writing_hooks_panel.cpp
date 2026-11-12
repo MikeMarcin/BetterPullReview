@@ -655,7 +655,7 @@ namespace bpr::qt {
 		} else if (Skills.Catalog.empty()) {
 			line = tr("No skills found in ~/.claude/skills, ~/.agents/skills or ~/.codex/skills.");
 		} else {
-			line = tr("Type / to bring in one of %n skills.", nullptr, static_cast<int>(Skills.Catalog.size()));
+			line = tr("Type / to bring in one of %n skills; Tab or Return inserts the highlighted one.", nullptr, static_cast<int>(Skills.Catalog.size()));
 		}
 		if (preview.Guidance.Note) {
 			line += QStringLiteral(" ") + text_of(*preview.Guidance.Note);

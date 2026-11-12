@@ -88,6 +88,7 @@ namespace bpr::qt {
 		Popup = new QListWidget{ };
 		Popup->setObjectName(QStringLiteral("skillCompletion"));
 		Popup->setAccessibleName(tr("Skills"));
+		Popup->setAccessibleDescription(tr("Up and Down choose a skill, Tab or Return inserts it, Escape closes the list."));
 		// A tool tip window shows above the field and never takes its focus,
 		// so typing goes on in the field while the list is open.
 		Popup->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
@@ -125,8 +126,9 @@ namespace bpr::qt {
 
 	void skill_completer::accept_current()
 	{
-		if (!Popup->isHidden() && Popup->currentRow() >= 0) {
-			accept_row(Popup->currentRow());
+		if (!Popup->isHidden() && Popup->count() > 0) {
+			// No row highlighted: the first, the closest match.
+			accept_row(std::max(Popup->currentRow(), 0));
 		}
 	}
 
@@ -148,7 +150,15 @@ namespace bpr::qt {
 			return true;
 		case Qt::Key_Return:
 		case Qt::Key_Enter:
+			accept_current();
+			return true;
 		case Qt::Key_Tab:
+			// Plain Tab completes, as Return does. A Tab with a modifier
+			// (Control-Tab is Next tab) and Shift+Tab, which arrives as
+			// Backtab, stay the field's and the window's.
+			if ((key->modifiers() & ~Qt::KeypadModifier) != Qt::NoModifier) {
+				return QObject::eventFilter(aWatched, aEvent);
+			}
 			accept_current();
 			return true;
 		case Qt::Key_Escape:
