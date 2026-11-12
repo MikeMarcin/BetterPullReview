@@ -12,6 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 /// \file
@@ -260,10 +261,58 @@ namespace {
 		expect(aCourse.view().Declined && !aCourse.view().Commands.empty() && aCourse.view().Commands.front().find(" commit") != std::string::npos, "declining shows the commands");
 		expect(aCourse.out(aCourse.Work, { "rev-parse", "HEAD" }) == before, "declining runs nothing");
 	}
+	/// Opt-in, never registered: the same host on a real clone of the owner's
+	/// designated BPR-Test, on a disposable branch the caller made. Stage,
+	/// commit, Check Again and Push through the author's own Git and
+	/// credentials; the caller deletes the branch afterwards.
+	auto live(const std::string& aGit, const std::string& aClone, const std::string& aBranch) -> int
+	{
+		auto       author  = adapters::git::make_installed_author_git(std::filesystem::path{ aGit });
+		auto       files   = adapters::git::make_worktree_files();
+		auto       effects = queue{ };
+		auto       lanes   = queue{ };
+		auto       port    = recorder{ };
+		auto       matcher = std::shared_ptr<application::diff_line_matcher_port>{ core::make_xdiff_line_matcher() };
+		auto       host    = application::local_changes_host{ *author, *files, matcher, effects, lanes, port, { .Allowed = [](const std::string&) { return true; }, .Remember = [](const std::string&) { } } };
+		const auto drain   = [&] {
+			while (!effects.Tasks.empty() || !lanes.Tasks.empty()) {
+				for (auto* lane : { &effects, &lanes }) {
+					while (!lane->Tasks.empty()) {
+						auto task = std::move(lane->Tasks.front());
+						lane->Tasks.pop_front();
+						task();
+					}
+				}
+			}
+		};
+		host.open({ .Worktree = aClone, .Branch = aBranch, .Clone = aClone, .Remote = "origin", .FallbackUrl = "https://github.com/MikeMarcin/BPR-Test.git", .Target = "main", .ConsentKey = "live" });
+		drain();
+		expect(port.Last.Status.Branch == aBranch && !port.Last.Status.Unstaged.empty(), "live: the clone's change is unstaged");
+		host.stage({ port.Last.Status.Unstaged.front().Path });
+		drain();
+		host.commit({ .Subject = "BPR local-changes live course", .Description = "Disposable; deleted after the course." });
+		drain();
+		expect(!port.Last.Failure && port.Last.Status.Staged.empty(), "live: committed with the author's Git");
+		host.check_again();
+		drain();
+		std::cout << "LIVE_BEFORE_PUSH:" << core::name(port.Last.Push.State) << ":" << (port.Last.Command ? port.Last.Command->Text : std::string{ }) << '\n';
+		expect(port.Last.Push.State == core::local_push_state::missing && port.Last.Push.Offered, "live: the branch is not on GitHub; Push creates it");
+		host.push();
+		drain();
+		expect(!port.Last.Failure, "live: the push ran");
+		std::cout << "LIVE_AFTER_PUSH:" << core::name(port.Last.Push.State) << ":" << (port.Last.Hosted.Tip ? std::string{ core::canonical_hex(*port.Last.Hosted.Tip).view() } : std::string{ }) << '\n';
+		expect(port.Last.Push.State == core::local_push_state::up_to_date, "live: up to date with GitHub after the push");
+		host.shutdown();
+		std::cout << "local-changes-live:pass\n";
+		return EXIT_SUCCESS;
+	}
 }
 
 auto main(int argc, char** argv) -> int
 {
+	if (argc == 5 && std::string_view{ argv[1] } == "--live") {
+		return live(argv[2], argv[3], argv[4]);
+	}
 	const auto git = tests::workspace_contract::git_from(argc, argv);
 	if (!git) {
 		std::cout << "local-changes:skipped (no Git)\n";
