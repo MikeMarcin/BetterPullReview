@@ -5278,4 +5278,21 @@ if(TARGET Git::Git)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-desktop"
         PASS_REGULAR_EXPRESSION "local-draft-desktop-public-path:pass"
         TIMEOUT 180)
+    # RFC-BPR-0109 ([[BPR-2023]], [[BPR-2024]]). The Evidence area through the
+    # same window and composition: entry, import, accept and reject, currency.
+    bpr_add_executable(test_local_draft_evidence_desktop_public_path local_draft_evidence_desktop_public_path.cpp)
+    target_link_libraries(test_local_draft_evidence_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+    target_include_directories(test_local_draft_evidence_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+    target_compile_features(test_local_draft_evidence_desktop_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_local_draft_evidence_desktop_public_path)
+    if(WIN32)
+        target_link_libraries(test_local_draft_evidence_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_local_draft_evidence_desktop_public_path)
+    bpr_add_network_isolated_test(NAME application_local_draft_evidence_desktop_public_path WINDOWS_UNCONTAINED
+        COMMAND test_local_draft_evidence_desktop_public_path --git "$<TARGET_FILE:Git::Git>")
+    set_tests_properties(application_local_draft_evidence_desktop_public_path PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-evidence-desktop"
+        PASS_REGULAR_EXPRESSION "local-draft-evidence-desktop-public-path:pass"
+        TIMEOUT 180)
 endif()

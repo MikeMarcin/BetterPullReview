@@ -15,9 +15,13 @@ class QLineEdit;
 class QListWidget;
 class QPlainTextEdit;
 class QPushButton;
+class QStackedWidget;
+class QTabBar;
 class QWidget;
 
 namespace bpr::qt {
+	class local_draft_evidence_area;
+
 	/// \brief The gestures the local draft page sends to its host.
 	struct local_draft_dispatch
 	{
@@ -38,8 +42,9 @@ namespace bpr::qt {
 	/// \brief A local PR draft's page (RFC-BPR-0108, [[BPR-2021]]): the
 	/// draft's title, its source and target identity, the Changes of the
 	/// shown candidate with the exact diff, working edits to include, and
-	/// notes. Evidence, Description and Tour come with later RFCs and are not
-	/// shown. It opens on Changes with no chat (X23).
+	/// notes; and Evidence (RFC-BPR-0109). Description and Tour come with
+	/// later RFCs and are not shown. Each draft opens on Changes with no chat
+	/// (X23).
 	/// \details It decides nothing and performs no effect: gestures leave
 	/// through `local_draft_dispatch`. Secondary identity (exact commits, the
 	/// remote chain, qualifications) is in tooltips, not on the page.
@@ -71,6 +76,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto use_target_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto rebind_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto projection() const noexcept -> const application::local_draft_workbench_projection&;
+		/// \brief Changes and Evidence.
+		[[nodiscard]] auto areas() const noexcept -> QTabBar*;
+		[[nodiscard]] auto evidence() const noexcept -> local_draft_evidence_area*;
 		/// \brief Replaces the discard question, for a course that cannot answer one.
 		void set_discard_question(std::function<bool()> aQuestion);
 
@@ -88,25 +96,30 @@ namespace bpr::qt {
 		std::function<bool()>                         DiscardQuestion;
 		bool                                          Presenting = false;
 
-		QLineEdit*      Title            = nullptr;
-		QLabel*         Badge            = nullptr;
-		QLabel*         Identity         = nullptr;
-		QLabel*         Notice           = nullptr;
-		QWidget*        TargetRow        = nullptr;
-		QComboBox*      TargetRepository = nullptr;
-		QComboBox*      TargetBranch     = nullptr;
-		QPushButton*    UseTarget        = nullptr;
-		QPushButton*    Rebind           = nullptr;
-		QComboBox*      Candidates       = nullptr;
-		QPushButton*    Refresh          = nullptr;
-		QPushButton*    Discard          = nullptr;
-		QPushButton*    Close            = nullptr;
-		QListWidget*    Changes          = nullptr;
-		QLabel*         WorkingTitle     = nullptr;
-		QListWidget*    Working          = nullptr;
-		QListWidget*    Notes            = nullptr;
-		QLineEdit*      NoteEditor       = nullptr;
-		QPlainTextEdit* Diff             = nullptr;
+		QLineEdit*                 Title            = nullptr;
+		QLabel*                    Badge            = nullptr;
+		QLabel*                    Identity         = nullptr;
+		QLabel*                    Notice           = nullptr;
+		QWidget*                   TargetRow        = nullptr;
+		QComboBox*                 TargetRepository = nullptr;
+		QComboBox*                 TargetBranch     = nullptr;
+		QPushButton*               UseTarget        = nullptr;
+		QPushButton*               Rebind           = nullptr;
+		QComboBox*                 Candidates       = nullptr;
+		QPushButton*               Refresh          = nullptr;
+		QPushButton*               Discard          = nullptr;
+		QPushButton*               Close            = nullptr;
+		QListWidget*               Changes          = nullptr;
+		QLabel*                    WorkingTitle     = nullptr;
+		QListWidget*               Working          = nullptr;
+		QListWidget*               Notes            = nullptr;
+		QLineEdit*                 NoteEditor       = nullptr;
+		QPlainTextEdit*            Diff             = nullptr;
+		QTabBar*                   Areas            = nullptr;
+		QStackedWidget*            AreaStack        = nullptr;
+		local_draft_evidence_area* Evidence         = nullptr;
+		/// The draft last presented; another draft opens on Changes.
+		std::string PresentedDraft;
 	};
 }
 

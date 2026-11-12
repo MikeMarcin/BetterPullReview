@@ -4,6 +4,7 @@
 #include "bpr/adapters/sqlite/local_draft_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
+#include "bpr/application/local_draft_evidence_import.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/core/hex.hpp"
 
@@ -35,7 +36,7 @@ namespace bpr::app {
 	}
 
 	auto open_local_draft_here(const std::filesystem::path& aRoot, const std::filesystem::path& aGitExecutable, const std::optional<std::filesystem::path>& aWindowsSystemRoot,
-							   const std::string& aLocation, const std::optional<std::string>& aContext) -> local_draft_handoff
+							   const std::string& aLocation, const std::optional<std::string>& aContext, const std::optional<std::string>& aEvidence) -> local_draft_handoff
 	{
 		const auto isolation = aRoot / "local-draft-git-v1";
 		if (aGitExecutable.empty() || !adapters::sqlite::create_storage_root_owner_private(isolation)) {
@@ -78,9 +79,35 @@ namespace bpr::app {
 			data.insert("candidates", static_cast<qint64>(draft.Candidates.size()));
 			data.insert("notes", static_cast<qint64>(draft.Notes.size()));
 		}
-		const auto ok     = opened->Draft.has_value() && opened->Outcome != application::local_draft_open_outcome::moved;
-		auto       result = QJsonObject{ { "ok", ok }, { "data", data } };
-		if (!ok) {
+		auto ok   = opened->Draft.has_value() && opened->Outcome != application::local_draft_open_outcome::moved;
+		auto code = QString{ };
+		auto why  = QString{ };
+		if (ok && aEvidence) {
+			// RFC-BPR-0109: the same import as the Evidence area's Import….
+			auto imported = application::import_local_draft_evidence(*store, *source, opened->Draft->Id, *aEvidence, QDateTime::currentSecsSinceEpoch(), { });
+			if (imported) {
+				data.insert("evidence", QJsonObject{ { "claims", static_cast<qint64>(imported->Claims) }, { "checks", static_cast<qint64>(imported->Checks) }, { "results", static_cast<qint64>(imported->Results) }, { "questions", static_cast<qint64>(imported->Questions) }, { "bound", static_cast<qint64>(imported->Bound) }, { "artifacts_stored", static_cast<qint64>(imported->Stored) }, { "artifacts_not_stored", static_cast<qint64>(imported->Unstored) } });
+			} else {
+				ok             = false;
+				const auto& at = imported.error();
+				if (at.Refusal) {
+					code = QStringLiteral("evidence_refused");
+					data.insert("evidence_refusal", text(core::name(at.Refusal->Reason)));
+					if (!at.Refusal->Detail.empty()) {
+						data.insert("evidence_detail", text(at.Refusal->Detail));
+					}
+					why = QStringLiteral("The evidence document was refused whole (%1); nothing of it was applied.").arg(text(core::name(at.Refusal->Reason)));
+				} else {
+					code = QStringLiteral("evidence_unreadable");
+					why  = QStringLiteral("The evidence document could not be read; nothing of it was applied.");
+				}
+			}
+		}
+		auto result = QJsonObject{ { "ok", ok }, { "data", data } };
+		if (!code.isEmpty()) {
+			result.insert("code", code);
+			result.insert("message", why);
+		} else if (!ok) {
 			result.insert("code", opened->Outcome == application::local_draft_open_outcome::moved ? QStringLiteral("rebind_needed") : opened->Outcome == application::local_draft_open_outcome::choose_target ? QStringLiteral("target_needed")
 																																																			  : QStringLiteral("not_ready"));
 			result.insert("message", opened->Outcome == application::local_draft_open_outcome::moved ? QStringLiteral("This worktree's draft was prepared at another location. Open it in the desktop to rebind it.") : opened->Outcome == application::local_draft_open_outcome::choose_target ? QStringLiteral("Choose the target in the desktop; it is not guessed.")

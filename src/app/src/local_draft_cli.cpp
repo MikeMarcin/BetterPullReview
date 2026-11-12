@@ -37,6 +37,11 @@ namespace bpr::app {
 				std::cout << data.value("outcome").toString().toStdString() << " local draft " << data.value("draft").toString().toStdString() << ": "
 						  << data.value("title").toString().toStdString() << " (" << data.value("branch").toString().toStdString() << " into "
 						  << data.value("target").toString().toStdString() << ")\n";
+				if (const auto evidence = data.value("evidence").toObject(); !evidence.isEmpty()) {
+					std::cout << "imported evidence: " << evidence.value("claims").toInteger() << " claims, " << evidence.value("checks").toInteger() << " checks, "
+							  << evidence.value("results").toInteger() << " reported results (" << evidence.value("bound").toInteger() << " bound to a candidate), "
+							  << evidence.value("questions").toInteger() << " questions\n";
+				}
 			} else {
 				std::cerr << aResult.value("message").toString().toStdString() << '\n';
 			}
@@ -50,9 +55,10 @@ namespace bpr::app {
 
 		auto capabilities() -> int
 		{
-			std::fputs("bpr draft open [PATH] [--context TEXT] [--profile NAME] [--data-root PATH] [--json]\n"
+			std::fputs("bpr draft open [PATH] [--context TEXT] [--evidence FILE] [--profile NAME] [--data-root PATH] [--json]\n"
 					   "  Opens or resumes the local PR draft of the Git worktree at PATH (default: the current folder),\n"
-					   "  as Home's Prepare Pull Request... does. --context adds a note. Nothing is published.\n"
+					   "  as Home's Prepare Pull Request... does. --context adds a note. --evidence imports one\n"
+					   "  bpr.evidence-import document; its results arrive reported. Nothing is published or run.\n"
 					   "  While the desktop owns the profile, it shows the draft.\n",
 					   stdout);
 			return 0;
@@ -66,6 +72,7 @@ namespace bpr::app {
 		}
 		auto json     = false;
 		auto context  = std::optional<std::string>{ };
+		auto evidence = std::optional<std::string>{ };
 		auto profile  = std::string{ };
 		auto base     = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
 		auto location = std::optional<QString>{ };
@@ -83,6 +90,12 @@ namespace bpr::app {
 					return refuse("invalid_input", QStringLiteral("--context takes text of at most 16 KiB."), json);
 				}
 				context = utf8(*text);
+			} else if (argument == QStringLiteral("--evidence")) {
+				const auto file = value();
+				if (!file || file->isEmpty()) {
+					return refuse("invalid_input", QStringLiteral("--evidence takes the path of an evidence document."), json);
+				}
+				evidence = utf8(QDir::cleanPath(QDir::current().absoluteFilePath(*file)));
 			} else if (argument == QStringLiteral("--profile")) {
 				const auto text = value();
 				if (!text) {
@@ -111,10 +124,10 @@ namespace bpr::app {
 			}
 			if (admission->Lease) {
 				const auto git = native_filesystem_path(QFileInfo{ QStandardPaths::findExecutable(QStringLiteral("git")) }.canonicalFilePath());
-				return print(open_local_draft_here(admission->Root, git, std::nullopt, chosen, context).Result, json);
+				return print(open_local_draft_here(admission->Root, git, std::nullopt, chosen, context, evidence).Result, json);
 			}
 			const auto payload = adapters::sqlite::encode_tour_request(
-				{ .Operation = application::tour_owner_operation::local_draft, .LocalDraft = { .Location = chosen, .Context = context } });
+				{ .Operation = application::tour_owner_operation::local_draft, .LocalDraft = { .Location = chosen, .Context = context, .Evidence = evidence } });
 			if (payload.empty()) {
 				return refuse("over_limit", QStringLiteral("This request is larger than the owner's channel carries; nothing was sent."), json);
 			}

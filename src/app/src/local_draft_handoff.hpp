@@ -22,9 +22,12 @@ namespace bpr::app {
 	/// worktree on this profile's store, exactly as Prepare Pull Request…
 	/// does (`application::open_local_draft`), and describes the result. Run
 	/// by the terminal that holds the profile, or by the desktop that owns it.
-	/// Blocking; nothing is published.
+	/// Blocking; nothing is published. RFC-BPR-0109: with `aEvidence` (an
+	/// absolute path) the opened draft imports that evidence document, as the
+	/// Evidence area's Import… does; a refused import leaves the draft as it was.
 	[[nodiscard]] auto open_local_draft_here(const std::filesystem::path& aRoot, const std::filesystem::path& aGitExecutable, const std::optional<std::filesystem::path>& aWindowsSystemRoot,
-											 const std::string& aLocation, const std::optional<std::string>& aContext) -> local_draft_handoff;
+											 const std::string& aLocation, const std::optional<std::string>& aContext, const std::optional<std::string>& aEvidence = std::nullopt)
+		-> local_draft_handoff;
 }
 
 #endif

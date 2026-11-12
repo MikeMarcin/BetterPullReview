@@ -367,7 +367,7 @@ namespace bpr::app {
 		const auto liveness  = std::weak_ptr<const int>{ Liveness };
 		auto&      decisions = profile.DecisionLane;
 		profile.CycleOwnerEffects.post([root = profile.ApplicationDataRoot, git = profile.InstalledGit, request = std::move(aRequest), respond = std::move(aRespond), this, liveness, &decisions] {
-			auto opened = open_local_draft_here(root, git, std::nullopt, request.Location, request.Context);
+			auto opened = open_local_draft_here(root, git, std::nullopt, request.Location, request.Context, request.Evidence);
 			opened.Result.insert("schema", QStringLiteral("bpr.draft.cli-result.v1"));
 			auto answer = application::tour_owner_response{ };
 			answer.Json = QJsonDocument{ opened.Result }.toJson(QJsonDocument::Compact).toStdString();

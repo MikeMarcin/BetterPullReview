@@ -1,5 +1,7 @@
 #include "bpr/qt/local_draft_view.hpp"
 
+#include "bpr/qt/local_draft_evidence_area.hpp"
+
 #include <QAction>
 #include <QComboBox>
 #include <QFontMetricsF>
@@ -13,6 +15,8 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSplitter>
+#include <QStackedWidget>
+#include <QTabBar>
 #include <QTextBlock>
 #include <QVBoxLayout>
 
@@ -270,7 +274,23 @@ namespace bpr::qt {
 		splitter->setStretchFactor(0, 0);
 		splitter->setStretchFactor(1, 1);
 		splitter->setSizes({ 300, 700 });
-		column->addWidget(splitter, 1);
+		// The page's areas: Changes, and Evidence (RFC-BPR-0109).
+		Areas = new QTabBar{ this };
+		Areas->setObjectName(QStringLiteral("localDraftAreas"));
+		Areas->setAccessibleName(QStringLiteral("Draft areas"));
+		Areas->setDocumentMode(true);
+		Areas->setExpanding(false);
+		Areas->setDrawBase(false);
+		Areas->addTab(QStringLiteral("Changes"));
+		Areas->addTab(QStringLiteral("Evidence"));
+		Areas->setTabToolTip(1, QStringLiteral("Claims, the checks of them and their reported results, and open questions"));
+		column->addWidget(Areas);
+		AreaStack = new QStackedWidget{ this };
+		Evidence  = new local_draft_evidence_area{ AreaStack };
+		AreaStack->addWidget(splitter);
+		AreaStack->addWidget(Evidence);
+		column->addWidget(AreaStack, 1);
+		connect(Areas, &QTabBar::currentChanged, AreaStack, &QStackedWidget::setCurrentIndex);
 
 		connect(Title, &QLineEdit::editingFinished, this, [this] {
 			if (!Presenting && Dispatch.Rename && Projection.Draft && !Title->text().trimmed().isEmpty() && Title->text().trimmed() != text_of(Projection.Draft->Title)) {
@@ -401,6 +421,12 @@ namespace bpr::qt {
 	{
 		Projection = aProjection;
 		Presenting = true;
+		// Another draft opens on Changes; view state is not resumed (X23).
+		if (auto id = aProjection.Draft ? aProjection.Draft->Id.Value : std::string{ }; id != PresentedDraft) {
+			PresentedDraft = std::move(id);
+			Areas->setCurrentIndex(0);
+		}
+		Evidence->present(aProjection);
 		present_header();
 		present_recovery();
 		present_changes();
@@ -700,4 +726,14 @@ namespace bpr::qt {
 	auto local_draft_view::use_target_button() const noexcept -> QPushButton* { return UseTarget; }
 	auto local_draft_view::rebind_button() const noexcept -> QPushButton* { return Rebind; }
 	auto local_draft_view::projection() const noexcept -> const application::local_draft_workbench_projection& { return Projection; }
+
+	auto local_draft_view::areas() const noexcept -> QTabBar*
+	{
+		return Areas;
+	}
+
+	auto local_draft_view::evidence() const noexcept -> local_draft_evidence_area*
+	{
+		return Evidence;
+	}
 }
