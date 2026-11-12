@@ -9,6 +9,7 @@
 #include "bpr/application/review_material_bridge.hpp"
 #include "bpr/core/local_draft.hpp"
 #include "bpr/core/local_draft_evidence.hpp"
+#include "bpr/core/local_draft_tour.hpp"
 #include "bpr/core/review_cycle_views.hpp"
 
 #include <array>
@@ -168,6 +169,55 @@ namespace bpr::application {
 	/// \brief The most bytes of an artifact shown as text.
 	inline constexpr std::size_t maximum_local_draft_artifact_view_bytes = 1024U * 1024U;
 
+	/// \brief RFC-BPR-0110. A question about a local draft, as the page asks it.
+	struct local_draft_question
+	{
+		std::string         Thread{ core::local_change_thread };
+		core::local_subject Subject = core::local_subject::whole_change;
+		std::uint64_t       Stop    = 0;
+		/// Attached lines of the latest candidate (new side), when the subject is lines.
+		std::string   LinesPath;
+		std::uint32_t FirstLine = 0;
+		std::uint32_t LastLine  = 0;
+		std::string   Text;
+		/// The agent entry's identity and name.
+		std::string Agent;
+		std::string AgentName;
+		/// The prompt purpose's effective text and version.
+		std::string Instructions;
+		std::string Version;
+	};
+
+	/// \brief One run of an agent for a local draft: tool-free, with only the
+	/// request's text as its input (the candidate's captured bytes, never the
+	/// worktree).
+	struct local_draft_agent_run
+	{
+		std::string Agent;
+		std::string AgentName;
+		std::string Prompt;
+	};
+	struct local_draft_agent_answer
+	{
+		bool                         Answered = false;
+		std::string                  Text;
+		std::optional<std::uint64_t> CostMicros;
+		/// Why it did not answer, in the person's words.
+		std::string Failure;
+	};
+	/// \brief Runs one question; blocking, on the agent lane, stoppable.
+	using local_draft_agent_runner = std::function<local_draft_agent_answer(const local_draft_agent_run&, std::stop_token)>;
+
+	/// \brief What the last request sent (RFC-BPR-0110's disclosed coverage).
+	struct local_draft_request_coverage
+	{
+		std::size_t FilesSent  = 0;
+		std::size_t FilesTotal = 0;
+		std::size_t Replayed   = 0;
+		std::size_t Omitted    = 0;
+		auto        operator<=>(const local_draft_request_coverage&) const = default;
+	};
+
 	struct local_draft_workbench_projection
 	{
 		local_draft_stage        Stage    = local_draft_stage::closed;
@@ -213,6 +263,17 @@ namespace bpr::application {
 		/// The last evidence edit the draft refused.
 		std::optional<core::draft_refusal>       EvidenceRefusal;
 		std::optional<local_draft_artifact_view> Artifact;
+		/// RFC-BPR-0110. The last description or tour edit the draft refused.
+		std::optional<core::preparation_refusal> PreparationRefusal;
+		/// An agent can be asked: a runner is composed.
+		bool AgentAvailable = false;
+		/// A question is with the agent, on this thread.
+		bool        Asking = false;
+		std::string AskingThread;
+		std::string AskingText;
+		/// Why the last question was not answered.
+		std::string                                 AskFailure;
+		std::optional<local_draft_request_coverage> Coverage;
 		/// A write lost to another writer was re-read.
 		bool Reread                                                     = false;
 		bool Busy                                                       = false;
@@ -283,6 +344,26 @@ namespace bpr::application {
 		/// \brief Reads one stored artifact of a result back to show it.
 		void open_artifact(std::uint64_t aResult, std::size_t aIndex);
 		void close_artifact();
+		// RFC-BPR-0110: the description and the tour. Nothing here publishes.
+		void save_description(std::string aTitle, std::string aBody);
+		void save_brief(std::string aProblem, std::string aSolution);
+		/// \brief Copies a passage into the description, deliberately.
+		void transfer_to_description(std::string aPassage);
+		/// \brief A stop on lines of the latest candidate's new side.
+		void add_stop(std::string aPath, std::uint32_t aFirst, std::uint32_t aLast, std::string aTitle, std::string aText);
+		/// \brief Save: the text, and new lines when `aPath` is not empty. Signs the stop off.
+		void save_stop(std::uint64_t aStop, std::string aTitle, std::string aText, std::string aPath = { }, std::uint32_t aFirst = 0, std::uint32_t aLast = 0);
+		void accept_stop(std::uint64_t aStop);
+		void remove_stop(std::uint64_t aStop);
+		void move_stop(std::uint64_t aStop, std::size_t aIndex);
+		void cite(std::uint64_t aStop, std::uint64_t aRecord, bool aCited);
+		void decide_proposal(std::uint64_t aProposal, bool aAccept);
+		/// \brief Composes the agent runs (null: no agent can be asked).
+		void set_agent(local_draft_agent_runner aRunner, effect_executor* aLane);
+		void ask(local_draft_question aQuestion);
+		void stop_asking();
+		/// \brief New session: the open conversation ends and stays readable.
+		void new_session(std::uint64_t aConversation);
 		/// \brief Confirms the rebind a moved worktree offered.
 		void rebind();
 		/// \brief Removes the open draft's private preparation. The caller

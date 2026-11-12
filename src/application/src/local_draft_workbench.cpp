@@ -12,6 +12,50 @@
 
 namespace bpr::application {
 	namespace {
+		/// RFC-BPR-0110. The captured candidate's files as the private store
+		/// holds them (or as the capture just made them), never the worktree:
+		/// `aFirst` first, then the rest, until `aBudget` bytes of text are
+		/// read. With `aOnly`, just those paths.
+		[[nodiscard]] auto read_candidate_files(local_draft_store& aStore, const core::local_draft_candidate& aCandidate, const std::span<const std::string> aOnly,
+												const std::span<const local_draft_object> aFresh, const std::string_view aFirst, std::size_t aBudget)
+			-> std::vector<core::local_file_reading>
+		{
+			auto order = std::vector<const core::draft_path_change*>{ };
+			for (const auto& change : aCandidate.Changes) {
+				if (!aOnly.empty() && std::ranges::find(aOnly, change.Path) == aOnly.end()) {
+					continue;
+				}
+				if (change.Path == aFirst) {
+					order.insert(order.begin(), &change);
+				} else {
+					order.push_back(&change);
+				}
+			}
+			auto readings = std::vector<core::local_file_reading>{ };
+			for (const auto* change : order) {
+				auto reading = core::local_file_reading{ .Path = change->Path, .Deleted = !change->Right };
+				if (change->Right && change->Right->Size <= aBudget) {
+					auto bytes = std::optional<std::vector<std::uint8_t>>{ };
+					if (const auto fresh = std::ranges::find(aFresh, change->Right->Object, &local_draft_object::Object); fresh != aFresh.end()) {
+						bytes = fresh->Bytes;
+					} else if (auto stored = aStore.object(change->Right->Object); stored && *stored) {
+						bytes = std::move(**stored);
+					}
+					if (bytes) {
+						auto text = std::string{ bytes->begin(), bytes->end() };
+						if (text.find('\0') == std::string::npos && core::utf8::valid(text)) {
+							aBudget -= text.size();
+							reading.Text = std::move(text);
+						}
+					}
+				}
+				readings.push_back(std::move(reading));
+			}
+			return readings;
+		}
+
+		/// The bytes of a question's reading: enough for any request.
+		constexpr std::size_t question_read_budget = 2U * 1024U * 1024U;
 		/// New draft identities come from the composition's seed.
 		[[nodiscard]] auto seeded(const std::array<std::uint8_t, 32>& aSeed) -> std::mt19937_64
 		{
@@ -700,6 +744,16 @@ namespace bpr::application {
 						}
 						return result;
 					}
+					// RFC-BPR-0110: every stop's lines on the successor, from its
+					// captured bytes; the stops' own bindings never move.
+					if (!next->Preparation.Tour.Stops.empty()) {
+						auto paths = std::vector<std::string>{ };
+						for (const auto& stop : next->Preparation.Tour.Stops) {
+							paths.push_back(stop.Source.Path);
+						}
+						const auto readings = read_candidate_files(*stored, next->Candidates.back(), paths, capture->Objects, { }, core::maximum_local_draft_candidate_bytes);
+						*next               = core::carry_local_tour(*next, readings);
+					}
 					if (auto written = stored->put(*next, draft.Version, capture->Objects); !written) {
 						result.Store = written.error();
 						if (auto current = stored->find(draft.Id)) {
@@ -914,6 +968,186 @@ namespace bpr::application {
 				});
 		}
 
+		// --- RFC-BPR-0110: the description, the tour, conversations ---------
+
+		void prepare(core::preparation_result<core::local_draft> aChanged)
+		{
+			if (!Projection.Draft) {
+				return;
+			}
+			if (!aChanged) {
+				Projection.PreparationRefusal = aChanged.error();
+				publish();
+				return;
+			}
+			Projection.PreparationRefusal.reset();
+			write(std::expected<core::local_draft, core::draft_refusal>{ std::move(*aChanged) });
+		}
+
+		/// Reads one path of the latest candidate, then applies `aEdit` to the
+		/// draft as it is then.
+		template <typename TEdit>
+		void with_reading(std::string aPath, TEdit aEdit)
+		{
+			const auto* latest = Projection.Draft ? core::latest_candidate(*Projection.Draft) : nullptr;
+			if (latest == nullptr) {
+				return;
+			}
+			run(
+				[candidate = *latest, path = std::move(aPath)](implementation& aSelf, std::stop_token) -> core::local_file_reading {
+					auto* stored = aSelf.store();
+					if (stored == nullptr) {
+						return { .Path = path };
+					}
+					auto only     = std::array{ path };
+					auto readings = read_candidate_files(*stored, candidate, only, { }, path, core::maximum_local_draft_file_bytes);
+					return readings.empty() ? core::local_file_reading{ .Path = path } : std::move(readings.front());
+				},
+				[edit = std::move(aEdit)](implementation& aSelf, core::local_file_reading aReading) mutable {
+					if (aSelf.Projection.Draft) {
+						aSelf.prepare(edit(*aSelf.Projection.Draft, aReading));
+					}
+				});
+		}
+
+		void ask(local_draft_question aQuestion)
+		{
+			const auto* latest = Projection.Draft ? core::latest_candidate(*Projection.Draft) : nullptr;
+			if (latest == nullptr || Projection.Asking || !AgentRunner || AgentLane == nullptr || aQuestion.Text.empty()) {
+				return;
+			}
+			Projection.Asking       = true;
+			Projection.AskingThread = aQuestion.Thread;
+			Projection.AskingText   = aQuestion.Text;
+			Projection.AskFailure.clear();
+			publish();
+			AskStop = std::stop_source{ };
+			struct prepared
+			{
+				std::optional<core::local_request>  Request;
+				std::vector<core::local_file_reading> Files;
+				std::optional<core::local_source_binding> Lines;
+			};
+			const auto first = !aQuestion.LinesPath.empty() ? aQuestion.LinesPath : std::string{ };
+			run(
+				[draft = *Projection.Draft, candidate = *latest, question = aQuestion, first](implementation& aSelf, std::stop_token) -> prepared {
+					auto  out    = prepared{ };
+					auto* stored = aSelf.store();
+					if (stored == nullptr) {
+						return out;
+					}
+					auto preferred = first;
+					if (preferred.empty() && question.Stop != 0U) {
+						if (const auto stop = std::ranges::find(draft.Preparation.Tour.Stops, question.Stop, &core::local_tour_stop::Id); stop != draft.Preparation.Tour.Stops.end()) {
+							preferred = stop->Source.Path;
+						}
+					}
+					out.Files = read_candidate_files(*stored, candidate, { }, { }, preferred, question_read_budget);
+					auto local = core::local_question{ .Subject      = question.Subject,
+													   .Thread       = question.Thread,
+													   .Stop         = question.Stop,
+													   .Text         = question.Text,
+													   .Instructions = question.Instructions,
+													   .Version      = question.Version };
+					if (!question.LinesPath.empty()) {
+						const auto file = std::ranges::find(out.Files, question.LinesPath, &core::local_file_reading::Path);
+						if (file != out.Files.end() && file->Text) {
+							if (auto excerpt = core::local_excerpt(*file->Text, question.FirstLine, question.LastLine)) {
+								out.Lines   = core::local_source_binding{ .Candidate = candidate.Ordinal,
+																		  .Path      = question.LinesPath,
+																		  .FirstLine = question.FirstLine,
+																		  .LastLine  = question.LastLine,
+																		  .Excerpt   = std::move(*excerpt) };
+								local.Lines = out.Lines;
+							}
+						}
+					}
+					out.Request = core::compose_local_request(draft, local, core::current_conversation(draft, question.Thread, question.Agent), out.Files);
+					return out;
+				},
+				[question = std::move(aQuestion), ordinal = latest->Ordinal](implementation& aSelf, prepared aPrepared) mutable {
+					auto& view = aSelf.Projection;
+					if (!aPrepared.Request) {
+						view.Asking     = false;
+						view.AskFailure = "This question and its instructions are longer than one request can carry.";
+						aSelf.publish();
+						return;
+					}
+					view.Coverage = local_draft_request_coverage{ .FilesSent  = aPrepared.Request->FilesSent,
+																  .FilesTotal = aPrepared.Request->FilesTotal,
+																  .Replayed   = aPrepared.Request->Replayed,
+																  .Omitted    = aPrepared.Request->Omitted };
+					aSelf.publish();
+					auto owner = aSelf.shared_from_this();
+					auto made  = local_draft_agent_run{ .Agent = question.Agent, .AgentName = question.AgentName, .Prompt = std::move(aPrepared.Request->Text) };
+					++aSelf.AgentPending;
+					aSelf.AgentLane->post([owner, asked = aSelf.Generation, ordinal, launch = std::move(made), sent = std::move(question), read = std::move(aPrepared.Files),
+										   runner = aSelf.AgentRunner, stop = aSelf.AskStop.get_token()]() mutable {
+						auto reply = runner(launch, stop);
+						owner->Decisions.post([host = owner, asked, ordinal, answer = std::move(reply), posed = std::move(sent), files = std::move(read)]() mutable {
+							--host->AgentPending;
+							if (host->Stopped) {
+								return;
+							}
+							host->answered(asked, ordinal, std::move(posed), std::move(files), std::move(answer));
+						});
+					});
+				});
+		}
+
+		void answered(const std::uint64_t aGeneration, const std::uint64_t aOrdinal, local_draft_question aQuestion, std::vector<core::local_file_reading> aFiles,
+					  local_draft_agent_answer aAnswer)
+		{
+			auto& view  = Projection;
+			view.Asking = false;
+			view.AskingThread.clear();
+			view.AskingText.clear();
+			if (aGeneration != Generation || !view.Draft) {
+				publish();
+				return;
+			}
+			const auto* latest = core::latest_candidate(*view.Draft);
+			if (latest == nullptr || latest->Ordinal != aOrdinal) {
+				view.AskFailure = "The draft was refreshed while the agent answered. Ask again on this candidate.";
+				publish();
+				return;
+			}
+			if (!aAnswer.Answered) {
+				view.AskFailure = aAnswer.Failure.empty() ? std::string{ "The agent did not answer." } : aAnswer.Failure;
+				publish();
+				return;
+			}
+			const auto now    = Now();
+			auto       asked  = core::append_turn(*view.Draft, view.Draft->Version, aQuestion.Thread, aQuestion.Agent, aQuestion.AgentName,
+												  core::local_turn{ .Author = true, .Subject = aQuestion.Subject, .Text = aQuestion.Text }, now);
+			if (!asked) {
+				prepare(std::unexpected{ asked.error() });
+				return;
+			}
+			auto [draft, conversation] = std::move(*asked);
+			const auto parsed          = core::parse_local_answer(aAnswer.Text);
+			auto       proposals       = std::vector<std::uint64_t>{ };
+			if (!parsed.Proposals.empty()) {
+				auto recorded = core::record_proposals(draft, draft.Version, conversation, aOrdinal, parsed.Proposals, aFiles, aQuestion.AgentName, aQuestion.Version, now);
+				if (recorded) {
+					draft     = std::move(recorded->first);
+					proposals = std::move(recorded->second);
+				}
+			}
+			auto reply = core::append_turn(draft, draft.Version, aQuestion.Thread, aQuestion.Agent, aQuestion.AgentName,
+										   core::local_turn{ .Author     = false,
+															 .Subject    = aQuestion.Subject,
+															 .Text       = parsed.Prose.size() > core::maximum_local_turn_bytes ? parsed.Prose.substr(0U, core::maximum_local_turn_bytes) : parsed.Prose,
+															 .Proposals  = std::move(proposals),
+															 .CostMicros = aAnswer.CostMicros },
+										   now);
+			if (!reply) {
+				prepare(std::unexpected{ reply.error() });
+				return;
+			}
+			prepare(std::move(reply->first));
+		}
+
 		void open_artifact(const std::uint64_t aResult, const std::size_t aIndex)
 		{
 			if (!Projection.Draft) {
@@ -974,8 +1208,11 @@ namespace bpr::application {
 		void close()
 		{
 			ImportStop.request_stop();
+			AskStop.request_stop();
 			++Generation;
-			Projection = { };
+			const auto available      = Projection.AgentAvailable;
+			Projection                = { };
+			Projection.AgentAvailable = available;
 			Discovery.reset();
 			publish();
 		}
@@ -997,6 +1234,11 @@ namespace bpr::application {
 		std::stop_source                      Stop;
 		/// The import being read; closing the draft stops it.
 		std::stop_source ImportStop;
+		/// RFC-BPR-0110. The agent runs: composed by the application, off both lanes.
+		local_draft_agent_runner   AgentRunner;
+		effect_executor*           AgentLane = nullptr;
+		std::stop_source           AskStop;
+		std::atomic<std::uint64_t> AgentPending{ 0U };
 
 		/// Decision lane.
 		local_draft_workbench_projection     Projection;
@@ -1158,6 +1400,124 @@ namespace bpr::application {
 		}
 	}
 
+	void local_draft_workbench::save_description(std::string aTitle, std::string aBody)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::edit_description(*self.Projection.Draft, self.Projection.Draft->Version, std::move(aTitle), std::move(aBody), self.Now()));
+		}
+	}
+
+	void local_draft_workbench::save_brief(std::string aProblem, std::string aSolution)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::edit_tour_brief(*self.Projection.Draft, self.Projection.Draft->Version, std::move(aProblem), std::move(aSolution), self.Now()));
+		}
+	}
+
+	void local_draft_workbench::transfer_to_description(std::string aPassage)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::transfer_to_description(*self.Projection.Draft, self.Projection.Draft->Version, aPassage, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::add_stop(std::string aPath, const std::uint32_t aFirst, const std::uint32_t aLast, std::string aTitle, std::string aText)
+	{
+		auto& self = *Implementation;
+		self.with_reading(std::move(aPath), [aFirst, aLast, title = std::move(aTitle), text = std::move(aText), now = self.Now()](const core::local_draft& aDraft,
+																														   const core::local_file_reading& aFile) mutable {
+			return core::add_local_stop(aDraft, aDraft.Version, std::move(title), std::move(text), aFile, core::diff_side::right, aFirst, aLast, now);
+		});
+	}
+
+	void local_draft_workbench::save_stop(const std::uint64_t aStop, std::string aTitle, std::string aText, std::string aPath, const std::uint32_t aFirst, const std::uint32_t aLast)
+	{
+		auto& self = *Implementation;
+		if (!self.Projection.Draft) {
+			return;
+		}
+		if (aPath.empty()) {
+			self.prepare(core::save_local_stop(*self.Projection.Draft, self.Projection.Draft->Version, aStop, std::move(aTitle), std::move(aText), std::nullopt, core::diff_side::right, 0U,
+											   0U, self.Now()));
+			return;
+		}
+		self.with_reading(std::move(aPath), [aStop, aFirst, aLast, title = std::move(aTitle), text = std::move(aText), now = self.Now()](const core::local_draft& aDraft,
+																																 const core::local_file_reading& aFile) mutable {
+			return core::save_local_stop(aDraft, aDraft.Version, aStop, std::move(title), std::move(text), aFile, core::diff_side::right, aFirst, aLast, now);
+		});
+	}
+
+	void local_draft_workbench::accept_stop(const std::uint64_t aStop)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::accept_local_stop(*self.Projection.Draft, self.Projection.Draft->Version, aStop, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::remove_stop(const std::uint64_t aStop)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::remove_local_stop(*self.Projection.Draft, self.Projection.Draft->Version, aStop, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::move_stop(const std::uint64_t aStop, const std::size_t aIndex)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::move_local_stop(*self.Projection.Draft, self.Projection.Draft->Version, aStop, aIndex, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::cite(const std::uint64_t aStop, const std::uint64_t aRecord, const bool aCited)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::cite_evidence(*self.Projection.Draft, self.Projection.Draft->Version, aStop, aRecord, aCited, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::decide_proposal(const std::uint64_t aProposal, const bool aAccept)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(aAccept ? core::accept_proposal(*self.Projection.Draft, self.Projection.Draft->Version, aProposal, self.Now())
+								 : core::reject_proposal(*self.Projection.Draft, self.Projection.Draft->Version, aProposal, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::set_agent(local_draft_agent_runner aRunner, effect_executor* const aLane)
+	{
+		auto& self                     = *Implementation;
+		self.AgentRunner               = std::move(aRunner);
+		self.AgentLane                 = aLane;
+		self.Projection.AgentAvailable = self.AgentRunner && aLane != nullptr;
+		self.publish();
+	}
+
+	void local_draft_workbench::ask(local_draft_question aQuestion)
+	{
+		Implementation->ask(std::move(aQuestion));
+	}
+
+	void local_draft_workbench::stop_asking()
+	{
+		Implementation->AskStop.request_stop();
+	}
+
+	void local_draft_workbench::new_session(const std::uint64_t aConversation)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::end_conversation(*self.Projection.Draft, self.Projection.Draft->Version, aConversation, self.Now()));
+		}
+	}
+
 	void local_draft_workbench::import_evidence(std::string aDocument)
 	{
 		Implementation->import_evidence(std::move(aDocument));
@@ -1208,11 +1568,12 @@ namespace bpr::application {
 			Implementation->Stopped = true;
 			Implementation->Stop.request_stop();
 			Implementation->ImportStop.request_stop();
+			Implementation->AskStop.request_stop();
 		}
 	}
 
 	auto local_draft_workbench::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Pending == 0U && Implementation->HomePending == 0U;
+		return Implementation->Pending == 0U && Implementation->HomePending == 0U && Implementation->AgentPending == 0U;
 	}
 }
