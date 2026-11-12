@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
@@ -803,6 +804,13 @@ auto main(int argc, char** argv) -> int
 				   "my blocking feedback is there to inspect before deciding");
 			composer.choose_disposition(core::review_disposition::request_changes);
 			composer.body_editor()->setPlainText(QStringLiteral("Requesting changes after reading my own blocking feedback."));
+			// [[BPR-2134]]. Submission acknowledgement precedes the automatic
+			// reread. The next course needs a line from that new current head,
+			// rather than a selection the accepted reread can retire.
+			const auto beforePublication = access::window_read_progress(*application).Snapshot;
+			expect(application->windows().size() == 1U, "the publication read belongs to the course window");
+			const auto publicationWindow = application->windows().front();
+			access::hold_window_read_terminal(*application, publicationWindow, true);
 			composer.submit_action()->trigger();
 			submitted(composer);
 			{
@@ -810,6 +818,16 @@ auto main(int argc, char** argv) -> int
 				expect(server->Submissions == quiet + 2U && server->Reviews.back().Proposal.Disposition == core::review_disposition::request_changes,
 					   "Request changes submits exactly the native event once, with no second label-made event");
 			}
+
+			const auto publicationReadReady = [&] {
+				const auto read = access::window_read_progress(*application);
+				return read.Snapshot.has_value() && read.Snapshot != beforePublication && !read.Reading
+					&& access::diff_work_evidence(*application).NavigationReady;
+			};
+			wait([&] { return access::held_window_read_terminals(*application, publicationWindow) > 0U; }, "publication reread reaches its held delivery");
+			expect(access::window_read_progress(*application).Reading && !publicationReadReady(), "an unfinished publication reread cannot admit current-head line setup");
+			access::hold_window_read_terminal(*application, publicationWindow, false);
+			wait(publicationReadReady, "the new publication snapshot settles before choosing the current-head file");
 
 			// A selected unsent draft binds the decision; a stale view of it is refused.
 			composer.body_editor()->setPlainText(QStringLiteral("Comment with a pending inline draft."));
@@ -822,12 +840,24 @@ auto main(int argc, char** argv) -> int
 			const auto beforeFileGesture = access::epoch_refresh_identity(*application);
 			files->setCurrentIndex(files->model()->index(0, 0));
 			wait([&] { return course.statistics().FileSelections > selections; }, "the file is selected");
-			if (!e2e::wait_until_plain([&] { return course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U); }, e2e::default_queue_budget)) {
+			if (!e2e::wait_until_plain([&] {
+					const auto identity = access::epoch_refresh_identity(*application);
+					return publicationReadReady() && application->status().EpochStatus == core::epoch_status::ready
+						&& identity.AcceptedComparison && !identity.ComparisonPending
+						&& core::available_for_diff(*identity.AcceptedComparison)
+						&& core::canonical_hex(identity.AcceptedComparison->Right.Commit).view() == access::accepted_head(*application)
+						&& identity.PublicationDisplayed && identity.PublishedComparison == identity.AcceptedComparison
+						&& desiredFile && identity.PublishedFile == desiredFile
+						&& course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U);
+				},
+									   e2e::default_queue_budget)) {
 				const auto* surface      = course.comparison_surface();
 				const auto& context      = surface->current_context();
 				const auto& result       = surface->current_result();
 				const auto  selectedFile = course.files_drawer()->contents()->file_at(files->currentIndex());
 				const auto  current      = access::epoch_refresh_identity(*application);
+				const auto  work         = access::diff_work_evidence(*application);
+				const auto  retained     = access::close_review(*application);
 				std::cerr << "review-submission-selection row=" << files->currentIndex().row()
 						  << " context=" << context.has_value() << " result=" << static_cast<bool>(result)
 						  << " semantic=" << static_cast<bool>(surface->current_semantic_index())
@@ -836,6 +866,18 @@ auto main(int argc, char** argv) -> int
 						  << " right-lines=" << (result ? result->Alignment.RightLineCount : 0U)
 						  << " requested-file=" << desiredFile.has_value()
 						  << " selected-match=" << (desiredFile && current.SelectedFile == desiredFile)
+						  << " accepted-comparison=" << current.AcceptedComparison.has_value()
+						  << " accepted-available=" << (current.AcceptedComparison && core::available_for_diff(*current.AcceptedComparison))
+						  << " epoch-status=" << static_cast<int>(application->status().EpochStatus)
+						  << " navigation-ready=" << work.NavigationReady
+						  << " reviewer-jobs=" << work.EpochReviewerJobs
+						  << " diff-jobs=" << work.OutstandingJobs
+						  << " workbench-jobs=" << work.WorkbenchOutstandingRequests
+						  << " tab-modality=" << current.TabModality
+						  << " tab-chosen=" << retained.TabChosen
+						  << " tabs=" << retained.Tabs
+						  << " tab-load=" << current.TabLoad
+						  << " publication-displayed=" << current.PublicationDisplayed
 						  << " before-active=" << beforeFileGesture.ActiveTab.has_value()
 						  << " active=" << current.ActiveTab.has_value()
 						  << " active-file=" << (current.ActiveTab && current.ActiveTab->View.File.has_value())
