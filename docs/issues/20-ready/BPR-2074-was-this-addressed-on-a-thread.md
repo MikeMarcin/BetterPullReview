@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2074"
 title: "Was this addressed? on a review thread"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0116"]
 metadata: {"criteria":["AC03","AC04","AC05","AC07"],"milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2073--BPR-2085--88e53295c309.json","imported_from":"docs/rfcs/assets/agent-assistance-v1/cards/DRAFT-0002-was-this-addressed-on-a-thread.md"}
 depends_on: ["BPR-2073"]
