@@ -107,7 +107,7 @@ namespace bpr::adapters::sqlite {
 					}
 				}
 			}
-			return detail::execute(aDb, "DELETE FROM objects WHERE object NOT IN (SELECT object FROM pins)");
+			return detail::execute(aDb, "DELETE FROM objects WHERE object NOT IN (SELECT object FROM pins)").has_value();
 		}
 
 		class sqlite_local_draft_store final : public application::local_draft_store

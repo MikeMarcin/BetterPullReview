@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2131"
+  ],
+  "reserve_for": "native-workspace-volume-fixture",
+  "purpose": "Keep non-Mac wrong-volume ownership journal chain internally consistent and preserve malformed-chain negative; frozen60 native qualification failure",
+  "created": "2026-11-12T07:37:02.612697+00:00",
+  "base": "344360c01b24e16b48be5a22cdc31de27a3345ec"
+}

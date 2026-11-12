@@ -79,13 +79,13 @@ namespace bpr::qt {
 		auto reason_text(const core::local_stop_reason aReason) -> QString
 		{
 			switch (aReason) {
-			case core::local_stop_reason::none:             return QStringLiteral("Accepted");
-			case core::local_stop_reason::not_accepted:     return QStringLiteral("Not accepted yet");
-			case core::local_stop_reason::edited:           return QStringLiteral("Changed since accepted: edited");
-			case core::local_stop_reason::changed:          return QStringLiteral("Changed since accepted: changed");
-			case core::local_stop_reason::ambiguous:        return QStringLiteral("Changed since accepted: ambiguous");
-			case core::local_stop_reason::missing:          return QStringLiteral("Changed since accepted: missing");
-			case core::local_stop_reason::unavailable:      return QStringLiteral("Changed since accepted: unavailable");
+			case core::local_stop_reason::none:         return QStringLiteral("Accepted");
+			case core::local_stop_reason::not_accepted: return QStringLiteral("Not accepted yet");
+			case core::local_stop_reason::edited:       return QStringLiteral("Changed since accepted: edited");
+			case core::local_stop_reason::changed:      return QStringLiteral("Changed since accepted: changed");
+			case core::local_stop_reason::ambiguous:    return QStringLiteral("Changed since accepted: ambiguous");
+			case core::local_stop_reason::missing:      return QStringLiteral("Changed since accepted: missing");
+			case core::local_stop_reason::unavailable:  return QStringLiteral("Changed since accepted: unavailable");
 			}
 			return { };
 		}

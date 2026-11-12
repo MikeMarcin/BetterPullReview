@@ -270,13 +270,11 @@ That reader is the publication catalog's isolated store run read-only
 (`merge-base --all`, `ls-tree`, `cat-file`) with the worktree's objects and
 its remote chain's as alternates; refs, configuration, the index and working
 files are read as data through the read-only workspace port, never by Git.
-RFC-BPR-0109 adds the draft's evidence to the same record
-(`core/local_draft_evidence.hpp`: claims, checks, reported results, questions,
-imports) and keeps a result's copied artifacts as SHA-256 blob objects pinned
-to the draft, so discard and the resets remove them with it. An evidence import
-reads one chosen `bpr.evidence-import` document and the artifacts beneath its
-folder through the same read-only workspace port, applies it in one write or
-not at all, and runs nothing; no result is ever recorded as observed.
+RFC-BPR-0109's evidence record is deferred out of 0.5.0 (owner, 2026-11-12)
+and is not in the product. The store's version 1 migration rewrites any draft
+written while it could hold evidence without it and deletes objects that only
+its artifacts pinned; core reads such a record (and a publication plan whose
+digest covered evidence, after checking that digest) and drops the evidence.
 
 BPR-1844 remembers the Only new and Hide resolved filters of Discuss, Threads
 and Review's Comments for the profile, in its own

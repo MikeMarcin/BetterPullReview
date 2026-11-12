@@ -1479,7 +1479,7 @@ namespace {
 			}
 			aWindow.choose_modality(qt::review_modality::review);
 		};
-		const auto show_tray = [&](const QString& aName) {
+		const auto showTray = [&](const QString& aName) {
 			for (int index = 0; index < aWindow.tray_tabs()->count(); ++index) {
 				if (aWindow.tray_tabs()->accessibleTabName(index) == aName) {
 					aWindow.tray_tabs()->setCurrentIndex(index);
@@ -1494,7 +1494,7 @@ namespace {
 		for (const auto pull : aOptions.Reads) {
 			ready(pull);
 			++opened;
-			const auto tour = show_tray(QStringLiteral("Tour"));
+			const auto tour = showTray(QStringLiteral("Tour"));
 			wait_for([] { return false; }, "a reader's look (expected)", std::chrono::seconds{ 3 });
 			record("read", "\"pull\":" + std::to_string(pull) + ",\"tour_tab\":" + (tour ? "true" : "false") + ",\"status\":" + json_text(aWindow.github_status_text()));
 			if (opened == 1 && !aOptions.Agent.empty()) {
@@ -1516,7 +1516,7 @@ namespace {
 				panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
 				aWindow.settings()->hide();
 				aWindow.choose_modality(qt::review_modality::review);
-				show_tray(QStringLiteral("Agent"));
+				showTray(QStringLiteral("Agent"));
 				auto* const tab    = aWindow.agent_tab();
 				const auto  before = tab->turn_count();
 				wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
@@ -1537,7 +1537,7 @@ namespace {
 		const auto saved = [&] {
 			require([&] { const auto& p = editor->shown(); return p.Draft && !p.Saving && p.SavedRevision == p.Draft->Revision; }, "the tour is saved");
 		};
-		const auto select_lines = [&](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) {
+		const auto selectLines = [&](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) {
 			auto* const surface = aWindow.comparison_surface();
 			const auto  file    = core::file_identity_of(aPath);
 			require([&] { return aWindow.files_drawer()->contents()->index_for_file(file).isValid(); }, aPath + " is listed");
@@ -1559,17 +1559,17 @@ namespace {
 		};
 		editor->problem_editor()->setPlainText(QStringLiteral("The retry delay doubled without a bound on the shift, and the second helper repeated it."));
 		editor->solution_editor()->setPlainText(QStringLiteral("Bound the doubling in one place and keep the second helper's arithmetic beside it."));
-		select_lines(aOptions.Path, aOptions.FirstStop, aOptions.FirstStop + 1U);
+		selectLines(aOptions.Path, aOptions.FirstStop, aOptions.FirstStop + 1U);
 		aWindow.add_tour_stop_action()->trigger();
 		editor->stop_title()->setPlainText(QStringLiteral("Bound the doubling"));
 		editor->stop_body()->setPlainText(QStringLiteral("These lines carry the change; the rest of the file follows from them."));
 		saved();
-		select_lines(aOptions.Second, aOptions.SecondStop, aOptions.SecondStop + 1U);
+		selectLines(aOptions.Second, aOptions.SecondStop, aOptions.SecondStop + 1U);
 		aWindow.add_tour_stop_action()->trigger();
 		editor->stop_title()->setPlainText(QStringLiteral("The helper beside it"));
 		editor->stop_body()->setPlainText(QStringLiteral("Read these lines with stop 1: they use the same bound."));
 		saved();
-		const auto stop_states = [&] {
+		const auto stopStates = [&] {
 			auto        result = std::string{ };
 			const auto& draft  = editor->shown().Draft;
 			for (const auto& stop : draft->Stops) {
@@ -1579,7 +1579,7 @@ namespace {
 			return "[" + result + "]";
 		};
 		// The stop's own Accept, as the author presses it.
-		const auto accept_all = [&] {
+		const auto acceptAll = [&] {
 			const auto count = static_cast<int>(editor->shown().Draft->Stops.size());
 			for (int row = 0; row < count; ++row) {
 				editor->outline()->setCurrentRow(row);
@@ -1596,9 +1596,9 @@ namespace {
 					saved();
 				}
 			}
-			record("stops", "\"stops\":" + stop_states());
+			record("stops", "\"stops\":" + stopStates());
 		};
-		accept_all();
+		acceptAll();
 		const auto head   = [&] { return std::string{ core::canonical_hex(editor->shown().Draft->ObservedHead.value_or(editor->shown().Draft->Head)).view() }; };
 		const auto before = head();
 		checkpoint(aOptions.Root, "push", "{\"head\":" + json_text(before) + "}");
@@ -1614,8 +1614,8 @@ namespace {
 		};
 		const auto checked = wait_for(compared, "the stops are compared at the new head", std::chrono::seconds{ 240 });
 		record("compared", std::string{ "\"compared\":" } + (checked ? "true" : "false"));
-		record("pushed", "\"head\":" + json_text(head()) + ",\"stops\":" + stop_states());
-		accept_all();
+		record("pushed", "\"head\":" + json_text(head()) + ",\"stops\":" + stopStates());
+		acceptAll();
 
 		// 4. Prepare and Publish.
 		aWindow.open_tour_page(true);
@@ -1634,7 +1634,7 @@ namespace {
 		};
 		find("tourPreparePublication")->click();
 		if (!wait_for([&] { return find("tourPublish")->isEnabled(); }, "Publish is offered", std::chrono::seconds{ 180 })) {
-			record("not-publishable", panel() + ",\"stops\":" + stop_states());
+			record("not-publishable", panel() + ",\"stops\":" + stopStates());
 			aWindow.grab().save(QString::fromStdString((aOptions.Root / "tour-not-publishable.png").string()));
 			fail("Publish was never offered");
 		}
@@ -1665,11 +1665,11 @@ namespace {
 			if (keep != nullptr && keep->isChecked()) {
 				keep->click();
 			}
-			record("repinned", "\"stops\":" + stop_states());
-			accept_all();
+			record("repinned", "\"stops\":" + stopStates());
+			acceptAll();
 			find("tourPreparePublication")->click();
 			if (!wait_for([&] { return find("tourPublish")->isEnabled(); }, "Publish is offered again", std::chrono::seconds{ 180 })) {
-				record("not-publishable", panel() + ",\"stops\":" + stop_states());
+				record("not-publishable", panel() + ",\"stops\":" + stopStates());
 				fail("Publish was never offered after the re-pin");
 			}
 			record("prepared", panel());

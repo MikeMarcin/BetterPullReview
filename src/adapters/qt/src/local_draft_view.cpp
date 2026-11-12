@@ -2,7 +2,6 @@
 
 #include "bpr/qt/local_draft_publication_area.hpp"
 
-
 #include <QAction>
 #include <QComboBox>
 #include <QFontMetricsF>

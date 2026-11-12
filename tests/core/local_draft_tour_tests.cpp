@@ -167,15 +167,15 @@ namespace {
 	/// claims and checks: it reads as the same draft without any of them.
 	void test_stored_evidence_is_dropped()
 	{
-		auto draft          = make_draft();
-		draft               = ok(core::add_local_stop(draft, draft.Version, "Cancel", "Stops.", file(first_text), core::diff_side::right, 2U, 4U, 101), "a stop");
-		draft               = ok(core::accept_local_stop(draft, draft.Version, draft.Preparation.Tour.Stops[0].Id, 102), "accepted");
-		const auto drafts   = std::vector<core::local_proposal_draft>{ { .Target = core::local_proposal_target::description, .Text = "Agent body." } };
+		auto draft           = make_draft();
+		draft                = ok(core::add_local_stop(draft, draft.Version, "Cancel", "Stops.", file(first_text), core::diff_side::right, 2U, 4U, 101), "a stop");
+		draft                = ok(core::accept_local_stop(draft, draft.Version, draft.Preparation.Tour.Stops[0].Id, 102), "accepted");
+		const auto drafts    = std::vector<core::local_proposal_draft>{ { .Target = core::local_proposal_target::description, .Text = "Agent body." } };
 		auto [proposed, ids] = ok(core::record_proposals(draft, draft.Version, 1U, 1U, drafts, { }, "Claude", "v1", 103), "a proposal");
-		const auto talked   = ok(core::append_turn(proposed, proposed.Version, core::local_change_thread, "agent-1", "Claude", { .Author = false, .Text = "Here.", .Proposals = ids }, 104),
-								 "an answer that proposed it")
-								.first;
-		const auto replace = [](std::string& aText, const std::string_view aFrom, const std::string_view aTo) {
+		const auto talked    = ok(core::append_turn(proposed, proposed.Version, core::local_change_thread, "agent-1", "Claude", { .Author = false, .Text = "Here.", .Proposals = ids }, 104),
+								  "an answer that proposed it")
+								   .first;
+		const auto replace   = [](std::string& aText, const std::string_view aFrom, const std::string_view aTo) {
 			const auto at = aText.find(aFrom);
 			expect(at != std::string::npos, "the stored form has the expected shape");
 			aText.replace(at, aFrom.size(), aTo);
@@ -242,11 +242,11 @@ namespace {
 		expect(three != one && d3.Preparation.Conversations.size() == 2U && d3.Preparation.Conversations[0].Turns.size() == 2U, "the earlier conversation stays readable");
 		auto ended = ok(core::end_conversation(d3, d3.Version, three, 105), "New session");
 		expect(core::current_conversation(ended, core::local_change_thread, "agent-1") == nullptr, "New session ends the open one");
-		auto long_one = core::local_conversation{ .Id = 1U, .Thread = "change" };
+		auto longOne = core::local_conversation{ .Id = 1U, .Thread = "change" };
 		for (int index = 0; index < 20; ++index) {
-			long_one.Turns.push_back({ .Text = std::string(6000U, 'x') });
+			longOne.Turns.push_back({ .Text = std::string(6000U, 'x') });
 		}
-		const auto replay = core::replay_turns(long_one);
+		const auto replay = core::replay_turns(longOne);
 		expect(replay.Turns.size() == 8U && replay.Omitted == 12U, "replay keeps 48 KiB and at most 12 turns");
 		expect(core::decode_local_draft(core::encode_local_draft(ended)) == ended, "conversations survive restart");
 		expect(core::append_turn(d3, d3.Version, "stop:x", "agent-1", "Claude", { .Text = "?" }, 106).error() == core::preparation_refusal::invalid, "threads are well formed");

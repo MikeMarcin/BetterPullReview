@@ -253,7 +253,7 @@ try {
 		expect(page->projection().Draft->Preparation.Tour.Stops[0].Source.Excerpt == "void cancel()\n{\n\tstop_worker();\n\tjoin_worker();\n}\n",
 			   "AC01: it binds the candidate's exact bytes, no commit identity");
 		expect(tour->head()->text() == QStringLiteral("1 stop, 1 to accept"), "AC08: the head states the stops to accept");
-		expect(tour->findChildren<QPushButton*>().size() > 0
+		expect(!tour->findChildren<QPushButton*>().empty()
 				   && std::ranges::none_of(tour->findChildren<QPushButton*>(), [](const QPushButton* aButton) { return aButton->text().contains(QStringLiteral("Publish")); }),
 			   "AC08: no Publish action in the Tour area");
 		tour->stops()->setCurrentRow(0);
@@ -274,7 +274,7 @@ try {
 		write_file(worktree / "src/helper.cpp", "int helper()\n{\n\treturn LIVE_HELPER_EDIT;\n}\n");
 		s.Answer = "The join can block if the worker waits on the UI.\n\n```bpr-proposals\n"
 				   "[{\"target\":\"problem\",\"text\":\"A cancelled search kept its worker running.\"},"
-				   "{\"target\":\"title\",\"text\":\"Cancel joins the worker\"},"
+				   "{\"target\":\"problem\",\"text\":\"Searches never stopped.\"},"
 				   "{\"target\":\"new_stop\",\"path\":\"src/helper.cpp\",\"first\":1,\"last\":3,\"title\":\"Helper\",\"text\":\"The live helper.\"},"
 				   "{\"target\":\"solution\",\"text\":\"Cancel stops the worker and waits for it.\"}]\n```";
 		page->areas()->setCurrentIndex(2);
@@ -300,16 +300,14 @@ try {
 		auto* const outside = row_of(*chat->proposals(), QStringLiteral("New stop"));
 		chat->proposals()->setCurrentItem(outside);
 		expect(!chat->accept_button()->isEnabled(), "AC03: a stop outside the candidate cannot be accepted as written");
-		const auto title = page->projection().Draft->Title;
-		chat->proposals()->setCurrentItem(row_of(*chat->proposals(), QStringLiteral("Problem")));
-		chat->accept_button()->click();
-		settle(s.Lanes);
-		chat->proposals()->setCurrentItem(row_of(*chat->proposals(), QStringLiteral("Title")));
+		chat->proposals()->setCurrentItem(row_of(*chat->proposals(), QStringLiteral("Problem: Searches never")));
 		chat->reject_button()->click();
 		settle(s.Lanes);
-		const auto& accepted = *page->projection().Draft;
-		expect(accepted.Preparation.Tour.Problem == "A cancelled search kept its worker running." && accepted.Title == title,
-			   "the accepted proposal is in the tour; the rejected one changed nothing");
+		expect(page->projection().Draft->Preparation.Tour.Problem == "Searches kept running after Cancel.", "a rejected proposal changes nothing");
+		chat->proposals()->setCurrentItem(row_of(*chat->proposals(), QStringLiteral("Problem: A cancelled")));
+		chat->accept_button()->click();
+		settle(s.Lanes);
+		expect(page->projection().Draft->Preparation.Tour.Problem == "A cancelled search kept its worker running.", "the accepted proposal is in the tour");
 		capture(window, QStringLiteral("local-draft-tour-proposals"));
 		// A late proposal cannot overwrite a later author edit.
 		tour->solution()->setPlainText(QStringLiteral("Cancel stops and joins the worker, on any thread."));

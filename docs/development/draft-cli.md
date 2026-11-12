@@ -32,64 +32,6 @@ A target that the remotes do not settle (a fork and its parent, a repository
 with no known default branch) and a draft whose worktree moved are settled in
 the desktop.
 
-## Evidence (RFC-BPR-0109)
-
-```sh
-bpr draft open [PATH] --evidence FILE [--json]
-```
-
-`--evidence` imports one evidence document into the draft it opens, as the
-Evidence area's **Import…** does. The document is refused whole, with its
-reason, for anything this version does not define; nothing of a refused
-document is applied. With `--json`, `data.evidence` counts what was added
-(`claims`, `checks`, `results`, `questions`, `bound`, `artifacts_stored`,
-`artifacts_not_stored`); a refusal has the code `evidence_refused` and
-`data.evidence_refusal` (`too_large`, `malformed`, `format`, `version`,
-`unknown_field`, `observed`, `invalid_value`, `reference`, `bounds`,
-`duplicate`, `empty`, `stale`).
-
-BetterPullReview does not read test, benchmark or prover report formats. A
-tool or companion skill translates its own report into this one document:
-
-```json
-{
-  "format": "bpr.evidence-import",
-  "version": 1,
-  "producer": { "kind": "tool", "name": "ctest-bridge", "version": "1.0" },
-  "claims": [ { "key": "c1", "kind": "bug_fix", "text": "Cancelling a search releases its worker." } ],
-  "checks": [ { "key": "k1", "method": "test", "title": "search_cancel_test",
-                "command": "ctest -R search_cancel", "claims": ["c1"] } ],
-  "results": [ { "check": "k1", "outcome": "pass", "class": "reported",
-                 "material": { "head": "<commit>", "working": [ { "path": "src/search.cpp", "object": "<git hash-object>" } ] },
-                 "inputs": ["src/"], "environment": "macOS 26, Debug",
-                 "artifacts": [ { "name": "Log", "path": "logs/run.txt" }, { "name": "CI", "url": "https://…" } ] } ],
-  "questions": [ { "text": "Does the timer path need the same fix?", "claim": "c1" } ]
-}
-```
-
-- `producer.kind` is `author`, `tool` or `agent`. `claims[].kind` is
-  `bug_fix`, `preserved_behavior`, `compatibility`, `performance`,
-  `formal_property` or `other`. `checks[].method` is `test`, `benchmark`,
-  `fuzz`, `property_test`, `inspection`, `model_check`, `proof` or `other`; a
-  `model_check` or `proof` may carry `formal` (`property`, `subject`, `tool`,
-  `assumptions`, `bounds`, `correspondence`).
-- `results[].class` must be `reported`. A result that says `observed` is
-  refused: only a later BPR-supervised action can observe an execution.
-  `outcome` is `pass`, `fail`, `inconclusive`, `not_run` or `interrupted`. A
-  result names its check by `check` (a key in the document) or `check_id` (a
-  check already in the draft).
-- `material` is what the check ran on: the commit, and every working file
-  that differed from it with its `git hash-object` identity (or `"deleted":
-  true`). A result binds to a candidate only when commit and working files
-  match that candidate exactly; a commit alone never binds a candidate that
-  includes working files. Otherwise the result is kept, unbound.
-- `inputs` are the paths (a folder ends in `/`) the result depends on. A later
-  candidate that leaves them unchanged, on the same base, keeps the result;
-  without inputs any later candidate asks for a recheck.
-- An artifact `path` is relative to the document's folder and is read beneath
-  it without following links, up to 16 MiB each and 64 MiB per import; a
-  `url` is kept as a link and never fetched. A missing, linked or oversized
-  file is recorded as such.
-- Claims, checks and questions arrive proposed: the author accepts or rejects
-  each. Results arrive reported. The document is at most 16 MiB, and the same
-  document is not applied twice.
+Evidence, and `--evidence` with it, is not part of 0.5.0: the owner cut it on
+2026-11-12 and [RFC-BPR-0109](../rfcs/RFC-BPR-0109-author-evidence.md) is
+deferred. `bpr draft open --evidence` is refused as an unknown option.

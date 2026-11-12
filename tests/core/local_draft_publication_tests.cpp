@@ -249,8 +249,8 @@ namespace {
 		const auto open    = std::string_view{ "{\"plan\":" };
 		const auto close   = current.find(",\"digest\":\"");
 		expect(current.starts_with(open) && close != std::string::npos, "the stored form leads with the plan");
-		auto       plan    = current.substr(open.size(), close - open.size());
-		const auto at      = plan.find(",\"private_notes\":");
+		auto       plan = current.substr(open.size(), close - open.size());
+		const auto at   = plan.find(",\"private_notes\":");
 		expect(at != std::string::npos, "the plan names its private notes");
 		plan.insert(at, ",\"evidence\":[3],\"stale\":[],\"private_records\":1");
 		const auto bytes  = std::span{ reinterpret_cast<const std::uint8_t*>(plan.data()), plan.size() };

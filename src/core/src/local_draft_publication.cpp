@@ -37,11 +37,11 @@ namespace bpr::core::detail {
 		std::optional<std::vector<std::uint64_t>> Evidence;
 		std::optional<std::vector<std::uint64_t>> Stale;
 		std::optional<std::uint64_t>              PrivateRecords;
-		std::uint64_t              PrivateNotes         = 0;
-		std::uint64_t              PrivateConversations = 0;
-		bool                       TourFollowUp         = false;
-		std::vector<std::uint64_t> Unaccepted;
-		std::uint64_t              Stops = 0;
+		std::uint64_t                             PrivateNotes         = 0;
+		std::uint64_t                             PrivateConversations = 0;
+		bool                                      TourFollowUp         = false;
+		std::vector<std::uint64_t>                Unaccepted;
+		std::uint64_t                             Stops = 0;
 	};
 	struct wire_publication_link
 	{

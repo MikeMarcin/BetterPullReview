@@ -78,3 +78,17 @@ on the frozen build of `8f5ca195f370` (root
 Root `/Users/jaeger/local-draft-evidence-v001.pdc9rq1b` removed with `freeze_attended_build.py remove` and the host
 stopped (2026-11-12). The coordinator: a redesign from mockups comes first;
 no new look is filed until then.
+
+## Owner amendment: deferred and removed (2026-11-12)
+
+The owner, asked whether to cut Evidence from 0.5.0: "Mockups; cut
+Evidence". This RFC is Deferred, out of 0.5.0, kept as a possible workflow
+extension; [[BPR-2023]], [[BPR-2024]] and [[BPR-2025]] are Blocked on
+`owner-deferred`. The results above are history: the code they exercised was
+removed from the product on the lane (the Evidence area, `bpr draft open
+--evidence`, the stored record and its artifacts, agent-proposed claims and
+checks, citations, selected evidence in previews and the publication plan),
+with a forward migration for stored drafts. `core_local_draft_evidence` and
+`application_local_draft_evidence_desktop_public_path` no longer exist. The
+removal's own checks are recorded in the
+[RFC-BPR-0110 ledger](RFC-BPR-0110.md#owner-amendment-evidence-removed-2026-11-12).

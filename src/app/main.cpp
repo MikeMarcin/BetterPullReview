@@ -12822,9 +12822,9 @@ auto main(int argc, char** argv) -> int
 						look = std::string{ "notes" };
 					}
 					if (attendedLocalDraft.has_value() && !attendedLocalDraft->empty()) {
-						AttendedLocalDraftPath     = std::string{ *attendedLocalDraft };
-						AttendedLocalDraftTour     = launch.has("--attended-local-draft-tour");
-						look                       = std::string{ "local-draft" };
+						AttendedLocalDraftPath = std::string{ *attendedLocalDraft };
+						AttendedLocalDraftTour = launch.has("--attended-local-draft-tour");
+						look                   = std::string{ "local-draft" };
 					}
 					if (attendedConversationLook) {
 						look = std::string{ "conversation" };

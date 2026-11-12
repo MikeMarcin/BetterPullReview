@@ -32,18 +32,18 @@ namespace bpr::core::preparation_wire {
 	};
 	struct stop
 	{
-		std::uint64_t              Id = 0;
-		std::string                Title;
-		std::string                Text;
-		binding                    Source;
-		std::vector<binding>       Earlier;
+		std::uint64_t        Id = 0;
+		std::string          Title;
+		std::string          Text;
+		binding              Source;
+		std::vector<binding> Earlier;
 		/// Written before RFC-BPR-0109 was deferred (2026-11-12): read and dropped, never written.
 		std::optional<std::vector<std::uint64_t>> Citations;
 		bool                                      Attention = false;
-		destination                Current;
-		std::uint64_t              Revision = 1;
-		bool                       Accepted = false;
-		std::string                Fingerprint;
+		destination                               Current;
+		std::uint64_t                             Revision = 1;
+		bool                                      Accepted = false;
+		std::string                               Fingerprint;
 	};
 	struct proposal
 	{
@@ -59,9 +59,9 @@ namespace bpr::core::preparation_wire {
 		/// Written before RFC-BPR-0109 was deferred (2026-11-12): read and dropped, never written.
 		std::optional<std::string> Claim;
 		std::optional<std::string> Method;
-		std::string            Producer;
-		std::string            Version;
-		std::string            State;
+		std::string                Producer;
+		std::string                Version;
+		std::string                State;
 	};
 	struct turn
 	{
@@ -175,8 +175,8 @@ namespace bpr::core {
 
 		constexpr auto all_correspondences = std::array{ local_correspondence::exact, local_correspondence::changed, local_correspondence::ambiguous, local_correspondence::missing,
 														 local_correspondence::unavailable };
-		constexpr auto all_targets         = std::array{ local_proposal_target::title,    local_proposal_target::description, local_proposal_target::problem,
-														 local_proposal_target::solution, local_proposal_target::stop,        local_proposal_target::new_stop };
+		constexpr auto all_targets         = std::array{ local_proposal_target::title, local_proposal_target::description, local_proposal_target::problem,
+														 local_proposal_target::solution, local_proposal_target::stop, local_proposal_target::new_stop };
 		constexpr auto all_states          = std::array{ local_proposal_state::pending, local_proposal_state::accepted, local_proposal_state::rejected, local_proposal_state::outside_candidate };
 		constexpr auto all_subjects        = std::array{ local_subject::whole_change, local_subject::title, local_subject::description, local_subject::problem,
 														 local_subject::solution, local_subject::stop, local_subject::lines };
@@ -339,7 +339,7 @@ namespace bpr::core {
 				const auto* stop = find_stop(aDraft, aStop);
 				return stop == nullptr ? std::nullopt : std::optional{ stop->Revision };
 			}
-			case local_proposal_target::new_stop:    return std::uint64_t{ 0U };
+			case local_proposal_target::new_stop: return std::uint64_t{ 0U };
 			}
 			return std::nullopt;
 		}
@@ -447,13 +447,13 @@ namespace bpr::core {
 	auto name(const local_stop_reason aReason) noexcept -> std::string_view
 	{
 		switch (aReason) {
-		case local_stop_reason::none:             return "none";
-		case local_stop_reason::not_accepted:     return "not_accepted";
-		case local_stop_reason::edited:           return "edited";
-		case local_stop_reason::changed:          return "changed";
-		case local_stop_reason::ambiguous:        return "ambiguous";
-		case local_stop_reason::missing:          return "missing";
-		case local_stop_reason::unavailable:      return "unavailable";
+		case local_stop_reason::none:         return "none";
+		case local_stop_reason::not_accepted: return "not_accepted";
+		case local_stop_reason::edited:       return "edited";
+		case local_stop_reason::changed:      return "changed";
+		case local_stop_reason::ambiguous:    return "ambiguous";
+		case local_stop_reason::missing:      return "missing";
+		case local_stop_reason::unavailable:  return "unavailable";
 		}
 		return "none";
 	}

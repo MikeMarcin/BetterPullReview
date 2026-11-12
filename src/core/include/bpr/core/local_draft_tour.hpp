@@ -524,7 +524,7 @@ namespace bpr::core {
 		/// Stops that stay local and need attention.
 		std::size_t Unresolved = 0;
 		/// The pull request's body is the accepted description.
-		bool DescriptionPreserved                                           = false;
+		bool DescriptionPreserved                                       = false;
 		auto operator==(const local_publication_mapping&) const -> bool = default;
 	};
 	/// \brief Maps every stop to the pull request's exact head. A stop whose
