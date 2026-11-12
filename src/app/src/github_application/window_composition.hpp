@@ -578,6 +578,12 @@ namespace bpr::app {
 		void start_published_tour(std::optional<std::pair<std::string, core::published_tour_stop>> aStop = std::nullopt);
 		void start_tour_at(const std::optional<std::pair<std::string, core::published_tour_stop>>& aStop);
 		void finish_pending_tour_start(const application::tour_presentation& aProjection);
+		/// A clicked body link into this pull request, shown here in place of
+		/// the link question: a published tour, its conversation, Review, its
+		/// commits or one commit, or a place followed as a pasted link's
+		/// location. False keeps the question.
+		auto follow_in_app_link(const core::markdown_link_intent& aIntent) -> bool;
+		void open_linked_tour(std::size_t aImport, const core::tour_remote_binding& aRoot);
 		void compose_review_tour(const application::accepted_pull_request_handoff& aHandoff);
 		void remember_tour_target(const core::review_tour& aSeed, const application::github_pull_request_snapshot& aSnapshot, std::string_view aHostname);
 		void refresh_tour_imports();

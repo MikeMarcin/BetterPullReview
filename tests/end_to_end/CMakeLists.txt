@@ -4642,6 +4642,14 @@ bpr_add_network_isolated_test(NAME application_review_tour_cold_import_public_pa
 set_tests_properties(application_review_tour_cold_import_public_path PROPERTIES
     TIMEOUT 90 ENVIRONMENT "${bpr_public_path_fixture_environment}"
     PASS_REGULAR_EXPRESSION "review-tour-cold-import:pass")
+# The description's tour link opens the published tour in the window, with
+# no link question and nothing handed to the browser.
+bpr_add_network_isolated_test(NAME application_review_tour_link_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_review_tour_composition_public_path --tour-link)
+set_tests_properties(application_review_tour_link_public_path PROPERTIES
+    TIMEOUT 90 ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "review-tour-link:pass")
 
 bpr_add_executable(test_review_tour_publication_public_path review_tour_publication_public_path.cpp)
 target_link_libraries(test_review_tour_publication_public_path PRIVATE BetterPullReview::Composition)

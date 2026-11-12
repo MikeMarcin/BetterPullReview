@@ -900,6 +900,14 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_core_setup_destination_tests
 )
 
+# A clicked link into the open pull request: a published tour's link opens
+# the tour, a place the window shows opens there, the rest stays external.
+bpr_add_executable(test_better_pull_review_core_pull_request_link_route_tests pull_request_link_route_tests.cpp)
+target_link_libraries(test_better_pull_review_core_pull_request_link_route_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_core_pull_request_link_route_tests)
+bpr_enable_warnings(test_better_pull_review_core_pull_request_link_route_tests)
+bpr_add_network_isolated_test(NAME core_pull_request_link_route COMMAND test_better_pull_review_core_pull_request_link_route_tests)
+
 # [[BPR-1358]]. SHA-256 known answers, padding and block boundaries, and
 # every split of one input across update calls.
 bpr_add_executable(

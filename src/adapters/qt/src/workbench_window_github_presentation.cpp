@@ -461,6 +461,14 @@ namespace bpr::qt {
 
 	void workbench_window::confirm_markdown_link(const core::markdown_link_intent& aIntent)
 	{
+		// A link into this pull request the window shows itself goes there:
+		// the question is for external links a person wrote.
+		if (MarkdownInAppDispatch && MarkdownInAppDispatch(aIntent)) {
+			if (LinkConfirmation != nullptr) {
+				LinkConfirmation->close();
+			}
+			return;
+		}
 		// The address comes from the same admission the open repeats, so what
 		// the question shows is what would open; nothing opens until Open.
 		const auto address = MarkdownAddressDispatch ? MarkdownAddressDispatch(aIntent) : std::expected<std::string, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::unavailable) };
@@ -481,6 +489,11 @@ namespace bpr::qt {
 	void workbench_window::set_markdown_link_address_dispatch(std::function<std::expected<std::string, core::markdown_link_result>(const core::markdown_link_intent&)> aDispatch)
 	{
 		MarkdownAddressDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_markdown_in_app_link_dispatch(std::function<bool(const core::markdown_link_intent&)> aDispatch)
+	{
+		MarkdownInAppDispatch = std::move(aDispatch);
 	}
 
 	auto workbench_window::external_link_confirmation() const noexcept -> QDialog*
