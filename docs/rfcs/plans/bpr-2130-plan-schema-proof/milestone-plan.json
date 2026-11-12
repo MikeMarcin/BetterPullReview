@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2130-plan-schema-proof",
+  "scope": {
+    "issues": [
+      "BPR-2130"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "restore-pinned-plan-discovery",
+      "outcome": "Pinned MASK965 can validate and discover the completed BPR-2120 plan while its exact proof hashes and accepted scope remain intact.",
+      "work": [
+        {
+          "issue": "BPR-2130",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Remove only the two unsupported2120 milestone fields and preserve their exact name/hash facts in the allowed existing boundary string; keep all other plan values and Done2120 acceptance exact.",
+        "Focused pinned965 validation and actual2120/2129 target discovery show the own schema error removed; any independent foreign failure is recorded separately, never repaired or credited.",
+        "Future-main metadata contribution and scoped documentation checks complete with exact changed paths and terminal commands. No R/W/source60/cohort/artifact, runtime, product, test, native-job or qualification mutation."
+      ],
+      "boundary": "Mandate bpr2130-future-main-plan-schema-r1. Own2120 plan metadata plus own2130 card/reservation/plan/proof/counter only; future main, never release60 intake or reroll. No runtime upgrade or foreign plan repair."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
