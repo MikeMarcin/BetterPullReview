@@ -2995,7 +2995,10 @@ auto main(int argc, char** argv) -> int
 		briefSays = field("brief.title") == "Keep review snapshots deterministic" && field("brief.base_branch") == "main"
 			&& field("brief.workspace") == "private_copy" && field("brief.diff") == "git diff " + std::string{ fixture.BaseOid } + "..." + std::string{ fixture.HeadOneOid }
 			&& field("brief.description.cut_bytes") == "0" && field("brief.file.count") != "0" && field("brief.skill.source") == "built_in"
-			&& field("brief.skill.version") == "5" && field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos
+			// [[BPR-2140]]. The skill's text rides the system prompt where the
+			// agent takes one, and the brief says so; otherwise the brief has it.
+			&& field("brief.skill.version") == "5"
+			&& (field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos || (field("brief.skill.text") == "<absent>" && field("brief.skill.location") == "system_prompt"))
 			// [[BPR-2059]]. The shipped suggested-comment format rides the brief.
 			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v1"
 			&& field("brief.comment_format.text").find("Say the problem in one sentence, then the fix.") != std::string::npos

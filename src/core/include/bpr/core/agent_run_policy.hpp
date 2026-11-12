@@ -97,15 +97,17 @@ namespace bpr::core {
 
 	/// \brief [[BPR-2138]]. The resumed path a fresh answer's Ask more
 	/// promotes into, seeded with that answer; none for a fresh path that
-	/// offers no conversation (an Enhance, a commit message, a check).
+	/// offers no conversation (an Enhance on a comment, reply or note, a
+	/// commit message, a check). A tour part's Enhance continues in that
+	/// part's side chat.
 	[[nodiscard]] constexpr auto ask_more_path(const agent_run_path aPath) noexcept -> std::optional<agent_run_path>
 	{
 		switch (aPath) {
 		case agent_run_path::draft_tour_first_draft:        return agent_run_path::tour_conversation;
 		case agent_run_path::assistance_first_answer:       return agent_run_path::agent_tab;
 		case agent_run_path::local_description_first_draft: return agent_run_path::local_draft_discussion;
+		case agent_run_path::tour_enhance:                  return agent_run_path::tour_side_chat;
 		case agent_run_path::enhance_writing:
-		case agent_run_path::tour_enhance:
 		case agent_run_path::tour_field_draft:
 		case agent_run_path::review_feedback_hook:
 		case agent_run_path::local_commit_message:

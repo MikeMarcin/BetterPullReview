@@ -235,6 +235,58 @@ namespace {
 		expect(parts && parts->Message.find(request.Raw) != std::string::npos, "the text to enhance is in the message");
 	}
 
+	/// [[BPR-2138]], RFC-BPR-0101 AC10, AC12. A local draft's discussion is
+	/// a tool-free conversation that keeps its native session and resumes it
+	/// by handle; its first description and its commit message are fresh.
+	void test_a_local_draft_discussion_resumes_its_native_session()
+	{
+		const auto claude = profile(core::agent_protocol::claude_stream_json);
+		const auto first  = application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::local_draft_discussion });
+		expect(first && !has(first->Arguments, "--no-session-persistence") && has(first->Arguments, "--disable-slash-commands") && has(first->Arguments, "--strict-mcp-config")
+				   && !has(first->Arguments, "--resume"),
+			   "the discussion's first turn is tool-free, saves its session and resumes none");
+		auto next         = *first;
+		next.NativeHandle = "0f8e7c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b";
+		const auto resumed = application::prepare_native_agent_turn(next, false);
+		expect(resumed && has(resumed->Arguments, "--resume") && resumed->Arguments[index_of(resumed->Arguments, "--resume") + 1U] == next.NativeHandle
+				   && has(resumed->Arguments, "--disable-slash-commands"),
+			   "the next turn resumes that session, still tool-free");
+		expect(!application::prepare_native_agent_turn(next, true), "a tool-free conversation has no connected session");
+		for (const auto fresh : { core::agent_run_path::local_description_first_draft, core::agent_run_path::local_commit_message }) {
+			const auto launch = application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = fresh });
+			expect(launch && has(launch->Arguments, "--no-session-persistence"), "a first description and a commit message save no session");
+			auto turn         = *launch;
+			turn.NativeHandle = next.NativeHandle;
+			expect(!application::prepare_native_agent_turn(turn, false), "and are never resumed");
+		}
+		expect(core::ask_more_path(core::agent_run_path::local_description_first_draft) == core::agent_run_path::local_draft_discussion,
+			   "a first description's Ask more is the draft's discussion");
+		expect(!core::ask_more_path(core::agent_run_path::local_commit_message), "a commit message offers no conversation");
+		expect(core::ask_more_path(core::agent_run_path::tour_enhance) == core::agent_run_path::tour_side_chat, "a tour part's Enhance continues in that part's side chat");
+	}
+
+	/// [[BPR-2140]]. The review skill a review request carries is a built-in
+	/// prompt: it rides the system prompt and leaves the brief.
+	void test_the_review_skill_rides_the_system_prompt()
+	{
+		auto value  = supplement();
+		value.Brief = core::supplement_brief{ .Title = "Cache", .BaseBranch = "main", .Skill = core::brief_review_skill{ .Text = "SKILL-RULE: review the cache's eviction first." } };
+		const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), value, reader(), { .Path = core::agent_run_path::agent_tab });
+		expect(claude && has(claude->Arguments, "--append-system-prompt") && claude->Arguments[index_of(claude->Arguments, "--append-system-prompt") + 1U].starts_with("SKILL-RULE")
+				   && claude->Input.find("SKILL-RULE") == std::string::npos && claude->Input.find("brief.skill.location") != std::string::npos
+				   && claude->InstructionsRoute == application::agent_instructions_route::system_prompt,
+			   "the Agent tab's review skill is Claude's system prompt, and the brief says where it went");
+		const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), value, reader(), { .Path = core::agent_run_path::agent_tab });
+		expect(exec && exec->Input.find("SKILL-RULE") == std::string::npos
+				   && std::ranges::any_of(exec->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions=\"SKILL-RULE"); }),
+			   "Codex exec takes it as developer_instructions");
+		const auto pasted = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), value, reader(),
+															{ .Path = core::agent_run_path::agent_tab, .Instructions = core::agent_instruction_delivery::message });
+		expect(pasted && !has(pasted->Arguments, "--append-system-prompt") && pasted->Input.find("SKILL-RULE") != std::string::npos, "the agent's switch keeps it in the message");
+		const auto appServer = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), value, reader(), { .Path = core::agent_run_path::agent_tab });
+		expect(appServer && appServer->DeferredContext.find("SKILL-RULE") != std::string::npos, "the App Server keeps it in the message");
+	}
+
 	/// RFC-BPR-0103 AC10. A wrapper's failed sign-in ends the run as one.
 	void test_a_failed_sign_in_ends_the_run_at_once()
 	{
@@ -291,6 +343,8 @@ auto main(const int aCount, char** aArguments) -> int
 	test_options_with_several_values_come_before_the_prompt_flag();
 	test_built_in_instructions_reach_the_system_prompt();
 	test_the_writing_prompt_splits_into_instructions_and_material();
+	test_a_local_draft_discussion_resumes_its_native_session();
+	test_the_review_skill_rides_the_system_prompt();
 	test_a_failed_sign_in_ends_the_run_at_once();
 	std::cout << "agent-launch-policy-tests:pass\n";
 	return EXIT_SUCCESS;
