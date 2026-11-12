@@ -143,7 +143,6 @@ if(BPR_BUILD_QT)
             src/github_application/application_windows.cpp
             src/github_application/blob_sources.cpp
             src/github_application/cli_accounts.cpp
-            src/github_application/credential_prompt.cpp
             src/github_application/defect_identity.cpp
             src/github_application/device_authorization_composition.cpp
             src/github_application/fixture_appearance_course.cpp
@@ -180,6 +179,7 @@ if(BPR_BUILD_QT)
             src/github_application/startup_failures.cpp
             src/github_application/theme_document_file.cpp
             src/github_application/tour_owner_replies.cpp
+            src/github_application/window_account_setup.cpp
             src/github_application/window_agent_chat.cpp
             src/github_application/window_agent_setup.cpp
             src/github_application/window_commit_filter.cpp
@@ -538,8 +538,6 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/blob_sources.hpp
 		src/app/src/github_application/cli_accounts.cpp
 		src/app/src/github_application/cli_accounts.hpp
-		src/app/src/github_application/credential_prompt.cpp
-		src/app/src/github_application/credential_prompt.hpp
 		src/app/src/github_application/defect_identity.cpp
 		src/app/src/github_application/defect_identity.hpp
 		src/app/src/github_application/device_authorization_composition.cpp
@@ -592,6 +590,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/theme_document_file.hpp
 		src/app/src/github_application/tour_owner_replies.cpp
 		src/app/src/github_application/tour_owner_replies.hpp
+		src/app/src/github_application/window_account_setup.cpp
 		src/app/src/github_application/window_agent_chat.cpp
 		src/app/src/github_application/window_agent_setup.cpp
 		src/app/src/github_application/window_commit_filter.cpp

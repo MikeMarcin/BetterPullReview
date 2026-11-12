@@ -71,6 +71,7 @@ add_library(
         src/agent_run_settings_picker.cpp
         src/agent_feature.cpp
         src/agent_setup_view.cpp
+        src/account_setup_view.cpp
         src/agent_setup_settings.cpp
         src/agent_entry_dialog.cpp
         src/folder_list_editor.cpp

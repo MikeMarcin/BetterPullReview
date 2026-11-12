@@ -2,6 +2,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/core/identity_avatar_picture.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
@@ -122,18 +123,38 @@ namespace {
 		expect(result != nullptr, "public setup button is composed");
 		return result;
 	}
+	/// RFC-BPR-0032 amendment r1. A link waiting on sign-in is cancelled by
+	/// Home's own setup-row Cancel, which no dialog hides any more.
 	void cancel_setup(qt::workbench_window& aWindow)
 	{
-		expect(aWindow.sign_in_dialog() && aWindow.sign_in_dialog()->isVisible(), "shared sign-in dialog offers cancellation");
-		aWindow.sign_in_dialog()->reject();
+		QApplication::processEvents();
+		auto* const cancel = aWindow.findChild<QPushButton*>(QStringLiteral("homeSetupCancel"));
+		expect(cancel != nullptr && cancel->isVisible(), "the waiting link offers its Cancel on Home");
+		cancel->click();
+		QApplication::processEvents();
 	}
+	/// Presses a control of Home's account setup by name.
+	void press_setup(qt::workbench_window& aWindow, const QString& aName)
+	{
+		QApplication::processEvents();
+		for (auto* const control : aWindow.account_setup()->findChildren<QPushButton*>(aName)) {
+			if (control->isVisibleTo(aWindow.account_setup()) && control->isEnabled()) {
+				control->click();
+				QApplication::processEvents();
+				return;
+			}
+		}
+		expect(false, "the account setup offers the named control");
+	}
+	/// The native profile's activation, as a server card's Connect asked for
+	/// it before the account setup; the fixture answers with its enrollment
+	/// credential (the setup's token step in a shipped build).
 	void connect_native(qt::workbench_window& aWindow, const std::string& aHostname = "ghe.example.invalid")
 	{
 		for (auto* card : aWindow.server_cards()) {
 			if (card->hostname() == aHostname) {
-				auto* action = card->sign_in_button()->isVisible() ? card->sign_in_button() : card->connect_button();
-				expect(action->isVisible() && action->isEnabled(), "native connection is offered in the shared dialog");
-				action->click();
+				expect(card->native_option() != nullptr, "the server offers its native profile");
+				aWindow.connect_github_profile(card->native_option()->Profile);
 				return;
 			}
 		}
@@ -149,8 +170,7 @@ namespace {
 		expect(QDir{ }.mkpath(root), "review artifact directory");
 		aWindow.show();
 		QApplication::processEvents();
-		auto* surface = aWindow.sign_in_dialog() && aWindow.sign_in_dialog()->isVisible() ? static_cast<QWidget*>(aWindow.sign_in_dialog()) : &aWindow;
-		expect(surface->grab().save(root + QLatin1Char{ '/' } + aName), "public fixture window capture");
+		expect(aWindow.grab().save(root + QLatin1Char{ '/' } + aName), "public fixture window capture");
 	}
 
 	// Only the CLI source update course composes these checks.
@@ -1766,7 +1786,7 @@ namespace {
 		if (!aEnterprise) {
 			// [[BPR-0732]]. One gesture, signed out: no sign-in stop, no
 			// continuation press, no credential request, no vault write.
-			expect(!window.home_landing()->isHidden() && window.home_landing()->state() == qt::landing_state::sign_in && !window.home_list()->queue_shown(), "the signed-out Home has no queue");
+			expect(window.account_setup()->isVisible() && window.home_landing()->state() == qt::landing_state::sign_in && !window.home_list()->queue_shown(), "the signed-out Home is the account setup, with no queue");
 			expect(application->windows().size() == 1U, "public opening owns one window");
 			const auto context = application->windows().front();
 			github_application_fixture_access::hold_window_read_terminal(*application, context, true);
@@ -1821,16 +1841,21 @@ namespace {
 		submit(window, url);
 		capture(window, QStringLiteral("setup-unknown.png"));
 		expect(window.home_open_bar()->text() == url, "pending setup retains the exact pasted target");
-		expect(window.sign_in_dialog()->isVisible() && !window.settings()->isVisible() && button(window, "homeSetupContinue")->isHidden(), "pasted PR uses the shared dialog without a continuation button or Settings");
-		expect(window.enterprise_server_hostname()->text() == QStringLiteral("ghe.example.invalid"), "pasted host prefills the server editor");
+		{
+			const auto& state = window.account_setup()->projection().State;
+			expect(window.account_setup()->isVisible() && !window.settings()->isVisible() && button(window, "homeSetupContinue")->isHidden() && QApplication::activeModalWidget() == nullptr,
+				   "the pasted PR opens the account setup, with no continuation button, Settings or dialog");
+			expect(state.Phase == core::account_setup_phase::choosing_server && state.Server == core::account_setup_server::enterprise && state.Hostname == "ghe.example.invalid",
+				   "the pasted host is filled in at the setup's server step");
+		}
 		auto evidence = github_application_fixture_access::evidence(*application);
 		expect(evidence.VaultStores == 0U && !evidence.BootstrapTransportSelected && !evidence.AccountTransportSelected, "parsing sends no credentials or provider reads");
 		cancel_setup(window);
 		expect(window.home_open_bar()->text() == url && button(window, "homeSetupContinue")->isHidden(), "cancel retains editable input and dismisses setup");
 		submit(window, url);
 		if (aEnterprise) {
-			window.enterprise_server_add()->click();
-			wait_for([&] { return window.server_cards().size() == 2U; }, "durable Add server makes the exact host available without restart");
+			press_setup(window, QStringLiteral("accountSetupServerContinue"));
+			wait_for([&] { return window.server_cards().size() == 2U; }, "the setup's Continue adds the server durably, without restart");
 			evidence = github_application_fixture_access::evidence(*application);
 			expect(evidence.VaultStores == 0U && !evidence.BootstrapTransportSelected, "configuration alone never signs in");
 			// [[BPR-0772]]. The added server is a second card; it joins no other.
@@ -1873,7 +1898,7 @@ namespace {
 
 		if (aEnterprise) {
 			submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
-			window.enterprise_server_add()->click();
+			press_setup(window, QStringLiteral("accountSetupServerContinue"));
 			wait_for([&] { return window.server_cards().size() == 3U; }, "second explicit server configured");
 			expect(window.server_cards().size() == 3U && window.server_cards().back()->hostname() == "other.example.invalid",
 				   "a second explicit server is a third card");
@@ -2042,7 +2067,7 @@ namespace {
 		expect(!passage->stayed_home() && passage->pages().contains(QStringLiteral("workbenchReviewSurface")) && !refusal->isVisible(),
 			   "control: a readable pull request presents the workbench, which the same watch records");
 		expect(sameAccount(window.session_panel()->session()), "retrying an accessible target preserves the account");
-		expect(!window.sign_in_dialog()->isVisible(), "retrying an accessible target requires no sign-in");
+		expect(!window.account_setup()->isVisible(), "retrying an accessible target requires no sign-in");
 	}
 
 #if defined(__APPLE__)
@@ -2072,11 +2097,14 @@ namespace {
 		window.home_action()->trigger();
 		QApplication::processEvents();
 		check_signed_out_refusal_stays_on_home(*application);
-		expect(window.home_landing()->primary_button()->isVisible() && window.home_landing()->primary_button()->isEnabled(), "native sign-in is offered before any PR read");
-		window.home_landing()->primary_button()->click();
-		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "synthetic device account is accepted before any PR read");
-		if (window.sign_in_dialog()->isVisible()) {
-			cancel_setup(window);
+		expect(window.account_setup()->isVisible(), "native sign-in is offered before any PR read, in the account setup");
+		{
+			auto plan   = e2e::account_setup_driver::plan{ };
+			plan.Way    = core::account_setup_way::browser;
+			auto driver = e2e::account_setup_driver{ window, std::move(plan) };
+			driver.begin();
+			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready && !window.account_setup()->isVisible(); },
+					 "synthetic device account is accepted before any PR read");
 		}
 		check_denied_read_retains_session(*application, QStringLiteral("github.com"));
 		application->begin_shutdown();
@@ -2112,26 +2140,31 @@ namespace {
 		window.show();
 		window.home_action()->trigger();
 		QApplication::processEvents();
-		expect(window.home_landing()->secondary_button()->isVisible() && window.home_landing()->secondary_button()->isEnabled(), "CLI is reachable before any device connection");
-		// A canceled inventory must not present choices or connect on late completion.
-		window.home_landing()->secondary_button()->click();
-		cancel_setup(window);
-		auto   confirmations = 0U;
+		expect(window.account_setup()->isVisible() && window.account_setup()->projection().GithubCliOffered, "CLI is reachable before any device connection, in the account setup");
+		const auto server = aGithubCom ? core::account_setup_server::github_com : core::account_setup_server::enterprise;
+		// A cancelled inventory must not present choices or connect on late completion.
+		window.begin_account_setup(server, hostname, core::account_setup_way::github_cli);
+		wait_for([&] { return window.account_setup()->projection().State.Phase == core::account_setup_phase::inspecting_cli; }, "the GitHub CLI check begins");
+		press_setup(window, QStringLiteral("accountSetupBack"));
 		QTimer consent;
 		QObject::connect(&consent, &QTimer::timeout, [&] {
 			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				++confirmations;
-				prompt->button(QMessageBox::Yes)->click();
+				expect(false, "no read-trust question opens; consent is the account setup's Connect");
+				prompt->close();
 			}
 		});
 		consent.start(1);
-		const auto url = QStringLiteral("https://%1/octo-org/review-repository/pull/17").arg(QString::fromLatin1(hostname));
+		const auto url  = QStringLiteral("https://%1/octo-org/review-repository/pull/17").arg(QString::fromLatin1(hostname));
+		auto       plan = e2e::account_setup_driver::plan{ };
+		plan.Server     = server;
+		plan.Hostname   = hostname;
+		auto driver     = e2e::account_setup_driver{ window, std::move(plan) };
 		if (aPasteFirst) {
 			submit(window, url);
-			window.use_github_cli_button()->click();
+			driver.begin();
 		} else {
-			window.home_landing()->secondary_button()->click();
-			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "one Home CLI press connects after one confirmation");
+			driver.begin();
+			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "the account setup's GitHub CLI way connects with one Connect");
 			submit(window, url);
 		}
 
@@ -2142,7 +2175,7 @@ namespace {
 		expect(card->cli_option() != nullptr, "discovered CLI profile is installed");
 		const auto cliProfile = card->cli_option()->Profile;
 		consent.stop();
-		expect(confirmations == 1U && !window.settings()->isVisible() && !window.sign_in_dialog()->isVisible(), "CLI setup needs one confirmation and closes the focused dialog");
+		expect(driver.connects() == 1U && !window.settings()->isVisible() && !window.account_setup()->isVisible(), "CLI setup needs one Connect, and no window opened");
 		const auto evidence = github_application_fixture_access::evidence(*application);
 		expect(window.session_panel()->selected_profile() == cliProfile && evidence.AccountTransportSelected, "exact CLI profile serves the recorded PR");
 		expect(evidence.VaultStores == 0U && evidence.VaultRetrieveAttempts == 0U && !evidence.BootstrapTransportSelected, "CLI link opens without native credential access");
@@ -2269,21 +2302,16 @@ namespace {
 			verify_composed_file_operation_ink(*application, mode);
 		}
 
-		// Discard the first setup surface while the CLI inventory settles. The
-		// second gesture must use the discovered, explicitly confirmed profile.
-		window.home_landing()->secondary_button()->click();
-		cancel_setup(window);
-		auto   confirmations = 0U;
-		QTimer consent;
-		QObject::connect(&consent, &QTimer::timeout, [&] {
-			if (auto* prompt = qobject_cast<QMessageBox*>(
-					QApplication::activeModalWidget())) {
-				++confirmations;
-				prompt->button(QMessageBox::Yes)->click();
-			}
-		});
-		consent.start(1);
-		window.home_landing()->secondary_button()->click();
+		// RFC-BPR-0032 amendment r1. A first CLI check abandoned by Back, then
+		// the account setup's GitHub CLI way with the discovered account and
+		// its Connect.
+		window.begin_account_setup(core::account_setup_server::enterprise, "ghe.example.invalid", core::account_setup_way::github_cli);
+		press_setup(window, QStringLiteral("accountSetupBack"));
+		auto setupPlan     = e2e::account_setup_driver::plan{ };
+		setupPlan.Server   = core::account_setup_server::enterprise;
+		setupPlan.Hostname = "ghe.example.invalid";
+		auto setupDriver   = std::make_unique<e2e::account_setup_driver>(window, std::move(setupPlan));
+		setupDriver->begin();
 		auto elapsed = QElapsedTimer{ };
 		elapsed.start();
 		while (window.session_panel()->status()
@@ -2301,7 +2329,7 @@ namespace {
 					  << " text=" << window.session_panel()->status_text()
 					  << " diagnostic="
 					  << window.session_panel()->diagnostic_text()
-					  << " confirmations=" << confirmations
+					  << " connects=" << setupDriver->connects()
 					  << " account-factory=" << evidence.AccountFactoryCalls
 					  << " reads=" << evidence.AccountReadCount
 					  << " recording-failure=" << evidence.RecordingFailure
@@ -2341,8 +2369,8 @@ namespace {
 			"CLI source/update PR opens");
 		std::cout << "PROGRESSIVE_OVERVIEW first_useful_ms=" << firstUsefulMs
 				  << " terminal_ms=" << loadElapsed.elapsed() << " course=recorded_cli_first_file_page_gate\n";
-		consent.stop();
-		expect(confirmations == 1U, "CLI source/update profile asks for one confirmation");
+		setupDriver->stop();
+		expect(setupDriver->connects() == 1U, "CLI source/update profile is consented to once, with Connect");
 
 		const auto  cards = window.server_cards();
 		auto* const card  = *std::ranges::find_if(
@@ -2728,18 +2756,17 @@ namespace {
 		auto& window = application->window();
 		window.show();
 		QApplication::processEvents();
-		expect(!window.home_landing()->secondary_button()->isHidden()
-				   && window.home_landing()->secondary_button()->text()
-					   == QStringLiteral("Use GitHub CLI"),
-			   "the shipped composition exposes CLI discovery as its own signed-out path");
-		window.home_landing()->secondary_button()->click();
+		expect(window.account_setup()->isVisible() && window.account_setup()->projection().GithubCliOffered,
+			   "the shipped composition offers the GitHub CLI way in the signed-out account setup");
+		window.begin_account_setup(core::account_setup_server::enterprise, "ghe.discovered.example", core::account_setup_way::github_cli);
 		wait_for(
 			[&] {
 				return window.github_cli_discovery_status()->text().contains(
 					QStringLiteral("Found 2"));
 			},
 			"the composed discovery reaches its ready terminal");
-		expect(window.sign_in_dialog()->isVisible() && !window.settings()->isVisible(), "CLI discovery presents choices without opening Settings");
+		expect(window.account_setup()->isVisible() && !window.settings()->isVisible() && QApplication::activeModalWidget() == nullptr,
+			   "CLI discovery presents its choices in the account setup without opening Settings or a dialog");
 
 		capture(window, QStringLiteral("setup-cli-choices.png"));
 		qt::server_card* discovered = nullptr;
@@ -2757,13 +2784,6 @@ namespace {
 			   "the discovered GHES identity is a CLI-only card naming the observed login");
 
 		const auto profile = discovered->cli_option()->Profile;
-		QTimer::singleShot(0, [] {
-			if (auto* const prompt = qobject_cast<QMessageBox*>(
-					QApplication::activeModalWidget());
-				prompt != nullptr) {
-				prompt->button(QMessageBox::Yes)->click();
-			}
-		});
 		discovered->cli_offer_button()->click();
 		QApplication::processEvents();
 		expect(window.session_panel()->selected_profile() == profile

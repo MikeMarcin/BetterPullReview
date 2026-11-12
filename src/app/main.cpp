@@ -278,6 +278,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-home-look" },
+		bpr::app::command_line_option{ .Name = "attended-account-setup-look" },
 		bpr::app::command_line_option{ .Name = "attended-home-rows" },
 		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
@@ -3522,45 +3523,37 @@ namespace {
 	}
 #endif
 
-	// [[BPR-0526]]. Starts the device flow the way a reviewer does, and finds
-	// the control the way an assistive reader does: by walking the shipped
-	// window for the accessible name the panel announces. Nothing here reaches
-	// through a composition accessor, so a window that stopped mounting the
-	// panel, a panel that stopped announcing itself, or a composition that
-	// never wired the panel's dispatch each end here with `false` rather than
-	// with a flow that started by another route.
+	// [[BPR-0526]], RFC-BPR-0032 amendment r1. Starts the device flow the way a
+	// reviewer does: on Home's account setup, GitHub.com, then Get a sign-in
+	// code, found by the controls' own names. A window that stopped showing
+	// the setup, or a composition that never wired its dispatch, ends here
+	// with `false` rather than with a flow that started by another route.
 	[[nodiscard]] auto begin_through_device_panel(
 		const bpr::qt::workbench_window& aWindow) -> bool
 	{
-		for (auto* const widget : aWindow.findChildren<QWidget*>()) {
-			if (widget->accessibleName()
-				!= QStringLiteral("Sign in with a device code")) {
-				continue;
-			}
-			for (auto* const button : widget->findChildren<QPushButton*>()) {
-				if (button->accessibleName()
-					!= QStringLiteral("Get a device sign-in code")) {
-					continue;
-				}
-				if (!button->isEnabled()) {
-					return false;
-				}
-				// Exercise the reviewer entry, not the second button that the
-				// old flow required after opening Settings.
-				auto* const homeSignIn = aWindow.findChild<QPushButton*>(
-					QStringLiteral("workbenchHomePrimaryButton"));
-				if (homeSignIn == nullptr || !homeSignIn->isEnabled()
-					|| homeSignIn->accessibleName() != QStringLiteral("Sign in to GitHub")) {
-					return false;
-				}
-				homeSignIn->click();
-				const auto* dialog = aWindow.sign_in_dialog();
-				return dialog && dialog->isVisible() && dialog->isAncestorOf(button)
-					&& !aWindow.settings()->isVisible();
-			}
+		auto* const setup = aWindow.account_setup();
+		if (setup == nullptr || !setup->isVisible()) {
 			return false;
 		}
-		return false;
+		const auto press = [setup](const QString& aName) {
+			for (auto* const button : setup->findChildren<QPushButton*>(aName)) {
+				if (button->isVisibleTo(setup) && button->isEnabled()) {
+					button->click();
+					return true;
+				}
+			}
+			return false;
+		};
+		using bpr::core::account_setup_phase;
+		if (setup->projection().State.Phase == account_setup_phase::choosing_server && !press(QStringLiteral("accountSetupServerContinue"))) {
+			return false;
+		}
+		QApplication::processEvents();
+		if (setup->projection().State.Phase == account_setup_phase::choosing_way && !press(QStringLiteral("accountSetupContinue"))) {
+			return false;
+		}
+		const auto phase = setup->projection().State.Phase;
+		return (phase == account_setup_phase::requesting_code || phase == account_setup_phase::awaiting_browser) && !aWindow.settings()->isVisible();
 	}
 
 	// [[BPR-0535]], repointed by [[BPR-0771]] and [[BPR-0772]]. A begin pressed
@@ -3626,8 +3619,8 @@ namespace {
 		const automated_run&             aRun) -> bool
 	{
 		const auto        cards     = aWindow.server_cards();
-		const auto* const entry     = aWindow.use_github_cli_button();
-		const auto        offered   = entry != nullptr && !entry->isHidden() && entry->isEnabled();
+		const auto* const setup     = aWindow.account_setup();
+		const auto        offered   = setup != nullptr && setup->projection().GithubCliOffered;
 		const auto        noCliRow  = std::ranges::none_of(cards, [](const bpr::qt::server_card* const aCard) {
 			return aCard->cli_option() != nullptr || aCard->cli_offer_button() != nullptr;
 		});
@@ -4006,9 +3999,10 @@ namespace {
 			//
 			// [[BPR-0982]]. The CLI way in is the Use GitHub CLI entry since
 			// [[BPR-0909]]; no card carries a precomposed CLI label to report.
-			const auto* const cliEntry = aApplication.window().use_github_cli_button();
+			// RFC-BPR-0032 amendment r1: the account setup's GitHub CLI way.
+			const auto* const setup = aApplication.window().account_setup();
 			const auto        cliEntryOffered
-				= cliEntry != nullptr && !cliEntry->isHidden() && cliEntry->isEnabled();
+				= setup != nullptr && setup->projection().GithubCliOffered;
 			stream << "COMPOSITION_TEST_BOUNDARY:"
 				   << (status.InsideAutomatedTestBoundary ? "inside" : "outside")
 				   << "\nCOMPOSITION_BROWSER:"
@@ -5721,6 +5715,62 @@ namespace {
 					return;
 				}
 				return;
+			}
+		});
+		timer->start();
+	}
+
+	// RFC-BPR-0032 amendment r1. `--attended-account-setup-look`: the window
+	// stays signed out on Home, where the account setup stands. One line says
+	// when it shows. A code that has been shown for twelve seconds is approved
+	// by the fixture, standing in for the reviewer finishing on GitHub, so the
+	// browser way reaches its Confirm and Ready steps; a new code waits again.
+	void schedule_attended_account_setup_look(bpr::app::github_application& aApplication, std::shared_ptr<std::atomic_bool> aApproval)
+	{
+		struct look_state
+		{
+			bool                                       Shown = false;
+			std::string                                Code;
+			std::optional<automated_clock::time_point> CodeShown;
+			automated_clock::time_point                Started;
+		};
+		auto        state = std::make_shared<look_state>(look_state{ .Started = automated_clock::now() });
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(100);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, approval = std::move(aApproval), alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto* const setup = aApplication.window().account_setup();
+			if (!state->Shown) {
+				if (setup != nullptr && setup->isVisible() && setup->projection().State.Phase == bpr::core::account_setup_phase::choosing_server) {
+					state->Shown = true;
+					QTextStream{ stdout } << "ATTENDED_ACCOUNT_SETUP_SHOWN\n";
+				} else if (automated_clock::now() - state->Started > std::chrono::seconds{ 90 }) {
+					QTextStream{ stdout } << "ATTENDED_ACCOUNT_SETUP_FAILED:timeout\n";
+					timer->stop();
+					timer->deleteLater();
+				}
+				return;
+			}
+			if (setup == nullptr || !approval) {
+				return;
+			}
+			const auto& projection = setup->projection();
+			if (projection.State.Phase != bpr::core::account_setup_phase::awaiting_browser || projection.Device.UserCode.empty()) {
+				state->Code.clear();
+				state->CodeShown.reset();
+				approval->store(true);
+				return;
+			}
+			if (projection.Device.UserCode != state->Code) {
+				state->Code      = projection.Device.UserCode;
+				state->CodeShown = automated_clock::now();
+				approval->store(true);
+				return;
+			}
+			if (state->CodeShown && automated_clock::now() - *state->CodeShown > std::chrono::seconds{ 12 }) {
+				approval->store(false);
 			}
 		});
 		timer->start();
@@ -9505,18 +9555,20 @@ namespace {
 						advance_fixture_stage(*aRun, automated_run::stage::review_behaviour);
 					} else if (aRun->SavedServerRequested) {
 						// [[BPR-0660]], [[BPR-0774]]. The seed run keeps an
-						// enterprise server on Accounts & hosts as a reviewer
-						// would, through Add enterprise server and its card in
-						// the edit state; the reuse run opens over the same store
-						// and must find that server's card remembering it.
+						// enterprise server as a reviewer would, by choosing it
+						// in the account setup; the reuse run opens over the same
+						// store and must find that server's card remembering it.
 						if (aRun->EpochPhase
 							== bpr::app::detail::github_epoch_fixture_phase::seed) {
-							auto* const add = window.add_enterprise_server_button();
-							if (add != nullptr) {
-								add->click();
-								window.enterprise_server_hostname()->setText(QStringLiteral("ghe.kept.example"));
-								window.enterprise_server_account()->setText(QStringLiteral("reviewer"));
-								window.enterprise_server_add()->click();
+							// RFC-BPR-0032 amendment r1. The account setup
+							// adds an enterprise server when it is chosen.
+							window.begin_account_setup(bpr::core::account_setup_server::enterprise, "ghe.kept.example");
+							QApplication::processEvents();
+							for (auto* const next : window.account_setup()->findChildren<QPushButton*>(QStringLiteral("accountSetupServerContinue"))) {
+								if (next->isVisibleTo(window.account_setup())) {
+									next->click();
+									break;
+								}
 							}
 						}
 						advance_fixture_stage(*aRun, automated_run::stage::saved_server);
@@ -9815,7 +9867,7 @@ namespace {
 				// opens over the same store and requires the server offered as a
 				// host, its card remembering exactly that record, which is what a
 				// kept server is for.
-				if (window.add_enterprise_server_button() == nullptr) {
+				if (window.account_setup() == nullptr) {
 					transition_to_shutdown(aApplication, *aRun);
 					break;
 				}
@@ -9823,7 +9875,7 @@ namespace {
 					== bpr::app::detail::github_epoch_fixture_phase::seed;
 				const auto expected = bpr::application::saved_server{
 					.Hostname = "ghe.kept.example",
-					.Account  = "reviewer",
+					.Account  = "",
 				};
 				const auto cards      = window.server_cards();
 				const auto card       = std::ranges::find_if(cards, [](const bpr::qt::server_card* const aCard) {
@@ -10680,6 +10732,24 @@ auto main(int argc, char** argv) -> int
 		// Read here rather than beside the other device flag further down,
 		// because the fixture options are assembled before that point.
 		fixtureOptions.RegisteredDeviceCourse = launch.has("--device-authorization-registered-course");
+		// RFC-BPR-0032 amendment r1. `--attended-account-setup-look`: Home's
+		// in-window account setup, signed out, over the registered device
+		// fixture and two synthetic gh accounts. The device fixture answers
+		// pending until the look approves the shown code.
+		auto accountSetupApproval = std::shared_ptr<std::atomic_bool>{ };
+		if (launch.has("--attended-account-setup-look")) {
+			accountSetupApproval                      = std::make_shared<std::atomic_bool>(true);
+			fixtureOptions.RegisteredDeviceCourse     = true;
+			fixtureOptions.DeviceAuthorizationPending = accountSetupApproval;
+			auto second                               = bpr::app::detail::github_public_path_fixture_options::github_cli_discovery_account{ };
+			second.Hostname                           = "github.com";
+			second.Login                              = "octo-second";
+			second.Active                             = false;
+			auto first                                = bpr::app::detail::github_public_path_fixture_options::github_cli_discovery_account{ };
+			first.Hostname                            = "github.com";
+			first.Login                               = "octo-reviewer";
+			fixtureOptions.GithubCliDiscoveryAccounts = std::vector{ std::move(first), std::move(second) };
+		}
 		// [[BPR-0536]]. The renewal course composes the registered grant and
 		// two more seams: a real second vault slot and the documented renewal
 		// answer. Read here for the same reason as the line above it.
@@ -11620,6 +11690,8 @@ auto main(int argc, char** argv) -> int
 		// a pull request whose reads fail after it; with `--attended-home-look`
 		// it is armed only once Home is ready for the person.
 		const auto attendedHomeLook = launch.has("--attended-home-look");
+		// RFC-BPR-0032 amendment r1. Home's account setup, signed out.
+		const auto attendedAccountSetupLook = launch.has("--attended-account-setup-look");
 		// [[BPR-1865]]. With the home look, sixteen more rows with titles and
 		// authors of their own, for judging Home's filter.
 		const auto attendedHomeRows = launch.has("--attended-home-rows");
@@ -12231,7 +12303,9 @@ auto main(int argc, char** argv) -> int
 						}
 						QTextStream{ stdout } << (stop ? "ATTENDED_TOUR_STOP_STAGED\n" : "ATTENDED_TOUR_STOP_FAILED\n");
 					}
-					if (attendedHomeLook) {
+					if (attendedAccountSetupLook) {
+						schedule_attended_account_setup_look(*application, accountSetupApproval);
+					} else if (attendedHomeLook) {
 						schedule_attended_home_look(*application, attendedPullRequest, readDelayFixture ? readDelayFixture : std::make_shared<bpr::app::detail::github_read_delay_fixture>(), readDelay.value_or(0U));
 					} else {
 						schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look),

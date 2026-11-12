@@ -9,6 +9,7 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/account_setup_host.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
@@ -207,7 +208,8 @@ namespace bpr::app {
 		  public application::queue_landing_projection_port,
 		  public application::agent_session_catalog_port,
 		  public application::setup_destination_port,
-		  public application::shared_draft_context_port
+		  public application::shared_draft_context_port,
+		  public application::account_setup_effect_port
 	{
 		friend class github_application;
 		std::shared_ptr<github_profile_runtime> Profile;
@@ -1393,6 +1395,23 @@ namespace bpr::app {
 		void observe_cli_session(const application::github_presentation_update& aUpdate);
 
 		void discover_github_cli_accounts(const bool aConnectSingle = true);
+		/// RFC-BPR-0032 amendment r1. Home's in-window account setup.
+		void               compose_account_setup();
+		void               retire_account_setup();
+		void               observe_account_setup_session(const application::github_presentation_update& aUpdate);
+		void               observe_account_setup_device(const application::device_authorization_presentation& aPresentation);
+		void               answer_account_setup_cli(const std::vector<adapters::github::detail::gh_cli_inventory_account>* aDiscovered, qt::github_cli_discovery_state aFailure);
+		void               observe_account_setup_projection(const application::account_setup_projection& aProjection);
+		void               settle_account_setup_server(bool aFailed);
+		void               begin_account_setup_for(const adapters::github::validated_github_host_profile& aProfile);
+		[[nodiscard]] auto native_enterprise_profile(const std::string& aHostname) const -> std::optional<core::host_profile_id>;
+		void               prepare_enterprise_server(std::uint64_t aRequest, const std::string& aHostname) override;
+		void               inspect_github_cli(std::uint64_t aRequest, const std::string& aHostname) override;
+		void               begin_browser_sign_in() override;
+		void               cancel_browser_sign_in() override;
+		void               connect_github_cli(core::host_profile_id aProfile) override;
+		void               enroll_token(core::host_profile_id aProfile) override;
+		void               open_verification_address() override;
 
 		void               synchronize_setup_servers(const application::queue_landing_projection& aProjection);
 		[[nodiscard]] auto next_setup_owner() -> core::setup_owner_id;
@@ -1806,6 +1825,18 @@ namespace bpr::app {
 		bool                                                     SetupConfigurationSubmitted  = false;
 		bool                                                     GithubCliDiscoveryPending    = false;
 		std::uint64_t                                            GithubCliDiscoveryGeneration = 0U;
+		/// RFC-BPR-0032 amendment r1. Home's account setup, and the gh check
+		/// it is waiting on.
+		std::unique_ptr<application::account_setup_host> AccountSetup;
+		/// The gh check and the Enterprise server the setup waits on: its
+		/// request and the host asked about.
+		std::optional<std::pair<std::uint64_t, std::string>> AccountSetupCliRequest;
+		std::optional<std::pair<std::uint64_t, std::string>> AccountSetupServerRequest;
+		/// The token the setup's field handed over, held only until its enroll.
+		std::optional<application::github_credential_material> AccountSetupToken;
+		/// The window's account when the setup opened, and the setup's last phase.
+		std::optional<std::pair<core::host_profile_id, core::github_account_id>> AccountSetupBaseline;
+		core::account_setup_phase                                                AccountSetupLastPhase = core::account_setup_phase::idle;
 		/// [[BPR-1373]]. The pinned profile whose refusal last re-checked gh.
 		std::optional<core::host_profile_id>            GithubCliRecheckedFor;
 		core::setup_owner_id                            SetupOwner{ 1U };

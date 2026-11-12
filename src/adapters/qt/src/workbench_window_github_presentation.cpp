@@ -1293,28 +1293,24 @@ namespace bpr::qt {
 						if (SessionPanel == nullptr || !SessionPanel->connect_enabled()) {
 							return;
 						}
+						// RFC-BPR-0032 amendment r1. A gh account connects through
+						// the activation, which asks the account setup for consent
+						// it has not been given; a native way in is the setup.
 						const auto* chosen = server_card_for(aProfile);
 						const auto  cli    = chosen->cli_option() && chosen->cli_option()->Profile == aProfile;
 						if (cli) {
-							present_cli_account_choices({ aProfile });
-						}
-						open_sign_in(chosen->hostname(), cli);
-						select_github_profile(aProfile);
-						if (chosen->offers_device_sign_in() && chosen->native_option() && chosen->native_option()->Profile == aProfile) {
-							begin_selected_sign_in();
-						} else {
+							select_github_profile(aProfile);
 							GithubConnectAction->trigger();
+							return;
 						}
+						select_github_profile(aProfile);
+						open_sign_in(chosen->hostname());
 					},
 				.SignIn =
 					[this](const core::host_profile_id aProfile) {
-						open_sign_in(server_card_for(aProfile)->hostname());
-						select_github_profile(aProfile);
-						if (const auto* const chosen = server_card_for(aProfile);
-							chosen != nullptr && chosen->offers_device_sign_in()) {
-							begin_selected_sign_in();
-						} else {
-							GithubConnectAction->trigger();
+						if (const auto* const chosen = server_card_for(aProfile); chosen != nullptr) {
+							select_github_profile(aProfile);
+							open_sign_in(chosen->hostname());
 						}
 					},
 				.SignOut =
@@ -1465,7 +1461,6 @@ namespace bpr::qt {
 			}
 			card->apply(shown);
 		}
-		update_sign_in_surface();
 	}
 
 	auto workbench_window::session_panel() const noexcept -> github_session_panel*
@@ -1479,18 +1474,10 @@ namespace bpr::qt {
 		return DevicePanel;
 	}
 
+	/// RFC-BPR-0032 amendment r1. Sign in is the account setup's browser way.
 	void workbench_window::begin_selected_sign_in()
 	{
-		const auto* card = current_server_card();
-		open_sign_in(card ? card->hostname() : std::string{ });
-		if (DevicePanel == nullptr) {
-			return;
-		}
-		rebind_device_authorization_profile();
-		// The same command-projected button owns admission and profile binding
-		// for Home, the strip and Settings. A running flow cannot begin twice.
-		DevicePanel->begin_button()->setFocus(Qt::OtherFocusReason);
-		DevicePanel->begin_button()->click();
+		begin_account_setup(core::account_setup_server::github_com, "github.com", core::account_setup_way::browser);
 	}
 
 	void workbench_window::rebind_device_authorization_profile()

@@ -28,6 +28,7 @@
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/view_filter_memory.hpp"
+#include "bpr/qt/account_setup_view.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -885,26 +886,29 @@ namespace bpr::qt {
 		void set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch);
 		/// \brief Adopts the explicit `Use GitHub CLI` gesture; absent means hidden.
 		void set_github_cli_discovery_dispatch(github_cli_discovery_dispatch aDispatch);
+		/// \brief RFC-BPR-0032 amendment r1. Where Home's account setup sends
+		/// its gestures. Once set, a signed-out Home shows the setup in place of
+		/// the first-launch card and begins it; absent keeps the card and its
+		/// shared sign-in dialog.
+		void set_account_setup_intents(account_setup_intents aIntents);
+		/// \brief RFC-BPR-0032 amendment r1. Opens Home's account setup and
+		/// begins it, unless it is already doing what is asked: Settings' Add
+		/// account (no server), a card's Sign in, Use another account and a
+		/// pasted link all come here. Settings gives way to Home.
+		void begin_account_setup(std::optional<core::account_setup_server> aServer = std::nullopt, std::string aHostname = { },
+								 std::optional<core::account_setup_way> aWay = std::nullopt);
+		/// \brief RFC-BPR-0032 amendment r1. The setup host's projection.
+		void present_account_setup(const application::account_setup_projection& aProjection);
 		/// \brief [[BPR-1373]]. Where a card's Check gh again goes: the same
 		/// inventory, without opening sign-in or connecting.
 		void set_github_cli_check_dispatch(github_cli_discovery_dispatch aDispatch);
 		/// \brief [[BPR-1373]]. Every gh account by hostname, from the last check.
 		void present_cli_accounts(std::map<std::string, std::vector<server_card_cli_account>, std::less<>> aAccounts);
 		/// \brief Presents the bounded result of an explicitly requested CLI inventory.
-		void               present_github_cli_discovery(github_cli_discovery_state aState, std::size_t aAccounts = 0U);
-		[[nodiscard]] auto use_github_cli_button() const noexcept -> QPushButton*;
+		void present_github_cli_discovery(github_cli_discovery_state aState, std::size_t aAccounts = 0U);
+		/// \brief RFC-BPR-0032 amendment r1. Settings' Add account: Home's account setup.
+		[[nodiscard]] auto add_account_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto github_cli_discovery_status() const noexcept -> QLabel*;
-		/// \brief [[BPR-0774]]. The bordered button under the server cards, shown
-		/// while the queue that keeps servers is ready.
-		[[nodiscard]] auto add_enterprise_server_button() const noexcept -> QPushButton*;
-		/// \brief The card in its edit state that Add enterprise server opens.
-		[[nodiscard]] auto enterprise_server_draft() const noexcept -> QWidget*;
-		[[nodiscard]] auto enterprise_server_hostname() const noexcept -> QLineEdit*;
-		[[nodiscard]] auto enterprise_server_account() const noexcept -> QLineEdit*;
-		[[nodiscard]] auto enterprise_server_add() const noexcept -> QPushButton*;
-		[[nodiscard]] auto enterprise_server_cancel() const noexcept -> QPushButton*;
-		/// \brief The sentence beside a refused Add; hidden while nothing is refused.
-		[[nodiscard]] auto enterprise_server_refusal() const noexcept -> QLabel*;
 		/// \brief The open Forget server confirmation; null while none is open.
 		[[nodiscard]] auto forget_server_confirmation() const noexcept -> QMessageBox*;
 		/// \brief The records the review queue last published as kept, exactly.
@@ -1157,6 +1161,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto modality() const noexcept -> modality_control*;
 		/// \brief Home's landing while nothing is open: sign in, or choose.
 		[[nodiscard]] auto home_landing() const noexcept -> workbench_landing*;
+		/// \brief RFC-BPR-0032 amendment r1. Home's account setup.
+		[[nodiscard]] auto account_setup() const noexcept -> account_setup_view*;
 		/// \brief The decorative Home presentation, absent when assets were refused.
 		[[nodiscard]] auto dif() const noexcept -> dif_widget*;
 		/// \brief The explicit action that reveals the private Notes area.
@@ -1745,12 +1751,9 @@ namespace bpr::qt {
 		void unmount_settings();
 
 		void open_settings(settings_page aPage);
-		/// \brief Presents the shared connection controls without Settings navigation.
+		/// \brief Opens the account setup for a host (empty: from its first step).
 		void               open_sign_in(std::string aHostname = { }, bool aCliOnly = false);
-		void               set_sign_in_cancel_dispatch(std::function<void()> aDispatch);
 		void               connect_github_profile(core::host_profile_id aProfile);
-		void               present_cli_account_choices(std::vector<core::host_profile_id> aProfiles);
-		[[nodiscard]] auto sign_in_dialog() const noexcept -> QDialog*;
 		[[nodiscard]] auto settings() const noexcept -> settings_window*;
 		[[nodiscard]] auto settings_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1567]]. Help → Keyboard Shortcuts, on Command-/ (Ctrl+/).
@@ -2463,9 +2466,8 @@ namespace bpr::qt {
 		/// while none is.
 		[[nodiscard]] auto current_server_card() const -> server_card*;
 		void               begin_selected_sign_in();
-		void               update_sign_in_surface();
-		/// \brief [[BPR-0775]]. The first-launch card's second way in: Accounts &
-		/// hosts with a new enterprise server card in its edit state.
+		/// \brief [[BPR-0775]]. The first-launch card's enterprise way in: the
+		/// account setup with GitHub Enterprise Server picked.
 		void begin_enterprise_server_from_home();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
@@ -2497,19 +2499,17 @@ namespace bpr::qt {
 		void update_saved_repository_list();
 		/// \brief Shows Home's first-repository call to action or its ordinary row.
 		void update_home_repository_onboarding();
-		void build_enterprise_server_draft(QWidget* aParent, QVBoxLayout& aLayout);
-		void begin_github_cli_from_home();
-		void open_enterprise_server_draft();
-		void close_enterprise_server_draft();
-		void add_enterprise_server();
-		void update_enterprise_server_actions();
-		void remember_enterprise_server(const std::string& aHostname);
-		void confirm_forget_server(const application::saved_server& aServer);
-		void dispatch_saved_repository(application::saved_repository_action aAction);
-		void update_saved_repository_actions();
-		void update_repository_destination();
-		void present_repository_addition(const application::repository_addition_result& aResult);
-		void repository_addition_notice(const QString& aText);
+		void build_account_additions(QWidget* aParent, QVBoxLayout& aLayout);
+		/// RFC-BPR-0032 amendment r1. The account setup is begun and not finished.
+		[[nodiscard]] auto account_setup_shown() const -> bool;
+		void               begin_github_cli_from_home();
+		void               remember_enterprise_server(const std::string& aHostname);
+		void               confirm_forget_server(const application::saved_server& aServer);
+		void               dispatch_saved_repository(application::saved_repository_action aAction);
+		void               update_saved_repository_actions();
+		void               update_repository_destination();
+		void               present_repository_addition(const application::repository_addition_result& aResult);
+		void               repository_addition_notice(const QString& aText);
 		/// \brief Discards the new-repository draft without saving.
 		void close_repository_draft();
 		/// \brief Sends the draft as one repository-addition gesture.
@@ -2665,8 +2665,13 @@ namespace bpr::qt {
 		/// [[BPR-1022]]. Alt is down, and nothing has yet made it a modifier.
 		bool StripMenuAltAlone = false;
 #endif
-		core::workbench_reason_code           LastRefusal = core::workbench_reason_code::none;
-		workbench_landing*                    HomeLanding = nullptr;
+		core::workbench_reason_code LastRefusal = core::workbench_reason_code::none;
+		workbench_landing*          HomeLanding = nullptr;
+		/// RFC-BPR-0032 amendment r1. Home's account setup, beside the card.
+		account_setup_view*                            AccountSetup = nullptr;
+		std::function<void(core::account_setup_event)> AccountSetupDispatch;
+		/// A begin is being dispatched; its own publication must not begin again.
+		bool                                  AccountSetupBeginning = false;
 		std::shared_ptr<dif_catalog_provider> DifCatalog;
 		std::unique_ptr<dif_cue_router>       DifCues;
 		std::unique_ptr<QElapsedTimer>        DifCueClock;
@@ -3364,21 +3369,13 @@ namespace bpr::qt {
 		QAction*                                                                 RemoveSavedRepository        = nullptr;
 		QPushButton*                                                             AddSavedRepositoryButton     = nullptr;
 		QPushButton*                                                             RemoveSavedRepositoryButton  = nullptr;
-		QWidget*                                                                 EnterpriseServerDraft        = nullptr;
-		QLineEdit*                                                               EnterpriseServerHostname     = nullptr;
-		QLineEdit*                                                               EnterpriseServerAccount      = nullptr;
-		QLabel*                                                                  EnterpriseServerRefusal      = nullptr;
-		QPushButton*                                                             EnterpriseServerAdd          = nullptr;
-		QPushButton*                                                             EnterpriseServerCancel       = nullptr;
-		QPushButton*                                                             AddEnterpriseServerButton    = nullptr;
-		QPushButton*                                                             UseGithubCliButton           = nullptr;
+		QPushButton*                                                             AddAccountButton             = nullptr;
 		QLabel*                                                                  GithubCliDiscoveryStatus     = nullptr;
 		github_cli_discovery_dispatch                                            GithubCliDiscoveryDispatch;
 		github_cli_discovery_dispatch                                            GithubCliCheckDispatch;
 		std::map<std::string, std::vector<server_card_cli_account>, std::less<>> CliAccountsByHost;
 		github_cli_discovery_state                                               GithubCliDiscoveryState = github_cli_discovery_state::idle;
 		QPointer<QMessageBox>                                                    ForgetServerConfirmation;
-		bool                                                                     EnterpriseDraftOpen = false;
 		/// [[BPR-0773]]. The hostname a device flow was last asked for; its
 		/// terminal sentence is said only on that host's card.
 		std::optional<std::string>                         DeviceFlowHost;
@@ -3397,15 +3394,8 @@ namespace bpr::qt {
 		review_skill_panel*                                ReviewSkill   = nullptr;
 		std::function<void()>                              InsightsPresenter;
 		std::function<void(settings_page)>                 SettingsPresenter;
-		settings_window*                                   SettingsWindow = nullptr;
-		QWidget*                                           AccountsPanel  = nullptr;
-		QPointer<QWidget>                                  AccountsReturnParent;
-		QDialog*                                           SignInDialog = nullptr;
-		QScrollArea*                                       SignInScroll = nullptr;
-		std::string                                        SignInHostname;
-		bool                                               SignInCliOnly = false;
-		std::vector<core::host_profile_id>                 SignInCliProfiles;
-		std::function<void()>                              SignInCancelDispatch;
+		settings_window*                                   SettingsWindow          = nullptr;
+		QWidget*                                           AccountsPanel           = nullptr;
 		QAction*                                           SettingsAction          = nullptr;
 		QAction*                                           KeyboardShortcutsAction = nullptr;
 		keyboard_shortcuts_window*                         KeyboardShortcuts       = nullptr;

@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../sqlite_contract/platform_test_support.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -27,6 +28,38 @@ namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
 	using tests::expect;
+	/// RFC-BPR-0032 amendment r1. A sign-in begun the way Home and the cards
+	/// begin it: the account setup's way on GitHub.com.
+	void begin_setup(qt::workbench_window& aWindow, const core::account_setup_way aWay)
+	{
+		aWindow.begin_account_setup(core::account_setup_server::github_com, "github.com", aWay);
+		QApplication::processEvents();
+	}
+
+	/// Presses the account setup's Back, which ends a code still shown.
+	void setup_back(qt::workbench_window& aWindow)
+	{
+		for (auto* const back : aWindow.account_setup()->findChildren<QPushButton*>(QStringLiteral("accountSetupBack"))) {
+			if (back->isVisibleTo(aWindow.account_setup())) {
+				back->click();
+				return;
+			}
+		}
+	}
+
+	/// No read question may open: consent is the account setup's Connect.
+	void refuse_questions(QTimer& aTimer)
+	{
+		QObject::connect(&aTimer, &QTimer::timeout, [] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				const tests::exit_on_failure inTheEventLoop;
+				expect(false, "no read-trust question opens; consent is the account setup's Connect");
+				prompt->close();
+			}
+		});
+		aTimer.start(1);
+	}
+
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnose = { })
 	{
 		QElapsedTimer elapsed;
@@ -69,37 +102,23 @@ namespace {
 		expect(options.ApplicationDataRoot.has_value(), "private root");
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
 		options.GithubCliInventoryChecks   = std::make_shared<std::atomic_size_t>(0U);
-		unsigned prompts                   = 0;
-		QTimer   consent;
-		QObject::connect(&consent, &QTimer::timeout, [&] {
-			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				const tests::exit_on_failure inTheEventLoop;
-				expect(prompt->text() == QStringLiteral("Use octo-reviewer’s GitHub CLI sign-in on github.com?"), "read consent names the chosen account and server");
-				expect(prompt->informativeText().contains(QStringLiteral("existing sign-in without saving its token")), "read consent explains existing sign-in without token storage");
-				expect(prompt->informativeText().contains(QStringLiteral("reused until you sign out or replace it")), "read consent explains durable reuse");
-				expect(prompt->informativeText().contains(QStringLiteral("Connecting for reads does not authorize publishing.")), "read consent grants no publication authority");
-				expect(prompt->detailedText().contains(QStringLiteral("Remembered metadata saves no token and is checked again before use.")), "read consent retains revalidation and token-free metadata disclosure");
-				const auto capture = qEnvironmentVariable("BPR_REMEMBERED_CONNECTION_CONSENT_CAPTURE");
-				if (!capture.isEmpty()) {
-					expect(prompt->grab().save(capture, "PNG"), "offscreen consent capture is written");
-				}
-				++prompts;
-				prompt->button(QMessageBox::Yes)->click();
-			}
-		});
-		consent.start(1);
+		QTimer consent;
+		refuse_questions(consent);
 		auto  application = start(options);
 		auto& window      = application->window();
 		window.show();
 		window.home_action()->trigger();
 		QApplication::processEvents();
-		expect(window.home_landing()->secondary_button()->text() == QStringLiteral("Use GitHub CLI"), "Home offers the explicit CLI action");
-		window.home_landing()->secondary_button()->click();
-		expect(window.sign_in_dialog() && window.sign_in_dialog()->isVisible(), "CLI discovery opens the public sign-in surface");
-		window.sign_in_dialog()->reject();
-		window.home_landing()->secondary_button()->click();
-		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "explicit CLI selection accepts authenticated viewer");
-		expect(prompts == 1, "first CLI selection asks read trust once");
+		std::size_t prompts = 0U;
+		{
+			expect(window.account_setup()->isVisible() && window.account_setup()->projection().GithubCliOffered, "Home's account setup offers the GitHub CLI way");
+			auto driver = e2e::account_setup_driver{ window, e2e::account_setup_driver::plan{ } };
+			driver.begin();
+			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready && !window.account_setup()->isVisible(); },
+					 "explicit CLI selection in the account setup accepts the authenticated viewer");
+			prompts = driver.connects();
+		}
+		expect(prompts == 1U, "the first CLI selection consents once, with Connect");
 		const auto profile = window.session_panel()->active_profile();
 		auto       store   = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
 		wait_for([&] { auto saved=store->load({}); return saved && core::select_remembered_connection(*saved).has_value(); }, "successful selection persists before layout or Quit");
@@ -144,7 +163,7 @@ namespace {
 		for (auto attempt = 0; attempt < 3; ++attempt) {
 			loadingWindow.home_landing()->secondary_button()->click();
 			// Deliver queued signals even though the projected controls are unavailable.
-			expect(QMetaObject::invokeMethod(loadingWindow.findChild<QPushButton*>(QStringLiteral("accountsUseGithubCli")), "clicked", Qt::DirectConnection, Q_ARG(bool, false)), "queued CLI gesture is delivered");
+			expect(QMetaObject::invokeMethod(loadingWindow.add_account_button(), "clicked", Qt::DirectConnection, Q_ARG(bool, false)), "queued Add account gesture is delivered");
 			expect(QMetaObject::invokeMethod(loadingWindow.github_connect_action(), "triggered", Qt::DirectConnection, Q_ARG(bool, false)), "queued activation gesture is delivered");
 		}
 		loadingWindow.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
@@ -152,8 +171,8 @@ namespace {
 		QApplication::processEvents();
 		expect(loadingWindow.session_panel()->active_profile() == profile
 				   && loadingWindow.session_panel()->status() == core::github_status::establishing_session
-				   && options.GithubCliInventoryChecks->load() == checksBeforeReentry && prompts == 1
-				   && (!loadingWindow.sign_in_dialog() || !loadingWindow.sign_in_dialog()->isVisible())
+				   && options.GithubCliInventoryChecks->load() == checksBeforeReentry && prompts == 1U
+				   && !loadingWindow.account_setup()->isVisible()
 				   && github_application_fixture_access::evidence(*application).DeviceTransportSubmissions == effectsBeforeReentry.DeviceTransportSubmissions,
 			   "queued enrollment cannot discover accounts, prompt, launch native sign-in or replace the pending authority");
 		loadingWindow.home_open_bar()->clear();
@@ -261,18 +280,15 @@ namespace {
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
 		options.GithubCliInventoryChecks   = std::make_shared<std::atomic_size_t>(0U);
 		QTimer consent;
-		QObject::connect(&consent, &QTimer::timeout, [&] {
-			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				prompt->button(QMessageBox::Yes)->click();
-			}
-		});
-		consent.start(1);
+		refuse_questions(consent);
 		auto  application = start(options);
 		auto& window      = application->window();
 		window.show();
 		window.home_action()->trigger();
-		window.home_landing()->secondary_button()->click();
-		wait_for([&] { return window.session_panel()->status() == core::github_status::session_failed; }, "failed Connect reaches its refusal through the public CLI gesture");
+		auto driver = e2e::account_setup_driver{ window, e2e::account_setup_driver::plan{ } };
+		driver.begin();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_failed; }, "failed Connect reaches its refusal through the account setup");
+		wait_for([&] { return window.account_setup()->projection().State.Problem == core::account_setup_problem::connection_failed; }, "and the setup says the account was refused");
 		stop(application);
 		expect(options.GithubCliInventoryChecks->load() == 1U, "failed Connect drains with only the explicitly requested discovery and no automatic inventory network check");
 		consent.stop();
@@ -286,17 +302,18 @@ namespace {
 		options.IndependentWindowReads     = true;
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "ghe.example.invalid", .Login = "octo-reviewer" } };
 		QTimer consent;
-		QObject::connect(&consent, &QTimer::timeout, [] { if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) { prompt->button(QMessageBox::Yes)->click(); } });
-		consent.start(1);
+		refuse_questions(consent);
 		auto  application = start(options, app::detail::github_public_path_fixture::ghes_3_18);
 		auto& window      = application->window();
 		window.show();
 		window.home_action()->trigger();
 		QApplication::processEvents();
-		window.home_landing()->secondary_button()->click();
-		window.sign_in_dialog()->reject();
-		window.home_landing()->secondary_button()->click();
-		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "enterprise CLI connection accepts before Forget");
+		auto plan     = e2e::account_setup_driver::plan{ };
+		plan.Server   = core::account_setup_server::enterprise;
+		plan.Hostname = "ghe.example.invalid";
+		auto driver   = e2e::account_setup_driver{ window, std::move(plan) };
+		driver.begin();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready && !window.account_setup()->isVisible(); }, "enterprise CLI connection accepts before Forget");
 		consent.stop();
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
@@ -345,23 +362,26 @@ namespace {
 			const auto cards = application->window().server_cards();
 			return **std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "github.com"; });
 		};
-		showCard().sign_in_button()->click();
+		static_cast<void>(showCard());
+		begin_setup(application->window(), core::account_setup_way::browser);
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "initial device grant is accepted");
 		wait_for([&] { return github_application_fixture_access::device_binding_durable(*application); }, "older native grant is durably resumable before replacement");
 		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::native_device; }, "initial device choice is durable");
 		const auto native = *core::select_remembered_connection(*store->load({ }));
 		// Begin another native attempt, then explicitly choose CLI beside it.
 		options.DeviceAuthorizationPending->store(true);
-		showCard().sign_in_button()->click();
+		begin_setup(application->window(), core::account_setup_way::browser);
 		wait_for([&] { return application->window().device_authorization()->signing_in(); }, "replacement device flow waits");
-		unsigned asks = 0;
-		QTimer   consent;
-		QObject::connect(&consent, &QTimer::timeout, [&] { if (auto* prompt=qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) { ++asks; prompt->button(QMessageBox::Yes)->click(); } });
-		consent.start(1);
-		application->window().use_github_cli_button()->click();
+		QTimer consent;
+		refuse_questions(consent);
+		std::size_t asks      = 0U;
+		auto        cliDriver = std::make_unique<e2e::account_setup_driver>(application->window(), e2e::account_setup_driver::plan{ });
+		cliDriver->begin();
 		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::github_cli; }, "explicit CLI replacement is durable", [&] { const auto evidence=github_application_fixture_access::evidence(*application); std::cerr << "native-cli:status=" << application->window().session_panel()->status_text() << ":diagnostic=" << application->window().session_panel()->diagnostic_text() << ":asks=" << asks << ":factories=" << evidence.AccountFactoryCalls << ":wire=" << evidence.RecordingFailure << '\n'; });
 		const auto cli = *core::select_remembered_connection(*store->load({ }));
-		expect(asks == 1 && cli.Profile != native.Profile && cli.Host == native.Host, "CLI replacement has a distinct stable connection on the same server");
+		asks += cliDriver->connects();
+		expect(asks == 1U && cli.Profile != native.Profile && cli.Host == native.Host, "CLI replacement has a distinct stable connection on the same server");
+		cliDriver.reset();
 		options.DeviceAuthorizationPending->store(false);
 		const auto priorVaultAttempts = github_application_fixture_access::evidence(*application).VaultRetrieveAttempts;
 		stop(application);
@@ -370,7 +390,7 @@ namespace {
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "CLI restores while the older device grant remains");
 		expect(application->window().session_panel()->active_profile() == cli.Profile && github_application_fixture_access::evidence(*application).VaultRetrieveAttempts == priorVaultAttempts, "older device material cannot replace the saved CLI connection");
 		options.DeviceAuthorizationPending->store(true);
-		showCard().sign_in_button()->click();
+		begin_setup(application->window(), core::account_setup_way::browser);
 		wait_for([&] { return application->window().device_authorization()->signing_in() && !application->window().device_authorization()->user_code_field()->text().isEmpty(); }, "native attempt is pending beside the restored CLI authority");
 		const auto storesBeforeSignOut = github_application_fixture_access::evidence(*application).VaultStores;
 		const auto cardsBeforeSignOut  = application->window().server_cards();
@@ -392,23 +412,26 @@ namespace {
 		application = start(options);
 		application->window().show();
 		application->window().home_action()->trigger();
-		application->window().home_landing()->secondary_button()->click();
-		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "explicit CLI selection reconnects after disabled reuse");
+		cliDriver = std::make_unique<e2e::account_setup_driver>(application->window(), e2e::account_setup_driver::plan{ });
+		cliDriver->begin();
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready && !application->window().account_setup()->isVisible(); }, "explicit CLI selection reconnects after disabled reuse");
+		asks += cliDriver->connects();
+		cliDriver.reset();
 		wait_for([&] { auto saved=store->load({}); return saved && core::select_remembered_connection(*saved).has_value(); }, "explicit retry has durable metadata");
 		const auto retriedCli = *core::select_remembered_connection(*store->load({ }));
 		options.DeviceAuthorizationPending->store(true);
-		showCard().sign_in_button()->click();
-		wait_for([&] { return application->window().device_authorization()->signing_in() && !application->window().device_authorization()->user_code_field()->text().isEmpty(); }, "native replacement offers its code", [&] { std::cerr << "native-begin:status=" << application->window().session_panel()->status_text() << ":stage=" << static_cast<int>(application->status().DeviceAuthorizationStage) << ":enabled=" << showCard().sign_in_button()->isEnabled() << ":submissions=" << github_application_fixture_access::evidence(*application).DeviceTransportSubmissions << '\n'; });
-		application->window().sign_in_dialog()->reject();
+		begin_setup(application->window(), core::account_setup_way::browser);
+		wait_for([&] { return application->window().device_authorization()->signing_in() && !application->window().device_authorization()->user_code_field()->text().isEmpty(); }, "native replacement offers its code", [&] { std::cerr << "native-begin:status=" << application->window().session_panel()->status_text() << ":stage=" << static_cast<int>(application->status().DeviceAuthorizationStage) << ":submissions=" << github_application_fixture_access::evidence(*application).DeviceTransportSubmissions << '\n'; });
+		setup_back(application->window());
 		wait_for([&] { return !application->window().device_authorization()->signing_in(); }, "native replacement cancels");
 		expect(*core::select_remembered_connection(*store->load({ })) == retriedCli, "cancelled replacement preserves the complete durable CLI choice");
 		options.DeviceAuthorizationPending->store(false);
 		options.Offline->Offline.store(true);
-		showCard().sign_in_button()->click();
+		begin_setup(application->window(), core::account_setup_way::browser);
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_failed; }, "offline native replacement fails validation visibly");
 		expect(*core::select_remembered_connection(*store->load({ })) == retriedCli, "unsuccessful native replacement preserves durable CLI authority");
 		options.Offline->Offline.store(false);
-		showCard().sign_in_button()->click();
+		begin_setup(application->window(), core::account_setup_way::browser);
 		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::native_device; }, "successful native sign-in atomically replaces CLI");
 		const auto replacement = *core::select_remembered_connection(*store->load({ }));
 		expect(replacement.Profile != cli.Profile && replacement.Profile.value() > cli.Profile.value(), "successful native replacement receives fresh identity");
@@ -442,32 +465,26 @@ namespace {
 		expect(options.ApplicationDataRoot.has_value(), "private root");
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
 		options.GithubCliInventoryChecks   = std::make_shared<std::atomic_size_t>(0U);
-		unsigned prompts                   = 0;
-		QTimer   consent;
-		QObject::connect(&consent, &QTimer::timeout, [&] {
-			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				++prompts;
-				prompt->button(QMessageBox::Yes)->click();
-			}
-		});
-		consent.start(1);
-		// Use GitHub CLI from the first-run Home: the first press discovers
-		// gh's accounts, the second chooses the one offered.
-		const auto chooseCli = [&](app::github_application& aApplication) {
+		QTimer consent;
+		refuse_questions(consent);
+		std::size_t prompts = 0U;
+		// The GitHub CLI way from the first-run Home's account setup: gh's
+		// account is listed and chosen, and Connect is the consent.
+		std::unique_ptr<e2e::account_setup_driver> driver;
+		const auto                                 chooseCli = [&](app::github_application& aApplication) {
 			auto& window = aApplication.window();
 			window.show();
 			window.home_action()->trigger();
 			QApplication::processEvents();
-			expect(window.home_landing()->state() == qt::landing_state::sign_in && window.home_landing()->secondary_button()->text() == QStringLiteral("Use GitHub CLI"), "Home is the first-run sign-in with Use GitHub CLI");
-			window.home_landing()->secondary_button()->click();
-			expect(window.sign_in_dialog() && window.sign_in_dialog()->isVisible(), "CLI discovery opens the public sign-in surface");
-			window.sign_in_dialog()->reject();
-			window.home_landing()->secondary_button()->click();
+			expect(window.account_setup()->isVisible() && window.account_setup()->projection().GithubCliOffered, "Home is the first-run account setup, with the GitHub CLI way");
+			driver = std::make_unique<e2e::account_setup_driver>(window, e2e::account_setup_driver::plan{ });
+			driver->begin();
 		};
 		auto application = start(options);
 		chooseCli(*application);
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "explicit CLI selection accepts authenticated viewer");
-		expect(prompts == 1, "the first CLI selection asks read trust");
+		prompts += driver->connects();
+		expect(prompts == 1U, "the first CLI selection consents once, with Connect");
 		auto store = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
 		wait_for([&] { auto saved=store->load({}); return saved && holds_cli(*saved); }, "the CLI selection is remembered");
 		const auto before = *store->load({ });
@@ -501,7 +518,7 @@ namespace {
 		// Forget's fresh host identity is outside this fixture's one recorded
 		// host, so the course stops at the trust question the choice asks again.
 		chooseCli(*application);
-		wait_for([&] { return prompts == 2; }, "choosing Use GitHub CLI again asks read trust again");
+		wait_for([&] { return driver->connects() == 1U; }, "choosing the GitHub CLI way again asks for Connect again");
 		stop(application);
 		consent.stop();
 	}
@@ -529,13 +546,7 @@ namespace {
 		auto       store       = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
 		auto       application = start(options);
 		application->window().show();
-		application->window().open_settings(qt::settings_page::accounts_and_hosts);
-		QApplication::processEvents();
-		{
-			const auto cards = application->window().server_cards();
-			auto*      card  = *std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "github.com"; });
-			card->sign_in_button()->click();
-		}
+		begin_setup(application->window(), core::account_setup_way::browser);
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "the device sign-in is accepted");
 		wait_for([&] { return github_application_fixture_access::device_binding_durable(*application); }, "the device sign-in is durably resumable");
 		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::native_device; }, "the device choice is remembered");

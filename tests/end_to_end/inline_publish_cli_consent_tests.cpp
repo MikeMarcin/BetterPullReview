@@ -5,6 +5,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -231,19 +232,25 @@ namespace {
 					prompt->button(aCourse == course::unsupported ? QMessageBox::Cancel : QMessageBox::Yes)->click();
 					return;
 				}
+				// RFC-BPR-0032 amendment r1: read consent is the account setup's
+				// Connect, so any other question is counted and declined.
 				++readOptIns;
-				prompt->button(QMessageBox::Yes)->click();
+				prompt->button(QMessageBox::Cancel)->click();
 			}
 		});
 		consent.start(1);
 
 		firstWindow.home_action()->trigger();
 		QApplication::processEvents();
-		firstWindow.home_landing()->secondary_button()->click();
-		wait_for([&] { return firstWindow.session_panel()->status() == core::github_status::session_ready; }, "Use GitHub CLI connects the discovered account");
-		// Publication after restored read trust still requires the ordinary
-		// exact-operation gesture and its grant; trust itself issues no write.
-		expect(readOptIns == 1U, "first explicit selection accepts read trust once");
+		{
+			auto driver = e2e::account_setup_driver{ firstWindow, e2e::account_setup_driver::plan{ } };
+			driver.begin();
+			wait_for([&] { return firstWindow.session_panel()->status() == core::github_status::session_ready && !firstWindow.account_setup()->isVisible(); },
+					 "the account setup's GitHub CLI way connects the discovered account");
+			// Publication after restored read trust still requires the ordinary
+			// exact-operation gesture and its grant; trust itself issues no write.
+			expect(driver.connects() == 1U && readOptIns == 0U, "the first explicit selection consents once, in the account setup, and no read question opens");
+		}
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "first lifetime drains its remembered selection");
 		application.reset();
@@ -262,7 +269,7 @@ namespace {
 		window.resize(1440, 900);
 		window.show();
 		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "publication lifetime restores exact saved read authority without inventory");
-		expect(readOptIns == 1U, "restored read authority asks no second read confirmation");
+		expect(readOptIns == 0U, "restored read authority asks no read question");
 		window.home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/17"));
 		window.home_open_action()->trigger();
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "the pull request opens through the GitHub CLI session");

@@ -684,6 +684,14 @@ bpr_enable_warnings(test_better_pull_review_agent_setup_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_setup COMMAND test_better_pull_review_agent_setup_core_tests)
 set_tests_properties(core_agent_setup PROPERTIES PASS_REGULAR_EXPRESSION "agent-setup-tests:pass")
 
+# RFC-BPR-0032 amendment r1. The in-window account setup's steps and transitions.
+bpr_add_executable(test_better_pull_review_account_setup_core_tests account_setup_tests.cpp)
+target_link_libraries(test_better_pull_review_account_setup_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_account_setup_core_tests)
+bpr_enable_warnings(test_better_pull_review_account_setup_core_tests)
+bpr_add_network_isolated_test(NAME core_account_setup COMMAND test_better_pull_review_account_setup_core_tests)
+set_tests_properties(core_account_setup PROPERTIES PASS_REGULAR_EXPRESSION "account-setup-tests:pass")
+
 # [[BPR-1847]]. An ended agent turn's actions, and the suggestions' setup gate.
 bpr_add_executable(test_better_pull_review_agent_turn_core_tests agent_turn_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_turn_core_tests PRIVATE BetterPullReview::Core)

@@ -207,9 +207,9 @@ namespace {
 				   && window.findChildren<QWidget*>().size() <= widgets + 4,
 			   "maximum admitted Settings collections use bounded models, and kept servers add no widgets or cards of their own");
 		auto* const accounts = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
-		auto* const add      = window.add_enterprise_server_button();
+		auto* const add      = window.add_account_button();
 		expect(accounts != nullptr && add != nullptr && accounts->isAncestorOf(add) && add->isVisibleTo(accounts),
-			   "with the queue ready, Accounts and hosts offers Add enterprise server");
+			   "Accounts and hosts offers Add account");
 		const auto ruleIndex       = QPersistentModelIndex{ rules->model()->index(0, 0) };
 		const auto repositoryIndex = QPersistentModelIndex{ repositories->model()->index(0, 0) };
 		projection.Failure         = application::queue_store_failure::collection_limit;
@@ -218,7 +218,7 @@ namespace {
 				   && window.remove_saved_repository_action()->isEnabled()
 				   && window.kept_servers() == projection.SavedServers
 				   && add->isVisibleTo(accounts),
-			   "limit refusal preserves accepted model identities, the remove action, the kept servers and Add enterprise server");
+			   "limit refusal preserves accepted model identities, the remove action, the kept servers and Add account");
 		auto* status = window.settings()->findChild<QLabel*>(QStringLiteral("settingsQueueStatus"));
 		expect(status != nullptr && status->text().contains(QStringLiteral("limit")),
 			   "the Settings page explains the typed collection refusal");
@@ -17829,19 +17829,6 @@ namespace {
 		window.hide();
 	}
 
-	/// \brief [[BPR-0774]]. Names every button shown under a widget that cannot
-	/// be pressed; empty when none.
-	[[nodiscard]] auto disabled_buttons_under(const QWidget& aRoot) -> std::string
-	{
-		auto named = std::string{ };
-		for (const auto* const button : aRoot.findChildren<QAbstractButton*>()) {
-			if (button->isVisibleTo(&aRoot) && !button->isEnabled()) {
-				named += " [" + button->objectName().toStdString() + ": \"" + button->text().toStdString() + "\"]";
-			}
-		}
-		return named;
-	}
-
 	/// \brief Takes the step an event loop would take after a dialog closed.
 	///
 	/// \details A course runs outside any event loop, so `processEvents` alone
@@ -17875,136 +17862,35 @@ namespace {
 		};
 	}
 
-	// [[BPR-0660]], [[BPR-0774]]. RFC-BPR-0032 A3: one bordered Add enterprise
-	// server under the cards opens a card in its edit state (hostname,
-	// account, Add and Cancel), and Add leaves as exactly the saved-server
-	// intent the store accepts. It waits for the queue that keeps servers, and
-	// a refused hostname is said beside the fields rather than disabling Add.
-	void test_add_enterprise_server_opens_a_card_in_its_edit_state()
+	// RFC-BPR-0032 amendment r1 (owner, 2026-11-12). Settings' Add account is
+	// the account setup on Home, from its first step: the press is one begin
+	// with no server, Settings gives way, and a window whose composition gave
+	// the setup nowhere to send it does nothing.
+	void test_add_account_opens_the_account_setup()
 	{
 		{
 			qt::workbench_window unwired;
-			unwired.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
-			auto* const unwiredPage = unwired.settings()->page_widget(qt::settings_page::accounts_and_hosts);
-			expect(unwiredPage != nullptr && !unwired.add_enterprise_server_button()->isVisibleTo(unwiredPage)
-					   && !unwired.enterprise_server_draft()->isVisibleTo(unwiredPage),
-				   "a ready queue with nowhere to send a saved server offers no Add enterprise server and no draft");
+			unwired.add_account_button()->click();
+			QApplication::processEvents();
+			expect(!unwired.account_setup()->isVisible(), "with no setup host, Add account opens nothing");
 		}
 
 		qt::workbench_window window;
-		auto                 intents = std::vector<application::saved_server_intent>{ };
-		window.set_saved_server_dispatch([&intents](application::saved_server_intent aIntent) {
-			intents.push_back(std::move(aIntent));
-		});
+		auto                 events  = std::vector<core::account_setup_event>{ };
+		auto                 intents = qt::account_setup_intents{ };
+		intents.Dispatch             = [&events](core::account_setup_event aEvent) { events.push_back(std::move(aEvent)); };
+		window.set_account_setup_intents(std::move(intents));
 		window.resize(1'280, 820);
 		window.show();
+		events.clear();
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
-		auto* const page     = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
-		auto* const add      = window.add_enterprise_server_button();
-		auto* const draft    = window.enterprise_server_draft();
-		auto* const hostname = window.enterprise_server_hostname();
-		auto* const account  = window.enterprise_server_account();
-		auto* const confirm  = window.enterprise_server_add();
-		auto* const cancel   = window.enterprise_server_cancel();
-		auto* const refusal  = window.enterprise_server_refusal();
-		expect(page != nullptr && add != nullptr && draft != nullptr && hostname != nullptr && account != nullptr
-				   && confirm != nullptr && cancel != nullptr && refusal != nullptr,
-			   "the window composes Add enterprise server and its draft card");
-		expect(!add->isVisibleTo(page) && !draft->isVisibleTo(page),
-			   "before a ready queue projection there is no Add enterprise server and no draft");
-
-		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
+		window.add_account_button()->click();
 		QApplication::processEvents();
-		expect(add->isVisible() && add->text() == QStringLiteral("Add enterprise server")
-				   && !add->isDefault() && !add->isFlat() && !draft->isVisibleTo(page),
-			   "with the queue ready, one bordered Add enterprise server is offered and no draft is open");
-		expect(page->isAncestorOf(add) && page->isAncestorOf(draft) && !window.home_page()->isAncestorOf(add)
-				   && !window.home_page()->isAncestorOf(draft)
-				   && !window.focus_order().contains(add) && !window.focus_order().contains(hostname)
-				   && !window.focus_order().contains(account) && !window.focus_order().contains(confirm)
-				   && !window.focus_order().contains(cancel),
-			   "Add enterprise server and its draft live on Accounts and hosts, off Home and out of the workbench's order");
-
-		const auto open = [add, draft, page] {
-			add->click();
-			QApplication::processEvents();
-			return draft->isVisibleTo(page) && !add->isVisibleTo(page);
-		};
-		expect(open(), "Add enterprise server opens the draft card in place of the button");
-		expect(hostname->isVisibleTo(draft) && account->isVisibleTo(draft) && confirm->isVisibleTo(draft)
-				   && cancel->isVisibleTo(draft) && !refusal->isVisibleTo(draft)
-				   && confirm->text() == QStringLiteral("Add") && cancel->text() == QStringLiteral("Cancel")
-				   && window.settings()->focusWidget() == hostname,
-			   "the draft is hostname, account, Add and Cancel with no refusal, and the hostname has focus");
-
-		hostname->setText(QStringLiteral("ghe.cancelled.example"));
-		account->setText(QStringLiteral("reviewer"));
-		cancel->click();
-		QApplication::processEvents();
-		expect(!draft->isVisibleTo(page) && add->isVisibleTo(page) && hostname->text().isEmpty()
-				   && account->text().isEmpty() && intents.empty(),
-			   "Cancel closes the draft, clears its fields and dispatches nothing");
-
-		expect(open(), "Add enterprise server opens the draft again");
-		hostname->setText(QStringLiteral("https://ghe.example.com"));
-		account->setText(QStringLiteral("reviewer"));
-		const auto disabled = disabled_buttons_under(*draft);
-		expect(disabled.empty(), "no button shown in the draft is disabled:" + disabled);
-		confirm->click();
-		QApplication::processEvents();
-		expect(intents.empty() && draft->isVisibleTo(page) && refusal->isVisibleTo(draft)
-				   && !refusal->text().isEmpty() && confirm->isEnabled()
-				   && hostname->text() == QStringLiteral("https://ghe.example.com")
-				   && account->text() == QStringLiteral("reviewer"),
-			   "Add with a hostname that has a scheme is refused in a sentence beside the fields, dispatches nothing and keeps what was typed");
-		auto typed = QKeyEvent{ QEvent::KeyPress, Qt::Key_Slash, Qt::NoModifier, QStringLiteral("/") };
-		QApplication::sendEvent(hostname, &typed);
-		expect(!refusal->isVisibleTo(draft) && hostname->text() == QStringLiteral("https://ghe.example.com/"),
-			   "editing the hostname takes the refusal away");
-		auto hostnameReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-		QApplication::sendEvent(hostname, &hostnameReturn);
-		QApplication::processEvents();
-		expect(intents.empty() && refusal->isVisibleTo(draft) && draft->isVisibleTo(page),
-			   "Return in the hostname field is the same Add, and is refused the same way");
-
-		hostname->setText(QStringLiteral(" GHE.Example.Org "));
-		account->setText(QStringLiteral(" reviewer "));
-		confirm->click();
-		QApplication::processEvents();
-		expect(intents
-				   == std::vector{ application::saved_server_intent{
-					   .Action = application::saved_server_action::add,
-					   .Server = { .Hostname = "ghe.example.org", .Account = "reviewer" } } },
-			   "Add dispatches exactly one add intent, with the hostname trimmed and lowercased and the account trimmed");
-		expect(!draft->isVisibleTo(page) && add->isVisibleTo(page) && hostname->text().isEmpty()
-				   && account->text().isEmpty() && !refusal->isVisibleTo(draft),
-			   "once the add has left, the draft closes and clears");
-
-		expect(open(), "Add enterprise server opens the draft a third time");
-		hostname->setText(QStringLiteral("ghe2.example.org"));
-		auto accountReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-		QApplication::sendEvent(account, &accountReturn);
-		QApplication::processEvents();
-		expect(intents.size() == 2U
-				   && intents.back()
-					   == application::saved_server_intent{
-						   .Action = application::saved_server_action::add,
-						   .Server = { .Hostname = "ghe2.example.org", .Account = "" } }
-				   && !draft->isVisibleTo(page),
-			   "Return in the account field adds too, with no account when none was typed");
-
-		expect(open(), "Add enterprise server opens the draft once more");
-		hostname->setText(QStringLiteral("ghe3.example.org"));
-		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::restoring });
-		QApplication::processEvents();
-		expect(!draft->isVisibleTo(page) && !add->isVisibleTo(page) && hostname->text().isEmpty() && intents.size() == 2U,
-			   "a queue that is no longer ready closes and clears the draft and offers no Add enterprise server");
-		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
-		QApplication::processEvents();
-		expect(add->isVisibleTo(page) && !draft->isVisibleTo(page) && intents.size() == 2U,
-			   "ready again, Add enterprise server returns with the draft still closed");
-		window.settings()->hide();
+		expect(events.size() == 1U && std::holds_alternative<core::begin_account_setup>(events.front())
+				   && !std::get<core::begin_account_setup>(events.front()).Server.has_value(),
+			   "Add account begins the setup at its server step");
+		expect(!window.settings()->isVisible() && window.showing_home(), "Settings gives way to Home, where the setup is");
 		window.hide();
 	}
 
@@ -18018,30 +17904,15 @@ namespace {
 		window.show();
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
-		auto* const page   = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
-		auto* const useCli = window.use_github_cli_button();
+		auto* const page = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		// RFC-BPR-0032 amendment r1. The GitHub CLI way in is the account
+		// setup's; Accounts keeps the status of the cards' Check gh again.
 		auto* const status = window.github_cli_discovery_status();
-		expect(page != nullptr && useCli != nullptr && status != nullptr
-				   && !useCli->isVisibleTo(page)
-				   && !window.home_landing()->secondary_button()->isVisible(),
-			   "without a composed CLI capability neither Accounts nor Home offers discovery");
-
-		auto discoveries = std::size_t{ 0U };
-		window.set_github_cli_discovery_dispatch([&discoveries] { ++discoveries; });
-		QApplication::processEvents();
-		expect(useCli->isVisibleTo(page) && useCli->isEnabled()
-				   && window.home_landing()->secondary_button()->isVisible(),
-			   "the composed CLI capability adds one explicit discovery action to Accounts and Home");
-		useCli->click();
-		expect(discoveries == 1U, "one Use GitHub CLI press dispatches one discovery");
-
+		expect(page != nullptr && status != nullptr && window.findChild<QPushButton*>(QStringLiteral("accountsUseGithubCli")) == nullptr,
+			   "Accounts has no Use GitHub CLI button of its own");
 		window.present_github_cli_discovery(qt::github_cli_discovery_state::discovering);
 		QApplication::processEvents();
-		expect(!useCli->isEnabled() && status->isVisible()
-				   && status->text().contains(QStringLiteral("Checking")),
-			   "discovery disables re-entry and reports its in-flight state");
-		useCli->click();
-		expect(discoveries == 1U, "an in-flight discovery cannot be dispatched twice");
+		expect(status->isVisible() && status->text().contains(QStringLiteral("Checking")), "a running check reports its in-flight state");
 
 		window.add_setup_profile({
 			.Profile   = core::host_profile_id{ 91U },
@@ -18050,11 +17921,10 @@ namespace {
 			.Product   = application::github_profile_product::github_enterprise_server,
 			.Transport = application::github_profile_transport::github_cli,
 		});
-		window.present_cli_account_choices({ core::host_profile_id{ 91U } });
 		window.present_github_cli_discovery(qt::github_cli_discovery_state::ready, 1U);
 		QApplication::processEvents();
 		auto* const discovered = window.server_card_for(core::host_profile_id{ 91U });
-		expect(useCli->isEnabled() && status->text().contains(QStringLiteral("Found 1"))
+		expect(status->text().contains(QStringLiteral("Found 1"))
 				   && discovered != nullptr && discovered->hostname() == "ghe.example.com"
 				   && discovered->cli_offer_button() != nullptr
 				   && discovered->cli_offer_button()->text().contains(QStringLiteral("reviewer")),
@@ -18418,14 +18288,10 @@ namespace {
 		auto* const enterprise = window.server_card_for(core::host_profile_id{ 52U });
 		expect(enterprise != nullptr && enterprise->remember_switch()->isVisibleTo(page)
 				   && enterprise->remember_switch()->isChecked()
-				   && window.add_enterprise_server_button()->isVisibleTo(page),
-			   "the state under inspection has reached the page: the kept server's card remembers it and Add enterprise server is offered");
+				   && window.add_account_button()->isVisibleTo(page),
+			   "the state under inspection has reached the page: the kept server's card remembers it and Add account is offered");
 		expect_no_server_combo_editor(window, page, "the queue is ready and keeps two servers");
 
-		window.add_enterprise_server_button()->click();
-		QApplication::processEvents();
-		expect(window.enterprise_server_draft()->isVisibleTo(page), "Add enterprise server opens its draft card");
-		expect_no_server_combo_editor(window, page, "the Add enterprise server draft is open");
 		window.settings()->hide();
 		window.hide();
 	}
@@ -25027,7 +24893,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_queue_rule_selection_survives_unrelated_projection", &test_queue_rule_selection_survives_unrelated_projection);
 	runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
 	runCase("test_add_repository_comes_before_the_clone_folders", &test_add_repository_comes_before_the_clone_folders);
-	runCase("test_add_enterprise_server_opens_a_card_in_its_edit_state", &test_add_enterprise_server_opens_a_card_in_its_edit_state);
+	runCase("test_add_account_opens_the_account_setup", &test_add_account_opens_the_account_setup);
 	runCase("test_github_cli_discovery_is_a_separate_accounts_path", &test_github_cli_discovery_is_a_separate_accounts_path);
 	runCase("test_a_kept_enterprise_server_remembers_and_forgets_on_its_card", &test_a_kept_enterprise_server_remembers_and_forgets_on_its_card);
 	runCase("test_the_servers_combo_editor_is_gone", &test_the_servers_combo_editor_is_gone);

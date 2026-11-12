@@ -186,19 +186,30 @@ namespace bpr::qt {
 		editor.setFocus();
 
 		const auto accepted = dialog.exec() == QDialog::Accepted;
-		auto       text     = editor.text();
-		erase(editor);
 		if (!accepted) {
+			erase(editor);
+			return std::nullopt;
+		}
+		auto taken = take_sensitive_text(editor, aMaximumBytes);
+		if (!taken.has_value()) {
+			show_unavailable_warning(aParent);
+		}
+		return taken;
+	}
+
+	auto take_sensitive_text(QLineEdit& aEditor, const std::size_t aMaximumBytes) -> std::optional<sensitive_bytes>
+	{
+		auto text = aEditor.text();
+		erase(aEditor);
+		if (!valid_maximum(aMaximumBytes)) {
 			erase(text);
 			return std::nullopt;
 		}
-
 		auto utf8 = text.toUtf8();
 		erase(text);
 		const auto byteCount = static_cast<std::size_t>(utf8.size());
 		if (byteCount == 0U || byteCount > aMaximumBytes) {
 			erase(utf8);
-			show_unavailable_warning(aParent);
 			return std::nullopt;
 		}
 
@@ -207,7 +218,6 @@ namespace bpr::qt {
 		};
 		if (owned == nullptr) {
 			erase(utf8);
-			show_unavailable_warning(aParent);
 			return std::nullopt;
 		}
 
