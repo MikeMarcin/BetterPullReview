@@ -1,5 +1,7 @@
 #include "bpr/qt/local_draft_view.hpp"
 
+#include "bpr/qt/local_draft_publication_area.hpp"
+
 #include "bpr/qt/local_draft_evidence_area.hpp"
 
 #include <QAction>
@@ -292,6 +294,8 @@ namespace bpr::qt {
 		Areas->setTabToolTip(2, QStringLiteral("The pull request's title and whole description"));
 		Areas->addTab(QStringLiteral("Tour"));
 		Areas->setTabToolTip(3, QStringLiteral("The route a reviewer takes through the change"));
+		Areas->addTab(QStringLiteral("Pull request"));
+		Areas->setTabToolTip(4, QStringLiteral("Create the draft pull request from the branch you pushed"));
 		column->addWidget(Areas);
 		AreaStack = new QStackedWidget{ this };
 		Evidence  = new local_draft_evidence_area{ AreaStack };
@@ -301,6 +305,8 @@ namespace bpr::qt {
 		TourArea        = new local_draft_tour_area{ AreaStack };
 		AreaStack->addWidget(DescriptionArea);
 		AreaStack->addWidget(TourArea);
+		PublicationArea = new local_draft_publication_area{ AreaStack };
+		AreaStack->addWidget(PublicationArea);
 		Links.Selection = [this] { return selected_lines(); };
 		Links.Reveal    = [this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) { reveal(aPath, aFirst, aLast); };
 		DescriptionArea->set_dispatch(&PreparationDispatch, &Links);
@@ -521,6 +527,7 @@ namespace bpr::qt {
 		Evidence->present(aProjection);
 		DescriptionArea->present(aProjection);
 		TourArea->present(aProjection);
+		PublicationArea->present(aProjection);
 		present_header();
 		present_recovery();
 		present_changes();
@@ -840,5 +847,10 @@ namespace bpr::qt {
 	auto local_draft_view::tour() const noexcept -> local_draft_tour_area*
 	{
 		return TourArea;
+	}
+
+	auto local_draft_view::publication() const noexcept -> local_draft_publication_area*
+	{
+		return PublicationArea;
 	}
 }

@@ -1,6 +1,7 @@
 #ifndef BPR_APP_GITHUB_APPLICATION_REVIEW_MUTATION_SELECTION_HPP
 #define BPR_APP_GITHUB_APPLICATION_REVIEW_MUTATION_SELECTION_HPP
 #include "bpr/application/github_epoch_handoff.hpp"
+#include "bpr/application/github_publication_port.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 
@@ -92,6 +93,11 @@ namespace bpr::app {
 	/// pull request there qualifies, so a course can open its own.
 	[[nodiscard]] auto designated_live_publication_target(
 		const application::review_mutation_target_binding& aTarget) -> bool;
+
+	/// RFC-BPR-0111. In a tests-enabled build with `DesignatedLivePublication`,
+	/// the pull request catalog Create draft PR uses, refusing before any
+	/// request every repository but MikeMarcin/BPR-Test on github.com.
+	[[nodiscard]] auto designated_pull_request_account(application::github_publication_account aAccount) -> application::github_publication_account;
 
 	/// Holds decision posts for deterministic fixture races.
 	class gated_review_mutation_decision_executor final

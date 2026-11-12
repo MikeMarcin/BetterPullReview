@@ -6,12 +6,15 @@
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/core/diff_line_matcher.hpp"
 #include "bpr/qt/local_draft_evidence_area.hpp"
+#include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "system_browser_opener.hpp"
 
 #include <QDateTime>
+#include <QClipboard>
 #include <QFileDialog>
+#include <QGuiApplication>
 #include <QRandomGenerator>
 
 #include <array>
@@ -219,6 +222,33 @@ namespace bpr::app {
 		View->set_code_font(aFont);
 	}
 
+	void local_draft_desktop::set_publishing(publication_account aAccount)
+	{
+		if (!PublishLane) {
+			PublishLane = std::make_unique<worker_executor>();
+		}
+		Host->set_publishing(std::move(aAccount), PublishLane.get());
+		View->publication()->set_dispatch({
+			.Check     = [this](const bool aTour) { Host->check_publication(aTour); },
+			.Create    = [this](const std::string& aDigest) { Host->create_pull_request(aDigest); },
+			.Recover   = [this] { Host->recover_publication(); },
+			.Associate = [this](const std::uint64_t aNumber) { Host->associate_pull_request(aNumber); },
+			.Copy =
+				[this](const std::string& aCommand) {
+					if (Copier) {
+						Copier(aCommand);
+					} else if (auto* const clipboard = QGuiApplication::clipboard()) {
+						clipboard->setText(QString::fromStdString(aCommand));
+					}
+				},
+		});
+	}
+
+	void local_draft_desktop::set_copier(std::function<void(const std::string&)> aCopier)
+	{
+		Copier = std::move(aCopier);
+	}
+
 	void local_draft_desktop::set_agent(application::local_draft_agent_runner aRunner, application::effect_executor* const aLane, agent_chooser aChooser)
 	{
 		AgentChooser = std::move(aChooser);
@@ -245,6 +275,7 @@ namespace bpr::app {
 			View->set_dispatch({ });
 			View->evidence()->set_dispatch({ });
 			View->set_preparation_dispatch({ });
+			View->publication()->set_dispatch({ });
 			Window.set_local_draft_entry_dispatch({ }, { });
 		}
 		if (Host) {

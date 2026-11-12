@@ -22,6 +22,7 @@ class QWidget;
 
 namespace bpr::qt {
 	class local_draft_evidence_area;
+	class local_draft_publication_area;
 
 	/// \brief The gestures the local draft page sends to its host.
 	struct local_draft_dispatch
@@ -81,6 +82,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto evidence() const noexcept -> local_draft_evidence_area*;
 		[[nodiscard]] auto description() const noexcept -> local_draft_description_area*;
 		[[nodiscard]] auto tour() const noexcept -> local_draft_tour_area*;
+		/// \brief RFC-BPR-0111. The Pull request area.
+		[[nodiscard]] auto publication() const noexcept -> local_draft_publication_area*;
 		/// \brief RFC-BPR-0110. The Description and Tour areas' gestures.
 		void set_preparation_dispatch(local_draft_preparation_dispatch aDispatch);
 		/// \brief The new-side lines selected in Changes, when they are the latest candidate's.
@@ -129,6 +132,7 @@ namespace bpr::qt {
 		local_draft_evidence_area*       Evidence         = nullptr;
 		local_draft_description_area*    DescriptionArea  = nullptr;
 		local_draft_tour_area*           TourArea         = nullptr;
+		local_draft_publication_area*    PublicationArea  = nullptr;
 		local_draft_preparation_dispatch PreparationDispatch;
 		local_draft_page_links           Links;
 		/// Lines to select once their file is shown.

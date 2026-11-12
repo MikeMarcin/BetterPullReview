@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APP_SRC_LOCAL_DRAFT_DESKTOP_HPP
 #define BPR_SRC_APP_SRC_LOCAL_DRAFT_DESKTOP_HPP
 
+#include "bpr/app/worker_executor.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/workspace_source_port.hpp"
@@ -70,6 +71,13 @@ namespace bpr::app {
 		using agent_chooser = std::function<std::optional<agent_choice>()>;
 		/// \brief Composes the agent runs; a null runner leaves authoring by hand only.
 		void set_agent(application::local_draft_agent_runner aRunner, application::effect_executor* aLane, agent_chooser aChooser);
+		/// \brief RFC-BPR-0111. The account Create draft PR acts as, asked each
+		/// time; its GitHub calls run on this desktop's own lane, apart from
+		/// every review submission (X22).
+		using publication_account = std::function<std::optional<application::github_publication_account>()>;
+		void set_publishing(publication_account aAccount);
+		/// \brief Replaces the clipboard for the named push, for a course.
+		void set_copier(std::function<void(const std::string&)> aCopier);
 		/// \brief Shows a draft another interface opened (`bpr draft open`).
 		void               show_draft(const core::local_draft_id& aId);
 		[[nodiscard]] auto host() noexcept -> application::local_draft_workbench&;
@@ -79,6 +87,9 @@ namespace bpr::app {
 
 	private:
 		qt::workbench_window& Window;
+		/// RFC-BPR-0111. Create draft PR's own lane; outlives the host's work on it.
+		std::unique_ptr<worker_executor>        PublishLane;
+		std::function<void(const std::string&)> Copier;
 		/// The window owns the page; a window torn down first takes it with it.
 		QPointer<qt::local_draft_view>                      View;
 		std::unique_ptr<application::workspace_source_port> Source;
