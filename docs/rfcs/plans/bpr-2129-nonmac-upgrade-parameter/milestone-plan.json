@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2129-nonmac-upgrade-parameter",
+  "scope": {
+    "issues": [
+      "BPR-2129"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "restore-native-nonmac-compilation",
+      "outcome": "The ownership journal version upgrade compiles under the native Linux Release warning policy without changing runtime behavior or macOS identity checks.",
+      "work": [
+        {
+          "issue": "BPR-2129",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Exactly one explicit unused-parameter discard in the non-Mac branch; no changed warning, version, identity, authority or migration semantics.",
+        "Actual GCC15.2 full Release TU compile passes from private inputs with stock flags and read-only pinned dependencies; original failure and exact input/output receipts retained.",
+        "Scoped source/docs/format gates and intentional main contribution complete; preserve foreign main and immutable Build59, no cohort/sign/package/publication; return exact mapping and all commands terminal."
+      ],
+      "boundary": "Mandate bpr2129-nonmac-upgrade-parameter-r1. Independent source branch from15e3f61ae. One production C++ line plus own tracker/plan/verification/counter/receipt. Native Linux TU diagnostic only in granted unique UID-private root; no producer source/build mutations."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
