@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2065"
 title: "The author-Git runner, its one-time question, and Commit"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0114"]
 metadata: {"criteria":["AC01","AC02","AC05","AC06"],"milestone_plan":{"id":"local-draft-authoring-v1","path":"docs/rfcs/plans/local-draft-authoring-v1/milestone-plan.json"},"reopened_choices":["PUBLISH-01"],"reservation":"docs/issues/_reservations/BPR-2062--BPR-2071--3110069c9cbb.json","imported_from":"docs/rfcs/assets/local-draft-authoring-v1/cards/DRAFT-0004-author-git-runner-and-commit.md"}
 depends_on: ["BPR-2020"]

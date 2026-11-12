@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2062"
 title: "Save policy and the worktree write port"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0113"]
 metadata: {"criteria":["AC02","AC03","AC06"],"milestone_plan":{"id":"local-draft-authoring-v1","path":"docs/rfcs/plans/local-draft-authoring-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2062--BPR-2071--3110069c9cbb.json","imported_from":"docs/rfcs/assets/local-draft-authoring-v1/cards/DRAFT-0001-save-policy-and-worktree-write-port.md"}
 depends_on: ["BPR-2020"]
