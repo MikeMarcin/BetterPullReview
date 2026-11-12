@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -356,14 +357,17 @@ try {
 	// shipped signed-out session, and a sibling that signs in later enrols a
 	// second grant whose identity change retires every window's session.
 	expect(windowA->home_landing()->state() == qt::landing_state::sign_in && !windowA->home_list()->queue_shown(), "first public window lands signed out with no queue");
+	// RFC-BPR-0032 amendment r1: Start reviewing leaves the setup's Ready.
+	auto setupReady = e2e::account_setup_driver{ *windowA, e2e::account_setup_driver::plan{ .Way = core::account_setup_way::browser } };
 	windowA->home_landing()->primary_button()->click();
-	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session", [&] {
+	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut && !windowA->account_setup()->isVisible(); }, "Home sign-in reaches an account session", [&] {
 		const auto evidence = app::detail::github_application_fixture_access::evidence(*owner);
 		std::cerr << "sign-in status=" << windowA->session_panel()->status_text()
 			<< " diagnostic=" << windowA->session_panel()->diagnostic_text()
 			<< " preview-signed-out=" << owner->status().PublicPreviewSignedOut
 			<< " vault=" << evidence.VaultStores << " bootstrap=" << evidence.BootstrapTransportSelected
 			<< " account=" << evidence.AccountTransportSelected << '\n'; });
+	setupReady.stop();
 	expect(windowA->home_list()->queue_shown(), "an account shows the queue");
 	submit(*windowA, 17);
 	auto* signIn = windowA->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"));

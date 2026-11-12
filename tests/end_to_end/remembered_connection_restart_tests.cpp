@@ -1,6 +1,7 @@
 // BPR-1410: every phase below is a new OS process using the public composition.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/server_card.hpp"
@@ -77,39 +78,27 @@ namespace {
 		expect(command && command->isEnabled(), "public desktop action is enabled");
 		command->trigger();
 	}
-	void connect_cli(qt::workbench_window& aWindow, const std::string_view aHostname, const std::string_view aLogin)
+	/// RFC-BPR-0032 amendment r1. Connects the named gh account the way a
+	/// reviewer does, in the account setup; returns the Connect presses, which
+	/// are the read consents given.
+	auto connect_cli(qt::workbench_window& aWindow, const std::string_view aHostname, const std::string_view aLogin) -> std::size_t
 	{
 		wait_for([&] { return aWindow.session_panel()->status() != core::github_status::establishing_session; }, "remembered startup settles before explicit account replacement");
-		if (aWindow.session_panel()->status() == core::github_status::session_ready) {
-			aWindow.open_settings(qt::settings_page::accounts_and_hosts);
-			card(aWindow, aHostname).cli_check_button()->click();
-		} else {
-			aWindow.home_action()->trigger();
-			QApplication::processEvents();
-			aWindow.home_landing()->secondary_button()->click();
-		}
-		wait_for([&] { return std::ranges::any_of(aWindow.server_cards(), [&](const auto* aCard) {
-						   return std::ranges::any_of(aCard->options(), [&](const auto& aOption) { return aOption.Hostname == aHostname && aOption.Label.find(aLogin) != std::string::npos; });
-					   }); },
-				 "explicit discovery presents the named account", [&] {
-					std::cerr << "cli-discovery:host=" << aHostname << ":status=" << aWindow.session_panel()->status_text()
-						<< ":diagnostic=" << aWindow.session_panel()->diagnostic_text() << ":landing=" << static_cast<unsigned>(aWindow.home_landing()->state())
-						<< ":connect=" << aWindow.github_connect_action()->isEnabled() << ":home=" << aWindow.showing_home();
-					if (auto* notice = aWindow.findChild<QLabel*>(QStringLiteral("githubCliDiscoveryStatus"))) {
-						std::cerr << ":discovery=" << notice->text().toStdString();
-					}
-					std::cerr << '\n'; });
-		std::optional<core::host_profile_id> profile;
-		for (const auto* server : aWindow.server_cards()) {
-			for (const auto& option : server->options()) {
-				if (option.Hostname == aHostname && option.Label.find(aLogin) != std::string::npos) {
-					profile = option.Profile;
-				}
-			}
-		}
-		expect(profile.has_value(), "account selector resolves exact profile");
-		aWindow.connect_github_profile(*profile);
-		wait_for([&] { return aWindow.session_panel()->status() == core::github_status::session_ready; }, "explicit named CLI account connects");
+		auto plan     = e2e::account_setup_driver::plan{ };
+		plan.Server   = aHostname == "github.com" ? core::account_setup_server::github_com : core::account_setup_server::enterprise;
+		plan.Hostname = std::string{ aHostname };
+		plan.Login    = std::string{ aLogin };
+		auto driver   = e2e::account_setup_driver{ aWindow, std::move(plan) };
+		driver.begin();
+		wait_for([&] {
+			const auto session = aWindow.session_panel()->session();
+			return aWindow.session_panel()->status() == core::github_status::session_ready && session.has_value() && session->Login.find(aLogin) != std::string::npos
+				&& !aWindow.account_setup()->isVisible(); },
+				 "explicit named CLI account connects through the account setup", [&] {
+					const auto& state = aWindow.account_setup()->projection().State;
+					std::cerr << "account-setup:phase=" << core::stable_name(state.Phase) << ":problem=" << core::stable_name(state.Problem)
+							  << ":accounts=" << state.Accounts.size() << ":status=" << aWindow.session_panel()->status_text() << '\n'; });
+		return driver.connects();
 	}
 	class write_lock final
 	{
@@ -197,15 +186,11 @@ namespace {
 		QTimer   consent;
 		QObject::connect(&consent, &QTimer::timeout, [&] {
 			const tests::exit_on_failure inTheEventLoop;
+			// RFC-BPR-0032 amendment r1. Read consent is the account setup's
+			// Connect; no question may open.
 			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				const auto login = aPhase == "replace-account" || aPhase == "cancel-first" ? QStringLiteral("recent-reviewer-78") : QStringLiteral("recent-reviewer-77");
-				expect(prompt->text() == QStringLiteral("Use %1’s GitHub CLI sign-in on %2?").arg(login, QString::fromLatin1(host)), "only the exact chosen-account read trust is asked");
-				expect(prompt->informativeText().contains(QStringLiteral("existing sign-in without saving its token")), "read trust explains existing sign-in without token storage");
-				expect(prompt->informativeText().contains(QStringLiteral("reused until you sign out or replace it")), "read trust explains reuse across fresh processes");
-				expect(prompt->informativeText().contains(QStringLiteral("Connecting for reads does not authorize publishing.")), "remembered read trust grants no publication authority");
-				expect(prompt->detailedText().contains(QStringLiteral("Remembered metadata saves no token and is checked again before use.")), "read trust retains token-free metadata and current revalidation");
-				++readAsks;
-				prompt->button(aPhase == "cancel-first" ? QMessageBox::Cancel : QMessageBox::Yes)->click();
+				expect(false, "no read-trust question opens; consent is given in the account setup");
+				prompt->close();
 			}
 		});
 		consent.start(1);
@@ -220,11 +205,19 @@ namespace {
 		if (aPhase == "fresh" || aPhase == "signed-out" || aPhase == "corrupt" || aPhase == "cancel-first") {
 			expect(window.session_panel()->status() == core::github_status::no_profile, "no saved consent means no implicit connection");
 			if (aPhase == "cancel-first") {
-				window.home_action()->trigger();
-				window.home_landing()->secondary_button()->click();
-				wait_for([&] { return card(window, host).cli_option() != nullptr; }, "first explicit inventory completes");
-				window.connect_github_profile(card(window, host).cli_option()->Profile);
-				expect(readAsks == 1U, "cancelled first selection asks once");
+				// The account is listed and chosen, and the reviewer goes back
+				// without Connect: no consent, no connection.
+				window.begin_account_setup(host == std::string_view{ "github.com" } ? core::account_setup_server::github_com : core::account_setup_server::enterprise, std::string{ host },
+										   core::account_setup_way::github_cli);
+				wait_for([&] { return window.account_setup()->projection().State.Phase == core::account_setup_phase::choosing_account; }, "first explicit inventory completes");
+				for (auto* const back : window.account_setup()->findChildren<QPushButton*>(QStringLiteral("accountSetupBack"))) {
+					if (back->isVisibleTo(window.account_setup())) {
+						back->click();
+						break;
+					}
+				}
+				QApplication::processEvents();
+				expect(readAsks == 0U && window.session_panel()->status() == core::github_status::no_profile, "a selection left without Connect consents to nothing");
 			}
 			no_private_content(*owner, window);
 			const auto evidence = github_application_fixture_access::evidence(*owner);
@@ -251,7 +244,7 @@ namespace {
 					},
 							 "remembered startup reaches a terminal before adding another server");
 				}
-				connect_cli(window, host, "recent-reviewer-77");
+				readAsks += connect_cli(window, host, "recent-reviewer-77");
 				expect(readAsks == 1U, "only the explicitly selected account receives read consent");
 			} else if (aPhase == "exact-host" || aPhase == "enterprise-forget" || aPhase == "after-forget") {
 				wait_for([&] { return window.session_panel()->status() == (aPhase == "after-forget" ? core::github_status::no_profile : core::github_status::session_failed); }, "unavailable or forgotten startup host grants no authority");
@@ -260,7 +253,7 @@ namespace {
 				expect(readAsks == 0U, "exact-host navigation reuses remembered trust without inventory");
 			} else {
 				wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "new process revalidates exact remembered account");
-				expect(readAsks == 0U && (!window.sign_in_dialog() || !window.sign_in_dialog()->isVisible()), "restoration performs no selection or read-trust prompt");
+				expect(readAsks == 0U && !window.account_setup()->isVisible(), "restoration performs no selection and opens no setup");
 			}
 			if (aPhase == "save-refused") {
 				wait_for([&] { return window.home_open_notice()->text().contains(QStringLiteral("session-only")); }, "failed selection save is visibly session-only");
@@ -280,7 +273,7 @@ namespace {
 			expect(evidence.AccountFactoryCalls == 1U && evidence.VaultRetrieveAttempts == 0U && evidence.VaultStores == 0U && evidence.BootstrapFactoryCalls == 0U, "restored CLI uses only its chosen account transport without native credential fallback");
 			if (aPhase == "replace-account") {
 				fixtureOptions.RecentAccount->store(78U);
-				connect_cli(window, host, "recent-reviewer-78");
+				readAsks += connect_cli(window, host, "recent-reviewer-78");
 				wait_for([&] { return selected(aRoot, host).Account == core::github_account_id{ 78U }; }, "explicit second account atomically replaces remembered selection");
 				const auto replacement = selected(aRoot, host);
 				expect(readAsks == 1U && replacement.Profile != row.Profile && replacement.Host == row.Host && replacement.Login == "recent-reviewer-78", "second account receives distinct stable authority and explicit trust");

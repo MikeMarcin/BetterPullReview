@@ -1,38 +1,31 @@
-// [[BPR-0803]]. Choosing GitHub CLI while a device sign-in waits for its code
-// keeps the code on screen beside the GitHub CLI choice until the reviewer
-// ends one of them (owner decision dbae079d, 2026-09-24). Three complete
-// compositions over the recorded GitHub.com fixture, one per ending:
+// [[BPR-0803]], RFC-BPR-0032 amendment r1. A device sign-in and the GitHub
+// CLI way in, in Home's account setup. The setup shows one way at a time, so
+// choosing the GitHub CLI while a code waits ends that code: the device flow
+// is cancelled visibly rather than left polling, and finishing in the browser
+// afterwards enrolls nothing. Three complete compositions over the recorded
+// GitHub.com fixture:
 //
-// - one discovered account, which Use GitHub CLI connects at once behind its
-//   read opt-in, with the code still in view behind the opt-in;
-// - two discovered accounts, the choice standing on the card beside the code,
-//   and the GitHub CLI way in taken: its read opt-in is answered once, the
-//   session is the discovered GitHub CLI profile's, and the device flow is
-//   ended visibly rather than left polling;
-// - two discovered accounts and the device authorization finishing first:
-//   sign-in closes, which withdraws the GitHub CLI choice, no read opt-in is
-//   asked, and the session is the native profile's.
+// - gh holds accounts but none usable: the setup says so and nothing signs in;
+// - a code waits, then the reviewer changes to the GitHub CLI and connects
+//   gh's active account: the code is ended and the session is gh's;
+// - a code waits and the browser finishes first: the native profile signs in,
+//   and no gh consent was asked.
 //
 // The device fixture answers `authorization_pending` until the course lets
 // the browser finish. No live GitHub, credential or device-flow request.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
+#include "bpr/qt/account_setup_view.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
-#include "bpr/qt/server_card.hpp"
-#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
 #include <QApplication>
-#include <QDialog>
 #include <QElapsedTimer>
-#include <QLabel>
-#include <QLineEdit>
 #include <QMessageBox>
-#include <QPixmap>
 #include <QPushButton>
-#include <QString>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
@@ -70,31 +63,34 @@ namespace {
 		}
 	}
 
-	enum class ending : std::uint8_t {
-		/// One discovered account: Use GitHub CLI connects it at once, behind
-		/// its read opt-in (BPR-0909), and that way in finishes first.
-		cli_connects_at_once,
-		/// Two discovered accounts: the choice stands on the card beside the
-		/// code, and the reviewer takes the GitHub CLI way in.
-		cli_chosen_first,
-		/// Two discovered accounts, and the browser finishes the device flow
-		/// while the choice is on screen.
-		device_first,
-	};
-
-	// Rendered evidence, written only when a directory is named: the shared
-	// sign-in dialog with the code and the GitHub CLI choice side by side.
-	void capture(QWidget& aSurface, const QString& aName)
+	void press(const qt::account_setup_view& aSetup, const QString& aName)
 	{
-		const auto directory = qEnvironmentVariable("BPR_DEVICE_CLI_CHOICE_CAPTURE_DIR");
-		if (directory.isEmpty()) {
-			return;
+		QApplication::processEvents();
+		for (auto* const button : aSetup.findChildren<QPushButton*>(aName)) {
+			if (button->isVisibleTo(&aSetup) && button->isEnabled()) {
+				button->click();
+				QApplication::processEvents();
+				return;
+			}
 		}
-		expect(aSurface.grab().save(QStringLiteral("%1/%2.png").arg(directory, aName), "PNG"), "the capture is written");
+		expect(false, "the named setup button is shown and enabled");
 	}
 
-	// [[BPR-1571]]. Exercise the actual discovery completion and projection,
-	// not only the Qt message setter, with the inaccessible-Keychain shape.
+	/// No read question opens in any ending; consent is the setup's Connect.
+	void refuse_questions(QTimer& aTimer)
+	{
+		QObject::connect(&aTimer, &QTimer::timeout, [] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				const tests::exit_on_failure inTheEventLoop;
+				expect(false, "no read-trust question opens; consent is the account setup's Connect");
+				prompt->close();
+			}
+		});
+		aTimer.start(1);
+	}
+
+	// [[BPR-1571]]. Exercise the actual discovery completion and projection
+	// with the inaccessible-Keychain shape.
 	void inaccessible_cli_inventory_stays_signed_out()
 	{
 		QTemporaryDir temporary;
@@ -103,9 +99,12 @@ namespace {
 		options.RegisteredDeviceCourse     = true;
 		options.PublicPreviewEnabledCourse = true;
 		options.IndependentWindowReads     = true;
-		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
-			{ .Hostname = "github.com", .Login = "fixture-user", .SignedIn = false, .KeychainHeld = false }
-		};
+		auto account                       = app::detail::github_public_path_fixture_options::github_cli_discovery_account{ };
+		account.Hostname                   = "github.com";
+		account.Login                      = "fixture-user";
+		account.SignedIn                   = false;
+		account.KeychainHeld               = false;
+		options.GithubCliDiscoveryAccounts = std::vector{ account };
 		std::unique_ptr<app::github_application> application;
 		auto                                     terminal = false;
 		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
@@ -118,15 +117,24 @@ namespace {
 		expect(application != nullptr, "ineligible-inventory composition is available");
 		auto& window = application->window();
 		window.show();
-		window.use_github_cli_button()->click();
-		wait_for([&] { return window.github_cli_discovery_status()->text().contains(QStringLiteral("available from secure storage")); },
-				 "completed but ineligible inventory reaches its own actionable message");
-		expect(window.session_panel()->status() == core::github_status::no_profile,
+		window.begin_account_setup(core::account_setup_server::github_com, "github.com", core::account_setup_way::github_cli);
+		auto* const setup = window.account_setup();
+		wait_for([&] { return setup->projection().State.Problem == core::account_setup_problem::gh_no_usable_account; },
+				 "completed but ineligible inventory reaches its own actionable problem in the setup");
+		expect(setup->projection().State.Accounts.empty() && window.session_panel()->status() == core::github_status::no_profile,
 			   "inaccessible account is not promoted to an authenticated session");
-		expect(window.use_github_cli_button()->isEnabled(), "discovery can be retried after environment recovery");
+		press(*setup, QStringLiteral("accountSetupRetry"));
+		wait_for([&] { return setup->projection().State.Phase == core::account_setup_phase::choosing_account; }, "Check again can be retried after environment recovery");
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "ineligible-inventory hosts quiesce");
 	}
+
+	enum class ending : std::uint8_t {
+		/// A code waits; the reviewer changes to the GitHub CLI and connects.
+		cli_chosen,
+		/// A code waits and the browser finishes first.
+		device_first,
+	};
 
 	void run(const ending aEnding)
 	{
@@ -137,12 +145,10 @@ namespace {
 		options.RegisteredDeviceCourse     = true;
 		options.PublicPreviewEnabledCourse = true;
 		options.IndependentWindowReads     = true;
-		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
-			{ .Hostname = "github.com", .Login = "octo-reviewer" }
-		};
-		if (aEnding != ending::cli_connects_at_once) {
-			options.GithubCliDiscoveryAccounts->push_back({ .Hostname = "ghe.example.invalid", .Login = "octo-enterprise" });
-		}
+		auto account                       = app::detail::github_public_path_fixture_options::github_cli_discovery_account{ };
+		account.Hostname                   = "github.com";
+		account.Login                      = "octo-reviewer";
+		options.GithubCliDiscoveryAccounts = std::vector{ account };
 		const auto pending                 = std::make_shared<std::atomic_bool>(true);
 		options.DeviceAuthorizationPending = pending;
 		expect(options.ApplicationDataRoot.has_value(), "private desktop test root under the canonical storage policy");
@@ -159,92 +165,44 @@ namespace {
 		expect(application != nullptr, "application startup succeeds");
 		auto& window = application->window();
 		window.show();
-		window.open_settings(qt::settings_page::accounts_and_hosts);
-		QApplication::processEvents();
-		qt::server_card* github = nullptr;
-		for (auto* const card : window.server_cards()) {
-			if (card->offers_device_sign_in()) {
-				github = card;
-			}
-		}
-		expect(github != nullptr && github->native_option() != nullptr, "GitHub.com's card offers the device sign-in");
-		const auto  native = github->native_option()->Profile;
-		auto* const panel  = window.device_authorization();
+		QTimer questions;
+		refuse_questions(questions);
+		auto* const setup = window.account_setup();
+		auto* const panel = window.device_authorization();
 
-		github->sign_in_button()->click();
-		wait_for([&] { return panel->signing_in() && !panel->user_code_field()->text().isEmpty(); }, "Sign in begins the device flow and shows its code");
-		auto* const dialog = window.sign_in_dialog();
-		expect(dialog != nullptr && dialog->isVisible() && github->isVisibleTo(dialog), "the code is shown in the shared sign-in dialog");
-		const auto code       = panel->user_code_field()->text();
-		const auto codeInView = [&] {
-			return dialog->isVisible() && github->isVisibleTo(dialog) && panel->isVisibleTo(dialog) && panel->user_code_field()->isVisible()
-				&& panel->user_code_field()->text() == code && panel->address_field()->isVisible() && panel->signing_in();
-		};
-
-		// The read opt-in answers yes, and each time it is asked is counted,
-		// with whether the code was still in view behind it.
-		auto   optIns          = 0U;
-		auto   codeBehindOptIn = false;
-		QTimer consent;
-		QObject::connect(&consent, &QTimer::timeout, [&] {
-			// [[BPR-1121]]. The event loop calls this, and a throw may not cross it, so a failure here exits.
-			const bpr::tests::exit_on_failure inTheEventLoop;
-			if (auto* const prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				++optIns;
-				codeBehindOptIn = codeInView();
-				capture(*dialog, aEnding == ending::cli_connects_at_once ? QStringLiteral("code-behind-read-opt-in-at-once") : QStringLiteral("code-behind-read-opt-in-chosen"));
-				prompt->button(QMessageBox::Yes)->click();
-			}
-		});
-		consent.start(1);
-
-		window.use_github_cli_button()->click();
-		if (aEnding == ending::cli_connects_at_once) {
-			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "one discovered account connects at once and signs in");
-			expect(optIns == 1U && codeBehindOptIn, "its read opt-in is asked once, with the code and address still in view behind it");
-		} else {
-			wait_for([&] { return github->cli_option() != nullptr && github->cli_offer_button() != nullptr && github->cli_offer_button()->isVisibleTo(dialog); },
-					 "Use GitHub CLI during the flow offers the github.com account on the same card");
-			expect(codeInView(), "the code and the address stay in view beside the GitHub CLI choice, and the flow is still running");
-			expect(optIns == 0U && window.session_panel()->status() == core::github_status::no_profile,
-				   "choosing GitHub CLI reads nothing and signs nothing in by itself");
-			capture(*dialog, aEnding == ending::cli_chosen_first ? QStringLiteral("code-beside-cli-choice") : QStringLiteral("code-beside-cli-choice-then-browser"));
-		}
-		const auto cli = github->cli_option()->Profile;
+		window.begin_account_setup(core::account_setup_server::github_com, "github.com", core::account_setup_way::browser);
+		wait_for([&] { return setup->projection().State.Phase == core::account_setup_phase::awaiting_browser && panel->signing_in(); },
+				 "the browser way begins the device flow and shows its code in the setup");
 
 		if (aEnding == ending::device_first) {
 			pending->store(false);
 			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "the browser finishing the device flow signs in", 20000);
-			expect(window.session_panel()->active_profile() == std::optional{ native } && github->signed_in() && github->profile() == native,
-				   "GitHub.com ends signed in through its native HTTPS profile");
-			wait_for([&] { return !dialog->isVisible(); }, "sign-in closes, withdrawing the GitHub CLI choice");
+			wait_for([&] { return setup->projection().State.Phase == core::account_setup_phase::connected; }, "the setup reaches Ready");
 			settle(500);
-			const auto evidence = github_application_fixture_access::evidence(*application);
-			expect(optIns == 0U && !panel->signing_in() && evidence.VaultStores == 1U,
-				   "the GitHub CLI choice was never taken: no read opt-in, no second flow, and one device grant stored");
-			std::cout << "DEVICE_CLI_CHOICE:device-first:profile=" << native.value() << ":login=" << github->login_label()->text().toStdString() << '\n';
+			const auto        evidence = github_application_fixture_access::evidence(*application);
+			const auto* const active   = window.session_panel()->active_profile() ? window.session_panel()->profile_option(*window.session_panel()->active_profile()) : nullptr;
+			expect(!panel->signing_in() && evidence.VaultStores == 1U && active != nullptr && active->Transport == application::github_profile_transport::native_https,
+				   "the GitHub CLI was never asked for: no consent, the native profile's session, and one device grant stored");
+			std::cout << "DEVICE_CLI_CHOICE:device-first:login=" << setup->projection().State.Login << '\n';
 		} else {
-			if (aEnding == ending::cli_chosen_first) {
-				github->cli_offer_button()->click();
-				wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "the GitHub CLI way in signs in");
-				expect(optIns == 1U && codeBehindOptIn, "its read opt-in is answered once, before any gh read, with the code still in view behind it");
-			}
-			expect(window.session_panel()->active_profile() == std::optional{ cli } && github->signed_in() && github->profile() == cli,
-				   "GitHub.com ends signed in through the discovered GitHub CLI profile");
-			wait_for([&] { return !panel->signing_in(); }, "the device flow still waiting beside it is ended");
-			wait_for([&] { return !dialog->isVisible(); }, "sign-in closes");
+			// Change the way: Back ends the code, then the GitHub CLI connects
+			// gh's active account with Connect.
+			press(*setup, QStringLiteral("accountSetupChange"));
+			wait_for([&] { return !panel->signing_in(); }, "changing the way ends the waiting device flow visibly");
+			auto driver = e2e::account_setup_driver{ window, e2e::account_setup_driver::plan{ } };
+			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready && !setup->isVisible(); }, "the GitHub CLI way in signs in");
+			expect(driver.connects() == 1U, "Connect, the consent, is pressed once");
 			// Long enough for the device flow to have polled again had it kept
 			// running; letting the browser finish now must sign nothing in.
 			pending->store(false);
 			settle(7000);
 			const auto evidence = github_application_fixture_access::evidence(*application);
-			expect(window.session_panel()->active_profile() == std::optional{ cli } && evidence.VaultStores == 0U && evidence.LastEnrollmentDigest.empty()
+			expect(evidence.VaultStores == 0U && evidence.LastEnrollmentDigest.empty()
 					   && application->status().DeviceAuthorizationStage != core::device_authorization_stage::authorized,
 				   "no device flow is left behind: finishing in the browser now enrolls nothing and the GitHub CLI session stays");
-			std::cout << "DEVICE_CLI_CHOICE:" << (aEnding == ending::cli_chosen_first ? "cli-chosen-first" : "cli-connects-at-once") << ":profile=" << cli.value()
-					  << ":login=" << github->login_label()->text().toStdString() << '\n';
+			std::cout << "DEVICE_CLI_CHOICE:cli-chosen:login=" << window.session_panel()->session()->Login << '\n';
 		}
-		consent.stop();
+		questions.stop();
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "all composed hosts quiesce");
 	}
@@ -254,8 +212,7 @@ int main(int aArgc, char** aArgv)
 try {
 	QApplication qt{ aArgc, aArgv };
 	inaccessible_cli_inventory_stays_signed_out();
-	run(ending::cli_connects_at_once);
-	run(ending::cli_chosen_first);
+	run(ending::cli_chosen);
 	run(ending::device_first);
 	std::cout << "device-flow-cli-choice-tests:pass\n";
 	return EXIT_SUCCESS;

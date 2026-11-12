@@ -84,6 +84,8 @@
 #include <QListView>
 #include <QMenu>
 #include <QMessageBox>
+
+#include "account_setup_course.hpp"
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QStatusBar>
@@ -194,57 +196,19 @@ namespace {
 		return result;
 	}
 
-	/// Signs in the way a person does from Home: Use GitHub CLI, then the
-	/// github.com card's GitHub CLI offer. Returns the login the card shows.
+	/// Signs in the way a person does from Home: the account setup's GitHub
+	/// CLI way, connecting the account gh has active, which the setup chooses
+	/// first (RFC-BPR-0032 amendment r1). Returns the login the card shows.
 	auto sign_in(qt::workbench_window& aWindow) -> std::string
 	{
-		auto* const use = aWindow.use_github_cli_button();
-		if (use == nullptr) {
-			fail("no Use GitHub CLI control");
+		auto driver = e2e::account_setup_driver{ aWindow, e2e::account_setup_driver::plan{ } };
+		driver.begin();
+		require([&] { return aWindow.account_setup()->projection().State.Phase == core::account_setup_phase::choosing_account; }, "GitHub CLI discovery");
+		for (const auto& account : aWindow.account_setup()->projection().State.Accounts) {
+			say("cli-account:" + account.Login + (account.ActiveInGh ? " (active in gh)" : ""));
 		}
-		use->click();
-		require([&] {
-			return aWindow.github_status_text() == "GitHub account connected."
-				|| std::ranges::any_of(aWindow.server_cards(), [](qt::server_card* aCard) {
-					   return aCard->hostname() == "github.com"
-						   && ((aCard->cli_option() != nullptr && aCard->cli_offer_button() != nullptr && aCard->cli_offer_button()->isVisible())
-							   || (aCard->cli_accounts() != nullptr && aCard->cli_accounts()->isVisible()));
-				   });
-		},
-				"GitHub CLI discovery");
-		say("cli-discovery:" + text(aWindow.github_cli_discovery_status()->text()));
-		if (aWindow.github_status_text() != "GitHub account connected.") {
-			auto offered = 0;
-			for (auto* card : aWindow.server_cards()) {
-				if (card->hostname() == "github.com" && card->cli_option() != nullptr && card->cli_offer_button() != nullptr && card->cli_offer_button()->isVisible()) {
-					++offered;
-					if (offered == 1) {
-						say("cli-offer:" + text(card->cli_offer_button()->text()));
-						card->cli_offer_button()->click();
-					}
-				}
-			}
-			say("cli-offers:" + std::to_string(offered));
-			// [[BPR-1373]]. With more than one gh account the card lists each
-			// in its own row instead of one offer; the course uses the row of
-			// the account gh has active, as the header says.
-			for (auto* card : aWindow.server_cards()) {
-				if (offered != 0 || card->hostname() != "github.com" || card->cli_accounts() == nullptr) {
-					continue;
-				}
-				for (auto* const row : card->cli_accounts()->findChildren<QWidget*>(QStringLiteral("serverCardCliAccount"))) {
-					auto* const sentence = row->findChild<QLabel*>(QStringLiteral("serverCardCliAccountSentence"));
-					auto* const choose   = row->findChild<QPushButton*>(QStringLiteral("serverCardCliAccountUse"));
-					if (sentence != nullptr && choose != nullptr && row->isVisibleTo(card) && sentence->text().contains(QStringLiteral("gh's active account"))) {
-						say("cli-account:" + text(row->property("login").toString()));
-						choose->click();
-						offered = 1;
-						break;
-					}
-				}
-			}
-		}
-		require([&] { return aWindow.github_status_text() == "GitHub account connected."; }, "GitHub account connected");
+		require([&] { return aWindow.github_status_text() == "GitHub account connected." && !aWindow.account_setup()->isVisible(); }, "GitHub account connected");
+		say("setup-connects:" + std::to_string(driver.connects()));
 		std::string login;
 		for (auto* card : aWindow.server_cards()) {
 			if (card->hostname() == "github.com" && card->signed_in()) {
@@ -1152,9 +1116,10 @@ try {
 	std::filesystem::create_directories(chosen.Root / "data");
 	std::filesystem::permissions(chosen.Root / "data", std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
 
-	// A question the application asks is a person's gesture. The one this
-	// course meets is the GitHub CLI read consent; the course answers Yes and
-	// logs the question word for word, so what was agreed to is on record.
+	// A question the application asks is a person's gesture. Read consent is
+	// the account setup's Connect (RFC-BPR-0032 amendment r1); any question
+	// still met is answered Yes and logged word for word, so what was agreed
+	// to is on record.
 	QTimer answer;
 	answer.setInterval(100);
 	QObject::connect(&answer, &QTimer::timeout, [] {
