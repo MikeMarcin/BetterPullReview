@@ -772,12 +772,12 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 | [RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) | A tour stop shows its code on arrival and is accepted the way a file is | Auto-Verified | None |
 | [RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md) | Share selected agents and prompts | Auto-Verified | None |
 | [RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md) | Prepare a local PR draft from a worktree | Proposed | None |
-| [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) | Build evidence while preparing a local PR draft | Proposed | RFC-BPR-0108 |
-| [RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md) | Prepare the description and Review Tour before a PR exists | Proposed | RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0109 |
-| [RFC-BPR-0111](RFC-BPR-0111-draft-publication-and-continuity.md) | Publish a prepared draft and preserve its evidence and tour | Proposed | RFC-BPR-0108, RFC-BPR-0109, RFC-BPR-0110 |
-| [RFC-BPR-0112](RFC-BPR-0112-optional-workflow-extensions.md) | Optional shareable workflow extensions and companion skills | Proposed | RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0109, RFC-BPR-0110, RFC-BPR-0111 |
+| [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) | Build evidence while preparing a local PR draft | Deferred | RFC-BPR-0108 |
+| [RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md) | Prepare the description and Review Tour before a PR exists | Proposed | RFC-BPR-0107, RFC-BPR-0108 |
+| [RFC-BPR-0111](RFC-BPR-0111-draft-publication-and-continuity.md) | Publish a prepared draft and preserve its evidence and tour | Proposed | RFC-BPR-0108, RFC-BPR-0110 |
+| [RFC-BPR-0112](RFC-BPR-0112-optional-workflow-extensions.md) | Optional shareable workflow extensions and companion skills | Proposed | RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0110, RFC-BPR-0111 |
 
-Mandate `v0-5-0-prerelease-targets-r1` (owner, 2026-11-10) implements the pack in the plan's order, starting with `dependable-session`. [Import](assets/v0-5-0-prerelease-targets-v1.LIVE_IMPORT.md); [authored plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). Owner looks on frozen builds, installed-agent facts and live BPR-Test courses remain unaccepted until their evidence is supplied.
+Mandate `v0-5-0-prerelease-targets-r1` (owner, 2026-11-10) implements the pack in the plan's order, starting with `dependable-session`. [Import](assets/v0-5-0-prerelease-targets-v1.LIVE_IMPORT.md); [authored plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). Owner looks on frozen builds, installed-agent facts and live BPR-Test courses remain unaccepted until their evidence is supplied. Owner amendment 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred out of 0.5.0, kept as a possible workflow extension; its cards are Blocked on `owner-deferred`, and RFC-BPR-0110, 0111 and 0112 no longer require evidence.
 
 ## Local draft authoring
 

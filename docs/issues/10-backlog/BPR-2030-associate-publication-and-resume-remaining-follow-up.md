@@ -25,3 +25,5 @@ Exercise lost answers, created-PR/failed-follow-up and remote drift; preserve pr
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
+
+Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred; reconciliation covers the tour only (RFC-BPR-0111 AC03 amended).

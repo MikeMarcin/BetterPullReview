@@ -151,6 +151,34 @@ No product behaviour was run or verified by authoring. Statements about
 current behaviour are read from source at the inspected revision; where an
 RFC says "likely" or "not reproduced" the claim is an inference.
 
+## Owner amendment: Evidence cut from 0.5.0 (2026-11-12)
+
+After the owner's look at the Evidence area and the result wording (attended
+session `7fc09e758ebf8ac0d028da38a5d374f7`, both rejected: "I have no idea
+what I'm looking at here. This doesn't seem useful, unless you can explain
+how it's valuable to me."), the coordinator asked whether to cut Evidence
+from 0.5.0. The owner, 2026-11-12, verbatim: "Mockups; cut Evidence". The
+local-draft screens are redesigned from mockups made separately.
+
+- RFC-BPR-0109 (RFC-DRAFT-0012) is Deferred: out of 0.5.0, kept as a
+  possible workflow extension. Its cards BPR-2023, 2024 and 2025 are Blocked
+  on `owner-deferred`; nothing in 0.5.0 depends on them.
+- The plan drops the `author-evidence` milestone and RFC-BPR-0109 from its
+  scope; `local-tour-preparation` no longer depends on it; the outcome and
+  exit texts of `local-tour-preparation`, `publish-prepared-draft` and
+  `workflow-companion-contract` no longer mention evidence. This is an owner
+  change of requirements, not a refinement, so it is recorded here rather
+  than passed through the plan helper's same-scope amendment check.
+- RFC-BPR-0108, 0110, 0111 and 0112 carry the amendment in their own text:
+  RFC-BPR-0110 AC02 and AC09 are amended and AC07 is withdrawn, RFC-BPR-0111
+  AC03 and RFC-BPR-0112 AC01 are amended, and X16 and X21 are inactive.
+- The evidence implementation is removed from the product on the 0.5.0
+  lane, with a forward migration that drops stored evidence and its
+  artifacts.
+
+The [authored plan's](../../plans/v0-5-0-prerelease-targets-v1/milestone-plan.json)
+generated view is regenerated from it.
+
 ## Continuation
 
 Next action: none is owed by the owner for authoring. Implementation starts

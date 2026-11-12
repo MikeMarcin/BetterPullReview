@@ -3,10 +3,32 @@ id: "RFC-BPR-0110"
 title: "Prepare the description and Review Tour before a PR exists"
 status: "Proposed"
 metadata: {"origin":"absorbed 2026-11-10 from the local PR drafts pack v1, where it was RFC-DRAFT-0004","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
-depends_on: ["RFC-BPR-0107", "RFC-BPR-0108", "RFC-BPR-0109"]
+depends_on: ["RFC-BPR-0107", "RFC-BPR-0108"]
 ---
 
 # Prepare the description and Review Tour before a PR exists
+
+## Owner amendment: no evidence in 0.5.0 (2026-11-12)
+
+The owner cut Evidence from 0.5.0 ("Mockups; cut Evidence") and
+[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Deferred. In this RFC,
+every clause about evidence (selected claims, checks or results in the
+description or the tour, a stop citing evidence, rule X21, a conversation
+proposing claims or planned checks into the evidence record, formal evidence
+staying with its basis) is inactive until that RFC is reactivated. The
+public preview carries the title, the accepted description and the tour;
+notes, conversations and proposals stay private. The criteria are amended
+below; their earlier wording is kept here:
+
+- AC02 was: "Selected evidence enters the explanation with its origin,
+  scope and limitations; private deliberation and unselected records do not
+  appear in the exact public preview."
+- AC07 was: "A whole-change conversation proposes a claim or planned check
+  that reaches the evidence record only through the author's acceptance, as
+  a proposal with its agent origin and never as a reported or observed
+  result."
+- AC09 ended: "; a stop citing evidence that needs recheck is Changed since
+  accepted."
 
 ## Problem and grounded current behavior
 
@@ -157,9 +179,10 @@ takes their behaviour from this pack's RFCs. These rules come from the
   changed, ambiguous, missing or unavailable correspondence makes it Changed
   since accepted, with that word as its reason. No local-draft surface
   offers Suggest an outline.
-- **Evidence a stop cites (X21; confirmed by the owner, 2026-11-10).** A
-  stop that cites evidence which now needs recheck is Changed since
-  accepted, with that as its reason.
+- **Evidence a stop cites (X21; confirmed by the owner, 2026-11-10;
+  inactive since the 2026-11-12 amendment).** A stop that cites evidence
+  which now needs recheck is Changed since accepted, with that as its
+  reason.
 - **Conversations (X07, X12, X13).** They look and behave as [RFC-BPR-0100](RFC-BPR-0100-tour-conversation-that-changes-the-tour-in-one-turn.md) says:
   the composer and one session line, the update link, a change request
   answered with the change, Enhance in the part's session. The rule that an
@@ -190,14 +213,14 @@ takes their behaviour from this pack's RFCs. These rules come from the
 ## Acceptance criteria
 
 - **AC01:** A signed-out author writes and resumes a description and ordered code tour against an uncommitted local candidate without a fabricated PR/account/commit identity.
-- **AC02:** Selected evidence enters the explanation with its origin, scope and limitations; private deliberation and unselected records do not appear in the exact public preview.
+- **AC02:** Private deliberation (notes, conversations and proposals) does not appear in the exact public preview, which carries the title, the accepted description and the tour. (Amended 2026-11-12; see above.)
 - **AC03:** Candidate changes and late proposals preserve original material and later author edits, with explicit stale/ambiguous/missing destinations rather than guessed code links. Authoring runs use captured candidate repository inputs through the candidate workspace or tool-free context; unselected live-helper edits cannot enter that context even when a proposed stop has valid candidate lines. Out-of-candidate source references cannot be accepted as written. An accepted refresh starts a new session on the successor candidate while the earlier conversation stays readable against its own.
 - **AC04:** Local authoring, conversation history and accepted proposals survive restart with no live agent process and no fabricated account or pull-request scope, while bounded context selection and no-agent editing remain usable; the local-authoring prompts are editable in Settings and round-trip through the sharing format.
 - **AC05:** Description and tour can be edited together deliberately but never overwrite one another implicitly; the prepared-tour publication projection preserves the accepted full PR description.
 - **AC06:** Against an exact simulated publication result, matching stops acquire the actual PR anchors while mismatched stops and unresolved URLs remain local and visibly incomplete; existing PR-owned tour workflows retain their behavior.
-- **AC07:** A whole-change conversation proposes a claim or planned check that reaches the evidence record only through the author's acceptance, as a proposal with its agent origin and never as a reported or observed result.
+- **AC07:** Withdrawn by the owner's 2026-11-12 amendment: with RFC-BPR-0109 deferred there is no evidence record for a conversation to propose into.
 - **AC08:** A local tour shows the three bands with no Publish action; arriving at a stop reveals its candidate lines; a stop is accepted with Accept, Save or its own proposal Accept; after an accepted refresh only stops whose correspondence is not exact are Changed since accepted, each with its reason; and its chats show the session line, cost, reference links and running block as a pull request's tour chats do.
-- **AC09:** For a pull request associated with a local draft, "Update PR description after publishing" starts off and cannot change the body without the composed preview, while a pull request with no local draft keeps the existing default; a stop citing evidence that needs recheck is Changed since accepted.
+- **AC09:** For a pull request associated with a local draft, "Update PR description after publishing" starts off and cannot change the body without the composed preview, while a pull request with no local draft keeps the existing default. (Amended 2026-11-12; see above.)
 
 ## Proposed delivery
 

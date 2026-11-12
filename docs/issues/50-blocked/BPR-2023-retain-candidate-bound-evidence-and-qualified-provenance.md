@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2023"
 title: "Retain candidate-bound evidence and qualified provenance"
-status: "Backlog"
+status: "Blocked"
 rfcs: ["RFC-BPR-0109"]
 metadata: {"criteria":["AC02","AC03","AC04","AC05","AC07"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0008","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0035-retain-candidate-bound-evidence-and-qualified-provenance.md"}
 depends_on: ["BPR-2022"]
+blocked_by: "owner-deferred"
 ---
 
 # Retain candidate-bound evidence and qualified provenance
@@ -36,3 +37,12 @@ implementation revision or passing result has been assigned. Follow the
 Root `/Users/jaeger/local-draft-evidence-v001.pdc9rq1b` removed with `freeze_attended_build.py remove` and the host
 stopped (2026-11-12). The coordinator: a redesign from mockups comes first;
 no new look is filed until then.
+
+## Owner decision: deferred out of 0.5.0 (2026-11-12)
+
+The owner, asked whether to cut Evidence from 0.5.0 after rejecting its look:
+"Mockups; cut Evidence". [RFC-BPR-0109](../../rfcs/RFC-BPR-0109-author-evidence.md)
+is Deferred and kept as a possible workflow extension; this card is Blocked on
+`owner-deferred` and no 0.5.0 card depends on it. The evidence implementation
+was removed from the product on the 0.5.0 lane; reactivating this card needs a
+new owner decision and design, not a restore of that code.

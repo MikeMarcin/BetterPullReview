@@ -5,7 +5,7 @@ title: "Provide a resumable companion action contract"
 status: "Backlog"
 rfcs: ["RFC-BPR-0112"]
 metadata: {"criteria":["AC03","AC04","AC07","AC09"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0018","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0045-provide-a-resumable-companion-action-contract.md"}
-depends_on: ["BPR-2025", "BPR-2028", "BPR-2032"]
+depends_on: ["BPR-2028", "BPR-2032"]
 ---
 
 # Provide a resumable companion action contract
@@ -27,3 +27,5 @@ Pause and resume local preparation after author input or changed upstream rules 
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
+
+Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred and its closeout BPR-2025 is no longer a dependency; the evidence parts of this card are inactive (see the RFC's amendment).

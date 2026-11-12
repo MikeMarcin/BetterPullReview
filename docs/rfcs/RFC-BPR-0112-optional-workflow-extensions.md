@@ -3,10 +3,24 @@ id: "RFC-BPR-0112"
 title: "Optional shareable workflow extensions and companion skills"
 status: "Proposed"
 metadata: {"origin":"absorbed 2026-11-10 from the local PR drafts pack v1, where it was RFC-DRAFT-0006","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
-depends_on: ["RFC-BPR-0107", "RFC-BPR-0108", "RFC-BPR-0109", "RFC-BPR-0110", "RFC-BPR-0111"]
+depends_on: ["RFC-BPR-0107", "RFC-BPR-0108", "RFC-BPR-0110", "RFC-BPR-0111"]
 ---
 
 # Optional shareable workflow extensions and companion skills
+
+## Owner amendment: no evidence in 0.5.0 (2026-11-12)
+
+The owner cut Evidence from 0.5.0 ("Mockups; cut Evidence") and
+[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Deferred, kept as a
+possible workflow extension. The local draft's working areas are Changes,
+Description and Tour. Clauses below that import a check's results through
+the evidence contract, or speak of observed or reported evidence, are
+inactive until that RFC is reactivated: a check action's findings are shown
+with the action's outcome as reported, and nothing stores them as evidence.
+AC01 is amended below; it read: "With all extensions absent, local Changes,
+Evidence, Description and Tour remain usable; selecting/importing an
+enterprise-shaped configuration does not make unrelated drafts or existing
+BPR features depend on it."
 
 ## Problem and grounded current behavior
 
@@ -180,7 +194,7 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
 
 ## Acceptance criteria
 
-- **AC01:** With all extensions absent, local Changes, Evidence, Description and Tour remain usable; selecting/importing an enterprise-shaped configuration does not make unrelated drafts or existing BPR features depend on it.
+- **AC01:** (Amended 2026-11-12; see above.) With all extensions absent, local Changes, Description and Tour remain usable; selecting/importing an enterprise-shaped configuration does not make unrelated drafts or existing BPR features depend on it.
 - **AC02:** A shared configuration binds local agents/skills/actions explicitly, previews conflicts and updates, and never executes or changes credentials merely through import or selection.
 - **AC03:** A fixture companion supplies context, proposals, repeatable checks and an input request; the author can pause, edit and resume without rerunning unrelated actions or accepting stale proposed edits.
 - **AC04:** A changed upstream rule, missing helper, unsupported dry-run or required review marker produces an honest unmet requirement; BPR neither embeds those rules nor fabricates satisfaction or bypasses the chosen publisher.

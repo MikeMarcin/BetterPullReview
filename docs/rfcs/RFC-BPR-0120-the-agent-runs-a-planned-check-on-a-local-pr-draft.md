@@ -8,6 +8,11 @@ depends_on: ["RFC-BPR-0103", "RFC-BPR-0104", "RFC-BPR-0109", "RFC-BPR-0110", "RF
 
 # The agent runs a planned check on a local PR draft
 
+Note, 2026-11-12: the owner deferred
+[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) out of 0.5.0 ("Mockups; cut
+Evidence"), and its implementation was removed from the 0.5.0 lane. This RFC
+depends on that evidence record and waits on its reactivation.
+
 ## Problem and grounded current behavior
 
 A local draft's evidence can hold planned checks, and an agent can already

@@ -175,42 +175,26 @@ An author starts from a Git worktree, sees the correctly based local PR candidat
 
 **Boundary:** Second in default order; sharing remains the first requested delivery. Independent local-draft engineering may continue while sharing closeout is pending, with no hard dependency on that closeout. Local author subject and usable changes/notes flow; remote publication is not claimed.
 
-## author-evidence
-
-An author builds and resumes qualified evidence for the actual local candidate without mandatory agent or formal-verification infrastructure.
-
-**Work:** `BPR-2023`, `BPR-2024`, `BPR-2025`
-
-**Prerequisites:** local-draft-entry
-
-**Completion:**
-
-- Reported and observed outcomes remain distinct and cannot auto-approve a claim.
-- Relevant candidate changes require recheck while historical scope stays inspectable.
-- Manual/companion imports and the public evidence flow satisfy the owning RFC.
-
-**Boundary:** Useful evidence preparation without a general native execution engine or an agent run; conversation-proposed checks arrive with local-tour-preparation.
-
 ## local-tour-preparation
 
-The author prepares a durable description and evidence-backed tour before any PR exists.
+The author prepares a durable description and tour before any PR exists.
 
 **Work:** `BPR-2026`, `BPR-2027`, `BPR-2028`
 
-**Prerequisites:** author-evidence, share-agent-prompts, tour-publishing, tour-stops, tour-conversation, agent-tab-asks
+**Prerequisites:** share-agent-prompts, tour-publishing, tour-stops, tour-conversation, agent-tab-asks
 
 **Completion:**
 
 - Local tour material uses genuine local identity and survives candidate changes and restart.
 - Agent conversations read only the captured candidate, resume after restart without an account, and start anew on a successor candidate.
-- Description ownership is preserved and only selected private evidence enters public previews.
+- Description ownership is preserved and private preparation (notes, conversations and proposals) stays out of public previews.
 - Exact simulated publication mapping retains unresolved stops truthfully.
 
 **Boundary:** Complete local reviewer-facing preparation with no remote publication claim. Needs the sharing slice because the local-authoring prompts extend its format and Settings flow.
 
 ## publish-prepared-draft
 
-The built-in flow creates the prepared GitHub draft from the branch the author pushed and preserves its evidence, tour and recoverable follow-up.
+The built-in flow creates the prepared GitHub draft from the branch the author pushed and preserves its tour and recoverable follow-up.
 
 **Work:** `BPR-2029`, `BPR-2030`, `BPR-2031`
 
@@ -219,7 +203,7 @@ The built-in flow creates the prepared GitHub draft from the branch the author p
 **Completion:**
 
 - A draft PR is created from the verified pushed branch through a qualified capability; BPR names the push and performs none.
-- The exact outgoing and observed remote candidates are reconciled with evidence and tour sources.
+- The exact outgoing and observed remote candidates are reconciled with tour sources.
 - Lost answers and partial follow-up recover without duplicate PR creation.
 
 **Boundary:** Built-in end-to-end author flow under the settled PUBLISH-01 answer: the author pushes with their own Git.
@@ -235,7 +219,7 @@ Optional shareable workflow configurations and a read-only companion contract su
 **Completion:**
 
 - A synthetic companion supplies context, proposals, checks and author input through current bounded requests.
-- Local Changes, Evidence, Description and Tour remain usable without extensions; this milestone requires no PR creation.
+- Local Changes, Description and Tour remain usable without extensions; this milestone requires no PR creation.
 - Imported organization-shaped configurations execute nothing and leave unrelated drafts unaffected.
 - No enterprise policy, account, proprietary skill or ticket system is a built-in dependency.
 

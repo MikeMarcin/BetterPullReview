@@ -27,3 +27,5 @@ Map a simulated exact published candidate and expose mismatches without changing
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
+
+Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred. Selected evidence references and claims or planned checks proposed into Evidence are out of this card; RFC-BPR-0110 AC02 and AC09 are amended and AC07 is withdrawn.

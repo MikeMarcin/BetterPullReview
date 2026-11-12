@@ -18,7 +18,7 @@ Named optional author configurations, recognized package extension, local bindin
 
 ## Intended verification
 
-Local Changes, Evidence, Description and Tour remain usable with no extension, and imported organization-shaped settings execute nothing and preserve unrelated drafts. This card requires no PR creation; end-to-end built-in independence belongs to [BPR-2034](BPR-2034-hand-off-effectful-actions-and-recover-their.md).
+Local Changes, Description and Tour remain usable with no extension, and imported organization-shaped settings execute nothing and preserve unrelated drafts. This card requires no PR creation; end-to-end built-in independence belongs to [BPR-2034](BPR-2034-hand-off-effectful-actions-and-recover-their.md).
 
 ## Draft boundary
 

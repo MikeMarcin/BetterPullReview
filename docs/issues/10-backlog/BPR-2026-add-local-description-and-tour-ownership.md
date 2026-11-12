@@ -5,7 +5,7 @@ title: "Add local description and tour ownership"
 status: "Backlog"
 rfcs: ["RFC-BPR-0110"]
 metadata: {"criteria":["AC01","AC03","AC04"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0011","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0038-add-local-description-and-tour-ownership.md"}
-depends_on: ["BPR-2016", "BPR-2017", "BPR-2022", "BPR-2025"]
+depends_on: ["BPR-2016", "BPR-2017", "BPR-2022"]
 ---
 
 # Add local description and tour ownership
@@ -25,3 +25,5 @@ Author before any PR exists, refresh dirty candidates, reject stale proposals an
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
+
+Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred and its closeout BPR-2025 is no longer a dependency; the evidence parts of this card are inactive (see the RFC's amendment).

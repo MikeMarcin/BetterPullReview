@@ -103,7 +103,9 @@ diff services where they fit; do not make GitHub authority fields optional
 throughout the existing application.
 
 Changes, Evidence, Description and Tour are working areas, not mandatory wizard
-steps. Authors can move among them, return to an editor, save and resume without
+steps. (Owner amendment, 2026-11-12: Evidence is cut from 0.5.0 and
+[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Deferred; the 0.5.0 areas
+are Changes, Description and Tour.) Authors can move among them, return to an editor, save and resume without
 finishing a one-shot agent run. The no-agent path is complete. This RFC supplies
 the local shell and changes/notes; subsequent RFCs add the other usable areas.
 Unavailable later features must not look completed in an intermediate build.
@@ -197,8 +199,9 @@ the behaviour above, for the owner to see:
 - **The mark (X02).** A pull request a draft was associated with shows
   "Prepared here" ("Draft, prepared here" for a GitHub draft) in its row's
   chip, and its row menu offers Open Local Preparation.
-- **Areas.** Only Changes (with notes) is shown; Evidence, Description and
-  Tour come with their RFCs and are not shown before then.
+- **Areas.** Only Changes (with notes) is shown; Description and Tour come
+  with their RFCs and are not shown before then. Evidence is not part of
+  0.5.0 (owner amendment, 2026-11-12).
 - **Handoff.** `bpr draft open [PATH] [--context TEXT]`
   (guide `docs/development/draft-cli.md` on the lane `claude/v0-5-0-prerelease-targets-52265d`); context becomes a note from the
   harness.
