@@ -4264,6 +4264,7 @@ namespace bpr::adapters::git {
 				line.Version       = workspace_record_version;
 			}
 	#else
+			static_cast<void>(aLive);
 			for (auto& line : aLines) {
 				line.Version = workspace_record_version;
 			}
