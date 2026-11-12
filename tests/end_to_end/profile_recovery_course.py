@@ -121,6 +121,17 @@ def contents(path, copy):
         database.close()
 
 
+def write_reset_sentinel(path, marker):
+    """Commit the disposable row and release the handle before public reset."""
+    database = sqlite3.connect(path)
+    try:
+        with database:
+            database.execute("CREATE TABLE bpr_reset_course_sentinel(marker TEXT NOT NULL)")
+            database.execute("INSERT INTO bpr_reset_course_sentinel VALUES(?)", (marker,))
+    finally:
+        database.close()
+
+
 def has_reset_sentinel(path, copy, marker):
     """Reads only a copy after run() has stopped its owned application.
 
@@ -134,10 +145,13 @@ def has_reset_sentinel(path, copy, marker):
         candidate = path.with_name(path.name + suffix)
         if candidate.exists():
             shutil.copyfile(candidate, copy / candidate.name)
-    with sqlite3.connect(copy / path.name) as database:
+    database = sqlite3.connect(copy / path.name)
+    try:
         if not database.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='bpr_reset_course_sentinel'").fetchone():
             return False
         return database.execute("SELECT 1 FROM bpr_reset_course_sentinel WHERE marker=?", (marker,)).fetchone() is not None
+    finally:
+        database.close()
 
 
 def damage(path):
@@ -203,9 +217,7 @@ def main():
             fail("the fixture made review data before Reset everything")
         # The prior run has stopped; only this disposable course owns the store.
         marker = os.urandom(16).hex()
-        with sqlite3.connect(ledger) as database:
-            database.execute("CREATE TABLE bpr_reset_course_sentinel(marker TEXT NOT NULL)")
-            database.execute("INSERT INTO bpr_reset_course_sentinel VALUES(?)", (marker,))
+        write_reset_sentinel(ledger, marker)
         if not has_reset_sentinel(ledger, scratch / "review-data-without-reset", marker):
             fail("the no-reset control retains the previous review data")
         connections_before = (connections.stat().st_ino, contents(connections, scratch / "connections-before")) if connections.exists() else None
