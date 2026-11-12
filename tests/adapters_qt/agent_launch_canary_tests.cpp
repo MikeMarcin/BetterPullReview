@@ -45,6 +45,8 @@
 	#include <sys/file.h>
 	#include <sys/stat.h>
 	#include <unistd.h>
+
+	#include "bpr/platform/durable_volume_identity.hpp"
 #endif
 
 namespace {
@@ -891,9 +893,14 @@ namespace {
 			file << "fixture-owned workspace guard\n";
 		}
 		std::filesystem::permissions(aPath, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
-		struct stat identity{ };
-		expect(::lstat(aPath.c_str(), &identity) == 0, "capture exact fixture guard identity");
-		return { .Path = aPath.string(), .FileIdentity = { 1U, static_cast<std::uint64_t>(identity.st_dev), 0U, static_cast<std::uint64_t>(identity.st_ino) } };
+		// [[BPR-2118]]. The durable identity the ownership journal records:
+		// the volume UUID on macOS, st_dev elsewhere.
+		const auto descriptor = ::open(aPath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+		expect(descriptor >= 0, "open fixture guard to capture its identity");
+		const auto identity = bpr::platform::durable_volume_identity::of_descriptor(descriptor, 1U);
+		static_cast<void>(::close(descriptor));
+		expect(identity.has_value(), "capture exact fixture guard identity");
+		return { .Path = aPath.string(), .FileIdentity = *identity };
 	}
 
 	void test_workspace_guard(const std::filesystem::path& aRoot)

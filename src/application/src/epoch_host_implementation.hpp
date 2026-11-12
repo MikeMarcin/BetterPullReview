@@ -344,6 +344,8 @@ namespace bpr::application {
 			std::mutex                                                Mutex;
 			std::condition_variable                                   Completed;
 			std::optional<std::expected<void, agent_workspace_error>> Result;
+			/// [[BPR-2118]]. What an inspection hands back on success.
+			std::optional<owned_agent_workspace> Inspected;
 			// See `blob_waiter::Abandoned`. Abandoning a cleanup is safe: the
 			// removal still runs, and only its outcome goes unread. BPR-0397.
 			bool Abandoned = false;
@@ -1252,9 +1254,11 @@ namespace bpr::application {
 			std::optional<std::vector<git_workspace_file>> aPullRequestFiles = std::nullopt)
 			-> std::expected<owned_agent_workspace, agent_workspace_error>;
 
+		/// \brief Cleans the exact workspace up, or, given \p aInspected,
+		/// inspects it instead and writes the reattached workspace there.
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
-			const std::stop_token aStop, bool aInspect = false)
+			const std::stop_token aStop, owned_agent_workspace* aInspected = nullptr)
 			-> std::expected<void, agent_workspace_error>;
 
 		void accept(accepted_pull_request_handoff aHandoff);

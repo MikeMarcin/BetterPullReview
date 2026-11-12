@@ -919,9 +919,12 @@ namespace bpr::app {
 							// [[BPR-1857]]. The check that refused rides the
 							// line; the folder stays out of it, as before.
 							AgentWorkspaceRecoveryReason = agent_workspace_refusal_text(refusal);
+							// [[BPR-2118]]. A refusal about records also says how
+							// many were refused.
+							const auto records = refusal.Count == 0U ? QString{ } : QStringLiteral(":records=%1").arg(refusal.Count);
 							bpr::app::detail::terminal_text_stream{ } << "AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:"
 																	  << QString::fromStdString(named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure))
-																	  << ":check=" << QString::fromUtf8(adapters::git::workspace_refusal_check_name(refusal.Check)) << '\n';
+																	  << ":check=" << QString::fromUtf8(adapters::git::workspace_refusal_check_name(refusal.Check)) << records << '\n';
 						}
 						// [[BPR-0808]]. Recovery is profile work, but its refusal is
 						// presented by every window: those open now, and any opened

@@ -40,8 +40,12 @@
 #include <vector>
 
 #if defined(Q_OS_UNIX)
+	#include <fcntl.h>
+	#include <sys/stat.h>
 	#include <sys/types.h>
 	#include <unistd.h>
+
+	#include "bpr/platform/durable_volume_identity.hpp"
 #endif
 
 namespace {
@@ -4457,6 +4461,57 @@ namespace {
 			require(recovered && recovered->Live == 1U && recovered->Recovered == 0U, "startup preserves unlocked retained ownership");
 			adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
 			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "a fresh adapter validates retained workspace and local object closure");
+#if defined(Q_OS_MACOS)
+			{
+				// [[BPR-2118]]. A Mac restart that renumbers the Data volume.
+				// The journal and the identities the conversation stored are
+				// written back as the previous release wrote them: Version 1,
+				// every identity on one mount number that is not the live one.
+				// Recovery keeps the workspace live and rewrites the journal as
+				// the exact Version 2 record in place; reattach accepts the old
+				// stored identities and hands back the durable ones.
+				const auto  journal = std::filesystem::path{ owned->LifetimeGuard->Path };
+				const auto  current = read_text(journal);
+				const auto& file    = owned->LifetimeGuard->FileIdentity;
+				const auto& folder  = owned->DirectoryIdentity.Opaque;
+				require(file[2] != 0U && folder[1] == file[1] && folder[2] == file[2], "a retained workspace stores the durable volume identity, not the mount number");
+				const auto guard   = ::open(journal.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+				const auto durable = bpr::platform::durable_volume_identity::of_descriptor(guard, 1U);
+				static_cast<void>(::close(guard));
+				require(durable == file, "the stored guard identity is the shared volume UUID helper's");
+				struct stat live{ };
+				require(::lstat(journal.c_str(), &live) == 0, "observe the journal's live mount");
+				const auto mount   = static_cast<std::uint64_t>(live.st_dev) + 4U;
+				const auto replace = [](std::string aText, const std::string& aFrom, const std::string& aTo) {
+					for (auto at = aText.find(aFrom); at != std::string::npos; at = aText.find(aFrom, at + aTo.size())) {
+						aText.replace(at, aFrom.size(), aTo);
+					}
+					return aText;
+				};
+				const auto legacyText = replace(replace(current, "," + std::to_string(file[1]) + "," + std::to_string(file[2]) + ",", "," + std::to_string(mount) + ",0,"), "\"Version\":2", "\"Version\":1");
+				require(legacyText != current && legacyText.find(std::to_string(file[1])) == std::string::npos, "the fixture rewrites every stored volume");
+				write_text(journal, legacyText);
+				auto legacy                        = *owned;
+				legacy.DirectoryIdentity.Opaque    = { folder[0], mount, 0U, folder[3] };
+				legacy.LifetimeGuard->FileIdentity = { file[0], mount, 0U, file[3] };
+				adapter.reset();
+				const auto remounted = git_adapter::recover_installed_agent_workspaces(*registry, neighbourhood);
+				require(remounted && remounted->Live == 1U && remounted->Recovered == 0U, "a remounted retained workspace is recovered as live");
+				struct stat rewritten{ };
+				require(read_text(journal) == current && ::lstat(journal.c_str(), &rewritten) == 0 && rewritten.st_ino == live.st_ino,
+						"the Version 1 journal is rewritten in place as the exact Version 2 record");
+				adapter               = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+				const auto reattached = adapter->inspect_agent_workspace(legacy, { });
+				require(reattached && reattached->DirectoryIdentity == owned->DirectoryIdentity && reattached->LifetimeGuard == owned->LifetimeGuard,
+						"reattach accepts the old stored identities and hands back the journal's durable ones");
+				auto otherInode = legacy;
+				++otherInode.DirectoryIdentity.Opaque[3];
+				require(!adapter->inspect_agent_workspace(otherInode, { }), "a stored identity naming another inode is still refused");
+				otherInode = legacy;
+				++otherInode.LifetimeGuard->FileIdentity[3];
+				require(!adapter->inspect_agent_workspace(otherInode, { }), "a stored guard naming another file is still refused");
+			}
+#endif
 			auto wrongAuthority              = *owned;
 			wrongAuthority.Authority.Account = core::github_account_id{ wrongAuthority.Authority.Account.value() + 1U };
 			require(!adapter->inspect_agent_workspace(wrongAuthority, { }), "retained source ownership cannot cross account authority even with exact directory identities");

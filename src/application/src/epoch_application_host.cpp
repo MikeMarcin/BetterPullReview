@@ -191,9 +191,14 @@ namespace bpr::application {
 	}
 
 	auto epoch_application_host::inspect_agent_workspace(const owned_agent_workspace& aWorkspace, const std::stop_token aStop)
-		-> std::expected<void, agent_workspace_error>
+		-> std::expected<owned_agent_workspace, agent_workspace_error>
 	{
-		return Implementation->cleanup_agent_workspace(aWorkspace, aStop, true);
+		auto reattached = owned_agent_workspace{ };
+		auto inspected  = Implementation->cleanup_agent_workspace(aWorkspace, aStop, &reattached);
+		if (!inspected) {
+			return std::unexpected{ std::move(inspected.error()) };
+		}
+		return reattached;
 	}
 
 	auto epoch_application_host::cleanup_agent_workspace(

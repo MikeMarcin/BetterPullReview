@@ -47,6 +47,8 @@
 	#include <sys/stat.h>
 	#include <sys/types.h>
 	#include <unistd.h>
+
+	#include "bpr/platform/durable_volume_identity.hpp"
 #endif
 
 namespace bpr::adapters::agent {
@@ -202,7 +204,9 @@ namespace bpr::adapters::agent {
 			const auto  valid = ::fstat(descriptor, &before) == 0
 				&& S_ISREG(before.st_mode) && before.st_uid == ::geteuid()
 				&& (before.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0 && before.st_nlink == 1
-				&& aGuard.FileIdentity == std::array<std::uint64_t, 4U>{ 1U, static_cast<std::uint64_t>(before.st_dev), 0U, static_cast<std::uint64_t>(before.st_ino) }
+				// [[BPR-2118]]. The journal's durable identity, as the ownership
+				// journal records it and a retained conversation keeps it.
+				&& bpr::platform::durable_volume_identity::of_descriptor(descriptor, 1U) == aGuard.FileIdentity
 				&& ::flock(descriptor, LOCK_SH | LOCK_NB) == 0
 				&& ::lstat(path.c_str(), &named) == 0 && named.st_dev == before.st_dev && named.st_ino == before.st_ino;
 			if (!valid) {

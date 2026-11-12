@@ -281,8 +281,11 @@ namespace bpr::application {
 			std::stop_token                                aStop)
 			-> std::expected<owned_agent_workspace, agent_workspace_error> = 0;
 		/// \brief Validates an exact retained tree without resetting allowed file changes.
+		/// \returns [[BPR-2118]]. The workspace with the directory and guard
+		/// identities its ownership journal records now, which the run uses in
+		/// place of the stored copy.
 		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, std::stop_token)
-			-> std::expected<void, agent_workspace_error> { return std::unexpected(agent_workspace_failure::unavailable); }
+			-> std::expected<owned_agent_workspace, agent_workspace_error> { return std::unexpected(agent_workspace_failure::unavailable); }
 		[[nodiscard]] virtual auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop)

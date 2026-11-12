@@ -3407,8 +3407,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# for its admitted preference save, replacing64event calls. No production
 	# policy/API/gesture/40s300s budget change; ordered142/complete197 and
 	# full-app/mutation pins remain exact. Native evidence is separate.
+	# [[BPR-2118]] release-only selective integration over f703b1650:
+	# agent_composition.cpp distinguishes each ownership-journal refusal and
+	# its record count; profile_runtime_construction.cpp appends that count to
+	# the existing path-omitted recovery line. These are the only changed
+	# src/app files. The ordered142/complete197 inventories, full-app and
+	# production mutation pins stay exact. The canonical52eb manifest binds
+	# other main app bytes and is deliberately excluded from this release.
+	# This reviewed content reseal supplies no native or migration approval.
 	set(bpr_expected_production_app_manifest_digest
-        "9e58ea71b6e28ae263297591d8b1ed062980bb724c924a24fdca6b0ec863ed88"
+        "2e4780d2730ae151d8140b2c948f1c6e05c6d655464eddab6c6460ca37bb7e9f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

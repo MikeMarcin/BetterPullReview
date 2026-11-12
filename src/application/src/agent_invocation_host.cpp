@@ -881,8 +881,10 @@ namespace bpr::application {
 									 agent_run_outcome::workspace_unavailable, why);
 						return;
 					}
-					workspace                    = retained.Workspace;
-					lifetimeGuard                = retained.LifetimeGuard;
+					// [[BPR-2118]]. The run uses the identities the journal
+					// records now; the agent launcher checks the guard by them.
+					workspace                    = inspected->Workspace;
+					lifetimeGuard                = inspected->LifetimeGuard;
 					aInvocation->RetainWorkspace = true;
 				} else if (aRequest.ExistingCheckoutChosen) {
 					workspace = std::move(aExisting.Workspace);

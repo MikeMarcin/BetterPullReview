@@ -234,6 +234,134 @@ def assert_empty(root: Path) -> None:
         raise RuntimeError("recovery retained ownership journal")
 
 
+IDENTITY_FIELDS = ("Registry", "Neighbourhood", "File", "Parent", "Child")
+
+
+def lines_of(record: Path) -> list[dict]:
+    return [json.loads(line) for line in record.read_text().splitlines()]
+
+
+def as_version_one(lines: list[dict], volume_of) -> list[dict]:
+    """[[BPR-2118]]. The record as the previous release wrote it.
+
+    Version 1 stored the mount's number where Version 2 stores the volume's
+    UUID. On macOS each identity becomes `[kind, volume_of(field), 0, inode]`,
+    the number a later mount may differ from; elsewhere both versions hold the
+    same values, and only the version changes.
+    """
+    legacy = []
+    for line in lines:
+        line = dict(line, Version=1)
+        if sys.platform == "darwin":
+            for field in IDENTITY_FIELDS:
+                identity = line[field]
+                if any(identity):
+                    line[field] = [identity[0], volume_of(field), 0, identity[3]]
+        legacy.append(line)
+    return legacy
+
+
+def write_lines(record: Path, lines: list[dict]) -> None:
+    # Glaze writes compact JSON; so does this, so a rewritten record is
+    # byte-comparable with one the product wrote. Bytes, so Windows writes LF;
+    # writing in place keeps the record's inode and descriptor.
+    record.write_bytes("".join(json.dumps(item, separators=(",", ":")) + "\n" for item in lines).encode())
+
+
+def check_remount_and_record_refusals(exe: Path, parent: Path) -> None:
+    """[[BPR-2118]]. A remount is not a moved record; real mismatches are counted.
+
+    The fixture stands in for a Mac restart that renumbered the Data volume by
+    writing a retained record back as the previous release's Version 1, with
+    every identity on one mount number that is not the live one, as the
+    owner's `0x100000D` became `0x1000011`. Recovery keeps it live and
+    rewrites it in place as the exact Version 2 record, inode and all. Two
+    mount numbers in one record, or a changed inode, are still refused as
+    `record-moved`, and a refusal counts every refused record and names the
+    first.
+    """
+    root = create_root(parent, "remount-retained")
+    check(exe, "retained-abandon", root, "retained")
+    record = journal(root)
+    mount = record.stat().st_dev + 4
+    if mount in {os.stat(path).st_dev for path in (root / "registry", root / "neighbourhood", record)}:
+        raise RuntimeError("the stand-in mount number is a live one")
+    current = record.read_bytes()
+    lines = lines_of(record)
+    if any(line["Version"] != 2 for line in lines) or lines[-1]["Phase"] != 7:
+        raise RuntimeError("a new retained record is not written as Version 2 at phase 7")
+    if sys.platform == "darwin" and not all(line["File"][2] != 0 for line in lines):
+        raise RuntimeError("a macOS record does not store the durable volume identity")
+    inode = record.stat().st_ino
+    write_lines(record, as_version_one(lines, lambda _field: mount))
+    check(exe, "recover-check", root, "recovered=0 live=1")
+    if record.read_bytes() != current or record.stat().st_ino != inode:
+        raise RuntimeError("a remounted Version 1 record was not rewritten in place as the exact Version 2 record")
+    # A Version 2 record round-trips unchanged.
+    check(exe, "recover-check", root, "recovered=0 live=1")
+    if record.read_bytes() != current or record.stat().st_ino != inode:
+        raise RuntimeError("recovery changed a current Version 2 record")
+
+    root = create_root(parent, "remount-two-volumes")
+    check(exe, "retained-abandon", root, "retained")
+    record = journal(root)
+    lines = lines_of(record)
+    if sys.platform == "darwin":
+        legacy = as_version_one(lines, lambda field: mount + 4 if field == "Child" else mount)
+    else:
+        legacy = as_version_one(lines, None)
+        legacy[-1]["Registry"] = [legacy[-1]["Registry"][0], legacy[-1]["Registry"][1] + 4,
+                                  legacy[-1]["Registry"][2], legacy[-1]["Registry"][3]]
+    write_lines(record, legacy)
+    before = record.read_bytes()
+    check(exe, "recover-check", root,
+          f"failure=1 check=record-moved folder=registry/{record.name} records=1 finding=other-volume")
+    if record.read_bytes() != before:
+        raise RuntimeError("a refused record was rewritten")
+
+    root = create_root(parent, "remount-inode")
+    check(exe, "retained-abandon", root, "retained")
+    record = journal(root)
+    legacy = as_version_one(lines_of(record), lambda _field: mount)
+    for line in legacy:
+        line["Registry"] = [line["Registry"][0], line["Registry"][1], line["Registry"][2], line["Registry"][3] + 1]
+    write_lines(record, legacy)
+    before = record.read_bytes()
+    check(exe, "recover-check", root,
+          f"failure=1 check=record-moved folder=registry/{record.name} records=1 finding=replaced")
+    if record.read_bytes() != before:
+        raise RuntimeError("a refused record was rewritten")
+
+    # Every record is checked before the refusal, which counts them all and
+    # names the first one the scan reached.
+    root = create_root(parent, "three-moved")
+    # Retained, so each later preparation keeps the earlier records live.
+    for _ in range(3):
+        check(exe, "retained-abandon", root, "retained")
+    records = sorted((root / "registry").glob("*.jsonl"))
+    if len(records) != 3:
+        raise RuntimeError("three retained records were not all kept")
+    for record in records:
+        lines = lines_of(record)
+        for line in lines:
+            line["Neighbourhood"] = [line["Neighbourhood"][0], line["Neighbourhood"][1], line["Neighbourhood"][2],
+                                     line["Neighbourhood"][3] + 1]
+        write_lines(record, lines)
+    result = run(exe, "recover-check", root).strip()
+    named = {f"failure=1 check=record-moved folder=registry/{record.name} records=3 finding=replaced" for record in records}
+    if result not in named:
+        raise RuntimeError(f"three refused records were not counted and the first named: {result!r}")
+    if sorted((root / "registry").glob("*.jsonl")) != records:
+        raise RuntimeError("a refusal removed a record")
+
+    # A malformed record is its own check.
+    root = create_root(parent, "malformed")
+    check(exe, "ready-abandon", root, "ready")
+    record = journal(root)
+    record.write_bytes(record.read_bytes().replace(b'"Phase":0', b'"Phase":"zero"', 1))
+    check(exe, "recover-check", root, f"failure=1 check=record-malformed folder=registry/{record.name} records=1")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--executable", required=True, type=Path)
@@ -246,6 +374,7 @@ def main() -> None:
             # untrusted-parent refusal through the DACL courses (BPR-0622).
             check_neighbourhood_parent_rule(exe, parent)
             check_own_objects_narrowed(exe, parent)
+        check_remount_and_record_refusals(exe, parent)
         # [[BPR-1857]]. A workspace no record accounts for is refused by name,
         # and kept exactly as it was.
         root = create_root(parent, "unrecorded-leftover")

@@ -969,7 +969,7 @@ auto main(int argc, char** argv) -> int
 					// [[BPR-1857]]. The substituted workspace fails its exact
 					// cleanup, and both surfaces say so, naming the record.
 					return aTerms.require("repair-visible", window.agent_panel()->status_text().contains("Disposable agent workspaces are unavailable"))
-						&& aTerms.require("repair-names-check", window.agent_panel()->status_text().contains("could not be read back or cleaned up exactly"))
+						&& aTerms.require("repair-names-check", window.agent_panel()->status_text().contains("could not be cleaned up exactly"))
 						&& aTerms.require("repair-names-record", window.agent_panel()->status_text().contains(".jsonl"))
 						&& aTerms.require("status-says-it", window.status_text().contains("Disposable agent workspaces are unavailable"));
 				})) {
