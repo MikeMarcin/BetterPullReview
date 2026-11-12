@@ -448,7 +448,10 @@ namespace bpr::core {
 		[[nodiscard]] auto valid_origin(const evidence_origin& aOrigin, const std::size_t aImports) -> bool
 		{
 			return plain_text(aOrigin.Producer, maximum_evidence_name_bytes, false) && plain_text(aOrigin.Version, maximum_evidence_name_bytes, false) && aOrigin.Import <= aImports
-				&& (aOrigin.Import != 0U || (aOrigin.Source == evidence_source::author && aOrigin.Producer.empty()));
+				&& (aOrigin.Import != 0U || (aOrigin.Source == evidence_source::author && aOrigin.Producer.empty())
+					// RFC-BPR-0110 AC07: a claim or check an agent proposed in a
+					// conversation and the author accepted, with no import.
+					|| (aOrigin.Source == evidence_source::agent && !aOrigin.Producer.empty()));
 		}
 
 		[[nodiscard]] auto valid_formal(const formal_scope& aFormal) -> bool

@@ -93,6 +93,7 @@ namespace bpr::core::detail {
 		std::optional<wire_association> Association;
 		/// RFC-BPR-0109. Absent while the draft has no evidence.
 		std::optional<glz::raw_json> Evidence;
+		std::optional<glz::raw_json> Preparation;
 		std::int64_t                 Created = 0;
 		std::int64_t                 Updated = 0;
 	};
@@ -149,7 +150,7 @@ struct glz::meta<bpr::core::detail::wire_draft>
 										 "repository", &value_type::Repository, "worktree", &value_type::Worktree, "branch", &value_type::Branch, "target_remote", &value_type::TargetRemote, "target_host",
 										 &value_type::TargetHost, "target_owner", &value_type::TargetOwner, "target_name", &value_type::TargetName, "target_branch", &value_type::TargetBranch, "target_origin",
 										 &value_type::TargetOrigin, "chain", &value_type::Chain, "candidates", &value_type::Candidates, "notes", &value_type::Notes, "next_note", &value_type::NextNote, "association",
-										 &value_type::Association, "evidence", &value_type::Evidence, "created", &value_type::Created, "updated", &value_type::Updated);
+										 &value_type::Association, "evidence", &value_type::Evidence, "preparation", &value_type::Preparation, "created", &value_type::Created, "updated", &value_type::Updated);
 };
 
 namespace bpr::core {
@@ -573,7 +574,11 @@ namespace bpr::core {
 		const auto boundResults = std::ranges::all_of(aDraft.Evidence.Results, [&ordinals](const evidence_result& aResult) {
 			return aResult.Candidate == 0U || ordinals.contains(aResult.Candidate);
 		});
-		return boundResults && valid(aDraft.Evidence) && valid(aDraft.Id) && aDraft.Version > 0U && !aDraft.Title.empty() && plain_text(aDraft.Title, maximum_local_draft_title_bytes, false)
+		const auto boundStops = std::ranges::all_of(aDraft.Preparation.Tour.Stops, [&ordinals](const local_tour_stop& aStop) {
+			return ordinals.contains(aStop.Source.Candidate)
+				&& std::ranges::all_of(aStop.Earlier, [&ordinals](const local_source_binding& aBinding) { return ordinals.contains(aBinding.Candidate); });
+		});
+		return boundResults && boundStops && valid(aDraft.Preparation) && valid(aDraft.Evidence) && valid(aDraft.Id) && aDraft.Version > 0U && !aDraft.Title.empty() && plain_text(aDraft.Title, maximum_local_draft_title_bytes, false)
 			&& !aDraft.Worktree.Location.empty() && valid_publication_branch(aDraft.Branch) && validTarget && aDraft.Chain.size() <= maximum_local_remote_hops
 			&& !aDraft.Candidates.empty() && aDraft.Candidates.size() <= maximum_local_draft_candidates && aDraft.Notes.size() <= maximum_local_draft_notes
 			&& std::ranges::is_sorted(aDraft.Candidates, { }, &local_draft_candidate::Ordinal);
@@ -940,6 +945,13 @@ namespace bpr::core {
 			}
 			wire.Evidence = glz::raw_json{ std::move(evidence) };
 		}
+		if (aDraft.Preparation != local_draft_preparation{ }) {
+			auto preparation = encode_draft_preparation(aDraft.Preparation);
+			if (preparation.empty()) {
+				return { };
+			}
+			wire.Preparation = glz::raw_json{ std::move(preparation) };
+		}
 		auto text = std::string{ };
 		if (glz::write_json(wire, text)) {
 			return { };
@@ -1030,6 +1042,13 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			draft.Evidence = std::move(*evidence);
+		}
+		if (wire.Preparation) {
+			auto preparation = decode_draft_preparation(wire.Preparation->str);
+			if (!preparation) {
+				return std::nullopt;
+			}
+			draft.Preparation = std::move(*preparation);
 		}
 		if (failed || !valid(draft)) {
 			return std::nullopt;

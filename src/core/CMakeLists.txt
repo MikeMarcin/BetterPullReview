@@ -126,6 +126,7 @@ add_library(
         src/clone_discovery.cpp
         src/local_draft.cpp
         src/local_draft_evidence.cpp
+        src/local_draft_tour.cpp
         src/review_skill.cpp
         src/agent_session.cpp
         src/review_queue_attention.cpp
