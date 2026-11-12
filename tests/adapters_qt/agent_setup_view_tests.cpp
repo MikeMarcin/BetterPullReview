@@ -34,6 +34,7 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -124,6 +125,16 @@ namespace {
 		return value;
 	}
 
+	/// One Agent step card: an entry when `aEntry` is not 0, else a found agent.
+	[[nodiscard]] auto card(const std::uint32_t aEntry, const core::setup_agent aAgent, std::string aName, std::string aPath, const std::optional<core::agent_found_how> aHow,
+							const bool aPermitted = true, const bool aChosen = false) -> core::agent_setup_choice
+	{
+		auto value              = core::agent_setup_choice{ .Entry = aEntry, .Agent = aAgent, .Name = std::move(aName), .Path = std::move(aPath), .How = aHow };
+		value.Verdict.Permitted = aPermitted;
+		value.Chosen            = aChosen;
+		return value;
+	}
+
 	struct fixture
 	{
 		qt::agent_setup_view                View;
@@ -140,6 +151,7 @@ namespace {
 			Clones.Repository = application::clone_repository{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine" };
 			View.set_intents(qt::agent_setup_intents{
 				.Choose                 = [this](const core::setup_agent aAgent) { Intents.push_back("choose:" + std::string{ core::stable_name(aAgent) }); },
+				.ChooseEntry            = [this](const std::uint32_t aId) { Intents.push_back("entry:" + std::to_string(aId)); },
 				.FindAgents             = [this] { Intents.emplace_back("find-agents"); },
 				.FindClones             = [this] { Intents.emplace_back("find-clones"); },
 				.OpenSettings           = [this] { Intents.emplace_back("settings"); },
@@ -220,6 +232,8 @@ namespace {
 		auto test             = fixture{ };
 		test.Setup.State.Rows = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path),
 								  row(core::setup_agent::codex, "/Users/me/.local/bin/codex", core::agent_found_how::usual_folder, false) };
+		test.Setup.Choices    = { card(0U, core::setup_agent::claude_code, "Claude Code", "/opt/homebrew/bin/claude", core::agent_found_how::on_path),
+								  card(0U, core::setup_agent::codex, "Codex", "/Users/me/.local/bin/codex", core::agent_found_how::usual_folder, false) };
 		test.show();
 		const auto choices = test.View.findChildren<QRadioButton*>(QStringLiteral("agentSetupAgentChoice"));
 		expect(choices.size() == 2 && choices[0]->isEnabled() && !choices[1]->isEnabled() && !choices[0]->isChecked(), "both rows show, the refused one disabled, none chosen yet");
@@ -243,6 +257,8 @@ namespace {
 		auto test                         = fixture{ };
 		test.Setup.State.Rows             = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path),
 											  row(core::setup_agent::codex, "/Users/me/.local/bin/codex", core::agent_found_how::on_path) };
+		test.Setup.Choices                = { card(0U, core::setup_agent::claude_code, "Claude Code", "/opt/homebrew/bin/claude", core::agent_found_how::on_path, true, true),
+											  card(0U, core::setup_agent::codex, "Codex", "/Users/me/.local/bin/codex", core::agent_found_how::on_path) };
 		test.Setup.State.Chosen           = core::setup_agent::claude_code;
 		test.Setup.State.RepositoryChosen = false;
 		test.show();
@@ -261,6 +277,57 @@ namespace {
 		click(*second);
 		expect(test.View.open_step() == core::setup_step::repository, "and the Repository step's own header goes on to it");
 		render(test.View, QStringLiteral("change"));
+	}
+
+	/// Owner report ("If I add an agent through agent settings, the agent
+	/// setup wizard doesn't update to show it"): the Agent step's cards are the
+	/// list as published, so a later projection with an agent added, edited or
+	/// removed shows at once, the step staying open; an entry card chooses by
+	/// its entry.
+	void test_the_list_follows_settings()
+	{
+		auto test = fixture{ };
+		test.show();
+		expect(test.text().contains(QStringLiteral("No agent found on this computer")), "with nothing found and nothing added, none is found");
+		// Settings adds a custom agent while the setup shows.
+		test.Setup.Choices = { card(1U, core::setup_agent::claude_code, "Work Claude", "/opt/work/bin/wrapper", core::agent_found_how::saved_program) };
+		test.show();
+		expect(test.View.open_step() == core::setup_step::agent && test.text().contains(QStringLiteral("Work Claude")) && test.text().contains(QStringLiteral("/opt/work/bin/wrapper"))
+				   && !test.text().contains(QStringLiteral("No agent found on this computer")),
+			   "an agent added in Settings is a card at once");
+		// And a popular agent whose program is not found.
+		test.Setup.Choices.push_back(card(2U, core::setup_agent::codex, "Codex", { }, std::nullopt));
+		test.show();
+		auto cards = test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow"));
+		expect(cards.size() == 2 && test.text().contains(QStringLiteral("Not found on this computer.")) && cards[1]->focusPolicy() == Qt::NoFocus, "an added agent whose program is not found is shown, and cannot be chosen");
+		click(*cards[1]);
+		expect(test.Intents.empty(), "choosing it asks nothing");
+		click(*cards[0]);
+		expect(test.Intents == std::vector<std::string>{ "entry:1" }, "an added agent's card chooses its entry");
+		// Edited, then removed, in Settings.
+		test.Setup.Choices.front().Name = "Work Claude 2";
+		test.show();
+		expect(test.text().contains(QStringLiteral("Work Claude 2")), "an edit in Settings shows");
+		test.Setup.Choices.erase(test.Setup.Choices.begin());
+		test.show();
+		expect(!test.text().contains(QStringLiteral("Work Claude")) && test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow")).size() == 1, "a removal in Settings shows");
+		// The chosen card is the one the projection marks; Change keeps the step.
+		test.Setup.State.Rows   = { row(core::setup_agent::claude_code, "/opt/work/bin/wrapper", core::agent_found_how::saved_program) };
+		test.Setup.State.Chosen = core::setup_agent::claude_code;
+		test.Setup.Choices      = { card(3U, core::setup_agent::claude_code, "Work Claude", "/opt/work/bin/wrapper", core::agent_found_how::saved_program, true, true),
+									card(4U, core::setup_agent::claude_code, "Home Claude", "/opt/home/bin/wrapper", core::agent_found_how::saved_program) };
+		test.show();
+		test.button(QStringLiteral("agentSetupChange"))->click();
+		auto radios = test.View.findChildren<QRadioButton*>(QStringLiteral("agentSetupAgentChoice"));
+		expect(radios.size() == 2 && radios[0]->isChecked() && !radios[1]->isChecked(), "the chosen entry is marked, not every entry of its kind");
+		test.Setup.Choices.push_back(card(5U, core::setup_agent::codex, "Work Codex", "/opt/work/bin/wrapper", core::agent_found_how::saved_program));
+		test.show();
+		expect(test.View.open_step() == core::setup_step::agent && test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow")).size() == 3,
+			   "an agent added while Change is open keeps the step open and shows");
+		test.Intents.clear();
+		click(*test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow"))[1]);
+		expect(test.Intents == std::vector<std::string>{ "entry:4" }, "another entry of the chosen kind is chosen by its entry");
+		render(test.View, QStringLiteral("list"));
 	}
 
 	void test_repository_states()
@@ -817,6 +884,7 @@ auto main(int argc, char** argv) -> int
 	test_no_agent_found();
 	test_two_agents_and_a_refused_one();
 	test_change_keeps_the_current_agent();
+	test_the_list_follows_settings();
 	test_repository_states();
 	test_check_and_ready();
 	test_settings_rows();

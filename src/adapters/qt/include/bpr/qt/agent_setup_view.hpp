@@ -31,6 +31,8 @@ namespace bpr::qt {
 	struct agent_setup_intents
 	{
 		std::function<void(core::setup_agent)> Choose;
+		/// An agent already in the list, chosen for setup by its entry.
+		std::function<void(std::uint32_t)> ChooseEntry;
 		/// Step-specific metadata searches, neither reruns a check.
 		std::function<void()> FindAgents;
 		std::function<void()> FindClones;
@@ -130,7 +132,9 @@ namespace bpr::qt {
 		agent_setup_facts                   Facts;
 		std::optional<core::setup_step>     Editing;
 		std::optional<core::setup_agent>    Picked;
-		std::optional<std::string>          PickedClone;
+		/// The entry of the card picked with `Picked`; 0 for a found agent.
+		std::uint32_t              PickedEntry = 0U;
+		std::optional<std::string> PickedClone;
 		/// [[BPR-1879]]. Which no-clone card the reviewer chose; none chosen
 		/// is the first offered (Use my clone when it is).
 		enum class no_clone_pick : std::uint8_t { link,

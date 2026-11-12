@@ -7,6 +7,7 @@
 #include "bpr/application/claude_process_wrapper.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_setup.hpp"
 
@@ -24,6 +25,9 @@ namespace bpr::application {
 	{
 		core::agent_setup_state State;
 		core::setup_step        Step = core::setup_step::agent;
+		/// The Agent step's cards: every agent in the list, then the popular
+		/// agents found and not added (`core::agent_setup_choices`).
+		std::vector<core::agent_setup_choice> Choices;
 		/// The agents a search looked for under the current host's policy;
 		/// the none-found state names these.
 		std::vector<core::setup_agent> Searched;
@@ -129,6 +133,11 @@ namespace bpr::application {
 		/// Looks for the agents again (Q2, and Look again).
 		void detect();
 		void choose(core::setup_agent aAgent);
+		/// \brief Chooses an agent already in the list for setup, as Custom
+		/// agent… chooses the one it adds: its kind is chosen, the checks start
+		/// over and the agents are looked for again with its program. An entry
+		/// not in the list, or the one already chosen, changes nothing.
+		void choose_entry(std::uint32_t aId);
 		/// Runs Check it works' agent row.
 		void check();
 		void stop();
