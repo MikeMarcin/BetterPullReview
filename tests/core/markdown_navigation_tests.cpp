@@ -102,6 +102,40 @@ int main()
 	auto browserless             = page;
 	browserless.BrowserAvailable = false;
 	expect(admit_pull_request_page(browserless).error() == markdown_link_result::unavailable, "an absent browser is explicit for the page too");
+	// The owner, 2026-11-11. The loading pull request's page opens from the
+	// pending read's own parts once its metadata was observed, for the pull
+	// request the window names.
+	const loading_pull_request_page_observation loading{
+		.BrowserAvailable = true,
+		.Hostname         = "ghe.example.invalid",
+		.MetadataObserved = true,
+		.Owner            = "owner",
+		.Repository       = "repository.name",
+		.Number           = pull_request_number{ 42 },
+		.ShownOwner       = "Owner",
+		.ShownRepository  = "Repository.Name",
+		.ShownNumber      = 42U,
+	};
+	expect(admit_loading_pull_request_page(loading).transform(page_parts).value_or("") == "ghe.example.invalid/owner/repository.name/pull/42",
+		   "the loading page is the pending read's parts, whatever ASCII case the window shows");
+	auto unobserved             = loading;
+	unobserved.MetadataObserved = false;
+	expect(admit_loading_pull_request_page(unobserved).error() == markdown_link_result::stale, "before the read names its pull request there is no page");
+	auto otherNumber        = loading;
+	otherNumber.ShownNumber = 43U;
+	expect(admit_loading_pull_request_page(otherNumber).error() == markdown_link_result::stale, "a window naming another number is stale");
+	auto otherOwner       = loading;
+	otherOwner.ShownOwner = "someone";
+	expect(admit_loading_pull_request_page(otherOwner).error() == markdown_link_result::stale, "a window naming another owner is stale");
+	auto otherRepository            = loading;
+	otherRepository.ShownRepository = "repository";
+	expect(admit_loading_pull_request_page(otherRepository).error() == markdown_link_result::stale, "a window naming another repository is stale");
+	auto loadingBrowserless             = loading;
+	loadingBrowserless.BrowserAvailable = false;
+	expect(admit_loading_pull_request_page(loadingBrowserless).error() == markdown_link_result::unavailable, "the loading page needs a browser");
+	auto loadingUnsafe     = loading;
+	loadingUnsafe.Hostname = "user@ghe.example.invalid";
+	expect(admit_loading_pull_request_page(loadingUnsafe).error() == markdown_link_result::refused, "the loading page keeps the page's authority rules");
 	// [[BPR-1338]]. A Home queue row opens on the accepted session's host,
 	// for the accepted account only, with the accepted hostname in the address.
 	const pull_request_ref row{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app", .Number = 101 };

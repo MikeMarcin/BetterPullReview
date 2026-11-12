@@ -172,6 +172,40 @@ namespace bpr::core {
 	[[nodiscard]] auto admit_pull_request_page(const pull_request_page_observation& aObservation)
 		-> std::expected<pull_request_page, markdown_link_result>;
 
+	/// \brief The page of the pull request a window is still loading, from
+	/// the read it waits on and what the window names.
+	///
+	/// \details The owner, 2026-11-11: the title's Open on GitHub appears as
+	/// soon as the title does, not once the whole review has arrived. The
+	/// hostname is the pending read's profile authority's; the owner,
+	/// repository and number are the pending read's own locator. The
+	/// gesture's names are only compared with them.
+	struct loading_pull_request_page_observation
+	{
+		bool             BrowserAvailable = false;
+		std::string_view Hostname;
+		/// The read lane accepted GitHub's metadata for this exact pending
+		/// read: the window has a title to show.
+		bool                MetadataObserved = false;
+		std::string_view    Owner;
+		std::string_view    Repository;
+		pull_request_number Number;
+		/// What the window named when the reviewer pressed it.
+		std::string_view ShownOwner;
+		std::string_view ShownRepository;
+		std::uint64_t    ShownNumber = 0U;
+	};
+
+	/// \brief Admits the loading pull request's page.
+	///
+	/// \details Stale until the read's metadata was observed, and when the
+	/// window names another pull request than the pending read (owner and
+	/// repository compare without regard to ASCII case, as GitHub's names
+	/// do). Otherwise exactly `admit_pull_request_page` of the pending
+	/// read's parts.
+	[[nodiscard]] auto admit_loading_pull_request_page(const loading_pull_request_page_observation& aObservation)
+		-> std::expected<pull_request_page, markdown_link_result>;
+
 	/// \brief [[BPR-1338]]. A Home queue row's page, on the accepted session's host.
 	///
 	/// \details The row must be the accepted account's on that host (the

@@ -1968,6 +1968,32 @@ namespace bpr::application {
 				return core::markdown_link_result::failed;
 			}
 		}
+		auto open_loading_pull_request_page(const loading_pull_request_page& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+		{
+			if (!PendingProvider || Policy.state().PendingPullRequest != PendingProvider->Context) {
+				return core::markdown_link_result::stale;
+			}
+			const auto& read = *PendingProvider;
+			const auto  page = core::admit_loading_pull_request_page({
+				.BrowserAvailable = aBrowser != nullptr,
+				.Hostname         = read.ProfileAuthority.Hostname.value(),
+				.MetadataObserved = Policy.loading_metadata_observed(),
+				.Owner            = read.Context.Repository.Owner,
+				.Repository       = read.Context.Repository.Name,
+				.Number           = read.Context.Number,
+				.ShownOwner       = aIntent.Owner,
+				.ShownRepository  = aIntent.Repository,
+				.ShownNumber      = aIntent.Number,
+			});
+			if (!page) {
+				return page.error();
+			}
+			try {
+				return aBrowser->open(pull_request_page_address(*page)) ? core::markdown_link_result::opened : core::markdown_link_result::failed;
+			} catch (...) {
+				return core::markdown_link_result::failed;
+			}
+		}
 		auto open_pull_request_commit_page(const std::string& aCommit, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 		{
 			if (!AcceptedSnapshot || !AcceptedProfileAuthority) {
@@ -2228,6 +2254,10 @@ namespace bpr::application {
 	auto github_window_read_host::open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 	{
 		return Implementation->open_pull_request_page(aContext, aBrowser);
+	}
+	auto github_window_read_host::open_loading_pull_request_page(const loading_pull_request_page& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+	{
+		return Implementation->open_loading_pull_request_page(aIntent, aBrowser);
 	}
 	auto github_window_read_host::accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>& { return Implementation->AcceptedSnapshot; }
 	auto github_window_read_host::mutation_transport() const noexcept -> review_mutation_transport { return Implementation->ReviewMutationTransport; }
