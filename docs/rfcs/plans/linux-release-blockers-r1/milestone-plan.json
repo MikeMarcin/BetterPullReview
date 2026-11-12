@@ -4,7 +4,8 @@
   "scope": {
     "issues": [
       "BPR-2133",
-      "BPR-2134"
+      "BPR-2134",
+      "BPR-2135"
     ]
   },
   "milestones": [
@@ -53,6 +54,29 @@
         "Own explicit commits land Main; no broad intake/frozenR-W edits/private product deviation; host leases and commands reconciled; coordinator retains release acceptance."
       ],
       "boundary": "Owner mandate linux-release-blockers-r1; independent frozen60 source6efba00e1afbf874c88c7e5de2623a33528ff36f baseline. Root reserves PC after actual fullR2 Release+Debug/controller terminal, TaskReady, nativeforests empty and pc-build-idle12 idle. Initial approved diagnostics only: exact sealed revision3 ordinaryUID one-shot perf history probe; one failure-only submission testTU/private link against unchanged60libs preserving exact20s predicate/allassertions. No root/install/sysctl/fallback/repeat/native retries; further diagnostic needs concrete bounded proposal. Product fixes must landMain; coordinator selectively integrates own slices and chooses justified affected native gates/bridges."
+    },
+    {
+      "id": "verify-reset-review-data-identity",
+      "outcome": "The complete public reset course correctly distinguishes replacement of old review data from inode reuse, or a proved product defect is minimally corrected.",
+      "work": [
+        {
+          "issue": "BPR-2135",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Actual reset semantics and original failure are bound; native disposable evidence establishes product versus fixture cause.",
+        "Complete original course and meaningful old-data sentinel/no-reset controls retain all original public assertions and time bounds.",
+        "Exact native corrected course and protected input seals are recorded, including Release/Debug and affected cross-platform closure.",
+        "Only own fix/proof/admin commits landMain for selective intake; no broadMain/frozenR-W edits; commands and leases reconciled."
+      ],
+      "boundary": "Owner Linux blocker mandate plus root-approved profile-reset triage: private synthetic sentinel only while app stores closed; complete original course and no-reset negative. No active-owner data, unsafe storage access, timing/Qt waiver, source/producer mutation or diagnostic concurrency. Native work waits actual fullR2/controller/task/forest/idle guards; root grants bounded ordinary engineering thereafter."
     }
   ],
   "coverage": "complete",

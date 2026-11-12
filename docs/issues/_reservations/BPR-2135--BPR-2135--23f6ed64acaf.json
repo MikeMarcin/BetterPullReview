@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2135"
+  ],
+  "reserve_for": "linux-reset-fixture-r1",
+  "purpose": "Prove Reset everything removes old review data despite possible inode reuse across unlink/recreate",
+  "created": "2026-11-12T15:41:16.223083+00:00",
+  "base": "f23af33c27155b41b3f7fab2f932b8261f219b8c"
+}
