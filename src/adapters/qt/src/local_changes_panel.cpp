@@ -509,6 +509,7 @@ namespace bpr::qt {
 		case core::local_push_state::up_to_date:
 			state = QStringLiteral("Up to date with %1").arg(against(view));
 			dot   = green(colours);
+			label = QStringLiteral("Check Again");
 			break;
 		case core::local_push_state::behind:
 			state = QStringLiteral("%1 behind %2").arg(view.Hosted.Behind).arg(against(view));
@@ -541,7 +542,7 @@ namespace bpr::qt {
 		PushState->setText(state);
 		Push->setText(label);
 		const auto idle = view.Running == application::local_changes_operation::none;
-		Push->setEnabled(view.Running == application::local_changes_operation::pushing || (idle && view.Active && view.Push.State != core::local_push_state::up_to_date));
+		Push->setEnabled(view.Running == application::local_changes_operation::pushing || (idle && view.Active));
 		Push->setDefault(idle && view.Push.Default);
 		Push->setToolTip(view.Push.Offered ? QStringLiteral("Send the branch to GitHub as the command below runs it; it never forces") : QStringLiteral("Read GitHub's branch again"));
 		Command->setText(view.Command ? text_of(view.Command->Text) : QString{ });
@@ -562,6 +563,9 @@ namespace bpr::qt {
 				}
 				banner = said.isEmpty() ? what + QLatin1Char{ '.' } : QStringLiteral("%1: %2").arg(what, said);
 			}
+		} else if (view.Push.State == core::local_push_state::behind || view.Push.State == core::local_push_state::diverged || view.Push.State == core::local_push_state::unknown_tip) {
+			// Refused before anything runs: no control here forces.
+			banner = QStringLiteral("Push refused: %1 has commits this branch does not. Nothing was sent; nothing is forced.").arg(against(view));
 		} else if (view.Declined) {
 			banner = QStringLiteral("Nothing ran. To commit or push yourself:\n%1").arg(text_of([&] {
 				auto joined = std::string{ };
@@ -572,7 +576,8 @@ namespace bpr::qt {
 			}()));
 		}
 		auto bannerPalette = Banner->palette();
-		bannerPalette.setColor(QPalette::WindowText, view.Failure ? red(colours) : colours.color(QPalette::WindowText));
+		const auto refused = view.Push.State == core::local_push_state::behind || view.Push.State == core::local_push_state::diverged || view.Push.State == core::local_push_state::unknown_tip;
+		bannerPalette.setColor(QPalette::WindowText, view.Failure || refused ? red(colours) : colours.color(QPalette::WindowText));
 		Banner->setPalette(bannerPalette);
 		Banner->setText(banner);
 		Banner->setVisible(!banner.isEmpty());

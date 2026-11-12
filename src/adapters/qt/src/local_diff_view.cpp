@@ -138,6 +138,7 @@ namespace bpr::qt {
 			Tops[index + 1U] = Tops[index] + (Lines[index].Band ? band_height() : line_height());
 		}
 		for (auto* const button : Buttons) {
+			button->hide();
 			button->deleteLater();
 		}
 		Buttons.clear();

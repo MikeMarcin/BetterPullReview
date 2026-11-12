@@ -18,6 +18,7 @@
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/view_picker.hpp"
+#include "bpr/qt/local_draft_view.hpp"
 #include "conversation_glyphs.hpp"
 #include "workbench_window_support.hpp"
 
@@ -1639,6 +1640,11 @@ namespace bpr::qt {
 		// cycle page says what it is doing itself.
 		if (showing_local_cycle()) {
 			return { };
+		}
+		// Mockup A: a local draft's line is the window's status bar, as a
+		// pull request's is: where you are, and what GitHub lacks.
+		if (showing_local_draft() && LocalDraftPage != nullptr) {
+			return LocalDraftPage->status_line()->text();
 		}
 		auto status = QString{ };
 		// [[BPR-0775]]. On Home the line is the session's, and never that no

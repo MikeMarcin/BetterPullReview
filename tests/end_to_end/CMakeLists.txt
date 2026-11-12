@@ -5277,6 +5277,25 @@ if(TARGET Git::Git)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-desktop"
         PASS_REGULAR_EXPRESSION "local-draft-desktop-public-path:pass"
         TIMEOUT 180)
+    # The owner's redesign, 2026-11-12 (RFC-BPR-0108, 0113 and 0114 as
+    # amended): the local draft in the pull request window in author state,
+    # through the window and composition on a real worktree and a local bare
+    # "hosted" repository. Native renders with BPR_NATIVE_LOOK=1.
+    bpr_add_executable(test_local_draft_author_desktop_public_path local_draft_author_desktop_public_path.cpp "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+    target_link_libraries(test_local_draft_author_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+    target_include_directories(test_local_draft_author_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+    target_compile_features(test_local_draft_author_desktop_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_local_draft_author_desktop_public_path)
+    if(WIN32)
+        target_link_libraries(test_local_draft_author_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_local_draft_author_desktop_public_path)
+    bpr_add_network_isolated_test(NAME application_local_draft_author_desktop_public_path WINDOWS_UNCONTAINED
+        COMMAND test_local_draft_author_desktop_public_path --git "$<TARGET_FILE:Git::Git>" --fixture "${PROJECT_SOURCE_DIR}/tests/fixtures/local-draft/make_author_worktree.sh")
+    set_tests_properties(application_local_draft_author_desktop_public_path PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-author"
+        PASS_REGULAR_EXPRESSION "local-draft-author-desktop-public-path:(pass|skipped)"
+        TIMEOUT 240)
     # RFC-BPR-0110 ([[BPR-2026]], [[BPR-2027]]). The Description and Tour
     # areas through the same window and composition, with a scripted agent.
     bpr_add_executable(test_local_draft_tour_desktop_public_path local_draft_tour_desktop_public_path.cpp)

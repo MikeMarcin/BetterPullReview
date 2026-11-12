@@ -212,7 +212,8 @@ namespace bpr::qt {
 		StatusLine->setObjectName(QStringLiteral("localDraftStatusLine"));
 		StatusLine->setContentsMargins(12, 4, 12, 4);
 		StatusLine->setTextFormat(Qt::RichText);
-		column->addWidget(StatusLine);
+		// The window's status bar shows this line; the label holds it.
+		StatusLine->hide();
 
 		connect(Title, &QLineEdit::editingFinished, this, [this] {
 			if (!Presenting && Dispatch.Rename && Projection.Draft && !Title->text().trimmed().isEmpty() && Title->text().trimmed() != text_of(Projection.Draft->Title)) {

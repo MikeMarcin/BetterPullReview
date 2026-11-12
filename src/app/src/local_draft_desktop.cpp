@@ -223,6 +223,10 @@ namespace bpr::app {
 	{
 		if (!Closing && View) {
 			View->present_local(aProjection);
+			// The window's status bar carries the page's line.
+			if (Window.showing_local_draft()) {
+				Window.show_local_draft(View->window_title());
+			}
 		}
 	}
 

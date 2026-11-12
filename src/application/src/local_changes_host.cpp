@@ -660,6 +660,9 @@ namespace bpr::application {
 		self.Runner                    = std::move(aRunner);
 		self.AgentLane                 = aLane;
 		self.Projection.AgentAvailable = static_cast<bool>(self.Runner);
+		if (self.Projection.Active) {
+			self.publish();
+		}
 	}
 
 	void local_changes_host::suggest_message(local_commit_message_agent aAgent)
