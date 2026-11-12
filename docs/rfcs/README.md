@@ -793,7 +793,7 @@ Imported 2026-11-10 at the owner's request; no implementation mandate has been g
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0116](RFC-BPR-0116-a-returning-pull-request-says-what-changed-and-whether-a-comment-was-addressed.md) | A returning pull request says what changed, and whether a comment was addressed | Proposed | RFC-BPR-0009, RFC-BPR-0094, RFC-BPR-0101, RFC-BPR-0102 |
+| [RFC-BPR-0116](RFC-BPR-0116-a-returning-pull-request-says-what-changed-and-whether-a-comment-was-addressed.md) | A returning pull request says what changed, and whether a comment was addressed | In Progress | RFC-BPR-0009, RFC-BPR-0094, RFC-BPR-0101, RFC-BPR-0102 |
 | [RFC-BPR-0117](RFC-BPR-0117-explain-this-file-where-i-am-reading.md) | Explain this file where I am reading | Proposed | RFC-BPR-0101, RFC-BPR-0102 |
 | [RFC-BPR-0118](RFC-BPR-0118-turn-a-draft-comment-into-an-exact-suggested-change.md) | Turn a draft comment into an exact suggested change | Proposed | RFC-BPR-0090, RFC-BPR-0101 |
 | [RFC-BPR-0119](RFC-BPR-0119-ask-the-agent-why-a-check-failed.md) | Ask the agent why a check failed | Proposed | RFC-BPR-0011, RFC-BPR-0068, RFC-BPR-0101, RFC-BPR-0102 |

@@ -3627,7 +3627,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# serves returning-review-v1. No provider request, credential, grant,
 	# mutation or inventory change beyond the new source file.
 	set(bpr_expected_production_app_manifest_digest
-        "9eb7e8dcaf9a7dc23c7b2ca8566b57e5a4df33d0e96bc2ef50dd35f131462c01"
+        "62b1c609ba8da2db4f37692723d1f0febe1a9fffa9f04adaddb3bf8a6b8145aa"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

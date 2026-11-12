@@ -81,6 +81,21 @@ nothing below is a timing claim.
 | AC06 | The latest course: no launch from opening or reading the returning pull request (`AgentProcessLauncherInvocations` 0 before the press), one launch per press, no GitHub mutation. Nothing in the path writes Seen or attention state. | pass |
 | AC07 | Owner's look on a frozen build. | pending |
 
+## Live check (BPR-Test, read facts only)
+
+2026-11-12, `X-RateLimit-Remaining` 4995 at the read. MikeMarcinTest opened
+disposable BPR-Test #180 from its fork (`returning/resize.cpp`, head
+`0a60216e`); MikeMarcin submitted a COMMENTED review with a line comment on
+line 3 ("Clamp the width to at least one pixel."); MikeMarcinTest pushed
+`14376934` clamping it. GitHub's GraphQL, read as MikeMarcin: the review's
+`commit` is `0a60216e` and the head `14376934` (What changed is offered); the
+comment's `originalCommit` is `0a60216e` (Was this addressed? is offered); the
+thread is `isOutdated` with `line` null and `originalLine` 3, because the fix
+changed the commented line. That last fact changed the build: a thread GitHub
+no longer places at the head now reads its lines at the head by the same
+numbers, with context, instead of carrying none. #180 was closed and its fork
+branch deleted. No agent call was made live.
+
 ## Decisions for the owner
 
 - P03 (an answer is a claim and changes no state) is a proposal this
@@ -91,6 +106,9 @@ nothing below is a timing claim.
   without it unless Ask more seeds it.
 - What changed compares only the pull request's files (and their earlier
   paths); a file the commits changed and then changed back is not read.
+- An outdated thread's lines "as they are" are read at the head by the same
+  line numbers, with six lines of context each side; GitHub gives no place
+  for it there.
 - AC02's composed course names the unreadable revision through a testing
   seam (`force_returning_review_head`): the fixture GitHub refuses to load a
   review on a commit it cannot serve, so the read cannot carry one.

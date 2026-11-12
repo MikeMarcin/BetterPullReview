@@ -140,6 +140,12 @@ namespace bpr::app {
 			if (thread.Line && !thread.Outdated) {
 				offer.NowLast  = *thread.Line;
 				offer.NowFirst = thread.Comments.empty() || !thread.Comments.front().Observation.StartLine ? *thread.Line : *thread.Comments.front().Observation.StartLine;
+			} else if (last) {
+				// GitHub no longer places an outdated thread at the head (its
+				// lines changed, as a fix changes them): the same line numbers
+				// at the head, with their context, stand for its place.
+				offer.NowFirst = *first;
+				offer.NowLast  = *last;
 			} else {
 				offer.NowSettled = true;
 			}

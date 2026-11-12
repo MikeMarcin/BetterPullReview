@@ -121,7 +121,8 @@ the grants the Agent tab already has.
 - Was this addressed? is offered on a review thread I commented in when the
   head differs from the commit my last comment there was written on. Its
   request carries the thread, my comment's lines at that commit and the
-  thread's lines at the head.
+  thread's lines at the head (for a thread the fix made outdated, the same
+  line numbers at the head, with context).
 - Both run on `assistance_first_answer`: fresh, one tool-free Claude call
   (an agent without a tool-free mode runs the same request fresh with the
   Agent tab's tools and no scratch folder), with the action's own prompt as
