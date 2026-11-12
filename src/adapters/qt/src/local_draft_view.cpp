@@ -2,6 +2,7 @@
 
 #include <QAction>
 #include <QComboBox>
+#include <QFontMetricsF>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -145,6 +146,13 @@ namespace bpr::qt {
 		titleFont.setPointSizeF(titleFont.pointSizeF() + 3.0);
 		titleFont.setWeight(QFont::DemiBold);
 		Title->setFont(titleFont);
+		// A heading that can be edited, not a field: it sits on the window's ground.
+		auto titlePalette = Title->palette();
+		titlePalette.setColor(QPalette::Base, titlePalette.color(QPalette::Window));
+		Title->setPalette(titlePalette);
+		Title->setToolTip(QStringLiteral("The draft's title; edit it here"));
+		// The page opens on Changes: the title takes focus only when clicked.
+		Title->setFocusPolicy(Qt::ClickFocus);
 		titleRow->addWidget(Title, 1);
 		Badge = new QLabel{ QStringLiteral("Local draft"), this };
 		Badge->setObjectName(QStringLiteral("localDraftBadge"));
@@ -256,6 +264,7 @@ namespace bpr::qt {
 		Diff->setAccessibleName(QStringLiteral("Proposed diff"));
 		Diff->setReadOnly(true);
 		Diff->setLineWrapMode(QPlainTextEdit::NoWrap);
+		Diff->setTabStopDistance(QFontMetricsF{ Diff->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
 		splitter->addWidget(side);
 		splitter->addWidget(Diff);
 		splitter->setStretchFactor(0, 0);
@@ -267,6 +276,7 @@ namespace bpr::qt {
 			if (!Presenting && Dispatch.Rename && Projection.Draft && !Title->text().trimmed().isEmpty() && Title->text().trimmed() != text_of(Projection.Draft->Title)) {
 				Dispatch.Rename(utf8(Title->text().trimmed()));
 			}
+			Title->setModified(false);
 		});
 		connect(Candidates, &QComboBox::currentIndexChanged, this, [this](const int aIndex) {
 			if (!Presenting && aIndex >= 0 && Dispatch.ShowCandidate) {
@@ -356,6 +366,7 @@ namespace bpr::qt {
 	void local_draft_view::set_code_font(const QFont& aFont)
 	{
 		Diff->setFont(aFont);
+		Diff->setTabStopDistance(QFontMetricsF{ aFont }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
 	}
 
 	void local_draft_view::set_discard_question(std::function<bool()> aQuestion)
@@ -410,7 +421,8 @@ namespace bpr::qt {
 	void local_draft_view::present_header()
 	{
 		const auto& view = Projection;
-		if (!Title->hasFocus()) {
+		// The author's unsaved typing stays; anything else shows the draft's title.
+		if (!Title->isModified()) {
 			Title->setText(title_text());
 		}
 		Title->setReadOnly(!view.Draft);

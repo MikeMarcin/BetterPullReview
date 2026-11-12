@@ -2057,8 +2057,10 @@ namespace bpr::qt {
 			HomeAuthor->setObjectName(QStringLiteral("homeAuthor"));
 			HomeAuthor->setAccessibleName(QStringLiteral("Prepare a pull request"));
 			HomeAuthor->setContentsMargins(24, 4, 24, 4);
+			HomeAuthor->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 			auto* const authorColumn = new QVBoxLayout{ HomeAuthor };
 			authorColumn->setContentsMargins(0, 0, 0, 0);
+			authorColumn->setSpacing(4);
 			HomePrepare = new QPushButton{ QStringLiteral("Prepare Pull Request…"), HomeAuthor };
 			HomePrepare->setObjectName(QStringLiteral("homePrepareButton"));
 			HomePrepare->setToolTip(QStringLiteral("Choose a Git worktree to see the pull request its branch proposes. No account, push or agent needed"));
@@ -2068,6 +2070,7 @@ namespace bpr::qt {
 			HomeDrafts->setObjectName(QStringLiteral("homeInPreparation"));
 			auto* const draftsColumn = new QVBoxLayout{ HomeDrafts };
 			draftsColumn->setContentsMargins(0, 6, 0, 0);
+			draftsColumn->setSpacing(4);
 			auto* const draftsTitle = new QLabel{ QStringLiteral("In preparation"), HomeDrafts };
 			draftsTitle->setObjectName(QStringLiteral("homeInPreparationTitle"));
 			auto draftsFont = draftsTitle->font();
@@ -2080,6 +2083,7 @@ namespace bpr::qt {
 			HomeDraftsList->setAccessibleDescription(home_open_description());
 			HomeDraftsList->installEventFilter(this);
 			HomeDraftsList->setMaximumHeight(HomeDraftsList->fontMetrics().lineSpacing() * 5 + 8);
+			HomeDraftsList->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 			draftsColumn->addWidget(HomeDraftsList);
 			HomeDrafts->hide();
 			authorColumn->addWidget(HomeDrafts);
