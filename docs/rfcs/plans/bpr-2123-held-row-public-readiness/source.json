@@ -1,0 +1,9 @@
+{
+  "source_revision": "363b2d77d542fd0d7fc8e481d7bd147d52625c3d",
+  "native_probe_source": "70324127b116e45988b8ffa3a77370209ba7aef4",
+  "mandate_revision": "windows-fixture-followups-two-corrections-20261112-r1",
+  "allocation_main": "0c6cb1da4e23fe766591f87edfa217671861cfc9",
+  "normal_producer_immutable": true,
+  "fresh_native_execution_authorized": false,
+  "foreign_main_intake": false
+}
