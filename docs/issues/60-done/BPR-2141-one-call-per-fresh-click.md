@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2141"
 title: "A fresh one-off is one model call: no tools, its context up front"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0101"]
 depends_on: []
 priority: "P1"
 platforms: []
 metadata: {"mandate_revision": "v0-5-0-prerelease-targets-r1", "reservation": "docs/issues/_reservations/BPR-2138--BPR-2142--6b47e1d85608.json", "origin": "owner agent launch policy, 2026-11-12 (coordinator brief), corporate wrapper test results and their correction of 2026-11-11", "criteria": ["AC13"]}
+acceptance: [{"criterion":"AC13","outcome":"pass","revision":"76100684fe14b299e3936876b62f7de098b66ecf","evidence":{"kind":"command","detail":"Draft Tour, field drafts and the outline are one tool-free call (no tools, no MCP, no saved session) with every patch in the request within the 96 KiB budget; past it, or with no tool-free mode, they read the repository and the notice names why","command":"ctest --preset dev -R '^(application_agent_launch_policy|application_github_contract|application_review_tour_writing|application_review_tour_writing_wrapper|application_review_tour_composition_public_path|application_agent_invocation_composition_contract)$'"}}]
 ---
 
 # A fresh one-off is one model call: no tools, its context up front
