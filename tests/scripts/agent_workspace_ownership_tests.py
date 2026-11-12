@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -395,6 +396,8 @@ def check_interrupted_migration(exe: Path, parent: Path) -> None:
         if not record.exists() or record.stat().st_ino != inode:
             raise RuntimeError("migration lost or replaced its authority journal")
         before = record.read_bytes()
+        trace_file = root / "migration-io-trace"
+        trace_before = trace_file.read_text().splitlines() if trace_file.exists() else []
         if before.startswith(b"!") != pending:
             raise RuntimeError("unexpected migration commit state")
         if pending:
@@ -410,6 +413,15 @@ def check_interrupted_migration(exe: Path, parent: Path) -> None:
                 or (retained / "retained-edit.txt").read_bytes() != sentinel_bytes
                 or record.stat().st_ino != inode):
             raise RuntimeError("migration recovery lost retained work or its original journal")
+        print("agent-workspace-ownership:migration-receipt:" + json.dumps({
+            "case": root.name, "pending_before_recovery": pending,
+            "input_sha256": hashlib.sha256(before).hexdigest(),
+            "output_sha256": hashlib.sha256(record.read_bytes()).hexdigest(),
+            "journal_inode_before": inode, "journal_inode_after": record.stat().st_ino,
+            "retained_edit_sha256": hashlib.sha256(sentinel_bytes).hexdigest(),
+            "retained_edit_kept": True, "io_before_recovery": trace_before,
+            "outcome": "refused_without_mutation" if pending else "complete_retained_live",
+        }, separators=(",", ":")), flush=True)
 
     checkpoints = (
         "migration-before-marker-write",
@@ -483,6 +495,7 @@ def check_interrupted_migration(exe: Path, parent: Path) -> None:
         (workspace(root) / "disposable-edit.txt").write_text("temporary")
         check(exe, "recover-check", root, "recovered=1 live=0")
         assert_empty(root)
+        print(f"agent-workspace-ownership:migration-temporary-v{version}:cleaned", flush=True)
     print("agent-workspace-ownership:migration-crash-safety:pass", flush=True)
 
 
