@@ -358,7 +358,7 @@ set_tests_properties(workspace_clone_folder_scan PROPERTIES PASS_REGULAR_EXPRESS
 # worktrees: the remote chain, the comparison, working edits, the store.
 if(TARGET Git::Git)
     bpr_add_executable(test_local_draft local_draft_tests.cpp)
-    target_link_libraries(test_local_draft PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::AdapterGit BetterPullReview::Application)
+    target_link_libraries(test_local_draft PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::AdapterGit BetterPullReview::Application BetterPullReview::SQLite3)
     bpr_enable_hardening(test_local_draft)
     if(WIN32)
         target_link_libraries(test_local_draft PRIVATE advapi32 BetterPullReview::Platform)

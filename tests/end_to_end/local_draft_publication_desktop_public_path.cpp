@@ -219,8 +219,8 @@ try {
 	settle(lanes);
 	auto* const page = window->local_draft();
 	expect(page != nullptr && page->projection().Draft, "the worktree opens as a local draft");
-	expect(page->areas()->tabText(4) == QStringLiteral("Pull request"), "the Pull request area is beside Tour");
-	page->areas()->setCurrentIndex(4);
+	expect(page->areas()->tabText(3) == QStringLiteral("Pull request"), "the Pull request area is beside Tour");
+	page->areas()->setCurrentIndex(3);
 	settle(lanes);
 	auto* const area = page->publication();
 	expect(!area->create_button()->isEnabled(), "nothing can be created before GitHub is read");

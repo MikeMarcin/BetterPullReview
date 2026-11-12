@@ -1799,7 +1799,7 @@ namespace {
 			},
 			"the local draft opens");
 		auto* const area = view->publication();
-		view->areas()->setCurrentIndex(4);
+		view->areas()->setCurrentIndex(3);
 		const auto checked = [&](const std::string& aWhat) {
 			require([&] { return area->check_button()->isEnabled(); }, "Check GitHub is available");
 			area->check_button()->click();

@@ -3,13 +3,11 @@
 
 #include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/local_draft_discovery.hpp"
-#include "bpr/application/local_draft_evidence_import.hpp"
 #include "bpr/application/local_draft_publishing.hpp"
 #include "bpr/application/local_draft_store.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 #include "bpr/core/local_draft.hpp"
-#include "bpr/core/local_draft_evidence.hpp"
 #include "bpr/core/local_draft_tour.hpp"
 #include "bpr/core/review_cycle_views.hpp"
 
@@ -138,38 +136,6 @@ namespace bpr::application {
 		auto                              operator<=>(const local_draft_file_view&) const = default;
 	};
 
-	/// \brief What the last evidence import added (RFC-BPR-0109).
-	struct local_draft_import_report
-	{
-		std::uint64_t Claims                                              = 0;
-		std::uint64_t Checks                                              = 0;
-		std::uint64_t Results                                             = 0;
-		std::uint64_t Questions                                           = 0;
-		std::uint64_t Bound                                               = 0;
-		std::uint64_t Stored                                              = 0;
-		std::uint64_t Unstored                                            = 0;
-		auto          operator<=>(const local_draft_import_report&) const = default;
-	};
-
-	/// \brief One stored artifact, read back from the private store to read.
-	struct local_draft_artifact_view
-	{
-		std::uint64_t          Result = 0;
-		std::size_t            Index  = 0;
-		std::string            Name;
-		review_material_status Status = review_material_status::failure;
-		/// Its bytes are being read from the store.
-		bool Reading = false;
-		/// The artifact's text, up to `maximum_local_draft_artifact_view_bytes`.
-		std::string   Text;
-		bool          Binary                                              = false;
-		bool          Truncated                                           = false;
-		std::uint64_t Size                                                = 0;
-		auto          operator<=>(const local_draft_artifact_view&) const = default;
-	};
-	/// \brief The most bytes of an artifact shown as text.
-	inline constexpr std::size_t maximum_local_draft_artifact_view_bytes = 1024U * 1024U;
-
 	/// \brief RFC-BPR-0110. A question about a local draft, as the page asks it.
 	struct local_draft_question
 	{
@@ -284,14 +250,6 @@ namespace bpr::application {
 		std::optional<local_draft_store_error>   Store;
 		std::optional<local_draft_capture_error> Capture;
 		std::optional<publication_git_error>     Git;
-		/// RFC-BPR-0109. An evidence import is being read.
-		bool Importing = false;
-		/// The last import's report, or why it was not applied.
-		std::optional<local_draft_import_report> Imported;
-		std::optional<evidence_import_error>     ImportError;
-		/// The last evidence edit the draft refused.
-		std::optional<core::draft_refusal>       EvidenceRefusal;
-		std::optional<local_draft_artifact_view> Artifact;
 		/// RFC-BPR-0110. The last description or tour edit the draft refused.
 		std::optional<core::preparation_refusal> PreparationRefusal;
 		/// An agent can be asked: a runner is composed.
@@ -358,23 +316,6 @@ namespace bpr::application {
 		void add_note(std::string aText, std::string aPath);
 		void remove_note(std::uint64_t aNote);
 		void rename(std::string aTitle);
-		// RFC-BPR-0109: the draft's evidence. Nothing here runs a check.
-		void add_claim(core::claim_kind aKind, std::string aText);
-		void revise_claim(std::uint64_t aClaim, std::string aText);
-		void add_check(core::check_method aMethod, std::string aTitle, std::string aCommand, std::vector<std::uint64_t> aClaims, core::formal_scope aFormal);
-		/// \brief A result the author reports; bound to the candidate it names.
-		void record_result(core::manual_result aResult);
-		void add_question(std::string aText, std::uint64_t aClaim);
-		void resolve_question(std::uint64_t aQuestion, bool aResolved);
-		/// \brief Accepts or rejects a proposed claim, check or question.
-		void decide_evidence(std::uint64_t aRecord, core::evidence_disposition aDisposition);
-		void select_evidence(std::uint64_t aRecord, bool aSelected);
-		/// \brief Imports one evidence document the author chose (an absolute
-		/// path). Closing the draft cancels an import still being read.
-		void import_evidence(std::string aDocument);
-		/// \brief Reads one stored artifact of a result back to show it.
-		void open_artifact(std::uint64_t aResult, std::size_t aIndex);
-		void close_artifact();
 		// RFC-BPR-0110: the description and the tour. Nothing here publishes.
 		void save_description(std::string aTitle, std::string aBody);
 		void save_brief(std::string aProblem, std::string aSolution);
@@ -387,7 +328,6 @@ namespace bpr::application {
 		void accept_stop(std::uint64_t aStop);
 		void remove_stop(std::uint64_t aStop);
 		void move_stop(std::uint64_t aStop, std::size_t aIndex);
-		void cite(std::uint64_t aStop, std::uint64_t aRecord, bool aCited);
 		void decide_proposal(std::uint64_t aProposal, bool aAccept);
 		/// \brief Composes the agent runs (null: no agent can be asked).
 		void set_agent(local_draft_agent_runner aRunner, effect_executor* aLane);

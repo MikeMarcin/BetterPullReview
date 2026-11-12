@@ -688,9 +688,6 @@ namespace bpr::app {
 		/// \brief RFC-BPR-0108. Opens a worktree's local draft in the first
 		/// window, as Prepare Pull Request… does.
 		void open_local_draft(const std::string& aLocation);
-		/// \brief RFC-BPR-0109. Imports an evidence document into the open
-		/// local draft, as its Evidence area's Import… does.
-		void import_local_draft_evidence(const std::string& aDocument);
 		/// \brief RFC-BPR-0110. For an attended look: the local draft's
 		/// questions go to a scripted agent that answers with proposals,
 		/// never to an installed one.

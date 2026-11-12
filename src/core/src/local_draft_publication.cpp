@@ -1,7 +1,6 @@
 #include "bpr/core/local_draft_publication.hpp"
 
 #include "bpr/core/local_draft.hpp"
-#include "bpr/core/local_draft_evidence.hpp"
 #include "bpr/core/local_draft_tour.hpp"
 #include "bpr/core/review_cycle_publication.hpp"
 #include "bpr/core/sha256.hpp"
@@ -33,9 +32,11 @@ namespace bpr::core::detail {
 		std::string                Title;
 		std::string                Body;
 		bool                       PullDraft = true;
-		std::vector<std::uint64_t> Evidence;
-		std::vector<std::uint64_t> Stale;
-		std::uint64_t              PrivateRecords       = 0;
+		/// Written before RFC-BPR-0109 was deferred (2026-11-12): read, kept
+		/// only to check the digest they were part of, and never written.
+		std::optional<std::vector<std::uint64_t>> Evidence;
+		std::optional<std::vector<std::uint64_t>> Stale;
+		std::optional<std::uint64_t>              PrivateRecords;
 		std::uint64_t              PrivateNotes         = 0;
 		std::uint64_t              PrivateConversations = 0;
 		bool                       TourFollowUp         = false;
@@ -246,9 +247,6 @@ namespace bpr::core {
 				.Title                = aPlan.Title,
 				.Body                 = aPlan.Body,
 				.PullDraft            = aPlan.Draft,
-				.Evidence             = aPlan.Evidence,
-				.Stale                = aPlan.Stale,
-				.PrivateRecords       = aPlan.PrivateRecords,
 				.PrivateNotes         = aPlan.PrivateNotes,
 				.PrivateConversations = aPlan.PrivateConversations,
 				.TourFollowUp         = aPlan.TourFollowUp,
@@ -289,9 +287,6 @@ namespace bpr::core {
 				.Title                = aWire.Title,
 				.Body                 = aWire.Body,
 				.Draft                = aWire.PullDraft,
-				.Evidence             = aWire.Evidence,
-				.Stale                = aWire.Stale,
-				.PrivateRecords       = static_cast<std::size_t>(aWire.PrivateRecords),
 				.PrivateNotes         = static_cast<std::size_t>(aWire.PrivateNotes),
 				.PrivateConversations = static_cast<std::size_t>(aWire.PrivateConversations),
 				.TourFollowUp         = aWire.TourFollowUp,
@@ -469,24 +464,6 @@ namespace bpr::core {
 			.Unaccepted        = preview.Unaccepted,
 			.Stops             = aDraft.Preparation.Tour.Stops.size(),
 		};
-		const auto chosen = selected_evidence(aDraft);
-		for (const auto& claim : chosen.Claims) {
-			plan.Evidence.push_back(claim.Id);
-		}
-		for (const auto& result : chosen.Results) {
-			plan.Evidence.push_back(result.Id);
-			const auto state = currency(aDraft, result, candidate->Ordinal);
-			if (state != evidence_currency::current && state != evidence_currency::carried) {
-				plan.Stale.push_back(result.Id);
-			}
-		}
-		for (const auto& question : chosen.Questions) {
-			plan.Evidence.push_back(question.Id);
-		}
-		std::ranges::sort(plan.Evidence);
-		const auto& evidence      = aDraft.Evidence;
-		const auto  records       = evidence.Claims.size() + evidence.Checks.size() + evidence.Results.size() + evidence.Questions.size();
-		plan.PrivateRecords       = records - std::min(records, plan.Evidence.size() + chosen.Checks.size());
 		plan.PrivateNotes         = aDraft.Notes.size();
 		plan.PrivateConversations = aDraft.Preparation.Conversations.size();
 		if (!valid(plan)) {
@@ -522,12 +499,7 @@ namespace bpr::core {
 		}
 		out += "Title: " + aPlan.Title + "\n";
 		out += aPlan.Body.empty() ? std::string{ "Description: empty.\n" } : "Description: " + std::to_string(aPlan.Body.size()) + " bytes, exactly as accepted.\n";
-		out += "Public evidence: " + std::to_string(aPlan.Evidence.size()) + " selected record" + (aPlan.Evidence.size() == 1U ? "" : "s") + ".\n";
-		if (!aPlan.Stale.empty()) {
-			out += "Unresolved: " + std::to_string(aPlan.Stale.size()) + " selected result" + (aPlan.Stale.size() == 1U ? " does" : "s do") + " not speak for this candidate.\n";
-		}
-		out += "Stays on this computer: " + std::to_string(aPlan.PrivateRecords) + " evidence record" + (aPlan.PrivateRecords == 1U ? "" : "s") + ", " + std::to_string(aPlan.PrivateNotes)
-			+ " note" + (aPlan.PrivateNotes == 1U ? "" : "s") + ", " + std::to_string(aPlan.PrivateConversations) + " agent conversation" + (aPlan.PrivateConversations == 1U ? "" : "s") + ".\n";
+		out += "Stays on this computer: " + std::to_string(aPlan.PrivateNotes) + " note" + (aPlan.PrivateNotes == 1U ? "" : "s") + ", " + std::to_string(aPlan.PrivateConversations) + " agent conversation" + (aPlan.PrivateConversations == 1U ? "" : "s") + ".\n";
 		if (aPlan.TourFollowUp) {
 			out += "Then the tour (" + std::to_string(aPlan.Stops) + " stop" + (aPlan.Stops == 1U ? "" : "s") + "), as its own publication.";
 			out += aPlan.Unaccepted.empty() ? std::string{ "\n" } : " " + std::to_string(aPlan.Unaccepted.size()) + " not accepted yet: the tour waits until they are.\n";
@@ -586,6 +558,16 @@ namespace bpr::core {
 		auto create = enum_from(wire.Create, all_states);
 		if (!plan || !phase || !create || wire.NextGeneration == 0U || wire.Generation >= wire.NextGeneration || wire.Reason.size() > maximum_reason) {
 			return std::nullopt;
+		}
+		// A plan made before RFC-BPR-0109 was deferred also bound evidence.
+		// Its digest is checked against the form it was made in, then
+		// carried to the same plan without evidence: nothing else changes.
+		if (wire.Plan.Evidence || wire.Plan.Stale || wire.Plan.PrivateRecords) {
+			auto earlier = std::string{ };
+			if (glz::write_json(wire.Plan, earlier) || wire.Digest != hex(sha256(std::span{ reinterpret_cast<const std::uint8_t*>(earlier.data()), earlier.size() }))) {
+				return std::nullopt;
+			}
+			wire.Digest = local_publication_digest(*plan);
 		}
 		auto publication = local_draft_publication{
 			.Plan    = std::move(*plan),

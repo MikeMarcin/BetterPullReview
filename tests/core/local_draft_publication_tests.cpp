@@ -4,12 +4,14 @@
 /// and the named push, the exact plan and its digest, authorization bound to
 /// the digest and account, the journal through created, refused, not sent and
 /// uncertain answers, read-first recovery, a restart, explicit association of
-/// an existing pull request, drift, follow-ups and the stored form.
+/// an existing pull request, drift, follow-ups, the stored form and a plan
+/// stored while it still bound evidence.
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/local_draft.hpp"
-#include "bpr/core/local_draft_evidence.hpp"
 #include "bpr/core/local_draft_publication.hpp"
 #include "bpr/core/local_draft_tour.hpp"
+#include "bpr/core/sha256.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -116,14 +118,10 @@ namespace {
 	void test_plan_binds_content()
 	{
 		auto draft = make_draft();
-		draft      = ok(core::add_claim(draft, draft.Version, core::claim_kind::bug_fix, "Cancel stops the worker.", 102), "a claim");
-		draft      = ok(core::add_claim(draft, draft.Version, core::claim_kind::bug_fix, "Private thought.", 103), "another claim");
-		draft      = ok(core::select_evidence(draft, draft.Version, draft.Evidence.Claims.front().Id, true, 104), "select one");
-		draft      = ok(core::add_note(draft, draft.Version, "remember", "", core::note_origin::author, 105), "a note");
+		draft      = ok(core::add_note(draft, draft.Version, "Private thought.", "", core::note_origin::author, 105), "a note");
 		auto plan  = ok(core::make_local_publication(draft, observed(commit('a')), false), "the plan");
 		expect(plan.Title == "Cancel searches promptly" && plan.Body == "## Why\n\nSearches kept running.\n" && plan.Draft, "title and body exactly, as a draft");
-		expect(plan.Evidence == std::vector<std::uint64_t>{ draft.Evidence.Claims.front().Id } && plan.PrivateRecords == 1U && plan.PrivateNotes == 1U,
-			   "only the selected claim is public; the other and the note stay");
+		expect(plan.PrivateNotes == 1U && plan.PrivateConversations == 0U, "the note stays on this computer");
 		expect(plan.Destination.Owner == "acme" && plan.Destination.BaseBranch == "main" && plan.Destination.HeadBranch == "feature/search" && plan.Head == commit('a'),
 			   "destination and head are the draft's");
 		const auto digest = core::local_publication_digest(plan);
@@ -135,7 +133,8 @@ namespace {
 		expect(core::local_publication_digest(account) != digest, "the account changes the digest");
 		const auto preview = core::render_local_publication_preview(plan);
 		expect(preview.find("as author") != std::string::npos && preview.find("acme/engine main from feature/search") != std::string::npos
-				   && preview.find("Stays on this computer: 1 evidence record, 1 note") != std::string::npos && preview.find("Private thought") == std::string::npos,
+				   && preview.find("Stays on this computer: 1 note, 0 agent conversations") != std::string::npos && preview.find("Private thought") == std::string::npos
+				   && preview.find("evidence") == std::string::npos,
 			   "the preview says where, as whom and what stays local, without private text");
 		auto moved      = observed(commit('a'));
 		moved.TargetTip = commit('e');
@@ -238,6 +237,31 @@ namespace {
 		corrupt.replace(corrupt.find("\"phase\":\"linked\""), 16U, "\"phase\":\"prepared\"");
 		expect(!core::decode_local_draft(corrupt), "a linked journal without its phase is refused");
 	}
+
+	/// A plan stored before RFC-BPR-0109 was deferred also named evidence and
+	/// its digest covered it: the stored form is still read, its digest is
+	/// checked against the form it was made in and carried to the same plan
+	/// without evidence. A tampered one is refused.
+	void test_plan_stored_with_evidence()
+	{
+		const auto draft   = planned(make_draft());
+		const auto current = core::encode_local_draft_publication(*draft.Publication);
+		const auto open    = std::string_view{ "{\"plan\":" };
+		const auto close   = current.find(",\"digest\":\"");
+		expect(current.starts_with(open) && close != std::string::npos, "the stored form leads with the plan");
+		auto       plan    = current.substr(open.size(), close - open.size());
+		const auto at      = plan.find(",\"private_notes\":");
+		expect(at != std::string::npos, "the plan names its private notes");
+		plan.insert(at, ",\"evidence\":[3],\"stale\":[],\"private_records\":1");
+		const auto bytes  = std::span{ reinterpret_cast<const std::uint8_t*>(plan.data()), plan.size() };
+		auto       legacy = std::string{ open } + plan + current.substr(close, 11U) + core::lower_hex(core::sha256(bytes)) + current.substr(close + 11U + 64U);
+		const auto read   = core::decode_local_draft_publication(legacy);
+		expect(read && *read == *draft.Publication, "the earlier plan reads as the same plan, with the digest it has now");
+		expect(core::encode_local_draft_publication(*read).find("evidence") == std::string::npos, "and is written without evidence");
+		auto tampered = legacy;
+		tampered.replace(tampered.find("\"evidence\":[3]"), 15U, "\"evidence\":[4]");
+		expect(!core::decode_local_draft_publication(tampered), "a digest that does not match the earlier form is refused");
+	}
 }
 
 auto main() -> int
@@ -247,6 +271,7 @@ auto main() -> int
 	test_authorize_and_create();
 	test_lost_answer_and_restart();
 	test_existing_drift_and_follow_ups();
+	test_plan_stored_with_evidence();
 	std::cout << "local-draft-publication-core:pass\n";
 	return EXIT_SUCCESS;
 }

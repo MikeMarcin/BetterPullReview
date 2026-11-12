@@ -344,17 +344,6 @@ namespace bpr::app {
 #endif
 	}
 
-	void github_application::import_local_draft_evidence(const std::string& aDocument)
-	{
-		for (const auto& [context, session] : Sessions) {
-			static_cast<void>(context);
-			if (!session->Closing && session->DraftDesktop) {
-				session->DraftDesktop->host().import_evidence(aDocument);
-				return;
-			}
-		}
-	}
-
 	void github_application::script_local_draft_agent_for_look()
 	{
 		for (const auto& [context, session] : Sessions) {
@@ -412,7 +401,7 @@ namespace bpr::app {
 		const auto liveness  = std::weak_ptr<const int>{ Liveness };
 		auto&      decisions = profile.DecisionLane;
 		profile.CycleOwnerEffects.post([root = profile.ApplicationDataRoot, git = profile.InstalledGit, request = std::move(aRequest), respond = std::move(aRespond), this, liveness, &decisions] {
-			auto opened = open_local_draft_here(root, git, std::nullopt, request.Location, request.Context, request.Evidence);
+			auto opened = open_local_draft_here(root, git, std::nullopt, request.Location, request.Context);
 			opened.Result.insert("schema", QStringLiteral("bpr.draft.cli-result.v1"));
 			auto answer = application::tour_owner_response{ };
 			answer.Json = QJsonDocument{ opened.Result }.toJson(QJsonDocument::Compact).toStdString();

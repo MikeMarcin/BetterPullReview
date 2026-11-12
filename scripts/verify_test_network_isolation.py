@@ -148,12 +148,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-2002]]. The question-subject course, same private test root.
     "application_agent_chat_subject_contract": "unmeasured (registered on macOS)",
     "application_agent_chat_helpers_public_path": "unmeasured (registered on macOS)",
-    # RFC-BPR-0108, 0109 and 0110. The local PR draft courses run installed Git
+    # RFC-BPR-0108, 0110 and 0111. The local PR draft courses run installed Git
     # on a real worktree under the test root, as the review-cycle courses do.
     "local_draft": "unmeasured (registered on macOS)",
     "local_draft_publication": "unmeasured (registered on macOS)",
     "application_local_draft_desktop_public_path": "unmeasured (registered on macOS)",
-    "application_local_draft_evidence_desktop_public_path": "unmeasured (registered on macOS)",
     "application_local_draft_tour_desktop_public_path": "unmeasured (registered on macOS)",
     "application_local_draft_publication_desktop_public_path": "unmeasured (registered on macOS)",
     "application_agent_chat_helpers_unfinished_public_path": "unmeasured (registered on macOS)",

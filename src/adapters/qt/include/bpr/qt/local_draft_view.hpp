@@ -21,7 +21,6 @@ class QTabBar;
 class QWidget;
 
 namespace bpr::qt {
-	class local_draft_evidence_area;
 	class local_draft_publication_area;
 
 	/// \brief The gestures the local draft page sends to its host.
@@ -44,8 +43,8 @@ namespace bpr::qt {
 	/// \brief A local PR draft's page (RFC-BPR-0108, [[BPR-2021]]): the
 	/// draft's title, its source and target identity, the Changes of the
 	/// shown candidate with the exact diff, working edits to include, and
-	/// notes; Evidence (RFC-BPR-0109); and Description and Tour
-	/// (RFC-BPR-0110). Each draft opens on Changes with no chat (X23).
+	/// notes; Description and Tour (RFC-BPR-0110); and Pull request
+	/// (RFC-BPR-0111). Each draft opens on Changes with no chat (X23).
 	/// \details It decides nothing and performs no effect: gestures leave
 	/// through `local_draft_dispatch`. Secondary identity (exact commits, the
 	/// remote chain, qualifications) is in tooltips, not on the page.
@@ -77,9 +76,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto use_target_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto rebind_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto projection() const noexcept -> const application::local_draft_workbench_projection&;
-		/// \brief Changes, Evidence, Description and Tour.
+		/// \brief Changes, Description, Tour and Pull request.
 		[[nodiscard]] auto areas() const noexcept -> QTabBar*;
-		[[nodiscard]] auto evidence() const noexcept -> local_draft_evidence_area*;
 		[[nodiscard]] auto description() const noexcept -> local_draft_description_area*;
 		[[nodiscard]] auto tour() const noexcept -> local_draft_tour_area*;
 		/// \brief RFC-BPR-0111. The Pull request area.
@@ -129,7 +127,6 @@ namespace bpr::qt {
 		QPlainTextEdit*                  Diff             = nullptr;
 		QTabBar*                         Areas            = nullptr;
 		QStackedWidget*                  AreaStack        = nullptr;
-		local_draft_evidence_area*       Evidence         = nullptr;
 		local_draft_description_area*    DescriptionArea  = nullptr;
 		local_draft_tour_area*           TourArea         = nullptr;
 		local_draft_publication_area*    PublicationArea  = nullptr;

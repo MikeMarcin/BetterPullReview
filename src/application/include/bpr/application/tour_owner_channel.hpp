@@ -87,8 +87,6 @@ namespace bpr::application {
 	{
 		std::string                Location;
 		std::optional<std::string> Context;
-		/// RFC-BPR-0109. An evidence document (absolute) to import into the draft.
-		std::optional<std::string> Evidence;
 	};
 	/// \brief Finite local-only command. No editor, provider or publication authority crosses here.
 	struct tour_owner_request

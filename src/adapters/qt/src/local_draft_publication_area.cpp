@@ -127,7 +127,7 @@ namespace bpr::qt {
 				line = QObject::tr("Pull request #%1 is on GitHub, linked to this draft.").arg(link.Number);
 			}
 			if (link.Drifted) {
-				line += QObject::tr(" Its head is not candidate %1: evidence and stops stay with the candidate.").arg(draft.Publication->Plan.Candidate);
+				line += QObject::tr(" Its head is not candidate %1: the stops stay with the candidate.").arg(draft.Publication->Plan.Candidate);
 			}
 			return line;
 		}

@@ -2,7 +2,6 @@
 
 #include "bpr/core/hex.hpp"
 #include "bpr/core/local_draft.hpp"
-#include "bpr/core/local_draft_evidence.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/core/utf8.hpp"
 
@@ -38,8 +37,9 @@ namespace bpr::core::preparation_wire {
 		std::string                Text;
 		binding                    Source;
 		std::vector<binding>       Earlier;
-		std::vector<std::uint64_t> Citations;
-		bool                       Attention = false;
+		/// Written before RFC-BPR-0109 was deferred (2026-11-12): read and dropped, never written.
+		std::optional<std::vector<std::uint64_t>> Citations;
+		bool                                      Attention = false;
 		destination                Current;
 		std::uint64_t              Revision = 1;
 		bool                       Accepted = false;
@@ -56,8 +56,9 @@ namespace bpr::core::preparation_wire {
 		std::string            Title;
 		std::string            Text;
 		std::optional<binding> Source;
-		std::string            Claim;
-		std::string            Method;
+		/// Written before RFC-BPR-0109 was deferred (2026-11-12): read and dropped, never written.
+		std::optional<std::string> Claim;
+		std::optional<std::string> Method;
 		std::string            Producer;
 		std::string            Version;
 		std::string            State;
@@ -107,8 +108,6 @@ namespace bpr::core::preparation_wire {
 		std::string   Path;
 		std::uint32_t First = 0;
 		std::uint32_t Last  = 0;
-		std::string   Claim;
-		std::string   Method;
 	};
 } // namespace bpr::core::preparation_wire
 
@@ -119,7 +118,7 @@ struct glz::meta<pw::answer_item>
 {
 	using value_type            = pw::answer_item;
 	static constexpr auto value = object("target", &value_type::Target, "stop", &value_type::Stop, "title", &value_type::Title, "text", &value_type::Text, "path", &value_type::Path,
-										 "first", &value_type::First, "last", &value_type::Last, "claim", &value_type::Claim, "method", &value_type::Method);
+										 "first", &value_type::First, "last", &value_type::Last);
 };
 template <>
 struct glz::meta<pw::binding>
@@ -176,16 +175,11 @@ namespace bpr::core {
 
 		constexpr auto all_correspondences = std::array{ local_correspondence::exact, local_correspondence::changed, local_correspondence::ambiguous, local_correspondence::missing,
 														 local_correspondence::unavailable };
-		constexpr auto all_targets         = std::array{ local_proposal_target::title, local_proposal_target::description, local_proposal_target::problem,
-														 local_proposal_target::solution, local_proposal_target::stop, local_proposal_target::new_stop,
-														 local_proposal_target::claim, local_proposal_target::check };
+		constexpr auto all_targets         = std::array{ local_proposal_target::title,    local_proposal_target::description, local_proposal_target::problem,
+														 local_proposal_target::solution, local_proposal_target::stop,        local_proposal_target::new_stop };
 		constexpr auto all_states          = std::array{ local_proposal_state::pending, local_proposal_state::accepted, local_proposal_state::rejected, local_proposal_state::outside_candidate };
 		constexpr auto all_subjects        = std::array{ local_subject::whole_change, local_subject::title, local_subject::description, local_subject::problem,
 														 local_subject::solution, local_subject::stop, local_subject::lines };
-		constexpr auto all_claims          = std::array{ claim_kind::bug_fix, claim_kind::preserved_behavior, claim_kind::compatibility,
-														 claim_kind::performance, claim_kind::formal_property, claim_kind::other };
-		constexpr auto all_methods         = std::array{ check_method::test, check_method::benchmark, check_method::fuzz, check_method::property_test,
-														 check_method::inspection, check_method::model_check, check_method::proof, check_method::other };
 
 		template <typename TEnum, std::size_t TCount>
 		[[nodiscard]] auto enum_from(const std::string_view aName, const std::array<TEnum, TCount>& aValues) -> std::optional<TEnum>
@@ -287,11 +281,6 @@ namespace bpr::core {
 			add(aStop.Source.Side == diff_side::left ? "left" : "right");
 			add(std::to_string(aStop.Source.FirstLine) + "-" + std::to_string(aStop.Source.LastLine));
 			add(aStop.Source.Excerpt);
-			auto citations = aStop.Citations;
-			std::ranges::sort(citations);
-			for (const auto citation : citations) {
-				add(std::to_string(citation));
-			}
 			return stream.finish();
 		}
 
@@ -313,46 +302,6 @@ namespace bpr::core {
 		{
 			return aBinding.Candidate != 0U && path_ok(aBinding.Path) && aBinding.FirstLine != 0U && aBinding.LastLine >= aBinding.FirstLine
 				&& text_ok(aBinding.Excerpt, maximum_local_excerpt_bytes);
-		}
-
-		/// A cited result, or the latest result of a cited check, needs recheck.
-		[[nodiscard]] auto needs_recheck(const local_draft& aDraft, const local_tour_stop& aStop) -> bool
-		{
-			const auto latest = latest_ordinal(aDraft);
-			for (const auto citation : aStop.Citations) {
-				const evidence_result* result = nullptr;
-				for (const auto& candidate : aDraft.Evidence.Results) {
-					if (candidate.Id == citation || (candidate.Check == citation && (result == nullptr || result->Id < candidate.Id))) {
-						result = &candidate;
-						if (candidate.Id == citation) {
-							break;
-						}
-					}
-				}
-				if (result != nullptr && currency(aDraft, *result, latest) == evidence_currency::needs_recheck) {
-					return true;
-				}
-			}
-			return false;
-		}
-
-		[[nodiscard]] auto selected_ids(const local_draft& aDraft) -> std::set<std::uint64_t>
-		{
-			const auto selection = selected_evidence(aDraft);
-			auto       ids       = std::set<std::uint64_t>{ };
-			for (const auto& claim : selection.Claims) {
-				ids.insert(claim.Id);
-			}
-			for (const auto& check : selection.Checks) {
-				ids.insert(check.Id);
-			}
-			for (const auto& result : selection.Results) {
-				ids.insert(result.Id);
-			}
-			for (const auto& question : selection.Questions) {
-				ids.insert(question.Id);
-			}
-			return ids;
 		}
 
 		void mark_accepted(local_tour_stop& aStop)
@@ -390,9 +339,7 @@ namespace bpr::core {
 				const auto* stop = find_stop(aDraft, aStop);
 				return stop == nullptr ? std::nullopt : std::optional{ stop->Revision };
 			}
-			case local_proposal_target::new_stop:
-			case local_proposal_target::claim:
-			case local_proposal_target::check:    return std::uint64_t{ 0U };
+			case local_proposal_target::new_stop:    return std::uint64_t{ 0U };
 			}
 			return std::nullopt;
 		}
@@ -451,8 +398,6 @@ namespace bpr::core {
 		case local_proposal_target::solution:    return "solution";
 		case local_proposal_target::stop:        return "stop";
 		case local_proposal_target::new_stop:    return "new_stop";
-		case local_proposal_target::claim:       return "claim";
-		case local_proposal_target::check:       return "check";
 		}
 		return "description";
 	}
@@ -509,7 +454,6 @@ namespace bpr::core {
 		case local_stop_reason::ambiguous:        return "ambiguous";
 		case local_stop_reason::missing:          return "missing";
 		case local_stop_reason::unavailable:      return "unavailable";
-		case local_stop_reason::evidence_recheck: return "evidence_recheck";
 		}
 		return "none";
 	}
@@ -618,7 +562,7 @@ namespace bpr::core {
 		auto stops = std::set<std::uint64_t>{ };
 		for (const auto& stop : tour.Stops) {
 			if (stop.Id == 0U || stop.Id >= tour.NextStop || !stops.insert(stop.Id).second || !line_ok(stop.Title, maximum_tour_field_bytes) || !text_ok(stop.Text, maximum_tour_field_bytes)
-				|| !binding_ok(stop.Source) || stop.Earlier.size() > maximum_local_draft_candidates || stop.Citations.size() > maximum_local_stop_citations || stop.Revision == 0U
+				|| !binding_ok(stop.Source) || stop.Earlier.size() > maximum_local_draft_candidates || stop.Revision == 0U
 				|| !std::ranges::all_of(stop.Earlier, binding_ok)) {
 				return false;
 			}
@@ -630,8 +574,8 @@ namespace bpr::core {
 		auto proposals = std::set<std::uint64_t>{ };
 		for (const auto& proposal : aPreparation.Proposals) {
 			if (proposal.Id == 0U || proposal.Id >= aPreparation.NextProposal || !proposals.insert(proposal.Id).second || !line_ok(proposal.Title, maximum_tour_field_bytes)
-				|| !text_ok(proposal.Text, maximum_local_description_bytes) || (proposal.Source && !binding_ok(*proposal.Source)) || !line_ok(proposal.Producer, maximum_evidence_name_bytes)
-				|| !line_ok(proposal.Version, maximum_evidence_name_bytes)) {
+				|| !text_ok(proposal.Text, maximum_local_description_bytes) || (proposal.Source && !binding_ok(*proposal.Source)) || !line_ok(proposal.Producer, maximum_local_producer_bytes)
+				|| !line_ok(proposal.Version, maximum_local_producer_bytes)) {
 				return false;
 			}
 		}
@@ -672,7 +616,6 @@ namespace bpr::core {
 								   .Title       = stop.Title,
 								   .Text        = stop.Text,
 								   .Source      = binding(stop.Source),
-								   .Citations   = stop.Citations,
 								   .Attention   = stop.Attention,
 								   .Current     = { .Candidate      = stop.Current.Candidate,
 													.Correspondence = std::string{ name(stop.Current.Correspondence) },
@@ -696,8 +639,6 @@ namespace bpr::core {
 									   .Title        = proposal.Title,
 									   .Text         = proposal.Text,
 									   .Source       = proposal.Source ? std::optional{ binding(*proposal.Source) } : std::nullopt,
-									   .Claim        = std::string{ name(proposal.Claim) },
-									   .Method       = std::string{ name(proposal.Method) },
 									   .Producer     = proposal.Producer,
 									   .Version      = proposal.Version,
 									   .State        = std::string{ name(proposal.State) } });
@@ -756,7 +697,6 @@ namespace bpr::core {
 										 .Title     = entry.Title,
 										 .Text      = entry.Text,
 										 .Source    = binding(entry.Source),
-										 .Citations = entry.Citations,
 										 .Attention = entry.Attention,
 										 .Current   = { .Candidate      = entry.Current.Candidate,
 														.Correspondence = *correspondence,
@@ -788,12 +728,18 @@ namespace bpr::core {
 			}
 			preparation.Tour.Stops.push_back(std::move(stop));
 		}
+		// A claim or planned check proposed before RFC-BPR-0109 was deferred
+		// (2026-11-12) has nothing left to enter: it is dropped, and so are
+		// the turns' references to it.
+		auto dropped = std::set<std::uint64_t>{ };
 		for (const auto& entry : wire.Proposals) {
+			if (entry.Target == "claim" || entry.Target == "check") {
+				dropped.insert(entry.Id);
+				continue;
+			}
 			const auto target = enum_from(entry.Target, all_targets);
 			const auto state  = enum_from(entry.State, all_states);
-			const auto claim  = enum_from(entry.Claim, all_claims);
-			const auto method = enum_from(entry.Method, all_methods);
-			if (!target || !state || !claim || !method) {
+			if (!target || !state) {
 				return std::nullopt;
 			}
 			preparation.Proposals.push_back({ .Id           = entry.Id,
@@ -805,8 +751,6 @@ namespace bpr::core {
 											  .Title        = entry.Title,
 											  .Text         = entry.Text,
 											  .Source       = entry.Source ? std::optional{ binding(*entry.Source) } : std::nullopt,
-											  .Claim        = *claim,
-											  .Method       = *method,
 											  .Producer     = entry.Producer,
 											  .Version      = entry.Version,
 											  .State        = *state });
@@ -820,7 +764,10 @@ namespace bpr::core {
 				if (!subject) {
 					return std::nullopt;
 				}
-				conversation.Turns.push_back({ .Author = turn.Author, .Subject = *subject, .Text = turn.Text, .Proposals = turn.Proposals, .CostMicros = turn.Cost, .At = turn.At });
+				auto proposals = turn.Proposals;
+				std::erase_if(proposals, [&dropped](const std::uint64_t aId) { return dropped.contains(aId); });
+				conversation.Turns.push_back(
+					{ .Author = turn.Author, .Subject = *subject, .Text = turn.Text, .Proposals = std::move(proposals), .CostMicros = turn.Cost, .At = turn.At });
 			}
 			preparation.Conversations.push_back(std::move(conversation));
 		}
@@ -1035,33 +982,6 @@ namespace bpr::core {
 		return next;
 	}
 
-	auto cite_evidence(const local_draft& aDraft, const std::uint64_t aExpectedVersion, const std::uint64_t aStop, const std::uint64_t aRecord, const bool aCited, const std::int64_t aNow)
-		-> preparation_result<local_draft>
-	{
-		if (aDraft.Version != aExpectedVersion) {
-			return std::unexpected{ preparation_refusal::stale };
-		}
-		if (aCited && !selected_ids(aDraft).contains(aRecord)) {
-			return std::unexpected{ preparation_refusal::unknown };
-		}
-		auto  next = advanced(aDraft, aNow);
-		auto* stop = find_stop(next, aStop);
-		if (stop == nullptr) {
-			return std::unexpected{ preparation_refusal::unknown };
-		}
-		const auto has = std::ranges::contains(stop->Citations, aRecord);
-		if (aCited && !has) {
-			if (stop->Citations.size() >= maximum_local_stop_citations) {
-				return std::unexpected{ preparation_refusal::full };
-			}
-			stop->Citations.push_back(aRecord);
-		} else if (!aCited && has) {
-			std::erase(stop->Citations, aRecord);
-		}
-		++stop->Revision;
-		return next;
-	}
-
 	auto carry_local_tour(const local_draft& aDraft, const std::span<const local_file_reading> aLatest) -> local_draft
 	{
 		auto       next   = aDraft;
@@ -1073,7 +993,7 @@ namespace bpr::core {
 		return next;
 	}
 
-	auto decide_local_stop(const local_draft& aDraft, const local_tour_stop& aStop) -> local_stop_decision
+	auto decide_local_stop(const local_tour_stop& aStop) -> local_stop_decision
 	{
 		if (!aStop.Accepted) {
 			return { };
@@ -1088,9 +1008,6 @@ namespace bpr::core {
 		case local_correspondence::missing:     return { .State = tour_acceptance_state::changed, .Reason = local_stop_reason::missing };
 		case local_correspondence::unavailable: return { .State = tour_acceptance_state::changed, .Reason = local_stop_reason::unavailable };
 		}
-		if (needs_recheck(aDraft, aStop)) {
-			return { .State = tour_acceptance_state::changed, .Reason = local_stop_reason::evidence_recheck };
-		}
 		return { .State = tour_acceptance_state::accepted, .Reason = local_stop_reason::none };
 	}
 
@@ -1098,7 +1015,7 @@ namespace bpr::core {
 	{
 		auto head = local_tour_head{ .Stops = aDraft.Preparation.Tour.Stops.size() };
 		for (const auto& stop : aDraft.Preparation.Tour.Stops) {
-			head.ToAccept += decide_local_stop(aDraft, stop).State == tour_acceptance_state::accepted ? 0U : 1U;
+			head.ToAccept += decide_local_stop(stop).State == tour_acceptance_state::accepted ? 0U : 1U;
 		}
 		return head;
 	}
@@ -1130,10 +1047,8 @@ namespace bpr::core {
 											.BaseRevision = *base,
 											.Title        = draft.Title,
 											.Text         = draft.Text,
-											.Claim        = draft.Claim,
-											.Method       = draft.Method,
-											.Producer     = std::string{ aProducer.substr(0U, std::min(aProducer.size(), maximum_evidence_name_bytes)) },
-											.Version      = std::string{ aVersion.substr(0U, std::min(aVersion.size(), maximum_evidence_name_bytes)) } };
+											.Producer     = std::string{ aProducer.substr(0U, std::min(aProducer.size(), maximum_local_producer_bytes)) },
+											.Version      = std::string{ aVersion.substr(0U, std::min(aVersion.size(), maximum_local_producer_bytes)) } };
 			if (draft.Target == local_proposal_target::new_stop) {
 				const auto file   = std::ranges::find(aFiles, draft.Path, &local_file_reading::Path);
 				auto       source = file == aFiles.end() || file->Deleted ? std::nullopt : bind(aCandidate, *file, diff_side::right, draft.FirstLine, draft.LastLine);
@@ -1187,7 +1102,6 @@ namespace bpr::core {
 		const auto& proposal = *found;
 		auto        next     = advanced(aDraft, aNow);
 		auto&       prep     = next.Preparation;
-		const auto  origin   = evidence_origin{ .Source = evidence_source::agent, .Producer = proposal.Producer.empty() ? "agent" : proposal.Producer, .Version = proposal.Version };
 		switch (proposal.Target) {
 		case local_proposal_target::title:
 			if (proposal.Text.empty() || !line_ok(proposal.Text, maximum_local_draft_title_bytes)) {
@@ -1241,30 +1155,9 @@ namespace bpr::core {
 			prep.Tour.Stops.push_back(std::move(stop));
 			break;
 		}
-		case local_proposal_target::claim: {
-			if (next.Evidence.Claims.size() >= maximum_evidence_claims) {
-				return std::unexpected{ preparation_refusal::full };
-			}
-			next.Evidence.Claims.push_back(
-				{ .Id = next.Evidence.NextId++, .Kind = proposal.Claim, .Text = proposal.Text, .Disposition = evidence_disposition::accepted, .Origin = origin });
-			break;
-		}
-		case local_proposal_target::check: {
-			if (next.Evidence.Checks.size() >= maximum_evidence_checks) {
-				return std::unexpected{ preparation_refusal::full };
-			}
-			auto title = proposal.Title.empty() ? proposal.Text : proposal.Title;
-			next.Evidence.Checks.push_back({ .Id          = next.Evidence.NextId++,
-											 .Method      = proposal.Method,
-											 .Title       = std::move(title),
-											 .Command     = proposal.Title.empty() ? std::string{ } : proposal.Text,
-											 .Disposition = evidence_disposition::accepted,
-											 .Origin      = origin });
-			break;
-		}
 		}
 		std::ranges::find(prep.Proposals, aProposal, &local_proposal::Id)->State = local_proposal_state::accepted;
-		if (!valid(prep) || !valid(next.Evidence)) {
+		if (!valid(prep)) {
 			return std::unexpected{ preparation_refusal::invalid };
 		}
 		return next;
@@ -1438,19 +1331,6 @@ namespace bpr::core {
 					+ (exact ? std::string{ } : " on an earlier candidate; " + std::string{ name(stop.Current.Correspondence) } + " now") + ")\n" + stop.Text + "\n";
 			}
 		}
-		const auto chosen = selected_evidence(aDraft);
-		if (!chosen.Claims.empty() || !chosen.Results.empty()) {
-			out += "\n## Evidence the author selected\n\n";
-			for (const auto& claim : chosen.Claims) {
-				out += "- Claim " + std::to_string(claim.Id) + " (" + std::string{ name(claim.Kind) } + "): " + claim.Text + "\n";
-			}
-			for (const auto& result : chosen.Results) {
-				const auto check = std::ranges::find(chosen.Checks, result.Check, &evidence_check::Id);
-				out += "- Result " + std::to_string(result.Id) + " of " + (check == chosen.Checks.end() ? std::string{ "a check" } : check->Title) + ": "
-					+ std::string{ name(result.Outcome) } + ", reported by " + std::string{ name(result.Origin.Source) } + " on candidate " + std::to_string(result.Candidate)
-					+ (result.Limitations.empty() ? std::string{ } : ". Limitations: " + result.Limitations) + "\n";
-			}
-		}
 		if (aConversation != nullptr && !aConversation->Turns.empty()) {
 			const auto replay = replay_turns(*aConversation);
 			request.Replayed  = replay.Turns.size();
@@ -1480,10 +1360,8 @@ namespace bpr::core {
 		question += "\n\n" + aQuestion.Text + "\n";
 		question += "\n## Answer format\n\nAnswer in prose. To propose a change, end with one fenced block whose info string is bpr-proposals, holding a JSON array of "
 					"objects: {\"target\": \"title\"|\"description\"|\"problem\"|\"solution\", \"text\": the whole new text}, {\"target\": \"stop\", \"stop\": its number, "
-					"\"title\", \"text\"}, {\"target\": \"new_stop\", \"path\", \"first\", \"last\" (lines of this candidate), \"title\", \"text\"}, {\"target\": \"claim\", "
-					"\"claim\": \"bug_fix\"|\"preserved_behavior\"|\"compatibility\"|\"performance\"|\"formal_property\"|\"other\", \"text\"} or {\"target\": \"check\", \"method\": "
-					"\"test\"|\"benchmark\"|\"fuzz\"|\"property_test\"|\"inspection\"|\"model_check\"|\"proof\"|\"other\", \"title\", \"text\": the command}. "
-					"The author accepts or rejects each; a planned check has no result.\n";
+					"\"title\", \"text\"} or {\"target\": \"new_stop\", \"path\", \"first\", \"last\" (lines of this candidate), \"title\", \"text\"}. "
+					"The author accepts or rejects each.\n";
 		if (out.size() + question.size() > maximum_local_request_bytes) {
 			return std::nullopt;
 		}
@@ -1558,9 +1436,7 @@ namespace bpr::core {
 										 .Text      = item.Text,
 										 .Path      = item.Path,
 										 .FirstLine = item.First,
-										 .LastLine  = item.Last,
-										 .Claim     = enum_from(item.Claim, all_claims).value_or(claim_kind::other),
-										 .Method    = enum_from(item.Method, all_methods).value_or(check_method::test) });
+										 .LastLine  = item.Last });
 		}
 		auto prose = std::string{ aText.substr(0U, open) } + std::string{ aText.substr(close + 3U) };
 		while (!prose.empty() && (prose.back() == '\n' || prose.back() == ' ')) {
@@ -1576,8 +1452,6 @@ namespace bpr::core {
 	{
 		auto        preview = local_publication_preview{ .Title = aDraft.Title, .Body = aDraft.Preparation.Description.Body };
 		const auto& tour    = aDraft.Preparation.Tour;
-		const auto  chosen  = selected_evidence(aDraft);
-		const auto  latest  = latest_ordinal(aDraft);
 		auto&       out     = preview.Tour;
 		if (!tour.Problem.empty()) {
 			out += "## Problem\n\n" + tour.Problem + "\n\n";
@@ -1588,7 +1462,7 @@ namespace bpr::core {
 		auto index = std::size_t{ 0U };
 		for (const auto& stop : tour.Stops) {
 			++index;
-			if (decide_local_stop(aDraft, stop).State != tour_acceptance_state::accepted) {
+			if (decide_local_stop(stop).State != tour_acceptance_state::accepted) {
 				preview.Unaccepted.push_back(stop.Id);
 			}
 			out += "### " + std::to_string(index) + ". " + stop.Title + "\n\n";
@@ -1597,37 +1471,6 @@ namespace bpr::core {
 				+ " (link pending until the pull request exists)\n\n";
 			++preview.PendingLinks;
 			out += stop.Text + "\n\n";
-			for (const auto citation : stop.Citations) {
-				if (const auto claim = std::ranges::find(chosen.Claims, citation, &evidence_claim::Id); claim != chosen.Claims.end()) {
-					out += "> **Claim** (" + std::string{ name(claim->Kind) } + "): " + claim->Text + "\n>\n";
-				}
-				if (const auto result = std::ranges::find(chosen.Results, citation, &evidence_result::Id); result != chosen.Results.end()) {
-					const auto check = std::ranges::find(chosen.Checks, result->Check, &evidence_check::Id);
-					if (check == chosen.Checks.end()) {
-						continue;
-					}
-					out += "> **" + check->Title + "** (" + std::string{ name(check->Method) } + "): " + std::string{ name(result->Outcome) } + ", reported by "
-						+ std::string{ name(result->Origin.Source) } + (result->Origin.Producer.empty() ? std::string{ } : " " + result->Origin.Producer)
-						+ (result->Candidate == 0U ? std::string{ ", on material not bound to a candidate" } : ", on candidate " + std::to_string(result->Candidate))
-						+ (currency(aDraft, *result, latest) == evidence_currency::needs_recheck ? std::string{ " (needs recheck)" } : std::string{ }) + ". Speaks for: "
-						+ std::string{ name(reach(check->Method)) } + "." + (result->Limitations.empty() ? std::string{ } : " Limitations: " + result->Limitations) + "\n>\n";
-					for (const auto& artifact : result->Artifacts) {
-						if (artifact.State == artifact_state::stored) {
-							preview.LocalOnly.push_back(artifact.Name);
-						}
-					}
-				}
-				if (const auto check = std::ranges::find(chosen.Checks, citation, &evidence_check::Id); check != chosen.Checks.end()) {
-					out += "> **Planned check** " + check->Title + " (" + std::string{ name(check->Method) } + ")\n>\n";
-				}
-				if (const auto question = std::ranges::find(chosen.Questions, citation, &evidence_question::Id); question != chosen.Questions.end()) {
-					out += "> **Question for the reviewer:** " + question->Text + "\n>\n";
-				}
-			}
-			if (out.ends_with(">\n")) {
-				out.resize(out.size() - 2U);
-				out += "\n";
-			}
 		}
 		while (out.ends_with("\n\n")) {
 			out.pop_back();
@@ -1661,7 +1504,6 @@ namespace bpr::core {
 			mapping.Unresolved += entry.Anchor ? 0U : 1U;
 			mapping.Stops.push_back(std::move(entry));
 		}
-		mapping.PendingUrls = compose_local_publication(aDraft).LocalOnly;
 		return mapping;
 	}
 }

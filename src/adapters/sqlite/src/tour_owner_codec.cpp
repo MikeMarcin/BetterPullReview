@@ -125,11 +125,8 @@ namespace bpr::adapters::sqlite {
 				// RFC-BPR-0108. A location and an optional context; nothing else.
 				aCodec.text(aRequest.LocalDraft.Location, application::maximum_local_draft_location_bytes);
 				aCodec.optional(aRequest.LocalDraft.Context, [&](auto& aContext) { aCodec.text(aContext, application::maximum_local_draft_context_bytes); });
-				// RFC-BPR-0109. And an evidence document to import.
-				aCodec.optional(aRequest.LocalDraft.Evidence, [&](auto& aEvidence) { aCodec.text(aEvidence, application::maximum_local_draft_location_bytes); });
 				if (!aRequest.Edit.RequestId.empty() || aRequest.LocalDraft.Location.empty() || !core::valid_writing_utf8(aRequest.LocalDraft.Location)
-					|| (aRequest.LocalDraft.Context && !core::valid_writing_utf8(*aRequest.LocalDraft.Context))
-					|| (aRequest.LocalDraft.Evidence && (aRequest.LocalDraft.Evidence->empty() || !core::valid_writing_utf8(*aRequest.LocalDraft.Evidence)))) {
+					|| (aRequest.LocalDraft.Context && !core::valid_writing_utf8(*aRequest.LocalDraft.Context))) {
 					aCodec.Good = false;
 				}
 				return;

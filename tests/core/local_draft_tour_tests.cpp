@@ -3,15 +3,13 @@
 /// description and tour without any file: authoring with no account or pull
 /// request, stops bound to a candidate's exact lines and their
 /// correspondence on a successor (exact, changed, ambiguous, missing,
-/// unavailable, never a nearby line), acceptance kept only where exact, a
-/// cited result that needs recheck, proposals that go stale rather than
-/// overwrite, lines outside the candidate, claims and checks that enter the
-/// evidence record only through acceptance and with their agent origin,
-/// conversations per candidate with replay bounds, the exact public preview,
-/// the simulated publication mapping and the stored form.
+/// unavailable, never a nearby line), acceptance kept only where exact,
+/// proposals that go stale rather than overwrite, lines outside the
+/// candidate, conversations per candidate with replay bounds, the exact
+/// public preview without private preparation, the simulated publication
+/// mapping, the stored form, and a draft stored while it still held evidence.
 
 #include "bpr/core/local_draft.hpp"
-#include "bpr/core/local_draft_evidence.hpp"
 #include "bpr/core/local_draft_tour.hpp"
 
 #include <cstdlib>
@@ -80,7 +78,7 @@ namespace {
 		draft            = ok(core::add_local_stop(draft, draft.Version, "Cancel stops", "Cancel now stops the worker.", file(first_text), core::diff_side::right, 2U, 4U, 104), "a stop on the candidate");
 		const auto& stop = draft.Preparation.Tour.Stops.front();
 		expect(stop.Source.Candidate == 1U && stop.Source.Excerpt == "void cancel() {\n  stop();\n}\n", "the stop binds the candidate's exact lines");
-		expect(core::decide_local_stop(draft, stop).State == core::tour_acceptance_state::not_accepted, "a new stop is not accepted");
+		expect(core::decide_local_stop(stop).State == core::tour_acceptance_state::not_accepted, "a new stop is not accepted");
 		expect(core::add_local_stop(draft, draft.Version, "x", "y", file(first_text), core::diff_side::right, 5U, 9U, 105).error() == core::preparation_refusal::outside_candidate,
 			   "lines past the file are refused");
 		draft = ok(core::accept_local_stop(draft, draft.Version, stop.Id, 106), "Accept");
@@ -126,59 +124,77 @@ namespace {
 		auto        next    = with_successor(draft, "int a2;\nvoid cancel() {\n  stop();\n}\nint b;\n");
 		const auto& kept    = next.Preparation.Tour.Stops[0];
 		const auto& changed = next.Preparation.Tour.Stops[1];
-		expect(core::decide_local_stop(next, kept).State == core::tour_acceptance_state::accepted, "an exact stop stays Accepted");
-		expect(core::decide_local_stop(next, changed) == core::local_stop_decision{ .State = core::tour_acceptance_state::changed, .Reason = core::local_stop_reason::changed },
+		expect(core::decide_local_stop(kept).State == core::tour_acceptance_state::accepted, "an exact stop stays Accepted");
+		expect(core::decide_local_stop(changed) == core::local_stop_decision{ .State = core::tour_acceptance_state::changed, .Reason = core::local_stop_reason::changed },
 			   "a changed stop is Changed since accepted, with that word");
 		expect(changed.Source.Candidate == 1U && changed.Source.Excerpt == "int a;\n", "the original material is kept");
 		expect(core::accept_local_stop(next, next.Version, changed.Id, 201).error() == core::preparation_refusal::lines_needed, "Accept cannot sign off lines that moved away");
 		next              = ok(core::save_local_stop(next, next.Version, changed.Id, "Fields", "Renamed.", file("int a2;\nvoid cancel() {\n  stop();\n}\nint b;\n"), core::diff_side::right, 1U, 1U, 202),
 							   "Save with new lines");
 		const auto& saved = next.Preparation.Tour.Stops[1];
-		expect(core::decide_local_stop(next, saved).State == core::tour_acceptance_state::accepted && saved.Earlier.size() == 1U && saved.Earlier[0].Excerpt == "int a;\n",
+		expect(core::decide_local_stop(saved).State == core::tour_acceptance_state::accepted && saved.Earlier.size() == 1U && saved.Earlier[0].Excerpt == "int a;\n",
 			   "Save signs off the new lines and keeps the earlier binding");
 		auto ambiguous = with_successor(draft, "void cancel() {\n  stop();\n}\nvoid cancel() {\n  stop();\n}\n");
-		expect(core::decide_local_stop(ambiguous, ambiguous.Preparation.Tour.Stops[0]).Reason == core::local_stop_reason::ambiguous, "ambiguous is its own reason");
+		expect(core::decide_local_stop(ambiguous.Preparation.Tour.Stops[0]).Reason == core::local_stop_reason::ambiguous, "ambiguous is its own reason");
 		ambiguous = ok(core::add_candidate(draft, draft.Version, candidate('a', '5', true), 300), "another successor");
 		ambiguous = core::carry_local_tour(ambiguous, { });
-		expect(core::decide_local_stop(ambiguous, ambiguous.Preparation.Tour.Stops[0]).Reason == core::local_stop_reason::unavailable, "a file not read is unavailable");
+		expect(core::decide_local_stop(ambiguous.Preparation.Tour.Stops[0]).Reason == core::local_stop_reason::unavailable, "a file not read is unavailable");
 		auto edited = ok(core::save_local_stop(draft, draft.Version, draft.Preparation.Tour.Stops[0].Id, "Cancel", "Stops at once.", std::nullopt, core::diff_side::right, 0U, 0U, 400),
 						 "Save of text");
-		expect(core::decide_local_stop(edited, edited.Preparation.Tour.Stops[0]).State == core::tour_acceptance_state::accepted, "Save is the sign-off");
+		expect(core::decide_local_stop(edited.Preparation.Tour.Stops[0]).State == core::tour_acceptance_state::accepted, "Save is the sign-off");
 	}
 
-	void test_evidence_recheck_and_selection()
+	void test_preview_keeps_preparation_private()
 	{
-		auto draft        = make_draft();
-		draft             = ok(core::add_claim(draft, draft.Version, core::claim_kind::bug_fix, "Cancel stops the worker.", 101), "a claim");
-		const auto claim  = draft.Evidence.Claims[0].Id;
-		draft             = ok(core::add_check(draft, draft.Version, core::check_method::test, "cancel_test", "ctest -R cancel", { claim }, { }, 102), "a check");
-		const auto check  = draft.Evidence.Checks[0].Id;
-		draft             = ok(core::record_result(draft, draft.Version,
-												   { .Check       = check,
-													 .Outcome     = core::evidence_outcome::pass,
-													 .Candidate   = 1U,
-													 .Inputs      = { "src/search.cpp" },
-													 .Limitations = "Linux only." },
-												   103),
-							   "a reported result");
-		const auto result = draft.Evidence.Results[0].Id;
-		draft             = ok(core::add_question(draft, draft.Version, "Private: is the timer path the same?", claim, 104), "an unselected question");
-		draft             = ok(core::add_local_stop(draft, draft.Version, "Cancel", "Stops.", file(first_text), core::diff_side::right, 2U, 4U, 105), "a stop");
-		const auto stop   = draft.Preparation.Tour.Stops[0].Id;
-		expect(core::cite_evidence(draft, draft.Version, stop, result, true, 106).error() == core::preparation_refusal::unknown, "an unselected result cannot be cited");
-		draft              = ok(core::select_evidence(draft, draft.Version, result, true, 107), "select the result");
-		draft              = ok(core::cite_evidence(draft, draft.Version, stop, result, true, 108), "cite it");
-		draft              = ok(core::accept_local_stop(draft, draft.Version, stop, 109), "accept");
-		draft              = ok(core::add_note(draft, draft.Version, "PRIVATE NOTE", "", core::note_origin::author, 110), "a private note");
+		auto draft         = make_draft();
+		draft              = ok(core::add_local_stop(draft, draft.Version, "Cancel", "Stops.", file(first_text), core::diff_side::right, 2U, 4U, 101), "a stop");
+		draft              = ok(core::add_note(draft, draft.Version, "PRIVATE NOTE", "", core::note_origin::author, 102), "a private note");
+		auto [talked, id]  = ok(core::append_turn(draft, draft.Version, core::local_change_thread, "agent-1", "Claude", { .Text = "PRIVATE QUESTION" }, 103), "a conversation");
+		draft              = std::move(talked);
+		const auto drafts  = std::vector<core::local_proposal_draft>{ { .Target = core::local_proposal_target::description, .Text = "PRIVATE PROPOSAL" } };
+		draft              = ok(core::record_proposals(draft, draft.Version, id, 1U, drafts, { }, "Claude", "local-discussion-v1", 104), "a proposal").first;
 		const auto preview = core::compose_local_publication(draft);
-		expect(preview.Tour.find("cancel_test") != std::string::npos && preview.Tour.find("Linux only.") != std::string::npos && preview.Tour.find("reported by author") != std::string::npos,
-			   "a selected result enters with its origin, scope and limitations");
-		expect(preview.Tour.find("Private:") == std::string::npos && preview.Tour.find("PRIVATE NOTE") == std::string::npos && preview.Body.find("PRIVATE") == std::string::npos,
-			   "unselected records and notes stay out of the public preview");
+		expect(preview.Tour.find("Stops.") != std::string::npos, "the tour is in the preview");
+		for (const auto* text : { "PRIVATE NOTE", "PRIVATE QUESTION", "PRIVATE PROPOSAL" }) {
+			expect(preview.Title.find(text) == std::string::npos && preview.Body.find(text) == std::string::npos && preview.Tour.find(text) == std::string::npos,
+				   "notes, conversations and proposals stay out of the public preview");
+		}
 		expect(preview.PendingLinks == 1U && preview.Tour.find("link pending") != std::string::npos, "the link waits for the pull request");
-		auto next = with_successor(draft, "int a;\nvoid cancel() {\n  stop();\n}\nint c;\n");
-		expect(core::decide_local_stop(next, next.Preparation.Tour.Stops[0]) == core::local_stop_decision{ .State = core::tour_acceptance_state::changed, .Reason = core::local_stop_reason::evidence_recheck },
-			   "a cited result that needs recheck makes the stop Changed since accepted");
+	}
+
+	/// A draft stored before RFC-BPR-0109 was deferred held evidence, stops
+	/// that cited it, claim and method on every proposal and proposals of
+	/// claims and checks: it reads as the same draft without any of them.
+	void test_stored_evidence_is_dropped()
+	{
+		auto draft          = make_draft();
+		draft               = ok(core::add_local_stop(draft, draft.Version, "Cancel", "Stops.", file(first_text), core::diff_side::right, 2U, 4U, 101), "a stop");
+		draft               = ok(core::accept_local_stop(draft, draft.Version, draft.Preparation.Tour.Stops[0].Id, 102), "accepted");
+		const auto drafts   = std::vector<core::local_proposal_draft>{ { .Target = core::local_proposal_target::description, .Text = "Agent body." } };
+		auto [proposed, ids] = ok(core::record_proposals(draft, draft.Version, 1U, 1U, drafts, { }, "Claude", "v1", 103), "a proposal");
+		const auto talked   = ok(core::append_turn(proposed, proposed.Version, core::local_change_thread, "agent-1", "Claude", { .Author = false, .Text = "Here.", .Proposals = ids }, 104),
+								 "an answer that proposed it")
+								.first;
+		const auto replace = [](std::string& aText, const std::string_view aFrom, const std::string_view aTo) {
+			const auto at = aText.find(aFrom);
+			expect(at != std::string::npos, "the stored form has the expected shape");
+			aText.replace(at, aFrom.size(), aTo);
+		};
+		auto stored = core::encode_local_draft(talked);
+		replace(stored, "\"preparation\":", "\"evidence\":{\"claims\":[]},\"preparation\":");
+		replace(stored, "\"earlier\":[]", "\"earlier\":[],\"citations\":[7]");
+		replace(stored, "\"producer\":\"Claude\"", "\"claim\":\"other\",\"method\":\"test\",\"producer\":\"Claude\"");
+		replace(stored, "\"proposals\":[{",
+				"\"proposals\":[{\"id\":9,\"target\":\"claim\",\"conversation\":1,\"candidate\":1,\"stop\":0,\"base\":0,\"title\":\"\",\"text\":\"No search outlives "
+				"cancel.\",\"claim\":\"bug_fix\",\"method\":\"test\",\"producer\":\"Claude\",\"version\":\"v1\",\"state\":\"pending\"},{");
+		replace(stored, "\"proposals\":[" + std::to_string(ids[0]) + "]", "\"proposals\":[" + std::to_string(ids[0]) + ",9]");
+		const auto read = core::decode_local_draft(stored);
+		expect(read && *read == talked, "the earlier draft reads as the same draft without its evidence");
+		expect(core::decide_local_stop(read->Preparation.Tour.Stops[0]).State == core::tour_acceptance_state::accepted, "its accepted stop stays accepted");
+		const auto again = core::encode_local_draft(*read);
+		for (const auto* key : { "\"evidence\"", "\"citations\"", "\"claim\"", "\"method\"" }) {
+			expect(again.find(key) == std::string::npos, "and is written without them");
+		}
 	}
 
 	void test_proposals()
@@ -189,25 +205,17 @@ namespace {
 			{ .Target = core::local_proposal_target::description, .Text = "Agent body." },
 			{ .Target = core::local_proposal_target::new_stop, .Title = "Worker", .Text = "The worker stops.", .Path = "src/search.cpp", .FirstLine = 3U, .LastLine = 3U },
 			{ .Target = core::local_proposal_target::new_stop, .Title = "Helper", .Text = "A live helper.", .Path = "src/helper.cpp", .FirstLine = 1U, .LastLine = 2U },
-			{ .Target = core::local_proposal_target::check, .Title = "cancel_while_scanning", .Text = "ctest -R cancel_scan", .Method = core::check_method::test },
-			{ .Target = core::local_proposal_target::claim, .Text = "No search outlives cancel.", .Claim = core::claim_kind::bug_fix },
-			{ .Target = core::local_proposal_target::check, .Title = "fuzz_cancel", .Text = "", .Method = core::check_method::fuzz },
+			{ .Target = core::local_proposal_target::problem, .Text = "Searches outlive cancel." },
 		};
 		const auto readings  = std::vector{ file(first_text) };
 		auto [recorded, ids] = ok(core::record_proposals(draft, draft.Version, 1U, 1U, drafts, readings, "Claude", "local-discussion-v1", 102), "proposals recorded");
 		draft                = std::move(recorded);
-		expect(ids.size() == 6U, "every proposal is recorded");
+		expect(ids.size() == 4U, "every proposal is recorded");
 		expect(draft.Preparation.Proposals[2].State == core::local_proposal_state::outside_candidate, "lines outside the candidate are recorded as such");
 		expect(core::accept_proposal(draft, draft.Version, ids[2], 103).error() == core::preparation_refusal::outside_candidate, "and are never accepted as written");
-		expect(draft.Evidence.Checks.empty() && draft.Evidence.Claims.empty(), "nothing reaches the evidence record before acceptance");
-		draft = ok(core::accept_proposal(draft, draft.Version, ids[3], 104), "accept one check");
-		draft = ok(core::reject_proposal(draft, draft.Version, ids[5], 105), "reject another");
-		draft = ok(core::accept_proposal(draft, draft.Version, ids[4], 106), "accept a claim");
-		expect(draft.Evidence.Checks.size() == 1U && draft.Evidence.Checks[0].Title == "cancel_while_scanning" && draft.Evidence.Checks[0].Origin.Source == core::evidence_source::agent
-				   && draft.Evidence.Checks[0].Origin.Producer == "Claude",
-			   "the accepted check is in the record with its agent origin");
-		expect(draft.Evidence.Results.empty(), "and never as a result");
-		expect(draft.Evidence.Claims.size() == 1U && draft.Evidence.Claims[0].Origin.Source == core::evidence_source::agent, "the accepted claim too");
+		expect(draft.Preparation.Tour.Problem.empty(), "nothing changes before acceptance");
+		draft = ok(core::reject_proposal(draft, draft.Version, ids[3], 105), "reject one");
+		expect(draft.Preparation.Proposals[3].State == core::local_proposal_state::rejected && draft.Preparation.Tour.Problem.empty(), "a rejected proposal changes nothing");
 		draft = ok(core::edit_description(draft, draft.Version, "Cancel", "Author body, edited later.", 107), "a later author edit");
 		expect(core::proposal_stale(draft, draft.Preparation.Proposals[0]), "the description proposal is stale");
 		expect(core::accept_proposal(draft, draft.Version, ids[0], 108).error() == core::preparation_refusal::proposal_stale, "a stale proposal cannot overwrite the later edit");
@@ -215,7 +223,7 @@ namespace {
 		auto later = ok(core::add_candidate(draft, draft.Version, candidate('a', '4', true), 109), "a successor");
 		expect(core::accept_proposal(later, later.Version, ids[1], 110).error() == core::preparation_refusal::proposal_stale, "a proposal from an earlier candidate is stale");
 		draft = ok(core::accept_proposal(draft, draft.Version, ids[1], 111), "the new stop on its own candidate");
-		expect(core::decide_local_stop(draft, draft.Preparation.Tour.Stops.back()).State == core::tour_acceptance_state::accepted, "a stop's own proposal Accept signs it off");
+		expect(core::decide_local_stop(draft.Preparation.Tour.Stops.back()).State == core::tour_acceptance_state::accepted, "a stop's own proposal Accept signs it off");
 		expect(core::valid(draft), "the draft stays valid");
 	}
 
@@ -287,11 +295,14 @@ namespace {
 		const auto bounded = core::compose_local_request(draft, question, nullptr, big);
 		expect(bounded && bounded->FilesSent == 0U && bounded->Text.size() <= core::maximum_local_request_bytes, "a file past the bound is left out, and said so");
 		const auto answer = core::parse_local_answer(
-			"The timer path.\n\n```bpr-proposals\n[{\"target\":\"check\",\"method\":\"test\",\"title\":\"cancel_timer\",\"text\":\"ctest -R timer\"},"
+			"The timer path.\n\n```bpr-proposals\n[{\"target\":\"problem\",\"text\":\"The timer outlives cancel.\"},"
 			"{\"target\":\"new_stop\",\"path\":\"src/search.cpp\",\"first\":2,\"last\":4,\"title\":\"Cancel\",\"text\":\"Here.\"}]\n```\n");
-		expect(answer.Prose == "The timer path." && answer.Proposals.size() == 2U && answer.Proposals[0].Target == core::local_proposal_target::check
+		expect(answer.Prose == "The timer path." && answer.Proposals.size() == 2U && answer.Proposals[0].Target == core::local_proposal_target::problem
 				   && answer.Proposals[1].FirstLine == 2U && !answer.Malformed,
 			   "the answer's proposals are read and its prose kept");
+		const auto claim = core::parse_local_answer("So.\n```bpr-proposals\n[{\"target\":\"claim\",\"text\":\"It works.\"}]\n```");
+		expect(claim.Proposals.empty() && claim.Malformed, "a claim or check is no longer something an answer can propose");
+		expect(request->Text.find("\"claim\"") == std::string::npos && request->Text.find("evidence") == std::string::npos, "and the request offers neither");
 		const auto broken = core::parse_local_answer("Hm.\n```bpr-proposals\nnot json\n```");
 		expect(broken.Malformed && broken.Proposals.empty(), "a malformed block proposes nothing");
 	}
@@ -311,7 +322,8 @@ auto main() -> int
 	test_signed_out_authoring();
 	test_correspondence();
 	test_refresh_keeps_only_exact();
-	test_evidence_recheck_and_selection();
+	test_preview_keeps_preparation_private();
+	test_stored_evidence_is_dropped();
 	test_proposals();
 	test_conversations();
 	test_publication_mapping();

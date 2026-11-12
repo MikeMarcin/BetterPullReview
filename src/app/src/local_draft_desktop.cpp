@@ -5,11 +5,9 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/core/diff_line_matcher.hpp"
-#include "bpr/qt/local_draft_evidence_area.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
-#include "system_browser_opener.hpp"
 
 #include <QClipboard>
 #include <QDateTime>
@@ -71,47 +69,6 @@ namespace bpr::app {
 					Window.leave_local_draft();
 				},
 		});
-		// RFC-BPR-0109: the Evidence area. Nothing here runs a check; a link
-		// opens in the system browser only as a validated web address.
-		View->evidence()->set_dispatch({
-			.AddClaim        = [this](const core::claim_kind aKind, const std::string& aText) { Host->add_claim(aKind, aText); },
-			.ReviseClaim     = [this](const std::uint64_t aClaim, const std::string& aText) { Host->revise_claim(aClaim, aText); },
-			.AddCheck        = [this](const core::check_method aMethod, const std::string& aTitle, const std::string& aCommand, std::vector<std::uint64_t> aClaims,
-									  core::formal_scope aFormal) { Host->add_check(aMethod, aTitle, aCommand, std::move(aClaims), std::move(aFormal)); },
-			.RecordResult    = [this](core::manual_result aResult) { Host->record_result(std::move(aResult)); },
-			.AddQuestion     = [this](const std::string& aText, const std::uint64_t aClaim) { Host->add_question(aText, aClaim); },
-			.ResolveQuestion = [this](const std::uint64_t aQuestion, const bool aResolved) { Host->resolve_question(aQuestion, aResolved); },
-			.Decide          = [this](const std::uint64_t aRecord, const core::evidence_disposition aDisposition) { Host->decide_evidence(aRecord, aDisposition); },
-			.Select          = [this](const std::uint64_t aRecord, const bool aSelected) { Host->select_evidence(aRecord, aSelected); },
-			.Import =
-				[this] {
-					const auto chosen = EvidenceChooser ? EvidenceChooser()
-														: QFileDialog::getOpenFileName(&Window, QStringLiteral("Import Evidence"), QString{ }, QStringLiteral("Evidence documents (*.json)"));
-					if (!chosen.isEmpty()) {
-						Host->import_evidence(chosen.toStdString());
-					}
-				},
-			.OpenArtifact = [this](const std::uint64_t aResult, const std::size_t aIndex) { Host->open_artifact(aResult, aIndex); },
-			.OpenLink =
-				[this](const std::uint64_t aResult, const std::size_t aIndex) {
-					const auto& draft = Host->projection().Draft;
-					if (!draft) {
-						return;
-					}
-					const auto& results = draft->Evidence.Results;
-					const auto  found   = std::ranges::find(results, aResult, &core::evidence_result::Id);
-					if (found == results.end() || aIndex >= found->Artifacts.size() || found->Artifacts[aIndex].State != core::artifact_state::link) {
-						return;
-					}
-					const auto& address = found->Artifacts[aIndex].Reference;
-					if (LinkOpener) {
-						static_cast<void>(LinkOpener(address));
-					} else {
-						static_cast<void>(system_browser_opener{ }.open(address));
-					}
-				},
-			.CloseArtifact = [this] { Host->close_artifact(); },
-		});
 		// RFC-BPR-0110: the Description and Tour areas. Nothing here publishes.
 		View->set_preparation_dispatch({
 			.SaveDescription = [this](const std::string& aTitle, const std::string& aBody) { Host->save_description(aTitle, aBody); },
@@ -124,7 +81,6 @@ namespace bpr::app {
 			.AcceptStop      = [this](const std::uint64_t aStop) { Host->accept_stop(aStop); },
 			.RemoveStop      = [this](const std::uint64_t aStop) { Host->remove_stop(aStop); },
 			.MoveStop        = [this](const std::uint64_t aStop, const std::size_t aIndex) { Host->move_stop(aStop, aIndex); },
-			.Cite            = [this](const std::uint64_t aStop, const std::uint64_t aRecord, const bool aCited) { Host->cite(aStop, aRecord, aCited); },
 			.DecideProposal  = [this](const std::uint64_t aProposal, const bool aAccept) { Host->decide_proposal(aProposal, aAccept); },
 			.Ask =
 				[this](application::local_draft_question aQuestion) {
@@ -207,16 +163,6 @@ namespace bpr::app {
 		Host->refresh_home();
 	}
 
-	void local_draft_desktop::set_evidence_chooser(folder_chooser aChooser)
-	{
-		EvidenceChooser = std::move(aChooser);
-	}
-
-	void local_draft_desktop::set_link_opener(link_opener aOpener)
-	{
-		LinkOpener = std::move(aOpener);
-	}
-
 	void local_draft_desktop::set_code_font(const QFont& aFont)
 	{
 		View->set_code_font(aFont);
@@ -273,7 +219,6 @@ namespace bpr::app {
 		// A window already gone took the page with it: nothing to detach.
 		if (View) {
 			View->set_dispatch({ });
-			View->evidence()->set_dispatch({ });
 			View->set_preparation_dispatch({ });
 			View->publication()->set_dispatch({ });
 			Window.set_local_draft_entry_dispatch({ }, { });

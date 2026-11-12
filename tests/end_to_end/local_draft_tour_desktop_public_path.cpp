@@ -2,10 +2,8 @@
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/application/manual_executor.hpp"
-#include "bpr/core/local_draft_evidence.hpp"
 #include "bpr/core/local_draft_tour.hpp"
 #include "bpr/qt/agent_feature.hpp"
-#include "bpr/qt/local_draft_evidence_area.hpp"
 #include "bpr/qt/local_draft_preparation_area.hpp"
 #include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -41,9 +39,8 @@
 /// uncommitted candidate; a stop added from lines selected in Changes and
 /// accepted with Save; arrival reveals its lines; a whole-change question
 /// whose request holds the captured candidate and never an unselected live
-/// edit; its proposals beside the tour, one check accepted into Evidence
-/// with its agent origin and one rejected, a stop outside the candidate
-/// refused; the exact preview; an accepted refresh that leaves only the
+/// edit; its proposals beside the tour, one accepted into the tour and one
+/// rejected, a stop outside the candidate refused; the exact preview; an accepted refresh that leaves only the
 /// changed stop Changed since accepted and starts a new session with the
 /// earlier one readable; and a restart. Renders are written for the owner.
 
@@ -201,8 +198,8 @@ try {
 		auto* const page = window.local_draft();
 		expect(page != nullptr && page->projection().Draft, "a local draft, signed out");
 		draftId = page->projection().Draft->Id;
-		expect(page->areas()->count() == 5 && page->areas()->tabText(4) == QStringLiteral("Pull request") && page->areas()->tabText(2) == QStringLiteral("Description") && page->areas()->tabText(3) == QStringLiteral("Tour"),
-			   "the page has Description and Tour beside Changes and Evidence");
+		expect(page->areas()->count() == 4 && page->areas()->tabText(3) == QStringLiteral("Pull request") && page->areas()->tabText(1) == QStringLiteral("Description") && page->areas()->tabText(2) == QStringLiteral("Tour"),
+			   "the page has Description, Tour and Pull request beside Changes, and no Evidence");
 		expect(page->candidates()->minimumSizeHint().width() >= page->candidates()->fontMetrics().horizontalAdvance(QStringLiteral("Candidate 32 of 32")),
 			   "the candidate chooser holds its longest words from the start");
 
@@ -224,7 +221,7 @@ try {
 		expect(latest->Ordinal == 2U && latest->Included == std::vector<std::string>{ "src/search.cpp" }, "AC01: candidate 2 holds the uncommitted file");
 
 		// AC01: the description and the tour's brief, by hand.
-		page->areas()->setCurrentIndex(2);
+		page->areas()->setCurrentIndex(1);
 		settle(s.Lanes);
 		auto* const description = page->description();
 		description->body()->setPlainText(QStringLiteral("<!-- team-template v3 -->\n## Summary\nCancel stops the search worker.\n- [x] I read the diff\n"));
@@ -232,7 +229,7 @@ try {
 		description->save_button()->click();
 		settle(s.Lanes);
 		expect(page->projection().Draft->Preparation.Description.Body.starts_with("<!-- team-template v3 -->"), "AC01: the description is saved");
-		page->areas()->setCurrentIndex(3);
+		page->areas()->setCurrentIndex(2);
 		settle(s.Lanes);
 		auto* const tour = page->tour();
 		tour->problem()->setPlainText(QStringLiteral("Searches kept running after Cancel."));
@@ -249,7 +246,7 @@ try {
 		settle(s.Lanes);
 		expect(page->projection().File && page->projection().File->Path == "src/search.cpp", "the changed file is shown");
 		select_new_lines(*page, 6U, 10U);
-		page->areas()->setCurrentIndex(3);
+		page->areas()->setCurrentIndex(2);
 		tour->add_stop_button()->click();
 		settle(s.Lanes);
 		expect(page->projection().Draft->Preparation.Tour.Stops.size() == 1U, "AC01: a stop is added");
@@ -272,15 +269,15 @@ try {
 		expect(page->areas()->currentIndex() == 0 && page->diff()->textCursor().selectedText().contains(QStringLiteral("stop_worker")), "AC08: arrival reveals the stop's lines");
 		capture(window, QStringLiteral("local-draft-tour-arrival"));
 
-		// AC03, AC07: a whole-change question. The request carries the
+		// AC03: a whole-change question. The request carries the
 		// candidate; the live helper edit, never captured, cannot reach it.
 		write_file(worktree / "src/helper.cpp", "int helper()\n{\n\treturn LIVE_HELPER_EDIT;\n}\n");
 		s.Answer = "The join can block if the worker waits on the UI.\n\n```bpr-proposals\n"
-				   "[{\"target\":\"check\",\"method\":\"test\",\"title\":\"cancel_joins_worker\",\"text\":\"ctest -R cancel_joins\"},"
-				   "{\"target\":\"check\",\"method\":\"fuzz\",\"title\":\"fuzz_cancel_timing\",\"text\":\"\"},"
+				   "[{\"target\":\"problem\",\"text\":\"A cancelled search kept its worker running.\"},"
+				   "{\"target\":\"title\",\"text\":\"Cancel joins the worker\"},"
 				   "{\"target\":\"new_stop\",\"path\":\"src/helper.cpp\",\"first\":1,\"last\":3,\"title\":\"Helper\",\"text\":\"The live helper.\"},"
 				   "{\"target\":\"solution\",\"text\":\"Cancel stops the worker and waits for it.\"}]\n```";
-		page->areas()->setCurrentIndex(3);
+		page->areas()->setCurrentIndex(2);
 		tour->stops()->setCurrentRow(-1);
 		tour->stops()->clearSelection();
 		settle(s.Lanes);
@@ -303,16 +300,16 @@ try {
 		auto* const outside = row_of(*chat->proposals(), QStringLiteral("New stop"));
 		chat->proposals()->setCurrentItem(outside);
 		expect(!chat->accept_button()->isEnabled(), "AC03: a stop outside the candidate cannot be accepted as written");
-		chat->proposals()->setCurrentItem(row_of(*chat->proposals(), QStringLiteral("Planned check: cancel_joins")));
+		const auto title = page->projection().Draft->Title;
+		chat->proposals()->setCurrentItem(row_of(*chat->proposals(), QStringLiteral("Problem")));
 		chat->accept_button()->click();
 		settle(s.Lanes);
-		chat->proposals()->setCurrentItem(row_of(*chat->proposals(), QStringLiteral("Planned check: fuzz")));
+		chat->proposals()->setCurrentItem(row_of(*chat->proposals(), QStringLiteral("Title")));
 		chat->reject_button()->click();
 		settle(s.Lanes);
-		const auto& evidence = page->projection().Draft->Evidence;
-		expect(evidence.Checks.size() == 1U && evidence.Checks[0].Title == "cancel_joins_worker" && evidence.Checks[0].Origin.Source == core::evidence_source::agent
-				   && evidence.Checks[0].Origin.Producer == "Claude" && evidence.Results.empty(),
-			   "AC07: the accepted check is planned, with its agent origin; the rejected one is not in the record; no result");
+		const auto& accepted = *page->projection().Draft;
+		expect(accepted.Preparation.Tour.Problem == "A cancelled search kept its worker running." && accepted.Title == title,
+			   "the accepted proposal is in the tour; the rejected one changed nothing");
 		capture(window, QStringLiteral("local-draft-tour-proposals"));
 		// A late proposal cannot overwrite a later author edit.
 		tour->solution()->setPlainText(QStringLiteral("Cancel stops and joins the worker, on any thread."));
@@ -322,13 +319,13 @@ try {
 		expect(!chat->accept_button()->isEnabled(), "AC03: a stale proposal is readable and cannot be accepted");
 
 		// AC02, AC05: the exact preview carries the description byte for byte
-		// and only selected evidence.
-		page->areas()->setCurrentIndex(2);
+		// and the tour; nothing private.
+		page->areas()->setCurrentIndex(1);
 		settle(s.Lanes);
 		const auto preview = description->preview_text();
 		expect(preview.contains(QStringLiteral("<!-- team-template v3 -->")) && preview.contains(QStringLiteral("Cancel stops and joins")) && preview.contains(QStringLiteral("link pending"))
-				   && !preview.contains(QStringLiteral("The join can block")) && !preview.contains(QStringLiteral("cancel_joins_worker")),
-			   "AC02: the preview carries the description and tour; the conversation and unselected evidence stay private");
+				   && preview.contains(QStringLiteral("A cancelled search kept its worker running.")) && !preview.contains(QStringLiteral("The join can block")),
+			   "AC02: the preview carries the description and tour; the conversation stays private");
 		capture(window, QStringLiteral("local-draft-description"));
 
 		// AC03, AC08: an accepted refresh that changes the stop's lines.
@@ -340,10 +337,10 @@ try {
 		page->refresh_button()->click();
 		settle(s.Lanes);
 		expect(core::latest_candidate(*page->projection().Draft)->Ordinal == 3U, "candidate 3");
-		page->areas()->setCurrentIndex(3);
+		page->areas()->setCurrentIndex(2);
 		settle(s.Lanes);
 		const auto& moved = page->projection().Draft->Preparation.Tour.Stops[0];
-		expect(core::decide_local_stop(*page->projection().Draft, moved).Reason == core::local_stop_reason::changed && moved.Source.Candidate == 2U,
+		expect(core::decide_local_stop(moved).Reason == core::local_stop_reason::changed && moved.Source.Candidate == 2U,
 			   "AC08: the changed stop is Changed since accepted: changed, its original material kept");
 		expect(tour->head()->text() == QStringLiteral("1 stop, 1 to accept"), "the head counts it");
 		chat->composer()->setText(QStringLiteral("Anything else?"));
@@ -373,7 +370,7 @@ try {
 		const auto& prep = page->projection().Draft->Preparation;
 		expect(prep.Description.Body.starts_with("<!-- team-template v3 -->") && prep.Tour.Stops.size() == 1U && prep.Conversations.size() == 2U && prep.Proposals.size() == 4U,
 			   "AC04: description, tour, conversations and proposals resume");
-		page->areas()->setCurrentIndex(3);
+		page->areas()->setCurrentIndex(2);
 		settle(s.Lanes);
 		expect(page->tour()->chat()->transcript()->text().contains(QStringLiteral("Anything else?")), "AC04: the open conversation resumes without a process");
 		capture(window, QStringLiteral("local-draft-tour-restarted"));

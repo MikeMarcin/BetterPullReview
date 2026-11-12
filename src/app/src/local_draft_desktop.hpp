@@ -50,11 +50,6 @@ namespace bpr::app {
 		/// \brief Replaces the native folder chooser, for a course that cannot answer one.
 		using folder_chooser = std::function<QString()>;
 		void set_folder_chooser(folder_chooser aChooser);
-		/// \brief Replaces the native file chooser for an evidence import.
-		void set_evidence_chooser(folder_chooser aChooser);
-		/// \brief Replaces the system browser for a link artifact, for a course.
-		using link_opener = std::function<bool(std::string_view)>;
-		void set_link_opener(link_opener aOpener);
 		void set_code_font(const QFont& aFont);
 		/// \brief RFC-BPR-0110. The agent a question goes to, as the window
 		/// has it chosen, with the local-authoring prompts' text and versions.
@@ -95,8 +90,6 @@ namespace bpr::app {
 		std::unique_ptr<application::workspace_source_port> Source;
 		std::unique_ptr<application::local_draft_workbench> Host;
 		folder_chooser                                      Chooser;
-		folder_chooser                                      EvidenceChooser;
-		link_opener                                         LinkOpener;
 		agent_chooser                                       AgentChooser;
 		/// The page comes forward only when the author asked for it.
 		bool BringForward = false;

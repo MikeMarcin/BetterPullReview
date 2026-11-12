@@ -271,7 +271,6 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-drafts-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
-		bpr::app::command_line_option{ .Name = "attended-local-draft-evidence", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-tour" },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
@@ -5627,8 +5626,6 @@ namespace {
 	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication);
 	/// RFC-BPR-0108. The worktree `--attended-local-draft` opens.
 	std::string AttendedLocalDraftPath;
-	/// RFC-BPR-0109. An evidence document the look imports into that draft.
-	std::string AttendedLocalDraftEvidence;
 	/// RFC-BPR-0110. The look prepares a description and a tour through the
 	/// page, and asks a scripted agent once.
 	bool AttendedLocalDraftTour = false;
@@ -6279,21 +6276,7 @@ namespace {
 					prepare_attended_local_draft_tour(aApplication, new QTimer{ &window });
 					return;
 				}
-				if (AttendedLocalDraftEvidence.empty()) {
-					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
-					return;
-				}
-				// RFC-BPR-0109. The look's evidence arrives by Import…, once,
-				// and the page turns to Evidence.
-				const auto& view = page->projection();
-				if (view.Draft->Evidence.Imports.empty() && !view.Importing && !view.ImportError) {
-					aApplication.import_local_draft_evidence(AttendedLocalDraftEvidence);
-				} else if (view.ImportError) {
-					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_FAILED:evidence"));
-				} else if (!view.Draft->Evidence.Imports.empty() && !view.Importing) {
-					page->areas()->setCurrentIndex(1);
-					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
-				}
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
 			}
 		});
 		timer->start();
@@ -6413,7 +6396,7 @@ namespace {
 				if (prep.Tour.Stops.size() != 2U) {
 					return;
 				}
-				page->areas()->setCurrentIndex(3);
+				page->areas()->setCurrentIndex(2);
 				tour->stops()->setCurrentRow(-1);
 				page->diff()->setTextCursor(QTextCursor{ page->diff()->document() });
 				tour->chat()->composer()->setText(QStringLiteral("Is the empty query the only case that reads past the string?"));
@@ -6424,7 +6407,7 @@ namespace {
 				if (prep.Conversations.empty() || prep.Conversations.back().Turns.size() < 2U) {
 					return;
 				}
-				page->areas()->setCurrentIndex(3);
+				page->areas()->setCurrentIndex(2);
 				tour->stops()->setCurrentRow(1);
 				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_TOUR_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
 				return;
@@ -12164,8 +12147,6 @@ auto main(int argc, char** argv) -> int
 		const auto attendedNotesLook = launch.has("--attended-notes-look");
 		// RFC-BPR-0108. A local draft of the named worktree, opened from Home.
 		const auto attendedLocalDraft = launch.value("--attended-local-draft");
-		// RFC-BPR-0109. And the evidence document that draft imports.
-		const auto attendedLocalDraftEvidence = launch.value("--attended-local-draft-evidence");
 		// [[BPR-1593]]. A private tour written on renderer.cpp.
 		const auto attendedTourLook = launch.has("--attended-tour-look");
 		// [[BPR-1878]]. The new tour's first step, with the Claude stream-JSON
@@ -12842,7 +12823,6 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedLocalDraft.has_value() && !attendedLocalDraft->empty()) {
 						AttendedLocalDraftPath     = std::string{ *attendedLocalDraft };
-						AttendedLocalDraftEvidence = attendedLocalDraftEvidence ? std::string{ *attendedLocalDraftEvidence } : std::string{ };
 						AttendedLocalDraftTour     = launch.has("--attended-local-draft-tour");
 						look                       = std::string{ "local-draft" };
 					}

@@ -30,7 +30,6 @@ namespace bpr::qt {
 		std::function<void(std::uint64_t)>                                                                                           AcceptStop;
 		std::function<void(std::uint64_t)>                                                                                           RemoveStop;
 		std::function<void(std::uint64_t, std::size_t)>                                                                              MoveStop;
-		std::function<void(std::uint64_t, std::uint64_t, bool)>                                                                      Cite;
 		std::function<void(std::uint64_t, bool)>                                                                                     DecideProposal;
 		/// The host fills in the agent and its prompt purpose.
 		std::function<void(application::local_draft_question)> Ask;

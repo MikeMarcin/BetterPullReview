@@ -86,7 +86,6 @@ namespace bpr::qt {
 			case core::local_stop_reason::ambiguous:        return QStringLiteral("Changed since accepted: ambiguous");
 			case core::local_stop_reason::missing:          return QStringLiteral("Changed since accepted: missing");
 			case core::local_stop_reason::unavailable:      return QStringLiteral("Changed since accepted: unavailable");
-			case core::local_stop_reason::evidence_recheck: return QStringLiteral("Changed since accepted: cited evidence needs recheck");
 			}
 			return { };
 		}
@@ -100,8 +99,6 @@ namespace bpr::qt {
 			case core::local_proposal_target::solution:    return QStringLiteral("Solution");
 			case core::local_proposal_target::stop:        return QStringLiteral("Stop %1").arg(aProposal.Stop);
 			case core::local_proposal_target::new_stop:    return QStringLiteral("New stop");
-			case core::local_proposal_target::claim:       return QStringLiteral("Claim");
-			case core::local_proposal_target::check:       return QStringLiteral("Planned check");
 			}
 			return { };
 		}
@@ -563,7 +560,7 @@ namespace bpr::qt {
 		row->addWidget(Insert);
 		Preview = new QPushButton{ QStringLiteral("Preview…"), this };
 		Preview->setObjectName(QStringLiteral("localDraftPreview"));
-		Preview->setToolTip(QStringLiteral("The exact text a pull request made now would carry. Only evidence you selected is in it"));
+		Preview->setToolTip(QStringLiteral("The exact text a pull request made now would carry. Notes and conversations are not in it"));
 		Save = new QPushButton{ QStringLiteral("Save"), this };
 		Save->setObjectName(QStringLiteral("localDraftSaveDescription"));
 		same_width({ Insert, Preview, Save });
@@ -638,9 +635,6 @@ namespace bpr::qt {
 		}
 		if (preview.PendingLinks != 0U) {
 			text += QStringLiteral("\n\n%1 wait for the pull request's commits.").arg(counted(preview.PendingLinks, "code link", "code links"));
-		}
-		for (const auto& name : preview.LocalOnly) {
-			text += QStringLiteral("\n%1 is held only on this computer and has no public address.").arg(text_of(name));
 		}
 		return text;
 	}
@@ -758,13 +752,13 @@ namespace bpr::qt {
 		UseLines->setToolTip(QStringLiteral("Move the stop to the lines selected in Changes; Save keeps them"));
 		Move = new QPushButton{ QStringLiteral("More"), route };
 		Move->setObjectName(QStringLiteral("localDraftStopMore"));
-		Move->setToolTip(QStringLiteral("Move the stop, or cite evidence you selected"));
+		Move->setToolTip(QStringLiteral("Move the stop earlier or later in the route"));
 		Move->setMenu(new QMenu{ Move });
 		Remove = new QPushButton{ QStringLiteral("Remove"), route };
 		Remove->setObjectName(QStringLiteral("localDraftRemoveStop"));
 		AcceptStop = new QPushButton{ QStringLiteral("Accept"), route };
 		AcceptStop->setObjectName(QStringLiteral("localDraftAcceptStop"));
-		AcceptStop->setToolTip(QStringLiteral("Sign off this stop: its text, its lines and the evidence it cites"));
+		AcceptStop->setToolTip(QStringLiteral("Sign off this stop: its text and its lines"));
 		SaveStop = new QPushButton{ QStringLiteral("Save"), route };
 		SaveStop->setObjectName(QStringLiteral("localDraftSaveStop"));
 		SaveStop->setToolTip(QStringLiteral("Save and accept this stop"));
@@ -855,33 +849,6 @@ namespace bpr::qt {
 					}
 				});
 			}
-			// Cite selected evidence (X21): only what the author selected.
-			if (Projection.Draft && selected_stop() != 0U) {
-				const auto chosen = core::selected_evidence(*Projection.Draft);
-				const auto stop   = std::ranges::find(Projection.Draft->Preparation.Tour.Stops, selected_stop(), &core::local_tour_stop::Id);
-				auto*      cite   = menu->addMenu(QStringLiteral("Cite Evidence"));
-				const auto add    = [&](const std::uint64_t aId, const QString& aLabel) {
-					auto* const action = cite->addAction(aLabel);
-					action->setCheckable(true);
-					action->setChecked(std::ranges::contains(stop->Citations, aId));
-					connect(action, &QAction::toggled, this, [this, aId, stopId = stop->Id](const bool aOn) {
-						if (Dispatch != nullptr && Dispatch->Cite) {
-							Dispatch->Cite(stopId, aId, aOn);
-						}
-					});
-				};
-				for (const auto& claim : chosen.Claims) {
-					add(claim.Id, QStringLiteral("Claim: %1").arg(first_line(claim.Text)));
-				}
-				for (const auto& result : chosen.Results) {
-					const auto check = std::ranges::find(chosen.Checks, result.Check, &core::evidence_check::Id);
-					add(result.Id, QStringLiteral("Result: %1, %2").arg(check == chosen.Checks.end() ? QString{ } : text_of(check->Title), text_of(core::name(result.Outcome))));
-				}
-				for (const auto& question : chosen.Questions) {
-					add(question.Id, QStringLiteral("Question: %1").arg(first_line(question.Text)));
-				}
-				cite->setEnabled(!cite->isEmpty());
-			}
 		});
 	}
 
@@ -957,7 +924,7 @@ namespace bpr::qt {
 		auto index = 0;
 		for (const auto& stop : Projection.Draft->Preparation.Tour.Stops) {
 			++index;
-			const auto decision = core::decide_local_stop(*Projection.Draft, stop);
+			const auto decision = core::decide_local_stop(stop);
 			const auto exact    = stop.Current.Correspondence == core::local_correspondence::exact;
 			auto*      item     = new QListWidgetItem{ ring(decision.State),
 													   QStringLiteral("%1. %2\n%3")
@@ -998,7 +965,7 @@ namespace bpr::qt {
 			Chat->set_subject(std::string{ core::local_change_thread }, core::local_subject::whole_change, 0U);
 			return;
 		}
-		const auto decision = core::decide_local_stop(*Projection.Draft, *stop);
+		const auto decision = core::decide_local_stop(*stop);
 		const auto exact    = stop->Current.Correspondence == core::local_correspondence::exact;
 		StopLines->setText(PendingLines ? lines_text(PendingLines->Path, PendingLines->First, PendingLines->Last) + QStringLiteral(" (not saved)")
 							   : exact  ? lines_text(stop->Source.Path, stop->Current.FirstLine, stop->Current.LastLine)

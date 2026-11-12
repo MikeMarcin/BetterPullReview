@@ -20,7 +20,7 @@
 /// creates the pull request. When the branch is missing or elsewhere, the
 /// push to the resolved hosted repository is named and nothing is pushed.
 /// A plan binds the candidate, destination, account and the public content
-/// (title, body, selected evidence, the tour follow-up) into one digest; only
+/// (title, body, the tour follow-up) into one digest; only
 /// the author's confirmation of that digest under the plan's account
 /// authorizes it. The journal records the creation before it is attempted
 /// and what was observed after. A lost answer is uncertain and recovered only
@@ -105,14 +105,7 @@ namespace bpr::core {
 		std::string                   Title;
 		std::string                   Body;
 		bool                          Draft = true;
-		/// Evidence records whose text may go public, by identity.
-		std::vector<std::uint64_t> Evidence;
-		/// Selected results that do not speak for this candidate (produced on
-		/// an earlier candidate whose inputs changed, or unbound).
-		std::vector<std::uint64_t> Stale;
-		/// What stays on this computer: unselected evidence records, notes and
-		/// agent conversations.
-		std::size_t PrivateRecords       = 0;
+		/// What stays on this computer: notes and agent conversations.
 		std::size_t PrivateNotes         = 0;
 		std::size_t PrivateConversations = 0;
 		/// The tour is published afterwards, as its own explicitly chosen follow-up.

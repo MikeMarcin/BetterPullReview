@@ -2,7 +2,6 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_LOCAL_DRAFT_TOUR_HPP
 
 #include "bpr/core/diff_model.hpp"
-#include "bpr/core/draft_evidence.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
@@ -45,8 +44,8 @@ namespace bpr::core {
 	/// \brief Turns one conversation keeps; a full one starts a new session.
 	inline constexpr std::size_t maximum_local_turns      = 256U;
 	inline constexpr std::size_t maximum_local_turn_bytes = 64U * 1024U;
-	/// \brief Evidence records one stop cites.
-	inline constexpr std::size_t maximum_local_stop_citations = 32U;
+	/// \brief The bound of a proposal's producer name and prompt version.
+	inline constexpr std::size_t maximum_local_producer_bytes = 256U;
 	/// \brief Replay's bounds, as a pull request's tour chat replays: the
 	/// latest 12 turns within 48 KiB of context.
 	inline constexpr std::size_t maximum_local_replay_turns = 12U;
@@ -127,8 +126,6 @@ namespace bpr::core {
 		local_source_binding Source;
 		/// Bindings the author replaced, oldest first: the original material stays.
 		std::vector<local_source_binding> Earlier;
-		/// Evidence records (claim, check, result or question) it cites.
-		std::vector<std::uint64_t> Citations;
 		/// A question to the reviewer in its text asks for attention.
 		bool Attention = false;
 		/// Where its lines are on the draft's latest candidate.
@@ -173,10 +170,6 @@ namespace bpr::core {
 		stop,
 		/// A new stop at `Source`.
 		new_stop,
-		/// A claim for the evidence record.
-		claim,
-		/// A planned check for the evidence record.
-		check,
 	};
 	[[nodiscard]] auto name(local_proposal_target aTarget) noexcept -> std::string_view;
 
@@ -199,14 +192,12 @@ namespace bpr::core {
 		std::uint64_t Candidate = 0;
 		/// For `stop`, the stop.
 		std::uint64_t Stop = 0;
-		/// The revision of the field it read; 0 for a new stop or record.
+		/// The revision of the field it read; 0 for a new stop.
 		std::uint64_t BaseRevision = 0;
 		std::string   Title;
 		std::string   Text;
 		/// For `new_stop`: the lines, bound on `Candidate` when valid.
 		std::optional<local_source_binding> Source;
-		claim_kind                          Claim  = claim_kind::other;
-		check_method                        Method = check_method::test;
 		/// The agent entry's name and the prompt version it ran under.
 		std::string          Producer;
 		std::string          Version;
@@ -341,10 +332,6 @@ namespace bpr::core {
 	/// \brief Moves a stop to `aIndex` in the route.
 	[[nodiscard]] auto move_local_stop(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aStop, std::size_t aIndex, std::int64_t aNow)
 		-> preparation_result<local_draft>;
-	/// \brief Cites (or stops citing) one evidence record; an unselected,
-	/// proposed or rejected record cannot be cited.
-	[[nodiscard]] auto cite_evidence(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aStop, std::uint64_t aRecord, bool aCited, std::int64_t aNow)
-		-> preparation_result<local_draft>;
 
 	/// \brief Recomputes every stop's correspondence on the latest candidate
 	/// from the host's readings of that candidate's files. Call after a
@@ -355,15 +342,13 @@ namespace bpr::core {
 	enum class local_stop_reason : std::uint8_t {
 		none,
 		not_accepted,
-		/// Its title, text, lines or citations differ from what was accepted.
+		/// Its title, text or lines differ from what was accepted.
 		edited,
 		/// Its lines on the latest candidate: changed, ambiguous, missing or unavailable.
 		changed,
 		ambiguous,
 		missing,
 		unavailable,
-		/// A result it cites needs recheck on the latest candidate.
-		evidence_recheck,
 	};
 	[[nodiscard]] auto name(local_stop_reason aReason) noexcept -> std::string_view;
 	struct local_stop_decision
@@ -372,7 +357,7 @@ namespace bpr::core {
 		local_stop_reason     Reason                                        = local_stop_reason::not_accepted;
 		auto                  operator<=>(const local_stop_decision&) const = default;
 	};
-	[[nodiscard]] auto decide_local_stop(const local_draft& aDraft, const local_tour_stop& aStop) -> local_stop_decision;
+	[[nodiscard]] auto decide_local_stop(const local_tour_stop& aStop) -> local_stop_decision;
 	/// \brief The tour head's words: its stops and how many are still to accept.
 	struct local_tour_head
 	{
@@ -395,8 +380,6 @@ namespace bpr::core {
 		std::string   Path;
 		std::uint32_t FirstLine                                      = 0;
 		std::uint32_t LastLine                                       = 0;
-		claim_kind    Claim                                          = claim_kind::other;
-		check_method  Method                                         = check_method::test;
 		auto          operator<=>(const local_proposal_draft&) const = default;
 	};
 	/// \brief Records proposals an answer made on candidate `aCandidate`, each
@@ -408,8 +391,6 @@ namespace bpr::core {
 										std::string_view aVersion, std::int64_t aNow) -> preparation_result<std::pair<local_draft, std::vector<std::uint64_t>>>;
 	/// \brief Accepts a proposal: puts it in the draft. A field edited since,
 	/// or a candidate refreshed since, makes it stale and changes nothing.
-	/// A claim or check enters the evidence record as accepted, with the
-	/// agent's origin, and never as a result.
 	[[nodiscard]] auto accept_proposal(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aProposal, std::int64_t aNow) -> preparation_result<local_draft>;
 	/// \brief The field it read was edited since, or a later candidate exists:
 	/// it stays readable and Accept is refused.
@@ -496,8 +477,7 @@ namespace bpr::core {
 	// --- Publication ------------------------------------------------------------------
 
 	/// \brief What a pull request created from this draft would carry, as
-	/// exact text. Only selected evidence enters; notes, conversations,
-	/// proposals and unselected records never do.
+	/// exact text. Notes, conversations and proposals never enter it.
 	struct local_publication_preview
 	{
 		std::string Title;
@@ -509,9 +489,7 @@ namespace bpr::core {
 		std::size_t PendingLinks = 0;
 		/// Stops not yet Accepted: listed, they do not block draft creation.
 		std::vector<std::uint64_t> Unaccepted;
-		/// Artifacts held only on this computer that the tour mentions.
-		std::vector<std::string> LocalOnly;
-		auto                     operator<=>(const local_publication_preview&) const = default;
+		auto                       operator<=>(const local_publication_preview&) const = default;
 	};
 	[[nodiscard]] auto compose_local_publication(const local_draft& aDraft) -> local_publication_preview;
 
@@ -546,10 +524,8 @@ namespace bpr::core {
 		/// Stops that stay local and need attention.
 		std::size_t Unresolved = 0;
 		/// The pull request's body is the accepted description.
-		bool DescriptionPreserved = false;
-		/// Links that still cannot be made (artifacts held only here).
-		std::vector<std::string> PendingUrls;
-		auto                     operator==(const local_publication_mapping&) const -> bool = default;
+		bool DescriptionPreserved                                           = false;
+		auto operator==(const local_publication_mapping&) const -> bool = default;
 	};
 	/// \brief Maps every stop to the pull request's exact head. A stop whose
 	/// lines are not exactly there stays local with its reason; none is

@@ -2,7 +2,6 @@
 
 #include "bpr/qt/local_draft_publication_area.hpp"
 
-#include "bpr/qt/local_draft_evidence_area.hpp"
 
 #include <QAction>
 #include <QComboBox>
@@ -280,7 +279,7 @@ namespace bpr::qt {
 		splitter->setStretchFactor(0, 0);
 		splitter->setStretchFactor(1, 1);
 		splitter->setSizes({ 300, 700 });
-		// The page's areas: Changes, and Evidence (RFC-BPR-0109).
+		// The page's areas: Changes, Description, Tour and Pull request.
 		Areas = new QTabBar{ this };
 		Areas->setObjectName(QStringLiteral("localDraftAreas"));
 		Areas->setAccessibleName(QStringLiteral("Draft areas"));
@@ -288,19 +287,15 @@ namespace bpr::qt {
 		Areas->setExpanding(false);
 		Areas->setDrawBase(false);
 		Areas->addTab(QStringLiteral("Changes"));
-		Areas->addTab(QStringLiteral("Evidence"));
-		Areas->setTabToolTip(1, QStringLiteral("Claims, the checks of them and their reported results, and open questions"));
 		Areas->addTab(QStringLiteral("Description"));
-		Areas->setTabToolTip(2, QStringLiteral("The pull request's title and whole description"));
+		Areas->setTabToolTip(1, QStringLiteral("The pull request's title and whole description"));
 		Areas->addTab(QStringLiteral("Tour"));
-		Areas->setTabToolTip(3, QStringLiteral("The route a reviewer takes through the change"));
+		Areas->setTabToolTip(2, QStringLiteral("The route a reviewer takes through the change"));
 		Areas->addTab(QStringLiteral("Pull request"));
-		Areas->setTabToolTip(4, QStringLiteral("Create the draft pull request from the branch you pushed"));
+		Areas->setTabToolTip(3, QStringLiteral("Create the draft pull request from the branch you pushed"));
 		column->addWidget(Areas);
 		AreaStack = new QStackedWidget{ this };
-		Evidence  = new local_draft_evidence_area{ AreaStack };
 		AreaStack->addWidget(splitter);
-		AreaStack->addWidget(Evidence);
 		DescriptionArea = new local_draft_description_area{ AreaStack };
 		TourArea        = new local_draft_tour_area{ AreaStack };
 		AreaStack->addWidget(DescriptionArea);
@@ -524,7 +519,6 @@ namespace bpr::qt {
 			PresentedDraft = std::move(id);
 			Areas->setCurrentIndex(0);
 		}
-		Evidence->present(aProjection);
 		DescriptionArea->present(aProjection);
 		TourArea->present(aProjection);
 		PublicationArea->present(aProjection);
@@ -832,11 +826,6 @@ namespace bpr::qt {
 	auto local_draft_view::areas() const noexcept -> QTabBar*
 	{
 		return Areas;
-	}
-
-	auto local_draft_view::evidence() const noexcept -> local_draft_evidence_area*
-	{
-		return Evidence;
 	}
 
 	auto local_draft_view::description() const noexcept -> local_draft_description_area*

@@ -3,7 +3,6 @@
 
 #include "bpr/core/clone_discovery.hpp"
 #include "bpr/core/diff_model.hpp"
-#include "bpr/core/draft_evidence.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/core/local_draft_publication.hpp"
@@ -430,8 +429,6 @@ namespace bpr::core {
 		std::vector<local_draft_note>          Notes;
 		std::uint64_t                          NextNote = 1;
 		std::optional<local_draft_association> Association;
-		/// RFC-BPR-0109: claims, checks, results and questions.
-		draft_evidence Evidence;
 		/// RFC-BPR-0110: the description, the tour, proposals and conversations.
 		local_draft_preparation Preparation;
 		/// RFC-BPR-0111: the current pull request creation, its journal and follow-ups.
@@ -491,10 +488,6 @@ namespace bpr::core {
 		/// The candidate repeats the latest exactly.
 		unchanged,
 		invalid,
-		/// No evidence record has that identity, or it is not of that kind.
-		unknown_record,
-		/// The evidence holds as many records of that kind as it keeps.
-		evidence_full,
 	};
 	[[nodiscard]] auto name(draft_refusal aRefusal) noexcept -> std::string_view;
 

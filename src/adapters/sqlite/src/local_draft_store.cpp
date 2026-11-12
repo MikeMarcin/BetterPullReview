@@ -10,6 +10,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace bpr::adapters::sqlite {
 	namespace {
@@ -37,13 +38,10 @@ namespace bpr::adapters::sqlite {
 			sqlite3_bind_text(aRow, aIndex, aText.data(), static_cast<int>(aText.size()), SQLITE_TRANSIENT);
 		}
 
-		/// Every object a draft's candidates and evidence artifacts name.
+		/// Every object a draft's candidates name.
 		[[nodiscard]] auto named_objects(const core::local_draft& aDraft) -> std::set<std::string>
 		{
 			auto names = std::set<std::string>{ };
-			for (const auto& object : core::evidence_objects(aDraft.Evidence)) {
-				names.emplace(core::canonical_hex(object).view());
-			}
 			for (const auto& candidate : aDraft.Candidates) {
 				for (const auto& change : candidate.Changes) {
 					for (const auto* side : { &change.Left, &change.Right }) {
@@ -54,6 +52,62 @@ namespace bpr::adapters::sqlite {
 				}
 			}
 			return names;
+		}
+
+		/// Inside the caller's transaction. Store version 1 (2026-11-12): a
+		/// draft written while RFC-BPR-0109's evidence was part of it is
+		/// rewritten without it, its pins are only what its candidates name,
+		/// and objects nothing pins any more (evidence artifacts) are deleted.
+		/// A record this build cannot read is left as it is.
+		[[nodiscard]] auto drop_evidence(sqlite3* aDb) -> bool
+		{
+			auto rows = detail::prepare(aDb, "SELECT id, body FROM drafts ORDER BY id");
+			if (!rows) {
+				return false;
+			}
+			auto drafts = std::vector<std::pair<std::string, std::string>>{ };
+			auto code   = SQLITE_ROW;
+			while ((code = sqlite3_step(rows->Value)) == SQLITE_ROW) {
+				drafts.emplace_back(text_of(rows->Value, 0), text_of(rows->Value, 1));
+			}
+			auto body  = detail::prepare(aDb, "UPDATE drafts SET body=?2 WHERE id=?1");
+			auto clear = detail::prepare(aDb, "DELETE FROM pins WHERE draft=?1");
+			auto pin   = detail::prepare(aDb, "INSERT OR IGNORE INTO pins(draft,object) VALUES(?1,?2)");
+			if (code != SQLITE_DONE || !body || !clear || !pin) {
+				return false;
+			}
+			for (const auto& [id, stored] : drafts) {
+				const auto draft = core::decode_local_draft(stored);
+				if (!draft) {
+					continue;
+				}
+				const auto rewritten = core::encode_local_draft(*draft);
+				if (rewritten.empty()) {
+					return false;
+				}
+				if (rewritten != stored) {
+					sqlite3_reset(body->Value);
+					bind_text(body->Value, 1, id);
+					sqlite3_bind_blob64(body->Value, 2, rewritten.data(), rewritten.size(), SQLITE_TRANSIENT);
+					if (sqlite3_step(body->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				sqlite3_reset(clear->Value);
+				bind_text(clear->Value, 1, id);
+				if (sqlite3_step(clear->Value) != SQLITE_DONE) {
+					return false;
+				}
+				for (const auto& name : named_objects(*draft)) {
+					sqlite3_reset(pin->Value);
+					bind_text(pin->Value, 1, id);
+					bind_text(pin->Value, 2, name);
+					if (sqlite3_step(pin->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+			}
+			return detail::execute(aDb, "DELETE FROM objects WHERE object NOT IN (SELECT object FROM pins)");
 		}
 
 		class sqlite_local_draft_store final : public application::local_draft_store
@@ -306,6 +360,19 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS objects(object TEXT PRIMARY KEY, size INTEGER NOT NULL, bytes BLOB NOT NULL) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS pins(draft TEXT NOT NULL, object TEXT NOT NULL, PRIMARY KEY(draft,object)) STRICT, WITHOUT ROWID")) {
 				return { };
+			}
+			const auto version = detail::scalar_integer(db, "PRAGMA user_version");
+			if (!version) {
+				return { };
+			}
+			if (*version < 1) {
+				if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+					return { };
+				}
+				if (!drop_evidence(db) || !detail::execute(db, "PRAGMA user_version=1") || !detail::execute(db, "COMMIT")) {
+					(void)detail::execute(db, "ROLLBACK");
+					return { };
+				}
 			}
 			return store;
 		} catch (...) {

@@ -929,67 +929,6 @@ namespace bpr::application {
 				});
 		}
 
-		// --- evidence (RFC-BPR-0109) ------------------------------------------
-
-		void edit(std::expected<core::local_draft, core::draft_refusal> aChanged)
-		{
-			if (!Projection.Draft) {
-				return;
-			}
-			if (!aChanged) {
-				Projection.EvidenceRefusal = aChanged.error();
-				publish();
-				return;
-			}
-			Projection.EvidenceRefusal.reset();
-			write(std::move(aChanged));
-		}
-
-		void import_evidence(std::string aDocument)
-		{
-			if (!Projection.Draft || Projection.Importing) {
-				return;
-			}
-			ImportStop             = std::stop_source{ };
-			Projection.Importing   = true;
-			Projection.Imported    = std::nullopt;
-			Projection.ImportError = std::nullopt;
-			publish();
-			run(
-				[id = Projection.Draft->Id, document = std::move(aDocument), cancel = ImportStop.get_token()](implementation& aSelf, const std::stop_token aStop)
-					-> std::expected<evidence_import_summary, evidence_import_error> {
-					auto* stored = aSelf.store();
-					if (stored == nullptr) {
-						return std::unexpected{ evidence_import_error{ .Failure = evidence_import_failure::store, .Store = local_draft_store_error{ } } };
-					}
-					// Closing the draft, or shutting down, stops the read.
-					auto       either   = std::stop_source{ };
-					const auto onStop   = std::stop_callback{ aStop, [&either] { either.request_stop(); } };
-					const auto onCancel = std::stop_callback{ cancel, [&either] { either.request_stop(); } };
-					return import_local_draft_evidence(*stored, aSelf.Source, id, document, aSelf.Now(), either.get_token());
-				},
-				[](implementation& aSelf, std::expected<evidence_import_summary, evidence_import_error> aResult) {
-					auto& view     = aSelf.Projection;
-					view.Importing = false;
-					if (!aResult) {
-						view.ImportError = aResult.error();
-						aSelf.publish();
-						return;
-					}
-					view.Imported = local_draft_import_report{ .Claims    = aResult->Claims,
-															   .Checks    = aResult->Checks,
-															   .Results   = aResult->Results,
-															   .Questions = aResult->Questions,
-															   .Bound     = aResult->Bound,
-															   .Stored    = aResult->Stored,
-															   .Unstored  = aResult->Unstored };
-					view.Draft    = std::move(aResult->Draft);
-					aSelf.update_refresh();
-					aSelf.publish();
-					aSelf.refresh_home();
-				});
-		}
-
 		// --- RFC-BPR-0110: the description, the tour, conversations ---------
 
 		void prepare(core::preparation_result<core::local_draft> aChanged)
@@ -1169,63 +1108,6 @@ namespace bpr::application {
 				return;
 			}
 			prepare(std::move(reply->first));
-		}
-
-		void open_artifact(const std::uint64_t aResult, const std::size_t aIndex)
-		{
-			if (!Projection.Draft) {
-				return;
-			}
-			const auto& results = Projection.Draft->Evidence.Results;
-			const auto  result  = std::ranges::find(results, aResult, &core::evidence_result::Id);
-			if (result == results.end() || aIndex >= result->Artifacts.size()) {
-				return;
-			}
-			const auto& artifact = result->Artifacts[aIndex];
-			Projection.Artifact  = local_draft_artifact_view{ .Result = aResult, .Index = aIndex, .Name = artifact.Name, .Size = artifact.Size };
-			if (!artifact.Object) {
-				Projection.Artifact->Status = review_material_status::missing;
-				publish();
-				return;
-			}
-			Projection.Artifact->Reading = true;
-			publish();
-			run(
-				[object = *artifact.Object, view = *Projection.Artifact](implementation& aSelf, std::stop_token) mutable -> local_draft_artifact_view {
-					view.Reading = false;
-					auto* stored = aSelf.store();
-					auto  bytes  = stored == nullptr ? local_draft_store_result<std::optional<std::vector<std::uint8_t>>>{ std::unexpected{ local_draft_store_error{ } } }
-													 : stored->object(object);
-					if (!bytes) {
-						view.Status = review_material_status::failure;
-						return view;
-					}
-					if (!*bytes) {
-						view.Status = review_material_status::missing;
-						return view;
-					}
-					const auto& data = **bytes;
-					view.Status      = review_material_status::available;
-					view.Size        = data.size();
-					auto shown       = std::string_view{ reinterpret_cast<const char*>(data.data()), std::min(data.size(), maximum_local_draft_artifact_view_bytes) };
-					view.Truncated   = shown.size() < data.size();
-					// A cut through a character is moved back to its start.
-					for (auto trim = 0; trim < 3 && view.Truncated && !core::utf8::valid(shown); ++trim) {
-						shown.remove_suffix(1U);
-					}
-					view.Binary = shown.find('\0') != std::string_view::npos || !core::utf8::valid(shown);
-					if (!view.Binary) {
-						view.Text = std::string{ shown };
-					}
-					return view;
-				},
-				[](implementation& aSelf, local_draft_artifact_view aView) {
-					auto& shown = aSelf.Projection.Artifact;
-					if (shown && shown->Result == aView.Result && shown->Index == aView.Index) {
-						shown = std::move(aView);
-						aSelf.publish();
-					}
-				});
 		}
 
 		// --- RFC-BPR-0111: Create draft PR… ------------------------------------
@@ -1423,7 +1305,6 @@ namespace bpr::application {
 
 		void close()
 		{
-			ImportStop.request_stop();
 			AskStop.request_stop();
 			++Generation;
 			Projection = { };
@@ -1446,8 +1327,6 @@ namespace bpr::application {
 		std::unique_ptr<local_draft_git_port> Git;
 		std::mt19937_64                       Random;
 		std::stop_source                      Stop;
-		/// The import being read; closing the draft stops it.
-		std::stop_source ImportStop;
 		/// RFC-BPR-0110. The agent runs: composed by the application, off both lanes.
 		local_draft_agent_runner   AgentRunner;
 		effect_executor*           AgentLane = nullptr;
@@ -1555,71 +1434,6 @@ namespace bpr::application {
 		}
 	}
 
-	void local_draft_workbench::add_claim(const core::claim_kind aKind, std::string aText)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.edit(core::add_claim(*self.Projection.Draft, self.Projection.Draft->Version, aKind, std::move(aText), self.Now()));
-		}
-	}
-
-	void local_draft_workbench::revise_claim(const std::uint64_t aClaim, std::string aText)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.edit(core::revise_claim(*self.Projection.Draft, self.Projection.Draft->Version, aClaim, std::move(aText), self.Now()));
-		}
-	}
-
-	void local_draft_workbench::add_check(const core::check_method aMethod, std::string aTitle, std::string aCommand, std::vector<std::uint64_t> aClaims, core::formal_scope aFormal)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.edit(core::add_check(*self.Projection.Draft, self.Projection.Draft->Version, aMethod, std::move(aTitle), std::move(aCommand), std::move(aClaims), std::move(aFormal),
-									  self.Now()));
-		}
-	}
-
-	void local_draft_workbench::record_result(core::manual_result aResult)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.edit(core::record_result(*self.Projection.Draft, self.Projection.Draft->Version, std::move(aResult), self.Now()));
-		}
-	}
-
-	void local_draft_workbench::add_question(std::string aText, const std::uint64_t aClaim)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.edit(core::add_question(*self.Projection.Draft, self.Projection.Draft->Version, std::move(aText), aClaim, self.Now()));
-		}
-	}
-
-	void local_draft_workbench::resolve_question(const std::uint64_t aQuestion, const bool aResolved)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.edit(core::resolve_question(*self.Projection.Draft, self.Projection.Draft->Version, aQuestion, aResolved, self.Now()));
-		}
-	}
-
-	void local_draft_workbench::decide_evidence(const std::uint64_t aRecord, const core::evidence_disposition aDisposition)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.edit(core::decide_evidence(*self.Projection.Draft, self.Projection.Draft->Version, aRecord, aDisposition, self.Now()));
-		}
-	}
-
-	void local_draft_workbench::select_evidence(const std::uint64_t aRecord, const bool aSelected)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.edit(core::select_evidence(*self.Projection.Draft, self.Projection.Draft->Version, aRecord, aSelected, self.Now()));
-		}
-	}
-
 	void local_draft_workbench::save_description(std::string aTitle, std::string aBody)
 	{
 		auto& self = *Implementation;
@@ -1692,14 +1506,6 @@ namespace bpr::application {
 		}
 	}
 
-	void local_draft_workbench::cite(const std::uint64_t aStop, const std::uint64_t aRecord, const bool aCited)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.prepare(core::cite_evidence(*self.Projection.Draft, self.Projection.Draft->Version, aStop, aRecord, aCited, self.Now()));
-		}
-	}
-
 	void local_draft_workbench::decide_proposal(const std::uint64_t aProposal, const bool aAccept)
 	{
 		auto& self = *Implementation;
@@ -1733,25 +1539,6 @@ namespace bpr::application {
 		auto& self = *Implementation;
 		if (self.Projection.Draft) {
 			self.prepare(core::end_conversation(*self.Projection.Draft, self.Projection.Draft->Version, aConversation, self.Now()));
-		}
-	}
-
-	void local_draft_workbench::import_evidence(std::string aDocument)
-	{
-		Implementation->import_evidence(std::move(aDocument));
-	}
-
-	void local_draft_workbench::open_artifact(const std::uint64_t aResult, const std::size_t aIndex)
-	{
-		Implementation->open_artifact(aResult, aIndex);
-	}
-
-	void local_draft_workbench::close_artifact()
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Artifact) {
-			self.Projection.Artifact.reset();
-			self.publish();
 		}
 	}
 
@@ -1825,7 +1612,6 @@ namespace bpr::application {
 		if (Implementation && !Implementation->Stopped) {
 			Implementation->Stopped = true;
 			Implementation->Stop.request_stop();
-			Implementation->ImportStop.request_stop();
 			Implementation->AskStop.request_stop();
 			Implementation->PublishStop.request_stop();
 		}

@@ -1,7 +1,6 @@
 #include "bpr/core/local_draft.hpp"
 
 #include "bpr/core/diff_compute.hpp"
-#include "bpr/core/local_draft_evidence.hpp"
 #include "bpr/core/review_cycle_publication.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/core/utf8.hpp"
@@ -91,7 +90,8 @@ namespace bpr::core::detail {
 		std::vector<wire_note>          Notes;
 		std::uint64_t                   NextNote = 1;
 		std::optional<wire_association> Association;
-		/// RFC-BPR-0109. Absent while the draft has no evidence.
+		/// Written before RFC-BPR-0109 was deferred (2026-11-12): read and
+		/// dropped, never written. A store migration rewrites such drafts.
 		std::optional<glz::raw_json> Evidence;
 		std::optional<glz::raw_json> Preparation;
 		std::optional<glz::raw_json> Publication;
@@ -572,14 +572,11 @@ namespace bpr::core {
 				return false;
 			}
 		}
-		const auto boundResults = std::ranges::all_of(aDraft.Evidence.Results, [&ordinals](const evidence_result& aResult) {
-			return aResult.Candidate == 0U || ordinals.contains(aResult.Candidate);
-		});
-		const auto boundStops   = std::ranges::all_of(aDraft.Preparation.Tour.Stops, [&ordinals](const local_tour_stop& aStop) {
+		const auto boundStops = std::ranges::all_of(aDraft.Preparation.Tour.Stops, [&ordinals](const local_tour_stop& aStop) {
 			return ordinals.contains(aStop.Source.Candidate)
 				&& std::ranges::all_of(aStop.Earlier, [&ordinals](const local_source_binding& aBinding) { return ordinals.contains(aBinding.Candidate); });
 		});
-		return boundResults && boundStops && valid(aDraft.Preparation) && valid(aDraft.Evidence) && valid(aDraft.Id) && aDraft.Version > 0U && !aDraft.Title.empty() && plain_text(aDraft.Title, maximum_local_draft_title_bytes, false)
+		return boundStops && valid(aDraft.Preparation) && valid(aDraft.Id) && aDraft.Version > 0U && !aDraft.Title.empty() && plain_text(aDraft.Title, maximum_local_draft_title_bytes, false)
 			&& !aDraft.Worktree.Location.empty() && valid_publication_branch(aDraft.Branch) && validTarget && aDraft.Chain.size() <= maximum_local_remote_hops
 			&& !aDraft.Candidates.empty() && aDraft.Candidates.size() <= maximum_local_draft_candidates && aDraft.Notes.size() <= maximum_local_draft_notes
 			&& std::ranges::is_sorted(aDraft.Candidates, { }, &local_draft_candidate::Ordinal);
@@ -649,8 +646,6 @@ namespace bpr::core {
 		case draft_refusal::unknown_note:    return "unknown_note";
 		case draft_refusal::unchanged:       return "unchanged";
 		case draft_refusal::invalid:         return "invalid";
-		case draft_refusal::unknown_record:  return "unknown_record";
-		case draft_refusal::evidence_full:   return "evidence_full";
 		}
 		return "unknown";
 	}
@@ -939,13 +934,6 @@ namespace bpr::core {
 				.Host = association.Host, .Owner = association.Owner, .Name = association.Name, .Number = association.Number, .HeadRef = association.HeadRef
 			};
 		}
-		if (aDraft.Evidence != draft_evidence{ }) {
-			auto evidence = encode_draft_evidence(aDraft.Evidence);
-			if (evidence.empty()) {
-				return { };
-			}
-			wire.Evidence = glz::raw_json{ std::move(evidence) };
-		}
 		if (aDraft.Preparation != local_draft_preparation{ }) {
 			auto preparation = encode_draft_preparation(aDraft.Preparation);
 			if (preparation.empty()) {
@@ -1043,13 +1031,6 @@ namespace bpr::core {
 			draft.Association       = local_draft_association{
 				.Host = association.Host, .Owner = association.Owner, .Name = association.Name, .Number = association.Number, .HeadRef = association.HeadRef
 			};
-		}
-		if (wire.Evidence) {
-			auto evidence = decode_draft_evidence(wire.Evidence->str);
-			if (!evidence) {
-				return std::nullopt;
-			}
-			draft.Evidence = std::move(*evidence);
 		}
 		if (wire.Preparation) {
 			auto preparation = decode_draft_preparation(wire.Preparation->str);
