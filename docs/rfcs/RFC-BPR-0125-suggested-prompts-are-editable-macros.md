@@ -1,8 +1,8 @@
 ---
 id: "RFC-BPR-0125"
 title: "Suggested prompts are editable macros with rules for where and when they show"
-status: "Proposed"
-metadata: {"origin":"owner idea, 2026-11-12; drafted with author-rfc, frontend-design loaded for the UX","inspected_revision":"d8123f30a467aaff5ada11a1b9acae95288143f5","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d at 451f6eac7b0738dcdd543ecf7a5394f4fbea4711","baseline":"ce5ffa1461c9a0006510621a997fbccc303a4e48","mandate":"none"}
+status: "In Progress"
+metadata: {"origin":"owner idea, 2026-11-12; drafted with author-rfc, frontend-design loaded for the UX","inspected_revision":"d8123f30a467aaff5ada11a1b9acae95288143f5","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d at 451f6eac7b0738dcdd543ecf7a5394f4fbea4711","baseline":"ce5ffa1461c9a0006510621a997fbccc303a4e48","mandate":"owner, 2026-11-12: implement with Q1 to Q10 answered; milestone 1 started on main"}
 depends_on: ["RFC-BPR-0092", "RFC-BPR-0101", "RFC-BPR-0102", "RFC-BPR-0107"]
 ---
 
@@ -171,8 +171,8 @@ Selected text, a diff, a description, a thread's words, notes, drafts and
 check output reach the agent only as they do today, through the subject and
 the brief. So a macro cannot widen what is disclosed, which keeps
 [RFC-BPR-0012](RFC-BPR-0012-ai-review-chat-findings-mcp.md)'s rule that
-navigation adds no context. Whether a content variable such as `{selection}`
-is wanted is Q3.
+navigation adds no context. Content variables such as `{selection}` are out
+of scope (owner, Q3).
 
 **A macro you finish.** A template that contains `{cursor}` is never sent by
 a click. It goes to the question field with the caret at the mark. The
@@ -286,7 +286,12 @@ Names and templates are equal unless shown.
 - A built-in added by a later release appears on, after its place's other
   built-ins.
 - In a tour chat, a prompt about text selected in another part names that
-  part after its name ("… in the Solution"), as today.
+  part after its name ("… in the Solution"), as today. The macros about the
+  selected text are those of the selected part's place; they lead the list,
+  in that place's order, and the chat's own place follows with the rest.
+- The Agent tab's widget also words a selection with no file open ("Explain
+  the selected line (34)"). The composition gathers lines only while a file
+  is open, so no reviewer sees it, and it has no built-in.
 
 ### Storage, versions and privacy
 
@@ -486,11 +491,12 @@ sideways scrolling.
   this prompt… opens Settings on that macro's sheet; Turn off removes it and
   the status bar offers Undo; Suggested prompts settings… opens the section.
 - **Typing a name (Q6).** In a composer that offers `/skill` completion,
-  typing `/` and letters also lists this place's macros whose name has a
-  word starting with those letters, under their own heading above the
-  skills. Choosing one replaces the typed text with its expansion, as a
-  draft. Nothing is resolved at send: `/model`, `/effort` and a typed
-  `/skill-name` behave as they do today.
+  `/` and letters list skills only, exactly as today. Typing `/p` and a
+  space opens the same popup on this place's macros instead: the letters
+  after `/p ` keep those whose name has a word starting with them. Choosing
+  one replaces the typed `/p …` with its expansion, as a draft. Nothing is
+  resolved at send: `/model`, `/effort`, a typed `/skill-name` and a typed
+  `/p …` that was never chosen from the popup behave as they do today.
 
 ### Sharing
 
@@ -521,8 +527,11 @@ without it.
 | Qt | The chips, More menu, tooltip, turn and composer chip; the roster and sheet; the completion list. Intents out, projections in, no effect |
 
 Every rule is tested without `QApplication` and runs in the `core-only`
-preset. Implementation starts from a base that holds the lane's
-RFC-BPR-0102 and RFC-BPR-0107 code.
+preset. Milestone 1 is pure core and needs none of the lane's code: a
+macro's About and Ask as are its own closed values, and milestone 2 hands
+the Agent tab's three to RFC-BPR-0102's `decide_agent_question` unchanged.
+Milestones 2 onward start from a base that holds the lane's RFC-BPR-0102 and
+RFC-BPR-0107 code.
 
 ### The library question for core
 
@@ -537,10 +546,10 @@ This design is shaped to need none:
 - Substitution is one linear scan for one fixed form, `{name}`, against a
   closed list.
 
-This RFC judges that scan not to be a major general-purpose system. That
-judgement is the owner's to confirm (Q1), and the scan is not written until
-it is. If the owner wants a template language instead (conditionals, loops,
-filters), the candidates are:
+This RFC judges that scan not to be a major general-purpose system, and the
+owner confirmed it (Q1, 2026-11-12): closed-variable substitution, no
+template library. The candidates that were weighed for a template language
+(conditionals, loops, filters) were:
 
 | Candidate | Licence | Layer | Fit |
 |---|---|---|---|
@@ -548,7 +557,7 @@ filters), the candidates are:
 | kainjow/Mustache | Boost Software License 1.0, to be confirmed at adoption review | Core, one header behind a private wrapper | Fits a logic-less language with sections. Costs a new dependency, a licensing review and a second syntax, for sections over lists the facts do not contain |
 | inja | MIT, to be confirmed | Core | Poor. It requires nlohmann/json, which is not approved (glaze is), and brings loops, includes and callbacks that conditions are designed to avoid |
 
-Recommendation: adopt none.
+Recommendation, accepted by the owner: adopt none.
 
 ### Proposed amendments to adopted RFCs
 
@@ -569,7 +578,7 @@ Applied by the owning milestones, not at drafting.
 - A rule or template language: expressions, "or", nesting, regular
   expressions, conditionals, loops, user-defined variables.
 - Content variables (selected text, diff, hunk, description, thread text,
-  notes, drafts, check output), pending Q3.
+  notes, drafts, check output) (owner, Q3).
 - A language condition. Patterns cover it.
 - A prompt that asks for values in a form before sending. `{cursor}` covers
   finishing a sentence.
@@ -586,7 +595,8 @@ Applied by the owning milestones, not at drafting.
 
 ### Open questions for the owner, by impact
 
-Each has a recommendation. A recommendation is not an answer.
+Each has a recommendation. A recommendation is not an answer; every one is
+now answered, and the design above follows the answers.
 
 Owner answers (2026-11-12): **Q1** closed-variable substitution, no template
 library. **Q2** a drafted macro keeps its subject and kind as a removable chip.
@@ -616,6 +626,8 @@ prompts" in the product. **Q10** a section with a sheet.
 6. **Q6. Type a macro's name through the `/` popup?** *Recommended:* yes,
    under its own heading in the popup the owner called awesome, expanding
    only when chosen. The alternative is a separate key and a second popup.
+   *Answered otherwise:* `/` alone stays skills only; `/p ` and a prompt's
+   name reach the prompts in the same popup.
 7. **Q7. Five chips, then More?** *Recommended:* five, today's maximum.
 8. **Q8. One place per macro?** *Recommended:* yes, with Duplicate. Several
    places per macro make the variable list depend on a combination.
@@ -632,21 +644,20 @@ the cards are DRAFT-0001 to DRAFT-0007. Its criteria are under the same
 heading in the next section.
 
 1. **The macro and its rules, in core.** Value types and bounds, validation,
-   facts, conditions, expansion, order and the limit, and the shipped set
-   proved equal to today's lists. Nothing visible changes. The template scan
-   waits for Q1; the rest does not.
+   facts, conditions, expansion, order and the limit, the merge of the
+   shipped set with stored differences, and the shipped set proved equal to
+   today's lists. Nothing visible changes.
 2. **Chips come from the core.** The Agent tab and the tour chats present
    the core's offers from the shipped set. The hard-coded lists go. Adds the
    expansion's tooltip, the turn that shows what was sent, More, and the
-   value rules. Loads frontend-design first. The drafted-macro chip waits
-   for Q2.
+   value rules, and the drafted macro's chip. Loads frontend-design first.
 3. **Storage and the roster.** The store, its revisions and failure rules;
    the Settings roster with On, order and Restore built-ins.
 4. **The sheet.** Add, edit, duplicate, delete, reset; Insert and the
    variable tint; the preview and Shows now; the condition pickers; every
    message in the table. Ends with the owner's look on a frozen build.
-5. **In reach.** A chip's menu, and names in the `/` popup. Waits for Q6.
-6. **Share.** Version 2 of RFC-BPR-0107's exchange. Waits for Q5.
+5. **In reach.** A chip's menu, and names in the popup after `/p `.
+6. **Share.** Version 2 of RFC-BPR-0107's exchange.
 7. **Closeout.** Documentation and the gate.
 
 Milestones 1 to 3 suffice to turn prompts off and reorder them; 4 delivers
@@ -697,7 +708,7 @@ weakening it.
   text.
 - **AC10:** A macro drafted with Shift, edited and sent keeps its subject
   and kind and shows its chip in the field; with the chip removed the same
-  text is sent as a typed question. (Unready until Q2 is answered.)
+  text is sent as a typed question.
 
 ### Milestone 3: storage and the roster
 
@@ -746,10 +757,11 @@ weakening it.
 - **AC22:** A chip's menu opens by mouse and by the Menu key. Edit this
   prompt… opens Settings on that macro's sheet. Turn off removes the chip
   and Undo returns it.
-- **AC23:** Typing `/` and letters lists this place's matching macros above
-  the skills. Choosing one replaces the typed text with the expansion and
-  sends nothing. `/model`, `/effort` and a typed `/skill-name` behave as
-  before. (Unready until Q6 is answered.)
+- **AC23:** Typing `/` and letters lists skills only, as before. Typing
+  `/p ` and letters lists this place's matching macros. Choosing one
+  replaces the typed `/p …` with the expansion and sends nothing. `/model`,
+  `/effort`, a typed `/skill-name` and an unchosen `/p …` behave as
+  before.
 
 ### Milestone 6: share
 
@@ -758,7 +770,6 @@ weakening it.
   for each, applies all chosen or none, refuses after a concurrent edit and
   launches nothing. A version 1 file imports as before. An item naming an
   unknown place, fact or variable is listed as unsupported and not applied.
-  (Unready until Q5 is answered.)
 
 ### Milestone 7: closeout
 
