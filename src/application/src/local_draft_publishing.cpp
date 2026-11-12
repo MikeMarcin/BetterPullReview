@@ -1,6 +1,7 @@
 #include "bpr/application/local_draft_publishing.hpp"
 
 #include <algorithm>
+#include <functional>
 #include <utility>
 
 namespace bpr::application {
@@ -11,18 +12,41 @@ namespace bpr::application {
 			return { .Host = aAccount.Host, .Server = aAccount.Server, .Account = aAccount.Account, .Login = aAccount.Login, .Owner = repository.Owner, .Repository = repository.Name };
 		}
 
-		/// Writes the next version of the draft; on a lost race, the stored one.
-		[[nodiscard]] auto put(local_draft_store& aStore, const core::local_draft& aPrevious, core::local_draft aNext, local_publication_step& aStep) -> bool
+		using transition = std::function<std::expected<core::local_draft, core::local_publication_refusal>(const core::local_draft&)>;
+
+		/// Applies one journal transition to the draft as stored and writes
+		/// it. A competing write (an edit on the page meanwhile) is read again
+		/// and the same transition applied to it; the core refuses it when the
+		/// journal is no longer where the transition needs it.
+		[[nodiscard]] auto apply(local_draft_store& aStore, const core::local_draft& aRead, const transition& aChange, local_publication_step& aStep) -> bool
 		{
-			if (auto written = aStore.put(aNext, aPrevious.Version, { }); !written) {
-				aStep.Store = written.error();
-				if (auto current = aStore.find(aPrevious.Id)) {
-					aStep.Draft = std::move(*current);
+			auto current = aRead;
+			for (auto attempt = 0; attempt < 4; ++attempt) {
+				auto next = aChange(current);
+				if (!next) {
+					aStep.Refusal = next.error();
+					aStep.Draft   = std::move(current);
+					return false;
 				}
-				return false;
+				auto written = aStore.put(*next, current.Version, { });
+				if (written) {
+					aStep.Draft = std::move(*next);
+					aStep.Store.reset();
+					return true;
+				}
+				aStep.Store = written.error();
+				if (written.error().Failure != local_draft_store_failure::stale) {
+					return false;
+				}
+				auto reread = aStore.find(current.Id);
+				if (!reread) {
+					aStep.Store = reread.error();
+					return false;
+				}
+				current = std::move(*reread);
 			}
-			aStep.Draft = std::move(aNext);
-			return true;
+			aStep.Draft = std::move(current);
+			return false;
 		}
 
 		/// The open pull requests from the draft's branch into its target.
@@ -130,17 +154,13 @@ namespace bpr::application {
 			&& aDraft.Publication->Journal.Digest == core::local_publication_digest(*plan)) {
 			return step;
 		}
-		auto recorded = core::record_local_publication(aDraft, aDraft.Version, std::move(*plan), aNow);
-		if (!recorded) {
-			step.Refusal = recorded.error();
-			return step;
-		}
-		static_cast<void>(put(aStore, aDraft, std::move(*recorded), step));
+		static_cast<void>(apply(
+			aStore, aDraft, [&plan, aNow](const core::local_draft& aCurrent) { return core::record_local_publication(aCurrent, aCurrent.Version, *plan, aNow); }, step));
 		return step;
 	}
 
 	auto create_local_pull_request(local_draft_store& aStore, const core::local_draft& aDraft, const github_publication_account& aAccount, const std::string& aDigest, const std::int64_t aNow,
-								   std::stop_token aStop) -> local_publication_step
+								   std::stop_token aStop, const std::function<void(const core::local_draft&)>& aProgress) -> local_publication_step
 	{
 		auto step = local_publication_step{ .Draft = aDraft, .Branch = core::hosted_branch_state::matches };
 		if (!aAccount.Provider) {
@@ -178,15 +198,19 @@ namespace bpr::application {
 			step.Refusal  = core::local_publication_refusal::pull_request_exists;
 			return step;
 		}
-		const auto generation = authorized->Publication->Journal.Generation;
-		auto       begun      = core::begin_local_creation(*authorized, authorized->Version, generation, aAccount.Account, aNow);
-		if (!begun) {
-			step.Refusal = begun.error();
+		// The confirmation and the creation are on disk before it is sent.
+		const auto begin = [&aDigest, &aAccount, aNow](const core::local_draft& aCurrent) -> std::expected<core::local_draft, core::local_publication_refusal> {
+			auto confirmed = core::authorize_local_publication(aCurrent, aCurrent.Version, aDigest, aAccount.Account, aNow);
+			if (!confirmed) {
+				return confirmed;
+			}
+			return core::begin_local_creation(*confirmed, confirmed->Version, confirmed->Publication->Journal.Generation, aAccount.Account, aNow);
+		};
+		if (!apply(aStore, aDraft, begin, step)) {
 			return step;
 		}
-		// The creation is on disk before it is sent.
-		if (!put(aStore, aDraft, std::move(*begun), step)) {
-			return step;
+		if (aProgress) {
+			aProgress(*step.Draft);
 		}
 		const auto before  = *step.Draft;
 		const auto created = provider.create_pull_request(
@@ -207,13 +231,16 @@ namespace bpr::application {
 				outcome = core::local_creation_outcome::not_sent;
 			}
 		}
-		auto completed = core::complete_local_creation(before, before.Version, outcome, std::move(link), std::move(reason), aNow);
-		if (!completed) {
-			// GitHub answered with a pull request that is not this plan's: keep
-			// it uncertain and let a read decide.
-			completed = core::complete_local_creation(before, before.Version, core::local_creation_outcome::uncertain, std::nullopt, "GitHub's answer named another pull request.", aNow);
-		}
-		if (!completed || !put(aStore, before, std::move(*completed), step)) {
+		const auto complete = [&](const core::local_draft& aCurrent) {
+			auto completed = core::complete_local_creation(aCurrent, aCurrent.Version, outcome, link, reason, aNow);
+			if (!completed && completed.error() == core::local_publication_refusal::invalid) {
+				// GitHub answered with a pull request that is not this plan's:
+				// keep it uncertain and let a read decide.
+				completed = core::complete_local_creation(aCurrent, aCurrent.Version, core::local_creation_outcome::uncertain, std::nullopt, "GitHub's answer named another pull request.", aNow);
+			}
+			return completed;
+		};
+		if (!apply(aStore, before, complete, step)) {
 			return step;
 		}
 		// A lost answer is read for at once: recovery reads, it never resends.
@@ -249,12 +276,8 @@ namespace bpr::application {
 				break;
 			}
 		}
-		auto observed = core::observe_local_creation(aDraft, aDraft.Version, std::move(ours), aNow);
-		if (!observed) {
-			step.Refusal = observed.error();
-			return step;
-		}
-		static_cast<void>(put(aStore, aDraft, std::move(*observed), step));
+		static_cast<void>(
+			apply(aStore, aDraft, [&ours, aNow](const core::local_draft& aCurrent) { return core::observe_local_creation(aCurrent, aCurrent.Version, ours, aNow); }, step));
 		return step;
 	}
 
@@ -275,12 +298,8 @@ namespace bpr::application {
 			step.Refusal = core::local_publication_refusal::invalid;
 			return step;
 		}
-		auto adopted = core::adopt_local_pull_request(aDraft, aDraft.Version, local_link_of(**pull), aNow);
-		if (!adopted) {
-			step.Refusal = adopted.error();
-			return step;
-		}
-		static_cast<void>(put(aStore, aDraft, std::move(*adopted), step));
+		const auto link = local_link_of(**pull);
+		static_cast<void>(apply(aStore, aDraft, [&link, aNow](const core::local_draft& aCurrent) { return core::adopt_local_pull_request(aCurrent, aCurrent.Version, link, aNow); }, step));
 		return step;
 	}
 }

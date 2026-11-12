@@ -1361,9 +1361,23 @@ namespace bpr::application {
 				publish();
 				return;
 			}
+			// The recorded creation reaches the page before GitHub answers, so
+			// an edit made meanwhile writes over the version on disk.
+			auto reported = [self = shared_from_this(), generation = Generation](const core::local_draft& aStored) {
+				self->Decisions.post([host = self, generation, stored = aStored]() mutable {
+					if (host->Stopped || generation != host->Generation || !host->Projection.Draft || host->Projection.Draft->Id != stored.Id
+						|| host->Projection.Draft->Version >= stored.Version) {
+						return;
+					}
+					host->Projection.Draft = std::move(stored);
+					host->project_plan();
+					host->publish();
+				});
+			};
 			publishing(
-				[chosen = std::move(*signedIn), digest = std::move(aDigest)](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow, std::stop_token aStop) {
-					return create_local_pull_request(aStore, aDraft, chosen, digest, aNow, aStop);
+				[chosen = std::move(*signedIn), digest = std::move(aDigest), progress = std::move(reported)](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow,
+																											   std::stop_token aStop) {
+					return create_local_pull_request(aStore, aDraft, chosen, digest, aNow, aStop, progress);
 				},
 				true);
 		}

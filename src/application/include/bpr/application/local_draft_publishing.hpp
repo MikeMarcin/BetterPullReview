@@ -7,6 +7,7 @@
 #include "bpr/core/local_draft_publication.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -49,8 +50,11 @@ namespace bpr::application {
 											   std::int64_t aNow, std::stop_token aStop) -> local_publication_step;
 
 	/// \brief The author's confirmation of `aDigest`, then the one creation.
+	/// \param aProgress Told the draft as stored once the creation is
+	/// recorded, before it is sent.
 	[[nodiscard]] auto create_local_pull_request(local_draft_store& aStore, const core::local_draft& aDraft, const github_publication_account& aAccount, const std::string& aDigest,
-												 std::int64_t aNow, std::stop_token aStop) -> local_publication_step;
+												 std::int64_t aNow, std::stop_token aStop, const std::function<void(const core::local_draft&)>& aProgress = { })
+		-> local_publication_step;
 
 	/// \brief After a lost answer: reads the branch's pull requests and
 	/// records what is there. Writes nothing to GitHub.

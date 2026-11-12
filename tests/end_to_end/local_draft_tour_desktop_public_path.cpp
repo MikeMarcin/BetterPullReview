@@ -201,7 +201,7 @@ try {
 		auto* const page = window.local_draft();
 		expect(page != nullptr && page->projection().Draft, "a local draft, signed out");
 		draftId = page->projection().Draft->Id;
-		expect(page->areas()->count() == 4 && page->areas()->tabText(2) == QStringLiteral("Description") && page->areas()->tabText(3) == QStringLiteral("Tour"),
+		expect(page->areas()->count() == 5 && page->areas()->tabText(4) == QStringLiteral("Pull request") && page->areas()->tabText(2) == QStringLiteral("Description") && page->areas()->tabText(3) == QStringLiteral("Tour"),
 			   "the page has Description and Tour beside Changes and Evidence");
 		expect(page->candidates()->minimumSizeHint().width() >= page->candidates()->fontMetrics().horizontalAdvance(QStringLiteral("Candidate 32 of 32")),
 			   "the candidate chooser holds its longest words from the start");
