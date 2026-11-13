@@ -143,6 +143,9 @@ namespace bpr::qt {
 			// in the same order and with the same press rules.
 			auto* const more = new quiet_push_button{ this };
 			more->setObjectName(QStringLiteral("agentSuggestionMore"));
+			// Quiet: bare at rest, the chip on hover; not in the accent, so it
+			// does not read as one more prompt.
+			more->setFlat(true);
 			more->setEnabled(Usable);
 			MoreMenu = new QMenu{ more };
 			MoreMenu->setObjectName(QStringLiteral("agentSuggestionMoreMenu"));

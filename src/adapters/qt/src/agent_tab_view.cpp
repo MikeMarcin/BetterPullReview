@@ -1268,6 +1268,7 @@ namespace bpr::qt {
 			// RFC-BPR-0125 (AC07). Text past six lines folds behind Show all.
 			auto* const showAll = new quiet_push_button{ tr("Show all"), asked };
 			showAll->setObjectName(QStringLiteral("agentTurnShowAll"));
+			showAll->setFlat(true);
 			connect(showAll, &QPushButton::clicked, this, [this, serial = aTurn.Serial] {
 				const auto found = std::ranges::find(Turns, serial, &turn::Serial);
 				if (found == Turns.end() || found->ShowAll == nullptr) {
