@@ -3,6 +3,7 @@
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
+#include "conversation_glyphs.hpp"
 
 #include <QAction>
 #include <QComboBox>
@@ -258,22 +259,23 @@ namespace bpr::qt {
 		edit->addWidget(Editor, 1);
 		EditPage->hide();
 
-		// The Notes tab's page.
+		// The Notes tab's page. RFC-BPR-0127 ([[BPR-2161]]): its notes are
+		// called Local comments; their record and storage are unchanged.
 		NotesPage = new QWidget{ Owner };
 		NotesPage->setObjectName(QStringLiteral("localDraftNotesPage"));
 		auto* const noteColumn = new QVBoxLayout{ NotesPage };
 		noteColumn->setContentsMargins(10, 8, 10, 8);
 		Notes = new QListWidget{ NotesPage };
 		Notes->setObjectName(QStringLiteral("localDraftNotes"));
-		Notes->setAccessibleName(QStringLiteral("Notes"));
+		Notes->setAccessibleName(QStringLiteral("Local comments"));
 		Notes->setWordWrap(true);
 		Notes->setFrameShape(QFrame::NoFrame);
 		Notes->setContextMenuPolicy(Qt::CustomContextMenu);
 		noteColumn->addWidget(Notes, 1);
 		NoteEditor = new QLineEdit{ NotesPage };
 		NoteEditor->setObjectName(QStringLiteral("localDraftNoteEditor"));
-		NoteEditor->setAccessibleName(QStringLiteral("New note"));
-		NoteEditor->setPlaceholderText(QStringLiteral("Add a note"));
+		NoteEditor->setAccessibleName(QStringLiteral("New local comment"));
+		NoteEditor->setPlaceholderText(QStringLiteral("Add a local comment"));
 		NoteEditor->setToolTip(QStringLiteral("Return saves it on the open file."));
 		noteColumn->addWidget(NoteEditor);
 		NotesPage->hide();
@@ -327,7 +329,7 @@ namespace bpr::qt {
 				return;
 			}
 			auto* const menu   = new QMenu{ Notes };
-			auto* const remove = menu->addAction(QStringLiteral("Remove Note"));
+			auto* const remove = menu->addAction(QStringLiteral("Delete Local Comment"));
 			menu->setAttribute(Qt::WA_DeleteOnClose);
 			connect(remove, &QAction::triggered, this, [this, note = item->data(note_role).toULongLong()] {
 				if (Dispatch.RemoveNote) {
@@ -498,7 +500,7 @@ namespace bpr::qt {
 		} else {
 			auto box = QMessageBox{ QMessageBox::Warning, QStringLiteral("Discard Local Draft"),
 									QStringLiteral("Discard “%1”?").arg(text_of(Projection.Draft->Title)), QMessageBox::NoButton, Owner };
-			box.setInformativeText(QStringLiteral("Its notes and candidates are removed from this computer. The worktree, its branches and any pull request are not changed."));
+			box.setInformativeText(QStringLiteral("Its local comments and candidates are removed from this computer. The worktree, its branches and any pull request are not changed."));
 			auto* const confirm = box.addButton(QStringLiteral("Discard"), QMessageBox::DestructiveRole);
 			box.addButton(QMessageBox::Cancel);
 			box.setDefaultButton(QMessageBox::Cancel);
@@ -680,7 +682,7 @@ namespace bpr::qt {
 		if (view.Outcome == application::local_draft_open_outcome::moved && view.Draft) {
 			lines << QStringLiteral("This draft was prepared at %1.").arg(text_of(view.Draft->Worktree.Location));
 		} else if (view.Draft && view.WorktreeMissing) {
-			lines << QStringLiteral("The worktree is not at %1. Its candidates and notes are here.").arg(text_of(view.Draft->Worktree.Location));
+			lines << QStringLiteral("The worktree is not at %1. Its candidates and local comments are here.").arg(text_of(view.Draft->Worktree.Location));
 		} else if (view.Draft && view.Match == core::worktree_match::branch_switched) {
 			lines << QStringLiteral("The worktree is on %1 now; this draft stays with %2.").arg(text_of(view.Branch), text_of(view.Draft->Branch));
 		}
@@ -754,9 +756,10 @@ namespace bpr::qt {
 			if (!note.Path.empty()) {
 				text = QStringLiteral("%1: %2").arg(text_of(note.Path), text);
 			}
-			auto* const item = new QListWidgetItem{ text, Notes };
+			auto* const item = new QListWidgetItem{ conversation_icon(conversation_glyph::computer, Notes->palette()), text, Notes };
 			item->setData(note_role, QVariant::fromValue<qulonglong>(note.Id));
-			item->setToolTip(note.Origin == core::note_origin::harness ? QStringLiteral("From the harness.") : QStringLiteral("Your note."));
+			item->setToolTip(note.Origin == core::note_origin::harness ? QStringLiteral("From the harness. Only on this computer.") : QStringLiteral("Your local comment. Only on this computer."));
+			item->setData(Qt::AccessibleDescriptionRole, QStringLiteral("Local comment, only on this computer"));
 		}
 	}
 

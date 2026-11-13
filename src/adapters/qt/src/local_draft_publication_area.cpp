@@ -391,7 +391,7 @@ namespace bpr::qt {
 			if (plan != nullptr && !plan->Unaccepted.empty()) {
 				row(tr("Unresolved"), tr("%n stop(s) not accepted", nullptr, static_cast<int>(plan->Unaccepted.size())));
 			}
-			row(tr("Kept here"), tr("Notes and conversations"));
+			row(tr("Kept here"), tr("Local comments and conversations"));
 		}
 		SentCaption->setVisible(SentRows->rowCount() > 0);
 		Sent->setVisible(SentRows->rowCount() > 0);
