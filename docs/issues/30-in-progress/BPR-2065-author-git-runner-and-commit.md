@@ -40,3 +40,7 @@ local-draft-authoring milestones must not build this again. Evidence:
 ## Owner look (session 6d00826a…, 2026-11-13)
 
 Rejected: the local draft page, the Edit view, Local Changes with commit and push, the agent commit message; Home 1 accepted with a selection fault. Verdicts verbatim in the [RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md) and the [RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md). Reworked in the PR window round.
+
+## Owner verdict (2026-11-13)
+
+Session `767b9233…`: `local-changes-commit-push` and `agent-commit-message` accepted ([RFC-BPR-0108 ledger](../../verification/RFC-BPR-0108.md)). Still In Progress: AC06 has no course for a stopped or timed-out push, nor for a review submission completing while a push is in flight.

@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0108"
 title: "Prepare a local PR draft from a worktree"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"absorbed 2026-11-10 from the local PR drafts pack v1, where it was RFC-DRAFT-0002","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
 depends_on: []
 ---
@@ -222,7 +222,7 @@ with no chat open.
 ## Proposed delivery
 
 [Workspace identity](../issues/60-done/BPR-2019-discover-the-worktree-and-prospective-pr-comparison.md), [durable draft](../issues/60-done/BPR-2020-persist-local-pr-draft-candidates-and-author.md),
-[Home/workbench flow](../issues/40-parked/BPR-2021-open-and-resume-local-pr-drafts-from.md), and [closeout](../issues/10-backlog/BPR-2022-close-rfc-0108.md)
+[Home/workbench flow](../issues/60-done/BPR-2021-open-and-resume-local-pr-drafts-from.md), and [closeout](../issues/60-done/BPR-2022-close-rfc-0108.md)
 form the second milestone in the [plan's default order](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
 Sharing remains the owner's first requested delivery; its pending closeout does
 not block independent local-draft engineering within an authorized mandate.

@@ -44,3 +44,9 @@ timing claim.
 `test_network_isolation_manifest`,
 `application_review_round_trip_composition_contract` (app pin resealed).
 Not run: the whole suite, the core-only preset, Windows and Linux.
+
+## Owner verdicts (attended session 767b92339e278ea303b3836f21426fd3, handed back 2026-11-13T06:41:17Z)
+
+All five looks accepted, two with notes; verbatim in the
+[RFC-BPR-0108 ledger](RFC-BPR-0108.md#owner-verdicts-attended-session-767b92339e278ea303b3836f21426fd3-handed-back-2026-11-13t064117z).
+The notes are follow-up [[BPR-2156]].

@@ -30,3 +30,9 @@ tooltip.
 | AC05 | Leaving with unsaved edits does not ask yet | Not built |
 | AC06 | Opening reads only; no Qt widget writes (the write is the host's through the port); a review not in author state has two segments and no Edit (`qt_workbench_window_*`) | Pass |
 | AC07 | Owner look filed | Pending owner |
+
+## Owner verdicts (attended session 767b92339e278ea303b3836f21426fd3, handed back 2026-11-13T06:41:17Z)
+
+All five looks accepted, two with notes; verbatim in the
+[RFC-BPR-0108 ledger](RFC-BPR-0108.md#owner-verdicts-attended-session-767b92339e278ea303b3836f21426fd3-handed-back-2026-11-13t064117z).
+The notes are follow-up [[BPR-2156]].

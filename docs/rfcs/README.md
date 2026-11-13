@@ -771,7 +771,7 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 | [RFC-BPR-0105](RFC-BPR-0105-a-review-opens-fresh-and-a-submission-always-ends.md) | A review opens fresh, and a submission always ends | Auto-Verified | None |
 | [RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) | A tour stop shows its code on arrival and is accepted the way a file is | Auto-Verified | None |
 | [RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md) | Share selected agents and prompts | Auto-Verified | None |
-| [RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md) | Prepare a local PR draft from a worktree | Proposed | None |
+| [RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md) | Prepare a local PR draft from a worktree | Auto-Verified | None |
 | [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) | Build evidence while preparing a local PR draft | Deferred | RFC-BPR-0108 |
 | [RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md) | Prepare the description and Review Tour before a PR exists | Proposed | RFC-BPR-0107, RFC-BPR-0108 |
 | [RFC-BPR-0111](RFC-BPR-0111-draft-publication-and-continuity.md) | Publish a prepared draft and preserve its evidence and tour | Proposed | RFC-BPR-0108, RFC-BPR-0110 |
@@ -795,7 +795,7 @@ Imported 2026-11-10 at the owner's request; no implementation mandate has been g
 |---|---|---|---|
 | [RFC-BPR-0116](RFC-BPR-0116-a-returning-pull-request-says-what-changed-and-whether-a-comment-was-addressed.md) | A returning pull request says what changed, and whether a comment was addressed | Proposed | RFC-BPR-0009, RFC-BPR-0094, RFC-BPR-0101, RFC-BPR-0102 |
 | [RFC-BPR-0117](RFC-BPR-0117-explain-this-file-where-i-am-reading.md) | Explain this file where I am reading | In Progress | RFC-BPR-0101, RFC-BPR-0102 |
-| [RFC-BPR-0118](RFC-BPR-0118-turn-a-draft-comment-into-an-exact-suggested-change.md) | Turn a draft comment into an exact suggested change | Proposed | RFC-BPR-0090, RFC-BPR-0101 |
+| [RFC-BPR-0118](RFC-BPR-0118-turn-a-draft-comment-into-an-exact-suggested-change.md) | Turn a draft comment into an exact suggested change | In Progress | RFC-BPR-0090, RFC-BPR-0101 |
 | [RFC-BPR-0119](RFC-BPR-0119-ask-the-agent-why-a-check-failed.md) | Ask the agent why a check failed | Proposed | RFC-BPR-0011, RFC-BPR-0068, RFC-BPR-0101, RFC-BPR-0102 |
 | [RFC-BPR-0120](RFC-BPR-0120-the-agent-runs-a-planned-check-on-a-local-pr-draft.md) | The agent runs a planned check on a local PR draft | Proposed | RFC-BPR-0103, RFC-BPR-0104, RFC-BPR-0109, RFC-BPR-0110, RFC-BPR-0115 |
 | [RFC-BPR-0121](RFC-BPR-0121-insights-shows-what-the-agents-did-and-what-was-kept.md) | Insights shows what the agents did and which suggestions were kept | Proposed | RFC-BPR-0086, RFC-BPR-0101 |

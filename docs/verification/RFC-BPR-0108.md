@@ -93,3 +93,28 @@ Tour panel bound to a local draft's tour (the Tour drawer tab hosts the local
 tour editor), the Status tab's three-step strip (it hosts the publication
 area), a capped Home list with Show All, and Address feedback opening a pull
 request into author state (RFC-BPR-0122).
+
+## Owner verdicts (attended session 767b92339e278ea303b3836f21426fd3, handed back 2026-11-13T06:41:17Z)
+
+Owner words verbatim; every candidate accepted. The frozen root
+`/Users/jaeger/local-draft-in-pr-window-v003.3yt_ouf8` (from `af839e73d89c`)
+was removed with `freeze_attended_build.py remove` and host 84895 (its
+`tailscale serve` child 84904) stopped with the attended-review `stop` after
+hand-back.
+
+- `draft-in-pr-window`: **Accept** (decision `51643c6c`, 2026-11-13T06:33:59Z).
+- `agent-commit-message`: **Accept** (decision `235f1314`, 2026-11-13T06:33:28Z).
+- `home-selection`: **Accept** (decision `b7424cc4`, 2026-11-13T06:37:31Z).
+- `edit-view`: **Accept** (decision `76d9f77e`, screenshot attached in the session)
+> Something weird with the underrail here but otherwise seems good.
+- `local-changes-commit-push`: **Accept** (decision `162785d5`)
+> I think "Local Changes" should just be "Changes"
+>
+> The folder icons in changes probably make it look better here than they do in the files tab and probably also in overview, maybe we should add them there too.. although they probably need to be styled to match the OS folders since blue is defintely a mac thing.
+
+What follows: [[BPR-2021]] (AC06 now passes) and [[BPR-2062]] are Done, and
+[[BPR-2022]] closes RFC-BPR-0108. The notes are follow-up [[BPR-2156]]
+(Backlog): the tab named Changes, folder icons in Files and Overview styled
+per platform, and the Edit view's underrail. [[BPR-2065]] stays In Progress:
+its AC06 (a stopped or timed-out push observed and not repeated; a review
+submission completing while a push is in flight) has no course yet.
