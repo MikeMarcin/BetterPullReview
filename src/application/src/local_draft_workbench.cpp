@@ -826,7 +826,7 @@ namespace bpr::application {
 			Projection.File = local_draft_file_view{ .Path = aPath, .Change = change->Change, .Status = review_material_status::failure };
 			publish();
 			run(
-				[wanted = *change, draft = Projection.Draft->Id, ordinal = shown->Ordinal](implementation& aSelf, const std::stop_token aStop) -> local_draft_file_view {
+				[wanted = *change, draft = Projection.Draft->Id, ordinal = shown->Ordinal, sequence = ++PresentSequence](implementation& aSelf, const std::stop_token aStop) -> local_draft_file_view {
 					auto  view   = local_draft_file_view{ .Path = wanted.Path, .Change = wanted.Change };
 					auto* stored = aSelf.store();
 					if (stored == nullptr) {
@@ -871,6 +871,12 @@ namespace bpr::application {
 					view.Reason = run.Outcome->Reason;
 					if (run.Outcome->Result) {
 						view.Rows = core::diff_rows(*run.Outcome->Result);
+					}
+					// The window's diff viewer shows the same two sides.
+					const auto subject = draft.Value + "#candidate-" + std::to_string(ordinal);
+					if (auto presented = present_local_comparison(subject, wanted.Path, wanted.Left ? std::optional{ std::span<const std::uint8_t>{ *left } } : std::nullopt,
+																  wanted.Right ? std::optional{ std::span<const std::uint8_t>{ *right } } : std::nullopt, aSelf.Matcher, sequence, aStop)) {
+						view.Presented = std::make_shared<const local_presentation>(std::move(*presented));
 					}
 					view.Status = review_material_status::available;
 					return view;
@@ -1356,6 +1362,8 @@ namespace bpr::application {
 		local_draft_workbench_port&                         Port;
 		std::function<std::int64_t()>                       Now;
 		std::shared_ptr<diff_line_matcher_port>             Matcher;
+		/// Orders the presentations this draft hands the window.
+		std::uint64_t PresentSequence = 0U;
 
 		/// Effect lane only, under `EffectMutex`.
 		std::mutex                            EffectMutex;

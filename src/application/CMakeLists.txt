@@ -56,6 +56,7 @@ add_library(
         src/local_draft_publishing.cpp
         src/local_changes_host.cpp
         src/local_draft_workbench.cpp
+        src/local_presentation.cpp
         src/review_cycle_comparison.cpp
         src/review_cycle_feedback.cpp
         src/review_cycle_round.cpp

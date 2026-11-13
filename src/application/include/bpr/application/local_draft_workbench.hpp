@@ -5,6 +5,7 @@
 #include "bpr/application/local_draft_discovery.hpp"
 #include "bpr/application/local_draft_publishing.hpp"
 #include "bpr/application/local_draft_store.hpp"
+#include "bpr/application/local_presentation.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 #include "bpr/core/agent_run_policy.hpp"
@@ -134,6 +135,8 @@ namespace bpr::application {
 		review_material_status            Status = review_material_status::failure;
 		std::vector<core::cycle_diff_row> Rows;
 		core::diff_reason_code            Reason                                          = core::diff_reason_code::none;
+		/// The same comparison as the pull request window's diff viewer shows it.
+		std::shared_ptr<const local_presentation> Presented;
 		auto                              operator<=>(const local_draft_file_view&) const = default;
 	};
 

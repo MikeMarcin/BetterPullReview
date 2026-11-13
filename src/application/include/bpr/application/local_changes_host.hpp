@@ -3,6 +3,7 @@
 
 #include "bpr/application/author_git_port.hpp"
 #include "bpr/application/diff_line_matcher.hpp"
+#include "bpr/application/local_presentation.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/local_changes.hpp"
@@ -62,6 +63,8 @@ namespace bpr::application {
 		std::vector<std::uint8_t>               Disk;
 		std::optional<core::local_edit_refusal> EditRefusal;
 		std::vector<core::local_line_mark>      Marks;
+		/// The same comparison as the pull request window's diff viewer shows it.
+		std::shared_ptr<const local_presentation> Presented;
 		bool                                    operator==(const local_changes_file&) const = default;
 	};
 

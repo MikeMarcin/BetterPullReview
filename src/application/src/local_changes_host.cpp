@@ -85,6 +85,8 @@ namespace bpr::application {
 		author_git_port&                        Git;
 		worktree_file_port&                     Files;
 		std::shared_ptr<diff_line_matcher_port> Matcher;
+		/// Orders the presentations handed to the window; read on the effect lane.
+		std::atomic<std::uint64_t> PresentSequence{ 0U };
 		effect_executor&                        Effects;
 		decision_executor&                      Decisions;
 		local_changes_port&                     Port;
@@ -334,6 +336,12 @@ namespace bpr::application {
 				shown.Bands         = core::uncommitted_bands(showing, hunks_of(staged), hunks_of(unstaged));
 			}
 			shown.Diff = std::make_shared<const core::computed_material_diff>(std::move(*outcome.Result));
+			// The window's diff viewer shows the same two sides.
+			const auto subject = aSubject.Worktree + "#local-changes-" + std::to_string(static_cast<int>(aComparison));
+			if (auto presented = present_local_comparison(subject, aPath, left ? std::optional{ std::span<const std::uint8_t>{ *left } } : std::nullopt,
+														  right ? std::optional{ std::span<const std::uint8_t>{ *right } } : std::nullopt, Matcher, ++PresentSequence, aStop)) {
+				shown.Presented = std::make_shared<const local_presentation>(std::move(*presented));
+			}
 			return shown;
 		}
 
