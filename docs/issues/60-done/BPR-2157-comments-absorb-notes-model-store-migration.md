@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2157"
 title: "One comment in three states: model, store and the notes migration"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0127"]
 depends_on: []
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2157--BPR-2162--9d1250ec0d11.json","milestone_plan":{"id":"comments-absorb-notes-v1","path":"docs/rfcs/plans/comments-absorb-notes-v1/milestone-plan.json"},"criteria":["AC03","AC11","AC13"],"origin":"imported 2026-11-13 from comments-absorb-notes-v1 (RFC-DRAFT-0001); cut from the draft's suggested milestones"}
+acceptance: [{"criterion":"AC03","outcome":"pass","revision":"fe32da7ee","evidence":{"kind":"command","detail":"application_local_comments_composition_public_path; application_review_submission_composition_public_path"}},{"criterion":"AC11","outcome":"pass","revision":"72a0d55af","evidence":{"kind":"command","detail":"sqlite_review_ledger_storage on tests/fixtures/review-ledger/v11-notes.sqlite, interrupted at every statement"}},{"criterion":"AC13","outcome":"pass","revision":"fe32da7ee","evidence":{"kind":"command","detail":"application_local_comments_composition_public_path counters before and after; core_feedback_partition"}}]
 ---
 
 # BPR-2157: One comment in three states: model, store and the notes migration

@@ -2476,7 +2476,7 @@ Fresh `rfc-implementer`, same lane; nothing pushed. Frontend-design was loaded f
 | `91a448ca7`, this commit; main `f463b4544`, mirror of this commit | Verdicts of a0cbb9dd verbatim; new session record |
 
 State:
-- `local-comment-model` is engineered; see the [BPR-2157 card](../../30-in-progress/BPR-2157-comments-absorb-notes-model-store-migration.md#progress-2026-11-13) for the design, the identity decision and the evidence.
+- `local-comment-model` is engineered; see the [BPR-2157 card](../../60-done/BPR-2157-comments-absorb-notes-model-store-migration.md#progress-2026-11-13) for the design, the identity decision and the evidence.
 - AC11 passes against the shipped schema 11 file, interrupted at every statement.
 - AC03 passes for Local comments on a line and on the pull request through the submission course. Threads, files and Publish response have no surface before milestones 2 to 4.
 - AC13 has core evidence only.

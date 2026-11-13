@@ -9,7 +9,7 @@ unattended, you can file reviews but dont block on their results". Debug
 timings are nongating; nothing below is a timing claim.
 
 Engineering evidence for each card is on the card:
-[BPR-2157](../issues/30-in-progress/BPR-2157-comments-absorb-notes-model-store-migration.md),
+[BPR-2157](../issues/60-done/BPR-2157-comments-absorb-notes-model-store-migration.md),
 [BPR-2158](../issues/10-backlog/BPR-2158-comments-drawer-holds-local-comments.md).
 
 ## Owner verdicts, first look (attended session 12534e154303dd1913382442a83b8c8f, handed back 2026-11-13T17:44:00Z)
