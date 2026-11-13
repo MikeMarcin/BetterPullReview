@@ -2509,3 +2509,34 @@ Next: RFC-BPR-0127 `comments-absorb-notes` (BPR-2158).
 Pending decisions:
 - A selected Local comment over the supplement's 16 KiB refuses the agent request (milestone 4).
 - The Overview Note column now shows text (milestone 3 retires it).
+
+### Follow-up in the same round: d420cccb accepted, RFC-BPR-0110 closed (2026-11-13)
+
+Session `d420cccb…` was handed back at 16:14:32Z. `tour-one-button-style` was an **Accept** with no note, verified in its `session.json`. Host 92512/92524 was stopped with the attended-review `stop`. `/Users/jaeger/local-draft-tour-panel-v007.hvczp7ad` was removed with `freeze_attended_build.py remove`; nothing ran from it.
+
+| Commit | What |
+|---|---|
+| `b4d1c3a5e`-era verdict commit, `a143adfc1` | Verdict recorded; BPR-2027 Done (AC08 pass) |
+| `ffe23a183`, `966e078ec`, `3ceefb3e9` | BPR-2028 Ready, claimed, Done: **RFC-BPR-0110 Auto-Verified**. Closeout re-run at `a143adfc1`: 25 local-draft, tour-publication and Tour rows pass. `application_review_tour_publication_stop` failed once under parallel GUI load and passed alone three times |
+| `a559d12e5` | BPR-2029 readiness judgment |
+| main `01b881e0d` | Mirror of all of the above |
+
+RFC-BPR-0111 is **not closed** this round:
+- BPR-2029 and BPR-2031 cannot change lanes. `docs/rfcs/assets/local-draft-authoring-v1/AMENDMENTS.md` (protected) links their Backlog paths, and `issue_board.py move` refuses to edit it. A coordinator or owner decision is needed: an exception for those link lines, or a path-preserving approach (`immutable-review-link` assumes the card can at least park).
+- BPR-2029's AC07 clause "a review submission for another pull request completes while a creation is in flight" has no course. It is structural only (per-host lanes).
+- BPR-2030 depends on BPR-2029. Its AC03 to AC06 evidence is recorded (tour carry on the application path, live #184).
+
+Next, RFC-BPR-0127 milestone 2 (BPR-2158), to start fresh.
+
+Design start:
+- **One move operation.** Add it to the SQLite ledger store, in one transaction:
+  - Keep local deletes a `private_draft` row, after checking its revision, that no `private_publication` references it, and that the core allowed it, then inserts a `private_local_comment` row.
+  - Make draft deletes the Local row and inserts a draft row with an ID from the scope frontier (`private_database::next`).
+- **Identity.** A kept comment takes the draft's ID when no Local comment holds it, and the next free Local ID otherwise. The move returns the new identity, so the window and finding cards follow it.
+- **Host orchestration.** Both the shared draft host (fan-out of drafts) and the review ledger host (`LocalComments`) must observe the move. Run it on the ledger lane, then refresh the shared draft host's roster from the store; do not have two hosts each delete their half.
+- **UI.**
+  - The Comments drawer takes Local comments. The two-segment state control (Local, and Draft or Reply) sits in the composer's foot.
+  - N presets Local. The computer icon is `QStyle::SP_ComputerIcon`, with tooltip and accessible text "Only on this computer".
+  - One gutter mark per line: thread over draft over Local. The Notes tab and `private_notes_panel` retire.
+- **Look fixture.** Write one with Local, Draft and Published comments on one line and a migrated note; promo-v1 has none. Then freeze from HEAD and file one session.
+- **Close BPR-2157** once AC03 is shown for threads and files and AC13 in the composed app.
