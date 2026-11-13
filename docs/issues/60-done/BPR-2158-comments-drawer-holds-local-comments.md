@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2158"
 title: "Comments absorbs Notes: Local cards, the state control, N and one gutter mark"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0127"]
 depends_on: ["BPR-2157"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2157--BPR-2162--9d1250ec0d11.json","milestone_plan":{"id":"comments-absorb-notes-v1","path":"docs/rfcs/plans/comments-absorb-notes-v1/milestone-plan.json"},"criteria":["AC01","AC02","AC04","AC05","AC06","AC14"],"origin":"imported 2026-11-13 from comments-absorb-notes-v1 (RFC-DRAFT-0001); cut from the draft's suggested milestones"}
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"1fb04c26b","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200} (tray tabs Comments, Tour, Agent; no tab named Notes; N is the window's Local comment); Overview drawer five tabs; owner look 12534e15 Accept"}},{"criterion":"AC02","outcome":"pass","revision":"1fb04c26b","evidence":{"kind":"command","detail":"qt_conversation_cards_view test_local_comments_share_a_line; owner look 12534e15 comment-states-on-a-line Accept"}},{"criterion":"AC04","outcome":"pass","revision":"1fb04c26b","evidence":{"kind":"command","detail":"application_local_comments_composition_public_path (Keep local lowers the in-review count; Make draft returns a not-in-review draft at the same place)"}},{"criterion":"AC05","outcome":"pass","revision":"1fb04c26b","evidence":{"kind":"command","detail":"application_local_comments_composition_public_path (Local disabled with its reason on a held draft; Make draft where my draft stands refused; published thread offers no state change)"}},{"criterion":"AC06","outcome":"pass","revision":"1fb04c26b","evidence":{"kind":"command","detail":"qt_conversation_cards_view test_local_comments_edges_and_editing; qt_drawer_surfaces_fit_scale_{100,125,200}; application_local_comments_composition_public_path chips and pull request count"}},{"criterion":"AC14","outcome":"pass","revision":"1fb04c26b","evidence":{"kind":"command","detail":"qt_conversation_cards_view state words and keyboard; qt_workbench_window_scale_100 state control keyboard-reachable"}}]
 ---
 
 # BPR-2158: Comments absorbs Notes: Local cards, the state control, N and one gutter mark
