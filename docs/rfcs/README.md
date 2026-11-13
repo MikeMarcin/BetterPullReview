@@ -819,3 +819,11 @@ Imported 2026-11-11 at the owner's request ("/author-rfc a pack for this and mes
 | [RFC-BPR-0125](RFC-BPR-0125-suggested-prompts-are-editable-macros.md) | Suggested prompts are editable macros with rules for where and when they show | In Progress | RFC-BPR-0092, RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0107 |
 
 Drafted 2026-11-12 from the owner's idea ("I wonder if we can make suggested prompts configurable macros we can add/remove/edit in the settings"). The owner answered Q1 to Q10 the same day, Q6 otherwise than recommended (`/` stays skills only; prompts are reached with `/p `), and asked for implementation. Milestone 1, pure core, is built on `main`'s base; milestones 2 onward need the lane's RFC-BPR-0102 and RFC-BPR-0107 code. [Mockup](RFC-BPR-0125-suggested-prompts-are-editable-macros-mockup.html). Its proposed amendments to RFC-BPR-0102 and RFC-BPR-0107 are applied by the owning milestones, not at drafting.
+
+## Queue and steer
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md) | Queue follow-ups in BPR and steer native agent chats | Proposed | RFC-BPR-0092, RFC-BPR-0096, RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0103 |
+
+Imported 2026-11-12 at the owner's request ("Add to queue /implement-rfc Implement the RFC"); queued behind the lane's current work, no card started. [Import](assets/queue-and-steer-v1.LIVE_IMPORT.md); [plan](plans/queue-and-steer-v1/MILESTONES.md), one milestone. Owner questions Q1 to Q18 on the RFC are open; Q1 decides the BPR-1930 whole-tour feedback buffer, which RFC-BPR-0101's fresh first draft left as the one fresh-to-conversation path without Ask more.
