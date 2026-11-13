@@ -133,7 +133,7 @@ drawer's list and its column header ("Threads"), Discuss's counts and file
 scope, the Overview's counts, chips and Label key, Settings' Overview counts
 help, the queue's attention reason and the tour CLI's count summary. Internal
 names, persisted keys, fixture names and GitHub API terms keep
-`conversation`, and the Notes tab's "AI conversations" (agent chats) are a
+`conversation`, and the Agent tab's conversations (agent chats) are a
 different thing. Threads is added and
 Discuss is kept: the modalities are Overview, Review, Discuss and Threads, on
 `Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4); Discuss keeps ⌘3 and its behaviour and
@@ -2589,21 +2589,22 @@ this pill and the title-row badge are absent without a selected file or when
 that file has no unread threads, even if another file does ([[BPR-1511]]). The
 count follows the accepted unread policy regardless of the drawer's filters.
 Next new comment continues through unread threads across the pull request.
-[[BPR-1592]] (RFC-BPR-0085 D3). The Notes tab holds only private notes, as
-margin notes: each note hangs from its line beside the code and opens in place
-to write, drawn dashed with a lock, as a thread is; Up, Down, Return and Esc
-move, open and close, and N writes a note on the selected line (its tool sits
-on the tab row with the notes on the pull request). Notes on the pull request
-lead the top edge as a chip; notes on whole files and other files close the
-bottom edge; notes whose lines are above or below the code in view wait as line
-chips. A note whose line is not in the comparison shown follows the placed
-ones and says why. The gutter marks a noted line with a dashed cell, washed in
-the writing blue while its note is open. A note's main action is Save (⌘↩);
-its other is **Draft comment**, which copies it to a local draft at its own line
-(or, for a note without a line, at Comment's target); the note stays, and
-nothing is published until the existing explicit Publish. Esc on unsaved
-changes says so once and discards on the second press. Notes stays available
-with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
+RFC-BPR-0127 ([[BPR-2158]]). There is no Notes tab: the tray's tabs are
+Comments, Tour and Agent, and Overview's drawer has no Notes either. My **Local
+comments** (once private notes) are cards in Comments at their lines, after the
+published threads and before my draft, marked with the computer ("Only on this
+computer"); a Local reply sits inside its thread's card. Local comments on this
+whole file and on other files wait in two quiet chips beside the pull request
+link (**This file**, **Other files**), and those on the pull request are counted
+on the link and drawn in Overview's Comments. In a drawer too narrow for their
+words the link and both chips keep only their glyphs and counts (one page for
+This file, two for Other files), their words staying their names and tooltips.
+N opens the composer on Local; its foot holds the Local/Draft state control,
+and Local is disabled, saying why, on a draft a submitted review holds or one
+being published. A line has one gutter mark naming everything on it. A Local
+comment's card offers Make draft (or Make draft on line N), Copy text, Delete
+(which asks first), edit in place, and, in its menu, Ask agent. Local comments
+need no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
 follows Tour, its spark beside its name. Its header (owner look v003, after the
 agent drawers' convention) is the session's title, the pull request's number
 and title, the head its session reads, and two icons: History (Clear session,

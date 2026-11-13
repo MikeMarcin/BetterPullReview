@@ -1161,9 +1161,9 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0127. Why the core would refuse to keep this draft
 		/// local now, in words; empty when Local is offered.
 		[[nodiscard]] static auto local_refusal_words(const core::review_comment_draft& aDraft) -> QString;
-		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
-		[[nodiscard]] auto add_tour_stop_action() const noexcept -> QAction*;
-		[[nodiscard]] auto tour_editor() const noexcept -> review_tour_editor*;
+		[[nodiscard]] auto        prepare_tour_action() const noexcept -> QAction*;
+		[[nodiscard]] auto        add_tour_stop_action() const noexcept -> QAction*;
+		[[nodiscard]] auto        tour_editor() const noexcept -> review_tour_editor*;
 		/// \brief [[BPR-1593]]. Expand: the tour page in the main pane; with
 		/// \p aPublication, at what GitHub will show.
 		/// \brief [[RFC-BPR-0105]]. The composition is opening a pull request
@@ -3443,11 +3443,11 @@ namespace bpr::qt {
 		bool                       EnteringOpeningModality = false;
 		github_conversation_panel* ConversationPanel       = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
-		bool                 ApplyingConversationAnchor       = false;
-		bool                 LeftConversationEndpointCurrent  = false;
-		bool                 RightConversationEndpointCurrent = false;
-		agent_launch_panel*  AgentPanel                       = nullptr;
-		review_tour_editor*  TourEditor                       = nullptr;
+		bool                ApplyingConversationAnchor       = false;
+		bool                LeftConversationEndpointCurrent  = false;
+		bool                RightConversationEndpointCurrent = false;
+		agent_launch_panel* AgentPanel                       = nullptr;
+		review_tour_editor* TourEditor                       = nullptr;
 		/// [[BPR-1925]]. The Tour tab: the tour, and beside it the chat about
 		/// its marked part while one is open.
 		QSplitter* TourChatSplit = nullptr;

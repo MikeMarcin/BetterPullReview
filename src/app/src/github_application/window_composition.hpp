@@ -1655,7 +1655,7 @@ namespace bpr::app {
 			std::function<void()> Refused;
 			std::function<void()> Done;
 		};
-		std::optional<pending_note_promotion>                     PendingNotePromotion;
+		std::optional<pending_note_promotion> PendingNotePromotion;
 
 		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { });
 

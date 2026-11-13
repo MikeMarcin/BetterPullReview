@@ -3708,9 +3708,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# persists through the same ledger call at its revision; Keep local frees
 	# its line through leave_deleted_draft, as Delete does; a tests-only seam
 	# stores a whole-file or pull request comment, which main.cpp's local
-	# comments look also uses. No new effect or path.
+	# comments look also uses. No new effect or path. Third round: the
+	# Notes panel's dispatch, presentation and attended notes look are
+	# removed; Ask agent on a Local comment reaches the existing note path.
 	set(bpr_expected_production_app_manifest_digest
-        "8484832973228d1ed7fa368209e0cee09c9c52197060eabe61b17cb96f8cd3ac"
+        "3e2c3bd689965add27285c3ca8bfbfbc0603ef81b20c8456cd918542d3f24f37"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -119,7 +119,7 @@ namespace bpr::qt {
 			/// RFC-BPR-0127. What a compact Local chip leads with, so This file
 			/// (one page) and Other files (two pages) stay told apart.
 			std::optional<drawer_glyph> Lead;
-			[[nodiscard]] auto locals_width() const -> int
+			[[nodiscard]] auto          locals_width() const -> int
 			{
 				return Locals > 0U ? 6 + 12 + 3 + QFontMetrics{ font() }.horizontalAdvance(QString::number(Locals)) + 6 : 0;
 			}
@@ -633,8 +633,8 @@ namespace bpr::qt {
 			chip->hide();
 			return chip;
 		};
-		LocalFileChip      = localChip(QStringLiteral("localFileCommentsChip"), tr("This file"));
-		LocalElsewhereChip = localChip(QStringLiteral("localElsewhereCommentsChip"), tr("Other files"));
+		LocalFileChip                                             = localChip(QStringLiteral("localFileCommentsChip"), tr("This file"));
+		LocalElsewhereChip                                        = localChip(QStringLiteral("localElsewhereCommentsChip"), tr("Other files"));
 		static_cast<pull_request_chip*>(LocalFileChip)->Lead      = drawer_glyph::page;
 		static_cast<pull_request_chip*>(LocalElsewhereChip)->Lead = drawer_glyph::copy;
 		connect(LocalFileChip, &QAbstractButton::clicked, this, [this] {
