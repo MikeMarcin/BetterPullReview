@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2076"
 title: "Explain this file, answered in Review"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0117"]
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06"],"milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2073--BPR-2085--88e53295c309.json","imported_from":"docs/rfcs/assets/agent-assistance-v1/cards/DRAFT-0004-explain-this-file-in-review.md"}
 depends_on: []

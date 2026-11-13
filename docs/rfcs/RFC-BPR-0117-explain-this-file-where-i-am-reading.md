@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0117"
 title: "Explain this file where I am reading"
-status: "Proposed"
+status: "In Progress"
 metadata: {"origin":"imported 2026-11-10 from the agent-assistance-v1 pack, where it was RFC-DRAFT-0002","inspected_revision":"90785ae34aeccf63724b9e5e7a70446f89341ec5","milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"baseline":"a9663a706fd72061f60b615bd8e749ee0ddb66b5"}
 depends_on: ["RFC-BPR-0101", "RFC-BPR-0102"]
 ---
@@ -73,6 +73,6 @@ RFC; the Agent tab's attached lines cover it today.
 
 ## Proposed delivery
 
-[Explain this file](../issues/10-backlog/BPR-2076-explain-this-file-in-review.md) and
+[Explain this file](../issues/20-ready/BPR-2076-explain-this-file-in-review.md) and
 [closeout](../issues/10-backlog/BPR-2077-close-rfc-0117.md) form the second
 [milestone](plans/agent-assistance-v1/milestone-plan.json).
