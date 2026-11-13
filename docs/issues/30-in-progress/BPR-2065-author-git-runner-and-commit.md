@@ -44,3 +44,11 @@ Rejected: the local draft page, the Edit view, Local Changes with commit and pus
 ## Owner verdict (2026-11-13)
 
 Session `767b9233…`: `local-changes-commit-push` and `agent-commit-message` accepted ([RFC-BPR-0108 ledger](../../verification/RFC-BPR-0108.md)). Still In Progress: AC06 has no course for a stopped or timed-out push, nor for a review submission completing while a push is in flight.
+
+## AC06 (2026-11-13)
+
+Courses added: a timed-out and a stopped push against a hanging pre-push hook
+(`local_changes`), and a review submission completing while a push holds the
+author's Git lane (`application_dependable_session_public_path` step 2b). The
+author's Git has its own lane; every push outcome reads the hosted branch
+again. Evidence: [RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md#ac06-courses-2026-11-13).

@@ -80,3 +80,20 @@ The Edit view, Local Changes, staging, commit and push are now the pull request 
 All five looks accepted, two with notes; verbatim in the
 [RFC-BPR-0108 ledger](RFC-BPR-0108.md#owner-verdicts-attended-session-767b92339e278ea303b3836f21426fd3-handed-back-2026-11-13t064117z).
 The notes are follow-up [[BPR-2156]].
+
+## AC06 courses (2026-11-13)
+
+The author's Git now runs on a worker lane of its own in the composition
+(`local_draft_desktop`, before: the shared workbench effect lane), and a
+failed, stopped or timed-out push reads the hosted branch again
+(`local_changes_host::write`, before: only after a push that succeeded).
+
+| Course | What it shows | Result |
+|---|---|---|
+| `local_changes` (`stopped_and_timed_out_pushes`, real repositories, a pre-push hook that marks it ran and sleeps 30 s) | Timed out: the hooks bound set to 1.5 s, the push ends `timeout` after 1,568 ms, the hosted branch is read again (not there), Push is offered again, the hook ran once. Stopped: the push runs on a thread lane, Stop ends it `cancelled` 94 ms after the press, the hosted branch is read again and holds nothing, the hook ran once (nothing repeated) | Pass |
+| `application_dependable_session_public_path` step 2b (the composed desktop, fixture GitHub) | The author's Git lane held as a push in flight holds it (`hold_author_git_lane`), #18's Approve publishes | Pass |
+
+Counterfactual recorded: holding the shared workbench effect lane instead also
+lets #18's Approve publish, so review submissions never depended on the lane
+the push used; the lane of its own keeps a push waiting on hooks or the network
+from holding file loads and other workbench work.
