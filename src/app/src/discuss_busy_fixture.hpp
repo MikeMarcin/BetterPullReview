@@ -21,11 +21,11 @@
 namespace bpr::app::detail {
 	inline void serve_busy_discuss(review_submission_fixture_state& aState)
 	{
-		constexpr auto head  = "f05373e1184e7067994839ecbe6e2db7a933fa97";
-		const auto     user  = [](const char* aLogin, const bool aBot) { return QJsonObject{ { "node_id", QStringLiteral("U_%1").arg(QString::fromLatin1(aLogin)) }, { "login", QString::fromLatin1(aLogin) }, { "type", aBot ? "Bot" : "User" } }; };
-		auto           count = 6100;
-		const auto     review = [&](const char* aNode, const char* aLogin, const char* aState, const char* aAt, const QString& aBody) {
-            return QJsonObject{ { "id", ++count }, { "node_id", QString::fromLatin1(aNode) }, { "state", QString::fromLatin1(aState) }, { "submitted_at", QString::fromLatin1(aAt) }, { "body", aBody }, { "commit_id", head }, { "user", user(aLogin, false) } };
+		constexpr auto head   = "f05373e1184e7067994839ecbe6e2db7a933fa97";
+		const auto     user   = [](const char* aLogin, const bool aBot) { return QJsonObject{ { "node_id", QStringLiteral("U_%1").arg(QString::fromLatin1(aLogin)) }, { "login", QString::fromLatin1(aLogin) }, { "type", aBot ? "Bot" : "User" } }; };
+		auto           count  = 6100;
+		const auto     review = [&](const char* aNode, const char* aLogin, const char* aVerdict, const char* aAt, const QString& aBody) {
+			return QJsonObject{ { "id", ++count }, { "node_id", QString::fromLatin1(aNode) }, { "state", QString::fromLatin1(aVerdict) }, { "submitted_at", QString::fromLatin1(aAt) }, { "body", aBody }, { "commit_id", head }, { "user", user(aLogin, false) } };
 		};
 		auto reviews = QJsonArray{ };
 		reviews.append(review("busy-review-jiayin", "jiayin", "CHANGES_REQUESTED", "2026-10-28T09:00:00Z",
@@ -38,9 +38,9 @@ namespace bpr::app::detail {
 		reviews.append(review("busy-review-author", "fixture-author", "COMMENTED", "2026-10-31T11:00:00Z",
 							  QStringLiteral("Reworked along the lines jiayin asked for:\n\n- the root is kept, not the reply\n- Open survives the rebuild\n\n> Keeping the root is enough\n\nIt was.")));
 		reviews.append(review("busy-review-approve", "tbutler", "APPROVED", "2026-11-01T08:30:00Z", QStringLiteral("Much better. One real problem left in the finder; the rest reads well.")));
-		auto comments = QJsonArray{ };
-		auto comment  = 7100;
-		const auto add = [&](const char* aLogin, const bool aBot, const char* aAt, const QString& aBody) {
+		auto       comments = QJsonArray{ };
+		auto       comment  = 7100;
+		const auto add      = [&](const char* aLogin, const bool aBot, const char* aAt, const QString& aBody) {
 			comments.append(QJsonObject{ { "id", ++comment }, { "node_id", QStringLiteral("busy-comment-%1").arg(comment) }, { "created_at", QString::fromLatin1(aAt) }, { "updated_at", QString::fromLatin1(aAt) }, { "body", aBody }, { "user", user(aLogin, aBot) } });
 		};
 		const auto build = [](const char* aWhen) {
@@ -62,9 +62,18 @@ namespace bpr::app::detail {
 		// The fixture's threads, by their place in its list, bundled in the
 		// reviews above; the rest stand alone.
 		aState.AttendedThreadReviews = {
-			{ 1, "busy-review-jiayin" }, { 2, "busy-review-jiayin" }, { 3, "busy-review-jiayin" }, { 10, "busy-review-jiayin" }, { 11, "busy-review-jiayin" },
-			{ 5, "busy-review-tbutler" }, { 7, "busy-review-tbutler" }, { 15, "busy-review-tbutler" }, { 16, "busy-review-tbutler" },
-			{ 13, "busy-review-approve" }, { 17, "busy-review-approve" }, { 18, "busy-review-approve" },
+			{ 1, "busy-review-jiayin" },
+			{ 2, "busy-review-jiayin" },
+			{ 3, "busy-review-jiayin" },
+			{ 10, "busy-review-jiayin" },
+			{ 11, "busy-review-jiayin" },
+			{ 5, "busy-review-tbutler" },
+			{ 7, "busy-review-tbutler" },
+			{ 15, "busy-review-tbutler" },
+			{ 16, "busy-review-tbutler" },
+			{ 13, "busy-review-approve" },
+			{ 17, "busy-review-approve" },
+			{ 18, "busy-review-approve" },
 		};
 	}
 }

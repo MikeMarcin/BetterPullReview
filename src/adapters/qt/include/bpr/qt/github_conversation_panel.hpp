@@ -312,8 +312,8 @@ namespace bpr::qt {
 		/// [[BPR-2171]]. Fold bots, Discuss's quick filter, off until chosen.
 		QToolButton* FilterBots = nullptr;
 		/// [[BPR-2171]]. Lines the band's chips up with the list's column.
-		void align_band();
-		QLabel*              DiscussSummary       = nullptr;
+		void    align_band();
+		QLabel* DiscussSummary = nullptr;
 		/// [[BPR-1089]]. The drill-down's caption and its clear button.
 		QWidget*                             ListingRow     = nullptr;
 		QLabel*                              ListingMark    = nullptr;

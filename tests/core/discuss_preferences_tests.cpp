@@ -55,7 +55,7 @@ namespace {
 		expect(read_discuss_preferences(std::nullopt) == discuss_preferences_read{ }, "nothing stored is nothing chosen");
 		auto damaged = row;
 		damaged.Marks.push_back(stored_author_mark{ .Repository = "github.com/a/b", .Login = "x", .Bot = 7 });
-		damaged.Column = 9;
+		damaged.Column       = 9;
 		const auto recovered = read_discuss_preferences(damaged);
 		expect(recovered.Recovered && recovered.Preferences.Column == default_discuss_column && recovered.Preferences.Marks == preferences.Marks, "a damaged value is left out, the rest kept");
 		auto newer    = row;

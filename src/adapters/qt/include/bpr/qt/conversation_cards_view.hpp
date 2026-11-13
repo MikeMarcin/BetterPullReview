@@ -4,8 +4,8 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/conversation_timeline.hpp"
-#include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
@@ -815,6 +815,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-2171]]. Where the list's column is: its left edge and
 		/// width in the viewport.
 		[[nodiscard]] auto column() const -> std::pair<int, int>;
+		/// \brief [[BPR-2171]]. Opens the fold holding a thread (or a post's
+		/// thread), so a thread asked for by name is listed.
+		void reveal_folded(const std::string& aId) { unfold_for(aId); }
 		/// \brief [[BPR-2171]]. Opens or closes a fold by its row's key.
 		void               toggle_fold(const std::string& aFold);
 		[[nodiscard]] auto unfolded() const noexcept -> const std::set<std::string>&;
@@ -1219,14 +1222,15 @@ namespace bpr::qt {
 		/// [[BPR-1779]]. The path line under the pointer, drawn in full ink.
 		std::string HoveredPath;
 		/// [[BPR-2171]].
-		core::author_bot_marks                          BotMarks;
+		core::author_bot_marks                        BotMarks;
 		std::function<void(const std::string&, bool)> AuthorBotDispatch;
-		std::optional<int>                              ColumnLimit = 820;
-		std::set<std::string>                           Unfolded;
-		std::size_t                                     FoldedComments   = 0U;
-		std::size_t                                     FoldedThreads    = 0U;
-		std::size_t                                     FoldedUnresolved = 0U;
-		[[nodiscard]] auto                              card_width_for(const thread_card& aCard) const -> std::pair<int, int>;
+		std::optional<int>                            ColumnLimit = 820;
+		std::set<std::string>                         Unfolded;
+		std::size_t                                   FoldedComments   = 0U;
+		std::size_t                                   FoldedThreads    = 0U;
+		std::size_t                                   FoldedUnresolved = 0U;
+		[[nodiscard]] auto                            card_width_for(const thread_card& aCard) const -> std::pair<int, int>;
+		void                                          unfold_for(const std::string& aId);
 		/// [[BPR-1779]]. The pull request's comments and their unread, as the
 		/// Pull request chip counts them: comments, not reviews.
 		mutable std::optional<std::pair<std::size_t, std::size_t>> PullRequestCounts;
@@ -1377,10 +1381,10 @@ namespace bpr::qt {
 		/// [[BPR-0673]]. Two widths, because a scroll bar that comes and goes
 		/// alternates the content width; keeping one width re-measured every
 		/// note of a large review each time it did.
-		measurement_generation        Measurements;
-		measurement_generation        PreviousMeasurements;
-		QFont                         MeasurementFont;
-		std::uint64_t                 MeasurementCount = 0U;
+		measurement_generation Measurements;
+		measurement_generation PreviousMeasurements;
+		QFont                  MeasurementFont;
+		std::uint64_t          MeasurementCount = 0U;
 		/// [[BPR-2171]]. Each closed note's preview, by its card, kept while
 		/// its body is the same: read once, not at every width.
 		struct preview_entry
@@ -1390,12 +1394,12 @@ namespace bpr::qt {
 			std::shared_ptr<const detail::note_preview> Preview;
 		};
 		mutable std::unordered_map<std::string, preview_entry> Previews;
-		[[nodiscard]] auto preview_for(const thread_card& aCard) const -> const detail::note_preview&;
-		open_thread_card*             OpenCard         = nullptr;
-		std::vector<QAbstractButton*> Chips;
-		std::size_t                   ChipsShown = 0U;
-		QWidget*                      BandAbove  = nullptr;
-		QWidget*                      BandBelow  = nullptr;
+		[[nodiscard]] auto                                     preview_for(const thread_card& aCard) const -> const detail::note_preview&;
+		open_thread_card*                                      OpenCard = nullptr;
+		std::vector<QAbstractButton*>                          Chips;
+		std::size_t                                            ChipsShown = 0U;
+		QWidget*                                               BandAbove  = nullptr;
+		QWidget*                                               BandBelow  = nullptr;
 	};
 } // namespace bpr::qt
 

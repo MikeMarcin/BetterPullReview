@@ -45,9 +45,9 @@
 	#include "bpr/qt/workshop_candidate_line.hpp"
 	#include "bpr/qt/writing_hooks_panel.hpp"
 	#include "github_application_fixture_access.hpp"
+	#include "src/discuss_busy_fixture.hpp"
 	#include "src/private_review_fixture_course.hpp"
 	#include "src/review_submission_fixture.hpp"
-	#include "src/discuss_busy_fixture.hpp"
 	#include "src/startup_diagnostic.hpp"
 #endif
 

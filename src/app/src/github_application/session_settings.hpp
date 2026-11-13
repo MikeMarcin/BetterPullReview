@@ -2,8 +2,8 @@
 #define BPR_APP_GITHUB_APPLICATION_SESSION_SETTINGS_HPP
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
-#include "bpr/application/pull_request_activity_host.hpp"
 #include "bpr/application/discuss_preferences_host.hpp"
+#include "bpr/application/pull_request_activity_host.hpp"
 #include "bpr/application/view_filter_memory_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/pull_request_activity.hpp"

@@ -650,11 +650,11 @@ namespace bpr::app {
 		WorkbenchPreferences->restore();
 		// [[BPR-1844]]. Read once, before any window opens a pull request,
 		// so a relaunch opens with the filters last chosen.
-		ViewFilterStore       = std::make_unique<view_filter_memory_store>(applicationDataRoot);
-		ViewFilterMemory      = std::make_unique<application::view_filter_memory_host>(*ViewFilterStore, WorkbenchEffects, DecisionLane, ViewFilterStore->load());
+		ViewFilterStore  = std::make_unique<view_filter_memory_store>(applicationDataRoot);
+		ViewFilterMemory = std::make_unique<application::view_filter_memory_host>(*ViewFilterStore, WorkbenchEffects, DecisionLane, ViewFilterStore->load());
 		// [[BPR-2171]]. Read once, like the filters.
-		DiscussStore       = std::make_unique<discuss_preferences_store>(applicationDataRoot);
-		DiscussPreferences = std::make_unique<application::discuss_preferences_host>(*DiscussStore, WorkbenchEffects, DecisionLane, DiscussStore->load());
+		DiscussStore          = std::make_unique<discuss_preferences_store>(applicationDataRoot);
+		DiscussPreferences    = std::make_unique<application::discuss_preferences_host>(*DiscussStore, WorkbenchEffects, DecisionLane, DiscussStore->load());
 		AppearancePreferences = std::make_shared<application::appearance_preferences_application_host>(qt::default_appearance_settings(), qt::builtin_appearance_palettes(), *AppearanceSettings, ThemeDocuments, AppearanceEffects, DecisionLane, core::application_session_id{ 1U });
 		SyntaxDefinitions     = std::make_unique<adapters::syntax::packaged_definition_catalog>();
 		QueueStore            = adapters::sqlite::make_queue_enrollment_store({

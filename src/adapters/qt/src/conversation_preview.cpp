@@ -2,6 +2,8 @@
 
 #include "markdown_github.hpp"
 
+#include "bpr/core/markdown_code.hpp"
+
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextFragment>
@@ -244,31 +246,21 @@ namespace bpr::qt::detail {
 
 	auto code_token(const QString& aLanguage) -> QString
 	{
-		const auto language = aLanguage.trimmed().section(QLatin1Char{ ' ' }, 0, 0).toLower();
-		struct name
-		{
-			const char* Written;
-			const char* Shown;
-		};
-		static constexpr auto names = std::array{
-			name{ "suggestion", "Suggestion" }, name{ "cpp", "C++" }, name{ "c++", "C++" }, name{ "cxx", "C++" }, name{ "cc", "C++" }, name{ "hpp", "C++" }, name{ "h", "C++" },
-			name{ "c", "C" }, name{ "objc", "Objective-C" }, name{ "py", "Python" }, name{ "python", "Python" }, name{ "js", "JavaScript" }, name{ "javascript", "JavaScript" },
-			name{ "ts", "TypeScript" }, name{ "typescript", "TypeScript" }, name{ "sh", "Shell" }, name{ "bash", "Shell" }, name{ "zsh", "Shell" }, name{ "shell", "Shell" },
-			name{ "console", "Shell" }, name{ "powershell", "PowerShell" }, name{ "ps1", "PowerShell" }, name{ "json", "JSON" }, name{ "yaml", "YAML" }, name{ "yml", "YAML" },
-			name{ "toml", "TOML" }, name{ "diff", "Diff" }, name{ "patch", "Diff" }, name{ "rust", "Rust" }, name{ "rs", "Rust" }, name{ "go", "Go" }, name{ "java", "Java" },
-			name{ "kotlin", "Kotlin" }, name{ "swift", "Swift" }, name{ "cs", "C#" }, name{ "csharp", "C#" }, name{ "cmake", "CMake" }, name{ "sql", "SQL" }, name{ "html", "HTML" },
-			name{ "xml", "XML" }, name{ "css", "CSS" }, name{ "md", "Markdown" }, name{ "markdown", "Markdown" }, name{ "text", "Text" }, name{ "txt", "Text" },
-			name{ "plaintext", "Text" }, name{ "log", "Log" }, name{ "mermaid", "Diagram" }, name{ "qml", "QML" },
-		};
-		if (language.isEmpty()) {
-			return QStringLiteral("Code");
+		// GitHub's Linguist names, as the open card's code blocks read them.
+		const auto info     = aLanguage.trimmed().toStdString();
+		const auto language = core::markdown_code_language_of(info);
+		switch (language.Kind) {
+		case core::markdown_code_kind::suggestion:
+			return QStringLiteral("Suggestion");
+		case core::markdown_code_kind::diff:
+			return QStringLiteral("Diff");
+		case core::markdown_code_kind::language:
+			return QString::fromUtf8(language.Name.data(), static_cast<qsizetype>(language.Name.size()));
+		case core::markdown_code_kind::plain:
+			break;
 		}
-		for (const auto& one : names) {
-			if (language == QLatin1StringView{ one.Written }) {
-				return QString::fromLatin1(one.Shown);
-			}
-		}
-		return aLanguage.trimmed().section(QLatin1Char{ ' ' }, 0, 0);
+		const auto word = aLanguage.trimmed().section(QLatin1Char{ ' ' }, 0, 0).section(QLatin1Char{ ',' }, 0, 0);
+		return word.isEmpty() ? QStringLiteral("Code") : word;
 	}
 
 	auto preview_of(const QString& aBody, const qsizetype aHeaderLength) -> note_preview

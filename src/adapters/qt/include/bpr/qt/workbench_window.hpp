@@ -24,6 +24,7 @@
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
@@ -33,7 +34,6 @@
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/suggest_change.hpp"
-#include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/account_setup_view.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -3744,15 +3744,15 @@ namespace bpr::qt {
 		bool                                 ReturnComparisonPending = false;
 		/// [[BPR-1844]]. This window's Discuss, Threads and Review Comments
 		/// filters, and the profile's memory it opens with and tells.
-		core::view_filter_state                                ViewFilters;
-		std::function<core::view_filter_defaults()>            ViewFilterDefaults;
+		core::view_filter_state                     ViewFilters;
+		std::function<core::view_filter_defaults()> ViewFilterDefaults;
 		/// [[BPR-2171]].
-		std::function<core::discuss_preferences()>                              DiscussPreferencesRead;
+		std::function<core::discuss_preferences()>                        DiscussPreferencesRead;
 		std::function<void(const std::string&, const std::string&, bool)> DiscussMark;
-		std::function<void(core::discuss_column)>                               DiscussColumnDispatch;
-		std::string                                                             DiscussRepository;
-		std::vector<QAbstractButton*>                                           DiscussColumnButtons;
-		std::function<void(const core::view_filter_remember&)> ViewFilterRemember;
+		std::function<void(core::discuss_column)>                         DiscussColumnDispatch;
+		std::string                                                       DiscussRepository;
+		std::vector<QAbstractButton*>                                     DiscussColumnButtons;
+		std::function<void(const core::view_filter_remember&)>            ViewFilterRemember;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
 		bool                                                                     BehaviourPublished    = false;

@@ -19,6 +19,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QLineEdit>
 #include <QMenu>
 #include <QScrollBar>
 #include <QTemporaryDir>
@@ -71,11 +72,11 @@ try {
 	std::unique_ptr<app::github_application> application;
 	bool                                     terminal = false;
 	auto                                     startup  = access::start(app::detail::github_public_path_fixture::conversations_v1, options, [&](auto aResult) {
-        terminal = true;
-        if (aResult) {
-            application = std::move(*aResult);
-        }
-    });
+		terminal = true;
+		if (aResult) {
+			application = std::move(*aResult);
+		}
+	});
 	wait_for([&] { return terminal && startup->is_quiescent(); }, "composition starts");
 	expect(application != nullptr, "startup succeeds");
 	application->show();
@@ -86,21 +87,27 @@ try {
 	window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/conversations#418"));
 	window.home_open_action()->trigger();
 	wait_for([&] { return window.overview_page()->projection().has_value(); }, "the busy pull request opens");
+	// The fixture's read state, as its attended look records it: most posts
+	// read, a few new.
+	wait_for([&] { return access::reveal_fixture_file(*application, "src/adapters/qt/src/conversation_cards_view.cpp") == app::detail::fixture_file_reveal_result::shown; }, "a file is shown in Review");
+	const auto marked = access::apply_fixture_read_state(*application, "conversations-v1");
+	expect(marked.has_value() && *marked > 0U, "the fixture's read state is recorded through the ledger");
+	settle();
 	window.choose_modality(qt::review_modality::discuss);
 	auto* const panel = window.conversation_panel();
 	auto* const cards = panel->cards();
 	wait_for([&] { return cards->feed() && cards->cards().size() > 10U && !cards->timeline_lines().empty(); }, "Discuss lists the conversation in time order");
 	settle();
 
-	const auto lines = [&] { return cards->timeline_lines(); };
+	const auto& lines = cards->timeline_lines();
 	// The column: centred, 820 wide, the band's chips on its edges.
 	const auto [left, width] = cards->column();
 	expect(width == 820 && left > 8, "Discuss's list is a centred column 820 wide by default");
 	// Each file named once over the threads that follow one another on it.
 	auto files = 0;
 	auto folds = 0;
-	for (std::size_t at = 1U; at < lines().size(); ++at) {
-		const auto& line = lines()[at];
+	for (std::size_t at = 1U; at < lines.size(); ++at) {
+		const auto& line = lines[at];
 		if (line.Kind == qt::timeline_line::kind::path) {
 			++files;
 			folds += line.Folded > 0U ? 1 : 0;
@@ -113,8 +120,8 @@ try {
 	// The review's own comment says who, the verdict and when.
 	const auto summary = std::ranges::find(cards->cards(), std::string{ "review:busy-review-jiayin" }, &qt::thread_card::Id);
 	expect(summary != cards->cards().end() && summary->HeadVerdict == QStringLiteral("Changes requested") && !summary->When.isEmpty(), "Changes requested and the date are on jiayin's summary");
-	const auto merged = std::ranges::find_if(lines(), [](const qt::timeline_line& aLine) { return aLine.Id == "review:busy-review-jiayin"; });
-	expect(merged != lines().end() && merged->Merged, "its own line is not drawn");
+	const auto merged = std::ranges::find_if(lines, [](const qt::timeline_line& aLine) { return aLine.Id == "review:busy-review-jiayin"; });
+	expect(merged != lines.end() && merged->Merged, "its own line is not drawn");
 	const auto lone = std::ranges::find_if(cards->cards(), [](const qt::thread_card& aCard) { return aCard.Kind == QStringLiteral("PR comment"); });
 	expect(lone != cards->cards().end() && !lone->When.isEmpty(), "a comment outside a review says when");
 	// Only this file: one toggle; the Pull request half is never shown.
@@ -135,17 +142,33 @@ try {
 	render(QStringLiteral("discuss-1728x1117"), 1728, 1117);
 	render(QStringLiteral("discuss-2560x1440"), 2560, 1440);
 	expect(cards->column().second == 820, "the column stays 820 on a wide window");
+	// The reviews, their previews and the bot reports, further down.
+	const auto scroll_to = [&](const std::string& aId) {
+		const auto found = std::ranges::find(cards->cards(), aId, &qt::thread_card::Id);
+		expect(found != cards->cards().end(), "the card to scroll to is listed");
+		cards->verticalScrollBar()->setValue(std::max(0, found->Rect.top() - 140));
+	};
+	for (const auto& [w, h] : { std::pair{ 1280, 800 }, std::pair{ 1728, 1117 }, std::pair{ 2560, 1440 } }) {
+		window.resize(w, h);
+		settle();
+		scroll_to("review:busy-review-jiayin");
+		render(QStringLiteral("discuss-reviews-%1x%2").arg(w).arg(h), w, h);
+	}
+	cards->verticalScrollBar()->setValue(0);
 
 	// Fold bots: off by default, beside Hide resolved; on, each run of bot
 	// comments is one row, and the counts do not change.
 	auto* const bots = panel->fold_bots_button();
 	expect(bots != nullptr && bots->isVisible() && !bots->isChecked() && bots->text() == QStringLiteral("Fold bots"), "Fold bots is a quick filter, off");
-	expect(std::ranges::none_of(lines(), [](const qt::timeline_line& aLine) { return aLine.Kind == qt::timeline_line::kind::bots; }), "nothing folds as a bot until asked");
+	expect(std::ranges::none_of(lines, [](const qt::timeline_line& aLine) { return aLine.Kind == qt::timeline_line::kind::bots; }), "nothing folds as a bot until asked");
 	bots->click();
 	settle();
-	const auto botRows = std::ranges::count_if(lines(), [](const qt::timeline_line& aLine) { return aLine.Kind == qt::timeline_line::kind::bots; });
+	const auto botRows = std::ranges::count_if(lines, [](const qt::timeline_line& aLine) { return aLine.Kind == qt::timeline_line::kind::bots; });
 	expect(botRows == 2, "each run of bot reports is one row");
 	expect(cards->thread_count() == threads && cards->unresolved_count() == unresolved, "folding changes no count");
+	window.resize(1280, 800);
+	settle();
+	scroll_to("review:busy-review-jiayin");
 	render(QStringLiteral("discuss-fold-bots-1280x800"), 1280, 800);
 
 	// Mark as bot: renovate-helper is a person to GitHub; marked, it folds.
@@ -158,7 +181,7 @@ try {
 	mark->trigger();
 	menu->close();
 	settle();
-	expect(std::ranges::count_if(lines(), [](const qt::timeline_line& aLine) { return aLine.Kind == qt::timeline_line::kind::bots; }) == 3, "marked, its comment folds as a bot's");
+	expect(std::ranges::count_if(lines, [](const qt::timeline_line& aLine) { return aLine.Kind == qt::timeline_line::kind::bots; }) == 3, "marked, its comment folds as a bot's");
 	bots->click();
 	settle();
 

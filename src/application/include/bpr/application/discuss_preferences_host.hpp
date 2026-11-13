@@ -43,7 +43,7 @@ namespace bpr::application {
 		/// when nothing changed.
 		auto mark(std::string_view aRepository, std::string_view aLogin, bool aBot) -> bool;
 		/// \brief The column's width. False when nothing changed.
-		auto set_column(core::discuss_column aColumn) -> bool;
+		auto               set_column(core::discuss_column aColumn) -> bool;
 		[[nodiscard]] auto recovered() const noexcept -> bool;
 		[[nodiscard]] auto durable() const noexcept -> bool;
 		/// \brief No write running or waiting.

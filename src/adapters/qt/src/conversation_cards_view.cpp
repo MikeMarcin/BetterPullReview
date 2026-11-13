@@ -484,7 +484,8 @@ namespace bpr::qt {
 					}
 				}
 			}
-			while (cut > 0 && aDisplay.Text.at(cut - 1).isSpace()) {
+			// The ellipsis takes the place of a sentence's last stop.
+			while (cut > 0 && (aDisplay.Text.at(cut - 1).isSpace() || QStringView{ u".,;:" }.contains(aDisplay.Text.at(cut - 1)))) {
 				--cut;
 			}
 			aDisplay.Text = aDisplay.Text.left(cut) + ellipsis;
@@ -1888,8 +1889,8 @@ namespace bpr::qt {
 	auto conversation_cards_view::unresolved_count() const noexcept -> std::size_t
 	{
 		return FoldedUnresolved + static_cast<std::size_t>(std::ranges::count_if(Cards, [](const thread_card& aCard) {
-			return !aCard.Draft && !aCard.Resolved && aCard.Kind == QStringLiteral("Inline thread");
-		}));
+				   return !aCard.Draft && !aCard.Resolved && aCard.Kind == QStringLiteral("Inline thread");
+			   }));
 	}
 
 	auto conversation_cards_view::unread_thread_count() const noexcept -> std::size_t
@@ -2231,6 +2232,7 @@ namespace bpr::qt {
 
 	void conversation_cards_view::set_current_thread(const std::string& aId)
 	{
+		unfold_for(aId);
 		// A reply's identity names its thread: the selection may be on a reply.
 		auto current = aId;
 		for (const auto& card : Cards) {
@@ -2703,7 +2705,7 @@ namespace bpr::qt {
 				}
 			}
 		}
-		auto byId          = std::unordered_map<std::string, std::size_t>{ };
+		auto byId = std::unordered_map<std::string, std::size_t>{ };
 		for (std::size_t index = 0U; index < Cards.size(); ++index) {
 			byId.emplace(Cards[index].Id, index);
 		}
@@ -2724,7 +2726,7 @@ namespace bpr::qt {
 			using state       = application::github_review_state_projection;
 			const auto review = Retained[found->second].ReviewState;
 			return review == state::approved ? tr("Approved") : review == state::changes_requested ? tr("Changes requested")
-																									: QString{ };
+																								   : QString{ };
 		};
 		for (const auto& [index, row] : order) {
 			auto& card         = Cards[index];
@@ -2751,24 +2753,30 @@ namespace bpr::qt {
 		TimelineLines.clear();
 		const auto [columnLeft, width] = column();
 		const auto verdict             = [](const core::timeline_verdict aVerdict) {
-            return aVerdict == core::timeline_verdict::approved ? tr("Approved") : aVerdict == core::timeline_verdict::changes_requested ? tr("Changes requested")
+			return aVerdict == core::timeline_verdict::approved ? tr("Approved") : aVerdict == core::timeline_verdict::changes_requested ? tr("Changes requested")
 																																		 : QString{ };
 		};
-		auto bottom    = PullRequestComments ? edge_band : 4;
-		auto first     = true;
-		auto afterHead = false;
-		auto bundle    = std::optional<std::size_t>{ };
-		auto previous  = std::string{ };
-		auto cursor    = std::size_t{ 0U };
-		auto filePath  = QString{ };
-		const auto row_rect = [&columnLeft, &width](const int aTop) { return QRect{ columnLeft, aTop, width, path_row_height }; };
+		auto       bottom    = PullRequestComments ? edge_band : 4;
+		auto       first     = true;
+		auto       afterHead = false;
+		auto       bundle    = std::optional<std::size_t>{ };
+		auto       previous  = std::string{ };
+		auto       cursor    = std::size_t{ 0U };
+		auto       filePath  = QString{ };
+		const auto row_rect  = [&columnLeft, &width](const int aTop) { return QRect{ columnLeft, aTop, width, path_row_height }; };
 		for (std::size_t at = 0U; at < TimelineRows.size(); ++at) {
 			const auto& row = TimelineRows[at];
 			if (row.Kind == core::timeline_row_kind::file) {
 				// A file row sits in its unit, just above its threads.
-				auto top = bottom + (first ? 0 : afterHead ? 2
+				auto top = bottom + (first ? 0 : afterHead                               ? 2
 										 : !row.Review.empty() && row.Review == previous ? note_gap
 																						 : unitGap);
+				// The New rule stands over the file whose first thread is the
+				// first not yet read.
+				if (PullRequestComments && at + 1U < TimelineRows.size() && TimelineRows[at + 1U].Id == NewConversationBoundary) {
+					TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = row_rect(top) });
+					top += path_row_height;
+				}
 				TimelineLines.push_back(timeline_line{
 					.Kind   = timeline_line::kind::path,
 					.Id     = row.Id,
@@ -3627,7 +3635,7 @@ namespace bpr::qt {
 
 	void conversation_cards_view::measure_cards()
 	{
-		GeometryPending  = false;
+		GeometryPending = false;
 		for (auto& card : Cards) {
 			const auto [left, width] = card_width_for(card);
 			card.Rect                = QRect{ left, 0, width, 0 };
@@ -4579,14 +4587,14 @@ namespace bpr::qt {
 			const auto  wide    = std::max(40, rect.width() - text_left - note_right);
 			const auto  reserve = tokens_width(preview.Tokens, font());
 			const auto  display = clamp_lines(display_of(root, preview, font(), CodeFont, colours.Hover), preview.Omitted, font(), wide, measure->Lines, reserve);
-			auto       layout  = QTextLayout{ display.Text, font() };
+			auto        layout  = QTextLayout{ display.Text, font() };
 			layout.setFormats(display.Formats);
 			auto option = QTextOption{ };
 			option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 			layout.setTextOption(option);
 			layout.beginLayout();
-			auto y     = 0.0;
-			auto lines = 0;
+			auto y       = 0.0;
+			auto lines   = 0;
 			auto lastEnd = 0.0;
 			auto lastTop = 0.0;
 			for (auto line = layout.createLine(); line.isValid() && lines < measure->Lines; line = layout.createLine()) {
@@ -4607,9 +4615,9 @@ namespace bpr::qt {
 			// words, after them on the last line.
 			if (!preview.Tokens.isEmpty()) {
 				const auto tokenFont = token_font(font());
-				const auto metrics = QFontMetrics{ tokenFont };
-				auto       x       = left + static_cast<int>(std::ceil(lastEnd)) + (display.Text.isEmpty() ? 0 : token_lead);
-				const auto tokenTop = bodyTop + static_cast<int>(lastTop) + (body_line_height(font()) - token_height) / 2;
+				const auto metrics   = QFontMetrics{ tokenFont };
+				auto       x         = left + static_cast<int>(std::ceil(lastEnd)) + (display.Text.isEmpty() ? 0 : token_lead);
+				const auto tokenTop  = bodyTop + static_cast<int>(lastTop) + (body_line_height(font()) - token_height) / 2;
 				aPainter.save();
 				aPainter.setFont(tokenFont);
 				for (const auto& token : preview.Tokens) {
@@ -4890,13 +4898,39 @@ namespace bpr::qt {
 			}
 			return;
 		}
+		unfold_for(aId);
 		if (const auto index = card_index(aId); index.has_value()) {
 			choose(*index, true);
 		}
 	}
 
+	void conversation_cards_view::unfold_for(const std::string& aId)
+	{
+		// [[BPR-2171]]. A thread asked for by name (a link, Threads, a key)
+		// is never left inside a closed fold: its fold opens.
+		if (aId.empty() || card_index(aId).has_value()) {
+			return;
+		}
+		// A post names its thread.
+		auto root = aId;
+		if (const auto found = RetainedById.find(aId); found != RetainedById.end() && found->second < RetainedRoot.size() && RetainedRoot[found->second] < Retained.size()) {
+			root = Retained[RetainedRoot[found->second]].Id;
+		}
+		if (card_index(root).has_value()) {
+			return;
+		}
+		for (const auto& row : TimelineRows) {
+			if (!row.Fold.empty() && !row.Open && std::ranges::find(row.Members, root) != row.Members.end()) {
+				Unfolded.insert(row.Fold);
+				relayout();
+				return;
+			}
+		}
+	}
+
 	void conversation_cards_view::open_thread_at(const std::string& aId, const std::string& aPost)
 	{
+		unfold_for(aId);
 		const auto index = card_index(aId);
 		if (!index.has_value()) {
 			return;

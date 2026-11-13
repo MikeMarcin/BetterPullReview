@@ -30,12 +30,12 @@ namespace bpr::app::detail {
 		std::vector<application::staged_review_comment>     StagedComments, CompatibilityComments;
 		std::optional<std::string>                          StagedDescription;
 		/// Synthetic read-only check collections for composed Overview courses.
-		std::optional<std::string>                          CheckRuns, CommitStatuses;
-		std::optional<std::string>                          MergeAssessment, ReviewRequests, BranchRules, BranchProtection, ReviewHistory, ConversationComments;
-		std::optional<std::string>                          AttendedCommentReview;
+		std::optional<std::string> CheckRuns, CommitStatuses;
+		std::optional<std::string> MergeAssessment, ReviewRequests, BranchRules, BranchProtection, ReviewHistory, ConversationComments;
+		std::optional<std::string> AttendedCommentReview;
 		/// [[BPR-2171]]. A thread's first comment, by the thread's place in
 		/// the served list, posted in this review.
-		std::map<qsizetype, std::string> AttendedThreadReviews;
+		std::map<long long, std::string>                    AttendedThreadReviews;
 		std::vector<application::staged_review_comment>     FileComments;
 		std::size_t                                         StagedWrites = 0, StagedCreates = 0, StagedSubmits = 0;
 		std::optional<application::review_mutation_failure> TourFactoryFailure;

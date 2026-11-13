@@ -1196,9 +1196,9 @@ namespace bpr::qt {
 		discussColumnGroup->setExclusive(true);
 		DiscussColumnButtons.clear();
 		for (const auto& [words, name, width] : { std::tuple{ QStringLiteral("Narrow"), QStringLiteral("discussColumnNarrow"), core::discuss_column::narrow },
-												   std::tuple{ QStringLiteral("Column"), QStringLiteral("discussColumnColumn"), core::discuss_column::column },
-												   std::tuple{ QStringLiteral("Wide"), QStringLiteral("discussColumnWide"), core::discuss_column::wide },
-												   std::tuple{ QStringLiteral("Full width"), QStringLiteral("discussColumnFull"), core::discuss_column::full } }) {
+												  std::tuple{ QStringLiteral("Column"), QStringLiteral("discussColumnColumn"), core::discuss_column::column },
+												  std::tuple{ QStringLiteral("Wide"), QStringLiteral("discussColumnWide"), core::discuss_column::wide },
+												  std::tuple{ QStringLiteral("Full width"), QStringLiteral("discussColumnFull"), core::discuss_column::full } }) {
 			auto* const button = new quiet_tool_button{ discussColumn };
 			button->setObjectName(name);
 			button->setText(words);

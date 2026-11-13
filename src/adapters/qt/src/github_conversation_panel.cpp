@@ -250,7 +250,8 @@ namespace bpr::qt {
 		auto* const thisFile = new discuss_tool{ scopeBox };
 		thisFile->set_shape(discuss_tool_shape::chip);
 		thisFile->set_glyph(conversation_glyph::file);
-		thisFile->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		// New words, so they are read, not guessed from a glyph.
+		thisFile->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		ScopeThisFile = thisFile;
 		ScopeThisFile->setObjectName(QStringLiteral("conversationScopeThisFile"));
 		ScopeThisFile->setText(QStringLiteral("Only this file"));
@@ -265,7 +266,7 @@ namespace bpr::qt {
 		DiscussFileChoice->setObjectName(QStringLiteral("conversationFileScope"));
 		DiscussFileChoice->setAccessibleName(QStringLiteral("Thread file scope"));
 		DiscussFileChoice->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-		DiscussFileChoice->setMinimumContentsLength(22);
+		DiscussFileChoice->setMinimumContentsLength(14);
 		DiscussFileChoice->setMaximumWidth(360);
 		DiscussFileChoice->setToolTip(QStringLiteral("The file whose threads are listed"));
 		scopeLayout->addWidget(ScopeWholePr);
@@ -326,7 +327,7 @@ namespace bpr::qt {
 		auto* const bots = new discuss_tool{ DiscussFilterBox };
 		bots->set_shape(discuss_tool_shape::chip);
 		bots->set_glyph(conversation_glyph::bot);
-		bots->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		bots->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		FilterBots = bots;
 		FilterBots->setObjectName(QStringLiteral("conversationFoldBots"));
 		FilterBots->setText(QStringLiteral("Fold bots"));
@@ -782,11 +783,15 @@ namespace bpr::qt {
 		}
 		auto left  = 12;
 		auto right = 16;
-		if (Discuss && !Conversation) {
-			const auto [columnLeft, columnWidth] = Cards->column();
-			const auto offset                    = Cards->viewport()->mapTo(this, QPoint{ 0, 0 }).x();
-			left                                 = std::max(12, offset + columnLeft);
-			right                                = std::max(16, width() - (offset + columnLeft + columnWidth));
+		// Only a column narrower than the list moves them: a list not yet
+		// laid out says nothing about where its column will be.
+		const auto [probeLeft, probeWidth] = Cards->column();
+		if (Discuss && !Conversation && Cards->isVisible() && probeWidth + 16 < Cards->viewport()->width()) {
+			const auto columnLeft  = probeLeft;
+			const auto columnWidth = probeWidth;
+			const auto offset      = Cards->viewport()->mapTo(this, QPoint{ 0, 0 }).x();
+			left                   = std::max(12, offset + columnLeft);
+			right                  = std::max(16, width() - (offset + columnLeft + columnWidth));
 		}
 		const auto margins = DiscussFlow->contentsMargins();
 		if (margins.left() != left || margins.right() != right) {

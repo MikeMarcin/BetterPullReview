@@ -560,6 +560,13 @@ namespace {
 		view.set_feed(true);
 		view.set_scope(qt::cards_scope::whole_pull_request);
 		QApplication::processEvents();
+		// [[BPR-2171]]. A file's read, resolved threads fold into its row,
+		// and still count; opened, the row lists them.
+		const auto folded = std::ranges::find_if(view.timeline_lines(), [](const qt::timeline_line& aLine) { return !aLine.Fold.empty() && !aLine.Open; });
+		expect(view.cards().size() == 2U && view.thread_count() == 3U && folded != view.timeline_lines().end() && folded->Path == QStringLiteral("src/a.cpp") && folded->Folded == 1U,
+			   "Discuss folds the read, resolved thread into its file's row, still counted");
+		view.toggle_fold(folded->Fold);
+		QApplication::processEvents();
 		expect(view.feed() && view.cards().size() == 3U
 				   && view.cards()[0].Id == "t-resolved" && view.cards()[2].Id == "t-open"
 				   && std::ranges::none_of(view.cards(), &qt::thread_card::Placed),
@@ -3016,7 +3023,16 @@ namespace {
 		expect(button(view, "threadResolveConversation") != nullptr && button(view, "threadResolveConversation")->isEnabled(), "GitHub's answer settles it");
 		view.close_thread();
 		QApplication::processEvents();
-		expect(!view.closed_meta(view.cards().front()).Resolved.isEmpty(), "closed, the resolved thread is one line with the green check");
+		// [[BPR-2171]]. Closed and read, the resolved thread folds into its
+		// file's row in Discuss; opened, the row lists it.
+		if (view.cards().empty()) {
+			const auto fold = std::ranges::find_if(view.timeline_lines(), [](const qt::timeline_line& aLine) { return !aLine.Fold.empty() && !aLine.Open; });
+			expect(fold != view.timeline_lines().end() && fold->Folded == 1U, "closed and read, the resolved thread folds into its file's row");
+			const auto key = fold->Fold;
+			view.toggle_fold(key);
+			QApplication::processEvents();
+		}
+		expect(!view.cards().empty() && !view.closed_meta(view.cards().front()).Resolved.isEmpty(), "closed, the resolved thread is one line with the green check");
 		view.present_thread_resolutions({ { "review-thread:T1", qt::thread_resolution_presentation{ .Resolved = false } } });
 		QApplication::processEvents();
 		expect(view.closed_meta(view.cards().front()).Resolved.isEmpty() && !view.cards().front().Resolved, "reopened, it loses the check");

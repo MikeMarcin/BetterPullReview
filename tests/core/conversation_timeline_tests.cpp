@@ -206,10 +206,10 @@ namespace {
 		auto result = std::vector<std::string>{ };
 		for (const auto& row : aTimeline.Rows) {
 			switch (row.Kind) {
-			case timeline_row_kind::bundle: result.push_back("bundle:" + row.Id); break;
+			case timeline_row_kind::bundle:  result.push_back("bundle:" + row.Id); break;
 			case timeline_row_kind::verdict: result.push_back("verdict:" + row.Id); break;
-			case timeline_row_kind::file: result.push_back("file:" + row.Path + (row.Members.empty() ? "" : "+" + std::to_string(row.Members.size())) + (row.Open ? "(open)" : "")); break;
-			case timeline_row_kind::bots: result.push_back("bots:" + std::to_string(row.Members.size()) + (row.Open ? "(open)" : "")); break;
+			case timeline_row_kind::file:    result.push_back("file:" + row.Path + (row.Members.empty() ? "" : "+" + std::to_string(row.Members.size())) + (row.Open ? "(open)" : "")); break;
+			case timeline_row_kind::bots:    result.push_back("bots:" + std::to_string(row.Members.size()) + (row.Open ? "(open)" : "")); break;
 			case timeline_row_kind::comment: result.push_back(row.Id); break;
 			}
 		}
@@ -231,11 +231,11 @@ namespace {
 			comment("c-cov", "2026-10-23T01:00:00Z"),
 			comment("c-2", "2026-10-24T00:00:00Z"),
 		};
-		items[0].Author = "fixture-author";
-		items[7].Author = "github-actions[bot]";
-		items[7].Bot    = true;
-		items[8].Author = "codecov[bot]";
-		items[8].Bot    = true;
+		items[0].Author   = "fixture-author";
+		items[7].Author   = "github-actions[bot]";
+		items[7].Bot      = true;
+		items[8].Author   = "codecov[bot]";
+		items[8].Bot      = true;
 		items[3].Resolved = true;
 		items[4].Resolved = true;
 		const auto plain  = arrange_conversation_timeline(items);
@@ -253,7 +253,7 @@ namespace {
 		expect(aRow.Fold == "file:t-a1" && aRow.Members == std::vector<std::string>{ "t-a5" } && !aRow.Open, "the fold is keyed by its file's first thread and names what it holds");
 		const auto opened = arrange_conversation_timeline(items, { .Files = true, .FoldResolved = true, .Unfolded = { "file:t-a1" } });
 		expect(rows_of(opened)[3] == "file:a.cpp+1(open)" && rows_of(opened)[5] == "t-a5" && opened.Folded == 1U, "an opened fold lists its threads after its row");
-		auto unread    = items;
+		auto unread      = items;
 		unread[4].Unread = true;
 		expect(rows_of(arrange_conversation_timeline(unread, { .Files = true, .FoldResolved = true }))[6] == "t-b2", "a resolved thread with a post I have not read never folds");
 		const auto bots = arrange_conversation_timeline(items, { .Files = true, .FoldBots = true });
@@ -263,8 +263,8 @@ namespace {
 		expect(botRow->Authors == std::vector<std::string>{ "github-actions[bot]", "codecov[bot]" } && botRow->Fold == "bots:c-ci" && bots.Folded == 2U, "the bots row names whose comments it holds");
 		const auto botsOpen = arrange_conversation_timeline(items, { .FoldBots = true, .Unfolded = { "bots:c-ci" } });
 		expect(rows_of(botsOpen) == std::vector<std::string>{ "c-1", "bundle:r-j", "r-j", "t-a1", "t-a5", "t-b2", "t-lone-c3", "t-lone-c9", "bots:2(open)", "c-ci", "c-cov", "c-2" }, "an opened bots row lists its comments");
-		auto kept     = items;
-		kept[8].Kept  = true;
+		auto kept    = items;
+		kept[8].Kept = true;
 		expect(rows_of(arrange_conversation_timeline(kept, { .FoldBots = true })) == std::vector<std::string>{ "c-1", "bundle:r-j", "r-j", "t-a1", "t-a5", "t-b2", "t-lone-c3", "t-lone-c9", "bots:1", "c-cov", "c-2" },
 			   "a kept bot comment never folds and ends the run");
 		const auto onlyNew = arrange_conversation_timeline(items, { .UnreadOnly = true, .Files = true, .FoldResolved = true, .FoldBots = true });

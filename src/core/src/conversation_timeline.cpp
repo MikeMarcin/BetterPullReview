@@ -85,9 +85,9 @@ namespace bpr::core {
 		// bundle, or lone threads in a row.
 		struct piece
 		{
-			const timeline_item* Item = nullptr;
-			std::string          Review;
-			std::string          Context;
+			const timeline_item*        Item = nullptr;
+			std::string                 Review;
+			std::string                 Context;
 			std::optional<timeline_row> Head;
 		};
 		struct shown_unit
@@ -97,7 +97,7 @@ namespace bpr::core {
 			bool Bot = false;
 			/// What the unit carried that is a comment, in order.
 			std::vector<const timeline_item*> Comments;
-			std::string_view Author;
+			std::string_view                  Author;
 		};
 		auto shownUnits = std::vector<shown_unit>{ };
 		shownUnits.reserve(units.size());

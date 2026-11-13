@@ -979,6 +979,7 @@ namespace bpr::qt {
 		choose_modality(review_modality::discuss);
 		ConversationPanel->clear_discuss_filters(aClear.OtherFile, aClear.OnlyNew, aClear.HideResolved, aClear.Listing);
 		auto* const cards = ConversationPanel->cards();
+		cards->reveal_folded(aThread);
 		if (std::ranges::none_of(cards->cards(), [&aThread](const thread_card& aCard) { return aCard.Id == aThread; })) {
 			return false;
 		}

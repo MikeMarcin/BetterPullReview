@@ -833,7 +833,7 @@ namespace {
 				   && in_band(*band, *bots).right() < in_band(*band, *summary).left() && in_band(*band, *summary).right() < in_band(*band, *clear).left(),
 			   "scope, filters, counts and Clear read left to right");
 		const auto [columnLeft, columnWidth] = panel.cards()->column();
-		const auto viewportLeft              = panel.cards()->viewport()->mapTo(band, QPoint{ 0, 0 }).x();
+		const auto viewportLeft              = band->mapFrom(&panel, panel.cards()->viewport()->mapTo(&panel, QPoint{ 0, 0 })).x();
 		expect(std::abs(in_band(*band, *file).left() - std::max(12, viewportLeft + columnLeft)) <= 1
 				   && std::abs(in_band(*band, *clear).right() + 1 - std::min(band->width() - 16, viewportLeft + columnLeft + columnWidth)) <= 1,
 			   "[[BPR-2171]]: the band's chips share the list's column edges");
@@ -1151,7 +1151,7 @@ namespace {
 			// Discuss borrows the panel from Overview and leaves Overview's state.
 			panel.set_discuss(true);
 			process_events();
-			expect(panel.discuss() && !panel.pull_request_conversation() && !unread->isChecked() && panel.scope_whole_pull_request_button()->isVisibleTo(&panel),
+			expect(panel.discuss() && !panel.pull_request_conversation() && !unread->isChecked() && panel.scope_this_file_button()->isVisibleTo(&panel) && panel.scope_whole_pull_request_button()->isChecked(),
 				   "Discuss takes the panel with its own filters and scope");
 			panel.set_discuss(false);
 			panel.set_pull_request_conversation(true);
