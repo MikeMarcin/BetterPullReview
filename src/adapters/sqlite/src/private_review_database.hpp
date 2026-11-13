@@ -40,14 +40,38 @@ namespace bpr::adapters::sqlite::detail {
 	/// on the whole file or the pull request, or one written before schema 10.
 	/// A side table, as the path is, so the migration creates one table.
 	inline constexpr private_schema_table PrivateNoteLineTable{ "private_note_line", "CREATE TABLE private_note_line(scope_id INTEGER NOT NULL,thread_id INTEGER NOT NULL,side INTEGER NOT NULL CHECK(side IN(0,1)),line INTEGER NOT NULL CHECK(line BETWEEN 0 AND 4294967295),blob BLOB CHECK(blob IS NULL OR length(blob) IN(20,32)),PRIMARY KEY(scope_id,thread_id),FOREIGN KEY(scope_id,thread_id) REFERENCES private_thread(scope_id,id)) STRICT" };
+	/// \brief RFC-BPR-0127. One Local comment a row (schema 12): what was a
+	/// private note, and any comment kept local.
+	///
+	/// \details The one authority for Local comments; drafts stay in
+	/// `private_draft`, and no comment is in both. Columns, not a record
+	/// blob, so every anchor fact is checked where it is kept:
+	/// - `id` is the comment's identity; a migrated note keeps its note
+	///   identity. `revision` comes from `private_scope_state.note_revision`,
+	///   the counter notes used, so a migrated revision is never reissued.
+	/// - `file_identity` and `comparison_id` together or neither (the pull
+	///   request); `path` only with a file ([[BPR-1210]]).
+	/// - `side` and `line` together, only with a file; `blob` only with a
+	///   line ([[BPR-1591]]); `start_line` only on a line, above it.
+	/// - `reply_thread` is the provider thread a Local reply answers.
+	/// - `body` is the exact bytes, 1 to 65,536: a draft's bound, so Keep
+	///   local never cuts a draft. A note's 16 KiB fits.
+	/// A review keeps at most 4,096 (the note bound), counted here and not
+	/// against the 64 active drafts in `private_scope_state.drafts`.
+	inline constexpr private_schema_table PrivateLocalCommentTable{ "private_local_comment", "CREATE TABLE private_local_comment(scope_id INTEGER NOT NULL REFERENCES review_scope(scope_id),id INTEGER NOT NULL CHECK(id>0),revision INTEGER NOT NULL CHECK(revision>0),file_identity BLOB,comparison_id BLOB,path TEXT CHECK(path IS NULL OR length(CAST(path AS BLOB)) BETWEEN 1 AND 4096),side INTEGER CHECK(side IS NULL OR side IN(0,1)),line INTEGER CHECK(line IS NULL OR line BETWEEN 0 AND 4294967295),start_line INTEGER CHECK(start_line IS NULL OR (line IS NOT NULL AND start_line>=0 AND start_line<line)),blob BLOB CHECK(blob IS NULL OR length(blob) IN(20,32)),reply_thread TEXT CHECK(reply_thread IS NULL OR length(CAST(reply_thread AS BLOB)) BETWEEN 1 AND 1024),body BLOB NOT NULL CHECK(length(body) BETWEEN 1 AND 65536),CHECK((file_identity IS NULL AND comparison_id IS NULL) OR (length(file_identity)=32 AND length(comparison_id)=32)),CHECK((side IS NULL)=(line IS NULL)),CHECK(line IS NULL OR file_identity IS NOT NULL),CHECK(blob IS NULL OR line IS NOT NULL),CHECK(path IS NULL OR file_identity IS NOT NULL),PRIMARY KEY(scope_id,id)) STRICT" };
 	/// \brief Called within the ledger's existing all-version migration transaction.
 	[[nodiscard]] auto migrate_private_review(::sqlite3*) -> std::expected<void, failure>;
 	/// \brief [[BPR-1210]]. Schema 7 to 8: the note path table, empty.
 	[[nodiscard]] auto migrate_private_note_paths(::sqlite3*) -> std::expected<void, failure>;
 	/// \brief [[BPR-1591]]. Schema 9 to 10: the note line table, empty.
 	[[nodiscard]] auto migrate_private_note_lines(::sqlite3*) -> std::expected<void, failure>;
-	[[nodiscard]] auto private_store_note(::sqlite3*, std::int64_t, const application::local_note_record&, std::optional<application::local_note_revision>) -> std::expected<application::local_note_record, application::local_note_failure>;
-	[[nodiscard]] auto private_erase_note(::sqlite3*, std::int64_t, application::local_note_id, application::local_note_revision) -> std::expected<void, application::local_note_failure>;
-	[[nodiscard]] auto private_load_notes(::sqlite3*, std::int64_t) -> std::expected<std::vector<application::local_note_record>, failure>;
+	/// \brief RFC-BPR-0127. Schema 11 to 12: every note becomes one Local
+	/// comment with its text bytes, anchor facts, identity and revision; the
+	/// note's own thread is removed unless something else refers to it; the
+	/// note mapping, path and line tables are dropped.
+	[[nodiscard]] auto migrate_private_local_comments(::sqlite3*) -> std::expected<void, failure>;
+	[[nodiscard]] auto private_store_local_comment(::sqlite3*, std::int64_t, const application::local_comment_record&, std::optional<application::local_comment_revision>) -> std::expected<application::local_comment_record, application::local_comment_failure>;
+	[[nodiscard]] auto private_erase_local_comment(::sqlite3*, std::int64_t, application::local_comment_id, application::local_comment_revision) -> std::expected<void, application::local_comment_failure>;
+	[[nodiscard]] auto private_load_local_comments(::sqlite3*, std::int64_t) -> std::expected<std::vector<application::local_comment_record>, failure>;
 }
 #endif

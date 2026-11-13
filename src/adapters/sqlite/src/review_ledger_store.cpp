@@ -131,18 +131,18 @@ namespace bpr::adapters::sqlite {
 				return std::move(*loaded);
 			}
 
-			auto store_note(const application::local_note_record&                 aNote,
-							const std::optional<application::local_note_revision> aExpectedRevision)
-				-> std::expected<application::local_note_record, application::local_note_failure> override
+			auto store_local_comment(const application::local_comment_record&                 aNote,
+									 const std::optional<application::local_comment_revision> aExpectedRevision)
+				-> std::expected<application::local_comment_record, application::local_comment_failure> override
 			{
-				return Database.store_note(Scope, aNote, aExpectedRevision);
+				return Database.store_local_comment(Scope, aNote, aExpectedRevision);
 			}
 
-			auto erase_note(const application::local_note_id       aNote,
-							const application::local_note_revision aExpectedRevision)
-				-> std::expected<void, application::local_note_failure> override
+			auto erase_local_comment(const application::local_comment_id       aNote,
+									 const application::local_comment_revision aExpectedRevision)
+				-> std::expected<void, application::local_comment_failure> override
 			{
-				return Database.erase_note(Scope, aNote, aExpectedRevision);
+				return Database.erase_local_comment(Scope, aNote, aExpectedRevision);
 			}
 
 			auto store_last_reviewed_head(const core::git_commit_oid& aHead)

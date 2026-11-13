@@ -474,7 +474,7 @@ namespace {
 				input.PrivateRun->Sources.resize(257, input.PrivateRun->Sources.front());
 			}
 			if (mode == 6) {
-				input.Context.IncludedNotes = { local_note_id{ 1 } };
+				input.Context.IncludedNotes = { local_comment_id{ 1 } };
 			}
 			f.send(input);
 			expect(f.Process.Starts == 0, "unchecked/deleted/edited/duplicate/cross-review/overlimit source never launches");

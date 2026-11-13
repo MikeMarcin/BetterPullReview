@@ -2517,7 +2517,7 @@ namespace bpr::application {
 		if (
 			!valid(aSession) || aSession.Binding != aObservation.Binding
 			|| aObservation.Files.size() > core::maximum_supplement_paths
-			|| aObservation.Private.Notes.size() > maximum_private_notes
+			|| aObservation.Private.LocalComments.size() > maximum_local_comments
 			|| aObservation.Private.Defects.size() > maximum_private_defects
 			|| aObservation.IncludedNotes.size() > core::maximum_selected_notes
 			|| aObservation.ChatMessage.size() > core::maximum_chat_message_bytes) {
@@ -2621,15 +2621,15 @@ namespace bpr::application {
 		// exists to prevent.
 		auto optIn = core::agent_private_context_optin{ .Session = aSession.Id };
 
-		auto selected = std::vector<local_note_id>{ };
+		auto selected = std::vector<local_comment_id>{ };
 		selected.reserve(aObservation.IncludedNotes.size());
 		for (const auto id : aObservation.IncludedNotes) {
 			if (std::ranges::find(selected, id) != selected.end()) {
 				return std::unexpected(agent_context_failure::duplicate_selected_note);
 			}
 			selected.push_back(id);
-			const auto* found = static_cast<const local_note_record*>(nullptr);
-			for (const auto& note : aObservation.Private.Notes) {
+			const auto* found = static_cast<const local_comment_record*>(nullptr);
+			for (const auto& note : aObservation.Private.LocalComments) {
 				if (note.Id != id) {
 					continue;
 				}
@@ -2652,7 +2652,7 @@ namespace bpr::application {
 				.Comparison = found->Attachment
 					? std::optional{ found->Attachment->Comparison }
 					: std::nullopt,
-				.Text       = found->Note.Text,
+				.Text       = found->Body,
 			});
 			optIn.Notes = true;
 		}

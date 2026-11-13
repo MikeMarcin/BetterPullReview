@@ -192,7 +192,7 @@ namespace bpr::core {
 	///
 	/// \details Pure: decided from the supplied request alone. It reaches no
 	/// store, so the note it returns is a payload rather than a write, and
-	/// making it durable as an `application::local_note_record` stays the
+	/// making it durable as an `application::local_comment_record` stays the
 	/// host's job.
 	///
 	/// Decided in a ladder, and the order is the policy:

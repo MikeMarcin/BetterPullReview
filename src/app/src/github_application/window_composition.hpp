@@ -801,9 +801,9 @@ namespace bpr::app {
 		void               keep_explanation(const std::string& aPath, const std::string& aAnswer);
 		void               continue_explanation(std::size_t aTurn);
 
-		void ask_agent_about_note(const application::local_note_record& aNote);
+		void ask_agent_about_note(const application::local_comment_record& aNote);
 
-		[[nodiscard]] auto asked_note() const -> const application::local_note_record*;
+		[[nodiscard]] auto asked_note() const -> const application::local_comment_record*;
 
 		[[nodiscard]] auto decide_answer_draft() -> qt::agent_answer_draft_target;
 
@@ -1645,8 +1645,8 @@ namespace bpr::app {
 		[[nodiscard]] auto current_agent_draft_observation() const
 			-> std::optional<application::agent_draft_observation>;
 
-		std::uint64_t                               PrivateNoteScope = 0U;
-		std::vector<application::local_note_record> AcceptedPrivateNotes;
+		std::uint64_t                                  PrivateNoteScope = 0U;
+		std::vector<application::local_comment_record> AcceptedPrivateNotes;
 		/// [[BPR-1592]]. Draft comment on a note at its line, waiting for that
 		/// line's draft to be the selected one.
 		struct pending_note_promotion
@@ -1659,11 +1659,11 @@ namespace bpr::app {
 		std::optional<pending_note_promotion>                     PendingNotePromotion;
 		std::optional<std::map<core::file_identity, std::string>> NotePaths;
 
-		[[nodiscard]] auto private_note_file_label(const application::local_note_record& aNote) -> std::string;
+		[[nodiscard]] auto private_note_file_label(const application::local_comment_record& aNote) -> std::string;
 
 		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { });
 
-		void promote_line_note(const application::local_note_record& aNote, std::function<void()> aRefused);
+		void promote_line_note(const application::local_comment_record& aNote, std::function<void()> aRefused);
 
 		void resume_note_promotion();
 
@@ -1683,7 +1683,7 @@ namespace bpr::app {
 
 		[[nodiscard]] auto dispatch_agent_invocation(
 			const core::agent_profile_id                          aProfile,
-			const std::vector<application::local_note_id>&        aIncludedNotes,
+			const std::vector<application::local_comment_id>&     aIncludedNotes,
 			const std::optional<application::agent_draft_choice>& aIncludedDraft,
 			const bool                                            aExistingCheckoutChosen,
 			const std::string_view                                aChatMessage,
@@ -1769,7 +1769,7 @@ namespace bpr::app {
 			const application::agent_finding_outcome& aOutcome);
 
 		[[nodiscard]] auto next_private_note_id() const
-			-> application::local_note_id;
+			-> application::local_comment_id;
 
 #else
 		/// [[BPR-1179]]. What an agent-free review keeps of the authority
@@ -1781,7 +1781,7 @@ namespace bpr::app {
 		}
 #endif
 		[[nodiscard]] auto current_note_attachment() const
-			-> std::optional<application::local_note_attachment>;
+			-> std::optional<application::local_comment_attachment>;
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto anchored_durable_defect(
@@ -1795,7 +1795,7 @@ namespace bpr::app {
 		void present_chat_outcome(const application::agent_chat_outcome& aOutcome);
 
 		[[nodiscard]] auto all_private_note_ids() const
-			-> std::vector<application::local_note_id>;
+			-> std::vector<application::local_comment_id>;
 
 		[[nodiscard]] auto current_agent_draft_choice() const
 			-> std::optional<application::agent_draft_choice>;
@@ -2428,7 +2428,7 @@ namespace bpr::app {
 			std::string   Identity;
 			std::uint64_t PullRequest = 0U;
 			/// A private note, which is sent as a Private history copy.
-			std::optional<application::local_note_id> Note;
+			std::optional<application::local_comment_id> Note;
 			/// A review thread the viewer may reply to.
 			bool Replies = false;
 		};

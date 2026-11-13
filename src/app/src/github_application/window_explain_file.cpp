@@ -220,14 +220,14 @@ namespace bpr::app {
 			answer(false, QStringLiteral("the file is not open"));
 			return;
 		}
-		auto note       = application::local_note_record{ };
+		auto note       = application::local_comment_record{ };
 		note.Id         = next_private_note_id();
-		note.Note.Text  = text;
+		note.Body       = text;
 		note.Attachment = *attachment;
 		if (aPath.size() <= application::maximum_note_path_bytes) {
 			note.FilePath = aPath;
 		}
-		ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+		ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
 									  if (!aStored) {
 										  answer(false, QString::fromUtf8(application::name(aStored.error().Reason).data(), static_cast<qsizetype>(application::name(aStored.error().Reason).size())));
 										  return;

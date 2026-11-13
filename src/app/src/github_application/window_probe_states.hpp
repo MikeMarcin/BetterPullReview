@@ -228,7 +228,7 @@ namespace bpr::app {
 		std::size_t                                       Gesture     = 0U;
 		bool                                              SeenOnEntry = false;
 		application::review_ledger_host_statistics        GesturesBefore;
-		std::optional<application::local_note_record>     AcceptedNote;
+		std::optional<application::local_comment_record>  AcceptedNote;
 		std::optional<application::durable_defect_record> PrivateDefect;
 		std::size_t                                       PrivateAnswers  = 0U;
 		bool                                              PrivateAccepted = true;

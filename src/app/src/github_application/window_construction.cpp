@@ -1089,12 +1089,12 @@ namespace bpr::app {
 			// ledger, off the decision lane; its answer reaches the finding
 			// host only while this window and that ledger remain.
 			FindingHost = std::make_unique<application::agent_finding_host>(
-				[this](const application::local_note_record&                                                               aNote,
-					   std::function<void(std::expected<application::local_note_record, application::local_note_failure>)> aDone) {
+				[this](const application::local_comment_record&                                                                  aNote,
+					   std::function<void(std::expected<application::local_comment_record, application::local_comment_failure>)> aDone) {
 					if (Closing || ReviewLedgerHost == nullptr) {
 						return false;
 					}
-					ReviewLedgerHost->persist(aNote, std::nullopt, ledger_answer([this, done = std::move(aDone)](std::expected<application::local_note_record, application::local_note_failure> aStored) {
+					ReviewLedgerHost->persist(aNote, std::nullopt, ledger_answer([this, done = std::move(aDone)](std::expected<application::local_comment_record, application::local_comment_failure> aStored) {
 												  if (FindingHost != nullptr) {
 													  done(std::move(aStored));
 												  }
@@ -1153,7 +1153,7 @@ namespace bpr::app {
 							aTurn.Session.Profile,
 							aTurn.IncludeNotes
 								? all_private_note_ids()
-								: std::vector<application::local_note_id>{ },
+								: std::vector<application::local_comment_id>{ },
 							aTurn.IncludeDraft ? current_agent_draft_choice()
 											   : std::nullopt,
 							false,

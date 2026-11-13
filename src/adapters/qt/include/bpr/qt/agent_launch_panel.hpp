@@ -29,7 +29,7 @@ namespace bpr::qt {
 	struct start_agent_intent
 	{
 		core::agent_profile_id                         Profile;
-		std::vector<application::local_note_id>        IncludedNotes;
+		std::vector<application::local_comment_id>     IncludedNotes;
 		std::optional<application::agent_draft_choice> IncludedDraft;
 		/// Whether the reviewer chose their own checkout for this invocation.
 		/// Carried on the intent rather than read from a setting, because
@@ -117,7 +117,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto offered_count() const noexcept -> std::size_t { return OfferedIds.size(); }
 		/// \brief Offers only opaque current private-context identities, unchecked.
 		void offer_private_context(
-			std::span<const application::local_note_id>    aNotes,
+			std::span<const application::local_comment_id> aNotes,
 			std::optional<application::agent_draft_choice> aDraft);
 
 		void offer(std::span<const core::agent_profile> aProfiles) override;

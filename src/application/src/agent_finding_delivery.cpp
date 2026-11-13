@@ -34,10 +34,10 @@ namespace bpr::application {
 	}
 
 	auto promoted_note(
-		const local_note_id                          aNote,
-		std::optional<local_note_attachment>         aAttachment,
+		const local_comment_id                       aNote,
+		std::optional<local_comment_attachment>      aAttachment,
 		const core::agent_finding_promotion_request& aRequest)
-		-> std::expected<local_note_record, agent_note_promotion_failure>
+		-> std::expected<local_comment_record, agent_note_promotion_failure>
 	{
 		if (aRequest.Choice != core::agent_finding_promotion_choice::private_note) {
 			return std::unexpected(
@@ -48,10 +48,10 @@ namespace bpr::application {
 			return std::unexpected(
 				agent_note_promotion_failure{ .Refusal = promotion.Refusal });
 		}
-		auto record = local_note_record{
+		auto record = local_comment_record{
 			.Id         = aNote,
 			.Attachment = std::move(aAttachment),
-			.Note       = *promotion.Note,
+			.Body       = promotion.Note->Text,
 		};
 		if (!valid(record)) {
 			return std::unexpected(agent_note_promotion_failure{
@@ -63,16 +63,16 @@ namespace bpr::application {
 
 	auto store_promoted_finding(
 		review_ledger_store_port&                    aStore,
-		const local_note_id                          aNote,
-		std::optional<local_note_attachment>         aAttachment,
+		const local_comment_id                       aNote,
+		std::optional<local_comment_attachment>      aAttachment,
 		const core::agent_finding_promotion_request& aRequest)
-		-> std::expected<local_note_record, agent_note_promotion_failure>
+		-> std::expected<local_comment_record, agent_note_promotion_failure>
 	{
 		const auto record = promoted_note(aNote, std::move(aAttachment), aRequest);
 		if (!record) {
 			return std::unexpected(record.error());
 		}
-		const auto stored = aStore.store_note(*record);
+		const auto stored = aStore.store_local_comment(*record);
 		if (!stored) {
 			return std::unexpected(
 				agent_note_promotion_failure{ .Store = stored.error().Reason });

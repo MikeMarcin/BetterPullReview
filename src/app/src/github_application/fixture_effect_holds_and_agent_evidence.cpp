@@ -539,13 +539,13 @@ namespace bpr::app {
 		if (!state.AcceptedRevision.has_value()) {
 			return false;
 		}
-		const auto selected = application::local_note_record{
-			.Id   = application::local_note_id{ 246U },
-			.Note = { .Text = std::string{ aSelectedNote } },
+		const auto selected = application::local_comment_record{
+			.Id   = application::local_comment_id{ 246U },
+			.Body = std::string{ aSelectedNote },
 		};
-		const auto unselected = application::local_note_record{
-			.Id   = application::local_note_id{ 247U },
-			.Note = { .Text = std::string{ aUnselectedNote } },
+		const auto unselected = application::local_comment_record{
+			.Id   = application::local_comment_id{ 247U },
+			.Body = std::string{ aUnselectedNote },
 		};
 		auto       accepted = std::make_shared<std::size_t>(0U);
 		auto       answered = std::make_shared<std::optional<bool>>();

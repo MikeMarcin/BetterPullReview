@@ -65,15 +65,15 @@ namespace bpr::app {
 		[[nodiscard]] auto review_ledger_probe_note(
 			const core::file_identity          aFile,
 			const core::file_comparison_digest aComparison)
-			-> application::local_note_record
+			-> application::local_comment_record
 		{
 			return {
-				.Id         = application::local_note_id{ 228U },
-				.Attachment = application::local_note_attachment{
+				.Id         = application::local_comment_id{ 228U },
+				.Attachment = application::local_comment_attachment{
 					.File       = aFile,
 					.Comparison = aComparison,
 				},
-				.Note = { .Text = "BPR-0228 host-only composition probe." },
+				.Body = "BPR-0228 host-only composition probe.",
 			};
 		}
 
@@ -468,12 +468,12 @@ namespace bpr::app {
 					? core::parse_git_commit_oid(
 						  implementation->Fixture->evidence().HeadOneOid)
 					: std::optional<core::git_commit_oid>{ };
-				if (privateState.has_value() && privateState->Notes.size() == 1U
-					&& privateState->Notes.front().Attachment.has_value()) {
+				if (privateState.has_value() && privateState->LocalComments.size() == 1U
+					&& privateState->LocalComments.front().Attachment.has_value()) {
 					const auto storedComparison
-						= privateState->Notes.front().Attachment->Comparison;
+						= privateState->LocalComments.front().Attachment->Comparison;
 					auto expectedNote     = review_ledger_probe_note(probe.File, storedComparison);
-					expectedNote.Revision = application::local_note_revision{ 1U };
+					expectedNote.Revision = application::local_comment_revision{ 1U };
 					auto defect           = review_ledger_probe_defect(
 						probe.File, storedComparison, *defectThread);
 					// The reuse course advances to head two. The conversation-backed
@@ -489,7 +489,7 @@ namespace bpr::app {
 							  probe.File, storedComparison, *defectThread)
 						&& storedComparison.valid()
 						&& storedComparison != probe.Comparison
-						&& privateState->Notes
+						&& privateState->LocalComments
 							== std::vector{ expectedNote }
 						&& priorHead.has_value()
 						&& privateState->LastReviewedHead == priorHead
@@ -618,7 +618,7 @@ namespace bpr::app {
 				++probe.PrivateAnswers;
 				probe.PrivateAccepted = probe.PrivateAccepted && aAccepted;
 			};
-			ledger->persist(note, std::nullopt, implementation->ledger_answer([&probe, answered](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+			ledger->persist(note, std::nullopt, implementation->ledger_answer([&probe, answered](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
 				if (aStored.has_value()) {
 					probe.AcceptedNote = *aStored;
 				}
@@ -646,7 +646,7 @@ namespace bpr::app {
 			const auto  privateState      = ledger->private_observation();
 			probe.Evidence.PrivateRecords = probe.PrivateAccepted && probe.AcceptedNote.has_value()
 				&& defectThread != nullptr && privateState.has_value()
-				&& privateState->Notes == std::vector{ *probe.AcceptedNote }
+				&& privateState->LocalComments == std::vector{ *probe.AcceptedNote }
 				&& privateState->LastReviewedHead == std::optional{ head }
 				&& privateState->Defects == std::vector{ *probe.PrivateDefect }
 				&& review_ledger_probe_defect_matches_thread(

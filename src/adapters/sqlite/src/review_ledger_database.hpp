@@ -25,8 +25,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// source-line coordinate correction. The value is deliberately not "1": a
 	/// migration mechanism whose only version is the initial one has never
 	/// migrated anything, and would be first exercised by a user's database.
-	/// [[BPR-1591]] Version 10 adds the private note line.
-	inline constexpr std::int64_t review_ledger_schema_version = 11;
+	/// [[BPR-1591]] Version 10 adds the private note line. RFC-BPR-0127:
+	/// version 12 turns every private note into a Local comment.
+	inline constexpr std::int64_t review_ledger_schema_version = 12;
 
 	/// \brief Classifies a valid defect write at the SQLite authority boundary.
 	enum class defect_store_outcome : std::uint8_t {
@@ -134,16 +135,16 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto load_conversation_receipts(std::int64_t aScope)
 			-> std::expected<std::vector<core::conversation_receipt>, failure>;
 
-		[[nodiscard]] auto store_note(
-			std::int64_t                                    aScope,
-			const application::local_note_record&           aNote,
-			std::optional<application::local_note_revision> aExpectedRevision = std::nullopt)
-			-> std::expected<application::local_note_record, application::local_note_failure>;
+		[[nodiscard]] auto store_local_comment(
+			std::int64_t                                       aScope,
+			const application::local_comment_record&           aNote,
+			std::optional<application::local_comment_revision> aExpectedRevision = std::nullopt)
+			-> std::expected<application::local_comment_record, application::local_comment_failure>;
 
-		[[nodiscard]] auto erase_note(
-			std::int64_t                     aScope,
-			application::local_note_id       aNote,
-			application::local_note_revision aExpectedRevision) -> std::expected<void, application::local_note_failure>;
+		[[nodiscard]] auto erase_local_comment(
+			std::int64_t                        aScope,
+			application::local_comment_id       aNote,
+			application::local_comment_revision aExpectedRevision) -> std::expected<void, application::local_comment_failure>;
 
 		[[nodiscard]] auto store_last_reviewed_head(
 			std::int64_t                aScope,

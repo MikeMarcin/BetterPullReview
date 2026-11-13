@@ -297,7 +297,7 @@ namespace {
 		panel.offer_profiles(profiles());
 		panel.disclose_scope(QStringLiteral("scope"));
 		const auto notes = std::array{
-			application::local_note_id{ 7U }, application::local_note_id{ 9U }
+			application::local_comment_id{ 7U }, application::local_comment_id{ 9U }
 		};
 		const auto draft = application::agent_draft_choice{
 			.Id = core::review_draft_id{ 11U }, .Revision = 3U
@@ -326,7 +326,7 @@ namespace {
 			= std::get<qt::start_agent_intent>(recorded.Intents.back());
 		expect(
 			selected.IncludedNotes
-					== std::vector{ application::local_note_id{ 9U } }
+					== std::vector{ application::local_comment_id{ 9U } }
 				&& selected.IncludedDraft == std::optional{ draft },
 			"the launch intent carries only the checked note ID and exact draft identity/revision");
 
@@ -334,7 +334,7 @@ namespace {
 			.Id = draft.Id, .Revision = draft.Revision + 1U
 		};
 		panel.offer_private_context(
-			std::span<const application::local_note_id>{ notes }.first(1U),
+			std::span<const application::local_comment_id>{ notes }.first(1U),
 			changedDraft);
 		expect(
 			panel.note_selector()->count() == 1

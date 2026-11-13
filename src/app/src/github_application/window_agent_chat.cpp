@@ -43,7 +43,7 @@ namespace bpr::app {
 	/// \brief The name a file note shows: its file's current or previous path,
 	/// else the path kept when it was written ([[BPR-1210]]), else an honest
 	/// "earlier update" for a note written before paths were kept.
-	auto github_application::implementation::private_note_file_label(const application::local_note_record& aNote) -> std::string
+	auto github_application::implementation::private_note_file_label(const application::local_comment_record& aNote) -> std::string
 	{
 		const auto& aFile = aNote.Attachment->File;
 		if (!NotePaths && WindowRead->accepted_snapshot()) {
@@ -126,21 +126,21 @@ namespace bpr::app {
 	/// chosen, and once its draft is the one selected the note's words
 	/// become that draft, exactly as Comment's own target would. Nothing
 	/// is published.
-	void github_application::implementation::promote_line_note(const application::local_note_record& aNote, std::function<void()> aRefused)
+	void github_application::implementation::promote_line_note(const application::local_comment_record& aNote, std::function<void()> aRefused)
 	{
 		const auto* const surface = Window != nullptr ? Window->comparison_surface() : nullptr;
 		const auto* const shown   = surface != nullptr && surface->current_result() != nullptr ? &surface->current_result()->Alignment : nullptr;
-		const auto        place   = core::place_note(application::note_anchor_of(aNote), shown);
+		const auto        place   = core::place_note(application::local_comment_anchor_of(aNote), shown);
 		if (place.Kind != core::note_placement_kind::placed || !place.At) {
 			aRefused();
 			return;
 		}
 		const auto at = *place.At;
 		if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
-			promote_private_item(aNote.Note.Text, std::move(aRefused));
+			promote_private_item(aNote.Body, std::move(aRefused));
 			return;
 		}
-		PendingNotePromotion = pending_note_promotion{ .Text = aNote.Note.Text, .At = at, .Refused = std::move(aRefused) };
+		PendingNotePromotion = pending_note_promotion{ .Text = aNote.Body, .At = at, .Refused = std::move(aRefused) };
 		static_cast<void>(Window->comparison_surface()->select_conversation_line(at.Side, at.Line));
 	}
 
@@ -175,7 +175,7 @@ namespace bpr::app {
 			refresh_agent_private_context_choices();
 			return;
 		}
-		const auto found = std::ranges::find(AcceptedPrivateNotes, application::local_note_id{ aIntent.Id }, &application::local_note_record::Id);
+		const auto found = std::ranges::find(AcceptedPrivateNotes, application::local_comment_id{ aIntent.Id }, &application::local_comment_record::Id);
 		if (aIntent.Id != 0U && (found == AcceptedPrivateNotes.end() || found->Revision.value() != aIntent.Revision)) {
 			panel->refuse(QStringLiteral("This note changed in another window. Your text is kept; discard changes to reload it."));
 			return;
@@ -197,11 +197,11 @@ namespace bpr::app {
 			} else if (found->Attachment && found->Attachment->Line) {
 				promote_line_note(*found, refuse);
 			} else {
-				promote_private_item(found->Note.Text, refuse);
+				promote_private_item(found->Body, refuse);
 			}
 			return;
 		}
-		const auto refuse = [panel](const application::local_note_failure& aFailure) {
+		const auto refuse = [panel](const application::local_comment_failure& aFailure) {
 			panel->refuse(QStringLiteral("The note change was refused (%1). Your text is kept. Discard changes to reload the accepted note.")
 							  .arg(QString::fromUtf8(application::name(aFailure.Reason).data(), static_cast<qsizetype>(application::name(aFailure.Reason).size()))));
 		};
@@ -210,8 +210,8 @@ namespace bpr::app {
 				return;
 			}
 			// [[BPR-1211]]. Deleted off the decision lane; acknowledged once durable.
-			ReviewLedgerHost->erase(found->Id, application::local_note_revision{ aIntent.Revision },
-									ledger_answer([this, refuse](const std::expected<void, application::local_note_failure>& aErased) {
+			ReviewLedgerHost->erase(found->Id, application::local_comment_revision{ aIntent.Revision },
+									ledger_answer([this, refuse](const std::expected<void, application::local_comment_failure>& aErased) {
 										if (!aErased) {
 											refuse(aErased.error());
 											return;
@@ -222,11 +222,11 @@ namespace bpr::app {
 									}));
 			return;
 		}
-		auto note     = application::local_note_record{ };
-		auto revision = std::optional<application::local_note_revision>{ };
+		auto note     = application::local_comment_record{ };
+		auto revision = std::optional<application::local_comment_revision>{ };
 		if (found != AcceptedPrivateNotes.end()) {
 			note     = *found;
-			revision = application::local_note_revision{ aIntent.Revision };
+			revision = application::local_comment_revision{ aIntent.Revision };
 		} else {
 			auto next = std::uint64_t{ 1U };
 			for (const auto& accepted : AcceptedPrivateNotes) {
@@ -236,9 +236,9 @@ namespace bpr::app {
 				}
 				next = std::max(next, accepted.Id.value() + 1U);
 			}
-			note.Id = application::local_note_id{ next };
+			note.Id = application::local_comment_id{ next };
 			if (aIntent.Attachment) {
-				auto offered = application::local_note_attachment{ aIntent.Attachment->File, aIntent.Attachment->Comparison };
+				auto offered = application::local_comment_attachment{ aIntent.Attachment->File, aIntent.Attachment->Comparison };
 				if (current_note_attachment() != std::optional{ offered }) {
 					panel->refuse(QStringLiteral("The selected file changed. Your text is kept; return to that comparison before saving."));
 					return;
@@ -265,10 +265,10 @@ namespace bpr::app {
 				}
 			}
 		}
-		note.Note.Text = aIntent.Text;
+		note.Body = aIntent.Text;
 		// [[BPR-1211]]. Written off the decision lane; acknowledged once durable.
 		ReviewLedgerHost->persist(note, revision,
-								  ledger_answer([this, refuse](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+								  ledger_answer([this, refuse](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
 									  if (!aStored) {
 										  refuse(aStored.error());
 										  return;
@@ -284,7 +284,7 @@ namespace bpr::app {
 		if (Window == nullptr || Window->agent_panel() == nullptr) {
 			return;
 		}
-		auto notes      = std::vector<application::local_note_id>{ };
+		auto notes      = std::vector<application::local_comment_id>{ };
 		auto projection = qt::private_notes_projection{ .Scope = PrivateNoteScope };
 		if (const auto attachment = current_note_attachment()) {
 			projection.CurrentFile = qt::private_note_target{ attachment->File, attachment->Comparison };
@@ -293,12 +293,12 @@ namespace bpr::app {
 		}
 		if (ReviewLedgerHost != nullptr) {
 			if (auto observed = ReviewLedgerHost->private_observation(); observed.has_value()) {
-				AcceptedPrivateNotes = std::move(observed->Notes);
+				AcceptedPrivateNotes = std::move(observed->LocalComments);
 				projection.Available = ReviewLedgerAvailable && PrivateNoteScope != std::numeric_limits<std::uint64_t>::max();
 				notes.reserve(AcceptedPrivateNotes.size());
 				for (const auto& note : AcceptedPrivateNotes) {
 					notes.push_back(note.Id);
-					projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison, note.Attachment->Line } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note) : "Pull request", .Text = note.Note.Text });
+					projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison, note.Attachment->Line } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note) : "Pull request", .Text = note.Body });
 				}
 				std::ranges::sort(projection.Notes, std::greater{ }, &qt::private_note_item::Id);
 			}
@@ -557,7 +557,7 @@ namespace bpr::app {
 	/// already named on the launch panel before this returns `false`.
 	auto github_application::implementation::dispatch_agent_invocation(
 		const core::agent_profile_id                          aProfile,
-		const std::vector<application::local_note_id>&        aIncludedNotes,
+		const std::vector<application::local_comment_id>&     aIncludedNotes,
 		const std::optional<application::agent_draft_choice>& aIncludedDraft,
 		const bool                                            aExistingCheckoutChosen,
 		const std::string_view                                aChatMessage,
@@ -836,7 +836,7 @@ namespace bpr::app {
 			observation.Files.clear();
 			observation.Selection.reset();
 			observation.CurrentDraft.reset();
-			observation.Private.Notes.clear();
+			observation.Private.LocalComments.clear();
 			observation.Private.Defects.clear();
 		}
 		return launch_agent_invocation(
@@ -1409,7 +1409,7 @@ namespace bpr::app {
 					ExplicitPrivateRun                  = std::move(aPressed->Run);
 					sent                                = dispatch_agent_invocation(
 						core::codex_jsonl_profile_id,
-						std::vector<application::local_note_id>{ },
+						std::vector<application::local_comment_id>{ },
 						std::nullopt,
 						false,
 						std::string_view{ },
@@ -1566,27 +1566,27 @@ namespace bpr::app {
 	}
 
 	auto github_application::implementation::next_private_note_id() const
-		-> application::local_note_id
+		-> application::local_comment_id
 	{
 		auto next = std::uint64_t{ 1U };
 		if (ReviewLedgerHost != nullptr) {
 			if (const auto observed = ReviewLedgerHost->private_observation();
 				observed.has_value()) {
-				for (const auto& note : observed->Notes) {
+				for (const auto& note : observed->LocalComments) {
 					next = std::max(next, note.Id.value() + 1U);
 				}
 			}
 		}
-		return application::local_note_id{ next };
+		return application::local_comment_id{ next };
 	}
 #endif
 	auto github_application::implementation::current_note_attachment() const
-		-> std::optional<application::local_note_attachment>
+		-> std::optional<application::local_comment_attachment>
 	{
 		if (!SelectedDiffPublication.has_value()) {
 			return std::nullopt;
 		}
-		return application::local_note_attachment{
+		return application::local_comment_attachment{
 			.File       = SelectedDiffPublication->Request.File.File,
 			.Comparison = core::comparison_digest(SelectedDiffPublication->Key),
 		};
@@ -1688,7 +1688,7 @@ namespace bpr::app {
 					present_agent_refusal("side chat", "the note asked about is gone or Private history is unavailable");
 					return;
 				}
-				PrivateReview->record_note_press(note->Note.Text, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
+				PrivateReview->record_note_press(note->Body, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
 					if (Closing || ChatHost == nullptr) {
 						return;
 					}
@@ -1825,9 +1825,9 @@ namespace bpr::app {
 
 	/// \brief Every private note the review holds, by identity.
 	auto github_application::implementation::all_private_note_ids() const
-		-> std::vector<application::local_note_id>
+		-> std::vector<application::local_comment_id>
 	{
-		auto notes = std::vector<application::local_note_id>{ };
+		auto notes = std::vector<application::local_comment_id>{ };
 		if (ReviewLedgerHost == nullptr) {
 			return notes;
 		}
@@ -1835,8 +1835,8 @@ namespace bpr::app {
 		if (!observed.has_value()) {
 			return notes;
 		}
-		notes.reserve(observed->Notes.size());
-		for (const auto& note : observed->Notes) {
+		notes.reserve(observed->LocalComments.size());
+		for (const auto& note : observed->LocalComments) {
 			notes.push_back(note.Id);
 		}
 		return notes;
@@ -1867,9 +1867,9 @@ namespace bpr::app {
 		if (ReviewLedgerHost != nullptr) {
 			if (const auto observed = ReviewLedgerHost->private_observation();
 				observed.has_value()) {
-				prose.Notes.reserve(observed->Notes.size());
-				for (const auto& note : observed->Notes) {
-					prose.Notes.push_back(note.Note);
+				prose.Notes.reserve(observed->LocalComments.size());
+				for (const auto& note : observed->LocalComments) {
+					prose.Notes.push_back(core::supplement_note{ .Text = note.Body });
 				}
 			}
 		}

@@ -107,17 +107,17 @@ namespace bpr::application {
 	/// produced — the claim, byte for byte. A record the durable authority
 	/// would refuse is refused here, before any store sees it.
 	[[nodiscard]] auto promoted_note(
-		local_note_id                                aNote,
-		std::optional<local_note_attachment>         aAttachment,
+		local_comment_id                             aNote,
+		std::optional<local_comment_attachment>      aAttachment,
 		const core::agent_finding_promotion_request& aRequest)
-		-> std::expected<local_note_record, agent_note_promotion_failure>;
+		-> std::expected<local_comment_record, agent_note_promotion_failure>;
 
 	/// \brief Stores one promoted finding as a private note, and nowhere else.
 	///
 	/// \details The single authority agent output may reach. The note's text is
 	/// whatever `core::promote_agent_finding` produced — the claim, byte for
 	/// byte — and this function composes nothing of its own. It touches exactly
-	/// one port method, `review_ledger_store_port::store_note`; there is no
+	/// one port method, `review_ledger_store_port::store_local_comment`; there is no
 	/// branch here that could publish, open a defect, move a review head, or
 	/// admit a session.
 	///
@@ -125,10 +125,10 @@ namespace bpr::application {
 	/// the durable authority would refuse never reaches the store.
 	[[nodiscard]] auto store_promoted_finding(
 		review_ledger_store_port&                    aStore,
-		local_note_id                                aNote,
-		std::optional<local_note_attachment>         aAttachment,
+		local_comment_id                             aNote,
+		std::optional<local_comment_attachment>      aAttachment,
 		const core::agent_finding_promotion_request& aRequest)
-		-> std::expected<local_note_record, agent_note_promotion_failure>;
+		-> std::expected<local_comment_record, agent_note_promotion_failure>;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_FINDING_DELIVERY_HPP

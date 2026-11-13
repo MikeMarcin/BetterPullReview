@@ -247,7 +247,7 @@ namespace {
 		};
 		panel->offer_profiles(profiles);
 		panel->disclose_scope(QStringLiteral("Current review metadata"));
-		const auto notes = std::array{ application::local_note_id{ 7U }, application::local_note_id{ 9U } };
+		const auto notes = std::array{ application::local_comment_id{ 7U }, application::local_comment_id{ 9U } };
 		const auto draft = application::agent_draft_choice{ .Id = core::review_draft_id{ 11U }, .Revision = 3U };
 		panel->offer_private_context(notes, draft);
 		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): Settings

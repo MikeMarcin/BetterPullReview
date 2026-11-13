@@ -2240,7 +2240,7 @@ auto main(int argc, char** argv) -> int
 			if (
 				!expectedContext.has_value()
 				|| expectedContext->Files.size() != 1U
-				|| expectedContext->Private.Notes.size() != 2U
+				|| expectedContext->Private.LocalComments.size() != 2U
 				|| !selectedNoteFound
 				|| !expectedContext->CurrentDraft.has_value()
 				|| expectedContext->CurrentDraft->Draft.Body != selectedDraft

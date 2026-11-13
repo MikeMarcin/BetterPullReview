@@ -242,7 +242,7 @@ namespace bpr::qt {
 				return;
 			}
 			++Statistics.StartIntents;
-			auto notes = std::vector<application::local_note_id>{ };
+			auto notes = std::vector<application::local_comment_id>{ };
 			for (auto row = 0; row < NoteSelector->count(); ++row) {
 				const auto* const item = NoteSelector->item(row);
 				if (item->checkState() == Qt::Checked) {
@@ -409,8 +409,8 @@ namespace bpr::qt {
 	}
 
 	void agent_launch_panel::offer_private_context(
-		const std::span<const application::local_note_id> aNotes,
-		std::optional<application::agent_draft_choice>    aDraft)
+		const std::span<const application::local_comment_id> aNotes,
+		std::optional<application::agent_draft_choice>       aDraft)
 	{
 		NoteSelector->clear();
 		for (const auto id : aNotes) {

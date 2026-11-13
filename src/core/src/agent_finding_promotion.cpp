@@ -192,7 +192,7 @@ namespace bpr::core {
 		/// is the one choice a boundary-anchored finding can still take. The
 		/// attachment is the file identity derived from the finding's path and
 		/// the comparison its anchor belongs to, which is everything
-		/// `application::local_note_attachment` needs and nothing else.
+		/// `application::local_comment_attachment` needs and nothing else.
 		[[nodiscard]] auto promote_into_note(
 			const agent_finding_promotion_request& aRequest)
 			-> agent_finding_promotion

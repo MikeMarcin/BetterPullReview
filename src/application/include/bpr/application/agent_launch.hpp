@@ -80,7 +80,7 @@ namespace bpr::application {
 		private_ledger_observation                       Private;
 		std::optional<core::supplement_semantic_context> Selection;
 		std::optional<agent_draft_observation>           CurrentDraft;
-		std::vector<local_note_id>                       IncludedNotes;
+		std::vector<local_comment_id>                    IncludedNotes;
 		std::optional<agent_draft_choice>                IncludedDraft;
 		/// What the reviewer typed for this turn, when this is a chat turn.
 		///

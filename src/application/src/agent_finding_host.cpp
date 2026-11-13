@@ -159,7 +159,7 @@ namespace bpr::application {
 					} else {
 						// [[BPR-1211]]. The note is written off the decision
 						// lane and presented once the write answers.
-						const auto admitted = Store && Store(*note, [this, outcome](std::expected<local_note_record, local_note_failure> aStored) mutable {
+						const auto admitted = Store && Store(*note, [this, outcome](std::expected<local_comment_record, local_comment_failure> aStored) mutable {
 												  if (aStored.has_value()) {
 													  outcome.Note = std::move(*aStored);
 													  ++Statistics.StoredNotes;

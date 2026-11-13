@@ -443,6 +443,18 @@ namespace bpr::adapters::sqlite::detail {
 			return tables;
 		}();
 
+		/// RFC-BPR-0127. Schema 12: every private note is a Local comment in
+		/// `private_local_comment`; the note mapping, path and line tables go.
+		constexpr auto SchemaVersion12Tables = [] {
+			std::array<schema_table, SchemaVersion11Tables.size() - 3U + 1U> tables{ };
+			auto                                                             next = std::ranges::copy_if(SchemaVersion11Tables, tables.begin(), [](const auto& aTable) {
+							return aTable.Name != "private_legacy_note" && aTable.Name != PrivateNotePathTable.Name && aTable.Name != PrivateNoteLineTable.Name;
+																					}).out;
+			*next                                                                 = { PrivateLocalCommentTable.Name, PrivateLocalCommentTable.Sql };
+			std::ranges::sort(tables, { }, &schema_table::Name);
+			return tables;
+		}();
+
 		[[nodiscard]] auto run_all(
 			::sqlite3*                              aDatabase,
 			const std::span<const std::string_view> aStatements,
@@ -621,6 +633,15 @@ namespace bpr::adapters::sqlite::detail {
 				version = 11;
 			}
 
+			// RFC-BPR-0127. Notes become Local comments, in this transaction.
+			if (version == 11) {
+				if (auto migrated = migrate_private_local_comments(aDatabase); !migrated) {
+					rollback();
+					return migrated;
+				}
+				version = 12;
+			}
+
 			if (auto recorded = execute(
 					aDatabase,
 					"UPDATE ledger_meta SET schema_format = "
@@ -725,7 +746,7 @@ namespace bpr::adapters::sqlite::detail {
 			return validate_at_version(
 				aDatabase,
 				review_ledger_schema_version,
-				SchemaVersion11Tables);
+				SchemaVersion12Tables);
 		}
 
 		struct preflight_file_image
@@ -1171,6 +1192,8 @@ namespace bpr::adapters::sqlite::detail {
 						expected = SchemaVersion10Tables;
 					} else if (*version == 11) {
 						expected = SchemaVersion11Tables;
+					} else if (*version == 12) {
+						expected = SchemaVersion12Tables;
 					} else {
 						validation = std::unexpected(failure::schema_mismatch);
 					}
@@ -1616,10 +1639,10 @@ namespace bpr::adapters::sqlite::detail {
 		return receipts;
 	}
 
-	auto review_ledger_database::store_note(std::int64_t aScope, const application::local_note_record& aNote, std::optional<application::local_note_revision> aExpectedRevision)
-		-> std::expected<application::local_note_record, application::local_note_failure> { return private_store_note(Handle, aScope, aNote, aExpectedRevision); }
-	auto review_ledger_database::erase_note(std::int64_t aScope, application::local_note_id aNote, application::local_note_revision aExpectedRevision)
-		-> std::expected<void, application::local_note_failure> { return private_erase_note(Handle, aScope, aNote, aExpectedRevision); }
+	auto review_ledger_database::store_local_comment(std::int64_t aScope, const application::local_comment_record& aNote, std::optional<application::local_comment_revision> aExpectedRevision)
+		-> std::expected<application::local_comment_record, application::local_comment_failure> { return private_store_local_comment(Handle, aScope, aNote, aExpectedRevision); }
+	auto review_ledger_database::erase_local_comment(std::int64_t aScope, application::local_comment_id aNote, application::local_comment_revision aExpectedRevision)
+		-> std::expected<void, application::local_comment_failure> { return private_erase_local_comment(Handle, aScope, aNote, aExpectedRevision); }
 
 	auto review_ledger_database::store_last_reviewed_head(
 		const std::int64_t          aScope,
@@ -1868,12 +1891,12 @@ namespace bpr::adapters::sqlite::detail {
 	{
 		auto result = application::private_ledger_observation{ };
 
-		auto notes = private_load_notes(Handle, aScope);
-		if (!notes) {
-			return std::unexpected(notes.error());
+		auto comments = private_load_local_comments(Handle, aScope);
+		if (!comments) {
+			return std::unexpected(comments.error());
 		}
-		result.Notes = std::move(*notes);
-		auto row     = SQLITE_ROW;
+		result.LocalComments = std::move(*comments);
+		auto row             = SQLITE_ROW;
 
 		auto head = prepare(
 			Handle,

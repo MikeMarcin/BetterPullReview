@@ -278,11 +278,11 @@ namespace {
 			receipt("Engine/Renderer/HairStrandsLighting.cpp", core::file_read_state::seen),
 			receipt("Engine/Renderer/HairStrandsVoxelization.cpp", core::file_read_state::read),
 		};
-		auto note       = application::local_note_record{ };
-		note.Note.File  = core::file_identity_of("Engine/Renderer/HairStrandsVoxelization.cpp");
-		note.Note.Text  = "Re-read the atomic move";
+		auto note       = application::local_comment_record{ };
+		note.Attachment = application::local_comment_attachment{ .File = core::file_identity_of("Engine/Renderer/HairStrandsVoxelization.cpp"), .Comparison = { } };
+		note.Body       = "Re-read the atomic move";
 		context.Private = application::private_ledger_observation{
-			.Notes            = { note },
+			.LocalComments    = { note },
 			.LastReviewedHead = commit('c'),
 		};
 		context.Updates         = { update(3, 'd'), update(1, 'b'), update(2, 'c'), update(4, 'e') };

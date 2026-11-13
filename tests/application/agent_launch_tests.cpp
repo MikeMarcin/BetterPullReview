@@ -117,18 +117,18 @@ namespace {
 				},
 			},
 			.Private = {
-				.Notes = {
+				.LocalComments = {
 					{
-						.Id   = application::local_note_id{ 1U },
-						.Note = { .Text = "not selected" },
+						.Id   = application::local_comment_id{ 1U },
+						.Body = "not selected",
 					},
 					{
-						.Id         = application::local_note_id{ 2U },
-						.Attachment = application::local_note_attachment{
+						.Id         = application::local_comment_id{ 2U },
+						.Attachment = application::local_comment_attachment{
 							.File       = identity<core::file_identity>(3U),
 							.Comparison = comparison,
 						},
-						.Note = { .Text = "check retry exhaustion" },
+						.Body = "check retry exhaustion",
 					},
 				},
 				.LastReviewedHead = commit(4U),
@@ -166,7 +166,7 @@ namespace {
 					.Body   = "Would a bounded retry be safer?",
 				},
 			},
-			.IncludedNotes = { application::local_note_id{ 2U } },
+			.IncludedNotes = { application::local_comment_id{ 2U } },
 			.IncludedDraft = application::agent_draft_choice{ .Id = core::review_draft_id{ 3U }, .Revision = 7U },
 		};
 	}
@@ -216,7 +216,7 @@ namespace {
 			"only the explicitly named private note crosses");
 
 		auto missing          = observation();
-		missing.IncludedNotes = { application::local_note_id{ 99U } };
+		missing.IncludedNotes = { application::local_comment_id{ 99U } };
 		const auto missingResult
 			= application::build_agent_context_supplement(missing, session());
 		expect(
@@ -236,8 +236,8 @@ namespace {
 			"a duplicated selection is refused rather than duplicated on the wire");
 
 		auto duplicateSource = observation();
-		duplicateSource.Private.Notes.push_back(
-			duplicateSource.Private.Notes.back());
+		duplicateSource.Private.LocalComments.push_back(
+			duplicateSource.Private.LocalComments.back());
 		const auto duplicateSourceResult
 			= application::build_agent_context_supplement(duplicateSource, session());
 		expect(
@@ -1242,7 +1242,7 @@ namespace {
 			gated.has_value() && gated->Notes.empty() && gated->Drafts.empty(),
 			"a session that opted into nothing carries no note and no draft");
 		expect(
-			!unselected.Private.Notes.empty()
+			!unselected.Private.LocalComments.empty()
 				&& unselected.CurrentDraft.has_value(),
 			"and the review still held both, so the gate is what emptied them");
 		expect(

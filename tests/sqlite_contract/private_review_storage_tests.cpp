@@ -101,12 +101,12 @@ namespace {
 		expect(page && page->Revisions.size() == 1 && page->Revisions[0].Revision == original.Revision, "exact immutable revision round trip");
 		auto ledger = make_review_ledger_store(config.Ledger);
 		expect(ledger.has_value(), "legacy facade shares authority");
-		auto note = (*ledger)->store_note({ .Id = local_note_id{ 1 }, .Note = { .Text = "facade" } });
+		auto note = (*ledger)->store_local_comment({ .Id = local_comment_id{ 1 }, .Body = "facade" });
 		expect(note.has_value(), "facade adds one thread");
 		auto all = store->list_threads();
 		expect(all && all->Threads.size() == 2, "legacy and new threads share paged catalog");
 		auto privateNotes = (*ledger)->load_private();
-		expect(privateNotes && privateNotes->Notes.size() == 1, "old aggregate loads mapped notes only");
+		expect(privateNotes && privateNotes->LocalComments.size() == 1, "old aggregate loads mapped notes only");
 		store.reset();
 		peer.reset();
 		ledger->reset();
@@ -193,15 +193,15 @@ namespace {
 		auto                                 config   = configuration(scratch.path());
 		auto                                 store    = open(config);
 		auto                                 ledger   = make_review_ledger_store(config.Ledger);
-		auto                                 original = *(*ledger)->store_note({ .Id = local_note_id{ 1 }, .Note = { .Text = "first note" } });
+		auto                                 original = *(*ledger)->store_local_comment({ .Id = local_comment_id{ 1 }, .Body = "first note" });
 		auto                                 header   = store->list_threads()->Threads.front();
 		auto                                 expanded = append(*store, header, "second turn");
-		auto                                 stale    = (*ledger)->store_note(original, original.Revision);
+		auto                                 stale    = (*ledger)->store_local_comment(original, original.Revision);
 		expect(!stale && stale.error().Reason == ledger_store_failure::conflict, "canonical thread update invalidates old facade CAS");
-		auto current = (*ledger)->load_private()->Notes.front();
-		expect(current.Note.Text == "first note" && current.Revision != original.Revision, "facade projects only original note turn after expansion");
-		current.Note.Text = "edited first note";
-		expect((*ledger)->store_note(current, current.Revision).has_value(), "facade edits original turn after expansion");
+		auto current = (*ledger)->load_private()->LocalComments.front();
+		expect(current.Body == "first note" && current.Revision != original.Revision, "facade projects only original note turn after expansion");
+		current.Body = "edited first note";
+		expect((*ledger)->store_local_comment(current, current.Revision).has_value(), "facade edits original turn after expansion");
 		auto page = store->list_revisions(header.Id);
 		expect(page && page->Revisions.size() == 3 && page->Revisions[1].Revision == expanded.Revision && page->Revisions.back().Revision.Body == "edited first note", "facade preserves all expanded transcript bodies");
 	}
@@ -405,10 +405,10 @@ namespace {
 			auto                                 ledger = make_review_ledger_store(config.Ledger);
 			expect(ledger.has_value(), "prepare legacy notes");
 			// Keep both the leading and trailing NUL in the migration payload.
-			constexpr char    textBytes[] = "\0line\r\nα\tend";
-			std::string       text{ std::begin(textBytes), std::end(textBytes) };
-			local_note_record note{ .Id = local_note_id{ 922 }, .Attachment = local_note_attachment{ file_identity_of("f.cpp"), private_review_fixture::opaque<file_comparison_digest>(6) }, .Note = { .Text = text } };
-			auto              stored = (*ledger)->store_note(note);
+			constexpr char       textBytes[] = "\0line\r\nα\tend";
+			std::string          text{ std::begin(textBytes), std::end(textBytes) };
+			local_comment_record note{ .Id = local_comment_id{ 922 }, .Attachment = local_comment_attachment{ file_identity_of("f.cpp"), private_review_fixture::opaque<file_comparison_digest>(6) }, .Body = text };
+			auto                 stored = (*ledger)->store_local_comment(note);
 			expect(stored.has_value(), "exact bytes seed");
 			ledger->reset();
 			{
@@ -428,10 +428,10 @@ namespace {
 			auto legacy = std::get<legacy_retained_subject>(catalog->Threads.front().Binding);
 			expect(legacy.Attachment == private_file_subject{ note.Attachment->File, note.Attachment->Comparison }, "exact legacy attachment preserved without invented binding");
 			ledger        = make_review_ledger_store(config.Ledger);
-			auto restored = (*ledger)->load_private()->Notes.front();
+			auto restored = (*ledger)->load_private()->LocalComments.front();
 			expect(restored.Id == note.Id && restored.Revision == stored->Revision, "legacy ID and CAS token mapped");
-			restored.Note.Text = "reviewer edit";
-			auto edited        = (*ledger)->store_note(restored, restored.Revision);
+			restored.Body = "reviewer edit";
+			auto edited   = (*ledger)->store_local_comment(restored, restored.Revision);
 			expect(edited && edited->Revision.value() == (version == 6 ? 100U : 2U), "v6 high water preserved independently of retained maxima");
 			page = store->list_revisions(catalog->Threads.front().Id);
 			expect(page && page->Revisions.size() == 2 && page->Revisions[0].Revision.Body == text && std::holds_alternative<private_reviewer_actor>(page->Revisions[1].Revision.Actor), "facade edit appends reviewer successor and retains unknown original");
@@ -751,7 +751,7 @@ namespace {
 		auto                                 config = configuration(scratch.path());
 		{
 			auto ledger = make_review_ledger_store(config.Ledger);
-			expect(ledger && (*ledger)->store_note({ .Id = local_note_id{ 1 }, .Note = { .Text = "migration exact" } }).has_value(), "legacy migration seed");
+			expect(ledger && (*ledger)->store_local_comment({ .Id = local_comment_id{ 1 }, .Body = "migration exact" }).has_value(), "legacy migration seed");
 			ledger->reset();
 			auto raw = detail::review_ledger_database::open(ledger_path(config), { });
 			tests::sqlite_contract::restore_v6_fixture(raw->handle());

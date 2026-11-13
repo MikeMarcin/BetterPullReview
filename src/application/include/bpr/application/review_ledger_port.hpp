@@ -4,6 +4,7 @@
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/generated_files.hpp"
+#include "bpr/core/local_comment.hpp"
 #include "bpr/core/note_placement.hpp"
 #include "bpr/core/review_ledger.hpp"
 
@@ -55,83 +56,99 @@ namespace bpr::application {
 	/// allowed to turn a single review into an unbounded allocation. The values
 	/// are deliberately larger than the agent supplement limits: persistence is
 	/// the authority, while a later invocation selects a smaller explicit subset.
-	inline constexpr std::size_t maximum_private_notes           = 4'096U;
+	/// RFC-BPR-0127: Local comments keep the note bound and do not count
+	/// against the 64 active drafts.
+	inline constexpr std::size_t maximum_local_comments          = core::maximum_local_comments;
 	inline constexpr std::size_t maximum_private_defects         = 4'096U;
 	inline constexpr std::size_t maximum_retained_agent_sessions = 128U;
 
-	/// [[BPR-1210]]. The longest path a file note keeps, in UTF-8 bytes.
+	/// [[BPR-1210]]. The longest path a file comment keeps, in UTF-8 bytes.
 	inline constexpr std::size_t maximum_note_path_bytes = 4'096U;
 
-	using local_note_id       = core::strong_id<struct local_note_id_tag>;
-	using local_note_revision = core::strong_id<struct local_note_revision_tag>;
+	using local_comment_id       = core::strong_id<struct local_comment_id_tag>;
+	using local_comment_revision = core::strong_id<struct local_comment_revision_tag>;
 
-	/// \brief Binds a private note to exact compared material.
+	/// \brief Binds a Local comment to exact compared material.
 	///
-	/// \details [[BPR-1591]]. A note written on a selected line also keeps
+	/// \details [[BPR-1591]]. A comment written on a selected line also keeps
 	/// that line (RFC-BPR-0085 D3); `core::place_note` decides where it shows.
-	/// A note written before ledger schema 10, or on the whole file, has none.
-	struct local_note_attachment
+	/// A comment migrated from a note written before ledger schema 10, or one
+	/// on the whole file, has none.
+	struct local_comment_attachment
 	{
 		core::file_identity                   File;
 		core::file_comparison_digest          Comparison;
 		std::optional<core::note_line_anchor> Line = std::nullopt;
 
-		auto operator<=>(const local_note_attachment&) const = default;
+		auto operator<=>(const local_comment_attachment&) const = default;
 	};
 
-	/// \brief One durable private note.
+	/// \brief RFC-BPR-0127. One durable Local comment: only on this computer.
 	///
-	/// \details A note may describe the review as a whole or one exact file
-	/// comparison. It stores no source body or presentation coordinate. A file
-	/// note keeps the file's path as it was when the note was written
-	/// ([[BPR-1210]], the owner's amendment of RFC-BPR-0007 on 2026-10-06), so
-	/// it can still name a file that a later update dropped; a note written
-	/// before then has none. The text uses the same bound as an explicitly selected agent
-	/// note so persistence cannot create a value that downstream context must
-	/// silently truncate. Revision zero denotes an unpersisted candidate.
-	/// Only the separate expected revision grants edit or delete authority; the
-	/// store assigns each accepted record its positive durable revision.
-	struct local_note_record
+	/// \details What was a private note. It may be on the review as a whole,
+	/// on one exact file comparison, on a line or a range of it, or a reply
+	/// to a thread. A file comment keeps the file's path as it was when it was
+	/// written ([[BPR-1210]], the owner's amendment of RFC-BPR-0007 on
+	/// 2026-10-06), so it can still name a file a later update dropped; one
+	/// migrated from a note written before then has none. The body has a
+	/// draft's bound (64 KiB), so Keep local never cuts a draft's text; the
+	/// agent supplement applies its own smaller bound to what it is sent.
+	/// Revision zero denotes an unpersisted candidate. Only the separate
+	/// expected revision grants edit or delete authority; the store assigns
+	/// each accepted record its positive durable revision. A migrated note
+	/// keeps its note identity as its identity, so what pointed at the note
+	/// (a finding card's Go to note) arrives at the comment.
+	struct local_comment_record
 	{
-		local_note_id                        Id;
-		std::optional<local_note_attachment> Attachment;
-		core::supplement_note                Note;
-		local_note_revision                  Revision;
-		/// The attached file's path when the note was written; only with an
-		/// attachment, at most `maximum_note_path_bytes`.
+		local_comment_id                        Id;
+		std::optional<local_comment_attachment> Attachment;
+		std::string                             Body;
+		local_comment_revision                  Revision;
+		/// The attached file's path when the comment was written; only with
+		/// an attachment, at most `maximum_note_path_bytes`.
 		std::optional<std::string> FilePath;
+		/// The first line of a range, on the line's side and above it.
+		std::optional<std::uint32_t> StartLine = std::nullopt;
+		/// The thread a Local reply answers.
+		std::optional<std::string> ReplyToThread = std::nullopt;
 
-		auto operator<=>(const local_note_record&) const = default;
+		auto operator<=>(const local_comment_record&) const = default;
 	};
 
-	/// \brief [[BPR-1591]]. What `core::place_note` decides a note's place from.
-	[[nodiscard]] inline auto note_anchor_of(const local_note_record& aNote) -> core::note_anchor
+	/// \brief [[BPR-1591]]. What `core::place_note` decides a comment's place from.
+	[[nodiscard]] inline auto local_comment_anchor_of(const local_comment_record& aComment) -> core::note_anchor
 	{
 		auto anchor = core::note_anchor{ };
-		if (aNote.Attachment) {
-			anchor.File       = aNote.Attachment->File;
-			anchor.Comparison = aNote.Attachment->Comparison;
-			anchor.Line       = aNote.Attachment->Line;
+		if (aComment.Attachment) {
+			anchor.File       = aComment.Attachment->File;
+			anchor.Comparison = aComment.Attachment->Comparison;
+			anchor.Line       = aComment.Attachment->Line;
 		}
 		return anchor;
 	}
 
-	/// \brief A refused note mutation and its current durable competitor.
-	struct local_note_failure
+	/// \brief RFC-BPR-0127. The core's view of where a comment is.
+	[[nodiscard]] inline auto local_comment_place_of(const local_comment_record& aComment) -> core::local_comment_anchor
 	{
-		ledger_store_failure             Reason;
-		std::optional<local_note_record> Current;
-		auto                             operator<=>(const local_note_failure&) const = default;
+		return core::local_comment_anchor{ .Place = local_comment_anchor_of(aComment), .StartLine = aComment.StartLine, .ReplyToThread = aComment.ReplyToThread };
+	}
+
+	/// \brief A refused note mutation and its current durable competitor.
+	struct local_comment_failure
+	{
+		ledger_store_failure                Reason;
+		std::optional<local_comment_record> Current;
+		auto                                operator<=>(const local_comment_failure&) const = default;
 	};
 
 	/// \brief One window's rejected mutation, separate from accepted records.
-	struct rejected_local_note_mutation
+	struct rejected_local_comment_mutation
 	{
-		local_note_id                      Id;
-		std::optional<local_note_record>   Candidate;
-		std::optional<local_note_revision> ExpectedRevision;
-		local_note_failure                 Failure;
-		auto                               operator<=>(const rejected_local_note_mutation&) const = default;
+		local_comment_id                      Id;
+		std::optional<local_comment_record>   Candidate;
+		std::optional<local_comment_revision> ExpectedRevision;
+		local_comment_failure                 Failure;
+		auto                                  operator<=>(const rejected_local_comment_mutation&) const = default;
 	};
 
 	/// \brief A local defect bound to its ordinary shared review thread.
@@ -151,7 +168,8 @@ namespace bpr::application {
 	/// \brief One bounded, deterministic observation of private ledger state.
 	struct private_ledger_observation
 	{
-		std::vector<local_note_record>      Notes;
+		/// RFC-BPR-0127. The review's Local comments, by identity.
+		std::vector<local_comment_record>   LocalComments;
 		std::optional<core::git_commit_oid> LastReviewedHead;
 		std::vector<durable_defect_record>  Defects;
 		/// RFC-BPR-0089 M2. The reviewer's generated-file marks for this
@@ -193,7 +211,7 @@ namespace bpr::application {
 		-> bool;
 
 	/// \brief Reports whether one note can enter the durable authority.
-	[[nodiscard]] auto valid(const local_note_record& aNote) noexcept -> bool;
+	[[nodiscard]] auto valid(const local_comment_record& aNote) noexcept -> bool;
 
 	/// \brief Reports whether one defect can enter the durable authority.
 	[[nodiscard]] auto valid(const durable_defect_record& aDefect) noexcept -> bool;
@@ -277,13 +295,13 @@ namespace bpr::application {
 			= 0;
 
 		/// \brief Creates a note when no revision is supplied, otherwise compares and replaces.
-		[[nodiscard]] virtual auto store_note(const local_note_record&           aNote,
-											  std::optional<local_note_revision> aExpectedRevision = std::nullopt)
-			-> std::expected<local_note_record, local_note_failure> = 0;
+		[[nodiscard]] virtual auto store_local_comment(const local_comment_record&           aNote,
+													   std::optional<local_comment_revision> aExpectedRevision = std::nullopt)
+			-> std::expected<local_comment_record, local_comment_failure> = 0;
 
 		/// \brief Removes only the exact accepted note revision.
-		[[nodiscard]] virtual auto erase_note(local_note_id aNote, local_note_revision aExpectedRevision)
-			-> std::expected<void, local_note_failure> = 0;
+		[[nodiscard]] virtual auto erase_local_comment(local_comment_id aNote, local_comment_revision aExpectedRevision)
+			-> std::expected<void, local_comment_failure> = 0;
 
 		/// \brief Replaces the review's last-reviewed head.
 		[[nodiscard]] virtual auto store_last_reviewed_head(

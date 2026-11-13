@@ -5,6 +5,7 @@
 	#include "bpr/application/device_binding_store.hpp"
 	#include "bpr/application/epoch_catalog_port.hpp"
 
+	#include <cstddef>
 	#include <cstdint>
 	#include <filesystem>
 
@@ -24,6 +25,12 @@ namespace bpr::adapters::sqlite::detail::testing {
 	// migration leaves behind.
 	/// \brief Performs the interrupt next migration before commit operation.
 	void interrupt_next_migration_before_commit() noexcept;
+
+	// RFC-BPR-0127. Arms one test-only interruption of the next schema 12
+	// migration after `aStatements` of its statements have run. The ledger's
+	// migration transaction then rolls back, as a crash there would leave it.
+	/// \brief Interrupts the next note-to-comment migration after N statements.
+	void interrupt_local_comment_migration_after(std::size_t aStatements) noexcept;
 
 	enum class epoch_journal_stage : std::uint8_t {
 		receiving,

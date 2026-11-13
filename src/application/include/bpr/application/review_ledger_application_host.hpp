@@ -155,7 +155,7 @@ namespace bpr::application {
 
 	/// \brief Receives one note operation's terminal on the decision lane.
 	template <typename Value>
-	using local_note_completion = std::function<void(std::expected<Value, local_note_failure>)>;
+	using local_comment_completion = std::function<void(std::expected<Value, local_comment_failure>)>;
 
 	/// \brief Turns receipt commands into durable state and published projections.
 	///
@@ -331,15 +331,15 @@ namespace bpr::application {
 		void load_private(ledger_completion<void> aDone);
 
 		/// \brief Persists one validated local note.
-		void persist(const local_note_record&                 aNote,
-					 std::optional<local_note_revision>       aExpectedRevision,
-					 local_note_completion<local_note_record> aDone);
+		void persist(const local_comment_record&                    aNote,
+					 std::optional<local_comment_revision>          aExpectedRevision,
+					 local_comment_completion<local_comment_record> aDone);
 
 		/// \brief Deletes one local note identity.
-		void erase(local_note_id aNote, local_note_revision aExpectedRevision, local_note_completion<void> aDone);
+		void erase(local_comment_id aNote, local_comment_revision aExpectedRevision, local_comment_completion<void> aDone);
 
 		/// \brief Returns the first rejected candidate, retained until explicit dismissal.
-		[[nodiscard]] auto rejected_note() const -> std::optional<rejected_local_note_mutation>;
+		[[nodiscard]] auto rejected_note() const -> std::optional<rejected_local_comment_mutation>;
 		/// \brief Explicitly dismisses this window's retained rejected candidate.
 		void dismiss_rejected_note();
 

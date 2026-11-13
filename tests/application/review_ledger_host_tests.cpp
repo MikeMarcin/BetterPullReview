@@ -137,49 +137,49 @@ namespace {
 
 		std::vector<core::conversation_receipt> ConversationReceipts;
 
-		std::optional<application::local_note_record> HostileCurrent;
-		std::uint64_t                                 NextNoteRevision = 1U;
-		auto                                          store_note(const application::local_note_record&                 aNote,
-																 const std::optional<application::local_note_revision> aExpectedRevision)
-			-> std::expected<application::local_note_record, application::local_note_failure> override
+		std::optional<application::local_comment_record> HostileCurrent;
+		std::uint64_t                                    NextNoteRevision = 1U;
+		auto                                             store_local_comment(const application::local_comment_record&                 aNote,
+																			 const std::optional<application::local_comment_revision> aExpectedRevision)
+			-> std::expected<application::local_comment_record, application::local_comment_failure> override
 		{
 			if (const auto failure = take_failure()) {
-				return std::unexpected(application::local_note_failure{ .Reason = *failure });
+				return std::unexpected(application::local_comment_failure{ .Reason = *failure });
 			}
 			if (HostileCurrent) {
-				return std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::conflict, .Current = HostileCurrent });
+				return std::unexpected(application::local_comment_failure{ .Reason = application::ledger_store_failure::conflict, .Current = HostileCurrent });
 			}
-			const auto found   = std::ranges::find(Private.Notes, aNote.Id, &application::local_note_record::Id);
-			const auto current = found == Private.Notes.end() ? std::optional<application::local_note_record>{ } : *found;
+			const auto found   = std::ranges::find(Private.LocalComments, aNote.Id, &application::local_comment_record::Id);
+			const auto current = found == Private.LocalComments.end() ? std::optional<application::local_comment_record>{ } : *found;
 			if ((!aExpectedRevision && current) || (aExpectedRevision && (!current || current->Revision != *aExpectedRevision))) {
-				return std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::conflict, .Current = current });
+				return std::unexpected(application::local_comment_failure{ .Reason = application::ledger_store_failure::conflict, .Current = current });
 			}
 			auto accepted     = aNote;
-			accepted.Revision = application::local_note_revision{ NextNoteRevision++ };
-			if (found == Private.Notes.end()) {
-				Private.Notes.push_back(accepted);
+			accepted.Revision = application::local_comment_revision{ NextNoteRevision++ };
+			if (found == Private.LocalComments.end()) {
+				Private.LocalComments.push_back(accepted);
 			} else {
 				*found = accepted;
 			}
 			return accepted;
 		}
 
-		auto erase_note(const application::local_note_id       aNote,
-						const application::local_note_revision aExpectedRevision)
-			-> std::expected<void, application::local_note_failure> override
+		auto erase_local_comment(const application::local_comment_id       aNote,
+								 const application::local_comment_revision aExpectedRevision)
+			-> std::expected<void, application::local_comment_failure> override
 		{
 			if (const auto failure = take_failure()) {
-				return std::unexpected(application::local_note_failure{ .Reason = *failure });
+				return std::unexpected(application::local_comment_failure{ .Reason = *failure });
 			}
 			if (HostileCurrent) {
-				return std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::conflict, .Current = HostileCurrent });
+				return std::unexpected(application::local_comment_failure{ .Reason = application::ledger_store_failure::conflict, .Current = HostileCurrent });
 			}
-			const auto found   = std::ranges::find(Private.Notes, aNote, &application::local_note_record::Id);
-			const auto current = found == Private.Notes.end() ? std::optional<application::local_note_record>{ } : *found;
+			const auto found   = std::ranges::find(Private.LocalComments, aNote, &application::local_comment_record::Id);
+			const auto current = found == Private.LocalComments.end() ? std::optional<application::local_comment_record>{ } : *found;
 			if (!current || current->Revision != aExpectedRevision) {
-				return std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::conflict, .Current = current });
+				return std::unexpected(application::local_comment_failure{ .Reason = application::ledger_store_failure::conflict, .Current = current });
 			}
-			Private.Notes.erase(found);
+			Private.LocalComments.erase(found);
 			return { };
 		}
 
@@ -384,15 +384,15 @@ namespace {
 		};
 	}
 
-	[[nodiscard]] auto private_note() -> application::local_note_record
+	[[nodiscard]] auto private_note() -> application::local_comment_record
 	{
-		return application::local_note_record{
-			.Id         = application::local_note_id{ 7U },
-			.Attachment = application::local_note_attachment{
+		return application::local_comment_record{
+			.Id         = application::local_comment_id{ 7U },
+			.Attachment = application::local_comment_attachment{
 				.File       = opaque<core::file_identity>(11U),
 				.Comparison = opaque<core::file_comparison_digest>(12U),
 			},
-			.Note = { .Text = "Re-check the ownership boundary." },
+			.Body = "Re-check the ownership boundary.",
 		};
 	}
 
@@ -534,17 +534,17 @@ namespace {
 			pass();
 			return Target->load_conversation_receipts();
 		}
-		auto store_note(const application::local_note_record& aNote, const std::optional<application::local_note_revision> aExpected)
-			-> std::expected<application::local_note_record, application::local_note_failure> override
+		auto store_local_comment(const application::local_comment_record& aNote, const std::optional<application::local_comment_revision> aExpected)
+			-> std::expected<application::local_comment_record, application::local_comment_failure> override
 		{
 			pass();
-			return Target->store_note(aNote, aExpected);
+			return Target->store_local_comment(aNote, aExpected);
 		}
-		auto erase_note(const application::local_note_id aNote, const application::local_note_revision aExpected)
-			-> std::expected<void, application::local_note_failure> override
+		auto erase_local_comment(const application::local_comment_id aNote, const application::local_comment_revision aExpected)
+			-> std::expected<void, application::local_comment_failure> override
 		{
 			pass();
-			return Target->erase_note(aNote, aExpected);
+			return Target->erase_local_comment(aNote, aExpected);
 		}
 		auto store_last_reviewed_head(const core::git_commit_oid& aHead) -> std::expected<void, application::ledger_store_failure> override
 		{
@@ -736,18 +736,18 @@ namespace {
 			}
 			return Host.private_observation();
 		}
-		auto persist(const application::local_note_record& aNote, const std::optional<application::local_note_revision> aExpected = std::nullopt)
-			-> std::expected<application::local_note_record, application::local_note_failure>
+		auto persist(const application::local_comment_record& aNote, const std::optional<application::local_comment_revision> aExpected = std::nullopt)
+			-> std::expected<application::local_comment_record, application::local_comment_failure>
 		{
-			auto got = answer<application::local_note_record, application::local_note_failure>{ };
-			Host.persist(aNote, aExpected, into<application::local_note_record, application::local_note_failure>(got));
+			auto got = answer<application::local_comment_record, application::local_comment_failure>{ };
+			Host.persist(aNote, aExpected, into<application::local_comment_record, application::local_comment_failure>(got));
 			return settled(got);
 		}
-		auto erase(const application::local_note_id aNote, const application::local_note_revision aExpected)
-			-> std::expected<void, application::local_note_failure>
+		auto erase(const application::local_comment_id aNote, const application::local_comment_revision aExpected)
+			-> std::expected<void, application::local_comment_failure>
 		{
-			auto got = answer<void, application::local_note_failure>{ };
-			Host.erase(aNote, aExpected, into<void, application::local_note_failure>(got));
+			auto got = answer<void, application::local_comment_failure>{ };
+			Host.erase(aNote, aExpected, into<void, application::local_comment_failure>(got));
 			return settled(got);
 		}
 		auto persist(const application::durable_defect_record& aDefect) -> std::expected<void, application::ledger_store_failure>
@@ -981,13 +981,13 @@ namespace {
 		auto rigged = rig{ store, log };
 
 		auto note = private_note();
-		note.Note.Text.clear();
+		note.Body.clear();
 		const auto badNote = rigged.persist(note);
 		const auto badHead = rigged.persist_head(core::git_commit_oid{ });
 		auto       defect  = private_defect();
 		defect.History.Defect.Anchor.Line += 1U;
 		const auto badDefect = rigged.persist(defect);
-		const auto badErase  = rigged.erase(application::local_note_id{ }, application::local_note_revision{ 1U });
+		const auto badErase  = rigged.erase(application::local_comment_id{ }, application::local_comment_revision{ 1U });
 
 		expect(
 			!badNote
@@ -1069,7 +1069,7 @@ namespace {
 		auto store        = recording_store{ log };
 		auto rigged       = rig{ store, log };
 		auto note         = private_note();
-		note.Revision     = application::local_note_revision{ 1U };
+		note.Revision     = application::local_comment_revision{ 1U };
 		const auto head   = reviewed_head();
 		const auto defect = private_defect();
 
@@ -1085,7 +1085,7 @@ namespace {
 			observed.has_value()
 				&& *observed
 					== application::private_ledger_observation{
-						.Notes            = { note },
+						.LocalComments    = { note },
 						.LastReviewedHead = head,
 						.Defects          = { defect },
 					},
@@ -1093,14 +1093,14 @@ namespace {
 
 		store.fail_next(application::ledger_store_failure::conflict);
 		auto changed       = note;
-		changed.Note.Text  = "This update must not be adopted.";
+		changed.Body       = "This update must not be adopted.";
 		const auto refused = rigged.persist(changed);
 		expect(
 			!refused
 				&& refused.error().Reason == application::ledger_store_failure::conflict,
 			"a private store failure remains typed");
 		expect(
-			store.Private.Notes == std::vector{ note } && rigged.Host.private_observation()->Notes == std::vector{ note },
+			store.Private.LocalComments == std::vector{ note } && rigged.Host.private_observation()->LocalComments == std::vector{ note },
 			"a failed private write leaves the durable and the retained observation unchanged");
 
 		expect(rigged.erase(note.Id, note.Revision).has_value(), "the note deletes");
@@ -1535,15 +1535,15 @@ namespace {
 		const auto candidate = private_note();
 		for (const auto kind : { 0, 1, 2 }) {
 			auto competitor     = candidate;
-			competitor.Revision = application::local_note_revision{ 1U };
+			competitor.Revision = application::local_comment_revision{ 1U };
 			if (kind == 0) {
-				competitor.Id = application::local_note_id{ candidate.Id.value() + 1U };
+				competitor.Id = application::local_comment_id{ candidate.Id.value() + 1U };
 			}
 			if (kind == 1) {
 				competitor.Revision = { };
 			}
 			if (kind == 2) {
-				competitor.Note.Text = std::string(core::maximum_note_bytes + 1U, 'x');
+				competitor.Body = std::string(core::maximum_note_bytes + 1U, 'x');
 			}
 			store.HostileCurrent = competitor;
 			const auto refused   = rigged.persist(candidate);
@@ -1553,7 +1553,7 @@ namespace {
 					   && !retained->Failure.Current,
 				   "foreign, unrevisioned and oversized competitors never enter the write projection");
 			rigged.Host.dismiss_rejected_note();
-			const auto erased = rigged.erase(candidate.Id, application::local_note_revision{ 1U });
+			const auto erased = rigged.erase(candidate.Id, application::local_comment_revision{ 1U });
 			expect(!erased && erased.error().Reason == application::ledger_store_failure::integrity_failure
 					   && !erased.error().Current && rigged.Host.rejected_note() && !rigged.Host.rejected_note()->Failure.Current,
 				   "delete conflicts apply the same bounded exact-identity observation guard");
@@ -1570,11 +1570,11 @@ namespace {
 		const auto created = first.persist(private_note());
 		expect(created.has_value(), "the initial note is accepted");
 		auto winner         = *created;
-		winner.Note.Text    = "accepted elsewhere";
+		winner.Body         = "accepted elsewhere";
 		const auto accepted = first.persist(winner, created->Revision);
 		expect(accepted.has_value(), "the first window advances the durable note");
 		auto candidate      = *created;
-		candidate.Note.Text = std::string{ "local\0candidate\n", 16U };
+		candidate.Body      = std::string{ "local\0candidate\n", 16U };
 		const auto refused  = second.persist(candidate, created->Revision);
 		const auto retained = second.Host.rejected_note();
 		const auto durable  = second.private_observation();
@@ -1583,17 +1583,17 @@ namespace {
 				   && retained->Candidate == candidate && retained->Failure == refused.error()
 				   && retained->ExpectedRevision == created->Revision,
 			   "conflict retains every candidate byte separately from the accepted competitor");
-		expect(durable && durable->Notes == std::vector{ *accepted } && !first.Host.rejected_note(),
+		expect(durable && durable->LocalComments == std::vector{ *accepted } && !first.Host.rejected_note(),
 			   "a rejected window cannot overwrite shared durable state or another window projection");
 		expect(second.Host.rejected_note() == retained, "reading durable state does not discard the local candidate");
 		const auto laterDelete    = second.erase(created->Id, created->Revision);
 		auto       laterCandidate = candidate;
-		laterCandidate.Note.Text  = "another refused edit";
+		laterCandidate.Body       = "another refused edit";
 		const auto laterEdit      = second.persist(laterCandidate, created->Revision);
 		expect(!laterDelete && !laterEdit && second.Host.rejected_note() == retained,
 			   "later rejected edits and deletes cannot replace protected candidate bytes");
 		auto resolved            = *accepted;
-		resolved.Note.Text       = "explicit later accepted edit";
+		resolved.Body            = "explicit later accepted edit";
 		const auto laterAccepted = second.persist(resolved, accepted->Revision);
 		expect(laterAccepted && second.Host.rejected_note() == retained,
 			   "even a successful durable write does not implicitly dismiss the protected candidate");
@@ -1616,15 +1616,15 @@ namespace {
 		raw->fail_next(application::ledger_store_failure::unavailable);
 		expect(!store.commit({ .Receipt = receipt }) && changes.empty(), "failed commit emits no invalidation");
 		expect(store.commit({ .Receipt = receipt }).has_value() && changes == std::vector{ application::ledger_change{ .Domain = application::ledger_change_domain::receipt, .File = receipt.File } }, "receipt success carries exact file");
-		const auto created = store.store_note(private_note());
+		const auto created = store.store_local_comment(private_note());
 		expect(created && created->Revision.value() == 1U, "direct agent-style note write forwards assigned revision");
 		const auto count   = changes.size();
-		const auto refused = store.store_note(private_note());
+		const auto refused = store.store_local_comment(private_note());
 		expect(!refused && refused.error().Current == *created && changes.size() == count, "CAS conflict preserves current record without notification");
-		const auto edited = store.store_note(private_note(), created->Revision);
+		const auto edited = store.store_local_comment(private_note(), created->Revision);
 		expect(edited && edited->Revision.value() == 2U, "expected revision forwards exactly");
-		expect(!store.erase_note(edited->Id, created->Revision), "stale delete refused");
-		expect(store.erase_note(edited->Id, edited->Revision).has_value(), "exact delete forwarded");
+		expect(!store.erase_local_comment(edited->Id, created->Revision), "stale delete refused");
+		expect(store.erase_local_comment(edited->Id, edited->Revision).has_value(), "exact delete forwarded");
 		expect(store.store_conversation_receipt({ .Conversation = core::review_conversation_id{ 1U } }).has_value() && changes.back().Domain == application::ledger_change_domain::conversation, "conversation success identifies domain");
 		expect(store.store_last_reviewed_head(reviewed_head()).has_value(), "head write forwarded");
 		expect(store.erase_last_reviewed_head().has_value(), "head delete forwarded");
@@ -1640,8 +1640,8 @@ namespace {
 			raw->fail_next(application::ledger_store_failure::unavailable);
 			expect(!aOperation() && changes.size() == afterWrites, "failed mutation forwards failure without signal");
 		};
-		failsSilently([&store] { return store.store_note(private_note()); });
-		failsSilently([&store, &edited] { return store.erase_note(edited->Id, edited->Revision); });
+		failsSilently([&store] { return store.store_local_comment(private_note()); });
+		failsSilently([&store, &edited] { return store.erase_local_comment(edited->Id, edited->Revision); });
 		failsSilently([&store] { return store.store_conversation_receipt({ .Conversation = core::review_conversation_id{ 1U } }); });
 		failsSilently([&store] { return store.store_last_reviewed_head(reviewed_head()); });
 		failsSilently([&store] { return store.erase_last_reviewed_head(); });

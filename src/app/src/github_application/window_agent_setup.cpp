@@ -153,9 +153,9 @@ namespace bpr::app {
 			answer(false, QStringLiteral("no review is open"));
 			return;
 		}
-		auto note      = application::local_note_record{ };
-		note.Id        = next_private_note_id();
-		note.Note.Text = std::move(aText);
+		auto note = application::local_comment_record{ };
+		note.Id   = next_private_note_id();
+		note.Body = std::move(aText);
 		if (aLine) {
 			const auto        attachment = current_note_attachment();
 			const auto* const surface    = Window->comparison_surface();
@@ -172,7 +172,7 @@ namespace bpr::app {
 				note.FilePath = std::move(aPath);
 			}
 		}
-		ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+		ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
 									  if (!aStored) {
 										  answer(false, QString::fromUtf8(application::name(aStored.error().Reason).data(), static_cast<qsizetype>(application::name(aStored.error().Reason).size())));
 										  return;
@@ -746,7 +746,7 @@ namespace bpr::app {
 	/// [[BPR-1773]]. Ask agent on a saved private note: as a thread's,
 	/// but the note's words reach the agent only as the copy saved in
 	/// Private history when the question is sent.
-	void github_application::implementation::ask_agent_about_note(const application::local_note_record& aNote)
+	void github_application::implementation::ask_agent_about_note(const application::local_comment_record& aNote)
 	{
 		if (Closing || Window == nullptr || !WindowRead->accepted_snapshot()) {
 			return;
@@ -766,12 +766,12 @@ namespace bpr::app {
 		Window->open_agent_question();
 	}
 
-	auto github_application::implementation::asked_note() const -> const application::local_note_record*
+	auto github_application::implementation::asked_note() const -> const application::local_comment_record*
 	{
 		if (!AskedConversation || !AskedConversation->Note) {
 			return nullptr;
 		}
-		const auto found = std::ranges::find(AcceptedPrivateNotes, *AskedConversation->Note, &application::local_note_record::Id);
+		const auto found = std::ranges::find(AcceptedPrivateNotes, *AskedConversation->Note, &application::local_comment_record::Id);
 		return found == AcceptedPrivateNotes.end() ? nullptr : &*found;
 	}
 

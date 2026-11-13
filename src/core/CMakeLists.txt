@@ -185,6 +185,7 @@ add_library(
         src/reply_draft_standing.cpp
         src/thread_reply.cpp
         src/conversation_timeline.cpp
+        src/local_comment.cpp
         src/note_placement.cpp
         src/review_submission.cpp
         src/review_submission_unknown.cpp

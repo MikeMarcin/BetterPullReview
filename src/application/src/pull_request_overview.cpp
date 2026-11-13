@@ -924,14 +924,14 @@ namespace bpr::application {
 			receipts.push_back(&receipt);
 		}
 		std::ranges::stable_sort(receipts, { }, [](const core::file_receipt* aReceipt) { return aReceipt->File; });
-		auto notes = std::vector<const local_note_record*>{ };
+		auto notes = std::vector<const local_comment_record*>{ };
 		if (aContext.Private.has_value()) {
-			for (const auto& note : aContext.Private->Notes) {
-				if (note.Note.File.has_value()) {
+			for (const auto& note : aContext.Private->LocalComments) {
+				if (note.Attachment.has_value()) {
 					notes.push_back(&note);
 				}
 			}
-			std::ranges::stable_sort(notes, { }, [](const local_note_record* aNote) { return *aNote->Note.File; });
+			std::ranges::stable_sort(notes, { }, [](const local_comment_record* aNote) { return aNote->Attachment->File; });
 		}
 		projection.Files.reserve(aSnapshot.Files.size());
 		for (const auto& file : aSnapshot.Files) {
@@ -965,9 +965,9 @@ namespace bpr::application {
 						++projection.Progress.FilesRead;
 					}
 				}
-				const auto note = std::ranges::lower_bound(notes, identity, { }, [](const local_note_record* aNote) { return *aNote->Note.File; });
-				if (note != notes.end() && *(*note)->Note.File == identity) {
-					row.Note = (*note)->Note.Text;
+				const auto note = std::ranges::lower_bound(notes, identity, { }, [](const local_comment_record* aNote) { return aNote->Attachment->File; });
+				if (note != notes.end() && (*note)->Attachment->File == identity) {
+					row.Note = (*note)->Body;
 				}
 			}
 			const auto facts = factsByPath.find(std::string_view{ file.Path });
@@ -985,7 +985,7 @@ namespace bpr::application {
 		projection.Progress.FilesTotal      = projection.Files.size();
 		projection.Progress.FilesReadiness  = aContext.ReceiptsReadiness;
 		projection.Progress.NotesReadiness  = aContext.PrivateReadiness;
-		projection.Progress.PrivateNotes    = aContext.Private.has_value() ? aContext.Private->Notes.size() : 0U;
+		projection.Progress.PrivateNotes    = aContext.Private.has_value() ? aContext.Private->LocalComments.size() : 0U;
 		projection.Progress.DraftedComments = aContext.DraftedComments;
 
 		// The one action. A first visit starts at the first file; otherwise
