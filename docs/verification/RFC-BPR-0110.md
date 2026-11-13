@@ -246,3 +246,7 @@ Rework `3b385c04d`: every action button in the Tour panel and on its proposal an
 `application_review_tour_link_public_path` and `application_review_tour_cli_ordinary_stop` fail on this lane without this change being involved. The first clicks `tourReturn`, which `93b1045a8` removed on 2026-11-10. The second stops at account-setup consent.
 
 Reworked look filed, not waited on: session `d420cccbfbe3c56bb172612cf51aa661`, state `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v007-2026-11-13/state` (serve output beside it; the URL stays there), cursor 3. Frozen root `/Users/jaeger/local-draft-tour-panel-v007.hvczp7ad` from `3b385c04dacf` (launcher check reached `ATTENDED_LOCAL_DRAFT_TOUR_SHOWN`, executable SHA-256 `fc422bac29ea…`). One Accept/Reject: `tour-one-button-style`. Host PID 92512 (its `tailscale serve` child 92524).
+
+## Owner verdict, third look (attended session d420cccbfbe3c56bb172612cf51aa661, handed back 2026-11-13T16:14:32Z)
+
+Verified in its `session.json`: `tour-one-button-style` **Accept** (16:14:31Z), no note, on the frozen build from `3b385c04dacf`. With `overview-closes-drawers` (Accept, session a0cbb9dd) the local tour and description looks are accepted: AC08 passes. Host 92512/92524 stopped with the attended-review `stop`; root `/Users/jaeger/local-draft-tour-panel-v007.hvczp7ad` removed with `freeze_attended_build.py remove`.
