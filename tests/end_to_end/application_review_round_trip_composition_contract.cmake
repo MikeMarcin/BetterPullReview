@@ -3143,6 +3143,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/local_draft_desktop.hpp"
         "src/local_draft_handoff.cpp"
         "src/local_draft_handoff.hpp"
+        "src/local_draft_search.cpp"
+        "src/local_draft_search.hpp"
         "src/pane_find_controller.cpp"
         "src/pane_find_controller.hpp"
         "src/platform_credential_vault.cpp"
@@ -3167,6 +3169,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
         "src/startup_diagnostic.hpp"
+        "src/syntax_text_sources.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
         "src/terminal_diagnostic_log.cpp"
@@ -3660,9 +3663,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Lane merge of main (c5a0f0823, 2026-11-12): main's account setup in the
 	# window, in-PR link routing and record-check sentences meet the lane's
 	# composition; RFC-BPR-0117 ([[BPR-2076]]) adds window_explain_file.cpp.
+	# Owner (reviewed 2026-11-13): RFC-BPR-0108 as amended, the local draft in
+	# the pull request window. local_draft_desktop feeds the window's own Files
+	# tree, diff viewer, Overview and Search tab (local_draft_search.cpp: Find in
+	# files over the draft's own stored candidate, read-only) and classifies the
+	# draft's texts with the packaged definitions (syntax_text_sources.hpp, moved
+	# from review_cycle_desktop.cpp). window_construction routes the Search tab
+	# to the draft while it shows. No grant, credential, provider, mutation
+	# branch or publication change.
 	# No grant, credential, provider, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "dbae5707dd6ba1b1ecd2499ef4d07bf597d1c3d4d285b84aacd23f19ee3dab76"
+        "3d23b68661aed6fc23856c1ac460659475891519ca26e656187ebccb7c7de67c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
