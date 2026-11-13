@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2161"
 title: "Local PR drafts call their notes Local comments"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0127"]
 depends_on: ["BPR-2158"]
 priority: "P2"

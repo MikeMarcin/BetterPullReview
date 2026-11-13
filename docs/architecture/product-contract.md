@@ -50,7 +50,7 @@ BetterPullReview is an alternative native client for reviewing code contained in
 | Shared collaborative state | GitHub pull request | Commits, files, comments, replies, reviews, approvals, requested changes, thread resolution, checks |
 | Private retained revision history | Local BetterPullReview Git cache and epoch catalog | Exact base/head objects that BetterPullReview observed, epoch identity and cause, availability, and current-viewer review associations |
 | Provider-evidenced update history | GitHub timeline, reconciled in the local epoch catalog | Portable force-push occurrence identity and event time; explicit incomplete or ambiguous history when the read or association lacks evidence |
-| Private workflow state | Local BetterPullReview ledger | Read receipts, acceptance receipts, observer rules, private notes, local defect classification, AI drafts |
+| Private workflow state | Local BetterPullReview ledger | Read receipts, acceptance receipts, observer rules, Local comments (once private notes; RFC-BPR-0127), local defect classification, AI drafts |
 | Local review cycles | The profile's private cycle store (`review-cycles.sqlite3`) | Captured source revisions and their bytes, notes, suggestions, round drafts, frozen rounds, delivery observations, responses, reviewer verifications, publication plans and journals, links to pull requests |
 | Derived state | Recomputed from GitHub plus private retained/local state | Selected retained comparison, changed since my review, unread conversation, needs verification, next actionable item |
 

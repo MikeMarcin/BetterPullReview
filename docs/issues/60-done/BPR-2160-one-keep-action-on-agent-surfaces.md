@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2160"
 title: "One keep action on the agent surfaces, and the wording sweep"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0127"]
 depends_on: ["BPR-2158"]
 priority: "P2"
@@ -52,3 +52,7 @@ Evidence (dev, Debug, macOS):
 - `application_explain_file_public_path` (Keep local, Go to comment), `application_review_tour_composition_public_path`, `application_local_comments_{composition,found}_public_path`, `application_local_draft_desktop_public_path`, `application_agent_{chat,invocation}_composition_contract`, `application_composition_source_contract` (pin resealed), `architecture_boundaries`: pass. Format gate passes.
 
 How the agent surfaces are reached is unchanged (RFC-BPR-0128's).
+
+## Owner look v005 filed (2026-11-13)
+
+Session `4329741d72227f49c0ee4a0b94c4e9f1` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v005-2026-11-13/state`, cursor 12, host PID 82478, Tailscale serve child 82486), frozen root `/Users/jaeger/comments-absorb-notes-v005.7ub_34li` from `ff4a39c437c8` (`--attended-agent-look` with the suggestions fixture as `codex` on nested-folders-v1, `src/engine/renderer.cpp`). The launcher check reached `ATTENDED_AGENT_SHOWN:findings=6`. One Accept/Reject each: `answer-one-keep-action`, `finding-card-keep-action`, `kept-local-go-to-comment`, `ask-agent-about-draft`. Not waited on. After hand-back: read from cursor 12, record verbatim here and on the ledger, stop host 82478 with the attended-review `stop`, and remove the root with `freeze_attended_build.py remove` once nothing runs from it.
