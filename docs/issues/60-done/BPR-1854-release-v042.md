@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1854"
 title: "Publish 0.4.2 previews and full release"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"external_state":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104","baseline":"9d279d1fc","authority":"Owner requested immediate Mac and Windows prerelease, then full release on 2026-11-04"}
+acceptance: [{"criterion":"frozen-cohort","outcome":"pass","revision":"6efba00e1afbf874c88c7e5de2623a33528ff36f","evidence":{"kind":"artifact","detail":"All nine build graphs passed at the immutable Build 60 source/cohort; cohort.json and compile-barrier.json bind source, observations and MSI floor."}},{"criterion":"signed-previews","outcome":"pass","revision":"6efba00e1afbf874c88c7e5de2623a33528ff36f","evidence":{"kind":"artifact","detail":"Signed/notarized macOS and signed Windows numbered previews were published and verified; published-all-platform60-verification-r1.json retains preview download/trust acceptance."}},{"criterion":"native-functional-qualification","outcome":"pass","revision":"6efba00e1afbf874c88c7e5de2623a33528ff36f","evidence":{"kind":"artifact","detail":"build60-qualification-accepted.json reconciles native Release/Debug functional inventories, separate exact fixture corrective proofs, raw failures/skips, eight dedicated Debug timing omissions and the six owner-authorized Linux latency exceptions."}},{"criterion":"stable-publication-and-native-trust","outcome":"pass","revision":"6efba00e1afbf874c88c7e5de2623a33528ff36f","evidence":{"kind":"artifact","detail":"published-stable042-final-verification-r1.json accepted: public Latest 0.4.2, all 30 anonymous assets/source match, macOS 10 and Windows 42 exit 0, Ubuntu 79 positive exit 0 plus expected tamper exit 1; no remaining release blockers. SHA-256 a6330730d4abec32e20f23c1c2c2e1677658d47526180caee5c4ff8f28da48d7"}}]
 ---
 
 # Publish 0.4.2 previews and full release
@@ -347,3 +348,16 @@ state that comprehensive three-platform qualification and stable publication are
 pending; no partial suite is a passing complete suite. The full matrix and Linux
 assets follow, then the separate stable-copy route. Main is rechecked locally and
 on GitHub before publication so all current main fixes are included.
+
+
+## Final frozen stable publication, 2026-11-12
+
+Stable tag `0.4.2` is public and Latest, release `443822880`, with the exact 30
+Build 60 assets from frozen source `6efba00e1afbf874c88c7e5de2623a33528ff36f`.
+All 30 anonymous hashes match. Stable macOS 10 and Windows 42 native trust checks
+pass; Ubuntu's 79 positive checks pass and its tamper control correctly fails.
+The coordinator accepted final stable verification with no remaining release
+blockers. The [release results](../../verification/release-v042-results.md)
+retain the qualification scope, actual raw failures, precise waivers and
+continuing gaps. This final source freeze did not import later Main product
+changes. RFC-BPR-0038 remains open.

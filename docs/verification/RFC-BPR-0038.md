@@ -1,5 +1,25 @@
 # RFC-BPR-0038 qualification ledger
 
+## 0.4.2 build 60 stable publication, 2026-11-12
+
+[Release results](release-v042-results.md) bind public Latest tag `0.4.2`,
+release `443822880`, all 30 Build 60 assets, immutable source
+`6efba00e1afbf874c88c7e5de2623a33528ff36f` and cohort
+`7b1aa90dcd6a5c3c1d9bf4cfe0f2db4214c1670fe454201383af3889b6544572`.
+All 30 anonymous downloads match the producer bytes. Stable macOS 10 and
+Windows 42 native trust/source checks pass; Ubuntu's 79 positive checks pass
+and its tamper control correctly fails. Final stable verification is accepted.
+
+All nine graphs and the comprehensive native functional inventories are
+reconciled with separate future-Main fixture proofs on unchanged Build 60 apps.
+Original failures, omissions and unreached checks remain raw. Exactly six
+optimized Ubuntu initial-load latency misses have the owner's explicit release
+waiver; standing Debug timing policy remains separate. Raw vulnerability scans
+remain failed at 23/21/23 findings, with exact-artifact applicability and bounded
+risk dispositions, the Qt 6.12.1 deferral and 2026-11-19 recheck recorded.
+RFC-BPR-0038 and broader native/security/privacy/independent-review gaps remain
+open. Earlier releases, their evidence and source-retention duties are unchanged.
+
 ## 0.4.1 build 8 stable publication, 2026-11-02
 
 [Stable 0.4.1](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.1)
