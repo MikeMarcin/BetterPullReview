@@ -57,6 +57,10 @@ confidence, and selected source text. Measured pane coordinates, ribbon paths,
 Qt indexes, and the live comparison scroll position are presentation state and
 cannot become source truth or durable context identity.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: the two context-supplement opt-ins read "Include my local comments" and "Include my drafts", with the same gates and bounds. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - Codex and corporate Claude fixture processes launch through their selected protocol with streamed output and cancellation.

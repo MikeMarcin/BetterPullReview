@@ -116,6 +116,10 @@ editor in the diff has a use for Escape first. The chip disappears with it.
   looking, and attached lines.
 - Sessions and their history are unchanged.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: the explicit private material a question may carry is local comments and drafts; the wording changes, the rule does not. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01:** From Overview with nothing selected, "Review this pull request"

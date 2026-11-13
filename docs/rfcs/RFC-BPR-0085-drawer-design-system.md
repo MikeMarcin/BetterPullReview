@@ -367,6 +367,10 @@ offscreen, runs one full suite before landing, and ends in a frozen build and
 one attended Accept or Reject per criterion. A slice that touches files another
 parked card is changing lands after that card or merges with it.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: principle 3's lock now marks nothing: Local wears the computer icon, Draft the dashed outline and pencil, Published is solid. Notes (D3) is no longer a tab; its margin-note behaviour is the Comments drawer's Local state. "Promoting private material" becomes two moves, Make draft and Keep local, instead of a copy. The Agent tab list and AC05's tabs read Comments, Tour and Agent. My review counts comments by state. Threads' My drafts (BPR-2092) becomes the All, Published, Draft, Local filter; Overview's drafts chip (BPR-2093) gains a Local chip beside it; Finish your review (BPR-2094) never lists Local, offers Keep Local on its rows and has one quiet Local line. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01 Shared parts:** the drawer header, card, ownership marks and empty

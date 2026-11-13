@@ -1,0 +1,79 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "ask-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0128"
+    ],
+    "issues": [
+      "BPR-2163",
+      "BPR-2164",
+      "BPR-2165",
+      "BPR-2166",
+      "BPR-2167",
+      "BPR-2168"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "ask-menu",
+      "outcome": "Every agent question about the pull request, a file or a thread is one Ask control away, listing the quick asks I ticked, filtered by what is there.",
+      "work": [
+        {
+          "issue": "BPR-2163"
+        },
+        {
+          "issue": "BPR-2164"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01 to AC04 and AC08 pass on the composed application.",
+        "The owner's look is filed (Accept or Reject)."
+      ],
+      "boundary": "Where questions are asked; what they send and their fresh or resumed path are unchanged (RFC-BPR-0101). Suggest the change keeps its draft-field entry."
+    },
+    {
+      "id": "addressed-anywhere",
+      "outcome": "Was this addressed? runs on any thread, a file's threads or every thread, and its claims are chips on the threads.",
+      "work": [
+        {
+          "issue": "BPR-2165"
+        }
+      ],
+      "depends_on": [
+        "ask-menu"
+      ],
+      "exit_criteria": [
+        "AC05 passes on the composed application and on one live installed-agent run.",
+        "The owner's look is filed (Accept or Reject)."
+      ],
+      "boundary": "Nothing is resolved, posted or published."
+    },
+    {
+      "id": "reports-in-a-file-tab",
+      "outcome": "A long answer is read as a file tab with an outline beside the code, and a merge of main is one line wherever commits are listed; the RFC closes.",
+      "work": [
+        {
+          "issue": "BPR-2166"
+        },
+        {
+          "issue": "BPR-2167"
+        },
+        {
+          "issue": "BPR-2168"
+        }
+      ],
+      "depends_on": [
+        "ask-menu"
+      ],
+      "exit_criteria": [
+        "AC06 and AC07 pass on the composed application.",
+        "Every criterion of RFC-BPR-0128 has direct evidence on the closeout and the amended RFCs are reconciled."
+      ],
+      "boundary": "The report host is a file tab (owner); no lightbox or child window is built."
+    }
+  ],
+  "unplanned_work": []
+}

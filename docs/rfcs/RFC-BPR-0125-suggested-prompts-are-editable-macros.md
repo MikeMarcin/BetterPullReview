@@ -664,6 +664,14 @@ Milestones 1 to 3 suffice to turn prompts off and reorder them; 4 delivers
 the owner's idea in full; 5 and 6 can be dropped or deferred without
 weakening it.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: the built-in prompt "Explain the code this note is on" reads "this comment"; prompts about notes are about Local comments. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
+### Owner amendment (2026-11-13): the Ask model
+
+The owner chose the Ask model of [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) on 2026-11-13: one Ask control at the pull request, a file and a thread listing the quick asks (macros with Quick ask ticked) filtered by context, Was this addressed? on any thread, a merge of main as one line, and a long answer read as a report in a file tab. For this RFC: a macro gains a Quick ask checkbox and Thread, File and Pull request scopes (a quick ask can show in up to three places); the Ask menus are a new place a macro shows, beside the chips; What changed, Was this addressed? and Explain this file gain built-in rows whose sent prompts stay in Built-in prompts. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0128.
+
 ## Acceptance criteria
 
 ### Milestone 1: the macro and its rules

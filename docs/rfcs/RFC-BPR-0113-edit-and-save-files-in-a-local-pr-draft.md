@@ -151,6 +151,10 @@ Delivery: pulled forward from the local-draft-authoring plan into
 `claude/v0-5-0-prerelease-targets-52265d` (BPR-2062, BPR-2063, BPR-2064), so
 the authoring pack does not build it twice.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: owner answer Q8: the draft's notes read Local comments; record and storage unchanged. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01:** In a local draft, Edit on a listed file opens the whole file in the existing code editor with several carets, box selection, virtual space and undo, and a saved edit is on disk byte for byte as edited, including CRLF and LF endings, tabs and a missing final newline, with the file's mode unchanged and nothing staged or committed.

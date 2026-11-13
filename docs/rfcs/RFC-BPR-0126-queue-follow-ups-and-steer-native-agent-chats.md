@@ -351,11 +351,14 @@ acceptance evidence:
   displayed order only after durable application completion and host retirement,
   with the preceding tour proposal represented correctly. Disposable first
   drafts gain neither implicit promotion nor these actions.
-- **AC04:** Stop, failure, usage limits, closure and restart produce the defined
-  retained paused state. Changed authority, revision, configuration and context
-  cannot retarget queued input or bypass admission; competing chats retain busy
-  refusal and there is no automatic contention retry. Multiple windows agree on
-  one queue; stale edits, closure and takeover preserve the defined ownership.
+- **AC04:** Stop, failure, usage limits, restart and unknown delivery produce
+  the defined retained paused state; closing or switching a window neither
+  pauses nor hands over a queue, which belongs to its session. Changed
+  authority, revision, configuration and context cannot retarget queued input
+  or bypass admission; competing chats retain busy refusal and there is no
+  automatic contention retry. Every window showing a session shows and edits
+  its one queue; stale edits are refused, and a queued message held while it
+  is edited is never sent nor skipped, and its hold lifts on Save or Cancel.
 - **AC05:** Qualified installed Claude and Codex App Server each accept a native
   correction on their existing conversation without transcript replay or a
   deliberate process restart. Unsupported configurations keep Queue and report
@@ -371,6 +374,11 @@ acceptance evidence:
 - **AC08:** The composed Qt flow exposes pending, paused, sent and uncertain
   states and recovery with reachable Stop and keyboard/accessibility actions,
   while retaining the existing proposal-acceptance and publication boundaries.
+- **AC09:** One Stop all control in the status bar's agent footer, beside the
+  agent picker, in a fixed slot shown while any agent turn runs or any message
+  is queued, stops every active turn across sessions and pauses every queue,
+  so nothing starts next; it is reachable by keyboard and named to assistive
+  technology.
 
 Installed-agent qualification should use the smallest bounded conversations
 that distinguish Queue from Steer, reusing functional fixtures for failure and
@@ -411,3 +419,30 @@ the default is built unless the owner answers otherwise.
 | Q16 | Delivery unknown is never resent automatically; recovery is inspecting history or New session? | Yes |
 | Q17 | A driver that cannot steer keeps Queue and says Steer is unavailable, with no paid probe and no kill-and-replay fallback? | Yes |
 | Q18 | Deadlines and limits cover a whole steered run without resetting per correction, and each released queued entry gets its own new budget? | Yes |
+
+## Owner answers (2026-11-13)
+
+The owner answered Q1 to Q18 on 2026-11-13. Where an answer differs from the
+default above, the answer governs and the body's text it contradicts is
+superseded by it; the default is built where the owner accepted it.
+
+| # | Answer |
+|---|---|
+| Q1 | **Fold in.** The whole-tour feedback buffer becomes the whole-tour conversation's first queued message, sent with the Ask more seed on real completion; `queue_tour_feedback`'s timer poll is removed. |
+| Q2 | **Yes.** The local draft's discussion also gets Queue and Steer. |
+| Q3 | Default accepted. |
+| Q4, Q5 | **A setting.** Follow-up behaviour is a setting, Queue or Steer (a segmented control), default **Queue**; Cmd+Return (Ctrl+Return off macOS) does the opposite for one message. The owner: "Default is a setting, queue initially with a shortcut to the secondary action. See codex setting for inspiration." The inspiration shown reads "Follow-up behavior: Queue follow-ups while ChatGPT runs or steer the current run. Press ⌘↩ to do the opposite for one message", beside a separate "Send shortcut" setting (Enter sends or inserts a newline). |
+| Q6, Q7 | Defaults accepted: 16 messages and 256 KiB a conversation, 16 KiB each; each its own turn. |
+| Q8 | Pause on any doubt, and a restored queue opens paused, as the default says; closing a window is not a cause (Q10). |
+| Q9 | **Refined.** A queued message can be edited in place. While its editor is open it is held: it is never sent, and the queue does not skip past it, so order is kept. On Save or Cancel the hold lifts and the queue continues by itself; no Resume is needed unless the queue was paused for another reason. |
+| Q10 | **Overridden.** "Queue must be tied to session not active UI windows." The queue belongs to the conversation (the session), is owned and drained by the host, and is persisted with it. Closing or switching windows neither pauses nor hands over a queue; every window showing the session shows and edits the same queue. Pausing happens only on the real-doubt events: Stop, failure, a usage limit, app restart and unknown delivery. |
+| Q11, Q12, Q13 | Defaults accepted: pause, never retarget. |
+| Q14 | **Steer after the current tool call**, never "now"; Stop interrupts. |
+| Q15 to Q18 | Defaults accepted. |
+| New | **Stop all.** "Since we're going to potentially have many queues we do need a stop all queues, maybe it shows up when there is something queued down near the agent picker", revised to "Actually maybe it's just stop all, for any active turns": one **Stop all** in the status bar's agent footer near the picker stops every active agent turn across sessions and pauses every queue, so nothing starts next. It is shown while any turn runs or anything is queued, in a fixed slot so nothing shifts. AC09. |
+
+The scope paragraph's "Agent tab and tour chats" now includes the local
+draft's discussion (Q2); the window-ownership paragraphs (closing the owning
+window pauses; another window takes over by Resume queue) are superseded by
+Q10; "Editing a queued entry pauses the queue" is superseded by Q9. AC04 was
+amended and AC09 added on 2026-11-13 for these answers.

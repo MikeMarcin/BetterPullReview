@@ -110,6 +110,14 @@ the grants the Agent tab already has.
   no native session, nothing saved. It is one model call with no tools: the context it needs is in the request. Ask more on the answer promotes it into a
   resumed session whose first turn carries the answer.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: a Local comment is never asked "was this addressed"; Save as note reads Keep local (on the pull request). Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
+### Owner amendment (2026-11-13): the Ask model
+
+The owner chose the Ask model of [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) on 2026-11-13: one Ask control at the pull request, a file and a thread listing the quick asks (macros with Quick ask ticked) filtered by context, Was this addressed? on any thread, a merge of main as one line, and a long answer read as a report in a file tab. For this RFC: Was this addressed? is offered on any review thread, not only one I commented in, and also on a file and on the pull request; its control leaves the thread's header for the thread's Ask; its claim is a chip in the thread's header. What changed answers as a report card and report. A merge of the base branch is one line wherever commits are listed. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0128.
+
 ## Acceptance criteria
 
 - **AC01:** What changed since my review is offered only when the pull request has commits newer than the reviewer's last review or Seen; a press sends `analyze_latest_upload` with both revisions named in the brief; and the reply's code references open as links.

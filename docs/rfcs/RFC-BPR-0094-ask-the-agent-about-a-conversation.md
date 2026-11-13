@@ -125,6 +125,10 @@ Observed before this RFC (`ad39b7ce1`):
   `draft_pull_request_comment` and their `open_` counterparts). Widgets
   perform no effect: every gesture is a callback the composition decides.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: the answer footer's Draft comment and Save as note become one keep action; Ask agent works on my own unsent comment in either state through one recording path, and its chip reads "Your local comment on …". Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - AC1. Core: the entry point needs no selection; the conversation bound keeps

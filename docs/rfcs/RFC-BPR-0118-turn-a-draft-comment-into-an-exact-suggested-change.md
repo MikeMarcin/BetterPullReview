@@ -124,6 +124,14 @@ right-click entry; whether to file that look now is the coordinator's.
   own structured reply. Recorded for the owner.
 - Record: [verification](../verification/RFC-BPR-0118.md).
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: Suggest the change works on a comment's field in either unsent state (Local or Draft); BPR-2078 keeps its design. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
+### Owner amendment (2026-11-13): the Ask model
+
+The owner chose the Ask model of [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) on 2026-11-13: one Ask control at the pull request, a file and a thread listing the quick asks (macros with Quick ask ticked) filtered by context, Was this addressed? on any thread, a merge of main as one line, and a long answer read as a report in a file tab. For this RFC: Suggest the change keeps its entry on the draft field's right-click menu; the Ask model gives it no Ask-menu row and no new visible control. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0128.
+
 ## Acceptance criteria
 
 - **AC01:** Suggest the change is offered only on a draft comment whose lines can take a suggestion under RFC-BPR-0090's range rules, and a press sends the comment workshop entry point with the new operation and exactly those lines.

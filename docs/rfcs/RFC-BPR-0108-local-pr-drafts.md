@@ -208,6 +208,10 @@ with native keyboard and accessibility and ordinary pull request navigation
 preserved. AC08's last clause reads: a resumed local draft opens on Review
 with no chat open.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: owner answer Q8: a local PR draft's notes are called Local comments, with Keep local and Keep all local (N); their record and storage are unchanged. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01:** From Home, a signed-out author selects a clean Git worktree, including an isolated local clone of their primary clone, and reaches the correctly based proposed branch diff with source, target and Local draft identity visible, without launching an agent or changing the checkout.

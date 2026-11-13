@@ -66,6 +66,10 @@ right. It ranks nothing and recommends nothing.
 Agent spend per pull request or per repository, budgets and alerts are not
 in this RFC.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: "kept as a note" reads "kept as a local comment". Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01:** For a fixture session, the Agents section's runs per feature and their endings equal the runs that session started and how each ended.

@@ -788,6 +788,10 @@ look complete. Evidence fixtures remain synthetic and secret-free.
   recovered by the mutation's idempotency and reconciliation records, not by
   issuing a second comment.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: "Migration of local notes" runs once more: every note migrates into a Local comment (text, anchor and order kept), and the note store calls (`store_note`, `erase_note`) are removed, so one store is the authority, as this RFC requires. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 1. A reviewer can create a PR-level or exact semantic-subject private thread,

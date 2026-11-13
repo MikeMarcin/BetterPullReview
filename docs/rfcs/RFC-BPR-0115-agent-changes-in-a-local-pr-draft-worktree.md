@@ -238,6 +238,10 @@ Proposals in this RFC that the owner has not separately confirmed are listed
 in the [decision record](assets/local-draft-authoring-v1/DECISIONS.md#decisions) as P03, P04, P07, P09,
 P10 and P11.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: owner answer Q8 (card BPR-2069): Keep as note reads Keep local; Fix on a note and Check the fix act on a Local comment and are otherwise unchanged. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01:** Fix on a note, Fix on a finding card and Ask for a change… each start a change run in the draft's worktree after the one-time grant question; the grant line then reads "Edits this worktree"; declining starts nothing; and a pull request review offers neither the controls nor the grant.

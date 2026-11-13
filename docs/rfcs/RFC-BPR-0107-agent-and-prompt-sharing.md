@@ -308,6 +308,10 @@ right?" The answer is yes, and it changes the selective export above:
   settings in RFC-BPR-0104's 2026-11-11 amendment, so like the run time limit
   they are not exported. The two per-agent settings X17 names are.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: purpose IDs are unchanged (`enhance.note` stays readable as `enhance.writing`); wording only. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01:** A user exports selected custom agents and existing prompt overrides, imports them into another profile, and obtains equivalent configured behavior after explicit local binding without any local-PR or enterprise feature installed.

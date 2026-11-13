@@ -168,6 +168,10 @@ N-by-label network work, eager loading of every body outside existing bounds, or
 full-workbench refreshes per edited token. Performance evidence uses the existing
 large-review workload and a larger synthetic core workload within justified limits.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: counters exclude Local and Draft comments (the wording of "private notes and unsent drafts"). Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - R20: Settings can select/order dedicated counters for every supported label independently of support or authoring mode.
