@@ -15,7 +15,7 @@ add_library(
         src/review_cycle_view.cpp
         src/local_draft_preparation_area.cpp
         src/local_draft_publication_area.cpp
-        src/local_draft_view.cpp
+        src/local_draft_parts.cpp
         src/review_cycle_share_sheet.cpp
         src/review_cycle_share_marks.cpp
         src/anchored_tooltip.cpp
@@ -98,7 +98,6 @@ add_library(
         src/profile_management_window.cpp
         src/workbench_strip.cpp
         src/view_picker.cpp
-        src/local_diff_view.cpp
         src/local_changes_panel.cpp
         src/document_tab_strip.cpp
         src/native_window_chrome.cpp
@@ -179,6 +178,7 @@ add_library(
         src/workbench_window_github_presentation.cpp
         src/workbench_window_header_and_queue_settings.cpp
         src/workbench_window_home_landing.cpp
+        src/workbench_window_local_draft.cpp
         src/workbench_window_line_navigation.cpp
         src/workbench_window_home_views.cpp
         src/workbench_window_queue_controls_and_menus.cpp

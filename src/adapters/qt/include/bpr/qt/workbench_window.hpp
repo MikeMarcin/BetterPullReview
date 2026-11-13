@@ -11,7 +11,10 @@
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/document_tabs_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
+#include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/application/local_changes_host.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
+#include "bpr/application/local_presentation.hpp"
 #include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
@@ -173,7 +176,7 @@ namespace bpr::qt {
 	// not need the panel's shape to ask for it.
 	class device_authorization_panel;
 	class review_cycle_view;
-	class local_draft_view;
+	class local_draft_parts;
 	class view_picker;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
@@ -1325,16 +1328,38 @@ namespace bpr::qt {
 		void               present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents);
 		void               set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume);
 		[[nodiscard]] auto home_cycles_list() const noexcept -> QListWidget*;
-		/// \brief RFC-BPR-0108. Takes the local draft page as the review
-		/// surface's other alternative, as the local cycle page is taken.
-		void               adopt_local_draft(local_draft_view* aView);
-		[[nodiscard]] auto local_draft() const noexcept -> local_draft_view*;
-		/// \brief Shows the local draft page, titled in the title row with its
-		/// Local draft badge. A pull request stays open behind it.
+		/// \brief RFC-BPR-0108 as amended by the owner, 2026-11-13: a local
+		/// draft is shown in this window's own review surface, with only the
+		/// additions `local_draft_parts` names. Built with the window.
+		[[nodiscard]] auto local_draft() const noexcept -> local_draft_parts*;
+		/// \brief Shows the local draft in the review surface, titled in the
+		/// title row with its Local draft badge. A pull request open behind it
+		/// returns when the draft is left.
 		void show_local_draft(const QString& aTitle);
 		/// \brief Returns to Home or to the open pull request.
 		void               leave_local_draft();
 		[[nodiscard]] auto showing_local_draft() const noexcept -> bool;
+		/// \brief The draft's projection: its files fill the Files tree and
+		/// Overview, its parts are presented.
+		void present_local_draft(const application::local_draft_workbench_projection& aProjection);
+		/// \brief Author state's projection: the Local Changes tab, the Edit
+		/// view and the branch.
+		void present_local_changes(const application::local_changes_projection& aProjection);
+		/// \brief Shows one local comparison in the diff viewer, as a pull
+		/// request's file is shown. A presentation already shown is not shown again.
+		void present_local_comparison(const std::shared_ptr<const application::local_presentation>& aPresentation);
+		/// \brief The comparison the diff viewer shows for the draft, if any.
+		[[nodiscard]] auto local_comparison() const noexcept -> const std::shared_ptr<const application::local_presentation>&;
+		/// \brief Where a local draft's syntax requests go: a comparison's sides
+		/// and the Edit view's text are classified by the window's own definitions.
+		void set_local_syntax_dispatch(std::function<void(const std::string& aPath, const std::string& aDocument)> aDispatch);
+		/// \brief Adopts a classification for any local text it describes:
+		/// either side of the shown comparison, or the Edit view's text.
+		void adopt_local_syntax(const std::string& aDocument, const application::shared_token_spans& aSpans);
+		/// \brief The Files tab and the Local Changes tab, for courses.
+		[[nodiscard]] auto file_search_tabs() const noexcept -> QTabWidget*;
+		/// \brief The tab index of Local Changes, or -1 when it is not in the tabs.
+		[[nodiscard]] auto local_changes_tab() const -> int;
 		/// \brief Home's author entry: Prepare pull request… and In
 		/// preparation, above Home's sections (X01), and the marks on pull
 		/// request rows a draft became (X02).
@@ -2133,6 +2158,16 @@ namespace bpr::qt {
 		/// \brief Presents the Home button for where the window is: Home,
 		/// checked on Home, or the return to the review open behind Home.
 		void present_home_action(bool aHome);
+		/// \brief A local draft's slots, review bar and centre, after any change.
+		void apply_local_draft_surface();
+		/// \brief Places the draft's parts in the window's slots, once.
+		void build_local_draft_slots();
+		/// \brief The status bar's line for a local draft.
+		[[nodiscard]] auto local_draft_status() const -> QString;
+		/// \brief Steps the Files tree to the previous or next draft file.
+		void step_local_file(bool aNext);
+		/// \brief Shows the comparison of the source the open tab names.
+		void apply_local_comparison();
 		/// \brief [[BPR-1331]] v003. Paints the review bar's progress button
 		/// with the selected file's mark and each of its menu's actions with
 		/// the mark it names, all from one painter in the theme's colours.
@@ -2812,7 +2847,23 @@ namespace bpr::qt {
 		QString            LocalCycleTitle;
 		QAction*           OpenProjectAction = nullptr;
 		/// RFC-BPR-0108.
-		local_draft_view* LocalDraftPage = nullptr;
+		local_draft_parts* LocalDraft = nullptr;
+		/// The comparison the diff viewer shows for the draft.
+		std::shared_ptr<const application::local_presentation> LocalShown;
+		/// Which source the diff viewer shows: Local Changes' file (true) or the candidate's.
+		bool LocalChangesShown = false;
+		std::function<void(const std::string&, const std::string&)> LocalSyntaxDispatch;
+		/// What a pull request open behind the draft had, restored on leaving.
+		std::optional<application::pull_request_overview_projection> OverviewBehindDraft;
+		std::vector<application::workbench_file_projection>         FilesBehindDraft;
+		/// The draft's own rows, by path, in the Files tree's order.
+		std::vector<std::string> LocalFiles;
+		/// The review bar's actions a draft hides, and its own slots.
+		QAction* LocalBarLeadingAction  = nullptr;
+		QAction* LocalBarTrailingAction = nullptr;
+		/// The centre's Edit page holder and the draft's notice row holder.
+		QWidget* LocalEditHolder   = nullptr;
+		QWidget* LocalNoticeHolder = nullptr;
 		/// Home variant 1: the Open row, where Prepare Pull Request… stands.
 		QHBoxLayout*                                          HomePrepareSlot           = nullptr;
 		bool                                                  LocalDraftShown           = false;
@@ -3647,6 +3698,10 @@ namespace bpr::qt {
 		bool                                                       HasCommands           = false;
 		bool                                                       ApplyingLayout        = false;
 		bool                                                       ApplyingFileSelection = false;
+		/// The draft's own rows are being applied; a pull request's are kept aside.
+		bool ApplyingLocalRows = false;
+		/// The file rows last published for a pull request, kept while a draft shows.
+		std::vector<application::workbench_file_projection> PublishedFiles;
 		bool                                                       QueueReady            = false;
 		/// [[BPR-0776]]. Whether the window has an account to list a queue for.
 		/// Until the session decides, the queue is shown, as its surface always was.

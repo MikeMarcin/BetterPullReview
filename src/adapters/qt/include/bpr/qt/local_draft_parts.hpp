@@ -2,7 +2,10 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_LOCAL_DRAFT_PARTS_HPP
 
 #include "bpr/application/local_changes_host.hpp"
+#include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
+#include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_preparation_area.hpp"
 #include "bpr/qt/view_picker.hpp"
@@ -31,7 +34,6 @@ namespace bpr::qt {
 	class disclosure_button;
 	class local_draft_publication_area;
 	class suggestion_editor;
-	struct suggestion_line_syntax;
 
 	/// \brief The gestures a local draft's additions send to their host.
 	struct local_draft_dispatch
@@ -101,8 +103,10 @@ namespace bpr::qt {
 		/// \brief Author state's projection, from its own host.
 		void present_local(const application::local_changes_projection& aProjection);
 		void set_code_font(const QFont& aFont);
-		/// \brief The Edit view's syntax colours, for the text it holds now.
-		void adopt_edit_syntax(std::vector<suggestion_line_syntax> aLines, const std::string& aDocument);
+		/// \brief The Edit view's syntax colours, adopted when they describe the text it holds.
+		void adopt_edit_syntax(const std::string& aDocument, application::shared_token_spans aSpans);
+		/// \brief The panes' code colours, variant and font, so the Edit view reads as Review does.
+		void adopt_appearance(const appearance_profile& aProfile);
 
 		// The window's slots.
 		[[nodiscard]] auto bar_leading() const noexcept -> QWidget*;
@@ -186,50 +190,51 @@ namespace bpr::qt {
 		std::function<bool()>                         DiscardQuestion;
 		bool                                          Presenting = false;
 
-		QPointer<QWidget>           BarLeading;
-		QPointer<QWidget>           BarTrailing;
-		QPointer<QWidget>           NoticeRow;
-		QPointer<QWidget>           FilesFooter;
-		QPointer<local_changes_panel> LocalChanges;
-		QPointer<QWidget>           EditPage;
-		QPointer<QWidget>           NotesPage;
+		QPointer<QWidget>               BarLeading;
+		QPointer<QWidget>               BarTrailing;
+		QPointer<QWidget>               NoticeRow;
+		QPointer<QWidget>               FilesFooter;
+		QPointer<local_changes_panel>   LocalChanges;
+		QPointer<QWidget>               EditPage;
+		QPointer<QWidget>               NotesPage;
 		QPointer<local_draft_tour_area> TourArea;
-		QPointer<QWidget>           AuthorPanel;
+		QPointer<QWidget>               AuthorPanel;
 
-		QLineEdit*                    Title            = nullptr;
-		QLabel*                       Identity         = nullptr;
-		QLabel*                       Notice           = nullptr;
-		QWidget*                      TargetRow        = nullptr;
-		QComboBox*                    TargetRepository = nullptr;
-		QComboBox*                    TargetBranch     = nullptr;
-		QPushButton*                  UseTarget        = nullptr;
-		QPushButton*                  Rebind           = nullptr;
-		QToolButton*                  Candidates       = nullptr;
-		QMenu*                        CandidateMenu    = nullptr;
-		QToolButton*                  Branch           = nullptr;
-		QLabel*                       PublishState     = nullptr;
-		QPushButton*                  Create           = nullptr;
-		QPushButton*                  Refresh          = nullptr;
-		QPushButton*                  Discard          = nullptr;
-		QPushButton*                  Close            = nullptr;
-		disclosure_button*            WorkingDisclosure = nullptr;
-		QListWidget*                  Working          = nullptr;
-		QListWidget*                  Notes            = nullptr;
-		QLineEdit*                    NoteEditor       = nullptr;
-		QLabel*                       EditName         = nullptr;
-		QLabel*                       EditState        = nullptr;
-		QPushButton*                  Save             = nullptr;
-		suggestion_editor*            Editor           = nullptr;
-		local_draft_description_area* DescriptionArea  = nullptr;
-		local_draft_publication_area* PublicationArea  = nullptr;
-		local_draft_preparation_dispatch PreparationDispatch;
-		local_draft_page_links           Links;
+		QLineEdit*                                                            Title             = nullptr;
+		QLabel*                                                               Identity          = nullptr;
+		QLabel*                                                               Notice            = nullptr;
+		QWidget*                                                              TargetRow         = nullptr;
+		QComboBox*                                                            TargetRepository  = nullptr;
+		QComboBox*                                                            TargetBranch      = nullptr;
+		QPushButton*                                                          UseTarget         = nullptr;
+		QPushButton*                                                          Rebind            = nullptr;
+		QToolButton*                                                          Candidates        = nullptr;
+		QMenu*                                                                CandidateMenu     = nullptr;
+		QToolButton*                                                          Branch            = nullptr;
+		QLabel*                                                               PublishState      = nullptr;
+		QPushButton*                                                          Create            = nullptr;
+		QPushButton*                                                          Refresh           = nullptr;
+		QPushButton*                                                          Discard           = nullptr;
+		QPushButton*                                                          Close             = nullptr;
+		disclosure_button*                                                    WorkingDisclosure = nullptr;
+		QListWidget*                                                          Working           = nullptr;
+		QListWidget*                                                          Notes             = nullptr;
+		QLineEdit*                                                            NoteEditor        = nullptr;
+		QLabel*                                                               EditName          = nullptr;
+		QLabel*                                                               EditState         = nullptr;
+		QPushButton*                                                          Save              = nullptr;
+		suggestion_editor*                                                    Editor            = nullptr;
+		local_draft_description_area*                                         DescriptionArea   = nullptr;
+		local_draft_publication_area*                                         PublicationArea   = nullptr;
+		local_draft_preparation_dispatch                                      PreparationDispatch;
+		local_draft_page_links                                                Links;
 		std::function<void(const std::string&, std::uint32_t, std::uint32_t)> RevealInComparison;
 
 		/// The Edit view's file, the bytes it read or last wrote, and its edits.
 		std::string               EditPath;
 		std::vector<std::uint8_t> EditRead;
 		bool                      EditDirty = false;
+		code_role_colors SyntaxColors;
 		/// The draft last presented; another draft opens on Review.
 		std::string PresentedDraft;
 	};

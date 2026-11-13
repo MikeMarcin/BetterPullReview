@@ -134,10 +134,10 @@ namespace bpr::application {
 		core::draft_change                Change = core::draft_change::modified;
 		review_material_status            Status = review_material_status::failure;
 		std::vector<core::cycle_diff_row> Rows;
-		core::diff_reason_code            Reason                                          = core::diff_reason_code::none;
+		core::diff_reason_code            Reason = core::diff_reason_code::none;
 		/// The same comparison as the pull request window's diff viewer shows it.
 		std::shared_ptr<const local_presentation> Presented;
-		auto                              operator<=>(const local_draft_file_view&) const = default;
+		auto                                      operator<=>(const local_draft_file_view&) const = default;
 	};
 
 	/// \brief RFC-BPR-0110. A question about a local draft, as the page asks it.

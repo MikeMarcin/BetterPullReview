@@ -10,7 +10,8 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/core/local_presentation.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
@@ -393,6 +394,14 @@ namespace bpr::qt {
 
 	void workbench_window::apply_file_delta(const application::workbench_files_delta& aDelta)
 	{
+		// The pull request's own order, kept whole while a local draft shows.
+		std::erase_if(PublishedFiles, [&aDelta](const application::workbench_file_projection& aFile) { return std::ranges::find(aDelta.Removed, aFile.File) != aDelta.Removed.end(); });
+		for (const auto& [position, file] : aDelta.Inserted) {
+			PublishedFiles.insert(PublishedFiles.begin() + static_cast<std::ptrdiff_t>(std::min(position, PublishedFiles.size())), file);
+		}
+		if (LocalDraftShown) {
+			return;
+		}
 		// [[BPR-0972]]. The drawer list and the tree each take the few moved
 		// files; neither receives the order again.
 		auto inserted = std::vector<std::pair<std::size_t, workbench_drawer_row>>{ };
@@ -421,6 +430,13 @@ namespace bpr::qt {
 	void workbench_window::apply_file_rows(
 		const std::vector<application::workbench_file_projection>& aFiles)
 	{
+		// A local draft holds the tree; the pull request's rows wait behind it.
+		if (!ApplyingLocalRows) {
+			PublishedFiles = aFiles;
+			if (LocalDraftShown) {
+				return;
+			}
+		}
 		OverviewFileFactsDirty = true;
 		auto rows              = std::vector<workbench_drawer_row>{ };
 		rows.reserve(aFiles.size());
@@ -463,6 +479,9 @@ namespace bpr::qt {
 
 	void workbench_window::apply_file_selection()
 	{
+		if (LocalDraftShown) {
+			return;
+		}
 		if (Drawers[0].Panel->contents() == nullptr
 			|| Drawers[0].Panel->contents_view() == nullptr) {
 			return;
@@ -480,11 +499,27 @@ namespace bpr::qt {
 
 	void workbench_window::dispatch_file_selection(const QModelIndex& aIndex)
 	{
-		if (ApplyingFileSelection || !Dispatch || Drawers[0].Panel->contents() == nullptr) {
+		if (ApplyingFileSelection || Drawers[0].Panel->contents() == nullptr) {
 			return;
 		}
 		const auto file = Drawers[0].Panel->contents()->file_at(aIndex);
 		if (!file.has_value()) {
+			return;
+		}
+		// A local draft's file opens through its own host, in the same viewer.
+		if (LocalDraftShown && LocalDraft != nullptr) {
+			const auto subject = LocalDraft->projection().Draft ? LocalDraft->projection().Draft->Id.Value : std::string{ };
+			const auto path    = std::ranges::find_if(LocalFiles, [&](const std::string& aPath) { return core::local_presentation_file(subject, aPath) == *file; });
+			if (path != LocalFiles.end()) {
+				if (FileSearchTabs != nullptr && FileSearchTabs->currentIndex() == local_changes_tab()) {
+					FileSearchTabs->setCurrentIndex(0);
+				}
+				LocalDraft->open_file(*path, ReviewViewPicker != nullptr && ReviewViewPicker->view() == review_view::edit);
+				apply_local_comparison();
+			}
+			return;
+		}
+		if (!Dispatch) {
 			return;
 		}
 		++Statistics.FileSelections;
@@ -1194,17 +1229,13 @@ namespace bpr::qt {
 
 	void workbench_window::choose_modality(const review_modality aModality, const core::workbench_modality_entry aEntry)
 	{
-		// Mockup A: a local draft's Overview and Review are its page's; Discuss
-		// and Threads wait until a pull request exists.
-		if (LocalDraftShown && LocalCycleShown && LocalDraftPage != nullptr && !showing_home()) {
-			if (aModality == review_modality::overview || aModality == review_modality::review) {
-				LocalDraftPage->set_overview(aModality == review_modality::overview);
-				if (Modality != nullptr) {
-					Modality->adopt(aModality);
-				}
-			} else if (Modality != nullptr) {
-				Modality->adopt(LocalDraftPage->overview() ? review_modality::overview : review_modality::review);
+		// A local draft has Overview and Review; Discuss and Threads wait
+		// until a pull request exists.
+		if (LocalDraftShown && !showing_home()) {
+			if (Modality != nullptr) {
+				Modality->adopt(aModality == review_modality::overview ? review_modality::overview : review_modality::review);
 			}
+			apply_local_draft_surface();
 			return;
 		}
 		if (ReviewNavigationDispatch) {
@@ -1489,6 +1520,11 @@ namespace bpr::qt {
 		const application::pull_request_overview_projection& aProjection)
 	{
 		if (OverviewPage == nullptr) {
+			return;
+		}
+		// While a local draft shows, a pull request's overview waits behind it.
+		if (LocalDraftShown && !ApplyingLocalRows) {
+			OverviewBehindDraft = aProjection;
 			return;
 		}
 		const auto unchanged = PresentedOverview.has_value() && *PresentedOverview == aProjection;

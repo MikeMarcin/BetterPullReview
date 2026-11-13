@@ -418,13 +418,13 @@ namespace bpr::qt {
 
 	void local_draft_parts::set_comparison_links(std::function<std::optional<local_draft_lines>()> aSelection, std::function<void(const std::string&, std::uint32_t, std::uint32_t)> aReveal)
 	{
-		Links.Selection    = [this, selection = std::move(aSelection)]() -> std::optional<local_draft_lines> {
-            // A stop is on the latest candidate's lines.
-            const auto* latest = Projection.Draft ? core::latest_candidate(*Projection.Draft) : nullptr;
-            if (latest == nullptr || Projection.Shown != latest->Ordinal || !selection) {
-                return std::nullopt;
-            }
-            return selection();
+		Links.Selection = [this, selection = std::move(aSelection)]() -> std::optional<local_draft_lines> {
+			// A stop is on the latest candidate's lines.
+			const auto* latest = Projection.Draft ? core::latest_candidate(*Projection.Draft) : nullptr;
+			if (latest == nullptr || Projection.Shown != latest->Ordinal || !selection) {
+				return std::nullopt;
+			}
+			return selection();
 		};
 		RevealInComparison = std::move(aReveal);
 	}
@@ -465,12 +465,20 @@ namespace bpr::qt {
 		Editor->set_code_font(aFont);
 	}
 
-	void local_draft_parts::adopt_edit_syntax(std::vector<suggestion_line_syntax> aLines, const std::string& aDocument)
+	void local_draft_parts::adopt_edit_syntax(const std::string& aDocument, application::shared_token_spans aSpans)
 	{
-		if (EditDirty || edit_document() != aDocument) {
+		if (!aSpans || EditDirty || edit_document() != aDocument) {
 			return;
 		}
-		Editor->set_syntax(std::move(aLines));
+		const auto classified = classify_text_lines(std::span{ EditRead }, std::move(aSpans));
+		Editor->set_syntax(suggestion_syntax_lines(classified, aDocument, SyntaxColors));
+	}
+
+	void local_draft_parts::adopt_appearance(const appearance_profile& aProfile)
+	{
+		SyntaxColors = code_role_colors_of(aProfile.palette());
+		Editor->set_contrast_variant(aProfile.variant());
+		Editor->set_code_font(aProfile.code_font());
 	}
 
 	void local_draft_parts::set_discard_question(std::function<bool()> aQuestion)
@@ -713,7 +721,7 @@ namespace bpr::qt {
 	{
 		const auto& view = Projection;
 		Working->clear();
-		const auto blocker = QSignalBlocker{ Working };
+		const auto blocker  = QSignalBlocker{ Working };
 		auto       included = 0;
 		for (const auto& file : view.Working) {
 			auto* const item = new QListWidgetItem{ text_of(file.Path), Working };

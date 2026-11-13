@@ -1354,6 +1354,24 @@ namespace bpr::qt {
 			return;
 		}
 		const auto id = static_cast<core::workbench_command_id>(aIndex);
+		// A local draft steps through its own files and the viewer's changes.
+		if (LocalDraftShown) {
+			if (current_modality() != review_modality::review) {
+				choose_modality(review_modality::review);
+			}
+			const auto direction = id == core::workbench_command_id::previous_change || id == core::workbench_command_id::first_change || id == core::workbench_command_id::previous_file
+				? core::change_navigation_direction::previous
+				: core::change_navigation_direction::next;
+			if (aIndex < file_navigation_entries) {
+				step_local_file(id == core::workbench_command_id::next_file);
+			} else if (id == core::workbench_command_id::first_change || id == core::workbench_command_id::last_change) {
+				static_cast<void>(ComparisonSurface->navigate_outermost_change(direction));
+			} else {
+				static_cast<void>(ComparisonSurface->navigate_change(direction, core::change_navigation_policy::stop));
+			}
+			focus_review_navigation(id);
+			return;
+		}
 		if (const auto offered = command(id); !offered || !offered->Enabled) {
 			return;
 		}

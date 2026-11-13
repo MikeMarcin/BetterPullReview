@@ -10,6 +10,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/view_picker.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "conversation_glyphs.hpp"
 #include "workbench_window_support.hpp"
@@ -151,6 +152,7 @@ namespace bpr::qt {
 		// (review of BPR-0775, finding 1).
 		connect(statusBar(), &QStatusBar::messageChanged, this, [this](const QString&) { update_dif_presentation(); });
 
+		build_local_draft_slots();
 		configure_tool_buttons();
 		refresh_toolbar_icons();
 		apply_focus_order();
@@ -747,12 +749,31 @@ namespace bpr::qt {
 		ReviewViewPicker->setObjectName(QStringLiteral("workbenchViewPicker"));
 		rowWidget(ReviewBar, ReviewViewPicker, QStringLiteral("workbenchViewPickerAction"));
 		ReviewViewPicker->set_picked([this](const review_view aView) {
+			// Author state's Edit: the file shown opens in the editor.
+			if (LocalDraftShown && LocalDraft != nullptr) {
+				if (aView == review_view::edit) {
+					ReviewViewPicker->set_view(review_view::edit);
+					auto file = std::optional<std::string>{ };
+					if (FileSearchTabs != nullptr && FileSearchTabs->currentIndex() == local_changes_tab() && LocalDraft->local_projection().File) {
+						file = LocalDraft->local_projection().File->Path;
+					} else if (LocalDraft->projection().File) {
+						file = LocalDraft->projection().File->Path;
+					}
+					if (file) {
+						LocalDraft->open_file(*file, true);
+					}
+					apply_local_draft_surface();
+					return;
+				}
+				ReviewViewPicker->set_view(aView);
+			}
 			const auto enabled = OnePaneState.State == core::workbench_one_pane::enabled;
 			if ((aView == review_view::one_pane) != enabled) {
 				dispatch_one_pane_toggle();
 			}
 			// The layout shown is the one the core last decided.
 			apply_one_pane();
+			apply_local_draft_surface();
 		});
 		ReviewBar->addAction(HeaderSourceAction);
 		for (const auto& [action, name] : { std::pair{ HeaderSourceAction, QStringLiteral("workbenchHeaderSourceButton") } }) {

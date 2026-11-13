@@ -12,6 +12,7 @@
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"
 
@@ -484,6 +485,11 @@ namespace bpr::qt {
 		}
 		const auto enteringOverview = page == OverviewPage && CentreStack->currentWidget() != OverviewPage;
 		const auto enteringThreads  = page == ThreadsPage && CentreStack->currentWidget() != ThreadsPage;
+		// Author state's Edit view covers Review's comparison.
+		if (LocalDraftShown && LocalEditHolder != nullptr && LocalDraft != nullptr && LocalDraft->author() && ReviewViewPicker != nullptr
+			&& ReviewViewPicker->view() == review_view::edit && page == ComparisonPage) {
+			page = LocalEditHolder;
+		}
 		CentreStack->setCurrentWidget(page);
 		apply_drawer_layout();
 		update_review_readiness();

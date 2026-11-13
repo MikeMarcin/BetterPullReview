@@ -10,7 +10,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
@@ -447,6 +447,11 @@ namespace bpr::qt {
 
 	void workbench_window::dispatch_one_pane_toggle()
 	{
+		if (LocalDraftShown) {
+			OnePaneState.State = OnePaneState.State == core::workbench_one_pane::enabled ? core::workbench_one_pane::disabled : core::workbench_one_pane::enabled;
+			apply_one_pane();
+			return;
+		}
 		apply_one_pane();
 		if (Dispatch) {
 			Dispatch(core::toggle_workbench_one_pane_intent{ });
@@ -481,7 +486,10 @@ namespace bpr::qt {
 			OnePaneAction->setIcon(strip_icon(enabled ? strip_glyph::one_pane : strip_glyph::two_panes, palette()));
 		}
 		if (ReviewViewPicker != nullptr) {
-			ReviewViewPicker->set_view(enabled ? review_view::one_pane : review_view::two_panes);
+			// Author state's Edit stays picked until another view is.
+			if (!(LocalDraftShown && ReviewViewPicker->view() == review_view::edit)) {
+				ReviewViewPicker->set_view(enabled ? review_view::one_pane : review_view::two_panes);
+			}
 			const auto key    = presented_key(OnePaneAction);
 			const auto reason = offered ? QString{ }
 										: drawer_reason_text(projection ? projection->DisabledReason : core::workbench_reason_code::no_active_workbench);
@@ -651,6 +659,14 @@ namespace bpr::qt {
 		// drawer state, so the last decided state is re-asserted immediately and
 		// only the gesture leaves; the window never shows a state it decided.
 		update_action_state();
+		// A local draft's drawers open and close here; nothing reaches the core.
+		if (LocalDraftShown && aIndex < 2U) {
+			auto& state = aIndex == 0U ? DrawerStates.Files : DrawerStates.Conversations;
+			state       = state == core::workbench_drawer_state::expanded ? core::workbench_drawer_state::collapsed : core::workbench_drawer_state::expanded;
+			apply_drawer_layout();
+			update_action_state();
+			return;
+		}
 		if (!Dispatch) {
 			return;
 		}
@@ -1650,8 +1666,8 @@ namespace bpr::qt {
 		}
 		// Mockup A: a local draft's line is the window's status bar, as a
 		// pull request's is: where you are, and what GitHub lacks.
-		if (showing_local_draft() && LocalDraftPage != nullptr) {
-			return LocalDraftPage->status_line()->text();
+		if (showing_local_draft() && LocalDraft != nullptr) {
+			return local_draft_status();
 		}
 		auto status = QString{ };
 		// [[BPR-0775]]. On Home the line is the session's, and never that no
@@ -1779,6 +1795,15 @@ namespace bpr::qt {
 	auto workbench_window::command(const core::workbench_command_id aId) const
 		-> std::optional<core::workbench_command_projection>
 	{
+		// A local draft has no core workbench: its arrows, drawers and layout
+		// are the window's own while it shows.
+		if (LocalDraftShown) {
+			using id         = core::workbench_command_id;
+			const auto local = aId == id::previous_file || aId == id::next_file || aId == id::previous_change || aId == id::next_change || aId == id::toggle_files_drawer
+				|| aId == id::toggle_conversations_drawer || aId == id::toggle_one_pane || aId == id::toggle_line_numbers
+				|| ((aId == id::first_change || aId == id::last_change) && ComparisonSurface != nullptr && ComparisonSurface->current_result());
+			return core::workbench_command_projection{ .Id = aId, .Enabled = local, .DisabledReason = local ? core::workbench_reason_code::none : core::workbench_reason_code::no_active_workbench };
+		}
 		if (!HasCommands) {
 			return std::nullopt;
 		}

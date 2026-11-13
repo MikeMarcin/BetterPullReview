@@ -13,7 +13,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/identity_avatar_pictures.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -444,11 +444,12 @@ namespace bpr::qt {
 		// open Home stays, unless a pull request is opening or open, or its
 		// cached overview is shown.
 		const auto setupHolds = account_setup_shown() && !HasGithubPullRequest && !HasCachedOverview && !loading;
-		const auto home       = (nothing && !LocalCycleShown) || HomeRequested || SetupDestinationNeedsHome || setupHolds;
+		const auto home       = (nothing && !LocalCycleShown && !LocalDraftShown) || HomeRequested || SetupDestinationNeedsHome || setupHolds;
 		// [[BPR-1157]]. A local cycle takes the review surface's place, and the
-		// title row keeps only what Home keeps plus the cycle's name. RFC-BPR-0108:
-		// a local draft takes the same place the same way.
-		auto* const localPage = LocalDraftShown ? static_cast<QWidget*>(LocalDraftPage) : static_cast<QWidget*>(LocalCyclePage);
+		// title row keeps only what Home keeps plus the cycle's name. A local
+		// draft is not a page: it is shown in the review surface itself, with
+		// the pull request's title row (RFC-BPR-0108, owner 2026-11-13).
+		auto* const localPage = static_cast<QWidget*>(LocalCyclePage);
 		const auto  cycle     = !home && LocalCycleShown && localPage != nullptr;
 		present_home_action(home);
 		auto leavingHome = false;
@@ -499,10 +500,7 @@ namespace bpr::qt {
 					// way back to it.
 					|| (HasGithubPullRequest && !cycle
 						&& name == QLatin1String{ "workbenchModalityAction" })
-					|| (cycle && action == IdentityAction)
-					// Mockup A: a local draft is a pull request window; its
-					// Overview and Review are the window's own modalities.
-					|| (cycle && LocalDraftShown && name == QLatin1String{ "workbenchModalityAction" });
+					|| (cycle && action == IdentityAction);
 				action->setVisible(!stripHome || kept);
 			}
 			// [[BPR-0783]], [[BPR-1580]]. View is Home's own, and
@@ -723,8 +721,10 @@ namespace bpr::qt {
 			ReviewNavigationDispatch(std::nullopt);
 		}
 		LocalCycleTitle = aTitle;
+		if (LocalDraftShown) {
+			leave_local_draft();
+		}
 		LocalCycleShown = true;
-		LocalDraftShown = false;
 		HomeRequested   = false;
 		update_home_landing();
 		update_strip_identity();
@@ -743,7 +743,7 @@ namespace bpr::qt {
 
 	void workbench_window::leave_local_cycle()
 	{
-		if (!LocalCycleShown || LocalDraftShown) {
+		if (!LocalCycleShown) {
 			return;
 		}
 		LocalCycleShown = false;
@@ -758,75 +758,14 @@ namespace bpr::qt {
 		return LocalCycleShown && CentralStack != nullptr && LocalCyclePage != nullptr && CentralStack->currentWidget() == static_cast<QWidget*>(LocalCyclePage);
 	}
 
-	void workbench_window::adopt_local_draft(local_draft_view* const aView)
+	auto workbench_window::local_draft() const noexcept -> local_draft_parts*
 	{
-		if (LocalDraftPage != nullptr || aView == nullptr || CentralStack == nullptr) {
-			return;
-		}
-		LocalDraftPage = aView;
-		CentralStack->addWidget(static_cast<QWidget*>(aView));
-	}
-
-	auto workbench_window::local_draft() const noexcept -> local_draft_view*
-	{
-		return LocalDraftPage;
-	}
-
-	void workbench_window::show_local_draft(const QString& aTitle)
-	{
-		if (ReviewNavigationDispatch) {
-			ReviewNavigationDispatch(std::nullopt);
-		}
-		LocalCycleTitle = aTitle;
-		LocalCycleShown = true;
-		LocalDraftShown = true;
-		HomeRequested   = false;
-		// Mockup A: Discuss and Threads wait until a pull request exists.
-		if (Modality != nullptr) {
-			for (const auto waiting : { review_modality::discuss, review_modality::threads }) {
-				if (auto* const action = Modality->action(waiting); action != nullptr) {
-					if (!action->property("bprLocalDraftTip").isValid()) {
-						action->setProperty("bprLocalDraftTip", action->toolTip());
-					}
-					action->setEnabled(false);
-					action->setToolTip(QStringLiteral("Waits until the pull request exists"));
-				}
-			}
-			Modality->adopt(LocalDraftPage != nullptr && LocalDraftPage->overview() ? review_modality::overview : review_modality::review);
-		}
-		update_home_landing();
-		update_strip_identity();
-		apply_strip_width();
-	}
-
-	void workbench_window::leave_local_draft()
-	{
-		if (!LocalDraftShown) {
-			return;
-		}
-		LocalDraftShown = false;
-		LocalCycleShown = false;
-		LocalCycleTitle.clear();
-		if (Modality != nullptr) {
-			for (const auto waiting : { review_modality::discuss, review_modality::threads }) {
-				if (auto* const action = Modality->action(waiting); action != nullptr) {
-					action->setEnabled(true);
-					if (const auto tip = action->property("bprLocalDraftTip"); tip.isValid()) {
-						action->setToolTip(tip.toString());
-						action->setProperty("bprLocalDraftTip", QVariant{ });
-					}
-				}
-			}
-		}
-		update_home_landing();
-		update_strip_identity();
-		apply_strip_width();
+		return LocalDraft;
 	}
 
 	auto workbench_window::showing_local_draft() const noexcept -> bool
 	{
-		return LocalDraftShown && LocalCycleShown && CentralStack != nullptr && LocalDraftPage != nullptr
-			&& CentralStack->currentWidget() == static_cast<QWidget*>(LocalDraftPage);
+		return LocalDraftShown && CentralStack != nullptr && CentralStack->currentWidget() == ReviewSurface;
 	}
 
 	auto workbench_window::home_draft_age(const std::int64_t aUpdated) const -> QString
@@ -1357,7 +1296,7 @@ namespace bpr::qt {
 		const auto margins = IdentityLabel->contentsMargins();
 		const auto room    = std::max(strip_identity_budget() - margins.left() - margins.right(), 0);
 		auto       text    = QString{ };
-		if (LocalCycleShown && !showing_home()) {
+		if ((LocalCycleShown || LocalDraftShown) && !showing_home()) {
 			// [[BPR-1157]]. A local cycle is named by its title and badged as
 			// local: no repository, number or account.
 			const auto badge = LocalDraftShown ? QStringLiteral("  ·  Local draft") : QStringLiteral("  ·  Local cycle");

@@ -65,7 +65,7 @@ namespace bpr::application {
 		std::vector<core::local_line_mark>      Marks;
 		/// The same comparison as the pull request window's diff viewer shows it.
 		std::shared_ptr<const local_presentation> Presented;
-		bool                                    operator==(const local_changes_file&) const = default;
+		bool                                      operator==(const local_changes_file&) const = default;
 	};
 
 	enum class local_changes_operation : std::uint8_t {

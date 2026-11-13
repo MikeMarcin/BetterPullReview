@@ -86,13 +86,13 @@ namespace bpr::application {
 		worktree_file_port&                     Files;
 		std::shared_ptr<diff_line_matcher_port> Matcher;
 		/// Orders the presentations handed to the window; read on the effect lane.
-		std::atomic<std::uint64_t> PresentSequence{ 0U };
-		effect_executor&                        Effects;
-		decision_executor&                      Decisions;
-		local_changes_port&                     Port;
-		local_changes_consent                   Consent;
-		local_commit_message_runner             Runner;
-		effect_executor*                        AgentLane = nullptr;
+		std::atomic<std::uint64_t>  PresentSequence{ 0U };
+		effect_executor&            Effects;
+		decision_executor&          Decisions;
+		local_changes_port&         Port;
+		local_changes_consent       Consent;
+		local_commit_message_runner Runner;
+		effect_executor*            AgentLane = nullptr;
 
 		local_changes_projection Projection;
 		std::uint64_t            Generation = 0U;
