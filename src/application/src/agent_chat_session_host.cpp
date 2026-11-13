@@ -346,6 +346,7 @@ namespace bpr::application {
 			.IncludeDraft   = !admitted.Drafts.empty(),
 			.Message        = aSend.Text,
 			.Question       = aSend.Question,
+			.SkillText      = aSend.SkillText,
 		};
 		if (!Dispatcher || !Dispatcher(request)) {
 			return refuse(aSend.Session, agent_chat_refusal::launch_refused, core::agent_send_refusal::launch_refused);

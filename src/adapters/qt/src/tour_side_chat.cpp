@@ -856,9 +856,9 @@ namespace bpr::qt {
 		refresh_actions();
 	}
 
-	void tour_side_chat::set_prompt_source(prompt_source aSource)
+	void tour_side_chat::set_prompt_macros(std::vector<core::prompt_macro> aMacros)
 	{
-		PromptSource = std::move(aSource);
+		PromptMacros = std::move(aMacros);
 		rebuild();
 	}
 
@@ -867,23 +867,29 @@ namespace bpr::qt {
 	void tour_side_chat::choose_prompt(const QString& aPrompt, const bool aEditFirst)
 	{
 		const auto thread = current();
-		if (!thread || !PromptSource) {
+		if (!thread || !PromptMacros) {
 			return;
 		}
-		// A prompt the reviewer finishes ("Focus on …") is always put in the
-		// composer, with its words there to be completed.
-		auto text   = aPrompt;
-		auto finish = false;
+		// RFC-BPR-0125. A press expands against the facts at the press; one
+		// that no longer applies does nothing.
+		const auto offers = prompt_offers();
+		auto       all    = offers.Chips;
+		all.insert(all.end(), offers.More.begin(), offers.More.end());
+		const auto key   = aPrompt.toStdString();
+		auto       found = std::ranges::find(all, key, &core::prompt_offer::Id);
+		if (found == all.end()) {
+			found = std::ranges::find(all, key, &core::prompt_offer::Label);
+		}
+		if (found == all.end()) {
+			return;
+		}
+		const auto offer = *found;
+		const auto text  = QString::fromStdString(offer.Expansion.Text);
 		// [[BPR-1934]] v002. Explain the selected block: asked in the
 		// selected part's chat, opened if it is not the one shown, with
 		// exactly the selected text quoted.
-		if (Selection && !SelectionLabel.isEmpty() && aPrompt == SelectionLabel) {
+		if (offer.Subject == core::prompt_subject::selected_text && Selection) {
 			const auto chosen = *Selection;
-			for (const auto& prompt : PromptSource(chosen.Thread.Kind)) {
-				if (prompt.Selection) {
-					text = QString::fromUtf8(prompt.Text.data(), static_cast<qsizetype>(prompt.Text.size()));
-				}
-			}
 			if (chosen.Thread != *thread) {
 				open(chosen.Thread, chosen.Passage, false);
 			} else {
@@ -891,16 +897,11 @@ namespace bpr::qt {
 				show_passage();
 			}
 		}
-		for (const auto& prompt : PromptSource(thread->Kind)) {
-			const auto written = QString::fromUtf8(prompt.Text.data(), static_cast<qsizetype>(prompt.Text.size()));
-			if (prompt.Finish && aPrompt == written + ellipsis && text == aPrompt) {
-				text   = written;
-				finish = true;
-			}
-		}
 		const auto draft = Composer->toPlainText();
+		// A prompt the reviewer finishes ("Focus on …") is always put in the
+		// composer, with its words there to be completed.
 		const auto press = core::decide_agent_suggestion_press({
-			.EditFirst = aEditFirst || finish,
+			.EditFirst = aEditFirst || offer.finish(),
 			.DraftHeld = !draft.trimmed().isEmpty(),
 			.Usable    = prompts_usable(),
 		});
@@ -909,23 +910,40 @@ namespace bpr::qt {
 			cursor.movePosition(QTextCursor::End);
 			Composer->setTextCursor(cursor);
 		};
+		const auto caret = static_cast<int>(QString::fromUtf8(offer.Expansion.Text.data(), static_cast<qsizetype>(offer.Expansion.Cursor.value_or(offer.Expansion.Text.size()))).size());
 		switch (press) {
 		case core::agent_suggestion_press::ignored: return;
-		case core::agent_suggestion_press::send:    send(text, false); return;
+		case core::agent_suggestion_press::send:
 		case core::agent_suggestion_press::send_keeping_draft:
-			// Sent alone, as if typed and sent; the reviewer's words stay.
+			// AC09. Sent as offered: skills only from the template's own text.
+			SendingSkillText = core::prompt_skill_text(offer.Expansion);
 			send(text, false);
-			Composer->setPlainText(draft);
-			toEnd();
+			SendingSkillText.reset();
+			if (press == core::agent_suggestion_press::send_keeping_draft) {
+				// Sent alone, as if typed and sent; the reviewer's words stay.
+				Composer->setPlainText(draft);
+				toEnd();
+			}
 			return;
-		case core::agent_suggestion_press::edit: Composer->setPlainText(text); break;
-		case core::agent_suggestion_press::edit_after_draft:
-			toEnd();
-			Composer->textCursor().insertText((draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n")) + text);
+		case core::agent_suggestion_press::edit: {
+			Composer->setPlainText(text);
+			auto cursor = Composer->textCursor();
+			cursor.setPosition(caret);
+			Composer->setTextCursor(cursor);
 			break;
 		}
+		case core::agent_suggestion_press::edit_after_draft: {
+			toEnd();
+			const auto lead = draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n");
+			const auto from = Composer->textCursor().position() + static_cast<int>(lead.size());
+			Composer->textCursor().insertText(lead + text);
+			auto cursor = Composer->textCursor();
+			cursor.setPosition(from + caret);
+			Composer->setTextCursor(cursor);
+			break;
+		}
+		}
 		Composer->setFocus(Qt::OtherFocusReason);
-		toEnd();
 	}
 
 	void tour_side_chat::set_code_style(const QFont& aFont, const qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
@@ -1224,40 +1242,52 @@ namespace bpr::qt {
 		refresh_prompts();
 	}
 
-	auto tour_side_chat::prompt_labels() -> QStringList
+	auto tour_side_chat::prompt_part(const core::tour_thread& aThread) const -> core::prompt_tour_part
 	{
-		auto       labels = QStringList{ };
-		const auto thread = current();
-		SelectionLabel.clear();
-		if (!thread || !PromptSource) {
-			return labels;
+		auto part = core::prompt_tour_part{ };
+		switch (aThread.Kind) {
+		case core::tour_thread_kind::tour: part.Place = core::prompt_place::tour_whole; break;
+		case core::tour_thread_kind::problem:
+			part.Place = core::prompt_place::tour_part;
+			part.Part  = tr("the Problem").toStdString();
+			break;
+		case core::tour_thread_kind::solution:
+			part.Place = core::prompt_place::tour_part;
+			part.Part  = tr("the Solution").toStdString();
+			break;
+		case core::tour_thread_kind::stop:
+			part.Place = core::prompt_place::tour_stop;
+			part.Part  = name_of(aThread).toStdString();
+			if (Draft) {
+				const auto found = std::ranges::find(Draft->Stops, aThread.Stop, &core::tour_stop::Id);
+				if (found != Draft->Stops.end()) {
+					part.StopNumber = static_cast<std::uint32_t>(found - Draft->Stops.begin()) + 1U;
+					part.StopTitle  = found->Title;
+				}
+			}
+			break;
 		}
-		const auto text = [](const application::tour_chat_prompt& aPrompt) { return QString::fromUtf8(aPrompt.Text.data(), static_cast<qsizetype>(aPrompt.Text.size())); };
+		return part;
+	}
+
+	auto tour_side_chat::prompt_offers() const -> core::prompt_offers
+	{
+		const auto thread = current();
+		if (!thread || !PromptMacros) {
+			return { };
+		}
 		// [[BPR-1934]] v002. Explain the selected block leads while text is
 		// selected in a part, whatever the chat holds already; for another
-		// part than this chat's, it names the part.
+		// part than this chat's, it names the part. The rest are for an empty
+		// chat, and go with its first turn.
+		auto facts      = core::prompt_facts{ };
+		facts.Thread    = prompt_part(*thread);
+		facts.Place     = facts.Thread->Place;
+		facts.ChatEmpty = core::thread_runs(Session, *thread).empty() && !(thread->Kind == core::tour_thread_kind::tour && Session.Waiting);
 		if (Selection) {
-			for (const auto& prompt : PromptSource(Selection->Thread.Kind)) {
-				if (prompt.Selection) {
-					const auto part = Selection->Thread.Kind == core::tour_thread_kind::problem ? tr("the Problem")
-						: Selection->Thread.Kind == core::tour_thread_kind::solution            ? tr("the Solution")
-																								: name_of(Selection->Thread);
-					SelectionLabel  = Selection->Thread == *thread ? text(prompt) : tr("%1 in %2").arg(text(prompt), part);
-					labels << SelectionLabel;
-					break;
-				}
-			}
+			facts.Selection = prompt_part(Selection->Thread);
 		}
-		// The rest are for an empty chat, and go with its first turn.
-		const auto empty = core::thread_runs(Session, *thread).empty() && !(thread->Kind == core::tour_thread_kind::tour && Session.Waiting);
-		if (empty) {
-			for (const auto& prompt : PromptSource(thread->Kind)) {
-				if (!prompt.Selection) {
-					labels << (prompt.Finish ? text(prompt) + ellipsis : text(prompt));
-				}
-			}
-		}
-		return labels;
+		return core::decide_prompt_offers(*PromptMacros, facts);
 	}
 
 	void tour_side_chat::refresh_prompts()
@@ -1267,11 +1297,19 @@ namespace bpr::qt {
 		}
 		// [[BPR-1934]]. The suggested prompts, only once the agent is set up
 		// ([[BPR-1881]]); usable whenever a question could be sent.
-		const auto labels = prompt_labels();
+		const auto offers = prompt_offers();
+		auto       chips  = std::vector<agent_suggestion>{ };
+		auto       more   = std::vector<agent_suggestion>{ };
+		const auto shown  = [](const core::prompt_offer& aOffer) {
+			return agent_suggestion{ .Key = QString::fromStdString(aOffer.Id), .Label = QString::fromStdString(aOffer.Label), .Expansion = QString::fromStdString(aOffer.Expansion.Text), .Finish = aOffer.finish() };
+		};
+		std::ranges::transform(offers.Chips, std::back_inserter(chips), shown);
+		std::ranges::transform(offers.More, std::back_inserter(more), shown);
 		const auto thread = current();
-		Suggestions->present(labels);
+		const auto any    = !chips.empty();
+		Suggestions->present(std::move(chips), std::move(more));
 		Suggestions->lead()->setVisible(thread && core::thread_runs(Session, *thread).empty());
-		Suggestions->setVisible(Ready && !labels.isEmpty());
+		Suggestions->setVisible(Ready && any);
 		Suggestions->set_usable(prompts_usable());
 	}
 
@@ -1281,7 +1319,7 @@ namespace bpr::qt {
 		if (!thread || aQuestion.isEmpty() || (!HostIdle && !(takes_feedback() && !aUpdate)) || (Running && !(takes_feedback() && !aUpdate)) || HistoryLoading || (Draft && !core::active_tour_thread(*Draft, *thread)) || !Ready || !AskDispatch) {
 			return;
 		}
-		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::move(aUpdatePassage) : passage(), .Question = aQuestion, .Update = aUpdate };
+		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::move(aUpdatePassage) : passage(), .Question = aQuestion, .Update = aUpdate, .SkillText = SendingSkillText };
 		AskDispatch(ask);
 		if (!aUpdate) {
 			Composer->clear();
@@ -2058,7 +2096,7 @@ namespace bpr::qt {
 		// the chat's last item, in the agent's accent: the prompts for this
 		// kind of chat while it is empty, and Explain the selected block
 		// while text is selected (v002).
-		if (thread && PromptSource) {
+		if (thread && PromptMacros) {
 			Suggestions = new agent_suggestion_list{ tr("Or try:"), body };
 			Suggestions->setObjectName(QStringLiteral("tourSideChatSuggestions"));
 			Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });

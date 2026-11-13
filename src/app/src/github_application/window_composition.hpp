@@ -184,6 +184,7 @@
 	#include "bpr/application/claude_process_wrapper.hpp"
 	#include "bpr/application/clone_link_host.hpp"
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
+	#include "bpr/application/prompt_turn_name_host.hpp"
 	#include "bpr/application/review_skill_host.hpp"
 	#include "bpr/application/tour_agent_context.hpp"
 	#include "bpr/application/tour_agent_drafting.hpp"
@@ -1172,6 +1173,9 @@ namespace bpr::app {
 		/// [[BPR-2002]]. The subject of the chat question being dispatched,
 		/// set only around that one dispatch.
 		std::optional<core::agent_question> ChatQuestion;
+		/// RFC-BPR-0125 (AC09). While a chat turn launches: what its skill
+		/// references are read from, when not its message.
+		std::optional<std::string> ChatSkillText;
 		/// [[BPR-2002]]. Composes a chat question's subject and where the
 		/// reviewer is looking into `aObservation`.
 		void                      compose_question_subject(application::agent_context_observation& aObservation, const core::agent_question& aQuestion);
@@ -2390,6 +2394,14 @@ namespace bpr::app {
 		/// finding card of a stored answer: store, then host.
 		std::unique_ptr<application::agent_finding_card_store_port> AgentFindingCardStore;
 		std::unique_ptr<application::agent_finding_card_host>       AgentFindingCards;
+		/// RFC-BPR-0125 (AC07). The names suggested prompts' turns were sent
+		/// under: store, then host.
+		std::unique_ptr<application::prompt_turn_name_store_port> PromptTurnNameStore;
+		std::unique_ptr<application::prompt_turn_name_host>       PromptTurnNames;
+		/// RFC-BPR-0125 (AC07). Each turn shown takes the name it was sent
+		/// under; a thread shown before the names were read takes them then.
+		[[nodiscard]] auto named_turns(std::vector<qt::agent_thread_turn> aTurns) const -> std::vector<qt::agent_thread_turn>;
+		void               present_remembered_turn_names();
 		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
@@ -2546,6 +2558,9 @@ namespace bpr::app {
 		[[nodiscard]] auto tour_context_notice(core::tour_context_route aRoute, std::size_t aDiffBytes) const -> QString;
 		/// [[BPR-2138]]. The tour ask being made is an Enhance: fresh.
 		bool TourAskFresh = false;
+		/// RFC-BPR-0125 (AC09). While a tour question is asked: what its skill
+		/// references are read from, when not its words.
+		std::optional<std::string> TourAskSkillText;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		/// [[BPR-1931]]. What the last Reset tour cleared, for its Undo, while

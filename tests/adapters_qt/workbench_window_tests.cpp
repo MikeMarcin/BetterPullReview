@@ -16161,7 +16161,7 @@ namespace {
 				expect(button != nullptr && button->isEnabled(), "a suggested prompt can be pressed");
 				const auto prompt = button->property("agentPrompt").toString();
 				expect(button->toolTip() == prompt + QStringLiteral("\nClick to send. Shift-click to edit before sending.") && button->accessibleName() == prompt
-						   && button->accessibleDescription().startsWith(QStringLiteral("Sends this prompt to the agent. Shift-click or "))
+						   && button->accessibleDescription().startsWith(prompt + QStringLiteral("\nClick to send. Shift-click or "))
 						   && button->accessibleDescription().endsWith(QStringLiteral(" puts it in the question field to edit before sending.")),
 					   "the prompt says a click sends and Shift-click edits, to the pointer and to a screen reader");
 

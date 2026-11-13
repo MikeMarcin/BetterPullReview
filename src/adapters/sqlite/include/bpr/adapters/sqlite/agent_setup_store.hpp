@@ -7,6 +7,7 @@
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/native_agent_session.hpp"
+#include "bpr/application/prompt_turn_name_host.hpp"
 #include "bpr/application/review_skill_host.hpp"
 
 #include <filesystem>
@@ -53,6 +54,12 @@ namespace bpr::adapters::sqlite {
 	/// going first. An open card has no row. Settings resets remove it with
 	/// the file.
 	[[nodiscard]] auto make_agent_finding_card_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_finding_card_store_port>;
+	/// \brief RFC-BPR-0125 (AC07). The same file's turn names: the name each
+	/// suggested prompt's turn was sent under, by its question, at most
+	/// `core::maximum_prompt_turn_names`, the least recently sent going first.
+	/// A row that does not read back valid is left out. Settings resets remove
+	/// it with the file.
+	[[nodiscard]] auto make_prompt_turn_name_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_turn_name_store_port>;
 	/// \brief [[BPR-2016]], RFC-BPR-0107. What an agent and prompt import
 	/// changes: this file's agent list, edited review skill and each writing
 	/// hook's written-against version, and the hooks in the profile's

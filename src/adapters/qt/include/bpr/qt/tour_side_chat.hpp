@@ -3,7 +3,7 @@
 
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
-#include "bpr/application/tour_chat_prompts.hpp"
+#include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
@@ -55,6 +55,10 @@ namespace bpr::qt {
 		/// [[BPR-2138]]. Enhance: a fresh run whose result is a proposal on
 		/// the part; nothing is sent into its side chat.
 		bool Fresh = false;
+		/// RFC-BPR-0125 (AC09). For a suggested prompt sent as offered, the
+		/// only text its skill references are read from; none reads
+		/// `Question`.
+		std::optional<std::string> SkillText;
 	};
 
 	/// \brief The side chat's glyph: a small speech bubble, in the colour of
@@ -165,9 +169,6 @@ namespace bpr::qt {
 	public:
 		using ask_dispatch    = std::function<void(const tour_ask&)>;
 		using decide_dispatch = std::function<void(std::size_t, core::tour_proposal_decision, const QString&)>;
-		/// \brief [[BPR-1934]]. The suggested prompts for a chat kind, from
-		/// the application's one list (`application::tour_chat_prompts`).
-		using prompt_source = std::function<std::span<const application::tour_chat_prompt>(core::tour_thread_kind)>;
 
 		explicit tour_side_chat(QWidget* aParent = nullptr);
 		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Accept all.
@@ -209,9 +210,10 @@ namespace bpr::qt {
 		/// rief [[BPR-2040]]. Observed host retirement, independent of the
 		/// answer's Running state. Stop and queued draft feedback keep theirs.
 		void set_host_idle(bool aIdle);
-		/// \brief [[BPR-1934]]. Where an empty chat's suggested prompts come
-		/// from. Without one, an empty chat offers none.
-		void set_prompt_source(prompt_source aSource);
+		/// \brief [[BPR-1934]], RFC-BPR-0125. The suggested prompts the chats
+		/// offer from, every place's in the reviewer's order; the chips are the
+		/// core's offers. Until some are given, a chat offers none.
+		void set_prompt_macros(std::vector<core::prompt_macro> aMacros);
 		/// \brief [[BPR-1934]]. The open chat's suggested prompts, in the
 		/// Agent tab's component, while the chat has no turns; otherwise null.
 		/// Hidden while the agent is not set up ([[BPR-1881]]).
@@ -374,8 +376,10 @@ namespace bpr::qt {
 		/// composer to edit or finish, as the core decides for the Agent tab.
 		void               choose_prompt(const QString& aPrompt, bool aEditFirst);
 		[[nodiscard]] auto prompts_usable() const -> bool;
-		/// [[BPR-1934]]. The prompts the open chat offers now, and shows them.
-		[[nodiscard]] auto prompt_labels() -> QStringList;
+		/// [[BPR-1934]], RFC-BPR-0125. What the open chat offers now, as the
+		/// core decides it.
+		[[nodiscard]] auto prompt_offers() const -> core::prompt_offers;
+		[[nodiscard]] auto prompt_part(const core::tour_thread& aThread) const -> core::prompt_tour_part;
 		void               refresh_prompts();
 		void               fit();
 		void               to_bottom();
@@ -470,18 +474,22 @@ namespace bpr::qt {
 		std::vector<QPushButton*>                                             Deletes;
 		/// [[BPR-1941]]. The running request: what it does, its clock, the
 		/// lines saying it, and the agent each turn ran with.
-		std::optional<agent_run_status>              Live;
-		QElapsedTimer                                LiveClock;
-		QPointer<agent_run_status_line>              LiveLine;
-		agent_run_status_line*                       DraftLine = nullptr;
-		std::map<std::uint64_t, QString>             RunAgents;
-		std::function<void(core::tour_agent_run_id)> DeleteDispatch;
-		std::vector<QPointer<markdown_body_view>>    Readers;
-		std::map<std::size_t, QPushButton*>          Accepts;
-		std::map<std::size_t, markdown_body_view*>   ProposalReaders;
-		std::vector<QPointer<QWidget>>               Accented;
-		prompt_source                                PromptSource;
-		QPointer<agent_suggestion_list>              Suggestions;
+		std::optional<agent_run_status>                Live;
+		QElapsedTimer                                  LiveClock;
+		QPointer<agent_run_status_line>                LiveLine;
+		agent_run_status_line*                         DraftLine = nullptr;
+		std::map<std::uint64_t, QString>               RunAgents;
+		std::function<void(core::tour_agent_run_id)>   DeleteDispatch;
+		std::vector<QPointer<markdown_body_view>>      Readers;
+		std::map<std::size_t, QPushButton*>            Accepts;
+		std::map<std::size_t, markdown_body_view*>     ProposalReaders;
+		std::vector<QPointer<QWidget>>                 Accented;
+		std::optional<std::vector<core::prompt_macro>> PromptMacros;
+		/// The offers shown now, chips then More, and while a suggested prompt
+		/// is sent as offered, the only text its skills are read from.
+		std::vector<core::prompt_offer> Offered;
+		std::optional<std::string>      SendingSkillText;
+		QPointer<agent_suggestion_list> Suggestions;
 		/// [[BPR-1934]] v002. The selected text, the part it is in, and the
 		/// label its prompt has now.
 		struct offered_selection
@@ -490,7 +498,6 @@ namespace bpr::qt {
 			core::tour_passage Passage;
 		};
 		std::optional<offered_selection> Selection;
-		QString                          SelectionLabel;
 	};
 }
 

@@ -492,6 +492,33 @@ namespace bpr::app {
 									  .Note     = aChange.Note });
 	}
 
+	auto github_application::implementation::named_turns(std::vector<qt::agent_thread_turn> aTurns) const -> std::vector<qt::agent_thread_turn>
+	{
+		if (!PromptTurnNames) {
+			return aTurns;
+		}
+		for (auto& turn : aTurns) {
+			if (turn.Name.isEmpty()) {
+				if (const auto name = PromptTurnNames->names().recall(turn.Question.toStdString())) {
+					turn.Name = QString::fromStdString(*name);
+				}
+			}
+		}
+		return aTurns;
+	}
+
+	void github_application::implementation::present_remembered_turn_names()
+	{
+		if (Closing || Window == nullptr || Window->agent_tab() == nullptr || Window->agent_tab()->state() == qt::agent_tab_state::working) {
+			return;
+		}
+		auto* const tab   = Window->agent_tab();
+		const auto  shown = tab->thread_turns();
+		if (auto named = named_turns(shown); named != shown) {
+			tab->present_thread(named);
+		}
+	}
+
 	void github_application::implementation::present_remembered_finding_cards()
 	{
 		if (Closing || Window == nullptr || !AgentFindingCards) {
@@ -601,7 +628,7 @@ namespace bpr::app {
 							  .Outcome  = turn.Outcome,
 							  .Cards    = restored_finding_cards(turn.Answered) });
 		}
-		tab->present_thread(turns);
+		tab->present_thread(named_turns(std::move(turns)));
 		// [[BPR-1999]]. The conversation's cost, kept with its history.
 		tab->present_session_cost(aView.SessionCost);
 		present_agent_pull_request();
@@ -973,7 +1000,7 @@ namespace bpr::app {
 							  .Outcome  = turn.Outcome,
 							  .Cards    = restored_finding_cards(turn.Answered) });
 		}
-		Window->agent_tab()->present_thread(shown);
+		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
 		present_agent_pull_request();
 		// [[BPR-1823]], owner ruling 2026-10-29: opening a pull request
 		// never switches the picker to the agent it was last asked with.
@@ -1258,6 +1285,14 @@ namespace bpr::app {
 			if (Closing || !AgentConversation) {
 				return;
 			}
+			// RFC-BPR-0125 (AC07). Each suggested prompt's turn keeps its name.
+			if (PromptTurnNames) {
+				for (const auto& turn : aTurns) {
+					if (!turn.Name.isEmpty()) {
+						PromptTurnNames->remember({ .Asked = turn.Question.toStdString(), .Name = turn.Name.toStdString() });
+					}
+				}
+			}
 			auto kept = std::vector<application::agent_conversation_turn>{ };
 			kept.reserve(aTurns.size());
 			for (const auto& turn : aTurns) {
@@ -1377,8 +1412,28 @@ namespace bpr::app {
 		});
 		// Owner decision (a). The suggested prompts name the open file and
 		// the selected lines, one-based.
+		// RFC-BPR-0125. The suggested prompts are the shipped set until the
+		// profile's store holds the reviewer's own (milestone 3).
+		tab->present_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros());
 		tab->set_suggestion_context([this] {
 			auto context = qt::agent_suggestion_context{ };
+			// RFC-BPR-0125. The names a suggested prompt may fill in and the
+			// facts its conditions read, from what the window already holds.
+			// Whether the author is me and whether checks fail are not
+			// gathered yet: unknown, which no condition holds for.
+			if (!Closing && WindowRead != nullptr && WindowRead->accepted_snapshot() && AgentReview) {
+				const auto& record      = WindowRead->accepted_snapshot()->PullRequest;
+				auto        pullRequest = core::prompt_pull_request{ };
+				pullRequest.Number      = AgentReview->Number.value();
+				pullRequest.Title       = record.Title;
+				pullRequest.Url         = "https://" + AgentReview->Hostname + "/" + AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name + "/pull/" + std::to_string(AgentReview->Number.value());
+				pullRequest.Author      = record.Author ? record.Author->Login : std::string{ };
+				pullRequest.Base        = record.BaseRef;
+				pullRequest.Head        = record.HeadRef;
+				context.PullRequest     = std::move(pullRequest);
+				context.Repository      = AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name;
+				context.Draft           = record.Draft;
+			}
 			// [[BPR-1781]]. Asked on Overview, a question is about the pull
 			// request: no open file, no lines.
 			if (Closing || Window == nullptr || !SelectedDiffPublication || Window->showing_overview()) {

@@ -659,12 +659,12 @@ namespace bpr::core {
 		// starts or starts where it ends: then the slash starts a word, or
 		// the name ends, only because of the value. An empty value counts,
 		// since its absence may join a reference.
-		const auto touches_value = [&aExpansion](const skill_reference& aReference) {
+		const auto touchesValue = [&aExpansion](const skill_reference& aReference) {
 			return std::ranges::any_of(aExpansion.Values, [&aReference](const prompt_value_span& aValue) { return aValue.Begin <= aReference.End && aReference.Begin <= aValue.End; });
 		};
 		auto text = std::string{ };
 		for (const auto& reference : find_skill_references(aExpansion.Text)) {
-			if (touches_value(reference)) {
+			if (touchesValue(reference)) {
 				continue;
 			}
 			if (!text.empty()) {

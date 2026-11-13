@@ -9,7 +9,7 @@
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
-#include "bpr/application/tour_chat_prompts.hpp"
+#include "bpr/core/prompt_macro.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
@@ -231,8 +231,9 @@ auto main(int argc, char** argv) -> int
 	settle();
 	auto* const chat = editor.side_chat();
 	chat->resize(380, 900);
-	// [[BPR-1934]]. The window gives the chat the application's prompt list.
-	chat->set_prompt_source(&application::tour_chat_prompts);
+	// [[BPR-1934]], RFC-BPR-0125 AC05. The window gives the chat the shipped
+	// suggested prompts; every list and text below is today's.
+	chat->set_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros());
 	const auto offered = [chat] {
 		auto* const list = chat->suggestions();
 		return list == nullptr || !list->isVisibleTo(chat) ? QStringList{ } : list->prompts();
@@ -626,6 +627,7 @@ auto main(int argc, char** argv) -> int
 	chat->composer()->clear();
 	expect(choose(QStringLiteral("Too many stops?")) && asked.size() == askedBefore + 1U && asked.back().Thread == core::tour_thread{ } && asked.back().Question == QStringLiteral("Too many stops?") && !asked.back().Update,
 		   "AC1 one click sends the prompt in the tour's chat");
+	expect(asked.back().SkillText == std::optional<std::string>{ "" }, "RFC-BPR-0125 AC09 a suggested prompt sent as offered reads skills only from its own text");
 	const auto tourTurn = core::begin_tour_ask(session, asked.back().Thread, std::nullopt, "Too many stops?");
 	static_cast<void>(core::answer_tour_ask(session, *tourTurn, "Four stops is about right.", { }));
 	editor.present_tour_session(session, std::nullopt);

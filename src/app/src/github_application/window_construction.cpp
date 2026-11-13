@@ -1120,6 +1120,7 @@ namespace bpr::app {
 						// the entry point the core decided for it; a turn
 						// without one asks about the selection, as before.
 						ChatQuestion    = aTurn.Question;
+						ChatSkillText   = aTurn.SkillText;
 						const auto sent = dispatch_agent_invocation(
 							aTurn.Session.Profile,
 							aTurn.IncludeNotes
@@ -1135,6 +1136,7 @@ namespace bpr::app {
 																									  : core::agent_entry_point::ask_about_selection,
 							std::nullopt);
 						ChatQuestion.reset();
+						ChatSkillText.reset();
 						return sent;
 					},
 					[this]() -> application::agent_chat_private_prose {
@@ -1485,6 +1487,18 @@ namespace bpr::app {
 			AgentFindingCards     = std::make_unique<application::agent_finding_card_host>(std::move(dependencies));
 		}
 		AgentFindingCards->load();
+		// RFC-BPR-0125 (AC07). A suggested prompt's turn keeps its name past
+		// a restart.
+		PromptTurnNameStore = adapters::sqlite::make_prompt_turn_name_store(ApplicationDataRoot);
+		{
+			auto dependencies     = application::prompt_turn_name_dependencies{ };
+			dependencies.Store    = PromptTurnNameStore.get();
+			dependencies.Effects  = &WorkbenchEffects;
+			dependencies.Decision = &DecisionLane;
+			dependencies.Loaded   = [this] { present_remembered_turn_names(); };
+			PromptTurnNames       = std::make_unique<application::prompt_turn_name_host>(std::move(dependencies));
+		}
+		PromptTurnNames->load();
 		compose_agent_setup_view();
 		observe_conversation();
 #endif
@@ -1510,9 +1524,11 @@ namespace bpr::app {
 		Window->tour_editor()->side_chat()->set_continuation_dispatch([this](const core::tour_thread& aThread) { choose_tour_continuation(aThread); });
 		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) { observe_tour_native_history(aThread, std::move(aChoice)); });
 		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) {
-			TourAskFresh = aAsk.Fresh;
+			TourAskFresh     = aAsk.Fresh;
+			TourAskSkillText = aAsk.SkillText;
 			request_tour_ask(aAsk.Thread, aAsk.Passage, aAsk.Question, aAsk.Update);
 			TourAskFresh = false;
+			TourAskSkillText.reset();
 		});
 		// [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour and its Undo.
 		Window->tour_editor()->set_tour_shape_dispatch([this] { clear_tour_focus(); }, [this] { reset_tour(); }, [this] { undo_tour_reset(); });

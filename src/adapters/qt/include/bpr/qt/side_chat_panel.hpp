@@ -97,6 +97,9 @@ namespace bpr::qt {
 		/// [[BPR-2002]]. The subject the core decided for this question, as
 		/// `set_question` gave it; none sends as `EntryPoint` always did.
 		std::optional<core::agent_question> Question;
+		/// RFC-BPR-0125 (AC09). For a suggested prompt sent as offered, the
+		/// only text its skill references are read from; none reads `Text`.
+		std::optional<std::string> SkillText;
 
 		auto operator<=>(const send_chat_message_intent&) const = default;
 	};
@@ -192,6 +195,8 @@ namespace bpr::qt {
 		std::optional<side_chat_projection> Shown;
 		/// [[BPR-2002]]. The question the next Send asks, decided by the core.
 		std::optional<core::agent_question> Question;
+		/// RFC-BPR-0125. What the next Send reads skills from, if not its text.
+		std::optional<std::string> SkillText;
 
 		QListWidget*    Replies            = nullptr;
 		QPlainTextEdit* ReplyBody          = nullptr;
@@ -249,6 +254,9 @@ namespace bpr::qt {
 		/// point, as before. Kept until replaced.
 		void               set_question(std::optional<core::agent_question> aQuestion);
 		[[nodiscard]] auto question() const noexcept -> const std::optional<core::agent_question>& { return Members.Question; }
+		/// \brief RFC-BPR-0125. What the next send reads skills from, as
+		/// `set_question` is given its subject; none reads its text.
+		void set_skill_text(std::optional<std::string> aSkillText);
 
 		/// \brief Adopts one accepted projection, and starts nothing.
 		void present(const side_chat_projection& aProjection);
