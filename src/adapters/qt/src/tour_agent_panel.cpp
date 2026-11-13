@@ -353,6 +353,16 @@ namespace bpr::qt {
 		aButton.setProperty("bprStopAccept", true);
 	}
 
+	auto make_tour_action(const QString& aText, QWidget* const aParent) -> QPushButton*
+	{
+		auto* const button = new QPushButton{ aText, aParent };
+		button->setFlat(false);
+		button->setAutoDefault(false);
+		button->setFocusPolicy(Qt::TabFocus);
+		button->setProperty("bprTourAction", true);
+		return button;
+	}
+
 	tour_agent_panel::tour_agent_panel(QWidget* aParent)
 		: QWidget{ aParent }
 	{
@@ -465,11 +475,10 @@ namespace bpr::qt {
 		auto* const confirmButtons = new QHBoxLayout{ };
 		confirmButtons->setSpacing(6);
 		confirmButtons->addStretch(1);
-		ResetNo = new quiet_push_button{ tr("Keep the tour"), ResetConfirm };
+		ResetNo = make_tour_action(tr("Keep the tour"), ResetConfirm);
 		ResetNo->setObjectName(QStringLiteral("tourResetCancel"));
-		ResetNo->setFlat(true);
 		ResetNo->setFocusPolicy(Qt::TabFocus);
-		ResetYes = new quiet_push_button{ tr("Reset tour"), ResetConfirm };
+		ResetYes = make_tour_action(tr("Reset tour"), ResetConfirm);
 		ResetYes->setObjectName(QStringLiteral("tourResetConfirmButton"));
 		ResetYes->setFocusPolicy(Qt::TabFocus);
 		confirmButtons->addWidget(ResetNo);
@@ -486,7 +495,7 @@ namespace bpr::qt {
 		auto* const doneWords = small(paragraph(tr("Tour reset. Undo reset brings it all back while you haven't changed the tour since."), ResetDone));
 		doneWords->setObjectName(QStringLiteral("tourResetDoneText"));
 		doneRow->addWidget(doneWords, 1);
-		UndoReset = new quiet_push_button{ tr("Undo reset"), ResetDone };
+		UndoReset = make_tour_action(tr("Undo reset"), ResetDone);
 		UndoReset->setObjectName(QStringLiteral("tourResetUndo"));
 		UndoReset->setFocusPolicy(Qt::TabFocus);
 		doneRow->addWidget(UndoReset, 0, Qt::AlignVCenter);
@@ -551,7 +560,7 @@ namespace bpr::qt {
 		// RFC-BPR-0106 as amended on 2026-11-13: it accepts no stop, so it
 		// does not say Accept. A revision from the tour's chat has its own
 		// Apply all on its card there; this one is for the rest.
-		AcceptAll = new quiet_push_button{ tr("Apply all"), ProposalBox };
+		AcceptAll = make_tour_action(tr("Apply all"), ProposalBox);
 		AcceptAll->setObjectName(QStringLiteral("tourProposalAcceptAll"));
 		AcceptAll->setFocusPolicy(Qt::TabFocus);
 		AcceptAll->setToolTip(tr("Puts every proposed part still waiting in the tour into it, as it reads now. Each new or changed stop still asks for your Accept."));
@@ -1448,7 +1457,7 @@ namespace bpr::qt {
 					itemColumn->addWidget(said);
 					Placements[index] = said;
 					if (off) {
-						auto* const move = new quiet_push_button{ tr("Move to nearest change"), box };
+						auto* const move = make_tour_action(tr("Move to nearest change"), box);
 						move->setObjectName(QStringLiteral("tourProposalRelocate"));
 						move->setFocusPolicy(Qt::TabFocus);
 						move->setToolTip(tr("Moves this stop onto the closest changed lines in this file. You can also add it as it is and choose its lines in the code."));
@@ -1524,7 +1533,7 @@ namespace bpr::qt {
 			// tour, Use this text, Remove, Merge, Split, Reorder; Accept only
 			// on a stop's own text, which accepts the stop (RFC-BPR-0106 as
 			// amended on 2026-11-13), in the stop's Accept look.
-			auto* const accept = new quiet_push_button{ tour_proposal_apply_words(item.Part), box };
+			auto* const accept = make_tour_action(tour_proposal_apply_words(item.Part), box);
 			accept->setObjectName(QStringLiteral("tourProposalAccept"));
 			if (tour_proposal_accepts_stop(item.Part)) {
 				wear_stop_accept(*accept);
@@ -1536,18 +1545,16 @@ namespace bpr::qt {
 								   : item.Part == core::tour_proposal_part::split_stop  ? tr("Puts these stops in this stop's place. Undo arrangement takes it back.")
 								   : item.Part == core::tour_proposal_part::reorder     ? tr("Puts the stops in this order. Undo arrangement takes it back.")
 																						: tr("Puts this text in the tour's %1.").arg(heading));
-			auto* const discard = new quiet_push_button{ tr("Discard"), box };
+			auto* const discard = make_tour_action(tr("Discard"), box);
 			discard->setObjectName(QStringLiteral("tourProposalDiscard"));
-			discard->setFlat(true);
 			// [[BPR-1900]] owner look v001: the first click acts. Neither
 			// button takes the keyboard on a press, so a field losing focus
 			// mid-click can't move the tab under the pointer; Tab still
 			// reaches both.
 			accept->setFocusPolicy(Qt::TabFocus);
 			discard->setFocusPolicy(Qt::TabFocus);
-			auto* const editText = new quiet_push_button{ edit ? tr("Show formatted") : tr("Edit text"), box };
+			auto* const editText = make_tour_action(edit ? tr("Show formatted") : tr("Edit text"), box);
 			editText->setObjectName(QStringLiteral("tourProposalEdit"));
-			editText->setFlat(true);
 			editText->setFocusPolicy(Qt::TabFocus);
 			editText->setToolTip(tr("Switches between this text as it will read and its Markdown source, which you can change before you accept it."));
 			editText->setVisible(textual);
@@ -1577,9 +1584,8 @@ namespace bpr::qt {
 			// fresh run; Ask more continues from it in the tour's chat, as
 			// quiet as Discard: it changes nothing here.
 			if (const auto* const made = core::find_tour_run(Session, item.Run); made != nullptr && made->Request == core::tour_agent_request::draft_tour && AskMoreDispatch) {
-				auto* const more = new quiet_push_button{ tr("Ask more"), box };
+				auto* const more = make_tour_action(tr("Ask more"), box);
 				more->setObjectName(QStringLiteral("tourProposalAskMore"));
-				more->setFlat(true);
 				more->setFocusPolicy(Qt::TabFocus);
 				more->setToolTip(tr("Ask about this draft in the tour's chat. The chat starts from what the draft said and keeps the conversation."));
 				connect(more, &QPushButton::clicked, this, [this, run = item.Run] {

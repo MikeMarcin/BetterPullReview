@@ -216,6 +216,35 @@ namespace {
 		expect(seen > 0, "an Accept shows " + aWhen);
 	}
 
+	/// The owner, rejecting tour-one-accept on 2026-11-13: "My complaint was
+	/// that the button STYLE was inconsistent and it still is. The accept
+	/// style looks better than the "Add to tour" or "Apply all" button
+	/// styles." Every action button the Tour panel and its proposal and
+	/// revision cards show is the stop Accept's button: the same class, not
+	/// flat, the same style, font and height; only the default is filled.
+	void expect_one_button_style(QWidget& aRoot, const QPushButton& aReference, const std::string& aWhen, const QStringList& aMustShow)
+	{
+		auto shown = QStringList{ };
+		for (auto* const button : aRoot.findChildren<QPushButton*>()) {
+			if (!button->isVisibleTo(&aRoot) || !button->property("bprTourAction").toBool()) {
+				continue;
+			}
+			shown << button->text();
+			const auto same = std::string_view{ button->metaObject()->className() } == aReference.metaObject()->className() && !button->isFlat() && button->style() == aReference.style()
+				&& button->font() == aReference.font() && button->sizeHint().height() == aReference.sizeHint().height();
+			expect(same, "every Tour action is the stop Accept's button, " + aWhen + ": " + button->objectName().toStdString() + " (" + button->text().toStdString() + ") " + button->metaObject()->className() + (button->isFlat() ? " flat" : "") + " h" + std::to_string(button->sizeHint().height()) + " against " + aReference.metaObject()->className() + " h" + std::to_string(aReference.sizeHint().height()));
+		}
+		for (const auto& words : aMustShow) {
+			expect(shown.contains(words), "the Tour action " + words.toStdString() + " shows and is one of them, " + aWhen + ": " + shown.join(QStringLiteral(", ")).toStdString());
+		}
+		// No other quiet chip stands among the panel's card actions.
+		for (const auto* const name : { "tourProposalAccept", "tourProposalDiscard", "tourProposalEdit", "tourProposalAcceptAll", "tourSideChatAccept", "tourSideChatDiscard", "tourSideChatRevisionAcceptAll", "tourSideChatRevisionReview", "tourSideChatRevisionDiscard" }) {
+			for (auto* const button : aRoot.findChildren<QPushButton*>(QString::fromLatin1(name))) {
+				expect(button->property("bprTourAction").toBool(), std::string{ "a card action is a Tour action, " } + aWhen + ": " + name);
+			}
+		}
+	}
+
 	void run(const core::appearance_mode aMode, const QString& aTheme)
 	{
 		qt::workbench_window window;
@@ -383,6 +412,7 @@ namespace {
 			   "the proposed stop says Add to tour, the Problem's text Use this text, Stop 1's own text Accept");
 		expect(editor->tour_agent()->accept_all_button()->isVisibleTo(editor) && editor->tour_agent()->accept_all_button()->text() == QStringLiteral("Apply all"), "a draft's three parts have one Apply all, on the panel's line");
 		expect_one_accept(window, *complete, "with a proposal on the stop");
+		expect_one_button_style(window, *complete, "with a proposal on the stop", { QStringLiteral("Accept"), QStringLiteral("Add to tour"), QStringLiteral("Apply all"), QStringLiteral("Discard") });
 		click(stopAccept);
 		expect(!decided.empty() && decided.back() == std::pair{ std::size_t{ 1U }, core::tour_proposal_decision::accepted }, "Accept on the proposed stop accepts it");
 		// [[BPR-2014]] AC03. Accept on Stop 1's own proposal accepts Stop 1,

@@ -47,6 +47,13 @@ namespace bpr::qt {
 	/// \brief The one look of Accept in the Tour panel and its side chats: the
 	/// platform's own default push button, the stop's one primary action.
 	void wear_stop_accept(QPushButton& aButton);
+	/// \brief The one action button of the Tour panel and its cards: the
+	/// platform's push button, as the stop's Accept is, with the same bevel,
+	/// padding, height, font and corners. Only the default (Accept) is filled.
+	/// \details The owner, rejecting the look on 2026-11-13: "My complaint
+	/// was that the button STYLE was inconsistent ... The accept style looks
+	/// better than the "Add to tour" or "Apply all" button styles."
+	[[nodiscard]] auto make_tour_action(const QString& aText, QWidget* aParent) -> QPushButton*;
 	/// \brief [[BPR-1900]]. The Tour tab's own agent session, at the top of
 	/// the tab: Draft the tour (Stop drafting while it runs), the whole-tour
 	/// proposal to accept, edit or discard item by item, and the session's

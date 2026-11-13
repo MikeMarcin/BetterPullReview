@@ -850,7 +850,7 @@ auto main(int argc, char** argv) -> int
 			chat->open(problemThread);
 			settle();
 			auto* const more = chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAskMore"));
-			expect(more != nullptr && more->text() == QStringLiteral("Ask more") && more->isFlat(), "AC12 the fresh suggestion offers Ask more, quiet");
+			expect(more != nullptr && more->text() == QStringLiteral("Ask more") && !more->isFlat() && more->property("bprTourAction").toBool(), "AC12 the fresh suggestion offers Ask more, in the one Tour action style (owner, 2026-11-13)");
 			more->click();
 			expect(askedMore.size() == 1U && askedMore[0] == *enhanced, "AC12 Ask more names the fresh run whose answer the chat continues from");
 			render(*chat, prefix, "side-chat-ask-more");

@@ -1866,14 +1866,14 @@ namespace bpr::qt {
 					buttons->setSpacing(6);
 					// RFC-BPR-0106 as amended on 2026-11-13: it accepts no stop,
 					// so it does not say Accept.
-					auto* const acceptAll = new quiet_push_button{ tr("Apply all"), card };
+					auto* const acceptAll = make_tour_action(tr("Apply all"), card);
 					acceptAll->setObjectName(QStringLiteral("tourSideChatRevisionAcceptAll"));
 					acceptAll->setToolTip(tr("Puts every part of this revision in the private draft. Nothing is published, and each new or changed stop still asks for your Accept."));
-					auto* const review = new quiet_push_button{ tr("Review each"), card };
+					auto* const review = make_tour_action(tr("Review each"), card);
 					review->setObjectName(QStringLiteral("tourSideChatRevisionReview"));
 					review->setToolTip(tr("Review each in the tour, where the parts wait marked grey: accept or discard them one by one there."));
 					review->setAccessibleName(tr("Review each in the tour"));
-					auto* const discard = new quiet_push_button{ tr("Discard"), card };
+					auto* const discard = make_tour_action(tr("Discard"), card);
 					discard->setObjectName(QStringLiteral("tourSideChatRevisionDiscard"));
 					discard->setToolTip(tr("Discards every part of this revision still waiting. The tour is unchanged."));
 					for (auto* const button : { static_cast<QPushButton*>(acceptAll), static_cast<QPushButton*>(review), static_cast<QPushButton*>(discard) }) {
@@ -1998,7 +1998,7 @@ namespace bpr::qt {
 					buttons->setSpacing(6);
 					// The same words and look as the part's button in the tour:
 					// Accept only on a stop's own text, which accepts the stop.
-					auto* const accept = new quiet_push_button{ tour_proposal_apply_words(item.Part), card };
+					auto* const accept = make_tour_action(tour_proposal_apply_words(item.Part), card);
 					accept->setObjectName(QStringLiteral("tourSideChatAccept"));
 					accept->setFocusPolicy(Qt::TabFocus);
 					accept->setToolTip(item.Part == core::tour_proposal_part::stop ? tr("Adds this stop at the end of the tour.")
@@ -2007,13 +2007,11 @@ namespace bpr::qt {
 					if (tour_proposal_accepts_stop(item.Part)) {
 						wear_stop_accept(*accept);
 					}
-					auto* const edit = new quiet_push_button{ editing ? tr("Show formatted") : tr("Edit text"), card };
+					auto* const edit = make_tour_action(editing ? tr("Show formatted") : tr("Edit text"), card);
 					edit->setObjectName(QStringLiteral("tourSideChatEdit"));
-					edit->setFlat(true);
 					edit->setFocusPolicy(Qt::TabFocus);
-					auto* const discard = new quiet_push_button{ tr("Discard"), card };
+					auto* const discard = make_tour_action(tr("Discard"), card);
 					discard->setObjectName(QStringLiteral("tourSideChatDiscard"));
-					discard->setFlat(true);
 					discard->setFocusPolicy(Qt::TabFocus);
 					buttons->addWidget(accept);
 					buttons->addWidget(edit);
@@ -2021,9 +2019,8 @@ namespace bpr::qt {
 					// [[BPR-2138]], RFC-BPR-0101 AC12. An Enhance is a fresh
 					// run; Ask more continues from its suggestion in this chat.
 					if (run->Fresh && AskMoreDispatch) {
-						auto* const more = new quiet_push_button{ tr("Ask more"), card };
+						auto* const more = make_tour_action(tr("Ask more"), card);
 						more->setObjectName(QStringLiteral("tourSideChatAskMore"));
-						more->setFlat(true);
 						more->setFocusPolicy(Qt::TabFocus);
 						more->setToolTip(tr("Ask about this suggestion here. Your next message starts from it, and the chat keeps the conversation."));
 						connect(more, &QPushButton::clicked, this, [this, made = run->Id] {

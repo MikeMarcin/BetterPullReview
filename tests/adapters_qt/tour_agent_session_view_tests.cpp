@@ -558,7 +558,8 @@ auto main(int argc, char** argv) -> int
 		editor.present_tour_session(session, std::nullopt);
 		editor.present_tour_session(session, proposal);
 		auto* const more = panel->accept_button(1)->parentWidget()->findChild<QPushButton*>(QStringLiteral("tourProposalAskMore"));
-		expect(more != nullptr && more->text() == QStringLiteral("Ask more") && more->isFlat() && more->toolTip().contains(QStringLiteral("tour's chat")), "Ask more is offered on Draft Tour's proposal, flat");
+		expect(more != nullptr && more->text() == QStringLiteral("Ask more") && !more->isFlat() && more->property("bprTourAction").toBool() && more->toolTip().contains(QStringLiteral("tour's chat")),
+			   "Ask more is offered on Draft Tour's proposal, in the one Tour action style (owner, 2026-11-13)");
 		more->click();
 		expect(askedMore.size() == 1U && askedMore[0] == *run, "Ask more names the fresh run it continues from");
 		panel->proposal_editor(0)->setPlainText(QStringLiteral("Edited by the author."));
