@@ -25,7 +25,7 @@
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -213,15 +213,17 @@ auto main(int argc, char** argv) -> int
 			return result;
 		}
 
-		// AC03. Keep as note: a private note on the file, naming the agent.
-		const auto notesBefore = window.private_notes()->notes().size();
+		// AC03. Keep as note: a Local comment on the file (RFC-BPR-0127),
+		// naming the agent.
+		auto* const cards       = window.conversation_panel()->cards();
+		const auto  notesBefore = cards->local_comments().size();
 		card->keep_button()->click();
 		wait([&] { return card->note() != 0U; }, "Keep as note makes a note");
-		wait([&] { return window.private_notes()->notes().size() == notesBefore + 1U; }, "the note is listed");
-		const auto& notes = window.private_notes()->notes();
-		const auto  kept  = std::ranges::find(notes, card->note(), &qt::private_note_item::Id);
-		expect(kept != notes.end() && kept->Text.starts_with("Agent: Claude explained this file.") && kept->Attachment && !kept->Attachment->Line,
-			   "the note is private, on the file and not a line, and names its agent origin");
+		wait([&] { return cards->local_comments().size() == notesBefore + 1U; }, "the Local comment is listed");
+		const auto& notes = cards->local_comments();
+		const auto  kept  = std::ranges::find(notes, card->note(), &qt::local_comment_card::Id);
+		expect(kept != notes.end() && kept->Body.startsWith(QStringLiteral("Agent: Claude explained this file.")) && kept->Place == qt::local_comment_place::whole_file && !kept->Line,
+			   "the Local comment is on the file and not a line, and names its agent origin");
 		expect(card->keep_button()->text() == QStringLiteral("Go to note"), "Keep as note becomes Go to note");
 
 		// AC03. Continue in Agent tab opens that turn.
@@ -248,10 +250,10 @@ auto main(int argc, char** argv) -> int
 		expect(tab->turn_explain(tab->turn_count() - 1U) == path && launchesAt() == setupLaunches + 2U, "the menu sends the same question about the file");
 
 		// AC03. Dismiss removes the card and makes no note; the turn stays.
-		const auto notesNow = window.private_notes()->notes().size();
+		const auto notesNow = cards->local_comments().size();
 		card->dismiss_button()->click();
 		QApplication::processEvents();
-		expect(card->isHidden() && window.private_notes()->notes().size() == notesNow && tab->turn_count() == turnsBefore + 2U, "Dismiss removes the card, makes no note, and the turn stays in the history");
+		expect(card->isHidden() && cards->local_comments().size() == notesNow && tab->turn_count() == turnsBefore + 2U, "Dismiss removes the card, makes no note, and the turn stays in the history");
 
 		// AC05. Nothing reached GitHub.
 		const auto after = access::review_mutation_evidence(*application);

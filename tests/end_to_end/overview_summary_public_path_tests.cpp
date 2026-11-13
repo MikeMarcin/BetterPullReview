@@ -506,7 +506,7 @@ int main(int aArgc, char** aArgv)
 	// The owner, 2026-11-13: "the other mode's drawers aren't being closed
 	// when going to overview." On a pull request the core closes them with
 	// the choice: Review's Files drawer and its tray, with the Tour tab open.
-	window.tray_tabs()->setCurrentIndex(2);
+	window.tray_tabs()->setCurrentIndex(1);
 	wait_for([&] { return window.files_drawer()->state() == core::workbench_drawer_state::expanded && window.conversations_drawer()->state() == core::workbench_drawer_state::expanded && window.tour_editor()->isVisible(); },
 			 "Review shows its Files drawer and its tray on the Tour tab");
 	window.modality()->action(qt::review_modality::overview)->trigger();

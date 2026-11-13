@@ -330,7 +330,7 @@ namespace {
 			return fail(*application, "live-file-open");
 		}
 		const auto open = window.files_drawer()->contents_view()->model()->index(0, 0).data().toString();
-		window.tray_tabs()->setCurrentIndex(3);
+		window.tray_tabs()->setCurrentIndex(2);
 		QApplication::processEvents();
 		auto       costs  = std::vector<std::optional<core::agent_cost>>{ };
 		const auto answer = [&](const std::function<void()>& aSend, const std::string_view aStep) -> bool {
@@ -611,7 +611,7 @@ namespace {
 		auto* const files = window.files_drawer()->contents_view();
 		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 		window.choose_modality(qt::review_modality::review);
-		window.tray_tabs()->setCurrentIndex(3);
+		window.tray_tabs()->setCurrentIndex(2);
 		auto* const tab = window.agent_tab();
 		// The saved conversation loads first; a send before it is refused.
 		static_cast<void>(e2e::wait_until_plain([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent; }, seconds(60)));
@@ -1024,7 +1024,7 @@ auto main(int argc, char** argv) -> int
 				return aTerms.require("comparison", surface->current_result() != nullptr && !window.showing_overview()); }, extended_agent_budget) || !surface->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop) || !e2e::select_right_side_of_change(*surface)) {
 			return fail(*application, "subject-selection", shown.render());
 		}
-		window.tray_tabs()->setCurrentIndex(3);
+		window.tray_tabs()->setCurrentIndex(2);
 		tab->refresh_suggestions();
 		QApplication::processEvents();
 		if (tab->lines_chip()->isHidden() || tab->lines_chip_text().isEmpty()) {

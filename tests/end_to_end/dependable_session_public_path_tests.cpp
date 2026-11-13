@@ -308,12 +308,12 @@ try {
 	// the remembered filters and the drawer widths are kept.
 	const auto leaveOnTour = [&](const QString& aIdentity) {
 		open(aIdentity);
-		window->tray_tabs()->setCurrentIndex(2);
+		window->tray_tabs()->setCurrentIndex(1);
 		window->tour_editor()->side_chat()->open(core::tour_thread{ }, std::nullopt, false);
 		QApplication::processEvents();
 		observe(*window, "left-on-tour", 0);
 		std::cout << "dependable-session:observe tray=" << window->tray_tabs()->currentIndex() << " chat_open=" << window->tour_editor()->side_chat()->column_open() << '\n';
-		expect(window->tray_tabs()->currentIndex() == 2 && window->tour_editor()->side_chat()->column_open(), "the review is left on the Tour tab with its side chat open");
+		expect(window->tray_tabs()->currentIndex() == 1 && window->tour_editor()->side_chat()->column_open(), "the review is left on the Tour tab with its side chat open");
 	};
 	const auto fresh = [&](const char* aWhat) {
 		std::cout << "dependable-session:observe opened tray=" << window->tray_tabs()->currentIndex() << " chat_open=" << window->tour_editor()->side_chat()->column_open() << " tour_page=" << window->tour_page_open() << '\n';

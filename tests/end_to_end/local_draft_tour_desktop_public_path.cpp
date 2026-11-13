@@ -230,9 +230,12 @@ try {
 		auto* const page = window.local_draft();
 		expect(page != nullptr && page->projection().Draft, "a local draft, signed out");
 		draftId = page->projection().Draft->Id;
-		expect(!window.tray_tabs()->isTabVisible(0) && window.tray_tabs()->tabText(1) == QStringLiteral("Notes") && window.tray_tabs()->tabText(2) == QStringLiteral("Tour")
+		// RFC-BPR-0127: Notes is gone; the draft's notes are its Comments.
+		window.tray_tabs()->setCurrentIndex(0);
+		expect(window.tray_tabs()->count() == 3 && window.tray_tabs()->isTabVisible(0) && window.tray_tabs()->accessibleTabName(0) == QStringLiteral("Comments")
+				   && window.tray_tabs()->accessibleTabName(1) == QStringLiteral("Tour") && window.findChild<QWidget*>(QStringLiteral("localDraftNotesPage"))->isVisible()
 				   && window.current_modality() == qt::review_modality::review,
-			   "the pull request window's tray holds Notes and Tour; the draft opens on Review");
+			   "the pull request window's tray holds Comments, the draft's notes, and Tour; the draft opens on Review");
 		auto* const tour = window.tour_editor();
 		expect(tour->local_words(), "the Tour tab is the window's own Tour panel, showing the draft's tour");
 
@@ -267,7 +270,7 @@ try {
 
 		// AC01, AC05: the Problem and Solution typed in the Tour panel.
 		window.choose_modality(qt::review_modality::review);
-		window.tray_tabs()->setCurrentIndex(2);
+		window.tray_tabs()->setCurrentIndex(1);
 		settle(s.Lanes);
 		tour->open_step(core::tour_step::problem);
 		tour->problem_editor()->setPlainText(QStringLiteral("Searches kept running after Cancel."));
@@ -383,7 +386,7 @@ try {
 			auto* const drawer = window.overview_page()->status_drawer();
 			expect(window.current_modality() == qt::review_modality::overview && window.overview_page()->isVisible(), "Overview shows");
 			expect(!files->isVisible() && !conversations->isVisible() && !tour->side_chat()->isVisible(), "Overview closes Review's drawers and the tour's chat");
-			expect(!drawer->conversation_tabs_shown() && drawer->current_tab() == qt::overview_drawer_tab::status, "Overview's own drawer has no Comments, Notes or Agent for a draft");
+			expect(!drawer->conversation_tabs_shown() && drawer->current_tab() == qt::overview_drawer_tab::status, "Overview's own drawer has no Comments or Agent for a draft");
 			capture(window, QStringLiteral("local-draft-overview-drawers-closed"));
 			window.choose_modality(qt::review_modality::review);
 			settle(s.Lanes);
@@ -413,7 +416,7 @@ try {
 		page->refresh_button()->click();
 		settle(s.Lanes);
 		expect(core::latest_candidate(*page->projection().Draft)->Ordinal == 3U, "candidate 3");
-		window.tray_tabs()->setCurrentIndex(2);
+		window.tray_tabs()->setCurrentIndex(1);
 		settle(s.Lanes);
 		const auto& moved = page->projection().Draft->Preparation.Tour.Stops[0];
 		expect(core::decide_local_stop(moved).Reason == core::local_stop_reason::changed && moved.Source.Candidate == 2U, "AC08: the changed stop keeps its original material");
@@ -448,7 +451,7 @@ try {
 		const auto& prep = page->projection().Draft->Preparation;
 		expect(prep.Description.Body.starts_with("<!-- team-template v3 -->") && prep.Tour.Stops.size() == 1U && prep.Conversations.size() == 2U && prep.Proposals.size() == 4U,
 			   "AC04: description, tour, conversations and proposals resume");
-		window.tray_tabs()->setCurrentIndex(2);
+		window.tray_tabs()->setCurrentIndex(1);
 		settle(s.Lanes);
 		auto* const tour = window.tour_editor();
 		// The agent is set up (the Agent tab's readiness, which this course has no setup for).

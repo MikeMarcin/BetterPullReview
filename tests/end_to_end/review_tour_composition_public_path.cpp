@@ -15,7 +15,6 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -983,19 +982,15 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Body == original.toStdString(); }, "the draft comment is kept locally");
 			wait([&] { return cards->enhance_control() != nullptr && cards->enhance_control()->isVisible() && cards->enhance_control()->isEnabled(); }, "the draft offers Enhance");
 			expect(qt::agent_run_control(*cards->enhance_control()) && cards->enhance_control()->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(window.palette()), "Enhance wears the Agent accent");
-			// The note.
+			// The note: RFC-BPR-0127, a Local comment written in the composer (N).
 			const auto writeNote = [&] {
-				window.tray_tabs()->setCurrentIndex(1);
-				QApplication::processEvents();
-				auto* const notes = window.private_notes();
-				wait([&] { return notes->new_review_action()->isEnabled(); }, "private notes available");
-				notes->new_review_action()->trigger();
-				notes->body_editor()->setPlainText(QStringLiteral("check the cache invalidation here, looks like it might be missing the delete path?? ask about tests"));
-				notes->save_action()->trigger();
-				wait([&] { return notes->notes().size() == 1U && !notes->save_action()->isEnabled(); }, "the note is saved privately");
-				notes->open_note(notes->notes().front().Id);
-				wait([&] { return notes->enhance_control() != nullptr && notes->enhance_control()->isVisible() && notes->enhance_control()->isEnabled(); }, "the open note offers Enhance");
-				return notes;
+				window.close_drawer_composer(false);
+				wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, 3U); }, "another head line is selected");
+				window.local_comment_action()->trigger();
+				wait([&] { return cards->writing_draft() && window.composing_local() && cards->draft_editor() != nullptr && !cards->draft_editor()->isReadOnly(); }, "N opens the composer on Local");
+				cards->draft_editor()->setPlainText(QStringLiteral("check the cache invalidation here, looks like it might be missing the delete path?? ask about tests"));
+				wait([&] { return cards->enhance_control() != nullptr && cards->enhance_control()->isVisible() && cards->enhance_control()->isEnabled(); }, "the Local comment offers Enhance");
+				return cards;
 			};
 			if (attended) {
 				auto* const notes = writeNote();
@@ -1080,18 +1075,18 @@ auto main(int argc, char** argv) -> int
 			}
 			// The note.
 			auto* const notes = writeNote();
-			const auto  saved = notes->notes().front().Text;
+			const auto  saved = notes->draft_editor()->toPlainText();
 			auto* const noted = notes->enhance_panel();
 			before            = launched();
 			notes->enhance_control()->click();
-			ran(before, "the note's Enhance runs");
-			wait([&] { return !noted->suggestion_text().isEmpty(); }, "the note's suggestion comes back");
-			expect(notes->body_editor()->toPlainText().toStdString() == saved, "the note is unchanged by the suggestion");
+			ran(before, "the Local comment's Enhance runs");
+			wait([&] { return !noted->suggestion_text().isEmpty(); }, "the Local comment's suggestion comes back");
+			expect(notes->draft_editor()->toPlainText() == saved, "the Local comment is unchanged by the suggestion");
 			noted->use_button()->click();
 			QApplication::processEvents();
-			expect(notes->body_editor()->toPlainText().startsWith(QStringLiteral("Check cache invalidation:")) && notes->save_action()->isEnabled() && notes->notes().front().Text == saved,
-				   "Use puts it in the note to save; nothing is saved until Save");
-			notes->discard_action()->trigger();
+			expect(notes->draft_editor()->toPlainText().startsWith(QStringLiteral("Check cache invalidation:")) && notes->local_comments().empty(),
+				   "Use puts it in the Local comment to save; nothing is saved until Save");
+			window.close_drawer_composer(true);
 			QApplication::processEvents();
 			// Each prompt in Settings, with its built-in and its restore.
 			auto* const hooks = window.writing_hooks();
@@ -1460,7 +1455,7 @@ auto main(int argc, char** argv) -> int
 				editor.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
 				window.open_overview_tab(qt::overview_drawer_tab::tour);
 				summary->action()->click();
-				wait([&] {const auto* surface=window.comparison_surface();return !window.showing_overview() && window.tray_tabs()->currentIndex()==2 && surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("review.cpp"); }, "Continue in Review opens Review's Tour tab at the stop it was on");
+				wait([&] {const auto* surface=window.comparison_surface();return !window.showing_overview() && window.tray_tabs()->currentIndex()==1 && surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("review.cpp"); }, "Continue in Review opens Review's Tour tab at the stop it was on");
 				// Start tour, as a reader's button asks it: the tour in the
 				// window opens at its first stop.
 				window.open_overview_tab(qt::overview_drawer_tab::tour);

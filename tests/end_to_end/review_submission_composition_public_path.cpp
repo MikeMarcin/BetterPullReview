@@ -7,7 +7,7 @@
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -433,45 +433,45 @@ auto main(int argc, char** argv) -> int
 				if (window.conversations_drawer()->state() != core::workbench_drawer_state::expanded) {
 					window.conversations_drawer_toggle_action()->trigger();
 				}
-				// [[BPR-1592]]. Notes is the private notes at their lines; the
-				// agent's tools are the Agent tab's.
-				window.tray_tabs()->setCurrentIndex(1);
+				// RFC-BPR-0127 ([[BPR-2158]]). Notes is gone: my Local comments
+				// are cards in Comments, and N writes one at the selected line.
+				window.tray_tabs()->setCurrentIndex(0);
 				QApplication::processEvents();
-				// Below 340 pixels the tab is its icon; its name is always said.
-				expect(window.tray_tabs()->accessibleTabName(1) == QStringLiteral("Notes") && (window.tray_tabs()->tabText(1) == QStringLiteral("Notes") || !window.tray_tabs()->tabIcon(1).isNull()),
-					   "the composed private editor is reached under Notes");
-				auto*      notes  = window.private_notes();
-				const auto newest = [notes](const std::string& aText) -> const qt::private_note_item* {
-					const auto& all   = notes->notes();
-					const auto  found = std::ranges::find(all, aText, &qt::private_note_item::Text);
-					return found == all.end() ? nullptr : &*found;
+				for (auto index = 0; index < window.tray_tabs()->count(); ++index) {
+					expect(window.tray_tabs()->accessibleTabName(index) != QStringLiteral("Notes"), "the tray has no Notes tab");
+				}
+				const auto localCard = [cards](const QString& aText) -> std::optional<qt::local_comment_card> {
+					const auto& all   = cards->local_comments();
+					const auto  found = std::ranges::find(all, aText, &qt::local_comment_card::Body);
+					return found == all.end() ? std::nullopt : std::optional{ *found };
 				};
-				wait([&] { return notes->new_review_action()->isEnabled(); }, "private ledger available without any agent opt-in");
-				notes->new_review_action()->trigger();
-				notes->body_editor()->setPlainText(QStringLiteral("Private pull request note"));
-				notes->save_action()->trigger();
-				wait([&] { return notes->notes().size() == 1U && !notes->save_action()->isEnabled(); }, "PR note is committed through the existing ledger");
-				const auto prNote = notes->notes().front().Id;
-				expect(!notes->notes().front().Attachment, "the pull request's note has no file");
-				// N: a note on the line Comment was written on.
-				notes->show_elsewhere(false);
-				notes->new_line_action()->trigger();
-				wait([&] { return notes->writing() && notes->body_editor()->hasFocus(); }, "N opens a new note at the selected line");
-				notes->body_editor()->setPlainText(QStringLiteral("A private note, copied literally."));
-				notes->save_action()->trigger();
-				wait([&] { return notes->notes().size() == 2U && newest("A private note, copied literally.") != nullptr; }, "line note commits");
-				const auto* const lineNote = newest("A private note, copied literally.");
-				const auto        noteId   = lineNote->Id;
-				const auto        noteLine = lineNote->Attachment ? lineNote->Attachment->Line : std::nullopt;
-				expect(noteId != prNote && noteLine.has_value() && noteLine->Blob.has_value() && lineNote->Label != "Pull request"
-						   && notes->placement(noteId).Kind == core::note_placement_kind::placed
-						   && (!notes->note_rect(noteId).isEmpty() || std::ranges::any_of(notes->edge_chips(), [&noteLine](const QAbstractButton* aChip) { return aChip->text() == QString::number(noteLine->Line + 1U); })),
-					   "the new note keeps its line and blob, names its file, and hangs at its line (or, its line scrolled away, waits in a chip)");
-				expect(window.comparison_surface()->selection()->PreferredLine.Line == noteLine->Line, "it is on the line that was selected");
+				const auto writeLocal = [&](const std::uint32_t aLine, const QString& aText) {
+					window.close_drawer_composer(false);
+					wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, aLine); }, "a line is selected for a Local comment");
+					window.local_comment_action()->trigger();
+					wait([&] { return cards->writing_draft() && window.composing_local() && cards->draft_editor() != nullptr && !cards->draft_editor()->isReadOnly(); }, "N opens the composer on Local");
+					cards->draft_editor()->setPlainText(aText);
+					wait([&] { auto* const save = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadSaveLocal")) : nullptr; return save != nullptr && save->isVisible() && save->isEnabled(); }, "Save is offered for Local");
+					cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadSaveLocal"))->click();
+					wait([&] { return localCard(aText).has_value(); }, "the Local comment is kept");
+				};
+				// A Local comment on the pull request, as a migrated note leaves
+				// one; Overview's Comments draws it, not the code's.
+				expect(access::seed_local_comment(*application, "Private pull request note", false), "the pull request's Local comment is stored");
+				wait([&] { return localCard(QStringLiteral("Private pull request note")).has_value(); }, "PR note is committed through the existing ledger");
+				const auto prNote = *localCard(QStringLiteral("Private pull request note"));
+				expect(prNote.Place == qt::local_comment_place::pull_request && !prNote.Line, "the pull request's Local comment has no file or line");
+				// N: a Local comment on a line of the file shown.
+				writeLocal(30U, QStringLiteral("A private note, copied literally."));
+				const auto lineNote = *localCard(QStringLiteral("A private note, copied literally."));
+				const auto noteId   = lineNote.Id;
+				expect(noteId != prNote.Id && lineNote.Place == qt::local_comment_place::line && lineNote.Line == std::optional{ 31U } && lineNote.Side == core::diff_side::right,
+					   "the new Local comment keeps its line and hangs at it in Comments");
+				expect(window.comparison_surface()->selection()->PreferredLine.Line == 30U, "it is on the line that was selected");
 				{
-					// [[BPR-1210]], [[BPR-1591]]. The note was written with its file's
-					// path and its line, so it can still name the file after a later
-					// update drops it, and hang at its line again.
+					// [[BPR-1210]], [[BPR-1591]]. The comment was written with its
+					// file's path and its line, so it can still name the file after a
+					// later update drops it, and hang at its line again.
 					auto ledger = std::filesystem::path{ };
 					for (const auto& entry : std::filesystem::recursive_directory_iterator{ *dataRoot }) {
 						if (entry.path().filename() == "review-ledger.sqlite3") {
@@ -495,33 +495,31 @@ auto main(int argc, char** argv) -> int
 					}
 					::sqlite3_finalize(query);
 					::sqlite3_close(database);
-					expect(paths.size() == 1 && !paths.front().isEmpty() && QString::fromStdString(lineNote->Label).contains(paths.front()),
-						   "the file note's path is kept with it, and only the file note has one");
-					expect(lines.size() == 1U && lines.front().second == static_cast<int>(noteLine->Line) && lines.front().first == (noteLine->Side == core::diff_side::left ? 0 : 1),
-						   "the line note's side and line are kept in the ledger");
+					expect(paths.size() == 1 && !paths.front().isEmpty(), "the line comment's path is kept with it, and only it has one");
+					expect(lines.size() == 1U && lines.front().second == 30 && lines.front().first == 1, "the line comment's side and line are kept in the ledger");
 				}
-				notes->open_note(noteId);
-				notes->body_editor()->setPlainText(QString(static_cast<qsizetype>(core::maximum_comment_body_bytes) + 1, QLatin1Char{ 'x' }));
-				notes->save_action()->trigger();
+				// Edited in place past the body limit: refused, the words kept.
+				window.close_drawer_composer(false);
+				expect(cards->begin_comment_edit(qt::conversation_cards_view::local_comment_identity(noteId)), "the Local comment opens for editing in place");
+				wait([&] { return cards->comment_editor() != nullptr; }, "its editor is shown");
+				cards->comment_editor()->setPlainText(QString(static_cast<qsizetype>(core::maximum_comment_body_bytes) + 1, QLatin1Char{ 'x' }));
+				QApplication::processEvents();
+				cards->comment_edit_save_button()->click();
 				// [[BPR-1246]]. The ledger answers on its own lane ([[BPR-1211]]),
 				// so the refusal is waited for rather than read at once.
-				wait([&] { return notes->body_editor()->toPlainText().size() == static_cast<qsizetype>(core::maximum_comment_body_bytes) + 1
-							   && notes->findChild<QLabel*>(QStringLiteral("privateNoteStatus"))->text().contains(QStringLiteral("invalid_record")); },
+				wait([&] { return cards->comment_editing().has_value() && cards->comment_editor()->toPlainText().size() == static_cast<qsizetype>(core::maximum_comment_body_bytes) + 1
+							   && cards->comment_edit_status() != nullptr && cards->comment_edit_status()->text().contains(QStringLiteral("not saved")); },
 					 "refused write retains the full local candidate and says why");
-				notes->discard_action()->trigger();
-				expect(notes->body_editor()->toPlainText() == QStringLiteral("A private note, copied literally."), "explicit discard restores the accepted note");
-				notes->close_note();
-				notes->open_note(prNote);
-				notes->erase_action()->trigger();
-				wait([&] { return notes->notes().size() == 1U && notes->notes().front().Id == noteId; }, "revision-checked note delete commits");
+				cards->comment_edit_cancel_button()->click();
+				wait([&] { return !cards->comment_editing().has_value() && localCard(QStringLiteral("A private note, copied literally.")).has_value(); }, "Cancel keeps the accepted Local comment");
 				// [[BPR-1592]]. The agent's purpose and tools are the Agent tab's.
-				window.tray_tabs()->setCurrentIndex(3);
+				window.tray_tabs()->setCurrentIndex(2);
 				QApplication::processEvents();
 				auto* const agent       = window.agent_tab();
 				auto* const legacyPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-				expect(window.tray_tabs()->accessibleTabName(3) == QStringLiteral("Agent") && agent != nullptr && agent->isVisible()
-						   && agent->isAncestorOf(window.side_chat()->composer()) && legacyPages != nullptr && !legacyPages->isVisible() && !notes->isVisible(),
-					   "the accepted Agent tab owns the question field; legacy nested pages and Notes are hidden");
+				expect(window.tray_tabs()->accessibleTabName(2) == QStringLiteral("Agent") && agent != nullptr && agent->isVisible()
+						   && agent->isAncestorOf(window.side_chat()->composer()) && legacyPages != nullptr && !legacyPages->isVisible() && !cards->isVisible(),
+					   "the accepted Agent tab owns the question field; legacy nested pages and Comments are hidden");
 #if defined(BPR_AGENT_INTEGRATIONS)
 				// [[BPR-1753]], RFC-BPR-0092 AC01. Shown for the first time on
 				// a fixture with no agent on its search path and no agent chosen, the
@@ -533,52 +531,30 @@ auto main(int argc, char** argv) -> int
 						   && !window.side_chat()->composer()->isVisible(),
 					   "the setup's Agent step says no agent was found, and the question field is not offered yet");
 #endif
-				window.tray_tabs()->setCurrentIndex(1);
+				window.tray_tabs()->setCurrentIndex(0);
 				QApplication::processEvents();
 				if (argc > 1) {
 					QApplication::processEvents();
-					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-private-notes.png")), "private notes controls render");
+					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-local-comments.png")), "Local comments render");
 				}
-				// Draft comment: the note's words become a draft at its line.
-				const auto beforePromotion = access::review_mutation_evidence(*application);
-				notes->open_note(noteId);
-				wait([&] { return notes->promote_action()->isEnabled(); }, "a note at its line offers Draft comment");
-				notes->promote_action()->trigger();
-				wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "A private note, copied literally."
-							   && inlineDraft->shown_draft()->Anchor.Line == noteLine->Line && inlineDraft->shown_draft()->Anchor.Side == noteLine->Side
-							   && cards->writing_draft() && cards->draft_editor() != nullptr && cards->draft_editor()->isVisible()
-							   && cards->draft_editor()->toPlainText() == QStringLiteral("A private note, copied literally."); },
-					 "Draft comment opens its exact local draft at the note's line, in the drawer");
-				const auto afterPromotion   = access::review_mutation_evidence(*application);
-				const auto privatePromotion = [&](const auto& aEvidence, const std::vector<qt::private_note_item>& aNotes) {
-					return aNotes.size() == 1U && aNotes.front().Id == noteId && aNotes.front().Text == "A private note, copied literally."
-						&& aEvidence.Submissions == beforePromotion.Submissions && aEvidence.StoredComments == beforePromotion.StoredComments
-						&& aEvidence.Replies == beforePromotion.Replies;
-				};
-				expect(privatePromotion(afterPromotion, notes->notes()) && window.tray_tabs()->currentIndex() == 0, "one item is copied to Comments while its private source stays and no GitHub mutation occurs");
-				auto publishedPromotion = afterPromotion;
-				++publishedPromotion.StoredComments;
-				expect(!privatePromotion(publishedPromotion, notes->notes()), "negative control rejects implicit publication evidence");
-				expect(!privatePromotion(afterPromotion, { }), "negative control rejects a removed source note");
-				if (argc > 1) {
-					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-note-promoted.png")), "promoted private note render");
-				}
+				// Make draft is offered on the Local comment at its line;
+				// pressing it is the Local comments course's (AC04). Offering it
+				// publishes nothing.
+				const auto beforeOffer = access::review_mutation_evidence(*application);
+				cards->open_thread(qt::conversation_cards_view::local_comment_identity(noteId));
+				wait([&] { auto* const make = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMakeDraft")) : nullptr; return make != nullptr && make->isVisible(); },
+					 "a Local comment at its line offers Make draft");
+				const auto afterOffer = access::review_mutation_evidence(*application);
+				expect(afterOffer.Submissions == beforeOffer.Submissions && afterOffer.StoredComments == beforeOffer.StoredComments && afterOffer.Replies == beforeOffer.Replies,
+					   "no GitHub mutation occurs");
+				cards->close_thread();
 				// RFC-BPR-0127 AC03 ([[BPR-2157]]). Local comments on the
 				// line and on the pull request stand through every send this
 				// course makes; none is ever sent (checked at its end).
-				window.tray_tabs()->setCurrentIndex(1);
-				QApplication::processEvents();
-				notes->new_line_action()->trigger();
-				wait([&] { return notes->writing(); }, "N opens a Local comment at the line");
-				notes->body_editor()->setPlainText(QStringLiteral("LOCAL-ONLY: a line comment, never sent."));
-				notes->save_action()->trigger();
-				wait([&] { return newest("LOCAL-ONLY: a line comment, never sent.") != nullptr; }, "the Local line comment is kept");
-				notes->close_note();
-				notes->new_review_action()->trigger();
-				notes->body_editor()->setPlainText(QStringLiteral("LOCAL-ONLY: a pull request comment, never sent."));
-				notes->save_action()->trigger();
-				wait([&] { return newest("LOCAL-ONLY: a pull request comment, never sent.") != nullptr; }, "the Local pull request comment is kept");
-				notes->close_note();
+				writeLocal(32U, QStringLiteral("LOCAL-ONLY: a line comment, never sent."));
+				expect(access::seed_local_comment(*application, "LOCAL-ONLY: a pull request comment, never sent.", false), "the Local pull request comment is stored");
+				wait([&] { return localCard(QStringLiteral("LOCAL-ONLY: a pull request comment, never sent.")).has_value(); }, "the Local pull request comment is kept");
+				window.close_drawer_composer(false);
 				window.tray_tabs()->setCurrentIndex(0);
 				window.close_review_composition();
 				window.open_review_composition();
@@ -638,11 +614,12 @@ auto main(int argc, char** argv) -> int
 		application.reset();
 		application = make(app::detail::github_epoch_fixture_phase::reuse);
 		open(*application, cli);
-		auto* restoredNotes = application->window().private_notes();
-		// The note and the two Local comments written for AC03.
-		wait([&] { return restoredNotes->notes().size() == 3U; }, "private note survives application reconstruction through SQLite");
-		const auto promotedSource = std::ranges::find(restoredNotes->notes(), std::string{ "A private note, copied literally." }, &qt::private_note_item::Text);
-		expect(promotedSource != restoredNotes->notes().end() && promotedSource->Attachment && promotedSource->Attachment->Line, "promotion retained the durable private source, with its line");
+		auto* restoredNotes = application->window().conversation_panel()->cards();
+		// The two Local comments of the first part and the two written for AC03.
+		wait([&] { return restoredNotes->local_comments().size() == 4U; }, "Local comments survive application reconstruction through SQLite");
+		const auto restoredLine = std::ranges::find(restoredNotes->local_comments(), QStringLiteral("A private note, copied literally."), &qt::local_comment_card::Body);
+		expect(restoredLine != restoredNotes->local_comments().end() && (restoredLine->Line.has_value() || restoredLine->Place == qt::local_comment_place::other_file),
+			   "the line's Local comment is restored with its line");
 		auto& restored = *application->window().review_submission_editor_view();
 		submitted(restored);
 		expect(restored.last_submitted()->Id == pending.Id && restored.last_submitted()->Attempt == pending.Attempt

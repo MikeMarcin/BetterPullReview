@@ -1055,7 +1055,7 @@ auto main(int argc, char** argv) -> int
 		if (!window.ai_tools_action()->isChecked()) {
 			window.ai_tools_action()->trigger();
 		}
-		window.tray_tabs()->setCurrentIndex(3);
+		window.tray_tabs()->setCurrentIndex(2);
 		if (!wait_until([&] { return window.files_drawer()->contents_view()->model()->rowCount() > 0 && panel->profile_selector()->count() >= 2; })) {
 			return fail(*application, "native-open");
 		}
@@ -1850,7 +1850,7 @@ auto main(int argc, char** argv) -> int
 		if (!window.ai_tools_action()->isChecked()) {
 			window.ai_tools_action()->trigger();
 		}
-		window.tray_tabs()->setCurrentIndex(3);
+		window.tray_tabs()->setCurrentIndex(2);
 		auto* const setup            = window.agent_setup();
 		const auto  button           = [setup](const QString& aName) { return setup->findChild<QPushButton*>(aName); };
 		const auto  changeRepository = [setup] {
@@ -2288,7 +2288,7 @@ auto main(int argc, char** argv) -> int
 			if (notesPages == nullptr || privatePages == nullptr || composer == nullptr || turns == nullptr || profiles == nullptr) {
 				return fail(*application, "private-history-controls");
 			}
-			window.tray_tabs()->setCurrentIndex(1);
+			window.tray_tabs()->setCurrentIndex(2);
 			for (auto page = 0; page < notesPages->count(); ++page) {
 				if (notesPages->widget(page)->isAncestorOf(privatePanel)) {
 					notesPages->setCurrentIndex(page);

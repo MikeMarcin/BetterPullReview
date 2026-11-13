@@ -356,7 +356,7 @@ namespace {
 		panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
 		aWindow.settings()->hide();
 		aWindow.choose_modality(qt::review_modality::review);
-		aWindow.tray_tabs()->setCurrentIndex(3);
+		aWindow.tray_tabs()->setCurrentIndex(2);
 		auto* const tab    = aWindow.agent_tab();
 		const auto  before = tab->turn_count();
 		// As a person sends: once the setup has given way to the conversation.
@@ -456,7 +456,7 @@ namespace {
 		panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
 		aWindow.settings()->hide();
 		aWindow.choose_modality(qt::review_modality::review);
-		aWindow.tray_tabs()->setCurrentIndex(3);
+		aWindow.tray_tabs()->setCurrentIndex(2);
 		auto* const tab = aWindow.agent_tab();
 		wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
 		const auto quote = [](const QString& aText) {
@@ -1776,7 +1776,7 @@ namespace {
 		require([&] { return view->projection().File && view->projection().File->Path == path && aWindow.comparison_surface()->current_result() != nullptr; }, "the file shows");
 		const auto digest = aWindow.comparison_surface()->current_result()->Alignment.Digest;
 		static_cast<void>(aWindow.comparison_surface()->restore_source_range({ .Comparison = digest, .Side = core::diff_side::right, .Line = 0U }, { .Comparison = digest, .Side = core::diff_side::right, .Line = 0U }));
-		aWindow.tray_tabs()->setCurrentIndex(2);
+		aWindow.tray_tabs()->setCurrentIndex(1);
 		tour->trigger(qt::tour_editor_action::add_stop);
 		require([&] { return !view->projection().Draft->Preparation.Tour.Stops.empty(); }, "a stop is added in the Tour panel");
 		const auto stop = core::tour_stop_id{ view->projection().Draft->Preparation.Tour.Stops.front().Id };

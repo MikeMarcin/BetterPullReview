@@ -201,7 +201,7 @@ int main(int aArgc, char** aArgv)
 	const auto  retainedSummary = panel->summary_text();
 	const auto  retainedWidth   = window.files_drawer()->width();
 	expect(tabs->tabRect(1).right() < fileSearch->width() - 20, "native tab labels leave room across the header");
-	expect(std::abs(tabs->mapTo(&window, QPoint{ }).y() - window.tray_tabs()->mapTo(&window, QPoint{ }).y()) <= 2, "Files/Search and Comments/Notes start at the same drawer header edge");
+	expect(std::abs(tabs->mapTo(&window, QPoint{ }).y() - window.tray_tabs()->mapTo(&window, QPoint{ }).y()) <= 2, "Files/Search and Comments/Tour/Agent start at the same drawer header edge");
 	click_tab(*tabs, 0);
 	expect(!panel->isVisible() && filter->isVisible() && filter->text() == QStringLiteral("other"), "mouse Files switch restores its retained filter");
 	render(window, QStringLiteral("drawer-tabs-files"));

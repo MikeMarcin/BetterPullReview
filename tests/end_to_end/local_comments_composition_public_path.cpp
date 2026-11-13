@@ -391,13 +391,15 @@ int main(int aArgc, char** aArgv)
 	expect(held.has_value(), "the held draft is a card at its line");
 	cards->open_thread(held->Id);
 	QApplication::processEvents();
-	// The held draft opens in the composer: Local, then Save, is Keep local.
+	// The held draft opens in the composer, where Local is not offered: the
+	// segment is disabled and says why, and pressing it changes nothing.
 	wait_for([&] { return cards->writing_draft() && open_button(*cards, "threadStateLocal") != nullptr; }, "the held draft is open in the composer");
+	wait_for([&] { auto* const local = open_button(*cards, "threadStateLocal"); return local != nullptr && !local->isEnabled() && local->toolTip().contains(QStringLiteral("holds this draft")); },
+			 "AC05: Local is disabled on a draft the submitted review holds, and says why");
+	std::cout << "LOCAL_COMMENTS_HELD_REFUSAL " << open_button(*cards, "threadStateLocal")->toolTip().toStdString() << '\n';
 	open_button(*cards, "threadStateLocal")->click();
-	wait_for([&] { auto* const save = open_button(*cards, "threadSaveLocal"); return save != nullptr && save->isVisible(); }, "Save stands for Local");
-	open_button(*cards, "threadSaveLocal")->click();
-	wait_for([&] { return window.statusBar()->currentMessage().contains(QStringLiteral("holds this draft")); }, "AC05: Keep local on a draft the submitted review holds is refused, and says why");
-	std::cout << "LOCAL_COMMENTS_HELD_REFUSAL " << window.statusBar()->currentMessage().toStdString() << '\n';
+	QApplication::processEvents();
+	expect(!window.composing_local() && (open_button(*cards, "threadSaveLocal") == nullptr || !open_button(*cards, "threadSaveLocal")->isVisible()), "AC05: pressing the disabled Local chooses nothing");
 	QApplication::processEvents();
 	expect(window.draft_roster().Held == 1U, "AC05: the held draft is unchanged");
 	access::hold_review_submission_terminals(*application, false);

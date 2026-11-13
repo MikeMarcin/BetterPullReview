@@ -1,7 +1,6 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/files_tree.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "native_main_menu_probe.hpp"
 
@@ -9,6 +8,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QPlainTextEdit>
+#include <QScrollArea>
 #include <QTabWidget>
 #include <QThread>
 #include <QWindow>
@@ -148,11 +148,13 @@ int main(int argc, char** argv)
 	expect(open(), "Review's preset opens Files and Comments");
 
 	// A note being written in the Conversations drawer keeps Command-B.
-	// [[BPR-1592]]. Notes is the tray's second tab.
-	window.tray_tabs()->setCurrentIndex(1);
-	window.private_notes()->present({ .Scope = 1U, .Available = true });
-	window.private_notes()->new_review_action()->trigger();
-	auto* const body = window.private_notes()->body_editor();
+	// RFC-BPR-0127: Notes is gone; an editable field in the Comments tab
+	// stands for what is written there.
+	window.tray_tabs()->setCurrentIndex(0);
+	auto* const body = new QPlainTextEdit{ window.comments_tab_scroll()->viewport() };
+	body->setObjectName(QStringLiteral("testDrawerTextField"));
+	body->setGeometry(4, 4, 200, 80);
+	body->show();
 	body->setFocus(Qt::OtherFocusReason);
 	body->setPlainText(QStringLiteral("half a sentence"));
 	expect(wait_quietly([body] { return QApplication::focusWidget() == body; }, 2000) && !body->isReadOnly(),
@@ -167,6 +169,7 @@ int main(int argc, char** argv)
 
 	// The same key from a list goes to the command, by AppKit's menu or Qt's
 	// shortcut, whichever takes it first.
+	body->hide();
 	window.tray_tabs()->setCurrentIndex(0);
 	window.files_tree()->setFocus(Qt::OtherFocusReason);
 	expect(wait_quietly([&window] { return QApplication::focusWidget() == window.files_tree(); }, 2000),
