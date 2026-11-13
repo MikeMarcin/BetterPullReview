@@ -461,11 +461,11 @@ namespace bpr::core {
 		return "unknown";
 	}
 
-	auto stable_name(const prompt_kind aKind) noexcept -> std::string_view
+	auto stable_name(const prompt_ask aKind) noexcept -> std::string_view
 	{
 		switch (aKind) {
-		case prompt_kind::question: return "question";
-		case prompt_kind::review:   return "review";
+		case prompt_ask::question: return "question";
+		case prompt_ask::review:   return "review";
 		}
 		return "unknown";
 	}
@@ -482,12 +482,12 @@ namespace bpr::core {
 		return false;
 	}
 
-	auto prompt_kind_allowed(const prompt_place aPlace, const prompt_subject aSubject, const prompt_kind aKind) noexcept -> bool
+	auto prompt_ask_allowed(const prompt_place aPlace, const prompt_subject aSubject, const prompt_ask aKind) noexcept -> bool
 	{
 		if (!prompt_subject_allowed(aPlace, aSubject)) {
 			return false;
 		}
-		return aKind == prompt_kind::question || (aPlace == prompt_place::agent_tab && (aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file));
+		return aKind == prompt_ask::question || (aPlace == prompt_place::agent_tab && (aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file));
 	}
 
 	auto stable_name(const prompt_fact aFact) noexcept -> std::string_view
@@ -811,7 +811,7 @@ namespace bpr::core {
 		append_refusals(problems, text, false);
 		if (!prompt_subject_allowed(aMacro.Place, body.Subject)) {
 			problems.push_back(problem(prompt_problem::subject_not_for_place));
-		} else if (!prompt_kind_allowed(aMacro.Place, body.Subject, body.Kind)) {
+		} else if (!prompt_ask_allowed(aMacro.Place, body.Subject, body.Kind)) {
 			problems.push_back(problem(prompt_problem::kind_not_for_subject));
 		}
 		if (body.Conditions.size() > maximum_prompt_conditions) {

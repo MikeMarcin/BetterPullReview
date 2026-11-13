@@ -8,7 +8,7 @@
 namespace bpr::core {
 	namespace {
 		/// A built-in whose name is its template.
-		auto plain(std::string aId, const prompt_place aPlace, const std::string& aText, const prompt_subject aSubject, std::vector<prompt_condition> aConditions = { }, const prompt_kind aKind = prompt_kind::question) -> prompt_builtin
+		auto plain(std::string aId, const prompt_place aPlace, const std::string& aText, const prompt_subject aSubject, std::vector<prompt_condition> aConditions = { }, const prompt_ask aKind = prompt_ask::question) -> prompt_builtin
 		{
 			return {
 				.Macro = {
@@ -39,8 +39,8 @@ namespace bpr::core {
 		return std::vector<prompt_builtin>{
 			// The Agent tab: owner decision (a), 2026-10-23, and looks v004
 			// and v005 (a block says so, and names its file and lines).
-			plain("agent-tab.review-pull-request", prompt_place::agent_tab, "Review this pull request", pull_request, { }, prompt_kind::review),
-			plain("agent-tab.review-open-file", prompt_place::agent_tab, "Review {file}", open_file, { }, prompt_kind::review),
+			plain("agent-tab.review-pull-request", prompt_place::agent_tab, "Review this pull request", pull_request, { }, prompt_ask::review),
+			plain("agent-tab.review-open-file", prompt_place::agent_tab, "Review {file}", open_file, { }, prompt_ask::review),
 			plain("agent-tab.what-could-break", prompt_place::agent_tab, "What could this change break?", pull_request),
 			plain("agent-tab.explain-line", prompt_place::agent_tab, "Explain {file} {lines}", selected_lines, { lines(prompt_lines_value::one) }),
 			plain("agent-tab.explain-block", prompt_place::agent_tab, "Explain the selected block ({file} {lines})", selected_lines, { lines(prompt_lines_value::several) }),

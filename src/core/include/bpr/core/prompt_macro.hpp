@@ -59,18 +59,18 @@ namespace bpr::core {
 	[[nodiscard]] auto stable_name(prompt_subject aSubject) noexcept -> std::string_view;
 
 	/// \brief How a macro is asked (the editor's Ask as).
-	enum class prompt_kind : std::uint8_t {
+	enum class prompt_ask : std::uint8_t {
 		question,
 		/// A review with findings; the Agent tab only, about the pull
 		/// request or the open file.
 		review,
 	};
-	[[nodiscard]] auto stable_name(prompt_kind aKind) noexcept -> std::string_view;
+	[[nodiscard]] auto stable_name(prompt_ask aKind) noexcept -> std::string_view;
 
 	/// \brief Whether `aPlace` offers `aSubject` as About.
 	[[nodiscard]] auto prompt_subject_allowed(prompt_place aPlace, prompt_subject aSubject) noexcept -> bool;
 	/// \brief Whether `aKind` may be asked about `aSubject` in `aPlace`.
-	[[nodiscard]] auto prompt_kind_allowed(prompt_place aPlace, prompt_subject aSubject, prompt_kind aKind) noexcept -> bool;
+	[[nodiscard]] auto prompt_ask_allowed(prompt_place aPlace, prompt_subject aSubject, prompt_ask aKind) noexcept -> bool;
 
 	/// \brief One fact a condition reads.
 	enum class prompt_fact : std::uint8_t {
@@ -145,7 +145,7 @@ namespace bpr::core {
 		/// What the chip expands into and sends.
 		std::string                   Template;
 		prompt_subject                Subject    = prompt_subject::pull_request;
-		prompt_kind                   Kind       = prompt_kind::question;
+		prompt_ask                   Kind       = prompt_ask::question;
 		std::vector<prompt_condition> Conditions = { };
 
 		auto operator<=>(const prompt_macro_body&) const = default;
@@ -375,7 +375,7 @@ namespace bpr::core {
 		prompt_expansion Expansion;
 		prompt_place     Place   = prompt_place::agent_tab;
 		prompt_subject   Subject = prompt_subject::pull_request;
-		prompt_kind      Kind    = prompt_kind::question;
+		prompt_ask      Kind    = prompt_ask::question;
 
 		/// \brief Whether a click puts the expansion in the question field
 		/// rather than sending it (the template has `{cursor}`).

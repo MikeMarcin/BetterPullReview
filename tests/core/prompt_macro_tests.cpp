@@ -37,7 +37,7 @@ namespace {
 	/// What a chip offers, as today's code offers it: its label, what a
 	/// press sends (or puts in the field), its subject and whether it is a
 	/// review, and whether a click finishes it in the field.
-	using today_offer = std::tuple<std::string, std::string, prompt_subject, prompt_kind, bool>;
+	using today_offer = std::tuple<std::string, std::string, prompt_subject, prompt_ask, bool>;
 
 	auto offered(const prompt_offers& aOffers) -> std::vector<today_offer>
 	{
@@ -57,7 +57,7 @@ namespace {
 	{
 		auto       result = std::vector<today_offer>{ };
 		const auto offer  = [&result](const std::string& aText, const prompt_subject aSubject, const bool aReview) {
-			result.emplace_back(aText, aText, aSubject, aReview ? prompt_kind::review : prompt_kind::question, false);
+			result.emplace_back(aText, aText, aSubject, aReview ? prompt_ask::review : prompt_ask::question, false);
 		};
 		offer("Review this pull request", prompt_subject::pull_request, true);
 		if (aFile) {
@@ -77,7 +77,7 @@ namespace {
 	{
 		auto result = std::vector<today_offer>{ };
 		for (const std::string text : { "Summarize this conversation", "Is the concern raised here right?", aReplies ? "Draft a reply to this conversation" : "Explain the code this note is on" }) {
-			result.emplace_back(text, text, prompt_subject::conversation, prompt_kind::question, false);
+			result.emplace_back(text, text, prompt_subject::conversation, prompt_ask::question, false);
 		}
 		return result;
 	}
@@ -119,7 +119,7 @@ namespace {
 			for (const auto& prompt : tour_list_today(aSelection->Place)) {
 				if (prompt.Selection) {
 					const auto label = *aSelection == aThread ? std::string{ prompt.Text } : std::string{ prompt.Text } + " in " + aSelection->Part;
-					result.emplace_back(label, std::string{ prompt.Text }, prompt_subject::selected_text, prompt_kind::question, false);
+					result.emplace_back(label, std::string{ prompt.Text }, prompt_subject::selected_text, prompt_ask::question, false);
 					break;
 				}
 			}
@@ -128,7 +128,7 @@ namespace {
 			for (const auto& prompt : tour_list_today(aThread.Place)) {
 				if (!prompt.Selection) {
 					const auto label = prompt.Finish ? std::string{ prompt.Text } + "\xE2\x80\xA6" : std::string{ prompt.Text };
-					result.emplace_back(label, std::string{ prompt.Text }, subject_of(aThread.Place), prompt_kind::question, prompt.Finish);
+					result.emplace_back(label, std::string{ prompt.Text }, subject_of(aThread.Place), prompt_ask::question, prompt.Finish);
 				}
 			}
 		}
@@ -358,7 +358,7 @@ namespace {
 		expect(inName.size() == 2U && inName[0].Problem == other_place_variable && inName[0].InName && inName[0].Offset == 3U && inName[1].Problem == unknown_variable && !inName[1].InName,
 			   "variables are checked in the name and the template");
 		expect(problems({ .Id = "a", .Place = prompt_place::conversation, .Body = { .Name = "n", .Template = "x" } }) == std::vector{ subject_not_for_place }, "About is the place's");
-		expect(problems({ .Id = "a", .Body = { .Name = "n", .Template = "x", .Subject = prompt_subject::selected_lines, .Kind = prompt_kind::review } }) == std::vector{ kind_not_for_subject }, "lines are not reviewed");
+		expect(problems({ .Id = "a", .Body = { .Name = "n", .Template = "x", .Subject = prompt_subject::selected_lines, .Kind = prompt_ask::review } }) == std::vector{ kind_not_for_subject }, "lines are not reviewed");
 		expect(problems({ .Id = "a", .Body = { .Name = "n", .Template = "x", .Conditions = { { .Fact = prompt_fact::path } } } }) == std::vector{ no_patterns }, "a pattern condition needs a pattern");
 		expect(problems({ .Id = "a", .Body = { .Name = "n", .Template = "x", .Conditions = { { .Fact = prompt_fact::path, .Patterns = { std::string(129U, 'p') } } } } }) == std::vector{ pattern_too_long }, "a pattern is 128 bytes");
 
