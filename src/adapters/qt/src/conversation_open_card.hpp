@@ -533,14 +533,14 @@ namespace bpr::qt {
 		/// RFC-BPR-0127. My draft reply's state, beside the Reply field.
 		comment_state_toggle*                DraftReplyState = nullptr;
 		std::optional<core::review_draft_id> DraftReplyId;
-		QToolButton*       StateLocal  = nullptr;
-		QToolButton*       StateDraft  = nullptr;
-		note_button*       SaveLocal   = nullptr;
-		QLabel*            LocalWords  = nullptr;
-		bool               LocalChosen = false;
-		void               choose_local(bool aLocal, bool aDispatch);
-		draft_review_state Review     = draft_review_state::none;
-		suggestion_mark*   Suggestion = nullptr;
+		QToolButton*                         StateLocal  = nullptr;
+		QToolButton*                         StateDraft  = nullptr;
+		note_button*                         SaveLocal   = nullptr;
+		QLabel*                              LocalWords  = nullptr;
+		bool                                 LocalChosen = false;
+		void                                 choose_local(bool aLocal, bool aDispatch);
+		draft_review_state                   Review     = draft_review_state::none;
+		suggestion_mark*                     Suggestion = nullptr;
 		/// [[BPR-2051]].
 		enhance_button*     EnhanceButton = nullptr;
 		enhance_suggestion* EnhancePanel  = nullptr;

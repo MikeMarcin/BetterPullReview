@@ -1383,9 +1383,9 @@ namespace {
 		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
 		view.adopt({ });
 		const auto comparison = core::file_comparison_digest{ };
-		const auto body = std::string{ "The budget is reset on every call, because the counter is restored before the check runs, so the budget is effectively unbounded. "
-									   "Consider moving the reset into `begin_request` instead:\n\n```cpp\nvoid Renderer::begin_request() {\n    frame_budget_.reset();\n}\n```\n\n"
-									   "This keeps per-frame work bounded while still giving each request a fresh budget." };
+		const auto body       = std::string{ "The budget is reset on every call, because the counter is restored before the check runs, so the budget is effectively unbounded. "
+											 "Consider moving the reset into `begin_request` instead:\n\n```cpp\nvoid Renderer::begin_request() {\n    frame_budget_.reset();\n}\n```\n\n"
+											 "This keeps per-frame work bounded while still giving each request a fresh budget." };
 		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 0U }, .Body = body }, comparison);
 		QApplication::processEvents();
 		const auto draftId = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; })->Id;
@@ -1393,8 +1393,7 @@ namespace {
 		QApplication::processEvents();
 		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
 		QApplication::processEvents();
-		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1"),
-															.Notice = QStringLiteral("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line.") });
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1"), .Notice = QStringLiteral("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line.") });
 		for (auto spin = 0; spin < 50; ++spin) {
 			QApplication::processEvents();
 			QThread::msleep(4);

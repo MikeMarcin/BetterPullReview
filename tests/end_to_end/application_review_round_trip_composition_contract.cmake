@@ -3038,6 +3038,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/designated_live_macos_supervisor_launch.hpp"
         "src/diagnostic_controls.cpp"
         "src/diagnostic_export_directory.cpp"
+        "src/discuss_busy_fixture.hpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/github_application/agent_composition.cpp"
@@ -3720,8 +3721,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# the pull request through the same ledger call; Ask agent on my draft
 	# records it in Private history through the Local comment's one path
 	# (record_note_press). Words only elsewhere. No new effect or path.
+	# RFC-BPR-0127 (BPR-2162 rework): refusal words shortened to a tooltip's
+	# length; the agent look's --attended-agent-draft-first, a fixture-only
+	# course step. BPR-2161 and BPR-2171's composition (Discuss preferences
+	# host, the busy look) sealed here too. No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "3d497c7adc1b402e8a76055368e9c0162201c9f7e0d9f2bcef1cbce87c00b0cf"
+        "d312a4df846e8f2605bab052e2b269183e56bc6f43df870966439a2f450686b4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

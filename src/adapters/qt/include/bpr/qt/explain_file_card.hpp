@@ -111,10 +111,10 @@ namespace bpr::qt {
 		QPointer<markdown_body_view>                        Answer;
 		QPointer<QPushButton>                               KeepButton;
 		/// RFC-BPR-0127, owner look v005. Local, or the struck pencil.
-		comment_state_toggle*                               KeepState = nullptr;
-		QPointer<QPushButton>                               ContinueButton;
-		QPointer<QPushButton>                               DismissButton;
-		std::uint64_t                                       Serial = 0U;
+		comment_state_toggle* KeepState = nullptr;
+		QPointer<QPushButton> ContinueButton;
+		QPointer<QPushButton> DismissButton;
+		std::uint64_t         Serial = 0U;
 	};
 } // namespace bpr::qt
 

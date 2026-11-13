@@ -15577,7 +15577,7 @@ namespace {
 			});
 			auto wentToNote = std::vector<std::uint64_t>{ };
 			agent->set_note_navigation([&wentToNote](const std::uint64_t aNote) { wentToNote.push_back(aNote); });
-			auto* const saveNote = agent->turn_note_button(1U);
+			auto* const saveNote  = agent->turn_note_button(1U);
 			auto* const keepLocal = agent->turn_keep_state(1U) != nullptr ? agent->turn_keep_state(1U)->findChild<QAbstractButton*>(QStringLiteral("agentTurnKeepStateLocal")) : nullptr;
 			expect(saveNote != nullptr && saveNote->isHidden() && keepLocal != nullptr && !agent->turn_keep_state(1U)->isHidden() && keepLocal->isEnabled(), "a reply offers Local in its state control");
 			keepLocal->click();

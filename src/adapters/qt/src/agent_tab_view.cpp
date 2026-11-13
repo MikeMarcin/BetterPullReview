@@ -1498,17 +1498,17 @@ namespace bpr::qt {
 		replyColumn->addLayout(footerRow);
 		column->addWidget(reply);
 		ThreadColumn->addWidget(box);
-		aTurn.Widget       = box;
-		aTurn.Answer       = answer;
-		aTurn.Footer       = footer;
-		aTurn.Activity     = activity;
-		aTurn.SaveNote     = save;
-		aTurn.CardColumn   = cards;
-		aTurn.Copy         = copy;
-		aTurn.AskedTime    = askedTime;
-		aTurn.AnsweredTime = answeredTime;
-		aTurn.Draft        = draft;
-		aTurn.KeepState    = keepState;
+		aTurn.Widget           = box;
+		aTurn.Answer           = answer;
+		aTurn.Footer           = footer;
+		aTurn.Activity         = activity;
+		aTurn.SaveNote         = save;
+		aTurn.CardColumn       = cards;
+		aTurn.Copy             = copy;
+		aTurn.AskedTime        = askedTime;
+		aTurn.AnsweredTime     = answeredTime;
+		aTurn.Draft            = draft;
+		aTurn.KeepState        = keepState;
 		keepState->LocalChosen = [save] {
 			if (save->isEnabled()) {
 				save->click();
@@ -1519,10 +1519,10 @@ namespace bpr::qt {
 				draft->click();
 			}
 		};
-		aTurn.Asked        = asked;
-		aTurn.Reply        = reply;
-		aTurn.Recovery     = recovery;
-		aTurn.Delete       = remove;
+		aTurn.Asked    = asked;
+		aTurn.Reply    = reply;
+		aTurn.Recovery = recovery;
+		aTurn.Delete   = remove;
 		connect(recovery, &QPushButton::clicked, this, [this, recovery] {
 			for (const auto& kept : Turns) {
 				if (kept.Recovery == recovery) {

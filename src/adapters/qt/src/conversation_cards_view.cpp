@@ -2898,13 +2898,20 @@ namespace bpr::qt {
 	auto conversation_cards_view::column() const -> std::pair<int, int>
 	{
 		const auto whole = std::max(120, viewport()->width()) - 2 * note_margin;
-		// [[BPR-2171]]. Discuss's list is a centred column; beside the code
-		// and on Overview the notes keep the whole width.
-		if (!Feed || PullRequestComments || !timeline() || !ColumnLimit.has_value() || *ColumnLimit >= whole) {
+		// [[BPR-2171]]. Discuss's list is a centred column, the whole pull
+		// request's and Only this file's alike (owner, ac5-only-this-file:
+		// "\"Only this file\" breaks the column formatting"); beside the
+		// code and on Overview the notes keep the whole width.
+		if (!Feed || PullRequestComments || !ColumnLimit.has_value() || *ColumnLimit >= whole) {
 			return { note_margin, whole };
 		}
+		// Centred on the whole list, scrollbar or not: a list short enough
+		// to lose its scrollbar (Only this file) keeps the column where it
+		// was, and the band above with it.
 		const auto width = std::max(120, *ColumnLimit);
-		return { note_margin + (whole - width) / 2, width };
+		const auto area  = std::max(120, this->width() - 2 * frameWidth()) - 2 * note_margin;
+		const auto left  = std::min(note_margin + (area - width) / 2, note_margin + whole - width);
+		return { std::max(note_margin, left), width };
 	}
 
 	auto conversation_cards_view::card_width_for(const thread_card& aCard) const -> std::pair<int, int>
@@ -4658,8 +4665,11 @@ namespace bpr::qt {
 				lastPath = card.Path;
 				painter.setFont(semibold(small));
 				painter.setPen(colours.Faint);
-				painter.drawText(QRect{ note_margin + 4, rect.top() - path_row_height - (first ? 0 : note_gap) + 2, width() - 2 * note_margin, path_row_height },
-								 Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ painter.font() }.elidedText(card.Path.isEmpty() ? QStringLiteral("Pull request") : card.Path, Qt::ElideMiddle, width() - 2 * note_margin));
+				// [[BPR-2171]] ac5: the file's name is on the column's edge,
+				// as its threads are (Only this file in Discuss).
+				const auto [columnLeft, columnWidth] = column();
+				painter.drawText(QRect{ columnLeft + 4, rect.top() - path_row_height - (first ? 0 : note_gap) + 2, columnWidth, path_row_height },
+								 Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ painter.font() }.elidedText(card.Path.isEmpty() ? QStringLiteral("Pull request") : card.Path, Qt::ElideMiddle, columnWidth));
 			}
 			first = false;
 			if (rect.bottom() < 0 || rect.top() > viewport()->height()) {

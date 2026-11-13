@@ -866,11 +866,11 @@ namespace bpr::qt {
 		};
 		std::vector<ended_turn> EndedTurns;
 		/// The question and the answer as shown, their references links.
-		void         show_question(turn& aTurn);
-		void         show_answer(turn& aTurn);
+		void show_question(turn& aTurn);
+		void show_answer(turn& aTurn);
 		/// RFC-BPR-0127. Shows the answer's state control, or its Go to
 		/// comment or Go to draft once kept.
-		void present_keep(turn& aTurn);
+		void         present_keep(turn& aTurn);
 		QWidget*     Thread       = nullptr;
 		QVBoxLayout* ThreadColumn = nullptr;
 		/// Each turn's widgets, made for a new or restored turn.

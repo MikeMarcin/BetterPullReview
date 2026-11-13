@@ -27,6 +27,7 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -199,6 +200,64 @@ try {
 	expect(wide != cards->cards().end(), "the open card is listed");
 	cards->verticalScrollBar()->setValue(std::max(0, wide->Rect.top() - 120));
 	render(QStringLiteral("discuss-open-code-1728x1117"), 1728, 1117);
+
+	// Owner look discuss-busy-pr-v001, ac5-only-this-file: "\"Only this
+	// file\" breaks the column formatting." With Only this file on, the list
+	// keeps the centred column, the band keeps its edges, and the band's
+	// first control does not move, at each of the three window sizes.
+	cards->close_thread();
+	for (const auto& [w, h] : { std::pair{ 1280, 800 }, std::pair{ 1728, 1117 }, std::pair{ 2560, 1440 } }) {
+		window.resize(w, h);
+		settle();
+		if (onlyFile->isChecked()) {
+			onlyFile->click();
+			settle();
+		}
+		const auto wholeColumn = cards->column();
+		const auto wholeAt     = onlyFile->mapTo(&window, QPoint{ 0, 0 }).x();
+		onlyFile->click();
+		settle();
+		wait_for([&] { return onlyFile->isChecked() && cards->feed(); }, "Only this file is on");
+		const auto fileColumn = cards->column();
+		const auto fileAt     = onlyFile->mapTo(&window, QPoint{ 0, 0 }).x();
+		const auto edge       = cards->viewport()->mapTo(&window, QPoint{ 0, 0 }).x() + fileColumn.first;
+		std::cout << "ONLY_THIS_FILE " << w << "x" << h << " column=" << fileColumn.first << "+" << fileColumn.second << " whole=" << wholeColumn.first << "+" << wholeColumn.second << " toggle=" << fileAt << " was=" << wholeAt << " edge=" << edge << '\n';
+		expect(fileColumn == wholeColumn && fileColumn.second == 820, "Only this file keeps the centred column");
+		expect(fileAt == wholeAt && std::abs(fileAt - edge) <= 2, "the band keeps the column's edges and its toggle does not move");
+		render(QStringLiteral("discuss-only-this-file-%1x%2").arg(w).arg(h), w, h);
+		onlyFile->click();
+		settle();
+	}
+	window.resize(1280, 800);
+	settle();
+
+	// Owner, ac1-collapsed-preview: "Can switching to discuss from review
+	// with a comment open show that comment in disscuss?" A thread open in
+	// Review is opened in Discuss, in view, when Discuss is chosen.
+	window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+	settle();
+	std::string carried;
+	wait_for([&] {
+		const auto& shown = cards->cards();
+		const auto  found = std::ranges::find_if(shown, [](const qt::thread_card& aCard) { return aCard.Id.starts_with("review-thread:") && aCard.Line.has_value() && !aCard.Resolved; });
+		if (found == shown.end()) {
+			return false;
+		}
+		carried = found->Id;
+		cards->open_thread(carried);
+		return cards->open_thread_id() == carried;
+	},
+			 "a thread is open beside the code in Review");
+	window.choose_modality(qt::review_modality::discuss, core::workbench_modality_entry::choose);
+	settle();
+	wait_for([&] { return cards->feed() && cards->open_thread_id() == carried; }, "choosing Discuss opens that thread there");
+	{
+		const auto found = std::ranges::find(cards->cards(), carried, &qt::thread_card::Id);
+		const auto top   = cards->verticalScrollBar()->value();
+		expect(found != cards->cards().end() && found->Rect.bottom() > top && found->Rect.top() < top + cards->viewport()->height(), "and it is in view");
+		std::cout << "DISCUSS_CARRIED " << carried << '\n';
+	}
+	render(QStringLiteral("discuss-carried-from-review-1280x800"), 1280, 800);
 
 	application->begin_shutdown();
 	application.reset();

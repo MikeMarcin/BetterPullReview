@@ -1238,6 +1238,21 @@ namespace bpr::qt {
 			apply_local_draft_surface();
 			return;
 		}
+		// [[BPR-2171]], owner (ac1-collapsed-preview): "Can switching to
+		// discuss from review with a comment open show that comment in
+		// disscuss?" Choosing Discuss while Review holds a published thread
+		// open brings it there, opened and in view, as Show Thread in
+		// Discuss does. Drafts and Local comments are not Discuss's.
+		if (aModality == review_modality::discuss && aEntry == core::workbench_modality_entry::choose && Modality != nullptr && Modality->current() == review_modality::review
+			&& CompositionPage == nullptr && ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			const auto open = ConversationPanel->cards()->open_thread_id();
+			if (!open.empty() && !open.starts_with("draft") && !open.starts_with("local:")) {
+				const auto post = ConversationPanel->cards()->picked_post();
+				if (open_conversation_in_discuss(open, post, core::workbench_discuss_filters{ })) {
+					return;
+				}
+			}
+		}
 		if (ReviewNavigationDispatch) {
 			ReviewNavigationDispatch(std::nullopt);
 		}

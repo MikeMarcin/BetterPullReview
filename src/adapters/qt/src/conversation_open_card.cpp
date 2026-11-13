@@ -448,7 +448,6 @@ namespace bpr::qt {
 			bool Fitting = false;
 
 		public:
-
 			/// RFC-BPR-0118. Adds the field's own items to its right-click menu.
 			std::function<void(QMenu&)> ExtendMenu;
 
@@ -1962,10 +1961,10 @@ namespace bpr::qt {
 				// comments on there [that] were drafts"). My draft reply is
 				// shown as one: the pencil, "Draft reply" and its words.
 				paint_conversation_glyph(painter, QRectF{ 36.0, (height() - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.SignalInk);
-				const auto lead    = QStringLiteral("Draft reply ");
-				const auto strong  = semibold(font());
-				const auto leadW   = QFontMetrics{ strong }.horizontalAdvance(lead);
-				const auto room    = std::max(0, width() - 70 - 16);
+				const auto lead   = QStringLiteral("Draft reply ");
+				const auto strong = semibold(font());
+				const auto leadW  = QFontMetrics{ strong }.horizontalAdvance(lead);
+				const auto room   = std::max(0, width() - 70 - 16);
 				painter.setFont(strong);
 				painter.setPen(colours.SignalInk);
 				painter.drawText(QRect{ 52, 0, room, height() }, Qt::AlignLeft | Qt::AlignVCenter, lead);
@@ -2564,9 +2563,8 @@ namespace bpr::qt {
 			state->draft_button()->setText(offer);
 			state->set_names(comment_state_words(true, false, false), offer);
 			state->set_local(true, QStringLiteral("Only on this computer"));
-			state->set_draft(!aCard.LocalComment.MakeDraft.isEmpty(), aCard.LocalComment.MakeDraft.isEmpty() ? aCard.LocalComment.MakeDraftWhy
-																										 : offer == QStringLiteral("Make draft") ? QStringLiteral("Make it a draft here, not in your review")
-																																					 : QStringLiteral("%1, not in your review").arg(offer));
+			state->set_draft(!aCard.LocalComment.MakeDraft.isEmpty(), aCard.LocalComment.MakeDraft.isEmpty() ? aCard.LocalComment.MakeDraftWhy : offer == QStringLiteral("Make draft") ? QStringLiteral("Make it a draft here, not in your review")
+																																													   : QStringLiteral("%1, not in your review").arg(offer));
 			state->set_state(comment_state_toggle::state::local);
 			state->DraftChosen = [this] { if (Action) { Action(card_action::make_draft); } };
 			actions->addWidget(state);
@@ -2752,12 +2750,12 @@ namespace bpr::qt {
 				outdated->setPalette(ink);
 				editor->addWidget(outdated);
 			}
-			ReplyBox = new reply_text{ Editor };
-		static_cast<reply_text*>(ReplyBox)->Refit = [this] {
-			if (HeightChanged) {
-				HeightChanged();
-			}
-		};
+			ReplyBox                                  = new reply_text{ Editor };
+			static_cast<reply_text*>(ReplyBox)->Refit = [this] {
+				if (HeightChanged) {
+					HeightChanged();
+				}
+			};
 			ReplyBox->setAccessibleName(aCard.ReplyOnThread ? QStringLiteral("Reply to the outdated thread")
 											: aCard.Line    ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line)
 															: QStringLiteral("Reply"));
@@ -3009,7 +3007,7 @@ namespace bpr::qt {
 		states->set_state(comment_state_toggle::state::draft);
 		states->LocalChosen = [this] { choose_local(true, true); };
 		states->DraftChosen = [this] { choose_local(false, true); };
-		Privacy = states;
+		Privacy             = states;
 		DraftActions->addWidget(states);
 		LocalWords = new QLabel{ QStringLiteral("Only on this computer. Never sent."), Foot };
 		LocalWords->setObjectName(QStringLiteral("threadLocalWords"));
@@ -3247,7 +3245,7 @@ namespace bpr::qt {
 				HeightChanged();
 			}
 		}
-		const auto former = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
+		const auto former      = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
 		const auto noticeShown = !ReplyStatus->isHidden();
 		const auto noticeWords = ReplyStatus->text();
 		if (!LastNotice.isEmpty()) {

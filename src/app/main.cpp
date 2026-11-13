@@ -7993,7 +7993,7 @@ namespace {
 			if (*step == 10 || *step == 11) {
 				auto* const cards = window.conversation_panel()->cards();
 				if (*step == 10) {
-					const auto found = tab->turn_cards(0U);
+					const auto  found = tab->turn_cards(0U);
 					auto* const draft = found.empty() ? nullptr : found.front()->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
 					if (draft == nullptr || !draft->isEnabled()) {
 						return;

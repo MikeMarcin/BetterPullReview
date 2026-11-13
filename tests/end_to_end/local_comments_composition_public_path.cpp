@@ -238,7 +238,7 @@ int main(int aArgc, char** aArgv)
 		wait_for([&] { auto* const save = open_button(*cards, "threadReplySaveLocal"); return save != nullptr && save->isVisible() && save->isEnabled(); }, "Save is offered");
 		open_button(*cards, "threadReplySaveLocal")->click();
 		wait_for([&] { return local(QStringLiteral("LOCAL-ONLY: a second reply, to be a draft.")).has_value(); }, "the second Local reply is listed");
-		const auto second = *local(QStringLiteral("LOCAL-ONLY: a second reply, to be a draft."));
+		const auto second  = *local(QStringLiteral("LOCAL-ONLY: a second reply, to be a draft."));
 		const auto stateOf = [&](const std::uint64_t aId) -> QAbstractButton* {
 			auto* const card = cards->open_card();
 			if (card == nullptr) {
@@ -292,8 +292,8 @@ int main(int aArgc, char** aArgv)
 			if (cards->open_thread_id() != threadId) {
 				cards->open_thread(threadId);
 			}
-			const auto thread = card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == threadId; });
-			auto* const make  = stateOf(*first);
+			const auto  thread = card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == threadId; });
+			auto* const make   = stateOf(*first);
 			return thread && !thread->UnsentReply.has_value() && thread->LocalReplies == 2U && make != nullptr && make->isEnabled();
 		},
 				 "once the draft reply is local again, the first Local reply's Draft is offered");
