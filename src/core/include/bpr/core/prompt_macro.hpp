@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_PROMPT_MACRO_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_PROMPT_MACRO_HPP
 
+#include "bpr/core/agent_question.hpp"
+
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -315,6 +317,15 @@ namespace bpr::core {
 		auto operator<=>(const prompt_facts&) const = default;
 	};
 
+	/// \brief Where one value sits in an expansion: bytes `[Begin, End)`.
+	struct prompt_value_span
+	{
+		std::size_t Begin = 0U;
+		std::size_t End   = 0U;
+
+		auto operator<=>(const prompt_value_span&) const = default;
+	};
+
 	/// \brief A template expanded against facts.
 	struct prompt_expansion
 	{
@@ -322,6 +333,9 @@ namespace bpr::core {
 		/// The byte offset of the first `{cursor}`, when the template has
 		/// one.
 		std::optional<std::size_t> Cursor;
+		/// RFC-BPR-0125 milestone 2. The bytes each value filled in, in
+		/// order; everything else is the template's own text.
+		std::vector<prompt_value_span> Values;
 
 		auto operator<=>(const prompt_expansion&) const = default;
 	};
@@ -429,6 +443,23 @@ namespace bpr::core {
 
 		auto operator<=>(const prompt_offers&) const = default;
 	};
+
+	/// \brief RFC-BPR-0125 milestone 2 (AC09). The text a direct send reads
+	/// skill references from: each `/name` of the expansion that lies wholly
+	/// in the template's own text, in order, separated by spaces.
+	///
+	/// \details A value never brings in a skill: a pull request titled
+	/// `/some-skill` is sent as text. A reference that a value touches, or
+	/// that only reads as one because of a value beside it, is not a
+	/// reference here. With no values the result names exactly the
+	/// references of `Text`.
+	[[nodiscard]] auto prompt_skill_text(const prompt_expansion& aExpansion) -> std::string;
+
+	/// \brief RFC-BPR-0125 milestone 2. What an Agent tab offer names to
+	/// `decide_agent_question` (RFC-BPR-0102), unchanged: the pull request,
+	/// the open file or the selected lines. None for the other places'
+	/// subjects, which the conversation and the tour chats decide as before.
+	[[nodiscard]] auto suggested_subject_of(prompt_subject aSubject) noexcept -> std::optional<agent_suggested_subject>;
 
 	/// \brief Decides `aFacts.Place`'s offers from macros in the reviewer's
 	/// order.
@@ -598,6 +629,54 @@ namespace bpr::core {
 	/// last when it is the reviewer's own. With nothing stored the result is
 	/// the shipped set.
 	[[nodiscard]] auto merge_prompt_macros(std::span<const prompt_builtin> aShipped, const prompt_macro_differences& aStored) -> prompt_macro_set;
+
+	/// \brief The longest turn name kept: a chip's text, expanded.
+	inline constexpr std::size_t maximum_prompt_turn_name_bytes = 1024U;
+	/// \brief The most turn names a profile keeps; the least recently sent
+	/// go first.
+	inline constexpr std::size_t maximum_prompt_turn_names = 256U;
+
+	/// \brief RFC-BPR-0125 milestone 2 (AC07). The name a turn was sent
+	/// under, for a turn whose question is a macro's expansion and differs
+	/// from its name.
+	struct prompt_turn_name
+	{
+		/// The question as the thread keeps it: the expansion sent.
+		std::string Asked;
+		/// The chip's text it was sent as.
+		std::string Name;
+
+		auto operator<=>(const prompt_turn_name&) const = default;
+	};
+
+	/// \brief Whether a record is within its bounds, names something, and
+	/// differs from its question (a name equal to it says nothing).
+	[[nodiscard]] auto valid(const prompt_turn_name& aName) noexcept -> bool;
+
+	/// \brief The turn names a profile keeps, so a thread read back after a
+	/// restart shows the name each turn was sent under.
+	///
+	/// \details Pure and bounded: at most `maximum_prompt_turn_names`, the
+	/// least recently remembered going first. One question has one name, the
+	/// last it was sent under.
+	class prompt_turn_names
+	{
+	public:
+		/// \brief Remembers one name.
+		/// \returns Whether what is kept changed; false for an invalid record
+		/// or one already kept as the newest.
+		auto remember(prompt_turn_name aName) -> bool;
+		/// \brief Takes the store's records, least recently remembered first.
+		/// A name remembered here before is newer and is kept.
+		void adopt(const std::vector<prompt_turn_name>& aNames);
+		/// \brief The name `aAsked` was sent under, if one is kept.
+		[[nodiscard]] auto recall(std::string_view aAsked) const -> std::optional<std::string>;
+		/// \brief Every kept record, least recently remembered first.
+		[[nodiscard]] auto records() const noexcept -> const std::vector<prompt_turn_name>& { return Names; }
+
+	private:
+		std::vector<prompt_turn_name> Names;
+	};
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_PROMPT_MACRO_HPP

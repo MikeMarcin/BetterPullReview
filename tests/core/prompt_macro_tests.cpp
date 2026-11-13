@@ -4,6 +4,7 @@
 // the shipped set with stored differences.
 #include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
+#include "bpr/core/skill_references.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -445,6 +446,52 @@ namespace {
 		expect(bounded.Entries.size() == maximum_prompt_macros && bounded.Dropped.size() == 50U - (maximum_prompt_macros - shipped.size()), "at most 64 macros, the built-ins included");
 		expect(merge_prompt_macros(shipped, stored) == merged, "the merge is deterministic");
 	}
+
+	/// Milestone 2, AC09. Only the template's own text names skills; a
+	/// value is never read as one.
+	void test_skill_text()
+	{
+		const auto expand = [](const std::string_view aTemplate, const std::string& aTitle) {
+			auto facts               = prompt_facts{ .Place = prompt_place::agent_tab, .PullRequest = pull_request_facts(), .OpenFile = "src/a.cpp" };
+			facts.PullRequest->Title = aTitle;
+			return *expand_prompt_template(scan_prompt_template(aTemplate, prompt_place::agent_tab), facts);
+		};
+		const auto titled = expand("Summarize {pr.title}", "/some-skill please");
+		expect(titled.Text == "Summarize /some-skill please" && titled.Values == std::vector<prompt_value_span>{ { .Begin = 10U, .End = 28U } }, "the value's place is recorded");
+		expect(find_skill_references(titled.Text).size() == 1U && prompt_skill_text(titled).empty(), "a title naming a skill brings in none");
+		const auto own = expand("Check {file}. /security-review then /tests", "x");
+		expect(prompt_skill_text(own) == "/security-review /tests", "the template's own references stay, in order");
+		expect(prompt_skill_text(expand("Use /skill{pr.title}", "-x")).empty(), "a value that would lengthen a reference makes it none");
+		expect(prompt_skill_text(expand("{pr.title}/skill", "")).empty(), "an empty value that would start a reference makes it none");
+		expect(prompt_skill_text(expand("{pr.title} /skill", "x")) == "/skill", "a reference after the template's own space is the template's");
+		const auto plain = expand("Review this /review-skill", "x");
+		expect(plain.Values.empty() && prompt_skill_text(plain) == "/review-skill", "with no values every reference counts, as in a typed question");
+
+		expect(suggested_subject_of(prompt_subject::pull_request) == agent_suggested_subject::pull_request && suggested_subject_of(prompt_subject::open_file) == agent_suggested_subject::open_file
+				   && suggested_subject_of(prompt_subject::selected_lines) == agent_suggested_subject::selected_lines,
+			   "the Agent tab's three subjects are RFC-BPR-0102's");
+		for (const auto subject : { prompt_subject::conversation, prompt_subject::stop, prompt_subject::part, prompt_subject::selected_text, prompt_subject::tour }) {
+			expect(!suggested_subject_of(subject), "the other places' subjects name none");
+		}
+	}
+
+	/// Milestone 2, AC07. The name a turn was sent under, kept bounded.
+	void test_turn_names()
+	{
+		auto names = prompt_turn_names{ };
+		expect(!names.remember({ .Asked = "Same", .Name = "Same" }) && !names.remember({ .Asked = "", .Name = "n" }) && !names.remember({ .Asked = "a", .Name = std::string(maximum_prompt_turn_name_bytes + 1U, 'n') }), "a name equal to its question, a blank one and an oversized one are not kept");
+		expect(names.remember({ .Asked = "Check a.cpp for injection.", .Name = "Security pass" }) && !names.remember({ .Asked = "Check a.cpp for injection.", .Name = "Security pass" }), "a name is kept once");
+		expect(names.recall("Check a.cpp for injection.") == std::optional<std::string>{ "Security pass" } && !names.recall("other"), "and recalled by its question");
+		expect(names.remember({ .Asked = "Check a.cpp for injection.", .Name = "Renamed" }) && names.records().size() == 1U && names.recall("Check a.cpp for injection.") == std::optional<std::string>{ "Renamed" }, "one question has the last name it was sent under");
+		auto restarted = prompt_turn_names{ };
+		restarted.remember({ .Asked = "q2", .Name = "newer" });
+		restarted.adopt({ { .Asked = "q1", .Name = "n1" }, { .Asked = "q2", .Name = "older" }, { .Asked = "x", .Name = "x" } });
+		expect(restarted.records() == std::vector<prompt_turn_name>{ { .Asked = "q1", .Name = "n1" }, { .Asked = "q2", .Name = "newer" } }, "adopting keeps what was remembered since, and drops invalid rows");
+		for (auto index = 0U; index < maximum_prompt_turn_names + 3U; ++index) {
+			restarted.remember({ .Asked = "q" + std::to_string(index + 10U), .Name = "n" });
+		}
+		expect(restarted.records().size() == maximum_prompt_turn_names && !restarted.recall("q1") && restarted.recall("q" + std::to_string(maximum_prompt_turn_names + 12U)), "the least recently sent go first");
+	}
 } // namespace
 
 auto main() -> int
@@ -455,6 +502,8 @@ auto main() -> int
 	test_order_and_limit();
 	test_validation_messages();
 	test_merge();
+	test_skill_text();
+	test_turn_names();
 	std::cout << "prompt-macro-tests:pass\n";
 	return EXIT_SUCCESS;
 }
