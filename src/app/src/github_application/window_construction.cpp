@@ -183,7 +183,8 @@ namespace bpr::app {
 		CycleDesktop->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 		// RFC-BPR-0108. Local PR drafts read the chosen worktree through
 		// their own isolated Git reader; signed out as well as in.
-		DraftDesktop = std::make_unique<local_draft_desktop>(*Window, ApplicationDataRoot, Profile->InstalledGit, windows_system_root(), WorkbenchEffects, DecisionLane);
+		DraftDesktop = std::make_unique<local_draft_desktop>(*Window, ApplicationDataRoot, Profile->InstalledGit, windows_system_root(), WorkbenchEffects, DecisionLane,
+															 local_draft_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects, .Insights = Profile->InsightsRecorder });
 		// RFC-BPR-0111. Create draft PR acts as this profile's accepted
 		// account through its pull request catalog (a gh connection carries
 		// it). A tests-enabled build creates nothing unless the agent-run live

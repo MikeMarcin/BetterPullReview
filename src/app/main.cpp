@@ -18,7 +18,8 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -6403,28 +6404,10 @@ namespace {
 			const auto  shown = [&](const char* aPath) {
 				return view.File && view.File->Path == aPath && view.File->Status == bpr::application::review_material_status::available;
 			};
-			const auto open = [&](const char* aPath) {
-				for (int row = 0; row < page->changes()->count(); ++row) {
-					if (page->changes()->item(row)->text().endsWith(QString::fromLatin1(aPath))) {
-						page->changes()->setCurrentRow(row);
-					}
-				}
-			};
-			const auto select = [&](const std::uint32_t aFirst, const std::uint32_t aLast) {
-				const auto& rows  = view.File->Rows;
-				auto        first = -1;
-				auto        last  = -1;
-				for (std::size_t row = 0U; row < rows.size(); ++row) {
-					if (rows[row].RightLine && *rows[row].RightLine >= aFirst && *rows[row].RightLine <= aLast) {
-						first = first < 0 ? static_cast<int>(row) : first;
-						last  = static_cast<int>(row);
-					}
-				}
-				auto* const document = page->diff()->document();
-				auto        cursor   = QTextCursor{ document->findBlockByNumber(std::max(first, 0)) };
-				cursor.setPosition(document->findBlockByNumber(std::max(last, 0)).position() + document->findBlockByNumber(std::max(last, 0)).length() - 1, QTextCursor::KeepAnchor);
-				page->diff()->setTextCursor(cursor);
-			};
+			auto&      window = aApplication.window();
+			const auto open   = [&](const char* aPath) { static_cast<void>(window.open_local_file(QString::fromLatin1(aPath))); };
+			// The lines selected in the window's own comparison, as a person drags them.
+			const auto select = [&](const std::uint32_t aFirst, const std::uint32_t aLast) { page->reveal(view.File->Path, aFirst, aLast); };
 			auto* const tour = page->tour();
 			switch (*stage) {
 			case 0:
@@ -6484,9 +6467,9 @@ namespace {
 				if (prep.Tour.Stops.size() != 2U) {
 					return;
 				}
-				page->areas()->setCurrentIndex(2);
+				window.tray_tabs()->setCurrentIndex(2);
 				tour->stops()->setCurrentRow(-1);
-				page->diff()->setTextCursor(QTextCursor{ page->diff()->document() });
+				static_cast<void>(window.comparison_surface()->clear_line_selection());
 				tour->chat()->composer()->setText(QStringLiteral("Is the empty query the only case that reads past the string?"));
 				tour->chat()->ask_button()->click();
 				*stage = 7;
@@ -6495,7 +6478,7 @@ namespace {
 				if (prep.Conversations.empty() || prep.Conversations.back().Turns.size() < 2U) {
 					return;
 				}
-				page->areas()->setCurrentIndex(2);
+				window.tray_tabs()->setCurrentIndex(2);
 				tour->stops()->setCurrentRow(1);
 				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_TOUR_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
 				return;

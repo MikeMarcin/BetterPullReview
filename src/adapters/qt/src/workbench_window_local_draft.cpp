@@ -329,6 +329,25 @@ namespace bpr::qt {
 		return FileSearchTabs;
 	}
 
+	auto workbench_window::open_local_file(const QString& aPath) -> bool
+	{
+		if (!LocalDraftShown || LocalDraft == nullptr || Drawers[0].Panel->contents() == nullptr) {
+			return false;
+		}
+		const auto subject = LocalDraft->projection().Draft ? LocalDraft->projection().Draft->Id.Value : std::string{ };
+		const auto bytes   = aPath.toUtf8();
+		const auto index   = Drawers[0].Panel->contents()->index_for_file(core::local_presentation_file(subject, std::string_view{ bytes.constData(), static_cast<std::size_t>(bytes.size()) }));
+		if (!index.isValid()) {
+			return false;
+		}
+		if (Drawers[0].Panel->contents_view()->currentIndex() == index) {
+			dispatch_file_selection(index);
+		} else {
+			Drawers[0].Panel->contents_view()->setCurrentIndex(index);
+		}
+		return true;
+	}
+
 	auto workbench_window::local_changes_tab() const -> int
 	{
 		if (FileSearchTabs == nullptr || LocalDraft == nullptr) {

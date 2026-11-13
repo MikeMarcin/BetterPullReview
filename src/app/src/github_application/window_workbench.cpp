@@ -1358,6 +1358,10 @@ namespace bpr::app {
 		if (CycleDesktop) {
 			CycleDesktop->adopt_appearance(*AppearanceProfile);
 		}
+		// The local draft's Edit view, in the panes' colours and code font.
+		if (DraftDesktop) {
+			DraftDesktop->adopt_appearance(*AppearanceProfile);
+		}
 		if (auto* const files = Window->files_tree(); files != nullptr) {
 			files->adopt_appearance(*AppearanceProfile);
 		}

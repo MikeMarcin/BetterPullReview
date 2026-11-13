@@ -7,8 +7,12 @@
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/core/diff_line_matcher.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/syntax_classification_application_host.hpp"
+#include "bpr/core/git_objects.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "syntax_text_sources.hpp"
 
 #include <QClipboard>
 #include <QDateTime>
@@ -33,7 +37,8 @@ namespace bpr::app {
 	}
 
 	local_draft_desktop::local_draft_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, std::filesystem::path aGitExecutable,
-											 std::optional<std::filesystem::path> aWindowsSystemRoot, application::effect_executor& aEffects, application::decision_executor& aDecisions)
+											 std::optional<std::filesystem::path> aWindowsSystemRoot, application::effect_executor& aEffects, application::decision_executor& aDecisions,
+											 local_draft_syntax aSyntax)
 		: Window{ aWindow }
 		, Source{ adapters::workspace::make_local_workspace_source() }
 	{
@@ -52,8 +57,20 @@ namespace bpr::app {
 		Host = std::make_unique<application::local_draft_workbench>(
 			[root = aProfileRoot] { return adapters::sqlite::open_local_draft_store(root); }, *Source, std::move(git), aEffects, aDecisions, *this, random_seed(),
 			[] { return static_cast<std::int64_t>(QDateTime::currentSecsSinceEpoch()); }, core::make_xdiff_line_matcher());
-		View = new qt::local_draft_view{ };
-		Window.adopt_local_draft(View);
+		// The window shows the draft in its own review surface; these are its additions.
+		View = Window.local_draft();
+		if (aSyntax.Definitions != nullptr && aSyntax.Effects != nullptr) {
+			// The comparison's sides and the Edit view's text, classified by the
+			// packaged definitions the review panes use, on their lane.
+			SyntaxDefinitions = aSyntax.Definitions;
+			SyntaxTexts       = std::make_unique<suggestion_text_source>();
+			SyntaxClassifier  = std::make_unique<adapters::syntax::packaged_syntax_classifier>(*SyntaxDefinitions, *SyntaxTexts);
+			SyntaxRelay       = std::make_unique<code_syntax_relay>([this](const application::token_span_publication* aSpans) { syntax_done(aSpans); });
+			SyntaxHost        = std::make_unique<application::syntax_classification_application_host>(*SyntaxClassifier, *aSyntax.Effects, aDecisions, *SyntaxRelay, core::application_session_id{ 3U },
+																								   application::appearance_host_limits{ .OutstandingRequests = 1U, .TokenSpanCacheEntries = 8U });
+			SyntaxHost->observe_work(aSyntax.Insights);
+			Window.set_local_syntax_dispatch([this](const std::string& aPath, const std::string& aDocument) { want_syntax(aPath, aDocument); });
+		}
 		// Author state: the author's own Git in their own worktree, separate
 		// from the isolated reader (RFC-BPR-0114 as amended 2026-11-12).
 		AuthorGit     = adapters::git::make_installed_author_git(aGitExecutable.empty() ? std::filesystem::path{ } : aGitExecutable);
@@ -111,14 +128,6 @@ namespace bpr::app {
 				[this] {
 					Host->close();
 					Window.leave_local_draft();
-				},
-			.StageChange =
-				[this](const std::string& aPath, const core::local_change_hunk aChange, const bool aStage) {
-					if (aStage) {
-						Changes->stage_change(aPath, aChange);
-					} else {
-						Changes->unstage_change(aPath, aChange);
-					}
 				},
 			.OpenLocalFile     = [this](const std::string& aPath) { Changes->open_file(aPath); },
 			.Save              = [this](const std::string& aPath, std::vector<std::uint8_t> aRead, std::vector<std::uint8_t> aEdited) { Changes->save(aPath, std::move(aRead), std::move(aEdited)); },
@@ -179,15 +188,18 @@ namespace bpr::app {
 		if (Closing) {
 			return;
 		}
-		View->present(aProjection);
-		follow_author_state(aProjection);
 		if (aProjection.Stage == application::local_draft_stage::closed) {
+			Window.present_local_draft(aProjection);
+			follow_author_state(aProjection);
 			Window.leave_local_draft();
 			return;
 		}
 		if (std::exchange(BringForward, false) || Window.showing_local_draft()) {
+			View->present(aProjection);
 			Window.show_local_draft(View->window_title());
 		}
+		Window.present_local_draft(aProjection);
+		follow_author_state(aProjection);
 	}
 
 	void local_draft_desktop::follow_author_state(const application::local_draft_workbench_projection& aProjection)
@@ -222,12 +234,8 @@ namespace bpr::app {
 
 	void local_draft_desktop::publish(const application::local_changes_projection& aProjection)
 	{
-		if (!Closing && View) {
-			View->present_local(aProjection);
-			// The window's status bar carries the page's line.
-			if (Window.showing_local_draft()) {
-				Window.show_local_draft(View->window_title());
-			}
+		if (!Closing && View != nullptr) {
+			Window.present_local_changes(aProjection);
 		}
 	}
 
@@ -351,9 +359,68 @@ namespace bpr::app {
 		return *Host;
 	}
 
-	auto local_draft_desktop::view() noexcept -> qt::local_draft_view*
+	auto local_draft_desktop::view() noexcept -> qt::local_draft_parts*
 	{
 		return View;
+	}
+
+	void local_draft_desktop::adopt_appearance(const qt::appearance_profile& aProfile)
+	{
+		if (View != nullptr) {
+			View->adopt_appearance(aProfile);
+		}
+	}
+
+	void local_draft_desktop::want_syntax(const std::string& aPath, const std::string& aDocument)
+	{
+		if (Closing || !SyntaxHost) {
+			return;
+		}
+		auto       document = std::make_shared<const std::string>(aDocument);
+		const auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(document->data()), document->size() };
+		const auto blob     = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+		if (!blob) {
+			return;
+		}
+		auto wanted = wanted_syntax{ .Key = { .Blob = *blob, .Definition = SyntaxDefinitions->definition_for_path(aPath) }, .Document = std::move(document) };
+		if ((SyntaxClassifying && SyntaxClassifying->Key == wanted.Key) || std::ranges::find(SyntaxWanted, wanted.Key, &wanted_syntax::Key) != SyntaxWanted.end()) {
+			return;
+		}
+		// A known answer is adopted at once.
+		if (auto spans = SyntaxHost->cached(wanted.Key)) {
+			Window.adopt_local_syntax(*wanted.Document, spans);
+			return;
+		}
+		// The newest texts are the ones on screen; the oldest waiting gives way.
+		constexpr auto waiting = std::size_t{ 6U };
+		if (SyntaxWanted.size() >= waiting) {
+			SyntaxWanted.pop_front();
+		}
+		SyntaxWanted.push_back(std::move(wanted));
+		submit_syntax();
+	}
+
+	void local_draft_desktop::submit_syntax()
+	{
+		if (Closing || !SyntaxHost || SyntaxClassifying || SyntaxWanted.empty()) {
+			return;
+		}
+		SyntaxClassifying = std::move(SyntaxWanted.front());
+		SyntaxWanted.pop_front();
+		SyntaxTexts->hold(SyntaxClassifying->Key.Blob, SyntaxClassifying->Document);
+		SyntaxHost->classify(SyntaxClassifying->Key);
+	}
+
+	void local_draft_desktop::syntax_done(const application::token_span_publication* const aSpans)
+	{
+		if (SyntaxClassifying) {
+			SyntaxTexts->release(SyntaxClassifying->Key.Blob);
+			if (!Closing && aSpans != nullptr && aSpans->Key == SyntaxClassifying->Key) {
+				Window.adopt_local_syntax(*SyntaxClassifying->Document, aSpans->Spans);
+			}
+		}
+		SyntaxClassifying.reset();
+		submit_syntax();
 	}
 
 	void local_draft_desktop::shutdown()
@@ -362,12 +429,16 @@ namespace bpr::app {
 		// The page outlives this desktop in the window; a gesture it sends
 		// while it is torn down (a title losing focus) reaches nothing.
 		// A window already gone took the page with it: nothing to detach.
-		if (View) {
+		if (View != nullptr) {
+			Window.set_local_syntax_dispatch({ });
 			View->set_dispatch({ });
 			View->set_preparation_dispatch({ });
 			View->publication()->set_dispatch({ });
 			View->local_changes()->set_dispatch({ });
 			Window.set_local_draft_entry_dispatch({ }, { });
+		}
+		if (SyntaxHost) {
+			SyntaxHost->shutdown();
 		}
 		if (Changes) {
 			Changes->shutdown();

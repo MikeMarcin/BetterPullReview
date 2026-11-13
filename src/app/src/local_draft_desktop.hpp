@@ -2,28 +2,56 @@
 #define BPR_SRC_APP_SRC_LOCAL_DRAFT_DESKTOP_HPP
 
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/author_git_port.hpp"
 #include "bpr/application/local_changes_host.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/workspace_source_port.hpp"
 
+#include "bpr/qt/local_draft_parts.hpp"
+
 #include <QFont>
 #include <QPointer>
 #include <QString>
 
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 
+namespace bpr::adapters::syntax {
+	class packaged_definition_catalog;
+	class packaged_syntax_classifier;
+}
+
+namespace bpr::application {
+	class insights_observer;
+	class syntax_classification_application_host;
+}
+
 namespace bpr::qt {
+	class appearance_profile;
 	class workbench_window;
-	class local_draft_view;
+	class local_draft_parts;
 }
 
 namespace bpr::app {
+	class suggestion_text_source;
+	class code_syntax_relay;
+
+	/// \brief The packaged syntax definitions and the lane their classifier
+	/// runs on, so a draft's comparison and Edit view are coloured as a pull
+	/// request's are.
+	struct local_draft_syntax
+	{
+		const adapters::syntax::packaged_definition_catalog* Definitions = nullptr;
+		application::effect_executor*                        Effects     = nullptr;
+		std::shared_ptr<application::insights_observer>      Insights;
+	};
+
 	/// \brief RFC-BPR-0108 ([[BPR-2021]]). Composes local PR drafts into one
 	/// desktop window: Home's Prepare pull request… and In preparation, the
 	/// draft page, and the harness handoff.
@@ -36,7 +64,8 @@ namespace bpr::app {
 	{
 	public:
 		local_draft_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, std::filesystem::path aGitExecutable,
-							std::optional<std::filesystem::path> aWindowsSystemRoot, application::effect_executor& aEffects, application::decision_executor& aDecisions);
+							std::optional<std::filesystem::path> aWindowsSystemRoot, application::effect_executor& aEffects, application::decision_executor& aDecisions,
+							local_draft_syntax aSyntax = { });
 		~local_draft_desktop() override;
 		local_draft_desktop(const local_draft_desktop&)                    = delete;
 		auto operator=(const local_draft_desktop&) -> local_draft_desktop& = delete;
@@ -91,7 +120,9 @@ namespace bpr::app {
 		void associate_for_look(std::uint64_t aNumber);
 		/// \brief Replaces the one-time hooks question, for a course.
 		void               set_consent_question(std::function<bool()> aQuestion);
-		[[nodiscard]] auto view() noexcept -> qt::local_draft_view*;
+		[[nodiscard]] auto view() noexcept -> qt::local_draft_parts*;
+		/// \brief The panes' code colours for the Edit view.
+		void adopt_appearance(const qt::appearance_profile& aProfile);
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 
@@ -101,7 +132,7 @@ namespace bpr::app {
 		std::unique_ptr<worker_executor>        PublishLane;
 		std::function<void(const std::string&)> Copier;
 		/// The window owns the page; a window torn down first takes it with it.
-		QPointer<qt::local_draft_view>                      View;
+		QPointer<qt::local_draft_parts>                     View;
 		std::unique_ptr<application::workspace_source_port> Source;
 		std::unique_ptr<application::local_draft_workbench> Host;
 		/// Author state: the author's own Git, the one file Save writes, and
@@ -115,6 +146,22 @@ namespace bpr::app {
 		folder_chooser                                   Chooser;
 		agent_chooser                                    AgentChooser;
 		/// The page comes forward only when the author asked for it.
+		/// A local text classified by the window's own definitions.
+		struct wanted_syntax
+		{
+			application::token_span_cache_key  Key;
+			std::shared_ptr<const std::string> Document;
+		};
+		void                                                                  want_syntax(const std::string& aPath, const std::string& aDocument);
+		void                                                                  submit_syntax();
+		void                                                                  syntax_done(const application::token_span_publication* aSpans);
+		const adapters::syntax::packaged_definition_catalog*                 SyntaxDefinitions = nullptr;
+		std::unique_ptr<suggestion_text_source>                              SyntaxTexts;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>        SyntaxClassifier;
+		std::unique_ptr<code_syntax_relay>                                   SyntaxRelay;
+		std::unique_ptr<application::syntax_classification_application_host> SyntaxHost;
+		std::deque<wanted_syntax>                                            SyntaxWanted;
+		std::optional<wanted_syntax>                                         SyntaxClassifying;
 		bool BringForward = false;
 		bool Closing      = false;
 	};

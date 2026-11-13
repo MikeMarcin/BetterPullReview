@@ -9,7 +9,7 @@
 #include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/diff_workbench.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"

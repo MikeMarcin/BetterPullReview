@@ -1358,6 +1358,9 @@ namespace bpr::qt {
 		void adopt_local_syntax(const std::string& aDocument, const application::shared_token_spans& aSpans);
 		/// \brief The Files tab and the Local Changes tab, for courses.
 		[[nodiscard]] auto file_search_tabs() const noexcept -> QTabWidget*;
+		/// \brief Chooses a draft file's row in the Files tree, as a click on it does.
+		/// \returns Whether the draft has that file.
+		auto open_local_file(const QString& aPath) -> bool;
 		/// \brief The tab index of Local Changes, or -1 when it is not in the tabs.
 		[[nodiscard]] auto local_changes_tab() const -> int;
 		/// \brief Home's author entry: Prepare pull request… and In
