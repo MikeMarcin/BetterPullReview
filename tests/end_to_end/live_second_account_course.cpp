@@ -270,7 +270,10 @@ namespace {
 	{
 		auto driver = e2e::account_setup_driver{ aWindow, e2e::account_setup_driver::plan{ } };
 		driver.begin();
-		require([&] { return aWindow.account_setup()->projection().State.Phase == core::account_setup_phase::choosing_account; }, "GitHub CLI discovery");
+		const auto discovered = wait_for([&] { return aWindow.account_setup()->projection().State.Phase == core::account_setup_phase::choosing_account; }, "GitHub CLI discovery", std::chrono::seconds{ 180 });
+		if (!discovered) {
+			fail("GitHub CLI discovery stopped at " + std::string{ core::stable_name(aWindow.account_setup()->projection().State.Phase) });
+		}
 		for (const auto& account : aWindow.account_setup()->projection().State.Accounts) {
 			say("cli-account:" + account.Login + (account.ActiveInGh ? " (active in gh)" : ""));
 		}
