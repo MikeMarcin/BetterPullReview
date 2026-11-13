@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2065"
 title: "The author-Git runner, its one-time question, and Commit"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0114"]
 metadata: {"criteria":["AC01","AC02","AC05","AC06"],"milestone_plan":{"id":"local-draft-authoring-v1","path":"docs/rfcs/plans/local-draft-authoring-v1/milestone-plan.json"},"reopened_choices":["PUBLISH-01"],"reservation":"docs/issues/_reservations/BPR-2062--BPR-2071--3110069c9cbb.json","imported_from":"docs/rfcs/assets/local-draft-authoring-v1/cards/DRAFT-0004-author-git-runner-and-commit.md"}
 depends_on: ["BPR-2020"]
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"6887928bd","evidence":{"kind":"command","detail":"local_changes: the author-Git runner, separate from the isolated reader, commits with the repository's hooks; owner accepted local-changes-commit-push in session 767b9233"}},{"criterion":"AC02","outcome":"pass","revision":"6887928bd","evidence":{"kind":"command","detail":"local_changes: the one-time hooks question and its declined path (declined)"}},{"criterion":"AC05","outcome":"pass","revision":"6887928bd","evidence":{"kind":"command","detail":"local_changes: Commit of exactly the staged files, a refusing hook leaves no commit, Amend while GitHub lacks it; owner accepted agent-commit-message in session 767b9233"}},{"criterion":"AC06","outcome":"pass","revision":"6887928bd","evidence":{"kind":"command","detail":"local_changes stopped_and_timed_out_pushes: a timed-out (1.5 s bound) and a stopped push against a hanging pre-push hook each kill it, say why, read GitHub again and repeat nothing; application_dependable_session_public_path step 2b: a review submission completes while a push holds the author's Git lane"}}]
 ---
 
 # The author-Git runner, its one-time question, and Commit
