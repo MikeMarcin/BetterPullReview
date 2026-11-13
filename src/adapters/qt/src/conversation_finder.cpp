@@ -36,6 +36,7 @@
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPixmap>
 #include <QPainterPath>
 #include <QPalette>
 #include <QPen>
@@ -86,9 +87,12 @@ namespace bpr::qt {
 		constexpr std::size_t preview_lines   = 4U;
 		constexpr auto        draft_identity  = std::string_view{ "draft:unpublished" };
 
-		/// [[BPR-2092]]. A draft row's words.
-		[[nodiscard]] auto finder_draft_tag_text(const bool aReply) -> QString
+		/// [[BPR-2092]]. A draft row's words; RFC-BPR-0127, a Local one's.
+		[[nodiscard]] auto finder_draft_tag_text(const bool aReply, const bool aLocal = false) -> QString
 		{
+			if (aLocal) {
+				return aReply ? QStringLiteral("Local reply") : QStringLiteral("Local");
+			}
 			return aReply ? QStringLiteral("Draft reply") : QStringLiteral("Draft");
 		}
 
@@ -490,6 +494,17 @@ namespace bpr::qt {
 			return left.empty() != right.empty() ? !left.empty() : (left != right ? left < right : aLeft.Line < aRight.Line);
 		});
 		return result;
+	}
+
+	auto finder_state_text(const finder_state aState) -> QString
+	{
+		switch (aState) {
+		case finder_state::all:       return QStringLiteral("All");
+		case finder_state::published: return QStringLiteral("Published");
+		case finder_state::draft:     return QStringLiteral("Draft");
+		case finder_state::local:     return QStringLiteral("Local");
+		}
+		return QStringLiteral("All");
 	}
 
 	auto finder_post_found(const finder_post& aPost, const QString& aSearch) -> bool
@@ -955,6 +970,14 @@ namespace bpr::qt {
 			}
 		}
 
+		void set_glyph(const conversation_glyph aGlyph)
+		{
+			if (Glyph != aGlyph) {
+				Glyph = aGlyph;
+				update();
+			}
+		}
+
 		void set_mark(const std::optional<core::feedback_label> aLabel)
 		{
 			if (Label != aLabel) {
@@ -1282,7 +1305,9 @@ namespace bpr::qt {
 		bar->addWidget(HideResolved);
 		bar->addWidget(LabelChip);
 		// [[BPR-2092]]. My drafts: only my drafts, with how many.
-		DraftsChip = new finder_chip{ conversation_glyph::edit, false, Bar };
+		// RFC-BPR-0127 ([[BPR-2159]]). It became the state filter: All,
+		// Published, Draft or Local, each with its count.
+		DraftsChip = new finder_chip{ conversation_glyph::comment, true, Bar };
 		DraftsChip->setObjectName(QStringLiteral("threadFinderMyDrafts"));
 		bar->addWidget(DraftsChip);
 		bar->addStretch(0);
@@ -1381,12 +1406,7 @@ namespace bpr::qt {
 		QObject::connect(OnlyNew, &QAbstractButton::clicked, this, [this] { tell_filter_choice(); });
 		QObject::connect(HideResolved, &QAbstractButton::clicked, this, [this] { tell_filter_choice(); });
 		QObject::connect(LabelChip, &QAbstractButton::clicked, this, [this] { open_label_menu(); });
-		QObject::connect(DraftsChip, &QAbstractButton::toggled, this, [this](const bool aOn) {
-			if (Filters.OnlyDrafts != aOn) {
-				Filters.OnlyDrafts = aOn;
-				apply_filters();
-			}
-		});
+		QObject::connect(DraftsChip, &QAbstractButton::clicked, this, [this] { open_state_menu(); });
 		QObject::connect(List->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex& aCurrent) {
 			const auto key = aCurrent.isValid() ? item_key(Model->Shown[static_cast<std::size_t>(aCurrent.row())]) : std::string{ };
 			if (key != Cursor) {
@@ -1423,6 +1443,7 @@ namespace bpr::qt {
 		LabelMembers.clear();
 		Draft.reset();
 		SavedDrafts.clear();
+		LocalComments.clear();
 		Reading = { };
 		Filters = { };
 		Folded.clear();
@@ -1563,13 +1584,50 @@ namespace bpr::qt {
 
 	auto conversation_finder::show_drafts(const QString& aPath) -> bool
 	{
+		return show_state(finder_state::draft, aPath);
+	}
+
+	void conversation_finder::set_local_comments(std::vector<finder_local_comment> aComments)
+	{
+		std::erase_if(aComments, [](const finder_local_comment& aComment) { return aComment.Path.isEmpty(); });
+		if (LocalComments == aComments) {
+			return;
+		}
+		LocalComments = std::move(aComments);
+		Dirty         = true;
+		if (isVisible()) {
+			refresh();
+		} else {
+			refresh_bar();
+		}
+	}
+
+	auto conversation_finder::local_comments() const noexcept -> const std::vector<finder_local_comment>&
+	{
+		return LocalComments;
+	}
+
+	auto conversation_finder::state_count(const finder_state aState) -> std::size_t
+	{
 		refresh();
-		set_filters({ .OnlyDrafts = true });
+		switch (aState) {
+		case finder_state::all:       return Conversations.size();
+		case finder_state::published: return static_cast<std::size_t>(std::ranges::count_if(Conversations, [](const finder_conversation& aConversation) { return !aConversation.Draft; }));
+		case finder_state::draft:     return SavedDrafts.size();
+		case finder_state::local:     return LocalComments.size();
+		}
+		return 0U;
+	}
+
+	auto conversation_finder::show_state(const finder_state aState, const QString& aPath) -> bool
+	{
+		refresh();
+		set_filters({ .State = aState });
 		const auto inPath = [&aPath](const QString& aFile) {
 			return aPath.isEmpty() || aFile == aPath || aFile.startsWith(aPath + QLatin1Char{ '/' });
 		};
-		const auto found = std::ranges::find_if(Conversations, [&inPath](const finder_conversation& aConversation) {
-			return aConversation.Draft && inPath(aConversation.Path);
+		const auto found = std::ranges::find_if(Conversations, [this, &inPath](const finder_conversation& aConversation) {
+			return matches(aConversation) && inPath(aConversation.Path);
 		});
 		if (found == Conversations.end()) {
 			return false;
@@ -1722,11 +1780,9 @@ namespace bpr::qt {
 			const QSignalBlocker search{ Search };
 			const QSignalBlocker onlyNew{ OnlyNew };
 			const QSignalBlocker hideResolved{ HideResolved };
-			const QSignalBlocker drafts{ DraftsChip };
 			Search->setText(Filters.Search);
 			OnlyNew->setChecked(Filters.OnlyNew);
 			HideResolved->setChecked(Filters.HideResolved);
-			DraftsChip->setChecked(Filters.OnlyDrafts);
 		}
 		apply_filters();
 	}
@@ -1976,7 +2032,23 @@ namespace bpr::qt {
 			Conversations.push_back(std::move(draft));
 			savedOpen = savedOpen || (Draft.has_value() && Draft->Id == saved.Id);
 		}
-		if (!SavedDrafts.empty()) {
+		// RFC-BPR-0127 ([[BPR-2159]]). My Local comments, in their files'
+		// groups, marked Local.
+		for (const auto& comment : LocalComments) {
+			auto local    = finder_conversation{ };
+			local.Id      = std::string{ finder_local_prefix } + std::to_string(comment.Id);
+			local.Path    = comment.Path;
+			local.Line    = comment.Line;
+			local.Draft   = true;
+			local.Local   = true;
+			local.Reply   = comment.Reply;
+			auto post     = make_post(local.Id, Viewer, comment.Body.toStdString(), Viewer);
+			post.Mine     = true;
+			local.Posts   = { std::move(post) };
+			local.Rows    = finder_rows_of(local.Posts);
+			Conversations.push_back(std::move(local));
+		}
+		if (!SavedDrafts.empty() || !LocalComments.empty()) {
 			std::ranges::stable_sort(Conversations, [](const finder_conversation& aLeft, const finder_conversation& aRight) {
 				const auto left  = aLeft.Path.toStdString();
 				const auto right = aRight.Path.toStdString();
@@ -2049,13 +2121,17 @@ namespace bpr::qt {
 
 	auto conversation_finder::matches(const finder_conversation& aConversation) const -> bool
 	{
-		if (Filters.OnlyDrafts) {
-			// [[BPR-2092]]. My drafts shows every draft of mine and nothing
-			// else, so no other filter can hide one.
-			if (!aConversation.Draft) {
+		if (Filters.State == finder_state::draft || Filters.State == finder_state::local) {
+			// [[BPR-2092]]. Draft shows every draft of mine and nothing else,
+			// and RFC-BPR-0127's Local every Local comment, so no other
+			// filter can hide one.
+			if (!aConversation.Draft || aConversation.Local != (Filters.State == finder_state::local)) {
 				return false;
 			}
 		} else {
+			if (Filters.State == finder_state::published && aConversation.Draft) {
+				return false;
+			}
 			if (Filters.OnlyNew && aConversation.Unread == 0U) {
 				return false;
 			}
@@ -2137,13 +2213,25 @@ namespace bpr::qt {
 													 : QStringLiteral("Only threads with a label");
 		LabelChip->setToolTip(label);
 		LabelChip->setAccessibleName(label);
-		const auto drafts = SavedDrafts.size();
-		DraftsChip->set_count(QString::number(drafts));
-		const auto mine = drafts == 0U ? QStringLiteral("Only my drafts: you have no drafts in this pull request")
-									   : QStringLiteral("Only my drafts (%1), each labelled Draft; amber when it isn't in your review").arg(drafts);
+		// RFC-BPR-0127 ([[BPR-2159]]). The state filter names its choice and
+		// how many rows it shows.
+		const auto count = [this](const finder_state aState) -> std::size_t {
+			switch (aState) {
+			case finder_state::all:       return Conversations.size();
+			case finder_state::published: return static_cast<std::size_t>(std::ranges::count_if(Conversations, [](const finder_conversation& aConversation) { return !aConversation.Draft; }));
+			case finder_state::draft:     return SavedDrafts.size();
+			case finder_state::local:     return LocalComments.size();
+			}
+			return 0U;
+		};
+		const auto state = Filters.State;
+		DraftsChip->set_glyph(state == finder_state::local ? conversation_glyph::computer : state == finder_state::draft ? conversation_glyph::edit
+																																	 : conversation_glyph::comment);
+		DraftsChip->set_count(QStringLiteral("%1 %2").arg(finder_state_text(state)).arg(count(state)));
+		DraftsChip->set_on(state != finder_state::all);
+		const auto mine = QStringLiteral("Show: %1 (%2). Choose All, Published, Draft or Local").arg(finder_state_text(state)).arg(count(state));
 		DraftsChip->setToolTip(mine);
 		DraftsChip->setAccessibleName(mine);
-		DraftsChip->setEnabled(drafts != 0U || Filters.OnlyDrafts);
 	}
 
 	void conversation_finder::refresh_colours()
@@ -2160,6 +2248,56 @@ namespace bpr::qt {
 		if (List != nullptr) {
 			List->viewport()->update();
 		}
+	}
+
+	void conversation_finder::open_state_menu()
+	{
+		refresh();
+		auto* const menu = new QMenu{ this };
+		menu->setObjectName(QStringLiteral("threadFinderStateMenu"));
+		menu->setAttribute(Qt::WA_DeleteOnClose, true);
+		StateMenu         = menu;
+		auto* const group = new QActionGroup{ menu };
+		group->setExclusive(true);
+		// [[BPR-2092]]'s amber: Draft carries it while a draft of mine is
+		// not in the review.
+		const auto outside = std::ranges::any_of(SavedDrafts, [](const finder_saved_draft& aDraft) { return !aDraft.InReview && !aDraft.Reply; });
+		const auto amber   = [this] {
+			const auto dpr    = devicePixelRatioF();
+			auto       pixmap = QPixmap{ static_cast<int>(16.0 * dpr), static_cast<int>(16.0 * dpr) };
+			pixmap.setDevicePixelRatio(dpr);
+			pixmap.fill(Qt::transparent);
+			auto painter = QPainter{ &pixmap };
+			painter.setRenderHint(QPainter::Antialiasing, true);
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(Attention.value_or(QColor{ 0xC0, 0x7A, 0x12 }));
+			painter.drawEllipse(QRectF{ 5.0, 5.0, 6.0, 6.0 });
+			return QIcon{ pixmap };
+		};
+		for (const auto state : { finder_state::all, finder_state::published, finder_state::draft, finder_state::local }) {
+			const auto  glyph  = state == finder_state::local ? conversation_glyph::computer : state == finder_state::draft ? conversation_glyph::edit
+																																		  : conversation_glyph::comment;
+			auto* const action = menu->addAction(state == finder_state::draft && outside ? amber() : conversation_icon(glyph, palette()),
+												 QStringLiteral("%1\t%2").arg(finder_state_text(state)).arg(state_count(state)));
+			action->setObjectName(QStringLiteral("threadFinderState%1").arg(finder_state_text(state)));
+			action->setCheckable(true);
+			action->setChecked(Filters.State == state);
+			if (state == finder_state::draft && outside) {
+				action->setToolTip(QStringLiteral("Some of your drafts are not in your review"));
+			}
+			group->addAction(action);
+			QObject::connect(action, &QAction::triggered, this, [this, state] {
+				auto next  = Filters;
+				next.State = state;
+				set_filters(std::move(next));
+			});
+		}
+		menu->popup(DraftsChip->mapToGlobal(QPoint{ 0, DraftsChip->height() + 6 }));
+	}
+
+	auto conversation_finder::state_menu() const noexcept -> QMenu*
+	{
+		return StateMenu;
 	}
 
 	void conversation_finder::open_label_menu()
@@ -2760,7 +2898,7 @@ namespace bpr::qt {
 				geometry.NotInReview  = QRect{ wordsRight - amberWidth, pillTop, amberWidth, discuss_height };
 				wordsRight            = geometry.NotInReview.left() - bead_gap * 2;
 			}
-			const auto tagWidth = tagMetrics.horizontalAdvance(finder_draft_tag_text(conversation.Reply)) + 2 * discuss_padding;
+			const auto tagWidth = tagMetrics.horizontalAdvance(finder_draft_tag_text(conversation.Reply, conversation.Local)) + 2 * discuss_padding;
 			geometry.Tag        = QRect{ wordsRight - tagWidth, pillTop, tagWidth, discuss_height };
 			wordsRight          = geometry.Tag.left() - discuss_gap;
 		}
@@ -2823,7 +2961,9 @@ namespace bpr::qt {
 		text += first_words(first.Words, 80);
 		if (entry.Row == 0U) {
 			text += conversation.Posts.size() == 1U ? QStringLiteral(", one post") : QStringLiteral(", %1 posts").arg(conversation.Posts.size());
-			if (conversation.Draft && conversation.Reply) {
+			if (conversation.Local) {
+				text += conversation.Reply ? QStringLiteral(", your local reply, only on this computer") : QStringLiteral(", your local comment, only on this computer");
+			} else if (conversation.Draft && conversation.Reply) {
 				text += QStringLiteral(", your draft reply, sent on its own");
 			} else if (conversation.Draft && conversation.DraftId != 0U) {
 				text += conversation.InReview ? QStringLiteral(", your draft, in your review") : QStringLiteral(", your draft, not in your review");
@@ -3014,7 +3154,9 @@ namespace bpr::qt {
 			aPainter.setPen(dashed);
 			aPainter.setBrush(Qt::NoBrush);
 			aPainter.drawRoundedRect(mark.adjusted(1.0, 1.0, -1.0, -1.0), 3.0, 3.0);
-			paint_conversation_glyph(aPainter, mark.adjusted(3.5, 3.5, -3.5, -3.5), conversation_glyph::lock, colours.Faint);
+			// RFC-BPR-0127. Local wears the computer, a draft the pencil;
+			// nothing wears a lock.
+			paint_conversation_glyph(aPainter, mark.adjusted(3.5, 3.5, -3.5, -3.5), conversation.Local ? conversation_glyph::computer : conversation_glyph::edit, colours.Faint);
 		} else if (words.Label.has_value()) {
 			paint_feedback_mark(aPainter, mark, *words.Label, words.Emphasis, feedback_mark_colours_for(MarkTheme, *words.Label, palette()));
 		} else {
@@ -3115,8 +3257,8 @@ namespace bpr::qt {
 		// The state: my draft's lock, the new count, or resolved's tick.
 		if (entry.Row == 0U) {
 			const auto state = geometry.State;
-			if (conversation.Draft && conversation.DraftId == 0U) {
-				paint_conversation_glyph(aPainter, QRectF{ state.right() - 14.0, mid - 7.0, 14.0, 14.0 }, conversation_glyph::lock, colours.Faint);
+			if (conversation.Draft && conversation.DraftId == 0U && !conversation.Local) {
+				paint_conversation_glyph(aPainter, QRectF{ state.right() - 14.0, mid - 7.0, 14.0, 14.0 }, conversation_glyph::edit, colours.Faint);
 			} else if (conversation.Draft) {
 				// [[BPR-2092]]. A saved draft's words say what it is.
 			} else if (conversation.Unread > 0U) {
@@ -3165,7 +3307,7 @@ namespace bpr::qt {
 			aPainter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
 			aPainter.setFont(small);
 			aPainter.setPen(colours.Ink2);
-			aPainter.drawText(geometry.Tag, Qt::AlignCenter, finder_draft_tag_text(conversation.Reply));
+			aPainter.drawText(geometry.Tag, Qt::AlignCenter, finder_draft_tag_text(conversation.Reply, conversation.Local));
 			if (!geometry.NotInReview.isEmpty()) {
 				const auto amber    = Attention.value_or(default_feedback_state_colours(palette()).Open);
 				const auto amberBox = QRectF{ geometry.NotInReview }.adjusted(0.5, 0.5, -0.5, -0.5);

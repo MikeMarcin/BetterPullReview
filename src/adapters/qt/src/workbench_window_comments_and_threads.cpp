@@ -1840,6 +1840,7 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr) {
 			return;
 		}
+		present_local_found(aComments);
 		ConversationPanel->cards()->set_local_comments(std::move(aComments));
 		apply_thread_marks();
 		resume_private_note_open();

@@ -302,6 +302,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto outside_add_all() const noexcept -> QToolButton*;
 		/// \brief The rows' words, in order: "renderer.cpp, line 431: …".
 		[[nodiscard]] auto outside_rows() const -> QStringList;
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). Keep Local in a not-in-review
+		/// row's menu: the draft becomes a Local comment and leaves the list.
+		void set_outside_keep_local(std::function<void(const outside_draft&)> aKeepLocal);
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). One quiet line, "N local
+		/// comments stay on this computer", with Show; absent at zero. A Local
+		/// comment is never pending and never "not in this review".
+		void               set_local_count(std::size_t aCount);
+		void               set_local_show(std::function<void()> aShow);
+		[[nodiscard]] auto local_line() const noexcept -> QWidget*;
+		[[nodiscard]] auto local_line_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto local_show_button() const noexcept -> QToolButton*;
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
@@ -340,6 +351,12 @@ namespace bpr::qt {
 		QWidget*                                                                                        OutsideRule    = nullptr;
 		QLabel*                                                                                         OutsideHeading = nullptr;
 		QToolButton*                                                                                    OutsideAddAll  = nullptr;
+		std::function<void(const outside_draft&)>                                                       OutsideKeepLocal;
+		std::function<void()>                                                                           LocalShow;
+		std::size_t                                                                                     LocalCount     = 0U;
+		QWidget*                                                                                        LocalLine      = nullptr;
+		QLabel*                                                                                         LocalLabel     = nullptr;
+		QToolButton*                                                                                    LocalShowButton = nullptr;
 		QVBoxLayout*                                                                                    OutsideRows    = nullptr;
 		QString                                                                                         LastAnnouncement;
 		review_submission_editor_dispatch                                                               Dispatch;

@@ -213,6 +213,10 @@ namespace bpr::qt {
 		std::optional<std::string> ReplyToThread;
 		/// For an edit in place: the Local comment's revision it began from.
 		std::optional<std::uint64_t> Revision;
+		/// RFC-BPR-0127 ([[BPR-2159]]). Keep Local from a list (Finish your
+		/// review): the draft's file, as the roster has it, when its
+		/// comparison is not the one shown.
+		std::string Path;
 	};
 	using workbench_comment_state_dispatch = std::function<void(const comment_state_gesture&)>;
 	/// [[BPR-0657]]. A card's Resolve or Unresolve, with what the window knows
@@ -811,6 +815,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-2093]]. Threads with My drafts on, at the first draft
 		/// in \p aPath (a file or a folder; empty for all).
 		auto show_drafts_in_threads(const QString& aPath) -> bool;
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). Threads on a state (Local),
+		/// at its first row in \p aPath (a file, a folder, or all).
+		auto show_state_in_threads(finder_state aState, const QString& aPath) -> bool;
 		/// \brief [[BPR-2094]]. Where Add (true) and Leave out (false) go.
 		void set_draft_review_dispatch(std::function<void(std::vector<core::review_draft_id>, bool)> aDispatch);
 		/// \brief [[BPR-1733]]. My kept suggestions written on an earlier head
@@ -2860,6 +2867,14 @@ namespace bpr::qt {
 		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
 		/// [[BPR-2092]].
 		core::draft_roster                                            DraftRoster;
+		/// RFC-BPR-0127 ([[BPR-2159]]). My Local comments counted by file, and
+		/// all of them, beside the drafts.
+		std::map<QString, std::size_t> LocalByPath;
+		std::size_t                     LocalTotal = 0U;
+		/// Overview's Comments column: my drafts and Local comments by file.
+		void present_mine_counts();
+		/// Threads' Local rows, the counts and Finish your review's line.
+		void present_local_found(const std::vector<local_comment_card>& aComments);
 		std::function<void(std::vector<core::review_draft_id>, bool)> DraftReviewDispatch;
 		std::function<void(core::review_draft_id, std::uint64_t)>     CarriedSuggestionDispatch;
 		/// [[BPR-1733]]. The moved suggestions the composition last presented.

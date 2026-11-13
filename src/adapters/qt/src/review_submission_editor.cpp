@@ -1107,6 +1107,34 @@ namespace bpr::qt {
 		outside->addLayout(OutsideRows);
 		Outside->hide();
 		inside->addWidget(Outside);
+		// RFC-BPR-0127 ([[BPR-2159]]). My Local comments are never in this
+		// review: one quiet line says how many stay on this computer, with
+		// Show, which lists them in Threads.
+		LocalLine = new QWidget{ whole };
+		LocalLine->setObjectName(QStringLiteral("wholeReviewLocalLine"));
+		auto* const localRow = new QHBoxLayout{ LocalLine };
+		localRow->setContentsMargins(14, 4, 10, 6);
+		localRow->setSpacing(8);
+		LocalLabel = new QLabel{ LocalLine };
+		LocalLabel->setObjectName(QStringLiteral("wholeReviewLocalWords"));
+		LocalLabel->setTextFormat(Qt::PlainText);
+		LocalLabel->setForegroundRole(QPalette::PlaceholderText);
+		localRow->addWidget(LocalLabel, 1);
+		auto* const show = new quiet_tool_button{ LocalLine };
+		show->setObjectName(QStringLiteral("wholeReviewLocalShow"));
+		show->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		show->setFocusPolicy(Qt::StrongFocus);
+		show->setText(tr("Show"));
+		show->setToolTip(tr("List your local comments in Threads"));
+		LocalShowButton = show;
+		connect(show, &QToolButton::clicked, this, [this] {
+			if (LocalShow) {
+				LocalShow();
+			}
+		});
+		localRow->addWidget(show, 0, Qt::AlignVCenter);
+		LocalLine->hide();
+		inside->addWidget(LocalLine);
 		SummaryRule = new box_rule{ whole };
 		SummaryRule->hide();
 		inside->addWidget(SummaryRule);
@@ -2235,6 +2263,19 @@ namespace bpr::qt {
 				};
 				open->Open = go;
 				open->Pick = go;
+				// RFC-BPR-0127 ([[BPR-2159]]). Keep Local in the row's menu: it
+				// becomes a Local comment and leaves this list.
+				open->ExtendMenu = [this, draft](QMenu& aMenu) {
+					auto* const keep = aMenu.addAction(tr("Keep Local"));
+					keep->setObjectName(QStringLiteral("wholeReviewOutsideKeepLocal"));
+					keep->setToolTip(tr("Keep it only on this computer, as a local comment. It is never sent."));
+					keep->setEnabled(static_cast<bool>(OutsideKeepLocal));
+					connect(keep, &QAction::triggered, this, [this, draft] {
+						if (OutsideKeepLocal) {
+							OutsideKeepLocal(draft);
+						}
+					});
+				};
 				if (draft.Addable) {
 					across->addWidget(open, 1);
 					auto* const add = new quiet_tool_button{ row };
@@ -2281,7 +2322,36 @@ namespace bpr::qt {
 		OutsideAddAll->setAccessibleName(tr("Add all %1 to your review").arg(addable));
 		Outside->setVisible(!drafts.empty());
 		OutsideRule->setVisible(!drafts.empty() && Pending->isVisibleTo(this));
+		const auto local = writing ? LocalCount : 0U;
+		const auto words = local == 1U ? tr("1 local comment stays on this computer") : tr("%1 local comments stay on this computer").arg(local);
+		LocalLabel->setText(words);
+		LocalLabel->setAccessibleName(words);
+		LocalShowButton->setAccessibleName(tr("Show your local comments in Threads"));
+		LocalLine->setVisible(local != 0U);
 	}
+
+	void review_submission_editor::set_outside_keep_local(std::function<void(const outside_draft&)> aKeepLocal)
+	{
+		OutsideKeepLocal = std::move(aKeepLocal);
+	}
+
+	void review_submission_editor::set_local_count(const std::size_t aCount)
+	{
+		if (LocalCount == aCount) {
+			return;
+		}
+		LocalCount = aCount;
+		present_outside();
+	}
+
+	void review_submission_editor::set_local_show(std::function<void()> aShow)
+	{
+		LocalShow = std::move(aShow);
+	}
+
+	auto review_submission_editor::local_line() const noexcept -> QWidget* { return LocalLine; }
+	auto review_submission_editor::local_line_label() const noexcept -> QLabel* { return LocalLabel; }
+	auto review_submission_editor::local_show_button() const noexcept -> QToolButton* { return LocalShowButton; }
 	auto review_submission_editor::body_editor() const noexcept -> QPlainTextEdit* { return Body; }
 	auto review_submission_editor::disposition_button(core::review_disposition aDisposition) const noexcept -> QToolButton* { return Decisions[decision_index(aDisposition)]; }
 	auto review_submission_editor::preflight_button() const noexcept -> QToolButton* { return Preflight; }

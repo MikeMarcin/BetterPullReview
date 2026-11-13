@@ -109,6 +109,9 @@ namespace bpr::qt {
 			/// [[BPR-2093]]. My drafts on the row: `Count` of them, of which
 			/// `NotInReview` the review does not carry.
 			drafts,
+			/// RFC-BPR-0127 ([[BPR-2159]]). My Local comments on the row:
+			/// `Count` of them, only on this computer.
+			local,
 		};
 		kind                                Kind = kind::label;
 		std::optional<core::feedback_label> Label;
@@ -134,6 +137,9 @@ namespace bpr::qt {
 	{
 		std::size_t InReview    = 0U;
 		std::size_t NotInReview = 0U;
+		/// RFC-BPR-0127 ([[BPR-2159]]). My Local comments there, beside the
+		/// drafts; `total()` counts only drafts.
+		std::size_t Local = 0U;
 
 		[[nodiscard]] auto total() const noexcept -> std::size_t { return InReview + NotInReview; }
 		auto               operator==(const overview_draft_count&) const -> bool = default;
@@ -149,6 +155,9 @@ namespace bpr::qt {
 	/// \brief [[BPR-2093]]. What the drafts chip says, in its tooltip and to
 	/// a screen reader.
 	[[nodiscard]] auto overview_drafts_text(const overview_comment_chip& aChip) -> QString;
+
+	/// \brief RFC-BPR-0127 ([[BPR-2159]]). What the Local chip says.
+	[[nodiscard]] auto overview_local_text(const overview_comment_chip& aChip) -> QString;
 
 	/// \brief [[BPR-1089]]. The chip the keyboard is on: Tab steps from a row
 	/// onto its chips, and the row and the chip's kind and label name it, so it
@@ -368,6 +377,7 @@ namespace bpr::qt {
 		/// draft's own mark, its count, and an amber dot while any draft is
 		/// not in the review.
 		void paint_drafts_chip(QPainter& aPainter, const QStyleOptionViewItem& aOption, const overview_comment_chip& aChip) const;
+		void paint_local_chip(QPainter& aPainter, const QStyleOptionViewItem& aOption, const overview_comment_chip& aChip) const;
 
 		const overview_colours&            Colours;
 		std::optional<overview_chip_focus> ChipFocus;
@@ -676,6 +686,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-2093]]. Where a drafts chip goes: the file's (or the
 		/// folder's) path, to list its drafts.
 		void set_drafts_dispatch(std::function<void(const QString&)> aDispatch);
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). A Local chip's activation:
+		/// Threads on Local at the first in this row's path.
+		void set_local_dispatch(std::function<void(const QString&)> aDispatch);
 		/// \brief The view's current request: its chips, mode and sort.
 		[[nodiscard]] auto feedback_request() const -> application::overview_feedback_request;
 		/// \brief Chooses the mode, as the switch does.
@@ -1002,6 +1015,7 @@ namespace bpr::qt {
 		overview_feedback_dispatch                            FeedbackDispatch;
 		overview_drill_down_dispatch                          DrillDownDispatch;
 		std::function<void(const QString&)>                   DraftsDispatch;
+		std::function<void(const QString&)>                   LocalDispatch;
 		QToolButton*                                          OpenCounts    = nullptr;
 		QToolButton*                                          AllCounts     = nullptr;
 		QToolButton*                                          Uncertain     = nullptr;

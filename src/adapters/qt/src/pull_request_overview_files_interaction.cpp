@@ -507,6 +507,11 @@ namespace bpr::qt {
 		DraftsDispatch = std::move(aDispatch);
 	}
 
+	void pull_request_overview_page::set_local_dispatch(std::function<void(const QString&)> aDispatch)
+	{
+		LocalDispatch = std::move(aDispatch);
+	}
+
 	void pull_request_overview_page::set_drill_down_dispatch(overview_drill_down_dispatch aDispatch)
 	{
 		DrillDownDispatch = std::move(aDispatch);

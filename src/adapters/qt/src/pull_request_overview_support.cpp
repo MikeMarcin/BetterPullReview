@@ -434,6 +434,8 @@ namespace bpr::qt {
 			return QStringLiteral("More");
 		case overview_comment_chip::kind::drafts:
 			return QStringLiteral("My drafts");
+		case overview_comment_chip::kind::local:
+			return QStringLiteral("My local comments");
 		case overview_comment_chip::kind::uncertain:
 			break;
 		}
@@ -478,6 +480,8 @@ namespace bpr::qt {
 		}
 		case overview_comment_chip::kind::drafts:
 			return overview_drafts_text(aChip);
+		case overview_comment_chip::kind::local:
+			return overview_local_text(aChip);
 		case overview_comment_chip::kind::uncertain:
 			break;
 		}

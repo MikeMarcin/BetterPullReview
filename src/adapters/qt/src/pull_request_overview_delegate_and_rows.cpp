@@ -549,6 +549,9 @@ namespace bpr::qt {
 			case overview_comment_chip::kind::drafts:
 				paint_drafts_chip(*aPainter, aOption, chip);
 				break;
+			case overview_comment_chip::kind::local:
+				paint_local_chip(*aPainter, aOption, chip);
+				break;
 			}
 		}
 		// The chip the keyboard is on wears a ring, in the selection's own
@@ -587,6 +590,30 @@ namespace bpr::qt {
 			aPainter.setBrush(Colours.States.Open);
 			aPainter.drawEllipse(dot);
 		}
+		aPainter.setFont(chip_font(aOption.font));
+		aPainter.setPen(ink);
+		const auto digits = QRectF{ mark.right() + count_gap, aChip.Box.top(), aChip.Box.width() - mark.width() - count_gap, aChip.Box.height() };
+		aPainter.drawText(digits, Qt::AlignLeft | Qt::AlignVCenter, QString::number(static_cast<qulonglong>(aChip.Count)));
+		aPainter.restore();
+	}
+
+	void overview_row_delegate::paint_local_chip(QPainter& aPainter, const QStyleOptionViewItem& aOption, const overview_comment_chip& aChip) const
+	{
+		// RFC-BPR-0127 ([[BPR-2159]]). The computer, dashed as the drafts
+		// chip is, and the count: only on this computer, never in a review.
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		const auto selected = (aOption.state & QStyle::State_Selected) != 0;
+		const auto group    = (aOption.state & QStyle::State_Active) != 0 ? QPalette::Active : QPalette::Inactive;
+		const auto ink      = aOption.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text);
+		const auto faint    = selected ? ink : aOption.palette.color(group, QPalette::PlaceholderText);
+		const auto mark     = QRectF{ aChip.Box.left(), aChip.Box.top(), aChip.Box.height(), aChip.Box.height() };
+		auto       dashed   = QPen{ faint, 1.0 };
+		dashed.setStyle(Qt::DashLine);
+		aPainter.setPen(dashed);
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.drawRoundedRect(mark.adjusted(0.5, 0.5, -0.5, -0.5), 3.0, 3.0);
+		paint_conversation_glyph(aPainter, mark.adjusted(2.5, 2.5, -2.5, -2.5), conversation_glyph::computer, ink);
 		aPainter.setFont(chip_font(aOption.font));
 		aPainter.setPen(ink);
 		const auto digits = QRectF{ mark.right() + count_gap, aChip.Box.top(), aChip.Box.width() - mark.width() - count_gap, aChip.Box.height() };

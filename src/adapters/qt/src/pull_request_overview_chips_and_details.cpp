@@ -115,6 +115,13 @@ namespace bpr::qt {
 			}
 			return;
 		}
+		// RFC-BPR-0127 ([[BPR-2159]]). My Local comments: Threads on Local.
+		if (aChip.Kind == overview_comment_chip::kind::local) {
+			if (LocalDispatch) {
+				LocalDispatch(Model->path_at(aCell));
+			}
+			return;
+		}
 		const auto row = Model->feedback_row(aCell);
 		if (!row) {
 			return;

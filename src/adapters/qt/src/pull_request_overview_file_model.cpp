@@ -202,6 +202,12 @@ namespace bpr::qt {
 		return QStringLiteral("%1 here. %2\nClick or press Enter to list them in Threads.").arg(drafts, where);
 	}
 
+	auto overview_local_text(const overview_comment_chip& aChip) -> QString
+	{
+		const auto local = aChip.Count == 1U ? QStringLiteral("1 local comment of yours") : QStringLiteral("%1 local comments of yours").arg(aChip.Count);
+		return QStringLiteral("%1 here, only on this computer. Never sent.\nClick or press Enter to list them in Threads.").arg(local);
+	}
+
 	auto overview_comment_chips(const core::feedback_counter_projection* const aCountsOrNull, const QRect& aCell, const QFont& aFont, const std::optional<overview_draft_count> aDrafts)
 		-> std::vector<overview_comment_chip>
 	{
@@ -238,10 +244,21 @@ namespace bpr::qt {
 			drafts->Count       = aDrafts->total();
 			drafts->NotInReview = aDrafts->NotInReview;
 		}
+		// RFC-BPR-0127 ([[BPR-2159]]). My Local comments beside the drafts,
+		// to their left.
+		auto local = std::optional<overview_comment_chip>{ };
+		if (aDrafts && aDrafts->Local != 0U) {
+			local        = overview_comment_chip{ };
+			local->Kind  = overview_comment_chip::kind::local;
+			local->Count = aDrafts->Local;
+		}
 		// Always left of the qualifier's place, so the drafts line up down the
 		// column whether or not a row has a qualifier.
 		const auto draftsRight = aCell.right() - 4.0 - (chip_mark + 4.0);
-		const auto right       = drafts ? draftsRight - widthOf(*drafts) - chip_gap - 2.0 : aCell.right() - 4.0 - (qualified ? chip_mark + 4.0 : 0.0);
+		const auto localRight  = drafts ? draftsRight - widthOf(*drafts) - chip_gap : draftsRight;
+		const auto mineLeft    = local ? localRight - widthOf(*local) : drafts ? draftsRight - widthOf(*drafts)
+																			   : 0.0;
+		const auto right       = drafts || local ? mineLeft - chip_gap - 2.0 : aCell.right() - 4.0 - (qualified ? chip_mark + 4.0 : 0.0);
 		auto       total       = 0.0;
 		for (const auto& chip : chips) {
 			total += widthOf(chip) + chip_gap;
@@ -272,6 +289,10 @@ namespace bpr::qt {
 			more.Folded = std::vector<overview_comment_chip>{ chips.begin() + static_cast<std::ptrdiff_t>(shown), chips.end() };
 			more.Box    = QRectF{ x, top, metrics.horizontalAdvance(QStringLiteral("+%1").arg(more.Count)) + 10.0, chip_mark };
 			result.push_back(std::move(more));
+		}
+		if (local) {
+			local->Box = QRectF{ localRight - widthOf(*local), top, widthOf(*local), chip_mark };
+			result.push_back(std::move(*local));
 		}
 		if (drafts) {
 			drafts->Box = QRectF{ draftsRight - widthOf(*drafts), top, widthOf(*drafts), chip_mark };
@@ -514,11 +535,12 @@ namespace bpr::qt {
 					if (const auto found = Drafts.find(child->Path); found != Drafts.end()) {
 						count.InReview += found->second.InReview;
 						count.NotInReview += found->second.NotInReview;
+						count.Local += found->second.Local;
 					}
 				}
 			}
 		}
-		return count.total() == 0U ? std::nullopt : std::optional{ count };
+		return count.total() == 0U && count.Local == 0U ? std::nullopt : std::optional{ count };
 	}
 
 	auto overview_file_model::path_at(const QModelIndex& aIndex) const -> QString

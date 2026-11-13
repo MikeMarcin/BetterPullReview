@@ -72,17 +72,61 @@ namespace bpr::qt {
 				});
 			}
 		}
-		for (const auto& count : core::draft_counts_by_file(DraftRoster)) {
-			counts.emplace(text_of(count.Path), overview_draft_count{ .InReview = count.InReview, .NotInReview = count.NotInReview });
-		}
 		if (Finder != nullptr) {
 			Finder->set_saved_drafts(std::move(saved));
 		}
-		if (OverviewPage != nullptr) {
-			OverviewPage->set_drafts(std::move(counts));
-		}
+		present_mine_counts();
 		if (ReviewSubmissionEditor != nullptr) {
 			ReviewSubmissionEditor->set_outside_drafts(std::move(out));
+		}
+	}
+
+	void workbench_window::present_mine_counts()
+	{
+		if (OverviewPage == nullptr) {
+			return;
+		}
+		auto counts = std::map<QString, overview_draft_count>{ };
+		for (const auto& count : core::draft_counts_by_file(DraftRoster)) {
+			counts.emplace(text_of(count.Path), overview_draft_count{ .InReview = count.InReview, .NotInReview = count.NotInReview });
+		}
+		// RFC-BPR-0127 ([[BPR-2159]]). My Local comments beside them.
+		for (const auto& [path, local] : LocalByPath) {
+			counts[path].Local = local;
+		}
+		OverviewPage->set_drafts(std::move(counts));
+	}
+
+	void workbench_window::present_local_found(const std::vector<local_comment_card>& aComments)
+	{
+		// RFC-BPR-0127 ([[BPR-2159]]). Found and counted where drafts are:
+		// Threads' rows in their files' groups, Overview's Local chip per
+		// file, and Finish your review's quiet line.
+		auto rows  = std::vector<finder_local_comment>{ };
+		auto byPath = std::map<QString, std::size_t>{ };
+		for (const auto& comment : aComments) {
+			if (comment.Path.isEmpty() || comment.Place == local_comment_place::pull_request) {
+				continue;
+			}
+			rows.push_back(finder_local_comment{
+				.Id    = comment.Id,
+				.Path  = comment.Path,
+				.Line  = comment.Line.value_or(comment.PathLine.value_or(0U)),
+				.Body  = comment.Body,
+				.Reply = comment.ReplyToThread.has_value(),
+			});
+			++byPath[comment.Path];
+		}
+		if (Finder != nullptr) {
+			Finder->set_local_comments(std::move(rows));
+		}
+		LocalTotal = aComments.size();
+		if (byPath != LocalByPath) {
+			LocalByPath = std::move(byPath);
+			present_mine_counts();
+		}
+		if (ReviewSubmissionEditor != nullptr) {
+			ReviewSubmissionEditor->set_local_count(LocalTotal);
 		}
 	}
 
@@ -114,6 +158,20 @@ namespace bpr::qt {
 		comment.StartLine     = found->StartLine;
 		comment.Body          = found->Body;
 		open_pending_comment(comment, core::workbench_thread_destination::review);
+		return true;
+	}
+
+	auto workbench_window::show_state_in_threads(const finder_state aState, const QString& aPath) -> bool
+	{
+		if (Finder == nullptr) {
+			return false;
+		}
+		choose_home(false);
+		choose_modality(review_modality::threads);
+		if (!Finder->show_state(aState, aPath)) {
+			statusBar()->showMessage(aState == finder_state::local ? tr("No local comments of yours here.") : tr("Nothing of yours here."));
+			return false;
+		}
 		return true;
 	}
 
