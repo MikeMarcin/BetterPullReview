@@ -282,6 +282,8 @@ namespace bpr::app {
 		editor->present(shown);
 		editor->present_tour_session(view.Session, view.Proposal);
 		editor->set_tour_running(std::nullopt, false, projection.Asking);
+		// A local draft's runs are its own lane's: the chat may send whenever none runs.
+		editor->set_tour_host_idle(!projection.Asking);
 		if (!projection.AskFailure.empty()) {
 			editor->show_writing_notice(QString::fromStdString(projection.AskFailure));
 		}
