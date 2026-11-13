@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0110"
 title: "Prepare the description and Review Tour before a PR exists"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"absorbed 2026-11-10 from the local PR drafts pack v1, where it was RFC-DRAFT-0004","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
 depends_on: ["RFC-BPR-0107", "RFC-BPR-0108"]
 ---
@@ -229,5 +229,5 @@ The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026
 ## Proposed delivery
 
 [Local narrative and tour ownership](../issues/60-done/BPR-2026-add-local-description-and-tour-ownership.md),
-[interactive authoring and mapping](../issues/40-parked/BPR-2027-prepare-an-evidence-backed-tour-and-publication.md), and
-[closeout](../issues/10-backlog/BPR-2028-close-rfc-0110.md) form the fourth [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
+[interactive authoring and mapping](../issues/60-done/BPR-2027-prepare-an-evidence-backed-tour-and-publication.md), and
+[closeout](../issues/60-done/BPR-2028-close-rfc-0110.md) form the fourth [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
