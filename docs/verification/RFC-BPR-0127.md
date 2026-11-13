@@ -51,3 +51,25 @@ Session `3fefa3666ff9e2c2fc0943c4672f8b1e` (state `/Users/jaeger/.attended-revie
 ## Milestone 2 closed (2026-11-13, third round)
 
 `private_notes_panel` and both Notes tabs are deleted; every course and Qt test that drove the panel uses the Comments drawer. AC01's "no Notes tab" is now structural (`qt_workbench_window_scale_*` checks no tab, shown or hidden, is named Notes; `qt_drawer_parts_scale_100` and the Overview drawer test count five tabs). AC05's held-draft refusal is a disabled Local segment with its reason (`application_local_comments_composition_public_path`). AC06 adds compact chips in a narrow drawer (`qt_drawer_surfaces_fit_scale_{100,125,200}`). Evidence list: the [BPR-2158 card](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md#progress-2026-11-13-third-round-the-notes-panel-retired). Owner look v002 is filed, verdict pending.
+
+## Owner verdict, look v002 (attended session 3fefa3666ff9e2c2fc0943c4672f8b1e, handed back 2026-11-13T19:32:44Z)
+
+`local-edge-chips` (AC06): **Reject**. The other three candidates were not answered. The owner's note, verbatim:
+
+> if I scroll until just 5 is visible at the top and then add a comment on line 5 then full pull comment composer isn't shown on the drawer. This might be related to that cutout space at the top for the pull request control?
+>
+> Also I want a real next comment prev comment control in that top bar in the comment drawer controls. Instead of this "next new comment" which I find useless in practice for navigating.
+>
+> 2nd img this local reply tooltip looks very detatched, i think this is the same old tooltip placement bug we've fixed a million times.
+>
+> 3rd img these lines between comments are slightly too subtle, compare it to slack's (the window behind).
+>
+> 4th img this compose looks like a mess and I don't understand why the mark draft button is unavailable here,  looks like we have 2 local comments on line 6 but neither are a draft and only this one i can't make a draft but the other one i can?
+>
+> Img 5 I dont understand why this comment says "pull request" and also other comments that are not focused need to show their line numbers.
+
+The six fixes and their evidence are on the [BPR-2158 card](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md#owner-look-v002-reject-session-3fefa366-handed-back-2026-11-13t193244z).
+
+## Owner look v003 filed (2026-11-13)
+
+The six v002 fixes and the narrow-drawer chips, one question each: session `acaf71a2f3272811be5bfa4f25222fb9` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v003-2026-11-13/state`, cursor 27), frozen root `/Users/jaeger/comments-absorb-notes-v003.as90oxpw` from `6e7bbc13a36f`. Not waited on. Evidence is on the [BPR-2158 card](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md#look-v002-rework-2026-11-13-third-round).

@@ -113,3 +113,47 @@ Courses and tests moved off the panel: `review_submission_composition_public_pat
 Evidence (dev, Debug, macOS), all passing: `qt_workbench_window_scale_{100,125,200}`, `qt_drawer_surfaces_fit_scale_{100,125,200}`, `qt_drawer_parts_scale_100`, `qt_button_faces`, `qt_enhance_control`, `qt_agent_finding_cards_{retained,restart}`, `qt_skill_completion_keys`, `qt_tour_chat_in_tab`, `qt_conversation_cards_view`, `qt_composed_github_scale_100`; `application_local_comments_composition_public_path` (AC05 now: Local disabled with "holds this draft", pressing it chooses nothing), `application_review_submission_composition_public_path`, `application_review_tour_composition_public_path`, `application_explain_file_public_path`, `application_local_draft_{author,tour,publication}_desktop_public_path`, `application_commit_filter_public_path`, `application_diff_zoom_public_path`, `application_overview_summary_1`, `application_source_pr_find`, `application_dependable_session_public_path` (failed once under parallel GUI load at "#17's review page offers Approve", before anything this round touches; passed alone); `architecture_boundaries`, `application_composition_source_contract`, `application_review_round_trip_composition_contract` (app source pin resealed). `qt_hide_drawers_native_menu_key` was built, not run: it drives the native menu bar in the Aqua session.
 
 Owner look v002 (session `3fefa366…`) is filed and not yet answered; its verdicts are recorded here when forwarded. The round's later look asks about the compact chips and the disabled Local segment.
+
+
+## Owner look v002: Reject (session 3fefa366, handed back 2026-11-13T19:32:44Z)
+
+Verified in `session.json`: `local-edge-chips` **Reject**, with four screenshots in the decision; `reply-local-state`, `local-reply-actions` and `local-edit-and-delete` have no recorded decision and are unanswered. The owner's note, verbatim:
+
+> if I scroll until just 5 is visible at the top and then add a comment on line 5 then full pull comment composer isn't shown on the drawer. This might be related to that cutout space at the top for the pull request control?
+>
+> Also I want a real next comment prev comment control in that top bar in the comment drawer controls. Instead of this "next new comment" which I find useless in practice for navigating.
+>
+> 2nd img this local reply tooltip looks very detatched, i think this is the same old tooltip placement bug we've fixed a million times.
+>
+> 3rd img these lines between comments are slightly too subtle, compare it to slack's (the window behind).
+>
+> 4th img this compose looks like a mess and I don't understand why the mark draft button is unavailable here,  looks like we have 2 local comments on line 6 but neither are a draft and only this one i can't make a draft but the other one i can?
+>
+> Img 5 I dont understand why this comment says "pull request" and also other comments that are not focused need to show their line numbers.
+
+Taken as six fixes, all in this round before milestone 3 (coordinator):
+1. A new comment's composer on a line at the code's top is whole in view (the drawer's top starts under its tab and tools rows).
+2. Previous and Next comment replace Next new comment on the Comments tab row, with keys.
+3. The Local reply's tooltip is anchored at its tag; a guard keeps tooltips off large areas.
+4. The rules between a thread's posts are stronger.
+5. The reply composer's foot is laid out cleanly, and Make draft says in words why it is not offered when a draft of mine already stands.
+6. Only a comment on the pull request says "Pull request"; closed cards show their line numbers.
+
+### Look v002 rework (2026-11-13, third round)
+
+Lane commits `32b2e068a`, `89c971d05`, and the compact-chip fix after them; frozen at `6e7bbc13a36f`.
+
+1. **Composer in view.** A new comment's composer (`thread_card::Writing`) is placed no higher than the drawer's top (`place_cards`); its notch still points at its line. An open published thread keeps hanging at its line.
+2. **Previous and Next comment** (`previousCommentAction`, `nextCommentAction`; Option-[ and Option-]) replace Next new comment's button on the Comments tab row. From the open comment they step through the file's comments in Comments' order, Local comments and drafts included, then into the previous or next file's (`threads_in_file_order`), wrapping at the pull request's ends; with none open, Next opens the first and Previous the last. Next new comment keeps Option-N and its menu item.
+3. **Tooltip.** The root cause: the post view set "Only on this computer" as the whole post's tooltip, which the application-wide placement anchors to the whole widget, far from the painted "Local reply" tag. The tag now answers its own tooltip event at its rectangle (`thread_post_view::local_tag_rect`), and `test_look_v002_rework` fails any visible control in an open card whose tooltip is anchored to an area taller than 40 px (with a negative control), and checks the tag's tooltip appears within 24 px below the pointer.
+4. **Rules between posts** use the stronger rule colour at full strength.
+5. **Reply composer**: the writing tools keep the first row; Local/Reply, Cancel and Publish (or Save) have their own row. **Make draft** unavailable says why in words under it: "Can't make a draft: your draft reply in this thread is already open. A thread holds one draft reply of yours; send or delete it first." (or the line's equivalent). The state is consistent: a line and a thread each hold one draft of mine, which `core::decide_make_draft` decides.
+6. **Labels**: only a comment on the pull request says "Pull request" in its header; closed cards show the target and their line number (or range) beside the author.
+
+Found while fixing: with Previous and Next on the tools row, the compact chips no longer fitted 280 px; they now draw their pill tighter (`qt_drawer_surfaces_fit_scale_{100,125,200}`).
+
+Evidence (dev, Debug, macOS), passing: `qt_conversation_cards_view`, `qt_workbench_window_scale_{100,125,200}`, `qt_composed_github_scale_{100,125,200}`, `qt_drawer_surfaces_fit_scale_{100,125,200}`, `qt_keyboard_shortcuts_scale_{100,125}`, `qt_button_faces`, `application_local_comments_composition_public_path`, `application_review_submission_composition_public_path`, `application_review_tour_composition_public_path`, `application_explain_file_public_path`, `application_conversation_read_public_path`, `application_review_round_trip_composition_contract`, `application_composition_source_contract`, `architecture_boundaries`. The frozen build, run offscreen on a scratch home, reached `ATTENDED_LOCAL_COMMENTS_SHOWN:6`.
+
+### Owner look v003 filed (2026-11-13)
+
+Session `acaf71a2f3272811be5bfa4f25222fb9` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v003-2026-11-13/state`, cursor 27), frozen root `/Users/jaeger/comments-absorb-notes-v003.as90oxpw` from `6e7bbc13a36f`. One Accept/Reject each: `composer-in-view`, `previous-next-comment`, `local-reply-tooltip`, `post-rules`, `reply-composer-layout`, `make-draft-reason`, `closed-card-line-numbers`, `no-pull-request-label`, `compact-edge-chips`. Not waited on. v002's `reply-local-state`, `local-reply-actions` and `local-edit-and-delete` remain unanswered.
