@@ -336,5 +336,5 @@ Description and Tour areas. They are deleted. What replaced them:
 ## Proposed delivery
 
 [Local narrative and tour ownership](../issues/60-done/BPR-2026-add-local-description-and-tour-ownership.md),
-[interactive authoring and mapping](../issues/10-backlog/BPR-2027-prepare-an-evidence-backed-tour-and-publication.md), and
+[interactive authoring and mapping](../issues/20-ready/BPR-2027-prepare-an-evidence-backed-tour-and-publication.md), and
 [closeout](../issues/10-backlog/BPR-2028-close-rfc-0110.md) form the fourth [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
