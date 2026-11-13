@@ -112,14 +112,28 @@ namespace bpr::qt {
 			bool Link = false;
 			/// RFC-BPR-0127. My Local comments it leads to, counted beside
 			/// the computer.
-			std::size_t        Locals = 0U;
+			std::size_t Locals = 0U;
+			/// RFC-BPR-0127. In a narrow drawer the chip keeps its glyph and
+			/// counts; its words stay its accessible name and tooltip.
+			bool Compact = false;
+			/// RFC-BPR-0127. What a compact Local chip leads with, so This file
+			/// (one page) and Other files (two pages) stay told apart.
+			std::optional<drawer_glyph> Lead;
 			[[nodiscard]] auto locals_width() const -> int
 			{
 				return Locals > 0U ? 6 + 12 + 3 + QFontMetrics{ font() }.horizontalAdvance(QString::number(Locals)) + 6 : 0;
 			}
-			auto sizeHint() const -> QSize override
+			[[nodiscard]] auto full_width() const -> int
 			{
-				return { QFontMetrics{ font() }.horizontalAdvance(text()) + (Face ? 28 : 18) + (New > 0U ? 24 : 0) + locals_width(), chip_height };
+				return QFontMetrics{ font() }.horizontalAdvance(text()) + (Face ? 28 : 18) + (New > 0U ? 24 : 0) + locals_width();
+			}
+			[[nodiscard]] auto shows_words() const -> bool { return !Compact || (!Face && Locals == 0U); }
+			auto               sizeHint() const -> QSize override
+			{
+				if (shows_words()) {
+					return { full_width(), chip_height };
+				}
+				return { (Face ? 24 : (Lead ? 22 : 4)) + (New > 0U ? 24 : 0) + locals_width() + 4, chip_height };
 			}
 
 		protected:
@@ -138,7 +152,11 @@ namespace bpr::qt {
 				}
 				const auto left = Face ? 24 : 9;
 				painter.setPen(Colours.Ink2);
-				painter.drawText(QRect{ left, 0, width() - left - (New > 0U ? 24 : 0) - locals_width(), height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+				if (shows_words()) {
+					painter.drawText(QRect{ left, 0, width() - left - (New > 0U ? 24 : 0) - locals_width(), height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+				} else if (Lead && !Face) {
+					drawer_icon(*Lead, palette()).paint(&painter, QRect{ 6, (height() - 14) / 2, 14, 14 });
+				}
 				// RFC-BPR-0127. The computer and how many Local comments,
 				// in a small outlined pill of their own.
 				if (Locals > 0U) {
@@ -617,6 +635,8 @@ namespace bpr::qt {
 		};
 		LocalFileChip      = localChip(QStringLiteral("localFileCommentsChip"), tr("This file"));
 		LocalElsewhereChip = localChip(QStringLiteral("localElsewhereCommentsChip"), tr("Other files"));
+		static_cast<pull_request_chip*>(LocalFileChip)->Lead      = drawer_glyph::page;
+		static_cast<pull_request_chip*>(LocalElsewhereChip)->Lead = drawer_glyph::copy;
 		connect(LocalFileChip, &QAbstractButton::clicked, this, [this] {
 			const auto first = std::ranges::find(LocalComments, local_comment_place::whole_file, &local_comment_card::Place);
 			if (first != LocalComments.end()) {
@@ -2305,6 +2325,28 @@ namespace bpr::qt {
 	auto conversation_cards_view::pull_request_comments_shown() const noexcept -> bool { return PullRequestComments; }
 	auto conversation_cards_view::timeline_summary() const noexcept -> const core::timeline_filter_summary& { return TimelineSummary; }
 	auto conversation_cards_view::pull_request_comments_chip() const noexcept -> QAbstractButton* { return PullRequestChip; }
+	auto conversation_cards_view::edge_chips_saving() const -> int
+	{
+		auto saving = 0;
+		for (auto* const button : { PullRequestChip, LocalFileChip, LocalElsewhereChip }) {
+			if (const auto* const chip = static_cast<const pull_request_chip*>(button); chip != nullptr && !chip->isHidden()) {
+				saving += chip->full_width() - chip->sizeHint().width();
+			}
+		}
+		return saving;
+	}
+
+	void conversation_cards_view::set_edge_chips_compact(const bool aCompact)
+	{
+		for (auto* const button : { PullRequestChip, LocalFileChip, LocalElsewhereChip }) {
+			if (auto* const chip = static_cast<pull_request_chip*>(button); chip != nullptr && chip->Compact != aCompact) {
+				chip->Compact = aCompact;
+				chip->updateGeometry();
+				chip->update();
+			}
+		}
+	}
+
 	auto conversation_cards_view::local_file_chip() const noexcept -> QAbstractButton* { return LocalFileChip; }
 	auto conversation_cards_view::local_elsewhere_chip() const noexcept -> QAbstractButton* { return LocalElsewhereChip; }
 	auto conversation_cards_view::local_elsewhere_menu() const noexcept -> QMenu* { return LocalElsewhereMenu.data(); }

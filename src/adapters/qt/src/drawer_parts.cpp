@@ -181,10 +181,19 @@ namespace bpr::qt {
 		return QWidget::event(aEvent);
 	}
 
+	void drawer_header::set_fit(std::function<void(int)> aFit)
+	{
+		Fit = std::move(aFit);
+		arrange();
+	}
+
 	void drawer_header::arrange()
 	{
 		if (Tabs == nullptr || Tools == nullptr) {
 			return;
+		}
+		if (Fit && width() > 0) {
+			Fit(width());
 		}
 		const auto wrap = width() > 0 && Tabs->sizeHint().width() + Tools->sizeHint().width() + 8 > width();
 		if (wrap == Wrapped && Grid->indexOf(Tools) >= 0) {

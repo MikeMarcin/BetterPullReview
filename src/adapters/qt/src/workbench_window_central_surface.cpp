@@ -1727,6 +1727,16 @@ namespace bpr::qt {
 		trayToolsRow->addWidget(CommentsTools);
 		trayToolsRow->addWidget(TourTools);
 		trayHeader->set_parts(TrayTabs, trayTools);
+		// RFC-BPR-0127. Where even their own row is too narrow for the
+		// tools' words (the link and the Local comment chips beside it), the
+		// chips keep their glyphs and counts.
+		trayHeader->set_fit([this, trayTools](const int aWidth) {
+			if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+				return;
+			}
+			auto* const cards = ConversationPanel->cards();
+			cards->set_edge_chips_compact(trayTools->sizeHint().width() + cards->edge_chips_saving() > aWidth);
+		});
 		// [[BPR-1592]] [[BPR-1684]]. RFC-BPR-0085 D5: where the names do
 		// not fit the tabs go compact, so the tabs never scroll.
 		trayHeader->installEventFilter(this);

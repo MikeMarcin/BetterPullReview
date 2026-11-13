@@ -9,6 +9,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/private_review_panel.hpp"
+#include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -542,7 +543,7 @@ auto main(int argc, char** argv) -> int
 				// publishes nothing.
 				const auto beforeOffer = access::review_mutation_evidence(*application);
 				cards->open_thread(qt::conversation_cards_view::local_comment_identity(noteId));
-				wait([&] { auto* const make = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMakeDraft")) : nullptr; return make != nullptr && make->isVisible(); },
+				wait([&] { auto* const offer = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMakeDraft")) : nullptr; return offer != nullptr && offer->isVisible(); },
 					 "a Local comment at its line offers Make draft");
 				const auto afterOffer = access::review_mutation_evidence(*application);
 				expect(afterOffer.Submissions == beforeOffer.Submissions && afterOffer.StoredComments == beforeOffer.StoredComments && afterOffer.Replies == beforeOffer.Replies,

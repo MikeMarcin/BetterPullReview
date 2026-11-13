@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -74,6 +75,10 @@ namespace bpr::qt {
 		void set_parts(QWidget* aTabs, QWidget* aTools);
 		/// \brief Whether the tools sit on their own row (the drawer is narrow).
 		[[nodiscard]] auto wrapped() const noexcept -> bool;
+		/// \brief RFC-BPR-0127. Told the header's width before the tools are
+		/// placed, so tools that can go compact fit their row; it must
+		/// decide from the width alone, so asking twice changes nothing.
+		void set_fit(std::function<void(int)> aFit);
 
 	protected:
 		void resizeEvent(QResizeEvent* aEvent) override;
@@ -82,10 +87,11 @@ namespace bpr::qt {
 	private:
 		void arrange();
 
-		QGridLayout* Grid    = nullptr;
-		QWidget*     Tabs    = nullptr;
-		QWidget*     Tools   = nullptr;
-		bool         Wrapped = false;
+		QGridLayout*             Grid    = nullptr;
+		QWidget*                 Tabs    = nullptr;
+		QWidget*                 Tools   = nullptr;
+		bool                     Wrapped = false;
+		std::function<void(int)> Fit;
 	};
 
 	/// \brief Gives a tab bar the accepted drawer-tab look: document mode,

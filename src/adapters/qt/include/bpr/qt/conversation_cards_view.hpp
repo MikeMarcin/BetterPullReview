@@ -755,6 +755,13 @@ namespace bpr::qt {
 		/// which the window places beside the pull request link. Each counts
 		/// them beside the computer; hidden with none.
 		[[nodiscard]] auto local_file_chip() const noexcept -> QAbstractButton*;
+		/// \brief RFC-BPR-0127. In a drawer too narrow for their words the
+		/// pull request link and the Local comment chips keep only their
+		/// glyphs and counts; their words stay their names and tooltips.
+		void set_edge_chips_compact(bool aCompact);
+		/// \brief How much wider the shown edge chips are with their words
+		/// than as they are drawn now.
+		[[nodiscard]] auto edge_chips_saving() const -> int;
 		[[nodiscard]] auto local_elsewhere_chip() const noexcept -> QAbstractButton*;
 		/// \brief The menu the Other files chip opens, while it is open.
 		[[nodiscard]] auto local_elsewhere_menu() const noexcept -> QMenu*;
