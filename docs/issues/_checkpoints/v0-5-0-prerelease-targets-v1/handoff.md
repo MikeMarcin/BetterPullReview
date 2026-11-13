@@ -2634,3 +2634,22 @@ Owner look v002, filed and not waited on:
 - After hand-back, read from cursor 12 and record the verdicts verbatim on BPR-2158 and the ledger. Stop host 29437 with the attended-review `stop`, then `freeze_attended_build.py remove` the root once nothing runs from it.
 
 Next action: retire `private_notes_panel` and the hidden Notes tabs (list above), then finish BPR-2158 (all its ACs have evidence; the panel retirement is the remaining milestone work), then milestone 3 (BPR-2159).
+
+### RFC-BPR-0127 milestone 2 closed, look v002 reworked (2026-11-13, third round)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines in commits. Frontend-design was loaded first.
+
+| Commit | What |
+|---|---|
+| `195992549`..`1fb04c26b` | `private_notes_panel` and both Notes tabs deleted (tray: Comments, Tour, Agent; Overview drawer: five tabs); the composition's Notes dispatch and `--attended-notes-look` removed; Ask agent on a Local comment's menu; Local disabled with its reason on a held draft; compact edge chips in a narrow drawer; every course and Qt test moved off the panel; app source pin resealed |
+| `d85b98576`, `a9b655a50` | **BPR-2158 Done** (AC01, AC02, AC04, AC05, AC06, AC14) |
+| `5a16bb6db`, `b84491388` | BPR-2159 Ready, claimed (milestone 3; work parked, see below) |
+| main `6c81a90a8` | Mirror of BPR-2158 Done, BPR-2159 claimed, LIVE_IMPORT and ledger |
+| `32b2e068a`, `a40090663`, `89c971d05` | Look v002 verdict recorded verbatim (`local-edge-chips` Reject; three unanswered) and the six fixes: composer kept whole in view; Previous/Next comment (Option-[ / Option-]) replace Next new comment on the tab row; Local reply tooltip anchored at its tag, with a guard test against tooltips anchored to large areas; stronger post rules; reply foot in two rows; Make draft's reason in words under it; closed cards show line numbers; no "Pull request" header on a file's comment. Pin resealed |
+| next | Compact chips drawn tighter so the tools row with Previous and Next fits 280 px (`qt_drawer_surfaces_fit` caught it). **Frozen commit for look v003** |
+
+Evidence (dev, Debug, macOS): see the [BPR-2158 card](../../60-done/BPR-2158-comments-drawer-holds-local-comments.md) third round and the look v002 rework; `qt_conversation_cards_view` `test_look_v002_rework`; `qt_workbench_window_scale_*` Previous/Next.
+
+Milestone 3 (BPR-2159) work in progress is parked on branch `claude/bpr-2159-wip` (`7ddf5abf3`, unbuilt): Threads' state filter (All, Published, Draft, Local) with Local rows, Overview's Local chip and folder sums, Finish your review's Local line and Keep Local on not-in-review rows. Cherry-pick it onto the lane, build, then: the Overview Note column and Private notes row go, My review counts by state, Insights' tile rename, Threads row menu's Make Draft/Keep Local, the window wiring of `set_local_dispatch`, `set_local_show` and `set_outside_keep_local` (Keep Local from a list needs the draft's path when its comparison is not shown: `comment_state_gesture::Path`), tests and an AC07-AC09 course.
+
+Not touched: the v005 and v006 roots and PIDs 26296 and 51569; PIDs 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`. Session 3fefa366's host 29437/29448 was stopped with the attended-review `stop`. `/Users/jaeger/comments-absorb-notes-v002._jfvvf9h` is **not removed**: the owner's frozen app, PID 38152, runs from it; remove it with `freeze_attended_build.py remove` once that app is closed.
