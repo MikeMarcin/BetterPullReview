@@ -505,6 +505,7 @@ namespace bpr::qt {
 		if (OverviewPage != nullptr) {
 			if (auto* const drawer = OverviewPage->status_drawer(); drawer != nullptr) {
 				drawer->set_status_page(local && LocalDraft->projection().Draft ? LocalDraft->status_page() : nullptr);
+				drawer->set_conversation_tabs_shown(!local);
 			}
 			if (local) {
 				OverviewPage->set_description_editable(LocalDraft->projection().Draft.has_value());

@@ -369,6 +369,26 @@ try {
 		settle(s.Lanes);
 		expect(page->projection().Draft->Preparation.Tour.Problem == "A cancelled search kept its worker running.", "the accepted proposal is in the tour");
 		capture(window, QStringLiteral("local-draft-tour-proposals"));
+		// The owner, rejecting the local Overview on 2026-11-13: "the other
+		// mode's drawers aren't being closed when going to overview." With
+		// Review's Files drawer, its tray and the tour's chat open, Overview
+		// shows none of them, and its own drawer lends nothing a draft lacks;
+		// Review brings them back as they were.
+		{
+			auto* const files         = window.files_drawer();
+			auto* const conversations = window.conversations_drawer();
+			expect(files->isVisible() && conversations->isVisible() && tour->side_chat()->isVisible(), "Review shows its Files drawer, its tray and the tour's chat");
+			window.choose_modality(qt::review_modality::overview);
+			settle(s.Lanes);
+			auto* const drawer = window.overview_page()->status_drawer();
+			expect(window.current_modality() == qt::review_modality::overview && window.overview_page()->isVisible(), "Overview shows");
+			expect(!files->isVisible() && !conversations->isVisible() && !tour->side_chat()->isVisible(), "Overview closes Review's drawers and the tour's chat");
+			expect(!drawer->conversation_tabs_shown() && drawer->current_tab() == qt::overview_drawer_tab::status, "Overview's own drawer has no Comments, Notes or Agent for a draft");
+			capture(window, QStringLiteral("local-draft-overview-drawers-closed"));
+			window.choose_modality(qt::review_modality::review);
+			settle(s.Lanes);
+			expect(files->isVisible() && conversations->isVisible() && tour->side_chat()->isVisible(), "Review brings its drawers and the tour's chat back");
+		}
 		// A late proposal cannot overwrite a later author edit.
 		tour->open_step(core::tour_step::solution);
 		tour->solution_editor()->setPlainText(QStringLiteral("Cancel stops and joins the worker, on any thread."));

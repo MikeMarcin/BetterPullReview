@@ -97,6 +97,12 @@ namespace bpr::qt {
 		/// \brief Shows or hides the Tour tab; a hidden open tab gives way to Status.
 		void               set_tour_tab_shown(bool aShown);
 		[[nodiscard]] auto tour_tab_shown() const -> bool;
+		/// \brief Shows or hides Comments, Notes and Agent, the tabs Review's
+		/// tray lends while a pull request's Overview shows. A local draft's
+		/// Overview has none of them to lend: its notes and its tour stay in
+		/// Review's tray, and Comments waits for the pull request.
+		void               set_conversation_tabs_shown(bool aShown);
+		[[nodiscard]] auto conversation_tabs_shown() const -> bool;
 		/// \brief RFC-BPR-0111 as drawn in the accepted local-draft design: a
 		/// local draft's Status tab carries its publish steps. A page given
 		/// here stands in Status's place (and Commits waits) until it is taken

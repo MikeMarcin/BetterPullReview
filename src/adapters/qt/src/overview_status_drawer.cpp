@@ -258,6 +258,30 @@ namespace bpr::qt {
 		fit_tabs();
 	}
 
+	void overview_status_drawer::set_conversation_tabs_shown(const bool aShown)
+	{
+		auto changed = false;
+		for (const auto tab : { overview_drawer_tab::comments, overview_drawer_tab::notes, overview_drawer_tab::agent }) {
+			const auto index = index_of(tab);
+			if (Tabs->isTabVisible(index) == aShown) {
+				continue;
+			}
+			if (!aShown && Tabs->currentIndex() == index) {
+				Tabs->setCurrentIndex(index_of(overview_drawer_tab::status));
+			}
+			Tabs->setTabVisible(index, aShown);
+			changed = true;
+		}
+		if (changed) {
+			fit_tabs();
+		}
+	}
+
+	auto overview_status_drawer::conversation_tabs_shown() const -> bool
+	{
+		return Tabs->isTabVisible(index_of(overview_drawer_tab::comments));
+	}
+
 	auto overview_status_drawer::tour_tab_shown() const -> bool
 	{
 		return Tabs->isTabVisible(index_of(overview_drawer_tab::tour));

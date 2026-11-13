@@ -248,14 +248,21 @@ namespace bpr::qt {
 
 	namespace {
 		/// One checklist row's mark: a tick, a filled dot, a ring, a cross, a dash.
+		///
+		/// \details The owner, accepting the publish steps on 2026-11-13: "I'm
+		/// not sure if those circles are meant to be misaligned vertically with
+		/// the text beside them." The mark is as tall as its label's first line
+		/// and draws its 16-pixel glyph centred in it, so the glyph's centre is
+		/// the first line's, at any font size and when the label wraps.
 		class step_mark final : public QWidget
 		{
 		public:
-			explicit step_mark(const application::tour_step_state aState, QWidget* const aParent)
+			step_mark(const application::tour_step_state aState, const int aLineHeight, QWidget* const aParent)
 				: QWidget{ aParent }
 				, State{ aState }
 			{
-				setFixedSize(16, 16);
+				setObjectName(QStringLiteral("tourPublicationStepMark"));
+				setFixedSize(16, std::max(16, aLineHeight));
 			}
 
 		protected:
@@ -264,7 +271,7 @@ namespace bpr::qt {
 				using state  = application::tour_step_state;
 				auto painter = QPainter{ this };
 				painter.setRenderHint(QPainter::Antialiasing);
-				const auto box   = QRectF{ 2.0, 2.0, 12.0, 12.0 };
+				const auto box   = QRectF{ 2.0, 2.0 + ((height() - 16) / 2.0), 12.0, 12.0 };
 				const auto faint = palette().color(QPalette::Active, QPalette::PlaceholderText);
 				switch (State) {
 				case state::sent: {
@@ -331,6 +338,9 @@ namespace bpr::qt {
 		Column = new QVBoxLayout{ this };
 		Column->setContentsMargins(0, 0, 0, 0);
 		Column->setSpacing(3);
+		// Room the page gives beyond the rows' own height stays under them:
+		// a row given it grew and its words sank below its mark.
+		Column->addStretch(1);
 	}
 
 	void tour_step_list::present(const std::vector<application::tour_publication_step_view>& aSteps)
@@ -350,7 +360,6 @@ namespace bpr::qt {
 			auto* const line = new QHBoxLayout{ row };
 			line->setContentsMargins(0, 0, 0, 0);
 			line->setSpacing(7);
-			line->addWidget(new step_mark{ step.State, row }, 0, Qt::AlignTop);
 			auto* const words = new QVBoxLayout{ };
 			words->setContentsMargins(0, 0, 0, 0);
 			words->setSpacing(1);
@@ -358,7 +367,15 @@ namespace bpr::qt {
 			label->setObjectName(QStringLiteral("tourPublicationStepLabel"));
 			label->setTextFormat(Qt::PlainText);
 			label->setWordWrap(true);
-			label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			// Its first line at its top, where the mark beside it is centred;
+			// a wrapped label grows downward from there.
+			label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+			// Its height follows its width: a policy set after word wrap drops
+			// that, and a step that kept its plain font then took the label's
+			// two-line size hint for one line of words.
+			auto policy = QSizePolicy{ QSizePolicy::Ignored, QSizePolicy::Preferred };
+			policy.setHeightForWidth(true);
+			label->setSizePolicy(policy);
 			const auto quiet = step.State == application::tour_step_state::waiting || step.State == application::tour_step_state::not_sent;
 			label->setForegroundRole(quiet ? QPalette::PlaceholderText : QPalette::WindowText);
 			if (step.State == application::tour_step_state::sending || step.State == application::tour_step_state::failed) {
@@ -366,6 +383,7 @@ namespace bpr::qt {
 				font.setWeight(QFont::DemiBold);
 				label->setFont(font);
 			}
+			line->addWidget(new step_mark{ step.State, label->fontMetrics().height(), row }, 0, Qt::AlignTop);
 			words->addWidget(label);
 			if (!step.Reason.empty()) {
 				auto* const reason = new QLabel{ text(step.Reason), row };
@@ -379,7 +397,7 @@ namespace bpr::qt {
 			}
 			line->addLayout(words, 1);
 			row->setAccessibleName(state_words(step.State) + QStringLiteral(": ") + text(step.Label) + (step.Reason.empty() ? QString{ } : QStringLiteral(". ") + text(step.Reason)));
-			Column->addWidget(row);
+			Column->insertWidget(Column->count() - 1, row);
 			Rows.push_back(row);
 		}
 	}

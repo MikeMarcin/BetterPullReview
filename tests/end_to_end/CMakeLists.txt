@@ -5377,7 +5377,7 @@ if(TARGET Git::Git)
         TIMEOUT 240)
     # RFC-BPR-0110 ([[BPR-2026]], [[BPR-2027]]). The Description and Tour
     # areas through the same window and composition, with a scripted agent.
-    bpr_add_executable(test_local_draft_tour_desktop_public_path local_draft_tour_desktop_public_path.cpp)
+    bpr_add_executable(test_local_draft_tour_desktop_public_path local_draft_tour_desktop_public_path.cpp "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
     target_link_libraries(test_local_draft_tour_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
     target_include_directories(test_local_draft_tour_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
     target_compile_features(test_local_draft_tour_desktop_public_path PRIVATE cxx_std_23)

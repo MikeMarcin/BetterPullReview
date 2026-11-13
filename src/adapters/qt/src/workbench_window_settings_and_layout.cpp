@@ -760,7 +760,11 @@ namespace bpr::qt {
 		Drawers[2].Panel->adopt(presented_repositories_state());
 		// These full-content pages borrow the center width without changing the
 		// retained drawer choices. Returning restores the same code arrangement.
-		const auto fullPage = CompositionPage != nullptr || TourPageOpen
+		// The owner, rejecting the local draft's Overview on 2026-11-13: "the
+		// other mode's drawers aren't being closed when going to overview." A
+		// pull request's Overview has the core close them; a local draft's
+		// Overview, which the core does not see, leaves them as Discuss does.
+		const auto fullPage = CompositionPage != nullptr || TourPageOpen || local_overview()
 			|| (Modality != nullptr
 				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads));
 		for (auto& entry : Drawers) {
@@ -883,9 +887,14 @@ namespace bpr::qt {
 		return DrawerStates.Files;
 	}
 
+	auto workbench_window::local_overview() const -> bool
+	{
+		return LocalDraftShown && !showing_home() && Modality != nullptr && Modality->current() == review_modality::overview;
+	}
+
 	auto workbench_window::central_sizes() const -> QList<int>
 	{
-		if (CompositionPage != nullptr
+		if (CompositionPage != nullptr || local_overview()
 			|| (Modality != nullptr
 				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads))) {
 			return { 0, 0, CentralSplitter->width(), 0 };

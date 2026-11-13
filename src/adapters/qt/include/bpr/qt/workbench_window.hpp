@@ -2540,6 +2540,10 @@ namespace bpr::qt {
 		void               infer_modality_from_drawers();
 		[[nodiscard]] auto presented_files_state() const -> core::workbench_drawer_state;
 		[[nodiscard]] auto presented_repositories_state() const -> core::workbench_drawer_state;
+		/// \brief Whether a local draft shows on Overview. Its modality never
+		/// reaches the core, so Overview's rule (every drawer closed) is kept
+		/// here: Review's drawers leave while it shows.
+		[[nodiscard]] auto local_overview() const -> bool;
 		void               apply_focus_order();
 		void               update_action_state();
 		void               update_header_source_action();

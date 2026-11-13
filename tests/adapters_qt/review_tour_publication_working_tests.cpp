@@ -17,7 +17,9 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QVBoxLayout>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -279,6 +281,59 @@ namespace {
 	}
 }
 
+namespace {
+	/// The owner, accepting the local draft's publish steps on 2026-11-13: "I'm
+	/// not sure if those circles are meant to be misaligned vertically with the
+	/// text beside them." Each row's mark is centred on its label's first line,
+	/// in a column as wide as the Status tab's and in one narrow enough to wrap,
+	/// and when the page gives the list more height than its rows need (the
+	/// Status tab's page did: the rows grew and their words sank).
+	void test_step_marks_centred(const std::string& aPrefix)
+	{
+		for (const auto& [width, roomy] : { std::pair{ 420, false }, std::pair{ 150, false }, std::pair{ 420, true } }) {
+			auto host   = QWidget{ };
+			auto column = QVBoxLayout{ &host };
+			auto list   = qt::tour_step_list{ &host };
+			column.addWidget(&list);
+			if (!roomy) {
+				column.addStretch(1);
+			}
+			list.present(steps({ { "Push feature/search-results", step::waiting }, { "Create the draft pull request", step::sending }, { "Publish the tour (1 to accept)", step::failed }, { "Link it to this draft", step::sent } }));
+			host.resize(width, 400);
+			host.show();
+			for (int round = 0; round < 4; ++round) {
+				QApplication::processEvents();
+			}
+			const auto rows = list.findChildren<QWidget*>(QStringLiteral("tourPublicationStep"));
+			expect(rows.size() == 4, "four step rows");
+			for (auto* const row : rows) {
+				auto* const mark  = row->findChild<QWidget*>(QStringLiteral("tourPublicationStepMark"));
+				auto* const label = row->findChild<QLabel*>(QStringLiteral("tourPublicationStepLabel"));
+				expect(mark != nullptr && label != nullptr, "each row has its mark and its label");
+				const auto markCentre = mark->mapTo(row, QPointF{ 0.0, mark->height() / 2.0 }).y();
+				// Where the label draws its words: a label taller than its
+				// text places the text by its vertical alignment.
+				const auto box        = label->contentsRect();
+				const auto text       = std::min(box.height(), label->heightForWidth(label->width()));
+				const auto vertical   = label->alignment() & Qt::AlignVertical_Mask;
+				const auto top        = vertical == Qt::AlignTop ? 0.0 : vertical == Qt::AlignBottom ? double(box.height() - text) : (box.height() - text) / 2.0;
+				const auto lineCentre = label->mapTo(row, QPointF{ 0.0, box.top() + top + (label->fontMetrics().height() / 2.0) }).y();
+				if (std::abs(markCentre - lineCentre) > 1.0) {
+					std::cerr << "row " << label->text().toStdString() << " at width " << width << ": mark centre " << markCentre << ", first line centre " << lineCentre << '\n';
+				}
+				expect(std::abs(markCentre - lineCentre) <= 1.0, "the step's mark is centred on its label's first line");
+			}
+			if (width == 420 && !roomy) {
+				// Every label fits on one line here, so every row is one line tall.
+				for (auto* const row : rows) {
+					expect(row->height() == rows.back()->height(), "one-line steps are rows of one height");
+				}
+			}
+			save(host, aPrefix, roomy ? "step-marks-roomy.png" : width == 420 ? "step-marks.png" : "step-marks-narrow.png");
+		}
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -286,6 +341,7 @@ auto main(int argc, char** argv) -> int
 	test_bands(prefix);
 	test_head_states();
 	test_panel(prefix);
+	test_step_marks_centred(prefix);
 	std::cout << "review-tour-publication-working:pass\n";
 	return EXIT_SUCCESS;
 }
