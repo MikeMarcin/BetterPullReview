@@ -578,6 +578,10 @@ namespace bpr::qt {
 		/// RFC-BPR-0127 ([[BPR-2158]]). The composer opens on Local (N): its
 		/// foot is Delete and Save, and nothing in it can send.
 		bool Local = false;
+		/// RFC-BPR-0127. Why this draft cannot be kept local now (a submitted
+		/// review holds it, or it is being published): the Local segment is
+		/// disabled and says so. Empty when Local is offered.
+		QString LocalRefusal;
 
 		auto operator==(const draft_composer_presentation&) const -> bool = default;
 	};

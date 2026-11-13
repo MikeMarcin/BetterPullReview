@@ -69,7 +69,6 @@ add_library(
         src/refresh_note.cpp
         src/home_refusal.cpp
         src/defect_card_view.cpp
-        src/private_notes_panel.cpp
         src/agent_tab_view.cpp
         src/agent_reference_links.cpp
         src/agent_suggestion_list.cpp

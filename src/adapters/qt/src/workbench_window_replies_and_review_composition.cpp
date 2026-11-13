@@ -10,7 +10,6 @@
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -230,14 +229,14 @@ namespace bpr::qt {
 
 	void workbench_window::lend_conversation_tabs(const bool aToOverview)
 	{
-		// [[BPR-1781]]. One conversation panel, one notes panel and one agent
-		// page: Overview's drawer holds them while Overview shows, and Review's
-		// tray holds them otherwise. Moving the same objects, as Discuss
-		// borrows the conversation panel and the Agent tab borrows its panels,
-		// keeps every draft, open card, note and agent turn as it was; each
-		// mode keeps its own place.
+		// [[BPR-1781]]. One conversation panel and one agent page: Overview's
+		// drawer holds them while Overview shows, and Review's tray holds them
+		// otherwise. Moving the same objects, as Discuss borrows the
+		// conversation panel and the Agent tab borrows its panels, keeps every
+		// draft, open card, Local comment and agent turn as it was; each mode
+		// keeps its own place.
 		auto* const drawer = OverviewPage != nullptr ? OverviewPage->status_drawer() : nullptr;
-		if (drawer == nullptr || ConversationPanel == nullptr || PrivateNotes == nullptr || AgentBody == nullptr || ConversationTabsLent == aToOverview) {
+		if (drawer == nullptr || ConversationPanel == nullptr || AgentBody == nullptr || ConversationTabsLent == aToOverview) {
 			return;
 		}
 		ConversationTabsLent = aToOverview;
@@ -255,8 +254,6 @@ namespace bpr::qt {
 				ConversationPanel->set_pull_request_conversation(true);
 			}
 			ConversationPanel->set_new_comment_offered(ConversationPanel->parentWidget() != DiscussPage);
-			move(PrivateNotes, drawer->holder(overview_drawer_tab::notes));
-			PrivateNotes->set_pull_request_only(true);
 			move(AgentBody, drawer->holder(overview_drawer_tab::agent));
 		} else {
 			if (ConversationPanel->parentWidget() == drawer->holder(overview_drawer_tab::comments)) {
@@ -264,8 +261,6 @@ namespace bpr::qt {
 				move(ConversationPanel, ConversationHome);
 			}
 			ConversationPanel->set_new_comment_offered(false);
-			PrivateNotes->set_pull_request_only(false);
-			move(PrivateNotes, NotesHome);
 			move(AgentBody, AgentHome);
 		}
 		// What the agent's prompts may name follows: the pull request on

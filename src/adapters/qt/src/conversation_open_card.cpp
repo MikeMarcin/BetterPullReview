@@ -3099,6 +3099,17 @@ namespace bpr::qt {
 		if (aDraft.has_value() && aDraft->Local != LocalChosen) {
 			choose_local(aDraft->Local, false);
 		}
+		// RFC-BPR-0127. A draft a submitted review holds, or one being
+		// published, cannot be kept local: Local is disabled and says why.
+		if (StateLocal != nullptr) {
+			const auto refusal = aDraft.has_value() ? aDraft->LocalRefusal : QString{ };
+			const auto tip     = refusal.isEmpty() ? QStringLiteral("Only on this computer") : refusal;
+			StateLocal->setEnabled(refusal.isEmpty());
+			if (StateLocal->toolTip() != tip) {
+				StateLocal->setToolTip(tip);
+				StateLocal->setAccessibleDescription(tip);
+			}
+		}
 		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines, inCode);
 		present_agent_suggestion(aDraft.has_value() ? aDraft->AgentSuggestion : agent_suggestion_presentation{ });
 		// [[RFC-BPR-0090]]. The code's change counts as content, and a held

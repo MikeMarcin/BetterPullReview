@@ -16,7 +16,6 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
@@ -122,10 +121,6 @@ namespace bpr::qt {
 		}
 		resume_conversation_pick();
 		resume_pending_comment_pick();
-		// [[BPR-1592]]. The notes follow the code as the threads do.
-		if (PrivateNotes != nullptr && PrivateNotes->isVisible()) {
-			PrivateNotes->refresh_geometry();
-		}
 		resume_private_note_open();
 	}
 
@@ -345,17 +340,16 @@ namespace bpr::qt {
 		auto* const cards = ConversationPanel->cards();
 		ComparisonSurface->set_mark_colours(cards->marker(), cards->accent());
 		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
-			auto       marks      = std::vector<diff_line_mark>{ };
-			const auto onNotesTab = TrayTabs != nullptr && TrayTabs->currentIndex() == tray_notes_tab;
+			auto marks = std::vector<diff_line_mark>{ };
 			for (const auto& mark : ThreadMarksSuspended ? std::vector<thread_line_mark>{ } : cards->line_marks(side)) {
 				marks.push_back(diff_line_mark{
 					.Line        = mark.Line,
 					.Kind        = mark.Unread ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread,
 					.Resolved    = mark.Resolved,
 					.Draft       = mark.Draft,
-					.Open        = mark.Open && !onNotesTab,
-					.Hovered     = mark.Hovered && !onNotesTab,
-					.Writing     = mark.Writing && !onNotesTab,
+					.Open        = mark.Open,
+					.Hovered     = mark.Hovered,
+					.Writing     = mark.Writing,
 					.FirstLine   = mark.FirstLine,
 					.Description = mark.Description,
 				});
@@ -447,19 +441,18 @@ namespace bpr::qt {
 
 	void workbench_window::fit_tray_tabs(const bool aRepaint)
 	{
-		constexpr auto tabCount = 4;
+		constexpr auto tabCount = 3;
 		if (TrayTabs == nullptr || TrayHeader == nullptr || TrayTabs->count() != tabCount) {
 			return;
 		}
 		auto* const tabs = static_cast<tray_tab_bar*>(TrayTabs);
-		// [[BPR-1594]]. Four tabs. [[BPR-1755]], the owner's accept of
+		// [[BPR-1594]]. Three tabs (RFC-BPR-0127: Notes is gone). [[BPR-1755]], the owner's accept of
 		// look v007 ("Get rid of teh icon on agent when it's full width like
 		// the other tabs do. Only use it for the narrow."): at full width
 		// every tab is its name alone.
-		const QString tabNames[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
+		const QString tabNames[] = { tr("Comments"), tr("Tour"), tr("Agent") };
 		const QString about[]    = {
-			tr("The pull request's threads, with their scope and filters"),
-			tr("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft."),
+			tr("The pull request's threads, your drafts and your local comments, with their scope and filters"),
 			tr("Your review tour, stop by stop. Nothing in it is published until you publish the tour."),
 			tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."),
 		};
@@ -500,8 +493,6 @@ namespace bpr::qt {
 			switch (aIndex) {
 			case tray_comments_tab:
 				return conversation_icon(conversation_glyph::comment, palette());
-			case tray_notes_tab:
-				return drawer_icon(drawer_glyph::page, palette());
 			case tray_tour_tab:
 				return drawer_icon(drawer_glyph::tour, palette());
 			default:
@@ -534,66 +525,6 @@ namespace bpr::qt {
 		// arrows). The bar says it changed size itself.
 		if (reshaped) {
 			tabs->updateGeometry();
-		}
-	}
-
-	void workbench_window::wire_private_notes()
-	{
-		// [[BPR-1592]]. The notes hang at the code's lines: where a line is,
-		// which comparison is shown and which line is selected are the
-		// surface's; a note elsewhere is reached through the files drawer.
-		PrivateNotes->set_line_locator([this](const core::diff_side aSide, const std::uint32_t aLine) -> std::optional<int> {
-			if (ComparisonSurface == nullptr || PrivateNotes == nullptr) {
-				return std::nullopt;
-			}
-			const auto rect = ComparisonSurface->line_rect(aSide, aLine);
-			if (rect.isEmpty()) {
-				return std::nullopt;
-			}
-			const auto inWindow = ComparisonSurface->mapTo(this, rect.topLeft());
-			return PrivateNotes->mapFrom(this, inWindow).y();
-		});
-		PrivateNotes->set_comparison_source([this]() -> const core::file_alignment* {
-			if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr) {
-				return nullptr;
-			}
-			return &ComparisonSurface->current_result()->Alignment;
-		});
-		PrivateNotes->set_selected_line_source([this]() -> std::optional<private_note_line> {
-			if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr || !ComparisonSurface->selection()) {
-				return std::nullopt;
-			}
-			const auto& chosen = *ComparisonSurface->selection();
-			if (chosen.PreferredLine.Comparison != ComparisonSurface->current_result()->Alignment.Digest) {
-				return std::nullopt;
-			}
-			return private_note_line{ .Side = chosen.PreferredLine.Side, .Line = chosen.PreferredLine.Line };
-		});
-		PrivateNotes->set_line_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) {
-			if (ComparisonSurface != nullptr) {
-				static_cast<void>(ComparisonSurface->select_conversation_line(aSide, aLine));
-			}
-		});
-		PrivateNotes->set_elsewhere_dispatch([this](const private_note_item& aNote) { open_private_note_elsewhere(aNote); });
-		PrivateNotes->set_marks_observer([this] { apply_thread_marks(); });
-		PrivateNotes->set_scroll_forward([this](QWheelEvent& aEvent) { return ComparisonSurface != nullptr && ComparisonSurface->scroll_by_wheel(aEvent); });
-		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
-			PrivateNotes->set_colours(ConversationPanel->cards()->accent(), ConversationPanel->cards()->marker());
-		}
-	}
-
-	void workbench_window::open_private_note_elsewhere(const private_note_item& aNote)
-	{
-		const auto file = file_for_path(QString::fromStdString(aNote.Label));
-		if (!file) {
-			statusBar()->showMessage(tr("That note's file is not in this pull request now."));
-			return;
-		}
-		PendingNoteOpen = aNote.Id;
-		choose_home(false);
-		choose_modality(review_modality::review);
-		if (Dispatch) {
-			Dispatch(core::select_workbench_file_intent{ .File = *file });
 		}
 	}
 
@@ -703,7 +634,7 @@ namespace bpr::qt {
 
 	void workbench_window::go_to_private_note(const std::uint64_t aId)
 	{
-		if (PrivateNotes == nullptr) {
+		if (ConversationPanel == nullptr) {
 			return;
 		}
 		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
@@ -1856,9 +1787,6 @@ namespace bpr::qt {
 		const auto reason             = comment_target_reason(true);
 		const auto promotionAvailable = reason.isEmpty() && !ReviewEditor->body_editor()->isReadOnly();
 		const auto promotionReason    = !reason.isEmpty() ? reason : tr("Resolve the retained draft conflict before promoting an item.");
-		if (PrivateNotes != nullptr) {
-			PrivateNotes->set_promotion_target(promotionAvailable, promotionReason);
-		}
 		if (SideChat != nullptr) {
 			SideChat->set_promotion_target(promotionAvailable, promotionReason);
 		}

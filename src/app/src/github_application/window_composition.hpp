@@ -114,7 +114,6 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -1657,17 +1656,10 @@ namespace bpr::app {
 			std::function<void()> Done;
 		};
 		std::optional<pending_note_promotion>                     PendingNotePromotion;
-		std::optional<std::map<core::file_identity, std::string>> NotePaths;
-
-		[[nodiscard]] auto private_note_file_label(const application::local_comment_record& aNote) -> std::string;
 
 		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { });
 
-		void promote_line_note(const application::local_comment_record& aNote, std::function<void()> aRefused);
-
 		void resume_note_promotion();
-
-		void dispatch_private_note(const qt::private_note_intent& aIntent);
 
 		void refresh_agent_private_context_choices();
 

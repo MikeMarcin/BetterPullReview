@@ -169,10 +169,8 @@ namespace bpr::qt {
 	class finding_queue_view;
 	class side_chat_panel;
 	class private_review_panel;
-	class private_notes_panel;
 	class agent_tab_view;
 	class agent_footer;
-	struct private_note_item;
 	// RFC-BPR-0016's second way into a profile, declared for the same reason:
 	// the window places it and hands it out, and a consumer of the shell does
 	// not need the panel's shape to ask for it.
@@ -1113,7 +1111,7 @@ namespace bpr::qt {
 		/// change and file navigation with their positions and private
 		/// progress; at its right Compose review and Comment. Home has none.
 		[[nodiscard]] auto review_bar() const noexcept -> QToolBar*;
-		/// \brief [[BPR-1134]]. The right tray's tabs: Comments, then Notes.
+		/// \brief [[BPR-1134]]. The right tray's tabs: Comments, Tour and Agent.
 		[[nodiscard]] auto tray_tabs() const noexcept -> QTabBar*;
 		/// \brief [[BPR-1134]]. Each tab's own scrolled column.
 		[[nodiscard]] auto comments_tab_scroll() const noexcept -> QScrollArea*;
@@ -1160,6 +1158,9 @@ namespace bpr::qt {
 		void open_pending_comment(const core::review_submission_comment& aComment, core::workbench_thread_destination aDestination);
 		/// \brief [[BPR-1345]]. Where the shown draft stands with the review.
 		[[nodiscard]] auto draft_review() const -> draft_review_state;
+		/// \brief RFC-BPR-0127. Why the core would refuse to keep this draft
+		/// local now, in words; empty when Local is offered.
+		[[nodiscard]] static auto local_refusal_words(const core::review_comment_draft& aDraft) -> QString;
 		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
 		[[nodiscard]] auto add_tour_stop_action() const noexcept -> QAction*;
 		[[nodiscard]] auto tour_editor() const noexcept -> review_tour_editor*;
@@ -1201,8 +1202,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1998]]. Every changed file of the pull request, by path.
 		[[nodiscard]] auto review_changed_files() const -> std::vector<std::string>;
 		/// \brief Owner look v004 ("After save as note it should turn into Go
-		/// to note"): opens one private note in Notes, its file first when it
-		/// is on another; an open note stays open.
+		/// to note"): opens one Local comment's card in Comments (RFC-BPR-0127).
 		void               go_to_private_note(std::uint64_t aId);
 		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
 		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
@@ -1308,7 +1308,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto account_setup() const noexcept -> account_setup_view*;
 		/// \brief The decorative Home presentation, absent when assets were refused.
 		[[nodiscard]] auto dif() const noexcept -> dif_widget*;
-		/// \brief The explicit action that reveals the private Notes area.
+		/// \brief The explicit action that reveals the Agent tab.
 		[[nodiscard]] auto ai_tools_action() const noexcept -> QAction*;
 		/// \brief Compose's illustration slot for the currently offered workshop revision.
 		[[nodiscard]] auto dif_workshop_slot() const noexcept -> QWidget*;
@@ -1579,9 +1579,8 @@ namespace bpr::qt {
 		/// own tests bind by name is untouched.
 		[[nodiscard]] auto side_chat() const noexcept -> side_chat_panel*;
 		[[nodiscard]] auto private_review() const noexcept -> private_review_panel* { return PrivateReview; }
-		[[nodiscard]] auto private_notes() const noexcept -> private_notes_panel*;
 		/// \brief [[BPR-2051]]. Where Enhance on a draft comment, a reply or
-		/// a private note goes, and how a run it started is stopped.
+		/// a Local comment goes, and how a run it started is stopped.
 		void set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel);
 		/// \brief [[BPR-2051]]. The answer to one Enhance press, to the field
 		/// that asked; false when none still does.
@@ -3019,23 +3018,20 @@ namespace bpr::qt {
 		bool                                                  HomeFocused   = false;
 		/// [[BPR-1134]]. The right tray: its tabs, their pages, and the
 		/// Comments tab's column, tool and count. ConversationScroll is the
-		/// Notes tab's column.
+		/// agent's legacy hidden column.
 		QTabBar*        TrayTabs             = nullptr;
 		QStackedWidget* TrayPages            = nullptr;
 		QScrollArea*    CommentsScroll       = nullptr;
 		QToolButton*    NextNewCommentButton = nullptr;
 		QWidget*        DefectRow            = nullptr;
 		QWidget*        CommentsTools        = nullptr;
-		/// [[BPR-1592]]. The Notes tab's tools in the tray's header.
-		QWidget* NotesTools = nullptr;
 		/// [[BPR-1593]]. The Tour tab's tools, and the tour page.
 		QWidget* TourTools  = nullptr;
 		QWidget* TourHolder = nullptr;
 		/// [[BPR-1781]]. The homes in Review's tray of what Overview's drawer
-		/// borrows: the conversation panel, the notes panel and the agent's
-		/// page. While Overview shows they are in its holders.
+		/// borrows: the conversation panel and the agent's page. While
+		/// Overview shows they are in its holders.
 		QWidget*              ConversationHome     = nullptr;
-		QWidget*              NotesHome            = nullptr;
 		QWidget*              AgentHome            = nullptr;
 		QWidget*              AgentBody            = nullptr;
 		bool                  ConversationTabsLent = false;
@@ -3094,12 +3090,8 @@ namespace bpr::qt {
 		/// them; then the open tab's glyph and name and the others' glyphs;
 		/// then glyphs only. A tab without its name says it in its tooltip.
 		void fit_tray_tabs(bool aRepaint = false);
-		/// [[BPR-1592]]. Connects Notes to the code it hangs beside.
-		void wire_private_notes();
-		/// [[BPR-1592]]. Opens one private note in the Notes tab.
+		/// RFC-BPR-0127. Opens one Local comment's card in Comments.
 		void show_private_note(std::uint64_t aId);
-		/// [[BPR-1592]]. Goes to another file's note: its file, then its line.
-		void open_private_note_elsewhere(const private_note_item& aNote);
 		/// [[BPR-1592]]. Opens a note waiting for its file once it shows.
 		void resume_private_note_open();
 		/// RFC-BPR-0127. Delete on my Local comment, once asked.
@@ -3455,7 +3447,6 @@ namespace bpr::qt {
 		bool                 LeftConversationEndpointCurrent  = false;
 		bool                 RightConversationEndpointCurrent = false;
 		agent_launch_panel*  AgentPanel                       = nullptr;
-		private_notes_panel* PrivateNotes                     = nullptr;
 		review_tour_editor*  TourEditor                       = nullptr;
 		/// [[BPR-1925]]. The Tour tab: the tour, and beside it the chat about
 		/// its marked part while one is open.

@@ -64,7 +64,6 @@ namespace bpr::qt {
 			case overview_drawer_tab::status:   return QObject::tr("Status");
 			case overview_drawer_tab::commits:  return QObject::tr("Commits");
 			case overview_drawer_tab::comments: return QObject::tr("Comments");
-			case overview_drawer_tab::notes:    return QObject::tr("Notes");
 			case overview_drawer_tab::tour:     return QObject::tr("Tour");
 			case overview_drawer_tab::agent:    return QObject::tr("Agent");
 			}
@@ -77,7 +76,6 @@ namespace bpr::qt {
 			case overview_drawer_tab::status:   return QObject::tr("Where this pull request stands and your part in its review");
 			case overview_drawer_tab::commits:  return QObject::tr("The pull request's commits; show or hide them to filter the files");
 			case overview_drawer_tab::comments: return QObject::tr("The pull request's conversation: its comments and reviews, newest last, and a new comment");
-			case overview_drawer_tab::notes:    return QObject::tr("Your private notes on this pull request. Nothing here is published.");
 			case overview_drawer_tab::tour:     return QObject::tr("The pull request's review tour; write and follow it in Review");
 			case overview_drawer_tab::agent:    return QObject::tr("Agent conversations about this pull request. Nothing here is published.");
 			}
@@ -120,9 +118,6 @@ namespace bpr::qt {
 			Tabs->setAccessibleTabName(index, tab_name(index));
 			Tabs->setTabToolTip(index, tab_about(index));
 		}
-		// RFC-BPR-0127 ([[BPR-2158]]). Notes is gone: a pull request's Local
-		// comments are in the Comments tab.
-		Tabs->setTabVisible(index_of(overview_drawer_tab::notes), false);
 		Tools = new QWidget{ Header };
 		Tools->setObjectName(QStringLiteral("overviewStatusTools"));
 		auto* const tools = new QHBoxLayout{ Tools };
@@ -147,8 +142,6 @@ namespace bpr::qt {
 		Pages->addWidget(Commits);
 		CommentsHolder = make_holder(Pages, QStringLiteral("overviewCommentsHolder"));
 		Pages->addWidget(CommentsHolder);
-		NotesHolder = make_holder(Pages, QStringLiteral("overviewNotesHolder"));
-		Pages->addWidget(NotesHolder);
 		TourSummary = new overview_tour_summary{ Pages };
 		Pages->addWidget(TourSummary);
 		AgentHolder = make_holder(Pages, QStringLiteral("overviewAgentHolder"));
@@ -234,7 +227,6 @@ namespace bpr::qt {
 	{
 		switch (aTab) {
 		case overview_drawer_tab::comments: return CommentsHolder;
-		case overview_drawer_tab::notes:    return NotesHolder;
 		case overview_drawer_tab::agent:    return AgentHolder;
 		case overview_drawer_tab::status:
 		case overview_drawer_tab::commits:
@@ -264,12 +256,9 @@ namespace bpr::qt {
 	void overview_status_drawer::set_conversation_tabs_shown(const bool aShown)
 	{
 		auto changed = false;
-		for (const auto tab : { overview_drawer_tab::comments, overview_drawer_tab::notes, overview_drawer_tab::agent }) {
+		for (const auto tab : { overview_drawer_tab::comments, overview_drawer_tab::agent }) {
 			const auto index = index_of(tab);
 			if (Tabs->isTabVisible(index) == aShown) {
-				continue;
-			}
-			if (tab == overview_drawer_tab::notes) {
 				continue;
 			}
 			if (!aShown && Tabs->currentIndex() == index) {
@@ -335,7 +324,6 @@ namespace bpr::qt {
 			case overview_drawer_tab::status:   return strip_icon(strip_glyph::review_details, palette());
 			case overview_drawer_tab::commits:  return drawer_icon(drawer_glyph::pull_request, palette());
 			case overview_drawer_tab::comments: return conversation_icon(conversation_glyph::comment, palette());
-			case overview_drawer_tab::notes:    return drawer_icon(drawer_glyph::page, palette());
 			case overview_drawer_tab::tour:     return drawer_icon(drawer_glyph::tour, palette());
 			case overview_drawer_tab::agent:    return drawer_icon(drawer_glyph::agent, palette());
 			}

@@ -11,7 +11,6 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/refresh_note.hpp"
@@ -841,17 +840,12 @@ namespace bpr::qt {
 		append(ComparisonSurface->detail_pane());
 		append(Drawers[1].Panel->rail());
 		// [[BPR-1134]]. The tray's tabs, then the Comments tab's tool and its
-		// conversation; the Notes tab's stops follow.
+		// conversation.
 		append(TrayTabs);
 		append(NextNewCommentButton);
 		append(PreviousDefectButton);
 		append(NextDefectButton);
 		append(Drawers[1].Panel->focus_stop());
-		if (PrivateNotes != nullptr) {
-			// [[BPR-1592]]. The notes, then the open note's field.
-			append(PrivateNotes);
-			append(PrivateNotes->body_editor());
-		}
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
 		}
@@ -1302,15 +1296,10 @@ namespace bpr::qt {
 		case QEvent::ThemeChange:
 		case QEvent::DevicePixelRatioChange:
 			refresh_toolbar_icons();
-			// [[BPR-1592]]. The Agent tab's spark and the Notes tools follow
-			// the theme.
+			// [[BPR-1592]]. The Agent tab's spark follows the theme.
 			if (TrayTabs != nullptr && TrayTabs->count() > tray_findings_tab) {
 				TrayTabs->setTabIcon(tray_findings_tab, drawer_icon(drawer_glyph::agent, palette()));
 				fit_tray_tabs(true);
-			}
-			if (PrivateNotes != nullptr) {
-				PrivateNotes->new_line_action()->setIcon(conversation_icon(conversation_glyph::comment, palette()));
-				PrivateNotes->elsewhere_action()->setIcon(drawer_icon(drawer_glyph::pull_request, palette()));
 			}
 			// [[BPR-1255]]. A font, style or theme can move the review bar's
 			// yielded width, and with it the window's floor.

@@ -19,7 +19,6 @@
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -272,7 +271,6 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-unknown-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-drafts-look" },
-		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-local-comments-look" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-tour" },
@@ -5622,7 +5620,6 @@ namespace {
 	void schedule_attended_workshop_look(bpr::app::github_application& aApplication);
 	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
-	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
 	void schedule_attended_local_comments_look(bpr::app::github_application& aApplication);
 	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication);
 	/// RFC-BPR-0108. The worktree `--attended-local-draft` opens.
@@ -5729,8 +5726,6 @@ namespace {
 						schedule_attended_unknown_review_look(aApplication);
 					} else if (look == "finish-review") {
 						schedule_attended_finish_review_look(aApplication);
-					} else if (look == "notes") {
-						schedule_attended_notes_look(aApplication);
 					} else if (look == "local-comments") {
 						schedule_attended_local_comments_look(aApplication);
 					} else if (look == "local-draft") {
@@ -6300,11 +6295,6 @@ namespace {
 		timer->start();
 	}
 
-	// [[BPR-1592]]. `--attended-notes-look`: on conventional-comments-v1, once
-	// the file shows, the Notes tab opens and three real-looking private notes
-	// are written through its own gestures: two on lines of renderer.cpp
-	// (select the line, N, write, Save) and one on the pull request. Notes is
-	// left showing them at their lines for the person. Nothing reaches GitHub.
 	/// RFC-BPR-0108. After the pull request is shown, Home's Prepare Pull
 	/// Request… opens the named worktree, as a person choosing it would, and
 	/// says when its proposed diff is shown.
@@ -6495,7 +6485,7 @@ namespace {
 					return;
 				}
 				window.choose_modality(bpr::qt::review_modality::review);
-				window.tray_tabs()->setCurrentIndex(2);
+				window.tray_tabs()->setCurrentIndex(1);
 				tour->open_step(bpr::core::tour_step::problem);
 				tour->problem_editor()->setPlainText(QStringLiteral("An empty query made search() read the byte after the string."));
 				*stage = 4;
@@ -6571,7 +6561,7 @@ namespace {
 				if (prep.Conversations.empty() || prep.Conversations.back().Turns.size() < 2U) {
 					return;
 				}
-				window.tray_tabs()->setCurrentIndex(2);
+				window.tray_tabs()->setCurrentIndex(1);
 				tour->go_to_stop(bpr::core::tour_stop_id{ prep.Tour.Stops[1].Id });
 				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_TOUR_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
 				return;
@@ -6734,104 +6724,6 @@ namespace {
 			case phase::shown:
 				return;
 			}
-		});
-		timer->start();
-	}
-
-	void schedule_attended_notes_look(bpr::app::github_application& aApplication)
-	{
-		struct written
-		{
-			std::optional<std::uint32_t> Line;
-			QString                      Text;
-		};
-		static const auto notes = std::array{
-			written{ 5U, QStringLiteral("Does draw_scene() run before or after the clear on the second view? If after, the clear can race the draw. Ask before approving.") },
-			written{ 11U, QStringLiteral("Width and Height are read every frame; check whether a resize mid-frame can tear them.") },
-			written{ std::nullopt, QStringLiteral("Before approving: run the soak test with the retry budget at 1, and read the frame pacing thread.") },
-		};
-		auto* const timer = new QTimer{ &aApplication.window() };
-		timer->setInterval(50);
-		const auto step    = std::make_shared<std::size_t>(0U);
-		const auto waiting = std::make_shared<bool>(false);
-		const auto ticks   = std::make_shared<int>(0);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, waiting, ticks, alive = aApplication.liveness()] {
-			if (alive.expired()) {
-				return;
-			}
-			auto&       window = aApplication.window();
-			auto* const panel  = window.private_notes();
-			const auto  fail   = [timer](const QString& aWhy) {
-				timer->stop();
-				timer->deleteLater();
-				QTextStream{ stdout } << "ATTENDED_NOTES_FAILED:" << aWhy << '\n';
-				QTextStream{ stdout }.flush();
-			};
-			if (++*ticks > 2'400) {
-				fail(QStringLiteral("timeout:step=%1").arg(*step));
-				return;
-			}
-			if (window.conversations_drawer()->state() != bpr::core::workbench_drawer_state::expanded) {
-				window.conversations_drawer_toggle_action()->trigger();
-				return;
-			}
-			if (window.tray_tabs()->currentIndex() != 1) {
-				window.tray_tabs()->setCurrentIndex(1);
-				return;
-			}
-			if (!panel->new_review_action()->isEnabled()) {
-				return;
-			}
-			if (*step < notes.size()) {
-				const auto& note = notes[*step];
-				if (*waiting) {
-					// Saved once the ledger has it.
-					if (panel->notes().size() == *step + 1U && !panel->writing()) {
-						*waiting = false;
-						++*step;
-					}
-					return;
-				}
-				if (note.Line) {
-					const auto& chosen = window.comparison_surface()->selection();
-					if (!chosen || chosen->PreferredLine.Line != *note.Line || chosen->PreferredLine.Side != bpr::core::diff_side::right) {
-						static_cast<void>(window.comparison_surface()->select_conversation_line(bpr::core::diff_side::right, *note.Line));
-						return;
-					}
-					panel->start_line_note();
-				} else {
-					panel->start_pull_request_note();
-				}
-				if (!panel->writing()) {
-					return;
-				}
-				panel->body_editor()->setPlainText(note.Text);
-				panel->save_action()->trigger();
-				*waiting = true;
-				return;
-			}
-			timer->stop();
-			timer->deleteLater();
-			panel->show_elsewhere(false);
-			QCoreApplication::processEvents();
-			if (const auto root = qEnvironmentVariable("BPR_ATTENDED_NOTES_RENDER"); !root.isEmpty()) {
-				if (qEnvironmentVariable("BPR_ATTENDED_NOTES_THEME") == QStringLiteral("dark")) {
-					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
-				}
-				QCoreApplication::processEvents();
-				static_cast<void>(window.grab().save(root + QStringLiteral("/app-notes.png"), "PNG"));
-				panel->open_note(panel->notes().back().Id);
-				QCoreApplication::processEvents();
-				static_cast<void>(window.grab().save(root + QStringLiteral("/app-note-open.png"), "PNG"));
-				panel->close_note();
-				panel->show_elsewhere(true);
-				QCoreApplication::processEvents();
-				static_cast<void>(window.grab().save(root + QStringLiteral("/app-notes-elsewhere.png"), "PNG"));
-				panel->show_elsewhere(false);
-				QCoreApplication::processEvents();
-			}
-			QTextStream{ stdout } << "ATTENDED_NOTES_SHOWN\n";
-			QTextStream{ stdout }.flush();
 		});
 		timer->start();
 	}
@@ -7069,7 +6961,7 @@ namespace {
 					draw(QStringLiteral("app-tour-picker"));
 					auto* const splitter = window.central_splitter();
 					splitter->move_handle(3, splitter->width() - 380 - splitter->handleWidth());
-					window.tray_tabs()->setCurrentIndex(3);
+					window.tray_tabs()->setCurrentIndex(2);
 					QCoreApplication::processEvents();
 					draw(QStringLiteral("app-agent-picker"));
 					// [[BPR-2051]]. One picker, in the window's footer.
@@ -12502,7 +12394,6 @@ auto main(int argc, char** argv) -> int
 		const auto attendedUnknownReviewLook = launch.has("--attended-unknown-review-look");
 		const auto attendedFinishReviewLook  = launch.has("--attended-finish-review-look") || launch.has("--attended-drafts-look");
 		// [[BPR-1592]]. Private notes written at their lines.
-		const auto attendedNotesLook = launch.has("--attended-notes-look");
 		// RFC-BPR-0108. A local draft of the named worktree, opened from Home.
 		const auto attendedLocalDraft = launch.value("--attended-local-draft");
 		// [[BPR-1593]]. A private tour written on renderer.cpp.
@@ -12700,10 +12591,9 @@ auto main(int argc, char** argv) -> int
 			|| (attendedReadState && (!attendedOpenFile.has_value() || (fixtureName != "conversations-v1" && fixtureName != "promo-v1")))
 			|| (attendedUnknownReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop))
 			|| (attendedFinishReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook))
-			|| (attendedNotesLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
-			|| (attendedConversationLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedNotesLook || attendedUnknownReviewLook || attendedFinishReviewLook || attendedPreflightLook.has_value()))
-			|| (attendedTourLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
-			|| (attendedTourAuthoring && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
+			|| (attendedConversationLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedUnknownReviewLook || attendedFinishReviewLook || attendedPreflightLook.has_value()))
+			|| (attendedTourLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
+			|| (attendedTourAuthoring && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
 			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
 			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
@@ -13177,9 +13067,6 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedFinishReviewLook) {
 						look = std::string{ "finish-review" };
-					}
-					if (attendedNotesLook) {
-						look = std::string{ "notes" };
 					}
 					if (launch.has("--attended-local-comments-look")) {
 						look = std::string{ "local-comments" };

@@ -12,7 +12,6 @@
 #include "bpr/qt/identity_avatar_pictures.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -1821,22 +1820,16 @@ namespace bpr::qt {
 		return AgentPanel;
 	}
 
-	auto workbench_window::private_notes() const noexcept -> private_notes_panel* { return PrivateNotes; }
-
 	void workbench_window::set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel)
 	{
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
-			ConversationPanel->cards()->set_enhance_dispatch(aDispatch, aCancel);
-		}
-		if (PrivateNotes != nullptr) {
-			PrivateNotes->set_enhance_dispatch(std::move(aDispatch), std::move(aCancel));
+			ConversationPanel->cards()->set_enhance_dispatch(std::move(aDispatch), std::move(aCancel));
 		}
 	}
 
 	auto workbench_window::present_enhancement(const enhance_outcome& aOutcome) -> bool
 	{
-		const auto comment = ConversationPanel != nullptr && ConversationPanel->cards() != nullptr && ConversationPanel->cards()->present_enhancement(aOutcome);
-		return comment || (PrivateNotes != nullptr && PrivateNotes->present_enhancement(aOutcome));
+		return ConversationPanel != nullptr && ConversationPanel->cards() != nullptr && ConversationPanel->cards()->present_enhancement(aOutcome);
 	}
 
 	void workbench_window::withdraw_agent_surfaces()

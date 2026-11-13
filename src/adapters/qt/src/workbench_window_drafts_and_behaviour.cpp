@@ -1,3 +1,4 @@
+#include "bpr/core/local_comment.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/suggestion_draft.hpp"
@@ -261,8 +262,26 @@ namespace bpr::qt {
 			.AgentSuggestion = agent_suggestion_presentation_now(),
 			// RFC-BPR-0127. N opened it on Local.
 			.Local = ComposeLocal,
+			// RFC-BPR-0127. Local is not offered on a draft the core would
+			// refuse to keep local; the segment says why.
+			.LocalRefusal = local_refusal_words(*draft),
 		});
 		publish_pending_file_comment();
+	}
+
+	auto workbench_window::local_refusal_words(const core::review_comment_draft& aDraft) -> QString
+	{
+		const auto decided = core::decide_keep_local(core::keep_local_input{ .Draft = aDraft });
+		if (decided.has_value()) {
+			return { };
+		}
+		switch (decided.error()) {
+		case core::keep_local_refusal::held_by_review: return tr("Your submitted review holds this draft until GitHub answers, so it cannot be kept local now.");
+		case core::keep_local_refusal::publishing:     return tr("This draft is being published, so it cannot be kept local now.");
+		case core::keep_local_refusal::published:      return tr("This comment is on GitHub.");
+		case core::keep_local_refusal::discarded:      return tr("This draft was discarded.");
+		}
+		return { };
 	}
 
 	auto workbench_window::draft_review() const -> draft_review_state

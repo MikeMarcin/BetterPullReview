@@ -72,13 +72,11 @@ namespace bpr::qt {
 	/// \brief [[BPR-1134]]. The right tray's tabs, in order.
 	constexpr int tray_comments_tab = 0;
 
-	/// [[BPR-1592]]. Notes holds only private notes; the agent's material
-	/// is the provisional Agent tab's, after Tour, until [[BPR-1594]].
-	constexpr int tray_notes_tab = 1;
+	/// RFC-BPR-0127 ([[BPR-2158]]). Notes is gone: Local comments are
+	/// cards in Comments.
+	constexpr int tray_tour_tab = 1;
 
-	constexpr int tray_tour_tab = 2;
-
-	constexpr int tray_findings_tab = 3;
+	constexpr int tray_findings_tab = 2;
 
 	/// \brief [[BPR-0775]]. Dif's resting size in the bottom-left corner, in logical pixels.
 	///

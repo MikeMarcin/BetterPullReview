@@ -1279,7 +1279,6 @@ if (QueueHost && WindowRead->state().PendingPullRequest && QueueFactRequest != W
 // changes the bodies and threads these were taken from, under the same snapshot.
 if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.ConversationRefreshed) {
 ReadStateCache.reset();
-NotePaths.reset();
 DefectThreadNames.reset();
 }
 				publish_review_conversations(aUpdate.Presentation);

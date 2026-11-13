@@ -6,6 +6,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/note_placement.hpp"
 #include "bpr/qt/agent_configuration_dialogs.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 
 #include <QComboBox>
@@ -713,6 +714,15 @@ namespace bpr::app {
 	void github_application::implementation::ask_agent_about_thread(const std::string& aIdentity)
 	{
 		if (Closing || Window == nullptr || !WindowRead->accepted_snapshot()) {
+			return;
+		}
+		// RFC-BPR-0127. Ask agent on my Local comment's card asks about it as
+		// a saved note was asked about.
+		if (const auto local = qt::conversation_cards_view::local_comment_of(aIdentity)) {
+			const auto found = std::ranges::find(AcceptedPrivateNotes, application::local_comment_id{ *local }, &application::local_comment_record::Id);
+			if (found != AcceptedPrivateNotes.end()) {
+				ask_agent_about_note(*found);
+			}
 			return;
 		}
 		const auto* const thread = accepted_thread(aIdentity);

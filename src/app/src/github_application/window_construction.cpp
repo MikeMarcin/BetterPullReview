@@ -111,7 +111,6 @@ namespace bpr::app {
 			[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); },
 			nullptr,
 			aConfig.DifCatalog);
-		Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
 		Window->set_comment_state_dispatch([this](const qt::comment_state_gesture& aGesture) { dispatch_comment_state(aGesture); });
 		Window->set_header_source_dispatch([this] { dispatch_header_source(); });
 		Window->set_review_navigation_dispatch([this](const auto aCommand) { request_review_navigation(aCommand); });

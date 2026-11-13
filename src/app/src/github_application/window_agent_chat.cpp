@@ -40,32 +40,6 @@ namespace bpr::app {
 		};
 	}
 
-	/// \brief The name a file note shows: its file's current or previous path,
-	/// else the path kept when it was written ([[BPR-1210]]), else an honest
-	/// "earlier update" for a note written before paths were kept.
-	auto github_application::implementation::private_note_file_label(const application::local_comment_record& aNote) -> std::string
-	{
-		const auto& aFile = aNote.Attachment->File;
-		if (!NotePaths && WindowRead->accepted_snapshot()) {
-			NotePaths.emplace();
-			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
-				NotePaths->try_emplace(core::file_identity_of(file.Path), file.Path);
-				if (file.PreviousPath) {
-					NotePaths->try_emplace(core::file_identity_of(*file.PreviousPath), *file.PreviousPath);
-				}
-			}
-		}
-		if (NotePaths) {
-			if (const auto found = NotePaths->find(aFile); found != NotePaths->end()) {
-				return found->second;
-			}
-		}
-		if (aNote.FilePath) {
-			return *aNote.FilePath;
-		}
-		return "File comparison from an earlier update";
-	}
-
 	/// \brief Copies one selected private item through the existing Comment target.
 	/// \brief Copies one private item's text into Comment's draft, then
 	/// shows that draft.
@@ -122,28 +96,6 @@ namespace bpr::app {
 		});
 	}
 
-	/// \brief [[BPR-1592]]. Draft comment on a note at its line: the line is
-	/// chosen, and once its draft is the one selected the note's words
-	/// become that draft, exactly as Comment's own target would. Nothing
-	/// is published.
-	void github_application::implementation::promote_line_note(const application::local_comment_record& aNote, std::function<void()> aRefused)
-	{
-		const auto* const surface = Window != nullptr ? Window->comparison_surface() : nullptr;
-		const auto* const shown   = surface != nullptr && surface->current_result() != nullptr ? &surface->current_result()->Alignment : nullptr;
-		const auto        place   = core::place_note(application::local_comment_anchor_of(aNote), shown);
-		if (place.Kind != core::note_placement_kind::placed || !place.At) {
-			aRefused();
-			return;
-		}
-		const auto at = *place.At;
-		if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
-			promote_private_item(aNote.Body, std::move(aRefused));
-			return;
-		}
-		PendingNotePromotion = pending_note_promotion{ .Text = aNote.Body, .At = at, .Refused = std::move(aRefused) };
-		static_cast<void>(Window->comparison_surface()->select_conversation_line(at.Side, at.Line));
-	}
-
 	/// \brief [[BPR-1592]]. A note's promotion waiting for its line's draft.
 	void github_application::implementation::resume_note_promotion()
 	{
@@ -159,151 +111,21 @@ namespace bpr::app {
 		promote_private_item(std::move(pending.Text), std::move(pending.Refused), std::move(pending.Done));
 	}
 
-	void github_application::implementation::dispatch_private_note(const qt::private_note_intent& aIntent)
-	{
-		if (Window == nullptr) {
-			return;
-		}
-		auto* panel = Window->private_notes();
-		if (Closing || !ReviewLedgerHost || !ReviewLedgerAvailable || aIntent.Scope != PrivateNoteScope
-			|| PrivateNoteScope == 0U || PrivateNoteScope == std::numeric_limits<std::uint64_t>::max()) {
-			panel->refuse(QStringLiteral("This note belongs to an unavailable review. Your text is kept."));
-			return;
-		}
-		if (aIntent.Action == qt::private_note_action::discard) {
-			ReviewLedgerHost->dismiss_rejected_note();
-			refresh_agent_private_context_choices();
-			return;
-		}
-		const auto found = std::ranges::find(AcceptedPrivateNotes, application::local_comment_id{ aIntent.Id }, &application::local_comment_record::Id);
-		if (aIntent.Id != 0U && (found == AcceptedPrivateNotes.end() || found->Revision.value() != aIntent.Revision)) {
-			panel->refuse(QStringLiteral("This note changed in another window. Your text is kept; discard changes to reload it."));
-			return;
-		}
-		if (aIntent.Action == qt::private_note_action::ask_agent) {
-			if (found != AcceptedPrivateNotes.end()) {
-				ask_agent_about_note(*found);
-			}
-			return;
-		}
-		if (aIntent.Action == qt::private_note_action::promote) {
-			const auto refuse = [guarded = QPointer{ panel }] {
-				if (guarded != nullptr) {
-					guarded->refuse(QStringLiteral("Select Comment's current-head target and resolve any draft conflict before promoting."));
-				}
-			};
-			if (found == AcceptedPrivateNotes.end()) {
-				refuse();
-			} else if (found->Attachment && found->Attachment->Line) {
-				promote_line_note(*found, refuse);
-			} else {
-				promote_private_item(found->Body, refuse);
-			}
-			return;
-		}
-		const auto refuse = [panel](const application::local_comment_failure& aFailure) {
-			panel->refuse(QStringLiteral("The note change was refused (%1). Your text is kept. Discard changes to reload the accepted note.")
-							  .arg(QString::fromUtf8(application::name(aFailure.Reason).data(), static_cast<qsizetype>(application::name(aFailure.Reason).size()))));
-		};
-		if (aIntent.Action == qt::private_note_action::erase) {
-			if (found == AcceptedPrivateNotes.end()) {
-				return;
-			}
-			// [[BPR-1211]]. Deleted off the decision lane; acknowledged once durable.
-			ReviewLedgerHost->erase(found->Id, application::local_comment_revision{ aIntent.Revision },
-									ledger_answer([this, refuse](const std::expected<void, application::local_comment_failure>& aErased) {
-										if (!aErased) {
-											refuse(aErased.error());
-											return;
-										}
-										ReviewLedgerHost->dismiss_rejected_note();
-										Window->private_notes()->acknowledge(0U);
-										refresh_agent_private_context_choices();
-									}));
-			return;
-		}
-		auto note     = application::local_comment_record{ };
-		auto revision = std::optional<application::local_comment_revision>{ };
-		if (found != AcceptedPrivateNotes.end()) {
-			note     = *found;
-			revision = application::local_comment_revision{ aIntent.Revision };
-		} else {
-			auto next = std::uint64_t{ 1U };
-			for (const auto& accepted : AcceptedPrivateNotes) {
-				if (accepted.Id.value() == std::numeric_limits<std::uint64_t>::max()) {
-					panel->refuse(QStringLiteral("The note identity space is exhausted. Your text is kept."));
-					return;
-				}
-				next = std::max(next, accepted.Id.value() + 1U);
-			}
-			note.Id = application::local_comment_id{ next };
-			if (aIntent.Attachment) {
-				auto offered = application::local_comment_attachment{ aIntent.Attachment->File, aIntent.Attachment->Comparison };
-				if (current_note_attachment() != std::optional{ offered }) {
-					panel->refuse(QStringLiteral("The selected file changed. Your text is kept; return to that comparison before saving."));
-					return;
-				}
-				// [[BPR-1591]]. A note on a line keeps exactly the line the
-				// shown comparison has there, and its blob.
-				if (aIntent.Attachment->Line) {
-					const auto* const surface = Window->comparison_surface();
-					const auto        shown   = surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Digest == offered.Comparison
-						? core::note_line_anchor_at(surface->current_result()->Alignment, aIntent.Attachment->Line->Side, aIntent.Attachment->Line->Line)
-						: std::nullopt;
-					if (shown != aIntent.Attachment->Line) {
-						panel->refuse(QStringLiteral("That line is not in the shown comparison now. Your text is kept; return to it before saving."));
-						return;
-					}
-					offered.Line = shown;
-				}
-				note.Attachment = offered;
-				// [[BPR-1210]]. Kept with the note, so it can still name the
-				// file after a later update drops it.
-				if (const auto& path = SelectedDiffPublication->Request.File.PresentationPath;
-					!path.empty() && path.size() <= application::maximum_note_path_bytes) {
-					note.FilePath = path;
-				}
-			}
-		}
-		note.Body = aIntent.Text;
-		// [[BPR-1211]]. Written off the decision lane; acknowledged once durable.
-		ReviewLedgerHost->persist(note, revision,
-								  ledger_answer([this, refuse](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
-									  if (!aStored) {
-										  refuse(aStored.error());
-										  return;
-									  }
-									  ReviewLedgerHost->dismiss_rejected_note();
-									  Window->private_notes()->acknowledge(aStored->Id.value());
-									  refresh_agent_private_context_choices();
-								  }));
-	}
-
 	void github_application::implementation::refresh_agent_private_context_choices()
 	{
 		if (Window == nullptr || Window->agent_panel() == nullptr) {
 			return;
 		}
-		auto notes      = std::vector<application::local_comment_id>{ };
-		auto projection = qt::private_notes_projection{ .Scope = PrivateNoteScope };
-		if (const auto attachment = current_note_attachment()) {
-			projection.CurrentFile = qt::private_note_target{ attachment->File, attachment->Comparison };
-			// This path is already owned by the selected comparison.
-			projection.CurrentFileLabel = SelectedDiffPublication->Request.File.PresentationPath;
-		}
+		auto notes = std::vector<application::local_comment_id>{ };
 		if (ReviewLedgerHost != nullptr) {
 			if (auto observed = ReviewLedgerHost->private_observation(); observed.has_value()) {
 				AcceptedPrivateNotes = std::move(observed->LocalComments);
-				projection.Available = ReviewLedgerAvailable && PrivateNoteScope != std::numeric_limits<std::uint64_t>::max();
 				notes.reserve(AcceptedPrivateNotes.size());
 				for (const auto& note : AcceptedPrivateNotes) {
 					notes.push_back(note.Id);
-					projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison, note.Attachment->Line } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note) : "Pull request", .Text = note.Body });
 				}
-				std::ranges::sort(projection.Notes, std::greater{ }, &qt::private_note_item::Id);
 			}
 		}
-		Window->private_notes()->present(std::move(projection));
 		present_local_comments();
 		auto draft = current_agent_draft_observation();
 		if (draft.has_value()

@@ -849,10 +849,9 @@ namespace bpr::app {
 		}
 		AcceptedPrivateNotes.clear();
 		if (Window != nullptr) {
-			Window->private_notes()->present({ .Scope = PrivateNoteScope });
+			present_local_comments();
 		}
 		ReadStateCache.reset();
-		NotePaths.reset();
 		DefectThreadNames.reset();
 		OverviewReceiptRevision.reset();
 		OverviewReceipts.clear();

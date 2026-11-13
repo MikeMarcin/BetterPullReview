@@ -485,19 +485,22 @@ namespace bpr::qt {
 		if (LocalNoticeHolder != nullptr) {
 			LocalNoticeHolder->setVisible(local && LocalDraft->notice_row()->isVisibleTo(LocalNoticeHolder));
 		}
-		// The tray: Notes and Tour hold the draft's; Comments waits for the pull request.
+		// The tray: Comments and Tour hold the draft's. RFC-BPR-0127: the
+		// draft's notes are its Comments, until the pull request has its own.
 		if (TrayTabs != nullptr) {
-			TrayTabs->setTabVisible(tray_comments_tab, !local);
 			if (local && TrayTabs->currentIndex() == tray_comments_tab) {
 				TrayTabs->setCurrentIndex(tray_tour_tab);
 			}
 			if (TrayPages != nullptr) {
 				const auto index = TrayTabs->currentIndex();
-				if (local && index == tray_notes_tab) {
+				if (local && index == tray_comments_tab) {
 					TrayPages->setCurrentWidget(LocalDraft->notes_page());
 				} else if (index >= 0 && index < TrayPages->count()) {
 					TrayPages->setCurrentIndex(index);
 				}
+			}
+			if (CommentsTools != nullptr) {
+				CommentsTools->setVisible(!local && TrayTabs->currentIndex() == tray_comments_tab);
 			}
 		}
 		// Overview: the Status tab carries the publish steps; the description
@@ -586,13 +589,17 @@ namespace bpr::qt {
 			LocalEditHolder = LocalDraft->edit_page();
 			CentreStack->addWidget(LocalEditHolder);
 		}
-		// The tray's Notes shows the draft's notes while it shows; its Tour is
-		// the window's own Tour panel, which the composition gives the draft's tour.
+		// The tray's Comments shows the draft's notes while it shows; its Tour
+		// is the window's own Tour panel, which the composition gives the
+		// draft's tour.
 		if (TrayPages != nullptr && TrayTabs != nullptr) {
 			TrayPages->addWidget(LocalDraft->notes_page());
 			connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
-				if (LocalDraftShown && aIndex == tray_notes_tab) {
+				if (LocalDraftShown && aIndex == tray_comments_tab) {
 					TrayPages->setCurrentWidget(LocalDraft->notes_page());
+					if (CommentsTools != nullptr) {
+						CommentsTools->hide();
+					}
 				}
 			});
 		}

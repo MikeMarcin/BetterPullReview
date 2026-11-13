@@ -17,7 +17,6 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -1471,16 +1470,6 @@ namespace bpr::qt {
 			close_review_composition();
 			static_cast<void>(reveal_conversation(aIdentity));
 		});
-		// [[BPR-1592]]. RFC-BPR-0085 D3: Notes is the private notes at their
-		// lines, and nothing else. The agent's panels move, unchanged, to the
-		// provisional Agent tab with the private history and its purpose.
-		auto* const notesPage       = new QWidget{ Drawers[1].Panel };
-		auto* const notesPageLayout = new QVBoxLayout{ notesPage };
-		notesPageLayout->setContentsMargins(0, 0, 0, 0);
-		NotesHome    = notesPage;
-		PrivateNotes = new private_notes_panel{ notesPage };
-		notesPageLayout->addWidget(PrivateNotes, 1);
-		wire_private_notes();
 		// [[BPR-1781]]. The agent's page is a body in a home: Overview's
 		// drawer borrows the body, whole, while Overview shows.
 		AgentHome = new QWidget{ Drawers[1].Panel };
@@ -1617,11 +1606,11 @@ namespace bpr::qt {
 		notesPurpose->hide();
 		privateTabs->hide();
 
-		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Notes
-		// and Tour. The drawer still
-		// opens on Comments. Choosing Notes is RFC-BPR-0031's explicit move
-		// into the AI tools, the action that cues compare_glance in the corner; it
-		// dispatches no agent or review action and never opens the drawer.
+		// [[BPR-1134]]. The tray's header is its tabs: Comments, Tour and
+		// Agent. The drawer still opens on Comments. Choosing Agent is
+		// RFC-BPR-0031's explicit move into the AI tools, the action that cues
+		// compare_glance in the corner; it dispatches no agent or review action
+		// and never opens the drawer.
 		auto* const conversationShell       = new QWidget{ Drawers[1].Panel };
 		auto* const conversationShellLayout = new QVBoxLayout{ conversationShell };
 		conversationShellLayout->setContentsMargins(0, 0, 0, 0);
@@ -1635,17 +1624,14 @@ namespace bpr::qt {
 		// [[BPR-1594]]. The Agent keeps its spark beside its name.
 		// [[BPR-1684]]: fit_tray_tabs gives each tab its face, glyph
 		// and tooltip for the width the row has.
+		// RFC-BPR-0127 ([[BPR-2158]]). Comments absorbs Notes: the tray's tabs
+		// are Comments, Tour and Agent; Local comments are cards in Comments.
 		TrayTabs->addTab(tr("Comments"));
-		TrayTabs->addTab(tr("Notes"));
 		TrayTabs->addTab(tr("Tour"));
 		TrayTabs->addTab(drawer_icon(drawer_glyph::agent, palette()), tr("Agent"));
 		TrayTabs->setAccessibleTabName(tray_comments_tab, tr("Comments"));
-		TrayTabs->setAccessibleTabName(tray_notes_tab, tr("Notes"));
 		TrayTabs->setAccessibleTabName(tray_tour_tab, tr("Tour"));
 		TrayTabs->setAccessibleTabName(tray_findings_tab, tr("Agent"));
-		// RFC-BPR-0127 ([[BPR-2158]]). Comments absorbs Notes: the tray's tabs
-		// are Comments, Tour and Agent; Local comments are cards in Comments.
-		TrayTabs->setTabVisible(tray_notes_tab, false);
 		// [[BPR-1684]]. The count is the tab's button only while it
 		// shows, so a tab without new comments keeps no room for it.
 		TrayCommentsCount = new drawer_count_pill{ TrayTabs };
@@ -1659,7 +1645,6 @@ namespace bpr::qt {
 		TrayPages = new QStackedWidget{ conversationShell };
 		TrayPages->setObjectName(QStringLiteral("workbenchTrayPages"));
 		TrayPages->addWidget(CommentsScroll);
-		TrayPages->addWidget(notesPage);
 		// [[BPR-1593]]. The Tour tab is the route; its editor moves to the tour
 		// page on Expand and back on Back to the code, so it sits in a holder.
 		TourHolder = new QWidget{ conversationShell };
@@ -1719,24 +1704,6 @@ namespace bpr::qt {
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
 		commentsToolsRow->addWidget(NextNewCommentButton);
-		// [[BPR-1592]]. The Notes tab's tools: a new note on the selected line
-		// (N), and the notes on the pull request.
-		NotesTools = new QWidget{ CommentsTools->parentWidget() };
-		NotesTools->setObjectName(QStringLiteral("workbenchNotesTools"));
-		auto* const notesToolsRow = new QHBoxLayout{ NotesTools };
-		notesToolsRow->setContentsMargins(0, 0, 0, 0);
-		notesToolsRow->setSpacing(1);
-		PrivateNotes->new_line_action()->setIcon(conversation_icon(conversation_glyph::comment, palette()));
-		PrivateNotes->elsewhere_action()->setIcon(drawer_icon(drawer_glyph::pull_request, palette()));
-		auto* const newNote = make_drawer_tool(NotesTools, PrivateNotes->new_line_action()->icon(), PrivateNotes->new_line_action()->toolTip(), QStringLiteral("workbenchNewNoteTool"));
-		newNote->setDefaultAction(PrivateNotes->new_line_action());
-		newNote->setToolButtonStyle(Qt::ToolButtonIconOnly);
-		notesToolsRow->addWidget(newNote);
-		auto* const elsewhere = make_drawer_tool(NotesTools, drawer_icon(drawer_glyph::pull_request, palette()), PrivateNotes->elsewhere_action()->text(), QStringLiteral("workbenchNotesElsewhereTool"));
-		elsewhere->setDefaultAction(PrivateNotes->elsewhere_action());
-		elsewhere->setToolButtonStyle(Qt::ToolButtonIconOnly);
-		notesToolsRow->addWidget(elsewhere);
-		NotesTools->hide();
 		// [[BPR-1593]]. The Tour tab's tools: Add stop, and Expand to the
 		// tour page.
 		TourTools = new QWidget{ CommentsTools->parentWidget() };
@@ -1756,14 +1723,12 @@ namespace bpr::qt {
 		trayToolsRow->setContentsMargins(0, 0, 0, 0);
 		trayToolsRow->setSpacing(0);
 		CommentsTools->setParent(trayTools);
-		NotesTools->setParent(trayTools);
 		TourTools->setParent(trayTools);
 		trayToolsRow->addWidget(CommentsTools);
-		trayToolsRow->addWidget(NotesTools);
 		trayToolsRow->addWidget(TourTools);
 		trayHeader->set_parts(TrayTabs, trayTools);
 		// [[BPR-1592]] [[BPR-1684]]. RFC-BPR-0085 D5: where the names do
-		// not fit the tabs go compact, so four tabs never scroll.
+		// not fit the tabs go compact, so the tabs never scroll.
 		trayHeader->installEventFilter(this);
 		TrayHeader = trayHeader;
 		fit_tray_tabs(true);
@@ -1779,11 +1744,7 @@ namespace bpr::qt {
 			// [[BPR-1684]]. A compact row names the open tab.
 			fit_tray_tabs();
 			CommentsTools->setVisible(aIndex == tray_comments_tab);
-			NotesTools->setVisible(aIndex == tray_notes_tab);
 			TourTools->setVisible(aIndex == tray_tour_tab);
-			if (aIndex == tray_notes_tab && PrivateNotes != nullptr) {
-				PrivateNotes->refresh_geometry();
-			}
 			apply_thread_marks();
 			// [[BPR-1925]]. The chat goes with the Tour tab; the drawer holds
 			// both while it shows and narrows again on the other tabs.
@@ -1819,9 +1780,6 @@ namespace bpr::qt {
 			drawer->set_tab_observer([this](const overview_drawer_tab aTab) {
 				if (!ConversationTabsLent) {
 					return;
-				}
-				if (aTab == overview_drawer_tab::notes && PrivateNotes != nullptr) {
-					PrivateNotes->refresh_geometry();
 				}
 				if (aTab == overview_drawer_tab::agent && AgentTab != nullptr) {
 					AgentTab->refresh();

@@ -2113,13 +2113,6 @@ set_tests_properties(qt_discuss_comment_bodies PROPERTIES
 bpr_add_network_isolated_test(NAME qt_public_preview_conversation COMMAND test_better_pull_review_qt_anonymous_public_preview_tests --conversation-only)
 set_tests_properties(qt_public_preview_conversation PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0" TIMEOUT 30)
 
-bpr_add_executable(test_better_pull_review_qt_private_notes_panel_tests private_notes_panel_tests.cpp)
-target_link_libraries(test_better_pull_review_qt_private_notes_panel_tests PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_better_pull_review_qt_private_notes_panel_tests)
-bpr_enable_warnings(test_better_pull_review_qt_private_notes_panel_tests)
-bpr_add_network_isolated_test(NAME qt_private_notes_panel COMMAND test_better_pull_review_qt_private_notes_panel_tests)
-set_tests_properties(qt_private_notes_panel PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "private-notes-panel-tests:pass" TIMEOUT 30)
-
 # [[BPR-2051]]. Enhance on a draft comment and a note.
 bpr_add_executable(test_enhance_control enhance_control_tests.cpp)
 target_link_libraries(test_enhance_control PRIVATE BetterPullReview::AdapterQt)
