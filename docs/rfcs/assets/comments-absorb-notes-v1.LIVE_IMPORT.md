@@ -30,7 +30,7 @@ Cards were cut at import from the draft's suggested milestones:
 
 | Card | What | Criteria |
 |---|---|---|
-| [BPR-2157](../../issues/10-backlog/BPR-2157-comments-absorb-notes-model-store-migration.md) | Model, store and migration | AC03, AC11, AC13 |
+| [BPR-2157](../../issues/20-ready/BPR-2157-comments-absorb-notes-model-store-migration.md) | Model, store and migration | AC03, AC11, AC13 |
 | [BPR-2158](../../issues/10-backlog/BPR-2158-comments-drawer-holds-local-comments.md) | Comments absorbs Notes | AC01, AC02, AC04, AC05, AC06, AC14 |
 | [BPR-2159](../../issues/10-backlog/BPR-2159-local-comments-found-and-counted.md) | Threads, Overview, My review, Finish your review | AC07, AC08, AC09 |
 | [BPR-2160](../../issues/10-backlog/BPR-2160-one-keep-action-on-agent-surfaces.md) | One keep action, wording | AC10, AC12 |
