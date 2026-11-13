@@ -113,3 +113,28 @@ Courses and tests moved off the panel: `review_submission_composition_public_pat
 Evidence (dev, Debug, macOS), all passing: `qt_workbench_window_scale_{100,125,200}`, `qt_drawer_surfaces_fit_scale_{100,125,200}`, `qt_drawer_parts_scale_100`, `qt_button_faces`, `qt_enhance_control`, `qt_agent_finding_cards_{retained,restart}`, `qt_skill_completion_keys`, `qt_tour_chat_in_tab`, `qt_conversation_cards_view`, `qt_composed_github_scale_100`; `application_local_comments_composition_public_path` (AC05 now: Local disabled with "holds this draft", pressing it chooses nothing), `application_review_submission_composition_public_path`, `application_review_tour_composition_public_path`, `application_explain_file_public_path`, `application_local_draft_{author,tour,publication}_desktop_public_path`, `application_commit_filter_public_path`, `application_diff_zoom_public_path`, `application_overview_summary_1`, `application_source_pr_find`, `application_dependable_session_public_path` (failed once under parallel GUI load at "#17's review page offers Approve", before anything this round touches; passed alone); `architecture_boundaries`, `application_composition_source_contract`, `application_review_round_trip_composition_contract` (app source pin resealed). `qt_hide_drawers_native_menu_key` was built, not run: it drives the native menu bar in the Aqua session.
 
 Owner look v002 (session `3fefa366…`) is filed and not yet answered; its verdicts are recorded here when forwarded. The round's later look asks about the compact chips and the disabled Local segment.
+
+
+## Owner look v002: Reject (session 3fefa366, handed back 2026-11-13T19:32:44Z)
+
+Verified in `session.json`: `local-edge-chips` **Reject**, with four screenshots in the decision; `reply-local-state`, `local-reply-actions` and `local-edit-and-delete` have no recorded decision and are unanswered. The owner's note, verbatim:
+
+> if I scroll until just 5 is visible at the top and then add a comment on line 5 then full pull comment composer isn't shown on the drawer. This might be related to that cutout space at the top for the pull request control?
+>
+> Also I want a real next comment prev comment control in that top bar in the comment drawer controls. Instead of this "next new comment" which I find useless in practice for navigating.
+>
+> 2nd img this local reply tooltip looks very detatched, i think this is the same old tooltip placement bug we've fixed a million times.
+>
+> 3rd img these lines between comments are slightly too subtle, compare it to slack's (the window behind).
+>
+> 4th img this compose looks like a mess and I don't understand why the mark draft button is unavailable here,  looks like we have 2 local comments on line 6 but neither are a draft and only this one i can't make a draft but the other one i can?
+>
+> Img 5 I dont understand why this comment says "pull request" and also other comments that are not focused need to show their line numbers.
+
+Taken as six fixes, all in this round before milestone 3 (coordinator):
+1. A new comment's composer on a line at the code's top is whole in view (the drawer's top starts under its tab and tools rows).
+2. Previous and Next comment replace Next new comment on the Comments tab row, with keys.
+3. The Local reply's tooltip is anchored at its tag; a guard keeps tooltips off large areas.
+4. The rules between a thread's posts are stronger.
+5. The reply composer's foot is laid out cleanly, and Make draft says in words why it is not offered when a draft of mine already stands.
+6. Only a comment on the pull request says "Pull request"; closed cards show their line numbers.
