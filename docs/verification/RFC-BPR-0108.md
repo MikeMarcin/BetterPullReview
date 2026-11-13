@@ -17,7 +17,7 @@ nothing below is a timing claim.
 | Git adapter | `make_installed_git_local_draft_reader`: the publication catalog's isolated store, read-only: `merge-base --all`, `ls-tree`, `cat-file blob`, with the worktree's objects and each chain clone's as alternates. No config, hook, ref or index of the worktree is read by Git; nothing is fetched or written |
 | Application | `local_draft_discovery` (refs, config, index and working files as data through the workspace port; the scan hashes working files as Git would and lists edits apart; `capture_local_draft` reads both sides of every change and re-reads working bytes against what was listed); `open_local_draft` (the one open both the desktop and `bpr draft open` make); `local_draft_workbench` (host, lanes, projection) |
 | SQLite | `state/v1/local-drafts.sqlite3`: versioned draft records, content-addressed objects, pins; a write names the version it read; 1 GiB and 64-draft bounds refuse with the amounts; discard removes the record and objects only it named |
-| Qt | `local_draft_view` (title, source-into-target identity with exact commits in its tooltip, Candidate chooser, Refresh, Discard…, Close; Changes, Not committed, Notes, the diff); Home's author entry (Prepare Pull Request…, In preparation) above Home's sections; Review Cycles moved below them; the prepared chip and Open Local Preparation on a pull request row |
+| Qt | (2026-11-13: `local_draft_view` deleted; the draft is shown in the pull request window, see below) `local_draft_view` (title, source-into-target identity with exact commits in its tooltip, Candidate chooser, Refresh, Discard…, Close; Changes, Not committed, Notes, the diff); Home's author entry (Prepare Pull Request…, In preparation) above Home's sections; Review Cycles moved below them; the prepared chip and Open Local Preparation on a pull request row |
 | App | `local_draft_desktop` in every window; `bpr draft open [PATH] [--context TEXT]`, run here under the profile's lease or forwarded to the owning desktop (owner channel operation `local_draft`); the attended look `--attended-local-draft PATH` |
 
 Thresholds (AC07 asks for them to be recorded): 64 drafts, 32 candidates per
@@ -119,3 +119,40 @@ What follows: the separate local-draft page is replaced by the pull request
 window itself, with author-state additions only (round "local draft in the PR
 window", 2026-11-12). Home 1 is accepted except the selection fault, which the
 same round fixes.
+
+## Local draft in the pull request window (2026-11-13)
+
+The owner's rejects of session `6d00826a…` ("I thought we chose to stick with
+the PR view and just augment it") are answered by deleting the separate page.
+A local draft, and a pull request opened by its author on their worktree (a
+draft associated with it), is shown in the window's own review surface:
+
+| Surface | Now |
+|---|---|
+| Files | The pull request's Files tree, fed the shown candidate's files; Overview's files the same |
+| Search | The pull request's Search tab and search host over the candidate (`local_draft_search`) |
+| Diff | The pull request's diff viewer (`diff_workbench`), syntax colours by the packaged definitions; a comparison identity from `core::local_presentation_key` |
+| Overview | The pull request's Overview page, with an author panel (title, description, publish steps) where a pull request's status stands |
+| Drawers | Notes and Tour tabs of the window's tray hold the draft's notes and local tour; Comments waits for the pull request |
+| Status bar | The window's status bar: file, candidate, uncommitted and to push |
+| Review bar | Candidate pop-up and branch with ↑/↓ where Updates stands; Create Draft PR… where Compose review stands; the epoch control, progress track, Comment and Explain this file wait |
+| Author state | Local Changes is always a tab beside Files and Search; the picker's Edit (syntax colours, follows the file chosen in Files, Local Changes or Search); working files behind a disclosure under Files; Stage Change and Unstage Change on the code's menu |
+
+Deleted: `local_draft_view` (the page, its bar, Files list, Not committed list,
+drawers and centre) and `local_diff_view`.
+
+Runs (dev, Debug, macOS): `core_local_presentation`,
+`application_local_draft_{desktop,author_desktop,publication_desktop,tour_desktop}_public_path`,
+`qt_local_draft_window`, `qt_workbench_window_scale_100`,
+`qt_composed_github_scale_100`, `application_source_pr_find`,
+`application_source_pr_search_scope`, `application_review_cycle_desktop_public_path`,
+`application_explain_file_public_path`, `local_changes`,
+`application_agent_chat_composition_contract`,
+`application_returning_review_latest_public_path`,
+`application_review_round_trip_composition_contract` (app pin resealed),
+`architecture_boundaries`, `test_network_isolation_manifest`, clang-format 22.
+
+Known gaps: the Tour tab hosts the local tour editor, not the pull request's
+Tour panel bound to a local tour; a pull request opened from Home is not yet
+put in author state by itself (the author state comes with the draft
+associated with it).

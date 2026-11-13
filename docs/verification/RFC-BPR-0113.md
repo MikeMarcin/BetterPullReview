@@ -56,3 +56,7 @@ What follows: the separate local-draft page is replaced by the pull request
 window itself, with author-state additions only (round "local draft in the PR
 window", 2026-11-12). Home 1 is accepted except the selection fault, which the
 same round fixes.
+
+## Local draft in the pull request window (2026-11-13)
+
+The Edit view, Local Changes, staging, commit and push are now the pull request window's additions; see the [RFC-BPR-0108 ledger](RFC-BPR-0108.md#local-draft-in-the-pull-request-window-2026-11-13). Edit has syntax colours and follows the file chosen in Files, Local Changes or Search; the agent's nib is beside Commit in the agent accent (`qt_local_draft_window` holds it, with an accent inventory of Local Changes and the one-sentence tooltips).
