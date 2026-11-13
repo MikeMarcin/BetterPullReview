@@ -82,3 +82,24 @@ checked. `application_local_draft_evidence_desktop_public_path` and
 `core_local_draft_evidence` no longer exist. Runs: see the
 [RFC-BPR-0110 ledger](RFC-BPR-0110.md#owner-amendment-evidence-removed-2026-11-12);
 the live BPR-Test course was not rerun (no network-facing change).
+
+## In the pull request window (2026-11-13)
+
+The accepted design's publish surfaces, at `6887928bd` (dev, Debug, macOS):
+
+| Criterion | Evidence | Result |
+|---|---|---|
+| AC01, AC07 | `application_local_draft_publication_desktop_public_path`: Create Draft PR… stands in the review bar and opens Overview at the Status tab, whose page is the publish steps; the unpushed branch: "Not on GitHub", the named push with Copy, steps "Waiting: Push feature/cancel", "Waiting: Create the draft pull request", "Waiting: Publish the tour", no Create offered; after the push "Sent: Push feature/cancel" and What is sent (From, Into, As author, Version, Title, Kept here); a lost answer is the error-role banner with Preview again, nothing resent; a creation held in flight leaves the draft's lane free; released: "Sent: Create the draft pull request", "Waiting: Publish the tour (from the Tour tab)", headline "Draft pull request #7", no second creation. Renders `build/dev/tests/end_to_end/local-draft-publication-desktop/status-*.png` | Pass on fixture |
+| On creation | Same course: the window is asked to open github.com acme/engine #7; the composition opens it with `open_review_destination` under the signed-in session | Pass on fixture (the opener); the full path has no course |
+| AC03, AC05, AC06 (tour) | Same course: the draft's tour carried onto the pull request's tour draft at its head (anchored, Accepted) and at another head (no lines, kept) | Pass on the application path |
+
+Live, not obtained this round: `live_draft_course.py` was updated to the new
+surfaces (a stop in the Tour panel, Create Draft PR… to the Status tab, the
+window becoming the pull request with the carried stop) and run twice on
+BPR-Test (branches `bpr-0111-live-1794557551`, `-1794557752`); both stopped
+before the course reached the draft: the live course's GitHub sign-in stays at
+account-setup phase `idle` ("GitHub CLI discovery stopped at idle"), which no
+change of this round touches. Nothing was pushed, no pull request was made,
+both branches were deleted; `X-RateLimit-Remaining` 4,985 → 4,925. AC01's live
+evidence remains #178 and #179 (earlier surfaces). The sign-in fault needs its
+own investigation.

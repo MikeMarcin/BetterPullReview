@@ -119,3 +119,54 @@ terminal. clang-format 22 on every touched C++ file; clang-tidy (warnings as
 errors) on every touched translation unit except `src/app/main.cpp` (only
 deletions there). Not run: the whole suite, the core-only preset, Qt window
 suites, Windows and Linux.
+
+## In the pull request window (2026-11-13)
+
+The owner's redesign ("I thought we chose to stick with the PR view and just
+augment it") and the coordinator's brief: the local draft's tour in the
+window's accepted Tour panel, its description in Overview, the old local
+editor deleted. Frontend-design was loaded first. Implementation record: the
+RFC's "In the pull request window (2026-11-13)". Lane commits `e48802f49`
+(core `local_tour_view`), `191b12294` (Qt), `5337b1eda`, `736407b8f`,
+`e44dba18f`, `667175975` (composition, courses, look, pin). The evidence rows
+above that ran on the deleted draft page are superseded by these:
+
+| Criterion | Evidence (dev, Debug, macOS, at `6887928bd`) | Result |
+|---|---|---|
+| AC01 | `application_local_draft_tour_desktop_public_path` (real window, real local-draft composition, real Git worktree, signed out, scripted agent): candidate 2 holds an uncommitted file; the description written in Overview's own editor (`description_editable`, Save); Problem and Solution typed in the Tour panel; a stop added from lines selected in Review with the panel's Add stop binds the candidate's exact bytes. `core_local_draft_tour` `test_panel_view`: the panel's owner is well formed and its candidate identity is neither the real commit nor another candidate's | Pass |
+| AC02 | Same course: `compose_local_publication` carries the description byte for byte and the tour, not the conversation | Pass |
+| AC03 | Same course: the request holds the captured `stop_worker();` and not the live helper edit or its name; the stop outside the candidate is recorded and never offered; the Solution proposal is stale after the author's edit and the edit stands; after an accepted refresh only the changed stop is yellow, a new session starts on candidate 3 replaying nothing, and the earlier turns stay readable in the side chat. `core_local_draft_tour`: a stale proposal shows refused | Pass (tool-free route) |
+| AC04 | Same course, after a restart: description, tour, conversations and proposals resume; the panel and the open conversation show with no agent process | Pass |
+| AC05 | Same course: the brief never writes the description | Pass |
+| AC06 | `application_local_draft_publication_desktop_public_path`: `carry_tour` onto a pull request tour draft at the candidate's head anchors the stop there and keeps it Accepted; at another head it anchors nothing and keeps the stop with its text (`Unresolved` 1). `core_local_draft_tour`: zero-based anchors. Through the full composition the carry runs when the pull request's tour loads empty and Home marks it (`carry_local_tour`); no course drives that path end to end (the live course that would is blocked, see RFC-BPR-0111) | Pass on the application path |
+| AC08 | Tour course: the head states 1 stop, 1 to accept and has no actions (no Publish); the new stop is yellow, typing saves its text without accepting it, Save accepts it (green ring); arriving at it selects lines 6-10 in Review's diff viewer; the side chat shows the turn, its answer and "$0.02 this session"; after the refresh the ring is yellow with "Changed since accepted: changed." (the draft's own word). Renders: `build/dev/tests/end_to_end/local-draft-tour-desktop/` | Pass on fixture; owner look filed |
+| AC09 | Same course: the editor's option starts on by default and off for a local draft's pull request | Pass |
+
+The full composition (dev app, offscreen, fresh home, `--github-fixture
+promo-v1 --attended-open-file src/render/frame_pacer.cpp --attended-local-draft
+… --attended-local-draft-tour`) reached `ATTENDED_LOCAL_DRAFT_TOUR_SHOWN`,
+driving the window's Tour panel, Overview's editor and the side chat through
+`github_application`'s routing.
+
+Other runs at the candidate, all passing: `core_local_draft`,
+`core_local_draft_publication`, `core_local_changes`,
+`core_local_presentation`, `core_review_tour`, `core_tour_stop_acceptance`,
+`core_tour_publication_head`, `local_draft`, `local_draft_publication`,
+`local_changes`, `qt_workbench_window_scale_100`, `qt_tour_side_chat`,
+`qt_local_draft_window`, `qt_review_tour_steps`, `qt_review_tour_stop_view`,
+`qt_tour_stop_acceptance_card`, `qt_tour_stop_card`,
+`qt_review_tour_publication_working`, `qt_overview_read_marks`,
+`application_review_tour_host`, the four local-draft desktop courses,
+`application_dependable_session_public_path`, `architecture_boundaries`,
+`architecture_boundary_contract`, `test_network_isolation_manifest`,
+`application_composition_source_contract`,
+`application_review_round_trip_composition_contract` (after the reseal).
+clang-format 22 on every touched C++ file. Not run: the whole suite,
+core-only preset, clang-tidy, Windows and Linux.
+
+Limits, for the closeout: Ask more is not offered for a local draft (its
+turns replay or resume); split, duplicate and merge do nothing for a local
+tour; ambiguous and unavailable correspondence show the panel's yellow ring
+with the draft's word; the agent bar's readiness is the Agent tab's, so a
+course sets it ready; the side chat lists earlier candidates' turns above the
+open session's rather than in a Session menu.
