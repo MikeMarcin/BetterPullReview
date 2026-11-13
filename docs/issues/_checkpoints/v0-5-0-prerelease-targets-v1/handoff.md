@@ -2559,7 +2559,7 @@ Next: RFC-BPR-0127 milestone 2 (BPR-2158), see below.
 
 ### RFC-BPR-0127 milestone 2 (BPR-2158), first round (2026-11-13)
 
-Frontend-design was loaded first. BPR-2158 is engineered in part and **not claimed**: it depends on BPR-2157, which stays In Progress. Design, evidence and what is not built: [BPR-2158 card](../../10-backlog/BPR-2158-comments-drawer-holds-local-comments.md#progress-2026-11-13-not-claimed).
+Frontend-design was loaded first. BPR-2158 is engineered in part and **not claimed**: it depends on BPR-2157, which stays In Progress. Design, evidence and what is not built: [BPR-2158 card](../../20-ready/BPR-2158-comments-drawer-holds-local-comments.md#progress-2026-11-13-not-claimed).
 
 | Commit | What |
 |---|---|
