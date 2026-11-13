@@ -594,9 +594,10 @@ namespace bpr::qt {
 		// [[BPR-1363]]. Each column as wide as the widest cell of the whole
 		// tree, every file whether its folder is open or not, so opening or
 		// closing a folder, a scroll or a refresh moves no column. RFC-BPR-0127
-		// ([[BPR-2159]]): the Note column that took the rest is gone, and no
-		// column fills its place, so File keeps the width a drag gives it and
-		// Comments its chips' width. Delegate measures stay bounded on a large review: only the
+		// ([[BPR-2159]]): the Note column that took the rest is gone. No column
+		// fills its place, as a native list leaves the space after its last
+		// column: File keeps the width a drag gives it, and Comments its
+		// chips' width, its count and chips together. Delegate measures stay bounded on a large review: only the
 		// widest few cells by their text are measured.
 		FileColumns = new steady_columns{ *Files, -1, [](const QModelIndex& aIndex) {
 											 return aIndex.data(overview_file_model::folder_role).toBool() ? 1 : 0;

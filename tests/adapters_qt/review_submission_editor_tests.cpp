@@ -567,6 +567,11 @@ auto main(int argc, char** argv) -> int
 		auto shownLocal = 0;
 		editor.set_local_show([&shownLocal] { ++shownLocal; });
 		expect(editor.local_line()->isVisible() && editor.local_line_label()->text() == QStringLiteral("1 local comment stays on this computer"), "one quiet line counts the Local comments");
+		if (const auto localLook = qEnvironmentVariable("BPR_FINISH_LOCAL_RENDER"); !localLook.isEmpty()) {
+			editor.resize(560, editor.sizeHint().height() + 120);
+			QApplication::processEvents();
+			static_cast<void>(editor.grab().save(localLook, "PNG"));
+		}
 		editor.local_show_button()->click();
 		expect(shownLocal == 1, "its Show lists them in Threads");
 		editor.set_local_count(3U);

@@ -130,8 +130,8 @@ namespace bpr::application {
 	struct overview_review_progress
 	{
 		/// [[BPR-1339]]. Files read or accepted (`core::progress_done`).
-		std::size_t                FilesRead    = 0U;
-		std::size_t                FilesTotal   = 0U;
+		std::size_t FilesRead  = 0U;
+		std::size_t FilesTotal = 0U;
 		/// RFC-BPR-0127. My Local comments on this pull request.
 		std::size_t                PrivateNotes = 0U;
 		std::optional<std::size_t> DraftedComments;

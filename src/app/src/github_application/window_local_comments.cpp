@@ -264,10 +264,10 @@ namespace bpr::app {
 				refuse(QStringLiteral("Return to the draft's comparison to keep it local. Nothing changed."));
 				return;
 			}
-			const auto file      = onShown ? shown->File : core::file_identity_of(aGesture.Path);
-			const auto filePath  = onShown ? (SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt)
-										   : std::optional{ aGesture.Path };
-			auto       input     = core::keep_local_input{ .Draft = draft->Draft, .File = file };
+			const auto file     = onShown ? shown->File : core::file_identity_of(aGesture.Path);
+			const auto filePath = onShown ? (SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt)
+										  : std::optional{ aGesture.Path };
+			auto       input    = core::keep_local_input{ .Draft = draft->Draft, .File = file };
 			if (aGesture.Action == qt::card_action::save_local && !aGesture.Body.empty()) {
 				input.Draft.Body = aGesture.Body;
 			}

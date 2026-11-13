@@ -303,7 +303,7 @@ namespace bpr::qt {
 		auto show_state(finder_state aState, const QString& aPath) -> bool;
 		/// \brief RFC-BPR-0127. How many rows each state's choice shows.
 		[[nodiscard]] auto state_count(finder_state aState) -> std::size_t;
-		void set_reading(finder_reading aReading);
+		void               set_reading(finder_reading aReading);
 		/// \brief Shown as the page: the search has focus and the cursor is on
 		/// the conversation open in Review, or kept, or on the first row.
 		void enter();
@@ -486,9 +486,9 @@ namespace bpr::qt {
 		/// [[BPR-1582]]. The pointer is on the hovered row's Review button.
 		bool HoveredReview = false;
 		/// [[BPR-1356]]. The row menu, and the row and post it was opened on.
-		QPointer<QMenu>            RowMenu;
+		QPointer<QMenu> RowMenu;
 		/// RFC-BPR-0127. The state filter's four choices, while open.
-		QPointer<QMenu> StateMenu;
+		QPointer<QMenu>            StateMenu;
 		QPointer<QAction>          OpenReview;
 		QPointer<QAction>          OpenDiscuss;
 		QPointer<QAction>          ReadAction;

@@ -353,11 +353,11 @@ namespace bpr::qt {
 		QToolButton*                                                                                    OutsideAddAll  = nullptr;
 		std::function<void(const outside_draft&)>                                                       OutsideKeepLocal;
 		std::function<void()>                                                                           LocalShow;
-		std::size_t                                                                                     LocalCount     = 0U;
-		QWidget*                                                                                        LocalLine      = nullptr;
-		QLabel*                                                                                         LocalLabel     = nullptr;
+		std::size_t                                                                                     LocalCount      = 0U;
+		QWidget*                                                                                        LocalLine       = nullptr;
+		QLabel*                                                                                         LocalLabel      = nullptr;
 		QToolButton*                                                                                    LocalShowButton = nullptr;
-		QVBoxLayout*                                                                                    OutsideRows    = nullptr;
+		QVBoxLayout*                                                                                    OutsideRows     = nullptr;
 		QString                                                                                         LastAnnouncement;
 		review_submission_editor_dispatch                                                               Dispatch;
 		std::optional<core::review_submission_draft>                                                    Draft;

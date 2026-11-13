@@ -798,7 +798,7 @@ namespace bpr::qt {
 		ReviewsRange->setObjectName(QStringLiteral("insightsReviewsRange"));
 		header->addLayout(rangeColumn);
 		aColumn.addLayout(header);
-		auto*             tiles = grid(aColumn, 4);
+		auto* tiles = grid(aColumn, 4);
 		// RFC-BPR-0127 ([[BPR-2159]], Q13). Private notes became Local comments;
 		// the tile keeps counting the same history.
 		const QStringList titles{ tr("Reviews submitted"), tr("Files accepted"), tr("Comments posted"), tr("Local comments") };

@@ -94,8 +94,12 @@ namespace {
 		shown.CommentsTab = aWindow.tray_tabs()->tabText(0) + QLatin1Char{ '|' } + aWindow.tray_tabs()->accessibleTabName(0);
 		shown.NextNew     = aWindow.next_new_comment_action()->toolTip();
 		aWindow.finder()->refresh();
+		// RFC-BPR-0127 ([[BPR-2159]]): Threads lists my Local comments as rows
+		// of their own; they are not threads, and no thread's count moves.
 		for (const auto& row : aWindow.finder()->conversations()) {
-			shown.Threads.emplace_back(row.Id, row.Unread);
+			if (!row.Local) {
+				shown.Threads.emplace_back(row.Id, row.Unread);
+			}
 		}
 		shown.Labels = aWindow.finder()->label_counts();
 		if (const auto& projection = aWindow.overview_page()->projection(); projection.has_value()) {

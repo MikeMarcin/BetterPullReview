@@ -2866,19 +2866,21 @@ namespace bpr::qt {
 		QAction*                                                  FinishReviewAction = nullptr;
 		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
 		/// [[BPR-2092]].
-		core::draft_roster                                            DraftRoster;
+		core::draft_roster DraftRoster;
 		/// RFC-BPR-0127 ([[BPR-2159]]). My Local comments counted by file, and
 		/// all of them, beside the drafts.
 		std::map<QString, std::size_t> LocalByPath;
-		std::size_t                     LocalTotal = 0U;
+		std::size_t                    LocalTotal = 0U;
 		/// Overview's Comments column: my drafts and Local comments by file.
 		void present_mine_counts();
 		/// Threads' Local rows, the counts and Finish your review's line.
 		void present_local_found(const std::vector<local_comment_card>& aComments);
+		/// [[BPR-1293]]. The draft open in the drawer, as a Threads row.
+		void present_finder_draft();
 		/// Keep Local on a listed draft (Finish your review, Threads).
 		void keep_listed_draft_local(core::review_draft_id aDraft);
 		/// A Local row of Threads: its card in Review; then Make Draft.
-		void open_local_from_threads(std::uint64_t aLocal, bool aMakeDraft);
+		void                                                          open_local_from_threads(std::uint64_t aLocal, bool aMakeDraft);
 		std::function<void(std::vector<core::review_draft_id>, bool)> DraftReviewDispatch;
 		std::function<void(core::review_draft_id, std::uint64_t)>     CarriedSuggestionDispatch;
 		/// [[BPR-1733]]. The moved suggestions the composition last presented.

@@ -36,10 +36,10 @@
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
-#include <QPixmap>
 #include <QPainterPath>
 #include <QPalette>
 #include <QPen>
+#include <QPixmap>
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollBar>
@@ -1009,7 +1009,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto sizeHint() const -> QSize override
 		{
-			auto width = 9 + 16 + 9;
+			auto       width   = 9 + 16 + 9;
 			const auto metrics = QFontMetrics{ weighted(font(), QFont::DemiBold) };
 			auto       words   = Count.isEmpty() ? 0 : metrics.horizontalAdvance(Count);
 			for (const auto& reserve : Reserve) {
@@ -2060,17 +2060,17 @@ namespace bpr::qt {
 		// RFC-BPR-0127 ([[BPR-2159]]). My Local comments, in their files'
 		// groups, marked Local.
 		for (const auto& comment : LocalComments) {
-			auto local    = finder_conversation{ };
-			local.Id      = std::string{ finder_local_prefix } + std::to_string(comment.Id);
-			local.Path    = comment.Path;
-			local.Line    = comment.Line;
-			local.Draft   = true;
-			local.Local   = true;
-			local.Reply   = comment.Reply;
-			auto post     = make_post(local.Id, Viewer, comment.Body.toStdString(), Viewer);
-			post.Mine     = true;
-			local.Posts   = { std::move(post) };
-			local.Rows    = finder_rows_of(local.Posts);
+			auto local  = finder_conversation{ };
+			local.Id    = std::string{ finder_local_prefix } + std::to_string(comment.Id);
+			local.Path  = comment.Path;
+			local.Line  = comment.Line;
+			local.Draft = true;
+			local.Local = true;
+			local.Reply = comment.Reply;
+			auto post   = make_post(local.Id, Viewer, comment.Body.toStdString(), Viewer);
+			post.Mine   = true;
+			local.Posts = { std::move(post) };
+			local.Rows  = finder_rows_of(local.Posts);
 			Conversations.push_back(std::move(local));
 		}
 		if (!SavedDrafts.empty() || !LocalComments.empty()) {
@@ -2243,7 +2243,7 @@ namespace bpr::qt {
 		const auto count = [this](const finder_state aState) { return count_of(aState); };
 		const auto state = Filters.State;
 		DraftsChip->set_glyph(state == finder_state::local ? conversation_glyph::computer : state == finder_state::draft ? conversation_glyph::edit
-																																	 : conversation_glyph::comment);
+																														 : conversation_glyph::comment);
 		auto reserve = QStringList{ };
 		for (const auto choice : { finder_state::all, finder_state::published, finder_state::draft, finder_state::local }) {
 			reserve.push_back(QStringLiteral("%1 %2").arg(finder_state_text(choice)).arg(count(choice)));
@@ -2298,7 +2298,7 @@ namespace bpr::qt {
 		};
 		for (const auto state : { finder_state::all, finder_state::published, finder_state::draft, finder_state::local }) {
 			const auto  glyph  = state == finder_state::local ? conversation_glyph::computer : state == finder_state::draft ? conversation_glyph::edit
-																																		  : conversation_glyph::comment;
+																															: conversation_glyph::comment;
 			auto* const action = menu->addAction(state == finder_state::draft && outside ? amber() : conversation_icon(glyph, palette()),
 												 QStringLiteral("%1\t%2").arg(finder_state_text(state)).arg(state_count(state)));
 			action->setObjectName(QStringLiteral("threadFinderState%1").arg(finder_state_text(state)));

@@ -90,6 +90,28 @@
 #include <vector>
 
 namespace bpr::qt {
+	void workbench_window::present_finder_draft()
+	{
+		// [[BPR-1293]]. My draft is a row of Threads.
+		if (Finder != nullptr) {
+			auto draft = std::optional<finder_draft>{ };
+			if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
+				shown.has_value() && !shown->ReplyToThread.has_value() && !shown->shared() && !shown->Body.empty() && ComparisonSurface != nullptr
+				&& ComparisonSurface->current_result() != nullptr && ComparisonSurface->current_context().has_value()
+				&& ComparisonSurface->current_result()->Alignment.Digest == shown->Anchor.Comparison) {
+				draft = finder_draft{
+					.File = ComparisonSurface->current_context()->Key.File,
+					.Line = shown->Anchor.Line + 1U,
+					.Body = QString::fromStdString(shown->Body),
+					// [[BPR-2092]]: its saved row stands for it, so it is not
+					// listed twice (seen by RFC-BPR-0127's [[BPR-2159]] course).
+					.Id = shown->Id.value(),
+				};
+			}
+			Finder->set_draft(std::move(draft));
+		}
+	}
+
 	void workbench_window::refresh_cards()
 	{
 		update_older_pair_notice();
@@ -104,21 +126,7 @@ namespace bpr::qt {
 				: std::nullopt);
 		cards->refresh_geometry();
 		apply_thread_marks();
-		// [[BPR-1293]]. My draft is a row of Threads, with its lock.
-		if (Finder != nullptr) {
-			auto draft = std::optional<finder_draft>{ };
-			if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
-				shown.has_value() && !shown->ReplyToThread.has_value() && !shown->shared() && !shown->Body.empty() && ComparisonSurface != nullptr
-				&& ComparisonSurface->current_result() != nullptr && ComparisonSurface->current_context().has_value()
-				&& ComparisonSurface->current_result()->Alignment.Digest == shown->Anchor.Comparison) {
-				draft = finder_draft{
-					.File = ComparisonSurface->current_context()->Key.File,
-					.Line = shown->Anchor.Line + 1U,
-					.Body = QString::fromStdString(shown->Body),
-				};
-			}
-			Finder->set_draft(std::move(draft));
-		}
+		present_finder_draft();
 		resume_conversation_pick();
 		resume_pending_comment_pick();
 		resume_private_note_open();

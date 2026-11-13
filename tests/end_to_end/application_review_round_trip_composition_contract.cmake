@@ -3712,9 +3712,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Notes panel's dispatch, presentation and attended notes look are
 	# removed; Ask agent on a Local comment reaches the existing note path.
 	# Owner look v002 rework: Make draft's refusal names the line's or the
-	# thread's draft. Words only.
+	# thread's draft. Words only. RFC-BPR-0127 (BPR-2159): Keep Local from a
+	# list keeps a draft whose comparison is not shown, taking its file from
+	# the roster's path; the same store move. No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "fc7129b1404b1177e484ed12e4aba92977bcc088e1db65bd6d3704f712ac5fb6"
+        "7ffc7837b8ffab708a890e85cf4e94614b06b9895092ef413bf06b29d822a72a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

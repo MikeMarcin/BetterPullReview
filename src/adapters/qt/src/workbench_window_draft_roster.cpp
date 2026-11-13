@@ -76,6 +76,9 @@ namespace bpr::qt {
 		if (Finder != nullptr) {
 			Finder->set_saved_drafts(std::move(saved));
 		}
+		// RFC-BPR-0127 ([[BPR-2159]]). A draft kept Local leaves the editor
+		// without a card refresh; its open row must go with it.
+		present_finder_draft();
 		present_mine_counts();
 		if (ReviewSubmissionEditor != nullptr) {
 			ReviewSubmissionEditor->set_outside_drafts(std::move(out));
@@ -108,7 +111,7 @@ namespace bpr::qt {
 		// RFC-BPR-0127 ([[BPR-2159]]). Found and counted where drafts are:
 		// Threads' rows in their files' groups, Overview's Local chip per
 		// file, and Finish your review's quiet line.
-		auto rows  = std::vector<finder_local_comment>{ };
+		auto rows   = std::vector<finder_local_comment>{ };
 		auto byPath = std::map<QString, std::size_t>{ };
 		for (const auto& comment : aComments) {
 			if (comment.Path.isEmpty() || comment.Place == local_comment_place::pull_request) {
@@ -186,8 +189,8 @@ namespace bpr::qt {
 		// RFC-BPR-0127 ([[BPR-2159]]). Keep Local from a list: the draft's
 		// file goes with it, so it can be kept when its comparison is not
 		// the one shown.
-		const auto found = std::ranges::find(DraftRoster.Entries, aDraft, &core::draft_roster_entry::Id);
-		auto gesture     = comment_state_gesture{ .Action = card_action::keep_local, .Identity = std::string{ finder_saved_draft_prefix } + std::to_string(aDraft.value()), .Draft = aDraft };
+		const auto found   = std::ranges::find(DraftRoster.Entries, aDraft, &core::draft_roster_entry::Id);
+		auto       gesture = comment_state_gesture{ .Action = card_action::keep_local, .Identity = std::string{ finder_saved_draft_prefix } + std::to_string(aDraft.value()), .Draft = aDraft };
 		if (found != DraftRoster.Entries.end()) {
 			gesture.Path = found->Path;
 		}
