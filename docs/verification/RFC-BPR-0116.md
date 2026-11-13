@@ -112,3 +112,19 @@ branch deleted. No agent call was made live.
 - AC02's composed course names the unreadable revision through a testing
   seam (`force_returning_review_head`): the fixture GitHub refuses to load a
   review on a commit it cannot serve, so the read cannot carry one.
+
+## Owner verdicts (attended session ff82755e1b9fba2463ef8b257a6de0f5, handed back 2026-11-13T03:34:12Z)
+
+Owner words verbatim. Recorded only: another round reworks both; the returning
+review code is unchanged here. Host 48480 and root
+`/Users/jaeger/returning-review-v001.34b39a8g` were removed after hand-back.
+
+- `BPR-2073-what-changed`: **Reject** (decision `40b79eb4`, 2026-11-13T03:27:25Z)
+> I don't like that the drawer is panning, seems layout isn't quite right.
+>
+> I don't like that the top menu is the only way to access this feature, that stuff is going to be mostly ignored by users. Oh I guess it's also a suggested prompt? Okay I guess it's fine to stay if it's like that but it needs an icon in the menu bar then that make it clearly an AI feature. I dunno if we can apply our ai color up there.
+- `BPR-2074-was-addressed`: **Reject** (decision `e789321a`, 2026-11-13T03:34:11Z, screenshot attached in the session)
+> I dunno it doesn't read well with a narrow drawer thats for sure. I don't know why 12 would get it but 6 doesnt. 
+> Just doesn't seem like a great place for this.
+>
+> I think we can do better.

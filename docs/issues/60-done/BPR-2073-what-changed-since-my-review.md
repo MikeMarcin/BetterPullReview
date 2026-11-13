@@ -26,3 +26,13 @@ Core tests for when the control is offered and for the two revisions it names. T
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/agent-assistance-v1/IMPLEMENTATION_PROMPT.md).
+
+## Owner look (after Done)
+
+Rejected in attended session `ff82755e…` (decision `40b79eb4`, 2026-11-13), verbatim:
+
+> I don't like that the drawer is panning, seems layout isn't quite right.
+>
+> I don't like that the top menu is the only way to access this feature, that stuff is going to be mostly ignored by users. Oh I guess it's also a suggested prompt? Okay I guess it's fine to stay if it's like that but it needs an icon in the menu bar then that make it clearly an AI feature. I dunno if we can apply our ai color up there.
+
+Recorded only; another round reworks the surface under a new card.

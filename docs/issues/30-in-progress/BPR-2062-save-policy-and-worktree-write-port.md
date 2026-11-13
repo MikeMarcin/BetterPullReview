@@ -34,3 +34,7 @@ the RFC's amendment of 2026-11-12 is authoritative for scope. The
 local-draft-authoring milestones must not build this again. Evidence:
 [RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md),
 [RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md).
+
+## Owner look (session 6d00826a…, 2026-11-13)
+
+Rejected: the local draft page, the Edit view, Local Changes with commit and push, the agent commit message; Home 1 accepted with a selection fault. Verdicts verbatim in the [RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md) and the [RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md). Reworked in the PR window round.

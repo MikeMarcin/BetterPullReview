@@ -93,3 +93,29 @@ Tour panel bound to a local draft's tour (the Tour drawer tab hosts the local
 tour editor), the Status tab's three-step strip (it hosts the publication
 area), a capped Home list with Show All, and Address feedback opening a pull
 request into author state (RFC-BPR-0122).
+
+## Owner verdicts (attended session 6d00826a4d9c2ee08fe91321c2c1d521, handed back 2026-11-13T03:52:51Z)
+
+Owner words verbatim. The frozen root `/Users/jaeger/local-draft-pr-window-v002.lyqc133b`
+(from `be709f8e6c6a`) and host 75022 were removed after hand-back.
+
+- `local-draft-pr-window`: **Reject** (decision `8fe04b44`, 2026-11-13T03:50:35Z, screenshot attached in the session)
+> This whole local draft view just looks kind of amateur compared with the PR view, I thought we chose to stick with the PR view and just augment it. This seems like we tried to rebuild it and didn't do a great job.
+- `home-1`: **Accept** (decision `753d927e`, 2026-11-13T03:41:14Z, screenshot attached in the session)
+> Looks good except there's something weird with selection. I can select both local draft and recently viewed and escape doesnt clear selection of either.
+- `view-picker-and-edit`: **Reject** (decision `a4b84680`, 2026-11-13T03:52:47Z, screenshot attached in the session)
+> Seems like we have no syntax highlighting. This useless files tab doesn't even update the file in the edit pane.
+- `local-changes-commit-push`: **Reject** (decision `2c74ac41`, 2026-11-13T03:49:58Z, screenshot attached in the session)
+> I don't know why Local Changes tab doesn't show up untless I go to a drop down and say show local changes. That drop down option seems unnecessrry just have the tab always. I also don't know why we don't have the search tab for find in files.
+>
+> I actually don't know what this files tab is for, seems just strictly worse than the files tab we already have for PRs. And strictly worse than the Local Changes tab.
+> The average user won't need htis information, can hide it behind a disclosure.
+- `agent-commit-message`: **Reject** (decision `016d90c7`, 2026-11-13T03:39:45Z, screenshot attached in the session)
+> Nib isn't using agent accent color. And I think it belongs next to commit not subject.
+>
+> This tooltip box feels extra long. Actually severaal tooltip boxes feel super long.
+
+What follows: the separate local-draft page is replaced by the pull request
+window itself, with author-state additions only (round "local draft in the PR
+window", 2026-11-12). Home 1 is accepted except the selection fault, which the
+same round fixes.

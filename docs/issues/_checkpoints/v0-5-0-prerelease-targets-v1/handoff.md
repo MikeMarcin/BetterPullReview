@@ -2064,3 +2064,32 @@ Next: read session `0002b9fa…` after hand-back. Accept: finish BPR-2076
 (AC06), then BPR-2077 (closeout), stop host 29331, remove the root with
 `freeze_attended_build.py remove`. Next milestone in plan order:
 `comment-to-suggested-change`.
+
+## Local draft in the PR window: rework round (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Frontend-design loaded
+first. Owner intent (session `6d00826a…` verdicts, verbatim in the
+[RFC-BPR-0108](../../../verification/RFC-BPR-0108.md),
+[0113](../../../verification/RFC-BPR-0113.md) and
+[0114](../../../verification/RFC-BPR-0114.md) ledgers): augment the real pull
+request window, do not rebuild it.
+
+Step 0 (done): verdicts of sessions `6d00826a…` (Home 1 accept with a
+selection fault; four rejects), `dfc73933…` (BPR-2138 Ask more accept) and
+`ff82755e…` (BPR-2073/2074 reject, recorded only) written to the ledgers and
+cards; hosts 75022/75032, 6341/6351, 48480/48488 stopped with the
+attended-review `stop`; roots `local-draft-pr-window-v002.lyqc133b`,
+`bpr2138-ask-more-v001.kbc0nnpf`, `returning-review-v001.34b39a8g` removed with
+`freeze_attended_build.py remove`.
+
+Plan (status updated as it goes):
+
+1. The draft opens in the window's own review surface: Files drawer tree,
+   Search tab, diff viewer with syntax colours, Overview, drawers, status bar.
+   The separate page, its bar, its Files list and its diff view are deleted.
+2. Author state adds only: Local Changes tab (always), branch with ahead and
+   behind, the picker's Edit, tracked and excluded files behind a disclosure.
+3. Edit view with syntax colours, following the selected file.
+4. Agent commit message beside Commit, nib in the agent accent.
+5. Short tooltips on the touched surfaces.
+6. Home: one selection across its lists; Escape clears it.
