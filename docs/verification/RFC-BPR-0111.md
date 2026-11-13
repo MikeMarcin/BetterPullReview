@@ -157,3 +157,12 @@ This is AC01's live evidence on the PR-window surfaces (Create Draft PR… to
 the Status tab, the window becoming the pull request) and the live half of
 "On creation", which had no course before. BPR-2029 is still not claimed: it
 depends on BPR-2028, which waits for RFC-BPR-0110's reworked look.
+
+## Publish steps: the marks beside their words (2026-11-13)
+
+The owner accepted the publish steps in session `411e2c74…` with a note: "I'm
+not sure if those circles are meant to be misaligned vertically with the text
+beside them." They were: a plain step's label had lost height-for-width and
+took a two-line hint. Fixed in `b8dca6417`; `qt_review_tour_publication_working`
+`test_step_marks_centred` failed before and passes after. Details and the
+owner's look: [RFC-BPR-0110 ledger](RFC-BPR-0110.md#rework-of-the-owners-verdicts-2026-11-13).

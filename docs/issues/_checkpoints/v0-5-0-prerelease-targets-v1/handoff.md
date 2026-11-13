@@ -2417,3 +2417,47 @@ Next: rework round for the two rejected looks (three differently styled
 Accept buttons in the local Tour panel; other modes' drawers left open on
 Overview) and the publish steps' circle alignment question; then a new look;
 then BPR-2028, BPR-2029 (its live evidence is now on the ledger).
+
+## Rework of session 411e2c74's notes: one Accept, Overview drawers, step marks (2026-11-13)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Frontend-design loaded
+first. Owner amendments in force as before. Records:
+[RFC-BPR-0110 ledger](../../../verification/RFC-BPR-0110.md#rework-of-the-owners-verdicts-2026-11-13),
+RFC-BPR-0106 [owner amendment: one Accept](../../../rfcs/RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md#owner-amendment-one-accept-2026-11-13).
+
+| Commit | What |
+|---|---|
+| `f3fc567f3` | One Accept (the default button, only where a stop is accepted); Add to tour, Use this text; Apply all once per revision; `qt_tour_chat_in_tab` checks every Accept is one button at one size |
+| `b8dca6417` | A local draft's Overview closes Review's drawers and the tour's chat (core never sees its modality); Overview's drawer drops Comments/Notes/Agent for a draft; step marks centred (labels kept height-for-width); courses failed first |
+| `1f153d3b5` | A refused carry is shown in the Tour panel (`core::local_tour_carry_refusal_words`); app source pin resealed |
+| `195140d79` | RFC-BPR-0106 amendment, RFC-BPR-0100, shared buttons, tours architecture. Product candidate and frozen commit |
+| this commit | Ledgers (0110, 0111), BPR-2027 record, handoff |
+
+Runs: 33 focused rows pass at `1f153d3b5` except `qt_workbench_agent_send_refusal`,
+which fails identically at `1c7c5cd1f` (Explain this file keeps the shipped
+accent after an accent change; pre-existing, not this round's; needs its own
+card). Contracts, `architecture_boundaries`, clang-format 22, documentation
+gate pass. Native renders (Cocoa off screen) light and dark are the media.
+
+Owner look, filed and not waited on: session `a0cbb9ddda6d1ae524e5d63d4a3342d7`, state
+`/Users/jaeger/.attended-review-state/local-draft-tour-panel-v006-2026-11-13/state`
+(serve output beside it; the URL stays there), cursor 9, filed 2026-11-13 and
+not waited on. Frozen root `/Users/jaeger/local-draft-tour-panel-v006.txmtt3kc`
+from `195140d7968f` (launcher check reached `ATTENDED_LOCAL_DRAFT_TOUR_SHOWN`).
+One Accept/Reject each: `tour-one-accept`, `overview-closes-drawers`,
+`publish-step-marks-aligned`.
+Host PID 45750 (its `tailscale serve` child 45758).
+
+After hand-back: read from cursor 9. Accept of `tour-one-accept` and
+`overview-closes-drawers` finishes BPR-2027 AC08 (Done, mirrored), then
+BPR-2028 closes RFC-BPR-0110 and BPR-2029..2031 can be claimed; a Reject is a
+new round. Then stop host 45750 with the attended-review `stop` and
+`freeze_attended_build.py remove` the v006 root.
+
+Left in place: `/Users/jaeger/local-draft-tour-panel-v005.kgbcys_i` (PID 26296,
+the owner's app, still runs from it; remove with `freeze_attended_build.py
+remove` once closed). Not touched: PIDs 20044, 74290, host 74692/74706,
+10695/39804, Tailscale 44738, PID 39623 (another repository's review host),
+BPR-Test #152 and `-next`, the main checkout's untracked
+`docs/rfcs/assets/queue-and-steer-v1/`.
+

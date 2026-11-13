@@ -183,6 +183,40 @@ Session state `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v005-
 
 Each decision carries a screenshot attachment in the session state. Not fixed in this round (coordinator, 2026-11-13: the next round fixes them). Host 6331/6340 stopped with the attended-review `stop`.
 
+## Rework of the owner's verdicts (2026-11-13)
+
+Fresh `rfc-implementer`, same lane. Frontend-design loaded first. The three
+notes of session `411e2c74…`, fixed for the pull request and the local draft:
+
+| Note | Change | Evidence (dev, Debug, macOS) |
+|---|---|---|
+| "I see 3 buttons that say accept and they all look totally different" | RFC-BPR-0106 [owner amendment: one Accept](../rfcs/RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md#owner-amendment-one-accept-2026-11-13). Accept only where a stop is accepted (its own Accept, the edited stop's, a stop's own proposed text), one button: the default push button. A proposed stop says Add to tour, a Problem or Solution Use this text; Accept all is Apply all, once per revision (the tour chat's card, or the panel's line for a Draft Tour run). Same words in the side chats. `f3fc567f3` | `qt_tour_chat_in_tab`: every visible Accept in the window is the default button at the stop Accept's size, no other button starts with Accept, a draft's parts have one Apply all (also under the native Cocoa style, dark). `qt_tour_agent_session_view`: the tour chat's revision has Apply all on its card and none on the panel's line |
+| "the other mode's drawers aren't being closed when going to overview" | A local draft's modality never reached the core, so Overview's rule (every drawer closed) was not applied: the window keeps it while a local draft shows Overview (Review's Files drawer, its tray and the tour's chat leave), and Overview's own drawer offers no Comments, Notes or Agent a draft lacks. `b8dca6417` | `application_local_draft_tour_desktop_public_path` (failed before the fix): with Files, the tray and the tour's chat open, Overview shows none of them and Review brings them back. `application_overview_summary_{1,1_25,2}`: a pull request's Overview, composed with the real core, closes both drawers and the Tour tab |
+| "not sure if those circles are meant to be misaligned vertically" (publish steps, accepted) | The step labels lost height-for-width when their size policy was set after word wrap, so a plain step took a two-line hint and its words sank. Height-for-width kept, label top aligned, mark centred on its first line, spare room under the rows. `b8dca6417` | `qt_review_tour_publication_working` `test_step_marks_centred` (failed before: mark centre 8, first line 15 to 16): marks centred within 1 pixel at 420 and 150 pixels wide and with room to spare; one-line rows one height |
+
+Also: a refused carry onto the pull request's tour draft is shown in the
+Tour panel (`core::local_tour_carry_refusal_words`), never dropped
+(`1f153d3b5`, `core_local_draft_tour`). App source pin resealed.
+
+Runs at `1f153d3b5`: 33 focused rows (core tour and local draft, Qt tour,
+side chat, stop card, publication, workbench window at 100%, overview read
+marks, local draft window, the four local-draft desktop courses, tour host,
+profile tour handoff, agent invocation contract, overview summary at three
+scales) pass except `qt_workbench_agent_send_refusal`, which fails the same
+way at `1c7c5cd1f` without this round's changes (the Explain this file
+button keeps the shipped accent after the accent changes; not this round's).
+Source and round-trip composition contracts and `architecture_boundaries`
+pass; clang-format 22 on every changed file; documentation gate OK.
+
+Native renders (Cocoa off screen, `BPR_NATIVE_LOOK`), light and dark, are the
+session's media. Owner look: session `a0cbb9ddda6d1ae524e5d63d4a3342d7`, state
+`/Users/jaeger/.attended-review-state/local-draft-tour-panel-v006-2026-11-13/state`
+(serve output beside it; the URL stays there), cursor 9, filed 2026-11-13 and
+not waited on. Frozen root `/Users/jaeger/local-draft-tour-panel-v006.txmtt3kc`
+from `195140d7968f` (launcher check reached `ATTENDED_LOCAL_DRAFT_TOUR_SHOWN`).
+One Accept/Reject each: `tour-one-accept`, `overview-closes-drawers`,
+`publish-step-marks-aligned`.
+
 ## Live: the tour carried onto a created pull request (2026-11-13)
 
 AC06's carry ("On publication") failed on the full composition path, found
