@@ -37,6 +37,7 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
@@ -246,6 +247,33 @@ auto main(int argc, char** argv) -> int
 			}
 			std::cout << "keep-action: queue draft=" << draftOffered << " keep=" << keepOffered << '\n';
 			expect(draftOffered >= 1 && keepOffered >= 1, "the queue offers Draft comment for the anchored finding and Keep local for the others");
+		}
+
+		// RFC-BPR-0127, "One action where there were two": Ask agent on my
+		// own unsent comment in either state, by one path. My draft's menu
+		// attaches it as my Local comment's does; asked, it is recorded in
+		// Private history and the agent gets that copy and its lines.
+		{
+			auto* const menu     = cards->thread_menu(qt::conversation_cards_view::draft_identity());
+			auto*       askDraft = static_cast<QAction*>(nullptr);
+			for (auto* const action : menu != nullptr ? menu->actions() : QList<QAction*>{ }) {
+				if (action->objectName() == QStringLiteral("draftAskAgentAction")) {
+					askDraft = action;
+				}
+			}
+			expect(askDraft != nullptr && askDraft->isEnabled() && askDraft->text() == QStringLiteral("Ask agent about this draft"), "my draft's menu offers Ask agent about this draft");
+			askDraft->trigger();
+			delete menu;
+			QApplication::processEvents();
+			expect(tab->conversation_chip_text() == QStringLiteral("Your draft on src/engine/renderer.cpp line 5"), "the draft is the question's chip: " + tab->conversation_chip_text().toStdString());
+			const auto asked = ask(QStringLiteral("Is this draft clear?"), "draft question");
+			const auto chat  = access::agent_chat_evidence(*application);
+			expect(chat.LastConversation && chat.LastConversation->Subject == core::conversation_subject::private_note && chat.LastConversation->Line == std::optional<std::uint32_t>{ 5U },
+				   "the agent gets my draft as my own comment, with its line");
+			expect(!tab->turn_answer(asked).isEmpty(), "and answers");
+			tab->conversation_chip_close()->click();
+			QApplication::processEvents();
+			std::cout << "keep-action: ask-draft=pass\n";
 		}
 
 		// AC12. Each opt-in carries its own kind, and only its own.
