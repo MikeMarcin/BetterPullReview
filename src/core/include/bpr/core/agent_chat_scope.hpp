@@ -95,13 +95,28 @@ namespace bpr::core {
 		phrase_as_a_question,
 		make_more_direct,
 		check_the_premise,
+		/// RFC-BPR-0118 ([[BPR-2078]]). Not prose: the replacement for
+		/// exactly the draft's head lines, which the core checks before it is
+		/// shown as a suggestion (`decide_suggested_change`).
+		suggest_change,
 	};
 
 	/// \brief The number of declared workshop operations.
-	inline constexpr std::size_t workshop_operation_count = 6U;
+	inline constexpr std::size_t workshop_operation_count = 7U;
+
+	/// \brief The six that rewrite the comment's prose, which the comment
+	/// workshop's own controls offer; Suggest the change is offered on the
+	/// drawer draft's lines instead.
+	inline constexpr std::size_t prose_workshop_operation_count = 6U;
+
+	/// \brief Whether an operation rewrites the comment's words.
+	[[nodiscard]] constexpr auto rewrites_prose(const workshop_operation aOperation) noexcept -> bool
+	{
+		return static_cast<std::size_t>(aOperation) < prose_workshop_operation_count;
+	}
 
 	static_assert(
-		static_cast<std::size_t>(workshop_operation::check_the_premise) + 1U
+		static_cast<std::size_t>(workshop_operation::suggest_change) + 1U
 			== workshop_operation_count,
 		"workshop_operation_count must cover every declared operation");
 

@@ -134,6 +134,10 @@ namespace bpr::application {
 		/// front: the file's change and its text at the head. Absent for
 		/// every other launch.
 		std::optional<core::supplement_explain> Explain;
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change's material, up
+		/// front: the draft's lines, its words and the lines around them.
+		/// Absent for every other launch.
+		std::optional<core::supplement_suggest_change> SuggestChange;
 		/// [[BPR-1916]]. Skills the prompt named, carried inline
 		/// (`application::inline_skills`); empty for every launch that named
 		/// none.

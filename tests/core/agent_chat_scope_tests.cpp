@@ -890,12 +890,15 @@ namespace {
 				  "phrase_as_a_question",
 				  "make_more_direct",
 				  "check_the_premise",
+				  "suggest_change",
 			  };
 
+		// RFC-BPR-0118 adds the seventh, Suggest the change, which writes
+		// the change on the draft's lines rather than its prose.
 		expect(
-			core::workshop_operation_count == 6U,
-			"docs/ux/ai-experience.md promises six comment-workshop "
-			"operations and the tree declares six");
+			core::workshop_operation_count == 7U && core::prose_workshop_operation_count == 6U,
+			"docs/ux/ai-experience.md promises six prose operations and "
+			"Suggest the change, and the tree declares seven");
 
 		for (auto index = std::size_t{ 0U }; index < expected.size(); ++index) {
 			const auto operation

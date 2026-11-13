@@ -32,6 +32,14 @@ namespace bpr::core {
 
 	auto decide_agent_question(const agent_question_facts& aFacts) -> std::optional<agent_question>
 	{
+		if (!aFacts.SuggestChange.empty()) {
+			return agent_question{
+				.Subject    = agent_question_subject::lines,
+				.EntryPoint = agent_entry_point::workshop_comment,
+				.File       = { },
+				.Operation  = workshop_operation::suggest_change,
+			};
+		}
 		if (!aFacts.Explain.empty()) {
 			return agent_question{ .Subject = agent_question_subject::file, .EntryPoint = agent_entry_point::analyze_current_file, .File = aFacts.Explain };
 		}

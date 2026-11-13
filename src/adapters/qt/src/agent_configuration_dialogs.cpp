@@ -163,6 +163,7 @@ namespace bpr::qt {
 		case core::writing_hook::review_latest_upload: return QObject::tr("What changed");
 		case core::writing_hook::review_proposed_fix:  return QObject::tr("Was this addressed");
 		case core::writing_hook::review_explain_file:  return QObject::tr("Explain this file");
+		case core::writing_hook::review_suggest_change: return QObject::tr("Suggest the change");
 		}
 		return text_of(aPurpose);
 	}

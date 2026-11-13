@@ -81,6 +81,8 @@ namespace bpr::core {
 			return "make_more_direct";
 		case workshop_operation::check_the_premise:
 			return "check_the_premise";
+		case workshop_operation::suggest_change:
+			return "suggest_change";
 		}
 		return { };
 	}

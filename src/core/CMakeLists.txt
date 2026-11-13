@@ -130,6 +130,7 @@ add_library(
         src/local_changes.cpp
         src/returning_review.cpp
         src/explain_file.cpp
+        src/suggest_change.cpp
         src/local_presentation.cpp
         src/local_draft_publication.cpp
         src/local_draft_tour.cpp

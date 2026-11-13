@@ -238,7 +238,13 @@ namespace {
 					 brief,
 					 conversation,
 					 skills,
-					 tourPrompt, replay, subject, lookingAt] = whole;
+					 tourPrompt, replay, subject, lookingAt, returning, explain, suggestChange] = whole;
+		// RFC-BPR-0116 to 0118. Each assistance action's material, up front:
+		// text the review already holds, no argv, environment or token.
+		static_assert(std::is_same_v<decltype(returning), const std::optional<core::supplement_returning>>);
+		static_assert(std::is_same_v<decltype(explain), const std::optional<core::supplement_explain>>);
+		static_assert(std::is_same_v<decltype(suggestChange), const std::optional<core::supplement_suggest_change>>);
+		[[maybe_unused]] const auto& [suggestPath, suggestHead, suggestFirst, suggestLast, suggestComment, suggestLines, suggestBefore, suggestAfter] = core::supplement_suggest_change{ };
 		// [[BPR-2002]]. A question's subject and where the reviewer is
 		// looking: paths, lines and the lines' text; no argv, environment or
 		// token.

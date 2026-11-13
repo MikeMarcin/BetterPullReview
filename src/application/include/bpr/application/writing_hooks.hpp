@@ -87,6 +87,9 @@ namespace bpr::application {
 	/// \brief RFC-BPR-0117 ([[BPR-2076]]). Version of Explain this file's
 	/// prompt, `resources/review-preparation/review-explain-file.md`.
 	inline constexpr std::string_view review_explain_file_hook_version = "review-explain-file-v1";
+	/// \brief RFC-BPR-0118 ([[BPR-2078]]). Version of Suggest the change's
+	/// prompt, `resources/review-preparation/review-suggest-change.md`.
+	inline constexpr std::string_view review_suggest_change_hook_version = "review-suggest-change-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.

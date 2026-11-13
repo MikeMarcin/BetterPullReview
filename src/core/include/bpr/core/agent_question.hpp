@@ -78,6 +78,9 @@ namespace bpr::core {
 		/// RFC-BPR-0117 ([[BPR-2076]]). Explain this file was pressed on this
 		/// file; empty otherwise.
 		std::string Explain;
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change was pressed on a
+		/// draft comment's lines in this file; empty otherwise.
+		std::string SuggestChange;
 
 		auto operator<=>(const agent_question_facts&) const = default;
 	};
@@ -89,6 +92,9 @@ namespace bpr::core {
 		agent_entry_point      EntryPoint = agent_entry_point::open_full_agent_session;
 		/// The file subject's path; empty for every other subject.
 		std::string File;
+		/// RFC-BPR-0118. The comment workshop operation the question is,
+		/// with `workshop_comment`; none for every other question.
+		std::optional<workshop_operation> Operation;
 
 		auto operator<=>(const agent_question&) const = default;
 	};
@@ -97,7 +103,10 @@ namespace bpr::core {
 	///
 	/// \details Pure. In order:
 	///
-	/// 0. RFC-BPR-0117. Explain this file is about that file
+	/// 0. RFC-BPR-0118. Suggest the change is about the draft comment's
+	///    lines (`workshop_comment` with `suggest_change`) whatever else is
+	///    attached or selected.
+	///    RFC-BPR-0117. Explain this file is about that file
 	///    (`analyze_current_file`) whatever is attached or selected.
 	///    RFC-BPR-0116. What changed since my review is about the pull
 	///    request (`analyze_latest_upload`) whatever is attached; Was this

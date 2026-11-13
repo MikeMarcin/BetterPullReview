@@ -1842,3 +1842,11 @@ bpr_enable_hardening(test_better_pull_review_local_presentation_core_tests)
 bpr_enable_warnings(test_better_pull_review_local_presentation_core_tests)
 bpr_add_network_isolated_test(NAME core_local_presentation COMMAND test_better_pull_review_local_presentation_core_tests)
 set_tests_properties(core_local_presentation PROPERTIES PASS_REGULAR_EXPRESSION "local-presentation-tests:pass")
+
+# RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: its question rule, the
+# material, the structured reply and every check before it is shown.
+bpr_add_executable(test_better_pull_review_suggest_change_core_tests suggest_change_tests.cpp)
+target_link_libraries(test_better_pull_review_suggest_change_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_suggest_change_core_tests)
+bpr_enable_warnings(test_better_pull_review_suggest_change_core_tests)
+bpr_add_network_isolated_test(NAME core_suggest_change COMMAND test_better_pull_review_suggest_change_core_tests)

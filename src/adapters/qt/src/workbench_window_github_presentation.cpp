@@ -1860,7 +1860,7 @@ namespace bpr::qt {
 		}
 		if (ReviewEditor != nullptr) {
 			actions.insert(actions.end(), { ReviewEditor->accept_revision_action(), ReviewEditor->reject_revision_action() });
-			for (auto index = std::size_t{ 0U }; index < core::workshop_operation_count; ++index) {
+			for (auto index = std::size_t{ 0U }; index < core::prose_workshop_operation_count; ++index) {
 				actions.push_back(ReviewEditor->workshop_action(static_cast<core::workshop_operation>(index)));
 			}
 		}

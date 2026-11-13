@@ -2573,6 +2573,7 @@ namespace bpr::application {
 			.LookingAt          = aObservation.LookingAt,
 			.Returning          = aObservation.Returning,
 			.Explain            = aObservation.Explain,
+			.SuggestChange      = aObservation.SuggestChange,
 		};
 		if (tourRun) {
 			request.TourPrompt = core::agent_tour_prompt{ .Session = aSession.Id, .Text = aObservation.TourPrompt };
@@ -2820,6 +2821,20 @@ namespace bpr::application {
 			append_field(aResult, "explain.change", aExplain.Change);
 			append_field(aResult, "explain.content.state", core::stable_name(aExplain.ContentState));
 			append_field(aResult, "explain.content", aExplain.Content);
+		}
+
+		/// RFC-BPR-0118. What Suggest the change carries up front.
+		template <typename TSink>
+		void encode_suggest_change_into(TSink& aResult, const core::supplement_suggest_change& aSuggest)
+		{
+			append_field(aResult, "suggest.path", aSuggest.Path);
+			append_field(aResult, "suggest.head_commit", aSuggest.HeadCommit);
+			append_number(aResult, "suggest.first_line", aSuggest.FirstLine);
+			append_number(aResult, "suggest.last_line", aSuggest.LastLine);
+			append_field(aResult, "suggest.comment", aSuggest.Comment);
+			append_field(aResult, "suggest.lines", aSuggest.Lines);
+			append_field(aResult, "suggest.before", aSuggest.Before);
+			append_field(aResult, "suggest.after", aSuggest.After);
 		}
 
 		template <typename TSink>
@@ -3222,6 +3237,11 @@ namespace bpr::application {
 			// present.
 			if (aSupplement.Explain) {
 				encode_explain_into(aResult, *aSupplement.Explain);
+			}
+			// RFC-BPR-0118. Suggest the change's material, written only when
+			// present.
+			if (aSupplement.SuggestChange) {
+				encode_suggest_change_into(aResult, *aSupplement.SuggestChange);
 			}
 		}
 

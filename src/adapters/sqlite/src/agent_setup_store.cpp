@@ -204,7 +204,7 @@ namespace bpr::adapters::sqlite {
 				// SHA-256 is `text_digest`: a row for other text says nothing.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_provenance("
-									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 13),"
+									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),"
 									"text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT")
 				// [[BPR-2016]]. An import's hooks before it, kept while the
@@ -212,7 +212,7 @@ namespace bpr::adapters::sqlite {
 				// crash between them is undone at the next start.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS configuration_import_journal("
-									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 13),"
+									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),"
 									"revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT")
 				// Owner decision 2026-10-23: the run time limit; none means off.
@@ -302,18 +302,18 @@ namespace bpr::adapters::sqlite {
 			// to 7 or 0 to 9; it is rebuilt with the wider check and its rows,
 			// in one transaction.
 			// RFC-BPR-0116: two more, to 0 to 12.
-			// RFC-BPR-0117: one more, to 0 to 13.
-			static_assert(core::writing_hook_count == 14U, "the hook tables' check names the last hook");
+			// RFC-BPR-0117: one more, to 0 to 13. RFC-BPR-0118: one more, to 0 to 14.
+			static_assert(core::writing_hook_count == 15U, "the hook tables' check names the last hook");
 			for (const auto& [table, definition] : std::array{
 					 std::pair{ std::string_view{ "prompt_provenance" },
-								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 13),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
+								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 												  "version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)" } },
 					 std::pair{ std::string_view{ "configuration_import_journal" },
-								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 13),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
+								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 												  "text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)" } } }) {
 				auto query = std::string{ "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" };
 				query += table;
-				query += "' AND (sql LIKE '%hook BETWEEN 0 AND 7)%' OR sql LIKE '%hook BETWEEN 0 AND 9)%' OR sql LIKE '%hook BETWEEN 0 AND 10)%' OR sql LIKE '%hook BETWEEN 0 AND 12)%')";
+				query += "' AND (sql LIKE '%hook BETWEEN 0 AND 7)%' OR sql LIKE '%hook BETWEEN 0 AND 9)%' OR sql LIKE '%hook BETWEEN 0 AND 10)%' OR sql LIKE '%hook BETWEEN 0 AND 12)%' OR sql LIKE '%hook BETWEEN 0 AND 13)%')";
 				const auto narrow = detail::scalar_integer(db, query);
 				if (!narrow) {
 					return { };

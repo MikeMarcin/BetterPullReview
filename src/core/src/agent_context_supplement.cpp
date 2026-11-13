@@ -181,7 +181,7 @@ namespace bpr::core {
 			}
 			const auto& prompt = *aRequest.TourPrompt;
 			return prompt.Session == aRequest.Session.Id && !prompt.Text.empty() && prompt.Text.size() <= maximum_tour_prompt_bytes && valid_writing_utf8(prompt.Text) && !aRequest.Message && !aRequest.Operation
-				&& !aRequest.FeedbackGuidance && !aRequest.Brief && !aRequest.Conversation && !aRequest.Selection && aRequest.SelectedNotes.empty() && aRequest.SelectedDrafts.empty() && !aRequest.Subject && !aRequest.LookingAt && !aRequest.Returning && !aRequest.Explain;
+				&& !aRequest.FeedbackGuidance && !aRequest.Brief && !aRequest.Conversation && !aRequest.Selection && aRequest.SelectedNotes.empty() && aRequest.SelectedDrafts.empty() && !aRequest.Subject && !aRequest.LookingAt && !aRequest.Returning && !aRequest.Explain && !aRequest.SuggestChange;
 		}
 
 		/// \brief [[BPR-1091]]. Guidance rides only on a workshop request,
@@ -250,7 +250,10 @@ namespace bpr::core {
 			|| (aRequest.Subject && !valid(*aRequest.Subject))
 			|| (aRequest.LookingAt && !valid(*aRequest.LookingAt))
 			|| (aRequest.Returning && !valid(*aRequest.Returning))
-			|| (aRequest.Explain && !valid(*aRequest.Explain))) {
+			|| (aRequest.Explain && !valid(*aRequest.Explain))
+			// RFC-BPR-0118. Suggest the change's material rides only with its
+			// own operation.
+			|| (aRequest.SuggestChange && (aRequest.Operation != std::optional{ workshop_operation::suggest_change } || !valid(*aRequest.SuggestChange)))) {
 			return std::nullopt;
 		}
 		if (
@@ -293,6 +296,7 @@ namespace bpr::core {
 			.LookingAt          = aRequest.LookingAt,
 			.Returning          = aRequest.Returning,
 			.Explain            = aRequest.Explain,
+			.SuggestChange      = aRequest.SuggestChange,
 		};
 	}
 

@@ -241,7 +241,7 @@ namespace bpr::qt {
 		/// exactly as many as there are operations. A seventh operation grows
 		/// this array rather than being offered from somewhere else, and an
 		/// operation with no control here fails the test that names all six.
-		std::array<QAction*, core::workshop_operation_count> WorkshopOperations{ };
+		std::array<QAction*, core::prose_workshop_operation_count> WorkshopOperations{ };
 
 		/// [[BPR-1083]]. The label chip, its menu and the decoration toggles.
 		/// They edit `Body`'s text and nothing else, so a label leaves this

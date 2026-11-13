@@ -3,7 +3,7 @@
 #include <string_view>
 namespace bpr::application::detail {
 inline constexpr std::string_view WritingContract = R"BPR(@WRITING_CONTRACT@)BPR";
-inline constexpr std::array<std::string_view, 14> WritingDefaults = {
+inline constexpr std::array<std::string_view, 15> WritingDefaults = {
 R"BPR(@WRITING_PROBLEM@)BPR", R"BPR(@WRITING_SOLUTION@)BPR",
 R"BPR(@WRITING_OUTLINE@)BPR", R"BPR(@WRITING_COMMENT@)BPR",
 R"BPR(@WRITING_FEEDBACK@)BPR", R"BPR(@WRITING_ENHANCE_STOP@)BPR",
@@ -14,5 +14,6 @@ R"BPR(@WRITING_LOCAL_DISCUSSION@)BPR",
 R"BPR(@WRITING_LOCAL_COMMIT_MESSAGE@)BPR",
 R"BPR(@WRITING_REVIEW_LATEST_UPLOAD@)BPR",
 R"BPR(@WRITING_REVIEW_PROPOSED_FIX@)BPR",
-R"BPR(@WRITING_REVIEW_EXPLAIN_FILE@)BPR"};
+R"BPR(@WRITING_REVIEW_EXPLAIN_FILE@)BPR",
+R"BPR(@WRITING_REVIEW_SUGGEST_CHANGE@)BPR"};
 }
