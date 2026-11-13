@@ -250,3 +250,7 @@ Reworked look filed, not waited on: session `d420cccbfbe3c56bb172612cf51aa661`, 
 ## Owner verdict, third look (attended session d420cccbfbe3c56bb172612cf51aa661, handed back 2026-11-13T16:14:32Z)
 
 Verified in its `session.json`: `tour-one-button-style` **Accept** (16:14:31Z), no note, on the frozen build from `3b385c04dacf`. With `overview-closes-drawers` (Accept, session a0cbb9dd) the local tour and description looks are accepted: AC08 passes. Host 92512/92524 stopped with the attended-review `stop`; root `/Users/jaeger/local-draft-tour-panel-v007.hvczp7ad` removed with `freeze_attended_build.py remove`.
+
+## Closeout (2026-11-13)
+
+[BPR-2028](../issues/60-done/BPR-2028-close-rfc-0110.md) closes the RFC: every criterion passes or is withdrawn (AC07), AC08 by the accepted looks of sessions a0cbb9dd and d420cccb. Re-run at `a143adfc1`: 25 local-draft, tour-publication and Tour rows pass. RFC-BPR-0110 is Auto-Verified.

@@ -773,7 +773,7 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 | [RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md) | Share selected agents and prompts | Auto-Verified | None |
 | [RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md) | Prepare a local PR draft from a worktree | Auto-Verified | None |
 | [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) | Build evidence while preparing a local PR draft | Deferred | RFC-BPR-0108 |
-| [RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md) | Prepare the description and Review Tour before a PR exists | Proposed | RFC-BPR-0107, RFC-BPR-0108 |
+| [RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md) | Prepare the description and Review Tour before a PR exists | Auto-Verified | RFC-BPR-0107, RFC-BPR-0108 |
 | [RFC-BPR-0111](RFC-BPR-0111-draft-publication-and-continuity.md) | Publish a prepared draft and preserve its evidence and tour | Proposed | RFC-BPR-0108, RFC-BPR-0110 |
 | [RFC-BPR-0112](RFC-BPR-0112-optional-workflow-extensions.md) | Optional shareable workflow extensions and companion skills | Proposed | RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0110, RFC-BPR-0111 |
 
