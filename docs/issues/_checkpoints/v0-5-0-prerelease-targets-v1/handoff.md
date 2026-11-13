@@ -1980,3 +1980,87 @@ Next: read session `ff82755e…` after hand-back. Accept of both: finish
 BPR-2074 (AC07), stop host 48480, remove the root with
 `freeze_attended_build.py remove`. BPR-2075 (closeout, installed agent as
 well as the stub) follows. Next milestone in plan order: `explain-file`.
+
+## agent-assistance-v1: explain-file (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. P02 settled (one editable
+prompt per action, system prompt). P04 (the answer is a card at the file's
+header) is unconfirmed and built as written. Frontend-design was loaded before
+the Qt work. Record: [RFC-BPR-0117](../../../verification/RFC-BPR-0117.md).
+
+| Commit | What |
+|---|---|
+| `780874846`, `2fd00e504` | RFC-BPR-0117 In Progress; ready and claim BPR-2076 |
+| `fda988710`, `44e01a659` | Core `explain_file` (material bounds, note text); `analyze_current_file` acts on the open file; prompt `review.explain-file` (schema 31, hook tables 0 to 13); the card, the header control and the tab menu item; Agent tab Explain turns and their observer |
+| `75ab1e0fa` | Merge `main` (`c5a0f0823`), at the owner's request ("Integrate latest from main when you get a chance"); see below |
+| `d47362061`, `153e28d0f` | `window_explain_file.cpp`, Agent chat wiring, stub answer, composed course, card Qt test at three scales, launch policy, schema 31 storage tests, docs; tab strip keeps its minimum; app pin resealed. Product candidate |
+| `bb8560026` | BPR-2076 parked `human-review` (AC01 to AC05 pass, AC06 pending) |
+
+Main mirror: `62f64edf0` (BPR-2076 parked, RFC-BPR-0117 In Progress).
+NEXT_ID (BPR-2151) and `_reservations` equal on lane and main.
+
+Merge of main (`75ab1e0fa`). Brought in: account setup in the window
+(RFC-BPR-0032 amendment r1), in-PR link routing, RFC-BPR-0125 milestone 1
+(suggested prompts as macros, core only: `prompt_macro`), the review sheet's
+pending-comments loading state, Linux release fixes, BPR-2131..2137 and the
+main mirrors. Conflicts resolved: lane text kept for the tracker, handoff and
+RFC implementation records (0107, 0108, 0109, 0110, 0116); main's RFC-BPR-0125
+index row added; setup helpers from main's `setup_step_parts.hpp`; both
+workbench strip glyphs; Home through `present_home_action`; the submission
+workflow keeps the lane's keyed lock and main's `CommentsRead`; removing an
+agent erases its entry check and restarts the check; the picker-wrap test stays
+removed (the picker left the drawers); test lists and courses carry both sides
+(`setup-list` beside `subject` and `custom-agent-refused`, `--tour-link` beside
+the Enhance courses); a brace the merge dropped in the agent chat course
+restored. RFC-BPR-0125's shipped macro set has no entry for What changed since
+my review, Was this addressed? or Explain this file: the macros are not wired
+into the Agent tab yet (its milestones 2 onward), and when they are, the
+returning suggestions must become macros or stay beside them.
+
+Runs at the candidate (dev, Debug): `core_explain_file`, `core_agent_chat_scope`,
+`core_agent_question`, `core_returning_review`, `core_review_preparation`,
+`core_agent_configuration`, `core_prompt_macro`, `application_agent_launch`,
+`application_agent_launch_policy`, `application_agent_setup_host`,
+`application_writing_delivery`, `tour_cli_composition`,
+`sqlite_workbench_settings_storage`, `sqlite_agent_setup_storage`,
+`sqlite_agent_configuration_storage`, `qt_explain_file_card_scale_{100,150,200}`,
+`qt_settings_window`, `qt_workbench_window_scale_100`, `qt_conversation_cards_view`,
+`qt_agent_launch_panel`, `qt_agent_setup_view`, `qt_agent_footer`,
+`qt_skill_completion_keys`, `qt_agent_configuration_dialogs`,
+`application_agent_chat_{composition,conversation,custom_agent,subject,setup_list}_contract`,
+`application_agent_invocation_composition_contract`,
+`application_composition_source_contract`,
+`application_review_round_trip_composition_contract`,
+`application_profile_tour_handoff_public_path`,
+`application_returning_review_{latest,addressed,gone}_public_path`,
+`application_explain_file_public_path`, `architecture_boundaries`,
+`test_network_isolation_manifest`, clang-format 22 on the changed files,
+documentation gate. `qt_workbench_window_scale_100` first failed ("a splitter
+drag resizes the drawer") because the strip counted the new control in its
+minimum; it no longer does. `application_agent_chat_custom_agent_contract`,
+a baseline failure earlier, passes. No live agent or GitHub call.
+
+Filed, awaiting the owner (not waited on; the URL stays in the session
+state): session `0002b9fad401fad26fe5fa36206d539b`, state
+`/Users/jaeger/.attended-review-state/explain-file-v001-2026-11-12/state`
+(serve output beside it), cursor 3, host PID 29331 (its `tailscale serve`
+child 29341), candidate `BPR-2076-explain-this-file` (one Accept/Reject);
+frozen root `/Users/jaeger/explain-file-v001.4gr0t3jw` from `153e28d0f`
+(app SHA-256 `fd4e064a52d0…`, launcher `--check` passed; the course
+`explain_file_public_path explain STUB` also passed from the root; the look is
+that course with `--attended`).
+
+Known, deferred while the candidate is protected: the card sets its answer
+area to a height of -1 once while hidden (Qt prints "Negative sizes" once); a
+`std::max(0, …)` in `explain_file_card::fit_answer`.
+
+Not touched: sessions 6d00826a… (75022/75032), dfc73933… (6341/6351),
+ff82755e… (48480/48488) and their roots, PIDs 74290, 74692/74706, 10695,
+39804, Tailscale 44738, BPR-Test #152 and `-next`. (Session ff82755e… already
+holds an owner verdict on `BPR-2073-what-changed`: reject, with notes; for the
+coordinator.)
+
+Next: read session `0002b9fa…` after hand-back. Accept: finish BPR-2076
+(AC06), then BPR-2077 (closeout), stop host 29331, remove the root with
+`freeze_attended_build.py remove`. Next milestone in plan order:
+`comment-to-suggested-change`.
