@@ -41,7 +41,7 @@ existing controls, and filed no owner look.
 | AC04 | `local_draft_publication`: a lost answer after GitHub created it is found by reading, no second creation; one lost before GitHub had it reads nothing and returns to prepared, created only on the author's next press; a restart mid-creation is uncertain and recovered only by reading; a branch pushed after the preview sends nothing and names the push again; an existing pull request is offered and associated without a creation. Negative control: without the re-read before creating, the course fails at "concurrent drift sends nothing". `core_local_draft_publication`: no confirmation survives a restart; cancel works only before sending | Pass |
 | AC05 | `core_local_draft_publication`: a failed tour follow-up leaves the pull request associated and a new plan is refused as linked. `local_draft_publication`: an associated existing pull request's description is untouched. Nothing here writes a description after creation | Pass for association; the tour follow-up is not built (below) |
 | AC06 | Live #178 and #179 are ordinary GitHub drafts; the draft record keeps its candidates, evidence and tour after association and leaves In preparation for the pull request's Home mark (`core_local_draft_publication`). GHES stays unqualified (`admitted_publication_server`); fork heads are not supported (the head is the target repository's branch) | Pass for the draft; tour part open |
-| AC07 | `application_local_draft_publication_desktop_public_path` (real window, real composition, real worktree, scripted catalog): Create draft PR shows Sending, then "Sent: Create the draft pull request" and "Sent: Link it to this draft"; a lost answer with nothing found is the error-role banner "The draft pull request was not created." with Preview again; a page edit (a note) is recorded while a creation is held in flight on the publication lane. `core_local_draft_publication`: an unaccepted stop does not block the plan and blocks the tour follow-up. A review submission's independence is by construction (its own per-host lane, RFC-BPR-0105) and has no course with a creation in flight | Pass on fixture except the submission clause, structural only |
+| AC07 | `application_local_draft_publication_desktop_public_path` (real window, real composition, real worktree, scripted catalog): Create draft PR shows Sending, then "Sent: Create the draft pull request" and "Sent: Link it to this draft"; a lost answer with nothing found is the error-role banner "The draft pull request was not created." with Preview again; a page edit (a note) is recorded while a creation is held in flight on the publication lane. `core_local_draft_publication`: an unaccepted stop does not block the plan and blocks the tour follow-up. A review submission's independence is by construction (its own per-host lane, RFC-BPR-0105) and has no course with a creation in flight | Pass on fixture except the submission clause, structural only (completed 2026-11-13, below) |
 
 Not built: the tour follow-up. A plan records it, the step shows "Publish
 the tour" waiting with its reason (unaccepted stops, drift, or "Publish it
@@ -166,3 +166,37 @@ beside them." They were: a plain step's label had lost height-for-width and
 took a two-line hint. Fixed in `b8dca6417`; `qt_review_tour_publication_working`
 `test_step_marks_centred` failed before and passes after. Details and the
 owner's look: [RFC-BPR-0110 ledger](RFC-BPR-0110.md#rework-of-the-owners-verdicts-2026-11-13).
+
+## AC07's submission clause and closeout (2026-11-13)
+
+The clause "a review submission for another pull request completes while a
+creation is in flight" had no course. `application_dependable_session_public_path`
+step 2c (`0f444ac0a`) now holds Create Draft PR's own lane in the composed
+desktop (`hold_local_draft_publication_lane`, the way a creation waiting on
+GitHub holds it) and presses Approve on #18: the submission reaches the
+fixture server (`step=second-while-creation-held`, one submission more) and
+the lane is released after. The creation runs on that lane, held in flight,
+in `application_local_draft_publication_desktop_public_path` (`Holding`), so
+together the two courses show the clause on the composed path.
+
+By the coordinator's decision the local-draft-authoring pack's amendment
+record now names BPR-2029 and BPR-2031 as card references (`d3e7cb8a8`), so
+the cards move without editing it.
+
+Closeout runs at `0f444ac0a` (dev, Debug, macOS): `core_local_draft_publication`,
+`core_local_draft_tour`, `local_draft_publication`,
+`application_local_draft_desktop_public_path`,
+`application_local_draft_tour_desktop_public_path`,
+`application_local_draft_publication_desktop_public_path`,
+`application_dependable_session_public_path`, `application_composition_source_contract`
+and `architecture_boundaries` pass.
+
+| Criterion | Judgment |
+|---|---|
+| AC01 | Pass: live #184 (and #178, #179); `local_draft_publication` |
+| AC02 | Pass: `core_local_draft_publication`, `local_draft_publication` |
+| AC03 (amended: tour anchors) | Pass: dirty material refuses, base movement is said, the tour carry anchors only at the candidate head and leaves other heads without lines |
+| AC04 | Pass: `local_draft_publication` (lost answers, restart, drift, pre-existing pull request; negative control) |
+| AC05 | Pass: a failed follow-up leaves the pull request associated and refuses a new plan; no path writes a description after creation; carrying the tour again creates nothing |
+| AC06 | Pass: #184 is an ordinary GitHub draft with its tour carried; the draft stays resumable; GHES and fork heads are stated as unsupported |
+| AC07 | Pass: the steps and banner (owner accepted the publish steps, sessions 411e2c74 and a0cbb9dd); unaccepted stops block only the tour; the submission clause above |
