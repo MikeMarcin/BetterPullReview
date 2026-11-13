@@ -2735,3 +2735,37 @@ Decisions made this round:
 - AC12's evidence is at the turn request (`agent_chat_turn_request` IncludeNotes/IncludeDraft). The launch still refuses mutable prose and directs to Private history (RFC-BPR-0023), as before.
 
 Not touched: sessions `acaf71a2…` and `8ce7e455…`; the v002, v003, v004, v005-tour and v006 roots; PIDs 38152, 98149/98159, 42869/42879, 26296, 51569, 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
+
+### BPR-2171: Discuss on a busy pull request (2026-11-13, owner-directed)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines in commits. Frontend-design was loaded first. One card (`BPR-2171`, In Progress) amends RFC-BPR-0028's Discuss and RFC-BPR-0085's closed note; the owner's words are verbatim on the card and in [docs/design/discuss-busy-pr-v1](../../../design/discuss-busy-pr-v1/README.md) (option B with the decisions).
+
+| Commit | What |
+|---|---|
+| `2037d395b` | BPR-2171 allocated and claimed; the accepted design in `docs/design/discuss-busy-pr-v1` |
+| `783017414` | Core: timeline `file` and `bots` rows, `FoldResolved`, `FoldBots`, `Unfolded`; `core/discuss_preferences` (bots, per-repository marks, column width) |
+| `b83372963` | Qt: the closed note's preview (`conversation_preview.cpp`) |
+| `be6e66fbd` | Qt timeline in a centred column, folds, the review's verdict on its own comment, dates; Only this file, Fold bots; Mark as Bot; `discuss.sqlite3` store and host |
+| `fe748bd57` | Composition, Settings Discuss column, busy overlay, `--attended-busy-discuss-look`, course `application_discuss_busy_public_path` |
+| `6c3b88f6a` | Integration fixes (band alignment, a thread named opens its fold), card evidence |
+| `c4a8137a5` | The course opens the review by identity. **Frozen commit** |
+| main `9720fda57`, `0d3bd1c91`, `f95ff05ba` | Allocation receipts, card progress, design directory |
+
+Runs (dev, Debug, macOS), all passing on `6c3b88f6a`/`c4a8137a5`: `core_conversation_timeline`, `core_discuss_preferences`, `application_discuss_preferences_host`, `sqlite_discuss_preferences_store`, `sqlite_profile_data_reset_files`, `qt_conversation_preview`, `qt_conversation_cards_view`, `qt_github_conversation_panel`, `qt_composed_markdown_1_0`, `qt_workbench_window_scale_100`, `qt_settings_window`, `qt_view_filter_memory_window`, `application_conversation_read_public_path`, `application_discuss_busy_public_path` (offscreen, and native Cocoa light and dark), `architecture_boundaries`. Format gate clean on changed files; documentation gate OK on lane and main. `coding-tidy`, other window scales and the full suite not run.
+
+Owner look `discuss-busy-pr-v001`, filed and not waited on:
+- Session `277831a56c39ae71bdd20451783d4e33`, state `/Users/jaeger/.attended-review-state/discuss-busy-pr-v001-2026-11-13/state`. Its URL is in `serve.log` beside the state.
+- Cursor 15. Host PID 26008, its Tailscale serve child 26018.
+- Frozen root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` from `c4a8137a55ee` (conversations-v1, `--attended-read-state --attended-busy-discuss-look`, opens Review on conversation_cards_view.cpp; the owner presses Discuss). The freeze's launcher check reached `ATTENDED_FILE_SHOWN`.
+- One Accept/Reject each: `ac1-collapsed-preview`, `ac2-readable-column`, `ac3-files-once`, `ac4-folding-and-bots`, `ac5-only-this-file`.
+
+Next action: when forwarded, read from cursor 15, record verdicts verbatim on BPR-2171, stop host 26008 with the attended-review `stop`, remove the root with `freeze_attended_build.py remove` once nothing runs from it. All Accept: finish BPR-2171 (Done) and mirror to main. A Reject is a rework round.
+
+Decisions made this round (the owner may overrule them in the look):
+- Resolved threads fold only in Discuss; Overview's Comments names files once and folds nothing. A thread with an unread post or the open one never folds; a thread asked for by name opens its fold.
+- The column width is a separate setting (Settings > Review > Reading > Discuss column), kept with the bot marks in `state/v1/discuss.sqlite3`, not a new value of Reading width (which also governs Threads).
+- Fold bots is per window and not remembered across pull requests.
+- The open card grows wider only when a post holds a fenced block, to column + max(160, column/3), centred.
+- The fixture's threads carry no times, so lone threads lead the list; the look's reviews and bots start a screen down.
+
+Not touched: sessions `acaf71a2…`, `8ce7e455…`, `4329741d…` and their roots; the v002, v005 local-draft and v006 roots; PIDs 38152, 51569, 26296, 98149/98159, 42869/42879, 82478/82486, 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
