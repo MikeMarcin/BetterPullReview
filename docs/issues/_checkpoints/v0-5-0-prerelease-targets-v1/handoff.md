@@ -2540,3 +2540,19 @@ Design start:
   - One gutter mark per line: thread over draft over Local. The Notes tab and `private_notes_panel` retire.
 - **Look fixture.** Write one with Local, Draft and Published comments on one line and a migrated note; promo-v1 has none. Then freeze from HEAD and file one session.
 - **Close BPR-2157** once AC03 is shown for threads and files and AC13 in the composed app.
+
+## RFC-BPR-0111 closed; RFC-BPR-0127 milestone 2 started (2026-11-13)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner correction in force: no Co-Authored-By or other attribution lines in commits.
+
+| Commit | What |
+|---|---|
+| `d3e7cb8a8` | Coordinator decision: the local-draft-authoring amendment record names BPR-2029 and BPR-2031 by card reference; note in its LIVE_IMPORT |
+| `0f444ac0a` | AC07 submission clause: `application_dependable_session_public_path` step 2c holds Create Draft PR's lane (`hold_local_draft_publication_lane`) and #18's Approve publishes; app source pin resealed |
+| `65549c2ea` | RFC-BPR-0111 ledger closeout judgment |
+| `188eb577c`..`5f5b4df23` | BPR-2029, BPR-2030, BPR-2031 readied, claimed, Done: **RFC-BPR-0111 Auto-Verified** |
+| main `21f865e9f` | Mirror (ledger links rewritten as lane references, implementation records lane-only, as before) |
+
+Runs at `0f444ac0a`: `core_local_draft_publication`, `core_local_draft_tour`, `local_draft_publication`, `application_local_draft{,_tour,_publication}_desktop_public_path`, `application_dependable_session_public_path`, `application_composition_source_contract`, `architecture_boundaries` pass; documentation gate OK on lane and main; board validate clean.
+
+Next: RFC-BPR-0127 milestone 2 (BPR-2158), see below.
