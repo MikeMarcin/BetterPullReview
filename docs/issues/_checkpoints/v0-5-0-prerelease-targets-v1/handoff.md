@@ -2149,3 +2149,48 @@ Next: read session `767b9233…` from cursor 15 after hand-back. Accepts finish
 BPR-2062/2065 where their other criteria allow; a Reject is a new round. Then
 stop host 84895 with the attended-review `stop` and remove the root with
 `freeze_attended_build.py remove`. Session `0002b9fa…` (explain-file) untouched.
+
+## Import: RFC-BPR-0126 queue and steer (2026-11-12)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no product code. Owner:
+"Add to queue /implement-rfc Implement the RFC at
+docs/rfcs/assets/queue-and-steer-v1/RFC-DRAFT-0001-queue-and-steer.md".
+Queued behind the lane's work, not started.
+
+Mapping: RFC-DRAFT-0001 → RFC-BPR-0126; cards cut at import (the draft had
+none) BPR-2151 (core and host queue, AC02-AC04), BPR-2152 (durable handoff,
+AC06), BPR-2153 (native steering and accounting, AC05, AC07), BPR-2154 (Qt
+composer, AC01, AC08), BPR-2155 (closeout), all Backlog; one milestone
+`queue-and-steer` ([plan](../../../rfcs/plans/queue-and-steer-v1/MILESTONES.md),
+[LIVE_IMPORT](../../../rfcs/assets/queue-and-steer-v1.LIVE_IMPORT.md)).
+RFC_BASE_SHA `dbdecf9a32c9fc7cdd28122721dc61011236d60e`. The draft's bytes
+are tracked here; the main checkout's untracked copy is untouched (a later
+merge into that checkout must remove it first; same bytes).
+
+Reconciliation (on the RFC): Queue and Steer only on resumed paths
+(`agent_tab`, `tour_side_chat`, `tour_conversation`); Ask more stays the
+only promotion; BPR-2140's system-prompt split applies to released entries,
+Steer resends no instructions; BPR-2141's one call per fresh click is
+untouched. The one conflict is BPR-1930's whole-tour feedback buffer
+(`queue_tour_feedback`, `send_waiting_tour_feedback` timer poll): a fresh
+first draft leads into the conversation without Ask more. Left as is until
+owner question Q1. Q1-Q18 on the RFC list every default the owner did not
+state; none is answered.
+
+| Commit | What |
+|---|---|
+| main `9d899bb35` | BPR-2151..2155 reserved (counter BPR-2156); verified by a dry run offering BPR-2156 |
+| `34a4f4073` | Import (counter and receipt from main) |
+| main `8195599f8` | Mirror: RFC, cards, plan, LIVE_IMPORT, index section |
+| this commit | LIVE_IMPORT names the retained draft without a link; handoff |
+
+Runs: documentation gate on lane and main; `issue_board.py validate`
+(lane and main, valid); `milestone_plan.py check` and `render`.
+
+Next for this RFC: the owner's answers to Q1-Q18 (Q1 and Q2 shape BPR-2151's
+scope); then BPR-2151. Implementation also needs, from the lane: the
+`agent_run_path` policy (BPR-2138), the tour chat composition in
+`window_tours.cpp`, and an installed Codex App Server and Claude for
+BPR-2153's qualification. Not touched: sessions `767b9233…` and
+`0002b9fa…` and their roots and hosts, PID 74290, host 74692/74706, PIDs
+10695/39804, Tailscale 44738, BPR-Test #152 and `-next`.

@@ -13,8 +13,8 @@ fresh and resumed rule and the tour chat code this RFC extends). Mirrored to
 The draft was written as a single untracked file in the main checkout
 (`docs/rfcs/assets/queue-and-steer-v1/RFC-DRAFT-0001-queue-and-steer.md`,
 SHA-256 `87dcfed506cec06969f04c21ba0d4d87d5ca7f4c38b66a3826c75a42df6f26d3`).
-Its bytes are kept unchanged on the lane as
-[the retained draft](queue-and-steer-v1/RFC-DRAFT-0001-queue-and-steer.md);
+Its bytes are kept unchanged on the lane at that same path (tracked there;
+named here, not linked, because on `main` the file is still untracked);
 the main checkout's untracked copy was left where it is, untouched. A later
 merge of the lane into that checkout meets an identical untracked file at
 the same path; remove it there first (its bytes are the tracked ones).
