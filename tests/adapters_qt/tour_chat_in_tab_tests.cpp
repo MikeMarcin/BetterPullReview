@@ -192,6 +192,30 @@ namespace {
 		}
 	}
 
+	/// The owner, rejecting the local tour's look on 2026-11-13: "I see 3
+	/// buttons that say accept and they all look totally different and I'm
+	/// not sure why." Every Accept the Tour panel and its chat show is one
+	/// button: the platform's default push button at one size, the reference
+	/// stop Accept's; and no button that accepts no stop says Accept.
+	void expect_one_accept(QWidget& aRoot, const QPushButton& aReference, const std::string& aWhen)
+	{
+		auto seen = 0;
+		for (auto* const button : aRoot.findChildren<QPushButton*>()) {
+			if (!button->isVisibleTo(&aRoot)) {
+				continue;
+			}
+			expect(!button->text().startsWith(QStringLiteral("Accept")) || button->text() == QStringLiteral("Accept"), "only a stop's Accept says Accept, " + aWhen + ": " + button->text().toStdString());
+			if (button->text() != QStringLiteral("Accept")) {
+				continue;
+			}
+			++seen;
+			expect(button->isDefault() && !button->isFlat() && button->style() == aReference.style() && button->font() == aReference.font() && button->sizeHint() == aReference.sizeHint(),
+				   "every Accept is the stop's Accept, default and at one size, " + aWhen + ": " + button->objectName().toStdString() + " " + std::to_string(button->sizeHint().width()) + "x"
+					   + std::to_string(button->sizeHint().height()) + " against " + std::to_string(aReference.sizeHint().width()) + "x" + std::to_string(aReference.sizeHint().height()));
+		}
+		expect(seen > 0, "an Accept shows " + aWhen);
+	}
+
 	void run(const core::appearance_mode aMode, const QString& aTheme)
 	{
 		qt::workbench_window window;
@@ -353,11 +377,17 @@ namespace {
 		expect(rewriteAccept != nullptr && rewriteAccept->isVisible() && editor->findChild<QWidget*>(QStringLiteral("tourStopFields"))->isAncestorOf(rewriteAccept) && !complete->isVisible(), "Stop 1's new explanation is on its card, and its Accept stands where the stop's own Accept was");
 		expect(colours_of(*editor->tour_agent()->proposal_reader(2), QStringLiteral("clear()")).size() >= 2U, "its inline code is coloured too");
 		draw(window, QStringLiteral("tour-proposed-in-place"), aTheme);
+		// RFC-BPR-0106 as amended on 2026-11-13: a part that accepts no stop
+		// says what it does; Stop 1's own text says Accept, in the stop's look.
+		expect(stopAccept->text() == QStringLiteral("Add to tour") && editor->tour_agent()->accept_button(0)->text() == QStringLiteral("Use this text") && rewriteAccept->text() == QStringLiteral("Accept"),
+			   "the proposed stop says Add to tour, the Problem's text Use this text, Stop 1's own text Accept");
+		expect(editor->tour_agent()->accept_all_button()->isVisibleTo(editor) && editor->tour_agent()->accept_all_button()->text() == QStringLiteral("Apply all"), "a draft's three parts have one Apply all, on the panel's line");
+		expect_one_accept(window, *complete, "with a proposal on the stop");
 		click(stopAccept);
 		expect(!decided.empty() && decided.back() == std::pair{ std::size_t{ 1U }, core::tour_proposal_decision::accepted }, "Accept on the proposed stop accepts it");
 		// [[BPR-2014]] AC03. Accept on Stop 1's own proposal accepts Stop 1,
 		// once the tour holds its text (as the window applies it, at once);
-		// Accept all accepts no stop.
+		// Apply all accepts no stop.
 		{
 			auto own = std::vector<core::tour_command>{ };
 			editor->set_dispatch([&own](core::tour_command aCommand) { own.push_back(std::move(aCommand)); }, [](qt::tour_editor_action) { });
@@ -378,7 +408,7 @@ namespace {
 				all->click();
 				settle();
 			}
-			expect(std::ranges::none_of(own, [](const auto& aCommand) { return aCommand.Kind == core::tour_command_kind::accept; }), "Accept all accepts no stop");
+			expect(std::ranges::none_of(own, [](const auto& aCommand) { return aCommand.Kind == core::tour_command_kind::accept; }), "Apply all accepts no stop");
 			editor->set_tour_session_dispatch([] { }, [] { }, [&decided](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString&) { decided.emplace_back(aIndex, aDecision); });
 			auto restored     = application::tour_presentation{ };
 			restored.Draft    = std::make_shared<const core::review_tour>(tour);
@@ -393,6 +423,7 @@ namespace {
 		editor->present_tour_session(session, proposed);
 		settle();
 		expect(complete->isVisible() && !panelBox->isVisibleTo(editor) && !proposedStops->isVisible(), "with nothing proposed: no line, no grey stops, Accept on the card");
+		expect_one_accept(window, *complete, "on the stop at rest");
 
 		// [[BPR-2014]], RFC-BPR-0106 (once Ready, next): Accept accepts the
 		// current stop and moves nowhere.

@@ -1397,7 +1397,7 @@ namespace bpr::qt {
 		const auto action = tr("Update %1 from this chat").arg(part);
 		UnchangedLine->setText(tr("Nothing in %1 changed. %2").arg(part, usable ? QStringLiteral("<a href=\"#update\">%1</a>").arg(action.toHtmlEscaped()) : action.toHtmlEscaped()));
 		UnchangedLine->setToolTip(!Ready       ? Why
-									  : usable ? tr("Asks the agent to change %1 as this chat agreed. Nothing changes until you accept what it proposes.").arg(part)
+									  : usable ? tr("Asks the agent to change %1 as this chat agreed. Nothing changes until you apply what it proposes.").arg(part)
 											   : tr("Available when the agent is idle."));
 	}
 
@@ -1808,7 +1808,7 @@ namespace bpr::qt {
 			}
 			// [[BPR-1995]], RFC-BPR-0100 AC04. The tour chat's revision waits in
 			// the tour, marked grey, on the parts it changes, and here as one
-			// card that lists them: Accept all, Review each in the tour, or
+			// card that lists them: Apply all, Review each in the tour, or
 			// Discard. Deciding in either place settles the other, because the
 			// card is drawn from the one proposal.
 			if (wholeTour && Proposal && std::ranges::any_of(Proposal->Items, [run](const core::tour_proposal_item& aItem) { return aItem.Run == run->Id; })) {
@@ -1849,8 +1849,8 @@ namespace bpr::qt {
 				RevisionOperations = operations;
 				RevisionState      = state;
 				if (pending.empty()) {
-					state->setText(accepted == decided ? tr("Accepted into the private draft.") : accepted == 0U ? tr("Discarded.")
-																												 : tr("%1 of %2 parts accepted.").arg(accepted).arg(decided));
+					state->setText(accepted == decided ? tr("Applied to the private draft.") : accepted == 0U ? tr("Discarded.")
+																											  : tr("%1 of %2 parts applied.").arg(accepted).arg(decided));
 					RevisionAcceptAll = nullptr;
 					RevisionReview    = nullptr;
 					RevisionDiscard   = nullptr;
@@ -1864,7 +1864,9 @@ namespace bpr::qt {
 					// its tooltip, not in words under the card.
 					auto* const buttons = new QHBoxLayout{ };
 					buttons->setSpacing(6);
-					auto* const acceptAll = new quiet_push_button{ tr("Accept all"), card };
+					// RFC-BPR-0106 as amended on 2026-11-13: it accepts no stop,
+					// so it does not say Accept.
+					auto* const acceptAll = new quiet_push_button{ tr("Apply all"), card };
 					acceptAll->setObjectName(QStringLiteral("tourSideChatRevisionAcceptAll"));
 					acceptAll->setToolTip(tr("Puts every part of this revision in the private draft. Nothing is published, and each new or changed stop still asks for your Accept."));
 					auto* const review = new quiet_push_button{ tr("Review each"), card };
@@ -1883,7 +1885,7 @@ namespace bpr::qt {
 					RevisionAcceptAll = acceptAll;
 					RevisionReview    = review;
 					RevisionDiscard   = discard;
-					// [[BPR-2000]]. Accept all and Discard apply; they start no run.
+					// [[BPR-2000]]. Apply all and Discard apply; they start no run.
 					const auto decide = [this, pending](const core::tour_proposal_decision aDecision) {
 						if (!DecideDispatch || !Proposal) {
 							return;
@@ -1967,14 +1969,14 @@ namespace bpr::qt {
 					Accented.emplace_back(title);
 					lines->addWidget(title);
 					if (item.Decision != core::tour_proposal_decision::pending) {
-						lines->addWidget(quiet(small(words(!item.Refusal.empty() ? tr("Refused: the target changed since this question was sent.") : item.Decision == core::tour_proposal_decision::accepted ? tr("Accepted into the tour.")
+						lines->addWidget(quiet(small(words(!item.Refusal.empty() ? tr("Refused: the target changed since this question was sent.") : item.Decision == core::tour_proposal_decision::accepted ? tr("In the tour now.")
 																																																			 : tr("Discarded."),
 														   card))));
 						column->addWidget(card);
 						continue;
 					}
 					if (item.ReplacesAuthorText) {
-						lines->addWidget(quiet(small(words(tr("Accepting replaces what is there now."), card))));
+						lines->addWidget(quiet(small(words(tr("Using it replaces what is there now."), card))));
 					}
 					const auto  source  = Edited.contains(index) ? Edited[index] : QString::fromStdString(item.Text);
 					const auto  editing = Editing.contains(index);
@@ -1994,10 +1996,17 @@ namespace bpr::qt {
 					connect(editor, &QPlainTextEdit::textChanged, this, [this, index, editor] { Edited[index] = editor->toPlainText(); });
 					auto* const buttons = new QHBoxLayout{ };
 					buttons->setSpacing(6);
-					auto* const accept = new quiet_push_button{ tr("Accept"), card };
+					// The same words and look as the part's button in the tour:
+					// Accept only on a stop's own text, which accepts the stop.
+					auto* const accept = new quiet_push_button{ tour_proposal_apply_words(item.Part), card };
 					accept->setObjectName(QStringLiteral("tourSideChatAccept"));
 					accept->setFocusPolicy(Qt::TabFocus);
-					accept->setToolTip(item.Part == core::tour_proposal_part::stop ? tr("Adds this stop at the end of the tour.") : tr("Puts this text in the tour."));
+					accept->setToolTip(item.Part == core::tour_proposal_part::stop ? tr("Adds this stop at the end of the tour.")
+										   : tour_proposal_accepts_stop(item.Part) ? tr("Puts this text in the stop and accepts the stop.")
+																				   : tr("Puts this text in the tour."));
+					if (tour_proposal_accepts_stop(item.Part)) {
+						wear_stop_accept(*accept);
+					}
 					auto* const edit = new quiet_push_button{ editing ? tr("Show formatted") : tr("Edit text"), card };
 					edit->setObjectName(QStringLiteral("tourSideChatEdit"));
 					edit->setFlat(true);

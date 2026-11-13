@@ -7379,7 +7379,7 @@ namespace {
 					}
 					QTextStream{ stdout } << "ATTENDED_TOUR_FOCUS_LINE:" << chat->focus_line()->text() << '\n';
 					// [[BPR-1995]], RFC-BPR-0100 AC04. The revision is a card in
-					// the chat too, with Accept all, Review each and Discard.
+					// the chat too, with Apply all, Review each and Discard.
 					if (chat->revision_card() == nullptr || chat->revision_accept_all() == nullptr) {
 						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-revision-card"));
 						return;

@@ -32,6 +32,21 @@ namespace bpr::qt {
 		class markdown_code_block_objects;
 	}
 	class markdown_body_view;
+	/// \brief RFC-BPR-0106 as amended by the owner on 2026-11-13 ("I see 3
+	/// buttons that say accept and they all look totally different and I'm not
+	/// sure why"). The word on a proposed part's primary button.
+	///
+	/// \details Accept is the files' word for a stop: it is said only where
+	/// pressing accepts a stop (a stop's own Accept, the edited stop's Accept,
+	/// and a stop's own proposed text, which accepts the stop with it). A part
+	/// that only changes the tour says what it does: Add to tour, Use this
+	/// text, Remove, Merge, Split, Reorder.
+	[[nodiscard]] auto tour_proposal_apply_words(core::tour_proposal_part aPart) -> QString;
+	/// \brief Whether a proposed part's primary button accepts a stop.
+	[[nodiscard]] auto tour_proposal_accepts_stop(core::tour_proposal_part aPart) noexcept -> bool;
+	/// \brief The one look of Accept in the Tour panel and its side chats: the
+	/// platform's own default push button, the stop's one primary action.
+	void wear_stop_accept(QPushButton& aButton);
 	/// \brief [[BPR-1900]]. The Tour tab's own agent session, at the top of
 	/// the tab: Draft the tour (Stop drafting while it runs), the whole-tour
 	/// proposal to accept, edit or discard item by item, and the session's
@@ -68,7 +83,7 @@ namespace bpr::qt {
 		using decide_dispatch = std::function<void(std::size_t, core::tour_proposal_decision, const QString&)>;
 
 		explicit tour_agent_panel(QWidget* aParent = nullptr);
-		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Accept all.
+		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Apply all.
 		void set_own_accept_dispatch(std::function<void(core::tour_stop_id, const std::string&)> aDispatch) { OwnAcceptDispatch = std::move(aDispatch); }
 		void set_dispatch(std::function<void()> aDraft, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief [[BPR-1900]]. Move to nearest change on a stop off the change.
@@ -91,7 +106,7 @@ namespace bpr::qt {
 			Place      = std::move(aPlace);
 		}
 		/// \brief The proposal's one line: how many parts wait in the tour, and
-		/// Accept all.
+		/// Apply all.
 		[[nodiscard]] auto accept_all_button() const noexcept -> QPushButton* { return AcceptAll; }
 		[[nodiscard]] auto proposal_title() const noexcept -> QLabel* { return ProposalTitle; }
 		/// \brief [[BPR-1914]] v002. The thread for the tour as a whole, under
@@ -136,6 +151,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1937]]. A part of a revision the core refused, said
 		/// in plain words: which part, which stops, and why.
 		[[nodiscard]] static auto refused_words(const core::tour_refused_part& aPart) -> QString;
+		/// \brief Whether the head's Apply all takes `aItem`: not a thread's
+		/// part, and not a tour chat revision's, which its card in the chat takes.
+		[[nodiscard]] auto batched(const core::tour_proposal_item& aItem) const -> bool;
 		/// \brief Its Move to nearest change button, while it is offered.
 		[[nodiscard]] auto relocate_button(std::size_t aIndex) const -> QPushButton*;
 		/// \brief The quiet words under a stop's place, when it has some.

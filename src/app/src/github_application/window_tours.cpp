@@ -1790,8 +1790,8 @@ namespace bpr::app {
 			Window->tour_editor()->show_writing_notice(items ? QStringLiteral("The tour agent's other changes wait in the tour, marked grey. ") + refusal : refusal);
 		} else if (items) {
 			// [[BPR-1930]]. The tour chat's proposal waits in the tour itself.
-			Window->tour_editor()->show_writing_notice(whole ? QStringLiteral("The tour agent's changes wait in the tour, marked grey. Nothing changes until you accept them.")
-															 : QStringLiteral("The tour agent proposed a change in the side chat. Nothing changes until you accept it."));
+			Window->tour_editor()->show_writing_notice(whole ? QStringLiteral("The tour agent's changes wait in the tour, marked grey. Nothing changes until you apply them.")
+															 : QStringLiteral("The tour agent proposed a change in the side chat. Nothing changes until you apply it."));
 		}
 	}
 
@@ -2109,7 +2109,7 @@ namespace bpr::app {
 		// kept in the run's transcript, so nothing the agent said is lost.
 		static_cast<void>(core::note_finished_tour_run(TourAgent, *aRun, core::left_out_entries(*TourProposal)));
 		Window->tour_editor()->show_writing_notice(TourProposal->Items.empty() ? QStringLiteral("The agent proposed nothing for this tour.")
-																			   : QStringLiteral("A proposed tour is ready to review. Nothing changes until you accept it."));
+																			   : QStringLiteral("A proposed tour is ready to review. Nothing changes until you apply it."));
 	}
 
 	void github_application::implementation::ask_more_from(const core::tour_agent_run_id aRun)

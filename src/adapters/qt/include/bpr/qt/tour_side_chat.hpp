@@ -148,7 +148,7 @@ namespace bpr::qt {
 	/// link "Update the part from this chat" asks for the part rewritten from
 	/// the conversation; it is the only place the update is offered. A
 	/// part's proposal is accepted, edited or discarded right in the chat; a
-	/// whole-tour revision is a card listing its parts, with Accept all,
+	/// whole-tour revision is a card listing its parts, with Apply all,
 	/// Review each in the tour and Discard. Under the transcript sit only a
 	/// notice when something is not as usual, the composer and the session
 	/// line.
@@ -171,7 +171,7 @@ namespace bpr::qt {
 		using decide_dispatch = std::function<void(std::size_t, core::tour_proposal_decision, const QString&)>;
 
 		explicit tour_side_chat(QWidget* aParent = nullptr);
-		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Accept all.
+		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Apply all.
 		void set_own_accept_dispatch(std::function<void(core::tour_stop_id, const std::string&)> aDispatch) { OwnAcceptDispatch = std::move(aDispatch); }
 		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh
 		/// Enhance's suggestion: this thread's next turn starts from it.
