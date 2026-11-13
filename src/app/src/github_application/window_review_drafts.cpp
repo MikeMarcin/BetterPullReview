@@ -214,6 +214,9 @@ namespace bpr::app {
 		present_draft_roster();
 		// [[BPR-1733]]. A carried or deleted suggestion leaves its note.
 		present_moved_suggestions();
+		// RFC-BPR-0127. Make draft on a Local comment is decided against the
+		// drafts standing now.
+		present_local_comments();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1862]]. An agent turn whose draft was deleted, by any
 		// route, offers Draft comment again.

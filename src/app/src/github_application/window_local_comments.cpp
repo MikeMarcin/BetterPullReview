@@ -212,9 +212,8 @@ namespace bpr::app {
 			const auto draft  = std::ranges::find(drafts, *aGesture.Draft, [](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Id; });
 			const auto shown  = current_note_attachment();
 			// Save on a comment the store does not hold yet: a new Local
-			// comment at the composer's lines (or in its thread), taking the
-			// composer's draft identity where it is free, and the composer's
-			// unsaved draft goes. A draft the store holds, even one still
+			// comment at the composer's lines (or in its thread), and the
+			// composer's unsaved draft, which nothing else knows, goes. A draft the store holds, even one still
 			// empty there, moves instead (below), so its identity is kept.
 			if (aGesture.Action == qt::card_action::save_local && aGesture.Anchor && draft == drafts.end()) {
 				const auto* const surface = Window->comparison_surface();
@@ -230,9 +229,6 @@ namespace bpr::app {
 				auto next = std::uint64_t{ 1U };
 				for (const auto& comment : AcceptedPrivateNotes) {
 					next = std::max(next, comment.Id.value() + 1U);
-				}
-				if (aGesture.Draft && !std::ranges::contains(AcceptedPrivateNotes, application::local_comment_id{ aGesture.Draft->value() }, &application::local_comment_record::Id)) {
-					next = aGesture.Draft->value();
 				}
 				auto attachment  = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison, .Line = core::note_line_anchor_at(surface->current_result()->Alignment, aGesture.Anchor->Side, aGesture.Anchor->Line) };
 				auto comment     = application::local_comment_record{ .Id = application::local_comment_id{ next }, .Attachment = attachment, .Body = aGesture.Body, .StartLine = aGesture.StartLine, .ReplyToThread = aGesture.ReplyToThread };
@@ -285,6 +281,12 @@ namespace bpr::app {
 						refuse(QStringLiteral("Keep local was refused: the draft changed or is being sent. Nothing changed."));
 					}
 					reload_local_comments();
+					// As after Delete ([[BPR-1862]]): the kept draft ended
+					// discarded, so it is no longer its line's draft, and a new
+					// comment there is a new draft.
+					if (aKept) {
+						leave_deleted_draft();
+					}
 				});
 			};
 			if (input.Draft.Body != draft->Draft.Body) {
@@ -310,6 +312,25 @@ namespace bpr::app {
 	}
 
 #if defined(BPR_BUILD_TESTING)
+	auto github_application::implementation::seed_local_comment(const std::string& aBody, const bool aWholeFile) -> bool
+	{
+		const auto shown = current_note_attachment();
+		if (!ReviewLedgerHost || (aWholeFile && !shown)) {
+			return false;
+		}
+		auto next = std::uint64_t{ 1U };
+		for (const auto& comment : AcceptedPrivateNotes) {
+			next = std::max(next, comment.Id.value() + 1U);
+		}
+		auto comment = application::local_comment_record{ .Id = application::local_comment_id{ next }, .Body = aBody };
+		if (aWholeFile) {
+			comment.Attachment = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison };
+			comment.FilePath   = SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt;
+		}
+		ReviewLedgerHost->persist(comment, std::nullopt, ledger_answer([this](const std::expected<application::local_comment_record, application::local_comment_failure>&) { refresh_agent_private_context_choices(); }));
+		return true;
+	}
+
 	auto github_application::implementation::seed_local_replies_for_look(const std::string& aThread, const core::source_line_ref aLine) -> bool
 	{
 		const auto  shown   = current_note_attachment();

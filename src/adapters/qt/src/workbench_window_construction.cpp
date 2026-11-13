@@ -893,6 +893,12 @@ namespace bpr::qt {
 			ComposeLocal = true;
 			if (!comment_on_selected_lines(false)) {
 				ComposeLocal = false;
+			} else if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && !ReviewEditor->shown_draft()->Body.empty()) {
+				// My draft already stands on the line and is what opened: it
+				// stays a draft until Local is chosen for it (Keep local), so
+				// N never moves it by accident.
+				ComposeLocal = false;
+				statusBar()->showMessage(tr("Your draft on this line is open. Choose Local to keep it only on this computer."), 8000);
 			}
 			refresh_cards();
 		});

@@ -2456,6 +2456,11 @@ namespace bpr::app::detail {
 		/// attended look: two Local replies in `aThread` (by provider identity)
 		/// on `aLine`, the second then made a draft reply through Make draft.
 		[[nodiscard]] static auto seed_local_replies_for_look(github_application& aApplication, const std::string& aThread, core::source_line_ref aLine) -> bool;
+		/// \brief RFC-BPR-0127. Test access only: one Local comment on the
+		/// shown file as a whole (`aWholeFile`) or on the pull request, as a
+		/// migrated note or an agent's keep action leaves one; no surface
+		/// writes either shape before milestone 4.
+		[[nodiscard]] static auto seed_local_comment(github_application& aApplication, const std::string& aBody, bool aWholeFile) -> bool;
 		[[nodiscard]] static auto seed_attended_comment_draft(github_application& aApplication, core::diff_side aSide, const std::string& aBody)
 			-> fixture_file_reveal_result;
 		/// \brief [[BPR-1083]]. In Read on `src/engine/renderer.cpp`: the

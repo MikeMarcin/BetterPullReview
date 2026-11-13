@@ -168,6 +168,12 @@ namespace bpr::app {
 		return owner != nullptr && owner->seed_local_replies_for_look(aThread, aLine);
 	}
 
+	auto detail::github_application_fixture_access::seed_local_comment(github_application& aApplication, const std::string& aBody, const bool aWholeFile) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		return owner != nullptr && owner->seed_local_comment(aBody, aWholeFile);
+	}
+
 	auto detail::github_application_fixture_access::hold_local_draft_publication_lane(github_application& aApplication) -> std::function<void()>
 	{
 		auto* const drafts = aApplication.Implementation->DraftDesktop.get();

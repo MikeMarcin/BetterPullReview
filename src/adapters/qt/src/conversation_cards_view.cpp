@@ -3255,11 +3255,17 @@ namespace bpr::qt {
 		for (const auto& post : card.Posts) {
 			// [[BPR-1775]]. Who wrote it decides Edit, so it is drawn too.
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QChar{ 0x1f } + post.Author + QString::number(static_cast<int>(post.Mine));
+			// RFC-BPR-0127. What Make draft is offered as follows the drafts
+			// standing, so a changed offer is drawn again.
+			key += QChar{ 0x1f } + post.LocalMakeDraft + QChar{ 0x1f } + post.LocalMakeDraftWhy;
 			// [[BPR-1810]]. A neighbouring stop arriving or going changes the
 			// plate's chevrons.
 			for (const auto& reached : { post.TourPrevious, post.TourNext }) {
 				key += QChar{ 0x1f } + (reached.has_value() ? QString::fromStdString(reached->Thread + '\x1f' + reached->Title) : QString{ });
 			}
+		}
+		if (card.Local) {
+			key += QChar{ 0x1d } + card.LocalComment.MakeDraft + QChar{ 0x1f } + card.LocalComment.MakeDraftWhy;
 		}
 		if (OpenCard != nullptr && OpenCard->property("threadKey").toString() == key) {
 			OpenCard->present_read_state(card);
