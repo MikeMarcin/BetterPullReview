@@ -447,8 +447,8 @@ namespace bpr::app {
 		// scratch folder, no private run, nothing saved.
 		aInvocation.Path = core::agent_run_path::assistance_first_answer;
 		const auto hook  = aInvocation.Context.EntryPoint == core::agent_entry_point::analyze_latest_upload ? core::writing_hook::review_latest_upload
-			: aInvocation.Context.EntryPoint == core::agent_entry_point::analyze_current_file             ? core::writing_hook::review_explain_file
-																										  : core::writing_hook::review_proposed_fix;
+			: aInvocation.Context.EntryPoint == core::agent_entry_point::analyze_current_file               ? core::writing_hook::review_explain_file
+																											: core::writing_hook::review_proposed_fix;
 		auto       text  = std::string{ application::default_writing_hook(hook) };
 		if (Profile && Profile->WorkbenchPreferences) {
 			if (const auto& preferences = Profile->WorkbenchPreferences->accepted(); preferences) {

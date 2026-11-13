@@ -190,7 +190,7 @@ namespace bpr::qt {
 	/// says, so none moves or resizes as the run goes on.
 	void explain_file_card::fit_buttons()
 	{
-		auto widest = 0;
+		auto widest  = 0;
 		auto tallest = 0;
 		for (const auto& words : std::array{ tr("Keep as note"), tr("Go to note"), tr("Continue in Agent tab"), tr("Dismiss") }) {
 			auto probe = quiet_push_button{ words };

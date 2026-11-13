@@ -2091,9 +2091,9 @@ namespace {
 	/// overrides, and stores Explain this file's prompt in its own column.
 	void test_explain_prompt_migrates_from_thirty()
 	{
-		const auto scratch                                                                                = scratch_directory{ };
-		const auto path                                                                                   = scratch.file("explain-v30.sqlite3");
-		auto       chosen                                                                                 = settled_profile();
+		const auto scratch                                                                               = scratch_directory{ };
+		const auto path                                                                                  = scratch.file("explain-v30.sqlite3");
+		auto       chosen                                                                                = settled_profile();
 		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::review_proposed_fix)] = "Lead with the word.";
 		{
 			auto db = workbench_settings_database::open(path, { });

@@ -296,7 +296,7 @@ namespace {
 		expect(launch && launch->Arguments[index_of(launch->Arguments, "--append-system-prompt") + 1U] == prompt, "its own prompt is the system prompt");
 		expect(launch && launch->Input.find("explain.path") != std::string::npos && launch->Input.find("+new") != std::string::npos && launch->Input.find("explain.content.state") != std::string::npos,
 			   "the request carries the file's change and its text up front");
-		auto edited                                       = core::writing_hook_settings{ };
+		auto edited                                      = core::writing_hook_settings{ };
 		edited.Overrides[static_cast<std::size_t>(hook)] = "TEAM_EXPLAIN";
 		expect(application::effective_writing_hook(edited, hook) == "TEAM_EXPLAIN", "the edit is the next Explain this file's prompt");
 		for (auto index = std::size_t{ 0U }; index < core::writing_hook_count; ++index) {

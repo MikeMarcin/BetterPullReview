@@ -3662,7 +3662,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# composition; RFC-BPR-0117 ([[BPR-2076]]) adds window_explain_file.cpp.
 	# No grant, credential, provider, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "62b1c609ba8da2db4f37692723d1f0febe1a9fffa9f04adaddb3bf8a6b8145aa"
+        "dbae5707dd6ba1b1ecd2499ef4d07bf597d1c3d4d285b84aacd23f19ee3dab76"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

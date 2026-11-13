@@ -329,7 +329,6 @@ namespace bpr::qt {
 		}
 		aControl->setParent(this);
 		row->insertWidget(row->indexOf(NewTab), aControl);
-		setMinimumWidth(minimumSizeHint().width());
 	}
 
 	auto document_tab_strip::sizeHint() const -> QSize
@@ -343,16 +342,10 @@ namespace bpr::qt {
 		// strip keeps room for one tab at its minimum beside the plus. The
 		// strip's horizontal policy is Ignored, which makes a layout read the
 		// explicit minimum width, so this is also what the strip sets.
-		auto trailing = 0;
-		if (auto* const row = qobject_cast<QHBoxLayout*>(layout()); row != nullptr) {
-			for (auto index = 0; index < row->count(); ++index) {
-				auto* const control = row->itemAt(index)->widget();
-				if (control != nullptr && control != Scroll && control != Status && control != NewTab && !control->isHidden()) {
-					trailing += control->sizeHint().width() + row->spacing();
-				}
-			}
-		}
-		return QSize{ MinimumTab + trailing + (NewTab != nullptr ? NewTab->sizeHint().width() : 0), height_pixels };
+		// RFC-BPR-0117. A holder's trailing control (Explain this file) is not
+		// counted: the strip's minimum is what the window's layout was built
+		// around, and the tabs scroll sooner instead.
+		return QSize{ MinimumTab + (NewTab != nullptr ? NewTab->sizeHint().width() : 0), height_pixels };
 	}
 
 	void document_tab_strip::resizeEvent(QResizeEvent* const aEvent)

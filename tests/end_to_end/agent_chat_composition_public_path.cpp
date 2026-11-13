@@ -682,6 +682,8 @@ namespace {
 		}
 		std::cout << marker << (passed ? ":pass\n" : ":fail\n");
 		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+
 	/// \brief The setup-list course, from a window whose Settings already added
 	/// "Fixture agent": the setup's Agent step follows Settings' list.
 	[[nodiscard]] auto setup_list_course(app::github_application& aApplication, qt::workbench_window& aWindow) -> int

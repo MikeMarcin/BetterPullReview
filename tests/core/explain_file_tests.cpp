@@ -52,9 +52,9 @@ namespace {
 		while (lines.size() <= core::maximum_explain_content_bytes) {
 			lines += "a line of the file\n";
 		}
-		big.Head            = lines;
-		big.Change          = lines;
-		const auto bigFile  = core::bound_explain_material(big);
+		big.Head           = lines;
+		big.Change         = lines;
+		const auto bigFile = core::bound_explain_material(big);
 		expect(bigFile && bigFile->ContentState == core::explain_content_state::cut && bigFile->Content.size() <= core::maximum_explain_content_bytes && bigFile->Content.back() == '\n', "a long file is cut at a line end");
 		expect(!bigFile->ChangeCut && core::valid(*bigFile), "a change within its bound is kept");
 		big.Change += std::string(core::maximum_explain_change_bytes, 'x');

@@ -40,8 +40,8 @@
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
-#include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/enhance_control.hpp"
+#include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -2749,14 +2749,14 @@ namespace bpr::qt {
 		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,
 		/// the tabs the host last published, the tab keys and the older-pair
 		/// notice.
-		document_tab_strip*                                  DocumentTabs = nullptr;
+		document_tab_strip* DocumentTabs = nullptr;
 		/// RFC-BPR-0117. Explain this file's control, its card and where a
 		/// press goes.
-		QToolButton*                         ExplainFileButton = nullptr;
-		explain_file_card*                   ExplainCard       = nullptr;
-		std::function<void(const QString&)>  ExplainFileDispatch;
-		bool                                 ExplainFileOffered = false;
-		void                                 refresh_explain_file();
+		QToolButton*                                         ExplainFileButton = nullptr;
+		explain_file_card*                                   ExplainCard       = nullptr;
+		std::function<void(const QString&)>                  ExplainFileDispatch;
+		bool                                                 ExplainFileOffered = false;
+		void                                                 refresh_explain_file();
 		document_tab_dispatch                                DocumentTabDispatch;
 		std::optional<application::document_tabs_projection> TabsProjection;
 		QAction*                                             NextTabAction     = nullptr;

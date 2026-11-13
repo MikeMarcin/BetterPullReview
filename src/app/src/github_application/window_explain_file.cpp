@@ -106,17 +106,17 @@ namespace bpr::app {
 			refuse_explain_file(aPath, QStringLiteral("Not sent. %1 is not one of this pull request's files.").arg(QString::fromStdString(aPath)));
 			return;
 		}
-		const auto base       = state.AcceptedRevision->Base;
-		const auto head       = state.AcceptedRevision->Head;
-		const auto key        = aPath + "@" + hex(base) + ".." + hex(head);
-		ExplainFile.Path      = aPath;
-		ExplainFile.Key       = key;
+		const auto base  = state.AcceptedRevision->Base;
+		const auto head  = state.AcceptedRevision->Head;
+		const auto key   = aPath + "@" + hex(base) + ".." + hex(head);
+		ExplainFile.Path = aPath;
+		ExplainFile.Key  = key;
 		ExplainFile.Material.reset();
-		auto       read       = std::make_shared<explain_read>();
-		read->Path            = aPath;
-		read->Key             = key;
-		const auto authority  = workbench_authority(*LastAcceptedHandoff);
-		const auto done       = [this, read, base, head] {
+		auto read            = std::make_shared<explain_read>();
+		read->Path           = aPath;
+		read->Key            = key;
+		const auto authority = workbench_authority(*LastAcceptedHandoff);
+		const auto done      = [this, read, base, head] {
 			if (read->Waiting != 0 || Closing || ExplainFile.Key != read->Key) {
 				return;
 			}
@@ -202,9 +202,9 @@ namespace bpr::app {
 	{
 		auto* const card   = Window != nullptr ? Window->explain_card() : nullptr;
 		const auto  answer = [card](const bool aKept, const QString& aWhy, const std::uint64_t aNote = 0U) {
-            if (card != nullptr) {
-                card->present_note(aKept, aWhy, aNote);
-            }
+			if (card != nullptr) {
+				card->present_note(aKept, aWhy, aNote);
+			}
 		};
 		if (Closing || Window == nullptr || !ReviewLedgerHost || !ReviewLedgerAvailable) {
 			answer(false, QStringLiteral("no review is open"));

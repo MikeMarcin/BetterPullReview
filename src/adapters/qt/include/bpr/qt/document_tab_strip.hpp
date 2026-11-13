@@ -115,9 +115,9 @@ namespace bpr::qt {
 		void               send(const core::document_tab_intent& aIntent) const;
 		void               open_tab_menu(const QPoint& aAt);
 
-		document_tab_dispatch                  Dispatch;
+		document_tab_dispatch                                         Dispatch;
 		std::function<void(const document_tab_presentation&, QMenu&)> MenuExtension;
-		std::vector<document_tab_presentation> Tabs;
+		std::vector<document_tab_presentation>                        Tabs;
 		/// The tabs the bar shows, in its order.
 		std::vector<core::document_tab_id> Shown;
 		QTabBar*                           Bar        = nullptr;

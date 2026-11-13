@@ -87,8 +87,8 @@ namespace bpr::core {
 		if (answer.empty()) {
 			return { };
 		}
-		auto       text      = "Agent: " + (aAgent.empty() ? std::string{ "the agent" } : std::string{ aAgent }) + " explained this file.\n\n";
-		const auto ellipsis  = std::string_view{ "\n…" };
+		auto       text     = "Agent: " + (aAgent.empty() ? std::string{ "the agent" } : std::string{ aAgent }) + " explained this file.\n\n";
+		const auto ellipsis = std::string_view{ "\n…" };
 		if (text.size() + ellipsis.size() >= aMaximumBytes) {
 			return { };
 		}

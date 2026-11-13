@@ -93,23 +93,23 @@ namespace bpr::qt {
 		void fit_answer();
 		void fit_buttons();
 
-		explain_file_progress                                         Shown;
-		std::uint64_t                                                 Note     = 0U;
-		bool                                                          Keeping  = false;
-		QString                                                       Refusal;
-		std::function<void(const QString&, const QString&)>           Keep;
-		std::function<void(std::size_t)>                              Continue;
-		std::function<void()>                                         Dismiss;
-		std::function<void(std::uint64_t)>                            GoToNote;
-		std::function<void(const QString&)>                           Link;
-		QPointer<agent_run_status_line>                               Status;
-		QPointer<agent_activity_view>                                 ActivityView;
-		QPointer<QScrollArea>                                         Scroll;
-		QPointer<markdown_body_view>                                  Answer;
-		QPointer<QPushButton>                                         KeepButton;
-		QPointer<QPushButton>                                         ContinueButton;
-		QPointer<QPushButton>                                         DismissButton;
-		std::uint64_t                                                 Serial = 0U;
+		explain_file_progress                               Shown;
+		std::uint64_t                                       Note    = 0U;
+		bool                                                Keeping = false;
+		QString                                             Refusal;
+		std::function<void(const QString&, const QString&)> Keep;
+		std::function<void(std::size_t)>                    Continue;
+		std::function<void()>                               Dismiss;
+		std::function<void(std::uint64_t)>                  GoToNote;
+		std::function<void(const QString&)>                 Link;
+		QPointer<agent_run_status_line>                     Status;
+		QPointer<agent_activity_view>                       ActivityView;
+		QPointer<QScrollArea>                               Scroll;
+		QPointer<markdown_body_view>                        Answer;
+		QPointer<QPushButton>                               KeepButton;
+		QPointer<QPushButton>                               ContinueButton;
+		QPointer<QPushButton>                               DismissButton;
+		std::uint64_t                                       Serial = 0U;
 	};
 } // namespace bpr::qt
 
