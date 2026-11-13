@@ -1282,6 +1282,15 @@ namespace bpr::adapters::sqlite::detail {
 						--s.Counts[6];
 						db.write("DELETE FROM private_draft WHERE scope_id=?1 AND id=?2", Scope, id.value());
 					}
+					// RFC-BPR-0127, Make draft: the Local comment goes as its draft comes.
+					if (aWrite.MakeDraftFrom) {
+						require(aWrite.Drafts.size() == 1U && aWrite.Drafts.front().ExpectedRevision == 0U, error::invalid_record);
+						const auto [comment, revision] = *aWrite.MakeDraftFrom;
+						const auto local               = db.local_comment(comment.value());
+						require(local.has_value() && local->Revision == revision, error::conflict);
+						require(local->Body == aWrite.Drafts.front().Record.Draft.Draft.Body, error::conflict);
+						db.write("DELETE FROM private_local_comment WHERE scope_id=?1 AND id=?2", Scope, comment.value());
+					}
 					bool admitsActive = false;
 					store_drafts(db, s, ids, aWrite.Drafts, admitsActive);
 					// A completed record remains publication evidence without consuming
@@ -1670,6 +1679,42 @@ namespace bpr::adapters::sqlite::detail {
 					}
 					db.save_state(s);
 					tx.commit();
+				});
+			}
+			auto keep_local(const private_keep_local& aKeep) -> private_store_result<local_comment_record> override
+			{
+				return guarded([&] {
+					require(valid_private_id(aKeep.Draft) && aKeep.ExpectedRevision > 0U);
+					transaction tx{ Ledger.handle() };
+					auto        db = database();
+					auto        s  = db.read_state();
+					auto        d  = read_draft(db, aKeep.Draft.value());
+					require(d.Draft.Revision == aKeep.ExpectedRevision, error::conflict);
+					// The core refused a held, publishing or published draft; the
+					// store holds the same line against a stale decision.
+					require(d.Draft.Draft.State == core::review_draft_state::drafting && !core::held_by_review(d.Draft.Draft), error::conflict);
+					require(aKeep.Comment.Body == d.Draft.Draft.Body, error::conflict);
+					auto refs = db.sql("SELECT 1 FROM private_publication WHERE scope_id=?1 AND draft_id=?2 LIMIT 1", Scope, aKeep.Draft.value());
+					require(!refs.row(), error::references_present);
+					refs.done();
+					s.Counts[9] -= record_size(db, "private_draft", aKeep.Draft.value()) + (d.Draft.Composition ? 0 : d.Draft.Draft.Body.size());
+					--s.Counts[6];
+					db.write("DELETE FROM private_draft WHERE scope_id=?1 AND id=?2", Scope, aKeep.Draft.value());
+					auto count = db.sql("SELECT COUNT(*),COALESCE(MAX(id),0),EXISTS(SELECT 1 FROM private_local_comment WHERE scope_id=?1 AND id=?2) FROM private_local_comment WHERE scope_id=?1", Scope, aKeep.Draft.value());
+					require(count.row() && static_cast<std::size_t>(count.integer(0)) < application::maximum_local_comments, error::quota);
+					const auto taken = count.integer(2) != 0;
+					const auto last  = count.integer(1);
+					count.done();
+					require(!taken || last < maximum_private_identity, error::quota);
+					require(s.NoteRevision < maximum_private_identity, error::quota);
+					auto accepted     = aKeep.Comment;
+					accepted.Id       = local_comment_id{ taken ? last + 1U : aKeep.Draft.value() };
+					accepted.Revision = local_comment_revision{ ++s.NoteRevision };
+					require(application::valid(accepted), error::invalid_record);
+					db.write_local_comment(accepted, true);
+					db.save_state(s);
+					tx.commit();
+					return accepted;
 				});
 			}
 			auto purge() -> private_store_result<void> override

@@ -177,9 +177,13 @@ namespace bpr::application {
 		std::vector<core::review_composition_revision> Candidates;
 		std::vector<private_draft_write>               Drafts;
 		/// Explicit cleanup: exact never-edited empty records, checked transactionally.
-		std::vector<core::review_draft_id>          RemoveUnusedDrafts;
-		std::vector<private_publication_record>     Publications;
-		std::vector<core::private_source_selection> SourceGuards;
+		std::vector<core::review_draft_id> RemoveUnusedDrafts;
+		/// RFC-BPR-0127, Make draft: the Local comment this write's one new
+		/// draft replaces, at its exact revision, removed in the same
+		/// transaction so the comment is never in both states or in neither.
+		std::optional<std::pair<local_comment_id, local_comment_revision>> MakeDraftFrom;
+		std::vector<private_publication_record>                            Publications;
+		std::vector<core::private_source_selection>                        SourceGuards;
 	};
 	struct private_finding_cursor
 	{
@@ -208,6 +212,19 @@ namespace bpr::application {
 	{
 		std::vector<core::agent_run_provenance> Runs;
 		std::optional<core::agent_run_id>       Next;
+	};
+	/// \brief RFC-BPR-0127, Keep local: the draft at its exact revision
+	/// becomes `Comment` in one transaction.
+	/// \details `Comment` is what `core::decide_keep_local` decided (its
+	/// identity and revision are the store's). It takes the draft's identity
+	/// when no Local comment holds it, and the next free Local identity
+	/// otherwise, so a finding card or window that followed the draft can
+	/// follow the comment by the answer.
+	struct private_keep_local
+	{
+		core::review_draft_id Draft;
+		std::uint64_t         ExpectedRevision = 0;
+		local_comment_record  Comment;
 	};
 	/// \brief One durable authority, accessed on the owning storage lane. No remote capabilities.
 	class private_review_store_port
@@ -258,6 +275,9 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto list_thread_dependents(core::private_review_thread_id, std::optional<private_dependency_cursor> aCursor = { }) -> private_store_result<private_dependency_page> = 0;
 		/// \brief Explicitly selected cleanup only; external references refuse, no cross-object cascade.
 		[[nodiscard]] virtual auto erase_local_object(private_object_reference, std::uint64_t aExpectedVersion = 0) -> private_store_result<void> = 0;
+		/// \brief RFC-BPR-0127. Keep local: removes the unsent draft, which no
+		/// publication references, and stores the Local comment, or neither.
+		[[nodiscard]] virtual auto keep_local(const private_keep_local&) -> private_store_result<local_comment_record> { return std::unexpected(private_store_failure::unavailable); }
 		/// \brief Requires producer quiescence; retains incarnation and all high waters.
 		[[nodiscard]] virtual auto purge() -> private_store_result<void> = 0;
 	};

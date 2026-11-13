@@ -404,6 +404,76 @@ namespace {
 		poisoned.SourceGuards.front().Source.Digest = private_digest("edited");
 		expect(!store->commit(poisoned) && store->frontier()->NextIdentity == before.NextIdentity, "invalid selected source refuses entire transaction with no ID consumption");
 	}
+	/// RFC-BPR-0127 ([[BPR-2158]]). Keep local and Make draft move one
+	/// comment between its two stores in one transaction, keeping its text,
+	/// place and identity; a stale or published draft moves nothing.
+	void keep_local_and_make_draft()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "private-move" };
+		auto                                 config = configuration(scratch.path());
+		auto                                 store  = open(config);
+		auto                                 ledger = make_review_ledger_store(config.Ledger);
+		expect(ledger.has_value(), "the ledger facade opens");
+		const auto index     = private_review_fixture::index();
+		auto       binding   = private_review_fixture::binding();
+		binding.Scope        = store->frontier()->Scope;
+		binding.Comparison   = index.diff().Alignment.Digest;
+		const auto anchor    = source_line_ref{ *binding.Comparison, diff_side::right, 1 };
+		const auto put_draft = [&](std::string aBody) {
+			const auto next            = store->frontier()->NextIdentity;
+			auto       draft           = private_draft_record{ binding, { { review_draft_id{ next }, anchor, std::move(aBody), review_draft_state::drafting, { } }, 1, { }, std::nullopt } };
+			auto       write           = private_store_write{ };
+			write.ExpectedNextIdentity = next;
+			write.Drafts               = { { draft, 0 } };
+			expect(store->commit(write).has_value(), "a plain draft is stored");
+			return draft;
+		};
+		const auto file = file_identity{ std::array<std::uint8_t, 32>{ 7 } };
+		const auto keep = [&](const private_draft_record& aDraft, const std::uint64_t aRevision) {
+			return store->keep_local({ .Draft = aDraft.Draft.Draft.Id, .ExpectedRevision = aRevision, .Comment = { .Attachment = local_comment_attachment{ file, *binding.Comparison, note_line_anchor{ diff_side::right, 1, std::nullopt } }, .Body = aDraft.Draft.Draft.Body } });
+		};
+
+		// Keep local: the draft goes, a Local comment with its text and the
+		// draft's identity comes; a stale revision moves nothing.
+		const auto first = put_draft("Height is not clamped here.");
+		expect(keep(first, 2).error() == private_store_failure::conflict && store->load_draft(first.Draft.Draft.Id).has_value(), "a stale revision keeps nothing local and leaves the draft");
+		auto kept = keep(first, 1);
+		expect(kept.has_value() && kept->Id.value() == first.Draft.Draft.Id.value() && kept->Body == first.Draft.Draft.Body && kept->Revision.value() > 0U, "Keep local takes the draft's identity and text");
+		expect(store->load_draft(first.Draft.Draft.Id).error() == private_store_failure::missing, "the draft is gone");
+		auto observed = (*ledger)->load_private();
+		expect(observed && observed->LocalComments.size() == 1U && observed->LocalComments.front() == *kept, "the ledger answers the kept comment");
+
+		// A second draft whose identity a Local comment already holds takes the next free one.
+		expect((*ledger)->store_local_comment({ .Id = local_comment_id{ store->frontier()->NextIdentity }, .Body = "taken" }).has_value(), "a Local comment holds the next draft identity");
+		const auto second = put_draft("Second thought.");
+		auto       moved  = keep(second, 1);
+		expect(moved.has_value() && moved->Id.value() != second.Draft.Draft.Id.value() && moved->Id.value() > second.Draft.Draft.Id.value(), "a taken identity moves the comment to the next free one");
+
+		// A published draft cannot be kept local.
+		const auto third              = put_draft("Already sent.");
+		auto       published          = third;
+		published.Draft.Revision      = 2;
+		published.Draft.Draft.State   = review_draft_state::published;
+		auto terminal                 = private_store_write{ };
+		terminal.ExpectedNextIdentity = store->frontier()->NextIdentity;
+		terminal.Drafts               = { { published, 1 } };
+		expect(store->commit(terminal).has_value(), "the draft is published");
+		expect(keep(published, 2).error() == private_store_failure::conflict && store->load_draft(third.Draft.Draft.Id).has_value(), "a published draft is not kept local");
+
+		// Make draft: the Local comment goes as its draft comes, in one write.
+		const auto next           = store->frontier()->NextIdentity;
+		auto       draft          = private_draft_record{ binding, { { review_draft_id{ next }, anchor, kept->Body, review_draft_state::drafting, { } }, 1, { }, std::nullopt } };
+		auto       make           = private_store_write{ };
+		make.ExpectedNextIdentity = next;
+		make.Drafts               = { { draft, 0 } };
+		make.MakeDraftFrom        = std::pair{ kept->Id, local_comment_revision{ kept->Revision.value() + 1U } };
+		expect(store->commit(make).error() == private_store_failure::conflict && !store->load_draft(draft.Draft.Draft.Id), "a stale Local revision makes no draft");
+		make.MakeDraftFrom = std::pair{ kept->Id, kept->Revision };
+		expect(store->commit(make).has_value(), "Make draft commits");
+		expect(store->load_draft(draft.Draft.Draft.Id) && store->load_draft(draft.Draft.Draft.Id)->Draft.Draft.Body == kept->Body, "the draft has the comment's text");
+		observed = (*ledger)->load_private();
+		expect(observed && std::ranges::none_of(observed->LocalComments, [&](const local_comment_record& aComment) { return aComment.Id == kept->Id; }), "the Local comment is gone");
+	}
 	void migration_bytes()
 	{
 		for (int version : { 5, 6 }) {
@@ -840,6 +910,7 @@ auto main() -> int
 	body_pages_and_cursors();
 	exact_copy_and_late_draft_terminal();
 	draft_lineage_and_conflicts();
+	keep_local_and_make_draft();
 	migration_bytes();
 	retained_draft_schema_migration();
 	quota_boundaries();
