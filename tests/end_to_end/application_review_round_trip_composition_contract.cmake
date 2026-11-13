@@ -3683,8 +3683,21 @@ function(bpr_verify_app_source_tree app_source_root)
 	# material and the workshop operation, and the answer goes to the window,
 	# whose core decides. No grant, credential, provider, mutation branch or
 	# publication change: the draft stays a draft.
+	# Owner (reviewed 2026-11-13, "stick with the PR view and just augment
+	# it"): RFC-BPR-0110 and 0111 in the pull request window. While a local
+	# draft shows, window_construction routes the window's own Tour panel
+	# (commands, actions, side chat, Enhance, proposals) and Overview's
+	# description Save to local_draft_desktop, which edits the draft's own
+	# record; window_tours keeps the pull request's tour out of the panel
+	# meanwhile, restores it after, and offers an empty pull request tour
+	# draft its local draft's tour once (a restore of the private draft; no
+	# publication). A created draft pull request is opened by
+	# open_review_destination under the signed-in session, as Recently viewed
+	# opens one. The author's Git runs on a worker lane of its own; a fixture
+	# hold of that lane is tests-only. main.cpp's tour look drives the panel.
+	# No grant, credential, provider, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "ea2f8777231becc9c6e80bd8cc3ac304d88c47a5ad3a8c83a6fd6efa5455725c"
+        "dd5652b7f4693924a116ae1b1ce5d94e389392d61da60d721a10b3afe762b691"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -195,14 +195,19 @@ namespace bpr::app {
 		// course composed it, and then only on MikeMarcin/BPR-Test.
 		// RFC-BPR-0111 as drawn: a draft pull request created from the window
 		// opens there, read fresh as any opened pull request is.
+		// It opens by the path Recently viewed's Open takes, under the
+		// signed-in account's exact session only.
 		DraftDesktop->set_pull_request_opener([this](const std::string& aHost, const std::string& aOwner, const std::string& aName, const std::uint64_t aNumber) {
-			if (Closing || !SetupDestination) {
+			const auto* const session = Host ? &Host->accepted_session() : nullptr;
+			if (Closing || session == nullptr || !*session || aNumber == 0U || aNumber > std::numeric_limits<std::uint32_t>::max()) {
 				return;
 			}
 			Window->leave_local_draft();
-			retire_setup_effects();
-			cancel_restoration(true);
-			SetupDestination->submit("https://" + aHost + "/" + aOwner + "/" + aName + "/pull/" + std::to_string(aNumber));
+			open_review_destination({ .Mode       = core::github_access_mode::authenticated,
+									  .Hostname   = aHost,
+									  .Repository = { .Owner = aOwner, .Name = aName },
+									  .Number     = core::pull_request_number{ static_cast<std::uint32_t>(aNumber) },
+									  .Account    = (*session)->Viewer.Account });
 		});
 		DraftDesktop->set_publishing([this]() -> std::optional<application::github_publication_account> {
 			if (Closing || !Host) {
