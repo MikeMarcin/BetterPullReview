@@ -122,6 +122,9 @@ namespace bpr::app {
 		/// push) runs on this lane of its own, so a push waiting on its hooks
 		/// or the network holds up no other work, a review submission least.
 		[[nodiscard]] auto author_git_lane() noexcept -> application::effect_executor&;
+		/// \brief RFC-BPR-0111 AC07. Create Draft PR's own lane, where a
+		/// creation waits on GitHub; null before publishing is composed.
+		[[nodiscard]] auto publication_lane() noexcept -> application::effect_executor*;
 		/// \brief Author state's host, while a draft on its own worktree shows.
 		[[nodiscard]] auto changes() noexcept -> application::local_changes_host&;
 		/// \brief An attended look's pull request opened by its author: the

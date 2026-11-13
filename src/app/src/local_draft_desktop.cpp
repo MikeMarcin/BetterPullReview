@@ -581,6 +581,11 @@ namespace bpr::app {
 		return *AuthorGitLane;
 	}
 
+	auto local_draft_desktop::publication_lane() noexcept -> application::effect_executor*
+	{
+		return PublishLane.get();
+	}
+
 	auto local_draft_desktop::changes() noexcept -> application::local_changes_host&
 	{
 		return *Changes;

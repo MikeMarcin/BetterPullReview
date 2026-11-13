@@ -245,6 +245,20 @@ try {
 	expect(submitted() == before + 1U, "RFC-BPR-0114 AC06: #18 publishes while a push holds the author's Git lane");
 	release();
 
+	// 2c. RFC-BPR-0111 AC07 ([[BPR-2029]]): a draft pull request's creation
+	// in flight. Create Draft PR runs on a lane of its own; held as a
+	// creation waiting on GitHub holds it, a review submission for another
+	// pull request still completes.
+	release = access::hold_local_draft_publication_lane(*owner);
+	expect(static_cast<bool>(release), "Create Draft PR's lane is composed");
+	ready(second, "#18's Approve is offered while a draft pull request's creation is in flight");
+	before = submitted();
+	approve_button(*window)->click();
+	pump_until([&] { return submitted() > before; }, 10'000);
+	observe(*window, "second-while-creation-held", 0);
+	expect(submitted() == before + 1U, "RFC-BPR-0111 AC07: #18 publishes while a draft pull request's creation holds its lane");
+	release();
+
 	// 3. AC03: #18's own submission cannot start. It waits, says for what,
 	// and at the bound ends not published with Retry; the summary is kept,
 	// and Retry sends it once the obstruction is gone.

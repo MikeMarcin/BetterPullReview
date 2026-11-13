@@ -2276,6 +2276,11 @@ namespace bpr::app::detail {
 		/// author's own Git runs on (a push in flight), until the returned
 		/// release runs or 30 seconds pass.
 		[[nodiscard]] static auto hold_author_git_lane(github_application& aApplication) -> std::function<void()>;
+		/// \brief RFC-BPR-0111 AC07 ([[BPR-2029]]). Holds Create Draft PR's
+		/// own lane as a creation waiting on GitHub holds it, until the
+		/// returned release runs or 30 seconds pass. Empty when the lane is
+		/// not composed.
+		[[nodiscard]] static auto hold_local_draft_publication_lane(github_application& aApplication) -> std::function<void()>;
 		[[nodiscard]] static auto hold_review_submission_lane(
 			github_application& aApplication) -> std::function<void()>;
 		/// \brief [[RFC-BPR-0105]]. Shortens the bound on waiting to start.

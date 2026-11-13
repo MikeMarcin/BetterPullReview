@@ -3703,7 +3703,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# (store_local_comment, LocalComments, Body); the same ledger calls on the
 	# same lane. No new effect, provider, grant or publication path.
 	set(bpr_expected_production_app_manifest_digest
-        "e66e7225c7590beeadc84c480fe46795caba2e481cf87f407e8f51a9304560eb"
+        "398b42d1ef73175d3140718574c57586989568c6ae7786ce23d8607fbb69a94a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
