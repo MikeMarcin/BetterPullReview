@@ -13365,22 +13365,13 @@ namespace {
 		auto* const cards = window.conversation_panel()->cards();
 		expect(drawer_writing(window), "Return opens the drawer draft");
 
-		// The privacy note: whole words, or the lock alone with the sentence.
-		auto* const privacy = cards->open_card()->findChild<QWidget*>(QStringLiteral("threadDraftPrivacy"));
-		expect(privacy != nullptr && privacy->accessibleName() == QStringLiteral("Private until you publish")
-				   && privacy->toolTip() == QStringLiteral("Only you see this draft until you publish it.")
-				   && privacy->accessibleDescription() == privacy->toolTip(),
-			   "the draft's privacy note is short, and its tooltip and description carry the sentence");
-		const auto drawn = [privacy](const int aWidth) {
-			privacy->setFixedWidth(aWidth);
-			privacy->repaint();
-			return privacy->property("wordsShown");
-		};
-		const auto words = QFontMetrics{ privacy->font() }.horizontalAdvance(privacy->accessibleName()) + 18;
-		expect(drawn(words).toBool() && !drawn(words - 1).toBool() && !drawn(40).toBool() && drawn(words + 60).toBool(),
-			   "the words are painted only when they fit whole; narrower, the lock shows alone");
-		privacy->setMinimumWidth(0);
-		privacy->setMaximumWidth(QWIDGETSIZE_MAX);
+		// RFC-BPR-0127 ([[BPR-2158]]). The state control, Local and Draft,
+		// stands where the privacy note stood; Draft is chosen for a comment.
+		auto* const stateLocal = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadStateLocal"));
+		auto* const stateDraft = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadStateDraft"));
+		expect(stateLocal != nullptr && stateDraft != nullptr && stateDraft->isChecked() && !stateLocal->isChecked() && stateLocal->toolTip() == QStringLiteral("Only on this computer")
+				   && stateLocal->accessibleName() == QStringLiteral("Local comment, only on this computer") && stateLocal->focusPolicy() == Qt::StrongFocus,
+			   "the composer's state control: Draft chosen, Local named for assistive technology and reachable by keyboard");
 		process_events();
 		save_render(window, QStringLiteral("publish-text-v002-drawer"));
 
@@ -16641,22 +16632,21 @@ namespace {
 		auto* const findings = window.findings_tab_scroll();
 		auto* const drawer   = window.conversations_drawer();
 		// [[BPR-1592]]. The agent's provisional tab follows Tour.
-		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 4
-				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Notes")
-				   && tabs->tabText(2) == QStringLiteral("Tour") && tabs->accessibleTabName(2) == QStringLiteral("Tour")
-				   && tabs->tabText(3) == QStringLiteral("Agent") && tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
+		// RFC-BPR-0127 ([[BPR-2158]]) AC01. Comments absorbs Notes: the
+		// tray's tabs are Comments, Tour and Agent.
+		expect(tabs != nullptr && drawer->isAncestorOf(tabs)
+				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->isTabVisible(0) && !tabs->isTabVisible(1)
+				   && tabs->tabText(2) == QStringLiteral("Tour") && tabs->accessibleTabName(2) == QStringLiteral("Tour") && tabs->isTabVisible(2)
+				   && tabs->tabText(3) == QStringLiteral("Agent") && tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent") && tabs->isTabVisible(3)
 				   && tabs->currentIndex() == 0 && tabs->isVisible(),
-			   "the tray's header is Comments, Notes, Tour and Agent, and it opens on Comments");
-		const auto privateHeader = [&] {
-			return tabs->tabText(1) == QStringLiteral("Notes") && tabs->accessibleTabName(1) == QStringLiteral("Notes")
-				&& tabs->tabToolTip(1) == QStringLiteral("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft.")
-				&& tabs->accessibleDescription().contains(QStringLiteral("Notes"))
-				&& window.ai_tools_action()->text() == QStringLiteral("Agent");
+			   "AC01: the tray's header is Comments, Tour and Agent, and it opens on Comments");
+		const auto notesRetired = [&] {
+			return !tabs->isTabVisible(1) && !tabs->accessibleDescription().contains(QStringLiteral("Notes")) && window.ai_tools_action()->text() == QStringLiteral("Agent");
 		};
-		expect(privateHeader(), "Notes labels, tooltip and accessible name state its private purpose");
-		tabs->setTabText(1, QStringLiteral("Findings"));
-		expect(!privateHeader(), "negative control: the obsolete Findings heading fails the Notes contract");
-		tabs->setTabText(1, QStringLiteral("Notes"));
+		expect(notesRetired(), "AC01: no Notes tab, and the tray's description names none");
+		tabs->setTabVisible(1, true);
+		expect(!notesRetired(), "negative control: a shown Notes tab fails the contract");
+		tabs->setTabVisible(1, false);
 		auto* purpose = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
 		expect(purpose != nullptr && purpose->text() == QStringLiteral("Private to you and never published. Ask an agent about this pull request, then promote what you want to say to a draft in Comments."), "the Agent tab explains privacy and promotion");
 		window.agent_panel()->offer_profiles({ });
@@ -16744,10 +16734,11 @@ namespace {
 		expect(tabs->focusPolicy() == Qt::StrongFocus && window.focus_order().contains(tabs)
 				   && window.focus_order().contains(window.next_new_comment_button()),
 			   "the tray's tabs and the Comments tab's tool are declared focus stops");
-		tabs->setCurrentIndex(1);
+		// RFC-BPR-0127: the hidden Notes tab is stepped over; Tour is next.
+		tabs->setCurrentIndex(2);
 		process_events();
 		tabs->setFocus(Qt::OtherFocusReason);
-		for (const auto& [key, expected] : { std::pair{ Qt::Key_Left, 0 }, std::pair{ Qt::Key_Right, 1 } }) {
+		for (const auto& [key, expected] : { std::pair{ Qt::Key_Left, 0 }, std::pair{ Qt::Key_Right, 2 } }) {
 			auto press = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
 			QApplication::sendEvent(tabs, &press);
 			process_events();
@@ -16845,6 +16836,9 @@ namespace {
 		// elided, clipped or drawn over.
 		const auto namesWhole = [tabs] {
 			for (auto index = 0; index < tabs->count(); ++index) {
+				if (!tabs->isTabVisible(index)) {
+					continue;
+				}
 				const auto shown   = tabs->tabText(index);
 				const auto metrics = tabs->fontMetrics();
 				auto       option  = QStyleOptionTab{ };
@@ -16915,8 +16909,8 @@ namespace {
 				const auto padding = [&](const int aIndex) {
 					return tabs->tabRect(aIndex).width() - metrics.size(Qt::TextShowMnemonic, names[aIndex]).width();
 				};
-				const auto notes = padding(1);
-				expect(std::abs(padding(2) - notes) <= 1, "Tour and Notes have the same padding" + context);
+				// RFC-BPR-0127: Notes is hidden; Tour's padding is the measure.
+				const auto notes = padding(2);
 				expect(std::abs(padding(3) - notes) <= 1 && tabs->tabIcon(3).isNull(),
 					   "at full width the Agent tab is its name alone, padded as Notes is, with no glyph" + context);
 				const auto count = withCount ? pill->sizeHint().width() + 4 : 0;
@@ -21338,9 +21332,11 @@ namespace {
 		expect(drawer->current_tab() == qt::overview_drawer_tab::agent && drawer->holder(qt::overview_drawer_tab::agent)->isAncestorOf(agent) && agent->isVisible(),
 			   "the Ask agent key opens the Agent tab on Overview");
 		expect(window.showing_overview(), "and stays on Overview");
-		// N in Overview's Notes is a note on the pull request.
-		expect(notes->new_review_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::new_note) && notes->new_line_action()->shortcuts().isEmpty(),
-			   "on Overview N writes a note on the pull request");
+		// RFC-BPR-0127 ([[BPR-2158]]). N is the window's Local comment; the
+		// retired notes panel claims no key.
+		expect(notes->new_review_action()->shortcuts().isEmpty() && notes->new_line_action()->shortcuts().isEmpty()
+				   && window.local_comment_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::new_note),
+			   "N is the window's Local comment, not the retired panel's");
 
 		// The Tour tab.
 		auto* const summary  = drawer->tour_summary();

@@ -264,7 +264,8 @@ namespace bpr::qt {
 			return result;
 		};
 		NewLineAction = action(tr("New note on the selected line"), QStringLiteral("newLineNoteAction"));
-		NewLineAction->setShortcuts(shortcut_keys(shortcut_command::new_note));
+		// RFC-BPR-0127 ([[BPR-2158]]). N is the window's Local comment now;
+		// this retired panel claims no key.
 		NewLineAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
 		NewLineAction->setToolTip(tr("New note on the selected line (N)"));
 		addAction(NewLineAction);
@@ -708,8 +709,7 @@ namespace bpr::qt {
 		PullRequestOnly = aOnly;
 		// N is one action at a time: the line's beside the code, the pull
 		// request's on Overview.
-		NewLineAction->setShortcuts(aOnly ? QList<QKeySequence>{ } : shortcut_keys(shortcut_command::new_note));
-		NewReview->setShortcuts(aOnly ? shortcut_keys(shortcut_command::new_note) : QList<QKeySequence>{ });
+		// RFC-BPR-0127. N is the window's Local comment; the panel claims no key.
 		NewReview->setToolTip(aOnly ? tr("New note on the pull request (N)") : tr("New note on the pull request"));
 		BackChip->setVisible(!aOnly);
 		if (aOnly) {

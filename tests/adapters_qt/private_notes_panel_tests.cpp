@@ -259,8 +259,10 @@ int main(int argc, char** argv)
 		selected = qt::private_note_line{ .Side = core::diff_side::right, .Line = 30U };
 		panel.refresh_geometry();
 		expect(panel.new_line_action()->isEnabled(), name + ": N is offered on a selected line");
+		// RFC-BPR-0127: N is the window's Local comment; the retired panel's
+		// action is pressed directly.
 		panel.setFocus();
-		key(&panel, Qt::Key_N);
+		panel.new_line_action()->trigger();
 		expect(panel.writing() && panel.open_card() != nullptr && panel.open_card()->geometry().top() <= 30 * 20 && panel.open_card()->geometry().bottom() >= 30 * 20 && panel.body_editor()->hasFocus(),
 			   name + ": N opens a new note at the selected line");
 		panel.body_editor()->setPlainText(QStringLiteral("Ask whether to cache the factor per frame."));
@@ -273,7 +275,7 @@ int main(int argc, char** argv)
 		selected.reset();
 		panel.refresh_geometry();
 		panel.setFocus();
-		key(&panel, Qt::Key_N);
+		panel.new_line_action()->trigger();
 		expect(!panel.writing() && panel.notice_label()->isVisible() && panel.notice_label()->text().contains(QStringLiteral("Select a line")), name + ": N without a selected line says why");
 
 		// Keyboard: Down then Return opens the first note.

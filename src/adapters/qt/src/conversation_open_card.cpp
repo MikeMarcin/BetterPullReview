@@ -3188,6 +3188,14 @@ namespace bpr::qt {
 		const auto fixed     = lock + (trash != nullptr ? trash->sizeHint().width() : 0) + 3 * DraftActions->spacing() + 2;
 		const auto needed    = fixed + Publish->sizeHint().width() + ReviewAction->sizeHint().width();
 		const auto split     = available > 0 && needed > available;
+		// RFC-BPR-0127. In a narrow drawer the state control keeps its two
+		// glyphs, the computer and the pencil; their names stay in their
+		// tooltips and for assistive technology.
+		if (StateLocal != nullptr && StateDraft != nullptr) {
+			const auto style = split ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon;
+			StateLocal->setToolButtonStyle(style);
+			StateDraft->setToolButtonStyle(style);
+		}
 		if (split == !SplitAction->isHidden()) {
 			return;
 		}
