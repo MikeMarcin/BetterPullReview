@@ -1283,11 +1283,11 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("threadPost"));
 		setProperty("postIdentity", QString::fromStdString(aPost.Id));
 		setAccessibleName(aPost.Name.isEmpty() ? shown_author(aPost.Author) : aPost.Name);
+		setAccessibleDescription(aPost.Unread ? QStringLiteral("New") : QString{ });
 		if (aPost.Local) {
 			setAccessibleDescription(comment_state_words(true, false, false));
 			setToolTip(QStringLiteral("Only on this computer"));
 		}
-		setAccessibleDescription(aPost.Unread ? QStringLiteral("New") : QString{ });
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 		// RFC-BPR-0036. The body reads through the shared Markdown reader, in
 		// place: as tall as its content, its links through the application's
@@ -2225,7 +2225,9 @@ namespace bpr::qt {
 			}
 			// [[BPR-1775]]. Edit on my own published comment: its tool and
 			// its body menu, as the core decides from the read's "Mine".
-			const auto editable = Style.CommentEditOffered && !aCard.Draft && core::comment_edit_offered(post.Id, post.Mine, false);
+			// RFC-BPR-0127. My Local comment is edited in place, only on this
+			// computer.
+			const auto editable = post.Local || (Style.CommentEditOffered && !aCard.Draft && core::comment_edit_offered(post.Id, post.Mine, false));
 			if (editable) {
 				view->set_editable(true);
 				view->EditRequested = [this, id = post.Id] {
@@ -2357,6 +2359,38 @@ namespace bpr::qt {
 			};
 			Posts.push_back(view);
 			column->addWidget(view);
+			// RFC-BPR-0127 ([[BPR-2158]]). My Local reply inside a published
+			// thread: Make draft moves it to my draft reply here, its words
+			// can be copied, or it is deleted once the window has asked.
+			if (post.Local && !aCard.Local) {
+				auto* const localRow = new QHBoxLayout{ };
+				localRow->setContentsMargins(text_left, 0, text_right, 4);
+				localRow->setSpacing(4);
+				auto* const make = new note_button{ note_button::kind::secondary, post.LocalMakeDraft.isEmpty() ? QStringLiteral("Make draft") : post.LocalMakeDraft, this };
+				make->setObjectName(QStringLiteral("threadLocalReplyMakeDraft"));
+				make->setIcon(conversation_icon(conversation_glyph::edit, palette));
+				make->setEnabled(!post.LocalMakeDraft.isEmpty());
+				make->setToolTip(post.LocalMakeDraft.isEmpty() ? post.LocalMakeDraftWhy : QStringLiteral("Make it your draft reply in this thread. Nothing is sent."));
+				make->setAccessibleDescription(make->toolTip());
+				make->set_style(Style);
+				connect(make, &QAbstractButton::clicked, this, [this, id = post.Id] { if (PostAction) { PostAction(card_action::make_draft, id); } });
+				localRow->addWidget(make);
+				auto* const copy = card_button(this);
+				copy->setObjectName(QStringLiteral("threadLocalReplyCopy"));
+				copy->setAutoRaise(true);
+				copy->setText(QStringLiteral("Copy text"));
+				copy->setToolTip(QStringLiteral("Copy the reply as written"));
+				copy->setIcon(conversation_icon(conversation_glyph::copy, palette));
+				copy->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+				copy->setFocusPolicy(Qt::StrongFocus);
+				connect(copy, &QToolButton::clicked, this, [this, id = post.Id] { if (PostAction) { PostAction(card_action::copy_local, id); } });
+				localRow->addWidget(copy);
+				localRow->addStretch(1);
+				auto* const remove = tool(this, QStringLiteral("threadLocalReplyDelete"), QStringLiteral("Delete local reply"), conversation_glyph::trash, palette);
+				connect(remove, &QToolButton::clicked, this, [this, id = post.Id] { if (PostAction) { PostAction(card_action::delete_local, id); } });
+				localRow->addWidget(remove);
+				column->addLayout(localRow);
+			}
 			first = false;
 		}
 
@@ -2624,6 +2658,40 @@ namespace bpr::qt {
 			build_enhance(*controls, enhance_surface::reply);
 			controls->addWidget(Suggestion);
 			controls->addStretch(1);
+			// RFC-BPR-0127 ([[BPR-2158]]). In a thread the state control is
+			// Local and Reply: Local keeps the reply only on this computer,
+			// inside this thread, with Save (⌘↩) in Send's place.
+			{
+				auto* const states = new QWidget{ Editor };
+				states->setObjectName(QStringLiteral("threadReplyState"));
+				states->setAccessibleName(QStringLiteral("Reply state"));
+				auto* const statesRow = new QHBoxLayout{ states };
+				statesRow->setContentsMargins(0, 0, 0, 0);
+				statesRow->setSpacing(0);
+				const auto segment = [&](const QString& aText, const conversation_glyph aGlyph, const QString& aName, const QString& aTip) {
+					auto* const button = card_button(states);
+					button->setObjectName(aName);
+					button->setCheckable(true);
+					button->setAutoRaise(false);
+					button->setText(aText);
+					button->setIcon(conversation_icon(aGlyph, palette));
+					button->setProperty("conversationGlyph", static_cast<int>(aGlyph));
+					button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+					button->setToolTip(aTip);
+					button->setAccessibleDescription(aTip);
+					button->setFocusPolicy(Qt::StrongFocus);
+					statesRow->addWidget(button);
+					return button;
+				};
+				StateLocal = segment(QStringLiteral("Local"), conversation_glyph::computer, QStringLiteral("threadReplyStateLocal"), QStringLiteral("Only on this computer"));
+				StateDraft = segment(QStringLiteral("Reply"), conversation_glyph::edit, QStringLiteral("threadReplyStateReply"), QStringLiteral("A reply you send to the thread"));
+				StateLocal->setAccessibleName(QStringLiteral("Local reply, only on this computer"));
+				StateDraft->setAccessibleName(QStringLiteral("Reply, sent to the thread"));
+				StateDraft->setChecked(true);
+				connect(StateLocal, &QToolButton::clicked, this, [this] { choose_local(true, false); });
+				connect(StateDraft, &QToolButton::clicked, this, [this] { choose_local(false, false); });
+				controls->addWidget(states);
+			}
 			auto* const cancel = new quiet_tool_button{ Editor };
 			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
 			cancel->setAutoRaise(true);
@@ -2638,6 +2706,15 @@ namespace bpr::qt {
 			Publish->set_style(Style);
 			connect(Publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_reply); } });
 			controls->addWidget(Publish);
+			SaveLocal = new note_button{ note_button::kind::primary, QStringLiteral("Save"), Editor };
+			SaveLocal->setObjectName(QStringLiteral("threadReplySaveLocal"));
+			SaveLocal->setAccessibleName(QStringLiteral("Save local reply"));
+			SaveLocal->setToolTip(QStringLiteral("Keep it only on this computer  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+			SaveLocal->setAccessibleDescription(QStringLiteral("Saves this reply only on this computer, inside this thread. It is never sent."));
+			SaveLocal->set_style(Style);
+			SaveLocal->hide();
+			connect(SaveLocal, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::save_local); } });
+			controls->addWidget(SaveLocal);
 			editor->addLayout(controls);
 			editor->addWidget(EnhancePanel);
 			ReplyStatus = new QLabel{ Editor };
@@ -3114,6 +3191,10 @@ namespace bpr::qt {
 		if (ConvertAction != nullptr && aLocal) {
 			ConvertAction->hide();
 		}
+		// In a thread: Save in Send's place.
+		if (ReviewAction == nullptr && Publish != nullptr) {
+			Publish->setVisible(!aLocal);
+		}
 		if (SaveLocal != nullptr) {
 			SaveLocal->setVisible(aLocal);
 		}
@@ -3324,6 +3405,9 @@ namespace bpr::qt {
 		if (Publish != nullptr && ReplyBox != nullptr) {
 			Publish->setEnabled(Publishable && written);
 		}
+		if (SaveLocal != nullptr && ReplyBox != nullptr && ReviewAction == nullptr) {
+			SaveLocal->setEnabled(written);
+		}
 		// [[BPR-1345]]. A review takes a comment with words; closing a
 		// pending one is always possible.
 		if (ReviewAction != nullptr && ReplyBox != nullptr) {
@@ -3391,7 +3475,8 @@ namespace bpr::qt {
 			auto* const column = new QVBoxLayout{ EditPanel };
 			column->setContentsMargins(12, 11, 12, 11);
 			column->setSpacing(7);
-			auto* const hint = new QLabel{ QStringLiteral("Markdown. Nothing is sent to GitHub until you save."), EditPanel };
+			EditPanel->setAccessibleName(aEdit->Local ? QStringLiteral("Edit your local comment") : QStringLiteral("Edit your comment"));
+			auto* const hint = new QLabel{ aEdit->Local ? QStringLiteral("Only on this computer. Never sent.") : QStringLiteral("Markdown. Nothing is sent to GitHub until you save."), EditPanel };
 			hint->setObjectName(QStringLiteral("threadCommentEditHint"));
 			hint->setWordWrap(true);
 			hint->setTextFormat(Qt::PlainText);
@@ -3434,7 +3519,7 @@ namespace bpr::qt {
 			controls->addWidget(cancel);
 			auto* const save = new note_button{ note_button::kind::primary, QStringLiteral("Save"), EditPanel };
 			save->setObjectName(QStringLiteral("threadCommentEditSave"));
-			save->setToolTip(QStringLiteral("Save your comment to GitHub  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+			save->setToolTip((aEdit->Local ? QStringLiteral("Save it only on this computer  %1") : QStringLiteral("Save your comment to GitHub  %1")).arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 			save->set_style(Style);
 			EditSaveButton = save;
 			controls->addWidget(save);

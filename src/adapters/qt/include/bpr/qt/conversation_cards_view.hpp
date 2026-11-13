@@ -165,6 +165,28 @@ namespace bpr::qt {
 		compose_draft,
 		/// RFC-BPR-0127. Save the composer's words as a Local comment (⌘↩).
 		save_local,
+		/// RFC-BPR-0127. My Local comment on another file: the window goes to
+		/// the file, then the line, and opens it there.
+		open_local_elsewhere,
+		/// RFC-BPR-0127. My Local comment's words, edited in place, saved
+		/// only on this computer.
+		edit_local,
+	};
+
+	/// \brief RFC-BPR-0127 ("Where a Local comment can be"). Where the
+	/// window found my Local comment against the comparison shown.
+	enum class local_comment_place : std::uint8_t {
+		/// At its line (or range) in the shown comparison.
+		line,
+		/// Its line is not in the shown comparison: why is in `Notice`.
+		outdated,
+		/// On this file as a whole: the file's edge chip.
+		whole_file,
+		/// On the pull request: the pull request chip, and Overview's
+		/// Comments tab.
+		pull_request,
+		/// On another file: the "Other files" chip.
+		other_file,
 	};
 
 	/// \brief RFC-BPR-0127 ([[BPR-2158]]). One of my Local comments, as the
@@ -191,6 +213,10 @@ namespace bpr::qt {
 		/// N", or empty when it is not offered; and why not.
 		QString MakeDraft;
 		QString MakeDraftWhy;
+		/// Where it stands, and for another file its path and one-based line.
+		local_comment_place          Place = local_comment_place::line;
+		QString                      Path;
+		std::optional<std::uint32_t> PathLine;
 
 		auto operator==(const local_comment_card&) const -> bool = default;
 	};
@@ -277,6 +303,10 @@ namespace bpr::qt {
 		/// RFC-BPR-0127. My Local reply inside the thread, after its
 		/// published posts: only on this computer.
 		bool Local = false;
+		/// RFC-BPR-0127. What Make draft is offered as on my Local reply,
+		/// or empty with why not.
+		QString LocalMakeDraft;
+		QString LocalMakeDraftWhy;
 		/// Newer than my cursor, as the ledger decided ([[BPR-0656]]).
 		bool Unread = false;
 		/// "author" for the pull request's author, "reviewer" otherwise.
@@ -611,6 +641,9 @@ namespace bpr::qt {
 		QString     Status;
 		bool        Saving = false;
 		bool        Newer  = false;
+		/// RFC-BPR-0127. My Local comment, edited in place: saved only on
+		/// this computer, never sent.
+		bool Local = false;
 
 		auto operator==(const comment_edit_presentation&) const -> bool = default;
 	};
@@ -713,6 +746,17 @@ namespace bpr::qt {
 		/// the comment a card identity names.
 		[[nodiscard]] static auto local_comment_identity(std::uint64_t aId) -> std::string;
 		[[nodiscard]] static auto local_comment_of(const std::string& aIdentity) -> std::optional<std::uint64_t>;
+		/// \brief RFC-BPR-0127 ("Where a Local comment can be"). The edge
+		/// chips for my Local comments on this whole file and on other files,
+		/// which the window places beside the pull request link. Each counts
+		/// them beside the computer; hidden with none.
+		[[nodiscard]] auto local_file_chip() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto local_elsewhere_chip() const noexcept -> QAbstractButton*;
+		/// \brief The menu the Other files chip opens, while it is open.
+		[[nodiscard]] auto local_elsewhere_menu() const noexcept -> QMenu*;
+		/// \brief RFC-BPR-0127. Told when Save is pressed on my Local
+		/// comment edited in place: its identity, its revision and the words.
+		void set_local_edit_dispatch(std::function<void(std::uint64_t, std::uint64_t, const std::string&)> aDispatch);
 		/// \brief [[BPR-1733]]. The identity of a moved suggestion's note.
 		[[nodiscard]] static auto moved_suggestion_identity(core::review_draft_id aDraft) -> std::string;
 		/// \brief [[BPR-1733]]. What a moved suggestion's note says about where
@@ -1160,6 +1204,12 @@ namespace bpr::qt {
 		std::vector<core::reply_draft_decision>                                              UnsentReplies;
 		std::vector<moved_suggestion_card>                                                   MovedSuggestions;
 		std::vector<local_comment_card>                                                      LocalComments;
+		QAbstractButton*                                                                     LocalFileChip      = nullptr;
+		QAbstractButton*                                                                     LocalElsewhereChip = nullptr;
+		QPointer<QMenu>                                                                      LocalElsewhereMenu;
+		std::function<void(std::uint64_t, std::uint64_t, const std::string&)>                LocalEditDispatch;
+		void                                                                                 sync_local_chips();
+		void                                                                                 open_local_elsewhere_menu();
 		std::optional<core::file_comparison_digest>                                          CurrentComparison;
 		card_line_locator                                                                    Locator;
 		card_thread_dispatch                                                                 ThreadDispatch;

@@ -211,6 +211,10 @@ namespace bpr::qt {
 		std::string                          Body;
 		std::optional<core::source_line_ref> Anchor;
 		std::optional<std::uint32_t>         StartLine;
+		/// The thread the composer's reply answers.
+		std::optional<std::string> ReplyToThread;
+		/// For an edit in place: the Local comment's revision it began from.
+		std::optional<std::uint64_t> Revision;
 	};
 	using workbench_comment_state_dispatch = std::function<void(const comment_state_gesture&)>;
 	/// [[BPR-0657]]. A card's Resolve or Unresolve, with what the window knows
@@ -841,6 +845,9 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0127. Closes the drawer's composer after its words
 		/// were saved as a Local comment.
 		void close_drawer_composer(bool aDiscard);
+		/// \brief RFC-BPR-0127. My Local comment's edit in place was refused:
+		/// why, and its words are kept in the editor.
+		void refuse_local_edit(const QString& aWhy);
 		/// \brief RFC-BPR-0116 ([[BPR-2074]]). A thread's Was this addressed?,
 		/// on the threads named here.
 		void set_conversation_addressed_dispatch(std::function<void(const std::string&)> aDispatch);
@@ -3095,6 +3102,10 @@ namespace bpr::qt {
 		void open_private_note_elsewhere(const private_note_item& aNote);
 		/// [[BPR-1592]]. Opens a note waiting for its file once it shows.
 		void     resume_private_note_open();
+		/// RFC-BPR-0127. Delete on my Local comment, once asked.
+		void                      confirm_delete_local(const std::string& aIdentity);
+		QPointer<destructive_question> DeleteLocalConfirmation;
+		void                      open_local_elsewhere(const std::string& aIdentity);
 		QWidget* TrayCommentsCount = nullptr;
 
 		/// The Home button is the way back to the review behind Home.

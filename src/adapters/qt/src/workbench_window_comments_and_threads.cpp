@@ -9,6 +9,7 @@
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -122,12 +123,10 @@ namespace bpr::qt {
 		resume_conversation_pick();
 		resume_pending_comment_pick();
 		// [[BPR-1592]]. The notes follow the code as the threads do.
-		if (PrivateNotes != nullptr) {
-			if (PrivateNotes->isVisible()) {
-				PrivateNotes->refresh_geometry();
-			}
-			resume_private_note_open();
+		if (PrivateNotes != nullptr && PrivateNotes->isVisible()) {
+			PrivateNotes->refresh_geometry();
 		}
+		resume_private_note_open();
 	}
 
 	void workbench_window::present_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
@@ -719,16 +718,22 @@ namespace bpr::qt {
 
 	void workbench_window::resume_private_note_open()
 	{
-		if (!PendingNoteOpen || PrivateNotes == nullptr) {
+		if (!PendingNoteOpen || ConversationPanel == nullptr) {
 			return;
 		}
-		const auto place = PrivateNotes->placement(*PendingNoteOpen);
-		if (place.Kind == core::note_placement_kind::other_file) {
+		// RFC-BPR-0127. It opens once the composition has placed it in the
+		// file now shown: at its line, or after the placed cards.
+		const auto& comments = ConversationPanel->cards()->local_comments();
+		const auto  found    = std::ranges::find(comments, *PendingNoteOpen, &local_comment_card::Id);
+		if (found == comments.end() || found->Place == local_comment_place::other_file) {
 			return;
 		}
 		const auto id = *PendingNoteOpen;
 		PendingNoteOpen.reset();
 		show_private_note(id);
+		if (found->Line.has_value() && ComparisonSurface != nullptr) {
+			static_cast<void>(ComparisonSurface->reveal_conversation_line(found->Side, *found->Line - 1U));
+		}
 	}
 
 	void workbench_window::go_to_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
@@ -1908,11 +1913,85 @@ namespace bpr::qt {
 		}
 		ConversationPanel->cards()->set_local_comments(std::move(aComments));
 		apply_thread_marks();
+		resume_private_note_open();
 	}
 
 	void workbench_window::close_drawer_composer(const bool aDiscard)
 	{
 		leave_drawer_draft(aDiscard);
+	}
+
+	void workbench_window::refuse_local_edit(const QString& aWhy)
+	{
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->cards()->present_comment_edit_status(aWhy, false);
+		}
+		refuse_comment_state(aWhy);
+	}
+
+	void workbench_window::confirm_delete_local(const std::string& aIdentity)
+	{
+		const auto local = conversation_cards_view::local_comment_of(aIdentity);
+		if (!local.has_value() || ConversationPanel == nullptr) {
+			return;
+		}
+		const auto& comments = ConversationPanel->cards()->local_comments();
+		const auto  found    = std::ranges::find(comments, *local, &local_comment_card::Id);
+		if (found == comments.end()) {
+			return;
+		}
+		if (DeleteLocalConfirmation != nullptr) {
+			DeleteLocalConfirmation->close();
+		}
+		// RFC-BPR-0127. Asked once, as a kept reply's discard is: it is only
+		// on this computer, so nothing else has these words.
+		auto* const box = new destructive_question{ *this, QStringLiteral("deleteLocalConfirmation"), found->ReplyToThread ? tr("Delete this local reply?") : tr("Delete this local comment?"),
+													tr("It is only on this computer, so nothing else has these words. This cannot be undone."), tr("Delete") };
+		if (found->Line.has_value()) {
+			const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+			const auto path    = context.has_value() ? path_of(context->Key.File) : QString{ };
+			box->set_subject(path.section(QLatin1Char{ '/' }, -1), comment_lines(found->Side, *found->Line - 1U, found->FirstLine ? std::optional{ *found->FirstLine - 1U } : std::nullopt),
+							 found->Body.toStdString(), aIdentity, label_marks(), ConversationPanel->cards()->code_font());
+		} else {
+			box->set_subject(found->Path.section(QLatin1Char{ '/' }, -1), QString{ }, found->Body.toStdString(), aIdentity, label_marks(), ConversationPanel->cards()->code_font());
+		}
+		DeleteLocalConfirmation = box;
+		connect(box, &QDialog::accepted, this, [this, id = *local, aIdentity] {
+			auto gesture     = comment_state_gesture{ };
+			gesture.Action   = card_action::delete_local;
+			gesture.Identity = aIdentity;
+			gesture.Local    = id;
+			if (CommentStateDispatch) {
+				CommentStateDispatch(gesture);
+			}
+		});
+		box->open();
+	}
+
+	void workbench_window::open_local_elsewhere(const std::string& aIdentity)
+	{
+		const auto local = conversation_cards_view::local_comment_of(aIdentity);
+		if (!local.has_value() || ConversationPanel == nullptr) {
+			return;
+		}
+		const auto& comments = ConversationPanel->cards()->local_comments();
+		const auto  found    = std::ranges::find(comments, *local, &local_comment_card::Id);
+		if (found == comments.end()) {
+			return;
+		}
+		// RFC-BPR-0127 ("Where a Local comment can be"). Another file's
+		// comment: its file, then its line, where it opens.
+		const auto file = file_for_path(found->Path);
+		if (!file) {
+			statusBar()->showMessage(tr("That comment's file is not in this pull request now."), 6000);
+			return;
+		}
+		PendingNoteOpen = *local;
+		choose_home(false);
+		choose_modality(review_modality::review);
+		if (Dispatch) {
+			Dispatch(core::select_workbench_file_intent{ .File = *file });
+		}
 	}
 
 	void workbench_window::refuse_comment_state(const QString& aWhy)
@@ -1930,6 +2009,14 @@ namespace bpr::qt {
 		gesture.Identity = aIdentity;
 		if (const auto local = conversation_cards_view::local_comment_of(aIdentity); local.has_value()) {
 			gesture.Local = local;
+			if (aAction == card_action::delete_local) {
+				confirm_delete_local(aIdentity);
+				return;
+			}
+			if (aAction == card_action::open_local_elsewhere) {
+				open_local_elsewhere(aIdentity);
+				return;
+			}
 			if (aAction == card_action::copy_local) {
 				const auto& comments = ConversationPanel->cards()->local_comments();
 				const auto  found    = std::ranges::find(comments, *local, &local_comment_card::Id);
@@ -1953,10 +2040,11 @@ namespace bpr::qt {
 			}
 		}
 		if (aAction == card_action::save_local && ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()) {
-			gesture.Draft     = ReviewEditor->shown_draft()->Id;
-			gesture.Body      = ReviewEditor->body_editor()->toPlainText().toStdString();
-			gesture.Anchor    = ReviewEditor->shown_draft()->Anchor;
-			gesture.StartLine = ReviewEditor->shown_draft()->StartLine;
+			gesture.Draft         = ReviewEditor->shown_draft()->Id;
+			gesture.Body          = ReviewEditor->body_editor()->toPlainText().toStdString();
+			gesture.Anchor        = ReviewEditor->shown_draft()->Anchor;
+			gesture.StartLine     = ReviewEditor->shown_draft()->StartLine;
+			gesture.ReplyToThread = ReviewEditor->shown_draft()->ReplyToThread;
 		}
 		if (CommentStateDispatch) {
 			CommentStateDispatch(gesture);

@@ -726,6 +726,8 @@ namespace bpr::qt {
 				case card_action::delete_local:
 				case card_action::copy_local:
 				case card_action::save_local:
+				case card_action::open_local_elsewhere:
+				case card_action::edit_local:
 					// RFC-BPR-0127 ([[BPR-2158]]). The composition moves it.
 					dispatch_comment_state(aAction, aIdentity);
 					break;
@@ -1708,6 +1710,11 @@ namespace bpr::qt {
 		// [[BPR-1887]]. Navigation belongs with the tools, outside the
 		// viewport where a note can hang from any code line.
 		commentsToolsRow->addWidget(ConversationPanel->cards()->pull_request_comments_chip(), 0, Qt::AlignVCenter);
+		// RFC-BPR-0127 ("Where a Local comment can be"). Beside it, my Local
+		// comments on this whole file and on other files, each when there are
+		// any.
+		commentsToolsRow->addWidget(ConversationPanel->cards()->local_file_chip(), 0, Qt::AlignVCenter);
+		commentsToolsRow->addWidget(ConversationPanel->cards()->local_elsewhere_chip(), 0, Qt::AlignVCenter);
 		commentsToolsRow->addSpacing(4);
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
@@ -1823,6 +1830,19 @@ namespace bpr::qt {
 			});
 		}
 		ConversationPanel->cards()->set_pull_request_link_dispatch([this](const std::string& aIdentity) { open_pull_request_conversation(aIdentity); });
+		// RFC-BPR-0127. My Local comment edited in place: saved only on this
+		// computer, by the composition, at the revision editing began from.
+		ConversationPanel->cards()->set_local_edit_dispatch([this](const std::uint64_t aId, const std::uint64_t aRevision, const std::string& aBody) {
+			auto gesture     = comment_state_gesture{ };
+			gesture.Action   = card_action::edit_local;
+			gesture.Identity = conversation_cards_view::local_comment_identity(aId);
+			gesture.Local    = aId;
+			gesture.Revision = aRevision;
+			gesture.Body     = aBody;
+			if (CommentStateDispatch) {
+				CommentStateDispatch(gesture);
+			}
+		});
 		// [[BPR-1781]]. The new comment goes the way a reply does: a private
 		// draft first, posted only by its Send, by the composition.
 		ConversationPanel->set_new_comment_dispatch([this](const core::conversation_reply_action aAction, const QString& aText) {

@@ -110,9 +110,16 @@ namespace bpr::qt {
 			bool         Face = true;
 			/// [[BPR-1781]]. A quiet link: no pill until hovered or focused.
 			bool Link = false;
+			/// RFC-BPR-0127. My Local comments it leads to, counted beside
+			/// the computer.
+			std::size_t Locals = 0U;
+			[[nodiscard]] auto locals_width() const -> int
+			{
+				return Locals > 0U ? 6 + 12 + 3 + QFontMetrics{ font() }.horizontalAdvance(QString::number(Locals)) + 6 : 0;
+			}
 			auto sizeHint() const -> QSize override
 			{
-				return { QFontMetrics{ font() }.horizontalAdvance(text()) + (Face ? 28 : 18) + (New > 0U ? 24 : 0), chip_height };
+				return { QFontMetrics{ font() }.horizontalAdvance(text()) + (Face ? 28 : 18) + (New > 0U ? 24 : 0) + locals_width(), chip_height };
 			}
 
 		protected:
@@ -131,7 +138,19 @@ namespace bpr::qt {
 				}
 				const auto left = Face ? 24 : 9;
 				painter.setPen(Colours.Ink2);
-				painter.drawText(QRect{ left, 0, width() - left - (New > 0U ? 24 : 0), height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+				painter.drawText(QRect{ left, 0, width() - left - (New > 0U ? 24 : 0) - locals_width(), height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+				// RFC-BPR-0127. The computer and how many Local comments,
+				// in a small outlined pill of their own.
+				if (Locals > 0U) {
+					const auto right = width() - (New > 0U ? 24 : 0) - 4;
+					const auto pill  = QRectF{ static_cast<qreal>(right - locals_width() + 6), 3.5, static_cast<qreal>(locals_width() - 6), height() - 7.0 };
+					painter.setPen(QPen{ Colours.Rule2, 1.0 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+					paint_conversation_glyph(painter, QRectF{ pill.left() + 4.0, (height() - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::computer, Colours.Ink2);
+					painter.setPen(Colours.Ink2);
+					painter.drawText(QRectF{ pill.left() + 19.0, 0.0, pill.width() - 19.0, static_cast<qreal>(height()) }, Qt::AlignLeft | Qt::AlignVCenter, QString::number(Locals));
+				}
 				if (New > 0U) {
 					const auto badge = QRectF{ static_cast<qreal>(width() - 22), 3.0, 18.0, 16.0 };
 					painter.setPen(Qt::NoPen);
@@ -582,6 +601,29 @@ namespace bpr::qt {
 			}
 		});
 		PullRequestChip->hide();
+		// RFC-BPR-0127 ("Where a Local comment can be"). My Local comments
+		// on this whole file and on other files have no line here: each set
+		// is a quiet chip beside the pull request link, its count beside the
+		// computer. This file's opens its first; Other files lists them.
+		const auto localChip = [this](const QString& aName, const QString& aText) {
+			auto* const chip = new pull_request_chip{ viewport() };
+			chip->setObjectName(aName);
+			chip->Face = false;
+			chip->Link = true;
+			chip->setText(aText);
+			chip->setAttribute(Qt::WA_Hover);
+			chip->hide();
+			return chip;
+		};
+		LocalFileChip      = localChip(QStringLiteral("localFileCommentsChip"), tr("This file"));
+		LocalElsewhereChip = localChip(QStringLiteral("localElsewhereCommentsChip"), tr("Other files"));
+		connect(LocalFileChip, &QAbstractButton::clicked, this, [this] {
+			const auto first = std::ranges::find(LocalComments, local_comment_place::whole_file, &local_comment_card::Place);
+			if (first != LocalComments.end()) {
+				open_thread(local_comment_identity(first->Id));
+			}
+		});
+		connect(LocalElsewhereChip, &QAbstractButton::clicked, this, [this] { open_local_elsewhere_menu(); });
 		connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) {
 			place_open_card();
 			sync_edges();
@@ -1086,6 +1128,16 @@ namespace bpr::qt {
 			}
 		}
 		LocalComments = std::move(aComments);
+		// RFC-BPR-0127. A Local comment saved, changed elsewhere or gone ends
+		// its edit in place.
+		if (CommentEdit.has_value()) {
+			if (const auto local = local_comment_of(CommentEdit->Post); local.has_value()) {
+				const auto comment = std::ranges::find(LocalComments, *local, &local_comment_card::Id);
+				if (comment == LocalComments.end() || comment->Body.toStdString() != CommentEdit->Original) {
+					CommentEdit.reset();
+				}
+			}
+		}
 		relayout();
 	}
 
@@ -1340,6 +1392,10 @@ namespace bpr::qt {
 
 	auto conversation_cards_view::comment_editable(const std::string_view aPost) const -> bool
 	{
+		// RFC-BPR-0127. My Local comment is always mine to edit, here.
+		if (const auto local = local_comment_of(std::string{ aPost }); local.has_value()) {
+			return std::ranges::contains(LocalComments, *local, &local_comment_card::Id);
+		}
 		if (!CommentEditOffered) {
 			return false;
 		}
@@ -1369,15 +1425,21 @@ namespace bpr::qt {
 			return false;
 		}
 		const auto holder = std::ranges::find_if(Cards, [&aPost](const thread_card& aCard) {
-			return !aCard.Draft && std::ranges::any_of(aCard.Posts, [&aPost](const card_post& aCardPost) { return aCardPost.Id == aPost; });
+			return (!aCard.Draft || aCard.Local) && std::ranges::any_of(aCard.Posts, [&aPost](const card_post& aCardPost) { return aCardPost.Id == aPost; });
 		});
 		if (holder == Cards.end()) {
 			return false;
 		}
-		// [[BPR-1775]]. GitHub's exact body as the read gave it, never the
-		// prose the card shows: a save is compared with what GitHub has.
-		const auto node = std::ranges::find_if(Retained, [&aPost](const auto& aNode) { return aNode.Id == aPost; });
-		CommentEdit     = comment_edit_session{ .Post = aPost, .Original = node->Body, .Text = node->Body };
+		if (const auto local = local_comment_of(aPost); local.has_value()) {
+			const auto comment = std::ranges::find(LocalComments, *local, &local_comment_card::Id);
+			const auto body    = comment->Body.toStdString();
+			CommentEdit        = comment_edit_session{ .Post = aPost, .Original = body, .Text = body };
+		} else {
+			// [[BPR-1775]]. GitHub's exact body as the read gave it, never the
+			// prose the card shows: a save is compared with what GitHub has.
+			const auto node = std::ranges::find_if(Retained, [&aPost](const auto& aNode) { return aNode.Id == aPost; });
+			CommentEdit     = comment_edit_session{ .Post = aPost, .Original = node->Body, .Text = node->Body };
+		}
 		if (Open != holder->Id) {
 			open_thread(holder->Id);
 		}
@@ -1467,12 +1529,30 @@ namespace bpr::qt {
 			.Status = CommentEdit->Status,
 			.Saving = CommentEdit->Saving,
 			.Newer  = CommentEdit->Newer.has_value(),
+			.Local  = local_comment_of(CommentEdit->Post).has_value(),
 		});
 	}
 
 	void conversation_cards_view::save_comment_edit()
 	{
 		if (!CommentEdit.has_value() || CommentEdit->Saving) {
+			return;
+		}
+		// RFC-BPR-0127. My Local comment is saved only on this computer, at
+		// the revision editing began from; the window's answer ends the edit.
+		if (const auto local = local_comment_of(CommentEdit->Post); local.has_value()) {
+			const auto comment = std::ranges::find(LocalComments, *local, &local_comment_card::Id);
+			if (comment == LocalComments.end() || !LocalEditDispatch) {
+				return;
+			}
+			if (CommentEdit->Text == CommentEdit->Original) {
+				close_comment_edit();
+				return;
+			}
+			CommentEdit->Saving = true;
+			present_comment_edit();
+			const auto dispatch = LocalEditDispatch;
+			dispatch(comment->Id, comment->Revision, CommentEdit->Text);
 			return;
 		}
 		const auto dispatch = CommentEditDispatch;
@@ -2213,8 +2293,85 @@ namespace bpr::qt {
 	auto conversation_cards_view::pull_request_comments_shown() const noexcept -> bool { return PullRequestComments; }
 	auto conversation_cards_view::timeline_summary() const noexcept -> const core::timeline_filter_summary& { return TimelineSummary; }
 	auto conversation_cards_view::pull_request_comments_chip() const noexcept -> QAbstractButton* { return PullRequestChip; }
+	auto conversation_cards_view::local_file_chip() const noexcept -> QAbstractButton* { return LocalFileChip; }
+	auto conversation_cards_view::local_elsewhere_chip() const noexcept -> QAbstractButton* { return LocalElsewhereChip; }
+	auto conversation_cards_view::local_elsewhere_menu() const noexcept -> QMenu* { return LocalElsewhereMenu.data(); }
+
+	void conversation_cards_view::set_local_edit_dispatch(std::function<void(std::uint64_t, std::uint64_t, const std::string&)> aDispatch)
+	{
+		LocalEditDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::sync_local_chips()
+	{
+		if (LocalFileChip == nullptr || LocalElsewhereChip == nullptr) {
+			return;
+		}
+		const auto colours = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
+		const auto count   = [this](const local_comment_place aPlace) {
+			return static_cast<std::size_t>(std::ranges::count(LocalComments, aPlace, &local_comment_card::Place));
+		};
+		const auto plural = [](const std::size_t aCount) { return aCount == 1U ? tr("1 local comment") : tr("%1 local comments").arg(aCount); };
+		const auto shown  = isVisible() && !Feed && !PullRequestComments && Scope == cards_scope::this_file;
+		const auto sync   = [&](QAbstractButton* const aButton, const std::size_t aCount, const QString& aName, const QString& aTip) {
+			auto* const chip     = static_cast<pull_request_chip*>(aButton);
+			chip->Colours        = colours;
+			const auto changed   = chip->Locals != aCount;
+			chip->Locals         = aCount;
+			const auto name      = QStringLiteral("%1: %2, only on this computer").arg(aName, plural(aCount));
+			if (chip->accessibleName() != name) {
+				chip->setAccessibleName(name);
+			}
+			chip->setToolTip(aTip);
+			chip->setAccessibleDescription(aTip);
+			if (changed) {
+				chip->updateGeometry();
+			}
+			if (chip->parentWidget() == viewport()) {
+				chip->setGeometry(note_margin, 5, std::min(viewport()->width() - 2 * note_margin, chip->sizeHint().width()), chip_height);
+			}
+			chip->setVisible(shown && aCount > 0U);
+			chip->update();
+		};
+		sync(LocalFileChip, count(local_comment_place::whole_file), tr("This file"), tr("Your local comments on this whole file, not on a line"));
+		sync(LocalElsewhereChip, count(local_comment_place::other_file), tr("Other files"), tr("Your local comments on other files. Choose one to go to its file and line"));
+	}
+
+	void conversation_cards_view::open_local_elsewhere_menu()
+	{
+		if (LocalElsewhereChip == nullptr) {
+			return;
+		}
+		if (LocalElsewhereMenu != nullptr) {
+			LocalElsewhereMenu->close();
+		}
+		auto* const menu = new QMenu{ this };
+		menu->setObjectName(QStringLiteral("localElsewhereMenu"));
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		menu->setAccessibleName(tr("Your local comments on other files"));
+		for (const auto& comment : LocalComments) {
+			if (comment.Place != local_comment_place::other_file) {
+				continue;
+			}
+			auto words = comment.Body.simplified();
+			words.replace(QLatin1Char{ '`' }, QString{ });
+			const auto where  = comment.PathLine ? QStringLiteral("%1:%2").arg(comment.Path).arg(*comment.PathLine) : comment.Path;
+			auto* const entry = menu->addAction(QStringLiteral("%1  %2").arg(where, words.size() > 48 ? words.left(48) + QChar{ 0x2026 } : words));
+			entry->setIcon(conversation_icon(conversation_glyph::computer, palette()));
+			entry->setToolTip(tr("Go to %1").arg(where));
+			connect(entry, &QAction::triggered, this, [this, id = comment.Id] {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::open_local_elsewhere, local_comment_identity(id));
+				}
+			});
+		}
+		LocalElsewhereMenu = menu;
+		menu->popup(LocalElsewhereChip->mapToGlobal(QPoint{ 0, LocalElsewhereChip->height() }));
+	}
+
 	void conversation_cards_view::sync_pull_request_edge()
 	{
+		sync_local_chips();
 		// [[BPR-1779]]. The chip counts the conversation's comments, as the
 		// Pull request view lists them: every comment, review body and thread
 		// a review carried, and no review.
@@ -2242,8 +2399,16 @@ namespace bpr::qt {
 		// [[BPR-1781]]. One quiet link to Overview's Comments tab, offered
 		// whether or not the conversation has comments yet (a new one is
 		// written there); its new comments are counted on it.
+		// RFC-BPR-0127. My Local comments on the pull request are counted
+		// beside the computer; they are on Overview's Comments tab.
+		const auto locals = static_cast<std::size_t>(std::ranges::count(LocalComments, local_comment_place::pull_request, &local_comment_card::Place));
+		if (chip->Locals != locals) {
+			chip->Locals = locals;
+			chip->updateGeometry();
+		}
+		const auto localWords = locals == 0U ? QString{ } : locals == 1U ? tr(", 1 local comment") : tr(", %1 local comments").arg(locals);
 		chip->setText(tr("Pull request conversation"));
-		chip->setAccessibleName(unread > 0U ? tr("Pull request conversation: %1 comments, %2 new").arg(count).arg(unread) : tr("Pull request conversation: %1 comments").arg(count));
+		chip->setAccessibleName((unread > 0U ? tr("Pull request conversation: %1 comments, %2 new").arg(count).arg(unread) : tr("Pull request conversation: %1 comments").arg(count)) + localWords);
 		chip->setAccessibleDescription(tr("Opens the pull request's comments and reviews on Overview's Comments tab"));
 		chip->setToolTip(tr("The pull request's comments and reviews, on Overview"));
 		// [[BPR-1887]]. The composed window places this link in its toolbar.
@@ -2426,6 +2591,17 @@ namespace bpr::qt {
 			previous  = row.Review;
 			afterHead = false;
 			first     = false;
+		}
+		// RFC-BPR-0127. My Local comments on the pull request follow the
+		// conversation, a unit apart: they are not in its time order.
+		for (auto& card : Cards) {
+			if (!card.Local) {
+				continue;
+			}
+			const auto top = bottom + (first ? 0 : unitGap);
+			card.Rect.moveTop(top);
+			bottom = card.Rect.bottom();
+			first  = false;
 		}
 		ContentHeight = bottom + note_margin;
 		set_scroll_range();
@@ -2850,7 +3026,13 @@ namespace bpr::qt {
 		// own card in the line's group, after the published threads and
 		// before my draft; one this comparison does not place after the
 		// placed cards, saying why. Never at a line it was not written on.
-		for (const auto& local : PullRequestComments ? std::vector<local_comment_card>{ } : LocalComments) {
+		for (const auto& local : LocalComments) {
+			// On Overview's Comments tab, only those on the pull request;
+			// beside the code, never those (their chip counts them) nor those
+			// on other files (theirs does).
+			if (PullRequestComments != (local.Place == local_comment_place::pull_request) || (!PullRequestComments && local.Place == local_comment_place::other_file)) {
+				continue;
+			}
 			const auto mark = feedback_body_mark_of(local.Body.toStdString());
 			auto       post = card_post{
 				.Id           = local_comment_identity(local.Id),
@@ -2863,6 +3045,8 @@ namespace bpr::qt {
 				.Name         = feedback_post_name(local.ReplyToThread ? QStringLiteral("Your local reply") : QStringLiteral("Your local comment"), mark),
 				.HeaderLength = mark.Label.has_value() ? header_length_of(local.Body.toStdString()) : 0,
 			};
+			post.LocalMakeDraft    = local.MakeDraft;
+			post.LocalMakeDraftWhy = local.MakeDraftWhy;
 			if (local.ReplyToThread) {
 				const auto thread = std::ranges::find(Cards, "review-thread:" + *local.ReplyToThread, &thread_card::Id);
 				if (thread != Cards.end()) {
@@ -2872,8 +3056,9 @@ namespace bpr::qt {
 					continue;
 				}
 			}
-			const auto placed = Scope == cards_scope::this_file && CurrentComparison.has_value() && local.Comparison == CurrentComparison && local.Line.has_value();
-			if (!placed && local.Notice.isEmpty()) {
+			const auto placed = local.Place == local_comment_place::line && Scope == cards_scope::this_file && CurrentComparison.has_value() && local.Comparison == CurrentComparison && local.Line.has_value();
+			const auto wholeFile = local.Place == local_comment_place::whole_file;
+			if (!placed && !PullRequestComments && (wholeFile ? Scope != cards_scope::this_file : local.Notice.isEmpty())) {
 				continue;
 			}
 			auto card         = thread_card{ };
@@ -2889,8 +3074,16 @@ namespace bpr::qt {
 				if (local.FirstLine && local.Line && *local.FirstLine < *local.Line) {
 					card.FirstLine = local.FirstLine;
 				}
+			} else if (PullRequestComments) {
+				// In time order, after the conversation: mine, never sent.
+				card.Notice        = tr("On the pull request. Only on this computer.");
+				card.TimelineOrder = std::numeric_limits<std::size_t>::max();
 			} else {
+				// After the placed cards: outdated, or on the whole file.
 				card.Outdated = true;
+				if (wholeFile) {
+					card.Notice = tr("On this whole file, not on a line.");
+				}
 			}
 			card.Posts.push_back(std::move(post));
 			Cards.push_back(std::move(card));
@@ -3161,6 +3354,20 @@ namespace bpr::qt {
 				}
 				setFocus(Qt::OtherFocusReason);
 				return;
+			case card_action::save_local:
+				// RFC-BPR-0127. A Local reply saved from the thread's reply
+				// field leaves the field as Send does.
+				if (ActionDispatch) {
+					ActionDispatch(card_action::save_local, id);
+				}
+				if (id != draft_card_id && !Replying.empty()) {
+					Replying.clear();
+					if (OpenCard != nullptr) {
+						OpenCard->set_replying(false);
+					}
+					setFocus(Qt::OtherFocusReason);
+				}
+				return;
 			case card_action::publish_reply:
 				if (ActionDispatch) {
 					ActionDispatch(card_action::publish_reply, id);
@@ -3181,6 +3388,11 @@ namespace bpr::qt {
 					ActionDispatch(aAction, id);
 				}
 				return;
+			}
+		};
+		OpenCard->PostAction = [this](const card_action aAction, const std::string& aPost) {
+			if (ActionDispatch) {
+				ActionDispatch(aAction, aPost);
 			}
 		};
 		OpenCard->Link = [this](const std::string& aPost, const QString& aDestination) {
@@ -4688,7 +4900,8 @@ namespace bpr::qt {
 						OpenCard->Action(finish ? card_action::finish_review : single ? card_action::publish_draft
 																					  : OpenCard->primary_action());
 					} else if (OpenCard->Action && !single && !finish) {
-						OpenCard->Action(card_action::publish_reply);
+						// RFC-BPR-0127. With Local chosen, ⌘↩ saves it.
+						OpenCard->Action(OpenCard->local_chosen() ? card_action::save_local : card_action::publish_reply);
 					}
 					return true;
 				}

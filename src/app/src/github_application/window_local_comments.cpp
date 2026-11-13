@@ -97,15 +97,23 @@ namespace bpr::app {
 				}
 				break;
 			case core::note_placement_kind::outdated:
+				card.Place  = qt::local_comment_place::outdated;
 				card.Notice = outdated_words(input.Placement.Reason);
 				break;
-			case core::note_placement_kind::pull_request:
-			case core::note_placement_kind::whole_file:
+			// RFC-BPR-0127 "Where a Local comment can be": the pull request
+			// chip and Overview's Comments tab, the file's chip, and the
+			// Other files chip. None is drawn at a line.
+			case core::note_placement_kind::pull_request: card.Place = qt::local_comment_place::pull_request; break;
+			case core::note_placement_kind::whole_file:   card.Place = qt::local_comment_place::whole_file; break;
 			case core::note_placement_kind::other_file:
-				// RFC-BPR-0127 "Where a Local comment can be": the edge chips
-				// for the pull request, a whole file and other files are not
-				// built yet; such a comment is not drawn at any line.
+				card.Place = qt::local_comment_place::other_file;
+				if (comment.Attachment && comment.Attachment->Line) {
+					card.PathLine = comment.Attachment->Line->Line + 1U;
+				}
 				break;
+			}
+			if (comment.FilePath) {
+				card.Path = QString::fromStdString(*comment.FilePath);
 			}
 			if (const auto target = core::decide_make_draft(input); target.has_value()) {
 				card.MakeDraft = target->Reanchored ? QStringLiteral("Make draft on line %1").arg(target->Anchor.Line + 1U) : QStringLiteral("Make draft");
@@ -153,6 +161,27 @@ namespace bpr::app {
 									}));
 			return;
 		}
+		case qt::card_action::edit_local: {
+			// RFC-BPR-0127. Edited in place: the same comment, new words, at
+			// the revision editing began from; nothing else changes.
+			if (found == AcceptedPrivateNotes.end() || !aGesture.Revision || found->Revision.value() != *aGesture.Revision) {
+				Window->refuse_local_edit(QStringLiteral("The local comment changed elsewhere. Your text is kept; copy it before cancelling."));
+				return;
+			}
+			if (aGesture.Body.empty()) {
+				Window->refuse_local_edit(QStringLiteral("Write something to save it, or delete the comment. Nothing changed."));
+				return;
+			}
+			auto edited = *found;
+			edited.Body = aGesture.Body;
+			ReviewLedgerHost->persist(edited, found->Revision, ledger_answer([this](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
+										  if (!aStored && Window != nullptr) {
+											  Window->refuse_local_edit(QStringLiteral("The local comment was not saved. Your text is kept."));
+										  }
+										  refresh_agent_private_context_choices();
+									  }));
+			return;
+		}
 		case qt::card_action::make_draft: {
 			if (found == AcceptedPrivateNotes.end()) {
 				return;
@@ -182,9 +211,12 @@ namespace bpr::app {
 			const auto drafts = SharedDrafts ? SharedDrafts->recovery_snapshot() : std::vector<core::revisioned_review_draft>{ };
 			const auto draft  = std::ranges::find(drafts, *aGesture.Draft, [](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Id; });
 			const auto shown  = current_note_attachment();
-			// Save on a comment the store has no words of yet: a new Local
-			// comment at the composer's lines, and the composer's draft goes.
-			if (aGesture.Action == qt::card_action::save_local && aGesture.Anchor && (draft == drafts.end() || draft->Draft.Body.empty())) {
+			// Save on a comment the store does not hold yet: a new Local
+			// comment at the composer's lines (or in its thread), taking the
+			// composer's draft identity where it is free, and the composer's
+			// unsaved draft goes. A draft the store holds, even one still
+			// empty there, moves instead (below), so its identity is kept.
+			if (aGesture.Action == qt::card_action::save_local && aGesture.Anchor && draft == drafts.end()) {
 				const auto* const surface = Window->comparison_surface();
 				if (!shown || shown->Comparison != aGesture.Anchor->Comparison || surface == nullptr || surface->current_result() == nullptr
 					|| surface->current_result()->Alignment.Digest != aGesture.Anchor->Comparison) {
@@ -199,8 +231,11 @@ namespace bpr::app {
 				for (const auto& comment : AcceptedPrivateNotes) {
 					next = std::max(next, comment.Id.value() + 1U);
 				}
+				if (aGesture.Draft && !std::ranges::contains(AcceptedPrivateNotes, application::local_comment_id{ aGesture.Draft->value() }, &application::local_comment_record::Id)) {
+					next = aGesture.Draft->value();
+				}
 				auto attachment  = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison, .Line = core::note_line_anchor_at(surface->current_result()->Alignment, aGesture.Anchor->Side, aGesture.Anchor->Line) };
-				auto comment     = application::local_comment_record{ .Id = application::local_comment_id{ next }, .Attachment = attachment, .Body = aGesture.Body, .StartLine = aGesture.StartLine };
+				auto comment     = application::local_comment_record{ .Id = application::local_comment_id{ next }, .Attachment = attachment, .Body = aGesture.Body, .StartLine = aGesture.StartLine, .ReplyToThread = aGesture.ReplyToThread };
 				comment.FilePath = SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt;
 				ReviewLedgerHost->persist(comment, std::nullopt, ledger_answer([this, refuse](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
 											  if (!aStored) {
