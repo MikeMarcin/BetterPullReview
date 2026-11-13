@@ -4,7 +4,9 @@
 #include "bpr/adapters/sqlite/local_draft_store.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/qt/home_list.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
 #include "review_cycle_desktop.hpp"
@@ -105,6 +107,33 @@ namespace {
 			+ aGit.output(aCheckout, { "for-each-ref", "--format=%(refname) %(objectname)" }, aScratch / "refs.txt");
 	}
 
+	/// The paths the window's own Files drawer lists, in order.
+	auto file_rows(qt::workbench_window& aWindow) -> QStringList
+	{
+		auto        rows  = QStringList{ };
+		auto* const model = aWindow.files_drawer()->contents();
+		for (int row = 0; row < model->rowCount(); ++row) {
+			rows << model->data(model->index(row, 0), Qt::DisplayRole).toString();
+		}
+		return rows;
+	}
+
+	/// Both sides of the comparison the window's diff viewer shows, as text.
+	auto shown_text(qt::workbench_window& aWindow) -> QString
+	{
+		const auto& result = aWindow.comparison_surface()->current_result();
+		if (result == nullptr) {
+			return { };
+		}
+		auto text = QString{ };
+		for (const auto& document : { result->LeftDocument, result->RightDocument }) {
+			if (document) {
+				text += QString::fromUtf8(reinterpret_cast<const char*>(document->Bytes.data()), static_cast<qsizetype>(document->Bytes.size())) + QLatin1Char{ '\n' };
+			}
+		}
+		return text;
+	}
+
 	auto list_texts(QListWidget& aList) -> QStringList
 	{
 		auto texts = QStringList{ };
@@ -181,18 +210,16 @@ try {
 		prepare->click();
 		settle(s.Lanes);
 		auto* const page = window.local_draft();
-		expect(window.showing_local_draft() && page != nullptr && page->isVisible(), "AC01: the draft page takes the review surface's place");
+		expect(window.showing_local_draft() && page != nullptr && window.comparison_surface()->isVisible(), "AC01: the draft is shown in the pull request window's own review surface");
 		const auto& view = page->projection();
 		expect(view.Draft && view.Outcome == application::local_draft_open_outcome::created, "AC01: a new local draft");
 		draftId = view.Draft->Id;
 		expect(page->identity()->text() == QStringLiteral("feature/search-results into acme/engine main"), "AC01: source and target identity");
 		expect(identity_text(window).contains(QStringLiteral("Local draft")), "AC01: the title row badges it Local draft");
-		expect(page->identity()->toolTip().contains(QStringLiteral("Compared from merge base")) && page->identity()->toolTip().contains(QStringLiteral("Target tip")),
-			   "AC01: exact base and tip are disclosed");
-		expect(list_texts(*page->changes()) == QStringList{ QStringLiteral("M  src/engine.cpp"), QStringLiteral("A  src/search.cpp") },
-			   "AC01: only the branch's changes; main's later change is not shown");
-		expect(page->diff()->toPlainText().contains(QStringLiteral("-\treturn 1;")) && page->diff()->toPlainText().contains(QStringLiteral("+\treturn search() + 1;")),
-			   "AC01: the first useful screen is the exact proposed diff");
+		expect(page->candidates()->toolTip().contains(QStringLiteral("from merge base")), "AC01: the exact base is disclosed");
+		expect(file_rows(window) == QStringList{ QStringLiteral("src/engine.cpp"), QStringLiteral("src/search.cpp") }, "AC01: only the branch's changes, in the Files drawer; main's later change is not shown");
+		expect(shown_text(window).contains(QStringLiteral("\treturn 1;")) && shown_text(window).contains(QStringLiteral("\treturn search() + 1;")),
+			   "AC01: the first useful screen is the exact proposed diff, in the pull request's diff viewer");
 		expect(page->working()->count() == 0, "a clean worktree has nothing uncommitted");
 		expect(checkout_state(*git, worktree, scratch) == before, "AC01: the checkout is unchanged");
 		capture(window, QStringLiteral("local-draft-changes"));
@@ -209,7 +236,7 @@ try {
 		emit window.home_drafts_list()->itemDoubleClicked(window.home_drafts_list()->item(0));
 		settle(s.Lanes);
 		expect(window.showing_local_draft() && page->projection().Draft->Id == draftId, "AC08: In preparation resumes the same draft");
-		expect(page->changes()->currentItem() != nullptr && !page->diff()->toPlainText().isEmpty(), "X23 as amended: a resumed draft opens on Review, no chat");
+		expect(window.current_modality() == qt::review_modality::review && !shown_text(window).isEmpty(), "X23 as amended: a resumed draft opens on Review, no chat");
 		expect(list_texts(*page->working()) == QStringList{ QStringLiteral("notes/plan.md"), QStringLiteral("src/search.cpp") } && !page->refresh_button()->isEnabled(),
 			   "AC02: dirty and untracked files are listed and nothing is captured unasked");
 		page->working()->item(1)->setCheckState(Qt::Checked);
@@ -218,9 +245,9 @@ try {
 		page->refresh_button()->click();
 		settle(s.Lanes);
 		expect(page->projection().Draft->Candidates.size() == 2U && page->candidate_actions().size() == 2 && page->candidates()->isEnabled(), "AC04: a successor candidate; the first stays");
-		page->changes()->setCurrentRow(1);
+		expect(window.open_local_file(QStringLiteral("src/search.cpp")), "the included file is in Files");
 		settle(s.Lanes);
-		expect(page->diff()->toPlainText().contains(QStringLiteral("+\treturn 4;")) && page->changes()->item(1)->font().italic(), "AC02: the included working bytes, marked as such");
+		expect(shown_text(window).contains(QStringLiteral("\treturn 4;")), "AC02: the included working bytes");
 		page->note_editor()->setText(QStringLiteral("Check the cancellation path."));
 		emit page->note_editor()->returnPressed();
 		settle(s.Lanes);

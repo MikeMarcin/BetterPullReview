@@ -1089,7 +1089,7 @@ namespace bpr::qt {
 		// as far down as its number fits, taking whatever the title row's other
 		// items leave (see update_strip_identity). With nothing open there is
 		// nothing to identify, and the label takes no width.
-		IdentityAction->setVisible((!StripHome && (!IdentityText.isEmpty() || LoadingIdentity.has_value())) || (LocalCycleShown && !showing_home()));
+		IdentityAction->setVisible((!StripHome && (!IdentityText.isEmpty() || LoadingIdentity.has_value())) || ((LocalCycleShown || LocalDraftShown) && !showing_home()));
 		// [[BPR-1338]]. Open on GitHub goes with an accepted GitHub pull
 		// request's name, never a local cycle's, and is measured with it below.
 		// It is shown only where it acts: nothing in the title row reads as

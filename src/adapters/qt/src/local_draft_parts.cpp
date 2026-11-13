@@ -151,14 +151,18 @@ namespace bpr::qt {
 		Identity->setTextInteractionFlags(Qt::TextSelectableByMouse);
 		Identity->setFocusPolicy(Qt::TabFocus);
 		leading->addWidget(Identity);
-		// Refresh, Discard… and Close are the candidate menu's actions' targets.
-		Refresh = new QPushButton{ QStringLiteral("Refresh"), BarLeading };
+		// Refresh, Discard… and Close are the candidate menu's actions'
+		// targets, held apart from the bar so they act whatever the bar shows.
+		auto* const targets = new QWidget{ Owner };
+		targets->setObjectName(QStringLiteral("localDraftActionTargets"));
+		targets->hide();
+		Refresh = new QPushButton{ QStringLiteral("Refresh"), targets };
 		Refresh->setObjectName(QStringLiteral("localDraftRefresh"));
 		Refresh->hide();
-		Discard = new QPushButton{ QStringLiteral("Discard…"), BarLeading };
+		Discard = new QPushButton{ QStringLiteral("Discard…"), targets };
 		Discard->setObjectName(QStringLiteral("localDraftDiscard"));
 		Discard->hide();
-		Close = new QPushButton{ QStringLiteral("Close"), BarLeading };
+		Close = new QPushButton{ QStringLiteral("Close"), targets };
 		Close->setObjectName(QStringLiteral("localDraftClose"));
 		Close->hide();
 

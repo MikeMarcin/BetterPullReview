@@ -3,7 +3,7 @@
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
@@ -219,16 +219,17 @@ try {
 	settle(lanes);
 	auto* const page = window->local_draft();
 	expect(page != nullptr && page->projection().Draft, "the worktree opens as a local draft");
-	expect(page->areas()->tabText(0) == QStringLiteral("Status"), "mockup A: the publish steps are the Status drawer tab");
-	page->areas()->setCurrentIndex(0);
+	// The publish steps are Overview's author panel, beside the pull request it would be.
+	window->choose_modality(qt::review_modality::overview);
 	settle(lanes);
+	expect(page->author_panel()->isVisible() && page->publication()->isVisible(), "the publish steps are on Overview");
 	auto* const area = page->publication();
 	expect(!area->create_button()->isEnabled(), "nothing can be created before GitHub is read");
 
 	// AC01, AC07: the unpushed branch names the push; nothing is offered.
 	area->check_button()->click();
 	await(lanes, [&] { return page->projection().Publishing.Checked && !page->projection().Publishing.Checking; }, "GitHub is read");
-	expect(area->state()->text().contains(QStringLiteral("is not on GitHub")) && area->push_command()->isVisibleTo(page)
+	expect(area->state()->text().contains(QStringLiteral("is not on GitHub")) && area->push_command()->isVisibleTo(page->author_panel())
 			   && area->push_command()->text().startsWith(QStringLiteral("git -C ")) && area->push_command()->text().contains(QStringLiteral("https://github.com/acme/engine.git"))
 			   && !area->create_button()->isEnabled(),
 		   "AC01: the push is named and Create draft PR is not offered");
@@ -243,7 +244,7 @@ try {
 	}
 	area->check_button()->click();
 	await(lanes, [&] { return !page->projection().Publishing.Checking && page->projection().Publishing.Branch == core::hosted_branch_state::matches; }, "the pushed branch");
-	expect(area->create_button()->isEnabled() && !area->push_command()->isVisibleTo(page) && area->preview()->toPlainText().contains(QStringLiteral("as author"))
+	expect(area->create_button()->isEnabled() && !area->push_command()->isVisibleTo(page->author_panel()) && area->preview()->toPlainText().contains(QStringLiteral("as author"))
 			   && area->preview()->toPlainText().contains(QStringLiteral("acme/engine main from feature/cancel")),
 		   "AC02: the exact plan is shown and Create draft PR is offered");
 
@@ -251,7 +252,7 @@ try {
 	github->LoseRequest = true;
 	area->create_button()->click();
 	await(lanes, [&] { return !page->projection().Publishing.Creating && page->projection().Draft->Publication->Journal.Phase == core::local_publication_phase::prepared; }, "the lost answer is read for");
-	expect(github->Creates == 1 && area->banner()->isVisibleTo(page) && area->banner()->title()->text() == QStringLiteral("The draft pull request was not created.")
+	expect(github->Creates == 1 && area->banner()->isVisibleTo(page->author_panel()) && area->banner()->title()->text() == QStringLiteral("The draft pull request was not created.")
 			   && area->banner()->buttons().size() == 1U && area->banner()->buttons().front()->text() == QStringLiteral("Preview again"),
 		   "AC07: nothing found after the lost answer: an error-role banner with its recovering action, and nothing resent");
 	std::cout << "BANNER " << area->banner()->title()->text().toStdString() << " / " << area->banner()->why()->text().toStdString() << " / "
@@ -278,7 +279,7 @@ try {
 	expect(github->Creates == 2 && rows.size() == 2U && rows[0] == QStringLiteral("Sent: Create the draft pull request") && rows[1] == QStringLiteral("Sent: Link it to this draft"),
 		   "AC07: each step advanced to Sent");
 	expect(area->state()->text() == QStringLiteral("Draft pull request #7 is on GitHub, linked to this draft.") && area->link()->text() == QStringLiteral("https://github.com/acme/engine/pull/7")
-			   && !area->create_button()->isEnabled() && !area->check_button()->isEnabled() && !area->banner()->isVisibleTo(page),
+			   && !area->create_button()->isEnabled() && !area->check_button()->isEnabled() && !area->banner()->isVisibleTo(page->author_panel()),
 		   "AC05: linked, and no second creation offered");
 	expect(page->projection().Draft->Association && page->projection().Draft->Association->Number == 7U, "the draft is associated");
 

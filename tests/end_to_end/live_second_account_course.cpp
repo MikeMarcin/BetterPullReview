@@ -110,7 +110,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/review_queue.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
 #include <QAction>
 #include <QApplication>
@@ -1751,19 +1751,11 @@ namespace {
 	void live_draft_course(const options& aOptions, app::github_application& aOwner, qt::workbench_window& aWindow)
 	{
 		aOwner.open_local_draft(aOptions.Path);
-		qt::local_draft_view* view = nullptr;
-		require(
-			[&] {
-				for (auto* const widget : aWindow.findChildren<QWidget*>()) {
-					if (auto* const page = dynamic_cast<qt::local_draft_view*>(widget)) {
-						view = page;
-					}
-				}
-				return view != nullptr && view->projection().Draft.has_value() && !view->projection().Busy;
-			},
-			"the local draft opens");
+		auto* const view = aWindow.local_draft();
+		require([&] { return view != nullptr && view->projection().Draft.has_value() && !view->projection().Busy; }, "the local draft opens");
 		auto* const area = view->publication();
-		view->areas()->setCurrentIndex(3);
+		// The publish steps are Overview's author panel.
+		aWindow.choose_modality(qt::review_modality::overview);
 		const auto checked = [&](const std::string& aWhat) {
 			require([&] { return area->check_button()->isEnabled(); }, "Check GitHub is available");
 			area->check_button()->click();

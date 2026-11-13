@@ -4,9 +4,9 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/core/local_draft_tour.hpp"
 #include "bpr/qt/agent_feature.hpp"
-#include "bpr/qt/local_diff_view.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/local_draft_preparation_area.hpp"
-#include "bpr/qt/local_draft_view.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
@@ -97,23 +97,14 @@ namespace {
 
 	constexpr auto cancel_source = "int search()\n{\n\treturn 2;\n}\n\nvoid cancel()\n{\n\tstop_worker();\n\tjoin_worker();\n}\n";
 
-	/// Selects the diff rows whose new-side lines are [aFirst, aLast].
-	void select_new_lines(qt::local_draft_view& aPage, const std::uint32_t aFirst, const std::uint32_t aLast)
+	/// Selects the new-side lines [aFirst, aLast] in the window's own diff viewer, as a drag does.
+	void select_new_lines(qt::workbench_window& aWindow, const std::uint32_t aFirst, const std::uint32_t aLast)
 	{
-		const auto& rows  = aPage.projection().File->Rows;
-		auto        first = -1;
-		auto        last  = -1;
-		for (std::size_t row = 0U; row < rows.size(); ++row) {
-			if (rows[row].RightLine && *rows[row].RightLine >= aFirst && *rows[row].RightLine <= aLast) {
-				first = first < 0 ? static_cast<int>(row) : first;
-				last  = static_cast<int>(row);
-			}
-		}
-		expect(first >= 0, "the lines are in the diff");
-		auto* const document = aPage.diff()->document();
-		auto        cursor   = QTextCursor{ document->findBlockByNumber(first) };
-		cursor.setPosition(document->findBlockByNumber(last).position() + document->findBlockByNumber(last).length() - 1, QTextCursor::KeepAnchor);
-		aPage.diff()->setTextCursor(cursor);
+		auto* const viewer = aWindow.comparison_surface();
+		expect(viewer->current_result() != nullptr, "the lines are in the diff");
+		const auto digest = viewer->current_result()->Alignment.Digest;
+		expect(viewer->restore_source_range({ .Comparison = digest, .Side = core::diff_side::right, .Line = aFirst - 1U }, { .Comparison = digest, .Side = core::diff_side::right, .Line = aLast - 1U }),
+			   "the lines are selected");
 	}
 
 	struct session
@@ -205,9 +196,9 @@ try {
 		auto* const page = window.local_draft();
 		expect(page != nullptr && page->projection().Draft, "a local draft, signed out");
 		draftId = page->projection().Draft->Id;
-		expect(page->areas()->count() == 3 && page->areas()->tabText(0) == QStringLiteral("Status") && page->areas()->tabText(1) == QStringLiteral("Notes") && page->areas()->tabText(2) == QStringLiteral("Tour")
-				   && page->description()->isAncestorOf(page->description()->body()) && !page->overview(),
-			   "mockup A: the drawer has Status, Notes and Tour; Description is Overview's; no Evidence; the draft opens on Review");
+		expect(!window.tray_tabs()->isTabVisible(0) && window.tray_tabs()->tabText(1) == QStringLiteral("Notes") && window.tray_tabs()->tabText(2) == QStringLiteral("Tour")
+				   && page->author_panel()->isAncestorOf(page->description()) && window.current_modality() == qt::review_modality::review,
+			   "the pull request window's tray holds Notes and Tour; Description is Overview's; the draft opens on Review");
 		expect(page->candidates()->minimumWidth() >= page->candidates()->fontMetrics().horizontalAdvance(QStringLiteral("Candidate 32 of 32")),
 			   "the candidate chooser holds its longest words from the start");
 
@@ -229,7 +220,7 @@ try {
 		expect(latest->Ordinal == 2U && latest->Included == std::vector<std::string>{ "src/search.cpp" }, "AC01: candidate 2 holds the uncommitted file");
 
 		// AC01: the description and the tour's brief, by hand.
-		page->set_overview(true);
+		window.choose_modality(qt::review_modality::overview);
 		settle(s.Lanes);
 		auto* const description = page->description();
 		description->body()->setPlainText(QStringLiteral("<!-- team-template v3 -->\n## Summary\nCancel stops the search worker.\n- [x] I read the diff\n"));
@@ -237,7 +228,7 @@ try {
 		description->save_button()->click();
 		settle(s.Lanes);
 		expect(page->projection().Draft->Preparation.Description.Body.starts_with("<!-- team-template v3 -->"), "AC01: the description is saved");
-		page->areas()->setCurrentIndex(2);
+		window.tray_tabs()->setCurrentIndex(2);
 		settle(s.Lanes);
 		auto* const tour = page->tour();
 		tour->problem()->setPlainText(QStringLiteral("Searches kept running after Cancel."));
@@ -249,12 +240,12 @@ try {
 			   "AC05: the brief never writes the description");
 
 		// AC08: a stop on lines selected in Changes; Save accepts it.
-		page->set_overview(false);
-		page->changes()->setCurrentItem(page->changes()->item(0));
+		window.choose_modality(qt::review_modality::review);
+		expect(window.open_local_file(QStringLiteral("src/search.cpp")), "the file is in Files");
 		settle(s.Lanes);
 		expect(page->projection().File && page->projection().File->Path == "src/search.cpp", "the changed file is shown");
-		select_new_lines(*page, 6U, 10U);
-		page->areas()->setCurrentIndex(2);
+		select_new_lines(window, 6U, 10U);
+		window.tray_tabs()->setCurrentIndex(2);
 		tour->add_stop_button()->click();
 		settle(s.Lanes);
 		expect(page->projection().Draft->Preparation.Tour.Stops.size() == 1U, "AC01: a stop is added");
@@ -274,8 +265,9 @@ try {
 		tour->stops()->setCurrentRow(0);
 		tour->show_button()->click();
 		settle(s.Lanes);
-		expect(!page->overview() && page->diff()->textCursor().selectedText().contains(QStringLiteral("stop_worker")) && page->review_diff()->selected_lines().has_value(),
-			   "AC08: arrival reveals the stop's lines in Review");
+		const auto revealed = window.comparison_surface()->selected_source_range();
+		expect(window.current_modality() == qt::review_modality::review && revealed && revealed->first.Line == 5U && revealed->second.Line == 9U,
+			   "AC08: arrival reveals the stop's lines in Review's diff viewer");
 		capture(window, QStringLiteral("local-draft-tour-arrival"));
 
 		// AC03: a whole-change question. The request carries the
@@ -286,11 +278,11 @@ try {
 				   "{\"target\":\"problem\",\"text\":\"Searches never stopped.\"},"
 				   "{\"target\":\"new_stop\",\"path\":\"src/helper.cpp\",\"first\":1,\"last\":3,\"title\":\"Helper\",\"text\":\"The live helper.\"},"
 				   "{\"target\":\"solution\",\"text\":\"Cancel stops the worker and waits for it.\"}]\n```";
-		page->areas()->setCurrentIndex(2);
+		window.tray_tabs()->setCurrentIndex(2);
 		tour->stops()->setCurrentRow(-1);
 		tour->stops()->clearSelection();
 		settle(s.Lanes);
-		page->diff()->setTextCursor(QTextCursor{ page->diff()->document() });
+		static_cast<void>(window.comparison_surface()->clear_line_selection());
 		auto* const chat = tour->chat();
 		expect(qt::agent_run_control(*chat->ask_button()), "Ask wears the agent accent");
 		chat->composer()->setText(QStringLiteral("What could break?"));
@@ -347,7 +339,7 @@ try {
 
 		// AC02, AC05: the exact preview carries the description byte for byte
 		// and the tour; nothing private.
-		page->set_overview(true);
+		window.choose_modality(qt::review_modality::overview);
 		settle(s.Lanes);
 		const auto preview = description->preview_text();
 		expect(preview.contains(QStringLiteral("<!-- team-template v3 -->")) && preview.contains(QStringLiteral("Cancel stops and joins")) && preview.contains(QStringLiteral("link pending"))
@@ -364,7 +356,7 @@ try {
 		page->refresh_button()->click();
 		settle(s.Lanes);
 		expect(core::latest_candidate(*page->projection().Draft)->Ordinal == 3U, "candidate 3");
-		page->areas()->setCurrentIndex(2);
+		window.tray_tabs()->setCurrentIndex(2);
 		settle(s.Lanes);
 		const auto& moved = page->projection().Draft->Preparation.Tour.Stops[0];
 		expect(core::decide_local_stop(moved).Reason == core::local_stop_reason::changed && moved.Source.Candidate == 2U,
@@ -393,11 +385,11 @@ try {
 		emit  window.home_drafts_list()->itemDoubleClicked(window.home_drafts_list()->item(0));
 		settle(s.Lanes);
 		auto* const page = window.local_draft();
-		expect(page->projection().Draft && page->projection().Draft->Id == draftId && !page->overview() && page->areas()->currentIndex() == 0, "X23 as amended: a resumed draft opens on Review, with no chat");
+		expect(page->projection().Draft && page->projection().Draft->Id == draftId && window.current_modality() == qt::review_modality::review, "X23 as amended: a resumed draft opens on Review, with no chat");
 		const auto& prep = page->projection().Draft->Preparation;
 		expect(prep.Description.Body.starts_with("<!-- team-template v3 -->") && prep.Tour.Stops.size() == 1U && prep.Conversations.size() == 2U && prep.Proposals.size() == 4U,
 			   "AC04: description, tour, conversations and proposals resume");
-		page->areas()->setCurrentIndex(2);
+		window.tray_tabs()->setCurrentIndex(2);
 		settle(s.Lanes);
 		expect(page->tour()->chat()->transcript()->text().contains(QStringLiteral("Anything else?")), "AC04: the open conversation resumes without a process");
 		capture(window, QStringLiteral("local-draft-tour-restarted"));
