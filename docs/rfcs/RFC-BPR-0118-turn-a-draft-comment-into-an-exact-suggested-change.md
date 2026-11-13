@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0118"
 title: "Turn a draft comment into an exact suggested change"
-status: "Proposed"
+status: "In Progress"
 metadata: {"origin":"imported 2026-11-10 from the agent-assistance-v1 pack, where it was RFC-DRAFT-0003","inspected_revision":"90785ae34aeccf63724b9e5e7a70446f89341ec5","milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"baseline":"a9663a706fd72061f60b615bd8e749ee0ddb66b5"}
 depends_on: ["RFC-BPR-0090", "RFC-BPR-0101"]
 ---
@@ -78,6 +78,6 @@ several comments at once, or spanning files is not in this RFC.
 
 ## Proposed delivery
 
-[Suggest the change](../issues/10-backlog/BPR-2078-suggest-the-change-from-a-draft-comment.md)
+[Suggest the change](../issues/20-ready/BPR-2078-suggest-the-change-from-a-draft-comment.md)
 and [closeout](../issues/10-backlog/BPR-2079-close-rfc-0118.md) form the third
 [milestone](plans/agent-assistance-v1/milestone-plan.json).
