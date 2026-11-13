@@ -86,3 +86,7 @@ The six v002 fixes and the narrow-drawer chips, one question each: session `acaf
 | AC09 | [[BPR-2159]] | `qt_review_submission_editor_scale_{100,125,200}`; the composed course: no Local comment pending or not in the review; Keep Local on a not-in-review row removes it; "N local comments stay on this computer" with Show, absent at zero | Pass |
 
 AC13's course now counts Threads' threads, not its Local rows (Local comments are Threads rows by AC07, and no thread's count moves). Owner look v004 for milestone 3 is filed below, not waited on.
+
+## Owner look v004 filed (2026-11-13)
+
+Milestone 3's look, one Accept/Reject each: `threads-state-filter`, `threads-row-move`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`, `finish-review-keep-local`. Session `8ce7e45524c31cb13950f64babfa0ddf` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v004-2026-11-13/state`, cursor 21), frozen root `/Users/jaeger/comments-absorb-notes-v004.r230gldo` from `c5d5da4df652` (`--attended-local-comments-look` on `conventional-comments-v1`), launcher check `ATTENDED_FILE_SHOWN`. Not waited on.
