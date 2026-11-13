@@ -507,13 +507,29 @@ namespace bpr::application {
 		auto operator<=>(const recent_review_row&) const = default;
 	};
 
+	/// \brief The pull request a window is still loading, as its title row
+	/// names it from the read's first answer.
+	///
+	/// \details Names, never an address. The host admits it only against the
+	/// read it waits on, whose locator and profile hostname build the page.
+	struct loading_pull_request_page
+	{
+		std::string   Owner;
+		std::string   Repository;
+		std::uint64_t Number = 0U;
+
+		auto operator<=>(const loading_pull_request_page&) const = default;
+	};
+
 	/// \brief [[BPR-1338]]. Which pull request's own GitHub page a gesture asks to open.
 	///
 	/// \details Names a pull request, never an address: the window's open pull
 	/// request by its current publication, a Home queue row by its queue
-	/// identity, or a Recently viewed row by its place. The host admits it
-	/// against what it accepted and builds the address itself.
-	using pull_request_page_intent = std::variant<core::markdown_context, core::pull_request_ref, recent_review_row>;
+	/// identity, a Recently viewed row by its place, or the pull request the
+	/// window is still loading by the names its title row shows. The host
+	/// admits it against what it accepted or waits on and builds the address
+	/// itself.
+	using pull_request_page_intent = std::variant<core::markdown_context, core::pull_request_ref, recent_review_row, loading_pull_request_page>;
 
 	/// \brief [[BPR-1342]]. Which pull request a Home gesture asks a new window
 	/// of this profile to open.

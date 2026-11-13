@@ -1,0 +1,50 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2097-2098-public-projection-corrections",
+  "scope": {
+    "issues": [
+      "BPR-2097",
+      "BPR-2098"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "stable-projection-and-truthful-submit",
+      "outcome": "Unchanged cycle recents retain the Home model and selection; held reviews expose the same disabled Submit decision as their verdict buttons, and independent finishing fixtures retain their own durable state.",
+      "work": [
+        {
+          "issue": "BPR-2097",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        },
+        {
+          "issue": "BPR-2098",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Bind original Linux56 failures and R6/R7/R8 causal data. Keep all normal source/builds unchanged; only named frozen-lineage files change. Home typed equality preserves unchanged model/item/current-row identity and still projects genuinely changed data. Held-submit QAction enabled/tooltip follows existing held verdict predicate without changing admission. Independent BPR1816 finish/refusal/authored course gets a separate owner-private data root; the earlier intentionally retained off-hunk comment and all dedicated held oracles remain.",
+        "Meaningful old-source Qt regression controls fail named assertions, corrected existing Qt and original affected public courses pass Release and Debug with unchanged predicates, gestures and budgets. Root owns native leases/operators and final qualification; diagnostic results confer no clearance.",
+        "Format22, changed-surface tidy disposition, relevant source/architecture/docs/tracker gates; explicit intentional own-slice source commits/main integration without foreign product intake. Preserve highwater/attachments and all original actual nonpasses; return all commands/writers/borrows."
+      ],
+      "boundary": "Mandate release56-public-projection-corrections-r1. Source 48bd9b3f2b82128e6b43527812f165eacc4f8b47. ONLY src/adapters/qt/src/workbench_window_home_landing.cpp, tests/adapters_qt/composed_github_tests.cpp, src/adapters/qt/src/review_submission_editor.cpp, tests/adapters_qt/review_submission_editor_tests.cpp, tests/end_to_end/review_submission_composition_public_path.cpp plus own cards/plans/reservation/checkpoint. No source R, normal caches/objects/archive, unrelated main, provider/host/core policy or timeout changes.",
+      "baseline_paths_sha256": {
+        "src/adapters/qt/src/workbench_window_home_landing.cpp": "574e4f97b4dd77d67263806fbfe95963cc5fd1c4611d45c54feb77aa5c35baeb",
+        "tests/adapters_qt/composed_github_tests.cpp": "84cf54c9c50479d1349031237654f7676c3ca6372aecdc1e5cf4a1692e097b8c",
+        "src/adapters/qt/src/review_submission_editor.cpp": "6d25674fcb774b8de79d330ab3add0915f7f9bfb518d1f7d40921b8594b55970",
+        "tests/adapters_qt/review_submission_editor_tests.cpp": "70a6e116f32f3b1ea24825e8fb304e98a8b97379e31510729cc40ab607ec3639",
+        "tests/end_to_end/review_submission_composition_public_path.cpp": "982eaf8c9ac3cc43a323d6cd90b1a0cb6e7cc9bea12e5cd746c71771fbc38b0b"
+      }
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

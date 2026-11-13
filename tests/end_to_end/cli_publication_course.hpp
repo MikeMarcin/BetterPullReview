@@ -3,6 +3,7 @@
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -12,8 +13,12 @@
 #include <QMessageBox>
 #include <QTimer>
 
+#include <memory>
+
 namespace bpr::e2e {
-	/// Exercises the same chosen-account connection, while detecting any extra popup.
+	/// Exercises the same chosen-account connection, while detecting any extra
+	/// popup. RFC-BPR-0032 amendment r1: the account is chosen and consented to
+	/// in Home's account setup, so a gh read question is now itself a failure.
 	class cli_publication_course final
 	{
 	public:
@@ -60,21 +65,26 @@ namespace bpr::e2e {
 			}
 			aWindow.home_action()->trigger();
 			QApplication::processEvents();
-			aWindow.home_landing()->secondary_button()->click();
+			auto plan  = account_setup_driver::plan{ };
+			plan.Login = "octo-reviewer";
+			Driver     = std::make_unique<account_setup_driver>(aWindow, std::move(plan));
+			Driver->begin();
 		}
 		void check() const
 		{
 			if (Enabled) {
-				tests::expect(TrustQuestions > 0U, "CLI course used explicit chosen-account read trust");
+				tests::expect(Driver != nullptr && Driver->connects() > 0U && TrustQuestions == 0U,
+							  "CLI course consented to the chosen account in the account setup, and no read question opened");
 				tests::expect(PublicationQuestions == 0U, "ordinary review/tour gesture opened no publication popup");
 			}
 		}
 		std::shared_ptr<std::atomic_bool> Strict = std::make_shared<std::atomic_bool>(true);
 
 	private:
-		bool        Enabled;
-		QTimer      Timer;
-		std::size_t TrustQuestions = 0U, PublicationQuestions = 0U;
+		bool                                          Enabled;
+		QTimer                                        Timer;
+		mutable std::unique_ptr<account_setup_driver> Driver;
+		std::size_t                                   TrustQuestions = 0U, PublicationQuestions = 0U;
 	};
 }
 #endif

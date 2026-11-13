@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <initializer_list>
 #include <random>
 #include <stop_token>
 #include <utility>
@@ -145,6 +146,18 @@ namespace bpr::application {
 				&& (entry == nullptr || entry->Preset);
 			Projection.Searched = core::searched_setup_agents(Dependencies.Profiles, Policy, Projection.Preferences.CodexProtocol);
 			Projection.Step     = core::current_setup_step(state);
+			// Owner report: the Agent step shows the agent list as it is now,
+			// whichever surface changed it.
+			Projection.Choices = core::agent_setup_choices({
+				.Entries   = Projection.Preferences.Agents,
+				.Preferred = Projection.Preferences.PreferredAgent,
+				.Chosen    = state.Chosen,
+				.Found     = Found,
+				.Located   = Located,
+				.Profiles  = Dependencies.Profiles,
+				.Policy    = Policy,
+				.Codex     = Projection.Preferences.CodexProtocol,
+			});
 		}
 
 		void publish()
@@ -357,6 +370,25 @@ namespace bpr::application {
 		/// Runs Check it works' agent row on what was found.
 		void start_check();
 
+		/// Setup chooses the entry `aId`: its kind is the pick and the checks
+		/// start over. A running check is stopped first.
+		void prefer_entry(const std::uint32_t aId)
+		{
+			const auto& agents = Projection.Preferences.Agents;
+			const auto  found  = std::ranges::find(agents, aId, &core::agent_entry::Id);
+			if (found == agents.end()) {
+				return;
+			}
+			CheckStop.request_stop();
+			if (Projection.Checking && Dependencies.Process != nullptr) {
+				Dependencies.Process->cancel();
+			}
+			Projection.Preferences.PreferredAgent = aId;
+			Picked                                = core::setup_agent_of(found->Protocol);
+			Projection.Preferences.Chosen         = Picked;
+			reset_checks();
+		}
+
 		void detect()
 		{
 			auto&      host           = *this;
@@ -399,9 +431,10 @@ namespace bpr::application {
 			host.off_lane(
 				host.Dependencies.Effects,
 				[given = std::move(snapshot)] {
-					auto       found    = std::vector<core::agent_detection>{ };
-					const auto runnable = [&given](const std::string& aPath) { return given.Inspect && !given.Inspect(aPath); };
-					const auto searched = [&given, &found](const core::setup_agent aAgent, const core::agent_program aProgram) {
+					auto       found       = std::vector<core::agent_detection>{ };
+					auto       searchedFor = std::vector<core::agent_detection>{ };
+					const auto runnable    = [&given](const std::string& aPath) { return given.Inspect && !given.Inspect(aPath); };
+					const auto searched    = [&given, &found](const core::setup_agent aAgent, const core::agent_program aProgram) {
 						if (!given.Locate) {
 							return;
 						}
@@ -428,13 +461,28 @@ namespace bpr::application {
 					if (!given.Harness.empty() && runnable(given.Harness)) {
 						found.push_back({ .Agent = core::setup_agent::plain_text_harness, .Path = given.Harness, .How = core::agent_found_how::saved_program });
 					}
-					return found;
+					// Where each popular agent's own program is, for the Agent
+					// step's cards, whatever program its kind is checked with.
+					for (const auto& [agent, program] : { std::pair{ core::setup_agent::claude_code, core::agent_program::claude }, std::pair{ core::setup_agent::codex, core::agent_program::codex } }) {
+						const auto searchedAlready = std::ranges::find_if(found, [agent](const core::agent_detection& aFound) {
+							return aFound.Agent == agent && aFound.How != core::agent_found_how::saved_program;
+						});
+						if (searchedAlready != found.end()) {
+							searchedFor.push_back(*searchedAlready);
+						} else if (given.Locate) {
+							if (const auto candidate = given.Locate(program)) {
+								searchedFor.push_back({ .Agent = agent, .Path = candidate->Path, .How = found_how(candidate->Origin) });
+							}
+						}
+					}
+					return std::pair{ std::move(found), std::move(searchedFor) };
 				},
-				[self = shared_from_this(), generation](std::vector<core::agent_detection> aFound) {
+				[self = shared_from_this(), generation](std::pair<std::vector<core::agent_detection>, std::vector<core::agent_detection>> aFound) {
 					if (generation != self->DetectGeneration) {
 						return;
 					}
-					self->Found                = std::move(aFound);
+					self->Found                = std::move(aFound.first);
+					self->Located              = std::move(aFound.second);
 					self->Projection.Detecting = false;
 					self->Projection.Detected  = true;
 					// [[BPR-1859]]. A check asked for before the agents were
@@ -454,6 +502,8 @@ namespace bpr::application {
 		agent_setup_projection                 Projection;
 		std::optional<core::agent_host_policy> Policy;
 		std::vector<core::agent_detection>     Found;
+		/// Where each popular agent's own program was found by searching.
+		std::vector<core::agent_detection> Located;
 		/// The reviewer's own pick in this window, before or after it is saved.
 		std::optional<core::setup_agent> Picked;
 		std::uint64_t                    DetectGeneration  = 0U;
@@ -538,14 +588,18 @@ namespace bpr::application {
 
 	void agent_setup_host::choose(const core::setup_agent aAgent)
 	{
-		auto& host = *Implementation;
-		if (host.Picked == aAgent && host.Projection.Preferences.Chosen == aAgent) {
+		auto&             host     = *Implementation;
+		const auto* const current  = host.preferred_entry();
+		const auto        previous = current != nullptr ? current->Id : 0U;
+		// Another entry of the same kind (a custom agent) is not this popular
+		// agent: picking the popular one still switches to it.
+		const auto popular = current == nullptr || current->Preset == aAgent
+			|| (aAgent == core::setup_agent::plain_text_harness && current->Protocol == core::agent_protocol::external_terminal && current->Program == host.Projection.Preferences.HarnessProgram);
+		if (host.Picked == aAgent && host.Projection.Preferences.Chosen == aAgent && popular) {
 			return;
 		}
-		host.Picked = aAgent;
-		if (host.Projection.State.Chosen != aAgent) {
-			host.reset_checks();
-		}
+		const auto kindChanged             = host.Projection.State.Chosen != aAgent;
+		host.Picked                        = aAgent;
 		host.Projection.Preferences.Chosen = aAgent;
 		// [[BPR-1753]]. Picking a popular agent adds it to the list once
 		// and chooses that entry; a harness is the entry with its program.
@@ -567,8 +621,34 @@ namespace bpr::application {
 			}
 		}
 		preferences.PreferredAgent = entry != nullptr ? entry->Id : 0U;
+		// A different entry's program is what setup checks now: the checks
+		// start over and, once setup has looked, the agents are looked for
+		// again with it.
+		const auto switched = previous != 0U && previous != preferences.PreferredAgent;
+		if (kindChanged || switched) {
+			host.reset_checks();
+		}
 		host.save();
 		host.publish();
+		if (switched && (host.Projection.Detected || host.Projection.Detecting)) {
+			host.detect();
+		}
+	}
+
+	void agent_setup_host::choose_entry(const std::uint32_t aId)
+	{
+		auto&             host    = *Implementation;
+		const auto&       agents  = host.Projection.Preferences.Agents;
+		const auto        found   = std::ranges::find(agents, aId, &core::agent_entry::Id);
+		const auto* const current = host.preferred_entry();
+		if (found == agents.end()
+			|| (current != nullptr && current->Id == aId && host.Projection.Preferences.PreferredAgent == aId && host.Projection.State.Chosen == core::setup_agent_of(found->Protocol))) {
+			return;
+		}
+		host.prefer_entry(aId);
+		host.save();
+		host.publish();
+		host.detect();
 	}
 
 	void agent_setup_host::add_agent(core::agent_entry aEntry, const bool aPrefer, agent_entry_answer aAnswered)
@@ -584,11 +664,7 @@ namespace bpr::application {
 		}
 		host.Projection.Preferences.Agents = std::move(*added);
 		if (aPrefer) {
-			const auto& chosen                         = host.Projection.Preferences.Agents.back();
-			host.Projection.Preferences.PreferredAgent = chosen.Id;
-			host.Picked                                = core::setup_agent_of(chosen.Protocol);
-			host.Projection.Preferences.Chosen         = host.Picked;
-			host.reset_checks();
+			host.prefer_entry(host.Projection.Preferences.Agents.back().Id);
 		}
 		host.save();
 		host.publish();
@@ -644,13 +720,28 @@ namespace bpr::application {
 		if (!removed) {
 			return;
 		}
+		const auto* const current          = host.preferred_entry();
+		const auto        preferred        = current != nullptr && current->Id == aId;
 		host.Projection.Preferences.Agents = std::move(*removed);
 		if (host.Projection.Preferences.PreferredAgent == aId) {
 			host.Projection.Preferences.PreferredAgent = 0U;
 		}
 		std::erase_if(host.Projection.Preferences.EntryChecks, [aId](const agent_entry_check_record& aRecord) { return aRecord.Id == aId; });
+		// The agent setup chose is gone: its program is no longer what the
+		// check runs, so the check starts over and the agents are looked for
+		// again, as after an edit.
+		if (preferred) {
+			host.CheckStop.request_stop();
+			if (host.Projection.Checking && host.Dependencies.Process != nullptr) {
+				host.Dependencies.Process->cancel();
+			}
+			host.reset_checks();
+		}
 		host.save();
 		host.publish();
+		if (preferred) {
+			host.detect();
+		}
 	}
 
 	void agent_setup_host::move_agent(const std::uint32_t aId, const int aDelta)
@@ -772,6 +863,7 @@ namespace bpr::application {
 		host.Projection.Preferences = std::move(fresh);
 		++host.DetectGeneration;
 		host.Found.clear();
+		host.Located.clear();
 		host.Projection.Detecting = false;
 		host.Projection.Detected  = false;
 		host.Projection.WorkspaceDetail.clear();

@@ -123,6 +123,7 @@ add_library(
         src/agent_profile.cpp
         src/agent_wrapper.cpp
         src/agent_setup.cpp
+        src/account_setup.cpp
         src/agent_turn.cpp
         src/clone_discovery.cpp
         src/local_draft.cpp
@@ -169,6 +170,8 @@ add_library(
         src/tour_steps.cpp
         src/tour_agent_session.cpp
         src/skill_references.cpp
+        src/prompt_macro.cpp
+        src/prompt_macro_shipped.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
         src/window_title.cpp
@@ -186,6 +189,7 @@ add_library(
         src/sha1_collision_detecting.cpp
         src/sha256_hacl.cpp
         src/theme_exchange.cpp
+        src/pull_request_link_route.cpp
         src/pull_request_location.cpp
         src/pull_request_refusal.cpp
         src/setup_destination.cpp

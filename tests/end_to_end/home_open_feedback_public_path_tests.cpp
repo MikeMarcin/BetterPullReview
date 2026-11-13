@@ -11,6 +11,7 @@
 #include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_mouse.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -364,20 +365,15 @@ try {
 	window->resize(1100, 760);
 
 	// Signed in, with the repository saved, so Home lists both pull requests.
-	if (cliCourse) {
-		QTimer consent;
-		QObject::connect(&consent, &QTimer::timeout, [] {
-			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				prompt->button(QMessageBox::Yes)->click();
-			}
-		});
-		consent.start(1);
-		window->home_landing()->secondary_button()->click();
-		wait_for([&] { return window->session_panel()->status() == core::github_status::session_ready; }, "Home accepts the selected CLI account");
-	} else {
-		window->home_landing()->primary_button()->click();
+	// RFC-BPR-0032 amendment r1. Home signs in through the account setup.
+	{
+		auto plan   = e2e::account_setup_driver::plan{ };
+		plan.Way    = cliCourse ? core::account_setup_way::github_cli : core::account_setup_way::browser;
+		auto driver = e2e::account_setup_driver{ *window, std::move(plan) };
+		driver.begin();
+		wait_for([&] { return window->session_panel()->status() == core::github_status::session_ready && !window->account_setup()->isVisible(); },
+				 "Home sign-in reaches an account session and leaves the setup");
 	}
-	wait_for([&] { return window->session_panel()->status() == core::github_status::session_ready; }, "Home sign-in reaches an account session");
 	window->open_repository_addition();
 	wait_for([&] { return window->repository_addition_draft()->isVisible() && window->saved_repository_name()->isEnabled(); }, "Settings opens the new-repository card");
 	window->saved_repository_name()->setText(QStringLiteral("octo-org/review-repository"));

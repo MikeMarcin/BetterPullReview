@@ -9,6 +9,7 @@
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -365,20 +366,14 @@ try {
 
 	// Signed in from Home, with nothing saved: nothing is searched, and Home
 	// says what would change that.
+	// RFC-BPR-0032 amendment r1. Home signs in through the account setup.
 	const auto connect = [&] {
-		if (!cliCourse) {
-			windowA->home_landing()->primary_button()->click();
-			return;
-		}
-		QTimer consent;
-		QObject::connect(&consent, &QTimer::timeout, [] {
-			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				prompt->button(QMessageBox::Yes)->click();
-			}
-		});
-		consent.start(1);
-		windowA->home_landing()->secondary_button()->click();
-		wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home accepts the selected CLI account");
+		auto plan   = e2e::account_setup_driver::plan{ };
+		plan.Way    = cliCourse ? core::account_setup_way::github_cli : core::account_setup_way::browser;
+		auto driver = e2e::account_setup_driver{ *windowA, std::move(plan) };
+		driver.begin();
+		wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut && !windowA->account_setup()->isVisible(); },
+				 "Home accepts the account and leaves the setup");
 	};
 	connect();
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session");
@@ -762,8 +757,17 @@ try {
 	addDraft(QStringLiteral("https://unknown.example/octo-org/empty-repository"));
 	wait_for([&] { return draft->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->isVisible(); }, "foreign host requires explicit preparation");
 	draft->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->click();
-	wait_for([&] { return windowA->sign_in_dialog() && windowA->sign_in_dialog()->isVisible() && windowA->enterprise_server_draft()->isVisible(); }, "explicit preparation opens server setup");
-	windowA->sign_in_dialog()->reject();
+	wait_for([&] {
+		const auto& state = windowA->account_setup()->projection().State;
+		return windowA->account_setup()->isVisible() && state.Server == core::account_setup_server::enterprise && state.Hostname == "unknown.example";
+	},
+			 "explicit preparation opens the account setup for that server");
+	// Closing the setup without an account is the reviewer's Cancel.
+	for (auto* const close : windowA->account_setup()->findChildren<QPushButton*>(QStringLiteral("accountSetupClose"))) {
+		if (close->isVisibleTo(windowA->account_setup())) {
+			close->click();
+		}
+	}
 	wait_for([&] { return draftReady() && notice().contains(QStringLiteral("not been saved")); }, "cancelled setup returns to the draft on Repositories");
 	expect(savedCount() == 0 && windowA->saved_repository_name()->text().contains(QStringLiteral("unknown.example")) && evidence().DiscoverySearches == 0U,
 		   "cancelled setup keeps draft without saving or discovering under another host");

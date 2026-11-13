@@ -143,12 +143,62 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// Owner report ("If I add an agent through agent settings, the agent
+	/// setup wizard doesn't update to show it"). The Agent step's cards are the
+	/// list, then the popular agents found and not added, then a saved harness
+	/// no entry runs; the chosen card follows the preferred entry.
+	void test_setup_choices()
+	{
+		auto entries        = *core::add_agent_entry({ }, work("Work Claude", core::agent_protocol::claude_stream_json, { }));
+		entries             = *core::add_agent_entry(entries, core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, { }));
+		const auto located  = std::vector<core::agent_detection>{ { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude", .How = core::agent_found_how::on_path },
+																  { .Agent = core::setup_agent::codex, .Path = "/usr/local/bin/codex", .How = core::agent_found_how::usual_folder } };
+		const auto found    = std::vector<core::agent_detection>{ { .Agent = core::setup_agent::plain_text_harness, .Path = "/opt/corp/harness", .How = core::agent_found_how::saved_program } };
+		const auto profiles = core::built_in_agent_profiles();
+		auto       facts    = core::agent_setup_choice_facts{ .Entries = entries, .Found = found, .Located = located, .Profiles = profiles };
+		facts.Policy        = core::built_in_agent_policy(core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com);
+		auto choices        = core::agent_setup_choices(facts);
+		expect(choices.size() == 4U && choices[0].Entry == 1U && choices[0].Name == "Work Claude" && choices[0].Path == "/opt/work/bin/agent-wrapper"
+				   && choices[0].How == core::agent_found_how::saved_program && choices[0].Verdict.Permitted,
+			   "an added agent is a card with its own program");
+		expect(choices[1].Entry == 2U && choices[1].Path == "/usr/local/bin/codex" && choices[1].How == core::agent_found_how::usual_folder, "an added popular agent shows where its program was found");
+		expect(choices[2].Entry == 0U && choices[2].Agent == core::setup_agent::claude_code && choices[2].Name == "Claude Code", "a popular agent found and not added follows the list");
+		expect(choices[3].Entry == 0U && choices[3].Agent == core::setup_agent::plain_text_harness && choices[3].Path == "/opt/corp/harness", "and a saved harness no entry runs");
+		expect(std::ranges::none_of(choices, &core::agent_setup_choice::Chosen), "nothing chosen, nothing marked");
+
+		facts.Chosen    = core::setup_agent::claude_code;
+		facts.Preferred = 1U;
+		choices         = core::agent_setup_choices(facts);
+		expect(choices[0].Chosen && !choices[2].Chosen, "the preferred entry is the chosen card, not the found one of its kind");
+		facts.Preferred = 0U;
+		choices         = core::agent_setup_choices(facts);
+		expect(!choices[0].Chosen && choices[2].Chosen, "with no preferred entry and no popular entry, the found card of the chosen kind is");
+		facts.Chosen = core::setup_agent::codex;
+		choices      = core::agent_setup_choices(facts);
+		expect(choices[1].Chosen && std::ranges::count_if(choices, &core::agent_setup_choice::Chosen) == 1, "the chosen kind's popular entry is the one marked");
+
+		const auto none = std::vector<core::agent_detection>{ };
+		facts.Located   = none;
+		facts.Found     = none;
+		facts.Policy    = core::built_in_agent_policy(core::git_host_id{ 2U }, core::built_in_agent_host_kind::explicit_ghes);
+		choices         = core::agent_setup_choices(facts);
+		expect(choices.size() == 2U && !choices[1].How && choices[1].Path.empty(), "an added popular agent whose program is not found has no program");
+		expect(choices[0].Verdict.Permitted && !choices[1].Verdict.Permitted, "each card carries its protocol's verdict on the host");
+		facts.Profiles = { };
+		expect(core::agent_setup_choices(facts).front().Verdict.Refusal == core::agent_invocation_refusal::profile_unknown, "a protocol with no profile is refused as unknown");
+		facts.Entries = { };
+		expect(core::agent_setup_choices(facts).empty(), "with nothing added and nothing found there are no cards");
+	}
+} // namespace
+
 auto main() -> int
 {
 	test_the_owners_two_wrappers();
 	test_what_an_entry_may_hold();
 	test_edits();
 	test_migration();
+	test_setup_choices();
 	std::cout << "agent-entry-tests:pass\n";
 	return EXIT_SUCCESS;
 }

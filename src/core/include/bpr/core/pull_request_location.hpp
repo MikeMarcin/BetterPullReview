@@ -67,9 +67,9 @@ namespace bpr::core {
 	/// \details Every field is a fact of the snapshot and comparison that one
 	/// window accepted, supplied by its host. `ChangedPaths` are the pull
 	/// request's current file paths. `Reviews` and `ReviewComments` carry only
-	/// the identities the read actually returned: an authenticated read names
-	/// review comments by node identity alone, so a numeric comment link has
-	/// nothing to match there and is reported rather than guessed.
+	/// the identities the read actually returned: a review comment whose read
+	/// carried no numeric identity has nothing to match a numeric comment
+	/// link, which is reported rather than guessed.
 	/// `RightIsHead` says the comparison on screen ends at the pull request's
 	/// head, which is the revision a right-side line of a link names.
 	struct pull_request_location_facts

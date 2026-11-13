@@ -35,6 +35,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFlags>
+#include <QFontMetrics>
 #include <QFrame>
 #include <QIcon>
 #include <QKeySequence>
@@ -318,132 +319,64 @@ namespace bpr::qt {
 		AppearanceSettings->cancel_preview();
 	}
 
-	void workbench_window::set_sign_in_cancel_dispatch(std::function<void()> aDispatch)
-	{
-		SignInCancelDispatch = std::move(aDispatch);
-	}
-
-	auto workbench_window::sign_in_dialog() const noexcept -> QDialog* { return SignInDialog; }
-
 	void workbench_window::connect_github_profile(const core::host_profile_id aProfile)
 	{
 		select_github_profile(aProfile);
 		GithubConnectAction->trigger();
 	}
 
-	void workbench_window::present_cli_account_choices(std::vector<core::host_profile_id> aProfiles)
+	/// RFC-BPR-0032 amendment r1 (owner, 2026-11-12). Every way in signs in
+	/// through Home's one account setup: Home's first run, Settings' Add
+	/// account and a card's Sign in, Use another account, and a pasted link
+	/// that needs an account. Settings gives way to Home, where the setup is.
+	void workbench_window::begin_account_setup(const std::optional<core::account_setup_server> aServer, std::string aHostname, const std::optional<core::account_setup_way> aWay)
 	{
-		SignInCliProfiles = std::move(aProfiles);
-		update_sign_in_surface();
-	}
-
-	void workbench_window::update_sign_in_surface()
-	{
-		if (!SignInDialog || !SignInDialog->isVisible()) {
+		if (!AccountSetupDispatch || AccountSetup == nullptr) {
 			return;
 		}
-		for (auto* card : ServerCards) {
-			const auto matches = SignInHostname.empty() || card->hostname() == SignInHostname;
-			const auto cli     = !SignInCliOnly || std::ranges::any_of(SignInCliProfiles, [card](auto aProfile) { return card->holds(aProfile); });
-			// [[BPR-0803]]. Choosing GitHub CLI while a device flow runs keeps
-			// the card holding the flow in view: its code and address stay
-			// beside the GitHub CLI choice until one of them ends. Without a
-			// discovered account on this host the card shows only the flow.
-			const auto flowHere = DevicePanel != nullptr && card->device_sign_in() == DevicePanel && DevicePanel->signing_in();
-			card->setVisible(matches && (cli || flowHere));
-			card->set_setup_mode(true, SignInCliOnly && cli);
+		if (SessionPanel != nullptr && SessionPanel->status() == core::github_status::establishing_session) {
+			return;
 		}
-		if (auto* lede = AccountsPanel->findChild<QLabel*>(QStringLiteral("accountsLede"))) {
-			lede->hide();
+		const auto& state = AccountSetup->projection().State;
+		if (aServer == core::account_setup_server::github_com) {
+			aHostname = "github.com";
 		}
-		EnterpriseServerCancel->hide();
-		AddEnterpriseServerButton->setVisible(QueueReady && static_cast<bool>(SavedServerDispatch) && SignInHostname.empty() && !SignInCliOnly && !EnterpriseDraftOpen);
-		UseGithubCliButton->setVisible(static_cast<bool>(GithubCliDiscoveryDispatch)
-									   && (!SignInCliOnly || GithubCliDiscoveryState == github_cli_discovery_state::empty
-										   || GithubCliDiscoveryState == github_cli_discovery_state::process_failed
-										   || GithubCliDiscoveryState == github_cli_discovery_state::malformed_response
-										   || GithubCliDiscoveryState == github_cli_discovery_state::unsupported_version
-										   || GithubCliDiscoveryState == github_cli_discovery_state::ineligible_accounts
-										   || GithubCliDiscoveryState == github_cli_discovery_state::missing_executable
-										   || GithubCliDiscoveryState == github_cli_discovery_state::launch_failed
-										   || GithubCliDiscoveryState == github_cli_discovery_state::timed_out
-										   || GithubCliDiscoveryState == github_cli_discovery_state::exited_unsuccessfully
-										   || GithubCliDiscoveryState == github_cli_discovery_state::output_rejected));
-		if (DevicePanel && DevicePanel->signing_in()) {
-			DevicePanel->cancel_button()->hide();
+		// What the setup is already doing is not begun again: a pasted link's
+		// sign-in asks for the setup and then begins its own device flow, which
+		// a second begin would cancel.
+		const auto sameServer = aServer.has_value() && state.Server == aServer && (aServer == core::account_setup_server::github_com || state.Hostname == aHostname);
+		using core::account_setup_phase;
+		const auto running = state.Phase == account_setup_phase::preparing_server || state.Phase == account_setup_phase::requesting_code
+			|| state.Phase == account_setup_phase::awaiting_browser || state.Phase == account_setup_phase::inspecting_cli
+			|| state.Phase == account_setup_phase::choosing_account || state.Phase == account_setup_phase::entering_token
+			|| state.Phase == account_setup_phase::connecting;
+		const auto settled = sameServer && ((running && (!aWay || state.Way == aWay)) || (state.Phase == core::account_setup_phase::choosing_way && !aWay));
+		settings()->hide();
+		if (!showing_home()) {
+			choose_home(true);
 		}
+		if (settled) {
+			return;
+		}
+		auto event     = core::begin_account_setup{ };
+		event.Server   = aServer;
+		event.Hostname = std::move(aHostname);
+		event.Way      = aWay;
+		AccountSetupDispatch(std::move(event));
 	}
 
 	void workbench_window::open_sign_in(std::string aHostname, const bool aCliOnly)
 	{
-		if (!AccountsPanel || (SessionPanel != nullptr && !SessionPanel->connect_enabled())) {
+		if (aHostname.empty()) {
+			begin_account_setup(std::nullopt, { }, aCliOnly ? std::optional{ core::account_setup_way::github_cli } : std::nullopt);
 			return;
 		}
-		if (!SignInDialog) {
-			SignInDialog = new QDialog{ this };
-			SignInDialog->setObjectName(QStringLiteral("sharedSignInDialog"));
-			SignInDialog->setWindowModality(Qt::NonModal);
-			auto* layout = new QVBoxLayout{ SignInDialog };
-			SignInScroll = new QScrollArea{ SignInDialog };
-			SignInScroll->setWidgetResizable(true);
-			SignInScroll->setFrameShape(QFrame::NoFrame);
-			layout->addWidget(SignInScroll);
-			auto* buttons = new QDialogButtonBox{ QDialogButtonBox::Cancel, SignInDialog };
-			layout->addWidget(buttons);
-			connect(buttons, &QDialogButtonBox::rejected, SignInDialog, &QDialog::reject);
-			connect(SignInDialog, &QDialog::finished, this, [this](int aResult) {
-				SignInScroll->takeWidget();
-				AccountsPanel->layout()->setAlignment(Qt::Alignment{ });
-				if (AccountsReturnParent) {
-					AccountsPanel->setParent(AccountsReturnParent);
-					if (auto* returnLayout = qobject_cast<QVBoxLayout*>(AccountsReturnParent->layout())) {
-						returnLayout->insertWidget(1, AccountsPanel);
-					}
-					AccountsPanel->show();
-				}
-				for (auto* card : ServerCards) {
-					card->show();
-					card->set_setup_mode(false);
-				}
-				if (auto* lede = AccountsPanel->findChild<QLabel*>(QStringLiteral("accountsLede"))) {
-					lede->show();
-				}
-				EnterpriseServerCancel->show();
-				SignInHostname.clear();
-				SignInCliOnly = false;
-				SignInCliProfiles.clear();
-				UseGithubCliButton->setVisible(static_cast<bool>(GithubCliDiscoveryDispatch));
-				close_enterprise_server_draft();
-				update_server_cards();
-				if (aResult == QDialog::Rejected && SignInCancelDispatch) {
-					SignInCancelDispatch();
-				}
-			});
-		}
-		if (!SignInDialog->isVisible()) {
-			AccountsReturnParent = AccountsPanel->parentWidget();
-			AccountsPanel->layout()->setAlignment(Qt::AlignTop);
-			SignInScroll->setWidget(AccountsPanel);
-			SignInDialog->resize(620, 440);
-		}
-		SignInHostname = std::move(aHostname);
-		SignInCliOnly  = aCliOnly;
-		if (aCliOnly) {
-			close_enterprise_server_draft();
-		}
-		SignInDialog->setWindowTitle(SignInHostname.empty() ? tr("Sign in") : tr("Sign in to %1").arg(QString::fromStdString(SignInHostname)));
-		settings()->hide();
-		SignInDialog->show();
-		update_sign_in_surface();
-		SignInDialog->raise();
-		SignInDialog->activateWindow();
+		const auto server = aHostname == "github.com" ? core::account_setup_server::github_com : core::account_setup_server::enterprise;
+		begin_account_setup(server, std::move(aHostname), aCliOnly ? std::optional{ core::account_setup_way::github_cli } : std::nullopt);
 	}
 
 	void workbench_window::open_settings(const settings_page aPage)
 	{
-		if (SignInDialog && SignInDialog->isVisible()) {
-			SignInDialog->reject();
-		}
 		if (SettingsPresenter) {
 			SettingsPresenter(aPage);
 		} else if (SettingsWindow != nullptr) {
@@ -1031,6 +964,80 @@ namespace bpr::qt {
 		update_home_landing();
 	}
 
+	auto workbench_window::home_action_returns() const noexcept -> bool
+	{
+		return HomeActionReturns;
+	}
+
+	void workbench_window::present_home_action(const bool aHome)
+	{
+		if (HomeAction == nullptr) {
+			return;
+		}
+		// The owner, 2026-11-11: "The Home button should turn into a return
+		// button when you're on Home with a PR open." Over an open review the
+		// button is that review's way back, as the Active review card's Back
+		// to the review is, and names it. Its key stays Home's, which on Home
+		// already returns. There it is a command rather than a place, so it is
+		// not checkable: a checked Return would read as the place shown. A
+		// setup destination that holds Home has no way back to offer.
+		const auto returns = aHome && HasGithubPullRequest && !SetupDestinationNeedsHome && !IdentityNumber.isEmpty();
+		const auto key     = HomeAction->shortcut().toString(QKeySequence::NativeText);
+		auto       name    = QStringLiteral("Home");
+		auto       text    = QStringLiteral("&Home");
+		auto       tip     = QStringLiteral("Show Home (%1): sign-in or the review queue, and the way back to the review.").arg(key);
+		if (returns) {
+			// The number always, then as much of the title as reads at a
+			// glance; the tooltip carries the whole name.
+			constexpr auto titleWidth = 280;
+			const auto     title      = QString::fromStdString(OpenQueueTitle);
+			const auto     number     = QStringLiteral("#%1").arg(IdentityNumber);
+			const auto     metrics    = QFontMetrics{ PrimaryToolbar != nullptr ? PrimaryToolbar->font() : font() };
+			name                      = QStringLiteral("Return to %1").arg(title.isEmpty() ? number : number + QLatin1Char{ ' ' } + metrics.elidedText(title, Qt::ElideRight, titleWidth));
+			text                      = QString{ name }.replace(QLatin1Char{ '&' }, QStringLiteral("&&"));
+			const auto whole          = IdentityOwner.isEmpty() || IdentityRepository.isEmpty()
+				? number
+				: QStringLiteral("%1/%2%3").arg(IdentityOwner, IdentityRepository, number);
+			tip                       = title.isEmpty() ? QStringLiteral("Return to %1 (%2).").arg(whole, key)
+														: QStringLiteral("Return to %1: %2 (%3).").arg(whole, title, key);
+		}
+		const auto flipped = returns != HomeActionReturns;
+		HomeActionReturns  = returns;
+		// Unchecked before it stops being checkable: QAction keeps the checked
+		// flag of an uncheckable action and reports it with every trigger, so
+		// the return would otherwise ask for Home again.
+		if (returns) {
+			HomeAction->setChecked(false);
+			HomeAction->setCheckable(false);
+		} else {
+			HomeAction->setCheckable(true);
+			if (HomeAction->isChecked() != aHome) {
+				HomeAction->setChecked(aHome);
+			}
+		}
+		if (HomeAction->text() != text) {
+			HomeAction->setText(text);
+			HomeAction->setIconText(returns ? QStringLiteral("Return") : QStringLiteral("Home"));
+		}
+		if (HomeAction->toolTip() != tip) {
+			HomeAction->setToolTip(tip);
+			HomeAction->setStatusTip(tip);
+		}
+		if (flipped) {
+			HomeAction->setIcon(strip_icon(returns ? strip_glyph::return_to_review : strip_glyph::home, palette()));
+		}
+		if (PrimaryToolbar != nullptr) {
+			if (auto* const button = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(HomeAction)); button != nullptr) {
+				if (button->accessibleName() != name) {
+					button->setAccessibleName(name);
+				}
+				if (button->accessibleDescription() != tip) {
+					button->setAccessibleDescription(tip);
+				}
+			}
+		}
+	}
+
 	void workbench_window::refresh_toolbar_icons()
 	{
 		auto* const nativeStyle = style();
@@ -1041,7 +1048,7 @@ namespace bpr::qt {
 		// ink, so a theme change repaints them here exactly as the arrows were.
 		const auto& ink = palette();
 		if (HomeAction != nullptr) {
-			HomeAction->setIcon(strip_icon(strip_glyph::home, ink));
+			HomeAction->setIcon(strip_icon(HomeActionReturns ? strip_glyph::return_to_review : strip_glyph::home, ink));
 		}
 #if defined(_WIN32)
 		// [[BPR-1596]]. The menu control stands first in the Windows row; left

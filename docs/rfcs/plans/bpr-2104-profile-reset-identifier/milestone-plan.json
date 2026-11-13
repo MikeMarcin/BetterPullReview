@@ -1,0 +1,20 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2104-profile-reset-identifier",
+  "scope": {"issues": ["BPR-2104"]},
+  "milestones": [{
+    "id": "unambiguous-structured-binding",
+    "outcome": "The unchanged conditional-branch gate accepts the profile reset fixture without changing its behavior or weakening detection of actual stale names.",
+    "work": [{"issue": "BPR-2104", "criteria": ["AC1", "AC2", "AC3"]}],
+    "depends_on": [],
+    "exit_criteria": [
+      "Original Windows58 child1/5.87s and exact three findings retained; original-file Windows model reports before/aBefore at lines126,127,131, corrected-file model reports none.",
+      "Only the three local identifier tokens change. Existing scanner contract suite, planted stale-name controls, full source platform models, format22 and documentation checks pass. No native rerun or qualification credit from modeled hosts.",
+      "Own source and bookkeeping intentionally contributed to main, foreign work/highwater preserved, exact private/canonical commits and terminal commands recorded. Release bridge remains a root-reviewed disposition, not an implied full native pass."
+    ],
+    "boundary": "Mandate release58-conditional-identifier-r1: tests/end_to_end/profile_data_reset_public_path_tests.cpp only, plus own card/plan/checkpoint/verification/counter/receipt. Frozen703 baseline; no broad main product intake, producer changes or competing native work.",
+    "baseline_sha256": "d1f2595b30ae522f2b6cf01720ab54a3d6f573b251d029f69cf901264cdad173"
+  }],
+  "coverage": "complete",
+  "unplanned_work": []
+}

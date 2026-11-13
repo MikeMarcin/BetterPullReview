@@ -445,6 +445,16 @@ namespace bpr::application {
 				facts.ReviewComments.push_back({ .Identity = identity, .Conversation = prefixed_id("public-preview-comment:", text) });
 			}
 		};
+		// A thread's comment whose read carried its numeric identity (GraphQL's
+		// `fullDatabaseId`) is named by it too, as its `#discussion_r` and
+		// Files changed `#r` links name it.
+		for (const auto& thread : aSnapshot.ReviewThreads) {
+			for (const auto& comment : thread.Comments) {
+				if (!comment.Deleted && comment.Observation.DatabaseId != 0U) {
+					facts.ReviewComments.push_back({ .Identity = comment.Observation.DatabaseId, .Conversation = prefixed_id("review-comment:", comment.Comment.value()) });
+				}
+			}
+		}
 		for (const auto& group : aSnapshot.ReviewCommentGroups) {
 			rest(group.Root);
 			std::ranges::for_each(group.Replies, rest);

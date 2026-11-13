@@ -588,6 +588,7 @@ auto main(int argc, char** argv) -> int
 			accept_every_stop(repairedEditor);
 			find("tourPreparePublication")->click();
 			wait([&] { return find("tourPublish")->isEnabled(); }, "both repairs re-plan as one review");
+			const auto beforePublicationSnapshot = access::window_read_progress(*application).Snapshot;
 			find("tourPublish")->click();
 			wait([&] { return repairedEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().contains(QStringLiteral("Published:")); }, "repaired tour publishes");
 			{
@@ -602,6 +603,11 @@ auto main(int argc, char** argv) -> int
 				expect(published.Stops[i].Destination == core::publication_source(published.Stops[i]), "receipt retains the actual published source separately");
 			}
 			accept_every_stop(repairedEditor);
+			wait([&] {
+				const auto progress = access::window_read_progress(*application);
+				return progress.Snapshot.has_value() && progress.Snapshot != beforePublicationSnapshot && !progress.Reading;
+			},
+				 "published pull request snapshot settles before maintenance preview");
 			find("tourPreparePublication")->click();
 			// The window may still be checking the receipt it just took; Preview is
 			// pressed again until the publication accepts it.

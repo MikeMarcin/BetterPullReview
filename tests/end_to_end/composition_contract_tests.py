@@ -342,17 +342,23 @@ CLI_DISCOVERY_ACCOUNTS_ASSIGNMENT = re.compile(
 )
 # RFC0079 retains read trust and replaces the per-write CLI warning with
 # strict exact-operation admission. Remembered consent skips only this read
-# question; it never substitutes for the ordinary one-use publication grant.
+# gate; it never substitutes for the ordinary one-use publication grant.
+# RFC-BPR-0032 amendment r1: an unchosen or unconsented gh account goes to the
+# account setup, whose Connect as LOGIN is the consent; no question opens.
 CLI_READ_CONSENT_GATE = re.compile(
     r"#\s*if\s+defined\(BPR_GITHUB_CLI_PLATFORM\)\s*"
-    r"if\s*\(\s*profile->cli_account_login\(\s*\)\.empty\(\s*\)\s*\)\s*\{\s*"
-    r"discover_github_cli_accounts\(true\);\s*return;\s*\}\s*"
     r"const\s+auto\s+remembered\s*=\s*Profile->selected_connection\(profile->hostname\(\)\);\s*"
-    r"if\s*\(\s*Profile->cli_read_offered_here\(\s*\)\s*&&\s*"
+    r"if\s*\(\s*profile->cli_account_login\(\s*\)\.empty\(\s*\)\s*\|\|\s*"
+    r"\(\s*Profile->cli_read_offered_here\(\s*\)\s*&&\s*"
     r"!Profile->CliConsent\.contains\(aValue\.Profile\)\s*&&\s*"
-    r"\(!remembered\s*\|\|\s*remembered->Profile\s*!=\s*aValue\.Profile\)\s*\)\s*\{\s*"
-    r"const\s+auto\s+consent\s*=\s*qt::ask_github_cli_read_consent\(\s*"
-    r'Window\.get\(\)\s*,\s*QStringLiteral\(\s*"Use configured GitHub CLI"\s*\)'
+    r"\(!remembered\s*\|\|\s*remembered->Profile\s*!=\s*aValue\.Profile\)\s*\)\s*\)\s*\{\s*"
+    r"begin_account_setup_for\(\s*\*profile\s*\)\s*;\s*return\s*;\s*\}"
+)
+# The setup's Connect records the consent for exactly the account it names.
+CLI_SETUP_CONSENT = re.compile(
+    r"void\s+(?:[A-Za-z_]\w*::)*connect_github_cli\(\s*const\s+core::host_profile_id\s+aProfile\s*\)\s*\{\s*"
+    r"Profile->CliConsent\.insert\(\s*aProfile\s*\)\s*;\s*"
+    r"Window->connect_github_profile\(\s*aProfile\s*\)\s*;\s*\}"
 )
 
 
@@ -379,8 +385,10 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
             "fixture-discovered CLI accounts must be assigned once, and only "
             "from a fixture"
         )
-    if code.count('"Use configured GitHub CLI"') != 1 or len(CLI_READ_CONSENT_GATE.findall(code)) != 1:
+    if len(CLI_READ_CONSENT_GATE.findall(code)) != 1 or len(CLI_SETUP_CONSENT.findall(code)) != 1:
         findings.append("first-use read consent must retain the CLI-platform runtime and remembered-choice gates")
+    if "ask_github_cli_read_consent" in code:
+        findings.append("the GitHub CLI read consent is the account setup's Connect, never a modal question")
     if '"Confirm GitHub CLI publication"' in code:
         findings.append("ordinary strict CLI publication must not restore the transport warning")
     admission = re.search(
@@ -918,11 +926,10 @@ class CompositionContractTests(unittest.TestCase):
         read_gate = CLI_READ_CONSENT_GATE.search(strip_cxx_comments(composition_source))
         self.assertIsNotNone(read_gate)
         hostile_consent_sources = {
-            "read-consent-compiled-out-of-tests-enabled-graphs": re.sub(
-                r"#if defined\(BPR_GITHUB_CLI_PLATFORM\)\n(\t+)if \(profile->cli_account_login\(\)\.empty\(\)\) \{",
-                r"#if defined(BPR_GITHUB_CLI_PLATFORM) \&\& !defined(BPR_BUILD_TESTING)\n\1if (profile->cli_account_login().empty()) {",
-                composition_source,
-                count=1,
+            "read-consent-compiled-out-of-tests-enabled-graphs": composition_source.replace(
+                "#if defined(BPR_GITHUB_CLI_PLATFORM)\n\t\t\t\t\t\t// RFC-BPR-0032 amendment r1",
+                "#if defined(BPR_GITHUB_CLI_PLATFORM) && !defined(BPR_BUILD_TESTING)\n\t\t\t\t\t\t// RFC-BPR-0032 amendment r1",
+                1,
             ),
             "strict-capability-admission-disabled": composition_source.replace(
                 "if (!lease || !lease->strict_cli()) {", "if (false) {", 1,
@@ -946,15 +953,18 @@ class CompositionContractTests(unittest.TestCase):
                 "GithubCliDiscoveryAccounts = true",
                 1,
             ),
-            "read-warning-removed": composition_source.replace(
-                '"Use configured GitHub CLI"', '"Use GitHub CLI"', 1
-            ),
-            # [[BPR-0933]]. The shorter question must still be the answer.
-            "read-question-answered-for-the-reviewer": composition_source.replace(
-                "const auto consent = qt::ask_github_cli_read_consent(",
-                "const auto consent = true || qt::ask_github_cli_read_consent(",
+            "read-consent-gate-removed": composition_source.replace(
+                "Profile->cli_read_offered_here() && !Profile->CliConsent.contains(aValue.Profile)",
+                "false && !Profile->CliConsent.contains(aValue.Profile)",
                 1,
             ),
+            # The setup's Connect must still be the consent, and the only one.
+            "consent-recorded-for-the-reviewer": composition_source.replace(
+                "Profile->CliConsent.insert(aProfile);\n\t\tWindow->connect_github_profile(aProfile);",
+                "Window->connect_github_profile(aProfile);",
+                1,
+            ),
+            "modal-question-restored": composition_source + "\nconst auto consent = qt::ask_github_cli_read_consent(nullptr);\n",
         }
         for name, hostile_source in hostile_consent_sources.items():
             with self.subTest(hostile_consent=name):

@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2124-source-find-debug-watchdog",
+  "scope": {
+    "issues": [
+      "BPR-2124"
+    ]
+  },
+  "coverage": "complete",
+  "unplanned_work": [],
+  "milestones": [
+    {
+      "id": "fixture-correction",
+      "outcome": "Give Source Find a bounded Debug functional watchdog.",
+      "work": [
+        {
+          "issue": "BPR-2124",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Actual generated CTest graphs give all three application_source_find rows Debug240 and Release120 seconds; all commands, environment, pass/fail expressions and other properties remain exact.",
+        "Bind the sole unchanged Windows703 Debug2.0 executable course completing every original oracle and shutdown under a240-second outer bound; keep the original119.984-second timeout and all inner waits, one thousand gesture turns, twenty-eight settles and thirty-one query calls unchanged.",
+        "Focused configuration, documentation and source controls pass; contribute only the own CMake change and bookkeeping to main, preserve foreign work/frozen candidates and return exact mapping and empty command state."
+      ],
+      "boundary": "windows-fixture-followups-two-corrections-20261112-r1; only the named existing fixture path plus own tracker/plan/verification/checkpoint. Independent W363 clone; no W/R/2118-author writes, fresh native dispatch, production, Linux, signing or qualification claim."
+    }
+  ]
+}

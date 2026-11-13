@@ -143,6 +143,62 @@ namespace bpr::core {
 	/// \brief The entry in `aEntries` that is the preset, if any.
 	[[nodiscard]] auto find_preset_entry(std::span<const agent_entry> aEntries, setup_agent aPreset) noexcept -> const agent_entry*;
 
+	/// \brief One card of the setup's Agent step: an agent in the list, or a
+	/// popular agent found on this computer and not added yet.
+	struct agent_setup_choice
+	{
+		/// The entry it is; 0 for a found agent not in the list.
+		std::uint32_t Entry = 0U;
+		setup_agent   Agent = setup_agent::claude_code;
+		std::string   Name;
+		/// The program it runs: an entry's own, else where its popular agent
+		/// was found. Empty when a popular agent's program was not found.
+		std::string Path;
+		/// How the program is known; none when it was not found.
+		std::optional<agent_found_how> How;
+		/// The host policy's verdict for the protocol it speaks.
+		agent_invocation_verdict Verdict;
+		/// It is the agent the setup has chosen.
+		bool Chosen = false;
+
+		auto operator<=>(const agent_setup_choice&) const = default;
+	};
+
+	/// \brief What the Agent step's cards are decided from, as the host knows it.
+	struct agent_setup_choice_facts
+	{
+		std::span<const agent_entry> Entries;
+		/// The entry setup chose, or 0.
+		std::uint32_t Preferred = 0U;
+		/// The kind of agent setup chose, if any.
+		std::optional<setup_agent> Chosen;
+		/// What detection found for the rows (a saved program wins).
+		std::span<const agent_detection> Found;
+		/// Where each popular agent's own program was found by searching,
+		/// whatever program setup saved for its kind.
+		std::span<const agent_detection> Located;
+		std::span<const agent_profile>   Profiles;
+		std::optional<agent_host_policy> Policy;
+		codex_protocol_choice            Codex = codex_protocol_choice::app_server;
+	};
+
+	/// \brief The Agent step's cards, from the agent list and what was found.
+	///
+	/// \details Owner report ("If I add an agent through agent settings, the
+	/// agent setup wizard doesn't update to show it"): the step offers every
+	/// entry, in list order, so an agent added, edited or removed in Settings
+	/// is what the step shows. An entry with a program of its own shows that
+	/// program; a popular agent's entry shows where `Located` found its
+	/// program, or none. After the entries come the popular agents in
+	/// `Located` that have no entry yet (picking one adds it), then a saved
+	/// plain-text harness in `Found` that no entry runs. Each card carries the
+	/// verdict for its protocol's built-in profile; one with no such profile is
+	/// refused as unknown. The chosen card is the `Preferred` entry when it is
+	/// of the `Chosen` kind, else that kind's popular entry, else that kind's
+	/// found card; none when `Chosen` is none. A path that is empty or longer
+	/// than `maximum_agent_text_bytes` is not a found program.
+	[[nodiscard]] auto agent_setup_choices(const agent_setup_choice_facts& aFacts) -> std::vector<agent_setup_choice>;
+
 	/// \brief What a profile kept before agents were a list.
 	struct legacy_agent_settings
 	{

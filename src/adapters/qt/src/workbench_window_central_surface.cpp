@@ -404,6 +404,11 @@ namespace bpr::qt {
 		});
 		HomeLanding->set_close_dispatch([this] { close_review(); });
 		home->addWidget(HomeLanding);
+		// RFC-BPR-0032 amendment r1. Signed out, the account setup stands where
+		// the first-launch card stood, once the composition gives it a host.
+		AccountSetup = new account_setup_view{ HomePage };
+		AccountSetup->hide();
+		home->addWidget(AccountSetup, 1);
 		// [[BPR-0647]]. The centre is a stack: the
 		// overview for the Overview modality, the comparison for the rest.
 		// The comparison keeps a page of its own with no margins, so every

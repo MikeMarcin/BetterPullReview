@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -356,14 +357,17 @@ try {
 	// shipped signed-out session, and a sibling that signs in later enrols a
 	// second grant whose identity change retires every window's session.
 	expect(windowA->home_landing()->state() == qt::landing_state::sign_in && !windowA->home_list()->queue_shown(), "first public window lands signed out with no queue");
+	// RFC-BPR-0032 amendment r1: Start reviewing leaves the setup's Ready.
+	auto setupReady = e2e::account_setup_driver{ *windowA, e2e::account_setup_driver::plan{ .Way = core::account_setup_way::browser } };
 	windowA->home_landing()->primary_button()->click();
-	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session", [&] {
+	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut && !windowA->account_setup()->isVisible(); }, "Home sign-in reaches an account session", [&] {
 		const auto evidence = app::detail::github_application_fixture_access::evidence(*owner);
 		std::cerr << "sign-in status=" << windowA->session_panel()->status_text()
 			<< " diagnostic=" << windowA->session_panel()->diagnostic_text()
 			<< " preview-signed-out=" << owner->status().PublicPreviewSignedOut
 			<< " vault=" << evidence.VaultStores << " bootstrap=" << evidence.BootstrapTransportSelected
 			<< " account=" << evidence.AccountTransportSelected << '\n'; });
+	setupReady.stop();
 	expect(windowA->home_list()->queue_shown(), "an account shows the queue");
 	submit(*windowA, 17);
 	auto* signIn = windowA->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"));
@@ -996,6 +1000,36 @@ try {
 	wait_for([&] { return windowC->session_panel()->status() == core::github_status::pull_request_ready; }, "replacement review opens with a sibling receipt notification pending");
 	select_file(*owner, *windowC);
 	wait_for([&] { return windowB->review_editor()->shown_receipt() && windowB->review_editor()->shown_receipt()->Read == core::file_read_state::seen; }, "surviving PR18 accepts its receipt toggle");
+	// The comparison precedes its own asynchronous receipt and private records.
+	const auto replacement_ready = [&](const auto& aComparison, const auto& aReceipt, const auto& aOverview) {
+		return aComparison && aComparison->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest
+			&& aReceipt && aReceipt->File == aComparison->Alignment.Key.File
+			&& aReceipt->Material == core::file_material(aComparison->Alignment.Key)
+			&& aReceipt->Read == core::file_read_state::read
+			&& aOverview && aOverview->Number == snapshotA->PullRequest.Number
+			&& aOverview->Progress.PrivateNotes == 2U;
+	};
+	wait_for([&] {
+		return replacement_ready(windowC->comparison_surface()->current_result(), windowC->review_editor()->shown_receipt(), windowC->overview_page()->projection());
+	},
+			 "replacement PR17 accepts its own exact receipt and private notes");
+	// Controls use the actual accepted PR17 projection and retained PR18 material.
+	const auto acceptedReplacement = windowC->comparison_surface()->current_result();
+	const auto acceptedReceipt     = windowC->review_editor()->shown_receipt();
+	const auto acceptedOverview    = windowC->overview_page()->projection();
+	expect(!replacement_ready(receiptComparisonC, acceptedReceipt, acceptedOverview), "a retained PR18 comparison cannot satisfy PR17 readiness");
+	auto missingReceipt = acceptedReceipt;
+	missingReceipt.reset();
+	expect(!replacement_ready(acceptedReplacement, missingReceipt, acceptedOverview), "an incomplete own receipt reload is not ready even with both notes");
+	auto wrongMaterial      = acceptedReceipt;
+	wrongMaterial->Material = core::file_material(receiptComparisonC->Alignment.Key);
+	expect(!replacement_ready(acceptedReplacement, wrongMaterial, acceptedOverview), "a Read receipt for PR18 material is refused despite matching note count");
+	auto wrongNotes    = acceptedOverview;
+	wrongNotes->Number = snapshotB->PullRequest.Number;
+	expect(!replacement_ready(acceptedReplacement, acceptedReceipt, wrongNotes), "two notes projected for PR18 cannot satisfy PR17 readiness");
+	auto missingNotes                   = acceptedOverview;
+	missingNotes->Progress.PrivateNotes = 0U;
+	expect(!replacement_ready(acceptedReplacement, acceptedReceipt, missingNotes), "the own private-note reload must have answered before readiness");
 	expect(windowC->comparison_surface()->current_result()->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest
 			   && windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::read
 			   && windowC->overview_page()->projection() && windowC->overview_page()->projection()->Progress.PrivateNotes == 2U,

@@ -129,6 +129,20 @@ record_phase() {
         --phase "${phase}" --context "${PHASE_CONTEXT}" --log-dir "${PHASE_LEDGER}.logs" -- "$@"
 }
 
+validate_qualification_request() {
+    if [[ "${SKIP_TESTS}" == "1" ]]; then return; fi
+    local arguments=(--validate-request --profile "${TEST_PROFILE}")
+    local scope group
+    if [[ ${#TEST_SCOPES[@]} -gt 0 ]]; then
+        for scope in "${TEST_SCOPES[@]}"; do arguments+=(--change-scope "${scope}"); done
+    fi
+    if [[ ${#TEST_HEAVY_GROUPS[@]} -gt 0 ]]; then
+        for group in "${TEST_HEAVY_GROUPS[@]}"; do arguments+=(--heavy-group "${group}"); done
+    fi
+    if [[ -n "${TEST_REGRESSIONS}" ]]; then arguments+=(--include-tests-regex "${TEST_REGRESSIONS}"); fi
+    python3 "${ROOT_DIR}/scripts/run_test_suite.py" "${arguments[@]}"
+}
+
 build_release_graphs() {
     if [[ "${SKIP_TESTS}" == "0" ]]; then
         log "Building Release and Debug test graphs before long qualification"
@@ -684,6 +698,8 @@ require_command otool
 require_command shasum
 require_command python3
 
+validate_qualification_request
+
 if [[ "${PREPARE_ONLY}" == "0" ]]; then
     require_command security
     require_command xcrun
@@ -713,6 +729,21 @@ if [[ "${SKIP_TESTS}" == "0" ]]; then
         for group in "${TEST_HEAVY_GROUPS[@]}"; do TEST_ARGUMENTS+=(--heavy-group "${group}"); done
     fi
     if [[ -n "${TEST_REGRESSIONS}" ]]; then TEST_ARGUMENTS+=(--include-tests-regex "${TEST_REGRESSIONS}"); fi
+    log "Running short Release and Debug risk preflights before long qualification"
+    # Early discovery only: selected final rows run fresh; no receipt is imported.
+    PREFLIGHT_ARGUMENTS=(--jobs 4 --phase-ledger "${PHASE_LEDGER}" --phase-context "${PHASE_CONTEXT}")
+    PREFLIGHT_STATUS=0
+    python3 scripts/run_test_suite.py --preset qualification-release --profile risk-preflight "${PREFLIGHT_ARGUMENTS[@]}" || PREFLIGHT_STATUS=$?
+    # Collect Debug discovery even when Release failed; never start long suites
+    # until both results are reconciled. Keep each mode's native ledger exit.
+    python3 scripts/run_test_suite.py --preset dev --profile risk-preflight "${PREFLIGHT_ARGUMENTS[@]}" || {
+        status=$?
+        if [[ "${PREFLIGHT_STATUS}" == 0 ]]; then PREFLIGHT_STATUS="${status}"; fi
+    }
+    if [[ "${PREFLIGHT_STATUS}" != 0 ]]; then
+        log "Risk preflight failed or incomplete; long qualification not started. Reconcile retained reports and the standing Debug timing policy."
+        exit "${PREFLIGHT_STATUS}"
+    fi
     log "Testing the declared Release profile; omitted heavy claims remain unqualified"
     RELEASE_TEST_ARGUMENTS=("${TEST_ARGUMENTS[@]}")
     if [[ -n "${TEST_FAILURES_FIRST}" ]]; then RELEASE_TEST_ARGUMENTS+=(--failures-first "${TEST_FAILURES_FIRST}"); fi

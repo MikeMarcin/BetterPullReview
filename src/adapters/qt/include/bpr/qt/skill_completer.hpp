@@ -17,9 +17,11 @@ namespace bpr::qt {
 	///
 	/// \details Typing `/` at the start of a word lists the skills the host
 	/// presented, each with where it came from (personal, or the repository at
-	/// the pull request's base); Up and Down choose, Return or Tab inserts,
-	/// Escape closes. A repository skill a personal one of the same name
-	/// hides is inserted as `/repo:NAME`. The list never takes focus from the
+	/// the pull request's base); Up and Down choose, Return, Tab or a click
+	/// inserts the highlighted row (the first when none is), Escape closes.
+	/// Shift+Tab and a Tab with a modifier are left to the field and the
+	/// window, as they are with the list closed. A repository skill a
+	/// personal one of the same name hides is inserted as `/repo:NAME`. The list never takes focus from the
 	/// field, and the field's text is the only thing it changes.
 	class skill_completer final : public QObject
 	{
@@ -33,7 +35,8 @@ namespace bpr::qt {
 		/// \brief The rows shown, as `NAME (source, origin)`; empty when closed.
 		[[nodiscard]] auto rows() const -> QStringList;
 		[[nodiscard]] auto popup() const noexcept -> QListWidget* { return Popup; }
-		/// \brief Inserts the chosen row, as Return does.
+		/// \brief Inserts the chosen row, or the first when none is, as Return
+		/// and Tab do.
 		void accept_current();
 
 	protected:

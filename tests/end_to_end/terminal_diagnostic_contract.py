@@ -1,4 +1,5 @@
 """Content, exact loss accounting, and blocked-pipe public startup isolation."""
+import argparse
 import fcntl
 import os
 from pathlib import Path
@@ -14,12 +15,23 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 
 def run(command, sink, environment=None):
     start = time.monotonic()
+    # BPR-2120: composed children have 15-second functional waits and their
+    # standalone rows permit 30 seconds. Keep all Release backstops unchanged.
+    timeout = 30 if configuration == "Debug" and command[0] == logging else 10
     result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=sink, env=environment, timeout=10, check=False)
+                            stderr=sink, env=environment, timeout=timeout, check=False)
     return result, time.monotonic() - start
 
 
-driver, app, logging = (str(Path(item).resolve()) for item in sys.argv[1:])
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("driver")
+parser.add_argument("app")
+parser.add_argument("logging")
+parser.add_argument("--configuration", default="Release")
+arguments = parser.parse_args()
+configuration = arguments.configuration
+driver, app, logging = (str(Path(item).resolve()) for item in
+                        (arguments.driver, arguments.app, arguments.logging))
 with contained_temporary_directory(prefix="bpr-diagnostic-") as temporary:
     root = Path(temporary)
     result, elapsed = run([driver], subprocess.PIPE)

@@ -811,3 +811,11 @@ Imported 2026-11-10 at the owner's request; no implementation mandate has been g
 | [RFC-BPR-0124](RFC-BPR-0124-one-press-publishes-the-response-push-then-replies.md) | One press publishes the response: push, then replies | Proposed | RFC-BPR-0069, RFC-BPR-0091, RFC-BPR-0098, RFC-BPR-0099, RFC-BPR-0105, RFC-BPR-0111, RFC-BPR-0114, RFC-BPR-0122 |
 
 Imported 2026-11-11 at the owner's request ("/author-rfc a pack for this and message the other session to add it to it's work"); no implementation mandate has been given. [Import](assets/address-review-feedback-v1.LIVE_IMPORT.md); [authored plan](plans/address-review-feedback-v1/milestone-plan.json). P01 to P09 of the [decision record](assets/address-review-feedback-v1/DECISIONS.md) are unconfirmed proposals; P09 changes an adopted rule of RFC-BPR-0098 and is put to the owner before BPR-2113 is built. The [proposed amendments](assets/address-review-feedback-v1/AMENDMENTS.md) are applied by the owning milestones, not at import.
+
+## Suggested prompts as macros
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0125](RFC-BPR-0125-suggested-prompts-are-editable-macros.md) | Suggested prompts are editable macros with rules for where and when they show | In Progress | RFC-BPR-0092, RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0107 |
+
+Drafted 2026-11-12 from the owner's idea ("I wonder if we can make suggested prompts configurable macros we can add/remove/edit in the settings"). The owner answered Q1 to Q10 the same day, Q6 otherwise than recommended (`/` stays skills only; prompts are reached with `/p `), and asked for implementation. Milestone 1, pure core, is built on `main`'s base; milestones 2 onward need the lane's RFC-BPR-0102 and RFC-BPR-0107 code. [Mockup](RFC-BPR-0125-suggested-prompts-are-editable-macros-mockup.html). Its proposed amendments to RFC-BPR-0102 and RFC-BPR-0107 are applied by the owning milestones, not at drafting.

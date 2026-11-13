@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -18,6 +19,7 @@ import uuid
 from run_test_suite import suite_lock
 
 SCHEMA = "bpr.release-phase-ledger.v1"
+WAIT_KINDS = ("human", "service", "capacity")
 
 
 def utc() -> str:
@@ -40,15 +42,18 @@ def read(path: Path) -> list[dict]:
     return rows
 
 
+def append_locked(path: Path, event: dict, rows: list[dict]) -> dict:
+    event = {**event, "sequence": len(rows), "request_id": rows[0]["request_id"], "recorded_utc": utc()}
+    with path.open("a", encoding="utf-8") as output:
+        output.write(json.dumps(event, sort_keys=True) + "\n")
+        output.flush()
+        os.fsync(output.fileno())
+    return event
+
+
 def append(path: Path, event: dict) -> dict:
     with suite_lock(path.with_suffix(path.suffix + ".lock")):
-        rows = read(path)
-        event = {**event, "sequence": len(rows), "request_id": rows[0]["request_id"], "recorded_utc": utc()}
-        with path.open("a", encoding="utf-8") as output:
-            output.write(json.dumps(event, sort_keys=True) + "\n")
-            output.flush()
-            os.fsync(output.fileno())
-    return event
+        return append_locked(path, event, read(path))
 
 
 def initialize(path: Path, request_start: str, context: dict) -> None:
@@ -93,6 +98,76 @@ def finish(path: Path, identity: str, *, outcome: str, seconds: float, exit_code
         raise ValueError("A terminal phase cannot be rewritten")
     append(path, dict(event="end", phase_id=identity, ended_utc=utc(), seconds=seconds,
                       outcome=outcome, exit_code=exit_code, detail=detail, results=results))
+
+
+def begin_wait(path: Path, phase: str, kind: str, context: dict) -> str:
+    """Record an observed wait explicitly; silence never implies a human blocker."""
+    if kind not in WAIT_KINDS or not phase.strip():
+        raise ValueError("An explicit wait name and human/service/capacity kind are required")
+    identity = uuid.uuid4().hex
+    append(path, dict(event="wait-start", wait_id=identity, phase=phase, kind=kind,
+                      started_utc=utc(), context=context))
+    return identity
+
+
+def end_wait(path: Path, identity: str, detail: str = "") -> None:
+    with suite_lock(path.with_suffix(path.suffix + ".lock")):
+        rows = read(path)
+        if not any(row.get("event") == "wait-start" and row.get("wait_id") == identity for row in rows):
+            raise ValueError("Unknown wait identity")
+        if any(row.get("event") == "wait-end" and row.get("wait_id") == identity for row in rows):
+            raise ValueError("A terminal wait cannot be rewritten")
+        append_locked(path, dict(event="wait-end", wait_id=identity, ended_utc=utc(), detail=detail), rows)
+
+
+def covered_seconds(intervals: list[tuple[datetime, datetime]]) -> float:
+    """Union UTC wall intervals, not CPU time or summed parallel worker time."""
+    total = 0.0
+    right = None
+    for start, end in sorted(intervals):
+        if end < start:
+            raise ValueError("A ledger interval ends before it starts")
+        if right is None or start > right:
+            total += (end - start).total_seconds()
+        elif end > right:
+            total += (end - right).total_seconds()
+        right = end if right is None else max(right, end)
+    return total
+
+
+def elapsed_accounting(request: dict, phases: list[dict], waits: list[dict], observed: datetime,
+                       target_seconds: float | None) -> dict:
+    start = instant(request["request_start_utc"])
+    if observed < start:
+        raise ValueError("Observation precedes the request")
+    def interval(row, end):
+        left, right = instant(row["started_utc"]), instant(end)
+        if not start <= left <= right <= observed:
+            raise ValueError("Ledger interval falls outside the observed request")
+        return left, right
+    machine = [interval(row, row["terminal"]["ended_utc"]) for row in phases if row["terminal"] is not None]
+    unresolved = [interval(row, observed.isoformat()) for row in phases if row["terminal"] is None]
+    by_kind = {kind: [interval(row, row["terminal"]["ended_utc"] if row["terminal"] else observed.isoformat())
+                      for row in waits if row["kind"] == kind] for kind in WAIT_KINDS}
+    waiting = [period for periods in by_kind.values() for period in periods]
+    elapsed = (observed - start).total_seconds()
+    machine_wall, waiting_wall = covered_seconds(machine), covered_seconds(waiting)
+    attributed = covered_seconds(machine + waiting)
+    result = dict(elapsed_seconds=elapsed, machine_recorded_wall_seconds=machine_wall,
+                  wait_recorded_wall_seconds=waiting_wall,
+                  wait_by_kind_wall_seconds={kind: covered_seconds(periods) for kind, periods in by_kind.items()},
+                  machine_and_wait_overlap_seconds=max(0.0, machine_wall + waiting_wall - attributed),
+                  unattributed_wall_seconds=max(0.0, elapsed - attributed),
+                  open_phase_window_seconds=covered_seconds(unresolved),
+                  pending_phase_count=len(unresolved), pending_wait_count=sum(row["terminal"] is None for row in waits),
+                  note="Overlapping intervals are counted once. Machine intervals are completed command wrappers, not CPU utilization. Open phases are unreconciled, not proof of a running child. Unattributed time is not inferred human wait. This is observed occupancy, not a causal critical path or qualification.")
+    if target_seconds is not None:
+        if not math.isfinite(target_seconds) or target_seconds <= 0:
+            raise ValueError("Target seconds must be finite and positive")
+        result["target"] = dict(seconds=target_seconds, remaining_seconds=max(0.0, target_seconds - elapsed),
+                                overrun_seconds=max(0.0, elapsed - target_seconds),
+                                exceeded=elapsed > target_seconds, qualification_credit=False)
+    return result
 
 
 def drain_stream(source, output, console, errors: list[str]) -> None:
@@ -159,15 +234,27 @@ def run(path: Path, phase: str, context: dict, command: list[str], log_dir: Path
     return code or (1 if errors else 0)
 
 
-def summary(path: Path) -> dict:
+def summary(path: Path, target_seconds: float | None = None) -> dict:
     rows = read(path)
+    for start_event, end_event, key in (("start", "end", "phase_id"), ("wait-start", "wait-end", "wait_id")):
+        starts = [row[key] for row in rows if row["event"] == start_event]
+        terminals = [row[key] for row in rows if row["event"] == end_event]
+        if len(starts) != len(set(starts)) or len(terminals) != len(set(terminals)) or set(terminals) - set(starts):
+            raise ValueError("Duplicate or unmatched ledger interval identity")
     ends = {row["phase_id"]: row for row in rows if row["event"] == "end"}
     children = {row["phase_id"]: row for row in rows if row["event"] == "child"}
     phases = [{**row, "child_pid": children.get(row["phase_id"], {}).get("child_pid"),
                "logs": children.get(row["phase_id"], {}).get("logs", {}), "terminal": ends.get(row["phase_id"])}
               for row in rows if row["event"] == "start"]
-    return dict(schema=SCHEMA, request=rows[0], observed_until_utc=utc(),
-                request_elapsed_seconds=(datetime.now(timezone.utc) - instant(rows[0]["request_start_utc"])).total_seconds(),
+    wait_ends = {row["wait_id"]: row for row in rows if row["event"] == "wait-end"}
+    waits = [{**row, "terminal": wait_ends.get(row["wait_id"])} for row in rows if row["event"] == "wait-start"]
+    if any(row["kind"] not in WAIT_KINDS for row in waits):
+        raise ValueError("Unknown recorded wait kind")
+    observed = datetime.now(timezone.utc)
+    accounting = elapsed_accounting(rows[0], phases, waits, observed, target_seconds)
+    return dict(schema=SCHEMA, request=rows[0], observed_until_utc=observed.isoformat(),
+                request_elapsed_seconds=accounting["elapsed_seconds"], accounting=accounting, waits=waits,
+                pending_waits=[row["wait_id"] for row in waits if row["terminal"] is None],
                 phases=phases, pending=[row["phase_id"] for row in phases if row["terminal"] is None],
                 failed=[row["phase_id"] for row in phases if row["terminal"] is not None
                         and row["terminal"]["outcome"] != "passed"],
@@ -193,7 +280,16 @@ def main() -> int:
     execute.add_argument("--context", type=Path, required=True)
     execute.add_argument("--log-dir", type=Path, help="Keep separate raw stdout/stderr per attempt while streaming both normally")
     execute.add_argument("command", nargs=argparse.REMAINDER)
-    commands.add_parser("summary")
+    waiting = commands.add_parser("begin-wait", help="Record an actual human/service/capacity wait, never infer one")
+    waiting.add_argument("--phase", required=True)
+    waiting.add_argument("--kind", choices=WAIT_KINDS, required=True)
+    waiting.add_argument("--context", type=Path, required=True)
+    waited = commands.add_parser("end-wait", help="Close an explicit wait; this records no acceptance")
+    waited.add_argument("--wait-id", required=True)
+    waited.add_argument("--detail", default="")
+    report = commands.add_parser("summary")
+    report.add_argument("--target-seconds", type=float, help="Report a budget only; never cancel work or change gates")
+    report.add_argument("--accounting-only", action="store_true", help="Print only overlap-aware elapsed/wait/budget accounting")
     args = parser.parse_args()
     if args.action == "init-build":
         context = build_context(args.source_root, version=args.version, candidate=args.candidate,
@@ -213,7 +309,14 @@ def main() -> int:
         code = run(args.ledger, args.phase, json.loads(args.context.read_text()), command, args.log_dir)
         # Popen uses negative POSIX signal numbers; the shell convention is 128+N.
         return 128 - code if code < 0 else code
-    print(json.dumps(summary(args.ledger), indent=2))
+    if args.action == "begin-wait":
+        print(begin_wait(args.ledger, args.phase, args.kind, json.loads(args.context.read_text(encoding="utf-8"))))
+        return 0
+    if args.action == "end-wait":
+        end_wait(args.ledger, args.wait_id, args.detail)
+        return 0
+    result = summary(args.ledger, args.target_seconds)
+    print(json.dumps(result["accounting"] if args.accounting_only else result, indent=2))
     return 0
 
 

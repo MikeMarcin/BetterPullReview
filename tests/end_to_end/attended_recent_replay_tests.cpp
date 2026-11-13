@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_public_path_fixture.hpp"
 #include "../../src/app/src/system_browser_opener.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -181,8 +182,10 @@ namespace {
 		const auto context = owner->windows().front();
 		auto&      window  = *owner->window(context);
 		if (!aAnonymous) {
+			auto ready = e2e::account_setup_driver{ window, e2e::account_setup_driver::plan{ .Way = core::account_setup_way::browser } };
 			window.home_landing()->primary_button()->click();
-			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "synthetic account signs in");
+			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready && !window.account_setup()->isVisible(); }, "synthetic account signs in");
+			ready.stop();
 		}
 		window.home_open_bar()->setText(QStringLiteral("https://github.com/google/UIforETW/pull/74"));
 		window.home_open_action()->trigger();
@@ -358,8 +361,11 @@ namespace {
 		owner->show();
 		wait_for([&] { return owner->windows().size() == 1U; }, "one attended window exists");
 		auto& window = *owner->window(owner->windows().front());
+		// RFC-BPR-0032 amendment r1: Start reviewing leaves the setup's Ready.
+		auto ready = e2e::account_setup_driver{ window, e2e::account_setup_driver::plan{ .Way = core::account_setup_way::browser } };
 		window.home_landing()->primary_button()->click();
-		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "synthetic account signs in");
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready && !window.account_setup()->isVisible(); }, "synthetic account signs in");
+		ready.stop();
 		expect(platform_launches().empty(), "device sign-in in a fixture run never reaches the platform launch");
 		const auto recorded = [&] { return github_application_fixture_access::browser_opens(*owner); };
 		const auto before   = recorded();

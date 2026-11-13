@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2099-reset-file-lifetime",
+  "scope": {
+    "issues": [
+      "BPR-2099"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "retained-unlinked-file-witness",
+      "outcome": "The profile reset fixture observes removal of the old POSIX file lifetime while keeping all original replacement, kept-store and recovery assertions.",
+      "work": [
+        {
+          "issue": "BPR-2099",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Bind original Linux56 failure and one original R2 causal repeat: device2096/inode465277 unchanged but GETVERSION1482613664 to2514300011, queryerrno0/available1/resetnotice1. Keep only expected-removed store FDs alive through each reset; require oldFD.nlink0 and retain original identity inequality. No held kept-store FDs, production reset or Windows behavior change.",
+        "A controlled private unchanged-file negative rejects the same unlink assertion; original corrected profile public course passes Release and Debug once each with normal56 production libraries and original gestures, predicates, budgets and recovery. Original failures/operatorrefusals retained; no qualification relabeling.",
+        "Focused format22/tidy/source/docs/tracker gates; intentional main contribution and exact release-only commit map. Preserve foreign main/highwater/attachments; all own commands and native borrowings terminal."
+      ],
+      "boundary": "Mandate release56-profile-file-lifetime-r1; only tests/end_to_end/profile_data_reset_public_path_tests.cpp plus own card/plan/checkpoint/counter/receipt. Frozen48bd production baseline; other2097/98 source stays sealed during its native proof. No external main product intake.",
+      "baseline_sha256": "e6489b0a4637720cead6f545b20d54370062fe951e19ced96fe99530108e1988"
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

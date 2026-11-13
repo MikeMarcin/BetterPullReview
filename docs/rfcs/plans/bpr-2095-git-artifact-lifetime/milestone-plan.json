@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2095-git-artifact-lifetime",
+  "scope": {
+    "issues": [
+      "BPR-2095"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "durable-artifact-lifetime",
+      "outcome": "Persisted Linux Git artifact ownership distinguishes recycled inodes and pins each matched lifetime across destructive mutation without weak fallback.",
+      "work": [
+        {
+          "issue": "BPR-2095",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Reject stale generation, legacy Linux scheme and unavailable generation while preserving foreign replacements; new witnessed empty, partial and completed spools recover across close/reopen.",
+        "Retain matched native descriptors across publication and cleanup, unchanged raw manifest/lock identities, port width/API and original bounds; document explicit Clear caches recovery and data-loss limits.",
+        "Original Release and Debug git_cache_contract each pass once on exact corrected native inputs; focused lifetime/error controls and independent critical review pass.",
+        "Land only owned scoped source/test/workflow on main, keep frozen56 untouched, preserve all original failures and native qualification separation."
+      ],
+      "boundary": "Owner git-lifetime-r1 + supported native capability result96664d: installed_git_cache.cpp, existing git_cache_contract_tests.cpp and optional module-private header only, plus own tracker/docs; no broad main intake, weak fallback, sourceR writes or new dependencies."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

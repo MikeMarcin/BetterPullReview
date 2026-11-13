@@ -1,0 +1,8 @@
+{
+  "source_revision": "6efba00e1afbf874c88c7e5de2623a33528ff36f",
+  "mandate_revision": "linux60-multiwindow-receipt-r1",
+  "allocation_main": "3280ddad91d56367c89be02125085a0f6fba4869",
+  "original_debug_junit_sha256": "ec63c91a0da6b72fb5e0cc1e646361904adf8fbfc213a1e2319a0de6eb044c92",
+  "native_execution": "separately serialized by integrate_2118; no current grant",
+  "foreign_source_intake": false
+}

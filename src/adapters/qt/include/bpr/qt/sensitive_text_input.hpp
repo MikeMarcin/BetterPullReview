@@ -6,6 +6,7 @@
 #include <optional>
 #include <span>
 
+class QLineEdit;
 class QWidget;
 
 namespace bpr::qt {
@@ -30,6 +31,7 @@ namespace bpr::qt {
 		friend auto prompt_for_sensitive_text(
 			std::size_t aMaximumBytes,
 			QWidget*    aParent) -> std::optional<sensitive_bytes>;
+		friend auto take_sensitive_text(QLineEdit& aEditor, std::size_t aMaximumBytes) -> std::optional<sensitive_bytes>;
 
 		sensitive_bytes(
 			std::unique_ptr<std::byte[]> aBytes,
@@ -38,6 +40,11 @@ namespace bpr::qt {
 		std::unique_ptr<std::byte[]> Bytes;
 		std::size_t                  Size = 0U;
 	};
+
+	/// \brief RFC-BPR-0032 amendment r1. Takes the text of a password field
+	/// in place, with no dialog: the field and every copy are erased, and the
+	/// bytes are returned only when nonempty and within `aMaximumBytes`.
+	[[nodiscard]] auto take_sensitive_text(QLineEdit& aEditor, std::size_t aMaximumBytes) -> std::optional<sensitive_bytes>;
 
 	/// \brief Computes the prompt for sensitive text result.
 	[[nodiscard]] auto prompt_for_sensitive_text(

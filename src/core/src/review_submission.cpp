@@ -276,6 +276,17 @@ namespace bpr::core {
 		return result;
 	}
 
+	auto awaiting_comments(const review_submission_draft& aDraft, review_submission_controls aControls) noexcept -> review_submission_controls
+	{
+		if (aDraft.State != state::drafting) {
+			return aControls;
+		}
+		aControls.Submit          = false;
+		aControls.SubmitAs        = { };
+		aControls.CommentsUnknown = true;
+		return aControls;
+	}
+
 	auto submits_as(const review_submission_controls& aControls, const review_disposition aDisposition) noexcept -> bool
 	{
 		switch (aDisposition) {

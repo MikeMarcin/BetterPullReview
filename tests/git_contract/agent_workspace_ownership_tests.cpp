@@ -73,6 +73,30 @@ namespace {
 }
 
 namespace bpr::adapters::git {
+	auto installed_workspace_migration_io(const std::string_view aOperation, const std::size_t aRequested) -> std::optional<std::size_t>
+	{
+		std::ofstream trace{ root / "migration-io-trace", std::ios::app };
+		trace << aOperation << ':' << aRequested << '\n';
+		if (phase == "migration-fail-" + std::string{ aOperation }) {
+			return std::nullopt;
+		}
+		if ((phase == "migration-short-body" || phase == "migration-short-body-complete") && aOperation == "body-write") {
+			static std::size_t calls = 0U;
+			if (++calls == 1U) {
+				std::ifstream input{ root / "migration-write-limit" };
+				std::size_t   limit = 0U;
+				if (!(input >> limit) || limit == 0U) {
+					throw std::runtime_error{ "missing bounded migration write limit" };
+				}
+				return limit < aRequested ? limit : aRequested;
+			}
+			if (phase == "migration-short-body") {
+				return std::nullopt;
+			}
+		}
+		return aRequested;
+	}
+
 	void installed_workspace_checkpoint(std::string_view aName)
 	{
 		if (aName != phase) {
@@ -128,6 +152,17 @@ auto main(int argc, char** argv) -> int
 			} else {
 				std::cout << "failure=" << static_cast<int>(result.error()) << " check=" << git::workspace_refusal_check_name(refusal.Check)
 						  << " folder=" << std::filesystem::relative(refusal.Folder, root).generic_string();
+				// [[BPR-2118]]. Every refused record is counted, and a moved
+				// one says what stood at its path.
+				if (refusal.Count != 0U) {
+					std::cout << " records=" << refusal.Count;
+				}
+				if (refusal.Finding != git::workspace_record_finding::none) {
+					std::cout << " finding="
+							  << (refusal.Finding == git::workspace_record_finding::missing            ? "missing"
+									  : refusal.Finding == git::workspace_record_finding::other_volume ? "other-volume"
+																									   : "replaced");
+				}
 			}
 			// [[BPR-1870]]. The checks that narrowed an object in place.
 			for (const auto check : refusal.Repaired) {
@@ -136,7 +171,7 @@ auto main(int argc, char** argv) -> int
 			std::cout << '\n';
 			return 0;
 		}
-		if (phase == "recover" || phase == "cancelled") {
+		if (phase == "recover" || phase == "cancelled" || phase.starts_with("migration-")) {
 			std::stop_source stop;
 			if (phase == "cancelled") {
 				stop.request_stop();
@@ -168,8 +203,13 @@ auto main(int argc, char** argv) -> int
 			marker << layout.OwnershipMarker;
 		}
 		std::filesystem::permissions(layout.Workspace / ".git" / "bpr-owned-workspace", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
-		if (!owner->mark_ready()) {
+		// [[BPR-2118]]. A retained conversation's workspace: phase 7.
+		if (!owner->mark_ready(phase == "retained-abandon")) {
 			throw std::runtime_error{ "mark ready failed" };
+		}
+		if (phase == "retained-abandon") {
+			std::cout << "retained\n";
+			return 0;
 		}
 		if (phase == "busy-cleanup") {
 #if defined(_WIN32)

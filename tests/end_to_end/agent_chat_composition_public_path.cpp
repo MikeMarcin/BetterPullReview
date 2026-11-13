@@ -32,7 +32,11 @@
 /// ([[BPR-1817]]): with no built-in program offered, a custom agent added in
 /// Settings and chosen in the composer's agent menu is the one a send asks,
 /// through the Agent tab's own Send, and a send refused before it is made is
-/// said beside the composer.
+/// said beside the composer. **setup-list** (owner report: "If I add an agent
+/// through agent settings, the agent setup wizard doesn't update to show
+/// it"): with the setup open at its Agent step, an agent added, edited or
+/// removed in Settings is what the step shows at once, and one added by the
+/// step's Custom agent… is in Settings' list.
 
 #include "composition_source.hpp"
 #include "private_data_root.hpp"
@@ -46,6 +50,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -677,6 +682,101 @@ namespace {
 		}
 		std::cout << marker << (passed ? ":pass\n" : ":fail\n");
 		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	/// \brief The setup-list course, from a window whose Settings already added
+	/// "Fixture agent": the setup's Agent step follows Settings' list.
+	[[nodiscard]] auto setup_list_course(app::github_application& aApplication, qt::workbench_window& aWindow) -> int
+	{
+		auto* const setup    = aWindow.agent_setup();
+		auto* const programs = aWindow.agent_programs();
+		const auto  shows    = [setup](const QString& aName) { return setup->step_text().contains(aName); };
+		const auto  listed   = [programs](const QString& aName) {
+			for (auto row = 0; row < programs->agent_list()->count(); ++row) {
+				if (programs->agent_list()->item(row)->text().startsWith(aName + QStringLiteral(" \u2014"))) {
+					return row;
+				}
+			}
+			return -1;
+		};
+		// Set up agent…: the setup at its Agent step, the agents looked for.
+		setup->begin(core::setup_step::agent);
+		auto opened = wait_terms{ };
+		if (!wait_until_reporting(opened, [&](wait_terms& aTerms) {
+				QApplication::processEvents();
+				if (!setup->projection().Detected && !setup->projection().Detecting) {
+					if (auto* const find = setup->findChild<QPushButton*>(QStringLiteral("agentSetupFindAgents")); find != nullptr && find->isEnabled()) {
+						find->click();
+					}
+				}
+				return aTerms.require("agents-looked-for", setup->projection().Detected && !setup->projection().Detecting)
+					&& aTerms.require("agent-step-open", setup->open_step() == core::setup_step::agent)
+					&& aTerms.require("settings-agent-in-setup", shows(QStringLiteral("Fixture agent"))); }, extended_agent_budget)) {
+			return fail(aApplication, "setup-list-added", opened.render());
+		}
+		// Added in Settings while the setup shows.
+		programs->set_editor([](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry = aStart;
+			entry.Name = aStart.Name.empty() ? "Spare agent" : "Fixture agent edited";
+			if (aStart.Name.empty()) {
+				entry.Protocol = core::agent_protocol::claude_stream_json;
+				entry.Program  = "/opt/spare/bin/claude-wrapper";
+				entry.Preset.reset();
+			}
+			return entry;
+		});
+		programs->add_agent(std::nullopt);
+		auto added = wait_terms{ };
+		if (!wait_until_reporting(added, [&](wait_terms& aTerms) {
+				return aTerms.require("spare-in-settings", listed(QStringLiteral("Spare agent")) >= 0)
+					&& aTerms.require("spare-in-setup", shows(QStringLiteral("Spare agent")) && shows(QStringLiteral("/opt/spare/bin/claude-wrapper")))
+					&& aTerms.require("step-kept", setup->open_step() == core::setup_step::agent);
+			})) {
+			return fail(aApplication, "setup-list-second", added.render());
+		}
+		// Edited in Settings.
+		programs->agent_list()->setCurrentRow(listed(QStringLiteral("Fixture agent")));
+		programs->edit_button()->click();
+		auto edited = wait_terms{ };
+		if (!wait_until_reporting(edited, [&](wait_terms& aTerms) {
+				return aTerms.require("edit-in-setup", shows(QStringLiteral("Fixture agent edited")));
+			})) {
+			return fail(aApplication, "setup-list-edited", edited.render());
+		}
+		// Removed in Settings.
+		programs->agent_list()->setCurrentRow(listed(QStringLiteral("Spare agent")));
+		programs->remove_button()->click();
+		auto removed = wait_terms{ };
+		if (!wait_until_reporting(removed, [&](wait_terms& aTerms) {
+				return aTerms.require("spare-gone-from-settings", listed(QStringLiteral("Spare agent")) < 0)
+					&& aTerms.require("spare-gone-from-setup", !shows(QStringLiteral("Spare agent")))
+					&& aTerms.require("edited-kept", shows(QStringLiteral("Fixture agent edited")));
+			})) {
+			return fail(aApplication, "setup-list-removed", removed.render());
+		}
+		// The reverse: Custom agent… in the setup adds to Settings' list.
+		setup->set_entry_editor([](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry     = aStart;
+			entry.Name     = "Wizard agent";
+			entry.Protocol = core::agent_protocol::claude_stream_json;
+			entry.Program  = "/opt/wizard/bin/claude-wrapper";
+			return entry;
+		});
+		auto* const custom = setup->findChild<QPushButton*>(QStringLiteral("agentSetupCustomAgent"));
+		if (custom == nullptr) {
+			return fail(aApplication, "setup-list-custom-button");
+		}
+		custom->click();
+		auto reverse = wait_terms{ };
+		if (!wait_until_reporting(reverse, [&](wait_terms& aTerms) {
+				return aTerms.require("wizard-agent-in-settings", listed(QStringLiteral("Wizard agent")) >= 0)
+					&& aTerms.require("wizard-agent-in-setup", shows(QStringLiteral("Wizard agent")));
+			})) {
+			return fail(aApplication, "setup-list-reverse", reverse.render());
+		}
+		if (!shutdown(aApplication)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-chat-setup-list:pass\n";
+		return EXIT_SUCCESS;
 	}
 } // namespace
 
@@ -714,7 +814,7 @@ auto main(int argc, char** argv) -> int
 	if (
 		course != "positive" && course != "stale" && course != "continued"
 		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation"
-		&& course != "custom-agent" && course != "custom-agent-refused" && course != "subject") {
+		&& course != "custom-agent" && course != "custom-agent-refused" && course != "subject" && course != "setup-list") {
 		return EXIT_FAILURE;
 	}
 	// The two courses that take `continue_against_old_revision` to a further
@@ -727,7 +827,8 @@ auto main(int argc, char** argv) -> int
 	// home of the course's own, which composes with BetterPullReview's grant
 	// (custom-agent) or has a permissions profile of its own, which refuses
 	// it (custom-agent-refused). The launch's arguments say which.
-	const auto custom       = course == "custom-agent" || course == "custom-agent-refused";
+	const auto setupList    = course == "setup-list";
+	const auto custom       = course == "custom-agent" || course == "custom-agent-refused" || setupList;
 	const auto grantRefused = course == "custom-agent-refused";
 	auto       data         = QTemporaryDir{ };
 	auto       home         = QTemporaryDir{ };
@@ -1069,6 +1170,9 @@ auto main(int argc, char** argv) -> int
 				}
 				return aTerms.require("custom-agent-offered", selector->findData(QVariant::fromValue<qulonglong>(customSlot.value())) >= 0); }, extended_agent_budget)) {
 			return fail(*application, "custom-agent-added", added.render());
+		}
+		if (setupList) {
+			return setup_list_course(*application, window);
 		}
 		selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(customSlot.value())));
 		QApplication::processEvents();

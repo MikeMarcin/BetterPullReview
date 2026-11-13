@@ -175,6 +175,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_description_edit_contract": "startup-registry-unavailable",
     "application_comment_edit_contract": "startup-registry-unavailable",
     "application_device_flow_cli_choice": "ineligible-inventory-composition-refused",
+    "application_account_setup_public_path": "unmeasured (registered on macOS)",
     "application_inline_publish_cli_consent": "private-test-root-refused",
     "application_home_waiting_cli_public_path": "private-test-root-refused",
     "application_personal_discovery_cli_public_path": "private-test-root-refused",
@@ -837,6 +838,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_chat_construction_cut_contract": "dos-volume-name",
     "application_agent_chat_continued_contract": "dos-volume-name",
     "application_agent_chat_stale_contract": "dos-volume-name",
+    # [[BPR-2121]]. The same course runner's setup-list course.
+    "application_agent_chat_setup_list_contract": "unmeasured (registered on macOS)",
     "application_agent_finding_chat_panel_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_composition_contract": "dos-volume-name",
     "application_agent_finding_workshop_press_contract": "dos-volume-name",
@@ -900,6 +903,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # QTemporaryDir's canonicalFilePath: the tour courses exit there silently, the
     # others say "private data root" ("private data root exists" for the drain).
     "application_review_tour_cold_import_public_path": "dos-volume-name",
+    # The cold course's sibling: the description's tour link opens the tour.
+    "application_review_tour_link_public_path": "unmeasured (registered on macOS)",
     "application_review_tour_composition_public_path": "dos-volume-name",
     "application_review_tour_composition_scale_125": "dos-volume-name",
     "application_review_tour_composition_scale_200": "dos-volume-name",

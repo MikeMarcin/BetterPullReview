@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
@@ -109,6 +110,9 @@ namespace {
 		expect(sheet != nullptr && sheet->isVisible() && window.review_sheet_open()
 				   && sheet->isAncestorOf(window.review_submission_editor_view()),
 			   "explicit Compose review opens the retained editor in the sheet beside the code");
+		// The owner, 2026-11-11. The review submits once the saved drafts are
+		// read; until then it says they are loading rather than none.
+		wait([&] { return !window.review_submission_editor_view()->shown_projection().Controls.CommentsUnknown; }, "the review knows its pending comments");
 	}
 	void open(app::github_application& aApp, e2e::cli_publication_course& aCli)
 	{
@@ -227,7 +231,11 @@ auto main(int argc, char** argv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir data;
 	const auto    dataRoot = e2e::private_data_root(data);
-	if (!dataRoot) {
+	QTemporaryDir finishingData;
+	const auto    finishingRoot = e2e::private_data_root(finishingData);
+	QTemporaryDir approveData;
+	const auto    approveRoot = e2e::private_data_root(approveData);
+	if (!dataRoot || !finishingRoot || !approveRoot) {
 		std::cerr << "review-submission-composition:fail private data root\n";
 		return EXIT_FAILURE;
 	}
@@ -236,10 +244,10 @@ auto main(int argc, char** argv) -> int
 	auto                        server = std::make_shared<app::detail::review_submission_fixture_state>();
 	server->CliStrictCourse            = cliMode;
 	auto make                          = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, bool aRepeatReads = false,
-											 bool aMergeBaseUnavailable = false, bool aViewerAuthors = false) {
+											 bool aMergeBaseUnavailable = false, bool aViewerAuthors = false, std::optional<std::filesystem::path> aDataRoot = std::nullopt) {
 		std::unique_ptr<app::github_application> started;
 		auto                                     startupTerminal = false;
-		auto                                     options         = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads };
+		auto                                     options         = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = aDataRoot ? aDataRoot : dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads };
 		options.MergeBaseUnavailable                             = aMergeBaseUnavailable;
 		options.ViewerAuthors                                    = aViewerAuthors;
 		cli.configure(options);
@@ -798,6 +806,13 @@ auto main(int argc, char** argv) -> int
 				   "my blocking feedback is there to inspect before deciding");
 			composer.choose_disposition(core::review_disposition::request_changes);
 			composer.body_editor()->setPlainText(QStringLiteral("Requesting changes after reading my own blocking feedback."));
+			// [[BPR-2134]]. Submission acknowledgement precedes the automatic
+			// reread. The next course needs a line from that new current head,
+			// rather than a selection the accepted reread can retire.
+			const auto beforePublication = access::window_read_progress(*application).Snapshot;
+			expect(application->windows().size() == 1U, "the publication read belongs to the course window");
+			const auto publicationWindow = application->windows().front();
+			access::hold_window_read_terminal(*application, publicationWindow, true);
 			composer.submit_action()->trigger();
 			submitted(composer);
 			{
@@ -805,6 +820,16 @@ auto main(int argc, char** argv) -> int
 				expect(server->Submissions == quiet + 2U && server->Reviews.back().Proposal.Disposition == core::review_disposition::request_changes,
 					   "Request changes submits exactly the native event once, with no second label-made event");
 			}
+
+			const auto publicationReadReady = [&] {
+				const auto read = access::window_read_progress(*application);
+				return read.Snapshot.has_value() && read.Snapshot != beforePublication && !read.Reading
+					&& access::diff_work_evidence(*application).NavigationReady;
+			};
+			wait([&] { return access::held_window_read_terminals(*application, publicationWindow) > 0U; }, "publication reread reaches its held delivery");
+			expect(access::window_read_progress(*application).Reading && !publicationReadReady(), "an unfinished publication reread cannot admit current-head line setup");
+			access::hold_window_read_terminal(*application, publicationWindow, false);
+			wait(publicationReadReady, "the new publication snapshot settles before choosing the current-head file");
 
 			// A selected unsent draft binds the decision; a stale view of it is refused.
 			composer.body_editor()->setPlainText(QStringLiteral("Comment with a pending inline draft."));
@@ -817,12 +842,24 @@ auto main(int argc, char** argv) -> int
 			const auto beforeFileGesture = access::epoch_refresh_identity(*application);
 			files->setCurrentIndex(files->model()->index(0, 0));
 			wait([&] { return course.statistics().FileSelections > selections; }, "the file is selected");
-			if (!e2e::wait_until_plain([&] { return course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U); }, e2e::default_queue_budget)) {
+			if (!e2e::wait_until_plain([&] {
+					const auto identity = access::epoch_refresh_identity(*application);
+					return publicationReadReady() && application->status().EpochStatus == core::epoch_status::ready
+						&& identity.AcceptedComparison && !identity.ComparisonPending
+						&& core::available_for_diff(*identity.AcceptedComparison)
+						&& core::canonical_hex(identity.AcceptedComparison->Right.Commit).view() == access::accepted_head(*application)
+						&& identity.PublicationDisplayed && identity.PublishedComparison == identity.AcceptedComparison
+						&& desiredFile && identity.PublishedFile == desiredFile
+						&& course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U);
+				},
+									   e2e::default_queue_budget)) {
 				const auto* surface      = course.comparison_surface();
 				const auto& context      = surface->current_context();
 				const auto& result       = surface->current_result();
 				const auto  selectedFile = course.files_drawer()->contents()->file_at(files->currentIndex());
 				const auto  current      = access::epoch_refresh_identity(*application);
+				const auto  work         = access::diff_work_evidence(*application);
+				const auto  retained     = access::close_review(*application);
 				std::cerr << "review-submission-selection row=" << files->currentIndex().row()
 						  << " context=" << context.has_value() << " result=" << static_cast<bool>(result)
 						  << " semantic=" << static_cast<bool>(surface->current_semantic_index())
@@ -831,6 +868,18 @@ auto main(int argc, char** argv) -> int
 						  << " right-lines=" << (result ? result->Alignment.RightLineCount : 0U)
 						  << " requested-file=" << desiredFile.has_value()
 						  << " selected-match=" << (desiredFile && current.SelectedFile == desiredFile)
+						  << " accepted-comparison=" << current.AcceptedComparison.has_value()
+						  << " accepted-available=" << (current.AcceptedComparison && core::available_for_diff(*current.AcceptedComparison))
+						  << " epoch-status=" << static_cast<int>(application->status().EpochStatus)
+						  << " navigation-ready=" << work.NavigationReady
+						  << " reviewer-jobs=" << work.EpochReviewerJobs
+						  << " diff-jobs=" << work.OutstandingJobs
+						  << " workbench-jobs=" << work.WorkbenchOutstandingRequests
+						  << " tab-modality=" << current.TabModality
+						  << " tab-chosen=" << retained.TabChosen
+						  << " tabs=" << retained.Tabs
+						  << " tab-load=" << current.TabLoad
+						  << " publication-displayed=" << current.PublicationDisplayed
 						  << " before-active=" << beforeFileGesture.ActiveTab.has_value()
 						  << " active=" << current.ActiveTab.has_value()
 						  << " active-file=" << (current.ActiveTab && current.ActiveTab->View.File.has_value())
@@ -1100,6 +1149,13 @@ auto main(int argc, char** argv) -> int
 			const auto before   = access::review_mutation_evidence(*application);
 			course.open_review_composition();
 			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 9U && !composer.held_comments().empty(); }, "this build reads GitHub's diff and holds the off-hunk comment");
+			// Held state precedes the queued show of a relisted row.
+			wait([&] {
+				const auto shown = [](const auto& aWidgets) { return std::ranges::count_if(aWidgets, [](const QWidget* aWidget) { return aWidget->isVisible(); }); };
+				return shown(composer.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"))) == 1
+					&& shown(composer.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingConvert"))) == 1;
+			},
+				 "the held row's reason and action are visible");
 			const auto& carried = composer.shown_draft()->Comments;
 			const auto  held    = std::ranges::find(carried, offHunkBody, &core::review_submission_comment::Body);
 			expect(held != carried.end() && composer.held_comments().size() == 1U && composer.held_comments().contains(held->Draft), "exactly the off-hunk comment is held");
@@ -1226,8 +1282,11 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1778]]. Approve that GitHub refuses leaves Approve chosen and
 		// no summary. A new revision then arrives. The owner's next Approve
 		// did nothing until a restart: the draft froze on the old revision
-		// because a chosen verdict counted as words to keep.
-		application = make(app::detail::github_epoch_fixture_phase::seed);
+		// because a chosen verdict counted as words to keep. Its own data
+		// root: the off-hunk comment held above is pending in the shared one,
+		// and a review carries every pending comment once they are read (the
+		// owner, 2026-11-11), so this Approve would not be the empty one.
+		application = make(app::detail::github_epoch_fixture_phase::seed, app::detail::github_public_path_fixture::github_com, false, false, false, approveRoot);
 		open(*application, cli);
 		{
 			auto&       verdicts    = *application->window().review_submission_editor_view();
@@ -1270,7 +1329,9 @@ auto main(int argc, char** argv) -> int
 		// verdict's own choice, once GitHub confirms it; a refused review
 		// stays open with its draft.
 		// The pull request is read again when it reopens, so its read script replays.
-		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true);
+		// These finish-navigation cases are independent of the earlier
+		// off-hunk refusal, whose pending comment is deliberately retained.
+		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true, false, false, finishingRoot);
 		open(*application, cli);
 		{
 			auto& finishing = application->window();
@@ -1366,7 +1427,7 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1853]]. The signed-in account opened this pull request:
 		// Comment only, as on GitHub. Approve and
 		// Request changes are shown, off, and say why; nothing sends them.
-		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, false, false, true);
+		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, false, false, true, finishingRoot);
 		open(*application, cli);
 		{
 			auto&       own     = *application->window().review_submission_editor_view();

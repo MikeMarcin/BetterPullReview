@@ -478,6 +478,14 @@ namespace bpr::qt {
 
 	void workbench_window::confirm_markdown_link(const core::markdown_link_intent& aIntent)
 	{
+		// A link into this pull request the window shows itself goes there:
+		// the question is for external links a person wrote.
+		if (MarkdownInAppDispatch && MarkdownInAppDispatch(aIntent)) {
+			if (LinkConfirmation != nullptr) {
+				LinkConfirmation->close();
+			}
+			return;
+		}
 		// The address comes from the same admission the open repeats, so what
 		// the question shows is what would open; nothing opens until Open.
 		const auto address = MarkdownAddressDispatch ? MarkdownAddressDispatch(aIntent) : std::expected<std::string, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::unavailable) };
@@ -498,6 +506,11 @@ namespace bpr::qt {
 	void workbench_window::set_markdown_link_address_dispatch(std::function<std::expected<std::string, core::markdown_link_result>(const core::markdown_link_intent&)> aDispatch)
 	{
 		MarkdownAddressDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_markdown_in_app_link_dispatch(std::function<bool(const core::markdown_link_intent&)> aDispatch)
+	{
+		MarkdownInAppDispatch = std::move(aDispatch);
 	}
 
 	auto workbench_window::external_link_confirmation() const noexcept -> QDialog*
@@ -710,6 +723,16 @@ namespace bpr::qt {
 		}
 		if (PageContext.has_value() && HasGithubPullRequest && !LocalCycleShown) {
 			return *PageContext;
+		}
+		// The owner, 2026-11-11: the title's page opens as soon as the title
+		// shows, while the rest of the review still loads. The window names
+		// the pull request; the host admits it against the read it waits on.
+		if (!HasGithubPullRequest && !LocalCycleShown && IdentityText.isEmpty() && LoadingIdentity.has_value()) {
+			return application::loading_pull_request_page{
+				.Owner      = LoadingIdentity->Owner.toStdString(),
+				.Repository = LoadingIdentity->Repository.toStdString(),
+				.Number     = LoadingIdentity->Number.toULongLong(),
+			};
 		}
 		return std::nullopt;
 	}
@@ -1357,28 +1380,24 @@ namespace bpr::qt {
 						if (SessionPanel == nullptr || !SessionPanel->connect_enabled()) {
 							return;
 						}
+						// RFC-BPR-0032 amendment r1. A gh account connects through
+						// the activation, which asks the account setup for consent
+						// it has not been given; a native way in is the setup.
 						const auto* chosen = server_card_for(aProfile);
 						const auto  cli    = chosen->cli_option() && chosen->cli_option()->Profile == aProfile;
 						if (cli) {
-							present_cli_account_choices({ aProfile });
-						}
-						open_sign_in(chosen->hostname(), cli);
-						select_github_profile(aProfile);
-						if (chosen->offers_device_sign_in() && chosen->native_option() && chosen->native_option()->Profile == aProfile) {
-							begin_selected_sign_in();
-						} else {
+							select_github_profile(aProfile);
 							GithubConnectAction->trigger();
+							return;
 						}
+						select_github_profile(aProfile);
+						open_sign_in(chosen->hostname());
 					},
 				.SignIn =
 					[this](const core::host_profile_id aProfile) {
-						open_sign_in(server_card_for(aProfile)->hostname());
-						select_github_profile(aProfile);
-						if (const auto* const chosen = server_card_for(aProfile);
-							chosen != nullptr && chosen->offers_device_sign_in()) {
-							begin_selected_sign_in();
-						} else {
-							GithubConnectAction->trigger();
+						if (const auto* const chosen = server_card_for(aProfile); chosen != nullptr) {
+							select_github_profile(aProfile);
+							open_sign_in(chosen->hostname());
 						}
 					},
 				.SignOut =
@@ -1529,7 +1548,6 @@ namespace bpr::qt {
 			}
 			card->apply(shown);
 		}
-		update_sign_in_surface();
 	}
 
 	auto workbench_window::session_panel() const noexcept -> github_session_panel*
@@ -1543,18 +1561,10 @@ namespace bpr::qt {
 		return DevicePanel;
 	}
 
+	/// RFC-BPR-0032 amendment r1. Sign in is the account setup's browser way.
 	void workbench_window::begin_selected_sign_in()
 	{
-		const auto* card = current_server_card();
-		open_sign_in(card ? card->hostname() : std::string{ });
-		if (DevicePanel == nullptr) {
-			return;
-		}
-		rebind_device_authorization_profile();
-		// The same command-projected button owns admission and profile binding
-		// for Home, the strip and Settings. A running flow cannot begin twice.
-		DevicePanel->begin_button()->setFocus(Qt::OtherFocusReason);
-		DevicePanel->begin_button()->click();
+		begin_account_setup(core::account_setup_server::github_com, "github.com", core::account_setup_way::browser);
 	}
 
 	void workbench_window::rebind_device_authorization_profile()

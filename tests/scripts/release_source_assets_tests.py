@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shlex
 from pathlib import Path
 import shutil
@@ -721,10 +722,32 @@ record_phase() {
     printf 'phase:%s\n' "$*"
     if [[ "$1" == "$FAIL_PHASE" ]]; then return 17; fi
 }
-python3() { printf 'suite:%s\n' "$*"; }
+python3() {
+    printf 'suite:%s\n' "$*"
+    if [[ "$*" == *"$FAIL_PHASE"* && -n "$FAIL_PHASE" ]]; then return 19; fi
+}
 '''
             harness += script[start:end]
             return subprocess.run(["bash", "-s", "--", *options], input=harness, capture_output=True, text=True)
+
+    def test_source_validation_forwards_scope_and_regressions_without_native_work(self):
+        script = (ROOT / "tools/release.sh").read_text()
+        prefix = script.split('[[ "$(uname -s)" == "Darwin" ]]', 1)[0]
+        for options in (["--test-profile", "comprehensive"], ["--test-scope", "routine"],
+                        ["--test-scope", "incremental", "--test-regressions", "^patch$", "--test-heavy-group", "process-recovery"],
+                        ["--skip-tests"]):
+            with self.subTest(options=options):
+                harness = prefix + '\npython3() { printf "request:%s\\n" "$*"; }\nvalidate_qualification_request\n'
+                result = subprocess.run(["bash", "-s", "--", *options], input=harness, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                if "--skip-tests" in options:
+                    self.assertEqual(result.stdout, "")
+                else:
+                    self.assertIn("--validate-request", result.stdout)
+                    self.assertNotIn("--preset", result.stdout)
+                    if "incremental" in options:
+                        self.assertIn("--include-tests-regex ^patch$", result.stdout)
+                        self.assertIn("--heavy-group process-recovery", result.stdout)
 
     def test_every_local_graph_precedes_qualification_and_variants_are_preserved(self):
         for variant in ("", "agent-free", "agent-free-automation-off"):
@@ -738,15 +761,21 @@ python3() { printf 'suite:%s\n' "$*"; }
                     rows = [line for line in result.stdout.splitlines() if line.startswith(("phase:", "suite:"))]
                     self.assertEqual([line.split()[0] for line in rows[:6]], ["phase:" + phase for phase in
                         ("configure-release", "build-release", "configure-debug", "build-debug", "configure-distribution", "build-distribution")])
-                    self.assertEqual(len(rows), 8)
+                    self.assertEqual(len(rows), 10)
                     self.assertIn("--preset macos-release" + ("-" + variant if variant else ""), rows[4])
                     self.assertIn("-DBPR_RELEASE_COHORT=/cohort -DBPR_RELEASE_PRODUCER=mac", rows[4])
-                    self.assertIn("--preset qualification-release --profile " + profile, rows[6])
-                    self.assertIn("--preset dev --profile " + ("comprehensive" if profile == "comprehensive" else "debug-residual"), rows[7])
+                    self.assertIn("--preset qualification-release --profile risk-preflight", rows[6])
+                    self.assertIn("--preset dev --profile risk-preflight", rows[7])
+                    self.assertIn("--preset qualification-release --profile " + profile, rows[8])
+                    self.assertIn("--preset dev --profile " + ("comprehensive" if profile == "comprehensive" else "debug-residual"), rows[9])
                     for row in rows[6:]:
                         self.assertIn("--jobs 4 --phase-ledger /private ledger/phases.jsonl --phase-context /private ledger/context.json", row)
+                    for row in rows[6:8]:
+                        self.assertNotIn("--heavy-group", row)
+                        self.assertNotIn("--change-scope", row)
+                    for row in rows[8:]:
                         self.assertIn("--heavy-group device-lifecycle", row)
-                    self.assertEqual("--tests-regex" in rows[7], profile == "comprehensive")
+                    self.assertEqual("--tests-regex" in rows[9], profile == "comprehensive")
 
     def test_build_failure_stops_without_running_suites_or_later_builds(self):
         phases = ("configure-release", "build-release", "configure-debug", "build-debug", "configure-distribution", "build-distribution")
@@ -765,10 +794,21 @@ python3() { printf 'suite:%s\n' "$*"; }
             result = self.course(["--test-failures-first", str(release), "--debug-failures-first", str(debug)])
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [row for row in result.stdout.splitlines() if row.startswith("suite:")]
+            self.assertTrue(all("--failures-first" not in row for row in rows[:2]))
+            rows = rows[2:]
             self.assertIn("--failures-first " + str(release), rows[0])
             self.assertNotIn(str(debug), rows[0])
             self.assertIn("--failures-first " + str(debug), rows[1])
             self.assertNotIn(str(release), rows[1])
+
+    def test_either_preflight_failure_stops_before_long_qualification(self):
+        for preset in ("qualification-release", "dev"):
+            with self.subTest(preset=preset):
+                result = self.course(failed_phase="--preset " + preset + " --profile risk-preflight")
+                self.assertEqual(result.returncode, 19, result.stderr)
+                suites = [line for line in result.stdout.splitlines() if line.startswith("suite:")]
+                self.assertEqual(len(suites), 2)
+                self.assertTrue(all("--profile risk-preflight" in line for line in suites))
 
     def test_skip_tests_keeps_only_distribution_builds(self):
         result = self.course(["--skip-tests"])
@@ -779,6 +819,22 @@ python3() { printf 'suite:%s\n' "$*"; }
 
 
 class ReleaseProfileAdmissionTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "darwin", "native macOS release entrypoint")
+    def test_invalid_groups_scopes_and_regex_refuse_before_credentials_or_build(self):
+        version = re.search(r"project\([^)]*\bVERSION\s+(\d+\.\d+\.\d+)", (ROOT / "CMakeLists.txt").read_text(), re.S).group(1)
+        diagnostics = ROOT / "build/release-diagnostics"
+        before = set(diagnostics.glob("*"))
+        for arguments, message in ((["--test-scope", "routine", "--test-heavy-group", "typo"], "Unknown heavy group"),
+                                   (["--test-scope", "routine", "--test-scope", "ui"], "Routine cannot hide"),
+                                   (["--test-scope", "incremental", "--test-regressions", "["], "Invalid test selection")):
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(["bash", str(ROOT / "tools/release.sh"), "--version", version,
+                                         "--prepare-only", "--allow-dirty", *arguments], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+                self.assertNotIn("Building", result.stdout)
+                self.assertEqual(set(diagnostics.glob("*")), before)
+
     @unittest.skipUnless(sys.platform == "darwin", "native macOS release entrypoint")
     def test_missing_scope_or_patch_regressions_refuses_before_work(self):
         for arguments in ([], ["--test-scope", "incremental"], ["--test-scope", "qt"]):

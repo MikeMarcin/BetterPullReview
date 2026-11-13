@@ -48,6 +48,18 @@ namespace bpr::app {
 		return "unavailable";
 	}
 
+	namespace {
+		/// [[BPR-2118]]. The record a refusal names, and how many more it
+		/// refused: recovery checks every record before it refuses.
+		auto workspace_record_count_text(const std::size_t aCount, const QString& aFolder) -> QString
+		{
+			if (aCount <= 1U) {
+				return QStringLiteral("the workspace record %1 could not be used.").arg(aFolder);
+			}
+			return QStringLiteral("%1 workspace records could not be used (first: %2).").arg(aCount).arg(aFolder);
+		}
+	}
+
 	auto agent_workspace_refusal_text(const adapters::git::workspace_recovery_refusal& aRefusal) -> QString
 	{
 		using check        = adapters::git::workspace_refusal_check;
@@ -79,9 +91,28 @@ namespace bpr::app {
 		case check::unrecorded_leftover:
 			return lead + QStringLiteral("%1 is a workspace no record accounts for. It is kept, not deleted; move it out of that folder, then restart.").arg(folder);
 		case check::record_not_private:
+			if (aRefusal.Count > 1U) {
+				return lead + workspace_record_count_text(aRefusal.Count, folder) + QStringLiteral(" It is not private to you and could not be made so (another account's, a link, or a file with more than one name), or cannot be opened. Move each refused record out of its folder, then restart.");
+			}
 			return lead + QStringLiteral("the workspace record %1 is not private to you and could not be made so (another account's, a link, or a file with more than one name), or cannot be opened. Move it out of its folder, then restart.").arg(folder);
-		case check::record_unreadable:
-			return lead + QStringLiteral("the workspace that record %1 names could not be read back or cleaned up exactly, so it is kept. Move the record and its workspace out of their folders, then restart.").arg(folder);
+		// [[BPR-2118]]. Each record check has its own sentence, and a refusal
+		// counts every record it refused, so the reviewer knows what to move
+		// before restarting rather than one record per restart.
+		case check::record_malformed:
+			return lead + workspace_record_count_text(aRefusal.Count, folder) + QStringLiteral(" A line of the record cannot be read, or its steps do not follow one another, so it and its workspace are kept. Move each refused record and its workspace out of their folders, then restart.");
+		case check::record_moved:
+			switch (aRefusal.Finding) {
+			case adapters::git::workspace_record_finding::other_volume:
+				return lead + workspace_record_count_text(aRefusal.Count, folder) + QStringLiteral(" The record names a folder with the same inode on a different volume, as when folders are copied or restored from another disk; a restart alone does not do this. It and its workspace are kept. Move each refused record and its workspace out of their folders, then restart.");
+			case adapters::git::workspace_record_finding::replaced:
+				return lead + workspace_record_count_text(aRefusal.Count, folder) + QStringLiteral(" A folder or file the record names was replaced by a different one, so it and its workspace are kept. Move each refused record and its workspace out of their folders, then restart.");
+			case adapters::git::workspace_record_finding::missing:
+			case adapters::git::workspace_record_finding::none:
+				break;
+			}
+			return lead + workspace_record_count_text(aRefusal.Count, folder) + QStringLiteral(" A folder or file the record names is gone, so the record is kept. Move each refused record and what is left of its workspace out of their folders, then restart.");
+		case check::record_cleanup_failed:
+			return lead + workspace_record_count_text(aRefusal.Count, folder) + QStringLiteral(" Its workspace could not be cleaned up exactly, or the record could not be updated, so both are kept. Move each refused record and its workspace out of their folders, then restart.");
 		case check::limit_reached:
 			return lead + QStringLiteral("%1 holds more entries than the limit. Move old workspaces out of it, then restart.").arg(folder);
 		case check::lock_unavailable:

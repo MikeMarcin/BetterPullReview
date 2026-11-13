@@ -340,12 +340,17 @@ namespace bpr::app {
 											.AnotherUnsettled = std::ranges::any_of(Unresolved, [&aRequest](const auto& aOther) { return aOther.IdempotencyKey != aRequest.IdempotencyKey; }) });
 	}
 
-	void review_submission_workflow::observe_review_comments(std::vector<core::review_submission_comment> aComments)
+	void review_submission_workflow::observe_review_comments(std::vector<core::review_submission_comment> aComments, const bool aRead)
 	{
-		if (Closing || aComments == Comments) {
+		if (Closing || (aComments == Comments && aRead == CommentsRead)) {
 			return;
 		}
-		Comments = std::move(aComments);
+		if (aRead != CommentsRead) {
+			// The preflight counts what the review carries: read again.
+			++PreflightInputs;
+		}
+		Comments     = std::move(aComments);
+		CommentsRead = aRead;
 		apply_review_comments();
 		present();
 	}
@@ -468,6 +473,11 @@ namespace bpr::app {
 			result.Submit   = false;
 			result.SubmitAs = { };
 		}
+		// The owner, 2026-11-11. A review whose pending comments are not read
+		// yet would be sent without them: it waits, and says why.
+		if (!CommentsRead) {
+			result = core::awaiting_comments(*Draft, result);
+		}
 		return result;
 	}
 
@@ -504,7 +514,9 @@ namespace bpr::app {
 
 	void review_submission_workflow::project_preflight()
 	{
-		if (!DraftBinding) {
+		// The owner, 2026-11-11. Unread pending comments leave my own
+		// feedback unknown, never a count without them.
+		if (!DraftBinding || !CommentsRead) {
 			Preflight.reset();
 			PreflightReferences.clear();
 			PreflightProjected.reset();
@@ -578,6 +590,9 @@ namespace bpr::app {
 			status = QStringLiteral("The pull request revision changed after you wrote this summary. Discard starts a new review on the current revision; it deletes the summary, never a comment.");
 		} else if (Draft && Draft->State == draft_state::drafting && CommentsRefusal != core::review_submission_rejection::none) {
 			status = comments_status(CommentsRefusal);
+		} else if (Ready && Draft && Draft->State == draft_state::drafting && !CommentsRead) {
+			// The owner, 2026-11-11: never "none" for comments not read yet.
+			status = QStringLiteral("Loading your pending comments… You can submit once they have loaded.");
 		} else if (Locking) {
 			status = QStringLiteral("Holding the pending comments for this review…");
 		}

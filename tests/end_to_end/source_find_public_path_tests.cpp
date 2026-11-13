@@ -139,6 +139,7 @@ namespace {
 	void expect_stationary_find(qt::workbench_window& aWindow, qt::diff_workbench& aSurface, qt::source_find_bar& aBar, QPlainTextEdit& aPane)
 	{
 		settle();
+		wait_for([&] { return !aSurface.geometry_pending(); }, "source geometry ready before scroll work baseline");
 		const auto rectangle = [&] { return QRect{ aBar.mapTo(&aWindow, QPoint{ }), aBar.size() }; };
 		const auto original  = rectangle();
 		const auto before    = aSurface.statistics();

@@ -415,16 +415,13 @@ namespace bpr::qt {
 		AccountAction->setIconText(QStringLiteral("Account"));
 		addAction(AccountAction);
 		connect(AccountAction, &QAction::triggered, this, [this] {
-			open_settings(settings_page::accounts_and_hosts);
-			// [[BPR-0773]] D5. Signed out, the account button is the chosen
-			// server's own Sign in: the card that offers the device flow and
-			// shows Sign in is pressed, exactly as the reviewer would press it.
-			// Anything else only presents the page.
-			if (auto* const card = current_server_card();
-				card != nullptr && card->offers_device_sign_in()
-				&& card->sign_in_button()->isVisibleTo(card)) {
-				card->sign_in_button()->click();
+			// RFC-BPR-0032 amendment r1. Signed out, the account button opens the
+			// account setup; with an account, the page that manages it.
+			if (!session_signed_in() && AccountSetupDispatch) {
+				begin_account_setup();
+				return;
 			}
+			open_settings(settings_page::accounts_and_hosts);
 		});
 
 		const auto rowLabel = [](QWidget* const aRow,

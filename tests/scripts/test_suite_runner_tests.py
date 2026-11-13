@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 import io
+from datetime import timedelta
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,30 @@ class SuiteRunnerTests(unittest.TestCase):
         self.inputs = patch.object(suite, "bootstrap_inputs", return_value="fixture-identity")
         self.inputs.start()
         self.addCleanup(self.inputs.stop)
+
+    def test_source_only_request_validation_never_invokes_native_work(self):
+        with patch.object(suite, "run_suite", side_effect=AssertionError("native work started")), \
+             patch.object(suite.subprocess, "run", side_effect=AssertionError("child started")):
+            for profile, scopes in (("normal", ["routine"]), ("debug-residual", ["incremental"]), ("comprehensive", ["broad"])):
+                with self.subTest(profile=profile):
+                    arguments = ["run_test_suite.py", "--validate-request", "--profile", profile,
+                                 "--change-scope", scopes[0], "--include-tests-regex", "^patch$"]
+                    with patch.object(sys, "argv", arguments), redirect_stdout(io.StringIO()) as output:
+                        self.assertEqual(suite.main(), 0)
+                    result = json.loads(output.getvalue())
+                    self.assertFalse(result["qualification_started"])
+                    self.assertNotIn("selected", result)
+            for groups, scopes, expression in ((["typo"], ["routine"], None), ([], ["routine", "ui"], None),
+                                               ([], ["incremental"], None), ([], ["routine"], "[")):
+                with self.subTest(groups=groups, scopes=scopes, expression=expression):
+                    with self.assertRaises(ValueError):
+                        suite.validate_request("normal", groups, scopes, expression)
+        with ContainedTemporaryDirectory() as temporary:
+            output = Path(temporary) / "not-created"
+            arguments = ["run_test_suite.py", "--validate-request", "--output-dir", str(output)]
+            with patch.object(sys, "argv", arguments), patch.object(sys, "stderr", io.StringIO()), self.assertRaises(SystemExit):
+                suite.main()
+            self.assertFalse(output.exists())
 
     def test_failure_priority_preserves_normal_order_and_dependency_fixture_closure(self):
         with ContainedTemporaryDirectory() as temporary:
@@ -174,6 +199,81 @@ if name == 'cleanup': (root/'fixture').unlink()
             with self.subTest(profile=profile, groups=groups, scopes=scopes), self.assertRaises(ValueError):
                 suite.select_profile(names, profile, groups, scopes)
 
+    def test_risk_preflight_requires_exact_baseline_and_does_not_classify_qualification(self):
+        definition = json.loads((ROOT / "tests/release_test_profiles.json").read_text())
+        baseline = definition["risk_preflight"]["tests"]
+        self.assertEqual(len(baseline), 9)
+        for name in ("git_cache_contract", "application_profile_data_reset_public_path",
+                     "sqlite_epoch_catalog_behavior_contract", "test_network_isolation_manifest"):
+            self.assertIn(name, baseline)
+        names = ["not_early", *reversed(baseline)]
+        selection = suite.select_profile(names, "risk-preflight", [], [])
+        self.assertEqual(selection["selected"], names[1:])
+        self.assertFalse(selection["release_gate_substitution"])
+        self.assertIn("final qualification runs fresh", selection["note"])
+        for missing in baseline:
+            with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "missing required"):
+                suite.select_profile([name for name in names if name != missing], "risk-preflight", [], [])
+        for groups, scopes in ((["device-lifecycle"], []), ([], ["routine"]), ([], ["unknown"])):
+            with self.assertRaisesRegex(ValueError, "does not classify"):
+                suite.select_profile(names, "risk-preflight", groups, scopes)
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for extra in ({"tests_regex": ".*"}, {"failures_first": root / "previous.json"}):
+                with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, "cannot be narrowed"):
+                    suite.run_suite("fixture", 4, root / "results", root=root, profile="risk-preflight", **extra)
+
+    def test_real_risk_preflight_is_native_collect_all_and_final_rows_run_fresh(self):
+        for mode in ("Release", "Debug"):
+            with self.subTest(mode=mode), ContainedTemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / "tests").mkdir()
+                (root / "tests/release_test_profiles.json").write_bytes((ROOT / "tests/release_test_profiles.json").read_bytes())
+                baseline = json.loads((root / "tests/release_test_profiles.json").read_text())["risk_preflight"]["tests"]
+                names = [*baseline, "long_suite_sentinel"]
+                worker = root / "worker.py"
+                worker.write_text("from pathlib import Path\nimport sys\nroot=Path(__file__).parent\n"
+                    "name=sys.argv[1]\np=root/(name+'.runs')\np.write_text(p.read_text()+'run\\n' if p.exists() else 'run\\n')\n"
+                    "if (root/'fail').exists() and name=='git_cache_contract': raise SystemExit(3)\n"
+                    "if (root/'skip').exists() and name=='git_cache_contract': raise SystemExit(77)\n")
+                cmake = ['cmake_minimum_required(VERSION 3.24)', 'project(Preflight NONE)', 'enable_testing()']
+                for name in names:
+                    cmake.append(f'add_test(NAME {name} COMMAND "{Path(sys.executable).as_posix()}" "{worker.as_posix()}" {name})')
+                    cmake.append(f'set_tests_properties({name} PROPERTIES SKIP_RETURN_CODE 77 WORKING_DIRECTORY "${{CMAKE_BINARY_DIR}}")')
+                (root / "CMakeLists.txt").write_text("\n".join(cmake) + "\n")
+                (root / "CMakePresets.json").write_text(json.dumps({"version": 3,
+                    "configurePresets": [{"name": "fixture", "generator": "Ninja", "binaryDir": "${sourceDir}/build",
+                                          "cacheVariables": {"CMAKE_BUILD_TYPE": mode}}],
+                    "testPresets": [{"name": "fixture", "configurePreset": "fixture", "configuration": mode}]}))
+                subprocess.run(["cmake", "--preset", "fixture"], cwd=root, check=True, capture_output=True)
+                for attempt, marker in (("passed", None), ("failed", "fail"), ("skipped", "skip")):
+                    if marker:
+                        (root / marker).touch()
+                    output = root / attempt
+                    with redirect_stdout(io.StringIO()):
+                        code = suite.run_suite("fixture", 4, output, root=root, profile="risk-preflight")
+                    self.assertEqual(code == 0, marker is None)
+                    report = json.loads((output / "timings.json").read_text())
+                    self.assertTrue(report["complete"])
+                    self.assertCountEqual([row["name"] for row in report["tests"]], baseline)
+                    self.assertEqual(report["profile_selection"]["omitted"], ["long_suite_sentinel"])
+                    self.assertFalse(report["qualification_scope"]["release_gate_substitution"])
+                    if marker:
+                        self.assertEqual(report["counts"][attempt], 1)
+                        (root / marker).unlink()
+                self.assertFalse((root / "long_suite_sentinel.runs").exists())
+                with redirect_stdout(io.StringIO()):
+                    self.assertEqual(suite.run_suite("fixture", 4, root / "included", root=root,
+                        profile="risk-preflight", include_tests_regex="^long_suite_sentinel$"), 0)
+                included = json.loads((root / "included/selection.json").read_text())
+                self.assertCountEqual(included["selected"], names)
+                self.assertEqual(included["focused_regressions"], ["long_suite_sentinel"])
+                with redirect_stdout(io.StringIO()):
+                    self.assertEqual(suite.run_suite("fixture", 4, root / "final", root=root), 0)
+                for name in baseline:
+                    self.assertEqual((root / (name + ".runs")).read_text(), "run\n" * 5)
+                self.assertEqual((root / "long_suite_sentinel.runs").read_text(), "run\n" * 2)
+
     def test_real_normal_profile_omits_waiting_sentinel_and_heavy_executes_it_fresh(self):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -218,19 +318,34 @@ if name == 'cleanup': (root/'fixture').unlink()
             manifest = {"tests": [row]}
             cache = root / "CMakeCache.txt"
             with self.assertRaisesRegex(ValueError, "unavailable"):
-                suite.validate_debug_configuration(manifest)
+                suite.validate_native_configuration(manifest)
             for value in ("CMAKE_BUILD_TYPE:STRING=Debug\n", "CMAKE_CONFIGURATION_TYPES:STRING=Debug;Release\n"):
                 cache.write_text(value)
-                suite.validate_debug_configuration(manifest)
+                suite.validate_native_configuration(manifest)
             for value in ("", "CMAKE_BUILD_TYPE:STRING=Release\n", "CMAKE_CONFIGURATION_TYPES:STRING=Release\n"):
                 cache.write_text(value)
                 with self.assertRaisesRegex(ValueError, "does not build Debug"):
-                    suite.validate_debug_configuration(manifest)
+                    suite.validate_native_configuration(manifest)
             cache.write_text("CMAKE_BUILD_TYPE:STRING=Debug\n")
             for label in (None, "Release"):
                 row["config"] = label
                 with self.assertRaisesRegex(ValueError, "actual Debug preset"):
-                    suite.validate_debug_configuration(manifest)
+                    suite.validate_native_configuration(manifest)
+
+    def test_risk_preflight_configuration_cache_is_checked_in_both_modes(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            row = {"name": "qt_workbench_overview", "properties": [
+                {"name": "WORKING_DIRECTORY", "value": str(root)}]}
+            manifest = {"tests": [row]}
+            cache = root / "CMakeCache.txt"
+            for mode, wrong in (("Release", "Debug"), ("Debug", "Release")):
+                row["config"] = mode
+                cache.write_text("CMAKE_BUILD_TYPE:STRING=" + wrong + "\n")
+                with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, "does not build " + mode):
+                    suite.validate_native_configuration(manifest, mode, "Risk preflight")
+                cache.write_text("CMAKE_BUILD_TYPE:STRING=" + mode + "\n")
+                suite.validate_native_configuration(manifest, mode, "Risk preflight")
 
     def test_bounded_selection_keeps_preflight_fresh_and_never_credits_other_rows(self):
         with ContainedTemporaryDirectory() as temporary:
@@ -627,6 +742,66 @@ bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
 
 
 class PhaseLedgerTests(unittest.TestCase):
+    def test_overlap_accounting_separates_recorded_work_waits_and_unknown_time(self):
+        def at(seconds):
+            return ledger.instant("2026-01-01T00:00:00Z") + timedelta(seconds=seconds)
+        def phase(left, right):
+            return {"started_utc": at(left).isoformat(), "terminal": {"ended_utc": at(right).isoformat()} if right is not None else None}
+        phases = [phase(10, 40), phase(20, 50), phase(80, None)]
+        waits = [{**phase(30, 70), "kind": "human"}, {**phase(60, 90), "kind": "service"},
+                 {**phase(85, None), "kind": "capacity"}]
+        report = ledger.elapsed_accounting({"request_start_utc": at(0).isoformat()}, phases, waits, at(100), 90)
+        self.assertEqual(report["machine_recorded_wall_seconds"], 40)
+        self.assertEqual(report["wait_recorded_wall_seconds"], 70)
+        self.assertEqual(report["machine_and_wait_overlap_seconds"], 20)
+        self.assertEqual(report["unattributed_wall_seconds"], 10)
+        self.assertEqual(report["wait_by_kind_wall_seconds"], {"human": 40, "service": 30, "capacity": 15})
+        self.assertEqual(report["open_phase_window_seconds"], 20)
+        self.assertEqual((report["pending_phase_count"], report["pending_wait_count"]), (1, 1))
+        self.assertEqual(report["target"]["overrun_seconds"], 10)
+        self.assertFalse(report["target"]["qualification_credit"])
+        empty = ledger.elapsed_accounting({"request_start_utc": at(0).isoformat()}, [], [], at(100), None)
+        self.assertEqual(empty["unattributed_wall_seconds"], 100)
+        self.assertEqual(empty["wait_recorded_wall_seconds"], 0)
+        for target in (0, -1, float("nan"), float("inf")):
+            with self.assertRaisesRegex(ValueError, "finite and positive"):
+                ledger.elapsed_accounting({"request_start_utc": at(0).isoformat()}, [], [], at(100), target)
+        for invalid in ([phase(50, 40)], [phase(-1, 10)], [phase(50, 101)]):
+            with self.assertRaises(ValueError):
+                ledger.elapsed_accounting({"request_start_utc": at(0).isoformat()}, invalid, [], at(100), None)
+
+    def test_explicit_wait_cli_retains_pending_and_closed_wait_without_acceptance(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, context = root / "ledger.jsonl", root / "context.json"
+            ledger.initialize(path, "2026-01-01T00:00:00Z", {})
+            context.write_text('{"candidate":"fixture"}')
+            command = [sys.executable, str(ROOT / "scripts/release_phase_ledger.py"), "--ledger", str(path)]
+            begin = subprocess.run(command + ["begin-wait", "--phase", "owner-look", "--kind", "human", "--context", str(context)], capture_output=True, text=True)
+            self.assertEqual(begin.returncode, 0, begin.stderr)
+            identity = begin.stdout.strip()
+            pending = ledger.summary(path, 7200)
+            self.assertEqual(pending["pending_waits"], [identity])
+            self.assertEqual(pending["pending"], [])
+            self.assertEqual(pending["accounting"]["machine_recorded_wall_seconds"], 0)
+            end = subprocess.run(command + ["end-wait", "--wait-id", identity], capture_output=True, text=True)
+            self.assertEqual(end.returncode, 0, end.stderr)
+            closed = ledger.summary(path)
+            self.assertEqual(closed["pending_waits"], [])
+            self.assertEqual(closed["failed"], [])
+            self.assertNotIn("outcome", closed["waits"][0]["terminal"])
+            with self.assertRaisesRegex(ValueError, "cannot be rewritten"):
+                ledger.end_wait(path, identity)
+            with self.assertRaisesRegex(ValueError, "Unknown wait"):
+                ledger.end_wait(path, "unknown")
+            with self.assertRaises(ValueError):
+                ledger.begin_wait(path, "wait", "inferred", {})
+            result = subprocess.run(command + ["summary", "--target-seconds", "7200", "--accounting-only"], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            summary = json.loads(result.stdout)
+            self.assertEqual(summary["target"]["seconds"], 7200)
+            self.assertNotIn("phases", summary)
+
     def test_init_build_cli_writes_observed_context_and_never_replaces_it(self):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)

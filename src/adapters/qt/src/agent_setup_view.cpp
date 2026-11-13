@@ -3,6 +3,8 @@
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
+#include "setup_step_parts.hpp"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
@@ -36,6 +38,8 @@
 
 namespace bpr::qt {
 	namespace {
+		using namespace setup_parts;
+
 		[[nodiscard]] auto text_of(const std::string& aText) -> QString { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); }
 
 		[[nodiscard]] auto plain(const core::setup_agent aAgent) -> QString
@@ -53,237 +57,6 @@ namespace bpr::qt {
 				path.replace(0, home.size(), QStringLiteral("~"));
 			}
 			return path;
-		}
-
-		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
-		{
-			const auto keep = 1.0 - aShare;
-			return QColor::fromRgbF(static_cast<float>(aFrom.redF() * keep + aTo.redF() * aShare), static_cast<float>(aFrom.greenF() * keep + aTo.greenF() * aShare),
-									static_cast<float>(aFrom.blueF() * keep + aTo.blueF() * aShare));
-		}
-
-		[[nodiscard]] auto passed_colour(const QPalette& aPalette) -> QColor { return setup_passed_colour(aPalette); }
-		[[nodiscard]] auto failed_colour(const QPalette& aPalette) -> QColor { return setup_failed_colour(aPalette); }
-
-		/// \brief A step's marker: its number while open or ahead, a tick once
-		/// done. The steps are a real sequence, so they are numbered.
-		class step_marker final : public QWidget
-		{
-		public:
-			enum class state : std::uint8_t {
-				ahead,
-				open,
-				done,
-			};
-			step_marker(const int aNumber, const state aState, QWidget* aParent)
-				: QWidget{ aParent }
-				, Number{ aNumber }
-				, State{ aState }
-			{
-				setFixedSize(24, 24);
-				setAccessibleName(aState == state::done ? QObject::tr("Done") : QObject::tr("Step %1").arg(aNumber));
-			}
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto box    = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
-				const auto accent = palette().color(QPalette::Active, QPalette::Highlight);
-				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
-				if (State == state::done) {
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(passed_colour(palette()));
-					painter.drawEllipse(box);
-					auto tick = QPen{ QColor{ Qt::white }, 2.0 };
-					tick.setCapStyle(Qt::RoundCap);
-					tick.setJoinStyle(Qt::RoundJoin);
-					painter.setPen(tick);
-					const auto c = box.center();
-					painter.drawPolyline(std::array{ QPointF{ c.x() - 4.5, c.y() }, QPointF{ c.x() - 1.5, c.y() + 3.0 }, QPointF{ c.x() + 4.5, c.y() - 3.5 } }.data(), 3);
-					return;
-				}
-				painter.setPen(State == state::open ? QPen{ Qt::NoPen } : QPen{ mixed(palette().color(QPalette::Window), ink, 0.35), 1.2 });
-				painter.setBrush(State == state::open ? accent : QBrush{ Qt::NoBrush });
-				painter.drawEllipse(box);
-				auto number = font();
-				number.setWeight(QFont::DemiBold);
-				number.setPointSizeF(std::max(1.0, number.pointSizeF() * 0.85));
-				painter.setFont(number);
-				painter.setPen(State == state::open ? palette().color(QPalette::Active, QPalette::HighlightedText) : mixed(palette().color(QPalette::Window), ink, 0.55));
-				painter.drawText(box, Qt::AlignCenter, QString::number(Number));
-			}
-
-		private:
-			int   Number;
-			state State;
-		};
-
-		/// \brief A choice card: an agent or a clone, the chosen one outlined.
-		/// \brief A choice card: an agent or a clone, the chosen one outlined.
-		/// \details Owner look v002 ("Why do I have to click a little circle
-		/// instead of the whole card"): the whole card chooses, by a click or,
-		/// with the keyboard focus on it, Space or Return. The radio inside only
-		/// shows the choice.
-		class choice_card final : public QWidget
-		{
-		public:
-			explicit choice_card(QWidget* aParent)
-				: QWidget{ aParent }
-			{
-				setFocusPolicy(Qt::StrongFocus);
-				setCursor(Qt::PointingHandCursor);
-			}
-			bool                  Chosen   = false;
-			bool                  Disabled = false;
-			std::function<void()> Activate;
-
-			void settle()
-			{
-				setFocusPolicy(Disabled ? Qt::NoFocus : Qt::StrongFocus);
-				setCursor(Disabled ? Qt::ArrowCursor : Qt::PointingHandCursor);
-				for (auto* const radio : findChildren<QRadioButton*>()) {
-					radio->setFocusPolicy(Qt::NoFocus);
-					radio->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-				}
-			}
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto base   = palette().color(QPalette::Active, QPalette::Base);
-				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
-				const auto accent = palette().color(QPalette::Active, QPalette::Highlight);
-				const auto box    = QRectF{ rect() }.adjusted(0.75, 0.75, -0.75, -0.75);
-				const auto ring   = Chosen || hasFocus();
-				painter.setPen(QPen{ ring ? accent : mixed(base, ink, 0.16), hasFocus() ? 2.0 : (Chosen ? 1.5 : 1.0) });
-				painter.setBrush(Chosen ? mixed(base, accent, 0.06) : (Disabled ? mixed(base, ink, 0.03) : (Hovered ? mixed(base, accent, 0.03) : base)));
-				painter.drawRoundedRect(box, 8.0, 8.0);
-			}
-			void mouseReleaseEvent(QMouseEvent* aEvent) override
-			{
-				if (aEvent->button() == Qt::LeftButton && rect().contains(aEvent->position().toPoint()) && !Disabled && Activate) {
-					Activate();
-					return;
-				}
-				QWidget::mouseReleaseEvent(aEvent);
-			}
-			void keyPressEvent(QKeyEvent* aEvent) override
-			{
-				if ((aEvent->key() == Qt::Key_Space || aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) && !Disabled && Activate) {
-					Activate();
-					return;
-				}
-				QWidget::keyPressEvent(aEvent);
-			}
-			void enterEvent(QEnterEvent* aEvent) override
-			{
-				Hovered = true;
-				update();
-				QWidget::enterEvent(aEvent);
-			}
-			void leaveEvent(QEvent* aEvent) override
-			{
-				Hovered = false;
-				update();
-				QWidget::leaveEvent(aEvent);
-			}
-			void focusInEvent(QFocusEvent* aEvent) override
-			{
-				update();
-				QWidget::focusInEvent(aEvent);
-			}
-			void focusOutEvent(QFocusEvent* aEvent) override
-			{
-				update();
-				QWidget::focusOutEvent(aEvent);
-			}
-
-		private:
-			bool Hovered = false;
-		};
-
-		/// \brief A step's header row. A step already reached opens with a
-		/// click or, focused, Space or Return (owner look v002: "click (2) to
-		/// continue").
-		class step_header final : public QWidget
-		{
-		public:
-			explicit step_header(QWidget* aParent)
-				: QWidget{ aParent }
-			{ }
-			std::function<void()> Activate;
-
-			void settle()
-			{
-				setFocusPolicy(Activate ? Qt::StrongFocus : Qt::NoFocus);
-				setCursor(Activate ? Qt::PointingHandCursor : Qt::ArrowCursor);
-			}
-
-		protected:
-			void mouseReleaseEvent(QMouseEvent* aEvent) override
-			{
-				if (aEvent->button() == Qt::LeftButton && Activate && rect().contains(aEvent->position().toPoint())) {
-					Activate();
-					return;
-				}
-				QWidget::mouseReleaseEvent(aEvent);
-			}
-			void keyPressEvent(QKeyEvent* aEvent) override
-			{
-				if ((aEvent->key() == Qt::Key_Space || aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) && Activate) {
-					Activate();
-					return;
-				}
-				QWidget::keyPressEvent(aEvent);
-			}
-			void paintEvent(QPaintEvent* aEvent) override
-			{
-				QWidget::paintEvent(aEvent);
-				if (hasFocus()) {
-					auto painter = QPainter{ this };
-					painter.setRenderHint(QPainter::Antialiasing, true);
-					painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.5 });
-					painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 6.0, 6.0);
-				}
-			}
-			void focusInEvent(QFocusEvent* aEvent) override
-			{
-				update();
-				QWidget::focusInEvent(aEvent);
-			}
-			void focusOutEvent(QFocusEvent* aEvent) override
-			{
-				update();
-				QWidget::focusOutEvent(aEvent);
-			}
-		};
-
-		[[nodiscard]] auto muted(const QString& aText, QWidget* aParent) -> QLabel*
-		{
-			auto* const label = new QLabel{ aText, aParent };
-			label->setWordWrap(true);
-			label->setTextFormat(Qt::PlainText);
-			label->setForegroundRole(QPalette::PlaceholderText);
-			return label;
-		}
-
-		[[nodiscard]] auto words(const QString& aText, QWidget* aParent) -> QLabel*
-		{
-			auto* const label = new QLabel{ aText, aParent };
-			label->setWordWrap(true);
-			label->setTextFormat(Qt::PlainText);
-			return label;
-		}
-
-		[[nodiscard]] auto code_font(const QFont& aFont) -> QFont
-		{
-			auto code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-			code.setPointSizeF(std::max(1.0, aFont.pointSizeF() * 0.92));
-			return code;
 		}
 
 		/// Local output is a literal, read-only disclosure, never rich text,
@@ -317,44 +90,6 @@ namespace bpr::qt {
 				*open = aChecked;
 				content->setVisible(aChecked);
 			});
-		}
-
-		/// \brief A flat button drawn in the palette's link colour, read at
-		/// each paint so it follows light and dark.
-		class link_push final : public QPushButton
-		{
-		public:
-			link_push(const QString& aText, QWidget* aParent)
-				: QPushButton{ aText, aParent }
-			{
-				setFlat(true);
-				setCursor(Qt::PointingHandCursor);
-			}
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QStylePainter{ this };
-				auto option  = QStyleOptionButton{ };
-				initStyleOption(&option);
-				option.palette.setColor(QPalette::ButtonText, palette().color(QPalette::Active, QPalette::Link));
-				painter.drawControl(QStyle::CE_PushButton, option);
-			}
-		};
-
-		[[nodiscard]] auto link_button(const QString& aText, QWidget* aParent, const QString& aName) -> QPushButton*
-		{
-			auto* const button = new link_push{ aText, aParent };
-			button->setObjectName(aName);
-			return button;
-		}
-
-		[[nodiscard]] auto primary_button(const QString& aText, QWidget* aParent, const QString& aName) -> QPushButton*
-		{
-			auto* const button = new QPushButton{ aText, aParent };
-			button->setObjectName(aName);
-			button->setDefault(true);
-			return button;
 		}
 	} // namespace
 
@@ -545,7 +280,7 @@ namespace bpr::qt {
 			Active = false;
 			Ready  = true;
 		}
-		if (Editing && *Editing == core::setup_step::agent && Picked && Setup.State.Chosen == Picked) {
+		if (Editing && *Editing == core::setup_step::agent && Picked && Setup.State.Chosen == Picked && (PickedEntry == 0U || Setup.Preferences.PreferredAgent == PickedEntry)) {
 			Editing.reset();
 		}
 		if (Editing && *Editing == core::setup_step::repository && Setup.State.RepositoryChosen && Clones.Linked) {
@@ -563,6 +298,7 @@ namespace bpr::qt {
 		Ready   = false;
 		Editing = aStep == core::setup_step::ready ? std::optional<core::setup_step>{ } : std::optional{ aStep };
 		Picked.reset();
+		PickedEntry = 0U;
 		rebuild();
 		if (Changed) {
 			Changed();
@@ -704,6 +440,7 @@ namespace bpr::qt {
 				connect(change, &QPushButton::clicked, this, [this, target] {
 					Editing = target;
 					Picked.reset();
+					PickedEntry = 0U;
 					PickedClone.reset();
 					if (target == core::setup_step::repository && Intents.FindClones) {
 						Intents.FindClones();
@@ -727,6 +464,7 @@ namespace bpr::qt {
 						}
 					}
 					Picked.reset();
+					PickedEntry = 0U;
 					rebuild();
 				};
 				headerRow->setToolTip(target == current ? tr("Continue setting up") : tr("Change this step"));
@@ -771,8 +509,10 @@ namespace bpr::qt {
 			aBody.addWidget(muted(tr("Looking for agents on this computer…"), parent));
 			return;
 		}
-		const auto& rows = Setup.State.Rows;
-		if (rows.empty()) {
+		// Owner report: the cards are the agent list as it is now, so an agent
+		// added, edited or removed in Settings shows here at once.
+		const auto& choices = Setup.Choices;
+		if (choices.empty()) {
 			auto* const none = words(tr("No agent found on this computer"), parent);
 			none->setObjectName(QStringLiteral("agentSetupNoneFound"));
 			auto bold = none->font();
@@ -809,57 +549,69 @@ namespace bpr::qt {
 			aBody.addWidget(chosen, 0, Qt::AlignLeft);
 			return;
 		}
-		const auto chosen = Picked ? Picked : Setup.State.Chosen;
-		for (const auto& row : rows) {
-			auto* const card = new choice_card{ parent };
+		for (const auto& choice : choices) {
+			const auto  available = choice.Verdict.Permitted && choice.How.has_value();
+			const auto  name      = text_of(choice.Name);
+			auto* const card      = new choice_card{ parent };
 			card->setObjectName(QStringLiteral("agentSetupAgentRow"));
-			card->Chosen     = chosen == row.Agent;
-			card->Disabled   = !row.Verdict.Permitted;
+			card->Chosen     = Picked ? *Picked == choice.Agent && PickedEntry == choice.Entry : choice.Chosen;
+			card->Disabled   = !available;
 			auto* const grid = new QHBoxLayout{ card };
 			grid->setContentsMargins(12, 10, 12, 10);
 			grid->setSpacing(10);
 			auto* const radio = new QRadioButton{ card };
 			radio->setObjectName(QStringLiteral("agentSetupAgentChoice"));
 			radio->setChecked(card->Chosen);
-			radio->setEnabled(row.Verdict.Permitted);
-			radio->setAccessibleName(name_for(row.Agent));
+			radio->setEnabled(available);
+			radio->setAccessibleName(name);
 			grid->addWidget(radio, 0, Qt::AlignTop);
 			auto* const lines = new QVBoxLayout{ };
 			lines->setSpacing(2);
-			auto* const name = words(name_for(row.Agent), card);
-			auto        bold = name->font();
+			auto* const title = words(name, card);
+			auto        bold  = title->font();
 			bold.setWeight(QFont::DemiBold);
-			name->setFont(bold);
-			lines->addWidget(name);
-			auto* const path = words(shown_path(row.Path), card);
-			path->setFont(code_font(font()));
-			path->setToolTip(text_of(row.Path));
-			lines->addWidget(path);
-			auto how = QString{ };
-			switch (row.How) {
-			case core::agent_found_how::on_path:       how = tr("Found on PATH."); break;
-			case core::agent_found_how::usual_folder:  how = tr("Found in a usual install folder."); break;
-			case core::agent_found_how::saved_program: how = row.Agent == core::setup_agent::claude_code ? tr("Your process wrapper.") : tr("The program you chose."); break;
+			title->setFont(bold);
+			lines->addWidget(title);
+			if (!choice.Path.empty()) {
+				auto* const path = words(shown_path(choice.Path), card);
+				path->setFont(code_font(font()));
+				path->setToolTip(text_of(choice.Path));
+				lines->addWidget(path);
 			}
-			if (!row.Verdict.Permitted) {
+			auto how = tr("Not found on this computer.");
+			if (choice.How) {
+				switch (*choice.How) {
+				case core::agent_found_how::on_path:       how = tr("Found on PATH."); break;
+				case core::agent_found_how::usual_folder:  how = tr("Found in a usual install folder."); break;
+				case core::agent_found_how::saved_program: how = choice.Agent == core::setup_agent::claude_code ? tr("Your process wrapper.") : tr("The program you chose."); break;
+				}
+			}
+			if (!choice.Verdict.Permitted) {
 				how = tr("Not allowed for this pull request's host.");
 			}
 			lines->addWidget(muted(how, card));
 			grid->addLayout(lines, 1);
-			const auto agent = row.Agent;
-			card->Activate   = [this, agent] {
-				Picked = agent;
-				if (Setup.State.Chosen == agent) {
+			const auto agent = choice.Agent;
+			const auto entry = choice.Entry;
+			const auto taken = choice.Chosen;
+			card->Activate   = [this, agent, entry, taken] {
+				Picked      = agent;
+				PickedEntry = entry;
+				if (taken) {
 					// The agent already chosen: keep it and go on.
 					Editing.reset();
 					rebuild();
 					return;
 				}
-				if (Intents.Choose) {
+				if (entry != 0U) {
+					if (Intents.ChooseEntry) {
+						Intents.ChooseEntry(entry);
+					}
+				} else if (Intents.Choose) {
 					Intents.Choose(agent);
 				}
 			};
-			card->setAccessibleName(name_for(row.Agent));
+			card->setAccessibleName(name);
 			card->settle();
 			aBody.addWidget(card);
 		}
@@ -871,6 +623,7 @@ namespace bpr::qt {
 			connect(keep, &QPushButton::clicked, this, [this] {
 				Editing.reset();
 				Picked.reset();
+				PickedEntry = 0U;
 				rebuild();
 			});
 			aBody.addWidget(keep, 0, Qt::AlignLeft);

@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2137-reset-sentinel-lifetime",
+  "scope": {
+    "issues": [
+      "BPR-2137"
+    ]
+  },
+  "coverage": "complete",
+  "unplanned_work": [],
+  "milestones": [
+    {
+      "id": "closed-sentinel-connections",
+      "outcome": "The reset fixture releases its SQLite handles before public reset and proves exact lifecycle behavior on Linux and Windows.",
+      "work": [
+        {
+          "issue": "BPR-2137",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Close both sentinel-write and copied sentinel-read SQLite connections explicitly on success, early return and exceptions before reset or helper return; preserve transaction semantics, anchored POSIX identity and every original public oracle/time bound.",
+        "Verify the actual helpers with strongly retained real SQLite connection objects, including committed data, absent/present sentinel paths and exceptional cleanup; require a forced-leak negative to be rejected without relying on garbage collection.",
+        "Run the final exact corrected script through full native Linux Release/Debug and approved limited-interactive Windows Release/Debug configured courses against immutable compiled60 apps, with protected inputs, original containment/environment/watchdog and empty owned forests.",
+        "Land only owned fixture/regression/admin paths on canonical local Main with exact frozen60-compatible mapping; preserve BPR-2135 Done and its historical Linux-only candidate proof, record the lifetime risk/follow-up, and return native/writer ownership without broad Main intake or remote push."
+      ],
+      "boundary": "Only transferred BPR-2137 reservation/follow-up, exact BPR-2135 private test prerequisites and own lifecycle regression. Frozen60 R/W/compiled apps immutable; no2135 reopening or foreign Main intake. Native stages serialized by integrate_2118."
+    }
+  ]
+}

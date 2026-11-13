@@ -903,6 +903,11 @@ namespace bpr::app {
 			binding.Comparison = index->diff().Alignment.Digest;
 		}
 		PrivateReview->observe(binding, index, SelectedSemanticSelection ? std::optional{ SelectedSemanticSelection->PreferredLine } : std::nullopt);
+#if defined(BPR_BUILD_TESTING)
+		if (HoldDraftRestore) {
+			return;
+		}
+#endif
 		if (!PrivateDraftsReady && SharedDrafts && PrivateReview->binding()) {
 			PrivateDraftsReady = true;
 			const auto owner   = SharedDrafts;
@@ -911,6 +916,9 @@ namespace bpr::app {
 					return;
 				}
 				if (aCommit && owner->adopt(owner->authority(), *aCommit)) {
+					// The owner, 2026-11-11. The review now knows its pending
+					// comments, rather than counting none before they are read.
+					ReadDrafts = owner;
 					present_saved_drafts();
 					if (ReviewSubmission) {
 						ReviewSubmission->resolve_held(std::vector<std::string>{ aCommit->held_reviews().begin(), aCommit->held_reviews().end() });

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run an explicit normal, heavy or comprehensive CTest profile with honest coverage."""
+"""Run explicit qualification or early risk-preflight CTest checks with honest coverage."""
 from __future__ import annotations
 
 import argparse
@@ -199,7 +199,7 @@ def run_suite(preset: str, jobs: int, output: Path, ctest: str = "ctest", root: 
 
 def select_profile(names: list[str], profile: str, heavy_groups: list[str] | None, change_scopes: list[str] | None, root: Path = ROOT) -> dict:
     """Select declared obligations, never infer acceptance or inherit old verdicts."""
-    if len(names) != len(set(names)) or profile not in {"normal", "debug-residual", "heavy", "comprehensive"}:
+    if len(names) != len(set(names)) or profile not in {"normal", "debug-residual", "heavy", "comprehensive", "risk-preflight"}:
         raise ValueError("Duplicate manifest rows or unknown test profile")
     requested_groups, scopes = set(heavy_groups or []), set(change_scopes or [])
     result = dict(requested=profile, effective=profile, change_scopes=sorted(scopes), configured_count=len(names),
@@ -211,6 +211,20 @@ def select_profile(names: list[str], profile: str, heavy_groups: list[str] | Non
     definition = json.loads(path.read_text(encoding="utf-8"))
     if definition.get("schema") != "bpr.release-test-profiles.v1":
         raise ValueError("Unknown release test profile schema")
+    if profile == "risk-preflight":
+        required = definition["risk_preflight"]["tests"]
+        if (not required or not all(isinstance(name, str) and name for name in required)
+                or len(required) != len(set(required))):
+            raise ValueError("Invalid risk preflight row inventory")
+        if requested_groups or scopes:
+            raise ValueError("Risk preflight does not classify or replace final qualification scope")
+        missing = sorted(set(required) - set(names))
+        if missing:
+            raise ValueError("Risk preflight is missing required rows: " + ", ".join(missing))
+        result.update(selected=[name for name in names if name in required],
+                      definition_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                      note=definition["risk_preflight"]["purpose"], release_gate_substitution=False)
+        return result
     groups = {group["id"]: group for group in definition["groups"]}
     declared = [name for group in definition["groups"] for name in group["tests"]]
     if len(groups) != len(definition["groups"]) or len(declared) != len(set(declared)):
@@ -248,21 +262,61 @@ def select_profile(names: list[str], profile: str, heavy_groups: list[str] | Non
     return result
 
 
-def validate_debug_configuration(manifest: dict) -> None:
+def validate_request(profile: str, heavy_groups: list[str], change_scopes: list[str],
+                     include_tests_regex: str | None = None, tests_regex: str | None = None,
+                     failures_first: Path | None = None, root: Path = ROOT) -> dict:
+    """Refuse invalid source-only requests before costly native work, not qualify rows."""
+    if profile not in {"normal", "debug-residual", "heavy", "comprehensive", "risk-preflight"}:
+        raise ValueError("Unknown test profile")
+    for expression in (include_tests_regex, tests_regex):
+        if expression is not None:
+            try:
+                re.compile(expression)
+            except re.error as error:
+                raise ValueError(f"Invalid test selection regular expression: {error}") from error
+    if profile == "risk-preflight" and (tests_regex is not None or failures_first is not None):
+        raise ValueError("Risk preflight cannot be narrowed or use prior failure ordering; run final qualification separately")
+    definition = json.loads((root / "tests/release_test_profiles.json").read_text(encoding="utf-8"))
+    if definition.get("schema") != "bpr.release-test-profiles.v1":
+        raise ValueError("Unknown release test profile schema")
+    groups, scopes = set(heavy_groups), set(change_scopes)
+    known_groups = {group["id"] for group in definition["groups"]}
+    known_scopes = set(definition["scope_groups"]) | set(definition["comprehensive_scopes"])
+    if groups - known_groups or scopes - known_scopes:
+        raise ValueError("Unknown heavy group or change scope")
+    if profile in {"normal", "debug-residual"} and not scopes:
+        raise ValueError("Normal qualification requires explicit --change-scope; unknown risk requires comprehensive")
+    if profile == "heavy" and not groups:
+        raise ValueError("Heavy qualification requires explicit --heavy-group")
+    if profile == "risk-preflight" and (groups or scopes):
+        raise ValueError("Risk preflight does not classify or replace final qualification scope")
+    if "routine" in scopes and len(scopes) != 1:
+        raise ValueError("Routine cannot hide another declared change scope")
+    if "incremental" in scopes and not include_tests_regex:
+        raise ValueError("Incremental qualification requires explicit --include-tests-regex patch regressions")
+    return dict(schema="bpr.test-request.v1", requested=profile,
+                effective="comprehensive" if profile == "comprehensive" or scopes.intersection(definition["comprehensive_scopes"]) else profile,
+                change_scopes=sorted(scopes), heavy_groups=sorted(groups), focused_regression_regex=include_tests_regex,
+                qualification_started=False,
+                note="Source-only request validation; native inventory, matches, configuration, scheduling and all qualification remain required.")
+
+
+def validate_native_configuration(manifest: dict, configuration: str = "Debug", label: str = "Debug residual") -> None:
     """Require the requested CTest mode and its actual generated build cache."""
-    if any(row.get("config") != "Debug" for row in manifest["tests"]):
-        raise ValueError("Debug residual requires an actual Debug preset")
-    row = next((row for row in manifest["tests"] if row["name"] == "qt_workbench_window_scale_100"), None)
+    if any(row.get("config") != configuration for row in manifest["tests"]):
+        raise ValueError(f"{label} requires an actual {configuration} preset")
+    row = next((row for row in manifest["tests"]
+                if row["name"] in {"qt_workbench_window_scale_100", "qt_workbench_overview"}), None)
     properties = {prop["name"]: prop["value"] for prop in row.get("properties", [])} if row else {}
     directory = Path(properties.get("WORKING_DIRECTORY", ""))
     cache = next((parent / "CMakeCache.txt" for parent in (directory, *directory.parents)
                   if directory.is_absolute() and (parent / "CMakeCache.txt").is_file()), None)
     if cache is None:
-        raise ValueError("Debug residual build cache is unavailable")
+        raise ValueError(f"{label} build cache is unavailable")
     values = dict(re.findall(r"(?m)^([^/#:=]+):[^=]*=(.*)$", cache.read_text(encoding="utf-8")))
     configurations = values.get("CMAKE_CONFIGURATION_TYPES", "")
-    if ("Debug" not in configurations.split(";") if configurations else values.get("CMAKE_BUILD_TYPE") != "Debug"):
-        raise ValueError("Debug residual cache does not build Debug")
+    if (configuration not in configurations.split(";") if configurations else values.get("CMAKE_BUILD_TYPE") != configuration):
+        raise ValueError(f"{label} cache does not build {configuration}")
 
 
 def committed_tooling_pin(root: Path) -> dict:
@@ -468,6 +522,8 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
                      include_tests_regex: str | None = None, failures_first: Path | None = None) -> int:
     if sys.flags.optimize or os.environ.get("PYTHONOPTIMIZE"):
         raise ValueError("Qualification requires Python assertions enabled (no -O/PYTHONOPTIMIZE)")
+    if profile == "risk-preflight" and (tests_regex is not None or failures_first is not None):
+        raise ValueError("Risk preflight cannot be narrowed or use prior failure ordering; run final qualification separately")
     runner_started = time.monotonic()
     output.mkdir(parents=True, exist_ok=False)
     manifest = subprocess.run([ctest, "--preset", preset, "--show-only=json-v1"], cwd=root,
@@ -475,7 +531,12 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     selected = json.loads(manifest.stdout)
     validate_schedule(selected)
     if profile == "debug-residual":
-        validate_debug_configuration(selected)
+        validate_native_configuration(selected)
+    if profile == "risk-preflight":
+        modes = {row.get("config") for row in selected["tests"]}
+        if len(modes) != 1 or not modes.issubset({"Release", "Debug"}):
+            raise ValueError("Risk preflight requires a native Release or Debug graph")
+        validate_native_configuration(selected, next(iter(modes)), "Risk preflight")
     all_names = [test["name"] for test in selected["tests"]]
     selection = select_profile(all_names, profile, heavy_groups, change_scopes, root)
     included = [name for name in all_names if include_tests_regex is not None and re.search(include_tests_regex, name)]
@@ -499,6 +560,8 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
                      omitted=sorted(set(all_names) - set(expected)), manifest_sha256=hashlib.sha256(manifest.stdout.encode()).hexdigest())
     (output / "selection.json").write_text(json.dumps(selection, indent=2) + "\n", encoding="utf-8")
     print(f"Admitted profile {selection['requested']} -> {selection['effective']}: {len(expected)}/{len(all_names)} rows; {len(selection['omitted'])} omitted (not qualified)", flush=True)
+    if profile == "risk-preflight":
+        print(selection["note"], flush=True)
     invocation = uuid.uuid4().hex
     identity = None
     identity_error = None
@@ -583,7 +646,10 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     print(f"Timing report: {output / 'timings.json'}")
     if not complete:
         print("CTest result inventory differs from the selected preset", file=sys.stderr)
-    return completed.returncode or (1 if not complete or report["counts"].get("failed", 0) else 0)
+    if profile == "risk-preflight" and report["counts"].get("skipped", 0):
+        print("Risk preflight did not pass: required checks were skipped", file=sys.stderr)
+    return completed.returncode or (1 if not complete or report["counts"].get("failed", 0)
+                                   or profile == "risk-preflight" and report["counts"].get("skipped", 0) else 0)
 
 
 def phase_results(output: Path) -> dict:
@@ -614,22 +680,29 @@ def main() -> int:
     parser.add_argument("--jobs", type=int, default=4, help="Bounded CTest concurrency; exclusive courses stay serial; only audited correctness may overlap")
     parser.add_argument("--output-dir", type=Path, help="New directory for this run's log, JUnit and timing report")
     parser.add_argument("--tests-regex", help="Bounded selection from the validated preset; the existing tooling preflight still runs")
-    parser.add_argument("--profile", choices=["normal", "debug-residual", "heavy", "comprehensive"], default="comprehensive",
-                        help="Normal release checks, named heavy obligations, or every configured row (default)")
+    parser.add_argument("--profile", choices=["normal", "debug-residual", "heavy", "comprehensive", "risk-preflight"], default="comprehensive",
+                        help="Normal release checks, named heavy obligations, every configured row (default), or early risk discovery only")
     parser.add_argument("--heavy-group", action="append", default=[], help="Explicit heavy obligation group; repeat for several groups")
     parser.add_argument("--change-scope", action="append", default=[], help="Declared owning change scope; unknown/broad/toolchain/Qt/platform escalates to comprehensive")
     parser.add_argument("--include-tests-regex", help="Add named patch regressions to a normal profile without dropping its baseline")
     parser.add_argument("--failures-first", type=Path, help="Prior same-preset timings.json: run its failed fixture/dependency groups first, then collect all remaining selected rows")
     parser.add_argument("--phase-ledger", type=Path, help="Append this attempt to an existing request ledger, including refusal/failure")
     parser.add_argument("--phase-context", type=Path, help="Nonsecret JSON source/config/tools/cache/lease facts for --phase-ledger")
+    parser.add_argument("--validate-request", action="store_true", help="Validate scope/group/regex syntax only; no configure, build, CTest or qualification")
     parser.add_argument("--report-log", type=Path, help="Only summarize an existing CTest console log")
     parser.add_argument("--json", action="store_true", help="Print a JSON report when reading --report-log")
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error("--jobs must be positive")
+    if args.validate_request and (args.output_dir or args.phase_ledger or args.phase_context or args.report_log):
+        parser.error("--validate-request cannot produce test outputs or phase receipts")
     if args.report_log:
         report = read_log(args.report_log)
         print(json.dumps(report, indent=2)) if args.json else print_report(report)
+        return 0
+    if args.validate_request:
+        print(json.dumps(validate_request(args.profile, args.heavy_group, args.change_scope,
+                                         args.include_tests_regex, args.tests_regex, args.failures_first), indent=2))
         return 0
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     output = args.output_dir or ROOT / "build/test-results" / args.preset / stamp

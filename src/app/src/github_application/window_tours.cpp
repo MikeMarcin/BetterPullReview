@@ -11,6 +11,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/local_draft_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #include "tour_observation.hpp"
 #include "tour_owner_service.hpp"
@@ -27,8 +28,10 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <iterator>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/application/tour_agent_conversation.hpp"
@@ -317,6 +320,83 @@ namespace bpr::app {
 		PendingTourStop  = std::move(aStop);
 		Window->open_review_tour();
 		TourHost->import_selected(0U);
+	}
+
+	auto github_application::implementation::follow_in_app_link(const core::markdown_link_intent& aIntent) -> bool
+	{
+		if (Closing || !Window || !WindowRead || !current(DraftWindow)) {
+			return false;
+		}
+		// The window's own published tour first, then each offered one in
+		// import order: the index the core answers says which.
+		auto roots = std::vector<core::tour_remote_binding>{ };
+		auto own   = false;
+		if (TourHost) {
+			const auto shown = TourHost->presentation();
+			if (shown.Draft && shown.Draft->Remote && !shown.Draft->Stops.empty()) {
+				roots.push_back(*shown.Draft->Remote);
+				own = true;
+			}
+			std::ranges::move(TourHost->import_roots(), std::back_inserter(roots));
+		}
+		const auto rightIsHead = EpochHost && comparison_ends_at_head();
+		const auto link        = WindowRead->markdown_in_app_link_of(aIntent, roots, rightIsHead);
+		if (!link) {
+			return false;
+		}
+		switch (link->Decision.Route) {
+		case core::pull_request_link_route::external: return false;
+		case core::pull_request_link_route::tour:
+			if (own && link->Decision.Tour == 0U) {
+				start_tour_at(std::nullopt);
+			} else {
+				open_linked_tour(link->Decision.Tour - (own ? 1U : 0U), roots[link->Decision.Tour]);
+			}
+			return true;
+		case core::pull_request_link_route::conversation_page:
+			Window->open_overview_tab(qt::overview_drawer_tab::comments);
+			return true;
+		case core::pull_request_link_route::files_page:
+			Window->choose_modality(qt::review_modality::review);
+			return true;
+		case core::pull_request_link_route::commits_page:
+			Window->show_commits();
+			return true;
+		case core::pull_request_link_route::commit: {
+			// RFC-BPR-0089. Show only that commit's changes, as choosing its
+			// row in the Commits tab does, and show the tab.
+			auto gesture = application::commit_filter_gesture{ };
+			gesture.Kind = core::commit_filter_operation_kind::show_only;
+			gesture.Commits.push_back(link->Decision.Commit);
+			apply_commit_filter_gesture(gesture);
+			Window->show_commits();
+			return true;
+		}
+		case core::pull_request_link_route::location:
+			// [[BPR-0987]]. Followed exactly as a pasted link's location is,
+			// in the pull request this window already shows.
+			PendingLinkLocation = link_location{ .Destination = link->Destination };
+			schedule_link_location();
+			return true;
+		}
+		return false;
+	}
+
+	/// An offered tour a link named: imported as Start tour imports, and
+	/// opened at its first stop once it arrives. A private draft that the
+	/// import cannot replace keeps its text; the Tour tab says so.
+	void github_application::implementation::open_linked_tour(const std::size_t aImport, const core::tour_remote_binding& aRoot)
+	{
+		if (!TourHost) {
+			return;
+		}
+		const auto  shown   = TourHost->presentation();
+		const auto& draft   = shown.Draft;
+		const auto  replace = draft && (draft->Remote ? draft->Remote->Entity == aRoot.Entity : draft->Problem.empty() && draft->Solution.empty() && draft->Stops.empty());
+		PendingTourStart    = replace;
+		PendingTourStop.reset();
+		Window->open_review_tour();
+		TourHost->import_selected(aImport);
 	}
 
 	void github_application::implementation::start_tour_at(const std::optional<std::pair<std::string, core::published_tour_stop>>& aStop)

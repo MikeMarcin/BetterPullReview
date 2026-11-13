@@ -99,6 +99,11 @@ namespace bpr::core {
 		/// that acceptance. Empty before adoption, after retirement, and once the lane
 		/// has changed state.
 		[[nodiscard]] auto adoption() const noexcept -> const std::optional<github_transition_output>&;
+		/// \brief Whether this lane accepted GitHub's metadata for the read it
+		/// is waiting on: the window then names the pull request it loads.
+		/// \details False with no adopted session, no pending read, or once
+		/// the read ends; a new pending read starts unobserved.
+		[[nodiscard]] auto loading_metadata_observed() const noexcept -> bool;
 		[[nodiscard]] auto state() const noexcept -> const github_state&;
 		[[nodiscard]] auto window() const noexcept -> bpr_window_context;
 

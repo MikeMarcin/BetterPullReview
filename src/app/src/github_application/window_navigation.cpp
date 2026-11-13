@@ -86,6 +86,11 @@ namespace bpr::app {
 		if (const auto* const context = std::get_if<core::markdown_context>(&aIntent)) {
 			return WindowRead->open_pull_request_page(*context, Profile->WindowBrowser);
 		}
+		// The owner, 2026-11-11. The title's page opens while the review
+		// still loads, admitted against the read the window waits on.
+		if (const auto* const loading = std::get_if<application::loading_pull_request_page>(&aIntent)) {
+			return WindowRead->open_loading_pull_request_page(*loading, Profile->WindowBrowser);
+		}
 		const auto& session = Host->accepted_session();
 		const auto* profile = session && Host->state().Account == session->Viewer.Account ? find_profile(session->Profile) : nullptr;
 		if (profile == nullptr) {
@@ -1309,6 +1314,12 @@ DefectThreadNames.reset();
 			}
 			return WindowRead->markdown_link_address(aIntent, Profile->WindowBrowser);
 		});
+		// A link into this pull request that the window shows itself (a
+		// published tour, its conversation, Review, a file, a review or a
+		// comment) opens here, with no question and no browser.
+		Window->set_markdown_in_app_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
+			return !weak.expired() && !Closing && Profile->current_window(DraftWindow) && follow_in_app_link(aIntent);
+		});
 		Window->set_markdown_image_dispatch([this, weak](const core::markdown_image_intent& aIntent) {
 			if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
 				WindowRead->request_markdown_images(aIntent);
@@ -1345,12 +1356,14 @@ DefectThreadNames.reset();
 					HomeOpen->reconcile(WindowRead->state());
 				}
 				observe_setup_session(aUpdate);
-				observe_cli_session(aUpdate); }, .Device = [this, weak](const application::device_authorization_presentation& aPresentation) {
+				observe_cli_session(aUpdate);
+				observe_account_setup_session(aUpdate); }, .Device = [this, weak](const application::device_authorization_presentation& aPresentation) {
 				if (weak.expired() || Closing){ return;
 }
 				observe_device_stage(aPresentation);
 				if (DevicePanel){ DevicePanel->apply(aPresentation);
-} }, .Refresh = [this, weak](const application::device_authorization_refresh_observation& aObservation) {
+}
+				observe_account_setup_device(aPresentation); }, .Refresh = [this, weak](const application::device_authorization_refresh_observation& aObservation) {
 				if (!weak.expired() && !Closing && DevicePanel){ DevicePanel->apply_refresh(aObservation);
 } }, .Preview = [this, weak](const application::public_preview_presentation& aPresentation) {
 				if (!weak.expired() && !Closing){ Window->publish(aPresentation);

@@ -501,5 +501,19 @@
     "independent_live_heap_limit_bytes": 226492416,
     "complete_course": "20 selections,32 retained epochs and all later predicates passed; raw original and adjusted results retained on card",
     "other_native_platform_acceptance": "Unchanged; no RHEL native acceptance supplied"
+  },
+  "risk_preflight": {
+    "purpose": "Early native Release and Debug regression discovery only; final qualification runs fresh and no omitted obligation receives pass credit.",
+    "tests": [
+      "qt_workbench_overview",
+      "qt_composed_inline_drawer_scale_100",
+      "core_diff_compute",
+      "application_diff_host",
+      "application_github_host",
+      "git_cache_contract",
+      "application_profile_data_reset_public_path",
+      "sqlite_epoch_catalog_behavior_contract",
+      "test_network_isolation_manifest"
+    ]
   }
 }

@@ -419,6 +419,23 @@ namespace bpr::core {
 		return page;
 	}
 
+	auto admit_loading_pull_request_page(const loading_pull_request_page_observation& aObservation)
+		-> std::expected<pull_request_page, markdown_link_result>
+	{
+		const auto same = [](const std::string_view aLeft, const std::string_view aRight) {
+			return ascii_lower(std::string{ aLeft }) == ascii_lower(std::string{ aRight });
+		};
+		if (!aObservation.MetadataObserved || aObservation.ShownNumber != aObservation.Number.value()
+			|| !same(aObservation.ShownOwner, aObservation.Owner) || !same(aObservation.ShownRepository, aObservation.Repository)) {
+			return std::unexpected(markdown_link_result::stale);
+		}
+		return admit_pull_request_page({ .BrowserAvailable = aObservation.BrowserAvailable,
+										 .Hostname         = aObservation.Hostname,
+										 .Owner            = aObservation.Owner,
+										 .Repository       = aObservation.Repository,
+										 .Number           = aObservation.Number });
+	}
+
 	auto admit_queue_pull_request_page(const pull_request_ref& aRef, const std::string_view aHostname, const std::string_view aLogin, const bool aBrowserAvailable)
 		-> std::expected<pull_request_page, markdown_link_result>
 	{

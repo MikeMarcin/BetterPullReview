@@ -1854,6 +1854,7 @@ foreach(
         custom-agent
         custom-agent-refused
         subject
+        setup-list
 )
     if(course STREQUAL "positive")
         set(chat_test_name application_agent_chat_composition_contract)
@@ -3247,6 +3248,18 @@ bpr_add_network_isolated_test(NAME application_startup_diagnostic_bounds
 set_tests_properties(application_startup_diagnostic_bounds PROPERTIES
     TIMEOUT 30 PASS_REGULAR_EXPRESSION "startup-diagnostic-bounds:pass")
 
+# [[BPR-2118]]. The agent composition's workspace-refusal sentences: one per
+# record check, with the refused-record count and the first record.
+bpr_add_executable(test_agent_workspace_refusal_text agent_workspace_refusal_text_tests.cpp)
+target_link_libraries(test_agent_workspace_refusal_text PRIVATE BetterPullReview::Composition)
+target_include_directories(test_agent_workspace_refusal_text PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+bpr_enable_hardening(test_agent_workspace_refusal_text)
+bpr_enable_warnings(test_agent_workspace_refusal_text)
+bpr_add_network_isolated_test(NAME agent_composition_refusal_text
+    COMMAND test_agent_workspace_refusal_text)
+set_tests_properties(agent_composition_refusal_text PROPERTIES
+    TIMEOUT 30 PASS_REGULAR_EXPRESSION "agent-workspace-refusal-text:pass")
+
 # [[BPR-0882]]. A startup refused as `unavailable` names the arm that refused
 # and what it threw. The run removes Git by emptying the search path, so it is
 # registered on macOS and Linux only. On Windows the build tree loads Qt through
@@ -3532,6 +3545,19 @@ bpr_enable_warnings(test_device_flow_cli_choice)
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_device_flow_cli_choice WINDOWS_UNCONTAINED COMMAND test_device_flow_cli_choice)
     set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
+endif()
+
+# RFC-BPR-0032 amendment r1. Home's in-window account setup over the composed
+# application: the GitHub CLI and browser ways, with no dialog or modal question.
+# Registered wherever the GitHub CLI way in is composed, as the row above is.
+bpr_add_executable(test_account_setup_public_path account_setup_public_path_tests.cpp)
+target_link_libraries(test_account_setup_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_account_setup_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_account_setup_public_path)
+bpr_enable_warnings(test_account_setup_public_path)
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    bpr_add_network_isolated_test(NAME application_account_setup_public_path WINDOWS_UNCONTAINED COMMAND test_account_setup_public_path)
+    set_tests_properties(application_account_setup_public_path PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "account-setup-public-path-tests:pass")
 endif()
 
 # [[BPR-1329]]. An inline draft published from its Comments-drawer card over a
@@ -4654,8 +4680,11 @@ if(UNIX)
     bpr_enable_warnings(test_terminal_diagnostics)
     bpr_add_network_isolated_test(NAME application_terminal_diagnostics
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/terminal_diagnostic_contract.py"
-            "$<TARGET_FILE:test_terminal_diagnostics>" "$<TARGET_FILE:app_better_pull_review>" "$<TARGET_FILE:test_application_logging>")
-    set_tests_properties(application_terminal_diagnostics PROPERTIES TIMEOUT 60)
+            "$<TARGET_FILE:test_terminal_diagnostics>" "$<TARGET_FILE:app_better_pull_review>" "$<TARGET_FILE:test_application_logging>"
+            --configuration "$<CONFIG>")
+    # BPR-2120: three Debug composed children permit 30 seconds each; seven
+    # other children keep 10 seconds. Release remains 60 seconds in total.
+    set_tests_properties(application_terminal_diagnostics PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,180,60>")
 endif()
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 # Windows x64 Debug's independent enrollment course completed in 172.96 s;
@@ -4708,6 +4737,14 @@ bpr_add_network_isolated_test(NAME application_review_tour_cold_import_public_pa
 set_tests_properties(application_review_tour_cold_import_public_path PROPERTIES
     TIMEOUT 90 ENVIRONMENT "${bpr_public_path_fixture_environment}"
     PASS_REGULAR_EXPRESSION "review-tour-cold-import:pass")
+# The description's tour link opens the published tour in the window, with
+# no link question and nothing handed to the browser.
+bpr_add_network_isolated_test(NAME application_review_tour_link_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_review_tour_composition_public_path --tour-link)
+set_tests_properties(application_review_tour_link_public_path PROPERTIES
+    TIMEOUT 90 ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "review-tour-link:pass")
 
 bpr_add_executable(test_review_tour_publication_public_path review_tour_publication_public_path.cpp)
 target_link_libraries(test_review_tour_publication_public_path PRIVATE BetterPullReview::Composition)
@@ -5024,13 +5061,13 @@ bpr_enable_warnings(test_source_find_public_path)
 bpr_add_network_isolated_test(NAME application_source_find WINDOWS_UNCONTAINED COMMAND test_source_find_public_path)
 set_tests_properties(application_source_find PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_FIND_RENDER_ROOT=${PROJECT_BINARY_DIR}/source-find-renders"
-    TIMEOUT 120 PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
+    TIMEOUT "$<IF:$<CONFIG:Debug>,240,120>" PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
 foreach(bpr_find_scale IN ITEMS 1.25 2.0)
     string(REPLACE "." "_" bpr_find_scale_name "${bpr_find_scale}")
     bpr_add_network_isolated_test(NAME application_source_find_scale_${bpr_find_scale_name} WINDOWS_UNCONTAINED COMMAND test_source_find_public_path)
     set_tests_properties(application_source_find_scale_${bpr_find_scale_name} PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${bpr_find_scale};BPR_FIND_RENDER_ROOT=${PROJECT_BINARY_DIR}/source-find-renders-${bpr_find_scale_name}"
-        TIMEOUT 120 PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
+        TIMEOUT "$<IF:$<CONFIG:Debug>,240,120>" PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
 endforeach()
 
 bpr_add_executable(test_source_pr_find_public_path source_pr_find_public_path_tests.cpp)

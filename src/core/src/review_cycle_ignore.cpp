@@ -711,6 +711,33 @@ namespace bpr::core {
 		return wildmatch{ cut_at_nul(aPattern), aPath, aCaseFold }.run() == attempt::matched;
 	}
 
+	auto wildcard_pattern_valid(const std::string_view aPattern) -> bool
+	{
+		// The bracket reader aborts on syntax alone, whatever byte it reads.
+		auto index = std::size_t{ 0 };
+		while (index < aPattern.size()) {
+			const auto here = aPattern[index];
+			if (here == '\0') {
+				return false;
+			}
+			if (here == '\\') {
+				if (index + 1 >= aPattern.size() || aPattern[index + 1] == '\0') {
+					return false;
+				}
+				index += 2;
+			} else if (here == '[') {
+				const auto result = bracket(aPattern, index, static_cast<unsigned char>('a'), false);
+				if (result.Outcome == attempt::abort_all) {
+					return false;
+				}
+				index = result.Next;
+			} else {
+				++index;
+			}
+		}
+		return true;
+	}
+
 	auto workspace_ignore_rules::add(const std::string_view aBase, const std::string_view aContents) -> bool
 	{
 		auto parsed = std::vector<rule>{ };

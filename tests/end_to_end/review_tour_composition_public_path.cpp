@@ -138,6 +138,30 @@ namespace {
 		}
 		expect(editor.isVisible() && aWindow.agent_footer_widget()->picker()->attention().isEmpty(), "a finished setup leaves the footer nothing to ask");
 	}
+	/// A pointer click on the description's link to `aTarget`, as a reader
+	/// makes it on the rendered text.
+	void click_description_link(qt::markdown_body_view& aReader, const QString& aTarget)
+	{
+		auto* const view = aReader.rendered_view();
+		for (auto block = view->document()->begin(); block.isValid(); block = block.next()) {
+			for (auto it = block.begin(); !it.atEnd(); ++it) {
+				if (it.fragment().charFormat().anchorHref() != aTarget) {
+					continue;
+				}
+				auto cursor = QTextCursor{ view->document() };
+				cursor.setPosition(it.fragment().position() + 1);
+				const auto point = view->cursorRect(cursor).center();
+				expect(view->anchorAt(point) == aTarget, "the pointer rests on the description's tour link");
+				auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, view->viewport()->mapToGlobal(QPointF{ point }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(view->viewport(), &press);
+				auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, view->viewport()->mapToGlobal(QPointF{ point }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+				QApplication::sendEvent(view->viewport(), &release);
+				QApplication::processEvents();
+				return;
+			}
+		}
+		expect(false, "the description renders the tour link");
+	}
 	void shutdown(app::github_application& aApp)
 	{
 		aApp.begin_shutdown();
@@ -509,7 +533,7 @@ auto main(int argc, char** argv) -> int
 	auto make = [&] {
 		std::unique_ptr<app::github_application> started;
 		bool                                     terminal = false;
-		auto                                     options  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper" || installedCourse || enhanceCourse), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && (std::string_view{ argv[1] } == "--writing" || enhanceCourse) ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt };
+		auto                                     options  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--tour-link" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper" || installedCourse || enhanceCourse), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && (std::string_view{ argv[1] } == "--writing" || enhanceCourse) ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt };
 		// [[BPR-1894]]. The default course offers the built-in Claude on its
 		// stub, as the writing course and BPR-1881's tour-authoring look do:
 		// with nothing offered the Agent tab counts as not set up.
@@ -1324,6 +1348,48 @@ auto main(int argc, char** argv) -> int
 				return EXIT_FAILURE;
 			}
 			std::cout << "review-tour-writing:pass\n";
+			return EXIT_SUCCESS;
+		}
+
+		// The description's [Review tour](…) link opens the published tour in
+		// the window, imported as Start tour imports it, at its first stop:
+		// no link question and nothing handed to the browser.
+		if (argc > 1 && std::string_view{ argv[1] } == "--tour-link") {
+			const auto remoteBefore = access::review_mutation_evidence(*application);
+			const auto opensBefore  = access::browser_opens(*application);
+			auto*      choices      = editor.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
+			wait([&] { return choices && choices->count() == 1; }, "published root discovered through real provider snapshot");
+			expect(!editor.shown().Draft->Remote && editor.shown().Draft->Stops.empty(), "nothing is imported before the link is followed");
+			window.choose_modality(qt::review_modality::overview);
+			wait([&] { return window.showing_overview(); }, "Overview shows the description");
+			const auto link = QStringLiteral("https://github.com/octo-org/review-repository/pull/17#pullrequestreview-4001");
+			click_description_link(*window.overview_page()->body_view(), link);
+			expect(window.external_link_confirmation() == nullptr, "a tour link asks no link question");
+			wait([&] {
+				const auto& shown   = editor.shown();
+				const auto* surface = window.comparison_surface();
+				return shown.Draft && shown.Draft->Remote && shown.Draft->Remote->DatabaseId == 4001U && shown.Draft->Stops.size() == 3U && !window.showing_overview()
+					&& window.tray_tabs()->accessibleTabName(window.tray_tabs()->currentIndex()) == QStringLiteral("Tour") && editor.selected_stop() && editor.selected_stop()->Id == shown.Draft->Stops.front().Id
+					&& surface->current_context() && surface->current_context()->Key.File == core::file_identity_of("secondary.cpp");
+			},
+				 "the tour link imports the published tour and opens Review at its first stop");
+			expect(access::browser_opens(*application) == opensBefore && window.external_link_confirmation() == nullptr, "nothing was handed to the browser");
+			// Followed again, the tour now in the window opens at its first stop
+			// once more, from wherever the reader went.
+			const auto before = *editor.shown().Draft;
+			editor.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
+			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			window.choose_modality(qt::review_modality::overview);
+			wait([&] { return window.showing_overview(); }, "back on Overview");
+			click_description_link(*window.overview_page()->body_view(), link);
+			wait([&] { return !window.showing_overview() && editor.selected_stop() && editor.selected_stop()->Id == editor.shown().Draft->Stops.front().Id; }, "the tour in the window opens at its first stop again");
+			expect(*editor.shown().Draft == before && access::browser_opens(*application) == opensBefore && window.external_link_confirmation() == nullptr,
+				   "following it again changes nothing in the tour and opens no browser");
+			const auto remoteAfter = access::review_mutation_evidence(*application);
+			expect(remoteAfter.Submissions == remoteBefore.Submissions && remoteAfter.StoredComments == remoteBefore.StoredComments && remoteAfter.Replies == remoteBefore.Replies,
+				   "following a tour link writes nothing remote");
+			shutdown(*application);
+			std::cout << "review-tour-link:pass\n";
 			return EXIT_SUCCESS;
 		}
 

@@ -1,0 +1,12 @@
+{
+  "source_revision": "6efba00e1afbf874c88c7e5de2623a33528ff36f",
+  "mandate_revision": "reset-sentinel-lifetime-r1",
+  "allocation_main": "a342cfc46ff422aee370f00459b04ef33c19901b",
+  "private_prerequisites": [
+    "b9c814499ca76b89be2807a7e85d1fad205e8db7",
+    "e165af950ed30fd8675cc5999da46d6f0b9f4664"
+  ],
+  "old_script_sha256": "4fec311061a37dda8dcceb8ababce06eb7cf037c728b6ca1aa5ddfd303d5fad1",
+  "native_execution": "separately serialized by integrate_2118",
+  "foreign_source_intake": false
+}

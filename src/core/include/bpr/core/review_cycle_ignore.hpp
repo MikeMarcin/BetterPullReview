@@ -33,6 +33,10 @@ namespace bpr::core {
 	/// escaped character and a single character inside brackets keep their
 	/// case, while ranges, `[:upper:]` and `[:lower:]` fold.
 	[[nodiscard]] auto wildcard_match(std::string_view aPattern, std::string_view aPath, bool aCaseFold = false) -> bool;
+	/// \brief Whether `wildcard_match` can match anything with `aPattern`:
+	/// no unterminated bracket, unknown class, trailing `\` or NUL byte.
+	/// RFC-BPR-0125 refuses such a pattern when a prompt is saved.
+	[[nodiscard]] auto wildcard_pattern_valid(std::string_view aPattern) -> bool;
 
 	/// \brief The ignore rules seen so far, lowest precedence first.
 	class workspace_ignore_rules

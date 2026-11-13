@@ -609,6 +609,10 @@ namespace bpr::app {
 			awaiting_other_file,
 			awaiting_return,
 			awaiting_restored,
+			// The owner, 2026-11-11. `finish` opens the review before the
+			// saved drafts are read, then lets them be read.
+			awaiting_unread_review,
+			awaiting_unread_read,
 			awaiting_finish_page,
 			awaiting_submitted,
 			// [[BPR-1475]]. The reread a submission makes by itself, then a

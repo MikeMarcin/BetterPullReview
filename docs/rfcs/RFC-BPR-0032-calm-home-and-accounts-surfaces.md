@@ -21,6 +21,13 @@ A pending PR resumes after acceptance for its exact host. Cancel or a replacemen
 link retires pending setup and ignores late discovery completion. Credential
 storage, CLI trust and separate publication approval requirements are unchanged.
 
+Owner amendment r1, adopted 2026-11-12: [the account setup in the window](amendments/RFC-BPR-0032-account-setup-in-window-r1.md)
+replaces the shared sign-in dialog above for every way in (Home, Settings' Add
+account, Use another account, pasted links, GitHub Enterprise Server): server,
+way, sign in, confirm and ready as numbered steps in one surface, with the
+device code, gh's accounts, the GitHub CLI consent and an Enterprise token in
+it. The dialog, the consent question and the token prompt are removed.
+
 ## Summary and scope
 
 Home and the Accounts & hosts page of Settings are the surfaces a reviewer

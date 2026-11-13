@@ -3,6 +3,8 @@
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/feedback_sources.hpp"
 #include "bpr/application/github_read_admission.hpp"
+#include "bpr/application/pull_request_link_location.hpp"
+#include "bpr/application/setup_destination_projection.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/sha256.hpp"
 #include "github_projection_mapping.hpp"
@@ -1923,6 +1925,42 @@ namespace bpr::application {
 				? root + "/blob/" + std::string{ head } + "/" + decision->Target
 				: root + "/pull/" + std::to_string(snapshot->PullRequest.Number.value()) + decision->Target;
 		}
+		auto markdown_in_app_link_of(const core::markdown_link_intent& aIntent, const std::span<const core::tour_remote_binding> aRoots, const bool aRightIsHead) const
+			-> std::optional<markdown_in_app_link>
+		{
+			// Shown here, it reaches no browser: admit as if one were there.
+			const auto address = markdown_link_address(aIntent, true);
+			if (!address || !AcceptedSnapshot || !AcceptedProfileAuthority) {
+				return std::nullopt;
+			}
+			auto link = parse_setup_destination(*address);
+			if (!link) {
+				return std::nullopt;
+			}
+			const auto& snapshot = *AcceptedSnapshot;
+			const auto  facts    = pull_request_link_location_facts_of(snapshot);
+			auto        commits  = std::vector<std::string>{ };
+			commits.reserve(snapshot.Commits.size());
+			for (const auto& commit : snapshot.Commits) {
+				commits.emplace_back(commit.Oid.value());
+			}
+			auto decision = core::route_pull_request_link(*link,
+														  {
+															  .Hostname   = AcceptedProfileAuthority->Hostname.value(),
+															  .Owner      = snapshot.Repository.Owner,
+															  .Repository = snapshot.Repository.Name,
+															  .Number     = snapshot.PullRequest.Number,
+															  .Commits    = commits,
+														  },
+														  aRoots, facts.facts(aRightIsHead));
+			if (decision.Route == core::pull_request_link_route::external) {
+				return std::nullopt;
+			}
+			auto result        = markdown_in_app_link{ };
+			result.Decision    = std::move(decision);
+			result.Destination = std::move(*link);
+			return result;
+		}
 		auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 		{
 			try {
@@ -1953,6 +1991,32 @@ namespace bpr::application {
 				.Owner            = pull.Repository.Owner,
 				.Repository       = pull.Repository.Name,
 				.Number           = pull.PullRequest.Number,
+			});
+			if (!page) {
+				return page.error();
+			}
+			try {
+				return aBrowser->open(pull_request_page_address(*page)) ? core::markdown_link_result::opened : core::markdown_link_result::failed;
+			} catch (...) {
+				return core::markdown_link_result::failed;
+			}
+		}
+		auto open_loading_pull_request_page(const loading_pull_request_page& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+		{
+			if (!PendingProvider || Policy.state().PendingPullRequest != PendingProvider->Context) {
+				return core::markdown_link_result::stale;
+			}
+			const auto& read = *PendingProvider;
+			const auto  page = core::admit_loading_pull_request_page({
+				.BrowserAvailable = aBrowser != nullptr,
+				.Hostname         = read.ProfileAuthority.Hostname.value(),
+				.MetadataObserved = Policy.loading_metadata_observed(),
+				.Owner            = read.Context.Repository.Owner,
+				.Repository       = read.Context.Repository.Name,
+				.Number           = read.Context.Number,
+				.ShownOwner       = aIntent.Owner,
+				.ShownRepository  = aIntent.Repository,
+				.ShownNumber      = aIntent.Number,
 			});
 			if (!page) {
 				return page.error();
@@ -2195,6 +2259,15 @@ namespace bpr::application {
 			return std::unexpected(core::markdown_link_result::failed);
 		}
 	}
+	auto github_window_read_host::markdown_in_app_link_of(const core::markdown_link_intent& aIntent, const std::span<const core::tour_remote_binding> aRoots, const bool aRightIsHead) const
+		-> std::optional<markdown_in_app_link>
+	{
+		try {
+			return Implementation->markdown_in_app_link_of(aIntent, aRoots, aRightIsHead);
+		} catch (...) {
+			return std::nullopt;
+		}
+	}
 	auto github_window_read_host::open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 	{
 		return Implementation->open_markdown_link(aIntent, aBrowser);
@@ -2214,6 +2287,10 @@ namespace bpr::application {
 	auto github_window_read_host::open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 	{
 		return Implementation->open_pull_request_page(aContext, aBrowser);
+	}
+	auto github_window_read_host::open_loading_pull_request_page(const loading_pull_request_page& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+	{
+		return Implementation->open_loading_pull_request_page(aIntent, aBrowser);
 	}
 	auto github_window_read_host::accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>& { return Implementation->AcceptedSnapshot; }
 	auto github_window_read_host::mutation_transport() const noexcept -> review_mutation_transport { return Implementation->ReviewMutationTransport; }

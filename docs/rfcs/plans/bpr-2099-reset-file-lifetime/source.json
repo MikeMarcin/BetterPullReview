@@ -1,0 +1,6 @@
+{
+  "schema": "implement-rfc.plan-source.v1",
+  "mapping": {},
+  "plan_path": "docs/rfcs/plans/bpr-2099-reset-file-lifetime/milestone-plan.json",
+  "source_sha256": "40dbdb6167853d1fc5ea3e1d1b0c8dab8c5bca486590eda20eab8d2b4f5d2ead"
+}

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -556,6 +557,92 @@ namespace {
 			   "picking a popular agent in setup adds it to the list and chooses it");
 	}
 
+	[[nodiscard]] auto names(const application::agent_setup_projection& aProjection) -> std::vector<std::string>
+	{
+		auto shown = std::vector<std::string>{ };
+		std::ranges::transform(aProjection.Choices, std::back_inserter(shown), &core::agent_setup_choice::Name);
+		return shown;
+	}
+
+	/// Owner report ("If I add an agent through agent settings, the agent
+	/// setup wizard doesn't update to show it"). Every published projection
+	/// carries the Agent step's cards from the list as it is: an agent added,
+	/// edited or removed in Settings is published at once, and choosing an
+	/// added agent in setup chooses that entry and checks its program.
+	void test_the_setup_follows_the_list()
+	{
+		auto f  = fixture{ };
+		f.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };
+		f.Host->load();
+		f.Host->detect();
+		f.settle();
+		expect(names(f.state()) == std::vector<std::string>{ "Claude Code", "Codex" }, "before anything is added, the popular agents found are offered");
+		const auto before = f.Published.size();
+		f.Host->add_agent({ .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" }, false);
+		f.settle();
+		expect(f.Published.size() > before && names(f.Published.back()) == std::vector<std::string>{ "Work Claude", "Claude Code", "Codex" },
+			   "an agent added in Settings is published to the setup at once, first, as the list is");
+		const auto work = f.state().Choices.front();
+		expect(work.Entry == f.state().Preferences.Agents.front().Id && work.Path == "/opt/work/bin/wrapper" && work.How == core::agent_found_how::saved_program && work.Verdict.Permitted && !work.Chosen,
+			   "its card is its entry, with its own program, permitted and not chosen");
+		f.Host->add_agent(core::preset_agent_entry(setup_agent::claude_code, core::codex_protocol_choice::app_server, { }), false);
+		f.settle();
+		expect(names(f.state()) == std::vector<std::string>{ "Work Claude", "Claude Code", "Codex" } && f.state().Choices[1].Entry != 0U && f.state().Choices[1].Path == "/opt/homebrew/bin/claude",
+			   "a popular agent added in Settings replaces its found card, with where it was found");
+		auto renamed = f.state().Preferences.Agents.front();
+		renamed.Name = "Work Claude 2";
+		f.Host->update_agent(renamed);
+		f.settle();
+		expect(f.state().Choices.front().Name == "Work Claude 2", "an edit in Settings is published");
+
+		// Chosen in setup: that entry, its program the Claude row.
+		f.Host->choose_entry(renamed.Id);
+		f.settle();
+		expect(f.state().Preferences.PreferredAgent == renamed.Id && f.state().State.Chosen == setup_agent::claude_code && f.Store.Stored->PreferredAgent == renamed.Id,
+			   "choosing an added agent in setup chooses its entry, and keeps it");
+		expect(f.state().State.Rows.front().Path == "/opt/work/bin/wrapper" && f.state().Choices.front().Chosen && !f.state().Choices[1].Chosen,
+			   "its program is what setup checks, and only its card is chosen");
+		expect(f.state().Choices[1].Path == "/opt/homebrew/bin/claude", "the popular Claude Code keeps where it was found");
+		const auto published = f.Published.size();
+		f.Host->choose_entry(renamed.Id);
+		f.Host->choose_entry(99U);
+		f.settle();
+		expect(f.Published.size() == published, "choosing the chosen entry again, or one not in the list, changes nothing");
+		// The popular Claude Code's card, while a custom Claude agent is chosen.
+		f.Host->choose(setup_agent::claude_code);
+		f.settle();
+		expect(f.state().Preferences.PreferredAgent == f.state().Choices[1].Entry && f.state().Choices[1].Chosen && !f.state().Choices.front().Chosen
+				   && f.state().State.Rows.front().Path == "/opt/homebrew/bin/claude",
+			   "picking the popular agent of the chosen kind switches to it and checks its program");
+		f.Host->choose_entry(renamed.Id);
+		f.settle();
+		expect(f.state().Choices.front().Chosen && f.state().State.Rows.front().Path == "/opt/work/bin/wrapper", "and back");
+
+		// Back to the popular Claude Code in setup: a different entry of the
+		// same kind, so its program is what setup checks again.
+		f.Host->choose(setup_agent::claude_code);
+		f.settle();
+		expect(f.state().Preferences.PreferredAgent == f.state().Choices[1].Entry && f.state().Choices[1].Chosen && !f.state().Choices.front().Chosen
+				   && f.state().State.Rows.front().Path == "/opt/homebrew/bin/claude",
+			   "picking the popular agent of the chosen kind switches to it and looks again");
+		f.Host->choose_entry(renamed.Id);
+		f.settle();
+		expect(f.state().Preferences.PreferredAgent == renamed.Id && f.state().State.Rows.front().Path == "/opt/work/bin/wrapper", "and back to the added agent");
+		f.Host->remove_agent(renamed.Id);
+		f.settle();
+		expect(names(f.state()) == std::vector<std::string>{ "Claude Code", "Codex" } && f.state().Preferences.PreferredAgent == 0U, "a removal in Settings is published");
+		expect(f.state().Choices.front().Chosen, "the chosen kind's popular entry is the choice once its preferred entry is gone");
+		expect(f.state().State.Rows.front().Path == "/opt/homebrew/bin/claude" && f.state().State.AgentCheck.State == setup_check_state::not_run,
+			   "and the removed agent's program is no longer what setup checks");
+
+		// The reverse: Custom agent… in setup is in the list Settings shows.
+		f.Host->add_agent({ .Name = "Wizard Codex", .Protocol = core::agent_protocol::codex_app_server, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } }, true);
+		f.settle();
+		expect(std::ranges::contains(f.state().Preferences.Agents, std::string{ "Wizard Codex" }, &core::agent_entry::Name) && names(f.state()) == std::vector<std::string>{ "Claude Code", "Wizard Codex", "Codex" }
+				   && f.state().Choices[1].Chosen && !f.state().Choices[2].Chosen,
+			   "an agent added in setup is in the list and is the chosen card; the found Codex, not added, is still offered");
+	}
+
 	/// Owner look v006 ("Codex is totally missing its model settings. And
 	/// its effort is missing max"; "reset agents which clears all settings").
 	void test_harness_catalogs_and_reset()
@@ -726,6 +813,7 @@ auto main() -> int
 	test_the_agent_list();
 	test_check_from_settings();
 	test_check_all_keeps_each_result();
+	test_the_setup_follows_the_list();
 	std::cout << "agent-setup-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

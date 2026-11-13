@@ -2865,8 +2865,6 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/blob_sources.hpp"
         "src/github_application/cli_accounts.cpp"
         "src/github_application/cli_accounts.hpp"
-        "src/github_application/credential_prompt.cpp"
-        "src/github_application/credential_prompt.hpp"
         "src/github_application/defect_identity.cpp"
         "src/github_application/defect_identity.hpp"
         "src/github_application/device_authorization_composition.cpp"
@@ -2919,6 +2917,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/theme_document_file.hpp"
         "src/github_application/tour_owner_replies.cpp"
         "src/github_application/tour_owner_replies.hpp"
+        "src/github_application/window_account_setup.cpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
         "src/github_application/window_commit_filter.cpp"
@@ -3048,8 +3047,6 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/blob_sources.hpp"
         "src/github_application/cli_accounts.cpp"
         "src/github_application/cli_accounts.hpp"
-        "src/github_application/credential_prompt.cpp"
-        "src/github_application/credential_prompt.hpp"
         "src/github_application/defect_identity.cpp"
         "src/github_application/defect_identity.hpp"
         "src/github_application/device_authorization_composition.cpp"
@@ -3102,6 +3099,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/theme_document_file.hpp"
         "src/github_application/tour_owner_replies.cpp"
         "src/github_application/tour_owner_replies.hpp"
+        "src/github_application/window_account_setup.cpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
         "src/github_application/window_commit_filter.cpp"
@@ -3626,6 +3624,41 @@ function(bpr_verify_app_source_tree app_source_root)
 	# window_agent_setup.cpp wires the controls; github_public_path_fixture.cpp
 	# serves returning-review-v1. No provider request, credential, grant,
 	# mutation or inventory change beyond the new source file.
+	# [[BPR-2087]] canonical-only review: accepted [[BPR-2055]] commit95393374f
+	# changes window_agent_setup/window_composition/window_construction/window_shutdown.
+	# Independent review305a4f54 covers their composition ownership; this is not
+	# whole-feature native acceptance. The only additional file is the bounded
+	# tests-only focused-layout wait. Ordered142/complete197 and full-app/mutation
+	# pins stay exact. Frozen56/private44ec-to9e58 lineage remains separate.
+	# [[BPR-2118]] reseal (2026-11-11): agent_composition.cpp gives the split
+	# record checks (record-malformed, record-moved with its finding,
+	# record-cleanup-failed) their own sentences with the refused-record count;
+	# profile_runtime_construction.cpp appends `:records=<count>` to the
+	# existing path-omitted refusal line. No grant, credential, provider,
+	# mutation branch, publication or source-inventory change; the full-app and
+	# mutation pins are unchanged.
+	# In-PR link routing reseal (2026-11-11): window_navigation.cpp binds the
+	# window's in-app link dispatch under the same weak/Closing/current-window
+	# admission as the link question; window_tours.cpp (follow_in_app_link,
+	# open_linked_tour) opens a published tour through the existing import and
+	# Start tour path, Overview's Comments or Commits tab, Review, the commit
+	# filter's show-only gesture, or the BPR-0987 pending link location;
+	# window_composition.hpp declares them. No grant, credential, provider,
+	# mutation branch, publication or source-inventory change; the full-app and
+	# mutation pins are unchanged.
+	# Account setup in the window reseal (2026-11-12, RFC-BPR-0032 amendment
+	# r1): window_account_setup.cpp composes the one account setup (server,
+	# way, sign in, confirm, ready) over the saved-server add, gh discovery, the
+	# device host and manual enrollment; every sign-in way in routes there, and
+	# github_application/credential_prompt.{cpp,hpp} and the modal gh read
+	# question are removed (the setup's Connect records CliConsent). The
+	# source inventory loses credential_prompt and gains window_account_setup.
+	# No grant, provider, mutation branch or publication change; the mutation
+	# pin is unchanged.
+	# Lane merge of main (c5a0f0823, 2026-11-12): main's account setup in the
+	# window, in-PR link routing and record-check sentences meet the lane's
+	# composition; RFC-BPR-0117 ([[BPR-2076]]) adds window_explain_file.cpp.
+	# No grant, credential, provider, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
         "62b1c609ba8da2db4f37692723d1f0febe1a9fffa9f04adaddb3bf8a6b8145aa"
 	)

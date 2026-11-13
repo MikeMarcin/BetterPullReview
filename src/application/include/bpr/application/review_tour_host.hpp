@@ -80,9 +80,12 @@ namespace bpr::application {
 		void set_diagnostics(diagnostic_log_port* aLog) noexcept;
 		void observe_imports(std::vector<core::tour_import_candidate> aCandidates);
 		void import_selected(std::size_t aIndex);
-		void resolve_remote_conflict(std::uint64_t aRevision, bool aUseRemote);
-		void observe_comparison(const core::diff_semantic_index&, const core::tour_code_destination&, const core::tour_code_destination&);
-		void observe_source(core::tour_code_destination aSource);
+		/// \brief The index comment of each offered tour, in `import_selected`'s
+		/// order, so a link naming one can import that one. No effect.
+		[[nodiscard]] auto import_roots() const -> std::vector<core::tour_remote_binding>;
+		void               resolve_remote_conflict(std::uint64_t aRevision, bool aUseRemote);
+		void               observe_comparison(const core::diff_semantic_index&, const core::tour_code_destination&, const core::tour_code_destination&);
+		void               observe_source(core::tour_code_destination aSource);
 		/// Accepted publication attribution is an observation, never an undoable remote action.
 		void               observe_publication(core::review_tour aPublished);
 		void               dispatch(const core::tour_command& aCommand);

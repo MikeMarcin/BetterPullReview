@@ -20,6 +20,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/workbench_strip.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractItemDelegate>
@@ -127,6 +128,34 @@ namespace {
 			std::exit(EXIT_FAILURE);
 		}
 	}
+
+	/// RFC-BPR-0032 amendment r1. Records the account setup begins a window
+	/// dispatches, where these courses once looked for the shared sign-in
+	/// dialog. The events live in a shared vector, so a window that outlives
+	/// the recorder never writes to a destroyed one.
+	struct setup_recorder
+	{
+		std::shared_ptr<std::vector<core::account_setup_event>> Events = std::make_shared<std::vector<core::account_setup_event>>();
+
+		explicit setup_recorder(qt::workbench_window& aWindow)
+		{
+			auto intents     = qt::account_setup_intents{ };
+			intents.Dispatch = [events = Events](core::account_setup_event aEvent) { events->push_back(std::move(aEvent)); };
+			aWindow.set_account_setup_intents(std::move(intents));
+			QApplication::processEvents();
+			Events->clear();
+		}
+
+		[[nodiscard]] auto began(const std::optional<core::account_setup_server> aServer, const std::optional<core::account_setup_way> aWay = std::nullopt,
+								 const std::optional<std::string>& aHostname = std::nullopt) const -> bool
+		{
+			if (Events->empty() || !std::holds_alternative<core::begin_account_setup>(Events->back())) {
+				return false;
+			}
+			const auto& begin = std::get<core::begin_account_setup>(Events->back());
+			return begin.Server == aServer && begin.Way == aWay && (!aHostname || begin.Hostname == *aHostname);
+		}
+	};
 
 	/// [[BPR-1594]]. Agent tools live in their own drawer tab.
 	void show_agent_tools(qt::workbench_window& aWindow)
@@ -268,135 +297,35 @@ namespace {
 			   "a projected native identity leaves the warning beside the CLI card's Connect, before it replaces that session");
 	}
 
-	// [[BPR-0933]]. The owner found the read opt-in "too long and visually
-	// unwieldy": one bold paragraph of every residual risk. The decision is now
-	// a headline and its consequences, and the risk list sits behind the box's
-	// own Show Details disclosure. None of the trust it asks for is dropped,
-	// Connect is the only way to accept, and Return and Escape both decline.
-	void test_cli_read_consent_is_a_short_decision()
+	// [[BPR-0933]], RFC-BPR-0032 amendment r1. The read consent is said in the
+	// account setup, under the chosen account, with RFC-BPR-0015's complete
+	// residual-risk text behind What connecting allows (its view test proves
+	// the placement). None of the trust it states is dropped, and the
+	// publication refusals stay exact per account.
+	void test_cli_read_consent_details_and_publication_texts()
 	{
-		QWidget parent;
-		parent.resize(1100, 760);
-		const auto host     = QStringLiteral("ghe.example.invalid");
-		const auto question = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), host, QStringLiteral("chosen-reviewer"));
-		const auto decision = question->text() + QLatin1Char(' ') + question->informativeText();
-		const auto words    = decision.split(QRegularExpression{ QStringLiteral("\\s+") }, Qt::SkipEmptyParts).size();
-		expect(question->icon() == QMessageBox::Question && question->textFormat() == Qt::PlainText
-				   && question->text().contains(host) && question->text().contains(QStringLiteral("chosen-reviewer"))
-				   && question->text().endsWith(QLatin1Char('?')),
-			   "the read opt-in's headline is a plain-text question naming the exact host and the installed gh");
-		for (const auto* phrase : { "existing sign-in", "without saving its token", "reused until you sign out or replace it", "does not authorize publishing" }) {
-			expect(decision.contains(QString::fromLatin1(phrase)),
-				   std::string{ "the short decision still states the trust it asks for and the read boundary: " } + phrase);
+		const auto host    = QStringLiteral("ghe.example.invalid");
+		const auto details = qt::github_cli_read_consent_details();
+		for (const auto* phrase : { "chosen account", "retrieves its credential into memory", "same credential", "does not save the token", "redirects", "CA certificates", "child processes", "private account configuration", "gh 2.96 or later", "swap and crash dumps", "exact-operation authority", "reused until you sign out or replace it", "does not authorize publishing" }) {
+			expect(details.contains(QString::fromLatin1(phrase)),
+				   std::string{ "every residual risk the consent named is in its details: " } + phrase);
 		}
-		expect(words <= 70, "the decision before the disclosure reads in one breath, at most 70 words, not the former paragraph of every risk");
-		const auto absent = qt::make_github_cli_read_consent(&parent, QStringLiteral("Choose account"), host, QString{ });
-		expect(!absent->button(QMessageBox::Yes)->isEnabled() && absent->text().contains(QStringLiteral("Choose a GitHub CLI account")), "an absent account cannot imply chosen authority or accept connection trust");
+#if defined(__APPLE__)
+		for (const auto* phrase : { "file writes are denied", "owned temporary object store", "shell credential helper", "Git 2.49 or later", "checked locally", "32 MiB", "supervised temporary-store cutoff" }) {
+			expect(details.contains(QString::fromLatin1(phrase)), std::string{ "the macOS consent details state its confinement and full-diff boundary: " } + phrase);
+		}
+#else
+		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs may run Git", "shell credential helper", "temporary folder of yours that is removed afterwards", "Git 2.49 or later", "checked locally", "32 MiB per-file limit" }) {
+			expect(details.contains(QString::fromLatin1(phrase)), std::string{ "the consent details state this platform's residual boundary: " } + phrase);
+		}
+		expect(!details.contains(QStringLiteral("file writes are denied")) && !details.contains(QStringLiteral("supervised temporary-store cutoff")), "the consent details do not promise macOS write denial or its supervised store cutoff on this platform");
+		const QRegularExpression mac{ QStringLiteral("\\bMac\\b") };
+		expect(!details.contains(mac), "off macOS the consent details do not say Mac");
+#endif
 		const auto missing = qt::github_cli_publication_failure_text(application::review_mutation_failure::credential_unavailable, QStringLiteral("chosen-reviewer"), host);
 		const auto failed  = qt::github_cli_publication_failure_text(application::review_mutation_failure::credential_tool_failed, QStringLiteral("chosen-reviewer"), host);
 		expect(missing != failed && missing.contains(QStringLiteral("sign-in and credential access")) && failed.contains(QStringLiteral("credential check")) && missing.contains(host) && failed.contains(QStringLiteral("chosen-reviewer")), "typed missing/access and tool failures have distinct exact-account statuses");
 		expect(!qt::github_cli_publication_failure_text(application::review_mutation_failure::credential_unavailable, QStringLiteral("chosen-reviewer"), host, true).startsWith(QStringLiteral("Not published")), "a resumed partial publication is not falsely labelled wholly unpublished");
-		const auto details = question->detailedText();
-		for (const auto* phrase : { "chosen account", "retrieves its credential into memory", "same credential", "does not save the token", "redirects", "CA certificates", "child processes", "private account configuration", "gh 2.96 or later", "swap and crash dumps", "exact-operation authority" }) {
-			expect(details.contains(QString::fromLatin1(phrase)),
-				   std::string{ "every residual risk the long warning named is behind the disclosure: " } + phrase);
-		}
-#if defined(__APPLE__)
-		for (const auto* phrase : { "file writes are denied", "owned temporary object store", "shell credential helper", "Git 2.49 or later", "checked locally", "32 MiB", "supervised temporary-store cutoff" }) {
-			expect(details.contains(QString::fromLatin1(phrase)), std::string{ "the macOS consent disclosure states its confinement and full-diff boundary: " } + phrase);
-		}
-#else
-		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs may run Git", "shell credential helper", "temporary folder of yours that is removed afterwards", "Git 2.49 or later", "checked locally", "32 MiB per-file limit" }) {
-			expect(details.contains(QString::fromLatin1(phrase)), std::string{ "the consent disclosure states this platform's residual boundary: " } + phrase);
-		}
-		expect(!details.contains(QStringLiteral("file writes are denied")) && !details.contains(QStringLiteral("supervised temporary-store cutoff")), "the consent disclosure does not promise macOS write denial or its supervised store cutoff on this platform");
-#endif
-
-		auto* const connect = question->button(QMessageBox::Yes);
-		auto* const cancel  = question->button(QMessageBox::Cancel);
-		expect(connect != nullptr && cancel != nullptr && connect->text() == QStringLiteral("Connect")
-				   && question->defaultButton() == cancel && question->escapeButton() == cancel,
-			   "Connect is the only accepting button, and Cancel is both the default and the escape button");
-		const auto pushButtons = question->findChildren<QPushButton*>();
-		const auto disclosure  = std::ranges::find_if(pushButtons, [connect, cancel](const QPushButton* aButton) {
-			return aButton != connect && aButton != cancel && aButton->text().contains(QStringLiteral("Details"));
-		});
-		expect(disclosure != pushButtons.end() && ((*disclosure)->focusPolicy() & Qt::TabFocus) != 0
-				   && pushButtons.size() == 3,
-			   "the risk list has one keyboard-reachable Show Details disclosure beside Connect and Cancel");
-		auto* const accessibleDisclosure = QAccessible::queryAccessibleInterface(*disclosure);
-		expect(accessibleDisclosure != nullptr && accessibleDisclosure->role() == QAccessible::Button
-				   && accessibleDisclosure->text(QAccessible::Name).contains(QStringLiteral("Details")),
-			   "the disclosure is announced as a button that names what it shows");
-
-		parent.show();
-		question->show();
-		QApplication::processEvents();
-		const auto detailText = [&question] {
-			const auto edits = question->findChildren<QTextEdit*>();
-			return edits.size() == 1 ? edits.front() : nullptr;
-		};
-		expect(detailText() == nullptr || !detailText()->isVisible(), "the residual-risk list is closed until it is asked for");
-		const auto closedHeight = question->height();
-		const auto closed       = question->grab();
-		(*disclosure)->click();
-		QApplication::processEvents();
-		expect(detailText() != nullptr && detailText()->isVisible() && detailText()->isReadOnly()
-				   && detailText()->toPlainText() == details && question->height() > closedHeight,
-			   "Show Details opens the complete read-only risk list inside the same question");
-		expect(!closed.isNull() && closed.width() > 0 && closed.height() > 0, "the closed question renders");
-		if (const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !renderPath.isEmpty()) {
-			const QFileInfo configured{ renderPath };
-			const auto      prefix = QStringLiteral("%1/%2-cli-read-consent").arg(configured.path(), configured.completeBaseName());
-			expect(closed.save(prefix + QStringLiteral("-closed.png"), "PNG") && question->grab().save(prefix + QStringLiteral("-details.png"), "PNG"),
-				   "the closed and disclosed CLI read question renders are saved in the ignored build tree");
-		}
-
-		// On macOS the box animates its escape button's click, which lands
-		// on a later timer rather than inside this event.
-		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
-		QApplication::sendEvent(question.get(), &escape);
-		QDeadlineTimer settled{ 2000 };
-		while (question->clickedButton() == nullptr && !settled.hasExpired()) {
-			QApplication::processEvents(QEventLoop::AllEvents, 20);
-		}
-		expect(question->clickedButton() == cancel && question->isHidden(), "Escape declines the read");
-
-		const auto again = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), host, QStringLiteral("chosen-reviewer"));
-		again->show();
-		QApplication::processEvents();
-		QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-		QApplication::sendEvent(again.get(), &enter);
-		QApplication::processEvents();
-		expect(again->clickedButton() == again->button(QMessageBox::Cancel) && again->isHidden(),
-			   "Return presses the default, so it declines too; only Connect accepts");
-		parent.hide();
-	}
-
-	/// \brief [[BPR-1140]]. The GitHub CLI read opt-in names the machine the
-	/// way the rest of the product does ([[BPR-0773]]): "this Mac" on macOS,
-	/// "this computer" on Windows and Linux. The sentence is otherwise
-	/// [[BPR-0933]]'s, word for word. Each platform's build checks its own
-	/// sentence, so the Windows and Linux wording is proved on those platforms.
-	auto test_cli_read_consent_names_this_machine() -> void
-	{
-		QWidget    parent;
-		const auto question = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), QStringLiteral("ghe.example.invalid"), QStringLiteral("chosen-reviewer"));
-		const auto expected = QStringLiteral(
-			"BetterPullReview uses this account's existing sign-in without saving its token. "
-			"This connection will be reused until you sign out or replace it. "
-			"Connecting for reads does not authorize publishing.");
-		const auto said = question->informativeText();
-		if (said != expected) {
-			std::cerr << "The GitHub CLI read consent says: " << said.toStdString() << '\n';
-		}
-		expect(said == expected, "the GitHub CLI read consent names this platform's machine in the accepted sentence");
-#if !defined(__APPLE__)
-		// A word, so that "Machine configuration" in the details is not one.
-		const QRegularExpression mac{ QStringLiteral("\\bMac\\b") };
-		expect(!question->text().contains(mac) && !said.contains(mac) && !question->detailedText().contains(mac),
-			   "off macOS the GitHub CLI read consent does not say Mac");
-#endif
 	}
 
 	[[nodiscard]] auto conversation(
@@ -4854,34 +4783,30 @@ namespace {
 		expect(landing->secondary_button()->isVisible()
 				   && landing->secondary_button()->text() == QStringLiteral("Use GitHub CLI"),
 			   "the explicit GitHub CLI capability adds its own first-launch path");
+		// RFC-BPR-0032 amendment r1. The card's ways in begin the account
+		// setup at the step each names; no dialog opens.
+		auto setupEvents      = std::vector<core::account_setup_event>{ };
+		auto setupIntents     = qt::account_setup_intents{ };
+		setupIntents.Dispatch = [&setupEvents](core::account_setup_event aEvent) { setupEvents.push_back(std::move(aEvent)); };
+		window.set_account_setup_intents(std::move(setupIntents));
+		QApplication::processEvents();
+		setupEvents.clear();
 		landing->secondary_button()->click();
 		QApplication::processEvents();
-		expect(window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
-				   && !window.settings()->isVisible()
-				   && cliDiscoveries == 1U,
-			   "Use GitHub CLI opens the shared sign-in dialog and dispatches discovery once");
-		window.sign_in_dialog()->reject();
-		QApplication::processEvents();
+		const auto began = [&setupEvents](const std::optional<core::account_setup_server> aServer, const std::optional<core::account_setup_way> aWay) {
+			if (setupEvents.empty() || !std::holds_alternative<core::begin_account_setup>(setupEvents.back())) {
+				return false;
+			}
+			const auto& begin = std::get<core::begin_account_setup>(setupEvents.back());
+			return begin.Server == aServer && begin.Way == aWay;
+		};
+		expect(began(core::account_setup_server::github_com, core::account_setup_way::github_cli) && !window.settings()->isVisible()
+				   && QApplication::activeModalWidget() == nullptr && cliDiscoveries == 0U,
+			   "Use GitHub CLI begins the account setup's GitHub CLI way; the setup asks gh, not the card");
 		landing->tertiary_button()->click();
 		QApplication::processEvents();
-		expect(window.sign_in_dialog()->isVisible() && !window.settings()->isVisible(),
-			   "Add enterprise server on Home opens the shared sign-in dialog");
-		window.sign_in_dialog()->reject();
-		QApplication::processEvents();
-		// Review of BPR-0775, finding 2: once the queue that keeps servers is
-		// ready, the card's second way in opens the new card in its edit state.
-		window.set_saved_server_dispatch([](application::saved_server_intent) { });
-		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
-		QApplication::processEvents();
-		landing->tertiary_button()->click();
-		QApplication::processEvents();
-		expect(window.sign_in_dialog()->isVisible() && !window.settings()->isVisible()
-				   && window.enterprise_server_draft() != nullptr && window.enterprise_server_draft()->isVisible()
-				   && QApplication::focusWidget() == window.enterprise_server_hostname(),
-			   "with the queue ready, Add enterprise server opens the new card in its edit state with the hostname focused");
-		window.enterprise_server_cancel()->click();
-		window.sign_in_dialog()->reject();
-		QApplication::processEvents();
+		expect(began(core::account_setup_server::enterprise, std::nullopt) && !window.settings()->isVisible(),
+			   "Add enterprise server begins the account setup with Enterprise picked");
 		// A public-preview session is a session with no account: the same
 		// Home, with the queue still absent.
 		publish_session_ready(window);
@@ -5294,6 +5219,11 @@ namespace {
 		projection.Entries.push_back(recent_entry("microsoft", "terminal", 42U, "Fix the conpty resize race", 1'772'000'000, false));
 		projection.Entries.push_back(recent_entry("qt", "qtbase", 9'001U, { }, 0, false));
 		window.publish(projection);
+		auto* const cycleModel           = window.home_cycles_list()->model();
+		unsigned    cycleResets          = 0U;
+		const auto  cycleResetConnection = QObject::connect(cycleModel, &QAbstractItemModel::modelReset, &window, [&] { ++cycleResets; });
+		window.present_local_cycle_recents({ });
+		expect(cycleResets == 0U && window.home_cycles_list()->isHidden(), "unchanged empty cycle recents reset no Home model");
 		auto cycles                        = std::vector<application::review_cycle_recent>(2U);
 		cycles[0].Cycle.Title              = "Engine refactor";
 		cycles[0].Cycle.Subject.Generation = 7U;
@@ -5301,6 +5231,25 @@ namespace {
 		cycles[1].Cycle.Title              = "Docs pass";
 		cycles[1].Cycle.Subject.Generation = 8U;
 		window.present_local_cycle_recents(cycles);
+		auto* const cycleList = window.home_cycles_list();
+		cycleList->setCurrentRow(1);
+		const QPersistentModelIndex retainedCycle{ cycleModel->index(1, 0) };
+		const auto                  resetsBeforeRepeat = cycleResets;
+		window.present_local_cycle_recents(cycles);
+		expect(cycleResets == resetsBeforeRepeat && cycleList->model() == cycleModel && retainedCycle.isValid()
+				   && retainedCycle == cycleModel->index(1, 0) && cycleList->currentRow() == 1,
+			   "unchanged cycle recents retain model, item identity and selected row");
+		auto changedCycles           = cycles;
+		changedCycles[1].Cycle.Title = "Updated docs pass";
+		changedCycles[1].Location    = "/work/updated-docs";
+		window.present_local_cycle_recents(changedCycles);
+		expect(cycleResets > resetsBeforeRepeat && cycleList->count() == 2 && cycleList->item(1)->text().contains(QStringLiteral("Updated docs pass"))
+				   && cycleList->item(1)->toolTip() == QStringLiteral("/work/updated-docs"),
+			   "changed cycle recents still publish their current title and location");
+		window.present_local_cycle_recents({ });
+		expect(cycleList->count() == 0 && cycleList->isHidden(), "a real empty cycle projection removes the old rows");
+		window.present_local_cycle_recents(cycles);
+		QObject::disconnect(cycleResetConnection);
 		// The lists lay out over a few turns; a click is made where a row is.
 		for (auto turn = 0; turn < 20; ++turn) {
 			QApplication::processEvents();
@@ -5367,6 +5316,157 @@ namespace {
 	[[nodiscard]] auto selected_rows(const QAbstractItemView& aView) -> qsizetype
 	{
 		return aView.selectionModel() != nullptr ? aView.selectionModel()->selectedIndexes().size() : 0;
+	}
+
+	/// The owner, 2026-11-11: "The Home button should turn into a return
+	/// button when you're on Home with a PR open." With nothing open it is
+	/// Home; over an open review it is that review's return, named, with its
+	/// own glyph and no checked state; it returns where the review was left,
+	/// and is Home again once the review is back or closed. A second pull
+	/// request opened in the window is the one it names. Set
+	/// BPR_HOME_RETURN_RENDER_DIR to keep the strip in both faces, light and
+	/// dark.
+	auto test_home_button_returns_to_the_open_review() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		QApplication::processEvents();
+		auto* const home   = window.home_action();
+		auto* const button = qobject_cast<QToolButton*>(window.primary_toolbar()->widgetForAction(home));
+		const auto  key    = home->shortcut().toString(QKeySequence::NativeText);
+		const auto  image  = [](const QIcon& aIcon) {
+			return aIcon.pixmap(QSize{ 16, 16 }, 2.0).toImage().convertToFormat(QImage::Format_ARGB32);
+		};
+		const auto showing = [&](const qt::strip_glyph aGlyph) {
+			return image(home->icon()) == image(qt::strip_icon(aGlyph, window.palette()));
+		};
+		const auto isHome = [&] {
+			return home->isCheckable() && !window.home_action_returns() && home->text() == QStringLiteral("&Home")
+				&& button != nullptr && button->accessibleName() == QStringLiteral("Home")
+				&& home->toolTip().startsWith(QStringLiteral("Show Home (%1)").arg(key)) && showing(qt::strip_glyph::home)
+				&& !showing(qt::strip_glyph::return_to_review);
+		};
+		expect(window.showing_home() && home->isChecked() && isHome(), "with nothing open the button is Home, checked");
+
+		const auto directory = qEnvironmentVariable("BPR_HOME_RETURN_RENDER_DIR");
+		const auto render    = [&](const QString& aFace) {
+			if (directory.isEmpty()) {
+				return;
+			}
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				window.setPalette(profile.derive(QApplication::palette()));
+				for (auto turn = 0; turn < 4; ++turn) {
+					QApplication::processEvents();
+				}
+				expect(showing(window.home_action_returns() ? qt::strip_glyph::return_to_review : qt::strip_glyph::home),
+					   "a theme change repaints the button's glyph in the new ink");
+				const auto strip = window.primary_toolbar()->grab();
+				expect(strip.save(QStringLiteral("%1/home-button-%2-%3.png").arg(directory, aFace, name)), "the strip render is written");
+			}
+			window.setPalette(QPalette{ });
+			QApplication::processEvents();
+		};
+		render(QStringLiteral("home"));
+
+		publish_pull_request(window);
+		QApplication::processEvents();
+		expect(!window.showing_home() && !home->isChecked() && isHome(), "with the review shown the button is Home, unchecked");
+		window.choose_modality(qt::review_modality::discuss);
+		QApplication::processEvents();
+		auto* const reviewControl = window.primary_toolbar()->widgetForAction(window.files_drawer_toggle_action());
+		reviewControl->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+
+		home->trigger();
+		QApplication::processEvents();
+		const auto title = QStringLiteral("<b>& literal pull request title");
+		expect(window.showing_home() && window.home_action_returns() && !home->isCheckable() && !home->isChecked()
+				   && showing(qt::strip_glyph::return_to_review) && !showing(qt::strip_glyph::home)
+				   && home->text() == QStringLiteral("Return to #27 <b>&& literal pull request title")
+				   && home->iconText() == QStringLiteral("Return")
+				   && home->toolTip() == QStringLiteral("Return to openai/better-pull-review#27: %1 (%2).").arg(title, key)
+				   && home->statusTip() == home->toolTip()
+				   && button->accessibleName() == QStringLiteral("Return to #27 ") + title
+				   && button->accessibleDescription() == home->toolTip() && button->isVisible(),
+			   "on Home over the review the button is its return, named for it: " + home->text().toStdString() + " / " + button->accessibleName().toStdString());
+		{
+			auto* const accessible = QAccessible::queryAccessibleInterface(button);
+			expect(accessible != nullptr && accessible->text(QAccessible::Name) == button->accessibleName()
+					   && !accessible->state().checkable && !accessible->state().checked,
+				   "assistive technology reads the return by its name, not as a checked Home");
+		}
+		render(QStringLiteral("return"));
+
+		button->click();
+		QApplication::processEvents();
+		expect(!window.showing_home() && window.current_modality() == qt::review_modality::discuss
+				   && window.focusWidget() == reviewControl && !home->isChecked() && isHome(),
+			   std::string{ "the return brings the review back on Discuss with its focus, and the button is Home again: home=" } + (window.showing_home() ? "1" : "0")
+				   + " modality=" + std::to_string(static_cast<int>(window.current_modality())) + " focus="
+				   + (window.focusWidget() == nullptr ? std::string{ "none" } : window.focusWidget()->objectName().toStdString()) + " checked=" + (home->isChecked() ? "1" : "0")
+				   + " home-face=" + (isHome() ? "1" : "0"));
+
+		// The key is Home's on the review and the return on Home.
+		home->trigger();
+		QApplication::processEvents();
+		expect(window.showing_home() && window.home_action_returns(), "the key shows Home over the review");
+		home->trigger();
+		QApplication::processEvents();
+		expect(!window.showing_home() && isHome(), "the key on Home returns to the review");
+
+		// A second pull request opened in the window is the one it returns to.
+		auto second         = pull_request_projection();
+		second.Number       = core::pull_request_number{ 28U };
+		second.PullRequest  = core::pull_request_id{ 82U };
+		second.Snapshot     = core::provider_snapshot_id{ 92U };
+		second.Title        = "Second change, a title long enough that the button's name elides it well before it ends";
+		auto summary        = core::github_pull_request_summary{ };
+		summary.Locator     = { .Owner = second.Owner, .Name = second.RepositoryName };
+		summary.Number      = second.Number;
+		summary.Repository  = second.Repository;
+		summary.PullRequest = second.PullRequest;
+		summary.Snapshot    = second.Snapshot;
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands    = enabled_commands(),
+				.Status      = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+				.PullRequest = core::pull_request_summary_delta{ .Summary = summary },
+			},
+			.PullRequest = std::move(second),
+		});
+		QApplication::processEvents();
+		home->trigger();
+		QApplication::processEvents();
+		expect(window.showing_home() && window.home_action_returns() && home->text().startsWith(QStringLiteral("Return to #28 Second change"))
+				   && home->text().endsWith(QStringLiteral("…")) && home->toolTip().contains(QStringLiteral("before it ends ("))
+				   && home->toolTip().startsWith(QStringLiteral("Return to openai/better-pull-review#28: ")),
+			   "Home over the second pull request returns to it, its long title elided in the name and whole in the tooltip: " + home->text().toStdString());
+
+		// Closing the review while on Home leaves Home, plainly.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands    = enabled_commands(),
+				.PullRequest = core::pull_request_summary_delta{ },
+			},
+		});
+		QApplication::processEvents();
+		expect(window.showing_home() && home->isChecked() && isHome(), "with the review closed on Home the button is Home, checked");
+		home->trigger();
+		QApplication::processEvents();
+		expect(window.showing_home() && home->isChecked() && isHome(), "with nothing open Home cannot be left");
+		window.hide();
 	}
 
 	/// [[BPR-1365]]. The owner, accepting BPR-1364: "Separate problem: the color
@@ -6431,77 +6531,40 @@ namespace {
 			"signed out with nothing open, Home offers sign-in and its buttons "
 			"are focus stops");
 
+		// RFC-BPR-0032 amendment r1. Sign in begins the account setup's browser
+		// way on Home, and a card's Connect begins it for the card's server;
+		// neither opens a dialog nor begins a device flow from Qt.
 		auto signInGestures = std::vector<application::device_authorization_gesture>{ };
 		window.set_device_authorization_dispatch([&signInGestures](application::device_authorization_gesture aGesture) {
 			signInGestures.push_back(std::move(aGesture));
 		});
+		auto setupEvents      = std::vector<core::account_setup_event>{ };
+		auto setupIntents     = qt::account_setup_intents{ };
+		setupIntents.Dispatch = [&setupEvents](core::account_setup_event aEvent) { setupEvents.push_back(std::move(aEvent)); };
+		window.set_account_setup_intents(std::move(setupIntents));
+		QApplication::processEvents();
+		setupEvents.clear();
 		landing->primary_button()->click();
 		QApplication::processEvents();
-		expect(
-			window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
-				&& !window.settings()->isVisible(),
-			"the sign-in button opens the shared sign-in dialog");
-		expect(signInGestures.size() == 1U
-				   && std::holds_alternative<core::begin_device_authorization_intent>(signInGestures.front())
-				   && std::get<core::begin_device_authorization_intent>(signInGestures.front()).Profile == *window.session_panel()->selected_profile(),
-			   "Home Sign in begins once for the selected host without a second gesture");
-		auto waiting = application::device_authorization_presentation{
-			.Stage                    = core::device_authorization_stage::awaiting_authorization,
-			.UserCode                 = "TEST-CODE",
-			.VerificationUri          = "fixture-sign-in",
-			.RemainingValiditySeconds = 300U,
+		const auto lastBegin = [&setupEvents]() -> std::optional<core::begin_account_setup> {
+			if (setupEvents.empty() || !std::holds_alternative<core::begin_account_setup>(setupEvents.back())) {
+				return std::nullopt;
+			}
+			return std::get<core::begin_account_setup>(setupEvents.back());
 		};
-		waiting.Commands = core::device_authorization_commands(core::device_authorization_state{
-			.Stage = core::device_authorization_stage::awaiting_authorization,
-		});
-		window.device_authorization()->apply(waiting);
-		QApplication::processEvents();
-		// [[BPR-0773]]. The code is not a panel of its own on the page: it is
-		// the account row of the card whose host the sign-in was begun for.
-		const auto  signingIn     = window.session_panel()->selected_profile();
-		auto* const signingInCard = signingIn.has_value() ? window.server_card_for(*signingIn) : nullptr;
-		expect(signingInCard != nullptr && signingInCard->device_sign_in() == window.device_authorization()
-				   && window.device_authorization()->isVisible()
-				   && window.device_authorization()->isVisibleTo(signingInCard)
-				   && signingInCard->state_label()->text() == QStringLiteral("Signing in"),
-			   "the live code appears as the account row of the chosen host's card, which says Signing in");
-		landing->primary_button()->click();
-		expect(signInGestures.size() == 1U, "another Home gesture cannot restart a running sign-in");
-		window.device_authorization()->cancel_button()->click();
-		expect(signInGestures.size() == 2U && std::holds_alternative<core::cancel_device_authorization_intent>(signInGestures.back()),
-			   "cancellation remains reachable through the existing device intent");
-		auto expired = application::device_authorization_presentation{
-			.Stage = core::device_authorization_stage::expired,
-		};
-		expired.Commands = core::device_authorization_commands(core::device_authorization_state{
-			.Stage = core::device_authorization_stage::expired,
-		});
-		window.device_authorization()->apply(expired);
-		window.sign_in_dialog()->reject();
+		expect(lastBegin().has_value() && lastBegin()->Server == core::account_setup_server::github_com && lastBegin()->Way == core::account_setup_way::browser
+				   && signInGestures.empty() && !window.settings()->isVisible() && QApplication::activeModalWidget() == nullptr,
+			   "Home's Sign in begins the account setup's browser way, with no dialog and no device gesture of its own");
 		window.settings()->present(qt::settings_page::accounts_and_hosts);
-		// [[BPR-0771]]. Another host is chosen by its card's Connect, which
-		// rebinds the device sign-in to it.
 		auto* const enterpriseCard = window.server_card_for(core::host_profile_id{ 12U });
 		expect(enterpriseCard != nullptr && enterpriseCard->connect_button()->isVisibleTo(enterpriseCard),
 			   "the host that is not chosen offers Connect on its card");
 		enterpriseCard->connect_button()->click();
 		QApplication::processEvents();
-		// [[BPR-0774]] review correction. A settled flow's sign-in follows the
-		// chosen host, but its expiry is said only on the host the code was
-		// asked for, so the enterprise card offers its own ways in instead.
-		expect(signInGestures.size() == 2U
-				   && window.session_panel()->selected_profile() == core::host_profile_id{ 12U }
-				   && window.device_authorization()->bound_profile() == core::host_profile_id{ 12U }
-				   && enterpriseCard->device_sign_in() == window.device_authorization()
-				   && !window.device_authorization()->isVisible()
-				   && enterpriseCard->sign_in_button()->isVisible(),
-			   "a card's Connect chooses its host and binds the device sign-in to it without a sign-in gesture, and the expired row is not carried to that card");
-		landing->primary_button()->click();
-		expect(signInGestures.size() == 3U
-				   && std::get<core::begin_device_authorization_intent>(signInGestures.back()).Profile == core::host_profile_id{ 12U },
-			   "retry after expiry names the newly selected host rather than the old grant");
+		expect(lastBegin().has_value() && lastBegin()->Server == core::account_setup_server::enterprise && lastBegin()->Hostname == enterpriseCard->hostname()
+				   && signInGestures.empty() && !window.settings()->isVisible(),
+			   "an Enterprise card's Connect begins the account setup for that server, and Settings gives way to Home");
 		window.set_device_authorization_dispatch({ });
-		window.sign_in_dialog()->reject();
 		window.settings()->hide();
 
 		publish_session_ready(window);
@@ -6664,7 +6727,7 @@ namespace {
 				   && !window.status_text().contains(QStringLiteral("No pull request is open")),
 			   "over a review Home's line is the session line; it says: " + window.status_text().toStdString());
 		expect(
-			window.showing_home() && window.home_action()->isChecked()
+			window.showing_home() && !window.home_action()->isChecked() && window.home_action_returns()
 				&& window.modality()->isVisible()
 				&& !window.primary_toolbar()
 						->widgetForAction(window.files_drawer_toggle_action())
@@ -6675,7 +6738,7 @@ namespace {
 				&& landing->title_label()->text().contains(QStringLiteral("#"))
 				&& landing->primary_button()->text()
 					== QStringLiteral("Back to the review"),
-			"the Home button shows Home over an open review, names the review "
+			"the Home button is the return to the open review, the card names it "
 			"at the top with the way back, and keeps the modalities");
 		landing->primary_button()->click();
 		QApplication::processEvents();
@@ -6785,15 +6848,13 @@ namespace {
 			[&gestures](application::device_authorization_gesture aGesture) {
 				gestures.push_back(std::move(aGesture));
 			});
+		// RFC-BPR-0032 amendment r1. Signed out, the strip's account button
+		// begins the account setup on Home; the setup begins the device flow.
+		const auto recorder = setup_recorder{ window };
 		window.account_action()->trigger();
 		QApplication::processEvents();
-		expect(
-			window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
-				&& !window.settings()->isVisible()
-				&& gestures.size() == 1U
-				&& std::holds_alternative<core::begin_device_authorization_intent>(gestures.front())
-				&& std::get<core::begin_device_authorization_intent>(gestures.front()).Profile == *selected,
-			"the strip's account button opens shared sign-in and begins exactly one device flow for the chosen host");
+		expect(recorder.began(std::nullopt) && !window.settings()->isVisible() && gestures.empty() && selected.has_value(),
+			   "the strip's account button begins the account setup at its server step, and Qt begins no device flow");
 		expect(
 			!window.focus_order().contains(panel->begin_button())
 				&& !window.focus_order().contains(panel->open_button())
@@ -6803,9 +6864,12 @@ namespace {
 				   }),
 			"the workbench declares no focus stops across windows");
 
-		// The core answers a begin with a live code, applied to the panel the
-		// way the composition's fan-out applies it. It is what turns the two
-		// gestures below into legal ones, and what the capture is a picture of.
+		// The setup's begin is answered with a live code, applied to the panel
+		// the way the composition's fan-out applies it; the reviewer looks at
+		// the card in Settings. It is what turns the two gestures below into
+		// legal ones, and what the capture is a picture of.
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
 		auto awaiting = application::device_authorization_presentation{
 			.Stage                    = core::device_authorization_stage::awaiting_authorization,
 			.UserCode                 = "WDJB-MJHT",
@@ -6836,9 +6900,9 @@ namespace {
 		panel->cancel_button()->click();
 		QApplication::processEvents();
 		expect(
-			gestures.size() == 3U
-				&& std::holds_alternative<application::open_verification_address_gesture>(gestures[1])
-				&& std::holds_alternative<core::cancel_device_authorization_intent>(gestures[2]),
+			gestures.size() == 2U
+				&& std::holds_alternative<application::open_verification_address_gesture>(gestures[0])
+				&& std::holds_alternative<core::cancel_device_authorization_intent>(gestures[1]),
 			"opening a browser and cancelling both leave through the same sink "
 			"and neither is performed here");
 
@@ -6920,12 +6984,12 @@ namespace {
 				&& panel->bound_profile() == other
 				&& otherCard->device_sign_in() == panel && otherCard->isAncestorOf(panel)
 				&& chosen->device_sign_in() == nullptr && !chosen->isAncestorOf(panel)
-				&& gestures.size() == 3U,
+				&& gestures.size() == 2U,
 			"a card's Connect moves the device sign-in into its own account row, bound to its host, without a sign-in gesture");
 		panel->begin_button()->click();
 		QApplication::processEvents();
 		expect(
-			gestures.size() == 4U
+			gestures.size() == 3U
 				&& std::holds_alternative<core::begin_device_authorization_intent>(gestures.back())
 				&& std::get<core::begin_device_authorization_intent>(gestures.back()).Profile == other,
 			"the next request names the host the card's Connect chose");
@@ -7649,18 +7713,15 @@ namespace {
 		card->copy_details_button()->click();
 		expect(clipboard->text().contains(card->heading_label()->text()) && clipboard->text().contains(card->explanation_label()->text()),
 			   "Copy details copies the status, then the refusal as the card says it");
+		const auto recorder = setup_recorder{ window };
 		offered[0]->click();
 		QApplication::processEvents();
-		expect(window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible(),
-			   "Sign in opens the shared sign-in dialog");
-		window.sign_in_dialog()->reject();
-		QApplication::processEvents();
+		expect(recorder.began(core::account_setup_server::github_com, core::account_setup_way::browser),
+			   "Sign in begins the account setup's browser way");
 		offered[1]->click();
 		QApplication::processEvents();
-		expect(cliDiscoveries == 1 && window.sign_in_dialog()->isVisible(),
-			   "Use GitHub CLI starts discovery in the shared sign-in dialog");
-		window.sign_in_dialog()->reject();
-		QApplication::processEvents();
+		expect(cliDiscoveries == 0 && recorder.began(core::account_setup_server::github_com, core::account_setup_way::github_cli),
+			   "Use GitHub CLI begins the account setup's GitHub CLI way, which asks gh itself");
 
 		auto typed = QKeyEvent{ QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, QStringLiteral("x") };
 		QApplication::sendEvent(window.home_open_bar(), &typed);
@@ -7698,9 +7759,9 @@ namespace {
 		check_refusal_render(window, QStringLiteral("account"));
 		offered[0]->click();
 		QApplication::processEvents();
-		expect(window.sign_in_dialog()->isVisible(), "Use another account opens the shared sign-in dialog");
-		window.sign_in_dialog()->reject();
-		QApplication::processEvents();
+		expect(!recorder.Events->empty() && std::holds_alternative<core::begin_account_setup>(recorder.Events->back())
+				   && !std::get<core::begin_account_setup>(recorder.Events->back()).Way.has_value(),
+			   "Use another account begins the account setup for the session's server");
 
 		// A refusal another connection would not change keeps its line.
 		publish_first_read(window);
@@ -7807,7 +7868,7 @@ namespace {
 
 	/// \brief [[BPR-0771]]. The picker's job, now a card's. Connect on a card
 	/// that is not the chosen one chooses its host, rebinds the device sign-in
-	/// and dispatches exactly one activation for it through the existing intent.
+	/// and begins the account setup for it.
 	auto test_a_card_connect_chooses_and_connects_its_host() -> void
 	{
 		std::vector<application::github_intent> intents;
@@ -7835,14 +7896,12 @@ namespace {
 			   "before any gesture the first configured host is the chosen one");
 		expect(chosen->connect_button()->isVisibleTo(chosen) && intents.empty(),
 			   "a host that is not the chosen one offers Connect on its card, and nothing has been dispatched");
+		const auto recorder = setup_recorder{ window };
 		chosen->connect_button()->click();
 		QApplication::processEvents();
-		const auto* const activation = intents.size() == 1U
-			? std::get_if<core::activate_host_profile_intent>(&intents.front())
-			: nullptr;
-		expect(activation != nullptr && activation->Profile == core::host_profile_id{ 12U }
-				   && activation->Mode == core::github_access_mode::authenticated,
-			   "Connect dispatches exactly one activation, for that card's host");
+		const auto server = chosen->hostname() == "github.com" ? core::account_setup_server::github_com : core::account_setup_server::enterprise;
+		expect(intents.empty() && recorder.began(server, std::nullopt, chosen->hostname()),
+			   "Connect begins the account setup for that card's host (RFC-BPR-0032 amendment r1), activating nothing itself");
 		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 12U }
 				   && window.device_authorization()->bound_profile() == core::host_profile_id{ 12U },
 			   "and chooses that host for the next Connect and sign-in");
@@ -8024,21 +8083,11 @@ namespace {
 
 		observed.clear();
 		otherEffects = 0U;
-		// [[BPR-0915]]. A card's Connect and its GitHub CLI offer open the
-		// shared sign-in dialog, which holds the same cards in their setup
-		// presentation. Closing it is the reviewer's Cancel, returning the
-		// cards to Settings.
-		auto       cancels           = std::size_t{ 0U };
-		const auto closeSharedSignIn = [&window] {
-			window.sign_in_dialog()->reject();
-			QApplication::processEvents();
-		};
-		window.set_sign_in_cancel_dispatch([&cancels] { ++cancels; });
-		const auto inSharedSignIn = [&window](const qt::server_card* const aCard) {
-			return window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
-				&& window.sign_in_dialog()->isAncestorOf(aCard) && aCard->isVisibleTo(window.sign_in_dialog())
-				&& !window.settings()->isVisible();
-		};
+		// RFC-BPR-0032 amendment r1. A card's native Connect chooses its server
+		// and begins the account setup for it; a card's GitHub CLI offer chooses
+		// that profile and asks for its activation, which the composition
+		// answers with the setup when consent is missing. No card opens a dialog.
+		const auto recorder = setup_recorder{ window };
 		// The intent at `aIndex` activates exactly this host profile with an
 		// account, and left after that profile was chosen and sign-in bound to it.
 		const auto activated = [&observed](const std::size_t aIndex, const core::host_profile_id aProfile) {
@@ -8052,26 +8101,18 @@ namespace {
 
 		enterprise->connect_button()->click();
 		QApplication::processEvents();
-		expect(observed.size() == 1U && activated(0U, core::host_profile_id{ 23U }),
-			   "Connect on the card not chosen emits exactly one activation, for its native HTTPS profile, once that profile is chosen and sign-in is bound to it");
-		expect(inSharedSignIn(enterprise) && !github->isVisibleTo(window.sign_in_dialog()),
-			   "that Connect opens the shared sign-in dialog for the enterprise server alone");
+		expect(observed.empty() && recorder.began(core::account_setup_server::enterprise, std::nullopt, enterprise->hostname()) && QApplication::activeModalWidget() == nullptr,
+			   "Connect on the card not chosen begins the account setup for its server and activates nothing itself");
 		expect(enterprise->presentation().Current && enterprise->profile() == core::host_profile_id{ 23U }
-				   && !enterprise->connect_button()->isVisibleTo(enterprise)
-				   && enterprise->sign_in_button()->isVisibleTo(enterprise)
-				   && !enterprise->cli_offer_button()->isVisibleTo(enterprise)
+				   && page->isAncestorOf(enterprise) && enterprise->cli_offer_button()->isVisibleTo(enterprise)
+				   && enterprise->cli_trust_warning()->isVisibleTo(enterprise)
 				   && !github->presentation().Current && github->profile() == core::host_profile_id{ 21U }
 				   && github->connect_button()->isVisibleTo(github),
-			   "the enterprise server is chosen and signs in natively, its card offers no GitHub CLI inside native sign-in, and GitHub.com offers Connect for its native HTTPS profile");
-		closeSharedSignIn();
-		expect(cancels == 1U && page->isAncestorOf(enterprise) && !window.sign_in_dialog()->isVisible()
-				   && enterprise->presentation().Current && enterprise->cli_offer_button()->isVisibleTo(enterprise)
-				   && enterprise->cli_trust_warning()->isVisibleTo(enterprise),
-			   "closing sign-in cancels it once and returns the cards to Settings, where the chosen server offers GitHub CLI beside its trust warning");
+			   "the enterprise server is chosen, its card in Settings offers GitHub CLI beside its trust warning, and GitHub.com offers Connect");
 
 		enterprise->cli_offer_button()->click();
 		QApplication::processEvents();
-		expect(observed.size() == 2U && activated(1U, core::host_profile_id{ 24U }),
+		expect(observed.size() == 1U && activated(0U, core::host_profile_id{ 24U }),
 			   "the chosen server's GitHub CLI offer emits exactly one activation, for its GitHub CLI profile");
 		const auto speaksForCli = [enterprise] {
 			return enterprise->presentation().Current && enterprise->profile() == core::host_profile_id{ 24U }
@@ -8081,28 +8122,22 @@ namespace {
 				&& enterprise->connect_button()->isVisibleTo(enterprise)
 				&& !enterprise->sign_in_button()->isDefault();
 		};
-		expect(inSharedSignIn(enterprise) && speaksForCli()
-				   && enterprise->login_label()->text() == enterprise->cli_offer_button()->text()
-				   && !enterprise->sign_in_button()->isVisibleTo(enterprise),
-			   "the offer opens GitHub CLI sign-in, where the card speaks for its GitHub CLI profile and Connect is its only way in");
-		closeSharedSignIn();
-		expect(cancels == 2U && page->isAncestorOf(enterprise) && speaksForCli()
+		expect(page->isAncestorOf(enterprise) && speaksForCli()
 				   && enterprise->sign_in_button()->isVisibleTo(enterprise)
 				   && enterprise->cli_trust_warning()->isVisibleTo(enterprise),
 			   "with GitHub CLI chosen the card speaks for it: the kind line says so, Connect is its retry, the warning stays and Sign in is not filled");
 
 		github->cli_offer_button()->click();
 		QApplication::processEvents();
-		expect(observed.size() == 3U && activated(2U, core::host_profile_id{ 22U }),
+		expect(observed.size() == 2U && activated(1U, core::host_profile_id{ 22U }),
 			   "the GitHub CLI offer on the card not chosen emits exactly one activation, for its own GitHub CLI profile");
-		expect(inSharedSignIn(github) && github->presentation().Current && github->profile() == core::host_profile_id{ 22U }
+		expect(github->presentation().Current && github->profile() == core::host_profile_id{ 22U }
 				   && github->kind_label()->text() == QStringLiteral("GitHub.com, GitHub CLI")
 				   && !enterprise->presentation().Current && enterprise->profile() == core::host_profile_id{ 23U }
 				   && enterprise->kind_label()->text() == QStringLiteral("GitHub Enterprise Server, native HTTPS"),
 			   "GitHub.com now speaks for GitHub CLI, and the enterprise card, no longer chosen, for its native HTTPS profile again");
-		closeSharedSignIn();
-		expect(cancels == 3U && otherEffects == 0U,
-			   "no card gesture leaves through any sink but the GitHub intents and sign-in's own Cancel: no workbench intent, device sign-in, public preview, setup destination or saved server");
+		expect(otherEffects == 0U,
+			   "no card gesture leaves through any sink but the GitHub intents and the account setup: no workbench intent, device sign-in, public preview, setup destination or saved server");
 
 		// A profile added from setup joins its server's card when that server
 		// is already configured; a new server appends one card.
@@ -8161,7 +8196,7 @@ namespace {
 				   && unnamed->cli_offer_button()->text() == QStringLiteral("GitHub CLI"),
 			   "a GitHub CLI label with no separator, or naming something else after it, is offered as GitHub CLI");
 		expect_one_card_per_server(window, page, configured, "setup has added a profile to one server and three new servers");
-		expect(observed.size() == 3U && otherEffects == 0U, "adding setup profiles dispatches nothing");
+		expect(observed.size() == 2U && otherEffects == 0U, "adding setup profiles dispatches nothing");
 	}
 
 	/// \brief One text a reviewer can read on a page, and the widget showing it.
@@ -8281,8 +8316,7 @@ namespace {
 		/// Whether the chosen card shows the fixture's signed-in account.
 		bool SignedIn = false;
 		/// Whether the chosen card's Sign in is the page's one filled control.
-		/// A live code is the shared sign-in dialog's, never the page's
-		/// ([[BPR-0915]]); `expect_signing_in_dialog` says what it shows.
+		/// A live code is the account setup's (RFC-BPR-0032 amendment r1).
 		bool Filled = false;
 	};
 
@@ -8417,57 +8451,6 @@ namespace {
 									: "no control on the page is filled"));
 	}
 
-	/// \brief [[BPR-0915]]. A live code is shown in the shared sign-in dialog,
-	/// which holds the Accounts page's cards while Settings is closed. Fails
-	/// unless the dialog shows only the signing-in server's card, which names
-	/// its host, the transport it speaks for and Signing in once each, the
-	/// other server appears nowhere in it, and its one filled control is the
-	/// code's Open browser.
-	void expect_signing_in_dialog(
-		const qt::workbench_window& aWindow,
-		const qt::server_card&      aSigning,
-		const qt::server_card&      aOther,
-		const QString&              aTransport,
-		const std::string_view      aState)
-	{
-		const auto during = [aState](const std::string& aClaim) {
-			return aClaim + " while " + std::string{ aState };
-		};
-		auto* const dialog = aWindow.sign_in_dialog();
-		expect(dialog != nullptr && dialog->isVisible() && !aWindow.settings()->isVisible()
-				   && dialog->isAncestorOf(&aSigning) && aSigning.isVisibleTo(dialog) && !aOther.isVisibleTo(dialog)
-				   && aWindow.device_authorization() != nullptr && aSigning.isAncestorOf(aWindow.device_authorization()),
-			   during("the shared sign-in dialog shows the signing-in server's card alone, holding the code"));
-		const auto texts    = shown_texts(dialog);
-		const auto anywhere = [](const QWidget* const) { return true; };
-		expect_mentions(texts, QString::fromStdString(aSigning.hostname()), fact_kind::host, anywhere, 1U, 1U,
-						during("the dialog names the signing-in host once"));
-		expect_mentions(texts, QString::fromStdString(aOther.hostname()), fact_kind::host, anywhere, 0U, 0U,
-						during("the dialog names no other server"));
-		expect_mentions(
-			texts, aTransport, fact_kind::words,
-			[&aSigning](const QWidget* const aWidget) { return aWidget == aSigning.kind_label(); }, 1U, 1U,
-			during("the card names the transport it speaks for in its kind line"));
-		expect_mentions(
-			texts, aTransport, fact_kind::words,
-			[&aSigning](const QWidget* const aWidget) { return aWidget != aSigning.cli_trust_warning(); }, 1U, 1U,
-			during("outside the trust warning the dialog names that transport once"));
-		expect_mentions(
-			texts, QStringLiteral("Signing in"), fact_kind::words,
-			[&aSigning](const QWidget* const aWidget) { return aWidget == aSigning.state_label(); }, 1U, 1U,
-			during("the card says Signing in in its header"));
-		expect_mentions(texts, QStringLiteral("Signing in"), fact_kind::words, anywhere, 1U, 1U,
-						during("the dialog says Signing in once"));
-		auto filled = std::vector<const QPushButton*>{ };
-		for (const auto* const button : dialog->findChildren<QPushButton*>()) {
-			if (button->isVisibleTo(dialog) && button->isDefault()) {
-				filled.push_back(button);
-			}
-		}
-		expect(filled.size() == 1U && filled.front() == aWindow.device_authorization()->open_button(),
-			   during("the code's Open browser is the dialog's one filled control"));
-	}
-
 	/// \brief [[BPR-0772]] acceptance 2, RFC-BPR-0032 A4. On every state of the
 	/// Accounts page, with each server configured for native HTTPS and GitHub
 	/// CLI, host, login, transport and connection state each appear once,
@@ -8576,7 +8559,7 @@ namespace {
 			const auto  cards      = window.server_cards();
 			auto* const github     = window.server_card_for(core::host_profile_id{ 21U });
 			auto* const enterprise = window.server_card_for(core::host_profile_id{ 23U });
-			auto* const add        = window.add_enterprise_server_button();
+			auto* const add        = window.add_account_button();
 			expect(github != nullptr && enterprise != nullptr && add != nullptr && !cards.empty()
 					   && enterprise->remember_switch()->isVisibleTo(page) && enterprise->remember_switch()->isChecked()
 					   && enterprise->forget_button()->isVisibleTo(page)
@@ -8585,7 +8568,7 @@ namespace {
 			expect(add->isVisibleTo(page) && !add->isDefault()
 					   && add->mapTo(page, QPoint{ 0, 0 }).y()
 						   >= cards.back()->mapTo(page, QPoint{ 0, 0 }).y() + cards.back()->height(),
-				   "Add enterprise server is under the cards and is not the page's filled control");
+				   "Add account is under the cards and is not the page's filled control");
 		}
 		inspect({
 			.Name               = "the queue keeps the enterprise server",
@@ -8599,24 +8582,12 @@ namespace {
 		});
 		expect(keptServerIntents.empty(), "inventorying the page with the enterprise rows on it dispatches nothing");
 
-		// [[BPR-0773]], [[BPR-0915]]. Signing in on GitHub.com: the chosen
-		// card's Sign in is pressed, which opens the shared sign-in dialog with
-		// the page's cards in it, and the code the core answers with is that
-		// card's account row there. Its address names github.com as part of an
-		// address, which is not the host said a second time. Closing the
-		// dialog is the reviewer's Cancel and returns the cards to Settings.
-		auto cancels = std::size_t{ 0U };
-		window.set_sign_in_cancel_dispatch([&cancels] { ++cancels; });
-		const auto returnToSettings = [&window, page] {
-			window.sign_in_dialog()->reject();
-			window.open_settings(qt::settings_page::accounts_and_hosts);
-			QApplication::processEvents();
-			return window.settings()->isVisible() && page->isAncestorOf(window.server_card_for(core::host_profile_id{ 21U }))
-				&& page->isAncestorOf(window.server_card_for(core::host_profile_id{ 23U }));
-		};
-		auto* const panel = window.device_authorization();
-		window.server_card_for(core::host_profile_id{ 21U })->sign_in_button()->click();
-		auto awaiting = application::device_authorization_presentation{
+		// [[BPR-0773]], RFC-BPR-0032 amendment r1. Signing in on GitHub.com is
+		// the account setup's; while its code is live, the chosen card's account
+		// row in Settings shows it, and its address names github.com as part of
+		// an address, which is not the host said a second time.
+		auto* const panel    = window.device_authorization();
+		auto        awaiting = application::device_authorization_presentation{
 			.Stage                    = core::device_authorization_stage::awaiting_authorization,
 			.UserCode                 = "WDJB-MJHT",
 			.VerificationUri          = "https://github.com/login/device",
@@ -8628,18 +8599,14 @@ namespace {
 		panel->apply(awaiting);
 		QApplication::processEvents();
 		expect(window.server_card_for(core::host_profile_id{ 21U })->device_sign_in() == panel
-				   && window.sign_in_dialog() != nullptr
-				   && panel->address_field()->isVisibleTo(window.sign_in_dialog())
+				   && panel->address_field()->isVisibleTo(page)
 				   && panel->address_field()->text().contains(QStringLiteral("github.com/")),
-			   "signing in on GitHub.com, the code and its github.com address are that card's account row in the shared sign-in dialog");
-		expect_signing_in_dialog(window, *window.server_card_for(core::host_profile_id{ 21U }),
-								 *window.server_card_for(core::host_profile_id{ 23U }), QStringLiteral("native HTTPS"),
-								 "signing in on GitHub.com");
+			   "a live code is GitHub.com's card's account row in Settings, with its github.com address");
 		panel->apply(application::device_authorization_presentation{ });
 		QApplication::processEvents();
-		expect(returnToSettings() && cancels == 1U && !panel->isVisibleTo(page)
+		expect(!panel->isVisibleTo(page)
 				   && window.server_card_for(core::host_profile_id{ 21U })->state_label()->text() == QStringLiteral("Signed out"),
-			   "settled back to idle and closed, the sign-in cancels once and returns the cards to Settings, where GitHub.com's card is signed out again and the sign-in is hidden");
+			   "settled back to idle, GitHub.com's card is signed out again and the sign-in row is hidden");
 
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
@@ -8728,14 +8695,10 @@ namespace {
 			: nullptr;
 		expect(chosen != nullptr && chosen->Profile == core::host_profile_id{ 22U },
 			   "GitHub CLI is chosen on GitHub.com through its offer, which activates exactly that profile");
-		// [[BPR-0915]]. The offer opens GitHub CLI sign-in for GitHub.com in the
-		// shared dialog; the Settings inventory resumes once it is closed.
-		expect(window.sign_in_dialog()->isVisible() && github->isVisibleTo(window.sign_in_dialog())
-				   && !window.server_card_for(core::host_profile_id{ 23U })->isVisibleTo(window.sign_in_dialog())
-				   && github->login_label()->text() == github->cli_offer_button()->text(),
-			   "the GitHub CLI offer opens GitHub CLI sign-in for GitHub.com alone in the shared dialog");
-		expect(returnToSettings() && cancels == 2U && intents.size() == 1U,
-			   "closing GitHub CLI sign-in cancels it once, dispatches nothing else and returns the cards to Settings");
+		// RFC-BPR-0032 amendment r1. The offer opens no dialog; the activation
+		// asks the account setup for consent where it has none.
+		expect(QApplication::activeModalWidget() == nullptr && intents.size() == 1U,
+			   "the GitHub CLI offer opens no dialog and dispatches nothing else");
 		inspect({
 			.Name               = "GitHub CLI chosen on GitHub.com, signed out",
 			.Current            = core::host_profile_id{ 22U },
@@ -8835,25 +8798,23 @@ namespace {
 		return named;
 	}
 
-	/// \brief [[BPR-0773]] acceptance 1, RFC-BPR-0032 A2. One Sign in gesture on
-	/// the chosen card begins the device flow, and the code the core answers
-	/// with is shown inside that card: the address sentence and the address,
-	/// the code with Copy code, Open browser filled, the validity, one status
-	/// sentence and Cancel. Nothing is behind a disclosure or below the fold,
-	/// no button shown is disabled and no field is truncated.
-	///
-	/// \details [[BPR-0915]]. The gesture opens the shared sign-in dialog,
-	/// which holds the card while Settings is closed, so the claims are made
-	/// there, at the size the dialog opens at. Its own Cancel is the flow's
-	/// Cancel; the row's duplicate is hidden.
-	auto test_one_sign_in_gesture_shows_the_code_in_the_card() -> void
+	/// \brief RFC-BPR-0032 amendment r1 (owner, 2026-11-12). Every way in
+	/// begins the one account setup on Home: a card's Sign in and Connect for
+	/// its server, the strip's account button signed out at the server step,
+	/// a refusal's Sign in, Use GitHub CLI and Use another account. None
+	/// opens a dialog or begins a device flow from Qt, and a card's GitHub CLI
+	/// offer still asks for its profile's activation, which the composition
+	/// answers with the setup when consent is missing.
+	[[nodiscard]] auto enterprise_profile() -> application::github_profile_option;
+
+	auto test_every_way_in_begins_the_account_setup() -> void
 	{
 		auto                 intents = std::vector<application::github_intent>{ };
 		qt::workbench_window window{
 			qt::workbench_intent_dispatch{ },
 			qt::workbench_change_dispatch{ },
 			qt::workbench_drawer_width_dispatch{ },
-			device_profiles(),
+			std::vector<application::github_profile_option>{ device_profiles().front(), enterprise_profile() },
 			[&intents](application::github_intent aIntent) {
 				intents.push_back(std::move(aIntent));
 			},
@@ -8862,213 +8823,42 @@ namespace {
 		window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
 			gestures.push_back(std::move(aGesture));
 		});
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		const auto recorder = setup_recorder{ window };
 		window.resize(1'280, 820);
 		window.show();
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
+		auto* const github     = window.server_card_for(core::host_profile_id{ 31U });
+		auto* const enterprise = window.server_card_for(core::host_profile_id{ 41U });
+		expect(github != nullptr && enterprise != nullptr && github->sign_in_button()->isVisible() && enterprise->connect_button()->isVisible(),
+			   "GitHub.com offers Sign in and the enterprise card Connect");
 
-		// Settings keeps the size it opens at; the claim below is made there.
-		auto* const settings = window.settings();
-		auto* const page     = settings->page_widget(qt::settings_page::accounts_and_hosts);
-		auto* const scroll   = qobject_cast<QScrollArea*>(settings->pages()->currentWidget());
-		auto* const card     = window.server_card_for(core::host_profile_id{ 31U });
-		auto* const panel    = window.device_authorization();
-		expect(settings->isVisible() && settings->width() <= 960 && settings->height() <= 640
-				   && page != nullptr && scroll != nullptr && scroll->widget() == page
-				   && card != nullptr && card->presentation().Current && card->sign_in_button()->isVisible(),
-			   "Settings is open on Accounts and hosts at no more than its own size, and the chosen GitHub.com card offers Sign in");
-
-		auto cancels = std::size_t{ 0U };
-		window.set_sign_in_cancel_dispatch([&cancels] { ++cancels; });
-		card->sign_in_button()->click();
+		github->sign_in_button()->click();
 		QApplication::processEvents();
-		expect(gestures.size() == 1U
-				   && std::holds_alternative<core::begin_device_authorization_intent>(gestures.front())
-				   && std::get<core::begin_device_authorization_intent>(gestures.front()).Profile == core::host_profile_id{ 31U }
-				   && intents.empty(),
-			   "the card's Sign in emits exactly one device begin, for its native HTTPS profile, and no GitHub intent");
-		auto* const dialog       = window.sign_in_dialog();
-		auto* const signInScroll = dialog != nullptr ? dialog->findChild<QScrollArea*>() : nullptr;
-		auto* const buttons      = dialog != nullptr ? dialog->findChild<QDialogButtonBox*>() : nullptr;
-		auto* const dialogCancel = buttons != nullptr ? buttons->button(QDialogButtonBox::Cancel) : nullptr;
-		expect(dialog != nullptr && dialog->isVisible() && !settings->isVisible() && signInScroll != nullptr
-				   && signInScroll->widget() != nullptr && signInScroll->widget()->isAncestorOf(card)
-				   && dialogCancel != nullptr && dialogCancel->isVisible(),
-			   "the Sign in opens the shared sign-in dialog, which holds the card and offers Cancel, and Settings closes");
+		expect(recorder.began(core::account_setup_server::github_com, std::nullopt, std::string{ "github.com" }) && !window.settings()->isVisible()
+				   && window.showing_home() && gestures.empty() && intents.empty() && QApplication::activeModalWidget() == nullptr,
+			   "a card's Sign in begins the setup for its server on Home: no dialog, no device gesture and no GitHub intent");
 
-		// The core answers with a live code, applied the way the composition's
-		// fan-out applies it.
-		panel->apply(device_presentation(core::device_authorization_stage::awaiting_authorization));
+		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
-		auto* const                   account = card->findChild<QWidget*>(QStringLiteral("serverCardAccount"));
-		const std::array<QWidget*, 7> row{
-			panel->address_sentence_label(),
-			panel->address_field(),
-			panel->user_code_field(),
-			panel->copy_button(),
-			panel->open_button(),
-			panel->validity_label(),
-			panel->status_label(),
-		};
-		expect(card->device_sign_in() == panel && account != nullptr && account->isAncestorOf(panel)
-				   && std::ranges::all_of(row, [card, account](const QWidget* const aWidget) {
-						  return card->isAncestorOf(aWidget) && account->isAncestorOf(aWidget) && aWidget->isVisible()
-							  && !card->details()->isAncestorOf(aWidget);
-					  })
-				   && !panel->cancel_button()->isVisible() && dialogCancel->isVisible(),
-			   "the address sentence, the address, the code, Copy code, Open browser, the validity and the status sentence are all shown in the card's account row, in no disclosure, and the dialog's own Cancel stands for the row's");
-		expect(panel->address_sentence_label()->text() == QStringLiteral("Enter this code at")
-				   && panel->address_field()->text() == QStringLiteral("https://github.com/login/device")
-				   && panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT")
-				   && panel->user_code_field()->isReadOnly()
-				   && panel->open_button()->text() == QStringLiteral("Open browser")
-				   && panel->open_button()->isDefault()
-				   && panel->cancel_button()->text() == QStringLiteral("Cancel")
-				   && !panel->validity_label()->text().isEmpty()
-				   && panel->status_label()->text().startsWith(QStringLiteral("Waiting for the browser to authorize this ")),
-			   "the row reads Enter this code at and the address, the selectable code, Open browser filled, the validity, one status sentence and Cancel");
-		expect(card->state_label()->text() == QStringLiteral("Signing in")
-				   && !card->sign_in_button()->isVisible() && !card->login_label()->isVisible(),
-			   "the header says Signing in, and the row is the sign-in rather than the card's ways in");
-
-		const QRect placed{ panel->mapTo(signInScroll->viewport(), QPoint{ 0, 0 }), panel->size() };
-		expect(!placed.isEmpty() && signInScroll->viewport()->rect().contains(placed),
-			   "the whole sign-in lies inside the shared sign-in dialog's viewport at the size it opens at, without scrolling");
-		const auto disabled = disabled_buttons(*card);
-		expect(disabled.empty(), "no button shown in the card is disabled:" + disabled);
-		const auto truncated = truncated_fields(*panel);
-		expect(truncated.empty(), "no field in the sign-in is narrower than its text:" + truncated);
-		const auto code = panel->user_code_field()->font();
-		expect(QFontInfo{ code }.fixedPitch() && panel->font().pointSizeF() > 0.0
-				   && std::abs(code.pointSizeF() - panel->font().pointSizeF() * 1.6) <= panel->font().pointSizeF() * 0.02,
-			   "the code is in a fixed-pitch font at 1.6 times the row's size");
-		expect(!card->details_button()->isChecked() && !card->details()->isVisible(),
-			   "the card's Details stays collapsed");
-
-		auto* const clipboard = QApplication::clipboard();
-		expect(clipboard != nullptr, "the Qt platform provides a clipboard");
-		clipboard->setText(QStringLiteral("clipboard before Copy code"));
-		panel->copy_button()->click();
-		expect(clipboard->text() == QStringLiteral("WDJB-MJHT")
-				   && panel->copy_button()->text() == QStringLiteral("Copied")
-				   && panel->copy_button()->accessibleName() == QStringLiteral("Copy code")
-				   && panel->copy_button()->toolTip() == QStringLiteral("Copy code"),
-			   "Copy code puts exactly the code on the clipboard and says Copied in place");
-		expect(gestures.size() == 1U && intents.empty() && cancels == 0U, "showing and copying the code dispatches nothing more");
-		dialogCancel->click();
+		enterprise->connect_button()->click();
 		QApplication::processEvents();
-		expect(cancels == 1U && !dialog->isVisible() && page->isAncestorOf(card) && gestures.size() == 1U,
-			   "the dialog's Cancel cancels sign-in exactly once and returns the card to Settings");
-		window.set_device_authorization_dispatch({ });
-		settings->hide();
+		expect(recorder.began(core::account_setup_server::enterprise, std::nullopt, enterprise->hostname()) && window.session_panel()->selected_profile() == core::host_profile_id{ 41U }
+				   && gestures.empty() && intents.empty(),
+			   "an enterprise card's Connect chooses its server and begins the setup for it");
+
+		window.account_action()->trigger();
+		QApplication::processEvents();
+		expect(recorder.began(std::nullopt) && !window.settings()->isVisible() && gestures.empty(),
+			   "signed out, the strip's account button begins the setup at its server step");
+		window.settings()->hide();
 		window.hide();
-	}
-
-	/// \brief [[BPR-0803]]. Choosing GitHub CLI while a device flow awaits its
-	/// code keeps the code beside the CLI choice until the reviewer ends one.
-	///
-	/// \details The owner's decision of 2026-09-24 (`dbae079d`). Both endings
-	/// run: the CLI way in finishing first, which ends the device flow through
-	/// its own Cancel, and the device authorization finishing first, which
-	/// closes sign-in and so withdraws the CLI choice. Each says which account
-	/// the host ends signed in to, and neither leaves a flow running.
-	auto test_the_code_stays_beside_the_github_cli_choice() -> void
-	{
-		enum class ending { cli_first,
-							device_first };
-		for (const auto end : { ending::cli_first, ending::device_first }) {
-			auto                 intents = std::vector<application::github_intent>{ };
-			qt::workbench_window window{
-				qt::workbench_intent_dispatch{ },
-				qt::workbench_change_dispatch{ },
-				qt::workbench_drawer_width_dispatch{ },
-				device_profiles(),
-				[&intents](application::github_intent aIntent) {
-					intents.push_back(std::move(aIntent));
-				},
-			};
-			auto gestures = std::vector<application::device_authorization_gesture>{ };
-			window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
-				gestures.push_back(std::move(aGesture));
-			});
-			auto discoveries = std::size_t{ 0U };
-			window.set_github_cli_discovery_dispatch([&discoveries] { ++discoveries; });
-			auto cancels = std::size_t{ 0U };
-			window.set_sign_in_cancel_dispatch([&cancels] { ++cancels; });
-			window.resize(1'280, 820);
-			window.show();
-			window.open_settings(qt::settings_page::accounts_and_hosts);
-			QApplication::processEvents();
-			auto* const card  = window.server_card_for(core::host_profile_id{ 31U });
-			auto* const panel = window.device_authorization();
-			card->sign_in_button()->click();
-			QApplication::processEvents();
-			panel->apply(device_presentation(core::device_authorization_stage::awaiting_authorization));
-			QApplication::processEvents();
-			auto* const dialog = window.sign_in_dialog();
-			expect(dialog != nullptr && dialog->isVisible() && card->isVisibleTo(dialog) && panel->user_code_field()->isVisible()
-					   && gestures.size() == 1U && std::holds_alternative<core::begin_device_authorization_intent>(gestures.front()),
-				   "the card's Sign in begins one device flow, whose code is shown in the shared sign-in dialog");
-
-			window.use_github_cli_button()->click();
-			QApplication::processEvents();
-			const auto codeInView = [&] {
-				return card->isVisibleTo(dialog) && panel->isVisibleTo(dialog) && panel->user_code_field()->isVisible()
-					&& panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT") && panel->address_field()->isVisible();
-			};
-			expect(discoveries == 1U && dialog->isVisible() && codeInView(),
-				   "Use GitHub CLI during the flow runs one discovery and keeps the GitHub.com card, its code and its address in view");
-
-			// The discovery inventory finds a GitHub CLI account on github.com.
-			window.add_setup_profile({
-				.Profile   = core::host_profile_id{ 32U },
-				.Label     = "GitHub.com — GitHub CLI (octo-cli, active in gh)",
-				.Hostname  = "github.com",
-				.Product   = application::github_profile_product::github_com,
-				.Transport = application::github_profile_transport::github_cli,
-			});
-			window.present_cli_account_choices({ core::host_profile_id{ 32U } });
-			window.present_github_cli_discovery(qt::github_cli_discovery_state::ready, 1U);
-			QApplication::processEvents();
-			expect(codeInView() && card->cli_offer_button() != nullptr && card->cli_offer_button()->isVisibleTo(dialog)
-					   && card->cli_offer_button()->text().contains(QStringLiteral("octo-cli")),
-				   "the GitHub CLI choice stands beside the running code, on the same card");
-			expect(gestures.size() == 1U && intents.empty(), "choosing GitHub CLI ends nothing by itself");
-
-			if (end == ending::cli_first) {
-				card->cli_offer_button()->click();
-				QApplication::processEvents();
-				const auto* const activation = intents.size() == 1U ? std::get_if<core::activate_host_profile_intent>(&intents.front()) : nullptr;
-				expect(activation != nullptr && activation->Profile == core::host_profile_id{ 32U }
-						   && activation->Mode == core::github_access_mode::authenticated && gestures.size() == 1U && codeInView(),
-					   "the GitHub CLI choice activates exactly the discovered GitHub CLI profile, and the code stays until that way in finishes");
-				publish_session_ready(window, core::host_profile_id{ 32U });
-				QApplication::processEvents();
-				expect(gestures.size() == 2U && std::holds_alternative<core::cancel_device_authorization_intent>(gestures.back()),
-					   "once the GitHub CLI way in has signed in, the device flow is ended through its own Cancel, once");
-				panel->apply(device_presentation(core::device_authorization_stage::cancelled));
-				QApplication::processEvents();
-				expect(!dialog->isVisible() && cancels == 0U && !panel->signing_in(),
-					   "sign-in closes as finished, not cancelled, and no device flow is left running");
-				expect(card->signed_in() && card->profile() == core::host_profile_id{ 32U }
-						   && card->login_label()->text() == QStringLiteral("octo-reviewer"),
-					   "and GitHub.com ends signed in through its GitHub CLI profile, naming the account");
-			} else {
-				panel->apply(device_presentation(core::device_authorization_stage::authorized));
-				publish_session_ready(window, core::host_profile_id{ 31U });
-				QApplication::processEvents();
-				expect(gestures.size() == 1U && intents.empty() && cancels == 0U,
-					   "the device authorization finishing first cancels nothing and activates no GitHub CLI profile");
-				expect(!dialog->isVisible() && !panel->signing_in(),
-					   "sign-in closes, which withdraws the GitHub CLI choice, and no flow is left running");
-				expect(card->signed_in() && card->profile() == core::host_profile_id{ 31U }
-						   && card->login_label()->text() == QStringLiteral("octo-reviewer"),
-					   "and GitHub.com ends signed in through its native HTTPS profile, naming the account");
-			}
-			window.set_device_authorization_dispatch({ });
-			window.settings()->hide();
-			window.hide();
-		}
 	}
 
 	/// \brief [[BPR-0773]] acceptance 2, RFC-BPR-0032 A2. Cancelled, expired and
@@ -9108,29 +8898,12 @@ namespace {
 		expect(card != nullptr && card->presentation().Current && card->device_sign_in() == panel,
 			   "the chosen GitHub.com card holds the device sign-in");
 
-		// [[BPR-0915]]. Sign in opens the shared sign-in dialog, whose own
-		// Cancel is the live code's Cancel. It leaves through the sign-in
-		// cancel sink, which the composition turns into the device flow's
-		// cancel (github_application.cpp, set_sign_in_cancel_dispatch).
-		auto cancels = std::size_t{ 0U };
-		window.set_sign_in_cancel_dispatch([&cancels] { ++cancels; });
-		card->sign_in_button()->click();
+		// RFC-BPR-0032 amendment r1. The flow is begun and cancelled in the
+		// account setup; the card's account row in Settings shows its stages.
 		panel->apply(device_presentation(core::device_authorization_stage::awaiting_authorization));
 		QApplication::processEvents();
-		auto* const buttons      = window.sign_in_dialog() != nullptr ? window.sign_in_dialog()->findChild<QDialogButtonBox*>() : nullptr;
-		auto* const dialogCancel = buttons != nullptr ? buttons->button(QDialogButtonBox::Cancel) : nullptr;
-		expect(gestures.size() == 1U && std::holds_alternative<core::begin_device_authorization_intent>(gestures.back())
-				   && window.sign_in_dialog()->isVisible() && dialogCancel != nullptr && dialogCancel->isVisible()
-				   && !panel->cancel_button()->isVisible(),
-			   "Sign in begins the flow in the shared sign-in dialog, whose Cancel is its live code's Cancel");
-		dialogCancel->click();
-		QApplication::processEvents();
-		expect(cancels == 1U && gestures.size() == 1U && !window.sign_in_dialog()->isVisible(),
-			   "Cancel leaves exactly once, through sign-in's own cancel, and closes the dialog");
-		// The cards are back in Settings, which the reviewer reopens to see how
-		// the flow ended.
-		window.open_settings(qt::settings_page::accounts_and_hosts);
-		QApplication::processEvents();
+		expect(gestures.empty() && card->device_sign_in() == panel && panel->isVisible() && card->state_label()->text() == QStringLiteral("Signing in"),
+			   "a flow begun by the setup is shown in the chosen card's account row, which says Signing in");
 
 		// A terminal row keeps its sentence in the card, offers one Sign in
 		// again, and shows nothing it cannot do.
@@ -9200,98 +8973,6 @@ namespace {
 		window.hide();
 	}
 
-	/// \brief [[BPR-0773]] D5. Signed out on GitHub.com, the strip's account
-	/// button presses the chosen card's own Sign in. With an account signed in,
-	/// or with a chosen host that has no device flow, it only opens the page.
-	auto test_the_account_action_presses_the_chosen_cards_sign_in() -> void
-	{
-		{
-			auto                 intents = std::vector<application::github_intent>{ };
-			qt::workbench_window window{
-				qt::workbench_intent_dispatch{ },
-				qt::workbench_change_dispatch{ },
-				qt::workbench_drawer_width_dispatch{ },
-				device_profiles(),
-				[&intents](application::github_intent aIntent) {
-					intents.push_back(std::move(aIntent));
-				},
-			};
-			auto gestures = std::vector<application::device_authorization_gesture>{ };
-			window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
-				gestures.push_back(std::move(aGesture));
-			});
-			window.resize(1'280, 820);
-			window.show();
-			QApplication::processEvents();
-			window.account_action()->trigger();
-			QApplication::processEvents();
-			expect(window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
-					   && !window.settings()->isVisible()
-					   && gestures.size() == 1U
-					   && std::holds_alternative<core::begin_device_authorization_intent>(gestures.front())
-					   && std::get<core::begin_device_authorization_intent>(gestures.front()).Profile == core::host_profile_id{ 31U }
-					   && intents.empty(),
-				   "signed out on GitHub.com, the account button opens shared sign-in and begins one device flow for the chosen host");
-
-			window.sign_in_dialog()->reject();
-			publish_session_ready(window, core::host_profile_id{ 31U });
-			QApplication::processEvents();
-			auto* const card = window.server_card_for(core::host_profile_id{ 31U });
-			expect(card != nullptr && card->signed_in() && !card->sign_in_button()->isVisibleTo(card),
-				   "with an account signed in, the chosen card offers no Sign in");
-			gestures.clear();
-			intents.clear();
-			window.account_action()->trigger();
-			QApplication::processEvents();
-			expect(window.settings()->isVisible()
-					   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
-					   && gestures.empty() && intents.empty(),
-				   "signed in, the account button only opens Accounts and hosts: no device begin and no intent");
-			window.set_device_authorization_dispatch({ });
-			window.settings()->hide();
-			window.hide();
-		}
-
-		auto                 intents = std::vector<application::github_intent>{ };
-		qt::workbench_window window{
-			qt::workbench_intent_dispatch{ },
-			qt::workbench_change_dispatch{ },
-			qt::workbench_drawer_width_dispatch{ },
-			std::vector<application::github_profile_option>{
-				{
-					.Profile   = core::host_profile_id{ 41U },
-					.Label     = "GHES 3.18 — Native HTTPS",
-					.Hostname  = "ghe.example.invalid",
-					.Product   = application::github_profile_product::github_enterprise_server,
-					.Transport = application::github_profile_transport::native_https,
-				},
-			},
-			[&intents](application::github_intent aIntent) {
-				intents.push_back(std::move(aIntent));
-			},
-		};
-		auto gestures = std::vector<application::device_authorization_gesture>{ };
-		window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
-			gestures.push_back(std::move(aGesture));
-		});
-		window.resize(1'280, 820);
-		window.show();
-		QApplication::processEvents();
-		auto* const card = window.server_card_for(core::host_profile_id{ 41U });
-		expect(card != nullptr && card->presentation().Current && !card->offers_device_sign_in()
-				   && card->sign_in_button()->isVisibleTo(card),
-			   "a chosen enterprise host offers Sign in, but it has no device flow");
-		window.account_action()->trigger();
-		QApplication::processEvents();
-		expect(window.settings()->isVisible()
-				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
-				   && gestures.empty() && intents.empty(),
-			   "with a chosen host that has no device flow, the account button only opens Accounts and hosts: no device begin and no intent");
-		window.set_device_authorization_dispatch({ });
-		window.settings()->hide();
-		window.hide();
-	}
-
 	/// \brief [[BPR-0774]] review correction. One enterprise host, over native
 	/// HTTPS, which has no device flow.
 	[[nodiscard]] auto enterprise_profile() -> application::github_profile_option
@@ -9303,135 +8984,6 @@ namespace {
 			.Product   = application::github_profile_product::github_enterprise_server,
 			.Transport = application::github_profile_transport::native_https,
 		};
-	}
-
-	/// \brief [[BPR-0773]], [[BPR-0774]] review correction. A code belongs to the
-	/// host it was asked for. While it is live its row stays on that host's
-	/// card whichever host is chosen. Once it has finished, its sentence is said
-	/// only on that host's card, and another host's card offers its own ways in.
-	auto test_a_finished_sign_in_is_said_only_on_its_host() -> void
-	{
-		auto                 intents = std::vector<application::github_intent>{ };
-		qt::workbench_window window{
-			qt::workbench_intent_dispatch{ },
-			qt::workbench_change_dispatch{ },
-			qt::workbench_drawer_width_dispatch{ },
-			std::vector<application::github_profile_option>{ device_profiles().front(), enterprise_profile() },
-			[&intents](application::github_intent aIntent) {
-				intents.push_back(std::move(aIntent));
-			},
-		};
-		auto gestures = std::vector<application::device_authorization_gesture>{ };
-		window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
-			gestures.push_back(std::move(aGesture));
-		});
-		window.publish(application::github_presentation_update{
-			.Transition = application::github_transition_projection{
-				.Commands = enabled_commands(),
-				.Status   = core::github_status_delta{ .Status = core::github_status::no_profile },
-			},
-		});
-		window.resize(1'280, 820);
-		window.show();
-		window.open_settings(qt::settings_page::accounts_and_hosts);
-		QApplication::processEvents();
-		auto* const github     = window.server_card_for(core::host_profile_id{ 31U });
-		auto* const enterprise = window.server_card_for(core::host_profile_id{ 41U });
-		auto* const panel      = window.device_authorization();
-		expect(github != nullptr && enterprise != nullptr && github != enterprise && github->presentation().Current
-				   && github->sign_in_button()->isVisible() && enterprise->connect_button()->isVisible(),
-			   "GitHub.com is chosen and offers Sign in, and the enterprise card offers Connect");
-		// The device gesture at `aIndex` begins a sign-in for GitHub.com's profile.
-		const auto begun = [&gestures](const std::size_t aIndex) {
-			return aIndex < gestures.size()
-				&& std::holds_alternative<core::begin_device_authorization_intent>(gestures[aIndex])
-				&& std::get<core::begin_device_authorization_intent>(gestures[aIndex]).Profile == core::host_profile_id{ 31U };
-		};
-		// The GitHub intent at `aIndex` activates exactly this profile with an account.
-		const auto activated = [&intents](const std::size_t aIndex, const core::host_profile_id aProfile) {
-			const auto* const activation = aIndex < intents.size()
-				? std::get_if<core::activate_host_profile_intent>(&intents[aIndex])
-				: nullptr;
-			return activation != nullptr && activation->Profile == aProfile
-				&& activation->Mode == core::github_access_mode::authenticated;
-		};
-
-		// [[BPR-0915]]. Sign in opens the shared sign-in dialog for GitHub.com,
-		// with the code in that card's row there.
-		auto cancels = std::size_t{ 0U };
-		window.set_sign_in_cancel_dispatch([&cancels] { ++cancels; });
-		github->sign_in_button()->click();
-		panel->apply(device_presentation(core::device_authorization_stage::awaiting_authorization));
-		QApplication::processEvents();
-		auto* const dialog = window.sign_in_dialog();
-		expect(gestures.size() == 1U && begun(0U) && github->device_sign_in() == panel && github->isAncestorOf(panel)
-				   && dialog != nullptr && dialog->isVisible() && panel->isVisible()
-				   && github->state_label()->text() == QStringLiteral("Signing in")
-				   && !enterprise->isVisibleTo(dialog),
-			   "GitHub.com's Sign in begins once in the shared sign-in dialog, and the live code is that card's row, saying Signing in");
-
-		// While the code is live another host is chosen the way the composition
-		// chooses one for a pull request link on it: the dialog is retargeted to
-		// that host, whose card then offers its own way in.
-		window.open_sign_in("ghe.example.invalid");
-		QApplication::processEvents();
-		expect(dialog->isVisible() && enterprise->isVisibleTo(dialog) && !github->isVisibleTo(dialog)
-				   && enterprise->connect_button()->isVisible(),
-			   "retargeted to the enterprise server, the dialog shows its card alone, offering Connect");
-		enterprise->connect_button()->click();
-		QApplication::processEvents();
-		expect(intents.size() == 1U && activated(0U, core::host_profile_id{ 41U }) && gestures.size() == 1U,
-			   "Connect on the enterprise card while the code is live dispatches exactly one activation, for the enterprise profile");
-		expect(github->device_sign_in() == panel && github->isAncestorOf(panel) && panel->isVisibleTo(github)
-				   && github->state_label()->text() == QStringLiteral("Signing in")
-				   && enterprise->device_sign_in() == nullptr && !enterprise->isAncestorOf(panel)
-				   && enterprise->state_label()->text() != QStringLiteral("Signing in"),
-			   "the live code stays on GitHub.com's card, and the enterprise card shows no device row");
-
-		panel->apply(device_presentation(core::device_authorization_stage::denied));
-		QApplication::processEvents();
-		expect(!panel->isVisible() && github->device_sign_in() == nullptr && !github->isAncestorOf(panel)
-				   && github->state_label()->text() == QStringLiteral("Signed out")
-				   && enterprise->state_label()->text() == QStringLiteral("Signed out"),
-			   "a denied code is said on no card once another host is chosen, and GitHub.com's card no longer holds the sign-in");
-		expect(enterprise->presentation().Current && enterprise->sign_in_button()->isVisible()
-				   && enterprise->login_label()->isVisible() && github->connect_button()->isVisibleTo(github),
-			   "the enterprise card offers its own Sign in, and GitHub.com's card offers Connect");
-		const auto disabledWhileDenied = disabled_buttons(*github) + disabled_buttons(*enterprise);
-		expect(disabledWhileDenied.empty(), "no button shown in either card is disabled:" + disabledWhileDenied);
-
-		// Back in Settings, GitHub.com's Connect chooses it again and, since
-		// the host has a device flow, is that flow's retry at once.
-		dialog->reject();
-		window.open_settings(qt::settings_page::accounts_and_hosts);
-		QApplication::processEvents();
-		expect(cancels == 1U && !dialog->isVisible() && github->connect_button()->isVisible(),
-			   "closing the dialog cancels sign-in once, and in Settings GitHub.com's card offers Connect");
-		github->connect_button()->click();
-		QApplication::processEvents();
-		expect(intents.size() == 1U && gestures.size() == 2U && begun(1U),
-			   "Connect on GitHub.com's card begins exactly one device sign-in, for its profile, and dispatches no GitHub intent");
-		auto retries = 0;
-		for (const auto* const button : github->findChildren<QAbstractButton*>()) {
-			if (button->isVisible() && button->text() == QStringLiteral("Sign in again")) {
-				++retries;
-			}
-		}
-		expect(dialog->isVisible() && github->isVisibleTo(dialog) && !enterprise->isVisibleTo(dialog)
-				   && github->presentation().Current && github->device_sign_in() == panel && github->isAncestorOf(panel)
-				   && panel->isVisible() && panel->status_label()->isVisible()
-				   && panel->status_label()->text() == QStringLiteral("Sign-in was denied.")
-				   && retries == 1 && panel->begin_button()->isVisible(),
-			   "chosen again in the shared sign-in dialog, GitHub.com's card holds the sign-in and says its denial, with one Sign in again, until the core answers");
-		const auto disabledOnItsHost = disabled_buttons(*github) + disabled_buttons(*enterprise);
-		expect(disabledOnItsHost.empty(), "no button shown in either card is disabled:" + disabledOnItsHost);
-		dialog->reject();
-		QApplication::processEvents();
-		expect(cancels == 2U && gestures.size() == 2U && intents.size() == 1U,
-			   "closing it again cancels once more, and no other device gesture or GitHub intent was dispatched");
-		window.set_device_authorization_dispatch({ });
-		window.settings()->hide();
-		window.hide();
 	}
 
 	/// \brief [[BPR-0774]] review correction. A card's Sign in shows only while
@@ -9570,8 +9122,7 @@ auto main(int argc, char** argv) -> int
 	// alone, as the first-launch card's is above.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--cli-read-consent"))) {
 		test_cli_warning_lives_on_its_servers_card();
-		test_cli_read_consent_is_a_short_decision();
-		test_cli_read_consent_names_this_machine();
+		test_cli_read_consent_details_and_publication_texts();
 		std::cout << "cli-read-consent:pass\n";
 		return EXIT_SUCCESS;
 	}
@@ -9591,6 +9142,11 @@ auto main(int argc, char** argv) -> int
 		std::cout << "long-thread:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--home-return"))) {
+		test_home_button_returns_to_the_open_review();
+		std::cout << "home-return:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--resident-drawer-filters"))) {
 		test_drawer_filters_are_resident_and_keep_the_open_views();
 		std::cout << "resident-drawer-filters:pass\n";
@@ -9598,8 +9154,7 @@ auto main(int argc, char** argv) -> int
 	}
 
 	test_cli_warning_lives_on_its_servers_card();
-	test_cli_read_consent_is_a_short_decision();
-	test_cli_read_consent_names_this_machine();
+	test_cli_read_consent_details_and_publication_texts();
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_held_read_paints_loading();
@@ -9625,6 +9180,7 @@ auto main(int argc, char** argv) -> int
 	test_home_lists_recently_viewed_pull_requests();
 	test_home_side_lists_select_on_a_single_click();
 	test_home_shows_one_selection_and_the_open_review_quietly();
+	test_home_button_returns_to_the_open_review();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_one_pane_places_github_threads_on_their_own_rows();
@@ -9639,11 +9195,8 @@ auto main(int argc, char** argv) -> int
 	test_a_card_connect_chooses_and_connects_its_host();
 	test_one_card_per_server_holds_its_ways_in();
 	test_accounts_page_says_each_fact_once();
-	test_one_sign_in_gesture_shows_the_code_in_the_card();
-	test_the_code_stays_beside_the_github_cli_choice();
+	test_every_way_in_begins_the_account_setup();
 	test_terminal_and_token_rows_stay_in_the_card();
-	test_the_account_action_presses_the_chosen_cards_sign_in();
-	test_a_finished_sign_in_is_said_only_on_its_host();
 	test_sign_in_waits_for_its_way_in_to_be_admitted();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";

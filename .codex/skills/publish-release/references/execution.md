@@ -5,6 +5,94 @@ work and recovery; it adds no release path or acceptance waiver. The
 [v0.3.1 retrospective](../../../../docs/verification/release-v031-procedure-findings.md#retrospective-and-adopted-workflow-2026-10-20)
 records the observed costs behind these changes.
 
+## Aim for a two-hour clean release
+
+The owner set a two-hour target for future clean releases on 2026-11-11
+([[BPR-2103]]), retaining the instruction to improve main best effort without a
+lengthy benchmarking campaign and leave the active frozen release unchanged.
+This is a target, not an achieved duration or a qualification waiver. Keep
+request-to-verified-publication elapsed time as the primary clock. Report work
+prepared before the request separately rather than hiding its cost, and do not
+reset the request clock for a repair, handoff or human wait.
+
+The retained build 56 Windows reports recorded approximately 106 minutes for
+comprehensive Release and 197 minutes for comprehensive Debug, before other
+platforms, compilation and finishing. Both reports contain failures. They are
+observations of those attempts, not a measured clean-release baseline. Signing
+is not a substitute explanation for hours of qualification, and independent
+Linux alone cannot remove the Windows chain.
+
+Reduce avoidable work in this order:
+
+1. Classify the actual release delta before builds. For a genuinely bounded
+   patch, use the already-authorized normal Release baseline, explicit named
+   patch regressions and affected native Debug residual/heavy obligations.
+   Classification covers the whole release delta, not just the latest repair.
+   Do not run comprehensive by habit, or call broad/unknown changes routine to
+   hit the clock. Qt/toolchain/platform/ownership and broad work keep their
+   comprehensive requirements. Omitted heavy claims remain unqualified.
+2. Validate the proposed profile, scope, heavy IDs and regex syntax before
+   native setup. The Mac entrypoint now does this before credential lookup or
+   compilation. Windows/Linux coordination can use the same source-only check:
+
+   ```sh
+   python3 scripts/run_test_suite.py --validate-request --profile normal --change-scope incremental --include-tests-regex '^NAMED_PATCH_COURSE$'
+   ```
+
+   This starts no native work and supplies no selected-test receipt. Configured
+   row existence, regex matches, configuration, schedule and complete results
+   are still validated on the actual native graph. An invalid request should
+   not consume all three build graphs before it is discovered.
+3. Keep each producer's existing canonical dependency and build trees when
+   their configuration/identity checks agree. Preserve tests-on Release,
+   required Debug and tests-off distribution as distinct graphs. Advance
+   independent physical hosts immediately after their own prerequisites. Keep
+   Windows/WSL excluded from one another; a second alias is not another host.
+4. Use the early native risk checks and failure-first collect-all recovery
+   already implemented. Reconcile every retained failure before the next
+   candidate rather than fixing one and rediscovering the next hours later.
+   Prepare notes, source/legal comparisons and verification commands while
+   eligible machine work or actual human review is pending.
+5. If comprehensive Windows remains the bottleneck, further reductions need
+   source/ownership audits plus native causal controls for newly parallel
+   correctness courses, or verified independent native capacity. Do not widen
+   the allowlist or overlap timing/global-resource courses merely to meet the
+   target. No new host, credential transfer or capacity purchase follows from
+   this target, and no independent Linux producer was established by this slice.
+
+### Separate execution from waits
+
+Use the existing request phase ledger, not summed CTest row time, to account for
+elapsed work. A completed command interval includes failed attempts. The summary
+unions overlapping intervals across recorded producers, so two overlapping
+one-hour commands contribute one hour of observed machine wall time, not two.
+This is wrapper wall occupancy, not CPU utilization or a causal critical path.
+Keep native receipts/source context for each producer; collection alone cannot
+prove a host's result. Unrecorded remote work remains unattributed.
+
+Record a wait only when its cause is observed. Use a nonsecret context and keep
+its identity with the existing run record:
+
+```sh
+python3 scripts/release_phase_ledger.py --ledger /absolute/request/phases.jsonl begin-wait --phase owner-review --kind human --context /absolute/request/context.json
+python3 scripts/release_phase_ledger.py --ledger /absolute/request/phases.jsonl end-wait --wait-id RETURNED_ID --detail 'Review response received; acceptance recorded separately'
+python3 scripts/release_phase_ledger.py --ledger /absolute/request/phases.jsonl summary --target-seconds 7200 --accounting-only
+```
+
+Use `service` for an actual external service wait and `capacity` for an observed
+host queue. A wait can overlap useful machine work. The summary reports unioned
+machine time, unioned waits, each wait kind, their overlap and unattributed
+elapsed time. These fields are not additive. It never labels silence, missing
+telemetry or an interrupted wrapper as human wait. Open phase windows remain
+unreconciled, not proof that a child is running; open waits stay visible too.
+
+Save the summary snapshot at verified publication and alongside a failure or
+handoff. A later summary is a live observation through its own timestamp, not a
+frozen completion duration. The target reports remaining/overrun seconds only;
+it neither cancels work, passes a gate nor stops the request clock during waits.
+The next actual release supplies observed costs. No benchmark campaign or
+measured speedup is claimed for this change.
+
 ## Establish the run once
 
 Keep one durable record outside source for the selected version/platforms,
@@ -116,6 +204,57 @@ coordinated release acceptance/publication. Compilation is not test acceptance,
 artifact audit or signing approval. Preserve the macOS script's gate ownership;
 do not run a duplicate full suite for a packaging transcript. Keep any permitted
 bridge to unchanged qualification explicit and input-bound.
+
+## Run native risk checks before long suites
+
+After the required graphs compile, run the maintained
+[risk preflight](../../../../docs/development/release-test-profiles.md#early-native-risk-preflight)
+on both Release and Debug before long qualification on that physical host.
+The original Git cache ownership and profile-reset public-path courses belong
+in this early set on every selected platform; a Mac pass cannot expose or
+qualify Linux inode/generation behavior or MSVC's checked lifetimes.
+`tools/release.sh` owns both early Mac runs, as well as its later final suites.
+Do not add duplicate manual Mac preflights around it.
+
+Prefer a verified independent Ubuntu 26.04 x64 native producer when one is
+actually available and authorized. Confirm checkout/candidate, native toolchain,
+dependency cache, output ownership and physical host before dispatch. An SSH
+alias or Linux environment inside Windows does not establish independence.
+Keep the selected Linux baseline and approved signer/key location; do not move
+credentials or claim WSL/installation/native-trust evidence from another host.
+Independent hosts may complete their own preflight and advance separately.
+
+If Linux is available only as WSL on the signing PC, schedule Ubuntu discovery
+first: build its Release/Debug/distribution graphs and run both short preflights,
+then finish the Windows graphs and both Windows preflights. Complete all shared
+host compilation and risk checks before either long suite, extended Windows
+repair qualification or packaging. Keep all Windows/WSL builds, tests and package
+work serialized through the existing host lease. Never interrupt a running
+Windows job to insert Linux work; resume this ordering at its next safe owned
+boundary. Existing live release jobs and frozen procedures remain unchanged.
+
+A functional failure rejects the candidate's unstarted downstream work. Preserve
+all native reports and actual exits, including failures from the other mode;
+continue other independent discovery only when already safe and useful. A skipped
+required row is incomplete early discovery, not a PASS. Use the existing Debug
+timing policy for a classified mixed-course timing predicate and retain its raw
+failure. Required final selected qualification, artifact and trust receipts
+remain unchanged.
+
+### Evidence reuse boundary
+
+The early profile is a separate current-candidate observation. Final selected
+rows execute fresh; no early native PASS is imported into the final runner.
+The input closure needed for broader selective reuse has not been verified:
+source/helper/fixture transitive inputs, generated configuration, native libraries,
+compiler/CRT/STL/Qt, containment, storage filesystem capabilities and final artifact
+bytes can change independently of a passing test's name. A docs-only-looking diff
+or identical source file is not that proof. Do not infer that an old source PASS
+qualifies a repaired candidate. Current `--failures-first` receipts only order
+work, and the existing sealed same-invocation tooling bootstrap is the only
+implemented duplicate-row credit. This change enables no new evidence bridge.
+Collection-only recovery may still validate and collect the exact existing native
+outputs under the existing policy; it does not fabricate missing native work.
 
 ## Schedule by physical host and prerequisites
 

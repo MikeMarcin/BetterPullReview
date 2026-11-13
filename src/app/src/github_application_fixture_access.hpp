@@ -1554,6 +1554,12 @@ namespace bpr::app::detail {
 		// `finish`.
 		/// After the restart both drafts were pending again, counted and drawn.
 		bool Restored = false;
+		/// The owner, 2026-11-11. The review opened from the toolbar before
+		/// the saved drafts were read said its comments were loading, never
+		/// none, and no verdict submitted it, even with a summary written.
+		bool UnreadSaidLoading = false;
+		/// Once read, the same open review counted both and could submit.
+		bool UnreadUpdated = false;
 		/// Finish review opened the summary in Discuss with both listed.
 		bool FinishOpened = false;
 		/// Comment with no summary could be submitted.

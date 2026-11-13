@@ -439,6 +439,30 @@ auto main(int argc, char** argv) -> int
 		expect(editor.grab().save(QString::fromLocal8Bit(argv[1])), "render saved");
 	}
 
+	{
+		// The owner, 2026-11-11. Opened before the saved drafts are read, the
+		// review never says it has no comments: it says they are loading,
+		// submits as no verdict, and gives no summary as the reason.
+		auto unread                    = draft;
+		unread.Body                    = { };
+		auto loading                   = projection;
+		loading.Draft                  = unread;
+		loading.Controls               = core::awaiting_comments(unread, core::controls(unread));
+		loading.Status                 = QStringLiteral("Loading your pending comments… You can submit once they have loaded.");
+		loading.Prepared               = core::prepare_review_decision(unread, { });
+		auto* const commentButton      = editor.disposition_button(core::review_disposition::comment);
+		auto* const approveButton      = editor.disposition_button(core::review_disposition::approve);
+		auto* const requestChangesView = editor.disposition_button(core::review_disposition::request_changes);
+		editor.present(loading);
+		QApplication::processEvents();
+		expect(editor.carries_label()->isVisible() && editor.carries_label()->text() == QStringLiteral("Loading pending comments…") && editor.status_label()->isVisible()
+				   && editor.status_label()->text() == loading.Status,
+			   "unread pending comments are said to be loading, not none");
+		expect(!editor.submit_action()->isEnabled() && !commentButton->isEnabled() && !approveButton->isEnabled() && !requestChangesView->isEnabled()
+				   && commentButton->toolTip() == loading.Status && requestChangesView->toolTip() == loading.Status && editor.submit_action()->toolTip() == loading.Status,
+			   "no verdict submits while the comments are unread, and each says why");
+		expect(!editor.body_editor()->isReadOnly(), "the summary can still be written while the comments load");
+	}
 	// [[BPR-1345]]. Finish review: the review carries pending drafts, listed
 	// each where it is and what it says; Comment needs no summary; Discard is
 	// Discard review; what Submit sends is said in words.
@@ -724,6 +748,8 @@ auto main(int argc, char** argv) -> int
 			   "the held suggestion's row says why and offers Convert; the other comment's row does not");
 		expect(!verdict->isEnabled() && verdict->toolTip() == QStringLiteral("1 suggestion GitHub cannot apply is held. Convert it or delete it first."),
 			   "every verdict waits while a suggestion is held, and says why");
+		expect(!held.submit_action()->isEnabled() && held.submit_action()->toolTip() == verdict->toolTip(),
+			   "Submit advertises the same held-suggestion refusal as its verdict");
 		const auto before = heldIntents.size();
 		held.submit_action()->trigger();
 		QApplication::processEvents();
@@ -740,6 +766,8 @@ auto main(int argc, char** argv) -> int
 		const auto stillHeld = held.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
 		expect(verdict->isEnabled() == free && std::ranges::none_of(stillHeld, [](const QLabel* aLabel) { return aLabel->isVisible(); }),
 			   "once nothing is held the rows say nothing more and the verdicts are as they were");
+		expect(held.submit_action()->isEnabled() == free && held.submit_action()->toolTip() == QStringLiteral("Publish this review with the displayed account and revision."),
+			   "releasing the held suggestion restores Submit and its normal explanation");
 
 		// [[BPR-1735]]. A comment GitHub cannot place in a review is held the
 		// same way, its action Publish as file comment; Submit waits for it.
@@ -756,6 +784,8 @@ auto main(int argc, char** argv) -> int
 			   "the held comment's row says why and offers Publish as file comment beside Delete");
 		expect(!verdict->isEnabled() && verdict->toolTip() == QStringLiteral("1 comment GitHub can't place in a review is held. Publish it as a file comment or delete it first."),
 			   "every verdict waits while it is held, and says why");
+		expect(!held.submit_action()->isEnabled() && held.submit_action()->toolTip() == verdict->toolTip(),
+			   "Submit advertises the same unplaceable-comment refusal as its verdict");
 		const auto placeBefore = heldIntents.size();
 		held.submit_action()->trigger();
 		QApplication::processEvents();

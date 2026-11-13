@@ -86,6 +86,9 @@ namespace bpr::qt {
 		/// a text caret standing in its rows, the view picker's third view in
 		/// author state. Not a pencil: the bar's pencil is Compose review.
 		edit_file,
+		/// Return to the review: an arrow that turns back on itself, the
+		/// Home button's face while Home shows over an open review.
+		return_to_review,
 	};
 
 	/// \brief Paints one strip glyph for a palette.

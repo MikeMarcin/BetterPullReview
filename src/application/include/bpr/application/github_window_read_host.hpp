@@ -15,6 +15,7 @@
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_window_read.hpp"
+#include "bpr/core/pull_request_link_route.hpp"
 
 #include <expected>
 #include <functional>
@@ -78,6 +79,16 @@ namespace bpr::application {
 	/// the admitted page address, "commits" and the full commit ID.
 	[[nodiscard]] auto pull_request_commit_page_address(const core::pull_request_page& aPage, const core::git_commit_oid& aCommit) -> std::string;
 
+	/// \brief A clicked body link into the window's own pull request that the
+	/// application shows itself: the core's decision and the link as read.
+	struct markdown_in_app_link
+	{
+		core::pull_request_link_decision Decision;
+		core::setup_destination          Destination;
+
+		auto operator==(const markdown_in_app_link&) const -> bool = default;
+	};
+
 	/// Owns one PR request, accepted snapshot and its revocable epoch authorities.
 	/// [[BPR-1447]]. With \p aBodyDigests, a fetched snapshot's feedback bodies
 	/// are digested on the provider's completion thread, before the snapshot
@@ -131,12 +142,29 @@ namespace bpr::application {
 		/// it again: a publication that replaced the body meanwhile makes it stale.
 		[[nodiscard]] auto markdown_link_address(const core::markdown_link_intent& aIntent, const device_authorization_browser_port* aBrowser) const
 			-> std::expected<std::string, core::markdown_link_result>;
+		/// \brief Where a displayed body link into this pull request goes
+		/// inside the application, in place of the link question and the browser.
+		/// \details The same admission as `markdown_link_address`, under this
+		/// window's current publication, then the admitted address read as a
+		/// pull request link (`parse_setup_destination`) and decided by
+		/// `core::route_pull_request_link` against this pull request's own
+		/// host, owner, repository and number, the published tours `aRoots`
+		/// and the accepted read's location facts. No browser takes part, so
+		/// none is needed; nothing opens or is read here. Empty for every
+		/// link the core keeps external, which keeps its question.
+		[[nodiscard]] auto markdown_in_app_link_of(const core::markdown_link_intent& aIntent, std::span<const core::tour_remote_binding> aRoots, bool aRightIsHead) const
+			-> std::optional<markdown_in_app_link>;
 		/// \brief Revalidates a displayed body gesture on the decision lane before the browser handoff.
 		[[nodiscard]] auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		/// \brief [[BPR-1338]]. Opens the accepted pull request's own page for a gesture against
 		/// this window's current publication. The address is built from the accepted profile
 		/// authority's hostname and the accepted snapshot, never from remote or typed text.
 		[[nodiscard]] auto open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
+		/// \brief Opens the page of the pull request this window is still loading,
+		/// once the read's metadata was observed and while the gesture names
+		/// that read's pull request. The address is built from the pending
+		/// read's profile hostname and locator, never from the gesture's names.
+		[[nodiscard]] auto open_loading_pull_request_page(const loading_pull_request_page& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		/// \brief RFC-BPR-0089. Opens one of the accepted pull request's listed
 		/// commits on its host. A commit the accepted list does not name, or a
 		/// malformed ID, is refused before any address exists.

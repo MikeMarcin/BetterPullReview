@@ -721,6 +721,14 @@ bpr_enable_warnings(test_better_pull_review_agent_setup_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_setup COMMAND test_better_pull_review_agent_setup_core_tests)
 set_tests_properties(core_agent_setup PROPERTIES PASS_REGULAR_EXPRESSION "agent-setup-tests:pass")
 
+# RFC-BPR-0032 amendment r1. The in-window account setup's steps and transitions.
+bpr_add_executable(test_better_pull_review_account_setup_core_tests account_setup_tests.cpp)
+target_link_libraries(test_better_pull_review_account_setup_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_account_setup_core_tests)
+bpr_enable_warnings(test_better_pull_review_account_setup_core_tests)
+bpr_add_network_isolated_test(NAME core_account_setup COMMAND test_better_pull_review_account_setup_core_tests)
+set_tests_properties(core_account_setup PROPERTIES PASS_REGULAR_EXPRESSION "account-setup-tests:pass")
+
 # [[BPR-1847]]. An ended agent turn's actions, and the suggestions' setup gate.
 bpr_add_executable(test_better_pull_review_agent_turn_core_tests agent_turn_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_turn_core_tests PRIVATE BetterPullReview::Core)
@@ -977,6 +985,14 @@ bpr_add_network_isolated_test(
     NAME core_setup_destination
     COMMAND test_better_pull_review_core_setup_destination_tests
 )
+
+# A clicked link into the open pull request: a published tour's link opens
+# the tour, a place the window shows opens there, the rest stays external.
+bpr_add_executable(test_better_pull_review_core_pull_request_link_route_tests pull_request_link_route_tests.cpp)
+target_link_libraries(test_better_pull_review_core_pull_request_link_route_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_core_pull_request_link_route_tests)
+bpr_enable_warnings(test_better_pull_review_core_pull_request_link_route_tests)
+bpr_add_network_isolated_test(NAME core_pull_request_link_route COMMAND test_better_pull_review_core_pull_request_link_route_tests)
 
 # [[BPR-1358]]. SHA-256 known answers, padding and block boundaries, and
 # every split of one input across update calls.
@@ -1802,3 +1818,11 @@ target_link_libraries(test_better_pull_review_explain_file_core_tests PRIVATE Be
 bpr_enable_hardening(test_better_pull_review_explain_file_core_tests)
 bpr_enable_warnings(test_better_pull_review_explain_file_core_tests)
 bpr_add_network_isolated_test(NAME core_explain_file COMMAND test_better_pull_review_explain_file_core_tests)
+# RFC-BPR-0125 milestone 1. Suggested prompts as macros: the shipped set,
+# the template scan, conditions, order and the merge.
+bpr_add_executable(test_better_pull_review_prompt_macro_core_tests prompt_macro_tests.cpp)
+target_link_libraries(test_better_pull_review_prompt_macro_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_prompt_macro_core_tests)
+bpr_enable_warnings(test_better_pull_review_prompt_macro_core_tests)
+bpr_add_network_isolated_test(NAME core_prompt_macro COMMAND test_better_pull_review_prompt_macro_core_tests)
+set_tests_properties(core_prompt_macro PROPERTIES PASS_REGULAR_EXPRESSION "prompt-macro-tests:pass")

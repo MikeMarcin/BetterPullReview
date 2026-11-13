@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2091-tour-preview-readiness",
+  "scope": {
+    "issues": [
+      "BPR-2091"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "accepted-publication-snapshot",
+      "outcome": "The repaired-tour fixture uses the accepted post-publication PR snapshot before its original no-op maintenance preview, while pending reads remain unable to satisfy readiness.",
+      "work": [
+        {
+          "issue": "BPR-2091",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Retain original56WindowsDebug failure and one unchanged-flow3copy diagnostic; identify optional timeline refusal versus actual stale accepted-description readiness. Capture prePublish snapshot and wait for nonempty advanced snapshot with no read/owed/queued work before SAME single second Preview, preserving174original expectcalls/gestures/providerorder and20s90s budgets.",
+        "One corrected original Release and Debug repairs course each passes under normal native flags/context/network/rowprops; original actual negatives retained. A separately root-approved existing withheld-read-completion control may reject readiness within original20s, with unconditional release before shutdown, no new seam or main diagnostic code.",
+        "Focused format22/tidy/source/docs/board checks and evidence complete. Land intentionally owned source/metadata on main preserving unrelated work/highwater; return all own commands/writers/borrows. Root owns final common-source qualification; no old rejected source acceptance bridged."
+      ],
+      "boundary": "Root release56-tour-preview-readiness-r1; ONLY tests/end_to_end/review_tour_publication_public_path.cpp plus own card/plan/evidence/counter receipt. Base48bd9b3f2b82128e6b43527812f165eacc4f8b47. No production policy/API/timeline/refresh scheduling/description parser/gesture/oracle/budget change; no foreign main product intake."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

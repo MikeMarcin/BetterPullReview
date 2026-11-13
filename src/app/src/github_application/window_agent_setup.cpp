@@ -1407,6 +1407,13 @@ namespace bpr::app {
 						take_setup_choice();
 					}
 				},
+			.ChooseEntry =
+				[this](const std::uint32_t aId) {
+					if (!Closing && AgentSetup) {
+						AgentSetup->choose_entry(aId);
+						take_setup_choice();
+					}
+				},
 			.FindAgents             = [this] { if (!Closing && AgentSetup) { AgentSetup->detect(); } },
 			.FindClones             = [this] { if (!Closing && CloneLinks) { CloneLinks->look_again(); } },
 			.OpenSettings           = [this] { Window->open_settings(qt::settings_page::agents_and_context); },

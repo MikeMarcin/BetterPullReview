@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2131-workspace-volume-fixture",
+  "scope": {
+    "issues": [
+      "BPR-2131"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "separate-volume-mismatch-from-malformed-chain",
+      "outcome": "The ownership fixture reaches live-volume refusal with a structurally valid non-Mac journal, while a separate inconsistent-chain negative retains strict parser coverage.",
+      "work": [
+        {
+          "issue": "BPR-2131",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Consistent all-line non-Mac volume mismatch still requires record-moved/other-volume and preservation; retained final-line-only mutation requires record-malformed and preservation. No product/parser/oracle weakening.",
+        "Focused corrected course passes native Windows and Linux in Release and Debug using unchanged compiled60 helper and normal configured context; preserve protected input seals and original incomplete comprehensive failure, no final-cohort qualification credit.",
+        "Scoped static/docs/plan checks and own main landing complete; no producer/staging/normal graph mutation, no broad main or release allocation/publication; all own commands terminal and native leases returned."
+      ],
+      "boundary": "Mandate bpr2131-workspace-fixture-r1. Independent af1eaedf7-based source; only tests/scripts/agent_workspace_ownership_tests.py plus own issue/plan/proof/counter/receipt. Normal unchanged native60 helper, externally staged script/loader and private temporary data only. Four full corrected courses: Windows Release, Windows Debug, Linux Release, Linux Debug, serialized; no native build or comprehensive dispatch."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
