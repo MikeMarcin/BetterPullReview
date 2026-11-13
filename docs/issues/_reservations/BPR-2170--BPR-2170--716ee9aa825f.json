@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2170"
+  ],
+  "reserve_for": "agent-accent-resend-fix",
+  "purpose": "Explain this file keeps the Agent accent after an accent change; Resend of a typed question sends it",
+  "created": "2026-11-13T14:58:59.808375+00:00",
+  "base": "ffbb058df75dd4a298df608e9963391e28680b05"
+}
