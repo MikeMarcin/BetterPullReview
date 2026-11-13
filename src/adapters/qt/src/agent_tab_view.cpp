@@ -68,6 +68,25 @@ namespace bpr::qt {
 		/// [[BPR-1924]]. The least room kept between the scope menu and the
 		/// agent picker when they share the tool row.
 		constexpr auto run_settings_gap = 12;
+		/// RFC-BPR-0125 (AC07). A sent question longer than this many lines
+		/// folds behind Show all.
+		constexpr qsizetype folded_question_lines = 6;
+		/// RFC-BPR-0116. The returning prompts' keys among the chips.
+		[[nodiscard]] auto latest_upload_key() -> QString { return QStringLiteral("returning.latest-upload"); }
+		[[nodiscard]] auto proposed_fix_key() -> QString { return QStringLiteral("returning.proposed-fix"); }
+
+		[[nodiscard]] auto suggestion_of(const core::prompt_offer& aOffer) -> agent_suggestion
+		{
+			return { .Key = QString::fromStdString(aOffer.Id), .Label = QString::fromStdString(aOffer.Label), .Expansion = QString::fromStdString(aOffer.Expansion.Text), .Finish = aOffer.finish() };
+		}
+
+		/// The caret's place in a drafted expansion: at `{cursor}`, or at
+		/// its end.
+		[[nodiscard]] auto caret_of(const core::prompt_expansion& aExpansion) -> int
+		{
+			const auto at = aExpansion.Cursor.value_or(aExpansion.Text.size());
+			return static_cast<int>(QString::fromUtf8(aExpansion.Text.data(), static_cast<qsizetype>(at)).size());
+		}
 
 		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
 		{
@@ -567,7 +586,9 @@ namespace bpr::qt {
 		// it"): they are the thread's last item and scroll with it.
 		// [[BPR-1934]]. One component, which the tour chats show too.
 		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
-		Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });
+		Suggestions->set_choose_dispatch([this](const QString& aKey, const bool aEditFirst) { choose_prompt(aKey, aEditFirst); });
+		// RFC-BPR-0125. The shipped set until the host gives the profile's.
+		PromptMacros = core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros();
 		contentCol->addWidget(Suggestions);
 		// RFC-BPR-0116 ([[BPR-2073]]). Why What changed since my review is not
 		// offered when the earlier revision cannot be read, said where the
@@ -668,7 +689,34 @@ namespace bpr::qt {
 		linesRow->addWidget(LinesClose, 0, Qt::AlignTop);
 		LinesChip->setToolTip(tr("The question is about these lines. The agent can still read the whole pull request."));
 		LinesChip->hide();
-		fieldCol->addWidget(LinesChip);
+		// RFC-BPR-0125 (Q2). Beside the lines chip, the suggested prompt the
+		// field holds as a draft: the question keeps its subject and kind
+		// until this is closed or the field is emptied.
+		MacroChip = new rounded{ rounded::look::card, field };
+		MacroChip->setObjectName(QStringLiteral("agentMacroChip"));
+		auto* const macroRow = new QHBoxLayout{ MacroChip };
+		macroRow->setContentsMargins(8, 3, 2, 3);
+		macroRow->setSpacing(4);
+		MacroText = new QLabel{ MacroChip };
+		MacroText->setObjectName(QStringLiteral("agentMacroChipText"));
+		MacroText->setTextFormat(Qt::PlainText);
+		macroRow->addWidget(MacroText, 1);
+		MacroClose = make_drawer_tool(MacroChip, drawer_icon(drawer_glyph::close, palette()), tr("Send what you wrote as a typed question"), QStringLiteral("agentMacroChipClose"));
+		MacroClose->setAccessibleName(tr("Remove the suggested prompt"));
+		connect(MacroClose, &QToolButton::clicked, this, [this] {
+			DraftedMacro.reset();
+			present_macro_chip();
+			Chat.composer()->setFocus(Qt::OtherFocusReason);
+		});
+		macroRow->addWidget(MacroClose, 0, Qt::AlignTop);
+		MacroChip->hide();
+		auto* const attachedRow = new QHBoxLayout{ };
+		attachedRow->setContentsMargins(0, 0, 0, 0);
+		attachedRow->setSpacing(4);
+		attachedRow->addWidget(LinesChip);
+		attachedRow->addWidget(MacroChip);
+		attachedRow->addStretch(1);
+		fieldCol->addLayout(attachedRow);
 		auto* const composer = Chat.composer();
 		Borrowed.emplace_back(composer, composer->parentWidget());
 		composer->setParent(field);
@@ -677,6 +725,13 @@ namespace bpr::qt {
 		composer->setToolTip(send_tip());
 		// [[BPR-1916]]. `/name` completion of the person's own skills.
 		SkillCompletion = new skill_completer{ composer };
+		// RFC-BPR-0125 (Q2). An emptied field holds no suggested prompt.
+		connect(composer, &QPlainTextEdit::textChanged, this, [this] {
+			if (DraftedMacro && Chat.composer()->toPlainText().trimmed().isEmpty()) {
+				DraftedMacro.reset();
+				present_macro_chip();
+			}
+		});
 		composer->setMaximumHeight(90);
 		composer->viewport()->setAutoFillBackground(false);
 		fieldCol->addWidget(composer);
@@ -766,6 +821,7 @@ namespace bpr::qt {
 		// What was asked is read when it is sent, by Send or by the keyboard.
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
 			PendingQuestion   = Chat.composer()->toPlainText().trimmed();
+			PendingName       = SendingMacro && SendingMacro->Name != *PendingQuestion ? SendingMacro->Name : QString{ };
 			PendingReview     = false;
 			PendingKeepsField = KeepingDraft;
 			PendingAbout      = ConversationShown;
@@ -1117,6 +1173,7 @@ namespace bpr::qt {
 			next.Question = tr("Review this pull request");
 		} else {
 			next.Question    = *PendingQuestion;
+			next.Name        = PendingName;
 			next.About       = PendingAbout;
 			next.DraftTarget = PendingDraftTarget;
 			next.Returning   = PendingReturning;
@@ -1133,6 +1190,7 @@ namespace bpr::qt {
 		PendingKeepsField = false;
 		PendingQuestion.reset();
 		PendingAbout.reset();
+		PendingName.clear();
 		PendingDraftTarget.reset();
 		PendingReturning.reset();
 		PendingExplain.clear();
@@ -1185,7 +1243,20 @@ namespace bpr::qt {
 			about->setToolTip(aTurn.About->Detail);
 			askedColumn->addWidget(about);
 		}
-		asked->setAccessibleName(aTurn.About ? tr("About %1: %2").arg(aTurn.About->Text, aTurn.Question) : aTurn.Question);
+		// RFC-BPR-0125 (AC07). A suggested prompt's turn shows what was sent
+		// under the prompt's name, in the weight About uses.
+		if (!aTurn.Name.isEmpty()) {
+			auto* const name = new QLabel{ aTurn.Name, asked };
+			name->setObjectName(QStringLiteral("agentTurnName"));
+			name->setTextFormat(Qt::PlainText);
+			name->setWordWrap(true);
+			auto strong = name->font();
+			strong.setWeight(QFont::DemiBold);
+			name->setFont(strong);
+			askedColumn->addWidget(name);
+		}
+		const auto spoken = aTurn.Name.isEmpty() ? aTurn.Question : tr("%1: %2").arg(aTurn.Name, aTurn.Question);
+		asked->setAccessibleName(aTurn.About ? tr("About %1: %2").arg(aTurn.About->Text, spoken) : spoken);
 		auto* const question = new QLabel{ asked };
 		question->setObjectName(QStringLiteral("agentTurnQuestionText"));
 		question->setWordWrap(true);
@@ -1193,6 +1264,22 @@ namespace bpr::qt {
 		// Owner look v004: a file and line the question names is a link to it.
 		connect(question, &QLabel::linkActivated, this, [this](const QString& aLink) { follow_link(aLink); });
 		aTurn.QuestionLabel = question;
+		if (aTurn.Question.count(QLatin1Char{ '\n' }) >= folded_question_lines) {
+			// RFC-BPR-0125 (AC07). Text past six lines folds behind Show all.
+			auto* const showAll = new quiet_push_button{ tr("Show all"), asked };
+			showAll->setObjectName(QStringLiteral("agentTurnShowAll"));
+			showAll->setFlat(true);
+			connect(showAll, &QPushButton::clicked, this, [this, serial = aTurn.Serial] {
+				const auto found = std::ranges::find(Turns, serial, &turn::Serial);
+				if (found == Turns.end() || found->ShowAll == nullptr) {
+					return;
+				}
+				found->Unfolded = !found->Unfolded;
+				found->ShowAll->setText(found->Unfolded ? tr("Show less") : tr("Show all"));
+				show_question(*found);
+			});
+			aTurn.ShowAll = showAll;
+		}
 		show_question(aTurn);
 		if (aTurn.Review) {
 			auto italic = question->font();
@@ -1200,6 +1287,9 @@ namespace bpr::qt {
 			question->setFont(italic);
 		}
 		askedColumn->addWidget(question);
+		if (aTurn.ShowAll != nullptr) {
+			askedColumn->addWidget(aTurn.ShowAll, 0, Qt::AlignLeft);
+		}
 		column->addWidget(asked);
 		// Owner look v003 ("the response contained in something we could
 		// copy"): the reply in its own card, its footer as the agent apps
@@ -1596,17 +1686,24 @@ namespace bpr::qt {
 				break;
 			}
 		}
+		// RFC-BPR-0125 (AC07). Folded, the first six lines show, and only
+		// the references within them are links.
+		auto shown = aTurn.Question;
+		if (aTurn.ShowAll != nullptr && !aTurn.Unfolded) {
+			shown = aTurn.Question.section(QLatin1Char{ '\n' }, 0, folded_question_lines - 1) + QStringLiteral("…");
+			std::erase_if(refs, [cut = shown.size() - 1](const shown_reference& aRef) { return aRef.Begin + aRef.Length > cut; });
+		}
 		auto html = QString{ };
 		auto at   = qsizetype{ 0 };
 		for (const auto& ref : refs) {
-			html += aTurn.Question.mid(at, ref.Begin - at).toHtmlEscaped();
-			html += QStringLiteral("<a href=\"%1\">%2</a>").arg(agent_reference_link_text(ref.Target).toHtmlEscaped(), aTurn.Question.mid(ref.Begin, ref.Length).toHtmlEscaped());
+			html += shown.mid(at, ref.Begin - at).toHtmlEscaped();
+			html += QStringLiteral("<a href=\"%1\">%2</a>").arg(agent_reference_link_text(ref.Target).toHtmlEscaped(), shown.mid(ref.Begin, ref.Length).toHtmlEscaped());
 			at = ref.Begin + ref.Length;
 		}
-		html += aTurn.Question.mid(at).toHtmlEscaped();
+		html += shown.mid(at).toHtmlEscaped();
 		html.replace(QLatin1Char{ '\n' }, QStringLiteral("<br>"));
 		aTurn.QuestionLabel->setTextFormat(refs.empty() ? Qt::PlainText : Qt::RichText);
-		aTurn.QuestionLabel->setText(refs.empty() ? aTurn.Question : html);
+		aTurn.QuestionLabel->setText(refs.empty() ? shown : html);
 		aTurn.QuestionLabel->setTextInteractionFlags(refs.empty() ? Qt::TextSelectableByMouse : Qt::TextSelectableByMouse | Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
 		aTurn.QuestionLabel->setAccessibleName(aTurn.Question);
 		aTurn.QuestionLabel->setToolTip(refs.empty() ? QString{ } : tr("Click a file and line to open it in Review"));
@@ -1650,9 +1747,9 @@ namespace bpr::qt {
 		refresh();
 	}
 
-	void agent_tab_view::set_line_links(agent_reference_files_source aResolve, agent_reference_navigation aNavigate)
+	void agent_tab_view::set_line_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate)
 	{
-		LineResolve  = std::move(aResolve);
+		LineResolve  = std::move(aFiles);
 		LineNavigate = std::move(aNavigate);
 		for (auto& kept : Turns) {
 			show_question(kept);
@@ -1704,6 +1801,7 @@ namespace bpr::qt {
 		for (const auto& shown : aTurns) {
 			auto next       = turn{ };
 			next.Question   = shown.Question;
+			next.Name       = shown.Name;
 			next.Done       = true;
 			next.AskedAt    = shown.AskedAt;
 			next.AnsweredAt = shown.AnsweredAt;
@@ -1876,6 +1974,7 @@ namespace bpr::qt {
 					}
 				}
 				result.push_back({ .Question   = kept.Question,
+								   .Name       = kept.Name,
 								   .Answer     = answer,
 								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
 								   .AskedAt    = kept.AskedAt,
@@ -1985,123 +2084,186 @@ namespace bpr::qt {
 
 	void agent_tab_view::send_prompt(const QString& aPrompt) { choose_prompt(aPrompt, false); }
 
+	void agent_tab_view::present_prompt_macros(std::vector<core::prompt_macro> aMacros)
+	{
+		PromptMacros = std::move(aMacros);
+		refresh_suggestions();
+	}
+
+	auto agent_tab_view::offered(const QString& aKeyOrLabel) const -> const core::prompt_offer*
+	{
+		const auto key   = aKeyOrLabel.toStdString();
+		const auto found = std::ranges::find_if(Offered, [&key](const core::prompt_offer& aOffer) { return aOffer.Id == key; });
+		if (found != Offered.end()) {
+			return &*found;
+		}
+		const auto named = std::ranges::find(Offered, key, &core::prompt_offer::Label);
+		return named != Offered.end() ? &*named : nullptr;
+	}
+
 	void agent_tab_view::choose_prompt(const QString& aPrompt, const bool aEditFirst)
 	{
 		if (!panels_alive()) {
 			return;
 		}
 		// RFC-BPR-0116. A returning suggestion asks its own question.
-		if (const auto returning = ReturningPrompts.find(aPrompt); returning != ReturningPrompts.end() && !aEditFirst) {
-			ask_returning(returning->second);
+		const auto returning = ReturningPrompts.find(aPrompt);
+		const auto byLabel   = std::ranges::find_if(ReturningPrompts, [&aPrompt](const auto& aEntry) {
+			return (aEntry.first == latest_upload_key() ? tr("What changed since my review") : tr("Was this addressed?")) == aPrompt;
+		});
+		if (const auto chosen = returning != ReturningPrompts.end() ? returning : byLabel; chosen != ReturningPrompts.end()) {
+			if (!aEditFirst) {
+				ask_returning(chosen->second);
+			}
 			return;
 		}
-		auto* const composer  = Chat.composer();
-		const auto  draft     = composer->toPlainText();
-		const auto  found     = SuggestionSubjects.find(aPrompt);
-		const auto  suggested = found != SuggestionSubjects.end() ? std::optional{ found->second } : std::nullopt;
-		const auto  press     = core::decide_agent_suggestion_press({
-			.EditFirst = aEditFirst,
+		// RFC-BPR-0125. A press expands against the facts at the press: the
+		// list is decided again, and a prompt that no longer applies does
+		// nothing.
+		refresh_suggestions();
+		const auto* const found = offered(aPrompt);
+		if (found == nullptr) {
+			return;
+		}
+		const auto offer    = *found;
+		const auto text     = QString::fromStdString(offer.Expansion.Text);
+		auto*      composer = Chat.composer();
+		const auto draft    = composer->toPlainText();
+		const auto press    = core::decide_agent_suggestion_press({
+			.EditFirst = aEditFirst || offer.finish(),
 			.DraftHeld = !draft.trimmed().isEmpty(),
 			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
 		});
-		const auto  toEnd     = [composer] {
+		auto       carried  = macro_send{
+			.Key     = QString::fromStdString(offer.Id),
+			.Name    = QString::fromStdString(offer.Label),
+			.Subject = core::suggested_subject_of(offer.Subject),
+			.Review  = offer.Kind == core::prompt_ask::review,
+		};
+		const auto toEnd = [composer] {
 			auto cursor = composer->textCursor();
 			cursor.movePosition(QTextCursor::End);
 			composer->setTextCursor(cursor);
 		};
 		switch (press) {
-		case core::agent_suggestion_press::ignored: return;
+		case core::agent_suggestion_press::ignored:            return;
 		case core::agent_suggestion_press::send:
-			composer->setPlainText(aPrompt);
-			SendingSuggestion = suggested;
-			ask();
-			SendingSuggestion.reset();
-			return;
-		case core::agent_suggestion_press::send_keeping_draft:
+		case core::agent_suggestion_press::send_keeping_draft: {
+			// AC09. Sent as offered: skills only from the template's own
+			// text, and never read as a command.
+			const auto kept   = press == core::agent_suggestion_press::send_keeping_draft;
+			carried.SkillText = core::prompt_skill_text(offer.Expansion);
+			composer->setPlainText(text);
 			// Sent alone, as if typed and sent; what the reviewer had typed
 			// is put back, and its turn's start leaves it there.
-			composer->setPlainText(aPrompt);
-			KeepingDraft      = true;
-			SendingSuggestion = suggested;
+			KeepingDraft = kept;
+			SendingMacro = std::move(carried);
 			ask();
-			SendingSuggestion.reset();
+			SendingMacro.reset();
 			KeepingDraft = false;
-			composer->setPlainText(draft);
-			toEnd();
+			if (kept) {
+				composer->setPlainText(draft);
+				toEnd();
+			}
 			return;
-		case core::agent_suggestion_press::edit: composer->setPlainText(aPrompt); break;
-		case core::agent_suggestion_press::edit_after_draft:
+		}
+		case core::agent_suggestion_press::edit: {
+			composer->setPlainText(text);
+			auto cursor = composer->textCursor();
+			cursor.setPosition(caret_of(offer.Expansion));
+			composer->setTextCursor(cursor);
+			break;
+		}
+		case core::agent_suggestion_press::edit_after_draft: {
 			// Added, never replacing: on its own line after the words there,
 			// and undone in one step.
 			toEnd();
-			composer->textCursor().insertText((draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n")) + aPrompt);
+			const auto lead = draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n");
+			const auto from = composer->textCursor().position() + static_cast<int>(lead.size());
+			composer->textCursor().insertText(lead + text);
+			auto cursor = composer->textCursor();
+			cursor.setPosition(from + caret_of(offer.Expansion));
+			composer->setTextCursor(cursor);
 			break;
 		}
+		}
+		// Q2. A drafted prompt keeps its subject and kind, shown as a chip.
+		DraftedMacro = std::move(carried);
+		present_macro_chip();
 		composer->setFocus(Qt::OtherFocusReason);
-		toEnd();
 	}
+
+	void agent_tab_view::present_macro_chip()
+	{
+		if (MacroChip == nullptr) {
+			return;
+		}
+		if (DraftedMacro) {
+			MacroText->setText(DraftedMacro->Name);
+			const auto as = DraftedMacro->Review                                         ? tr("Sent as a review")
+				: DraftedMacro->Subject == core::agent_suggested_subject::open_file      ? tr("Sent as a question about the open file")
+				: DraftedMacro->Subject == core::agent_suggested_subject::selected_lines ? tr("Sent as a question about the selected lines")
+				: ConversationShown                                                      ? tr("Sent as a question about the conversation")
+																						 : tr("Sent as a question about the pull request");
+			MacroChip->setToolTip(tr("%1, as the suggested prompt %2 is. Remove this to send what you wrote as a typed question.").arg(as, DraftedMacro->Name));
+			MacroChip->setAccessibleName(tr("Suggested prompt %1").arg(DraftedMacro->Name));
+		}
+		MacroChip->setVisible(DraftedMacro.has_value());
+	}
+
+	auto agent_tab_view::macro_chip_text() const -> QString { return MacroChip == nullptr || MacroChip->isHidden() ? QString{ } : MacroText->text(); }
 
 	void agent_tab_view::refresh_suggestions()
 	{
 		if (!panels_alive() || Suggestions == nullptr) {
 			return;
 		}
-		// Owner decision (a): the pull request, the open file when one is
-		// open, what the change could break, and the selected lines when
-		// lines are selected.
 		const auto context = current_suggestion_context();
 		present_lines_chip(context);
-		// [[BPR-2002]], RFC-BPR-0102. A suggestion is a subject and a text;
-		// one that could not be sent as it stands is not offered.
-		SuggestionSubjects.clear();
-		ReturningPrompts.clear();
-		auto       prompts = QStringList{ };
-		const auto offer   = [this, &prompts](const QString& aText, const core::agent_suggested_subject aSubject, const bool aReview) {
-			prompts << aText;
-			SuggestionSubjects[aText] = { aSubject, aReview };
-		};
+		// RFC-BPR-0125. The core decides the chips from the macros and what
+		// the window holds; this presents its offers. Owner decision (a):
+		// the pull request, the open file when one is open, what the change
+		// could break, and the selected lines when lines are selected.
+		auto facts        = core::prompt_facts{ };
+		facts.Place       = ConversationShown ? core::prompt_place::conversation : core::prompt_place::agent_tab;
+		facts.PullRequest = context.PullRequest;
+		facts.Repository  = context.Repository;
+		if (!context.OpenFile.isEmpty()) {
+			facts.OpenFile = context.OpenFile.toStdString();
+		}
+		if (context.Lines) {
+			facts.Lines = core::prompt_line_range{ .First = context.Lines->first, .Last = context.Lines->second };
+		}
+		facts.Draft         = context.Draft;
+		facts.AuthorIsMe    = context.AuthorIsMe;
+		facts.ChecksFailing = context.ChecksFailing;
+		facts.ChatEmpty     = Turns.empty();
 		if (ConversationShown) {
-			// [[BPR-1773]]. While a conversation is attached the prompts are
-			// about it; a reply is offered only where one can be written.
-			prompts = QStringList{ };
-			// RFC-BPR-0116 ([[BPR-2074]]). First on a thread I commented in
-			// once commits followed.
-			if (ConversationShown->Addressed) {
-				prompts << tr("Was this addressed?");
-				ReturningPrompts[prompts.back()] = core::returning_operation::proposed_fix;
-			}
-			prompts << tr("Summarize this conversation") << tr("Is the concern raised here right?");
-			if (ConversationShown->Replies) {
-				prompts << tr("Draft a reply to this conversation");
-			} else {
-				prompts << tr("Explain the code this note is on");
-			}
-		} else {
-			// RFC-BPR-0116 ([[BPR-2073]]). First when commits followed my review.
-			if (LatestUpload.State == core::latest_upload_state::offered) {
-				prompts << tr("What changed since my review");
-				ReturningPrompts[prompts.back()] = core::returning_operation::latest_upload;
-			}
-			offer(tr("Review this pull request"), core::agent_suggested_subject::pull_request, true);
-			if (!context.OpenFile.isEmpty()) {
-				offer(tr("Review %1").arg(context.OpenFile), core::agent_suggested_subject::open_file, true);
-			}
-			offer(tr("What could this change break?"), core::agent_suggested_subject::pull_request, false);
-			if (context.Lines) {
-				// Owner look v004 ("in an hour I wont remember which file line 34
-				// was in"): the prompt names the file, and the thread links it.
-				// Owner look v005: a block says so, and still names its file and
-				// lines. Offered only while lines are selected.
-				const auto [first, last] = *context.Lines;
-				if (context.OpenFile.isEmpty()) {
-					offer(first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected block (lines %1–%2)").arg(first).arg(last), core::agent_suggested_subject::selected_lines, false);
-				} else {
-					offer(first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain the selected block (%1 lines %2–%3)").arg(context.OpenFile).arg(first).arg(last), core::agent_suggested_subject::selected_lines, false);
-				}
-			}
+			facts.TakesReplies = ConversationShown->Replies;
+		}
+		const auto offers = core::decide_prompt_offers(PromptMacros, facts);
+		Offered           = offers.Chips;
+		Offered.insert(Offered.end(), offers.More.begin(), offers.More.end());
+		auto chips = std::vector<agent_suggestion>{ };
+		auto more  = std::vector<agent_suggestion>{ };
+		ReturningPrompts.clear();
+		// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). First when commits
+		// followed my review, or on a thread I commented in once they did.
+		// They are the host's questions, not suggested prompts.
+		if (ConversationShown ? ConversationShown->Addressed : LatestUpload.State == core::latest_upload_state::offered) {
+			const auto key   = ConversationShown ? proposed_fix_key() : latest_upload_key();
+			const auto label = ConversationShown ? tr("Was this addressed?") : tr("What changed since my review");
+			chips.push_back({ .Key = key, .Label = label, .Expansion = label });
+			ReturningPrompts[key] = ConversationShown ? core::returning_operation::proposed_fix : core::returning_operation::latest_upload;
+		}
+		for (const auto& offer : offers.Chips) {
+			chips.push_back(suggestion_of(offer));
+		}
+		for (const auto& offer : offers.More) {
+			more.push_back(suggestion_of(offer));
 		}
 		const auto usable = Chat.send_action()->isEnabled() && State != agent_tab_state::working;
-		Suggestions->present(prompts);
+		Suggestions->present(std::move(chips), std::move(more));
 		Suggestions->set_usable(usable);
 		const auto conversing = State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up;
 		Suggestions->lead()->setVisible(Turns.empty());
@@ -2381,7 +2543,7 @@ namespace bpr::qt {
 		// The session's total: the conversation's own, when kept with it,
 		// else this thread's turns added up.
 		if (const auto total = Launch.last_session_cost()) {
-			present_session_cost(*total);
+			present_session_cost(total);
 		} else if (cost) {
 			present_session_cost(SessionTotal.value_or(0U) + *cost);
 		}
@@ -2858,6 +3020,10 @@ namespace bpr::qt {
 		return Turns[aTurn].Asked != nullptr ? Turns[aTurn].Asked->accessibleName() : Turns[aTurn].Question;
 	}
 
+	auto agent_tab_view::turn_name(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].Name : QString{ }; }
+
+	auto agent_tab_view::turn_show_all(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].ShowAll.data() : nullptr; }
+
 	auto agent_tab_view::turn_about(const std::size_t aTurn) const -> QString
 	{
 		return aTurn < Turns.size() && Turns[aTurn].About ? Turns[aTurn].About->Text : QString{ };
@@ -3284,7 +3450,7 @@ namespace bpr::qt {
 		if (aOutcome.Refused > 0U) {
 			reasons << (aOutcome.Refused == 1U ? tr("1 could not be drafted; its card says why") : tr("%1 could not be drafted; their cards say why").arg(aOutcome.Refused));
 		}
-		const auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
+		auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
 		if (reasons.isEmpty()) {
 			return drafted;
 		}
@@ -3463,7 +3629,10 @@ namespace bpr::qt {
 			return;
 		}
 		const auto text = Chat.composer()->toPlainText().trimmed();
-		if (run_slash_command(text)) {
+		// RFC-BPR-0125 (AC09). A suggested prompt sent as offered is never
+		// read as `/model` or `/effort`: it is sent as text.
+		const auto direct = SendingMacro && SendingMacro->SkillText;
+		if (!direct && run_slash_command(text)) {
 			return;
 		}
 		Notice->hide();
@@ -3478,13 +3647,21 @@ namespace bpr::qt {
 		// [[BPR-2002]], RFC-BPR-0102. The core decides what the question is
 		// about from what the reviewer did: a suggestion's own subject, the
 		// attached lines, or else the pull request.
+		// RFC-BPR-0125 (Q2, AC10). A drafted suggested prompt, its chip still
+		// in the field, keeps its subject and kind; its edited words are the
+		// reviewer's, so skills are read from all of them.
+		const auto drafted = !SendingMacro && !SendingReturning && DraftedMacro.has_value();
+		if (drafted) {
+			SendingMacro            = DraftedMacro;
+			SendingMacro->SkillText = std::nullopt;
+		}
 		const auto context = current_suggestion_context();
 		const auto facts   = core::agent_question_facts{
 			.LinesAttached        = lines_attached(),
 			.LinesSelected        = context.Lines.has_value(),
 			.ConversationAttached = ConversationShown.has_value(),
-			.Suggested            = SendingSuggestion ? std::optional{ SendingSuggestion->first } : std::nullopt,
-			.Review               = SendingSuggestion && SendingSuggestion->second,
+			.Suggested            = SendingMacro ? SendingMacro->Subject : std::nullopt,
+			.Review               = SendingMacro && SendingMacro->Review,
 			.OpenFile             = context.OpenFile.toStdString(),
 			.Returning            = SendingReturning,
 			.Explain              = SendingExplain.toStdString(),
@@ -3496,7 +3673,12 @@ namespace bpr::qt {
 			LastQuestion = core::decide_agent_question(core::agent_question_facts{ .ConversationAttached = facts.ConversationAttached });
 		}
 		Chat.set_question(LastQuestion);
+		Chat.set_skill_text(SendingMacro ? SendingMacro->SkillText : std::nullopt);
 		Chat.send_action()->trigger();
+		Chat.set_skill_text(std::nullopt);
+		if (drafted) {
+			SendingMacro.reset();
+		}
 	}
 
 	auto agent_tab_view::current_suggestion_context() const -> agent_suggestion_context

@@ -47,7 +47,6 @@ add_library(
         src/tour_agent_context.cpp
         src/tour_agent_conversation.cpp
         src/tour_writing_style.cpp
-        src/tour_chat_prompts.cpp
         src/skill_guidance.cpp
         src/skill_catalog.cpp
         src/review_tour_import.cpp
@@ -209,6 +208,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/agent_configuration_exchange.cpp
             src/agent_conversation_host.cpp
             src/agent_finding_card_host.cpp
+            src/prompt_turn_name_host.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
             src/agent_scratch_folder.cpp

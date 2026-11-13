@@ -294,7 +294,15 @@ namespace bpr::adapters::sqlite {
 									"why TEXT NOT NULL CHECK(length(CAST(why AS BLOB)) <= 1024),"
 									"note INTEGER NOT NULL CHECK(note >= 0),"
 									"changed INTEGER NOT NULL CHECK(changed >= 0),"
-									"PRIMARY KEY(findings, ordinal)) STRICT")) {
+									"PRIMARY KEY(findings, ordinal)) STRICT")
+				// RFC-BPR-0125 (AC07). The name a suggested prompt's turn was
+				// sent under, by the question it asked; `changed` orders them
+				// for the bound.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS prompt_turn_names("
+									"asked TEXT PRIMARY KEY CHECK(length(CAST(asked AS BLOB)) BETWEEN 1 AND 16384),"
+									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024),"
+									"changed INTEGER NOT NULL CHECK(changed >= 0)) STRICT")) {
 				return { };
 			}
 			// RFC-BPR-0110: two more writing hooks; RFC-BPR-0114 as amended
@@ -2093,6 +2101,85 @@ namespace bpr::adapters::sqlite {
 			std::filesystem::path Root;
 		};
 
+		/// RFC-BPR-0125 (AC07). The names suggested prompts' turns were
+		/// sent under.
+		class prompt_turn_name_store final : public application::prompt_turn_name_store_port
+		{
+		public:
+			explicit prompt_turn_name_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+
+			[[nodiscard]] auto load() -> std::optional<std::vector<core::prompt_turn_name>> override
+			{
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					auto row = detail::prepare(store->Database.get(), "SELECT asked,name FROM prompt_turn_names ORDER BY changed LIMIT 256");
+					if (!row) {
+						return std::nullopt;
+					}
+					auto names = std::vector<core::prompt_turn_name>{ };
+					for (auto step = sqlite3_step(row->Value); step != SQLITE_DONE; step = sqlite3_step(row->Value)) {
+						if (step != SQLITE_ROW) {
+							return std::nullopt;
+						}
+						auto asked = column_text(row->Value, 0);
+						auto name  = column_text(row->Value, 1);
+						if (!asked || !name) {
+							continue;
+						}
+						auto kept  = core::prompt_turn_name{ };
+						kept.Asked = std::move(*asked);
+						kept.Name  = std::move(*name);
+						if (core::valid(kept)) {
+							names.push_back(std::move(kept));
+						}
+					}
+					return names;
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store(const core::prompt_turn_name& aName) -> bool override
+			{
+				if (!core::valid(aName)) {
+					return false;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return false;
+					}
+					auto* const db = store->Database.get();
+					if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+						return false;
+					}
+					auto committed = false;
+					if (auto row = detail::prepare(db, "INSERT OR REPLACE INTO prompt_turn_names SELECT ?1,?2,coalesce(max(changed)+1,0) FROM prompt_turn_names"); row) {
+						bind_text(row->Value, 1, aName.Asked);
+						bind_text(row->Value, 2, aName.Name);
+						committed = sqlite3_step(row->Value) == SQLITE_DONE;
+					}
+					// The least recently sent go first.
+					committed = committed && detail::execute(db, "DELETE FROM prompt_turn_names WHERE rowid NOT IN (SELECT rowid FROM prompt_turn_names ORDER BY changed DESC LIMIT 256)");
+					if (!committed) {
+						static_cast<void>(detail::execute(db, "ROLLBACK"));
+						return false;
+					}
+					return detail::execute(db, "COMMIT").has_value();
+				} catch (...) {
+					return false;
+				}
+			}
+
+		private:
+			std::filesystem::path Root;
+		};
+
 		/// [[BPR-2016]], RFC-BPR-0107. What an import changes, read and
 		/// written across this file and the profile's workbench settings.
 		class agent_configuration_store final : public application::agent_configuration_store_port
@@ -2354,6 +2441,11 @@ namespace bpr::adapters::sqlite {
 	auto make_agent_finding_card_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_finding_card_store_port>
 	{
 		return std::make_unique<agent_finding_card_store>(aRoot);
+	}
+
+	auto make_prompt_turn_name_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_turn_name_store_port>
+	{
+		return std::make_unique<prompt_turn_name_store>(aRoot);
 	}
 
 	auto make_agent_conversation_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_conversation_store_port>

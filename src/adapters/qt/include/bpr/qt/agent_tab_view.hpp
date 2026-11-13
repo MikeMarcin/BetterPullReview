@@ -15,6 +15,7 @@
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
@@ -88,6 +89,9 @@ namespace bpr::qt {
 	struct agent_thread_turn
 	{
 		QString Question;
+		/// RFC-BPR-0125 (AC07). The suggested prompt it was sent as, when
+		/// that is not its question; empty for a typed question.
+		QString Name;
 		QString Answer;
 		QString Footer;
 		/// When it was asked and answered; invalid when not known.
@@ -113,6 +117,14 @@ namespace bpr::qt {
 	{
 		QString                                                OpenFile;
 		std::optional<std::pair<std::uint32_t, std::uint32_t>> Lines;
+		/// RFC-BPR-0125. The pull request's names and the facts a suggested
+		/// prompt's conditions read, as the window holds them; none is
+		/// unknown, which no condition holds for.
+		std::optional<core::prompt_pull_request> PullRequest;
+		std::optional<std::string>               Repository;
+		std::optional<bool>                      Draft;
+		std::optional<bool>                      AuthorIsMe;
+		std::optional<bool>                      ChecksFailing;
 	};
 
 	/// \brief [[BPR-1753]], owner decision 2026-10-23 ("Yep build it
@@ -469,6 +481,24 @@ namespace bpr::qt {
 		/// \brief Attaches the selected lines again (Ask the agent about
 		/// these lines).
 		void attach_lines();
+		/// \brief RFC-BPR-0125 (Q2, AC10). The suggested prompt the question
+		/// field holds as a draft, beside the lines chip: sending keeps its
+		/// subject and kind. Its close button, or emptying the field, makes
+		/// the text a typed question.
+		[[nodiscard]] auto macro_chip() const noexcept -> QWidget* { return MacroChip; }
+		[[nodiscard]] auto macro_chip_text() const -> QString;
+		[[nodiscard]] auto macro_chip_close() const noexcept -> QToolButton* { return MacroClose; }
+		/// \brief RFC-BPR-0125. The suggested prompts this tab offers from,
+		/// every place's in the reviewer's order; the shipped set until the
+		/// host gives another. The chips are the core's offers.
+		void               present_prompt_macros(std::vector<core::prompt_macro> aMacros);
+		[[nodiscard]] auto suggestion_list() const noexcept -> agent_suggestion_list* { return Suggestions; }
+		/// \brief RFC-BPR-0125 (AC07). The name a turn was sent under, shown
+		/// above its question; empty when none differs from it.
+		[[nodiscard]] auto turn_name(std::size_t aTurn) const -> QString;
+		/// \brief Show all, on a question folded past six lines; none when
+		/// the question is not folded.
+		[[nodiscard]] auto turn_show_all(std::size_t aTurn) const -> QPushButton*;
 		/// \brief The question field, whose tooltip says what the agent can
 		/// read ([[BPR-2038]]: a tooltip, no longer a line under it).
 		[[nodiscard]] auto question_field() const noexcept -> QWidget* { return Field; }
@@ -697,10 +727,14 @@ namespace bpr::qt {
 		/// One question and its answer.
 		struct turn
 		{
-			QString           Question;
-			bool              Review = false;
-			bool              Done   = false;
-			QPointer<QWidget> Widget;
+			QString Question;
+			/// RFC-BPR-0125. The suggested prompt's name, when it differs.
+			QString               Name;
+			QPointer<QPushButton> ShowAll;
+			bool                  Unfolded = false;
+			bool                  Review   = false;
+			bool                  Done     = false;
+			QPointer<QWidget>     Widget;
 			/// The answer as written, shown as Markdown.
 			QPointer<markdown_body_view> Answer;
 			QString                      AnswerText;
@@ -888,11 +922,33 @@ namespace bpr::qt {
 		[[nodiscard]] auto                                                         send_tip() const -> QString;
 		std::optional<std::pair<QString, std::pair<std::uint32_t, std::uint32_t>>> LinesSeen;
 		bool                                                                       LinesDetached = false;
-		/// The subject each suggested prompt carries, by its words.
-		std::map<QString, std::pair<core::agent_suggested_subject, bool>> SuggestionSubjects;
+		/// RFC-BPR-0125. The macros offered from, and the core's offers shown
+		/// now, chips then More.
+		std::vector<core::prompt_macro> PromptMacros;
+		std::vector<core::prompt_offer> Offered;
+		/// What a sent or drafted suggested prompt carries: its name, its
+		/// subject and kind for `decide_agent_question`, and, for a direct
+		/// send, the only text skill references are read from.
+		struct macro_send
+		{
+			QString                                      Key;
+			QString                                      Name;
+			std::optional<core::agent_suggested_subject> Subject;
+			bool                                         Review = false;
+			std::optional<std::string>                   SkillText;
+		};
 		/// The suggestion being sent, while it is.
-		std::optional<std::pair<core::agent_suggested_subject, bool>> SendingSuggestion;
-		/// RFC-BPR-0116. The returning prompts by their words, the one being
+		std::optional<macro_send> SendingMacro;
+		/// (Q2) The suggestion the field holds as a draft, and its chip.
+		std::optional<macro_send> DraftedMacro;
+		QWidget*                  MacroChip  = nullptr;
+		QLabel*                   MacroText  = nullptr;
+		QToolButton*              MacroClose = nullptr;
+		void                      present_macro_chip();
+		[[nodiscard]] auto        offered(const QString& aKeyOrLabel) const -> const core::prompt_offer*;
+		/// The name the next admitted turn was sent under.
+		QString PendingName;
+		/// RFC-BPR-0116. The returning prompts by their keys, the one being
 		/// sent, the one a sent question was, and what the host offers.
 		std::map<QString, core::returning_operation> ReturningPrompts;
 		std::optional<core::returning_operation>     SendingReturning;

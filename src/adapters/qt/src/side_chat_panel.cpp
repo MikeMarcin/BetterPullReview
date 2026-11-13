@@ -245,9 +245,10 @@ namespace bpr::qt {
 				.Session = Members.Shown->Session.Id,
 				.Action  = core::agent_action_intent{
 					Members.Question ? Members.Question->EntryPoint : Members.Shown->EntryPoint },
-				.Scope    = Members.Shown->Chat.Scope,
-				.Text     = Members.Composer->toPlainText().toStdString(),
-				.Question = Members.Question,
+				.Scope     = Members.Shown->Chat.Scope,
+				.Text      = Members.Composer->toPlainText().toStdString(),
+				.Question  = Members.Question,
+				.SkillText = Members.SkillText,
 			});
 		});
 		connect(Members.AddContext, &QAction::triggered, this, [this]() {
@@ -317,6 +318,8 @@ namespace bpr::qt {
 	}
 
 	void side_chat_panel::set_question(std::optional<core::agent_question> aQuestion) { Members.Question = std::move(aQuestion); }
+
+	void side_chat_panel::set_skill_text(std::optional<std::string> aSkillText) { Members.SkillText = std::move(aSkillText); }
 
 	void side_chat_panel::present(const side_chat_projection& aProjection)
 	{

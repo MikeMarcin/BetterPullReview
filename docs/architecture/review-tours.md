@@ -302,9 +302,10 @@ if typed, with any quoted passage. Shift-click puts it in the composer to
 edit, and "Focus on …" always goes there to be finished. The core's
 `decide_agent_suggestion_press` decides the press, as it does for the Agent
 tab. The prompts show only once the agent is set up ([[BPR-1881]]), and they
-go with the chat's first turn. The lists live in one place in the application
-layer (`application::tour_chat_prompts`); the window hands them to the chat,
-so Agent settings can later make them editable.
+go with the chat's first turn. Since RFC-BPR-0125 milestone 2 the prompts
+are built-in suggested-prompt macros (`core::shipped_prompt_macros`): the
+chat asks the core's `decide_prompt_offers` what to show, and nothing in the
+chat or the application layer builds a prompt's text.
 
 BPR-1934 v002 (owner on v001: "I want a suggest prompt for explain selection
 like agent has for code, but mine for the selected block on the tour") adds

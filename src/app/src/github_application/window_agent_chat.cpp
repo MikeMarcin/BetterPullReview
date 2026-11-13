@@ -639,8 +639,10 @@ namespace bpr::app {
 		// [[BPR-1916]]. The skills an Agent tab question names ride with
 		// it, inline. A tour writing run's come from its hook (see
 		// skill_run_for), not from its prompt's template text.
+		// RFC-BPR-0125 (AC09): a suggested prompt sent as offered names
+		// skills only in its template's own text, never in a value.
 		if (!aWritingOnly && !aChatMessage.empty()) {
-			const auto texts  = std::array{ std::string_view{ aChatMessage } };
+			const auto texts  = std::array{ ChatSkillText ? std::string_view{ *ChatSkillText } : std::string_view{ aChatMessage } };
 			auto       skills = prepare_skill_run(SkillLibrary, texts);
 			if (!skills.Inline.empty() && observation.ChatMessage.size() + skills.Directive.size() <= core::maximum_chat_message_bytes) {
 				observation.Skills = std::move(skills.Inline);
@@ -1676,11 +1678,12 @@ namespace bpr::app {
 					}
 					ExplicitPrivateRun = std::move(aPressed->Run);
 					static_cast<void>(ChatHost->send(application::agent_chat_send{
-						.Session  = turn.Session,
-						.Action   = core::agent_action_intent{ core::agent_entry_point::ask_about_conversation },
-						.Scope    = turn.Scope,
-						.Text     = turn.Text,
-						.Question = core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation },
+						.Session   = turn.Session,
+						.Action    = core::agent_action_intent{ core::agent_entry_point::ask_about_conversation },
+						.Scope     = turn.Scope,
+						.Text      = turn.Text,
+						.Question  = core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation },
+						.SkillText = turn.SkillText,
 					}));
 					ExplicitPrivateRun.reset();
 				});
@@ -1696,11 +1699,12 @@ namespace bpr::app {
 			const auto question = AskedConversation && !returning ? std::optional{ core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation } } : send->Question;
 			static_cast<void>(
 				ChatHost->send(application::agent_chat_send{
-					.Session  = send->Session,
-					.Action   = action,
-					.Scope    = send->Scope,
-					.Text     = send->Text,
-					.Question = question,
+					.Session   = send->Session,
+					.Action    = action,
+					.Scope     = send->Scope,
+					.Text      = send->Text,
+					.Question  = question,
+					.SkillText = send->SkillText,
 				}));
 			return;
 		}

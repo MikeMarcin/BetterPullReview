@@ -1682,7 +1682,9 @@ namespace bpr::app {
 		// [[BPR-1916]]. The skills the question names, inline; an unknown
 		// name stays text, said once in the notice. [[BPR-1935]]: the
 		// directive is part of the prompt the bound below is checked on.
-		const auto texts  = std::array{ std::string_view{ question } };
+		// RFC-BPR-0125 (AC09): a suggested prompt sent as offered names
+		// skills only in its template's own text.
+		const auto texts  = std::array{ TourAskSkillText ? std::string_view{ *TourAskSkillText } : std::string_view{ question } };
 		auto       skills = prepare_skill_run(SkillLibrary, texts);
 		// [[BPR-2138]]. An Enhance is fresh: no conversation goes with it.
 		const auto fresh  = TourAskFresh;

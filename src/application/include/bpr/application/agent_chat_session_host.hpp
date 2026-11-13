@@ -37,6 +37,9 @@ namespace bpr::application {
 		/// question whose subject is not its lines is decided without the
 		/// selection: the selection is neither attached nor required.
 		std::optional<core::agent_question> Question;
+		/// RFC-BPR-0125 (AC09). For a suggested prompt sent as offered, the
+		/// only text its skill references are read from; none reads `Text`.
+		std::optional<std::string> SkillText;
 
 		auto operator<=>(const agent_chat_send&) const = default;
 	};
@@ -164,6 +167,9 @@ namespace bpr::application {
 		std::string Message;
 		/// [[BPR-2002]]. The question's subject, as the send carried it.
 		std::optional<core::agent_question> Question;
+		/// RFC-BPR-0125 (AC09). What the launch reads skill references
+		/// from, as the send carried it; none reads `Message`.
+		std::optional<std::string> SkillText;
 
 		auto operator<=>(const agent_chat_turn_request&) const = default;
 	};

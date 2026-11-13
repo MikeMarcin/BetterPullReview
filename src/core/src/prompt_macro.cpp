@@ -2,6 +2,7 @@
 
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
+#include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 
 #include <algorithm>
@@ -645,9 +646,93 @@ namespace bpr::core {
 			if (!value) {
 				return std::nullopt;
 			}
+			const auto begin = expansion.Text.size();
 			append_one_line(expansion.Text, *value);
+			expansion.Values.push_back({ .Begin = begin, .End = expansion.Text.size() });
 		}
 		return expansion;
+	}
+
+	auto prompt_skill_text(const prompt_expansion& aExpansion) -> std::string
+	{
+		// A value touches a reference when it overlaps it, or ends where it
+		// starts or starts where it ends: then the slash starts a word, or
+		// the name ends, only because of the value. An empty value counts,
+		// since its absence may join a reference.
+		const auto touchesValue = [&aExpansion](const skill_reference& aReference) {
+			return std::ranges::any_of(aExpansion.Values, [&aReference](const prompt_value_span& aValue) { return aValue.Begin <= aReference.End && aReference.Begin <= aValue.End; });
+		};
+		auto text = std::string{ };
+		for (const auto& reference : find_skill_references(aExpansion.Text)) {
+			if (touchesValue(reference)) {
+				continue;
+			}
+			if (!text.empty()) {
+				text.push_back(' ');
+			}
+			text.append(aExpansion.Text, reference.Begin, reference.End - reference.Begin);
+		}
+		return text;
+	}
+
+	auto suggested_subject_of(const prompt_subject aSubject) noexcept -> std::optional<agent_suggested_subject>
+	{
+		switch (aSubject) {
+		case prompt_subject::pull_request:   return agent_suggested_subject::pull_request;
+		case prompt_subject::open_file:      return agent_suggested_subject::open_file;
+		case prompt_subject::selected_lines: return agent_suggested_subject::selected_lines;
+		case prompt_subject::conversation:
+		case prompt_subject::stop:
+		case prompt_subject::part:
+		case prompt_subject::selected_text:
+		case prompt_subject::tour:           break;
+		}
+		return std::nullopt;
+	}
+
+	auto valid(const prompt_turn_name& aName) noexcept -> bool
+	{
+		return !aName.Asked.empty() && !aName.Name.empty() && aName.Asked.size() <= maximum_prompt_expansion_bytes && aName.Name.size() <= maximum_prompt_turn_name_bytes && aName.Asked != aName.Name;
+	}
+
+	auto prompt_turn_names::remember(prompt_turn_name aName) -> bool
+	{
+		if (!valid(aName)) {
+			return false;
+		}
+		if (!Names.empty() && Names.back() == aName) {
+			return false;
+		}
+		std::erase_if(Names, [&aName](const prompt_turn_name& aKept) { return aKept.Asked == aName.Asked; });
+		Names.push_back(std::move(aName));
+		if (Names.size() > maximum_prompt_turn_names) {
+			Names.erase(Names.begin(), Names.begin() + static_cast<std::ptrdiff_t>(Names.size() - maximum_prompt_turn_names));
+		}
+		return true;
+	}
+
+	void prompt_turn_names::adopt(const std::vector<prompt_turn_name>& aNames)
+	{
+		auto adopted = std::vector<prompt_turn_name>{ };
+		for (const auto& name : aNames) {
+			const auto newer = std::ranges::any_of(Names, [&name](const prompt_turn_name& aKept) { return aKept.Asked == name.Asked; });
+			if (!valid(name) || newer) {
+				continue;
+			}
+			std::erase_if(adopted, [&name](const prompt_turn_name& aKept) { return aKept.Asked == name.Asked; });
+			adopted.push_back(name);
+		}
+		adopted.insert(adopted.end(), std::make_move_iterator(Names.begin()), std::make_move_iterator(Names.end()));
+		Names = std::move(adopted);
+		if (Names.size() > maximum_prompt_turn_names) {
+			Names.erase(Names.begin(), Names.begin() + static_cast<std::ptrdiff_t>(Names.size() - maximum_prompt_turn_names));
+		}
+	}
+
+	auto prompt_turn_names::recall(const std::string_view aAsked) const -> std::optional<std::string>
+	{
+		const auto found = std::ranges::find(Names, aAsked, &prompt_turn_name::Asked);
+		return found != Names.end() ? std::optional{ found->Name } : std::nullopt;
 	}
 
 	auto stable_name(const prompt_unmet aUnmet) noexcept -> std::string_view
