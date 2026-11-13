@@ -1328,6 +1328,8 @@ namespace bpr::app {
 		Window->set_what_changed_dispatch([this] { ask_what_changed(); });
 		// RFC-BPR-0117 ([[BPR-2076]]). Explain this file and its card.
 		bind_explain_file();
+		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change on a draft comment.
+		bind_suggest_change();
 		tab->set_ask_more_dispatch([this](const QString& aQuestion, const QString& aAnswer) {
 			AskMoreSeed = std::pair{ aQuestion.toStdString(), aAnswer.toStdString() };
 		});

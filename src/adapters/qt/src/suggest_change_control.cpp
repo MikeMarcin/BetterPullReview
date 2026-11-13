@@ -3,7 +3,6 @@
 #include "bpr/qt/agent_feature.hpp"
 
 #include <QAbstractButton>
-#include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
@@ -21,60 +20,6 @@ namespace bpr::qt {
 			return { QObject::tr("Keep change"), QObject::tr("Discard"), QObject::tr("Undo"), QObject::tr("Done"), QObject::tr("Show reply"), QObject::tr("Hide reply"), QObject::tr("Dismiss") };
 		}
 	} // namespace
-
-	suggest_change_button::suggest_change_button(QWidget* aParent)
-		: QToolButton{ aParent }
-	{
-		setObjectName(QStringLiteral("threadDraftSuggestChange"));
-		setToolButtonStyle(Qt::ToolButtonTextOnly);
-		setAutoRaise(true);
-		setFocusPolicy(Qt::TabFocus);
-		setAccessibleName(tr("Suggest the change"));
-		set_running(false);
-	}
-
-	void suggest_change_button::set_running(const bool aRunning)
-	{
-		Running = aRunning;
-		setText(aRunning ? tr("Stop") : tr("Suggest change"));
-		// One sentence, under sixty characters (owner, 2026-11-10).
-		setToolTip(aRunning ? tr("Stop the agent writing this change") : tr("Ask the agent to write this change in the code"));
-		restyle();
-	}
-
-	auto suggest_change_button::sizeHint() const -> QSize
-	{
-		// The wider of its two words, so Stop never moves the row.
-		const auto metrics = fontMetrics();
-		const auto widest  = std::max(metrics.horizontalAdvance(tr("Suggest change")), metrics.horizontalAdvance(tr("Stop")));
-		return { widest + 14, std::max(24, metrics.height() + 8) };
-	}
-
-	void suggest_change_button::restyle()
-	{
-		if (Restyling) {
-			return;
-		}
-		Restyling         = true;
-		const auto ground = parentWidget() != nullptr ? parentWidget()->palette() : palette();
-		// It starts a run, so it wears the Agent accent; Stop wears the
-		// ordinary roles, as Enhance does.
-		if (Running) {
-			wear_ordinary_roles(*this);
-		} else {
-			wear_agent_accent(*this, ground);
-		}
-		Restyling = false;
-		update();
-	}
-
-	void suggest_change_button::changeEvent(QEvent* aEvent)
-	{
-		QToolButton::changeEvent(aEvent);
-		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange) {
-			restyle();
-		}
-	}
 
 	suggest_change_panel::suggest_change_panel(QWidget* aParent)
 		: QFrame{ aParent }

@@ -827,6 +827,7 @@ namespace bpr::qt {
 			PendingAbout      = ConversationShown;
 			PendingReturning  = SendingReturning;
 			PendingExplain    = SendingExplain;
+			PendingSuggest    = SendingSuggest;
 			// [[BPR-1773]]. Where its answer's Draft comment would go is
 			// decided now, while what it was asked on is on screen.
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
@@ -1181,6 +1182,10 @@ namespace bpr::qt {
 			if (!next.Explain.isEmpty()) {
 				next.ContextFile = next.Explain;
 			}
+			next.SuggestChange = PendingSuggest;
+			if (!next.SuggestChange.isEmpty()) {
+				next.ContextFile = next.SuggestChange;
+			}
 			// Sent: the field is ready for the next question, unless it
 			// holds what the reviewer typed before a suggestion was sent.
 			if (!PendingKeepsField) {
@@ -1194,6 +1199,7 @@ namespace bpr::qt {
 		PendingDraftTarget.reset();
 		PendingReturning.reset();
 		PendingExplain.clear();
+		PendingSuggest.clear();
 		PendingReview  = false;
 		FindingsAtTurn = FindingsPresented;
 		next.AskedAt   = QDateTime::currentDateTime();
@@ -2363,6 +2369,34 @@ namespace bpr::qt {
 
 	auto agent_tab_view::turn_explain(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].Explain : QString{ }; }
 
+	auto agent_tab_view::ask_suggest_change(const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) -> QString
+	{
+		if (!panels_alive() || aPath.isEmpty()) {
+			return tr("Not sent.");
+		}
+		if (State == agent_tab_state::working) {
+			return tr("Not sent. The agent is answering another question.");
+		}
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		composer->setPlainText(aFirst == aLast ? tr("Suggest the change on line %1 of %2").arg(aLast + 1U).arg(aPath)
+											   : tr("Suggest the change on lines %1–%2 of %3").arg(aFirst + 1U).arg(aLast + 1U).arg(aPath));
+		// Sent alone, as a suggestion is; what the reviewer had typed stays.
+		KeepingDraft   = !draft.trimmed().isEmpty();
+		SendingSuggest = aPath;
+		ask();
+		SendingSuggest.clear();
+		if (KeepingDraft) {
+			composer->setPlainText(draft);
+		} else if (!send_refusal_text().isEmpty()) {
+			composer->clear();
+		}
+		KeepingDraft = false;
+		return send_refusal_text();
+	}
+
+	auto agent_tab_view::turn_suggest_change(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].SuggestChange : QString{ }; }
+
 	void agent_tab_view::reveal_turn(const std::size_t aTurn)
 	{
 		if (aTurn >= Turns.size() || Turns[aTurn].Widget == nullptr) {
@@ -2569,6 +2603,10 @@ namespace bpr::qt {
 		if (!current.Explain.isEmpty()) {
 			publish_explain(Turns.size() - 1U, std::nullopt, footer, succeeded, seconds);
 		}
+		// RFC-BPR-0118. The window offers the answer to the core.
+		if (!current.SuggestChange.isEmpty() && SuggestObserver) {
+			SuggestObserver(suggest_change_turn{ .Turn = Turns.size() - 1U, .Ended = true, .Answered = succeeded, .AnswerText = current.AnswerText, .Ending = footer });
+		}
 		if (ThreadObserver) {
 			ThreadObserver(thread_turns());
 		}
@@ -2658,7 +2696,7 @@ namespace bpr::qt {
 				kept.Draft->setVisible(actions.DraftComment);
 			}
 			if (kept.AskMore != nullptr) {
-				kept.AskMore->setVisible((kept.Returning.has_value() || !kept.Explain.isEmpty()) && actions.SaveNote);
+				kept.AskMore->setVisible((kept.Returning.has_value() || !kept.Explain.isEmpty() || !kept.SuggestChange.isEmpty()) && actions.SaveNote);
 			}
 			kept.RecoveryKind = actions.Recovery;
 			if (kept.Recovery != nullptr) {
@@ -3665,6 +3703,7 @@ namespace bpr::qt {
 			.OpenFile             = context.OpenFile.toStdString(),
 			.Returning            = SendingReturning,
 			.Explain              = SendingExplain.toStdString(),
+			.SuggestChange        = SendingSuggest.toStdString(),
 		};
 		LastQuestion = core::decide_agent_question(facts);
 		if (!LastQuestion) {
@@ -3849,6 +3888,9 @@ namespace bpr::qt {
 		// RFC-BPR-0117. An Explain this file refused says so on its card.
 		const auto explained = !SendingExplain.isEmpty() ? SendingExplain : PendingExplain;
 		PendingExplain.clear();
+		// RFC-BPR-0118. So does a Suggest the change, in its panel.
+		const auto suggested = !SendingSuggest.isEmpty() || !PendingSuggest.isEmpty();
+		PendingSuggest.clear();
 		// Refused: the question stays in the field, and no turn waits for it.
 		PendingQuestion.reset();
 		PendingAbout.reset();
@@ -3869,6 +3911,9 @@ namespace bpr::qt {
 		}
 		if (!explained.isEmpty() && ExplainObserver) {
 			ExplainObserver(explain_file_progress{ .Path = explained, .Turn = Turns.size(), .Ending = text, .Answered = false });
+		}
+		if (suggested && SuggestObserver) {
+			SuggestObserver(suggest_change_turn{ .Turn = Turns.size(), .Ended = true, .Answered = false, .Ending = text });
 		}
 		ShownRefusal = aRefusal;
 		RefusalText->setText(text);

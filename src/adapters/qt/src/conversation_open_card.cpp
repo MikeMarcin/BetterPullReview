@@ -36,6 +36,7 @@
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
+#include <QContextMenuEvent>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
@@ -405,11 +406,26 @@ namespace bpr::qt {
 				}
 			}
 
+			/// RFC-BPR-0118. Adds the field's own items to its right-click menu.
+			std::function<void(QMenu&)> ExtendMenu;
+
 		protected:
 			void resizeEvent(QResizeEvent* aEvent) override
 			{
 				QPlainTextEdit::resizeEvent(aEvent);
 				fit();
+			}
+
+			void contextMenuEvent(QContextMenuEvent* aEvent) override
+			{
+				if (!ExtendMenu) {
+					QPlainTextEdit::contextMenuEvent(aEvent);
+					return;
+				}
+				auto* const menu = createStandardContextMenu(aEvent->pos());
+				menu->setAttribute(Qt::WA_DeleteOnClose);
+				ExtendMenu(*menu);
+				menu->popup(aEvent->globalPos());
 			}
 		};
 
@@ -2614,13 +2630,21 @@ namespace bpr::qt {
 		// [[BPR-2051]]. Enhance first in the field's own tool row, as on every
 		// surface; its suggestion under that row.
 		build_enhance(*controls, enhance_surface::comment);
-		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change beside Enhance, in
-		// the same accent, shown only where the lines can take a suggestion;
-		// what came of it under Enhance's panel.
-		SuggestButton = new suggest_change_button{ Editor };
-		SuggestButton->hide();
-		connect(SuggestButton, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::suggest_change); } });
-		controls->insertWidget(1, SuggestButton, 0, Qt::AlignVCenter);
+		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change is on the field's
+		// right-click menu, where its lines can take a suggestion (the
+		// coordinator, 2026-11-12: no new visible control while the owner's
+		// Ask model is designed); what came of it shows under Enhance's panel.
+		SuggestAction = new QAction{ QStringLiteral("Suggest the Change"), this };
+		SuggestAction->setObjectName(QStringLiteral("threadDraftSuggestChange"));
+		SuggestAction->setToolTip(QStringLiteral("Ask the agent to write this change in the code"));
+		SuggestAction->setVisible(false);
+		connect(SuggestAction, &QAction::triggered, this, [this] { if (Action) { Action(card_action::suggest_change); } });
+		static_cast<reply_text*>(ReplyBox)->ExtendMenu = [this](QMenu& aMenu) {
+			if (SuggestAction->isVisible()) {
+				aMenu.addSeparator();
+				aMenu.addAction(SuggestAction);
+			}
+		};
 		controls->addWidget(Suggestion);
 		controls->addStretch(1);
 		editor->addLayout(controls);
@@ -2783,18 +2807,17 @@ namespace bpr::qt {
 
 	void open_thread_card::present_agent_suggestion(const agent_suggestion_presentation& aSuggestion)
 	{
-		if (SuggestButton == nullptr || SuggestPanel == nullptr) {
+		if (SuggestAction == nullptr || SuggestPanel == nullptr) {
 			return;
 		}
 		const auto running = aSuggestion.Phase == agent_suggestion_phase::running;
-		const auto shown   = aSuggestion.Offered || aSuggestion.Phase != agent_suggestion_phase::idle;
-		const auto before  = std::pair{ SuggestButton->isVisibleTo(Editor), SuggestPanel->isVisibleTo(Editor) };
-		SuggestButton->set_running(running);
-		SuggestButton->setVisible(shown);
-		SuggestButton->setEnabled(running || (aSuggestion.Offered && aSuggestion.Phase != agent_suggestion_phase::proposed));
+		SuggestAction->setText(running ? QStringLiteral("Stop Suggesting the Change") : QStringLiteral("Suggest the Change"));
+		SuggestAction->setVisible(aSuggestion.Offered || running);
+		SuggestAction->setEnabled(running || (aSuggestion.Offered && aSuggestion.Phase != agent_suggestion_phase::proposed));
+		const auto before     = SuggestPanel->isVisibleTo(Editor);
 		const auto lineBefore = SuggestPanel->line_text();
 		SuggestPanel->present(aSuggestion);
-		if (HeightChanged && (before != std::pair{ SuggestButton->isVisibleTo(Editor), SuggestPanel->isVisibleTo(Editor) } || lineBefore != SuggestPanel->line_text())) {
+		if (HeightChanged && (before != SuggestPanel->isVisibleTo(Editor) || lineBefore != SuggestPanel->line_text())) {
 			HeightChanged();
 		}
 	}

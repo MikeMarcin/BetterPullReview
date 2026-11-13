@@ -596,6 +596,56 @@ int main(int argc, char** argv)
 			+ " content=" + std::to_string(has("explain.content.state\\twhole")) + " subject=" + std::to_string(has("subject.path\\tsrc/engine/renderer.cpp")) + " edited=" + std::to_string(has("EXPLAIN_EDITED_CANARY"));
 		result = "`src/engine/renderer.cpp` moves the renderer into `src/engine/` and keeps its interface. The resize at `src/engine/renderer.cpp:12` is the one behavioural change.\n\nIt fits the rest of the pull request: `src/engine/renderer.h` declares what it defines.\n\nLook closely at `src/engine/renderer.cpp:12`.\n\n" + echo;
 	}
+	// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change's fresh first answer:
+	// the structured reply, built from the lines the request carried. The
+	// draft's words choose the reply: STUB_APPLY a change that applies,
+	// STUB_WRONG_BYTE a stated current text one byte off, STUB_PROSE a
+	// sentence and no reply.
+	if (input.find("suggest.lines") != std::string::npos) {
+		// One supplement field, decoded from the stream's JSON and then from
+		// the supplement's own escapes.
+		const auto field = [&input](const std::string& aName) -> std::string {
+			const auto key   = aName + "\\t";
+			const auto start = input.find(key);
+			if (start == std::string::npos) {
+				return { };
+			}
+			auto json = std::string{ };
+			for (auto at = start + key.size(); at < input.size(); ++at) {
+				if (input[at] == '\\' && at + 1U < input.size()) {
+					const auto next = input[at + 1U];
+					if (next == 'n') {
+						break;
+					}
+					json += next == 't' ? '\t' : next == 'r' ? '\r' : next;
+					++at;
+					continue;
+				}
+				json += input[at];
+			}
+			auto text = std::string{ };
+			for (std::size_t at = 0U; at < json.size(); ++at) {
+				if (json[at] == '\\' && at + 1U < json.size()) {
+					const auto next = json[++at];
+					text += next == 'n' ? '\n' : next == 'r' ? '\r' : next == 't' ? '\t' : next;
+					continue;
+				}
+				text += json[at];
+			}
+			return text;
+		};
+		const auto first   = field("suggest.first_line");
+		const auto last    = field("suggest.last_line");
+		const auto current = field("suggest.lines");
+		const auto system  = input.find("write the change the comment asks for") != std::string::npos ? "1" : "0";
+		if (input.find("STUB_PROSE") != std::string::npos) {
+			result = "These lines need no change for that comment. SUGGEST_ECHO system=" + std::string{ system };
+		} else {
+			const auto stated = input.find("STUB_WRONG_BYTE") != std::string::npos ? current + " " : current;
+			const auto lead   = current.substr(0U, current.find_first_not_of(" \t"));
+			result = "{\"first_line\": " + first + ", \"last_line\": " + last + ", \"current\": \"" + escape(stated) + "\", \"replacement\": \"" + escape(lead + "// SUGGEST_ECHO system=" + system + "\n" + current) + "\"}";
+		}
+	}
 	if (input.find("OVERSIZE_CANARY") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":")" + std::string(40000, 'x') + R"(","notes":[]})";
 	}

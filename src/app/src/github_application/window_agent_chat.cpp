@@ -656,7 +656,7 @@ namespace bpr::app {
 		// was before the hook existed. The guidance is text for the
 		// agent's prose; the launch it rides on is the one every press
 		// already makes.
-		if (aEntryPoint == core::agent_entry_point::workshop_comment && aWorkshopOperation.has_value() && Profile && Profile->WorkbenchPreferences) {
+		if (aEntryPoint == core::agent_entry_point::workshop_comment && aWorkshopOperation.has_value() && core::rewrites_prose(*aWorkshopOperation) && Profile && Profile->WorkbenchPreferences) {
 			if (const auto& preferences = Profile->WorkbenchPreferences->accepted(); preferences) {
 				observation.FeedbackGuidance = application::workshop_feedback_supplement(preferences->WritingHooks, preferences->Behaviour.LabelHelper);
 			}
@@ -687,7 +687,13 @@ namespace bpr::app {
 		if (explaining && !compose_explain(observation)) {
 			return false;
 		}
-		const auto firstAnswer = returning || explaining;
+		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change carries the draft's
+		// lines, its words and their surroundings up front, or is refused.
+		const auto suggesting = aEntryPoint == core::agent_entry_point::workshop_comment && aWorkshopOperation == std::optional{ core::workshop_operation::suggest_change };
+		if (suggesting && !compose_suggest_change(observation)) {
+			return false;
+		}
+		const auto firstAnswer = returning || explaining || suggesting;
 		// [[BPR-2138]]. Ask more: the next Agent tab question opens with the
 		// one-off question and answer it continues, once.
 		if (!aWritingOnly && !firstAnswer && AskMoreSeed && aEntryPoint != core::agent_entry_point::workshop_comment) {
@@ -795,6 +801,18 @@ namespace bpr::app {
 				pointedAt.reset();
 			}
 			compose_question_subject(observation, *ChatQuestion);
+		}
+		// RFC-BPR-0118. Its subject is the draft's lines, as the press read them.
+		if (suggesting && SuggestChangeMaterial) {
+			observation.Selection.reset();
+			pointedAt.reset();
+			observation.Subject = core::supplement_subject{
+				.Subject   = core::agent_question_subject::lines,
+				.Path      = SuggestChangeMaterial->Path,
+				.FirstLine = SuggestChangeMaterial->FirstLine,
+				.LastLine  = SuggestChangeMaterial->LastLine,
+				.Text      = SuggestChangeMaterial->Lines.size() <= core::maximum_subject_text_bytes ? SuggestChangeMaterial->Lines : std::string{ },
+			};
 		}
 		// A continuation asks for the old revision's alignment before it
 		// asks the agent anything, and asks for it off this gesture:
@@ -978,8 +996,10 @@ namespace bpr::app {
 		// question's first answer is a fresh one-off: no native session and
 		// no grant, and its own prompt as the system prompt.
 		// RFC-BPR-0117: Explain this file's first answer is one too.
+		// RFC-BPR-0118: Suggest the change's first answer is one too.
 		const auto returning = invocation.Context.EntryPoint == core::agent_entry_point::analyze_latest_upload || invocation.Context.EntryPoint == core::agent_entry_point::evaluate_proposed_fix
-			|| invocation.Context.EntryPoint == core::agent_entry_point::analyze_current_file;
+			|| invocation.Context.EntryPoint == core::agent_entry_point::analyze_current_file
+			|| (invocation.Context.EntryPoint == core::agent_entry_point::workshop_comment && invocation.Context.WorkshopOperation == std::optional{ core::workshop_operation::suggest_change });
 		if (AgentSetup && !aExistingCheckoutChosen && !returning) {
 			const auto preferences = AgentSetup->projection().Preferences;
 			if (const auto* const entry = core::entry_of_profile(preferences.Agents, aProfile); entry != nullptr) {

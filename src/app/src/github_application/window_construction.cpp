@@ -1134,7 +1134,9 @@ namespace bpr::app {
 							aTurn.Question                                                            ? aTurn.Question->EntryPoint
 								: aTurn.EntryPoint == core::agent_entry_point::ask_about_conversation ? core::agent_entry_point::ask_about_conversation
 																									  : core::agent_entry_point::ask_about_selection,
-							std::nullopt);
+							// RFC-BPR-0118. Suggest the change is the
+							// workshop's seventh operation.
+							aTurn.Question ? aTurn.Question->Operation : std::nullopt);
 						ChatQuestion.reset();
 						ChatSkillText.reset();
 						return sent;

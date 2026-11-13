@@ -1159,6 +1159,8 @@ namespace bpr::qt {
 			// RFC-BPR-0117. Explain this file is offered once the agent is set up.
 			if (AgentTab != nullptr) {
 				set_explain_file_offered(AgentTab->setup_readiness() == agent_setup_readiness::ready);
+				// RFC-BPR-0118. Suggest the change asks only once it is.
+				set_suggest_change_ready(AgentTab->setup_readiness() == agent_setup_readiness::ready);
 			}
 		});
 		// Owner on the live build, 2026-11-11: no stray status text in the

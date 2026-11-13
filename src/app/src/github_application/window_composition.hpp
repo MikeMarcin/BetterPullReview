@@ -788,6 +788,12 @@ namespace bpr::app {
 		void               ask_explain_file(const std::string& aPath);
 		void               refuse_explain_file(const std::string& aPath, const QString& aWords);
 		[[nodiscard]] auto compose_explain(application::agent_context_observation& aObservation) -> bool;
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: the press on the
+		/// drawer draft, its material, and the answer handed to the window,
+		/// whose core decides. `window_suggest_change.cpp`.
+		void               bind_suggest_change();
+		void               ask_suggest_change(const qt::workbench_window::suggest_change_press& aPress);
+		[[nodiscard]] auto compose_suggest_change(application::agent_context_observation& aObservation) -> bool;
 		void               keep_explanation(const std::string& aPath, const std::string& aAnswer);
 		void               continue_explanation(std::size_t aTurn);
 
@@ -2198,6 +2204,8 @@ namespace bpr::app {
 			QString                                 Agent;
 		};
 		explain_file_state ExplainFile;
+		/// RFC-BPR-0118. The material of the press under way, sent with it.
+		std::optional<core::supplement_suggest_change> SuggestChangeMaterial;
 #if defined(BPR_BUILD_TESTING)
 		/// Testing only: the head my last review is taken to be on.
 		std::string ReturningReviewHeadForTesting;

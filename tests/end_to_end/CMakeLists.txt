@@ -4807,6 +4807,19 @@ bpr_add_network_isolated_test(NAME application_explain_file_public_path
     COMMAND test_explain_file_public_path explain "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_explain_file_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "explain-file:pass")
+# RFC-BPR-0118 ([[BPR-2078]]). Suggest the change, on nested-folders-v1 with
+# the scoped writing stub as the installed Claude.
+bpr_add_executable(test_suggest_change_public_path suggest_change_public_path.cpp)
+target_link_libraries(test_suggest_change_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_suggest_change_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_suggest_change_public_path)
+bpr_enable_warnings(test_suggest_change_public_path)
+add_dependencies(test_suggest_change_public_path test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_suggest_change_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_suggest_change_public_path suggest "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_suggest_change_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 150 PASS_REGULAR_EXPRESSION "suggest-change:pass")
 bpr_add_network_isolated_test(NAME application_review_tour_writing
     WINDOWS_UNCONTAINED
     COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")

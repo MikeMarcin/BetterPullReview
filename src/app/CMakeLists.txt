@@ -199,6 +199,7 @@ if(BPR_BUILD_QT)
             src/github_application/window_shutdown.cpp
             src/github_application/window_sign_in.cpp
             src/github_application/window_skills.cpp
+            src/github_application/window_suggest_change.cpp
             src/github_application/window_tours.cpp
             src/github_application/window_workbench.cpp
             src/github_application/workbench_composition.cpp
@@ -618,6 +619,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/window_shutdown.cpp
 		src/app/src/github_application/window_sign_in.cpp
 		src/app/src/github_application/window_skills.cpp
+		src/app/src/github_application/window_suggest_change.cpp
 		src/app/src/github_application/window_tours.cpp
 		src/app/src/github_application/window_workbench.cpp
 		src/app/src/github_application/workbench_composition.cpp

@@ -3,7 +3,6 @@
 
 #include <QFrame>
 #include <QString>
-#include <QToolButton>
 
 #include <cstdint>
 
@@ -13,9 +12,9 @@ class QPlainTextEdit;
 
 /// \file
 /// \brief RFC-BPR-0118 ([[BPR-2078]]). Suggest the change on a draft
-/// comment: the control in the field's tool row that asks the agent for the
-/// change on the draft's lines, and the panel under the field that says what
-/// came of it. Nothing here runs an agent, edits code or writes the draft:
+/// comment: the panel under the field that says what came of asking the
+/// agent for the change on the draft's lines (asked from the field's
+/// right-click menu). Nothing here runs an agent, edits code or writes the draft:
 /// the window says what to show and where each button goes.
 namespace bpr::qt {
 	/// \brief Where one Suggest the change stands, as the panel shows it.
@@ -35,9 +34,9 @@ namespace bpr::qt {
 	/// \brief What the draft's composer shows of Suggest the change.
 	struct agent_suggestion_presentation
 	{
-		/// The draft's lines can take a suggestion, so the control is offered.
+		/// The draft's lines can take a suggestion, so the menu item is offered.
 		bool Offered = false;
-		/// The agent is set up; otherwise the control says so when pressed.
+		/// The agent is set up; otherwise the panel says so when asked.
 		bool Ready = true;
 		agent_suggestion_phase Phase = agent_suggestion_phase::idle;
 		/// The panel's one sentence.
@@ -46,28 +45,6 @@ namespace bpr::qt {
 		QString Reply;
 
 		auto operator==(const agent_suggestion_presentation&) const -> bool = default;
-	};
-
-	/// \brief The control: the words "Suggest change" in the Agent accent,
-	/// at one width whether it asks or stops, so nothing beside it moves.
-	class suggest_change_button final : public QToolButton
-	{
-	public:
-		explicit suggest_change_button(QWidget* aParent);
-		/// \brief Shows a run going (Stop, ordinary roles) or not.
-		void               set_running(bool aRunning);
-		[[nodiscard]] auto running() const noexcept -> bool { return Running; }
-		[[nodiscard]] auto sizeHint() const -> QSize override;
-		[[nodiscard]] auto minimumSizeHint() const -> QSize override { return sizeHint(); }
-
-	protected:
-		void changeEvent(QEvent* aEvent) override;
-
-	private:
-		void restyle();
-
-		bool Running   = false;
-		bool Restyling = false;
 	};
 
 	/// \brief Under the field: one sentence, the refused reply when asked

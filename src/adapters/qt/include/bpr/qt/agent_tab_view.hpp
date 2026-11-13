@@ -457,6 +457,25 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0117. Each Explain this file turn as it starts, runs
 		/// and ends, or a refusal of one, for the card at the file's header.
 		void set_explain_observer(std::function<void(const explain_file_progress&)> aObserver) { ExplainObserver = std::move(aObserver); }
+		/// \brief RFC-BPR-0118 ([[BPR-2078]]). One Suggest the change turn:
+		/// its index, and once it ends whether it answered, the answer as
+		/// written and the ending line; a refused send has no turn.
+		struct suggest_change_turn
+		{
+			std::size_t Turn     = 0U;
+			bool        Ended    = false;
+			bool        Answered = false;
+			QString     AnswerText;
+			QString     Ending;
+		};
+		/// \brief RFC-BPR-0118. Asks Suggest the change on a draft comment's
+		/// lines as a turn of its own ("Suggest the change on lines 3–5 of
+		/// path"), sent alone; what the reviewer had typed stays.
+		/// \returns Why it was not sent, or empty.
+		auto ask_suggest_change(const QString& aPath, std::uint32_t aFirst, std::uint32_t aLast) -> QString;
+		void set_suggest_change_observer(std::function<void(const suggest_change_turn&)> aObserver) { SuggestObserver = std::move(aObserver); }
+		/// \brief RFC-BPR-0118. The file a turn suggested a change in; empty for any other.
+		[[nodiscard]] auto turn_suggest_change(std::size_t aTurn) const -> QString;
 		/// \brief RFC-BPR-0117. The file a turn explained; empty for any other.
 		[[nodiscard]] auto turn_explain(std::size_t aTurn) const -> QString;
 		/// \brief RFC-BPR-0117. Continue in Agent tab: brings the turn into view.
@@ -772,6 +791,9 @@ namespace bpr::qt {
 			/// RFC-BPR-0117. The file Explain this file asked about; empty for
 			/// every other turn.
 			QString               Explain;
+			/// RFC-BPR-0118. The file Suggest the change asked about; empty
+			/// for every other turn.
+			QString SuggestChange;
 			QPointer<QLabel>      Claim;
 			QPointer<QPushButton> AskMore;
 			QPointer<QWidget>     Asked;
@@ -958,6 +980,11 @@ namespace bpr::qt {
 		QString                                             SendingExplain;
 		QString                                             PendingExplain;
 		std::function<void(const explain_file_progress&)>   ExplainObserver;
+		/// RFC-BPR-0118. The file Suggest the change is being sent for, the
+		/// one the next turn takes, and who hears of it.
+		QString                                        SendingSuggest;
+		QString                                        PendingSuggest;
+		std::function<void(const suggest_change_turn&)> SuggestObserver;
 		void                                                publish_explain(std::size_t aTurn, std::optional<agent_run_status> aRunning, const QString& aEnding, bool aAnswered, qint64 aSeconds);
 		core::latest_upload_offer                           LatestUpload;
 		QLabel*                                             LatestUploadNote = nullptr;
