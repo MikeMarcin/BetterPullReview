@@ -649,13 +649,13 @@ namespace bpr::qt {
 		// RFC-BPR-0116. The returning questions are tried on a returning pull request.
 		const bool returning = returning_hook(hook);
 		TestButton->setEnabled(!feedback && !suggested && !local && !returning);
-		TestButton->setToolTip(feedback                                              ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
-								   : suggested                                       ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
-								   : hook == core::writing_hook::review_explain_file ? tr("Test uses a tour field. Press Explain this file over a file in Review to try this prompt.")
+		TestButton->setToolTip(feedback                                                ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
+								   : suggested                                         ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
+								   : hook == core::writing_hook::review_explain_file   ? tr("Test uses a tour field. Press Explain this file over a file in Review to try this prompt.")
 								   : hook == core::writing_hook::review_suggest_change ? tr("Test uses a tour field. Press Suggest the change on a draft comment to try this prompt.")
-								   : returning                                       ? tr("Test uses a tour field. Ask it on a pull request with commits since your review to try this prompt.")
-								   : local                                           ? tr("Test uses a tour field. Ask in a local draft's conversation to try this prompt.")
-																					 : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
+								   : returning                                         ? tr("Test uses a tour field. Ask it on a pull request with commits since your review to try this prompt.")
+								   : local                                             ? tr("Test uses a tour field. Ask in a local draft's conversation to try this prompt.")
+																					   : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
 		refresh_state();
 		refresh_rows();
 	}

@@ -37,7 +37,7 @@ namespace bpr::qt {
 		/// The draft's lines can take a suggestion, so the menu item is offered.
 		bool Offered = false;
 		/// The agent is set up; otherwise the panel says so when asked.
-		bool Ready = true;
+		bool                   Ready = true;
 		agent_suggestion_phase Phase = agent_suggestion_phase::idle;
 		/// The panel's one sentence.
 		QString Line;

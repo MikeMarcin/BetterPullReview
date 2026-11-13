@@ -48,7 +48,7 @@ namespace bpr::app {
 			Window->refuse_suggest_change(QStringLiteral("Not sent. The pull request has not been read yet."));
 			return;
 		}
-		const auto path = SelectedDiffPublication->Request.File.PresentationPath;
+		const auto path       = SelectedDiffPublication->Request.File.PresentationPath;
 		SuggestChangeMaterial = core::bound_suggest_change_material(core::suggest_change_material_input{
 			.Path       = path,
 			.HeadCommit = std::string{ core::canonical_hex(state.AcceptedRevision->Head).view() },

@@ -270,7 +270,7 @@ namespace bpr::core {
 		}
 		const auto crlf  = aInput.Asked.back().Ending == text_line_ending::crlf;
 		auto       block = replacement_lines(reply->Replacement, crlf);
-		if (std::ranges::equal(block, aInput.Asked, {}, {}, &text_line::Content)) {
+		if (std::ranges::equal(block, aInput.Asked, { }, { }, &text_line::Content)) {
 			return refuse(suggest_change_refusal::identical);
 		}
 		// The span the in-pane edit opens with, as a kept draft opens again.

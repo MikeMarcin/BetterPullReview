@@ -597,6 +597,7 @@ namespace {
 					 dispatch,
 					 shown,
 					 question,
+					 skillText,
 					 replies, replyBody, promote, promotionAvailable, promotionReason,
 					 provider,
 					 gitHost,
@@ -635,6 +636,8 @@ namespace {
 				decltype(shown),
 				const std::optional<qt::side_chat_projection>>);
 		static_assert(std::is_same_v<decltype(question), const std::optional<core::agent_question>>);
+		// RFC-BPR-0125. Text a suggested prompt's skills are read from.
+		static_assert(std::is_same_v<decltype(skillText), const std::optional<std::string>>);
 		static_assert(std::is_same_v<decltype(replies), QListWidget* const>);
 		static_assert(std::is_same_v<decltype(replyBody), QPlainTextEdit* const>);
 		static_assert(std::is_same_v<decltype(promote), QAction* const>);

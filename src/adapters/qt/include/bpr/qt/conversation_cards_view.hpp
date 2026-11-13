@@ -14,9 +14,9 @@
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/enhance_control.hpp"
-#include "bpr/qt/suggest_change_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/suggest_change_control.hpp"
 
 #include <QAbstractScrollArea>
 #include <QColor>

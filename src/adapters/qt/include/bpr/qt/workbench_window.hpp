@@ -32,6 +32,7 @@
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/core/suggest_change.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/account_setup_view.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -45,7 +46,6 @@
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/explain_file_card.hpp"
-#include "bpr/core/suggest_change.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -2857,9 +2857,9 @@ namespace bpr::qt {
 			/// The head pane's edit was open before the agent's change.
 			bool WasOpen = false;
 		};
-		std::optional<agent_suggestion_state>   AgentSuggestion;
-		[[nodiscard]] auto                      suggest_change_offered() const -> bool;
-		void                                    press_suggest_change();
+		std::optional<agent_suggestion_state> AgentSuggestion;
+		[[nodiscard]] auto                    suggest_change_offered() const -> bool;
+		void                                  press_suggest_change();
 		/// RFC-BPR-0117. Explain this file's control, its card and where a
 		/// press goes.
 		QToolButton*                                         ExplainFileButton = nullptr;

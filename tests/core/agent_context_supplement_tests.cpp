@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement                                     = core::agent_context_supplement;
-		const auto whole                                     = supplement{ };
+		using supplement                                                                        = core::agent_context_supplement;
+		const auto whole                                                                        = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,

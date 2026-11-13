@@ -790,10 +790,10 @@ namespace bpr::qt {
 			std::optional<core::returning_operation> Returning;
 			/// RFC-BPR-0117. The file Explain this file asked about; empty for
 			/// every other turn.
-			QString               Explain;
+			QString Explain;
 			/// RFC-BPR-0118. The file Suggest the change asked about; empty
 			/// for every other turn.
-			QString SuggestChange;
+			QString               SuggestChange;
 			QPointer<QLabel>      Claim;
 			QPointer<QPushButton> AskMore;
 			QPointer<QWidget>     Asked;
@@ -977,14 +977,14 @@ namespace bpr::qt {
 		std::optional<core::returning_operation>     PendingReturning;
 		/// RFC-BPR-0117. The file Explain this file is being sent for, the
 		/// one a sent question was for, and who is told of its turns.
-		QString                                             SendingExplain;
-		QString                                             PendingExplain;
-		std::function<void(const explain_file_progress&)>   ExplainObserver;
+		QString                                           SendingExplain;
+		QString                                           PendingExplain;
+		std::function<void(const explain_file_progress&)> ExplainObserver;
 		/// RFC-BPR-0118. The file Suggest the change is being sent for, the
 		/// one the next turn takes, and who hears of it.
-		QString                                        SendingSuggest;
-		QString                                        PendingSuggest;
-		std::function<void(const suggest_change_turn&)> SuggestObserver;
+		QString                                             SendingSuggest;
+		QString                                             PendingSuggest;
+		std::function<void(const suggest_change_turn&)>     SuggestObserver;
 		void                                                publish_explain(std::size_t aTurn, std::optional<agent_run_status> aRunning, const QString& aEnding, bool aAnswered, qint64 aSeconds);
 		core::latest_upload_offer                           LatestUpload;
 		QLabel*                                             LatestUploadNote = nullptr;

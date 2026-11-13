@@ -308,6 +308,42 @@ namespace {
 		expect(application::effective_writing_hook(edited, hook) == prompt, "Reset restores the built-in");
 	}
 
+	/// RFC-BPR-0118 ([[BPR-2078]]) AC05. Suggest the change is one fresh,
+	/// tool-free call, briefed by its own prompt, with the draft's lines up
+	/// front; an edit of its prompt reaches it and no other.
+	void test_suggest_the_change_is_one_fresh_tool_free_call()
+	{
+		const auto claude   = profile(core::agent_protocol::claude_stream_json);
+		const auto head     = core::split_text_lines("int f(int* p)\n{\n\treturn *p;\n}\n");
+		const auto material = core::bound_suggest_change_material({ .Path = "src/a.cpp", .HeadCommit = std::string(40U, 'b'), .Comment = "Check for null first.", .Head = head, .First = 2U, .Last = 2U });
+		expect(material && core::valid(*material), "the material is within its bounds");
+		auto value          = supplement();
+		value.Operation     = core::workshop_operation::suggest_change;
+		value.SuggestChange = material;
+		const auto hook     = core::writing_hook::review_suggest_change;
+		const auto prompt   = std::string{ application::default_writing_hook(hook) };
+		expect(!prompt.empty() && application::writing_hook_purpose(hook) == "review.suggest-change" && application::writing_hook_of_purpose("review.suggest-change") == hook
+				   && application::writing_hook_version_of(hook) == "review-suggest-change-v1",
+			   "Suggest the change has its own prompt, purpose and version");
+		const auto launch = application::build_agent_launch(claude, value, reader(), { .WritingOnly = true, .Path = core::agent_run_path::assistance_first_answer, .SystemInstructions = prompt });
+		expect(launch && has(launch->Arguments, "--no-session-persistence") && !has(launch->Arguments, "--resume"), "a fresh run: no session saved or resumed");
+		expect(launch && index_of(launch->Arguments, "--tools") + 1U < launch->Arguments.size() && launch->Arguments[index_of(launch->Arguments, "--tools") + 1U].empty(), "no tools");
+		expect(launch && launch->Arguments[index_of(launch->Arguments, "--append-system-prompt") + 1U] == prompt, "its own prompt is the system prompt");
+		expect(launch && launch->Input.find("suggest.lines") != std::string::npos && launch->Input.find("return *p;") != std::string::npos && launch->Input.find("suggest.first_line") != std::string::npos
+				   && launch->Input.find("Check for null first.") != std::string::npos && launch->Input.find("suggest_change") != std::string::npos,
+			   "the request carries the operation, exactly the draft's lines and its words up front");
+		auto edited                                      = core::writing_hook_settings{ };
+		edited.Overrides[static_cast<std::size_t>(hook)] = "TEAM_SUGGEST";
+		expect(application::effective_writing_hook(edited, hook) == "TEAM_SUGGEST", "the edit is the next Suggest the change's prompt");
+		for (auto index = std::size_t{ 0U }; index < core::writing_hook_count; ++index) {
+			if (static_cast<core::writing_hook>(index) != hook) {
+				expect(application::effective_writing_hook(edited, static_cast<core::writing_hook>(index)) == application::default_writing_hook(static_cast<core::writing_hook>(index)), "and no other prompt changes");
+			}
+		}
+		edited.Overrides[static_cast<std::size_t>(hook)].clear();
+		expect(application::effective_writing_hook(edited, hook) == prompt, "Reset restores the built-in");
+	}
+
 	/// [[BPR-2140]]. The writing prompt splits into the instructions and the
 	/// material, and joined they are the prompt as before.
 	void test_the_writing_prompt_splits_into_instructions_and_material()
@@ -509,6 +545,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_a_failed_sign_in_ends_the_run_at_once();
 	test_a_returning_question_is_one_fresh_tool_free_call();
 	test_explain_this_file_is_one_fresh_tool_free_call();
+	test_suggest_the_change_is_one_fresh_tool_free_call();
 	std::cout << "agent-launch-policy-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -141,8 +141,8 @@ namespace {
 	/// AC03. A change GitHub could not take as a suggestion here.
 	void a_change_github_cannot_take_is_refused()
 	{
-		const auto head  = core::split_text_lines(head_text);
-		const auto asked = std::vector<core::text_line>{ head.begin() + 2, head.begin() + 3 };
+		const auto head   = core::split_text_lines(head_text);
+		const auto asked  = std::vector<core::text_line>{ head.begin() + 2, head.begin() + 3 };
 		const auto answer = reply(3U, 3U, "\treturn *p;", "\treturn p ? *p : 0;");
 		const auto input  = core::suggest_change_input{
 			.Answer   = answer,
@@ -160,8 +160,8 @@ namespace {
 	/// CRLF files: a CR before each break is the line's ending.
 	void crlf_lines_keep_their_endings()
 	{
-		const auto head  = core::split_text_lines("a\r\nb\r\nc\r\n");
-		const auto asked = std::vector<core::text_line>{ head.begin(), head.begin() + 2 };
+		const auto head   = core::split_text_lines("a\r\nb\r\nc\r\n");
+		const auto asked  = std::vector<core::text_line>{ head.begin(), head.begin() + 2 };
 		const auto answer = reply(1U, 2U, "a\r\nb", "x\r\ny\r\nz");
 		const auto made   = core::decide_suggested_change({ .Answer = answer, .First = 0U, .Last = 1U, .Asked = asked, .Head = head, .Prose = "" });
 		expect(made.accepted() && made.Block == std::vector<std::string>{ "x", "y", "z" }, "the block's lines carry no CR");

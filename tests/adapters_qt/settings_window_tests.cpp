@@ -628,10 +628,10 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 19 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
+		expect(hook->count() == 20 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
 				   && hook->item(8)->text() == "Enhance writing" && hook->item(9)->text() == "Local drafts" && hook->item(10)->text() == "Description writing"
 				   && hook->item(11)->text() == "Change discussion" && hook->item(12)->text() == "Commit message" && hook->item(13)->text() == "Agent tab" && hook->item(14)->text() == "Suggested comments"
-				   && hook->item(15)->text() == "What changed" && hook->item(16)->text() == "Was this addressed" && hook->item(17)->text() == "Explain this file" && hook->item(18)->text() == "Review skill" && !text->toPlainText().isEmpty(),
+				   && hook->item(15)->text() == "What changed" && hook->item(16)->text() == "Was this addressed" && hook->item(17)->text() == "Explain this file" && hook->item(18)->text() == "Suggest the change" && hook->item(19)->text() == "Review skill" && !text->toPlainText().isEmpty(),
 			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]], RFC-BPR-0110, RFC-BPR-0114, RFC-BPR-0116 every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and the one Enhance writing prompt (owner look 2026-11-10), the three local-authoring prompts, the suggested-comment format, the two returning questions and the review skill");
 		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
 		for (const auto tourHook : tourHooks) {

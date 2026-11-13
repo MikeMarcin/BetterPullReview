@@ -3675,8 +3675,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# branch or publication change. main.cpp's attended author look copies its
 	# generated worktree where Git may write (a frozen root is read-only).
 	# No grant, credential, provider, mutation branch or publication change.
+	# RFC-BPR-0125 milestone 2 (merged): the Agent tab and tour chats show the
+	# core's prompt offers; window_agent_setup/window_construction pass the
+	# profile's macros and the turn names. RFC-BPR-0118: window_suggest_change.cpp
+	# asks Suggest the change as an Agent tab turn on assistance_first_answer
+	# (fresh, tool-free, review.suggest-change), window_agent_chat carries its
+	# material and the workshop operation, and the answer goes to the window,
+	# whose core decides. No grant, credential, provider, mutation branch or
+	# publication change: the draft stays a draft.
 	set(bpr_expected_production_app_manifest_digest
-        "0def768d8eb2cb1c8b8dd68433b23daecf858b551abc3ad63a23831f84133a9a"
+        "ea2f8777231becc9c6e80bd8cc3ac304d88c47a5ad3a8c83a6fd6efa5455725c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

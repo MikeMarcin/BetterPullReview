@@ -1148,9 +1148,9 @@ namespace bpr::qt {
 		// RFC-BPR-0118. While the agent's change waits to be kept, the draft
 		// keeps the lines it had: the edit shows the change, the body does not.
 		if (PaneSuggestion.has_value() && PaneSuggestion->Proposed) {
-			const auto first = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
-			const auto held  = core::plan_pull_request_suggestion(core::pull_request_suggestion_input{
-				 .First = first, .Last = PaneSuggestion->Anchor.Line, .Original = PaneSuggestion->Original, .Edited = PaneSuggestion->Kept, .Prose = PaneSuggestion->Prose.toStdString() });
+			const auto  first = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
+			const auto  held  = core::plan_pull_request_suggestion(core::pull_request_suggestion_input{
+				.First = first, .Last = PaneSuggestion->Anchor.Line, .Original = PaneSuggestion->Original, .Edited = PaneSuggestion->Kept, .Prose = PaneSuggestion->Prose.toStdString() });
 			const auto& draft = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt;
 			if (draft.has_value() && draft->Anchor == PaneSuggestion->Anchor && !ReviewEditor->body_editor()->isReadOnly()
 				&& ReviewEditor->body_editor()->toPlainText() != QString::fromStdString(held.Body)) {

@@ -2566,11 +2566,11 @@ namespace bpr::qt {
 		case core::writing_hook::enhance_writing:
 		case core::writing_hook::suggested_comment: // [[BPR-2059]] Not a tour field either.
 		case core::writing_hook::local_description: // RFC-BPR-0110 Nor the local-authoring prompts.
-		case core::writing_hook::local_discussion:     return false;
-		case core::writing_hook::local_commit_message: return false;
-		case core::writing_hook::review_latest_upload: // RFC-BPR-0116 Nor the returning questions.
-		case core::writing_hook::review_proposed_fix:  return false;
-		case core::writing_hook::review_explain_file:  return false; // RFC-BPR-0117 Nor Explain this file.
+		case core::writing_hook::local_discussion:      return false;
+		case core::writing_hook::local_commit_message:  return false;
+		case core::writing_hook::review_latest_upload:  // RFC-BPR-0116 Nor the returning questions.
+		case core::writing_hook::review_proposed_fix:   return false;
+		case core::writing_hook::review_explain_file:   return false; // RFC-BPR-0117 Nor Explain this file.
 		case core::writing_hook::review_suggest_change: return false; // RFC-BPR-0118 Nor Suggest the change.
 		}
 		return false;

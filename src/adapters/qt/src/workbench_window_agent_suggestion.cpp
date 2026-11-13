@@ -207,8 +207,8 @@ namespace bpr::qt {
 		if (editor == nullptr || !range.has_value() || !PaneSuggestion.has_value()) {
 			return refuse(core::suggest_change_refusal::not_suggestible);
 		}
-		const auto& lines    = editor->model().state().Lines;
-		PaneSuggestion->Kept = std::vector<core::text_line>{ lines.begin() + static_cast<std::ptrdiff_t>(range->first), lines.begin() + static_cast<std::ptrdiff_t>(range->second) + 1 };
+		const auto& lines        = editor->model().state().Lines;
+		PaneSuggestion->Kept     = std::vector<core::text_line>{ lines.begin() + static_cast<std::ptrdiff_t>(range->first), lines.begin() + static_cast<std::ptrdiff_t>(range->second) + 1 };
 		PaneSuggestion->Proposed = true;
 		auto text                = std::string{ };
 		for (std::size_t index = 0U; index < decision.Block.size(); ++index) {

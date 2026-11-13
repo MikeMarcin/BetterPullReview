@@ -8,9 +8,9 @@
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/explain_file.hpp"
 #include "bpr/core/returning_review.hpp"
-#include "bpr/core/suggest_change.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_skill.hpp"
+#include "bpr/core/suggest_change.hpp"
 
 #include <compare>
 #include <cstddef>

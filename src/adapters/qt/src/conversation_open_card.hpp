@@ -515,9 +515,9 @@ namespace bpr::qt {
 		enhance_binding*    Enhance       = nullptr;
 		void                build_enhance(QBoxLayout& aControls, enhance_surface aSurface);
 		/// RFC-BPR-0118. Suggest the change in the tool row, and its panel.
-		QAction*               SuggestAction = nullptr;
-		suggest_change_panel*  SuggestPanel  = nullptr;
-		void                   present_agent_suggestion(const agent_suggestion_presentation& aSuggestion);
+		QAction*              SuggestAction = nullptr;
+		suggest_change_panel* SuggestPanel  = nullptr;
+		void                  present_agent_suggestion(const agent_suggestion_presentation& aSuggestion);
 		/// [[BPR-1212]]. The composer's line button, state and change view.
 		QToolButton* Where      = nullptr;
 		QWidget*     DraftState = nullptr;

@@ -617,7 +617,8 @@ int main(int argc, char** argv)
 					if (next == 'n') {
 						break;
 					}
-					json += next == 't' ? '\t' : next == 'r' ? '\r' : next;
+					json += next == 't' ? '\t' : next == 'r' ? '\r'
+															 : next;
 					++at;
 					continue;
 				}
@@ -627,7 +628,9 @@ int main(int argc, char** argv)
 			for (std::size_t at = 0U; at < json.size(); ++at) {
 				if (json[at] == '\\' && at + 1U < json.size()) {
 					const auto next = json[++at];
-					text += next == 'n' ? '\n' : next == 'r' ? '\r' : next == 't' ? '\t' : next;
+					text += next == 'n' ? '\n' : next == 'r' ? '\r'
+						: next == 't'                        ? '\t'
+															 : next;
 					continue;
 				}
 				text += json[at];
@@ -643,7 +646,7 @@ int main(int argc, char** argv)
 		} else {
 			const auto stated = input.find("STUB_WRONG_BYTE") != std::string::npos ? current + " " : current;
 			const auto lead   = current.substr(0U, current.find_first_not_of(" \t"));
-			result = "{\"first_line\": " + first + ", \"last_line\": " + last + ", \"current\": \"" + escape(stated) + "\", \"replacement\": \"" + escape(lead + "// SUGGEST_ECHO system=" + system + "\n" + current) + "\"}";
+			result            = "{\"first_line\": " + first + ", \"last_line\": " + last + ", \"current\": \"" + escape(stated) + "\", \"replacement\": \"" + escape(lead + "// SUGGEST_ECHO system=" + system + "\n" + current) + "\"}";
 		}
 	}
 	if (input.find("OVERSIZE_CANARY") != std::string::npos) {

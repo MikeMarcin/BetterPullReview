@@ -27,6 +27,7 @@
 #include <QTextEdit>
 
 #include <QAbstractTextDocumentLayout>
+#include <QContextMenuEvent>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFontMetrics>
@@ -36,7 +37,6 @@
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
-#include <QContextMenuEvent>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
@@ -2659,8 +2659,16 @@ namespace bpr::qt {
 		SuggestPanel->set_buttons(first, second);
 		connect(first, &QAbstractButton::clicked, this, [this] {
 			switch (SuggestPanel->phase()) {
-			case agent_suggestion_phase::proposed: if (Action) { Action(card_action::keep_suggested_change); } break;
-			case agent_suggestion_phase::kept:     if (Action) { Action(card_action::undo_suggested_change); } break;
+			case agent_suggestion_phase::proposed:
+				if (Action) {
+					Action(card_action::keep_suggested_change);
+				}
+				break;
+			case agent_suggestion_phase::kept:
+				if (Action) {
+					Action(card_action::undo_suggested_change);
+				}
+				break;
 			case agent_suggestion_phase::refused:
 				SuggestPanel->toggle_reply();
 				if (HeightChanged) {
@@ -2668,7 +2676,7 @@ namespace bpr::qt {
 				}
 				break;
 			case agent_suggestion_phase::running:
-			case agent_suggestion_phase::idle: break;
+			case agent_suggestion_phase::idle:    break;
 			}
 		});
 		connect(second, &QAbstractButton::clicked, this, [this] {

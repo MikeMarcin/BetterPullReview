@@ -118,7 +118,7 @@ namespace bpr::qt {
 				Second->setToolTip(tr("Close this panel"));
 				break;
 			case agent_suggestion_phase::running:
-			case agent_suggestion_phase::idle:      break;
+			case agent_suggestion_phase::idle:    break;
 			}
 			if (Phase != agent_suggestion_phase::refused) {
 				First->setEnabled(true);
@@ -149,8 +149,8 @@ namespace bpr::qt {
 		painter.setRenderHint(QPainter::Antialiasing, true);
 		const auto accent = agent_accent(palette());
 		const auto mix    = [](const QColor& aBase, const QColor& aTint, const float aAmount) {
-            return QColor::fromRgbF((aBase.redF() * (1.0F - aAmount)) + (aTint.redF() * aAmount), (aBase.greenF() * (1.0F - aAmount)) + (aTint.greenF() * aAmount),
-                                    (aBase.blueF() * (1.0F - aAmount)) + (aTint.blueF() * aAmount));
+			return QColor::fromRgbF((aBase.redF() * (1.0F - aAmount)) + (aTint.redF() * aAmount), (aBase.greenF() * (1.0F - aAmount)) + (aTint.greenF() * aAmount),
+									(aBase.blueF() * (1.0F - aAmount)) + (aTint.blueF() * aAmount));
 		};
 		const auto wash   = mix(palette().color(QPalette::Active, QPalette::Base), accent, 0.06F);
 		const auto border = mix(palette().color(QPalette::Active, QPalette::Mid), accent, 0.25F);
