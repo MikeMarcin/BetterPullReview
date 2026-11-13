@@ -157,7 +157,7 @@ namespace bpr::qt {
 
 	void enhance_button::set_running(const bool aRunning)
 	{
-		Running         = aRunning;
+		Running = aRunning;
 		setAccessibleName(aRunning ? tr("Stop enhancing") : tr("Enhance writing"));
 		setToolTip(aRunning ? tr("Stop enhancing.") : enhance_tooltip(Surface, Selection));
 		// The longer account stays for a screen reader; the tooltip is one sentence.

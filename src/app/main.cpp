@@ -19,7 +19,6 @@
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
-#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -6407,8 +6406,8 @@ namespace {
 			auto&      window = aApplication.window();
 			const auto open   = [&](const char* aPath) { static_cast<void>(window.open_local_file(QString::fromLatin1(aPath))); };
 			// The lines selected in the window's own comparison, as a person drags them.
-			const auto select = [&](const std::uint32_t aFirst, const std::uint32_t aLast) { page->reveal(view.File->Path, aFirst, aLast); };
-			auto* const tour = page->tour();
+			const auto  select = [&](const std::uint32_t aFirst, const std::uint32_t aLast) { page->reveal(view.File->Path, aFirst, aLast); };
+			auto* const tour   = page->tour();
 			switch (*stage) {
 			case 0:
 				for (int row = 0; row < page->working()->count(); ++row) {

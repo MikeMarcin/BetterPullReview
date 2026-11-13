@@ -1,14 +1,14 @@
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
+#include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/qt/agent_feature.hpp"
-#include "bpr/qt/local_changes_panel.hpp"
-#include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/source_find_bar.hpp"
 #include "bpr/qt/source_search_panel.hpp"
@@ -24,15 +24,15 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QGuiApplication>
-#include <QMenu>
-#include <QStyleHints>
-#include <QTabWidget>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStyleHints>
 #include <QTabBar>
+#include <QTabWidget>
 #include <QThread>
 #include <QToolButton>
 #include <QTreeWidget>
@@ -123,10 +123,10 @@ namespace {
 
 	struct session
 	{
-		application::manual_executor               Lanes;
-		std::unique_ptr<qt::workbench_window>      Window;
-		std::unique_ptr<app::review_cycle_desktop> Cycles;
-		std::unique_ptr<app::local_draft_desktop>  Drafts;
+		application::manual_executor                  Lanes;
+		std::unique_ptr<qt::workbench_window>         Window;
+		std::unique_ptr<app::review_cycle_desktop>    Cycles;
+		std::unique_ptr<app::local_draft_desktop>     Drafts;
 		adapters::syntax::packaged_definition_catalog Definitions;
 
 		session(const std::filesystem::path& aProfile, const std::filesystem::path& aGit, const QString& aChosen)
@@ -221,9 +221,9 @@ try {
 	capture(window, QStringLiteral("search"));
 	const auto& matches = *search->projection().Matches;
 	const auto  hit     = std::ranges::find_if(matches, [&](const application::source_search_match& aMatch) {
-        const auto entry = std::ranges::find(search->projection().Corpus->Entries, aMatch.File, &application::source_corpus_entry::File);
-        return entry != search->projection().Corpus->Entries.end() && entry->path() == "src/endpoint.cpp";
-    });
+		const auto entry = std::ranges::find(search->projection().Corpus->Entries, aMatch.File, &application::source_corpus_entry::File);
+		return entry != search->projection().Corpus->Entries.end() && entry->path() == "src/endpoint.cpp";
+	});
 	expect(hit != matches.end(), "a match in src/endpoint.cpp");
 	search->Activate(static_cast<std::uint32_t>(std::distance(matches.begin(), hit)));
 	settle_until(s.Lanes, [&] { return window.local_comparison() && window.local_comparison()->Path == "src/endpoint.cpp" && viewer->current_result(); });

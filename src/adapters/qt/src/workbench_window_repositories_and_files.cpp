@@ -1,3 +1,4 @@
+#include "bpr/core/local_presentation.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -10,7 +11,6 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
-#include "bpr/core/local_presentation.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"

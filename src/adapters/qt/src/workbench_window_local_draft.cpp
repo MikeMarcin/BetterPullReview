@@ -22,9 +22,9 @@
 #include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
+#include <QBoxLayout>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
-#include <QBoxLayout>
 #include <QLabel>
 #include <QListView>
 #include <QMenu>
@@ -517,7 +517,7 @@ namespace bpr::qt {
 namespace bpr::qt {
 	void workbench_window::build_local_draft_slots()
 	{
-		LocalDraft = new local_draft_parts{ this };
+		LocalDraft          = new local_draft_parts{ this };
 		LocalDraft->Changed = [this] {
 			if (LocalDraftShown) {
 				update_status_text();

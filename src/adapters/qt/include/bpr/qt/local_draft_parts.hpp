@@ -1,8 +1,8 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_LOCAL_DRAFT_PARTS_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_LOCAL_DRAFT_PARTS_HPP
 
-#include "bpr/application/local_changes_host.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/application/local_changes_host.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
@@ -234,7 +234,7 @@ namespace bpr::qt {
 		std::string               EditPath;
 		std::vector<std::uint8_t> EditRead;
 		bool                      EditDirty = false;
-		code_role_colors SyntaxColors;
+		code_role_colors          SyntaxColors;
 		/// The draft last presented; another draft opens on Review.
 		std::string PresentedDraft;
 	};

@@ -81,7 +81,7 @@ namespace {
 
 	void the_nib_is_beside_commit_in_the_accent()
 	{
-		auto host = QWidget{ };
+		auto host  = QWidget{ };
 		auto panel = qt::local_changes_panel{ &host };
 		host.resize(360, 700);
 		host.show();
@@ -136,7 +136,7 @@ namespace {
 		recent.Entries.push_back({ .Destination = { .Hostname = "github.com", .Repository = { "octo-org", "tools" }, .Number = core::pull_request_number{ 7U } }, .Title = "Recently read" });
 		window.publish(recent);
 		QApplication::processEvents();
-		auto* const drafts = window.home_drafts_list();
+		auto* const drafts  = window.home_drafts_list();
 		auto* const recents = window.home_recent_list();
 		expect(drafts->count() == 1 && recents->count() == 1, "a local draft row and a Recently viewed row");
 		drafts->setFocus(Qt::OtherFocusReason);

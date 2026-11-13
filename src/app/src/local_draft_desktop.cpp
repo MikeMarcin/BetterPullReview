@@ -4,13 +4,13 @@
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/sqlite/local_draft_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
-#include "bpr/adapters/workspace/local_workspace_source.hpp"
-#include "bpr/core/diff_line_matcher.hpp"
-#include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/syntax_classification_application_host.hpp"
+#include "bpr/core/diff_line_matcher.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_search.hpp"
 #include "pr_search_controller.hpp"
@@ -69,7 +69,7 @@ namespace bpr::app {
 			SyntaxClassifier  = std::make_unique<adapters::syntax::packaged_syntax_classifier>(*SyntaxDefinitions, *SyntaxTexts);
 			SyntaxRelay       = std::make_unique<code_syntax_relay>([this](const application::token_span_publication* aSpans) { syntax_done(aSpans); });
 			SyntaxHost        = std::make_unique<application::syntax_classification_application_host>(*SyntaxClassifier, *aSyntax.Effects, aDecisions, *SyntaxRelay, core::application_session_id{ 3U },
-																								   application::appearance_host_limits{ .OutstandingRequests = 1U, .TokenSpanCacheEntries = 8U });
+																									  application::appearance_host_limits{ .OutstandingRequests = 1U, .TokenSpanCacheEntries = 8U });
 			SyntaxHost->observe_work(aSyntax.Insights);
 			Window.set_local_syntax_dispatch([this](const std::string& aPath, const std::string& aDocument) { want_syntax(aPath, aDocument); });
 		}
@@ -102,7 +102,7 @@ namespace bpr::app {
 				[this](const core::source_search_scope&, core::file_identity, const std::string& aPath, const core::source_match_location& aLocation) {
 					const auto& shown = Window.local_comparison();
 					return shown && shown->Path == aPath && shown->Context.Key.File != core::file_identity{ }
-						&& (aLocation.Side == core::diff_side::left ? shown->Context.Key.LeftBlob : shown->Context.Key.RightBlob) == std::optional{ aLocation.Blob };
+					&& (aLocation.Side == core::diff_side::left ? shown->Context.Key.LeftBlob : shown->Context.Key.RightBlob) == std::optional{ aLocation.Blob };
 				},
 				[this]() -> std::optional<core::document_tab_id> { return Window.showing_local_draft() ? std::optional{ local_search_tab } : std::nullopt; });
 		}

@@ -52,11 +52,11 @@ namespace bpr::app {
 		[[nodiscard]] auto scan_stop_token(const core::source_search_scope& aScope) -> std::stop_token override;
 
 	private:
-		store_factory                                                        Store;
-		std::mutex                                                           Mutex;
-		std::optional<core::source_search_scope>                             Scope;
-		std::string                                                          Subject;
-		std::vector<core::draft_path_change>                                 Changes;
+		store_factory                                                                  Store;
+		std::mutex                                                                     Mutex;
+		std::optional<core::source_search_scope>                                       Scope;
+		std::string                                                                    Subject;
+		std::vector<core::draft_path_change>                                           Changes;
 		std::map<core::git_blob_oid, std::shared_ptr<const std::vector<std::uint8_t>>> Bytes;
 	};
 }

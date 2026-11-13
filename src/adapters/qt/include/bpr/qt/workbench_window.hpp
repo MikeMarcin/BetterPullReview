@@ -8,10 +8,10 @@
 #include "bpr/application/profile_management_projection.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 
+#include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/document_tabs_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
-#include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/local_changes_host.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/local_presentation.hpp"
@@ -2870,13 +2870,13 @@ namespace bpr::qt {
 		/// The comparison the diff viewer shows for the draft.
 		std::shared_ptr<const application::local_presentation> LocalShown;
 		/// Which source the diff viewer shows: Local Changes' file (true) or the candidate's.
-		bool LocalChangesShown = false;
-		std::function<void(const std::string&, const std::string&)> LocalSyntaxDispatch;
+		bool                                                                   LocalChangesShown = false;
+		std::function<void(const std::string&, const std::string&)>            LocalSyntaxDispatch;
 		std::function<void(const std::string&, core::local_change_hunk, bool)> LocalChangeDispatch;
 		std::function<void(bool)>                                              LocalDraftObserver;
 		/// What a pull request open behind the draft had, restored on leaving.
 		std::optional<application::pull_request_overview_projection> OverviewBehindDraft;
-		std::vector<application::workbench_file_projection>         FilesBehindDraft;
+		std::vector<application::workbench_file_projection>          FilesBehindDraft;
 		/// The draft's own rows, by path, in the Files tree's order.
 		std::vector<std::string> LocalFiles;
 		/// The review bar's actions a draft hides, and its own slots.
@@ -3723,7 +3723,7 @@ namespace bpr::qt {
 		bool ApplyingLocalRows = false;
 		/// The file rows last published for a pull request, kept while a draft shows.
 		std::vector<application::workbench_file_projection> PublishedFiles;
-		bool                                                       QueueReady            = false;
+		bool                                                QueueReady = false;
 		/// [[BPR-0776]]. Whether the window has an account to list a queue for.
 		/// Until the session decides, the queue is shown, as its surface always was.
 		bool HomeAccount = true;

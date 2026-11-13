@@ -19,8 +19,8 @@ namespace bpr::app {
 		scope.Session       = core::application_session_id{ 1U };
 		scope.Authority     = identity.Authority;
 		scope.Comparison    = {
-			   .Left  = { .Identity = identity.Left, .Commit = aCandidate.Base, .Availability = core::anchor_availability::available },
-			   .Right = { .Identity = identity.Right, .Commit = aCandidate.Head, .Availability = core::anchor_availability::available },
+			.Left  = { .Identity = identity.Left, .Commit = aCandidate.Base, .Availability = core::anchor_availability::available },
+			.Right = { .Identity = identity.Right, .Commit = aCandidate.Head, .Availability = core::anchor_availability::available },
 		};
 		scope.CatalogueGeneration = aCandidate.Ordinal;
 		scope.Tab                 = local_search_tab;
@@ -63,7 +63,7 @@ namespace bpr::app {
 		}
 		auto corpus     = std::make_shared<application::source_corpus>();
 		corpus->Scope   = aScope;
-		auto read = std::map<core::git_blob_oid, std::shared_ptr<const std::vector<std::uint8_t>>>{ };
+		auto       read = std::map<core::git_blob_oid, std::shared_ptr<const std::vector<std::uint8_t>>>{ };
 		const auto side = [&](const std::optional<core::draft_side>& aSide, const std::string& aPath) -> std::optional<application::git_cache_changed_side> {
 			if (!aSide || aStop.stop_requested()) {
 				return std::nullopt;
@@ -87,7 +87,8 @@ namespace bpr::app {
 			if (!entry.Left && !entry.Right) {
 				continue;
 			}
-			entry.Change = change.Change == core::draft_change::added ? 'A' : change.Change == core::draft_change::deleted ? 'D' : 'M';
+			entry.Change = change.Change == core::draft_change::added ? 'A' : change.Change == core::draft_change::deleted ? 'D'
+																														   : 'M';
 			// The identity the comparison of that path carries, so a result reveals in it.
 			entry.File = core::local_presentation_file(subject, change.Path);
 			corpus->Entries.push_back(std::move(entry));

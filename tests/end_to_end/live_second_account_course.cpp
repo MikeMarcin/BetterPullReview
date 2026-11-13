@@ -109,8 +109,8 @@
 
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/review_queue.hpp"
-#include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
 #include <QAction>
 #include <QApplication>

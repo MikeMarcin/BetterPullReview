@@ -7,12 +7,12 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
-#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"
 

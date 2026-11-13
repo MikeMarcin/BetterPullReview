@@ -128,7 +128,7 @@ namespace bpr::app {
 		/// \brief The Search tab's results answer the draft's search.
 		void attach_search();
 		/// \brief The panes' code colours for the Edit view.
-		void adopt_appearance(const qt::appearance_profile& aProfile);
+		void               adopt_appearance(const qt::appearance_profile& aProfile);
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 
@@ -158,9 +158,9 @@ namespace bpr::app {
 			application::token_span_cache_key  Key;
 			std::shared_ptr<const std::string> Document;
 		};
-		void                                                                  want_syntax(const std::string& aPath, const std::string& aDocument);
-		void                                                                  submit_syntax();
-		void                                                                  syntax_done(const application::token_span_publication* aSpans);
+		void                                                                 want_syntax(const std::string& aPath, const std::string& aDocument);
+		void                                                                 submit_syntax();
+		void                                                                 syntax_done(const application::token_span_publication* aSpans);
 		const adapters::syntax::packaged_definition_catalog*                 SyntaxDefinitions = nullptr;
 		std::unique_ptr<suggestion_text_source>                              SyntaxTexts;
 		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>        SyntaxClassifier;
@@ -168,11 +168,11 @@ namespace bpr::app {
 		std::unique_ptr<application::syntax_classification_application_host> SyntaxHost;
 		std::deque<wanted_syntax>                                            SyntaxWanted;
 		std::optional<wanted_syntax>                                         SyntaxClassifying;
-		std::unique_ptr<local_draft_corpus>   SearchCorpus;
-		std::unique_ptr<worker_executor>      SearchLane;
-		std::unique_ptr<pr_search_controller> Find;
-		bool BringForward = false;
-		bool Closing      = false;
+		std::unique_ptr<local_draft_corpus>                                  SearchCorpus;
+		std::unique_ptr<worker_executor>                                     SearchLane;
+		std::unique_ptr<pr_search_controller>                                Find;
+		bool                                                                 BringForward = false;
+		bool                                                                 Closing      = false;
 	};
 }
 
