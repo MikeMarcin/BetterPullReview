@@ -200,7 +200,7 @@ The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026
 
 ## Proposed delivery
 
-[Native publication](../issues/20-ready/BPR-2029-create-the-draft-pr-from-the-pushed.md), [association and follow-up](../issues/10-backlog/BPR-2030-associate-publication-and-resume-remaining-follow-up.md)
+[Native publication](../issues/30-in-progress/BPR-2029-create-the-draft-pr-from-the-pushed.md), [association and follow-up](../issues/10-backlog/BPR-2030-associate-publication-and-resume-remaining-follow-up.md)
 and [closeout](../issues/10-backlog/BPR-2031-close-rfc-0111.md) form the fifth [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
 The [decision record](assets/v0-5-0-prerelease-targets-v1/local-drafts/DECISIONS.md#resolved-product-choices) holds the owner's
 answer on native branch behavior.
