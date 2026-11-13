@@ -121,7 +121,10 @@ namespace bpr::qt {
 			std::optional<drawer_glyph> Lead;
 			[[nodiscard]] auto          locals_width() const -> int
 			{
-				return Locals > 0U ? 6 + 12 + 3 + QFontMetrics{ font() }.horizontalAdvance(QString::number(Locals)) + 6 : 0;
+				// Compact, the pill draws its computer and count tighter.
+				const auto digits = QFontMetrics{ font() }.horizontalAdvance(QString::number(Locals));
+				return Locals == 0U ? 0 : Compact ? 4 + 11 + 2 + digits + 5
+												  : 6 + 12 + 3 + digits + 6;
 			}
 			[[nodiscard]] auto full_width() const -> int
 			{
@@ -133,7 +136,7 @@ namespace bpr::qt {
 				if (shows_words()) {
 					return { full_width(), chip_height };
 				}
-				return { (Face ? 24 : (Lead ? 22 : 4)) + (New > 0U ? 24 : 0) + locals_width() + 4, chip_height };
+				return { (Face ? 22 : (Lead ? 19 : 4)) + (New > 0U ? 24 : 0) + locals_width() + 2, chip_height };
 			}
 
 		protected:
@@ -155,19 +158,23 @@ namespace bpr::qt {
 				if (shows_words()) {
 					painter.drawText(QRect{ left, 0, width() - left - (New > 0U ? 24 : 0) - locals_width(), height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
 				} else if (Lead && !Face) {
-					drawer_icon(*Lead, palette()).paint(&painter, QRect{ 6, (height() - 14) / 2, 14, 14 });
+					drawer_icon(*Lead, palette()).paint(&painter, QRect{ 4, (height() - 14) / 2, 14, 14 });
 				}
 				// RFC-BPR-0127. The computer and how many Local comments,
 				// in a small outlined pill of their own.
 				if (Locals > 0U) {
-					const auto right = width() - (New > 0U ? 24 : 0) - 4;
-					const auto pill  = QRectF{ static_cast<qreal>(right - locals_width() + 6), 3.5, static_cast<qreal>(locals_width() - 6), height() - 7.0 };
+					const auto gap   = Compact ? 1 : 6;
+					const auto right = width() - (New > 0U ? 24 : 0) - (Compact ? 2 : 4);
+					const auto pill  = QRectF{ static_cast<qreal>(right - locals_width() + gap), 3.5, static_cast<qreal>(locals_width() - gap), height() - 7.0 };
 					painter.setPen(QPen{ Colours.Rule2, 1.0 });
 					painter.setBrush(Qt::NoBrush);
 					painter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
-					paint_conversation_glyph(painter, QRectF{ pill.left() + 4.0, (height() - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::computer, Colours.Ink2);
+					const auto glyph = Compact ? 11.0 : 12.0;
+					const auto inset = Compact ? 3.0 : 4.0;
+					const auto text  = inset + glyph + (Compact ? 2.0 : 3.0);
+					paint_conversation_glyph(painter, QRectF{ pill.left() + inset, (height() - glyph) / 2.0, glyph, glyph }, conversation_glyph::computer, Colours.Ink2);
 					painter.setPen(Colours.Ink2);
-					painter.drawText(QRectF{ pill.left() + 19.0, 0.0, pill.width() - 19.0, static_cast<qreal>(height()) }, Qt::AlignLeft | Qt::AlignVCenter, QString::number(Locals));
+					painter.drawText(QRectF{ pill.left() + text, 0.0, pill.width() - text, static_cast<qreal>(height()) }, Qt::AlignLeft | Qt::AlignVCenter, QString::number(Locals));
 				}
 				if (New > 0U) {
 					const auto badge = QRectF{ static_cast<qreal>(width() - 22), 3.0, 18.0, 16.0 };
