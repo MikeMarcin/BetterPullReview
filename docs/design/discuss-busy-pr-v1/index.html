@@ -1,0 +1,130 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Discuss tab: collapsed cards and the full-screen column</title>
+<style>
+:root{--bg:#fbfbfc;--ink:#1d1d1f;--ink2:#55585e;--faint:#8b8d93;--rule:#e2e3e6;--rule2:#cfd0d4;--codebg:#eceef1;--pick:#0a66d8}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1d20;--ink:#e7e7ea;--ink2:#a8aab0;--faint:#787a80;--rule:#36373c;--rule2:#4a4b51;--codebg:#2e2f35;--pick:#4a9bff}}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"SF Pro Text","Helvetica Neue",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:44px 28px 80px}
+h1{font-size:28px;line-height:1.2;margin:0 0 6px;letter-spacing:-.3px}
+h2{font-size:19px;margin:44px 0 10px;padding-top:18px;border-top:1px solid var(--rule)}
+h3{font-size:15px;margin:26px 0 6px}
+p,li{max-width:76ch} .lede{color:var(--ink2);margin:0}
+code{font:12.5px "SF Mono",Menlo,monospace;background:var(--codebg);border-radius:3px;padding:1px 4px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0}
+th,td{text-align:left;vertical-align:top;padding:7px 10px 7px 0;border-bottom:1px solid var(--rule)}
+th{font-weight:600;color:var(--ink2)} td.raw{color:var(--ink2);word-break:break-word} td.num{text-align:right;color:var(--faint)}
+.tok{display:inline-block;height:16px;padding:0 5px;margin:0 6px 0 0;border:1px solid var(--rule2);border-radius:4px;font-size:11px;line-height:14px;color:var(--ink2);vertical-align:1px;white-space:nowrap}
+.toks{white-space:nowrap;margin-left:2px}
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:12px 0 4px}
+figure{margin:0} figure img{width:100%;display:block;border:1px solid var(--rule2);border-radius:6px;margin-bottom:8px}
+figcaption{font-size:12px;color:var(--faint)}
+.one img{max-width:760px;width:100%;border:1px solid var(--rule2);border-radius:6px}
+.pick{color:var(--pick);font-weight:600}
+.note{color:var(--ink2);font-size:13px}
+</style></head><body><main>
+<h1>Discuss tab: collapsed cards and the full-screen column</h1>
+<p class="lede">The owner's two complaints, where each comes from in the code, and three designs. Each image is a link to the full-size PNG; light above, dark below.</p>
+
+<h2>Findings</h2>
+
+<h3>1. A collapsed card prints the comment's Markdown source as one run-on line</h3>
+<p><code>display_of()</code> (src/adapters/qt/src/conversation_cards_view.cpp:316) builds the closed note's text. It replaces every newline with a space (line 320), sets a recognised
+Conventional Comments header in semibold, and puts text between a pair of backticks in the code font. Nothing else is read: heading marks, list
+numbers, <code>**</code>, <code>&gt;</code> quote marks, table pipes, <code>![…](…)</code> image syntax and raw HTML are drawn as written. At the first code fence the
+loop meets two adjacent backticks and appends the rest of the body untouched (the <code>close == open + 1</code> branch). <code>measure_closed()</code>
+(line 2735) gives the note two lines, or one when resolved, and <code>clamp_lines()</code> (line 363) elides the last line wherever the width ends,
+mid-syntax or not. The open card is a different path, <code>markdown_body_view</code>, and is not affected.</p>
+<table><tr><th>Body</th><th>Closed card today (first 360 characters, about what two lines hold at 1280)</th><th>Proposed closed card</th><th>Source length</th></tr><tr><td>Review summary with a heading, a list, code, a quote and an image</td><td class='raw'>Thanks for taking this on. The selection survives a refresh now, but two things block it.  ## Blocking  1. set_current_thread() keeps a reply's id when no card holds it, so Current can name nothing. 2. The refresh drops Open **before** the model is rebuilt, so the open card closes and reopens.  Keeping the root is enough:  ```cpp if (const auto root =…</td><td>Thanks for taking this on. The selection survives a refresh now, but two things block it… <span class='toks'><span class='tok'>List</span><span class='tok'>C++</span><span class='tok'>Quote</span><span class='tok'>Image</span></span></td><td class='num'>802</td></tr><tr><td>CI bot comment: a heading, a table and a details block</td><td class='raw'>## Build report  | Target | Result | Time | |---|---|---| | macos-arm64 | passed | 6m 12s | | windows-x64 | passed | 9m 40s | | linux-x64 | passed | 7m 03s |  &lt;details&gt;&lt;summary&gt;Warnings (3)&lt;/summary&gt; - -Wshadow in conversation_cards_view.cpp:612 &lt;/details&gt;</td><td><b>Build report</b>  <span class='toks'><span class='tok'>Table</span><span class='tok'>Details</span></span></td><td class='num'>256</td></tr><tr><td>Reply that opens with a quote</td><td class='raw'>&gt; Both are covered by conversation_read_public_path now.  It does not cover a refresh that *removes* the thread. Worth a case?</td><td><span class='tok lead'>Quote</span>It does not cover a refresh that removes the thread. Worth a case?</td><td class='num'>126</td></tr><tr><td>Thread with a numbered list</td><td class='raw'>issue (blocking): set_current_thread() keeps a reply's id when no card holds it, so Current can name nothing.  1. Open a thread with replies and select one. 2. Refresh. 3. Press ⌘↓: nothing is current.</td><td><b>issue (blocking):</b> <code>set_current_thread()</code> keeps a reply's id when no card holds it, so <code>Current</code> can name nothing. <span class='toks'><span class='tok'>List</span></span></td><td class='num'>201</td></tr><tr><td>Thread with a suggested change</td><td class='raw'>suggestion: Take the span, not the vector.  ```suggestion auto roots_of(std::span&lt;const node&gt; aNodes) -&gt; std::vector&lt;std::string&gt; ```</td><td><b>suggestion:</b> Take the span, not the vector. <span class='toks'><span class='tok'>Suggestion</span></span></td><td class='num'>133</td></tr><tr><td>Plain one-line thread (unchanged)</td><td class='raw'>question: Who still calls set_feed() once Discuss has its own list?</td><td><b>question:</b> Who still calls <code>set_feed()</code> once Discuss has its own list?</td><td class='num'>67</td></tr></table>
+
+<h3>2. Nothing bounds the width, so a wide window multiplies the run-on</h3>
+<p><code>place_timeline()</code> (src/adapters/qt/src/conversation_cards_view.cpp:2521) sets every row to the viewport's width less 16 points; there is no maximum anywhere in the view or in
+<code>github_conversation_panel.cpp</code>. The line count stays at two, so the amount of flattened source grows with the window: roughly 360 characters
+of it at 1280, 500 at 1728 and 740 at 2560. The replies, new count and resolved check are painted from the right edge (<code>closed_meta()</code>),
+which at 2560 puts them some 2,400 points from where the words start.</p>
+<div class='shots'><figure><a href='png/today-1280x800-light.png'><img src='png/today-1280x800-light.png' alt='Today, reconstructed, 1280 by 800, light'></a><a href='png/today-1280x800-dark.png'><img src='png/today-1280x800-dark.png' alt='Today, reconstructed, 1280 by 800, dark'></a><figcaption>1280 × 800</figcaption></figure><figure><a href='png/today-1728x1117-light.png'><img src='png/today-1728x1117-light.png' alt='Today, reconstructed, 1728 by 1117, light'></a><a href='png/today-1728x1117-dark.png'><img src='png/today-1728x1117-dark.png' alt='Today, reconstructed, 1728 by 1117, dark'></a><figcaption>1728 × 1117</figcaption></figure><figure><a href='png/today-2560x1440-light.png'><img src='png/today-2560x1440-light.png' alt='Today, reconstructed, 2560 by 1440, light'></a><a href='png/today-2560x1440-dark.png'><img src='png/today-2560x1440-dark.png' alt='Today, reconstructed, 2560 by 1440, dark'></a><figcaption>2560 × 1440</figcaption></figure></div>
+<p class="note">These three are reconstructions from the painting code, with a busier scenario than any fixture holds (31 comments, 17 threads,
+6 from bots). No built executable renders Discuss at an arbitrary size, so the real render below is the calibration: today's build, offscreen,
+the busiest committed fixture with written conversations (<code>tests/fixtures/github/pull-requests/conversations-v1</code>, pull request 418, 24 threads) at the
+1280 × 900 its test fixes. <code>large-review-v1</code> holds 1,000 comments, but they are identical synthetic benchmark rows. Offscreen renders use Fusion and the light palette only.</p>
+<p class="one"><a href="current/discuss-new-comments.png"><img src="current/discuss-new-comments.png" alt="The built application's Discuss tab, rendered offscreen"></a></p>
+
+<h3>3. Each thread repeats what the rows around it already said</h3>
+<ul>
+<li>Every thread gets its own full <code>path:line</code> row (src/adapters/qt/src/conversation_cards_view.cpp:2579), so four threads on one file print the same 50-character path four times.</li>
+<li>A review is named on its bundle line and again on each note under it; the date appears only on the bundle line (<code>d MMM yyyy</code>, line 2528),
+so a comment outside a review shows no time at all.</li>
+</ul>
+
+<h3>4. The defaults are not the cause</h3>
+<ul>
+<li>Discuss has two filters, Only new and Hide resolved, both off until chosen and then remembered per profile
+(<code>src/core/include/bpr/core/view_filter_memory.hpp</code>, <code>view_filter_choice</code>). Resolved threads show dimmed on one line.</li>
+<li>Discuss lists three kinds of thing: pull request comments, review summaries and inline threads
+(<code>src/core/include/bpr/core/conversation_timeline.hpp</code>, <code>timeline_item_kind</code>). Commits, force-pushes, labels, review requests and
+checks are not read for it and never appear, so there is nothing of that sort to turn off.</li>
+<li>A bot is an ordinary author. Its report is the worst case of finding 1: a Markdown table flattened into pipes.</li>
+</ul>
+<p class="note">Defined by RFC-BPR-0028 (the Discuss modality), RFC-BPR-0085 (one card anatomy: "a flat closed note … two lines"), and cards BPR-0649,
+BPR-1290, BPR-1337 (header), BPR-1471 (right-hand column), BPR-1779 (comments, not review containers), BPR-1844 (remembered filters).</p>
+
+<h2>Options</h2>
+
+<h3><span class="pick">A. Clean rows in a column</span> (recommended)</h3>
+<p>Answers both complaints and changes nothing else. Every comment is still listed, the filters and their defaults stay as they are, and the open card is untouched.</p>
+<ul>
+<li>The closed card shows the comment's first paragraph as words, and names what is not words with one quiet token each.</li>
+<li>The list is a centred column 820 points wide at any window size; the header's chips and counts share its edges.</li>
+<li>Replies, new count and resolved check each keep a fixed slot at the column's right edge, beside the words.</li>
+<li>A file is named once, above its threads; each thread carries its line number. A review's summary row carries the verdict and date, so the separate bundle line goes. Every row has a date or a line.</li>
+</ul>
+<div class='shots'><figure><a href='png/a-clean-rows-1280x800-light.png'><img src='png/a-clean-rows-1280x800-light.png' alt='Option A, 1280 by 800, light'></a><a href='png/a-clean-rows-1280x800-dark.png'><img src='png/a-clean-rows-1280x800-dark.png' alt='Option A, 1280 by 800, dark'></a><figcaption>1280 × 800</figcaption></figure><figure><a href='png/a-clean-rows-1728x1117-light.png'><img src='png/a-clean-rows-1728x1117-light.png' alt='Option A, 1728 by 1117, light'></a><a href='png/a-clean-rows-1728x1117-dark.png'><img src='png/a-clean-rows-1728x1117-dark.png' alt='Option A, 1728 by 1117, dark'></a><figcaption>1728 × 1117</figcaption></figure><figure><a href='png/a-clean-rows-2560x1440-light.png'><img src='png/a-clean-rows-2560x1440-light.png' alt='Option A, 2560 by 1440, light'></a><a href='png/a-clean-rows-2560x1440-dark.png'><img src='png/a-clean-rows-2560x1440-dark.png' alt='Option A, 2560 by 1440, dark'></a><figcaption>2560 × 1440</figcaption></figure></div>
+<p class="note">The whole scenario takes 2.5 screens at 1280 × 800 against 3.7 today, with no row hidden.</p>
+
+<h3>B. A, with resolved threads and bot comments folded</h3>
+<p>The same rows. Runs of bot comments fold to one row, and a file's resolved threads fold into a count on its header. One Folded menu chooses what folds. This changes what a reviewer sees by default, which is why it is separate.</p>
+<div class='shots'><figure><a href='png/b-folded-1280x800-light.png'><img src='png/b-folded-1280x800-light.png' alt='Option B, 1280 by 800, light'></a><a href='png/b-folded-1280x800-dark.png'><img src='png/b-folded-1280x800-dark.png' alt='Option B, 1280 by 800, dark'></a><figcaption>1280 × 800</figcaption></figure><figure><a href='png/b-folded-1728x1117-light.png'><img src='png/b-folded-1728x1117-light.png' alt='Option B, 1728 by 1117, light'></a><a href='png/b-folded-1728x1117-dark.png'><img src='png/b-folded-1728x1117-dark.png' alt='Option B, 1728 by 1117, dark'></a><figcaption>1728 × 1117</figcaption></figure><figure><a href='png/b-folded-2560x1440-light.png'><img src='png/b-folded-2560x1440-light.png' alt='Option B, 2560 by 1440, light'></a><a href='png/b-folded-2560x1440-dark.png'><img src='png/b-folded-2560x1440-dark.png' alt='Option B, 2560 by 1440, dark'></a><figcaption>2560 × 1440</figcaption></figure></div>
+<p class="note">1.7 screens at 1280 × 800.</p>
+
+<h3>C. B, grouped by push</h3>
+<p>Each push becomes a heading with its activity summed on one line; under it only what is unresolved or new, and the rest in one fold. This is the only option that brings commits and labels into Discuss, and it needs data the application does not read today.</p>
+<div class='shots'><figure><a href='png/c-pushes-1280x800-light.png'><img src='png/c-pushes-1280x800-light.png' alt='Option C, 1280 by 800, light'></a><a href='png/c-pushes-1280x800-dark.png'><img src='png/c-pushes-1280x800-dark.png' alt='Option C, 1280 by 800, dark'></a><figcaption>1280 × 800</figcaption></figure><figure><a href='png/c-pushes-1728x1117-light.png'><img src='png/c-pushes-1728x1117-light.png' alt='Option C, 1728 by 1117, light'></a><a href='png/c-pushes-1728x1117-dark.png'><img src='png/c-pushes-1728x1117-dark.png' alt='Option C, 1728 by 1117, dark'></a><figcaption>1728 × 1117</figcaption></figure><figure><a href='png/c-pushes-2560x1440-light.png'><img src='png/c-pushes-2560x1440-light.png' alt='Option C, 2560 by 1440, light'></a><a href='png/c-pushes-2560x1440-dark.png'><img src='png/c-pushes-2560x1440-dark.png' alt='Option C, 2560 by 1440, dark'></a><figcaption>2560 × 1440</figcaption></figure></div>
+<p class="one"><a href="png/fold-menu-1280x800-light.png"><img src="png/fold-menu-1280x800-light.png" alt="The Folded menu open, light"></a></p>
+<p class="note">1.4 screens at 1280 × 800. The Folded menu, shown open on C (<a href="png/fold-menu-1280x800-dark.png">dark</a>); B's has the first two items.</p>
+
+<h2>The collapsed preview, exactly</h2>
+<ol>
+<li>Keep the Conventional Comments header in semibold, as today.</li>
+<li>Show the first paragraph of words. A body that opens with a heading shows the heading in semibold, then the first paragraph. A body that opens with a list shows its first item.</li>
+<li>Drop emphasis and link marks and keep their words. Inline code keeps the code font, as today.</li>
+<li>Name each block that is not words with one token, once per kind, in the order they occur: List, Quote, Image, Table, Details, Suggestion, or the code's language. A quote that comes before any words puts its token first, so a reply reads as a reply.</li>
+<li>Two lines, one when resolved, as today. End with an ellipsis only when words were left out, at a word boundary and never inside inline code. Tokens are never cut; the words give way to them.</li>
+</ol>
+
+<h2>Recommended defaults</h2>
+<table>
+<tr><th>What</th><th>Today</th><th>A (recommended)</th><th>B and C</th></tr>
+<tr><td>Pull request comments, review summaries</td><td>Shown, source flattened</td><td>Shown, clean preview</td><td>Shown, clean preview</td></tr>
+<tr><td>Unresolved threads</td><td>Shown, a path row each</td><td>Shown, under one file row</td><td>Shown, under one file row</td></tr>
+<tr><td>Resolved threads</td><td>Shown dimmed, one line</td><td>Shown dimmed, one line</td><td>Folded into the file row's count</td></tr>
+<tr><td>Outdated, unresolved threads</td><td>Shown, unmarked when closed</td><td>Shown, marked Outdated</td><td>Shown, marked Outdated</td></tr>
+<tr><td>Bot comments</td><td>Shown as anyone's</td><td>Shown, square avatar</td><td>Folded, one row per run</td></tr>
+<tr><td>Review with no summary and no threads</td><td>A line only for Approved or Changes requested</td><td>Unchanged</td><td>Unchanged</td></tr>
+<tr><td>Only new, Hide resolved</td><td>Off, remembered</td><td>Unchanged</td><td>Unchanged</td></tr>
+<tr><td>Commits, labels, review requests, checks</td><td>Not in Discuss</td><td>Not in Discuss</td><td>C only: summed on each push heading</td></tr>
+<tr><td>Width</td><td>The whole window</td><td>820-point column, centred</td><td>820-point column, centred</td></tr>
+</table>
+
+<h2>Recommendation</h2>
+<p>Build A. It fixes the two things the owner named, at their source: one function decides what a closed card prints, and one width decides how far a row runs.
+It keeps the card anatomy RFC-BPR-0085 settled and the filters BPR-1844 remembers. B's folding is a small step on top once A is accepted, if a busy pull
+request still reads as too long. C waits on a decision to bring activity into Discuss at all.</p>
+
+<h2>Open questions</h2>
+<ol>
+<li>Is 820 points the right column, and should it be centred or held to the left? The open card would take the same width.</li>
+<li>Should the open card be allowed wider than the column, for code blocks and suggested changes?</li>
+<li>Does a thread under a review still need its author's name and avatar? A drops them, since the review's row names the reviewer. Replies by others still show as faces.</li>
+<li>Tokens as words (List, Quote, C++) or as glyphs with tooltips?</li>
+<li>Should Review's Comments drawer and Overview's Comments use the same preview? They draw closed notes through the same function, so they would by default.</li>
+<li>For B: does folding replace Hide resolved, or stay beside it as drawn?</li>
+</ol>
+</main></body></html>
