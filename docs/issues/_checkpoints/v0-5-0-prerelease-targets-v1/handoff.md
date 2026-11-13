@@ -2278,3 +2278,45 @@ Not touched: PID 74290, host 74692/74706, PIDs 10695/39804, Tailscale
 Next: BPR-2079 (closeout; needs an installed-agent run and AC06) once the Ask
 model settles the entry. Next milestone in plan order:
 `failing-check-question`.
+
+## Local draft in the PR window: Tour panel, Overview description, publish steps (2026-11-13)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Frontend-design loaded
+first (reuse of the accepted panels; no new visual invention). Brief: the
+local draft's tour in the window's accepted Tour panel, its description in
+Overview, the publish steps in the Status tab with Create Draft PR… in the
+Submit slot, the window becoming the pull request, the tour carried; BPR-2065
+AC06. Owner words in force as before, and "I thought we chose to stick with
+the PR view and just augment it."
+
+| Commit | What |
+|---|---|
+| `e48802f49` | Core `local_tour_view` (the panel's shapes from a local draft; command translation), `edit_local_stop`, `unaccept_local_stop`, Problem/Solution threads |
+| `191b12294` | Qt: the Tour panel takes a local draft's words and has no Publish for it; Status tab page (`set_status_page`); publish steps rewritten (step list, What is sent); local Description and Tour areas deleted (`local_draft_preparation_area` removed); Rename… |
+| `5337b1eda`, `736407b8f`, `e44dba18f` | Composition routing (window_construction, window_tours guards, `restore_tour_panel`, `carry_local_tour`), desktop bridge (queued edits), Create Draft PR… opens Status, the window becomes the pull request, the carry; courses; the look |
+| `d8ea21b72` | BPR-2065 AC06: own lane for the author's Git, every push outcome reads GitHub again, courses |
+| `667175975` | Opener through `open_review_destination`; app source pin resealed |
+| `5cb4bda05`, `6887928bd` | RFC records; live course on the new surfaces and its sign-in diagnostic. Product candidate `6887928bd` |
+| `17a012773`..`89156b02d` | Ledgers (0110, 0111, 0114); BPR-2065 Done; BPR-2026 Done; BPR-2027 parked `human-review` |
+
+Main mirror: `489c64452` (BPR-2065, BPR-2026 Done; BPR-2027 parked; RFC link
+paths; RFC-BPR-0114 ledger). NEXT_ID and `_reservations` unchanged (no
+allocation). The RFC-BPR-0110/0111 ledgers stay lane-only, as before.
+
+Runs: [RFC-BPR-0110 ledger](../../../verification/RFC-BPR-0110.md#in-the-pull-request-window-2026-11-13),
+[RFC-BPR-0111 ledger](../../../verification/RFC-BPR-0111.md#in-the-pull-request-window-2026-11-13),
+[RFC-BPR-0114 ledger](../../../verification/RFC-BPR-0114.md#ac06-courses-2026-11-13).
+29 focused rows plus the two source contracts pass; documentation gate OK on
+lane and main.
+
+Live BPR-Test: blocked. The live course's sign-in stays at account-setup
+phase `idle` (two runs; nothing pushed, no pull request, branches deleted;
+rate 4,985 to 4,925). Not caused by this round's changes as far as read; it
+needs its own investigation (the window's `begin_account_setup` returned
+without starting discovery).
+
+Pending: BPR-2027 AC08 owner look (session below); BPR-2028 closes
+RFC-BPR-0110 after it; BPR-2029 depends on BPR-2028, so BPR-2029..2031 are not
+claimed (their evidence is on the ledger, the live run missing); RFC-BPR-0110
+and 0111 stay open. Left on disk: `/Users/jaeger/local-draft-tour-panel-v004.9ao22ezm`
+(a failed freeze's export; `remove` refuses it as not a frozen build).
