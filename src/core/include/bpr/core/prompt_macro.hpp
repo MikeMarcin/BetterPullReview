@@ -145,7 +145,7 @@ namespace bpr::core {
 		/// What the chip expands into and sends.
 		std::string                   Template;
 		prompt_subject                Subject    = prompt_subject::pull_request;
-		prompt_ask                   Kind       = prompt_ask::question;
+		prompt_ask                    Kind       = prompt_ask::question;
 		std::vector<prompt_condition> Conditions = { };
 
 		auto operator<=>(const prompt_macro_body&) const = default;
@@ -375,7 +375,7 @@ namespace bpr::core {
 		prompt_expansion Expansion;
 		prompt_place     Place   = prompt_place::agent_tab;
 		prompt_subject   Subject = prompt_subject::pull_request;
-		prompt_ask      Kind    = prompt_ask::question;
+		prompt_ask       Kind    = prompt_ask::question;
 
 		/// \brief Whether a click puts the expansion in the question field
 		/// rather than sending it (the template has `{cursor}`).
