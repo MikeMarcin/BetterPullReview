@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2151",
+    "BPR-2152",
+    "BPR-2153",
+    "BPR-2154",
+    "BPR-2155"
+  ],
+  "reserve_for": "queue-and-steer-v1",
+  "purpose": "RFC-BPR-0126 queue and steer: import cards",
+  "created": "2026-11-13T06:07:25.027910+00:00",
+  "base": "dd6c366f9e1cd6cc02d6f7245ac8227d9c324398"
+}
