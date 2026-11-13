@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2171"
+  ],
+  "reserve_for": "discuss-tab-redesign-v1",
+  "purpose": "Discuss tab redesign (owner option B, 2026-11-13)",
+  "created": "2026-11-13T21:40:47.850415+00:00",
+  "base": "e02c159520bdd485f26a4080d109248b3899f99c"
+}
