@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0111"
 title: "Publish a prepared draft and preserve its evidence and tour"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"absorbed 2026-11-10 from the local PR drafts pack v1, where it was RFC-DRAFT-0005","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
 depends_on: ["RFC-BPR-0108", "RFC-BPR-0110"]
 ---
@@ -201,7 +201,7 @@ The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026
 ## Proposed delivery
 
 [Native publication](../issues/60-done/BPR-2029-create-the-draft-pr-from-the-pushed.md), [association and follow-up](../issues/60-done/BPR-2030-associate-publication-and-resume-remaining-follow-up.md)
-and [closeout](../issues/30-in-progress/BPR-2031-close-rfc-0111.md) form the fifth [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
+and [closeout](../issues/60-done/BPR-2031-close-rfc-0111.md) form the fifth [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
 The [decision record](assets/v0-5-0-prerelease-targets-v1/local-drafts/DECISIONS.md#resolved-product-choices) holds the owner's
 answer on native branch behavior.
 

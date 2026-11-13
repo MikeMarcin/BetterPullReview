@@ -200,3 +200,7 @@ and `architecture_boundaries` pass.
 | AC05 | Pass: a failed follow-up leaves the pull request associated and refuses a new plan; no path writes a description after creation; carrying the tour again creates nothing |
 | AC06 | Pass: #184 is an ordinary GitHub draft with its tour carried; the draft stays resumable; GHES and fork heads are stated as unsupported |
 | AC07 | Pass: the steps and banner (owner accepted the publish steps, sessions 411e2c74 and a0cbb9dd); unaccepted stops block only the tour; the submission clause above |
+
+## Closeout (2026-11-13)
+
+[[BPR-2031]] closes the RFC: every criterion passes (AC01, AC02, AC07 by [[BPR-2029]]; AC03 to AC06 by [[BPR-2030]]). Re-run at `0f444ac0a`. RFC-BPR-0111 is Auto-Verified.
