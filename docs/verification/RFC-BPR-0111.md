@@ -115,3 +115,45 @@ Session state `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v005-
 | `publish-steps-in-status` | **Accept** (08:47:49Z), with a note | "Looks pretty good, but i cant really test it, I'm not sure if those circles are meant to be misaligned vertically with the text beside them." |
 
 Each decision carries a screenshot attachment in the session state. Not fixed in this round (coordinator, 2026-11-13: the next round fixes them). Host 6331/6340 stopped with the attended-review `stop`.
+
+## Live on BPR-Test: sign-in diagnosed, draft pull request created and the tour carried (2026-11-13)
+
+The two live failures above (`GitHub CLI discovery stopped at idle`) were the
+course's, not the application's. The account setup driver presses Connect on
+the timer tick that first shows gh's accounts and Start reviewing once
+connected, so the account step passed between two of the course's polls and
+the setup was back at `idle`, signed in. Reproduced with the read-only
+`--course reader --pull 1`; instrumented, the setup went `choosing_server`,
+`inspecting_cli`, `connecting` and ended connected. Fixed in the course
+(`0a85bc2b5`: wait for the outcome; the driver records the offered accounts).
+The application's gh sign-in is unaffected; the same defect is in `main`'s
+course since `f0dfd707c` (card BPR-2169).
+
+With sign-in working, the live course found a product defect: the window
+became the pull request but its tour draft had no stop (run on #182: "local
+draft shown no, local words no, tour draft yes, at the link's head yes,
+stops 0"). `carry_local_tour_to_pull_request` gave a destination-only stop
+Mapping `exact_original` with no `Original`, which `core::apply` refuses as
+`invalid_source`, and the composition discarded the refusal. Fixed in
+`1237dbefd`; `application_local_draft_publication_desktop_public_path` now
+applies the carry as the window does and failed (`invalid_source`) before
+the fix.
+
+| Run | Branch | Pull request | Result |
+|---|---|---|---|
+| reader, before the course fix | none | none | Sign-in "stopped at idle" (reproduced) |
+| reader, after `0a85bc2b5` | none | none | Signed in: `cli-account:MikeMarcin (active in gh)`, `cli-account:MikeMarcinTest`, `setup-connects:1`, card `MikeMarcin, GitHub.com, GitHub CLI` |
+| live-draft `r2026-11-13a` | `bpr-0111-live-1794559497` | #181, draft, head `1ff4c355db10`, author MikeMarcin | Push and creation pass; the window's tour carry timed out |
+| live-draft `r2026-11-13b` | `bpr-0111-live-1794559756` | #182, draft, head `9c2edd941299` | Same; the diagnostic named stops 0 |
+| live-draft `r2026-11-13c` (instrumented) | `bpr-0111-live-1794560068` | #183, draft | The carry reached `restore` with one stop at the head, refused |
+| live-draft `r2026-11-13d`, at `1237dbefd` | `bpr-0111-live-1794560950` | #184, draft, head `05e1ad3a970e`, base `main`, author MikeMarcin | **Pass**: Check GitHub named the push, the author's Git ran exactly it, Create Draft PR… made #184, the window became #184 and its tour draft holds the carried stop, anchored at the head and Accepted (`live-draft:carried stops=1 anchored=yes accepted=yes`) |
+
+Every pull request was closed and every branch deleted by the course's
+`--cleanup` (checked after: no open `bpr-0111-live-*` pull request or
+branch). `X-RateLimit-Remaining` 4,877 before the first run; 4,601 after the
+last check. Evidence files stay in the session's scratch space (not tracked).
+
+This is AC01's live evidence on the PR-window surfaces (Create Draft PR… to
+the Status tab, the window becoming the pull request) and the live half of
+"On creation", which had no course before. BPR-2029 is still not claimed: it
+depends on BPR-2028, which waits for RFC-BPR-0110's reworked look.

@@ -182,3 +182,15 @@ Session state `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v005-
 | `publish-steps-in-status` | **Accept** (08:47:49Z), with a note | "Looks pretty good, but i cant really test it, I'm not sure if those circles are meant to be misaligned vertically with the text beside them." |
 
 Each decision carries a screenshot attachment in the session state. Not fixed in this round (coordinator, 2026-11-13: the next round fixes them). Host 6331/6340 stopped with the attended-review `stop`.
+
+## Live: the tour carried onto a created pull request (2026-11-13)
+
+AC06's carry ("On publication") failed on the full composition path, found
+by RFC-BPR-0111's live course once its sign-in was fixed: the carried stop
+was refused by `core::apply` (`invalid_source`, a destination-only stop
+marked `exact_original`) and the window opened the pull request with an
+empty tour. Fixed in `1237dbefd`; the fixture course now applies the carry
+as the window does. Live on BPR-Test #184 (closed after): the window became
+the pull request and its tour draft held the draft's stop, anchored at the
+head and Accepted. Details in the
+[RFC-BPR-0111 ledger](RFC-BPR-0111.md#live-on-bpr-test-sign-in-diagnosed-draft-pull-request-created-and-the-tour-carried-2026-11-13).
