@@ -533,6 +533,48 @@ auto main(int argc, char** argv) -> int
 			QApplication::sendEvent(row, &pressed);
 		}
 		expect(went == std::vector{ core::review_draft_id{ 21U } }, "a row's click goes to its draft");
+		// RFC-BPR-0127 ([[BPR-2159]], AC09). Keep Local in a row's menu: the
+		// draft becomes a Local comment and the list leaves it.
+		auto kept = std::vector<core::review_draft_id>{ };
+		editor.set_outside_keep_local([&](const qt::review_submission_editor::outside_draft& aDraft) { kept.push_back(aDraft.Id); });
+		{
+			auto menuEvent = QContextMenuEvent{ QContextMenuEvent::Mouse, row->rect().center(), row->mapToGlobal(row->rect().center()) };
+			QApplication::sendEvent(row, &menuEvent);
+			auto* const menu = row->findChild<QMenu*>(QStringLiteral("wholeReviewPendingMenu"));
+			auto* const keep = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("wholeReviewOutsideKeepLocal")) : nullptr;
+			expect(keep != nullptr && keep->isEnabled() && keep->text() == QStringLiteral("Keep Local") && keep->toolTip().size() <= 60, "a not-in-review row's menu offers Keep Local");
+			if (keep != nullptr) {
+				keep->trigger();
+			}
+			if (menu != nullptr) {
+				menu->close();
+			}
+			// The menu took the window's activation; the checks after want it back.
+			QApplication::processEvents();
+			editor.activateWindow();
+			QApplication::processEvents();
+		}
+		expect(kept == std::vector{ core::review_draft_id{ 21U } }, "Keep Local names its draft");
+		// The roster answers: the draft is Local now, off the list.
+		editor.set_outside_drafts({
+			{ .Id = core::review_draft_id{ 22U }, .Path = QStringLiteral("src/engine/scale.cpp"), .Line = 4U, .StartLine = 2U, .Body = QStringLiteral("nitpick: `std::max` reads better."), .Addable = true },
+			{ .Id = core::review_draft_id{ 23U }, .Path = QStringLiteral("src/engine/scale.cpp"), .Body = QStringLiteral("Agreed."), .Why = QStringLiteral("A reply is sent to its thread on its own."), .Reply = true },
+		});
+		editor.set_local_count(1U);
+		QApplication::processEvents();
+		expect(editor.outside_heading()->text() == QStringLiteral("2 drafts aren't in this review") && editor.outside_rows().size() == 2 && editor.pending_rows().size() == 2,
+			   "the kept draft leaves the list; a Local comment is never pending or not in the review");
+		auto shownLocal = 0;
+		editor.set_local_show([&shownLocal] { ++shownLocal; });
+		expect(editor.local_line()->isVisible() && editor.local_line_label()->text() == QStringLiteral("1 local comment stays on this computer"), "one quiet line counts the Local comments");
+		editor.local_show_button()->click();
+		expect(shownLocal == 1, "its Show lists them in Threads");
+		editor.set_local_count(3U);
+		QApplication::processEvents();
+		expect(editor.local_line_label()->text() == QStringLiteral("3 local comments stay on this computer"), "the line counts them");
+		editor.set_local_count(0U);
+		QApplication::processEvents();
+		expect(!editor.local_line()->isVisible(), "absent at zero");
 
 		if (const auto draftsLook = qEnvironmentVariable("BPR_FINISH_DRAFTS_RENDER"); !draftsLook.isEmpty()) {
 			editor.resize(560, editor.sizeHint().height() + 120);

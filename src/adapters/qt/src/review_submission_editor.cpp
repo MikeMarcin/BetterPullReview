@@ -2268,7 +2268,7 @@ namespace bpr::qt {
 				open->ExtendMenu = [this, draft](QMenu& aMenu) {
 					auto* const keep = aMenu.addAction(tr("Keep Local"));
 					keep->setObjectName(QStringLiteral("wholeReviewOutsideKeepLocal"));
-					keep->setToolTip(tr("Keep it only on this computer, as a local comment. It is never sent."));
+					keep->setToolTip(tr("Only on this computer"));
 					keep->setEnabled(static_cast<bool>(OutsideKeepLocal));
 					connect(keep, &QAction::triggered, this, [this, draft] {
 						if (OutsideKeepLocal) {

@@ -474,46 +474,154 @@ namespace {
 		};
 	}
 
+	/// \brief RFC-BPR-0127 ([[BPR-2159]]). My Local comments: one on a line
+	/// of a file with drafts, and a Local reply in a thread's file.
+	[[nodiscard]] auto local_comments() -> std::vector<qt::finder_local_comment>
+	{
+		return {
+			{ .Id = 7U, .Path = QStringLiteral("src/core/thread_map.cpp"), .Line = 12U, .Body = QStringLiteral("Ask at standup whether the map can shrink.") },
+			{ .Id = 8U, .Path = QStringLiteral("src/renderer.cpp"), .Line = 0U, .Body = QStringLiteral("Check retained() after a resize."), .Reply = true },
+			// None on the pull request: Threads lists file comments.
+			{ .Id = 9U, .Body = QStringLiteral("Overall: fine once the map is sorted.") },
+		};
+	}
+
+	[[nodiscard]] auto rows_starting(const std::vector<std::string>& aRows, const std::string_view aPrefix) -> std::size_t
+	{
+		return static_cast<std::size_t>(std::ranges::count_if(aRows, [aPrefix](const std::string& aRow) { return aRow.starts_with(aPrefix); }));
+	}
+
+	void choose_state(qt::conversation_finder& aFinder, const qt::finder_state aState)
+	{
+		aFinder.drafts_button()->click();
+		QApplication::processEvents();
+		auto* const menu = aFinder.state_menu();
+		expect(menu != nullptr && menu->isVisible(), "the state filter opens its four choices");
+		if (menu == nullptr) {
+			return;
+		}
+		auto* const action = menu->findChild<QAction*>(QStringLiteral("threadFinderState%1").arg(qt::finder_state_text(aState)));
+		expect(action != nullptr && action->isCheckable(), "each choice is an exclusive menu item");
+		if (action != nullptr) {
+			action->trigger();
+		}
+		menu->close();
+		QApplication::processEvents();
+	}
+
+	/// \brief [[BPR-2092]], RFC-BPR-0127 ([[BPR-2159]], AC07). My saved
+	/// drafts and Local comments are rows in their files' groups; the state
+	/// filter's four choices show exactly their rows, with matching counts;
+	/// under Draft or Local no other filter hides one of mine; a window
+	/// starts on All; a draft row's pick names the draft; show_drafts and
+	/// show_state find a file's.
 	void test_my_drafts()
 	{
 		auto  shown  = page{ };
 		auto& finder = shown.Finder;
-		expect(!finder.drafts_button()->isEnabled(), "My drafts is off with no drafts");
+		expect(finder.state_count(qt::finder_state::draft) == 0U && finder.state_count(qt::finder_state::local) == 0U, "nothing of mine yet");
 		finder.set_saved_drafts(saved_drafts());
+		finder.set_local_comments(local_comments());
 		QApplication::processEvents();
 		const auto rows = shown_rows(finder);
-		expect(rows.size() == 15U, "every thread row and four draft rows");
+		expect(rows.size() == 17U, "every thread row, four draft rows and two Local rows");
+		expect(finder.local_comments().size() == 2U, "a Local comment on the pull request is not a Threads row");
 		const auto keys = finder.shown_keys();
 		expect(std::ranges::find(keys, std::string{ "file:src/new/file.cpp" }) != keys.end(), "a draft opens its file's group when no thread does");
-		expect(finder.drafts_button()->isEnabled() && finder.drafts_button()->accessibleName().startsWith(QStringLiteral("Only my drafts (4)")), "My drafts counts them");
-		finder.drafts_button()->click();
-		expect(finder.filters().OnlyDrafts, "My drafts filters");
+		const auto local7 = std::string{ "row:local:7/local:7" };
+		const auto at     = [&rows](const std::string& aRow) { return std::ranges::find(rows, aRow) - rows.begin(); };
+		expect(std::ranges::find(rows, local7) != rows.end() && at(local7) > at("row:draft:saved:41/draft:saved:41") && at(local7) < at("row:draft:saved:42/draft:saved:42"),
+			   "a Local comment is in its file's group, in line order");
+		expect(finder.row_text(local7).contains(QStringLiteral("your local comment, only on this computer")), "a Local row says it is Local");
+		expect(finder.row_text("row:local:8/local:8").contains(QStringLiteral("your local reply")), "a Local reply says it is one");
+		expect(finder.state_count(qt::finder_state::all) == finder.state_count(qt::finder_state::published) + 6U, "All counts every row");
+		expect(finder.drafts_button()->accessibleName() == QStringLiteral("Show: All (%1)").arg(finder.state_count(qt::finder_state::all)), "the filter names its choice and count");
+		expect(finder.drafts_button()->toolTip().size() <= 60, "its tooltip is short");
+		const auto width = finder.drafts_button()->width();
+
+		choose_state(finder, qt::finder_state::draft);
+		expect(finder.filters().State == qt::finder_state::draft, "Draft filters");
 		const auto drafts = shown_rows(finder);
-		expect(drafts.size() == 4U && std::ranges::all_of(drafts, [](const std::string& aRow) { return aRow.starts_with("row:draft:saved:"); }), "My drafts shows only my drafts");
+		expect(drafts.size() == 4U && rows_starting(drafts, "row:draft:saved:") == 4U && finder.state_count(qt::finder_state::draft) == 4U, "Draft shows only my drafts, as many as it counts");
+		expect(finder.drafts_button()->width() == width, "the filter keeps its width whatever it shows");
 		expect(finder.row_text("row:draft:saved:42/draft:saved:42").contains(QStringLiteral("not in your review")), "a draft not in the review says so");
 		expect(finder.row_text("row:draft:saved:41/draft:saved:41").contains(QStringLiteral("in your review")), "a draft in the review says so");
 		expect(finder.row_text("row:draft:saved:44/draft:saved:44").contains(QStringLiteral("draft reply")), "a reply says it is one");
 		finder.only_new_button()->click();
-		expect(shown_rows(finder).size() == 4U, "no other filter hides a draft under My drafts");
-		finder.set_filters({ });
-		expect(shown_rows(finder).size() == 15U && !finder.drafts_button()->isChecked(), "clearing shows every row again");
-		expect(finder.show_drafts(QStringLiteral("src/core/thread_map.cpp")) && finder.filters().OnlyDrafts && finder.cursor_key() == "row:draft:saved:41/draft:saved:41",
-			   "a file's drafts: My drafts on, the cursor on its first");
+		expect(shown_rows(finder).size() == 4U, "no other filter hides a draft under Draft");
+		finder.only_new_button()->click();
+
+		choose_state(finder, qt::finder_state::local);
+		const auto local = shown_rows(finder);
+		expect(finder.filters().State == qt::finder_state::local && local.size() == 2U && rows_starting(local, "row:local:") == 2U && finder.state_count(qt::finder_state::local) == 2U,
+			   "Local shows only my Local comments, as many as it counts");
+		finder.only_new_button()->click();
+		finder.hide_resolved_button()->click();
+		expect(shown_rows(finder).size() == 2U, "under Local, Only new and Hide resolved hide no Local comment");
+		finder.only_new_button()->click();
+		finder.hide_resolved_button()->click();
+		finder.search_field()->setText(QStringLiteral("standup"));
+		expect(shown_rows(finder) == std::vector<std::string>{ local7 }, "Find a thread searches Local comments");
+		finder.search_field()->clear();
+
+		choose_state(finder, qt::finder_state::published);
+		const auto published = shown_rows(finder);
+		expect(rows_starting(published, "row:draft:") == 0U && rows_starting(published, "row:local:") == 0U && published.size() == 11U, "Published shows only published threads");
+
+		choose_state(finder, qt::finder_state::all);
+		expect(shown_rows(finder).size() == 17U && !finder.drafts_button()->isChecked(), "All shows every row again");
+
+		// Make Draft and Keep Local in my own rows' menus; none on a thread.
+		auto moves = std::vector<std::pair<std::uint64_t, bool>>{ };
+		finder.set_move_dispatch([&moves](const std::uint64_t aId, const bool aKeepLocal) { moves.emplace_back(aId, aKeepLocal); });
+		const auto menuOf = [&finder](const std::string& aRow) {
+			finder.popup_row_menu(aRow, finder.row_rect(aRow).center());
+			QApplication::processEvents();
+			auto* const action = finder.move_action();
+			const auto  text   = action != nullptr ? action->text() : QString{ };
+			if (action != nullptr) {
+				action->trigger();
+			}
+			if (finder.row_menu() != nullptr) {
+				finder.row_menu()->close();
+			}
+			return text;
+		};
+		expect(menuOf(local7) == QStringLiteral("Make Draft") && moves.back() == std::pair<std::uint64_t, bool>{ 7U, false }, "a Local row's menu offers Make Draft");
+		expect(menuOf("row:draft:saved:42/draft:saved:42") == QStringLiteral("Keep Local") && moves.back() == std::pair<std::uint64_t, bool>{ 42U, true }, "a draft row's menu offers Keep Local");
+		const auto thread = std::ranges::find_if(rows, [](const std::string& aRow) { return !aRow.starts_with("row:draft:") && !aRow.starts_with("row:local:"); });
+		expect(thread != rows.end() && menuOf(*thread).isEmpty(), "a published thread offers neither");
+
+		expect(finder.show_drafts(QStringLiteral("src/core/thread_map.cpp")) && finder.filters().State == qt::finder_state::draft && finder.cursor_key() == "row:draft:saved:41/draft:saved:41",
+			   "a file's drafts: Draft on, the cursor on its first");
 		expect(finder.show_drafts(QStringLiteral("src/new")) && finder.cursor_key() == "row:draft:saved:43/draft:saved:43", "a folder's drafts: its files' first");
 		expect(!finder.show_drafts(QStringLiteral("src/none")), "no drafts there");
+		expect(finder.show_state(qt::finder_state::local, QStringLiteral("src/core")) && finder.cursor_key() == local7, "a folder's Local comments: Local on, its first");
+		expect(!finder.show_state(qt::finder_state::local, QStringLiteral("src/new")), "no Local comments there");
+		finder.set_filters({ });
 		const auto row = finder.row_rect("row:draft:saved:42/draft:saved:42");
 		press(*finder.list(), row.center());
 		key(*finder.list(), Qt::Key_Return);
 		expect(!shown.Picks.empty() && shown.Picks.back().Thread == "draft:saved:42" && shown.Destinations.back() == core::workbench_thread_destination::review,
 			   "Return on a draft row picks the draft, in Review");
+		press(*finder.list(), finder.row_rect(local7).center());
+		key(*finder.list(), Qt::Key_Return);
+		expect(shown.Picks.back().Thread == "local:7", "Return on a Local row picks it");
+
+		// Not a view to keep: a pull request opened again starts on All.
+		finder.set_filters({ .State = qt::finder_state::local });
+		finder.clear();
+		finder.adopt(forest());
+		expect(finder.filters().State == qt::finder_state::all, "the filter is not restored on reopening");
 		if (const auto directory = qEnvironmentVariable("BPR_QT_FINDER_DRAFTS_RENDER"); !directory.isEmpty()) {
 			QDir{ }.mkpath(directory);
-			finder.set_filters({ });
+			finder.set_saved_drafts(saved_drafts());
+			finder.set_local_comments(local_comments());
 			QApplication::processEvents();
 			static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-drafts-all.png"), "PNG"));
-			finder.drafts_button()->click();
+			finder.set_filters({ .State = qt::finder_state::local });
 			QApplication::processEvents();
-			static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-drafts-only.png"), "PNG"));
+			static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-local-only.png"), "PNG"));
 		}
 	}
 
@@ -1076,9 +1184,13 @@ int main(int aArgc, char** aArgv)
 		QDir{ }.mkpath(directory);
 		QApplication::processEvents();
 		static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-drafts-all.png"), "PNG"));
-		finder.set_filters({ .OnlyDrafts = true });
+		finder.set_local_comments(local_comments());
+		finder.set_filters({ .State = qt::finder_state::draft });
 		QApplication::processEvents();
 		static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-drafts-only.png"), "PNG"));
+		finder.set_filters({ .State = qt::finder_state::local });
+		QApplication::processEvents();
+		static_cast<void>(finder.grab().save(directory + QStringLiteral("/threads-local-only.png"), "PNG"));
 		std::cout << "render-bpr-2092:pass\n";
 		return EXIT_SUCCESS;
 	}

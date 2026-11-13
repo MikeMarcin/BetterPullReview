@@ -331,7 +331,7 @@ try {
 			expect(overview->projection()->Progress.FilesReadiness == readiness::ready && overview->projection()->Progress.NotesReadiness == readiness::loading,
 				   "file progress becomes ready before independent private records");
 			expect(overview->value_label(qt::overview_value::files_read)->text() == QStringLiteral("0 of 2")
-					   && overview->value_label(qt::overview_value::private_notes)->text() == QStringLiteral("Loading…"),
+					   && overview->value_label(qt::overview_value::local_comments)->text() == QStringLiteral("Loading…"),
 				   "only the completed local input presents its value");
 			if (!renderDirectory.isEmpty() && aIdentity == first) {
 				QApplication::processEvents();

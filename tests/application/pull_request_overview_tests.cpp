@@ -301,10 +301,8 @@ namespace {
 			   "an unresolved change set is unknown, never unchanged");
 		expect(row_named(projection, "README.md").Read == std::optional{ core::file_read_state::read }
 				   && row_named(projection, "Engine/Renderer/HairStrandsLighting.cpp").Read
-					   == std::optional{ core::file_read_state::seen }
-				   && row_named(projection, "Engine/Renderer/HairStrandsVoxelization.cpp").Note
-					   == std::optional<std::string>{ "Re-read the atomic move" },
-			   "receipts and notes reach their rows");
+					   == std::optional{ core::file_read_state::seen },
+			   "receipts reach their rows");
 		expect(projection.Progress.FilesRead == 2U && projection.Progress.PrivateNotes == 1U
 				   && projection.Progress.DraftedComments == std::optional<std::size_t>{ 1U },
 			   "progress counts read files, notes and drafts");
