@@ -117,6 +117,17 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 12.0, 16.0 }, QPointF{ 12.0, 19.5 });
 				aPainter.drawLine(QPointF{ 7.5, 19.5 }, QPointF{ 16.5, 19.5 });
 				break;
+			case conversation_glyph::bot:
+				aPainter.drawRoundedRect(QRectF{ 5.0, 8.5, 14.0, 11.0 }, 3.0, 3.0);
+				aPainter.drawLine(QPointF{ 12.0, 8.5 }, QPointF{ 12.0, 5.5 });
+				dot(aPainter, { 12.0, 4.5 }, 1.3);
+				dot(aPainter, { 9.5, 13.5 }, 1.4);
+				dot(aPainter, { 14.5, 13.5 }, 1.4);
+				aPainter.drawLine(QPointF{ 9.5, 16.8 }, QPointF{ 14.5, 16.8 });
+				break;
+			case conversation_glyph::file:
+				polyline(aPainter, { { 14.0, 3.5 }, { 6.5, 3.5 }, { 6.5, 20.5 }, { 17.5, 20.5 }, { 17.5, 7.0 }, { 14.0, 3.5 }, { 14.0, 7.0 }, { 17.5, 7.0 } });
+				break;
 			case conversation_glyph::edit: {
 				auto pencil = QPainterPath{ };
 				pencil.moveTo(4.0, 20.0);

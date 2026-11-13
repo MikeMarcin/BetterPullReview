@@ -4,6 +4,7 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/conversation_timeline.hpp"
+#include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
@@ -263,6 +264,8 @@ namespace bpr::qt {
 		/// [[BPR-1089]]. Exactly these conversations, by root identity: an
 		/// Overview count's drill-down. None lists every conversation.
 		std::optional<std::set<std::string>> Listed;
+		/// [[BPR-2171]]. Fold bots: runs of bot comments fold to one row.
+		bool FoldBots = false;
 
 		auto operator<=>(const discuss_filters&) const = default;
 	};
@@ -370,6 +373,10 @@ namespace bpr::qt {
 		/// view and Discuss's whole pull request), the review whose bundle the
 		/// comment was posted in; empty otherwise or outside any review.
 		std::string Bundle;
+		/// [[BPR-2171]]. In time order, beside the author: the review's
+		/// verdict on its own comment, and when it was written.
+		QString HeadVerdict;
+		QString When;
 		/// [[BPR-1779]]. Its place in that order.
 		std::size_t                    TimelineOrder = 0U;
 		QString                        DefectBadge;
@@ -601,6 +608,8 @@ namespace bpr::qt {
 			path,
 			/// The New rule above the first comment not yet read.
 			fresh,
+			/// [[BPR-2171]]. A run of bot comments folded to one row.
+			bots,
 		};
 		kind Kind = kind::bundle;
 		/// The review's identity, or the thread's for a path line.
@@ -609,8 +618,16 @@ namespace bpr::qt {
 		QString     Verdict;
 		/// When, in words; empty when GitHub gave no time.
 		QString When;
-		/// The path line's words: "src/a.cpp:42".
+		/// [[BPR-2171]]. The file row's path, named once over its threads.
 		QString Path;
+		/// [[BPR-2171]]. What a file or bots row folds: how many comments, the
+		/// fold's key (empty when it folds nothing) and whether it is open.
+		std::size_t Folded = 0U;
+		std::string Fold;
+		bool        Open = false;
+		/// [[BPR-2171]]. A bundle whose review's own comment comes first says
+		/// who, the verdict and when on that comment: its line is not drawn.
+		bool Merged = false;
 		/// Where it is drawn, in content coordinates. A bundle's `Reach` is the
 		/// foot of its last comment, which its rail runs down to.
 		QRect Rect;
@@ -786,6 +803,23 @@ namespace bpr::qt {
 		/// goes, from a thread's menu (its first post's author) and from a
 		/// post's body menu (that post's author), with the GitHub login.
 		void set_author_read_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-2171]]. Who this repository's marks say is a bot or
+		/// not; GitHub decides the rest.
+		void set_author_bots(core::author_bot_marks aMarks);
+		/// \brief [[BPR-2171]]. Mark as bot (true) or Not a bot, by login.
+		void set_author_bot_dispatch(std::function<void(const std::string&, bool)> aDispatch);
+		/// \brief [[BPR-2171]]. Discuss's centred column, in logical pixels;
+		/// none for the whole width.
+		void               set_column_width(std::optional<int> aWidth);
+		[[nodiscard]] auto column_width() const noexcept -> std::optional<int>;
+		/// \brief [[BPR-2171]]. Where the list's column is: its left edge and
+		/// width in the viewport.
+		[[nodiscard]] auto column() const -> std::pair<int, int>;
+		/// \brief [[BPR-2171]]. Opens or closes a fold by its row's key.
+		void               toggle_fold(const std::string& aFold);
+		[[nodiscard]] auto unfolded() const noexcept -> const std::set<std::string>&;
+		/// \brief [[BPR-2171]]. Comments a closed fold holds, not listed.
+		[[nodiscard]] auto folded_count() const noexcept -> std::size_t;
 		/// \brief [[BPR-1699]]. How many posts this login wrote that are
 		/// new, over every card; what the author's Mark all is offered for.
 		[[nodiscard]] auto unread_post_count_from(const QString& aLogin) const -> std::size_t;
@@ -1184,6 +1218,15 @@ namespace bpr::qt {
 		std::vector<timeline_line>      TimelineLines;
 		/// [[BPR-1779]]. The path line under the pointer, drawn in full ink.
 		std::string HoveredPath;
+		/// [[BPR-2171]].
+		core::author_bot_marks                          BotMarks;
+		std::function<void(const std::string&, bool)> AuthorBotDispatch;
+		std::optional<int>                              ColumnLimit = 820;
+		std::set<std::string>                           Unfolded;
+		std::size_t                                     FoldedComments   = 0U;
+		std::size_t                                     FoldedThreads    = 0U;
+		std::size_t                                     FoldedUnresolved = 0U;
+		[[nodiscard]] auto                              card_width_for(const thread_card& aCard) const -> std::pair<int, int>;
 		/// [[BPR-1779]]. The pull request's comments and their unread, as the
 		/// Pull request chip counts them: comments, not reviews.
 		mutable std::optional<std::pair<std::size_t, std::size_t>> PullRequestCounts;

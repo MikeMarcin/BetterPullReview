@@ -68,6 +68,10 @@ namespace bpr::qt {
 		/// RFC-BPR-0127 (owner, Q1). Local, only on this computer: a computer
 		/// (a screen on its stand). It means Local and nothing else.
 		computer,
+		/// [[BPR-2171]]. Fold bots: a robot's head, its antenna and eyes.
+		bot,
+		/// [[BPR-2171]]. Only this file: a page with its corner turned.
+		file,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

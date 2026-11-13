@@ -774,6 +774,17 @@ bpr_enable_warnings(test_view_filter_memory_store)
 bpr_add_network_isolated_test(NAME sqlite_view_filter_memory_store WINDOWS_UNCONTAINED COMMAND test_view_filter_memory_store)
 set_tests_properties(sqlite_view_filter_memory_store PROPERTIES PASS_REGULAR_EXPRESSION "view-filter-memory-store:pass" TIMEOUT 120)
 
+# [[BPR-2171]].
+bpr_add_executable(test_discuss_preferences_store discuss_preferences_store_tests.cpp)
+target_link_libraries(test_discuss_preferences_store PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+bpr_enable_hardening(test_discuss_preferences_store)
+if(WIN32)
+    target_link_libraries(test_discuss_preferences_store PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_discuss_preferences_store)
+bpr_add_network_isolated_test(NAME sqlite_discuss_preferences_store WINDOWS_UNCONTAINED COMMAND test_discuss_preferences_store)
+set_tests_properties(sqlite_discuss_preferences_store PROPERTIES PASS_REGULAR_EXPRESSION "discuss-preferences-store:pass" TIMEOUT 120)
+
 # [[BPR-1850]]. Activity notifications' own store.
 bpr_add_executable(test_pull_request_activity_store pull_request_activity_store_tests.cpp)
 target_link_libraries(test_pull_request_activity_store PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)

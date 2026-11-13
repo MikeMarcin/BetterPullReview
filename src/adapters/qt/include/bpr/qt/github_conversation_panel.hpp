@@ -254,6 +254,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1356]]. Told when the reviewer changes a Discuss scope
 		/// or filter by hand.
 		void set_discuss_filters_changed(std::function<void()> aChanged);
+		/// \brief [[BPR-2171]]. Fold bots, the quick filter beside Hide
+		/// resolved in Discuss.
+		[[nodiscard]] auto fold_bots_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-2171]]. Only this file, the one toggle that replaced
+		/// the Pull request and File choice.
+		[[nodiscard]] auto only_this_file_button() const noexcept -> QToolButton*;
 
 		/// \brief [[BPR-1781]]. What the new-comment composer asks: open the
 		/// draft, keep its text, or send it. The window decides each.
@@ -303,6 +309,10 @@ namespace bpr::qt {
 		QComboBox*           DiscussFileChoice    = nullptr;
 		QToolButton*         FilterUnread         = nullptr;
 		QToolButton*         FilterUnresolved     = nullptr;
+		/// [[BPR-2171]]. Fold bots, Discuss's quick filter, off until chosen.
+		QToolButton* FilterBots = nullptr;
+		/// [[BPR-2171]]. Lines the band's chips up with the list's column.
+		void align_band();
 		QLabel*              DiscussSummary       = nullptr;
 		/// [[BPR-1089]]. The drill-down's caption and its clear button.
 		QWidget*                             ListingRow     = nullptr;

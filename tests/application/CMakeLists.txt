@@ -1265,6 +1265,14 @@ bpr_enable_hardening(test_view_filter_memory_host)
 bpr_enable_warnings(test_view_filter_memory_host)
 bpr_add_network_isolated_test(NAME application_view_filter_memory_host COMMAND test_view_filter_memory_host)
 
+# [[BPR-2171]]. The profile's Discuss preferences: bot marks and the column.
+bpr_add_executable(test_discuss_preferences_host discuss_preferences_host_tests.cpp)
+target_link_libraries(test_discuss_preferences_host PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_discuss_preferences_host)
+bpr_enable_warnings(test_discuss_preferences_host)
+bpr_add_network_isolated_test(NAME application_discuss_preferences_host COMMAND test_discuss_preferences_host)
+set_tests_properties(application_discuss_preferences_host PROPERTIES PASS_REGULAR_EXPRESSION "DISCUSS_PREFERENCES_HOST_OK")
+
 # [[BPR-1850]]. Activity notifications' poll host over a fixture transport.
 bpr_add_executable(test_pull_request_activity_host pull_request_activity_host_tests.cpp)
 target_link_libraries(test_pull_request_activity_host PRIVATE BetterPullReview::Application)
