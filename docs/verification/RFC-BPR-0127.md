@@ -107,6 +107,46 @@ Ask agent on my own unsent comment, one recording path: my draft's menu offers A
 
 Milestone 4's look, one Accept/Reject each: `answer-one-keep-action`, `finding-card-keep-action`, `kept-local-go-to-comment`, `ask-agent-about-draft`. Session `4329741d72227f49c0ee4a0b94c4e9f1` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v005-2026-11-13/state`, cursor 12), frozen root `/Users/jaeger/comments-absorb-notes-v005.7ub_34li` from `ff4a39c437c8`, launcher check `ATTENDED_AGENT_SHOWN:findings=6`. Not waited on.
 
+## Owner verdicts, looks v003 to v005 (handed back 2026-11-13)
+
+Verified in each session's `session.json`; every decision is by the human actor.
+
+Look v003, session `acaf71a2f3272811be5bfa4f25222fb9` (handed back 22:18:34Z):
+
+| Candidate | Outcome | Saved | Note |
+|---|---|---|---|
+| `composer-in-view` | **Accept** | 20:49:15Z | none |
+| `previous-next-comment` | **Accept** | 22:18:26Z | none |
+| `local-reply-tooltip` | **Accept** | 21:07:51Z | none |
+| `post-rules` | **Accept** | 22:17:59Z | none |
+| `reply-composer-layout` | **Accept** | 22:18:32Z | none |
+| `make-draft-reason` | **Reject** | 22:16:46Z | verbatim below |
+| `closed-card-line-numbers` | **Accept** | 20:46:40Z | none |
+| `no-pull-request-label` | **Accept** | 22:17:38Z | none |
+| `compact-edge-chips` | **Accept** | 20:48:46Z | none |
+
+> This is way too long taking too much space, just the tooltip is enough if it cant post but i still don't understand the rules myself because I didnt see any other comments on there there were drafts and i deleted the other notes on that line and it still couldnt post... unless this is just a fixture behavior.
+
+Look v004, session `8ce7e45524c31cb13950f64babfa0ddf` (handed back 22:19:52Z): `finish-review-keep-local` **Reject** (22:19:51Z, one screenshot attached: a whole-file Local reply card whose "Make draft on line 12" button is cut off), note verbatim:
+
+> I dunno what im looking for but this is getting cut off.
+
+`threads-state-filter`, `threads-row-move`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state` and `finish-review-local-line`: no decision.
+
+Look v005, session `4329741d72227f49c0ee4a0b94c4e9f1`: `answer-one-keep-action` **Reject** (22:21:08Z, one screenshot attached: the draft the answer made, open in its composer, with the suggestion chip and the agent glyph drawn over the body text), note verbatim:
+
+> There's a lot of overlap on the UX here.
+
+`finding-card-keep-action`, `kept-local-go-to-comment`, `ask-agent-about-draft`: no decision.
+
+With the screenshot of the composer's foot (the computer and pencil segmented toggle), the owner also said:
+
+> i dunno why we have 2 differnt UX for the local vs draft. This one seems much simpler and subtler than the big ass make draft button and I don't know what it's not sufficient.
+
+> can we do pencil with slash when you're not allowed to make a draft
+
+Hosts 98149/98159, 42869/42879 and 82478/82486 were stopped with the attended-review `stop`. No process ran from the roots, and `/Users/jaeger/comments-absorb-notes-v003.as90oxpw`, `-v004.r230gldo` and `-v005.7ub_34li` were removed with `freeze_attended_build.py remove`. The rejects open a rework round (below).
+
 ## Closeout state
 
 Every criterion has direct engineering evidence ([[BPR-2162]] checklist). RFC-BPR-0127 is **not closed**. Its closeout waits on the verdicts of looks v003 (`acaf71a2…`), v004 (`8ce7e455…`) and v005 (`4329741d…`).
