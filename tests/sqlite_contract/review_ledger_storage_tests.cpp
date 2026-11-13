@@ -6,6 +6,7 @@
 
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
+#include "bpr/adapters/sqlite/testing.hpp"
 #include "review_ledger_legacy_fixture.hpp"
 #include "scratch_root.hpp"
 
@@ -1970,20 +1971,21 @@ namespace {
 		const auto maximumNote = note(
 			2U,
 			113U,
-			std::string(core::maximum_note_bytes, 'x'));
+			std::string(core::maximum_comment_body_bytes, 'x'));
 		const auto oversizedNote = note(
 			3U,
 			114U,
-			std::string(core::maximum_note_bytes + 1U, 'x'));
+			std::string(core::maximum_comment_body_bytes + 1U, 'x'));
+		// RFC-BPR-0127: a Local comment has a draft's body bound, 64 KiB.
 		expect(
 			opened->store_local_comment(*scope, maximumNote).has_value(),
-			"an exact 16,384-byte private note is accepted");
+			"an exact 65,536-byte Local comment is accepted");
 		const auto oversized = opened->store_local_comment(*scope, oversizedNote);
 		expect(
 			!oversized
 				&& oversized.error().Reason
 					== application::ledger_store_failure::invalid_record,
-			"an exact 16,385-byte private note is refused");
+			"an exact 65,537-byte Local comment is refused");
 		expect(
 			opened->erase_local_comment(*scope, maximumNote.Id, maximumNote.Revision).has_value(),
 			"the boundary note is removed before filling the exact scope cap");
@@ -2638,6 +2640,93 @@ namespace {
 			   "a missing allocator cannot erase the evidence needed to prevent revision reuse");
 	}
 
+	/// \brief RFC-BPR-0127 AC11 ([[BPR-2157]]). A schema 11 ledger the shipped
+	/// code wrote (`tests/fixtures/review-ledger/v11-notes.sqlite`), holding
+	/// notes from before and after the path and line tables, opens with one
+	/// Local comment for each: the same identity, so a note-era Go to note
+	/// still arrives; the same text bytes, anchor facts and order; the note
+	/// threads gone. Interrupted at any statement, the migration leaves the
+	/// schema 11 ledger as it was, and run again gives the same result.
+	void test_a_schema_11_ledger_turns_every_note_into_one_local_comment()
+	{
+		const scratch_directory directory;
+		const auto              source   = std::filesystem::path{ BPR_REVIEW_LEDGER_FIXTURES } / "v11-notes.sqlite";
+		const auto              original = read_binary(source);
+		expect(!original.empty(), "the shipped schema 11 ledger is present");
+		auto sha1 = std::array<std::uint8_t, 32U>{ };
+		for (auto index = std::size_t{ 0U }; index < 20U; ++index) {
+			sha1[index] = static_cast<std::uint8_t>(0x40U + index);
+		}
+		const auto blob     = core::git_blob_oid{ core::git_hash_algorithm::sha1, sha1 };
+		const auto revision = [](auto aRecord, const std::uint64_t aRevision) {
+			aRecord.Revision = application::local_comment_revision{ aRevision };
+			return aRecord;
+		};
+		auto first                = revision(note(1U, 10U, "schema 6 whole-file note, no path"), 1U);
+		auto pr                   = application::local_comment_record{ .Id = application::local_comment_id{ 2U }, .Body = "schema 6 note on the pull request", .Revision = application::local_comment_revision{ 2U } };
+		auto path                 = revision(note(3U, 20U, "na\xC3\xAFve \xE2\x80\x94 \xE2\x9C\x93 a file note with its path  \n second line\t"), 3U);
+		path.FilePath             = "src/engine/renderer.cpp";
+		auto line                 = revision(note(4U, 30U, "the budget resets here, edited twice"), 6U);
+		line.FilePath             = "src/net/retry.cpp";
+		line.Attachment->Line     = core::note_line_anchor{ .Side = core::diff_side::right, .Line = 41U, .Blob = blob };
+		auto base                 = revision(note(5U, 40U, "base side, no blob kept"), 7U);
+		base.FilePath             = "src/net/retry.cpp";
+		base.Attachment->Line     = core::note_line_anchor{ .Side = core::diff_side::left, .Line = 0U, .Blob = std::nullopt };
+		auto large                = revision(note(7U, 60U, std::string(16'384U, 'x')), 9U);
+		large.FilePath            = "docs/large.md";
+		auto other                = revision(note(1U, 70U, "the other review's note one"), 1U);
+		other.FilePath            = "README.md";
+		other.Attachment->Line    = core::note_line_anchor{ .Side = core::diff_side::right, .Line = 0U, .Blob = blob };
+		const auto expectedFirst  = std::vector{ first, pr, path, line, base, large };
+		const auto expectedSecond = std::vector{ other };
+
+		const auto migrated = [&](const std::filesystem::path& aPath, const std::string& aWhen) {
+			auto database = review_ledger_database::open(aPath, { });
+			expect(database.has_value(), "the schema 11 ledger migrates, " + aWhen);
+			const auto version = scalar_integer(database->handle(), "PRAGMA user_version");
+			const auto tables  = scalar_integer(database->handle(), "SELECT COUNT(*) FROM sqlite_schema WHERE name IN ('private_legacy_note','private_note_path','private_note_line')");
+			const auto threads = scalar_integer(database->handle(), "SELECT COUNT(*) FROM private_thread");
+			expect(version && *version == review_ledger_schema_version && tables && *tables == 0 && threads && *threads == 0, "schema 12, no note tables and no note threads, " + aWhen);
+			const auto firstReview  = database->load_private(1);
+			const auto secondReview = database->load_private(2);
+			expect(firstReview && firstReview->LocalComments == expectedFirst, "every note of the first review is one Local comment: identity, revision, bytes, anchor and order, " + aWhen);
+			expect(secondReview && secondReview->LocalComments == expectedSecond, "the other review keeps its own, " + aWhen);
+			return std::move(*database);
+		};
+		const auto reference = directory.file("reference.db");
+		std::filesystem::copy_file(source, reference);
+		{
+			auto database = migrated(reference, "uninterrupted");
+			// A note-era identity still finds its comment, and the revision
+			// counter goes on from the notes' high water.
+			auto edited       = expectedFirst[3];
+			edited.Body       = "edited after the migration";
+			const auto stored = database.store_local_comment(1, edited, edited.Revision);
+			expect(stored && stored->Id == application::local_comment_id{ 4U } && stored->Revision.value() == 10U, "a note identity edits its comment, past every note revision");
+		}
+		auto interrupted = std::size_t{ 0U };
+		for (auto after = std::size_t{ 0U }; after < 64U; ++after) {
+			const auto copy = directory.file("interrupted-" + std::to_string(after) + ".db");
+			std::filesystem::copy_file(source, copy);
+			adapters::sqlite::detail::testing::interrupt_local_comment_migration_after(after);
+			if (auto opened = review_ledger_database::open(copy, { }); opened.has_value()) {
+				break;
+			}
+			++interrupted;
+			{
+				::sqlite3* raw = nullptr;
+				expect(::sqlite3_open(copy.string().c_str(), &raw) == SQLITE_OK, "the interrupted ledger opens for inspection");
+				const auto version = scalar_integer(raw, "PRAGMA user_version");
+				const auto notes   = scalar_integer(raw, "SELECT COUNT(*) FROM private_legacy_note");
+				const auto comment = scalar_integer(raw, "SELECT COUNT(*) FROM sqlite_schema WHERE name='private_local_comment'");
+				(void)::sqlite3_close(raw);
+				expect(version && *version == 11 && notes && *notes == 7 && comment && *comment == 0, "an interruption after " + std::to_string(after) + " statements leaves schema 11 as it was");
+			}
+			static_cast<void>(migrated(copy, "after an interruption at statement " + std::to_string(after)));
+		}
+		expect(interrupted >= 10U, "the migration was interrupted at each of its statements: " + std::to_string(interrupted));
+	}
+
 	/// \brief [[BPR-1210]]. A file note keeps its path from schema 8; notes from
 	/// schema 7 migrate intact with none, and say so rather than guess.
 	void test_note_paths_migrate_and_round_trip()
@@ -2667,8 +2756,8 @@ namespace {
 			auto migrated = review_ledger_database::open(path, { });
 			expect(migrated.has_value(), "a schema 7 ledger migrates");
 			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
-			const auto table   = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM private_note_path");
-			expect(version && *version == review_ledger_schema_version && table && *table == 0, "migration preserves schema8 note paths under the current schema");
+			const auto table   = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM private_local_comment WHERE path IS NOT NULL");
+			expect(version && *version == review_ledger_schema_version && table && *table == 0, "schema 7 notes migrate to the current schema with no path");
 			const auto state = migrated->load_private(scope);
 			expect(state && state->LocalComments == std::vector{ old, whole } && !state->LocalComments.front().FilePath,
 				   "schema 7 notes keep text, revision and attachment, with no path");
@@ -2700,7 +2789,7 @@ namespace {
 					   && found->Body == "edited later",
 				   "the path survives restart");
 			expect(reopened->erase_local_comment(scope, found->Id, found->Revision).has_value(), "the file note is deleted");
-			const auto rows = scalar_integer(reopened->handle(), "SELECT COUNT(*) FROM private_note_path");
+			const auto rows = scalar_integer(reopened->handle(), "SELECT COUNT(*) FROM private_local_comment WHERE path IS NOT NULL");
 			expect(rows && *rows == 0, "deleting a note deletes its path");
 		}
 	}
@@ -2740,8 +2829,8 @@ namespace {
 			auto migrated = review_ledger_database::open(path, { });
 			expect(migrated.has_value(), "a schema 9 ledger migrates");
 			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
-			const auto rows    = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM private_note_line");
-			expect(version && *version == review_ledger_schema_version && rows && *rows == 0, "schema 9 migrates to the current schema with an empty note line table");
+			const auto rows    = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM private_local_comment WHERE line IS NOT NULL");
+			expect(version && *version == review_ledger_schema_version && rows && *rows == 0, "schema 9 migrates to the current schema with no comment on a line");
 			const auto state = migrated->load_private(scope);
 			expect(state && state->LocalComments == std::vector{ old } && !state->LocalComments.front().Attachment->Line, "a schema 9 note keeps text, revision, attachment and path, with no line");
 
@@ -2784,7 +2873,7 @@ namespace {
 			shown.Key.RightBlob = core::git_blob_oid{ core::git_hash_algorithm::sha256, opaque<core::file_comparison_digest>(5U).bytes() };
 			expect(core::place_note(anchor, &shown).Reason == core::note_outdated_reason::content_changed, "a new head that changed the file outdates the note");
 			expect(reopened->erase_local_comment(scope, found->Id, found->Revision).has_value(), "the line note is deleted");
-			const auto rows = scalar_integer(reopened->handle(), "SELECT COUNT(*) FROM private_note_line");
+			const auto rows = scalar_integer(reopened->handle(), "SELECT COUNT(*) FROM private_local_comment WHERE line IS NOT NULL");
 			expect(rows && *rows == 1, "deleting a note deletes its line, and only its line");
 		}
 	}
@@ -2819,7 +2908,7 @@ namespace {
 			expect(migrated.has_value(), "a schema 10 ledger migrates");
 			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
 			const auto rows    = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM generated_mark");
-			expect(version && *version == review_ledger_schema_version && *version == 11 && rows && *rows == 0, "schema 10 migrates to 11 with an empty generated mark table");
+			expect(version && *version == review_ledger_schema_version && rows && *rows == 0, "schema 10 migrates to the current schema with an empty generated mark table");
 			const auto empty = migrated->load_private(scope);
 			expect(empty && empty->GeneratedMarks.Marks.empty(), "a migrated review has no marks");
 
@@ -2965,6 +3054,7 @@ try {
 	test_simultaneous_note_edits_have_one_winner();
 	test_version_five_note_migration_is_atomic_and_repeatable();
 	test_note_paths_migrate_and_round_trip();
+	test_a_schema_11_ledger_turns_every_note_into_one_local_comment();
 	test_note_lines_migrate_and_round_trip();
 	test_two_connections_compare_note_revisions_without_aba();
 	test_a_directory_in_the_ledgers_place_is_a_typed_refusal();

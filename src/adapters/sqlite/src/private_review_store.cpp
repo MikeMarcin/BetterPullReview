@@ -636,6 +636,49 @@ namespace bpr::adapters::sqlite::detail {
 		std::atomic<std::size_t> InterruptLocalCommentMigration{ 0U };
 	}
 	void testing::interrupt_local_comment_migration_after(const std::size_t aStatements) noexcept { InterruptLocalCommentMigration.store(aStatements + 1U, std::memory_order_relaxed); }
+	auto testing::restore_schema_11_notes(sqlite3* const aHandle) noexcept -> bool
+	{
+		try {
+			for (const auto* const sql : { "BEGIN IMMEDIATE", "CREATE TABLE private_legacy_note(scope_id INTEGER NOT NULL,note_id INTEGER NOT NULL CHECK(note_id>0),thread_id INTEGER NOT NULL,revision INTEGER NOT NULL CHECK(revision>0),PRIMARY KEY(scope_id,note_id),UNIQUE(scope_id,thread_id),FOREIGN KEY(scope_id,thread_id) REFERENCES private_thread(scope_id,id)) STRICT" }) {
+				require(execute(aHandle, sql).has_value(), error::integrity);
+			}
+			require(execute(aHandle, PrivateNotePathTable.Sql).has_value() && execute(aHandle, PrivateNoteLineTable.Sql).has_value(), error::integrity);
+			query scopes{ aHandle, "SELECT DISTINCT scope_id FROM private_local_comment ORDER BY scope_id" };
+			while (scopes.row()) {
+				private_database db{ aHandle, static_cast<std::int64_t>(scopes.integer(0)) };
+				db.ensure_state();
+				auto s        = db.read_state();
+				auto comments = private_load_local_comments(aHandle, db.Scope);
+				require(comments.has_value(), error::integrity);
+				for (const auto& comment : *comments) {
+					const auto kept   = add_note(db, s, comment, true);
+					auto       thread = db.sql("SELECT thread_id FROM private_legacy_note WHERE scope_id=?1 AND note_id=?2", db.Scope, kept.Id.value());
+					require(thread.row(), error::integrity);
+					const auto id = thread.integer(0);
+					thread.done();
+					if (comment.FilePath) {
+						db.write("INSERT INTO private_note_path(scope_id,thread_id,path) VALUES(?1,?2,?3)", db.Scope, id, *comment.FilePath);
+					}
+					if (comment.Attachment && comment.Attachment->Line) {
+						const auto& line = *comment.Attachment->Line;
+						auto        blob = std::optional<std::vector<std::uint8_t>>{ };
+						if (line.Blob) {
+							blob = std::vector<std::uint8_t>(line.Blob->bytes().begin(), line.Blob->bytes().begin() + static_cast<std::ptrdiff_t>(line.Blob->byte_count()));
+						}
+						db.write("INSERT INTO private_note_line(scope_id,thread_id,side,line,blob) VALUES(?1,?2,?3,?4,?5)", db.Scope, id, line.Side == core::diff_side::left ? 0 : 1, static_cast<std::int64_t>(line.Line), blob);
+					}
+				}
+				db.save_state(s);
+			}
+			for (const auto* const sql : { "DROP TABLE private_local_comment", "UPDATE ledger_meta SET schema_format=11", "PRAGMA user_version=11", "COMMIT" }) {
+				require(execute(aHandle, sql).has_value(), error::integrity);
+			}
+			return true;
+		} catch (...) {
+			(void)execute(aHandle, "ROLLBACK");
+			return false;
+		}
+	}
 #endif
 	auto migrate_private_local_comments(sqlite3* aHandle) -> std::expected<void, failure>
 	{

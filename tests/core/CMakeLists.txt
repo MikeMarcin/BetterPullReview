@@ -1850,3 +1850,11 @@ target_link_libraries(test_better_pull_review_suggest_change_core_tests PRIVATE 
 bpr_enable_hardening(test_better_pull_review_suggest_change_core_tests)
 bpr_enable_warnings(test_better_pull_review_suggest_change_core_tests)
 bpr_add_network_isolated_test(NAME core_suggest_change COMMAND test_better_pull_review_suggest_change_core_tests)
+
+# RFC-BPR-0127 ([[BPR-2157]]). Local, Draft and Published; Keep local and Make draft.
+bpr_add_executable(test_local_comment local_comment_tests.cpp)
+target_link_libraries(test_local_comment PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_local_comment)
+bpr_enable_warnings(test_local_comment)
+bpr_add_network_isolated_test(NAME core_local_comment COMMAND test_local_comment)
+set_tests_properties(core_local_comment PROPERTIES PASS_REGULAR_EXPRESSION "LOCAL_COMMENT_OK")

@@ -9,6 +9,7 @@
 	#include <cstdint>
 	#include <filesystem>
 
+struct sqlite3;
 namespace bpr::adapters::sqlite::detail::testing {
 	using remembered_connection_write_checkpoint = void (*)();
 	/// \brief Observes the complete uncommitted connection snapshot; nullptr disarms.
@@ -31,6 +32,13 @@ namespace bpr::adapters::sqlite::detail::testing {
 	// migration transaction then rolls back, as a crash there would leave it.
 	/// \brief Interrupts the next note-to-comment migration after N statements.
 	void interrupt_local_comment_migration_after(std::size_t aStatements) noexcept;
+
+	// RFC-BPR-0127. Test data construction, never a downgrade path: turns a
+	// schema 12 ledger's Local comments back into schema 11 note threads
+	// (mapping, path and line tables) and stamps schema 11, so the older
+	// fixtures can be built from a current ledger. False on any failure.
+	/// \brief Rebuilds the schema 11 note shape from a current ledger.
+	[[nodiscard]] auto restore_schema_11_notes(sqlite3* aDatabase) noexcept -> bool;
 
 	enum class epoch_journal_stage : std::uint8_t {
 		receiving,

@@ -1543,7 +1543,7 @@ namespace {
 				competitor.Revision = { };
 			}
 			if (kind == 2) {
-				competitor.Body = std::string(core::maximum_note_bytes + 1U, 'x');
+				competitor.Body = std::string(core::maximum_comment_body_bytes + 1U, 'x');
 			}
 			store.HostileCurrent = competitor;
 			const auto refused   = rigged.persist(candidate);

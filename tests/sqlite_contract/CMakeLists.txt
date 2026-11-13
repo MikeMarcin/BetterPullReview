@@ -137,6 +137,7 @@ target_link_libraries(
 target_compile_definitions(
     test_better_pull_review_sqlite_review_ledger_tests
     PRIVATE BPR_SQLITE_TESTING=1
+    "BPR_REVIEW_LEDGER_FIXTURES=\"${PROJECT_SOURCE_DIR}/tests/fixtures/review-ledger\""
 )
 if(WIN32)
     # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
@@ -645,6 +646,7 @@ bpr_add_network_isolated_test(
 
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_private_review_storage private_review_storage_tests.cpp)
+target_compile_definitions(test_private_review_storage PRIVATE BPR_SQLITE_TESTING=1)
 target_link_libraries(test_private_review_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3 BetterPullReview::Application)
 if(WIN32)
     target_link_libraries(test_private_review_storage PRIVATE advapi32 BetterPullReview::Platform)

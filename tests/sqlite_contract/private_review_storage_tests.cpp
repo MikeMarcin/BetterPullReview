@@ -102,11 +102,12 @@ namespace {
 		auto ledger = make_review_ledger_store(config.Ledger);
 		expect(ledger.has_value(), "legacy facade shares authority");
 		auto note = (*ledger)->store_local_comment({ .Id = local_comment_id{ 1 }, .Body = "facade" });
-		expect(note.has_value(), "facade adds one thread");
+		expect(note.has_value(), "the facade stores one Local comment");
+		// RFC-BPR-0127: a Local comment is its own record, not a private thread.
 		auto all = store->list_threads();
-		expect(all && all->Threads.size() == 2, "legacy and new threads share paged catalog");
+		expect(all && all->Threads.size() == 1, "a Local comment adds no thread to the catalog");
 		auto privateNotes = (*ledger)->load_private();
-		expect(privateNotes && privateNotes->LocalComments.size() == 1, "old aggregate loads mapped notes only");
+		expect(privateNotes && privateNotes->LocalComments.size() == 1, "the aggregate loads the Local comment");
 		store.reset();
 		peer.reset();
 		ledger->reset();
@@ -121,6 +122,8 @@ namespace {
 		auto frontier = store->frontier();
 		expect(frontier && frontier->NextIdentity > original.Revision.Identity.Order.value(), "purge keeps monotonic high water");
 		expect(store->list_threads()->Threads.empty(), "purged catalog empty");
+		ledger = make_review_ledger_store(config.Ledger);
+		expect(ledger && (*ledger)->load_private() && (*ledger)->load_private()->LocalComments.empty(), "purge removes the Local comments too");
 	}
 	void fixture_sql(const std::filesystem::path& aPath, std::string_view aSql)
 	{
@@ -187,23 +190,27 @@ namespace {
 		write.Revisions            = { proposal->Revision };
 		return write;
 	}
+	/// RFC-BPR-0127. A Local comment is its own record: it is no private
+	/// thread, the thread catalog does not see it, and only its own exact
+	/// revision edits it.
 	void facade_thread_coherence()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "private-facade" };
 		auto                                 config   = configuration(scratch.path());
 		auto                                 store    = open(config);
 		auto                                 ledger   = make_review_ledger_store(config.Ledger);
-		auto                                 original = *(*ledger)->store_local_comment({ .Id = local_comment_id{ 1 }, .Body = "first note" });
-		auto                                 header   = store->list_threads()->Threads.front();
-		auto                                 expanded = append(*store, header, "second turn");
-		auto                                 stale    = (*ledger)->store_local_comment(original, original.Revision);
-		expect(!stale && stale.error().Reason == ledger_store_failure::conflict, "canonical thread update invalidates old facade CAS");
-		auto current = (*ledger)->load_private()->LocalComments.front();
-		expect(current.Body == "first note" && current.Revision != original.Revision, "facade projects only original note turn after expansion");
+		auto                                 original = (*ledger)->store_local_comment({ .Id = local_comment_id{ 1 }, .Body = "first note" });
+		expect(original.has_value(), "a Local comment is stored");
+		auto threads = store->list_threads();
+		expect(threads && threads->Threads.empty(), "a Local comment is no private thread");
+		auto current = *original;
 		current.Body = "edited first note";
-		expect((*ledger)->store_local_comment(current, current.Revision).has_value(), "facade edits original turn after expansion");
-		auto page = store->list_revisions(header.Id);
-		expect(page && page->Revisions.size() == 3 && page->Revisions[1].Revision == expanded.Revision && page->Revisions.back().Revision.Body == "edited first note", "facade preserves all expanded transcript bodies");
+		auto edited  = (*ledger)->store_local_comment(current, original->Revision);
+		expect(edited && edited->Revision != original->Revision, "its own revision edits it");
+		auto stale = (*ledger)->store_local_comment(*original, original->Revision);
+		expect(!stale && stale.error().Reason == ledger_store_failure::conflict && stale.error().Current == *edited, "an old revision is refused with the current comment");
+		auto loaded = (*ledger)->load_private();
+		expect(loaded && loaded->LocalComments == std::vector{ *edited }, "the store answers the edited comment");
 	}
 	void body_pages_and_cursors()
 	{
@@ -420,24 +427,24 @@ namespace {
 					expect(detail::execute(raw->handle(), "ALTER TABLE local_note DROP COLUMN revision").has_value() && detail::execute(raw->handle(), "DROP TABLE local_note_sequence").has_value() && detail::execute(raw->handle(), "UPDATE ledger_meta SET schema_format=5").has_value() && detail::execute(raw->handle(), "PRAGMA user_version=5").has_value(), "v5 exact source shape");
 				}
 			}
+			// RFC-BPR-0127: through schema 7 to 12, the note is one Local
+			// comment with its exact bytes, identity and attachment, and the
+			// note's own thread, which was the note, is gone.
 			auto store   = open(config);
 			auto catalog = store->list_threads();
-			expect(catalog && catalog->Threads.size() == 1, "legacy migrates to one thread");
-			auto page = store->list_revisions(catalog->Threads.front().Id);
-			expect(page && page->Revisions.size() == 1 && page->Revisions[0].Revision.Body == text && page->Revisions[0].Revision.Identity.Digest == private_digest(text) && std::holds_alternative<private_legacy_unknown_actor>(page->Revisions[0].Revision.Actor), "v5/v6 preserves bytes digest and unknown actor exactly");
-			auto legacy = std::get<legacy_retained_subject>(catalog->Threads.front().Binding);
-			expect(legacy.Attachment == private_file_subject{ note.Attachment->File, note.Attachment->Comparison }, "exact legacy attachment preserved without invented binding");
+			expect(catalog && catalog->Threads.empty(), "the migrated note leaves no private thread behind");
 			ledger        = make_review_ledger_store(config.Ledger);
 			auto restored = (*ledger)->load_private()->LocalComments.front();
-			expect(restored.Id == note.Id && restored.Revision == stored->Revision, "legacy ID and CAS token mapped");
+			expect(restored.Id == note.Id && restored.Revision == stored->Revision && restored.Body == text && restored.Attachment == note.Attachment, "legacy identity, CAS token, exact bytes and attachment carried");
 			restored.Body = "reviewer edit";
 			auto edited   = (*ledger)->store_local_comment(restored, restored.Revision);
 			expect(edited && edited->Revision.value() == (version == 6 ? 100U : 2U), "v6 high water preserved independently of retained maxima");
-			page = store->list_revisions(catalog->Threads.front().Id);
-			expect(page && page->Revisions.size() == 2 && page->Revisions[0].Revision.Body == text && std::holds_alternative<private_reviewer_actor>(page->Revisions[1].Revision.Actor), "facade edit appends reviewer successor and retains unknown original");
+			ledger->reset();
 			auto raw   = detail::review_ledger_database::open(ledger_path(config), { });
 			auto count = detail::scalar_integer(raw->handle(), "SELECT COUNT(*) FROM sqlite_schema WHERE name IN ('local_note','local_note_sequence')");
 			expect(count && *count == 0, "canonical v7 has no competing legacy note authority");
+			auto legacy = detail::scalar_integer(raw->handle(), "SELECT COUNT(*) FROM sqlite_schema WHERE name IN ('private_legacy_note','private_note_path','private_note_line')");
+			expect(legacy && *legacy == 0, "schema 12 has no note tables beside the Local comments");
 		}
 	}
 
@@ -762,7 +769,8 @@ namespace {
 		expect(*detail::scalar_integer(raw, "PRAGMA user_version") == 6 && *detail::scalar_integer(raw, "SELECT COUNT(*) FROM local_note") == 1, "kill rolls back complete schema and legacy migration");
 		sqlite3_close(raw);
 		auto recovered = open(config);
-		expect(recovered->list_threads()->Threads.size() == 1, "migration retries atomically after kill");
+		auto comments  = make_review_ledger_store(config.Ledger);
+		expect(recovered->list_threads()->Threads.empty() && comments && (*comments)->load_private()->LocalComments.size() == 1U && (*comments)->load_private()->LocalComments.front().Body == "migration exact", "migration retries atomically after kill: one Local comment, no note thread");
 	}
 #endif
 	void database_loss()
