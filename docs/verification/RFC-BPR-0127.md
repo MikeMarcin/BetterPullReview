@@ -10,7 +10,7 @@ timings are nongating; nothing below is a timing claim.
 
 Engineering evidence for each card is on the card:
 [BPR-2157](../issues/60-done/BPR-2157-comments-absorb-notes-model-store-migration.md),
-[BPR-2158](../issues/30-in-progress/BPR-2158-comments-drawer-holds-local-comments.md).
+[BPR-2158](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md).
 
 ## Owner verdicts, first look (attended session 12534e154303dd1913382442a83b8c8f, handed back 2026-11-13T17:44:00Z)
 
@@ -47,3 +47,7 @@ glyph is accepted as the "OS-matched computer glyph" the RFC allows. Host
 ## Owner look v002 filed (2026-11-13)
 
 Session `3fefa3666ff9e2c2fc0943c4672f8b1e` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v002-2026-11-13/state`, cursor 12), frozen root `/Users/jaeger/comments-absorb-notes-v002._jfvvf9h` from `6ffcf4cce274`, launcher check `ATTENDED_LOCAL_COMMENTS_SHOWN:6`. One Accept/Reject each: `local-edge-chips`, `reply-local-state`, `local-reply-actions`, `local-edit-and-delete`. Not waited on.
+
+## Milestone 2 closed (2026-11-13, third round)
+
+`private_notes_panel` and both Notes tabs are deleted; every course and Qt test that drove the panel uses the Comments drawer. AC01's "no Notes tab" is now structural (`qt_workbench_window_scale_*` checks no tab, shown or hidden, is named Notes; `qt_drawer_parts_scale_100` and the Overview drawer test count five tabs). AC05's held-draft refusal is a disabled Local segment with its reason (`application_local_comments_composition_public_path`). AC06 adds compact chips in a narrow drawer (`qt_drawer_surfaces_fit_scale_{100,125,200}`). Evidence list: the [BPR-2158 card](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md#progress-2026-11-13-third-round-the-notes-panel-retired). Owner look v002 is filed, verdict pending.
