@@ -153,17 +153,17 @@ namespace bpr::qt {
 		}
 
 		Members.NoteOptIn = new QCheckBox{
-			QStringLiteral("Include my private notes"), this
+			QStringLiteral("Include my local comments"), this
 		};
 		Members.NoteOptIn->setObjectName(QStringLiteral("sideChatNoteOptIn"));
 		Members.NoteOptIn->setAccessibleName(
-			QStringLiteral("Include private notes in this session"));
+			QStringLiteral("Include local comments in this session"));
 		Members.DraftOptIn = new QCheckBox{
-			QStringLiteral("Include my unpublished drafts"), this
+			QStringLiteral("Include my drafts"), this
 		};
 		Members.DraftOptIn->setObjectName(QStringLiteral("sideChatDraftOptIn"));
 		Members.DraftOptIn->setAccessibleName(
-			QStringLiteral("Include unpublished drafts in this session"));
+			QStringLiteral("Include drafts in this session"));
 
 		Members.Composer = new QPlainTextEdit{ this };
 		Members.Composer->setObjectName(QStringLiteral("sideChatComposer"));

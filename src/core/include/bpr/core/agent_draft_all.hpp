@@ -25,8 +25,9 @@ namespace bpr::core {
 		working,
 		/// It is a draft already.
 		drafted,
-		/// Saved as a private note; it may still be drafted.
-		noted,
+		/// RFC-BPR-0127. Kept as a Local comment, because no line took a
+		/// draft. Draft all passes it over.
+		kept_local,
 		/// The reviewer dismissed it.
 		dismissed,
 	};
@@ -54,6 +55,8 @@ namespace bpr::core {
 		dismissed,
 		/// An action on it is under way.
 		busy,
+		/// RFC-BPR-0127. It was kept as a Local comment.
+		kept_local,
 	};
 
 	[[nodiscard]] auto stable_name(draft_all_skip aSkip) noexcept -> std::string_view;
@@ -68,6 +71,7 @@ namespace bpr::core {
 		std::size_t NotInDiff      = 0U;
 		std::size_t Dismissed      = 0U;
 		std::size_t Busy           = 0U;
+		std::size_t KeptLocal      = 0U;
 
 		auto operator==(const draft_all_plan&) const -> bool = default;
 	};
@@ -80,7 +84,7 @@ namespace bpr::core {
 	[[nodiscard]] auto draft_all_suggestions(std::span<const draft_all_candidate> aCards) noexcept -> std::size_t;
 
 	/// \brief Plans one press: each card with a suggested comment that is
-	/// open (or saved as a note) and placeable is drafted; every other
+	/// open and placeable is drafted; every other
 	/// suggested comment is counted under its reason. A card with no
 	/// suggested comment is neither drafted nor counted.
 	[[nodiscard]] auto plan_draft_all(std::span<const draft_all_candidate> aCards) -> draft_all_plan;
@@ -98,6 +102,7 @@ namespace bpr::core {
 		std::size_t AlreadyDrafted = 0U;
 		std::size_t Dismissed      = 0U;
 		std::size_t Busy           = 0U;
+		std::size_t KeptLocal      = 0U;
 		/// Not in the pull request at the current head: counted by the plan,
 		/// and those the card's own path found gone while drafting.
 		std::size_t NotInDiff = 0U;
@@ -105,7 +110,7 @@ namespace bpr::core {
 		/// line, a file that did not open).
 		std::size_t Refused = 0U;
 
-		[[nodiscard]] constexpr auto skipped() const noexcept -> std::size_t { return AlreadyDrafted + Dismissed + Busy + NotInDiff + Refused; }
+		[[nodiscard]] constexpr auto skipped() const noexcept -> std::size_t { return AlreadyDrafted + Dismissed + Busy + KeptLocal + NotInDiff + Refused; }
 		auto                         operator==(const draft_all_outcome&) const -> bool = default;
 	};
 

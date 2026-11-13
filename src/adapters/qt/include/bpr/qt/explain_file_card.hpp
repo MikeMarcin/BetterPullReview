@@ -36,7 +36,7 @@ namespace bpr::qt {
 		qint64                                   Seconds = 0;
 		/// The answer as written, with its references as links.
 		QString Answer;
-		/// The answer as the agent wrote it, which Keep as note keeps.
+		/// The answer as the agent wrote it, which Keep local keeps.
 		QString AnswerText;
 		/// The turn's ending line once it ended; whether it ended answered.
 		QString Ending;
@@ -49,7 +49,7 @@ namespace bpr::qt {
 	/// \details The run's line and its activity while it runs; then the
 	/// answer, its references links, under a height of its own that scrolls.
 	/// One row of actions, each the same size and in the same place from the
-	/// press to the end: Keep as note (then Go to note), Continue in Agent tab
+	/// press to the end: Keep local (then Go to comment), Continue in Agent tab
 	/// and Dismiss. A thin rule in the Agent accent at its leading edge says
 	/// whose answer it is. It decides nothing: the window says what to show
 	/// and where each action goes.
@@ -59,7 +59,7 @@ namespace bpr::qt {
 		explicit explain_file_card(QWidget* aParent = nullptr);
 
 		void present(const explain_file_progress& aProgress);
-		/// \brief Keep as note's outcome: Go to note once kept, or the
+		/// \brief Keep local's outcome: Go to comment once kept, or the
 		/// refusal's words in the line.
 		void present_note(bool aKept, const QString& aWhy, std::uint64_t aNote);
 		void clear();

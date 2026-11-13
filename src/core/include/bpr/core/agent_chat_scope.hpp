@@ -535,7 +535,7 @@ namespace bpr::core {
 		unknown_action,
 		/// The question's context is no longer a valid scope.
 		scope_invalid,
-		/// The private notes or draft chosen belong to another conversation.
+		/// The Local comments or draft chosen belong to another conversation.
 		private_context_refused,
 		/// The launch path refused the turn before the agent started.
 		launch_refused,

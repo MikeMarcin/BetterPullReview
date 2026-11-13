@@ -279,7 +279,7 @@ namespace {
 		tab.set_conversation_chip(chip);
 		tab.refresh_suggestions();
 		settle();
-		expect(tab.suggestions().back() == QStringLiteral("Explain the code this note is on"), "AC05 a note offers no reply");
+		expect(tab.suggestions().back() == QStringLiteral("Explain the code this comment is on"), "AC05 my own comment offers no reply");
 		tab.set_conversation_chip(std::nullopt);
 		context.Lines.reset();
 		aHarness.set_context(context);

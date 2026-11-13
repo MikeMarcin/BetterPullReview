@@ -81,7 +81,7 @@ namespace bpr::core {
 	/// \brief Whether a supplement is within every bound `bound_explain_material` keeps.
 	[[nodiscard]] auto valid(const supplement_explain& aExplain) -> bool;
 
-	/// \brief The text of the private note Keep as note makes.
+	/// \brief The text of Local comment Keep local makes (RFC-BPR-0127).
 	///
 	/// \details A first line that says the note is the agent's explanation of
 	/// the file ("Agent: Claude explained this file."), a blank line, then the

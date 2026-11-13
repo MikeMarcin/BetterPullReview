@@ -24,7 +24,7 @@ namespace {
 	constexpr auto gone_card      = draft_all_candidate{ .State = draft_all_card_state::open, .Suggested = true, .Placeable = false };
 	constexpr auto dismissed_card = draft_all_candidate{ .State = draft_all_card_state::dismissed, .Suggested = true, .Placeable = true };
 	constexpr auto working_card   = draft_all_candidate{ .State = draft_all_card_state::working, .Suggested = true, .Placeable = true };
-	constexpr auto noted_card     = draft_all_candidate{ .State = draft_all_card_state::noted, .Suggested = true, .Placeable = true };
+	constexpr auto kept_card      = draft_all_candidate{ .State = draft_all_card_state::kept_local, .Suggested = true, .Placeable = true };
 	constexpr auto plain_card     = draft_all_candidate{ .State = draft_all_card_state::open, .Suggested = false, .Placeable = true };
 
 	void test_offer_needs_several_suggestions()
@@ -41,12 +41,13 @@ namespace {
 
 	void test_count_is_undrafted_and_placeable()
 	{
-		const auto cards = std::vector{ open_card, drafted_card, gone_card, open_card, plain_card, noted_card };
+		const auto cards = std::vector{ open_card, drafted_card, gone_card, open_card, plain_card, kept_card };
 		expect(draft_all_suggestions(cards) == 5U, "five carry a suggested comment");
-		expect(draft_all_offer(cards) == 3U, "the count is the open and noted placeable ones only");
+		expect(draft_all_offer(cards) == 2U, "the count is the open placeable ones only; RFC-BPR-0127: a card kept local is not drafted");
 		const auto plan = plan_draft_all(cards);
-		expect(plan.Draft == std::vector<std::size_t>{ 0U, 3U, 5U }, "drafted in the cards' order, by position");
-		expect(plan.AlreadyDrafted == 1U && plan.NotInDiff == 1U && plan.Dismissed == 0U && plan.Busy == 0U, "each other suggestion is counted under its reason");
+		expect(plan.Draft == std::vector<std::size_t>{ 0U, 3U }, "drafted in the cards' order, by position");
+		expect(plan.AlreadyDrafted == 1U && plan.NotInDiff == 1U && plan.KeptLocal == 1U && plan.Dismissed == 0U && plan.Busy == 0U, "each other suggestion is counted under its reason");
+		expect(start_draft_all(plan).KeptLocal == 1U && stable_name(draft_all_skip::kept_local) == "kept_local", "and the outcome says it was kept local");
 	}
 
 	void test_nothing_left_offers_nothing()

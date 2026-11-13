@@ -149,7 +149,7 @@ namespace bpr::qt {
 		NoteSelector = new QListWidget{ this };
 		NoteSelector->setObjectName(QStringLiteral("agentPrivateNoteSelector"));
 		NoteSelector->setAccessibleName(
-			QStringLiteral("Private notes included with this request"));
+			QStringLiteral("Local comments included with this request"));
 		DraftSelector = new QCheckBox{ this };
 		DraftSelector->setObjectName(QStringLiteral("agentDraftSelector"));
 		DraftSelector->setAccessibleName(
@@ -176,8 +176,8 @@ namespace bpr::qt {
 		auto* const layout = new QVBoxLayout{ this };
 		auto* const form   = new QFormLayout{ };
 		form->addRow(QStringLiteral("Provider"), ProfileSelector);
-		form->addRow(QStringLiteral("Private notes"), NoteSelector);
-		form->addRow(QStringLiteral("Private draft"), DraftSelector);
+		form->addRow(QStringLiteral("Local comments"), NoteSelector);
+		form->addRow(QStringLiteral("Draft"), DraftSelector);
 		layout->addLayout(form);
 		layout->addWidget(Disclosure);
 
@@ -415,7 +415,7 @@ namespace bpr::qt {
 		NoteSelector->clear();
 		for (const auto id : aNotes) {
 			auto* const item = new QListWidgetItem{
-				QStringLiteral("Private note #%1").arg(id.value()), NoteSelector
+				QStringLiteral("Local comment #%1").arg(id.value()), NoteSelector
 			};
 			item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(id.value()));
 			item->setFlags(item->flags() | Qt::ItemIsUserCheckable);

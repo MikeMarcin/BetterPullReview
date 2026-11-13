@@ -53,6 +53,11 @@ namespace bpr::application {
 			.Attachment = std::move(aAttachment),
 			.Body       = promotion.Note->Text,
 		};
+		// RFC-BPR-0127. Kept on a file, it names the file, as a Local
+		// comment written on it does.
+		if (record.Attachment && !aRequest.Finding.Path.empty() && aRequest.Finding.Path.size() <= maximum_note_path_bytes) {
+			record.FilePath = aRequest.Finding.Path;
+		}
 		if (!valid(record)) {
 			return std::unexpected(agent_note_promotion_failure{
 				.Store = ledger_store_failure::invalid_record,

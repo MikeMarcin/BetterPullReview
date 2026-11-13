@@ -1558,7 +1558,7 @@ namespace bpr::qt {
 		// seventh finding action cannot be declared and then never offered.
 		//
 		// BPR-0506. Stacked rather than in a row. Six buttons whose longest
-		// label is *Convert to local draft comment* need more width than any
+		// label was *Convert to local draft comment* needed more width than any
 		// drawer a reviewer is likely to give this column, and the drawer
 		// deliberately does not scroll sideways, so a row put the last two
 		// actions somewhere no gesture reaches. A column cannot clip: each
@@ -1575,7 +1575,7 @@ namespace bpr::qt {
 				continue;
 			}
 			const auto         kind   = static_cast<finding_queue_action>(index);
-			QToolButton* const button = kind == finding_queue_action::open_evidence || kind == finding_queue_action::ask_follow_up || kind == finding_queue_action::add_to_private_notes
+			QToolButton* const button = kind == finding_queue_action::open_evidence || kind == finding_queue_action::ask_follow_up || kind == finding_queue_action::keep_local
 				? static_cast<QToolButton*>(new quiet_tool_button{ conversationContents })
 				: new QToolButton{ conversationContents };
 			button->setDefaultAction(action);

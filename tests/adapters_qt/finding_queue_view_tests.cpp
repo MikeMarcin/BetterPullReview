@@ -348,10 +348,16 @@ namespace {
 		expect(
 			view.claim_text() == QStringLiteral("This name reads oddly."),
 			"and the finding is still shown rather than dropped");
+		// RFC-BPR-0127. Of Draft comment and Keep local, one is offered,
+		// and it is `core::decide_keep`'s choice: Keep local for a finding
+		// whose anchor did not hold.
+		expect(
+			!view.action(qt::finding_queue_action::convert_to_draft_comment)->isVisible()
+				&& view.action(qt::finding_queue_action::keep_local)->isVisible(),
+			"an unanchored finding offers Keep local, not Draft comment");
 		for (const auto action : { qt::finding_queue_action::open_evidence,
-								   qt::finding_queue_action::convert_to_draft_comment,
 								   qt::finding_queue_action::convert_to_draft_defect,
-								   qt::finding_queue_action::add_to_private_notes }) {
+								   qt::finding_queue_action::keep_local }) {
 			expect(
 				view.action(action)->isEnabled(),
 				std::string{ qt::stable_name(action) }
@@ -385,8 +391,8 @@ namespace {
 			qt::finding_queue_action::convert_to_draft_defect,
 			"convert_to_draft_defect" },
 		action_case{
-			qt::finding_queue_action::add_to_private_notes,
-			"add_to_private_notes" },
+			qt::finding_queue_action::keep_local,
+			"keep_local" },
 		action_case{ qt::finding_queue_action::dismiss, "dismiss" },
 	};
 

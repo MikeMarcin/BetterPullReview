@@ -14538,7 +14538,7 @@ namespace {
 	/// Also doesn't make sense to show suggested prompts before the wizard
 	/// completes." An error turn, live or read back from the kept thread, is
 	/// drawn as an error, keeps Copy and offers its one way back instead of
-	/// Save as note and Draft comment; the suggestions wait for the setup.
+	/// the keep action; the suggestions wait for the setup.
 	void test_an_agent_error_is_an_error_and_suggestions_wait_for_setup()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -14578,7 +14578,7 @@ namespace {
 		const auto shown = [agent](const QWidget* aWidget) { return aWidget != nullptr && aWidget->isVisibleTo(agent); };
 
 		// A live run whose answer cannot be read: an error, with Copy and
-		// Agent settings…, never Save as note or Draft comment.
+		// Agent settings…, never the keep action.
 		auto identity                 = application::agent_invocation_projection_identity{ };
 		identity.ApplicationSession   = core::application_session_id{ 1U };
 		identity.Session.Id           = core::agent_session_id{ 9U };
@@ -14590,7 +14590,7 @@ namespace {
 		expect(agent->turn_count() == 1U && agent->turn_outcome(0U) == std::optional{ core::agent_turn_outcome::unreadable }
 				   && agent->turn_answer(0U).startsWith(QStringLiteral("my-agent answered in a form this app can't read.")),
 			   "an unreadable answer is a turn that ended as one: " + agent->turn_answer(0U).toStdString());
-		expect(!shown(agent->turn_note_button(0U)) && !shown(agent->turn_draft_button(0U)), "an error turn offers neither Save as note nor Draft comment");
+		expect(!shown(agent->turn_note_button(0U)) && !shown(agent->turn_draft_button(0U)), "an error turn offers no keep action");
 		expect(shown(agent->turn_copy_button(0U)) && agent->turn_copy_button(0U)->toolTip() == QStringLiteral("Copy the error and what the agent wrote"), "it keeps Copy, which copies the error's words");
 		expect(agent->turn_reply(0U) != nullptr && agent->turn_reply(0U)->accessibleDescription() == QStringLiteral("Error"), "and is drawn and named as an error");
 		expect(shown(agent->turn_recovery_button(0U)) && agent->turn_recovery_button(0U)->text() == QStringLiteral("Agent settings…"), "its way back is the agent's settings");
@@ -14609,8 +14609,8 @@ namespace {
 		process_events();
 		expect(!shown(agent->turn_note_button(0U)) && !shown(agent->turn_draft_button(0U)) && shown(agent->turn_copy_button(0U)) && !shown(agent->turn_recovery_button(0U)),
 			   "a kept error offers Copy alone; the way back is the latest turn's");
-		expect(shown(agent->turn_note_button(1U)) && shown(agent->turn_draft_button(1U)) && shown(agent->turn_copy_button(1U)) && agent->turn_reply(1U)->accessibleDescription().isEmpty(),
-			   "a kept answer keeps Save as note and Draft comment");
+		expect(shown(agent->turn_note_button(1U)) && !shown(agent->turn_draft_button(1U)) && shown(agent->turn_copy_button(1U)) && agent->turn_reply(1U)->accessibleDescription().isEmpty(),
+			   "a kept answer keeps its one keep action: Keep local, where no thread or line was decided (RFC-BPR-0127)");
 		expect(!shown(agent->turn_note_button(2U)) && !shown(agent->turn_draft_button(2U)) && shown(agent->turn_recovery_button(2U))
 				   && agent->turn_recovery_button(2U)->text() == QStringLiteral("Resend"),
 			   "the latest, an old stopped turn, offers Resend");
@@ -14857,7 +14857,7 @@ namespace {
 			   "it keeps Resend and is named fixed since");
 		expect(shown(fixedNote(0U)) && !fixedNote(0U)->text().contains(QStringLiteral("Resend")) && !shown(agent->turn_recovery_button(0U)), "an earlier failure is fixed since too, with no way back of its own");
 		expect(!shown(agent->banner()), "the stopped banner no longer says it stopped");
-		expect(!shown(agent->turn_note_button(1U)) && !shown(agent->turn_draft_button(1U)), "fixed, it is still an error: no Save as note or Draft comment");
+		expect(!shown(agent->turn_note_button(1U)) && !shown(agent->turn_draft_button(1U)), "fixed, it is still an error: no keep action");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-fixed-light.png"), "PNG"), "render saved");
 			const auto light = QApplication::palette();
@@ -15336,15 +15336,17 @@ namespace {
 		expect(cards.size() == 1U, "a finding is a card");
 		auto* const draft = cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
 		// Owner decision 2026-10-23 ("Yep build it like that"): three actions.
-		expect(draft != nullptr && draft->text() == QStringLiteral("Add as draft comment") && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingSaveNote")) != nullptr
-				   && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss")) != nullptr,
-			   "its card offers Add as draft comment, Save as note and Dismiss");
+		// RFC-BPR-0127: one keep action, Draft comment where its line takes a
+		// draft (Keep local otherwise, hidden here).
+		expect(draft != nullptr && draft->text() == QStringLiteral("Draft comment") && !draft->isHidden() && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal")) != nullptr
+				   && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal"))->isHidden() && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss")) != nullptr,
+			   "its card offers one keep action, Draft comment, and Dismiss");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-findings.png"), "PNG"), "render saved");
 		}
 		draft->click();
 		process_events();
-		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Add as draft comment asks the queue's own promotion, nothing more");
+		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Draft comment asks the queue's own promotion, nothing more");
 
 		// Working: what it reads, and Stop.
 		window.agent_panel()->set_running(true);
@@ -15522,7 +15524,7 @@ namespace {
 			process_events();
 			expect(cardAsks.size() == 1U && cardAsks.back().Action == qt::agent_finding_card_action::draft_comment && cardAsks.back().Finding.Claim == finding.Claim
 					   && agent->finding_card_state(0U) == qt::agent_finding_card_state::working,
-				   "Add as draft comment asks the host, and the card waits");
+				   "Draft comment asks the host, and the card waits");
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::drafted);
 			process_events();
 			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::drafted && turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Drafted"))
@@ -15530,8 +15532,21 @@ namespace {
 				   "drafted, the card says so and offers nothing more");
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::refused, QStringLiteral("Open src/engine/renderer.cpp, then try again."));
 			process_events();
-			expect(turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Open src/engine")) && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingSaveNote"))->isHidden(),
+			expect(turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Open src/engine")) && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden(),
 				   "refused, it says why and stays open");
+			// RFC-BPR-0127. A card whose line is known not to take a draft
+			// offers Keep local in Draft comment's place, and asks for it.
+			agent->set_finding_placeability([](const core::agent_finding&) { return false; });
+			process_events();
+			expect(turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden() && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal"))->isHidden()
+					   && turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal"))->text() == QStringLiteral("Keep local"),
+				   "no line takes a draft: the card offers Keep local alone");
+			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal"))->click();
+			process_events();
+			expect(cardAsks.back().Action == qt::agent_finding_card_action::keep_local, "Keep local asks the host for a Local comment");
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::refused, QStringLiteral("Open src/engine/renderer.cpp, then try again."));
+			agent->set_finding_placeability({ });
+			process_events();
 			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss"))->click();
 			process_events();
 			expect(cardAsks.back().Action == qt::agent_finding_card_action::dismiss && agent->finding_card_state(0U) == qt::agent_finding_card_state::dismissed
@@ -15550,7 +15565,8 @@ namespace {
 			expect(!window.review_file_named(QStringLiteral("not/in/this/pull/request.cpp")) && !window.go_to_file_line(QStringLiteral("not/in/this/pull/request.cpp"), 3U, false)
 					   && window.statusBar()->currentMessage().contains(QStringLiteral("is not in this pull request")),
 				   "a link to a file the pull request does not have opens nothing, and the status line says so");
-			// A plain reply offers Save as note for the whole of it.
+			// A plain reply about the pull request offers Keep local for the
+			// whole of it (RFC-BPR-0127).
 			auto savedNote = QString{ };
 			agent->set_answer_note_dispatch([&savedNote](const QString& aText, qt::agent_answer_note_done aDone) {
 				savedNote = aText;
@@ -15559,24 +15575,25 @@ namespace {
 			auto wentToNote = std::vector<std::uint64_t>{ };
 			agent->set_note_navigation([&wentToNote](const std::uint64_t aNote) { wentToNote.push_back(aNote); });
 			auto* const saveNote = agent->turn_note_button(1U);
-			expect(saveNote != nullptr && !saveNote->isHidden(), "a reply offers Save as note");
+			expect(saveNote != nullptr && !saveNote->isHidden() && saveNote->text() == QStringLiteral("Keep local"), "a reply offers Keep local");
 			saveNote->click();
 			process_events();
 			// Owner look v004 ("After save as note it should turn into Go to note").
-			expect(savedNote == QStringLiteral("Yes. The retry budget is reset once per frame.") && saveNote->text() == QStringLiteral("Go to note") && saveNote->isEnabled() && wentToNote.empty(),
-				   "Save as note keeps the reply as a note, and becomes Go to note");
+			expect(savedNote == QStringLiteral("Yes. The retry budget is reset once per frame.") && saveNote->text() == QStringLiteral("Go to comment") && saveNote->isEnabled() && wentToNote.empty(),
+				   "Keep local keeps the reply as a Local comment, and becomes Go to comment");
 			saveNote->click();
 			process_events();
-			expect(wentToNote == std::vector<std::uint64_t>{ 77U } && savedNote == QStringLiteral("Yes. The retry budget is reset once per frame."), "Go to note opens the note it made, and saves nothing more");
-			// A finding saved as a note offers the same.
+			expect(wentToNote == std::vector<std::uint64_t>{ 77U } && savedNote == QStringLiteral("Yes. The retry budget is reset once per frame."), "Go to comment opens the comment it made, and keeps nothing more");
+			// A finding kept local offers the same.
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::noted, { }, 78U);
 			process_events();
-			auto* const cardGo = turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingGoToNote"));
-			expect(cardGo != nullptr && !cardGo->isHidden(), "a finding saved as a note offers Go to note");
+			auto* const cardGo = turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment"));
+			expect(cardGo != nullptr && !cardGo->isHidden() && cardGo->text() == QStringLiteral("Go to comment") && turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text() == QStringLiteral("Kept local."),
+				   "a finding kept local says so and offers Go to comment");
 			if (cardGo != nullptr) {
 				cardGo->click();
 			}
-			expect(wentToNote.size() == 2U && wentToNote.back() == 78U, "and it opens that note");
+			expect(wentToNote.size() == 2U && wentToNote.back() == 78U, "and it opens that comment");
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::open);
 			agent->set_answer_note_dispatch({ });
 			agent->set_note_navigation({ });
@@ -15793,10 +15810,12 @@ namespace {
 				});
 				agent->set_draft_navigation([&wentTo](const std::string& aKey) { wentTo.push_back(aKey); });
 				expect(agent->findChildren<QPushButton*>(QStringLiteral("agentTurnUseAsReply")).empty(), "no answer has a Use as reply button");
-				expect(agent->turn_draft_button(2U) != nullptr && !agent->turn_draft_button(2U)->isHidden() && agent->turn_draft_button(2U)->text() == QStringLiteral("Draft comment")
-						   && agent->turn_note_button(2U) != nullptr && !agent->turn_note_button(2U)->isHidden() && agent->turn_note_button(2U)->text() == QStringLiteral("Save as note")
+				// RFC-BPR-0127: one keep action in one place; an answer about the
+				// pull request, which no thread or line takes, offers Keep local.
+				expect(agent->turn_draft_button(2U) != nullptr && agent->turn_draft_button(2U)->isHidden() && agent->turn_draft_button(2U)->text() == QStringLiteral("Draft comment")
+						   && agent->turn_note_button(2U) != nullptr && !agent->turn_note_button(2U)->isHidden() && agent->turn_note_button(2U)->text() == QStringLiteral("Keep local")
 						   && agent->turn_draft_button(2U)->parentWidget() == agent->turn_note_button(2U)->parentWidget() && agent->turn_draft_button(2U)->isFlat() == agent->turn_note_button(2U)->isFlat(),
-					   "an answer about the pull request offers Draft comment beside Save as note, in its style");
+					   "an answer about the pull request offers Keep local alone, in Draft comment's place and style");
 				agent->set_conversation_chip(qt::agent_conversation_chip{
 					.Key     = "review-thread:T1",
 					.Text    = QStringLiteral("src/engine/renderer.cpp line 34, 2 comments"),
@@ -15833,8 +15852,8 @@ namespace {
 				auto* const ordinaryDraft     = agent->turn_draft_button(2U);
 				expect(conversationDraft != nullptr && !conversationDraft->isHidden() && conversationDraft->text() == QStringLiteral("Draft comment")
 						   && conversationDraft->toolTip() == QStringLiteral("Draft this reply as your reply to the conversation it is about.") && agent->turn_note_button(3U) != nullptr
-						   && !agent->turn_note_button(3U)->isHidden() && agent->turn_note_button(3U)->text() == QStringLiteral("Save as note"),
-					   "an answer about a conversation offers the same Draft comment, which says it drafts the conversation's reply, and Save as note is unchanged");
+						   && agent->turn_note_button(3U)->isHidden(),
+					   "an answer about a conversation offers Draft comment alone, which says it drafts the conversation's reply");
 				if (!root.isEmpty()) {
 					expect(window.grab().save(root + QStringLiteral("/agent-conversation.png"), "PNG"), "render saved");
 				}
@@ -15869,19 +15888,18 @@ namespace {
 				process_events();
 				expect(drafted.size() == 1U && drafted.front().first == "answer-draft:thread" && drafted.front().second == QStringLiteral("The lock covers it: `evict` holds `Mutex` for the whole call."),
 					   "Draft comment on it gives the host the turn's place and the answer's words, nothing more");
-				expect(conversationDraft->text() == QStringLiteral("Go to draft") && conversationDraft->isEnabled() && wentTo.empty(), "and becomes Go to draft, as Save as note becomes Go to note");
+				expect(conversationDraft->text() == QStringLiteral("Go to draft") && conversationDraft->isEnabled() && wentTo.empty(), "and becomes Go to draft, as Keep local becomes Go to comment");
 				conversationDraft->click();
 				process_events();
 				expect(wentTo == std::vector<std::string>{ "answer-draft:thread" } && drafted.size() == 1U, "Go to draft opens that draft, and drafts nothing more");
-				ordinaryDraft->click();
-				process_events();
-				expect(drafted.size() == 2U && drafted.back().first.empty() && drafted.back().second == agent->turn_answer(2U) && ordinaryDraft->text() == QStringLiteral("Go to draft"),
-					   "an ordinary answer is drafted too: a turn whose place was not decided names none, and the host drafts it on the pull request");
+				expect(ordinaryDraft->isHidden() && drafted.size() == 1U, "an ordinary answer, whose place was not decided, offers no Draft comment");
 				renderTurns(QStringLiteral("go-to-draft"));
 				// A refusal says why and the action stays.
 				agent->set_answer_draft_dispatch([](const std::string&, const QString&, qt::agent_answer_draft_done aDone) { aDone(false, QStringLiteral("resolve the draft open at that line first")); });
-				auto* const noteDraft = agent->turn_draft_button(1U);
-				expect(noteDraft != nullptr && !noteDraft->isHidden(), "every answer offers Draft comment");
+				agent->release_answer_draft("answer-draft:thread");
+				process_events();
+				auto* const noteDraft = conversationDraft;
+				expect(noteDraft != nullptr && !noteDraft->isHidden() && noteDraft->text() == QStringLiteral("Draft comment"), "its draft gone, the answer offers Draft comment again");
 				noteDraft->click();
 				process_events();
 				expect(noteDraft->text() == QStringLiteral("Not drafted: resolve the draft open at that line first") && noteDraft->isEnabled(), "a refusal says why, and Draft comment can be pressed again");
@@ -15893,8 +15911,8 @@ namespace {
 				expect(!agent->conversation_chip()->isVisible() && agent->suggestions().front() == QStringLiteral("Review this pull request")
 						   && composer->placeholderText() == QStringLiteral("Ask about these lines…") && agent->lines_chip()->isVisible(),
 					   "removed, the prompts are about the pull request again, and the selected lines are attached once more");
-				agent->set_conversation_chip(qt::agent_conversation_chip{ .Key = "note:7", .Text = QStringLiteral("Your note on src/engine/renderer.cpp line 34"), .Replies = false });
-				expect(agent->suggestions().back() == QStringLiteral("Explain the code this note is on"), "a note's prompts offer no reply, which a note cannot take");
+				agent->set_conversation_chip(qt::agent_conversation_chip{ .Key = "note:7", .Text = QStringLiteral("Your local comment on src/engine/renderer.cpp line 34"), .Replies = false });
+				expect(agent->suggestions().back() == QStringLiteral("Explain the code this comment is on"), "my own comment's prompts offer no reply, which it cannot take");
 				agent->set_conversation_chip(std::nullopt);
 				agent->set_conversation_dismiss({ });
 				agent->set_answer_draft_target({ });
@@ -16060,7 +16078,7 @@ namespace {
 				expect(shown.contains(QStringLiteral("[Line 34](src/engine/renderer.cpp#L34)")) && shown.contains(QStringLiteral("[`renderer.cpp:36`](src/engine/renderer.cpp#L36)"))
 						   && shown.contains(QStringLiteral("src/engine/other.cpp:5.")) && !shown.contains(QStringLiteral("other.cpp#")) && shown.contains(QStringLiteral("// renderer.cpp:40 stays code")),
 					   "in the answer, the question's bare line, a code span naming a file's line and only the pull request's files are links; fenced code is not");
-				expect(agent->turn_answer(0U).startsWith(QStringLiteral("Line 34 returns early; see `renderer.cpp:36`")), "Copy and Save as note keep the answer as written");
+				expect(agent->turn_answer(0U).startsWith(QStringLiteral("Line 34 returns early; see `renderer.cpp:36`")), "Copy and Keep local keep the answer as written");
 				// [[BPR-1998]], RFC-BPR-0101 AC01, AC02. A range opens revealed
 				// whole; a name two files share offers both; nothing else links.
 				{

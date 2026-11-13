@@ -2622,14 +2622,16 @@ turn's finding cards, one quiet line while the agent works ("● Claude Code is
 thinking, 0:05.") and how the turn ended (who answered, in how long, the
 model it reported, the cost when the harness said, and the findings that turn
 brought; in italics when it stopped), and a footer of Copy (the whole reply
-as Markdown), Save as note and the reply's time (near words, the whole time
-on hover). Once a reply is saved as a note, its Save as note is **Go to
-note**, which opens that note in Notes (owner look v004). A turn that ended
+as Markdown), its one keep action (RFC-BPR-0127: **Draft comment** where its
+thread or selected lines take a draft, **Keep local** otherwise) and the
+reply's time (near words, the whole time on hover). Once kept, the action is
+**Go to draft** or **Go to comment**, which opens what it made in Comments
+(owner look v004). A turn that ended
 without an answer (unreadable, exited, did not start, no workspace, stopped,
 out of time, set aside) is an error ([[BPR-1847]], owner 2026-11-03): its
 card is drawn in the danger look the stopped banner uses, it keeps Copy (the
 error's words and what the agent wrote to its error stream) and never offers
-Save as note or Draft comment. The thread's latest error, while nothing runs,
+the keep action. The thread's latest error, while nothing runs,
 offers one way back: **Agent settings…** for an answer this app cannot read,
 and **Resend** for any other ending, a start or workspace failure among
 them ([[BPR-1876]]; owner look v001 named it Resend, since a message is not
@@ -2690,14 +2692,16 @@ be pressed, while it is open ([[BPR-1877]]). A setup finished before, whose chec
 have not run since the application started, counts as finished. A turn's findings are cards under its answer (owner decision,
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
-**Add as draft comment** makes a private draft at its lines from the
+**Draft comment** makes a private draft at its lines from the
 suggested comment, opening with the Conventional Comments label the agent
 wrote already chosen in the label control ([[BPR-1861]]; an answer's
-**Draft comment** does the same, and no label is invented), **Save as note** a private note on them, and **Dismiss**
-rules it out; the card then says Drafted, Saved as a private note, or
-Dismissed with **Undo**, and a refusal says why (for another file: open it,
-then try again). A reply offers **Save as note** for the whole of it, or the
-part selected. The reply is shown without its `bpr-findings` block; one it cannot read is
+**Draft comment** does the same, and no label is invented); a card whose
+line no draft can take (past its file's end, or a file the pull request does
+not change) offers **Keep local** in its place, a Local comment on the file
+or the pull request (RFC-BPR-0127), and **Dismiss** rules it out; the card
+then says Drafted, Kept local (with **Go to comment**), or Dismissed with
+**Undo**, and a refusal says why (for another file: open it, then try
+again). A reply's keep action takes the whole of it, or the part selected. The reply is shown without its `bpr-findings` block; one it cannot read is
 shown whole as a code block after the reply, never as loose text
 ([[BPR-1861]]). Findings
 delivered with no turn come after the thread, as cards of their own. The question field

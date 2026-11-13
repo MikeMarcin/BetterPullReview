@@ -48,7 +48,7 @@ namespace bpr::core {
 			plain("conversation.summarize", prompt_place::conversation, "Summarize this conversation", prompt_subject::conversation),
 			plain("conversation.concern-right", prompt_place::conversation, "Is the concern raised here right?", prompt_subject::conversation),
 			plain("conversation.draft-reply", prompt_place::conversation, "Draft a reply to this conversation", prompt_subject::conversation, { is(prompt_fact::takes_replies) }),
-			plain("conversation.explain-note-code", prompt_place::conversation, "Explain the code this note is on", prompt_subject::conversation, { is_not(prompt_fact::takes_replies) }),
+			plain("conversation.explain-note-code", prompt_place::conversation, "Explain the code this comment is on", prompt_subject::conversation, { is_not(prompt_fact::takes_replies) }),
 			// [[BPR-1934]]: the selected block whatever the chat holds, the
 			// rest while it is empty.
 			plain("tour-stop.explain-selection", prompt_place::tour_stop, "Explain the selected block", selected_text),

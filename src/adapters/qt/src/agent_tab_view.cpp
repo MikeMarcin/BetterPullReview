@@ -8,6 +8,7 @@
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/feedback_convention.hpp"
+#include "bpr/core/local_comment.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -1044,6 +1045,9 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
+		for (const auto& entry : CardEntries) {
+			show_card_keep(entry);
+		}
 		const auto setUp      = Launch.offered_count() > 0U;
 		const auto running    = Launch.cancel_action()->isEnabled();
 		const auto status     = Launch.status_text();
@@ -1299,7 +1303,7 @@ namespace bpr::qt {
 		column->addWidget(asked);
 		// Owner look v003 ("the response contained in something we could
 		// copy"): the reply in its own card, its footer as the agent apps
-		// have it: Copy and Save as note, then who answered and when.
+		// have it: Copy and its one keep action, then who answered and when.
 		auto* const reply = new rounded{ rounded::look::card, box };
 		reply->setObjectName(QStringLiteral("agentTurnReply"));
 		auto* const replyColumn = new QVBoxLayout{ reply };
@@ -1413,19 +1417,22 @@ namespace bpr::qt {
 		copy->set_surface(QPalette::Base);
 		copy->hide();
 		footerRow->addWidget(copy);
-		// Save as note: the whole reply, or the part selected in it.
-		auto* const save = new quiet_push_button{ tr("Save as note"), reply };
-		save->setObjectName(QStringLiteral("agentTurnSaveNote"));
+		// RFC-BPR-0127. One keep action: Keep local where no thread or line
+		// takes a draft (`core::decide_keep`), else Draft comment below. Keep
+		// local keeps the whole reply, or the part selected in it, as a Local
+		// comment on the pull request.
+		auto* const save = new quiet_push_button{ tr("Keep local"), reply };
+		save->setObjectName(QStringLiteral("agentTurnKeepLocal"));
 		save->setFlat(true);
-		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a private note. Nothing is published."));
+		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a local comment on the pull request. Only on this computer."));
 		save->hide();
 		footerRow->addWidget(save);
 		// [[BPR-1773]], owner look 2026-10-27 ("let you turn anything into a
-		// note or draft comment directly"). Draft comment, beside Save as
-		// note and in its style: the whole reply, or the part selected, as a
+		// note or draft comment directly"). Draft comment, in Keep local's
+		// place and style: the whole reply, or the part selected, as a
 		// private draft where the host decided when it was asked (the
-		// conversation's reply, the lines asked on, or the pull request).
-		// Nothing is published. Once drafted it goes to the draft.
+		// conversation's reply or the lines asked on). Nothing is published.
+		// Once drafted it goes to the draft.
 		auto* const draft = new quiet_push_button{ tr("Draft comment"), reply };
 		draft->setObjectName(QStringLiteral("agentTurnDraftComment"));
 		draft->setFlat(true);
@@ -1453,8 +1460,8 @@ namespace bpr::qt {
 				}
 			}
 		});
-		// [[BPR-1847]]. An error's one way back, in place of Save as note
-		// and Draft comment, which an error never offers.
+		// [[BPR-1847]]. An error's one way back, in place of the keep
+		// action, which an error never offers.
 		auto* const recovery = new quiet_push_button{ reply };
 		recovery->setObjectName(QStringLiteral("agentTurnRecovery"));
 		recovery->setFlat(true);
@@ -1513,7 +1520,7 @@ namespace bpr::qt {
 					continue;
 				}
 				const auto key = kept.DraftTarget ? kept.DraftTarget->Key : std::string{ };
-				// As Go to note does: once drafted, the button opens the draft.
+				// As Go to comment does: once drafted, the button opens the draft.
 				if (kept.Drafted) {
 					if (DraftNavigate) {
 						DraftNavigate(key);
@@ -1565,7 +1572,7 @@ namespace bpr::qt {
 				if (kept.SaveNote != save) {
 					continue;
 				}
-				// Owner look v004: once saved, the button goes to the note.
+				// Owner look v004: once kept, the button goes to the comment.
 				if (kept.Note != 0U) {
 					if (NoteNavigate) {
 						NoteNavigate(kept.Note);
@@ -1587,7 +1594,7 @@ namespace bpr::qt {
 						return;
 					}
 					if (!aSaved) {
-						guarded->setText(tr("Not saved: %1").arg(aWhy));
+						guarded->setText(tr("Not kept: %1").arg(aWhy));
 						guarded->setEnabled(true);
 						return;
 					}
@@ -1597,8 +1604,8 @@ namespace bpr::qt {
 						}
 					}
 					const auto navigable = aNote != 0U && NoteNavigate;
-					guarded->setText(navigable ? tr("Go to note") : tr("Saved as a note"));
-					guarded->setToolTip(navigable ? tr("Open the private note this reply was saved as") : QString{ });
+					guarded->setText(navigable ? tr("Go to comment") : tr("Kept local"));
+					guarded->setToolTip(navigable ? tr("Open the local comment this reply was kept as") : QString{ });
 					guarded->setEnabled(navigable);
 				});
 				return;
@@ -1640,7 +1647,7 @@ namespace bpr::qt {
 			return;
 		}
 		// Owner look v004: the files and lines the answer names are links;
-		// Copy and Save as note keep the answer as the agent wrote it.
+		// Copy and Keep local keep the answer as the agent wrote it.
 		// [[BPR-1998]]: the core's one recogniser, for every agent reply.
 		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(aTurn.AnswerText, LineResolve(), aTurn.ContextFile) : aTurn.AnswerText;
 		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial));
@@ -2689,14 +2696,17 @@ namespace bpr::qt {
 				kept.Copy->setVisible(actions.Copy);
 				kept.Copy->setToolTip(actions.Error ? tr("Copy the error and what the agent wrote") : tr("Copy the response as Markdown"));
 			}
+			// RFC-BPR-0127. One keep action: Keep local where the host found
+			// no thread or line to take a draft (or none was decided).
+			const auto local = !kept.DraftTarget || kept.DraftTarget->Local;
 			if (kept.SaveNote != nullptr) {
-				kept.SaveNote->setVisible(actions.SaveNote);
+				kept.SaveNote->setVisible(actions.Keep && local);
 			}
 			if (kept.Draft != nullptr) {
-				kept.Draft->setVisible(actions.DraftComment);
+				kept.Draft->setVisible(actions.Keep && !local);
 			}
 			if (kept.AskMore != nullptr) {
-				kept.AskMore->setVisible((kept.Returning.has_value() || !kept.Explain.isEmpty() || !kept.SuggestChange.isEmpty()) && actions.SaveNote);
+				kept.AskMore->setVisible((kept.Returning.has_value() || !kept.Explain.isEmpty() || !kept.SuggestChange.isEmpty()) && actions.Keep);
 			}
 			kept.RecoveryKind = actions.Recovery;
 			if (kept.Recovery != nullptr) {
@@ -3322,15 +3332,18 @@ namespace bpr::qt {
 		auto* const actions = new QHBoxLayout{ };
 		actions->setSpacing(6);
 		const auto  index = aEntry.Id;
-		auto* const draft = new quiet_push_button{ tr("Add as draft comment"), card };
+		// RFC-BPR-0127. One keep action, in one place: Draft comment where
+		// its line takes a draft, Keep local where none does
+		// (`core::decide_keep`; `show_card_state` shows the one).
+		auto* const draft = new quiet_push_button{ tr("Draft comment"), card };
 		draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
 		draft->setToolTip(tr("A private draft at its lines, from its suggested comment. Nothing is published."));
 		connect(draft, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::draft_comment); });
 		actions->addWidget(draft);
-		auto* const note = new quiet_push_button{ tr("Save as note"), card };
-		note->setObjectName(QStringLiteral("agentFindingSaveNote"));
-		note->setToolTip(tr("A private note on its lines, never published"));
-		connect(note, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::save_note); });
+		auto* const note = new quiet_push_button{ tr("Keep local"), card };
+		note->setObjectName(QStringLiteral("agentFindingKeepLocal"));
+		note->setToolTip(tr("No line here takes a draft. Keep it as a local comment on its file, or on the pull request. Only on this computer."));
+		connect(note, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::keep_local); });
 		actions->addWidget(note);
 		auto* const dismiss = new quiet_push_button{ tr("Dismiss"), card };
 		dismiss->setObjectName(QStringLiteral("agentFindingDismiss"));
@@ -3349,10 +3362,10 @@ namespace bpr::qt {
 		undo->hide();
 		connect(undo, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::undo_dismiss); });
 		actions->addWidget(undo);
-		// Owner look v004: a finding saved as a note goes to it.
-		auto* const goToNote = new quiet_push_button{ tr("Go to note"), card };
-		goToNote->setObjectName(QStringLiteral("agentFindingGoToNote"));
-		goToNote->setToolTip(tr("Open the private note this finding was saved as"));
+		// Owner look v004: a finding kept local goes to its comment.
+		auto* const goToNote = new quiet_push_button{ tr("Go to comment"), card };
+		goToNote->setObjectName(QStringLiteral("agentFindingGoToComment"));
+		goToNote->setToolTip(tr("Open the local comment this finding was kept as"));
 		goToNote->hide();
 		connect(goToNote, &QPushButton::clicked, this, [this, index] {
 			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
@@ -3381,20 +3394,19 @@ namespace bpr::qt {
 		auto* const state = card->findChild<QLabel*>(QStringLiteral("agentFindingState"));
 		auto* const undo  = card->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"));
 		const auto  open  = aEntry.State == agent_finding_card_state::open || aEntry.State == agent_finding_card_state::refused;
-		for (const auto* const name : { "agentFindingDraftComment", "agentFindingSaveNote", "agentFindingDismiss" }) {
-			if (auto* const button = card->findChild<QPushButton*>(QString::fromLatin1(name)); button != nullptr) {
-				button->setVisible(open);
-			}
+		show_card_keep(aEntry);
+		if (auto* const button = card->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss")); button != nullptr) {
+			button->setVisible(open);
 		}
 		undo->setVisible(aEntry.State == agent_finding_card_state::dismissed);
-		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToNote")); goToNote != nullptr) {
+		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment")); goToNote != nullptr) {
 			goToNote->setVisible(aEntry.State == agent_finding_card_state::noted && aEntry.Note != 0U && NoteNavigate);
 		}
 		switch (aEntry.State) {
 		case agent_finding_card_state::open:      state->clear(); break;
 		case agent_finding_card_state::working:   state->setText(tr("Working…")); break;
 		case agent_finding_card_state::drafted:   state->setText(tr("Drafted. It is a private draft until you publish it.")); break;
-		case agent_finding_card_state::noted:     state->setText(tr("Saved as a private note.")); break;
+		case agent_finding_card_state::noted:     state->setText(tr("Kept local.")); break;
 		case agent_finding_card_state::dismissed: state->setText(tr("Dismissed.")); break;
 		case agent_finding_card_state::refused:   state->setText(aEntry.Why.isEmpty() ? tr("That could not be done.") : aEntry.Why); break;
 		}
@@ -3404,6 +3416,27 @@ namespace bpr::qt {
 		card->update();
 		if (aEntry.Turn) {
 			refresh_draft_all(*aEntry.Turn);
+		}
+	}
+
+	void agent_tab_view::show_card_keep(const card_entry& aEntry) const
+	{
+		if (aEntry.Widget == nullptr) {
+			return;
+		}
+		// RFC-BPR-0127. The one keep action `core::decide_keep` chooses: a
+		// card whose line takes a draft offers Draft comment, one whose line
+		// is known not to (gone, or a file the pull request does not change,
+		// or past the end of the file shown) Keep local. Asked again on each
+		// refresh, so a card follows what the host knows now.
+		const auto open      = aEntry.State == agent_finding_card_state::open || aEntry.State == agent_finding_card_state::refused;
+		const auto placeable = !aEntry.Gone && (!FindingPlaceable || FindingPlaceable(aEntry.Finding));
+		const auto keep      = core::decide_keep({ .ThreadReply = false, .LineTakesDraft = placeable, .FileInPullRequest = false }).Kind;
+		if (auto* const button = aEntry.Widget->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment")); button != nullptr) {
+			button->setVisible(open && keep == core::keep_kind::draft);
+		}
+		if (auto* const button = aEntry.Widget->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal")); button != nullptr) {
+			button->setVisible(open && keep == core::keep_kind::local);
 		}
 	}
 
@@ -3439,6 +3472,9 @@ namespace bpr::qt {
 	void agent_tab_view::set_finding_placeability(agent_finding_placeability aPlaceable)
 	{
 		FindingPlaceable = std::move(aPlaceable);
+		for (auto& entry : CardEntries) {
+			show_card_state(entry);
+		}
 		for (std::size_t index = 0U; index < Turns.size(); ++index) {
 			refresh_draft_all(index);
 		}
@@ -3449,9 +3485,8 @@ namespace bpr::qt {
 		for (auto& entry : CardEntries) {
 			if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
 				entry.Gone = true;
-				if (entry.Turn) {
-					refresh_draft_all(*entry.Turn);
-				}
+				// RFC-BPR-0127. Its line is gone: it offers Keep local now.
+				show_card_state(entry);
 			}
 		}
 	}
@@ -3468,7 +3503,7 @@ namespace bpr::qt {
 			switch (aState) {
 			case agent_finding_card_state::working:   return core::draft_all_card_state::working;
 			case agent_finding_card_state::drafted:   return core::draft_all_card_state::drafted;
-			case agent_finding_card_state::noted:     return core::draft_all_card_state::noted;
+			case agent_finding_card_state::noted:     return core::draft_all_card_state::kept_local;
 			case agent_finding_card_state::dismissed: return core::draft_all_card_state::dismissed;
 			case agent_finding_card_state::open:
 			case agent_finding_card_state::refused:   return core::draft_all_card_state::open;
@@ -3499,6 +3534,9 @@ namespace bpr::qt {
 		}
 		if (aOutcome.Busy > 0U) {
 			reasons << tr("%1 still being drafted or saved").arg(aOutcome.Busy);
+		}
+		if (aOutcome.KeptLocal > 0U) {
+			reasons << tr("%1 kept local").arg(aOutcome.KeptLocal);
 		}
 		if (aOutcome.Refused > 0U) {
 			reasons << (aOutcome.Refused == 1U ? tr("1 could not be drafted; its card says why") : tr("%1 could not be drafted; their cards say why").arg(aOutcome.Refused));
@@ -3665,13 +3703,13 @@ namespace bpr::qt {
 		}
 		Findings.select(entry.Ordinal);
 		const auto queued = aAction == agent_finding_card_action::draft_comment ? finding_queue_action::convert_to_draft_comment
-			: aAction == agent_finding_card_action::save_note                   ? finding_queue_action::add_to_private_notes
+			: aAction == agent_finding_card_action::keep_local                  ? finding_queue_action::keep_local
 																				: finding_queue_action::dismiss;
 		if (auto* const action = Findings.action(queued); action != nullptr) {
 			action->trigger();
 		}
 		entry.State = aAction == agent_finding_card_action::draft_comment ? agent_finding_card_state::drafted
-			: aAction == agent_finding_card_action::save_note             ? agent_finding_card_state::noted
+			: aAction == agent_finding_card_action::keep_local            ? agent_finding_card_state::noted
 																		  : agent_finding_card_state::dismissed;
 		show_card_state(entry);
 	}
@@ -3850,7 +3888,7 @@ namespace bpr::qt {
 		case core::agent_send_refusal::selection_required:       return tr("Select the lines to ask about in the diff, then send.");
 		case core::agent_send_refusal::unknown_action:           return tr("This question can't be asked here.");
 		case core::agent_send_refusal::scope_invalid:            return tr("What this question is about is no longer in the review. Choose its context again.");
-		case core::agent_send_refusal::private_context_refused:  return tr("The private notes or draft chosen belong to another conversation. Choose them again.");
+		case core::agent_send_refusal::private_context_refused:  return tr("The local comments or draft chosen belong to another conversation. Choose them again.");
 		case core::agent_send_refusal::launch_refused:           return tr("%1 didn't start.").arg(agent);
 		case core::agent_send_refusal::agent_unavailable:        return tr("%1 isn't available. Choose an agent in the agent menu, then send.").arg(agent);
 		}

@@ -47,10 +47,10 @@ namespace {
 	void test_answer_actions()
 	{
 		const auto answered = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::answered, .HasText = true, .Latest = true });
-		expect(!answered.Error && answered.Copy && answered.SaveNote && answered.DraftComment && answered.Recovery == agent_turn_recovery::none,
-			   "an answer offers Copy, Save as note and Draft comment");
+		expect(!answered.Error && answered.Copy && answered.Keep && answered.Recovery == agent_turn_recovery::none,
+			   "an answer offers Copy and its one keep action");
 		const auto empty = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::answered, .HasText = false, .Latest = true });
-		expect(!empty.Error && !empty.Copy && !empty.SaveNote && !empty.DraftComment, "an answer with no words offers nothing");
+		expect(!empty.Error && !empty.Copy && !empty.Keep, "an answer with no words offers nothing");
 	}
 
 	void test_error_actions()
@@ -64,7 +64,7 @@ namespace {
 				for (const auto working : { false, true }) {
 					const auto actions = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working });
 					expect(actions.Error, "every non-answer is an error");
-					expect(!actions.SaveNote && !actions.DraftComment, "an error never offers Save as note or Draft comment");
+					expect(!actions.Keep, "an error never offers the keep action");
 					expect(actions.Copy, "an error with words keeps Copy, for a report");
 					expect((actions.Recovery != agent_turn_recovery::none) == (latest && !working), "only the latest error, while nothing runs, offers a recovery");
 				}

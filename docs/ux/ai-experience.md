@@ -12,8 +12,8 @@ The functional core decides whether an explicit AI action is legal, what local c
   the right of the comparison's header and Explain This File in a tab's
   menu. The question carries the file's change in the pull request and its
   text at the head; the rest of the change is context. The answer shows in a
-  card under the file's header, its references links, with Keep as note (a
-  private note on the file whose first line names the agent), Continue in
+  card under the file's header, its references links, with Keep local (a
+  Local comment on the file whose first line names the agent), Continue in
   Agent tab and Dismiss, and is a turn in the Agent tab's history either way.
 - Analyze latest upload: **What changed since my review**
   (RFC-BPR-0116, [[BPR-2073]]). Offered when the pull request has commits
@@ -33,19 +33,22 @@ The functional core decides whether an explicit AI action is legal, what local c
 - Run AI review
 - Open full agent session
 - Ask about a conversation ([[BPR-1773]]): **Ask agent** on a review
-  thread (its header and its menu) or on a saved private note opens the
+  thread (its header and its menu) or on my own unsent comment, Local or
+  Draft (RFC-BPR-0127, recorded in Private history by one path), opens the
   Agent tab with the conversation as a chip in the question field. The chip
   stays for follow-ups until its close button removes it, the prompts are
   about the conversation while it is there, and each turn's asked line names
   the conversation above the question ("About src/cache.cpp line 42, 2
   comments", then the question). Nothing is sent until the reviewer asks.
-- Draft comment on any answer ([[BPR-1773]], owner look 2026-10-27): every
-  answer's footer has Copy, **Save as note** and **Draft comment**, in one
-  quiet style. Draft comment writes the answer, or the part selected, as a
-  private draft: the reply of the review thread the question was about, a
-  comment on the lines selected when it was asked, or otherwise a new pull
-  request comment on Overview. It then reads **Go to draft**, as Save as note
-  then reads Go to note. Nothing is published until the reviewer publishes.
+- One keep action on any answer ([[BPR-1773]], owner look 2026-10-27;
+  RFC-BPR-0127): every answer's footer has Copy and one keep action, in one
+  quiet style, chosen by `core::decide_keep`. **Draft comment** writes the
+  answer, or the part selected, as a private draft: the reply of the review
+  thread the question was about, or a comment on the lines selected when it
+  was asked. Where neither was, **Keep local** keeps it as a Local comment on
+  the pull request. They then read **Go to draft** and **Go to comment**.
+  Finding cards, the finding queue and Explain this file follow the same
+  rule. Nothing is published until the reviewer publishes.
 
 No opening, navigation, refresh, comment arrival, or revision update automatically invokes an agent.
 
@@ -73,9 +76,9 @@ Finding actions:
 
 - Open evidence
 - Ask follow-up
-- Convert to local draft comment
+- Draft comment, or Keep local where no line takes a draft (RFC-BPR-0127:
+  one of the two, `core::decide_keep`'s choice)
 - Convert to local draft defect
-- Add to private notes
 - Dismiss
 
 ## Full agent mode

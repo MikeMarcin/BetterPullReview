@@ -1885,11 +1885,11 @@ namespace bpr::qt {
 			}
 		}
 		if (auto* const tabs = findChild<QTabWidget*>(QStringLiteral("privateConversationTabs")); tabs != nullptr && ConversationScroll != nullptr) {
-			tabs->setTabText(tabs->indexOf(ConversationScroll), tr("Private notes"));
-			tabs->setAccessibleName(tr("Private history and notes"));
+			tabs->setTabText(tabs->indexOf(ConversationScroll), tr("Private history"));
+			tabs->setAccessibleName(tr("Private history"));
 		}
 		if (auto* const purpose = findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose")); purpose != nullptr) {
-			purpose->setText(tr("Private to you and never published. Write a note about this pull request, then promote what you want to say to a draft in Comments."));
+			purpose->setText(tr("Private to you and never published. Ask an agent about this pull request, then make a draft in Comments of what you want to say."));
 			purpose->setAccessibleDescription(purpose->text());
 		}
 		if (SettingsWindow != nullptr) {

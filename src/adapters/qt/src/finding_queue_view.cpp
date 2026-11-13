@@ -1,6 +1,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 
 #include "bpr/core/defect_workflow.hpp"
+#include "bpr/core/local_comment.hpp"
 
 #include <QAction>
 #include <QFormLayout>
@@ -111,16 +112,16 @@ namespace bpr::qt {
 				"findingAskFollowUp" },
 			offered_action{
 				finding_queue_action::convert_to_draft_comment,
-				"Convert to local draft comment",
+				"Draft comment",
 				"findingConvertToDraftComment" },
 			offered_action{
 				finding_queue_action::convert_to_draft_defect,
 				"Convert to local draft defect",
 				"findingConvertToDraftDefect" },
 			offered_action{
-				finding_queue_action::add_to_private_notes,
-				"Add to private notes",
-				"findingAddToPrivateNotes" },
+				finding_queue_action::keep_local,
+				"Keep local",
+				"findingKeepLocal" },
 			offered_action{
 				finding_queue_action::dismiss,
 				"Dismiss",
@@ -174,8 +175,8 @@ namespace bpr::qt {
 			return "convert_to_draft_comment";
 		case finding_queue_action::convert_to_draft_defect:
 			return "convert_to_draft_defect";
-		case finding_queue_action::add_to_private_notes:
-			return "add_to_private_notes";
+		case finding_queue_action::keep_local:
+			return "keep_local";
 		case finding_queue_action::dismiss:
 			return "dismiss";
 		}
@@ -457,9 +458,20 @@ namespace bpr::qt {
 		// Every action is offered against every finding. Whether a promotion
 		// is legal is `core::promote_agent_finding`'s answer, and a widget
 		// that pre-empted it could disagree with it.
-		const auto selected = selected_finding().has_value();
+		const auto subject  = selected_finding();
+		const auto selected = subject.has_value();
 		for (auto* const action : Members.Actions) {
 			action->setEnabled(selected);
+		}
+		// RFC-BPR-0127. One keep action, the core's choice: Draft comment
+		// for a finding anchored at a line, Keep local for any other. The
+		// promotion it asks for is still `core::promote_agent_finding`'s.
+		const auto keep = core::decide_keep({ .ThreadReply = false, .LineTakesDraft = subject && subject->Verdict.anchored() && subject->Finding.Anchor.Line.has_value(), .FileInPullRequest = false }).Kind;
+		if (auto* const draft = action(finding_queue_action::convert_to_draft_comment); draft != nullptr) {
+			draft->setVisible(keep == core::keep_kind::draft);
+		}
+		if (auto* const local = action(finding_queue_action::keep_local); local != nullptr) {
+			local->setVisible(keep == core::keep_kind::local);
 		}
 	}
 } // namespace bpr::qt

@@ -10,6 +10,7 @@ namespace bpr::core {
 		case draft_all_skip::not_in_diff:     return "not_in_diff";
 		case draft_all_skip::dismissed:       return "dismissed";
 		case draft_all_skip::busy:            return "busy";
+		case draft_all_skip::kept_local:      return "kept_local";
 		}
 		return "unknown";
 	}
@@ -30,9 +31,9 @@ namespace bpr::core {
 			switch (card.State) {
 			case draft_all_card_state::drafted:   ++plan.AlreadyDrafted; continue;
 			case draft_all_card_state::dismissed: ++plan.Dismissed; continue;
-			case draft_all_card_state::working:   ++plan.Busy; continue;
-			case draft_all_card_state::open:
-			case draft_all_card_state::noted:     break;
+			case draft_all_card_state::working:    ++plan.Busy; continue;
+			case draft_all_card_state::kept_local: ++plan.KeptLocal; continue;
+			case draft_all_card_state::open:       break;
 			}
 			if (!card.Placeable) {
 				++plan.NotInDiff;
@@ -53,7 +54,7 @@ namespace bpr::core {
 
 	auto start_draft_all(const draft_all_plan& aPlan) noexcept -> draft_all_outcome
 	{
-		return { .AlreadyDrafted = aPlan.AlreadyDrafted, .Dismissed = aPlan.Dismissed, .Busy = aPlan.Busy, .NotInDiff = aPlan.NotInDiff };
+		return { .AlreadyDrafted = aPlan.AlreadyDrafted, .Dismissed = aPlan.Dismissed, .Busy = aPlan.Busy, .KeptLocal = aPlan.KeptLocal, .NotInDiff = aPlan.NotInDiff };
 	}
 
 	auto settle_draft_all(draft_all_outcome aOutcome, const draft_all_result aResult) noexcept -> draft_all_outcome

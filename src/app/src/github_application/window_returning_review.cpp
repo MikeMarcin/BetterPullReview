@@ -398,7 +398,7 @@ namespace bpr::app {
 		}
 		case core::agent_entry_point::evaluate_proposed_fix: {
 			const auto& state = EpochHost->state();
-			const auto  found = AskedConversation && !AskedConversation->Note ? ReturningReview.Threads.find(AskedConversation->Identity) : ReturningReview.Threads.end();
+			const auto  found = AskedConversation && !AskedConversation->Note && !AskedConversation->Draft ? ReturningReview.Threads.find(AskedConversation->Identity) : ReturningReview.Threads.end();
 			if (found == ReturningReview.Threads.end() || !state.AcceptedRevision) {
 				Window->agent_panel()->refuse("Was this addressed?: asked of a thread you commented in, once commits follow your comment. Nothing was sent.");
 				return false;

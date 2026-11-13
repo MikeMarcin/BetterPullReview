@@ -62,6 +62,7 @@ namespace bpr::qt {
 		open,
 		working,
 		drafted,
+		/// RFC-BPR-0127. Kept as a Local comment (once "saved as a note").
 		noted,
 		dismissed,
 		/// The action could not be done; the card says why and stays open.
@@ -98,7 +99,7 @@ namespace bpr::qt {
 		QDateTime AskedAt;
 		QDateTime AnsweredAt;
 		/// [[BPR-1847]]. How it ended: an answer, or an error that offers
-		/// neither Save as note nor Draft comment.
+		/// no keep action.
 		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
 		/// The cards its stored answer's findings block makes, when the host
 		/// read them; a turn whose cards this view still holds keeps those.
@@ -129,13 +130,15 @@ namespace bpr::qt {
 
 	/// \brief [[BPR-1753]], owner decision 2026-10-23 ("Yep build it
 	/// like that"). What a reviewer may do with one finding card; nothing is
-	/// done by itself.
+	/// done by itself. RFC-BPR-0127: a card offers one keep action, Draft
+	/// comment where its line takes a draft and Keep local where none does
+	/// (`core::decide_keep`).
 	enum class agent_finding_card_action : std::uint8_t {
 		/// A private line draft at the finding's lines, from its suggested
 		/// comment (or its claim).
 		draft_comment,
-		/// A private note on its lines, never published.
-		save_note,
+		/// A Local comment on its file, or on the pull request; never sent.
+		keep_local,
 		dismiss,
 		/// Takes a dismissal back.
 		undo_dismiss,
@@ -186,9 +189,10 @@ namespace bpr::qt {
 		std::uint64_t            Note = 0U;
 	};
 	using agent_finding_card_observer = std::function<void(const agent_finding_card_change&)>;
-	/// \brief Save as note on a plain answer: the text (the whole reply, or
-	/// the selected part), and where the host says how it went: the note it
-	/// made, which Go to note opens (owner look v004), when it was saved.
+	/// \brief Keep local on a plain answer (RFC-BPR-0127): the text (the
+	/// whole reply, or the selected part), and where the host says how it
+	/// went: the Local comment it made, which Go to comment opens, when it
+	/// was kept.
 	using agent_answer_note_done     = std::function<void(bool aSaved, const QString& aWhy, std::uint64_t aNote)>;
 	using agent_answer_note_dispatch = std::function<void(const QString& aText, agent_answer_note_done aDone)>;
 	/// \brief [[BPR-1773]]. The conversation the next questions are about,
@@ -201,7 +205,8 @@ namespace bpr::qt {
 		QString Text;
 		/// What the agent gets, as its tooltip says.
 		QString Detail;
-		/// The conversation takes replies (a review thread, not a note): its
+		/// The conversation takes replies (a review thread, not my own
+		/// comment): its
 		/// prompts offer to draft one.
 		bool Replies = false;
 		/// RFC-BPR-0116 ([[BPR-2074]]). I commented in it and commits followed:
@@ -217,6 +222,10 @@ namespace bpr::qt {
 	{
 		std::string Key;
 		QString     Tip;
+		/// RFC-BPR-0127 (`core::decide_keep`). No thread or line takes a
+		/// draft: the answer's one keep action is Keep local, a Local
+		/// comment on the pull request, not Draft comment.
+		bool Local = false;
 
 		auto operator==(const agent_answer_draft_target&) const -> bool = default;
 	};
@@ -228,7 +237,7 @@ namespace bpr::qt {
 	using agent_answer_draft_dispatch   = std::function<void(const std::string& aKey, const QString& aText, agent_answer_draft_done aDone)>;
 	using agent_answer_draft_navigation = std::function<void(const std::string& aKey)>;
 
-	/// \brief Opens a private note the tab saved, in the Notes area.
+	/// \brief Opens a Local comment the tab kept, in Comments.
 	using agent_note_navigation = std::function<void(std::uint64_t aNote)>;
 	/// \brief A change to the model, the effort, or both; empty is the
 	/// agent's own default. Answers whether the host took it.
@@ -406,7 +415,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return History; }
 		[[nodiscard]] auto finding_cards() const -> std::vector<QWidget*>;
 		/// \brief [[BPR-1753]], owner decision 2026-10-23. Where a
-		/// card's Add as draft comment, Save as note and Dismiss go, and the
+		/// card's keep action (Draft comment or Keep local) and Dismiss go, and the
 		/// state the host reports back for the card (`aWhy` with a refusal).
 		void set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
 		void present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
@@ -525,7 +534,7 @@ namespace bpr::qt {
 		/// core decided it; none before any.
 		[[nodiscard]] auto last_question() const noexcept -> const std::optional<core::agent_question>& { return LastQuestion; }
 		/// \brief [[BPR-1773]], owner look 2026-10-27. Draft comment on every
-		/// answer, beside Save as note: where a sent question's answer would
+		/// answer, or its Keep local: where a sent question's answer would
 		/// be drafted (asked when it is sent), where a press goes, and where
 		/// Go to draft goes once it is drafted.
 		void set_answer_draft_target(std::function<agent_answer_draft_target()> aTarget);
@@ -542,10 +551,10 @@ namespace bpr::qt {
 		/// \brief The turn's asked line as read: "About <conversation>:
 		/// <question>" for a turn about a conversation, else the question.
 		[[nodiscard]] auto turn_asked(std::size_t aTurn) const -> QString;
-		/// \brief Save as note on a plain answer.
+		/// \brief Keep local on a plain answer (RFC-BPR-0127).
 		void set_answer_note_dispatch(agent_answer_note_dispatch aDispatch);
 		/// \brief Owner look v004 ("After save as note it should turn into Go
-		/// to note"): where Go to note goes.
+		/// to note"): where Go to comment goes, the Local comment kept.
 		void set_note_navigation(agent_note_navigation aNavigate);
 		/// \brief Owner look v006. Where opening the agent menu asks the
 		/// agent's harness what it offers, by the agent's profile.
@@ -630,7 +639,7 @@ namespace bpr::qt {
 			bool                     Anchored = false;
 			agent_finding_card_state State    = agent_finding_card_state::open;
 			QString                  Why;
-			/// The note Save as note made; 0 for none.
+			/// The Local comment Keep local made; 0 for none.
 			std::uint64_t Note = 0U;
 			/// The turn it is under; none for a card no turn brought.
 			std::optional<std::size_t> Turn;
@@ -645,6 +654,8 @@ namespace bpr::qt {
 		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.
 		void          fit_card_text(markdown_body_view& aView) const;
 		void          show_card_state(card_entry& aEntry);
+		/// RFC-BPR-0127. Shows the card's one keep action, Draft comment or Keep local.
+		void show_card_keep(const card_entry& aEntry) const;
 		void          act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);
 		std::uint64_t NextCardId = 1U;
 		/// The findings that arrived during the turn that just ended go
@@ -773,7 +784,7 @@ namespace bpr::qt {
 			QDateTime                     AnsweredAt;
 			/// Names the answer's body, so its code is coloured as its own.
 			std::uint64_t Serial = 0U;
-			/// The note Save as note made; 0 for none.
+			/// The Local comment Keep local made; 0 for none.
 			std::uint64_t    Note = 0U;
 			QPointer<QLabel> QuestionLabel;
 			/// The one file the question names, which a bare "line 34" in the

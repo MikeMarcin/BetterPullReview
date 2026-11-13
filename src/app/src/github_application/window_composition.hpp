@@ -803,6 +803,16 @@ namespace bpr::app {
 		void ask_agent_about_note(const application::local_comment_record& aNote);
 
 		[[nodiscard]] auto asked_note() const -> const application::local_comment_record*;
+		/// RFC-BPR-0127. My own unsent comment asked about, Local or Draft,
+		/// as it stands now: one recording path for both.
+		struct asked_own_comment
+		{
+			std::string                                              Body;
+			std::string                                              Path;
+			std::optional<std::pair<core::diff_side, std::uint32_t>> Line;
+		};
+		[[nodiscard]] auto own_comment_asked() const -> std::optional<asked_own_comment>;
+		void               ask_agent_about_draft(const core::review_comment_draft& aDraft);
 
 		[[nodiscard]] auto decide_answer_draft() -> qt::agent_answer_draft_target;
 
@@ -2430,8 +2440,13 @@ namespace bpr::app {
 		{
 			std::string   Identity;
 			std::uint64_t PullRequest = 0U;
-			/// A private note, which is sent as a Private history copy.
+			/// My Local comment, which is sent as a Private history copy.
 			std::optional<application::local_comment_id> Note;
+			/// RFC-BPR-0127. My draft, asked about and recorded as a Local
+			/// comment is; its file and one-based line when asked.
+			std::optional<core::review_draft_id>                     Draft;
+			std::string                                              DraftPath;
+			std::optional<std::pair<core::diff_side, std::uint32_t>> DraftLine;
 			/// A review thread the viewer may reply to.
 			bool Replies = false;
 		};

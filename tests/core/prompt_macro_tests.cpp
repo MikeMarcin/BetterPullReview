@@ -77,7 +77,7 @@ namespace {
 	auto conversation_today(const bool aReplies) -> std::vector<today_offer>
 	{
 		auto result = std::vector<today_offer>{ };
-		for (const std::string text : { "Summarize this conversation", "Is the concern raised here right?", aReplies ? "Draft a reply to this conversation" : "Explain the code this note is on" }) {
+		for (const std::string text : { "Summarize this conversation", "Is the concern raised here right?", aReplies ? "Draft a reply to this conversation" : "Explain the code this comment is on" }) {
 			result.emplace_back(text, text, prompt_subject::conversation, prompt_ask::question, false);
 		}
 		return result;

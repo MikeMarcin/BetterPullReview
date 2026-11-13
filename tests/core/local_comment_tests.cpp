@@ -172,6 +172,22 @@ namespace {
 		place.ReplyToThread = std::string(core::maximum_local_reply_thread_bytes + 1U, 'x');
 		expect(!core::valid(place), "a reply's thread is bounded");
 	}
+
+	// RFC-BPR-0127 ([[BPR-2160]]). The one keep action: a draft where a
+	// thread or a line takes one, a Local comment on the file or the pull
+	// request where none does.
+	void the_keep_action_drafts_where_a_line_takes_one()
+	{
+		using core::keep_kind;
+		using core::keep_local_place;
+		expect(core::decide_keep({ .ThreadReply = true }).Kind == keep_kind::draft, "a thread reply is a draft");
+		expect(core::decide_keep({ .LineTakesDraft = true, .FileInPullRequest = true }).Kind == keep_kind::draft, "a line that takes a draft makes one");
+		expect(core::decide_keep({ .LineTakesDraft = true }).Kind == keep_kind::draft, "a line is enough");
+		expect((core::decide_keep({ .FileInPullRequest = true }) == core::keep_choice{ .Kind = keep_kind::local, .Local = keep_local_place::file }), "no line: Local on the file");
+		expect((core::decide_keep({ }) == core::keep_choice{ .Kind = keep_kind::local, .Local = keep_local_place::pull_request }), "no file: Local on the pull request");
+		expect(core::name(keep_kind::draft) == "draft" && core::name(keep_kind::local) == "local", "kind names");
+		expect(core::name(keep_local_place::file) == "file" && core::name(keep_local_place::pull_request) == "pull_request", "place names");
+	}
 } // namespace
 
 int main()
@@ -182,6 +198,7 @@ int main()
 	make_draft_returns_the_same_kind_at_the_same_place();
 	make_draft_off_its_line_asks_for_a_line_and_never_merges();
 	a_place_is_checked_whole();
+	the_keep_action_drafts_where_a_line_takes_one();
 	std::cout << "LOCAL_COMMENT_OK\n";
 	return EXIT_SUCCESS;
 }

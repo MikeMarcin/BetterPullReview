@@ -446,10 +446,11 @@ alone. It writes the header again through `decide_feedback_composition_edit`,
 the label chip's own edit, so the draft opens with the label in the chip and
 the decorations in the toggles. A missing label stays missing; an unknown one
 (`nit:`, `bug:`) and a header the serializer would have to restructure are
-kept as written, and no alias is read. Promotion, a finding card's **Add as
-draft comment** and an answer's **Draft comment** (to a thread reply, a line
-or the pull request) all draft the result; **Save as note** keeps the
-agent's text as written.
+kept as written, and no alias is read. Promotion, a finding card's **Draft
+comment** and an answer's **Draft comment** (to a thread reply or a line)
+all draft the result; **Keep local**, the one keep action where no line
+takes a draft (RFC-BPR-0127), keeps the agent's text as written as a Local
+comment.
 
 **The review skill (owner decision D1, Q9 A).** The method ships as an Agent
 Skills package, `packaging/agent-skills/bpr-pr-review/SKILL.md`, built into
@@ -477,7 +478,9 @@ represent:
   anchor, classification, lifecycle, and anchor availability;
 - the selected file and comparison, semantic line/group selection, mapping
   confidence, permitted segments/groups, and optional selected source text;
-- only private notes named by the invocation and drafts supplied explicitly.
+- only Local comments named by the invocation and drafts supplied explicitly
+  (RFC-BPR-0127: two opt-ins, Include my local comments and Include my
+  drafts, each admitting only its own kind).
 
 The launch panel offers opaque private-note IDs and the current draft's opaque
 ID/revision, all unchecked. Its intent carries only the checked identities; it

@@ -144,5 +144,59 @@ namespace bpr::core {
 	/// range kept. Otherwise it is offered only at the selected line, as
 	/// one line. Refused where my draft with words stands.
 	[[nodiscard]] auto decide_make_draft(const make_draft_input& aInput) -> std::expected<make_draft_target, make_draft_refusal>;
+
+	/// \brief RFC-BPR-0127, "One action where there were two". What the one
+	/// keep action of an agent surface makes.
+	enum class keep_kind : std::uint8_t {
+		/// Draft comment: a draft reply, or a draft at its line.
+		draft,
+		/// Keep local: a Local comment on the file, or on the pull request.
+		local,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(keep_kind aKind) noexcept -> std::string_view;
+
+	/// \brief Where a Local comment the keep action makes is anchored.
+	enum class keep_local_place : std::uint8_t {
+		file,
+		pull_request,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(keep_local_place aPlace) noexcept -> std::string_view;
+
+	/// \brief What one agent surface knows about what it would keep.
+	struct keep_facts
+	{
+		/// It is about a review thread the reviewer may reply in.
+		bool ThreadReply = false;
+		/// A line of the pull request at its current head takes a draft: the
+		/// lines asked about, or a finding's first line within its file.
+		bool LineTakesDraft = false;
+		/// It names a file the pull request changes.
+		bool FileInPullRequest = false;
+
+		auto operator<=>(const keep_facts&) const = default;
+	};
+
+	/// \brief The keep action's choice.
+	struct keep_choice
+	{
+		keep_kind Kind = keep_kind::local;
+		/// Where a Local comment goes; the pull request for a draft.
+		keep_local_place Local = keep_local_place::pull_request;
+
+		auto operator<=>(const keep_choice&) const = default;
+	};
+
+	/// \brief RFC-BPR-0127, "Architectural allocation": the keep action's
+	/// choice of state from whether a draft has a place.
+	/// \details A thread reply or a line that takes a draft makes a draft
+	/// (Draft comment). Otherwise it is kept local (Keep local): on the file
+	/// when it names one the pull request changes, else on the pull request.
+	/// The surface's follow-up goes to what it made (Go to draft, Go to
+	/// comment).
+	[[nodiscard]] auto decide_keep(const keep_facts& aFacts) noexcept -> keep_choice;
 } // namespace bpr::core
 #endif

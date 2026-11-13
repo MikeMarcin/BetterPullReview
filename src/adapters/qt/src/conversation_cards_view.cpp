@@ -707,18 +707,18 @@ namespace bpr::qt {
 					ActionDispatch(card_action::show_in_threads, identity);
 				}
 			});
-			// RFC-BPR-0127. The Notes tab's Ask agent, on my Local comment.
-			if (at->Local) {
-				auto* const ask = menu->addAction(QStringLiteral("Ask agent about this local comment"));
-				ask->setObjectName(QStringLiteral("localAskAgentAction"));
-				ask->setEnabled(static_cast<bool>(ActionDispatch));
-				ask->setToolTip(QStringLiteral("Open the Agent tab with this local comment attached to your next question"));
-				connect(ask, &QAction::triggered, menu, [this, identity = at->Id] {
-					if (ActionDispatch) {
-						ActionDispatch(card_action::ask_agent, identity);
-					}
-				});
-			}
+			// RFC-BPR-0127. Ask agent on my own unsent comment, Local or
+			// Draft (the Notes tab's, once only a note's).
+			auto* const ask = menu->addAction(at->Local ? QStringLiteral("Ask agent about this local comment") : QStringLiteral("Ask agent about this draft"));
+			ask->setObjectName(at->Local ? QStringLiteral("localAskAgentAction") : QStringLiteral("draftAskAgentAction"));
+			ask->setEnabled(static_cast<bool>(ActionDispatch));
+			ask->setToolTip(at->Local ? QStringLiteral("Open the Agent tab with this local comment attached to your next question")
+									  : QStringLiteral("Open the Agent tab with this draft attached to your next question"));
+			connect(ask, &QAction::triggered, menu, [this, identity = at->Id] {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::ask_agent, identity);
+				}
+			});
 			return menu;
 		}
 		// Selection can rebuild Cards; retain this exact card across the dispatch.

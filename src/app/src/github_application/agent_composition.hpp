@@ -142,7 +142,7 @@ namespace bpr::app {
 			return application::agent_finding_action::convert_to_draft_comment;
 		case qt::finding_queue_action::convert_to_draft_defect:
 			return application::agent_finding_action::convert_to_draft_defect;
-		case qt::finding_queue_action::add_to_private_notes:
+		case qt::finding_queue_action::keep_local:
 			return application::agent_finding_action::add_to_private_notes;
 		case qt::finding_queue_action::dismiss:
 			return application::agent_finding_action::dismiss;

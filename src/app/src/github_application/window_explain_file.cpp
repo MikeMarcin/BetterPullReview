@@ -196,7 +196,7 @@ namespace bpr::app {
 		return true;
 	}
 
-	/// Keep as note: a private note on the file, not a line, whose first line
+	/// Keep local: a Local comment on the file, not a line, whose first line
 	/// says it is the agent's explanation.
 	void github_application::implementation::keep_explanation(const std::string& aPath, const std::string& aAnswer)
 	{

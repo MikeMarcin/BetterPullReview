@@ -75,7 +75,7 @@ auto main(int argc, char** argv) -> int
 	card->present(running);
 	QApplication::processEvents();
 	expect(card->isVisible() && card->status_line()->live() && card->status_line()->text().contains(QStringLiteral("thinking")), "a running turn says so on the card");
-	expect(!card->keep_button()->isEnabled() && card->continue_button()->isEnabled() && card->dismiss_button()->isEnabled(), "Keep as note waits for the answer");
+	expect(!card->keep_button()->isEnabled() && card->continue_button()->isEnabled() && card->dismiss_button()->isEnabled(), "Keep local waits for the answer");
 	expect(qt::agent_run_control(*card->continue_button()) && !qt::agent_run_control(*card->keep_button()), "Continue in Agent tab wears the Agent accent; the others do not");
 	const auto before = geometry(*card);
 	expect(before[0].size() == before[1].size() && before[1].size() == before[2].size(), "the three actions are one size");
@@ -90,7 +90,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(!card->status_line()->live() && card->status_line()->text().contains(QStringLiteral("answered")), "the line says how it ended");
 	expect(card->answer_view()->isVisible() && card->answer_view()->original_body().find("](bpr-line:") != std::string::npos, "the answer's references are links");
-	expect(card->keep_button()->isEnabled(), "Keep as note is offered once answered");
+	expect(card->keep_button()->isEnabled(), "Keep local is offered once answered");
 	expect(geometry(*card)[0].size() == before[0].size() && geometry(*card)[1].size() == before[1].size(), "the actions keep their size from the press to the end");
 
 	// A long answer scrolls inside the card rather than pushing the file away.
@@ -106,11 +106,11 @@ auto main(int argc, char** argv) -> int
 
 	// The three actions.
 	card->keep_button()->click();
-	expect(kept == 1 && !card->keep_button()->isEnabled(), "Keep as note sends the file and the answer once");
+	expect(kept == 1 && !card->keep_button()->isEnabled(), "Keep local sends the file and the answer once");
 	card->present_note(true, { }, 42U);
 	QApplication::processEvents();
-	expect(card->note() == 42U && card->keep_button()->text() == QStringLiteral("Go to note") && card->keep_button()->isEnabled(), "kept: Go to note, in the same place");
-	expect(geometry(*card)[0] == geometry(*card)[0] && card->keep_button()->size() == before[0].size(), "Go to note keeps the button's size");
+	expect(card->note() == 42U && card->keep_button()->text() == QStringLiteral("Go to comment") && card->keep_button()->isEnabled(), "kept: Go to comment, in the same place");
+	expect(geometry(*card)[0] == geometry(*card)[0] && card->keep_button()->size() == before[0].size(), "Go to comment keeps the button's size");
 	card->continue_button()->click();
 	expect(continued == 3U, "Continue in Agent tab names the turn");
 	card->dismiss_button()->click();

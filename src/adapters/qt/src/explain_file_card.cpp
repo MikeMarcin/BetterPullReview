@@ -69,7 +69,7 @@ namespace bpr::qt {
 		Status = new agent_run_status_line{ this };
 		Status->setObjectName(QStringLiteral("explainFileStatus"));
 		row->addWidget(Status, 1);
-		KeepButton = new quiet_push_button{ tr("Keep as note"), this };
+		KeepButton = new quiet_push_button{ tr("Keep local"), this };
 		KeepButton->setObjectName(QStringLiteral("explainFileKeep"));
 		ContinueButton = new quiet_push_button{ tr("Continue in Agent tab"), this };
 		ContinueButton->setObjectName(QStringLiteral("explainFileContinue"));
@@ -143,7 +143,7 @@ namespace bpr::qt {
 			Answer->set_body(Shown.Answer.toStdString(), "explain-file-" + std::to_string(Serial));
 		}
 		Scroll->setVisible(!Shown.Answer.isEmpty());
-		KeepButton->setText(Note != 0U ? tr("Go to note") : tr("Keep as note"));
+		KeepButton->setText(Note != 0U ? tr("Go to comment") : tr("Keep local"));
 		KeepButton->setEnabled(Note != 0U || (Shown.Answered && !Shown.Running && !Keeping));
 		fit_answer();
 		show();
@@ -192,7 +192,7 @@ namespace bpr::qt {
 	{
 		auto widest  = 0;
 		auto tallest = 0;
-		for (const auto& words : std::array{ tr("Keep as note"), tr("Go to note"), tr("Continue in Agent tab"), tr("Dismiss") }) {
+		for (const auto& words : std::array{ tr("Keep local"), tr("Go to comment"), tr("Continue in Agent tab"), tr("Dismiss") }) {
 			auto probe = quiet_push_button{ words };
 			probe.setFont(font());
 			widest  = std::max(widest, probe.sizeHint().width());

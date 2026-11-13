@@ -1454,8 +1454,12 @@ namespace bpr::app {
 			request.Defect = anchored_durable_defect(aIntent.Subject.Finding);
 			break;
 		case application::agent_finding_action::add_to_private_notes:
-			request.Note       = next_private_note_id();
-			request.Attachment = current_note_attachment();
+			// RFC-BPR-0127. Keep local: on the finding's file when it is
+			// the one shown, otherwise on the pull request.
+			request.Note = next_private_note_id();
+			if (SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == aIntent.Subject.Finding.Path) {
+				request.Attachment = current_note_attachment();
+			}
 			break;
 		case application::agent_finding_action::open_evidence:
 		case application::agent_finding_action::ask_follow_up:
@@ -1501,22 +1505,23 @@ namespace bpr::app {
 					ChatHost->choose_agent(*chosen);
 				}
 			}
-			// [[BPR-1773]]. A note is mutable, so it is not sent: its text
-			// is first saved in Private history as one revision, and the
-			// turn runs with that revision as its only private source.
-			if (AskedConversation && AskedConversation->Note) {
-				const auto* const note = asked_note();
-				if (note == nullptr || !PrivateReview) {
+			// [[BPR-1773]]. My own unsent comment is mutable, so it is not
+			// sent: its text is first saved in Private history as one
+			// revision, and the turn runs with that revision as its only
+			// private source. RFC-BPR-0127: one path for Local and Draft.
+			if (AskedConversation && (AskedConversation->Note || AskedConversation->Draft)) {
+				const auto own = own_comment_asked();
+				if (!own || !PrivateReview) {
 					dismiss_asked_conversation();
-					present_agent_refusal("side chat", "the note asked about is gone or Private history is unavailable");
+					present_agent_refusal("side chat", "the comment asked about is gone or Private history is unavailable");
 					return;
 				}
-				PrivateReview->record_note_press(note->Body, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
+				PrivateReview->record_note_press(own->Body, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
 					if (Closing || ChatHost == nullptr) {
 						return;
 					}
 					if (!aPressed) {
-						present_agent_refusal("side chat", "the note could not be saved in Private history");
+						present_agent_refusal("side chat", "the comment could not be saved in Private history");
 						return;
 					}
 					ExplicitPrivateRun = std::move(aPressed->Run);

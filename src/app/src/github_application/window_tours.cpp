@@ -2536,7 +2536,7 @@ namespace bpr::app {
 		};
 		// What the field is about: the pull request's description and, for a
 		// comment, the lines it is on.
-		add("writing-kind", aRequest.Surface == qt::enhance_surface::note ? std::string_view{ "A private note the reviewer keeps for themselves; nobody else reads it." } : std::string_view{ "A draft comment or reply on the pull request, which its author will read." },
+		add("writing-kind", aRequest.Surface == qt::enhance_surface::note ? std::string_view{ "A local comment the reviewer keeps for themselves; it stays on this computer and nobody else reads it." } : std::string_view{ "A draft comment or reply on the pull request, which its author will read." },
 			256);
 		add("pr-description", WindowRead->accepted_snapshot()->PullRequest.Body, 2048);
 		if (aRequest.Surface == qt::enhance_surface::comment) {

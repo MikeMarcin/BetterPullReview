@@ -104,6 +104,17 @@ auto main(int argc, char** argv) -> int
 		  .Claim      = "An unused member is left behind.",
 		  .Evidence   = "Nothing reads `legacy_path_`.",
 		  .Comment    = "Remove the unused `legacy_path_` member." },
+		// RFC-BPR-0127 ([[BPR-2160]]). A file the pull request does not
+		// change: no line takes a draft, so its card offers Keep local.
+		{ .Path       = "docs/not-in-this-pull-request.md",
+		  .Begin      = 1U,
+		  .End        = 1U,
+		  .Severity   = "minor",
+		  .Confidence = "medium",
+		  .Category   = "documentation",
+		  .Claim      = "The guide still names the renderer's old path.",
+		  .Evidence   = "It links `src/renderer.cpp`, which this change moves.",
+		  .Comment    = "The guide still links the old path; update it with this move." },
 		{ .Path       = "src/engine/renderer.h",
 		  .Begin      = 1U,
 		  .End        = 1U,
@@ -144,7 +155,7 @@ auto main(int argc, char** argv) -> int
 	std::cout << "{\"type\":\"thread.started\",\"thread_id\":\"suggestions-fixture\"}\n"
 				 "{\"type\":\"turn.started\"}\n"
 				 "{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\",\"type\":\"agent_message\",\"text\":\""
-				 "I read the renderer, the tone-mapping shader and the button tests. Five findings below; four come with a comment you could post. "
+				 "I read the renderer, the tone-mapping shader and the button tests. Six findings below; five come with a comment you could post. "
 				 "I could not run the shaders.\\n\\n```bpr-findings\\n"
 			  << block
 			  << "\\n```\\n\"}}\n"

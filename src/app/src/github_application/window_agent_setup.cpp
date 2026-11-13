@@ -4,6 +4,7 @@
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/local_comment.hpp"
 #include "bpr/core/note_placement.hpp"
 #include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
@@ -22,6 +23,7 @@
 #include <QUrl>
 
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <limits>
 
@@ -139,9 +141,10 @@ namespace bpr::app {
 		QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
 	}
 
-	/// [[BPR-1753]], owner decision 2026-10-23. A private note from
-	/// the Agent tab: on one line of the shown comparison when `aLine`
-	/// names one, otherwise on the review. It belongs to the review's
+	/// [[BPR-1753]], owner decision 2026-10-23. A Local comment from the
+	/// Agent tab (RFC-BPR-0127): on one line of the shown comparison when
+	/// `aLine` names one; on the whole file when `aPath` names the file
+	/// shown; otherwise on the pull request. It belongs to the review's
 	/// private state, not to any agent session.
 	void github_application::implementation::save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone)
 	{
@@ -172,6 +175,15 @@ namespace bpr::app {
 			if (!aPath.empty() && aPath.size() <= application::maximum_note_path_bytes) {
 				note.FilePath = std::move(aPath);
 			}
+		} else if (!aPath.empty()) {
+			// RFC-BPR-0127. The whole file, which must be the one shown.
+			const auto attachment = current_note_attachment();
+			if (!attachment || !SelectedDiffPublication || SelectedDiffPublication->Request.File.PresentationPath != aPath || aPath.size() > application::maximum_note_path_bytes) {
+				answer(false, QStringLiteral("the file is not open"));
+				return;
+			}
+			note.Attachment = *attachment;
+			note.FilePath   = std::move(aPath);
 		}
 		ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
 									  if (!aStored) {
@@ -179,15 +191,17 @@ namespace bpr::app {
 										  return;
 									  }
 									  refresh_agent_private_context_choices();
-									  // Owner look v004: Go to note opens the note made.
+									  // Owner look v004: Go to comment opens the comment made.
 									  answer(true, { }, aStored->Id.value());
 								  }));
 	}
 
-	/// [[BPR-1753]], owner decision 2026-10-23. Add as draft comment,
-	/// Save as note and Dismiss on one card. A draft and a note are made
-	/// only at lines of the file on screen; for another file the card says
-	/// to open it first. Nothing is published.
+	/// [[BPR-1753]], owner decision 2026-10-23. The keep action and
+	/// Dismiss on one card. A draft is made only at lines of the file on
+	/// screen; another file is opened first. RFC-BPR-0127: Keep local, where
+	/// no line takes a draft, keeps a Local comment on the finding's file
+	/// (opened first) or, for a file the pull request does not change, on
+	/// the pull request. Nothing is published.
 	void github_application::implementation::act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport)
 	{
 		auto* const tab   = Window != nullptr ? Window->agent_tab() : nullptr;
@@ -203,6 +217,23 @@ namespace bpr::app {
 			return;
 		}
 		const auto& finding = aRequest.Finding;
+		const auto  keepLocal = aRequest.Action == qt::agent_finding_card_action::keep_local;
+		const auto  keepText  = [&finding] {
+			auto text = finding.Claim;
+			if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
+				text += "\n\n" + *finding.SuggestedComment;
+			}
+			return text;
+		};
+		const auto kept = [state](const bool aKept, const QString& aWhy, const std::uint64_t aNote) {
+			state(aKept ? qt::agent_finding_card_state::noted : qt::agent_finding_card_state::refused, aKept ? QString{ } : QStringLiteral("Not kept: %1.").arg(aWhy), aNote);
+		};
+		if (keepLocal && WindowRead != nullptr && WindowRead->accepted_snapshot()
+			&& core::decide_keep({ .ThreadReply = false, .LineTakesDraft = false, .FileInPullRequest = std::ranges::any_of(WindowRead->accepted_snapshot()->Files, [&finding](const auto& aFile) { return aFile.Path == finding.Path; }) }).Local
+				== core::keep_local_place::pull_request) {
+			save_agent_note(keepText(), std::nullopt, { }, kept);
+			return;
+		}
 		if (aRequest.Action == qt::agent_finding_card_action::dismiss || aRequest.Action == qt::agent_finding_card_action::undo_dismiss) {
 			// A restored card's delivery is not the finding host's to act on.
 			if (aRequest.Action == qt::agent_finding_card_action::dismiss && FindingHost != nullptr && !core::is_restored_finding_session(aRequest.Session)) {
@@ -230,6 +261,10 @@ namespace bpr::app {
 			QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
 			return;
 		}
+		if (keepLocal) {
+			save_agent_note(keepText(), std::nullopt, finding.Path, kept);
+			return;
+		}
 		// The line must be one the file has at the current head.
 		const auto& shownAlignment = surface->current_result()->Alignment;
 		const auto  lineCount      = side == core::diff_side::left ? shownAlignment.LeftLineCount : shownAlignment.RightLineCount;
@@ -240,16 +275,6 @@ namespace bpr::app {
 			return;
 		}
 		const auto at = core::source_line_ref{ .Comparison = surface->current_result()->Alignment.Digest, .Side = side, .Line = finding.Lines.Begin };
-		if (aRequest.Action == qt::agent_finding_card_action::save_note) {
-			auto text = finding.Claim;
-			if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
-				text += "\n\n" + *finding.SuggestedComment;
-			}
-			save_agent_note(std::move(text), std::pair{ side, finding.Lines.Begin }, finding.Path, [state](const bool aSaved, const QString& aWhy, const std::uint64_t aNote) {
-				state(aSaved ? qt::agent_finding_card_state::noted : qt::agent_finding_card_state::refused, aSaved ? QString{ } : QStringLiteral("Not saved: %1.").arg(aWhy), aNote);
-			});
-			return;
-		}
 		// [[BPR-1861]]. The draft opens with the Conventional Comments
 		// label the agent wrote already in the label control.
 		const auto text    = core::read_agent_comment_suggestion(finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim).Body;
@@ -716,8 +741,24 @@ namespace bpr::app {
 		if (Closing || Window == nullptr || !WindowRead->accepted_snapshot()) {
 			return;
 		}
-		// RFC-BPR-0127. Ask agent on my Local comment's card asks about it as
-		// a saved note was asked about.
+		// RFC-BPR-0127. Ask agent on my own unsent comment, Local or Draft:
+		// one path, as a saved note was asked about.
+		if (const auto& draft = qt::conversation_cards_view::draft_identity(); aIdentity == draft) {
+			if (ReviewDraft) {
+				ask_agent_about_draft(*ReviewDraft);
+			}
+			return;
+		} else if (aIdentity.starts_with(draft + ":")) {
+			auto       id     = std::uint64_t{ 0U };
+			const auto digits = std::string_view{ aIdentity }.substr(draft.size() + 1U);
+			if (const auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), id); error == std::errc{ } && end == digits.data() + digits.size()) {
+				const auto drafts = saved_draft_values();
+				if (const auto found = std::ranges::find(drafts, core::review_draft_id{ id }, &core::review_comment_draft::Id); found != drafts.end()) {
+					ask_agent_about_draft(*found);
+				}
+			}
+			return;
+		}
 		if (const auto local = qt::conversation_cards_view::local_comment_of(aIdentity)) {
 			const auto found = std::ranges::find(AcceptedPrivateNotes, application::local_comment_id{ *local }, &application::local_comment_record::Id);
 			if (found != AcceptedPrivateNotes.end()) {
@@ -769,8 +810,37 @@ namespace bpr::app {
 		}
 		Window->agent_tab()->set_conversation_chip(qt::agent_conversation_chip{
 			.Key     = AskedConversation->Identity,
-			.Text    = QStringLiteral("Your note on %1").arg(where),
-			.Detail  = QStringLiteral("When you ask, the note is saved in Private history as it is then, and the agent gets that copy and the lines it is on. Nothing is published."),
+			.Text    = QStringLiteral("Your local comment on %1").arg(where),
+			.Detail  = QStringLiteral("When you ask, the comment is saved in Private history as it is then, and the agent gets that copy and the lines it is on. Nothing is published."),
+			.Replies = false,
+		});
+		Window->open_agent_question();
+	}
+
+	/// RFC-BPR-0127. Ask agent on my draft, as on my Local comment: its
+	/// words reach the agent only as the copy saved in Private history when
+	/// the question is sent.
+	void github_application::implementation::ask_agent_about_draft(const core::review_comment_draft& aDraft)
+	{
+		if (Closing || Window == nullptr || !WindowRead->accepted_snapshot() || aDraft.shared()) {
+			return;
+		}
+		const auto path = SelectedDiffPublication ? SelectedDiffPublication->Request.File.PresentationPath : std::string{ };
+		AskedConversation = asked_conversation{
+			.Identity    = "draft:" + std::to_string(aDraft.Id.value()),
+			.PullRequest = WindowRead->accepted_snapshot()->PullRequest.Number.value(),
+			.Draft       = aDraft.Id,
+			.DraftPath   = path,
+			.DraftLine   = path.empty() || aDraft.ReplyToThread ? std::nullopt : std::optional{ std::pair{ aDraft.Anchor.Side, aDraft.Anchor.Line + 1U } },
+		};
+		auto where = path.empty() ? QStringLiteral("this pull request") : QString::fromStdString(path);
+		if (AskedConversation->DraftLine) {
+			where = QStringLiteral("%1 line %2").arg(where).arg(AskedConversation->DraftLine->second);
+		}
+		Window->agent_tab()->set_conversation_chip(qt::agent_conversation_chip{
+			.Key     = AskedConversation->Identity,
+			.Text    = QStringLiteral("Your draft on %1").arg(where),
+			.Detail  = QStringLiteral("When you ask, the comment is saved in Private history as it is then, and the agent gets that copy and the lines it is on. Nothing is published."),
 			.Replies = false,
 		});
 		Window->open_agent_question();
@@ -785,6 +855,31 @@ namespace bpr::app {
 		return found == AcceptedPrivateNotes.end() ? nullptr : &*found;
 	}
 
+	auto github_application::implementation::own_comment_asked() const -> std::optional<asked_own_comment>
+	{
+		if (!AskedConversation) {
+			return std::nullopt;
+		}
+		if (const auto* const note = asked_note(); note != nullptr) {
+			auto own = asked_own_comment{ .Body = note->Body, .Path = note->FilePath.value_or(std::string{ }) };
+			if (note->Attachment && note->Attachment->Line && note->FilePath) {
+				own.Line = std::pair{ note->Attachment->Line->Side, note->Attachment->Line->Line + 1U };
+			}
+			return own;
+		}
+		if (AskedConversation->Draft) {
+			const auto drafts = saved_draft_values();
+			const auto found  = std::ranges::find(drafts, *AskedConversation->Draft, &core::review_comment_draft::Id);
+			if (found != drafts.end() && !found->shared()) {
+				return asked_own_comment{ .Body = found->Body, .Path = AskedConversation->DraftPath, .Line = AskedConversation->DraftLine };
+			}
+			if (ReviewDraft && ReviewDraft->Id == *AskedConversation->Draft && !ReviewDraft->shared()) {
+				return asked_own_comment{ .Body = ReviewDraft->Body, .Path = AskedConversation->DraftPath, .Line = AskedConversation->DraftLine };
+			}
+		}
+		return std::nullopt;
+	}
+
 	/// [[BPR-1773]], owner look 2026-10-27. Where a question sent now
 	/// would have its answer drafted: core places it from the review
 	/// thread asked about and the lines selected beside the code (none
@@ -792,7 +887,7 @@ namespace bpr::app {
 	auto github_application::implementation::decide_answer_draft() -> qt::agent_answer_draft_target
 	{
 		auto       draft  = agent_answer_draft{ };
-		const auto thread = AskedConversation && !AskedConversation->Note && AskedConversation->Replies;
+		const auto thread = AskedConversation && !AskedConversation->Note && !AskedConversation->Draft && AskedConversation->Replies;
 		auto       lines  = false;
 		if (!thread && !Closing && Window != nullptr && SelectedDiffPublication && !Window->showing_overview()) {
 			if (const auto* const surface = Window->comparison_surface(); surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key) {
@@ -806,7 +901,10 @@ namespace bpr::app {
 			}
 		}
 		draft.Place = core::answer_draft_place_for(thread, lines);
-		auto tip    = QString{ };
+		// RFC-BPR-0127. The answer's one keep action: a draft where its
+		// thread or lines take one, else Keep local on the pull request.
+		const auto keep = core::decide_keep({ .ThreadReply = thread, .LineTakesDraft = lines, .FileInPullRequest = false });
+		auto       tip  = QString{ };
 		switch (draft.Place) {
 		case core::answer_draft_place::thread_reply:
 			draft.Thread = AskedConversation->Identity;
@@ -824,7 +922,7 @@ namespace bpr::app {
 		}
 		auto key = "answer-draft:" + std::to_string(++NextAgentAnswerDraft);
 		AgentAnswerDrafts.insert_or_assign(key, std::move(draft));
-		return { .Key = std::move(key), .Tip = tip };
+		return { .Key = std::move(key), .Tip = tip, .Local = keep.Kind == core::keep_kind::local };
 	}
 
 	/// [[BPR-1773]]. Draft comment on an answer: a thread's reply, as
@@ -933,18 +1031,18 @@ namespace bpr::app {
 		if (!AskedConversation || Window == nullptr) {
 			return std::nullopt;
 		}
-		if (AskedConversation->Note) {
-			const auto* const note = asked_note();
-			if (note == nullptr) {
+		if (AskedConversation->Note || AskedConversation->Draft) {
+			const auto own = own_comment_asked();
+			if (!own) {
 				return std::nullopt;
 			}
-			auto input = core::conversation_input{ .Subject = core::conversation_subject::private_note, .Path = note->FilePath.value_or(std::string{ }) };
-			if (note->Attachment && note->Attachment->Line && note->FilePath) {
-				const auto line       = note->Attachment->Line->Line + 1U;
-				const auto side       = note->Attachment->Line->Side;
+			auto input = core::conversation_input{ .Subject = core::conversation_subject::private_note, .Path = own->Path };
+			if (own->Line && !own->Path.empty()) {
+				const auto line       = own->Line->second;
+				const auto side       = own->Line->first;
 				input.Line            = line;
 				constexpr auto around = 6U;
-				if (const auto lines = Window->compared_lines(*note->FilePath, side, line > around ? line - around : 1U, line + around); lines && !lines->second.empty()) {
+				if (const auto lines = Window->compared_lines(own->Path, side, line > around ? line - around : 1U, line + around); lines && !lines->second.empty()) {
 					input.Excerpt = core::conversation_excerpt{ .FirstLine = lines->first, .Lines = lines->second, .AnchorFirst = line, .AnchorLast = line, .Before = side == core::diff_side::left };
 				}
 			}
@@ -1313,8 +1411,9 @@ namespace bpr::app {
 			}
 		});
 		// Owner decision 2026-10-23 ("Yep build it like that"): a card's
-		// three actions, and Save as note on a plain reply. Each makes a
-		// private draft or note in the review, never part of a session.
+		// actions, and a plain reply's one keep action (RFC-BPR-0127). Each
+		// makes a private draft or Local comment in the review, never part
+		// of a session.
 		// Owner decision 2026-10-23: switching agents shows that agent's own
 		// conversation about the open pull request.
 		QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
@@ -1347,7 +1446,7 @@ namespace bpr::app {
 		tab->set_answer_draft_target([this] { return decide_answer_draft(); });
 		tab->set_answer_draft_dispatch([this](const std::string& aKey, const QString& aText, qt::agent_answer_draft_done aDone) { draft_agent_answer(aKey, aText, std::move(aDone)); });
 		tab->set_draft_navigation([this](const std::string& aKey) { go_to_agent_answer_draft(aKey); });
-		// Owner look v004. Go to note; the files and lines a question or an
+		// Owner look v004. Go to comment; the files and lines a question or an
 		// answer names open in Review; the suggestions' toggle is kept.
 		tab->set_note_navigation([this](const std::uint64_t aNote) {
 			if (!Closing && Window != nullptr) {

@@ -120,4 +120,29 @@ namespace bpr::core {
 		}
 		return *target;
 	}
+	auto name(const keep_kind aKind) noexcept -> std::string_view
+	{
+		switch (aKind) {
+		case keep_kind::draft: return "draft";
+		case keep_kind::local: return "local";
+		}
+		return "unknown";
+	}
+
+	auto name(const keep_local_place aPlace) noexcept -> std::string_view
+	{
+		switch (aPlace) {
+		case keep_local_place::file:         return "file";
+		case keep_local_place::pull_request: return "pull_request";
+		}
+		return "unknown";
+	}
+
+	auto decide_keep(const keep_facts& aFacts) noexcept -> keep_choice
+	{
+		if (aFacts.ThreadReply || aFacts.LineTakesDraft) {
+			return { .Kind = keep_kind::draft, .Local = keep_local_place::pull_request };
+		}
+		return { .Kind = keep_kind::local, .Local = aFacts.FileInPullRequest ? keep_local_place::file : keep_local_place::pull_request };
+	}
 } // namespace bpr::core
