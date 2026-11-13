@@ -183,10 +183,10 @@ namespace bpr::qt {
 		head->addWidget(State, 1);
 		Check = new quiet_push_button{ tr("Check GitHub"), this };
 		Check->setObjectName(QStringLiteral("localDraftPublicationCheck"));
-		Check->setToolTip(tr("Reads whether the branch you pushed is this candidate, and records the exact plan"));
+		Check->setToolTip(tr("Check that the pushed branch is this candidate."));
 		Create = new QPushButton{ tr("Create draft PR"), this };
 		Create->setObjectName(QStringLiteral("localDraftPublicationCreate"));
-		Create->setToolTip(tr("Creates the draft pull request exactly as previewed below. BPR pushes nothing."));
+		Create->setToolTip(tr("Create the draft pull request as previewed."));
 		const auto width = std::max(Check->sizeHint().width(), Create->sizeHint().width());
 		Check->setMinimumWidth(width);
 		Create->setMinimumWidth(width);
@@ -203,7 +203,7 @@ namespace bpr::qt {
 		Push->setReadOnly(true);
 		Push->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
 		Push->setAccessibleName(tr("The push to run"));
-		Push->setToolTip(tr("Run this in a terminal: your own Git, credentials and hooks push the exact candidate to the hosted repository. BPR pushes nothing."));
+		Push->setToolTip(tr("Run this in a terminal to push the candidate."));
 		push->addWidget(Push, 1);
 		Copy = new quiet_push_button{ tr("Copy"), PushRow };
 		Copy->setObjectName(QStringLiteral("localDraftPublicationCopy"));
@@ -220,14 +220,14 @@ namespace bpr::qt {
 		exists->addWidget(ExistingText, 1);
 		Associate = new quiet_push_button{ tr("Link to this draft"), Existing };
 		Associate->setObjectName(QStringLiteral("localDraftPublicationAssociate"));
-		Associate->setToolTip(tr("Links the open pull request to this draft instead of creating another. Its description is left as it is."));
+		Associate->setToolTip(tr("Link the open pull request to this draft."));
 		Associate->setMinimumWidth(width);
 		exists->addWidget(Associate);
 		column->addWidget(Existing);
 
 		Tour = new QCheckBox{ tr("Publish the tour afterwards"), this };
 		Tour->setObjectName(QStringLiteral("localDraftPublicationTour"));
-		Tour->setToolTip(tr("The tour is its own publication once the pull request exists. Stops not accepted are listed and wait; they do not stop the draft pull request."));
+		Tour->setToolTip(tr("Publish the tour once the pull request exists."));
 		column->addWidget(Tour);
 
 		Preview = new QPlainTextEdit{ this };
@@ -305,8 +305,8 @@ namespace bpr::qt {
 		Check->setEnabled(draft != nullptr && !busy && !linked && phase != core::local_publication_phase::uncertain);
 		Create->setEnabled(draft != nullptr && !busy && view.Checked && !view.Refusal && !view.Digest.empty() && view.AccountAvailable && phase == core::local_publication_phase::prepared
 						   && view.Branch == core::hosted_branch_state::matches);
-		Create->setToolTip(Create->isEnabled() ? tr("Creates the draft pull request exactly as previewed below. BPR pushes nothing.")
-											   : tr("Check GitHub first: the branch you pushed must be this candidate."));
+		Create->setToolTip(Create->isEnabled() ? tr("Create the draft pull request as previewed.")
+											   : tr("Check GitHub first."));
 		PushRow->setVisible(view.Push.has_value() && !linked);
 		Push->setText(view.Push ? text_of(view.Push->Command) : QString{ });
 		Existing->setVisible(view.Existing.has_value() && !linked);

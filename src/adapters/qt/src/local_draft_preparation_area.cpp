@@ -200,7 +200,7 @@ namespace bpr::qt {
 		Proposals->setObjectName(QStringLiteral("localDraftProposals"));
 		Proposals->setAccessibleName(QStringLiteral("Proposals"));
 		Proposals->setFixedHeight(118);
-		Proposals->setToolTip(QStringLiteral("What the agent proposed, beside what it would change. Accept puts it in the draft; nothing is published"));
+		Proposals->setToolTip(QStringLiteral("What the agent proposed, Accept puts it in the draft."));
 		side->addWidget(Proposals);
 		auto* const decide = new QHBoxLayout{ };
 		Accept             = new QPushButton{ QStringLiteral("Accept"), this };
@@ -244,7 +244,7 @@ namespace bpr::qt {
 		compose->addWidget(Composer, 1);
 		Ask = new QPushButton{ QStringLiteral("Ask"), this };
 		Ask->setObjectName(QStringLiteral("localDraftAsk"));
-		Ask->setToolTip(QStringLiteral("Ask the agent. It reads this candidate as captured, never your worktree, and cannot run anything"));
+		Ask->setToolTip(QStringLiteral("Ask the agent about this candidate."));
 		wear_agent_accent(*Ask, palette());
 		Ask->setMinimumWidth(std::max(Ask->sizeHint().width(), QPushButton{ QStringLiteral("Stop") }.sizeHint().width()));
 		compose->addWidget(Ask);
@@ -348,7 +348,7 @@ namespace bpr::qt {
 		Ask->setEnabled(asking || (Projection.AgentAvailable && Projection.Draft.has_value()));
 		Composer->setEnabled(Projection.Draft.has_value());
 		if (!Projection.AgentAvailable) {
-			Ask->setToolTip(QStringLiteral("Add an agent that speaks Claude Code's stream JSON in Settings › Agents & context. Writing by hand needs none"));
+			Ask->setToolTip(QStringLiteral("Add an agent in Settings › Agents & context."));
 		}
 		Running->setText(asking ? QStringLiteral("Asking…") : QString{ });
 		Running->setToolTip(asking ? text_of(Projection.AskingText) : QString{ });
@@ -494,7 +494,8 @@ namespace bpr::qt {
 				tip << QStringLiteral("Earlier turns replayed: %1, left out: %2").arg(Projection.Coverage->Replayed).arg(Projection.Coverage->Omitted);
 			}
 		}
-		Session->setToolTip(tip.join(QLatin1Char{ '\n' }));
+		Session->setToolTip(QStringLiteral("The agent reads only this candidate."));
+		Session->setAccessibleDescription(tip.join(QLatin1Char{ ' ' }));
 		auto* const fresh = menu->addAction(QStringLiteral("New Session"));
 		fresh->setEnabled(open != nullptr);
 		connect(fresh, &QAction::triggered, this, [this, id = open == nullptr ? 0ULL : open->Id] {
@@ -546,7 +547,7 @@ namespace bpr::qt {
 		Body->setObjectName(QStringLiteral("localDraftDescriptionBody"));
 		Body->setAccessibleName(QStringLiteral("Description"));
 		Body->setPlaceholderText(QStringLiteral("## Problem\n\n## Solution\n\n## Verification"));
-		Body->setToolTip(QStringLiteral("The pull request's whole description, in Markdown. The tour never changes it. Ctrl or Cmd with Return saves"));
+		Body->setToolTip(QStringLiteral("The description, in Markdown. %1 saves.").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 		column->addWidget(Body, 1);
 		auto* const row = new QHBoxLayout{ };
 		Notice          = new QLabel{ this };
@@ -555,12 +556,12 @@ namespace bpr::qt {
 		row->addWidget(Notice, 1);
 		Insert = new QPushButton{ QStringLiteral("Add from Tour"), this };
 		Insert->setObjectName(QStringLiteral("localDraftInsertFromTour"));
-		Insert->setToolTip(QStringLiteral("Copy the tour's Problem or Solution to the end of the description"));
+		Insert->setToolTip(QStringLiteral("Add the tour's Problem or Solution."));
 		Insert->setMenu(new QMenu{ Insert });
 		row->addWidget(Insert);
 		Preview = new QPushButton{ QStringLiteral("Preview…"), this };
 		Preview->setObjectName(QStringLiteral("localDraftPreview"));
-		Preview->setToolTip(QStringLiteral("The exact text a pull request made now would carry. Notes and conversations are not in it"));
+		Preview->setToolTip(QStringLiteral("The exact text the pull request would carry."));
 		Save = new QPushButton{ QStringLiteral("Save"), this };
 		Save->setObjectName(QStringLiteral("localDraftSaveDescription"));
 		same_width({ Insert, Preview, Save });
@@ -690,7 +691,7 @@ namespace bpr::qt {
 		headRow->addWidget(Head, 1);
 		AddStop = new QPushButton{ QStringLiteral("Add Stop"), this };
 		AddStop->setObjectName(QStringLiteral("localDraftAddStop"));
-		AddStop->setToolTip(QStringLiteral("A stop on the lines selected in Changes"));
+		AddStop->setToolTip(QStringLiteral("A stop on the selected lines."));
 		headRow->addWidget(AddStop);
 		column->addLayout(headRow);
 
@@ -719,7 +720,7 @@ namespace bpr::qt {
 		briefRow->addStretch(1);
 		SaveBrief = new QPushButton{ QStringLiteral("Save"), route };
 		SaveBrief->setObjectName(QStringLiteral("localDraftSaveBrief"));
-		SaveBrief->setToolTip(QStringLiteral("Save the Problem and Solution. The description is not changed"));
+		SaveBrief->setToolTip(QStringLiteral("Save the Problem and Solution."));
 		briefRow->addWidget(SaveBrief);
 		routes->addLayout(briefRow);
 		routes->addWidget(heading(QStringLiteral("Stops"), route));
@@ -737,7 +738,7 @@ namespace bpr::qt {
 		StopText->setObjectName(QStringLiteral("localDraftStopText"));
 		StopText->setAccessibleName(QStringLiteral("Stop explanation"));
 		StopText->setFixedHeight(96);
-		StopText->setToolTip(QStringLiteral("What the reviewer should notice here. Ctrl or Cmd with Return saves"));
+		StopText->setToolTip(QStringLiteral("What the reviewer should notice here."));
 		routes->addWidget(StopText);
 		auto* const linesRow = new QHBoxLayout{ };
 		StopLines            = new QLabel{ route };
@@ -746,10 +747,10 @@ namespace bpr::qt {
 		linesRow->addWidget(StopLines, 1);
 		Show = new QPushButton{ QStringLiteral("Show"), route };
 		Show->setObjectName(QStringLiteral("localDraftShowStop"));
-		Show->setToolTip(QStringLiteral("Show its lines in Changes"));
+		Show->setToolTip(QStringLiteral("Show its lines in Review."));
 		UseLines = new QPushButton{ QStringLiteral("Use Selection"), route };
 		UseLines->setObjectName(QStringLiteral("localDraftUseLines"));
-		UseLines->setToolTip(QStringLiteral("Move the stop to the lines selected in Changes; Save keeps them"));
+		UseLines->setToolTip(QStringLiteral("Move the stop to the selected lines."));
 		Move = new QPushButton{ QStringLiteral("More"), route };
 		Move->setObjectName(QStringLiteral("localDraftStopMore"));
 		Move->setToolTip(QStringLiteral("Move the stop earlier or later in the route"));

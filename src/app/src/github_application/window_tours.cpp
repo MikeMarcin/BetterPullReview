@@ -2488,7 +2488,7 @@ namespace bpr::app {
 		}
 		if (aRequest.Begin > aRequest.End || aRequest.End > aRequest.Raw.size() || !core::valid_writing_utf8(aRequest.Raw) || !core::writing_boundary(aRequest.Raw, aRequest.Begin)
 			|| !core::writing_boundary(aRequest.Raw, aRequest.End) || core::writing_blank(std::string_view{ aRequest.Raw }.substr(aRequest.Begin, aRequest.End - aRequest.Begin))) {
-			refuse(QStringLiteral("Enhance improves what you have written. Write or select some text first."));
+			refuse(QStringLiteral("Write or select some text first."));
 			return;
 		}
 		auto request                 = core::writing_request{ };

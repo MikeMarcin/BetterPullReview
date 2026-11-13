@@ -2877,3 +2877,15 @@ foreach(bpr_explain_scale IN ITEMS 100 150 200)
         ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_explain_whole}.${bpr_explain_fraction}"
         PASS_REGULAR_EXPRESSION "explain-file-card:pass" TIMEOUT 60)
 endforeach()
+# RFC-BPR-0108, 0113 and 0114 as amended (owner, 2026-11-13): the agent's
+# commit-message nib beside Commit in the agent accent (an accent inventory of
+# Local Changes), short tooltips on the draft's additions, the additions in the
+# pull request window's own slots, and Home's one selection with Escape.
+bpr_add_executable(test_local_draft_window local_draft_window_tests.cpp)
+target_link_libraries(test_local_draft_window PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_local_draft_window)
+bpr_enable_warnings(test_local_draft_window)
+bpr_add_network_isolated_test(NAME qt_local_draft_window COMMAND test_local_draft_window)
+set_tests_properties(qt_local_draft_window PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "local-draft-window:pass" TIMEOUT 120)

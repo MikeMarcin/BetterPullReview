@@ -187,7 +187,7 @@ namespace bpr::qt {
 		SettingsButton = new quiet_push_button{ tr("Agent settings…"), this };
 		SettingsButton->setObjectName(QStringLiteral("agentFooterSettings"));
 		SettingsButton->setFlat(true);
-		SettingsButton->setToolTip(tr("Opens Settings › Agents & context, where the agent is checked and set up."));
+		SettingsButton->setToolTip(tr("Open Settings › Agents & context."));
 		connect(SettingsButton, &QPushButton::clicked, this, [this] {
 			if (SettingsDispatch) {
 				SettingsDispatch();
@@ -390,7 +390,7 @@ namespace bpr::qt {
 				parts << tr("%1 %2").arg(agent_footer_place_name(static_cast<agent_footer_place>(index)), QString::fromStdString(core::agent_cost_words(*Costs[index])));
 			}
 		}
-		Cost->setToolTip(total ? tr("What the agent has cost in this pull request this session: %1").arg(parts.join(QStringLiteral(", "))) : QString{ });
+		Cost->setToolTip(total ? tr("Agent cost this session: %1").arg(parts.join(QStringLiteral(", "))) : QString{ });
 		Cost->setAccessibleName(total ? tr("%1 this session").arg(Cost->text()) : QString{ });
 		setAccessibleDescription(text());
 		updateGeometry();

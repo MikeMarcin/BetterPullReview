@@ -299,7 +299,7 @@ namespace bpr::qt {
 		Command = new QLabel{ box };
 		Command->setObjectName(QStringLiteral("localChangesCommand"));
 		Command->setAccessibleName(QStringLiteral("Push command"));
-		Command->setToolTip(QStringLiteral("The push as it will run; never forced."));
+		Command->setToolTip(QStringLiteral("The push as it will run, never forced."));
 		Command->setWordWrap(true);
 		Command->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		Command->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));

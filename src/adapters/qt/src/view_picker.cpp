@@ -78,8 +78,7 @@ namespace bpr::qt {
 		setAccessibleName(QStringLiteral("View"));
 		const auto glyphs = std::array{ strip_glyph::two_panes, strip_glyph::one_pane, strip_glyph::edit_file };
 		const auto names  = std::array{ QStringLiteral("Two Panes"), QStringLiteral("One Pane"), QStringLiteral("Edit") };
-		const auto tips   = std::array{ QStringLiteral("Two panes: the comparison side by side"), QStringLiteral("One pane: both sides in one document"),
-										QStringLiteral("Edit: your file as it is on disk, editable, with changes marked in the gutter") };
+		const auto tips   = std::array{ QStringLiteral("Two panes"), QStringLiteral("One pane"), QStringLiteral("Edit the file on disk.") };
 		const auto ids    = std::array{ QStringLiteral("reviewViewTwoPanes"), QStringLiteral("reviewViewOnePane"), QStringLiteral("reviewViewEdit") };
 		for (std::size_t index = 0U; index < Segments.size(); ++index) {
 			auto* const segment = new view_segment{ glyphs[index], this };
@@ -135,7 +134,7 @@ namespace bpr::qt {
 	{
 		auto* const edit = Segments[2];
 		edit->setEnabled(aReason.isEmpty());
-		edit->setToolTip(aReason.isEmpty() ? edit->property("bprBaseTip").toString() : QStringLiteral("Edit is unavailable: %1").arg(aReason));
+		edit->setToolTip(aReason.isEmpty() ? edit->property("bprBaseTip").toString() : QStringLiteral("Not editable: %1.").arg(aReason));
 		edit->setAccessibleDescription(edit->toolTip());
 	}
 

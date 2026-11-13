@@ -158,10 +158,11 @@ namespace bpr::qt {
 	void enhance_button::set_running(const bool aRunning)
 	{
 		Running         = aRunning;
-		const auto what = noun(Surface);
 		setAccessibleName(aRunning ? tr("Stop enhancing") : tr("Enhance writing"));
-		setToolTip(aRunning ? tr("Stop enhancing. Your %1 stays as it is.").arg(what) : enhance_tooltip(Surface, Selection));
-		setAccessibleDescription(aRunning ? toolTip() : toolTip() + QLatin1Char(' ') + tr("You choose whether to use what it suggests; nothing is published."));
+		setToolTip(aRunning ? tr("Stop enhancing.") : enhance_tooltip(Surface, Selection));
+		// The longer account stays for a screen reader; the tooltip is one sentence.
+		setAccessibleDescription(aRunning ? tr("Stop enhancing. Your %1 stays as it is.").arg(noun(Surface))
+										  : toolTip() + QLatin1Char(' ') + tr("You choose whether to use what it suggests; nothing is published."));
 		restyle();
 	}
 
@@ -398,7 +399,7 @@ namespace bpr::qt {
 		Button->set_selection(Editor->textCursor().hasSelection());
 		Button->setEnabled(Running || (Dispatch != nullptr && !Editor->isReadOnly() && !blank));
 		if (!Running && Dispatch != nullptr && blank) {
-			Button->setToolTip(tr("Enhance improves what you have written. Write your %1 first.").arg(noun(Surface)));
+			Button->setToolTip(tr("Write your %1 first.").arg(noun(Surface)));
 		} else if (!Running) {
 			Button->set_running(false);
 		}
@@ -407,8 +408,8 @@ namespace bpr::qt {
 		if (Suggestion && Panel != nullptr && Panel->use_button() != nullptr) {
 			const auto current = Editor->toPlainText() == AskedText;
 			Panel->use_button()->setEnabled(current);
-			Panel->use_button()->setToolTip(current ? tr("Puts the suggestion in place of your text. Undo takes it back.")
-													: tr("Your text changed after Enhance. Enhance again, or discard this suggestion."));
+			Panel->use_button()->setToolTip(current ? tr("Replace your text with the suggestion.")
+													: tr("Your text changed. Enhance again."));
 		}
 	}
 
