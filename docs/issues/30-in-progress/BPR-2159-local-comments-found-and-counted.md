@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2159"
 title: "Threads' state filter, Overview's Local chip, My review and Finish your review"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0127"]
 depends_on: ["BPR-2158"]
 priority: "P2"
