@@ -240,7 +240,7 @@ namespace bpr::core {
 	{
 		std::uint64_t Id        = 0;
 		std::uint64_t Candidate = 0;
-		/// `change`, or `stop:N` for a stop's own chat.
+		/// `change`, `problem`, `solution`, or `stop:N` for a stop's own chat.
 		std::string Thread;
 		/// The agent entry's identity and its name when the session began.
 		std::string Agent;
@@ -327,7 +327,17 @@ namespace bpr::core {
 	[[nodiscard]] auto save_local_stop(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aStop, std::string aTitle, std::string aText,
 									   const std::optional<local_file_reading>& aFile, diff_side aSide, std::uint32_t aFirst, std::uint32_t aLast, std::int64_t aNow)
 		-> preparation_result<local_draft>;
+	/// \brief The pull request window's Tour panel saves a stop's title and
+	/// text as they are typed, and Use Selected Lines rebinds it to new lines
+	/// of the latest candidate (`aFile`); neither is the author's sign-off, so
+	/// the stop is not accepted here (Save, then Accept, accepts it). An
+	/// accepted stop whose title, text or lines change turns yellow, edited.
+	[[nodiscard]] auto edit_local_stop(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aStop, std::string aTitle, std::string aText,
+									   const std::optional<local_file_reading>& aFile, diff_side aSide, std::uint32_t aFirst, std::uint32_t aLast, std::int64_t aNow)
+		-> preparation_result<local_draft>;
 	[[nodiscard]] auto accept_local_stop(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aStop, std::int64_t aNow) -> preparation_result<local_draft>;
+	/// \brief Mark not accepted: the author withdraws a stop's sign-off.
+	[[nodiscard]] auto unaccept_local_stop(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aStop, std::int64_t aNow) -> preparation_result<local_draft>;
 	[[nodiscard]] auto remove_local_stop(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aStop, std::int64_t aNow) -> preparation_result<local_draft>;
 	/// \brief Moves a stop to `aIndex` in the route.
 	[[nodiscard]] auto move_local_stop(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aStop, std::size_t aIndex, std::int64_t aNow)

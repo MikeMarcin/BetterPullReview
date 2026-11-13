@@ -11,7 +11,10 @@
 
 #include "bpr/core/local_draft.hpp"
 #include "bpr/core/local_draft_tour.hpp"
+#include "bpr/core/local_tour_view.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -331,6 +334,80 @@ namespace {
 		draft      = ok(core::transfer_to_description(draft, draft.Version, "Problem text.", 103), "a deliberate transfer");
 		expect(draft.Preparation.Description.Body == "Body.\n\nProblem text." && draft.Preparation.Tour.Problem == "Problem text.", "the transfer copies one way, on request");
 	}
+
+	/// The pull request window's Tour panel shows a local tour: rings from
+	/// the local decision, presentation identities apart from every Git
+	/// object, chats and proposals as the side chat reads them, and the
+	/// panel's commands as the draft's own edits.
+	void test_panel_view()
+	{
+		auto draft = make_draft();
+		draft      = ok(core::edit_tour_brief(draft, draft.Version, "Searches outlived cancel.", "Cancel stops the worker.", 101), "brief");
+		draft      = ok(core::add_local_stop(draft, draft.Version, "Cancel", "Stops.", file(first_text), core::diff_side::right, 2U, 4U, 102), "stop 1");
+		draft      = ok(core::add_local_stop(draft, draft.Version, "Fields", "Two ints.", file(first_text), core::diff_side::right, 1U, 1U, 103), "stop 2");
+		draft      = ok(core::add_local_stop(draft, draft.Version, "", "", file(first_text), core::diff_side::right, 5U, 5U, 104), "stop 3, empty");
+		for (const auto index : { 0U, 1U }) {
+			draft = ok(core::accept_local_stop(draft, draft.Version, draft.Preparation.Tour.Stops[index].Id, 105), "accept");
+		}
+		const auto ring = [](const core::local_tour_view& aView, const std::size_t aIndex) { return core::decide_tour_stop_acceptance(aView.Tour, aView.Tour.Stops[aIndex]).State; };
+		auto       view = core::view_local_tour(draft);
+		expect(view.Tour.Problem == "Searches outlived cancel." && view.Tour.Stops.size() == 3U && view.Files == std::vector<std::string>{ "src/search.cpp" }, "the panel reads the draft's tour");
+		expect(ring(view, 0U) == core::tour_acceptance_state::accepted && ring(view, 2U) == core::tour_acceptance_state::not_accepted, "green and yellow as the draft decides");
+		expect(view.Tour.Stops[0].Destination && view.Tour.Stops[0].Destination->FirstLine == 1U && view.Tour.Stops[0].Destination->LastLine == 3U
+				   && view.Tour.Stops[0].Destination->Commit == core::local_tour_commit(draft.Id.Value, 1U),
+			   "a stop's lines are its candidate's, zero-based as the panel counts");
+		expect(core::local_tour_commit(draft.Id.Value, 1U) != core::local_tour_commit(draft.Id.Value, 2U) && core::local_tour_commit(draft.Id.Value, 1U) != draft.Candidates[0].Head,
+			   "each candidate has its own presentation identity, apart from the real commit");
+		expect(core::valid(view.Tour.Owner), "the panel's owner is well formed");
+		expect(core::tour_stop_accept_need(view.Tour, view.Tour.Stops[2]) == core::tour_accept_need::title, "Accept asks for what the draft asks");
+
+		auto next = with_successor(draft, "int a2;\nvoid cancel() {\n  stop();\n}\nint b;\n");
+		view      = core::view_local_tour(next);
+		expect(ring(view, 0U) == core::tour_acceptance_state::accepted, "an exact stop stays green after the refresh");
+		expect(ring(view, 1U) == core::tour_acceptance_state::changed, "a changed one is Changed since accepted");
+		expect(std::ranges::find(view.Reasons, std::pair{ next.Preparation.Tour.Stops[1].Id, core::local_stop_reason::changed }) != view.Reasons.end(), "with the draft's own reason");
+		expect(core::tour_stop_accept_need(view.Tour, view.Tour.Stops[0]) == core::tour_accept_need::nothing, "the exact one can be accepted at the head");
+
+		// Chats and proposals.
+		auto [d1, conversation] = ok(core::append_turn(next, next.Version, core::local_stop_thread(next.Preparation.Tour.Stops[0].Id), "agent-1", "Claude",
+														 { .Author = true, .Subject = core::local_subject::stop, .Text = "Say why." }, 106),
+									 "a question on a stop");
+		const auto proposals    = std::vector<core::local_proposal_draft>{ { .Target = core::local_proposal_target::problem, .Text = "Searches outlive cancel." },
+																		   { .Target = core::local_proposal_target::description, .Text = "Body." } };
+		const auto readings     = std::vector{ file("int a2;\nvoid cancel() {\n  stop();\n}\nint b;\n") };
+		auto [d2, ids]          = ok(core::record_proposals(d1, d1.Version, conversation, 2U, proposals, readings, "Claude", "v1", 107), "proposals");
+		auto [d3, same]         = ok(core::append_turn(d2, d2.Version, core::local_stop_thread(next.Preparation.Tour.Stops[0].Id), "agent-1", "Claude",
+														 { .Author = false, .Text = "Because.", .Proposals = ids, .CostMicros = 20000U }, 108),
+									 "the answer");
+		expect(same == conversation, "one conversation");
+		view = core::view_local_tour(d3, core::local_tour_asking{ .Thread = "change", .Text = "And the rest?" });
+		expect(view.Session.Runs.size() == 2U && view.Session.Runs[0].Thread.Kind == core::tour_thread_kind::stop && view.Session.Runs[0].Reply == "Because."
+				   && view.Session.Runs[0].Cost == 20000000U && view.Session.Runs[1].State == core::tour_agent_run_state::running,
+			   "the side chat reads each turn, its cost, and the run in flight");
+		expect(view.Proposal && view.Proposal->Items.size() == 1U && view.Proposal->Items[0].Part == core::tour_proposal_part::problem && view.ProposalItems == std::vector{ ids[0] }
+				   && view.Proposal->Items[0].Run == view.Session.Runs[0].Id,
+			   "the Problem's proposal waits on the panel with its turn; the description's belongs to Overview");
+		auto edited = ok(core::edit_tour_brief(d3, d3.Version, "The author's own.", "Cancel stops the worker.", 109), "a later edit");
+		view        = core::view_local_tour(edited);
+		expect(view.Proposal && view.Proposal->Items[0].Decision == core::tour_proposal_decision::discarded && !view.Proposal->Items[0].Refusal.empty(),
+			   "a stale proposal stays readable and refused");
+
+		// Commands.
+		const auto stop = core::tour_stop_id{ next.Preparation.Tour.Stops[1].Id };
+		auto       command = core::tour_command{ .Kind = core::tour_command_kind::solution, .Text = "New solution." };
+		expect(core::translate_local_tour_command(next, command) == std::vector{ core::local_tour_edit{ .Kind = core::local_tour_edit_kind::brief, .Problem = "Searches outlived cancel.", .Solution = "New solution." } },
+			   "the Solution saves with the Problem as it is");
+		command = { .Kind = core::tour_command_kind::edit_stop, .Stop = stop, .Value = core::tour_stop{ .Id = stop, .Title = "Fields", .Body = "Renamed." } };
+		expect(core::translate_local_tour_command(next, command).front().Kind == core::local_tour_edit_kind::stop_text, "a stop's text as typed");
+		command = { .Kind = core::tour_command_kind::split, .Stop = stop };
+		expect(core::translate_local_tour_command(next, command).empty(), "a split is not a local edit");
+		command = { .Kind = core::tour_command_kind::accept, .Stop = core::tour_stop_id{ 99U } };
+		expect(core::translate_local_tour_command(next, command).empty(), "an unknown stop changes nothing");
+		auto typed = ok(core::edit_local_stop(next, next.Version, stop.value(), "Fields", "Renamed.", std::nullopt, core::diff_side::right, 0U, 0U, 110), "typed");
+		expect(core::decide_local_stop(typed.Preparation.Tour.Stops[1]).State != core::tour_acceptance_state::accepted, "typing is not the sign-off");
+		typed = ok(core::unaccept_local_stop(typed, typed.Version, typed.Preparation.Tour.Stops[0].Id, 111), "Mark not accepted");
+		expect(core::decide_local_stop(typed.Preparation.Tour.Stops[0]).State == core::tour_acceptance_state::not_accepted, "withdrawn");
+	}
 }
 
 auto main() -> int
@@ -345,6 +422,7 @@ auto main() -> int
 	test_publication_mapping();
 	test_request_and_answer();
 	test_transfer();
+	test_panel_view();
 	std::cout << "local draft tour tests passed\n";
 	return EXIT_SUCCESS;
 }

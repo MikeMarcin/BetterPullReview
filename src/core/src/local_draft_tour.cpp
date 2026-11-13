@@ -346,7 +346,8 @@ namespace bpr::core {
 
 		[[nodiscard]] auto thread_ok(const std::string_view aThread) -> bool
 		{
-			if (aThread == local_change_thread) {
+			// The Tour panel's Problem and Solution have chats of their own.
+			if (aThread == local_change_thread || aThread == "problem" || aThread == "solution") {
 				return true;
 			}
 			constexpr auto prefix = std::string_view{ "stop:" };
@@ -930,6 +931,51 @@ namespace bpr::core {
 		return next;
 	}
 
+	auto edit_local_stop(const local_draft& aDraft, const std::uint64_t aExpectedVersion, const std::uint64_t aStop, std::string aTitle, std::string aText,
+						 const std::optional<local_file_reading>& aFile, const diff_side aSide, const std::uint32_t aFirst, const std::uint32_t aLast, const std::int64_t aNow)
+		-> preparation_result<local_draft>
+	{
+		if (aDraft.Version != aExpectedVersion) {
+			return std::unexpected{ preparation_refusal::stale };
+		}
+		if (aTitle.size() > maximum_tour_field_bytes || aText.size() > maximum_tour_field_bytes) {
+			return std::unexpected{ preparation_refusal::too_long };
+		}
+		if (!line_ok(aTitle, maximum_tour_field_bytes) || !text_ok(aText, maximum_tour_field_bytes)) {
+			return std::unexpected{ preparation_refusal::invalid };
+		}
+		auto  next = advanced(aDraft, aNow);
+		auto* stop = find_stop(next, aStop);
+		if (stop == nullptr) {
+			return std::unexpected{ preparation_refusal::unknown };
+		}
+		const auto changed = stop->Title != aTitle || stop->Text != aText;
+		stop->Title        = std::move(aTitle);
+		stop->Text         = std::move(aText);
+		if (aFile) {
+			const auto latest = latest_ordinal(next);
+			auto       source = bind(latest, *aFile, aSide, aFirst, aLast);
+			if (!source) {
+				return std::unexpected{ preparation_refusal::outside_candidate };
+			}
+			if (*source != stop->Source) {
+				if (stop->Earlier.size() >= maximum_local_draft_candidates) {
+					stop->Earlier.erase(stop->Earlier.begin() + 1);
+				}
+				stop->Earlier.push_back(std::exchange(stop->Source, std::move(*source)));
+				stop->Current = correspond(stop->Source, latest, *aFile);
+				++stop->Revision;
+			}
+		}
+		if (changed) {
+			++stop->Revision;
+		}
+		if (!valid(next.Preparation)) {
+			return std::unexpected{ preparation_refusal::too_long };
+		}
+		return next;
+	}
+
 	auto accept_local_stop(const local_draft& aDraft, const std::uint64_t aExpectedVersion, const std::uint64_t aStop, const std::int64_t aNow) -> preparation_result<local_draft>
 	{
 		if (aDraft.Version != aExpectedVersion) {
@@ -948,6 +994,21 @@ namespace bpr::core {
 		}
 		rebind_to_current(*stop);
 		mark_accepted(*stop);
+		return next;
+	}
+
+	auto unaccept_local_stop(const local_draft& aDraft, const std::uint64_t aExpectedVersion, const std::uint64_t aStop, const std::int64_t aNow) -> preparation_result<local_draft>
+	{
+		if (aDraft.Version != aExpectedVersion) {
+			return std::unexpected{ preparation_refusal::stale };
+		}
+		auto  next = advanced(aDraft, aNow);
+		auto* stop = find_stop(next, aStop);
+		if (stop == nullptr) {
+			return std::unexpected{ preparation_refusal::unknown };
+		}
+		stop->Accepted            = false;
+		stop->AcceptedFingerprint = { };
 		return next;
 	}
 
