@@ -162,6 +162,12 @@ namespace bpr::app {
 		return hold_fixture_effects(drafts->author_git_lane());
 	}
 
+	auto detail::github_application_fixture_access::seed_local_replies_for_look(github_application& aApplication, const std::string& aThread, const core::source_line_ref aLine) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		return owner != nullptr && owner->seed_local_replies_for_look(aThread, aLine);
+	}
+
 	auto detail::github_application_fixture_access::hold_local_draft_publication_lane(github_application& aApplication) -> std::function<void()>
 	{
 		auto* const drafts = aApplication.Implementation->DraftDesktop.get();

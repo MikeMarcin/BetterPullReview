@@ -62,6 +62,7 @@
 	#include "designated_live_macos_provenance.hpp"
 #endif
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -272,6 +273,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-drafts-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
+		bpr::app::command_line_option{ .Name = "attended-local-comments-look" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-tour" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-author" },
@@ -5621,6 +5623,7 @@ namespace {
 	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
+	void schedule_attended_local_comments_look(bpr::app::github_application& aApplication);
 	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication);
 	/// RFC-BPR-0108. The worktree `--attended-local-draft` opens.
 	std::string AttendedLocalDraftPath;
@@ -5728,6 +5731,8 @@ namespace {
 						schedule_attended_finish_review_look(aApplication);
 					} else if (look == "notes") {
 						schedule_attended_notes_look(aApplication);
+					} else if (look == "local-comments") {
+						schedule_attended_local_comments_look(aApplication);
 					} else if (look == "local-draft") {
 						schedule_attended_local_draft_look(aApplication);
 					} else if (look == "conversation") {
@@ -6573,6 +6578,145 @@ namespace {
 			}
 		});
 		aTimer->start();
+	}
+
+	// RFC-BPR-0127 ([[BPR-2158]]). `--attended-local-comments-look`: on the
+	// first line of the open file that has a published thread, N and Save
+	// write a Local comment through the drawer's composer; then two Local
+	// replies are seeded in that thread and the second is made a draft reply
+	// through Make draft. The thread is opened and the window left to the
+	// person: Published, Local and Draft on one line. Nothing reaches GitHub.
+	void schedule_attended_local_comments_look(bpr::app::github_application& aApplication)
+	{
+		enum class phase : std::uint8_t {
+			drawer,
+			thread,
+			compose,
+			saved,
+			replies,
+			shown,
+		};
+		struct look_state
+		{
+			phase                Phase = phase::drawer;
+			std::string          Thread;
+			bpr::core::diff_side Side  = bpr::core::diff_side::right;
+			std::uint32_t        Line  = 0U;
+			int                  Ticks = 0;
+		};
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		const auto state = std::make_shared<look_state>();
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const cards  = window.conversation_panel()->cards();
+			const auto  done   = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++state->Ticks > 2'400) {
+				done(QStringLiteral("ATTENDED_LOCAL_COMMENTS_FAILED:timeout:%1:%2:local=%3:writing=%4").arg(static_cast<int>(state->Phase)).arg(window.statusBar()->currentMessage()).arg(window.composing_local()).arg(cards->writing_draft()));
+				return;
+			}
+			const auto& shown = cards->cards();
+			switch (state->Phase) {
+			case phase::drawer:
+				if (window.conversations_drawer()->state() != bpr::core::workbench_drawer_state::expanded) {
+					window.conversations_drawer_toggle_action()->trigger();
+					return;
+				}
+				if (window.tray_tabs()->currentIndex() != 0) {
+					window.tray_tabs()->setCurrentIndex(0);
+					return;
+				}
+				state->Phase = phase::thread;
+				return;
+			case phase::thread: {
+				const auto found = std::ranges::find_if(shown, [](const bpr::qt::thread_card& aCard) {
+					return aCard.Id.starts_with("review-thread:") && aCard.Line.has_value() && *aCard.Line > 0U && !aCard.Outdated && aCard.Side == bpr::core::diff_side::right && !aCard.Resolved;
+				});
+				if (found == shown.end()) {
+					return;
+				}
+				state->Thread = found->Id;
+				state->Side   = *found->Side;
+				state->Line   = *found->Line;
+				state->Phase  = phase::compose;
+				return;
+			}
+			case phase::compose: {
+				const auto& chosen = window.comparison_surface()->selection();
+				if (!chosen || chosen->PreferredLine.Line != state->Line - 1U || chosen->PreferredLine.Side != state->Side) {
+					static_cast<void>(window.comparison_surface()->select_conversation_line(state->Side, state->Line - 1U));
+					return;
+				}
+				if (!cards->writing_draft()) {
+					window.local_comment_action()->trigger();
+					return;
+				}
+				auto* const editor = cards->draft_editor();
+				if (editor == nullptr || !window.composing_local()) {
+					return;
+				}
+				editor->setPlainText(QStringLiteral("Height is not clamped here. Re-check once the swap chain change lands."));
+				QCoreApplication::processEvents();
+				auto* const save = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadSaveLocal")) : nullptr;
+				if (save == nullptr || !save->isVisible()) {
+					return;
+				}
+				save->click();
+				QTextStream{ stdout } << "ATTENDED_LOCAL_COMMENTS_SAVE_PRESSED:" << window.statusBar()->currentMessage() << '\n';
+				state->Phase = phase::saved;
+				return;
+			}
+			case phase::saved: {
+				const auto local = std::ranges::any_of(shown, [&](const bpr::qt::thread_card& aCard) { return aCard.Local && aCard.Line == std::optional{ state->Line }; });
+				if (!local) {
+					return;
+				}
+				const auto* const result = window.comparison_surface()->current_result().get();
+				if (result == nullptr) {
+					return;
+				}
+				const auto line = bpr::core::source_line_ref{ .Comparison = result->Alignment.Digest, .Side = state->Side, .Line = state->Line - 1U };
+				if (!bpr::app::detail::github_application_fixture_access::seed_local_replies_for_look(aApplication, state->Thread.substr(std::string_view{ "review-thread:" }.size()), line)) {
+					done(QStringLiteral("ATTENDED_LOCAL_COMMENTS_FAILED:seed"));
+					return;
+				}
+				state->Phase = phase::replies;
+				return;
+			}
+			case phase::replies: {
+				const auto thread = std::ranges::find(shown, state->Thread, &bpr::qt::thread_card::Id);
+				if (thread == shown.end() || thread->LocalReplies < 1U || !thread->UnsentReply.has_value()) {
+					return;
+				}
+				cards->open_thread(state->Thread);
+				QCoreApplication::processEvents();
+				const auto marks = cards->line_marks(state->Side);
+				const auto mark  = std::ranges::find(marks, state->Line - 1U, &bpr::qt::thread_line_mark::Line);
+				QTextStream{ stdout } << "ATTENDED_LOCAL_COMMENTS_MARK:" << (mark != marks.end() ? mark->Description : QStringLiteral("none")) << '\n';
+				if (const auto root = qEnvironmentVariable("BPR_ATTENDED_LOCAL_RENDER"); !root.isEmpty()) {
+					if (qEnvironmentVariable("BPR_ATTENDED_LOCAL_THEME") == QStringLiteral("dark")) {
+						static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
+						QCoreApplication::processEvents();
+					}
+					static_cast<void>(window.grab().save(root + QStringLiteral("/app-local-comments.png"), "PNG"));
+				}
+				state->Phase = phase::shown;
+				done(QStringLiteral("ATTENDED_LOCAL_COMMENTS_SHOWN:%1").arg(state->Line));
+				return;
+			}
+			case phase::shown:
+				return;
+			}
+		});
+		timer->start();
 	}
 
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication)
@@ -13017,6 +13161,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedNotesLook) {
 						look = std::string{ "notes" };
+					}
+					if (launch.has("--attended-local-comments-look")) {
+						look = std::string{ "local-comments" };
 					}
 					if (attendedLocalDraft.has_value() && !attendedLocalDraft->empty()) {
 						AttendedLocalDraftPath   = std::string{ *attendedLocalDraft };

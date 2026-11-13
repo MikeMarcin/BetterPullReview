@@ -1789,6 +1789,9 @@ namespace bpr::app {
 		void               present_local_comments();
 		void               reload_local_comments();
 		void               dispatch_comment_state(const qt::comment_state_gesture& aGesture);
+#if defined(BPR_BUILD_TESTING)
+		[[nodiscard]] auto seed_local_replies_for_look(const std::string& aThread, core::source_line_ref aLine) -> bool;
+#endif
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto anchored_durable_defect(

@@ -2928,6 +2928,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_device_authorization.cpp"
         "src/github_application/window_explain_file.cpp"
         "src/github_application/window_github_reads.cpp"
+        "src/github_application/window_local_comments.cpp"
         "src/github_application/window_navigation.cpp"
         "src/github_application/window_probe_states.hpp"
         "src/github_application/window_read_state.cpp"
@@ -3112,6 +3113,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_device_authorization.cpp"
         "src/github_application/window_explain_file.cpp"
         "src/github_application/window_github_reads.cpp"
+        "src/github_application/window_local_comments.cpp"
         "src/github_application/window_navigation.cpp"
         "src/github_application/window_probe_states.hpp"
         "src/github_application/window_read_state.cpp"
@@ -3703,7 +3705,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# (store_local_comment, LocalComments, Body); the same ledger calls on the
 	# same lane. No new effect, provider, grant or publication path.
 	set(bpr_expected_production_app_manifest_digest
-        "398b42d1ef73175d3140718574c57586989568c6ae7786ce23d8607fbb69a94a"
+        "25f8b6c19b742b59ad4e2841c9a7afb7eff02abd28596a3e8f98d7df57dde48c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

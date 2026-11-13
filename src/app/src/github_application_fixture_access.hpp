@@ -2452,6 +2452,10 @@ namespace bpr::app::detail {
 		/// is on, holding `aBody`, through the window's own Comment action and
 		/// editor, the way a reviewer would write it. Shown once the draft and
 		/// the editor hold `aBody`. Nothing is published.
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). Test access only, for the
+		/// attended look: two Local replies in `aThread` (by provider identity)
+		/// on `aLine`, the second then made a draft reply through Make draft.
+		[[nodiscard]] static auto seed_local_replies_for_look(github_application& aApplication, const std::string& aThread, core::source_line_ref aLine) -> bool;
 		[[nodiscard]] static auto seed_attended_comment_draft(github_application& aApplication, core::diff_side aSide, const std::string& aBody)
 			-> fixture_file_reveal_result;
 		/// \brief [[BPR-1083]]. In Read on `src/engine/renderer.cpp`: the

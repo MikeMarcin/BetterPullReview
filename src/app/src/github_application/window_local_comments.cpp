@@ -176,11 +176,44 @@ namespace bpr::app {
 		case qt::card_action::keep_local:
 		case qt::card_action::save_local: {
 			if (!aGesture.Draft) {
+				refuse(QStringLiteral("There is no draft to keep local. Nothing changed."));
 				return;
 			}
 			const auto drafts = SharedDrafts ? SharedDrafts->recovery_snapshot() : std::vector<core::revisioned_review_draft>{ };
 			const auto draft  = std::ranges::find(drafts, *aGesture.Draft, [](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Id; });
 			const auto shown  = current_note_attachment();
+			// Save on a comment the store has no words of yet: a new Local
+			// comment at the composer's lines, and the composer's draft goes.
+			if (aGesture.Action == qt::card_action::save_local && aGesture.Anchor && (draft == drafts.end() || draft->Draft.Body.empty())) {
+				const auto* const surface = Window->comparison_surface();
+				if (!shown || shown->Comparison != aGesture.Anchor->Comparison || surface == nullptr || surface->current_result() == nullptr
+					|| surface->current_result()->Alignment.Digest != aGesture.Anchor->Comparison) {
+					refuse(QStringLiteral("Return to the comment's comparison to save it. Your text is kept."));
+					return;
+				}
+				if (aGesture.Body.empty()) {
+					refuse(QStringLiteral("Write something to save it. Nothing changed."));
+					return;
+				}
+				auto next = std::uint64_t{ 1U };
+				for (const auto& comment : AcceptedPrivateNotes) {
+					next = std::max(next, comment.Id.value() + 1U);
+				}
+				auto attachment  = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison, .Line = core::note_line_anchor_at(surface->current_result()->Alignment, aGesture.Anchor->Side, aGesture.Anchor->Line) };
+				auto comment     = application::local_comment_record{ .Id = application::local_comment_id{ next }, .Attachment = attachment, .Body = aGesture.Body, .StartLine = aGesture.StartLine };
+				comment.FilePath = SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt;
+				ReviewLedgerHost->persist(comment, std::nullopt, ledger_answer([this, refuse](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
+											  if (!aStored) {
+												  refuse(QStringLiteral("The local comment was not saved. Your text is kept."));
+												  return;
+											  }
+											  if (Window != nullptr) {
+												  Window->close_drawer_composer(true);
+											  }
+											  refresh_agent_private_context_choices();
+										  }));
+				return;
+			}
 			if (draft == drafts.end() || !shown || shown->Comparison != draft->Draft.Anchor.Comparison) {
 				refuse(QStringLiteral("Return to the draft's comparison to keep it local. Nothing changed."));
 				return;
@@ -232,7 +265,7 @@ namespace bpr::app {
 				move(draft->Revision);
 			}
 			if (aGesture.Action == qt::card_action::save_local) {
-				Window->close_drawer_composer();
+				Window->close_drawer_composer(false);
 			}
 			return;
 		}
@@ -240,4 +273,38 @@ namespace bpr::app {
 			return;
 		}
 	}
+
+#if defined(BPR_BUILD_TESTING)
+	auto github_application::implementation::seed_local_replies_for_look(const std::string& aThread, const core::source_line_ref aLine) -> bool
+	{
+		const auto  shown   = current_note_attachment();
+		auto* const surface = Window != nullptr ? Window->comparison_surface() : nullptr;
+		if (!shown || shown->Comparison != aLine.Comparison || surface == nullptr || surface->current_result() == nullptr || !ReviewLedgerHost || !PrivateReview) {
+			return false;
+		}
+		auto next = std::uint64_t{ 1U };
+		for (const auto& comment : AcceptedPrivateNotes) {
+			next = std::max(next, comment.Id.value() + 1U);
+		}
+		auto       attachment = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison, .Line = core::note_line_anchor_at(surface->current_result()->Alignment, aLine.Side, aLine.Line) };
+		const auto reply      = [&](const std::uint64_t aId, std::string aBody) {
+			return application::local_comment_record{ .Id = application::local_comment_id{ aId }, .Attachment = attachment, .Body = std::move(aBody), .ReplyToThread = aThread };
+		};
+		const auto first  = reply(next, "Check retained() after a resize before believing this. Ask at standup.");
+		const auto second = reply(next + 1U, "Thanks. Does begin_frame() also skip it after forget()?");
+		ReviewLedgerHost->persist(first, std::nullopt, ledger_answer([this, second, aLine, aThread](const std::expected<application::local_comment_record, application::local_comment_failure>& aFirst) {
+									  if (!aFirst) {
+										  return;
+									  }
+									  ReviewLedgerHost->persist(second, std::nullopt, ledger_answer([this, aLine, aThread](const std::expected<application::local_comment_record, application::local_comment_failure>& aSecond) {
+																	if (!aSecond) {
+																		return;
+																	}
+																	// The second becomes my draft reply, through Make draft.
+																	PrivateReview->make_draft(aSecond->Id, aSecond->Revision, aSecond->Body, aLine, std::nullopt, aThread, [this](auto) { reload_local_comments(); });
+																}));
+								  }));
+		return true;
+	}
+#endif
 }

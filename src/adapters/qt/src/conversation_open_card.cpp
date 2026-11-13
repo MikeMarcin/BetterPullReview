@@ -1283,6 +1283,10 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("threadPost"));
 		setProperty("postIdentity", QString::fromStdString(aPost.Id));
 		setAccessibleName(aPost.Name.isEmpty() ? shown_author(aPost.Author) : aPost.Name);
+		if (aPost.Local) {
+			setAccessibleDescription(comment_state_words(true, false, false));
+			setToolTip(QStringLiteral("Only on this computer"));
+		}
 		setAccessibleDescription(aPost.Unread ? QStringLiteral("New") : QString{ });
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 		// RFC-BPR-0036. The body reads through the shared Markdown reader, in
@@ -1723,6 +1727,16 @@ namespace bpr::qt {
 			painter.setPen(Qt::NoPen);
 			painter.setBrush(colours.New);
 			painter.drawEllipse(QRectF{ static_cast<qreal>(x), post_padding + name / 2.0 - 3.5, 7.0, 7.0 });
+		}
+		// RFC-BPR-0127 ([[BPR-2158]]). My Local reply wears the computer and
+		// says Local reply: only on this computer, never sent.
+		if (Post.Local && x + 16 < tools) {
+			const auto small = scaled(font(), 0.92);
+			const auto words = QFontMetrics{ small }.elidedText(QStringLiteral("Local reply"), Qt::ElideRight, std::max(0, tools - x - 16));
+			paint_conversation_glyph(painter, QRectF{ static_cast<qreal>(x), post_padding + (name - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::computer, colours.Ink2);
+			painter.setFont(small);
+			painter.setPen(colours.Ink2);
+			painter.drawText(QRect{ x + 16, post_padding, std::max(0, tools - x - 16), name }, Qt::AlignLeft | Qt::AlignVCenter, words);
 		}
 	}
 

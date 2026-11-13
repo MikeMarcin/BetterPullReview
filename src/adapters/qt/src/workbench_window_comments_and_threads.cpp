@@ -1910,9 +1910,9 @@ namespace bpr::qt {
 		apply_thread_marks();
 	}
 
-	void workbench_window::close_drawer_composer()
+	void workbench_window::close_drawer_composer(const bool aDiscard)
 	{
-		leave_drawer_draft(false);
+		leave_drawer_draft(aDiscard);
 	}
 
 	void workbench_window::refuse_comment_state(const QString& aWhy)
@@ -1953,8 +1953,10 @@ namespace bpr::qt {
 			}
 		}
 		if (aAction == card_action::save_local && ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()) {
-			gesture.Draft = ReviewEditor->shown_draft()->Id;
-			gesture.Body  = ReviewEditor->shown_draft()->Body;
+			gesture.Draft     = ReviewEditor->shown_draft()->Id;
+			gesture.Body      = ReviewEditor->body_editor()->toPlainText().toStdString();
+			gesture.Anchor    = ReviewEditor->shown_draft()->Anchor;
+			gesture.StartLine = ReviewEditor->shown_draft()->StartLine;
 		}
 		if (CommentStateDispatch) {
 			CommentStateDispatch(gesture);

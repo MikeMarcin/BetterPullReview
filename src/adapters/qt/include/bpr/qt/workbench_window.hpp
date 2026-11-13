@@ -207,8 +207,10 @@ namespace bpr::qt {
 		std::string                          Identity;
 		std::optional<core::review_draft_id> Draft;
 		std::optional<std::uint64_t>         Local;
-		/// What the composer holds, for Save.
-		std::string Body;
+		/// What the composer holds, for Save: its words and where it is.
+		std::string                          Body;
+		std::optional<core::source_line_ref> Anchor;
+		std::optional<std::uint32_t>         StartLine;
 	};
 	using workbench_comment_state_dispatch = std::function<void(const comment_state_gesture&)>;
 	/// [[BPR-0657]]. A card's Resolve or Unresolve, with what the window knows
@@ -838,7 +840,7 @@ namespace bpr::qt {
 		void refuse_comment_state(const QString& aWhy);
 		/// \brief RFC-BPR-0127. Closes the drawer's composer after its words
 		/// were saved as a Local comment.
-		void close_drawer_composer();
+		void close_drawer_composer(bool aDiscard);
 		/// \brief RFC-BPR-0116 ([[BPR-2074]]). A thread's Was this addressed?,
 		/// on the threads named here.
 		void set_conversation_addressed_dispatch(std::function<void(const std::string&)> aDispatch);
