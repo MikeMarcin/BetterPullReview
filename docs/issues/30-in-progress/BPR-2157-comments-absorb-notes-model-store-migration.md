@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2157"
 title: "One comment in three states: model, store and the notes migration"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0127"]
 depends_on: []
 priority: "P2"
