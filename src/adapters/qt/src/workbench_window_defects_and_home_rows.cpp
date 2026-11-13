@@ -434,7 +434,8 @@ namespace bpr::qt {
 			HomeList->set_selection_shown(aList == home_selection_list::queue);
 		}
 		for (const auto& [list, view] : { std::pair{ home_selection_list::recent, static_cast<QAbstractItemView*>(HomeRecentList) },
-										  std::pair{ home_selection_list::cycles, static_cast<QAbstractItemView*>(HomeCyclesList) } }) {
+										  std::pair{ home_selection_list::cycles, static_cast<QAbstractItemView*>(HomeCyclesList) },
+										  std::pair{ home_selection_list::drafts, static_cast<QAbstractItemView*>(HomeDraftsList) } }) {
 			if (view == nullptr) {
 				continue;
 			}

@@ -191,7 +191,9 @@ int main(int aArgc, char** aArgv)
 	// [[BPR-1509]]. Both drawer headers use compact native tabs; switching
 	// pages retains the file/filter and the independent Search session.
 	auto* const fileSearch = window.findChild<QTabWidget*>(QStringLiteral("fileSearchTabs"));
-	expect(fileSearch && fileSearch->count() == 2, "Files and Search share the existing drawer");
+	// A local draft's Local Changes tab waits, hidden, beside them (RFC-BPR-0108 as amended).
+	expect(fileSearch && fileSearch->count() == 3 && fileSearch->isTabVisible(0) && fileSearch->isTabVisible(1) && !fileSearch->isTabVisible(2),
+		   "Files and Search share the existing drawer");
 	auto* const tabs            = fileSearch->tabBar();
 	const auto  retainedFile    = surface->current_context()->Key;
 	const auto  retainedSearch  = panel->projection().Matches;

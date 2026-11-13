@@ -768,6 +768,8 @@ namespace bpr::qt {
 				claim_home_selection(home_selection_list::recent);
 			} else if (aNow == HomeCyclesList) {
 				claim_home_selection(home_selection_list::cycles);
+			} else if (aNow == HomeDraftsList) {
+				claim_home_selection(home_selection_list::drafts);
 			} else if (qobject_cast<QListView*>(aNow) != nullptr && HomeList->isAncestorOf(aNow)) {
 				claim_home_selection(home_selection_list::queue);
 			}

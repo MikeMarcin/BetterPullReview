@@ -2290,6 +2290,8 @@ namespace bpr::qt {
 			queue,
 			recent,
 			cycles,
+			/// RFC-BPR-0108 (owner, 2026-11-13): In preparation's local drafts.
+			drafts,
 		};
 		/// \brief [[BPR-1365]]. Makes one Home list the one that shows a
 		/// selection: its current row is selected, natively, and every other

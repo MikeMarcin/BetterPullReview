@@ -11,6 +11,7 @@
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -683,7 +684,7 @@ namespace bpr::qt {
 			{
 				if (aEvent->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(aEvent)->key() == Qt::Key_Escape && static_cast<QKeyEvent*>(aEvent)->modifiers() == Qt::NoModifier) {
 					auto* const view = qobject_cast<QAbstractItemView*>(aWatched);
-					if (view != nullptr && view->selectionModel() != nullptr && (view->selectionModel()->hasSelection() || view->currentIndex().isValid())) {
+					if (view != nullptr && view->selectionModel() != nullptr && view->selectionModel()->hasSelection()) {
 						Clear();
 						return true;
 					}
@@ -703,12 +704,10 @@ namespace bpr::qt {
 
 	void workbench_window::clear_home_selection(const QAbstractItemView* const aKept)
 	{
+		// Each list keeps its current row for the keyboard; none shows it selected.
 		for (auto* const view : home_views(HomePage)) {
-			if (view == aKept || view->selectionModel() == nullptr) {
-				continue;
-			}
-			if (view->selectionModel()->hasSelection() || view->currentIndex().isValid()) {
-				view->selectionModel()->clear();
+			if (view != aKept) {
+				home_hide_selection(*view);
 			}
 		}
 	}
@@ -726,33 +725,28 @@ namespace bpr::qt {
 
 	void workbench_window::build_home_selection()
 	{
+		// In preparation joins Home's one selection (claim_home_selection);
+		// Escape in any Home list clears the selection it shows.
 		auto* const escape = new home_escape_filter{ this, [this] { clear_home_selection(nullptr); } };
-		// A row chosen in one list leaves no row chosen in another; the
-		// lists are made as Home groups its rows, so each is met as it is used.
-		const auto adopt = [this, escape](QAbstractItemView* const aView) {
-			if (aView == nullptr || aView->property("bprHomeExclusive").toBool() || aView->selectionModel() == nullptr) {
-				return;
-			}
-			aView->setProperty("bprHomeExclusive", true);
-			aView->installEventFilter(escape);
-			connect(aView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this, aView](const QItemSelection& aSelected) {
-				if (!aSelected.isEmpty()) {
-					clear_home_selection(aView);
+		const auto  adopt  = [escape](QAbstractItemView* const aView) {
+            if (aView != nullptr && !aView->property("bprHomeEscape").toBool()) {
+                aView->setProperty("bprHomeEscape", true);
+                aView->installEventFilter(escape);
+            }
+		};
+		if (HomeDraftsList != nullptr) {
+			connect(HomeDraftsList->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this] {
+				if (HomeSelection != home_selection_list::drafts) {
+					home_hide_selection(*HomeDraftsList);
 				}
 			});
-		};
+		}
 		for (auto* const view : home_views(HomePage)) {
 			adopt(view);
 		}
 		connect(qApp, &QApplication::focusChanged, this, [this, adopt](QWidget*, QWidget* const aNow) {
-			if (HomePage == nullptr || aNow == nullptr || !HomePage->isAncestorOf(aNow)) {
-				return;
-			}
-			for (auto* widget = aNow; widget != nullptr && widget != HomePage; widget = widget->parentWidget()) {
-				if (auto* const view = qobject_cast<QAbstractItemView*>(widget); view != nullptr) {
-					adopt(view);
-					return;
-				}
+			if (HomePage != nullptr && aNow != nullptr && HomePage->isAncestorOf(aNow)) {
+				adopt(qobject_cast<QAbstractItemView*>(aNow));
 			}
 		});
 	}
