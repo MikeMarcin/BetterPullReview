@@ -1579,6 +1579,11 @@ namespace bpr::qt {
 				? static_cast<QToolButton*>(new quiet_tool_button{ conversationContents })
 				: new QToolButton{ conversationContents };
 			button->setDefaultAction(action);
+			// Owner look v005: the keep pair wears the state control's
+			// glyphs; their words stay beside them in this list.
+			if (kind == finding_queue_action::keep_local || kind == finding_queue_action::convert_to_draft_comment) {
+				button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			}
 			findingActions->addWidget(button);
 		}
 		findingsLayout->addLayout(findingActions);

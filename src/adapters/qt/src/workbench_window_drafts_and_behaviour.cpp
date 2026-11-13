@@ -276,8 +276,8 @@ namespace bpr::qt {
 			return { };
 		}
 		switch (decided.error()) {
-		case core::keep_local_refusal::held_by_review: return tr("Your submitted review holds this draft until GitHub answers, so it cannot be kept local now.");
-		case core::keep_local_refusal::publishing:     return tr("This draft is being published, so it cannot be kept local now.");
+		case core::keep_local_refusal::held_by_review: return tr("Your submitted review holds this draft");
+		case core::keep_local_refusal::publishing:     return tr("This draft is being published");
 		case core::keep_local_refusal::published:      return tr("This comment is on GitHub.");
 		case core::keep_local_refusal::discarded:      return tr("This draft was discarded.");
 		}

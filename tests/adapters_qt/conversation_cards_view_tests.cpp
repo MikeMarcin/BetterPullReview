@@ -1141,7 +1141,7 @@ namespace {
 			   "Make draft and Delete go to the window by the card's identity; nothing is published");
 		view.open_thread("local:9");
 		QApplication::processEvents();
-		expect(button(view, "threadMakeDraft") != nullptr && !button(view, "threadMakeDraft")->isEnabled()
+		expect(button(view, "threadMakeDraft") != nullptr && !button(view, "threadMakeDraft")->isEnabled() && button(view, "threadMakeDraft")->property("draftRefused").toBool()
 				   && button(view, "threadMakeDraft")->toolTip() == QStringLiteral("Select a line in the code to make it a draft there."),
 			   "AC06: an outdated one offers Make draft only with a line selected, and says so");
 	}
@@ -1354,13 +1354,17 @@ namespace {
 		}
 		qt::hide_anchored_tooltip();
 		expect(shown, "pointing at \"Local reply\" shows what it means");
-		auto* const replyWhy = card->findChild<QLabel*>(QStringLiteral("threadLocalReplyMakeDraftWhy"));
-		expect(replyWhy != nullptr && replyWhy->isVisibleTo(card) && replyWhy->text().contains(QStringLiteral("draft reply in this thread")), "a Local reply's Make draft says in words why it is not offered");
+		// Owner look v003 ("just the tooltip is enough"): a refused Draft is
+		// the struck pencil, disabled, its reason in its tooltip alone.
+		auto* const replyMake = card->findChild<QAbstractButton*>(QStringLiteral("threadLocalReplyMakeDraft"));
+		expect(replyMake != nullptr && !replyMake->isEnabled() && replyMake->property("draftRefused").toBool() && replyMake->toolTip().contains(QStringLiteral("draft reply in this thread"))
+				   && card->findChild<QLabel*>(QStringLiteral("threadLocalReplyMakeDraftWhy")) == nullptr,
+			   "a Local reply's refused Draft says why in its tooltip alone");
 		view.open_thread("local:8");
 		QApplication::processEvents();
-		auto* const lineWhy = view.open_card()->findChild<QLabel*>(QStringLiteral("threadMakeDraftWhy"));
-		expect(lineWhy != nullptr && lineWhy->isVisibleTo(view.open_card()) && lineWhy->text().contains(QStringLiteral("draft on this line")) && !button(view, "threadMakeDraft")->isEnabled(),
-			   "a Local comment's Make draft says in words why it is not offered");
+		expect(!button(view, "threadMakeDraft")->isEnabled() && button(view, "threadMakeDraft")->property("draftRefused").toBool() && button(view, "threadMakeDraft")->toolTip().contains(QStringLiteral("draft on this line"))
+				   && view.open_card()->findChild<QLabel*>(QStringLiteral("threadMakeDraftWhy")) == nullptr,
+			   "a Local comment's refused Draft says why in its tooltip alone");
 		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("conversationPullRequestHeader")) == nullptr, "a Local comment on a line never says Pull request");
 	}
 

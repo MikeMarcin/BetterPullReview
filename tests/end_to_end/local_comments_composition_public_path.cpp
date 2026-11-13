@@ -209,6 +209,116 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { const auto thread = card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == threadId; }); return thread && thread->LocalReplies == 1U && !thread->UnsentReply.has_value(); },
 			 "the Local reply is inside the thread's card, and no draft reply stands");
 
+	// Owner look v003 ("I didnt see any other comments on there [that]
+	// were drafts ... and it still couldnt post"): the look's own sequence.
+	// A second Local reply made a draft reply stands in the thread; the
+	// first Local reply's Draft is the struck pencil, its reason a short
+	// tooltip, and the draft reply that is the reason is shown as a draft.
+	{
+		const auto local = [&](const QString& aBody) {
+			const auto& comments = cards->local_comments();
+			const auto  found    = std::ranges::find_if(comments, [&](const qt::local_comment_card& aCard) { return aCard.ReplyToThread && aCard.Body == aBody; });
+			return found == comments.end() ? std::optional<std::uint64_t>{ } : std::optional{ found->Id };
+		};
+		const auto first = local(QStringLiteral("LOCAL-ONLY: a reply kept here."));
+		expect(first.has_value(), "the first Local reply is listed");
+		// A second Local reply through the thread's Reply field, as the first.
+		wait_for([&] {
+			if (cards->open_thread_id() != threadId) {
+				cards->open_thread(threadId);
+			}
+			return open_button(*cards, "threadReplyField") != nullptr && open_button(*cards, "threadReplyField")->isVisible();
+		},
+				 "the thread offers Reply again");
+		open_button(*cards, "threadReplyField")->click();
+		wait_for([&] { const auto& draft = window.review_editor()->shown_draft(); return draft && draft->ReplyToThread && cards->reply_editor() != nullptr && !cards->reply_editor()->isReadOnly() && open_button(*cards, "threadReplyStateLocal") != nullptr; },
+				 "the reply field opens");
+		open_button(*cards, "threadReplyStateLocal")->click();
+		cards->reply_editor()->setPlainText(QStringLiteral("LOCAL-ONLY: a second reply, to be a draft."));
+		wait_for([&] { auto* const save = open_button(*cards, "threadReplySaveLocal"); return save != nullptr && save->isVisible() && save->isEnabled(); }, "Save is offered");
+		open_button(*cards, "threadReplySaveLocal")->click();
+		wait_for([&] { return local(QStringLiteral("LOCAL-ONLY: a second reply, to be a draft.")).has_value(); }, "the second Local reply is listed");
+		const auto second = *local(QStringLiteral("LOCAL-ONLY: a second reply, to be a draft."));
+		const auto stateOf = [&](const std::uint64_t aId) -> QAbstractButton* {
+			auto* const card = cards->open_card();
+			if (card == nullptr) {
+				return nullptr;
+			}
+			for (auto* const post : card->findChildren<QWidget*>(QStringLiteral("threadLocalReplyState"))) {
+				if (post->property("postIdentity").toString() == QString::fromStdString(qt::conversation_cards_view::local_comment_identity(aId))) {
+					return post->findChild<QAbstractButton*>(QStringLiteral("threadLocalReplyMakeDraft"));
+				}
+			}
+			return nullptr;
+		};
+		wait_for([&] {
+			if (cards->open_thread_id() != threadId) {
+				cards->open_thread(threadId);
+			}
+			auto* const make = stateOf(second);
+			return make != nullptr && make->isEnabled();
+		},
+				 "the second Local reply offers Draft");
+		stateOf(second)->click();
+		wait_for([&] { const auto thread = card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == threadId; }); return thread && thread->UnsentReply.has_value() && thread->LocalReplies == 1U; },
+				 "it is my draft reply in the thread");
+		// Make draft opens it in the reply field; folded, the thread shows it
+		// as the look left it.
+		if (auto* const cancel = open_button(*cards, "threadReplyCancel"); cancel != nullptr && cancel->isVisible()) {
+			cancel->click();
+		}
+		wait_for([&] { return cards->reply_editor() == nullptr; }, "the reply field folds");
+		wait_for([&] {
+			if (cards->open_thread_id() != threadId) {
+				cards->open_thread(threadId);
+			}
+			auto* const make  = stateOf(*first);
+			auto* const field = open_button(*cards, "threadReplyField");
+			auto* const keep  = open_button(*cards, "threadDraftReplyKeepLocal");
+			return make != nullptr && !make->isEnabled() && field != nullptr && field->accessibleName().startsWith(QStringLiteral("Draft reply, not sent: LOCAL-ONLY: a second reply")) && keep != nullptr
+				&& keep->isVisibleTo(cards->open_card());
+		},
+				 "the first Local reply's Draft is refused while the draft reply shows as a draft in the thread");
+		auto* const refused = stateOf(*first);
+		std::cout << "LOCAL_COMMENTS_REPLY_REFUSAL " << refused->toolTip().toStdString() << '\n';
+		expect(refused->toolTip() == QStringLiteral("Your draft reply in this thread already stands") && refused->toolTip().size() <= 60
+				   && refused->property("draftRefused").toBool(),
+			   "the refusal is the struck pencil with a short tooltip, and no words under it");
+		expect(cards->open_card()->findChild<QLabel*>(QStringLiteral("threadLocalReplyMakeDraftWhy")) == nullptr, "no reason is written in the card");
+		// What frees it: the draft reply kept local again. Then the first
+		// Local reply's Draft is offered.
+		open_button(*cards, "threadDraftReplyKeepLocal")->click();
+		wait_for([&] {
+			if (cards->open_thread_id() != threadId) {
+				cards->open_thread(threadId);
+			}
+			const auto thread = card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == threadId; });
+			auto* const make  = stateOf(*first);
+			return thread && !thread->UnsentReply.has_value() && thread->LocalReplies == 2U && make != nullptr && make->isEnabled();
+		},
+				 "once the draft reply is local again, the first Local reply's Draft is offered");
+		// Back to one Local reply for what follows.
+		const auto again = local(QStringLiteral("LOCAL-ONLY: a second reply, to be a draft."));
+		expect(again.has_value(), "the draft reply is a Local reply again, with its words");
+		wait_for([&] {
+			if (cards->open_thread_id() != threadId) {
+				cards->open_thread(threadId);
+			}
+			return cards->open_card() != nullptr;
+		},
+				 "the thread is open");
+		for (auto* const remove : cards->open_card()->findChildren<QAbstractButton*>(QStringLiteral("threadLocalReplyDelete"))) {
+			if (remove->property("postIdentity").toString() == QString::fromStdString(qt::conversation_cards_view::local_comment_identity(*again))) {
+				remove->click();
+				break;
+			}
+		}
+		wait_for([&] { return dynamic_cast<qt::destructive_question*>(window.findChild<QDialog*>(QStringLiteral("deleteLocalConfirmation"))) != nullptr; }, "Delete asks first");
+		dynamic_cast<qt::destructive_question*>(window.findChild<QDialog*>(QStringLiteral("deleteLocalConfirmation")))->accept();
+		wait_for([&] { const auto thread = card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == threadId; }); return thread && thread->LocalReplies == 1U && !thread->UnsentReply.has_value(); },
+				 "one Local reply again");
+	}
+
 	// A Local comment on the whole file and one on the pull request, as a
 	// migrated note leaves them.
 	expect(access::seed_local_comment(*application, "LOCAL-ONLY: on the whole file.", true), "the whole file's comment is stored");
@@ -359,9 +469,9 @@ int main(int aArgc, char** aArgv)
 		refused->click();
 		wait_for([&] { return window.statusBar()->currentMessage().contains(QStringLiteral("already stands")); }, "AC05: Make draft where my draft stands is refused, and says why");
 	} else {
-		auto* const why = open_button(*cards, "threadMakeDraft")->parentWidget()->findChild<QLabel*>(QStringLiteral("threadMakeDraftWhy"));
-		expect(refused->toolTip().contains(QStringLiteral("your draft on this line already stands")) && why != nullptr && why->isVisible() && why->text() == refused->toolTip(),
-			   "AC05: Make draft where my draft stands is refused, and says why in words under it");
+		expect(refused->toolTip() == QStringLiteral("Your draft on this line already stands") && refused->property("draftRefused").toBool()
+				   && cards->open_card()->findChild<QLabel*>(QStringLiteral("threadMakeDraftWhy")) == nullptr,
+			   "AC05: Make draft where my draft stands is refused: the struck pencil, its reason in the tooltip alone");
 	}
 	QApplication::processEvents();
 	expect(window.draft_roster() == rosterBefore && card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == second->Id; }).has_value(), "AC05: nothing changed");

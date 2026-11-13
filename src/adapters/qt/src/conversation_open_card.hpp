@@ -32,6 +32,7 @@ class QPlainTextEdit;
 class QToolButton;
 
 namespace bpr::qt {
+	class comment_state_toggle;
 	class feedback_label_controls;
 	class markdown_body_view;
 	class reaction_bar;
@@ -308,6 +309,10 @@ namespace bpr::qt {
 		void               set_joined(bool aJoined);
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+		/// \brief RFC-BPR-0127. A Reply field holding my draft reply shows
+		/// its words after a pencil; empty for none.
+		void               set_draft_words(const QString& aWords);
+		[[nodiscard]] auto draft_words() const noexcept -> const QString& { return DraftWords; }
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -316,6 +321,7 @@ namespace bpr::qt {
 		kind            Kind;
 		open_card_style Style;
 		bool            Joined = false;
+		QString         DraftWords;
 	};
 
 	/// \brief [[BPR-1290]]. The open thread, in place at its line: the header
@@ -405,6 +411,10 @@ namespace bpr::qt {
 		std::function<void()> EditNewer;
 		/// \brief Updates durable read marks without replacing readers or their menus.
 		void present_read_state(const thread_card& aCard);
+		/// \brief RFC-BPR-0127, owner look v003. My draft reply in this
+		/// thread, shown in its Reply field with its words and the state
+		/// control; nothing when none stands. Updated in place.
+		void present_unsent_reply(const thread_card& aCard);
 		/// \brief Whether \p aWatched is a post's rendered or source text,
 		/// where the arrow keys move the reading caret.
 		[[nodiscard]] auto is_reading(const QObject* aWatched) const -> bool;
@@ -519,6 +529,10 @@ namespace bpr::qt {
 		QWidget*     Privacy      = nullptr;
 		/// RFC-BPR-0127 ([[BPR-2158]]). The composer's state control (Local,
 		/// Draft), Save for Local and the sentence beside it.
+		comment_state_toggle* StateToggle = nullptr;
+		/// RFC-BPR-0127. My draft reply's state, beside the Reply field.
+		comment_state_toggle*                DraftReplyState = nullptr;
+		std::optional<core::review_draft_id> DraftReplyId;
 		QToolButton*       StateLocal  = nullptr;
 		QToolButton*       StateDraft  = nullptr;
 		note_button*       SaveLocal   = nullptr;

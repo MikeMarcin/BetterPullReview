@@ -7,6 +7,7 @@
 #include "bpr/qt/scoped_prose_editor.hpp"
 
 #include "button_surface.hpp"
+#include "comment_state_toggle.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
 
@@ -1274,25 +1275,6 @@ namespace bpr::qt {
 						 QFontMetrics{ badge_font() }.elidedText(tour_stop_badge(Stop, Count), Qt::ElideRight, room));
 	}
 
-	namespace {
-		/// Owner look v002 ([[BPR-2158]]): "I don't understand why the mark
-		/// draft button is unavailable here". Why Make draft is not offered,
-		/// said in words under it, not only in a disabled button's tooltip.
-		[[nodiscard]] auto make_draft_reason(const QString& aWhy, const open_card_style& aStyle, QWidget* aParent, const QString& aName) -> QLabel*
-		{
-			auto* const why = new QLabel{ aWhy, aParent };
-			why->setObjectName(aName);
-			why->setWordWrap(true);
-			why->setTextFormat(Qt::PlainText);
-			why->setFont(scaled(why->font(), 0.92));
-			auto ink = why->palette();
-			ink.setColor(QPalette::WindowText, aStyle.Colours.Ink2);
-			why->setPalette(ink);
-			why->setAccessibleName(aWhy);
-			return why;
-		}
-	} // namespace
-
 	thread_post_view::thread_post_view(const card_post& aPost, const open_card_style& aStyle, const bool aRuleAbove, QWidget* const aParent)
 		: QWidget{ aParent }
 		, Post{ aPost }
@@ -1831,6 +1813,15 @@ namespace bpr::qt {
 		update();
 	}
 
+	void note_button::set_draft_words(const QString& aWords)
+	{
+		if (DraftWords == aWords) {
+			return;
+		}
+		DraftWords = aWords;
+		update();
+	}
+
 	auto note_button::minimumSizeHint() const -> QSize
 	{
 		// [[BPR-1753]], owner look v003: a pill is never cut short.
@@ -1921,8 +1912,26 @@ namespace bpr::qt {
 			painter.setBrush(colours.CodeBackground.isValid() ? colours.CodeBackground : colours.Panel);
 			painter.drawRoundedRect(box, 7.0, 7.0);
 			paint_avatar(painter, QRectF{ 9.0, (height() - 18) / 2.0, 18.0, 18.0 }, Style.Viewer, true, colours, font());
-			painter.setPen(colours.Faint);
-			painter.drawText(QRect{ 36, 0, width() - 70, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+			if (DraftWords.isEmpty()) {
+				painter.setPen(colours.Faint);
+				painter.drawText(QRect{ 36, 0, width() - 70, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+			} else {
+				// RFC-BPR-0127, owner look v003 ("I didnt see any other
+				// comments on there [that] were drafts"). My draft reply is
+				// shown as one: the pencil, "Draft reply" and its words.
+				paint_conversation_glyph(painter, QRectF{ 36.0, (height() - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.SignalInk);
+				const auto lead    = QStringLiteral("Draft reply ");
+				const auto strong  = semibold(font());
+				const auto leadW   = QFontMetrics{ strong }.horizontalAdvance(lead);
+				const auto room    = std::max(0, width() - 70 - 16);
+				painter.setFont(strong);
+				painter.setPen(colours.SignalInk);
+				painter.drawText(QRect{ 52, 0, room, height() }, Qt::AlignLeft | Qt::AlignVCenter, lead);
+				painter.setFont(font());
+				painter.setPen(colours.Ink2);
+				painter.drawText(QRect{ 52 + leadW, 0, std::max(0, room - leadW), height() }, Qt::AlignLeft | Qt::AlignVCenter,
+								 QFontMetrics{ font() }.elidedText(DraftWords, Qt::ElideRight, std::max(0, room - leadW)));
+			}
 			const auto small   = semibold(scaled(font(), 0.84));
 			const auto metrics = QFontMetrics{ small };
 			const auto key     = QStringLiteral("R");
@@ -2403,15 +2412,20 @@ namespace bpr::qt {
 				auto* const localRow = new QHBoxLayout{ };
 				localRow->setContentsMargins(text_left, 0, text_right, 4);
 				localRow->setSpacing(4);
-				auto* const make = new note_button{ note_button::kind::secondary, post.LocalMakeDraft.isEmpty() ? QStringLiteral("Make draft") : post.LocalMakeDraft, this };
-				make->setObjectName(QStringLiteral("threadLocalReplyMakeDraft"));
-				make->setIcon(conversation_icon(conversation_glyph::edit, palette));
-				make->setEnabled(!post.LocalMakeDraft.isEmpty());
-				make->setToolTip(post.LocalMakeDraft.isEmpty() ? post.LocalMakeDraftWhy : QStringLiteral("Make it your draft reply in this thread. Nothing is sent."));
-				make->setAccessibleDescription(make->toolTip());
-				make->set_style(Style);
-				connect(make, &QAbstractButton::clicked, this, [this, id = post.Id] { if (PostAction) { PostAction(card_action::make_draft, id); } });
-				localRow->addWidget(make);
+				// Owner look v005: the state control every comment of mine has;
+				// a refused Draft is the struck pencil, its reason the tooltip.
+				auto* const state = new comment_state_toggle{ QPalette::Base, this };
+				state->setObjectName(QStringLiteral("threadLocalReplyState"));
+				state->setProperty("postIdentity", QString::fromStdString(post.Id));
+				state->local_button()->setObjectName(QStringLiteral("threadLocalReplyLocal"));
+				state->draft_button()->setObjectName(QStringLiteral("threadLocalReplyMakeDraft"));
+				state->draft_button()->setText(post.LocalMakeDraft.isEmpty() ? QStringLiteral("Make draft") : post.LocalMakeDraft);
+				state->set_names(QStringLiteral("Local reply, only on this computer"), post.LocalMakeDraft.isEmpty() ? QStringLiteral("Make draft") : post.LocalMakeDraft);
+				state->set_local(true, QStringLiteral("Only on this computer"));
+				state->set_draft(!post.LocalMakeDraft.isEmpty(), post.LocalMakeDraft.isEmpty() ? post.LocalMakeDraftWhy : QStringLiteral("Make it your draft reply here"));
+				state->set_state(comment_state_toggle::state::local);
+				state->DraftChosen = [this, id = post.Id] { if (PostAction) { PostAction(card_action::make_draft, id); } };
+				localRow->addWidget(state);
 				auto* const copy = card_button(this);
 				copy->setObjectName(QStringLiteral("threadLocalReplyCopy"));
 				copy->setAutoRaise(true);
@@ -2424,14 +2438,10 @@ namespace bpr::qt {
 				localRow->addWidget(copy);
 				localRow->addStretch(1);
 				auto* const remove = tool(this, QStringLiteral("threadLocalReplyDelete"), QStringLiteral("Delete local reply"), conversation_glyph::trash, palette);
+				remove->setProperty("postIdentity", QString::fromStdString(post.Id));
 				connect(remove, &QToolButton::clicked, this, [this, id = post.Id] { if (PostAction) { PostAction(card_action::delete_local, id); } });
 				localRow->addWidget(remove);
 				column->addLayout(localRow);
-				if (post.LocalMakeDraft.isEmpty() && !post.LocalMakeDraftWhy.isEmpty()) {
-					auto* const why = make_draft_reason(post.LocalMakeDraftWhy, Style, this, QStringLiteral("threadLocalReplyMakeDraftWhy"));
-					why->setContentsMargins(text_left + 4, 0, text_right, 6);
-					column->addWidget(why);
-				}
 			}
 			first = false;
 		}
@@ -2502,16 +2512,20 @@ namespace bpr::qt {
 			}
 			auto* const actions = new QHBoxLayout{ };
 			actions->setSpacing(4);
-			auto* const make = new note_button{ note_button::kind::primary, aCard.LocalComment.MakeDraft.isEmpty() ? QStringLiteral("Make draft") : aCard.LocalComment.MakeDraft, Foot };
-			make->setObjectName(QStringLiteral("threadMakeDraft"));
-			make->setIcon(conversation_icon(conversation_glyph::edit, palette));
-			make->setEnabled(!aCard.LocalComment.MakeDraft.isEmpty());
-			make->setToolTip(aCard.LocalComment.MakeDraft.isEmpty() ? aCard.LocalComment.MakeDraftWhy
-																	: QStringLiteral("Make it a draft at the same place, not in your review. Nothing is published."));
-			make->setAccessibleDescription(make->toolTip());
-			make->set_style(Style);
-			connect(make, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::make_draft); } });
-			actions->addWidget(make);
+			auto* const state = new comment_state_toggle{ QPalette::Base, Foot };
+			state->setObjectName(QStringLiteral("threadLocalStateControl"));
+			state->local_button()->setObjectName(QStringLiteral("threadLocalStateLocal"));
+			state->draft_button()->setObjectName(QStringLiteral("threadMakeDraft"));
+			const auto offer = aCard.LocalComment.MakeDraft.isEmpty() ? QStringLiteral("Make draft") : aCard.LocalComment.MakeDraft;
+			state->draft_button()->setText(offer);
+			state->set_names(comment_state_words(true, false, false), offer);
+			state->set_local(true, QStringLiteral("Only on this computer"));
+			state->set_draft(!aCard.LocalComment.MakeDraft.isEmpty(), aCard.LocalComment.MakeDraft.isEmpty() ? aCard.LocalComment.MakeDraftWhy
+																										 : offer == QStringLiteral("Make draft") ? QStringLiteral("Make it a draft here, not in your review")
+																																					 : QStringLiteral("%1, not in your review").arg(offer));
+			state->set_state(comment_state_toggle::state::local);
+			state->DraftChosen = [this] { if (Action) { Action(card_action::make_draft); } };
+			actions->addWidget(state);
 			auto* const copy = card_button(Foot);
 			copy->setObjectName(QStringLiteral("threadCopyLocal"));
 			copy->setAutoRaise(true);
@@ -2528,9 +2542,6 @@ namespace bpr::qt {
 			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_local); } });
 			actions->addWidget(discard);
 			footRow->addLayout(actions);
-			if (aCard.LocalComment.MakeDraft.isEmpty() && !aCard.LocalComment.MakeDraftWhy.isEmpty()) {
-				footRow->addWidget(make_draft_reason(aCard.LocalComment.MakeDraftWhy, Style, Foot, QStringLiteral("threadMakeDraftWhy")));
-			}
 		} else if (aCard.Draft && aCard.MovedSuggestion) {
 			// [[BPR-1733]]. My kept suggestion from an earlier head: written
 			// again at its lines here when the core carries it, or its change
@@ -2587,26 +2598,25 @@ namespace bpr::qt {
 			connect(remove, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
 			// RFC-BPR-0127 ([[BPR-2158]]). Keep local: the same words and place,
 			// out of the review, only on this computer.
-			auto* const keep = card_button(Foot);
-			keep->setObjectName(QStringLiteral("threadKeepLocal"));
-			keep->setAutoRaise(true);
-			keep->setText(QStringLiteral("Keep local"));
-			keep->setToolTip(QStringLiteral("Keep it only on this computer. It leaves your review and is never sent."));
-			keep->setAccessibleDescription(keep->toolTip());
-			keep->setIcon(conversation_icon(conversation_glyph::computer, palette));
-			keep->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::computer));
-			keep->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-			keep->setFocusPolicy(Qt::StrongFocus);
-			connect(keep, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::keep_local); } });
+			auto* const keep = new comment_state_toggle{ QPalette::Base, Foot };
+			keep->setObjectName(QStringLiteral("threadDraftState"));
+			keep->local_button()->setObjectName(QStringLiteral("threadKeepLocal"));
+			keep->draft_button()->setObjectName(QStringLiteral("threadDraftStateDraft"));
+			keep->local_button()->setText(QStringLiteral("Keep local"));
+			keep->set_names(QStringLiteral("Keep local"), comment_state_words(false, true, aCard.Pending));
+			keep->set_local(true, QStringLiteral("Keep it only on this computer"));
+			keep->set_draft(true, aCard.Pending ? QStringLiteral("Draft, in your review") : QStringLiteral("Draft, not in your review"));
+			keep->set_state(comment_state_toggle::state::draft);
+			keep->LocalChosen = [this] { if (Action) { Action(card_action::keep_local); } };
 			// [[BPR-1345]]. A pending draft goes with the review; it is opened
 			// to change it, and nothing here publishes it on its own.
+			actions->addWidget(keep);
 			if (aCard.Pending) {
 				publish->hide();
 			} else {
 				actions->addWidget(publish);
 			}
 			actions->addWidget(edit);
-			actions->addWidget(keep);
 			actions->addStretch(1);
 			actions->addWidget(remove);
 			footRow->addLayout(actions);
@@ -2638,7 +2648,29 @@ namespace bpr::qt {
 				ReplyField->setAccessibleName(QStringLiteral("Reply"));
 				ReplyField->set_style(Style);
 				connect(ReplyField, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::reply); } });
-				footRow->addWidget(ReplyField);
+				// RFC-BPR-0127, owner look v005. My draft reply has the same
+				// state control as every comment of mine: Local keeps it here.
+				DraftReplyState = new comment_state_toggle{ QPalette::Base, Foot };
+				DraftReplyState->setObjectName(QStringLiteral("threadDraftReplyState"));
+				DraftReplyState->local_button()->setObjectName(QStringLiteral("threadDraftReplyKeepLocal"));
+				DraftReplyState->draft_button()->setObjectName(QStringLiteral("threadDraftReplyDraft"));
+				DraftReplyState->set_names(QStringLiteral("Keep local"), QStringLiteral("Draft reply, not sent"));
+				DraftReplyState->set_local(true, QStringLiteral("Keep it only on this computer"));
+				DraftReplyState->set_draft(true, QStringLiteral("Your draft reply, not sent"));
+				DraftReplyState->set_state(comment_state_toggle::state::draft);
+				DraftReplyState->LocalChosen = [this] {
+					if (DraftReplyId.has_value() && PostAction) {
+						PostAction(card_action::keep_local, "draft:unpublished:" + std::to_string(DraftReplyId->value()));
+					}
+				};
+				DraftReplyState->hide();
+				auto* const field = new QHBoxLayout{ };
+				field->setContentsMargins(0, 0, 0, 0);
+				field->setSpacing(6);
+				field->addWidget(DraftReplyState, 0, Qt::AlignVCenter);
+				field->addWidget(ReplyField, 1);
+				footRow->addLayout(field);
+				present_unsent_reply(aCard);
 			}
 			// [[BPR-1741]]. Where GitHub puts it: at the thread's end,
 			// beside Reply, for a viewer GitHub lets resolve the thread.
@@ -2713,34 +2745,20 @@ namespace bpr::qt {
 			// Local and Reply: Local keeps the reply only on this computer,
 			// inside this thread, with Save (⌘↩) in Send's place.
 			{
-				auto* const states = new QWidget{ Editor };
+				auto* const states = new comment_state_toggle{ QPalette::Base, Editor };
 				states->setObjectName(QStringLiteral("threadReplyState"));
 				states->setAccessibleName(QStringLiteral("Reply state"));
-				auto* const statesRow = new QHBoxLayout{ states };
-				statesRow->setContentsMargins(0, 0, 0, 0);
-				statesRow->setSpacing(0);
-				const auto segment = [&](const QString& aText, const conversation_glyph aGlyph, const QString& aName, const QString& aTip) {
-					auto* const button = card_button(states);
-					button->setObjectName(aName);
-					button->setCheckable(true);
-					button->setAutoRaise(false);
-					button->setText(aText);
-					button->setIcon(conversation_icon(aGlyph, palette));
-					button->setProperty("conversationGlyph", static_cast<int>(aGlyph));
-					button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-					button->setToolTip(aTip);
-					button->setAccessibleDescription(aTip);
-					button->setFocusPolicy(Qt::StrongFocus);
-					statesRow->addWidget(button);
-					return button;
-				};
-				StateLocal = segment(QStringLiteral("Local"), conversation_glyph::computer, QStringLiteral("threadReplyStateLocal"), QStringLiteral("Only on this computer"));
-				StateDraft = segment(QStringLiteral("Reply"), conversation_glyph::edit, QStringLiteral("threadReplyStateReply"), QStringLiteral("A reply you send to the thread"));
-				StateLocal->setAccessibleName(QStringLiteral("Local reply, only on this computer"));
-				StateDraft->setAccessibleName(QStringLiteral("Reply, sent to the thread"));
-				StateDraft->setChecked(true);
-				connect(StateLocal, &QToolButton::clicked, this, [this] { choose_local(true, false); });
-				connect(StateDraft, &QToolButton::clicked, this, [this] { choose_local(false, false); });
+				StateToggle = states;
+				StateLocal  = states->local_button();
+				StateDraft  = states->draft_button();
+				StateLocal->setObjectName(QStringLiteral("threadReplyStateLocal"));
+				StateDraft->setObjectName(QStringLiteral("threadReplyStateReply"));
+				StateDraft->setText(QStringLiteral("Reply"));
+				states->set_names(QStringLiteral("Local reply, only on this computer"), QStringLiteral("Reply, sent to the thread"));
+				states->set_draft(true, QStringLiteral("A reply you send to the thread"));
+				states->set_state(comment_state_toggle::state::draft);
+				states->LocalChosen = [this] { choose_local(true, false); };
+				states->DraftChosen = [this] { choose_local(false, false); };
 				actions->addWidget(states);
 				actions->addStretch(1);
 			}
@@ -2924,33 +2942,19 @@ namespace bpr::qt {
 		// RFC-BPR-0127 ([[BPR-2158]]). Where "Private until you publish"
 		// stood, the comment's state: Local or Draft, two segments joined.
 		// Local is only on this computer; Draft is meant to be sent.
-		auto* const states = new QWidget{ Foot };
+		// Owner look v005: the same control as every card's (icons only).
+		auto* const states = new comment_state_toggle{ QPalette::Base, Foot };
 		states->setObjectName(QStringLiteral("threadCommentState"));
-		states->setAccessibleName(QStringLiteral("Comment state"));
-		auto* const statesRow = new QHBoxLayout{ states };
-		statesRow->setContentsMargins(0, 0, 0, 0);
-		statesRow->setSpacing(0);
-		const auto segment = [&](const QString& aText, const conversation_glyph aGlyph, const QString& aName, const QString& aTip) {
-			auto* const button = card_button(states);
-			button->setObjectName(aName);
-			button->setCheckable(true);
-			button->setAutoRaise(false);
-			button->setText(aText);
-			button->setIcon(conversation_icon(aGlyph, palette));
-			button->setProperty("conversationGlyph", static_cast<int>(aGlyph));
-			button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-			button->setToolTip(aTip);
-			button->setAccessibleDescription(aTip);
-			button->setFocusPolicy(Qt::StrongFocus);
-			statesRow->addWidget(button);
-			return button;
-		};
-		StateLocal = segment(QStringLiteral("Local"), conversation_glyph::computer, QStringLiteral("threadStateLocal"), QStringLiteral("Only on this computer"));
-		StateDraft = segment(QStringLiteral("Draft"), conversation_glyph::edit, QStringLiteral("threadStateDraft"), QStringLiteral("A draft you can add to your review or post"));
-		StateLocal->setAccessibleName(comment_state_words(true, false, false));
-		StateDraft->setChecked(true);
-		connect(StateLocal, &QToolButton::clicked, this, [this] { choose_local(true, true); });
-		connect(StateDraft, &QToolButton::clicked, this, [this] { choose_local(false, true); });
+		StateToggle = states;
+		StateLocal  = states->local_button();
+		StateDraft  = states->draft_button();
+		StateLocal->setObjectName(QStringLiteral("threadStateLocal"));
+		StateDraft->setObjectName(QStringLiteral("threadStateDraft"));
+		states->set_names(comment_state_words(true, false, false), QStringLiteral("Draft"));
+		states->set_draft(true, QStringLiteral("A draft you can add to your review or post"));
+		states->set_state(comment_state_toggle::state::draft);
+		states->LocalChosen = [this] { choose_local(true, true); };
+		states->DraftChosen = [this] { choose_local(false, true); };
 		Privacy = states;
 		DraftActions->addWidget(states);
 		LocalWords = new QLabel{ QStringLiteral("Only on this computer. Never sent."), Foot };
@@ -3237,8 +3241,9 @@ namespace bpr::qt {
 		if (StateLocal == nullptr || StateDraft == nullptr) {
 			return;
 		}
-		StateLocal->setChecked(aLocal);
-		StateDraft->setChecked(!aLocal);
+		if (StateToggle != nullptr) {
+			StateToggle->set_state(aLocal ? comment_state_toggle::state::local : comment_state_toggle::state::draft);
+		}
 		const auto changed = LocalChosen != aLocal;
 		LocalChosen        = aLocal;
 		// Local's foot: Delete and Save, and the sentence. Draft's is today's.
@@ -3347,14 +3352,6 @@ namespace bpr::qt {
 		const auto fixed     = lock + (trash != nullptr ? trash->sizeHint().width() : 0) + 3 * DraftActions->spacing() + 2;
 		const auto needed    = fixed + Publish->sizeHint().width() + ReviewAction->sizeHint().width();
 		const auto split     = available > 0 && needed > available;
-		// RFC-BPR-0127. In a narrow drawer the state control keeps its two
-		// glyphs, the computer and the pencil; their names stay in their
-		// tooltips and for assistive technology.
-		if (StateLocal != nullptr && StateDraft != nullptr) {
-			const auto style = split ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon;
-			StateLocal->setToolButtonStyle(style);
-			StateDraft->setToolButtonStyle(style);
-		}
 		if (split == !SplitAction->isHidden()) {
 			return;
 		}
@@ -3415,6 +3412,9 @@ namespace bpr::qt {
 		}
 		Replying = aReplying;
 		ReplyField->setVisible(!aReplying);
+		if (DraftReplyState != nullptr) {
+			DraftReplyState->setVisible(!aReplying && DraftReplyId.has_value() && !ReplyField->draft_words().isEmpty());
+		}
 		Editor->setVisible(aReplying);
 		refresh_reply_controls();
 		if (HeightChanged) {
@@ -3684,6 +3684,26 @@ namespace bpr::qt {
 	auto open_thread_card::resolve_conversation() const noexcept -> QAbstractButton*
 	{
 		return ResolveConversation;
+	}
+
+	void open_thread_card::present_unsent_reply(const thread_card& aCard)
+	{
+		if (ReplyField == nullptr || DraftReplyState == nullptr) {
+			return;
+		}
+		const auto words = aCard.UnsentReplyDraft.has_value() ? aCard.UnsentReplyBody.simplified() : QString{ };
+		DraftReplyId     = words.isEmpty() ? std::nullopt : aCard.UnsentReplyDraft;
+		ReplyField->set_draft_words(words);
+		ReplyField->setText(aCard.UnsentReply.has_value() ? QStringLiteral("Continue your reply") : QStringLiteral("Reply"));
+		ReplyField->setToolTip(words.isEmpty() ? QStringLiteral("Reply  R") : QStringLiteral("Your draft reply, not sent  R"));
+		ReplyField->setAccessibleName(words.isEmpty() ? QStringLiteral("Reply") : QStringLiteral("Draft reply, not sent: %1").arg(words));
+		const auto shown = !Replying && DraftReplyId.has_value();
+		if (DraftReplyState->isVisibleTo(this) != shown) {
+			DraftReplyState->setVisible(shown);
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		}
 	}
 
 	void open_thread_card::present_read_state(const thread_card& aCard)

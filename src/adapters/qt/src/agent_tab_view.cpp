@@ -19,6 +19,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "comment_state_toggle.hpp"
 
 #include <QAbstractItemModel>
 #include <QAccessible>
@@ -1421,6 +1422,19 @@ namespace bpr::qt {
 		// takes a draft (`core::decide_keep`), else Draft comment below. Keep
 		// local keeps the whole reply, or the part selected in it, as a Local
 		// comment on the pull request.
+		// Owner look v005 ("There's a lot of overlap on the UX here"): the
+		// answer is kept through the state control every comment of mine
+		// has, Local or Draft; the two buttons below stand only as Go to
+		// comment and Go to draft once it is kept.
+		auto* const keepState = new comment_state_toggle{ QPalette::Base, reply };
+		keepState->setObjectName(QStringLiteral("agentTurnKeepState"));
+		keepState->local_button()->setObjectName(QStringLiteral("agentTurnKeepStateLocal"));
+		keepState->draft_button()->setObjectName(QStringLiteral("agentTurnKeepStateDraft"));
+		keepState->set_names(tr("Keep local"), tr("Draft comment"));
+		keepState->set_local(true, tr("Keep it as a local comment, only here"));
+		keepState->set_state(comment_state_toggle::state::none);
+		keepState->hide();
+		footerRow->addWidget(keepState);
 		auto* const save = new quiet_push_button{ tr("Keep local"), reply };
 		save->setObjectName(QStringLiteral("agentTurnKeepLocal"));
 		save->setFlat(true);
@@ -1494,6 +1508,17 @@ namespace bpr::qt {
 		aTurn.AskedTime    = askedTime;
 		aTurn.AnsweredTime = answeredTime;
 		aTurn.Draft        = draft;
+		aTurn.KeepState    = keepState;
+		keepState->LocalChosen = [save] {
+			if (save->isEnabled()) {
+				save->click();
+			}
+		};
+		keepState->DraftChosen = [draft] {
+			if (draft->isEnabled()) {
+				draft->click();
+			}
+		};
 		aTurn.Asked        = asked;
 		aTurn.Reply        = reply;
 		aTurn.Recovery     = recovery;
@@ -1544,6 +1569,11 @@ namespace bpr::qt {
 					if (!aDrafted) {
 						guarded->setText(tr("Not drafted: %1").arg(aWhy));
 						guarded->setEnabled(true);
+						for (auto& turn : Turns) {
+							if (turn.Draft == guarded) {
+								present_keep(turn);
+							}
+						}
 						return;
 					}
 					for (auto& turn : Turns) {
@@ -1555,6 +1585,11 @@ namespace bpr::qt {
 					guarded->setText(navigable ? tr("Go to draft") : tr("Drafted"));
 					guarded->setToolTip(navigable ? tr("Open the draft this reply was written into") : QString{ });
 					guarded->setEnabled(navigable);
+					for (auto& turn : Turns) {
+						if (turn.Draft == guarded) {
+							present_keep(turn);
+						}
+					}
 				});
 				return;
 			}
@@ -1596,6 +1631,11 @@ namespace bpr::qt {
 					if (!aSaved) {
 						guarded->setText(tr("Not kept: %1").arg(aWhy));
 						guarded->setEnabled(true);
+						for (auto& turn : Turns) {
+							if (turn.SaveNote == guarded) {
+								present_keep(turn);
+							}
+						}
 						return;
 					}
 					for (auto& turn : Turns) {
@@ -1607,6 +1647,11 @@ namespace bpr::qt {
 					guarded->setText(navigable ? tr("Go to comment") : tr("Kept local"));
 					guarded->setToolTip(navigable ? tr("Open the local comment this reply was kept as") : QString{ });
 					guarded->setEnabled(navigable);
+					for (auto& turn : Turns) {
+						if (turn.SaveNote == guarded) {
+							present_keep(turn);
+						}
+					}
 				});
 				return;
 			}
@@ -2698,13 +2743,8 @@ namespace bpr::qt {
 			}
 			// RFC-BPR-0127. One keep action: Keep local where the host found
 			// no thread or line to take a draft (or none was decided).
-			const auto local = !kept.DraftTarget || kept.DraftTarget->Local;
-			if (kept.SaveNote != nullptr) {
-				kept.SaveNote->setVisible(actions.Keep && local);
-			}
-			if (kept.Draft != nullptr) {
-				kept.Draft->setVisible(actions.Keep && !local);
-			}
+			kept.KeepOffered = actions.Keep;
+			present_keep(kept);
 			if (kept.AskMore != nullptr) {
 				kept.AskMore->setVisible((kept.Returning.has_value() || !kept.Explain.isEmpty() || !kept.SuggestChange.isEmpty()) && actions.Keep);
 			}
@@ -3070,10 +3110,33 @@ namespace bpr::qt {
 			turn.Draft->setToolTip(!turn.DraftTarget->Tip.isEmpty() ? turn.DraftTarget->Tip
 																	: tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
 			turn.Draft->setEnabled(true);
+			present_keep(turn);
 		}
 	}
 
+	void agent_tab_view::present_keep(turn& aTurn)
+	{
+		auto* const state = static_cast<comment_state_toggle*>(aTurn.KeepState.data());
+		if (state == nullptr || aTurn.SaveNote == nullptr || aTurn.Draft == nullptr) {
+			return;
+		}
+		// RFC-BPR-0127 (`core::decide_keep`): Draft where the host found a
+		// thread or line to take a draft; else the struck pencil says why.
+		const auto canDraft = aTurn.DraftTarget.has_value() && !aTurn.DraftTarget->Local;
+		state->set_draft(canDraft, canDraft ? tr("Draft it where you asked") : tr("No line or thread here takes a draft"));
+		// Once kept, or refused with its reason, the button says so and
+		// goes there; until then the state control keeps it.
+		const auto localSaid = aTurn.SaveNote->text() != tr("Keep local");
+		const auto draftSaid = aTurn.Draft->text() != tr("Draft comment");
+		aTurn.SaveNote->setVisible(aTurn.KeepOffered && localSaid);
+		aTurn.Draft->setVisible(aTurn.KeepOffered && draftSaid);
+		state->setVisible(aTurn.KeepOffered && !(aTurn.Note != 0U || aTurn.Drafted));
+		state->set_state(comment_state_toggle::state::none);
+	}
+
 	auto agent_tab_view::turn_draft_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Draft.data() : nullptr; }
+
+	auto agent_tab_view::turn_keep_state(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].KeepState.data() : nullptr; }
 
 	auto agent_tab_view::turn_asked(const std::size_t aTurn) const -> QString
 	{
@@ -3335,16 +3398,21 @@ namespace bpr::qt {
 		// RFC-BPR-0127. One keep action, in one place: Draft comment where
 		// its line takes a draft, Keep local where none does
 		// (`core::decide_keep`; `show_card_state` shows the one).
-		auto* const draft = new quiet_push_button{ tr("Draft comment"), card };
-		draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
-		draft->setToolTip(tr("A private draft at its lines, from its suggested comment. Nothing is published."));
-		connect(draft, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::draft_comment); });
-		actions->addWidget(draft);
-		auto* const note = new quiet_push_button{ tr("Keep local"), card };
-		note->setObjectName(QStringLiteral("agentFindingKeepLocal"));
-		note->setToolTip(tr("No line here takes a draft. Keep it as a local comment on its file, or on the pull request. Only on this computer."));
-		connect(note, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::keep_local); });
-		actions->addWidget(note);
+		// Owner look v005: the state control every comment of mine has.
+		// Local keeps it on its file or the pull request; Draft drafts it at
+		// its line, the struck pencil where no line takes one.
+		auto* const keep = new comment_state_toggle{ QPalette::Base, card };
+		keep->setObjectName(QStringLiteral("agentFindingKeep"));
+		keep->local_button()->setObjectName(QStringLiteral("agentFindingKeepLocal"));
+		keep->draft_button()->setObjectName(QStringLiteral("agentFindingDraftComment"));
+		keep->local_button()->setText(tr("Keep local"));
+		keep->draft_button()->setText(tr("Draft comment"));
+		keep->set_names(tr("Keep local"), tr("Draft comment"));
+		keep->set_local(true, tr("Keep it as a local comment, only here"));
+		keep->set_state(comment_state_toggle::state::none);
+		keep->LocalChosen = [this, index] { act_on_card(index, agent_finding_card_action::keep_local); };
+		keep->DraftChosen = [this, index] { act_on_card(index, agent_finding_card_action::draft_comment); };
+		actions->addWidget(keep);
 		auto* const dismiss = new quiet_push_button{ tr("Dismiss"), card };
 		dismiss->setObjectName(QStringLiteral("agentFindingDismiss"));
 		dismiss->setFlat(true);
@@ -3432,11 +3500,9 @@ namespace bpr::qt {
 		const auto open      = aEntry.State == agent_finding_card_state::open || aEntry.State == agent_finding_card_state::refused;
 		const auto placeable = !aEntry.Gone && (!FindingPlaceable || FindingPlaceable(aEntry.Finding));
 		const auto keep      = core::decide_keep({ .ThreadReply = false, .LineTakesDraft = placeable, .FileInPullRequest = false }).Kind;
-		if (auto* const button = aEntry.Widget->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment")); button != nullptr) {
-			button->setVisible(open && keep == core::keep_kind::draft);
-		}
-		if (auto* const button = aEntry.Widget->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal")); button != nullptr) {
-			button->setVisible(open && keep == core::keep_kind::local);
+		if (auto* const state = static_cast<comment_state_toggle*>(aEntry.Widget->findChild<QWidget*>(QStringLiteral("agentFindingKeep"))); state != nullptr) {
+			state->setVisible(open);
+			state->set_draft(keep == core::keep_kind::draft, keep == core::keep_kind::draft ? tr("Draft it at its line, not published") : tr("No line here takes a draft"));
 		}
 	}
 

@@ -18,6 +18,7 @@ class QPushButton;
 class QScrollArea;
 
 namespace bpr::qt {
+	class comment_state_toggle;
 	class markdown_body_view;
 
 	/// \brief RFC-BPR-0117 ([[BPR-2076]]). One Explain this file turn, as the
@@ -76,6 +77,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto progress() const noexcept -> const explain_file_progress& { return Shown; }
 		[[nodiscard]] auto note() const noexcept -> std::uint64_t { return Note; }
 		[[nodiscard]] auto keep_button() const noexcept -> QPushButton* { return KeepButton; }
+		/// \brief RFC-BPR-0127, owner look v005. The state control that keeps it.
+		[[nodiscard]] auto keep_state() const noexcept -> QWidget*;
 		[[nodiscard]] auto continue_button() const noexcept -> QPushButton* { return ContinueButton; }
 		[[nodiscard]] auto dismiss_button() const noexcept -> QPushButton* { return DismissButton; }
 		[[nodiscard]] auto answer_view() const noexcept -> markdown_body_view* { return Answer; }
@@ -107,6 +110,8 @@ namespace bpr::qt {
 		QPointer<QScrollArea>                               Scroll;
 		QPointer<markdown_body_view>                        Answer;
 		QPointer<QPushButton>                               KeepButton;
+		/// RFC-BPR-0127, owner look v005. Local, or the struck pencil.
+		comment_state_toggle*                               KeepState = nullptr;
 		QPointer<QPushButton>                               ContinueButton;
 		QPointer<QPushButton>                               DismissButton;
 		std::uint64_t                                       Serial = 0U;

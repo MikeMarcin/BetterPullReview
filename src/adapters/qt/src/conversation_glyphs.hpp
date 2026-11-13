@@ -72,6 +72,10 @@ namespace bpr::qt {
 		bot,
 		/// [[BPR-2171]]. Only this file: a page with its corner turned.
 		file,
+		/// RFC-BPR-0127, owner look v003 ("can we do pencil with slash when
+		/// you're not allowed to make a draft"). Draft refused: the pencil
+		/// struck through.
+		edit_refused,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

@@ -27,17 +27,16 @@ namespace bpr::app {
 			return { };
 		}
 
-		/// Owner look v002 ([[BPR-2158]]): two Local comments on one line,
-		/// one offering Make draft and one not, read as arbitrary. A line
-		/// and a thread each hold one draft of mine; the words say which
-		/// draft stands in the way and what frees it.
+		/// Owner looks v002 and v003 ([[BPR-2158]]). A line and a thread
+		/// each hold one draft of mine; the words name the draft in the way.
+		/// They are the struck pencil's tooltip, so at most 60 characters:
+		/// "just the tooltip is enough" (owner, v003).
 		[[nodiscard]] auto make_draft_words(const core::make_draft_refusal aRefusal, const bool aReply = false) -> QString
 		{
 			switch (aRefusal) {
-			case core::make_draft_refusal::select_a_line: return QStringLiteral("Select a line in the code to make it a draft there.");
+			case core::make_draft_refusal::select_a_line: return QStringLiteral("Select a line to make it a draft there");
 			case core::make_draft_refusal::draft_stands:
-				return aReply ? QStringLiteral("Can't make a draft: your draft reply in this thread is already open. A thread holds one draft reply of yours; send or delete it first.")
-							  : QStringLiteral("Can't make a draft: your draft on this line already stands. A line holds one draft of yours; publish or delete it first.");
+				return aReply ? QStringLiteral("Your draft reply in this thread already stands") : QStringLiteral("Your draft on this line already stands");
 			}
 			return { };
 		}
@@ -45,10 +44,10 @@ namespace bpr::app {
 		[[nodiscard]] auto keep_local_words(const core::keep_local_refusal aRefusal) -> QString
 		{
 			switch (aRefusal) {
-			case core::keep_local_refusal::held_by_review: return QStringLiteral("Kept as it is: your submitted review holds this draft until GitHub answers.");
-			case core::keep_local_refusal::publishing:     return QStringLiteral("Kept as it is: this draft is being published.");
-			case core::keep_local_refusal::published:      return QStringLiteral("Kept as it is: it is on GitHub.");
-			case core::keep_local_refusal::discarded:      return QStringLiteral("Kept as it is: the draft was discarded.");
+			case core::keep_local_refusal::held_by_review: return QStringLiteral("Your submitted review holds this draft");
+			case core::keep_local_refusal::publishing:     return QStringLiteral("This draft is being published");
+			case core::keep_local_refusal::published:      return QStringLiteral("It is on GitHub");
+			case core::keep_local_refusal::discarded:      return QStringLiteral("The draft was discarded");
 			}
 			return { };
 		}

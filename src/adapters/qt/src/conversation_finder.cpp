@@ -2452,7 +2452,9 @@ namespace bpr::qt {
 			menu->addSeparator();
 			const auto local = mine.Local;
 			const auto id    = local ? std::stoull(mine.Id.substr(finder_local_prefix.size())) : mine.DraftId;
-			MoveAction       = menu->addAction(local ? QStringLiteral("Make Draft") : QStringLiteral("Keep Local"));
+			// Owner look v005: the state control's own glyphs, the pencil
+			// for Draft and the computer for Local.
+			MoveAction = menu->addAction(conversation_icon(local ? conversation_glyph::edit : conversation_glyph::computer, palette()), local ? QStringLiteral("Make Draft") : QStringLiteral("Keep Local"));
 			MoveAction->setObjectName(local ? QStringLiteral("threadFinderMakeDraftAction") : QStringLiteral("threadFinderKeepLocalAction"));
 			MoveAction->setEnabled(static_cast<bool>(MoveDispatch));
 			MoveAction->setToolTip(local ? QStringLiteral("Make it a draft, not in your review") : QStringLiteral("Only on this computer"));

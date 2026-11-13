@@ -3424,6 +3424,10 @@ namespace bpr::qt {
 				if (thread != Cards.end()) {
 					thread->UnsentReply = reply.Standing;
 					thread->Notice      = unsent_reply_notice(reply.Standing);
+					if (const auto saved = std::ranges::find(SavedDrafts, reply.Draft, &core::review_comment_draft::Id); saved != SavedDrafts.end()) {
+						thread->UnsentReplyDraft = saved->Id;
+						thread->UnsentReplyBody  = QString::fromStdString(saved->Body);
+					}
 				}
 				continue;
 			}
@@ -3701,6 +3705,7 @@ namespace bpr::qt {
 		}
 		if (OpenCard != nullptr && OpenCard->property("threadKey").toString() == key) {
 			OpenCard->present_read_state(card);
+			OpenCard->present_unsent_reply(card);
 			OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
 			present_comment_edit();
 			return;

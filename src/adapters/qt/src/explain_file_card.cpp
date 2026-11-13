@@ -1,5 +1,8 @@
 #include "bpr/qt/explain_file_card.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+#include "comment_state_toggle.hpp"
+
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -69,6 +72,23 @@ namespace bpr::qt {
 		Status = new agent_run_status_line{ this };
 		Status->setObjectName(QStringLiteral("explainFileStatus"));
 		row->addWidget(Status, 1);
+		// Owner look v005: kept through the state control every comment of
+		// mine has. A whole file takes no draft, so Draft is the struck
+		// pencil; Keep local stands only as Go to comment once kept.
+		KeepState = new comment_state_toggle{ QPalette::Base, this };
+		KeepState->setObjectName(QStringLiteral("explainFileKeepState"));
+		KeepState->local_button()->setObjectName(QStringLiteral("explainFileKeepLocal"));
+		KeepState->draft_button()->setObjectName(QStringLiteral("explainFileKeepDraft"));
+		KeepState->set_names(tr("Keep local"), tr("Draft comment"));
+		KeepState->set_local(true, tr("Keep it as a local comment on this file"));
+		KeepState->set_draft(false, tr("A whole file takes no draft"));
+		KeepState->set_state(comment_state_toggle::state::none);
+		KeepState->LocalChosen = [this] {
+			if (KeepButton != nullptr && KeepButton->isEnabled()) {
+				KeepButton->click();
+			}
+		};
+		row->addWidget(KeepState, 0, Qt::AlignVCenter);
 		KeepButton = new quiet_push_button{ tr("Keep local"), this };
 		KeepButton->setObjectName(QStringLiteral("explainFileKeep"));
 		ContinueButton = new quiet_push_button{ tr("Continue in Agent tab"), this };
@@ -110,6 +130,11 @@ namespace bpr::qt {
 		hide();
 	}
 
+	auto explain_file_card::keep_state() const noexcept -> QWidget*
+	{
+		return KeepState;
+	}
+
 	void explain_file_card::set_dresser(std::function<void(markdown_body_view&)> aDresser)
 	{
 		if (aDresser && Answer != nullptr) {
@@ -145,6 +170,9 @@ namespace bpr::qt {
 		Scroll->setVisible(!Shown.Answer.isEmpty());
 		KeepButton->setText(Note != 0U ? tr("Go to comment") : tr("Keep local"));
 		KeepButton->setEnabled(Note != 0U || (Shown.Answered && !Shown.Running && !Keeping));
+		KeepButton->setVisible(Note != 0U);
+		KeepState->setVisible(Note == 0U);
+		KeepState->local_button()->setEnabled(Shown.Answered && !Shown.Running && !Keeping);
 		fit_answer();
 		show();
 		updateGeometry();

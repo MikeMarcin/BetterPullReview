@@ -430,6 +430,11 @@ namespace bpr::qt {
 		/// written in it and not sent; on my kept reply's own note, where its
 		/// thread stands. None when there is no unsent reply.
 		std::optional<core::reply_draft_standing> UnsentReply;
+		/// RFC-BPR-0127, owner look v003. On a thread's note, my draft reply
+		/// in it and its words, so the thread shows it stands (one draft
+		/// reply per thread is why a Local reply cannot become one).
+		std::optional<core::review_draft_id> UnsentReplyDraft;
+		QString                              UnsentReplyBody;
 		/// [[BPR-1374]]. What became of the thread an unsent reply answers, in
 		/// a sentence, drawn under the note's name; empty when nothing did.
 		QString Notice;

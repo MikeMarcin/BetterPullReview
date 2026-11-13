@@ -123,6 +123,7 @@ add_library(
         src/draft_state_chip.cpp
         src/conversation_cards_view.cpp
         src/conversation_finder.cpp
+        src/comment_state_toggle.cpp
         src/conversation_glyphs.cpp
         src/discuss_header.cpp
         src/painted_glyph_icon.cpp

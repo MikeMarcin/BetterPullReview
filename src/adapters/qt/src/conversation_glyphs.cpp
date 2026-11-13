@@ -128,6 +128,20 @@ namespace bpr::qt {
 			case conversation_glyph::file:
 				polyline(aPainter, { { 14.0, 3.5 }, { 6.5, 3.5 }, { 6.5, 20.5 }, { 17.5, 20.5 }, { 17.5, 7.0 }, { 14.0, 3.5 }, { 14.0, 7.0 }, { 17.5, 7.0 } });
 				break;
+			case conversation_glyph::edit_refused: {
+				// The pencil drawn smaller and a slash across it, against
+				// its grain, so it reads as "no draft" at 16 px.
+				auto pencil = QPainterPath{ };
+				pencil.moveTo(5.5, 18.5);
+				pencil.lineTo(8.5, 18.5);
+				pencil.lineTo(17.5, 9.5);
+				pencil.lineTo(14.5, 6.5);
+				pencil.lineTo(5.5, 15.5);
+				pencil.closeSubpath();
+				aPainter.drawPath(pencil);
+				aPainter.drawLine(QPointF{ 3.5, 3.5 }, QPointF{ 20.5, 20.5 });
+				break;
+			}
 			case conversation_glyph::edit: {
 				auto pencil = QPainterPath{ };
 				pencil.moveTo(4.0, 20.0);

@@ -7,6 +7,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
+#include "comment_state_toggle.hpp"
 #include "conversation_glyphs.hpp"
 #include "waiting_panel.hpp"
 
@@ -2266,7 +2267,7 @@ namespace bpr::qt {
 				// RFC-BPR-0127 ([[BPR-2159]]). Keep Local in the row's menu: it
 				// becomes a Local comment and leaves this list.
 				open->ExtendMenu = [this, draft](QMenu& aMenu) {
-					auto* const keep = aMenu.addAction(tr("Keep Local"));
+					auto* const keep = aMenu.addAction(conversation_icon(conversation_glyph::computer, palette()), tr("Keep Local"));
 					keep->setObjectName(QStringLiteral("wholeReviewOutsideKeepLocal"));
 					keep->setToolTip(tr("Only on this computer"));
 					keep->setEnabled(static_cast<bool>(OutsideKeepLocal));
@@ -2306,6 +2307,23 @@ namespace bpr::qt {
 					across->addLayout(column, 1);
 					open->setAccessibleDescription(draft.Why);
 				}
+				// RFC-BPR-0127, owner look v004. The row's state is the same
+				// control every comment of mine has: Draft is on, and Local
+				// keeps it only on this computer (it leaves this list).
+				auto* const state = new comment_state_toggle{ QPalette::Window, row };
+				state->setObjectName(QStringLiteral("wholeReviewOutsideState"));
+				state->local_button()->setObjectName(QStringLiteral("wholeReviewOutsideLocal"));
+				state->draft_button()->setObjectName(QStringLiteral("wholeReviewOutsideDraft"));
+				state->set_names(tr("Keep local: %1").arg(said), tr("Draft, not in your review"));
+				state->set_local(static_cast<bool>(OutsideKeepLocal), tr("Keep it only on this computer"));
+				state->set_draft(true, tr("Draft, not in your review"));
+				state->set_state(comment_state_toggle::state::draft);
+				state->LocalChosen = [this, draft] {
+					if (OutsideKeepLocal) {
+						OutsideKeepLocal(draft);
+					}
+				};
+				across->addWidget(state, 0, Qt::AlignVCenter);
 				OutsideRowWords.push_back(said);
 				OutsideRows->addWidget(row);
 			}
