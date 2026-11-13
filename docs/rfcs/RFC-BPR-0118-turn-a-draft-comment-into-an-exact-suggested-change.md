@@ -78,6 +78,6 @@ several comments at once, or spanning files is not in this RFC.
 
 ## Proposed delivery
 
-[Suggest the change](../issues/20-ready/BPR-2078-suggest-the-change-from-a-draft-comment.md)
+[Suggest the change](../issues/30-in-progress/BPR-2078-suggest-the-change-from-a-draft-comment.md)
 and [closeout](../issues/10-backlog/BPR-2079-close-rfc-0118.md) form the third
 [milestone](plans/agent-assistance-v1/milestone-plan.json).
