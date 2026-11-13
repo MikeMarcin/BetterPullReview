@@ -91,6 +91,7 @@
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
+#include "bpr/core/explain_file.hpp"
 #include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_preparation.hpp"
@@ -778,6 +779,16 @@ namespace bpr::app {
 		/// Sets a returning turn's launch: fresh, tool-free where the agent
 		/// has the mode, with its own prompt as the system prompt.
 		void launch_returning(application::agent_invocation_request& aInvocation, core::agent_profile_id aProfile);
+
+		/// RFC-BPR-0117 ([[BPR-2076]]). Explain this file: the press, its
+		/// material up front, its card's three actions. Defined in
+		/// `window_explain_file.cpp`.
+		void               bind_explain_file();
+		void               ask_explain_file(const std::string& aPath);
+		void               refuse_explain_file(const std::string& aPath, const QString& aWords);
+		[[nodiscard]] auto compose_explain(application::agent_context_observation& aObservation) -> bool;
+		void               keep_explanation(const std::string& aPath, const std::string& aAnswer);
+		void               continue_explanation(std::size_t aTurn);
 
 		void ask_agent_about_note(const application::local_note_record& aNote);
 
@@ -2173,6 +2184,16 @@ namespace bpr::app {
 			std::map<std::string, thread_offer> Threads;
 		};
 		returning_review_state ReturningReview;
+		/// RFC-BPR-0117. The file Explain this file was last pressed on, which
+		/// material it read, the material, and the agent that answered.
+		struct explain_file_state final
+		{
+			std::string                             Path;
+			std::string                             Key;
+			std::optional<core::supplement_explain> Material;
+			QString                                 Agent;
+		};
+		explain_file_state ExplainFile;
 #if defined(BPR_BUILD_TESTING)
 		/// Testing only: the head my last review is taken to be on.
 		std::string ReturningReviewHeadForTesting;

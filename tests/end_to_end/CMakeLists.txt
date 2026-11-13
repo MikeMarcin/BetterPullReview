@@ -4794,6 +4794,19 @@ foreach(course IN ITEMS latest addressed gone)
     set_tests_properties(application_returning_review_${course}_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "returning-review-${course}:pass")
 endforeach()
+# RFC-BPR-0117 ([[BPR-2076]]). Explain this file, on nested-folders-v1 with
+# the scoped writing stub as the installed Claude.
+bpr_add_executable(test_explain_file_public_path explain_file_public_path.cpp)
+target_link_libraries(test_explain_file_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_explain_file_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_explain_file_public_path)
+bpr_enable_warnings(test_explain_file_public_path)
+add_dependencies(test_explain_file_public_path test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_explain_file_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_explain_file_public_path explain "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_explain_file_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "explain-file:pass")
 bpr_add_network_isolated_test(NAME application_review_tour_writing
     WINDOWS_UNCONTAINED
     COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")

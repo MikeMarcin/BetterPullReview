@@ -7,7 +7,14 @@ The functional core decides whether an explicit AI action is legal, what local c
 ## Entry points
 
 - Ask about selection
-- Analyze current file
+- Analyze current file: **Explain this file** (RFC-BPR-0117, [[BPR-2076]]).
+  Its subject is the file open in Review, never a selection: the control at
+  the right of the comparison's header and Explain This File in a tab's
+  menu. The question carries the file's change in the pull request and its
+  text at the head; the rest of the change is context. The answer shows in a
+  card under the file's header, its references links, with Keep as note (a
+  private note on the file whose first line names the agent), Continue in
+  Agent tab and Dismiss, and is a turn in the Agent tab's history either way.
 - Analyze latest upload: **What changed since my review**
   (RFC-BPR-0116, [[BPR-2073]]). Offered when the pull request has commits
   newer than the reviewer's last submitted review or Seen, in the Pull

@@ -679,9 +679,16 @@ namespace bpr::app {
 		if (returning && !compose_returning(observation, aEntryPoint)) {
 			return false;
 		}
+		// RFC-BPR-0117 ([[BPR-2076]]). Explain this file carries the file's
+		// change and its text up front, read at the press, or is refused.
+		const auto explaining = aEntryPoint == core::agent_entry_point::analyze_current_file;
+		if (explaining && !compose_explain(observation)) {
+			return false;
+		}
+		const auto firstAnswer = returning || explaining;
 		// [[BPR-2138]]. Ask more: the next Agent tab question opens with the
 		// one-off question and answer it continues, once.
-		if (!aWritingOnly && !returning && AskMoreSeed && aEntryPoint != core::agent_entry_point::workshop_comment) {
+		if (!aWritingOnly && !firstAnswer && AskMoreSeed && aEntryPoint != core::agent_entry_point::workshop_comment) {
 			auto seeded = "Earlier, outside this conversation, I asked: " + AskMoreSeed->first + "\n\nYou answered:\n" + AskMoreSeed->second + "\n\nNow: ";
 			if (seeded.size() + observation.ChatMessage.size() > core::maximum_chat_message_bytes) {
 				seeded.resize(core::maximum_chat_message_bytes > observation.ChatMessage.size() + 8U ? core::maximum_chat_message_bytes - observation.ChatMessage.size() - 8U : 0U);
@@ -704,7 +711,7 @@ namespace bpr::app {
 		if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
 			// RFC-BPR-0116. A returning question's own prompt is its
 			// instructions; the review skill is not sent with it.
-			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill && !returning ? ReviewSkill->brief_skill() : std::nullopt);
+			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill && !firstAnswer ? ReviewSkill->brief_skill() : std::nullopt);
 			// [[BPR-2059]]. How the reviewer wants suggested comments
 			// written, read now from the profile's saved prompts.
 			if (Profile && Profile->WorkbenchPreferences) {
@@ -718,7 +725,7 @@ namespace bpr::app {
 
 			observation.Brief = core::bound_review_brief(std::move(brief));
 			// A fresh first answer carries no earlier conversation.
-			if (returning && observation.Brief) {
+			if (firstAnswer && observation.Brief) {
 				observation.Brief->Conversation.clear();
 				observation.Brief->ConversationOmitted = 0U;
 			}
@@ -968,7 +975,9 @@ namespace bpr::app {
 		// RFC-BPR-0116, RFC-BPR-0101 as amended 2026-11-12. A returning
 		// question's first answer is a fresh one-off: no native session and
 		// no grant, and its own prompt as the system prompt.
-		const auto returning = invocation.Context.EntryPoint == core::agent_entry_point::analyze_latest_upload || invocation.Context.EntryPoint == core::agent_entry_point::evaluate_proposed_fix;
+		// RFC-BPR-0117: Explain this file's first answer is one too.
+		const auto returning = invocation.Context.EntryPoint == core::agent_entry_point::analyze_latest_upload || invocation.Context.EntryPoint == core::agent_entry_point::evaluate_proposed_fix
+			|| invocation.Context.EntryPoint == core::agent_entry_point::analyze_current_file;
 		if (AgentSetup && !aExistingCheckoutChosen && !returning) {
 			const auto preferences = AgentSetup->projection().Preferences;
 			if (const auto* const entry = core::entry_of_profile(preferences.Agents, aProfile); entry != nullptr) {
@@ -1682,7 +1691,7 @@ namespace bpr::app {
 			// RFC-BPR-0116. Was this addressed? and What changed since my
 			// review keep the entry point the core gave them.
 			const auto returning = send->Question
-				&& (send->Question->EntryPoint == core::agent_entry_point::evaluate_proposed_fix || send->Question->EntryPoint == core::agent_entry_point::analyze_latest_upload);
+				&& (send->Question->EntryPoint == core::agent_entry_point::evaluate_proposed_fix || send->Question->EntryPoint == core::agent_entry_point::analyze_latest_upload || send->Question->EntryPoint == core::agent_entry_point::analyze_current_file);
 			const auto action   = AskedConversation && !returning ? core::agent_action_intent{ core::agent_entry_point::ask_about_conversation } : send->Action;
 			const auto question = AskedConversation && !returning ? std::optional{ core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation } } : send->Question;
 			static_cast<void>(

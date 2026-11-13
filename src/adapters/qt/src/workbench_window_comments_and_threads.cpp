@@ -1156,6 +1156,10 @@ namespace bpr::qt {
 				TourEditor->set_agent_readiness(AgentTab->setup_readiness());
 			}
 			present_agent_footer_setup();
+			// RFC-BPR-0117. Explain this file is offered once the agent is set up.
+			if (AgentTab != nullptr) {
+				set_explain_file_offered(AgentTab->setup_readiness() == agent_setup_readiness::ready);
+			}
 		});
 		// Owner on the live build, 2026-11-11: no stray status text in the
 		// Tour panel. A writing request's notice is the window's status line.

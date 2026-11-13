@@ -587,6 +587,15 @@ int main(int argc, char** argv)
 			result = "The new commits change one file. `src/engine/renderer.cpp:12` now clamps the width and height to at least one pixel before resizing.\n\nYour conversation at `src/engine/renderer.cpp:12` is touched by this change.\n\n" + echo;
 		}
 	}
+	// RFC-BPR-0117 ([[BPR-2076]]). Explain this file's fresh first answer:
+	// one tool-free call with the file's change and text in the request and
+	// its own prompt as the system prompt. It says what it was given.
+	if (input.find("explain.path") != std::string::npos) {
+		const auto has  = [&input](const std::string_view aText) { return input.find(aText) != std::string::npos ? 1 : 0; };
+		const auto echo = "EXPLAIN_ECHO system=" + std::to_string(has("The reviewer is reading one file of this pull request in Review")) + " change=" + std::to_string(has("+++ b/src/engine/renderer.cpp"))
+			+ " content=" + std::to_string(has("explain.content.state\\twhole")) + " subject=" + std::to_string(has("subject.path\\tsrc/engine/renderer.cpp")) + " edited=" + std::to_string(has("EXPLAIN_EDITED_CANARY"));
+		result = "`src/engine/renderer.cpp` moves the renderer into `src/engine/` and keeps its interface. The resize at `src/engine/renderer.cpp:12` is the one behavioural change.\n\nIt fits the rest of the pull request: `src/engine/renderer.h` declares what it defines.\n\nLook closely at `src/engine/renderer.cpp:12`.\n\n" + echo;
+	}
 	if (input.find("OVERSIZE_CANARY") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":")" + std::string(40000, 'x') + R"(","notes":[]})";
 	}

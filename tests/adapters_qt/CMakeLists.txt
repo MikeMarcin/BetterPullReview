@@ -2863,3 +2863,17 @@ if(APPLE)
     endforeach()
 endif()
 
+
+# RFC-BPR-0117 ([[BPR-2076]]). Explain this file's card, at the supported scales.
+bpr_add_executable(test_explain_file_card explain_file_card_tests.cpp)
+target_link_libraries(test_explain_file_card PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_explain_file_card)
+bpr_enable_warnings(test_explain_file_card)
+foreach(bpr_explain_scale IN ITEMS 100 150 200)
+    math(EXPR bpr_explain_whole "${bpr_explain_scale} / 100")
+    math(EXPR bpr_explain_fraction "(${bpr_explain_scale} % 100) / 10")
+    bpr_add_network_isolated_test(NAME qt_explain_file_card_scale_${bpr_explain_scale} COMMAND test_explain_file_card)
+    set_tests_properties(qt_explain_file_card_scale_${bpr_explain_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_explain_whole}.${bpr_explain_fraction}"
+        PASS_REGULAR_EXPRESSION "explain-file-card:pass" TIMEOUT 60)
+endforeach()

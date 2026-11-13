@@ -273,6 +273,41 @@ namespace {
 		expect(core::ask_more_path(core::agent_run_path::assistance_first_answer) == core::agent_run_path::agent_tab, "Ask more continues in the Agent tab's conversation");
 	}
 
+	/// RFC-BPR-0117 ([[BPR-2076]]), RFC-BPR-0101 AC13. Explain this file's
+	/// first answer: a fresh, tool-free Claude call with its own prompt as the
+	/// system prompt and the file's change and text in the request. An edit
+	/// to its prompt reaches it and no other prompt.
+	void test_explain_this_file_is_one_fresh_tool_free_call()
+	{
+		const auto claude   = profile(core::agent_protocol::claude_stream_json);
+		const auto material = core::bound_explain_material(core::explain_material_input{
+			.Path = "src/a.cpp", .BaseCommit = std::string(40U, 'a'), .HeadCommit = std::string(40U, 'b'), .Change = "--- a/src/a.cpp\n+++ b/src/a.cpp\n@@ -1,1 +1,1 @@\n-old\n+new\n", .Head = std::string{ "new\n" } });
+		expect(material && core::valid(*material), "the material is within its bounds");
+		auto value        = supplement();
+		value.Explain     = material;
+		const auto hook   = core::writing_hook::review_explain_file;
+		const auto prompt = std::string{ application::default_writing_hook(hook) };
+		expect(!prompt.empty() && application::writing_hook_purpose(hook) == "review.explain-file" && application::writing_hook_of_purpose("review.explain-file") == hook
+				   && application::writing_hook_version_of(hook) == "review-explain-file-v1",
+			   "Explain this file has its own prompt, purpose and version");
+		const auto launch = application::build_agent_launch(claude, value, reader(), { .WritingOnly = true, .Path = core::agent_run_path::assistance_first_answer, .SystemInstructions = prompt });
+		expect(launch && has(launch->Arguments, "--no-session-persistence") && !has(launch->Arguments, "--resume"), "a fresh run: no session saved or resumed");
+		expect(launch && index_of(launch->Arguments, "--tools") + 1U < launch->Arguments.size() && launch->Arguments[index_of(launch->Arguments, "--tools") + 1U].empty(), "no tools");
+		expect(launch && launch->Arguments[index_of(launch->Arguments, "--append-system-prompt") + 1U] == prompt, "its own prompt is the system prompt");
+		expect(launch && launch->Input.find("explain.path") != std::string::npos && launch->Input.find("+new") != std::string::npos && launch->Input.find("explain.content.state") != std::string::npos,
+			   "the request carries the file's change and its text up front");
+		auto edited                                       = core::writing_hook_settings{ };
+		edited.Overrides[static_cast<std::size_t>(hook)] = "TEAM_EXPLAIN";
+		expect(application::effective_writing_hook(edited, hook) == "TEAM_EXPLAIN", "the edit is the next Explain this file's prompt");
+		for (auto index = std::size_t{ 0U }; index < core::writing_hook_count; ++index) {
+			if (static_cast<core::writing_hook>(index) != hook) {
+				expect(application::effective_writing_hook(edited, static_cast<core::writing_hook>(index)) == application::default_writing_hook(static_cast<core::writing_hook>(index)), "and no other prompt changes");
+			}
+		}
+		edited.Overrides[static_cast<std::size_t>(hook)].clear();
+		expect(application::effective_writing_hook(edited, hook) == prompt, "Reset restores the built-in");
+	}
+
 	/// [[BPR-2140]]. The writing prompt splits into the instructions and the
 	/// material, and joined they are the prompt as before.
 	void test_the_writing_prompt_splits_into_instructions_and_material()
@@ -473,6 +508,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_a_fresh_draft_carries_its_diff_up_front();
 	test_a_failed_sign_in_ends_the_run_at_once();
 	test_a_returning_question_is_one_fresh_tool_free_call();
+	test_explain_this_file_is_one_fresh_tool_free_call();
 	std::cout << "agent-launch-policy-tests:pass\n";
 	return EXIT_SUCCESS;
 }
