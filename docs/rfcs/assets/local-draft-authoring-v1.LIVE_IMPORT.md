@@ -60,6 +60,8 @@ branch decision" saying that the owner reopened PUBLISH-01 and pointing
 here, so that the section is not implemented as the final word. The
 section's own text, its acceptance criteria and its cards are unchanged.
 
+Card references (2026-11-13): the amendment record names BPR-2007, BPR-2008, BPR-2029 and BPR-2031 as `[[BPR-n]]` card references instead of lane paths, so the cards move without editing that protected record (coordinator decision).
+
 ## Decisions carried
 
 D01, D02, D03 and D06 of the pack's

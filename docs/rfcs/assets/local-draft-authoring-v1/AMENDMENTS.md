@@ -44,10 +44,10 @@ native creation. AC02 to AC07 are unchanged.
 
 Consequences:
 
-- [BPR-2029](../../../issues/10-backlog/BPR-2029-create-the-draft-pr-from-the-pushed.md)
+- [[BPR-2029]]
   stays valid work: naming the push is still required as the fallback, and
   nothing in it performs a push. Its AC01 wording follows the table.
-- [BPR-2031](../../../issues/10-backlog/BPR-2031-close-rfc-0111.md) carries
+- [[BPR-2031]] carries
   AC01's text in its closeout checklist; the row follows the table.
 - The adopted plan's `publish-prepared-draft` milestone has the exit "BPR
   names the push and performs none" and the boundary "the author pushes with
