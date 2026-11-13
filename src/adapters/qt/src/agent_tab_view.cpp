@@ -2745,8 +2745,23 @@ namespace bpr::qt {
 		case core::agent_turn_recovery::resend:
 			if (aTurn.Review) {
 				Launch.start_action()->trigger();
-			} else {
-				send_prompt(aTurn.Question);
+			} else if (Chat.send_action()->isEnabled()) {
+				// The question as it was asked, not a suggestion looked up by
+				// its words: a typed question is offered by no list. What the
+				// reviewer is typing is put back after it.
+				auto* const composer = Chat.composer();
+				const auto  draft    = composer->toPlainText();
+				const auto  kept     = !draft.trimmed().isEmpty();
+				composer->setPlainText(aTurn.Question);
+				KeepingDraft = kept;
+				ask();
+				KeepingDraft = false;
+				if (kept) {
+					composer->setPlainText(draft);
+					auto cursor = composer->textCursor();
+					cursor.movePosition(QTextCursor::End);
+					composer->setTextCursor(cursor);
+				}
 			}
 			return;
 		case core::agent_turn_recovery::agent_settings:

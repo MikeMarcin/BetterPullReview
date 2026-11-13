@@ -1,5 +1,6 @@
 #include "bpr/qt/document_tab_strip.hpp"
 
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAction>
@@ -357,6 +358,15 @@ namespace bpr::qt {
 	void document_tab_strip::changeEvent(QEvent* const aEvent)
 	{
 		QWidget::changeEvent(aEvent);
+		// The Agent accent is set on a control, not inherited: a trailing run
+		// control (Explain this file) wears a changed accent again here.
+		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::ApplicationPaletteChange) {
+			for (auto* const control : findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+				if (agent_run_control(*control)) {
+					wear_agent_accent(*control, palette());
+				}
+			}
+		}
 		if (Bar != nullptr && (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::ApplicationFontChange || aEvent->type() == QEvent::StyleChange)) {
 			setMinimumWidth(minimumSizeHint().width());
 			rebuild();
