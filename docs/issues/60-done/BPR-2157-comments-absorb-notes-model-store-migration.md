@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2157"
 title: "One comment in three states: model, store and the notes migration"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0127"]
 depends_on: []
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2157--BPR-2162--9d1250ec0d11.json","milestone_plan":{"id":"comments-absorb-notes-v1","path":"docs/rfcs/plans/comments-absorb-notes-v1/milestone-plan.json"},"criteria":["AC03","AC11","AC13"],"origin":"imported 2026-11-13 from comments-absorb-notes-v1 (RFC-DRAFT-0001); cut from the draft's suggested milestones"}
+acceptance: [{"criterion":"AC03","outcome":"pass","revision":"fe32da7ee","evidence":{"kind":"command","detail":"application_local_comments_composition_public_path; application_review_submission_composition_public_path"}},{"criterion":"AC11","outcome":"pass","revision":"72a0d55af","evidence":{"kind":"command","detail":"sqlite_review_ledger_storage on tests/fixtures/review-ledger/v11-notes.sqlite, interrupted at every statement"}},{"criterion":"AC13","outcome":"pass","revision":"fe32da7ee","evidence":{"kind":"command","detail":"application_local_comments_composition_public_path counters before and after; core_feedback_partition"}}]
 ---
 
 # BPR-2157: One comment in three states: model, store and the notes migration
@@ -45,3 +46,16 @@ Lane commits `e270bbfa4` (the schema 11 fixture), `25d98b02a` and `84cde1c7f` (m
 Changes outside the core of this card:
 - The Overview's Note column now shows the file's comment. It read `supplement_note::File`, which no store filled. Milestone 3 retires the column.
 - A selected Local comment longer than the agent supplement's 16 KiB refuses the agent request today. Milestone 4 (agent opt-ins) settles it.
+
+## Composed evidence and closeout (2026-11-13, second round)
+
+`application_local_comments_composition_public_path` (new; the composed window on `conversations_v1` with the review submission fixture server) closes the composed gaps this card left for milestone 2. Lane commits `64476cd4d` and the formatting and pin commit after it.
+
+- **AC03.** Local comments on a line (N and Save), in a thread (the reply field's Local and Save), on the whole file and on the pull request stand while the course sends:
+  - Send in that thread hands only the reply written to publication: the reply draft bound to the thread with exactly its words, and no Local words. This fixture does not complete an inline thread reply's publication, so the provider's side of this Send is the end check below, not a received body.
+  - A review is started with a draft in it, submitted (its terminals held, then released) and received by the server carrying that draft (`LOCAL_COMMENTS_REVIEW_CARRIED_DRAFT 1`).
+  - At the end no body the server received carries a Local comment's words (`LOCAL_COMMENTS_SENT_BODIES 2 carrying_local=0`), and the Local reply and the line, file and pull request comments are all still Local.
+  - With this card's earlier course (`application_review_submission_composition_public_path`: Local comments on a line and on the pull request through every submission, single comment and reply that course sends), Submit, Add single comment and Send are shown. Add all and Publish response act only on drafts, and a Local comment is never a `review_comment_draft`; Publish response has no surface before milestone 4 ([[BPR-2160]] shows its agent surfaces).
+- **AC13.** Status's new count, the Comments tab's name and count, Next new's words, Threads' rows and label counts, Overview's thread counts per file and Home's row are equal before and after the four Local comments were created, and again after one was deleted.
+
+Result: AC03, AC11 and AC13 pass. Runs (dev, Debug, macOS): the new course passes at `64476cd4d` (three runs) and again at `fe32da7ee` (formatting only), with `application_review_submission_composition_public_path`, `application_conversation_read_public_path`, `qt_conversation_cards_view`, `qt_workbench_window_scale_{100,125,200}`, `qt_drawer_surfaces_fit_scale_100`, `architecture_boundaries` and `application_composition_source_contract` (after the pin reseal).

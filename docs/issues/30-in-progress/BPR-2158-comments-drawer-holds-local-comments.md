@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2158"
 title: "Comments absorbs Notes: Local cards, the state control, N and one gutter mark"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0127"]
 depends_on: ["BPR-2157"]
 priority: "P2"
@@ -67,3 +67,27 @@ The migrated note: the look does not hold one. A migrated note is an ordinary Lo
 ## Owner look v001: Accept (session 12534e15, handed back 2026-11-13T17:44:00Z)
 
 Verified in `session.json`: `comment-states-on-a-line` **Accept**, `composer-state-and-computer-icon` **Accept** (the line-drawn computer glyph included), `notes-tab-retired` **Accept**, each with no note. The look criterion is met for the frozen build from `beede2fc33b5`; the [RFC-BPR-0127 ledger](../../verification/RFC-BPR-0127.md#owner-verdicts-first-look-attended-session-12534e154303dd1913382442a83b8c8f-handed-back-2026-11-13t174400z) records it. Host 68507/68517 stopped; the root removed.
+
+## Progress (2026-11-13, second round)
+
+Frontend-design was loaded first. Lane commits `98069b5c5`, the Qt evidence commit after it, and `64476cd4d`.
+
+Built:
+- **Edge chips (AC06).** The pull request link counts my Local comments on the pull request beside the computer ("Pull request conversation: 21 comments, 21 new, 1 local comment"), and Overview's Comments tab draws them after the conversation, "On the pull request. Only on this computer." Two quiet chips beside the link, each shown only with comments: **This file** (whole-file comments, drawn after the placed cards, "On this whole file, not on a line."; the chip opens the first) and **Other files** (a menu of path:line and words; choosing one goes to the file, then the line, where it opens). None is drawn at a line.
+- **The reply field's Local/Reply control.** Local puts Save (⌘↩) in Send's place and saves a Local reply inside the thread.
+- **A Local reply in a published thread** has its own row: Make draft (or why not), Copy text, Delete.
+- **Edit in place.** A Local comment or reply opens the comment editor in place ("Only on this computer. Never sent."), saved at the revision editing began from; a stale revision is refused with the words kept.
+- **Delete asks first** (`deleteLocalConfirmation`, "Delete this local comment?" or "…local reply?").
+- **Fixes on the composed path.** Save as Local on a draft the store holds always moves it (its identity kept); a composer draft the store never held is written as a new Local comment and the empty draft goes. After Keep local the kept draft no longer holds its line (as after Delete, [[BPR-1862]]), so N and Comment there open a new one. N on a line where my draft with words stands opens that draft on Draft and says so; Local and Save on it is Keep local. Make draft's offer is decided again whenever the drafts change, and the open card redraws a changed offer.
+
+Evidence (dev, Debug, macOS):
+- `qt_conversation_cards_view` `test_local_comments_edges_and_editing` (AC06, AC14): the chips' words and counts, keyboard focus, the file chip opening its comment, the Other files menu dispatching `open_local_elsewhere`, edit in place dispatching identity, revision and words and ending on the stored words, the Local reply's actions by its identity, the reply field's Local/Reply control and ⌘↩ Save, and Overview's Comments tab drawing the pull request's comment. Output `LOCAL_EDGE_CHIPS This file: 1 local comment, only on this computer | Other files: 2 local comments, only on this computer | Pull request conversation: 1 comments, 1 local comment`.
+- `application_local_comments_composition_public_path` (new; composed window on `conversations_v1`, review submission fixture server), passing twice:
+  - N and Save on a thread's line; a Local reply through the reply field's Local and Save; a whole-file and a pull request comment (stored through a test seam, as a migrated note leaves them). The file chip and the pull request link count them; the pull request's is not drawn beside the code (AC06).
+  - Edit in place and Delete, which asks first.
+  - AC05: the published thread offers Keep local and Make draft on nothing but my Local reply; Make draft where my draft stands is disabled with "Your draft already stands there. Nothing is merged." and nothing changes; Keep local on a draft a submitted review holds (terminals held) is refused, "Kept as it is: your submitted review holds this draft until GitHub answers.", and the draft stays held.
+  - AC04: Start a review, then Keep local (Local and Save in the composer): the roster's in-review count falls by one, no draft list or "not in this review" list holds it, and it is a Local comment with its words at its line. Make draft returns a draft not in the review at the same side and line with the same words.
+
+Not built yet (this milestone):
+- The hidden Notes tabs are still tabs (hidden with `setTabVisible`, so Qt reports them invisible), and `private_notes_panel` is still the hidden backend for the old Notes surface and the courses that drive it. Retiring it moves `review_submission_composition_public_path`, `review_tour_composition_public_path`, `explain_file_public_path`, `hide_drawers_native_menu_key_tests` and five Qt test files off the panel.
+- A draft held by a submitted review still offers the Local segment, which is then refused with its reason; disabling it there is a possible refinement.
