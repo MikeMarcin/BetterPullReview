@@ -721,6 +721,20 @@ namespace bpr::qt {
 					return;
 				}
 				switch (aAction) {
+				case card_action::make_draft:
+				case card_action::keep_local:
+				case card_action::delete_local:
+				case card_action::copy_local:
+				case card_action::save_local:
+					// RFC-BPR-0127 ([[BPR-2158]]). The composition moves it.
+					dispatch_comment_state(aAction, aIdentity);
+					break;
+				case card_action::compose_local:
+				case card_action::compose_draft:
+					// RFC-BPR-0127. The composer's state control: its foot is the
+					// card's; the window keeps the choice while it is written.
+					ComposeLocal = aAction == card_action::compose_local;
+					break;
 				case card_action::keep_reply_as_comment:
 				case card_action::discard_reply:
 					act_on_kept_reply(aAction, aIdentity);
@@ -1614,7 +1628,7 @@ namespace bpr::qt {
 		TrayTabs->setObjectName(QStringLiteral("workbenchTrayTabs"));
 		TrayTabs->setAccessibleName(QStringLiteral("Right tray"));
 		TrayTabs->setAccessibleDescription(QStringLiteral(
-			"Comments, Notes and Tour. Notes and tour preparation are private until explicitly published."));
+			"Comments, Tour and Agent. Local comments and tour preparation are never sent until you choose to."));
 		configure_drawer_tabs(*TrayTabs);
 		// [[BPR-1594]]. The Agent keeps its spark beside its name.
 		// [[BPR-1684]]: fit_tray_tabs gives each tab its face, glyph
@@ -1627,6 +1641,9 @@ namespace bpr::qt {
 		TrayTabs->setAccessibleTabName(tray_notes_tab, tr("Notes"));
 		TrayTabs->setAccessibleTabName(tray_tour_tab, tr("Tour"));
 		TrayTabs->setAccessibleTabName(tray_findings_tab, tr("Agent"));
+		// RFC-BPR-0127 ([[BPR-2158]]). Comments absorbs Notes: the tray's tabs
+		// are Comments, Tour and Agent; Local comments are cards in Comments.
+		TrayTabs->setTabVisible(tray_notes_tab, false);
 		// [[BPR-1684]]. The count is the tab's button only while it
 		// shows, so a tab without new comments keeps no room for it.
 		TrayCommentsCount = new drawer_count_pill{ TrayTabs };

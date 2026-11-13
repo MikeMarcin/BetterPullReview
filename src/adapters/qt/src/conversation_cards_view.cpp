@@ -54,6 +54,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
@@ -1067,6 +1068,57 @@ namespace bpr::qt {
 		relayout();
 	}
 
+	void conversation_cards_view::set_local_comments(std::vector<local_comment_card> aComments)
+	{
+		if (LocalComments == aComments) {
+			return;
+		}
+		forget_measurements_if([](const std::string& aId) { return aId.starts_with("local:"); });
+		// A thread holding a Local reply is measured again with it.
+		for (const auto& comment : aComments) {
+			if (comment.ReplyToThread) {
+				forget_measurements_if([thread = "review-thread:" + *comment.ReplyToThread](const std::string& aId) { return aId == thread; });
+			}
+		}
+		for (const auto& comment : LocalComments) {
+			if (comment.ReplyToThread) {
+				forget_measurements_if([thread = "review-thread:" + *comment.ReplyToThread](const std::string& aId) { return aId == thread; });
+			}
+		}
+		LocalComments = std::move(aComments);
+		relayout();
+	}
+
+	auto conversation_cards_view::local_comments() const noexcept -> const std::vector<local_comment_card>&
+	{
+		return LocalComments;
+	}
+
+	auto conversation_cards_view::local_comment_identity(const std::uint64_t aId) -> std::string
+	{
+		return "local:" + std::to_string(aId);
+	}
+
+	auto conversation_cards_view::local_comment_of(const std::string& aIdentity) -> std::optional<std::uint64_t>
+	{
+		if (!aIdentity.starts_with("local:")) {
+			return std::nullopt;
+		}
+		auto              value = std::uint64_t{ 0U };
+		const auto* const first = aIdentity.data() + 6;
+		const auto* const last  = aIdentity.data() + aIdentity.size();
+		const auto [end, error] = std::from_chars(first, last, value);
+		return error == std::errc{ } && end == last && value != 0U ? std::optional{ value } : std::nullopt;
+	}
+
+	auto comment_state_words(const bool aLocal, const bool aDraft, const bool aInReview) -> QString
+	{
+		return aLocal   ? QStringLiteral("Local comment, only on this computer")
+			: !aDraft   ? QStringLiteral("Published")
+			: aInReview ? QStringLiteral("Draft, in your review")
+						: QStringLiteral("Draft, not in your review");
+	}
+
 	auto conversation_cards_view::moved_suggestion_identity(const core::review_draft_id aDraft) -> std::string
 	{
 		return std::string{ draft_card_id } + ":moved:" + std::to_string(aDraft.value());
@@ -1851,11 +1903,30 @@ namespace bpr::qt {
 	auto conversation_cards_view::line_marks(const core::diff_side aSide) const -> std::vector<thread_line_mark>
 	{
 		auto marks = std::map<std::uint32_t, thread_line_mark>{ };
+		// RFC-BPR-0127 ([[BPR-2158]]). One mark a line: what is on it, by kind.
+		struct on_line
+		{
+			std::size_t Threads = 0U, Drafts = 0U, DraftReplies = 0U, Locals = 0U;
+			QString     Lines;
+		};
+		auto counted = std::map<std::uint32_t, on_line>{ };
 		for (const auto& card : Cards) {
 			if (card.Side != aSide || !card.Line.has_value() || *card.Line == 0U || card.Outdated || card.AnchorUnavailable) {
 				continue;
 			}
-			const auto line           = *card.Line - 1U;
+			const auto line  = *card.Line - 1U;
+			auto&      count = counted[line];
+			if (card.Local) {
+				++count.Locals;
+			} else if (card.Draft && card.UnsentReply.has_value()) {
+				++count.DraftReplies;
+			} else if (card.Draft) {
+				++count.Drafts;
+			} else {
+				++count.Threads;
+				count.Locals += card.LocalReplies;
+				count.DraftReplies += card.UnsentReply.has_value() ? 1U : 0U;
+			}
 			const auto [found, fresh] = marks.try_emplace(line);
 			auto& mark                = found->second;
 			if (fresh) {
@@ -1876,7 +1947,9 @@ namespace bpr::qt {
 				if (first.has_value() && *first > 0U) {
 					mark.FirstLine = *first - 1U;
 				}
-				mark.Description = card.Writing                  ? QStringLiteral("%1: your draft, being written").arg(lines)
+				count.Lines      = lines;
+				mark.Description = card.Local                    ? QStringLiteral("%1: your local comment, only on this computer").arg(lines)
+					: card.Writing                               ? QStringLiteral("%1: your draft, being written").arg(lines)
 					: card.Draft && card.UnsentReply.has_value() ? QStringLiteral("%1: your reply, not sent").arg(lines)
 					: card.Draft && card.MovedSuggestion         ? QStringLiteral("%1: your suggestion from an earlier head").arg(lines)
 					: card.Draft                                 ? QStringLiteral("%1: your draft").arg(lines)
@@ -1899,6 +1972,22 @@ namespace bpr::qt {
 		auto result = std::vector<thread_line_mark>{ };
 		result.reserve(marks.size());
 		for (auto& [line, mark] : marks) {
+			// Several kinds on one line: "Line 22: 1 thread, 1 local comment,
+			// 1 draft reply", so the one mark names everything on it.
+			const auto& count = counted[line];
+			if (count.Threads + count.Drafts + count.DraftReplies + count.Locals > 1U) {
+				auto       parts = QStringList{ };
+				const auto part  = [&parts](const std::size_t aCount, const QString& aOne, const QString& aMany) {
+					if (aCount > 0U) {
+						parts << QStringLiteral("%1 %2").arg(aCount).arg(aCount == 1U ? aOne : aMany);
+					}
+				};
+				part(count.Threads, QStringLiteral("thread"), QStringLiteral("threads"));
+				part(count.Locals, QStringLiteral("local comment"), QStringLiteral("local comments"));
+				part(count.Drafts, QStringLiteral("draft"), QStringLiteral("drafts"));
+				part(count.DraftReplies, QStringLiteral("draft reply"), QStringLiteral("draft replies"));
+				mark.Description = QStringLiteral("%1: %2").arg(count.Lines, parts.join(QStringLiteral(", ")));
+			}
 			result.push_back(std::move(mark));
 		}
 		return result;
@@ -2754,6 +2843,56 @@ namespace bpr::qt {
 				.Name         = feedback_post_name(QStringLiteral("Your reply, not sent"), mark),
 				.HeaderLength = mark.Label.has_value() ? header_length_of(saved->Body) : 0,
 			});
+			Cards.push_back(std::move(card));
+		}
+		// RFC-BPR-0127 ([[BPR-2158]]). My Local comments: a Local reply inside
+		// its thread's card after the published posts; one on a line as its
+		// own card in the line's group, after the published threads and
+		// before my draft; one this comparison does not place after the
+		// placed cards, saying why. Never at a line it was not written on.
+		for (const auto& local : PullRequestComments ? std::vector<local_comment_card>{ } : LocalComments) {
+			const auto mark = feedback_body_mark_of(local.Body.toStdString());
+			auto       post = card_post{
+				.Id           = local_comment_identity(local.Id),
+				.Author       = Viewer,
+				.Body         = local.Body,
+				.Mine         = true,
+				.Local        = true,
+				.Label        = mark.Label,
+				.Emphasis     = mark.Emphasis,
+				.Name         = feedback_post_name(local.ReplyToThread ? QStringLiteral("Your local reply") : QStringLiteral("Your local comment"), mark),
+				.HeaderLength = mark.Label.has_value() ? header_length_of(local.Body.toStdString()) : 0,
+			};
+			if (local.ReplyToThread) {
+				const auto thread = std::ranges::find(Cards, "review-thread:" + *local.ReplyToThread, &thread_card::Id);
+				if (thread != Cards.end()) {
+					post.Depth = 1U;
+					thread->Posts.push_back(std::move(post));
+					++thread->LocalReplies;
+					continue;
+				}
+			}
+			const auto placed = Scope == cards_scope::this_file && CurrentComparison.has_value() && local.Comparison == CurrentComparison && local.Line.has_value();
+			if (!placed && local.Notice.isEmpty()) {
+				continue;
+			}
+			auto card         = thread_card{ };
+			card.Id           = local_comment_identity(local.Id);
+			card.Kind         = QStringLiteral("Local");
+			card.Draft        = true;
+			card.Local        = true;
+			card.LocalComment = local;
+			card.Notice       = local.Notice;
+			card.Side         = local.Side;
+			if (placed) {
+				card.Line = local.Line;
+				if (local.FirstLine && local.Line && *local.FirstLine < *local.Line) {
+					card.FirstLine = local.FirstLine;
+				}
+			} else {
+				card.Outdated = true;
+			}
+			card.Posts.push_back(std::move(post));
 			Cards.push_back(std::move(card));
 		}
 		// My unpublished notes, each at its line while it is on this
@@ -3628,7 +3767,8 @@ namespace bpr::qt {
 			// In a narrow drawer, "Pending", so the name keeps its room.
 			const auto whole = QStringLiteral("Pending in your review");
 			// [[BPR-1374]]. My kept reply was never sent, and says so.
-			const auto words = aCard.UnsentReply.has_value()                      ? QStringLiteral("Not sent")
+			const auto words = aCard.Local                                        ? QStringLiteral("Local")
+				: aCard.UnsentReply.has_value()                                   ? QStringLiteral("Not sent")
 				: aCard.MovedSuggestion                                           ? QStringLiteral("Earlier head")
 				: !aCard.Pending                                                  ? QStringLiteral("Draft")
 				: right - left - smallMetrics.horizontalAdvance(whole) - 20 >= 90 ? whole
@@ -3637,7 +3777,9 @@ namespace bpr::qt {
 			const auto w     = smallMetrics.horizontalAdvance(words);
 			aPainter.setPen(ink);
 			aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
-			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::lock, ink);
+			// RFC-BPR-0127 (owner, Q1): the computer is Local and nothing
+			// else; a draft wears its pencil, and no state wears a lock.
+			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, aCard.Local ? conversation_glyph::computer : conversation_glyph::edit, ink);
 			right -= w + 20;
 		} else {
 			// [[BPR-1471]], [[BPR-1473]]. The resolved check's slot is kept on
@@ -3957,7 +4099,8 @@ namespace bpr::qt {
 		// [[BPR-1374]]. My kept reply opens in place, like a thread, where its
 		// words and what can be done with them are; it is not the editor's.
 		// [[BPR-1733]]. So does my suggestion from an earlier head.
-		if (Cards[aCard].Draft && (Cards[aCard].UnsentReply.has_value() || Cards[aCard].MovedSuggestion)) {
+		// RFC-BPR-0127. So does my Local comment, with Make draft beside it.
+		if (Cards[aCard].Draft && (Cards[aCard].UnsentReply.has_value() || Cards[aCard].MovedSuggestion || Cards[aCard].Local)) {
 			const auto chosen = Cards[aCard].Id;
 			Current           = chosen;
 			if (aOpen && Open != chosen) {

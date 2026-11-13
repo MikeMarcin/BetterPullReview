@@ -65,6 +65,9 @@ namespace bpr::qt {
 		dismiss,
 		/// [[BPR-1741]]. Add reaction: a face with a plus.
 		react,
+		/// RFC-BPR-0127 (owner, Q1). Local, only on this computer: a computer
+		/// (a screen on its stand). It means Local and nothing else.
+		computer,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

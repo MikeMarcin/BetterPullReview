@@ -1782,6 +1782,13 @@ namespace bpr::app {
 #endif
 		[[nodiscard]] auto current_note_attachment() const
 			-> std::optional<application::local_comment_attachment>;
+		/// RFC-BPR-0127 ([[BPR-2158]]). My Local comments in Comments, and
+		/// their moves (window_local_comments.cpp).
+		[[nodiscard]] auto shown_drafts() const -> std::vector<core::review_comment_draft>;
+		[[nodiscard]] auto make_draft_input_of(const application::local_comment_record& aComment) const -> core::make_draft_input;
+		void               present_local_comments();
+		void               reload_local_comments();
+		void               dispatch_comment_state(const qt::comment_state_gesture& aGesture);
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto anchored_durable_defect(

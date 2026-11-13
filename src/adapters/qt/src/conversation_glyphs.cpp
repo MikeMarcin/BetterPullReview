@@ -112,6 +112,11 @@ namespace bpr::qt {
 				aPainter.drawPath(shackle);
 				break;
 			}
+			case conversation_glyph::computer:
+				aPainter.drawRoundedRect(QRectF{ 3.5, 4.5, 17.0, 11.5 }, 1.5, 1.5);
+				aPainter.drawLine(QPointF{ 12.0, 16.0 }, QPointF{ 12.0, 19.5 });
+				aPainter.drawLine(QPointF{ 7.5, 19.5 }, QPointF{ 16.5, 19.5 });
+				break;
 			case conversation_glyph::edit: {
 				auto pencil = QPainterPath{ };
 				pencil.moveTo(4.0, 20.0);

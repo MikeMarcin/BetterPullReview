@@ -196,6 +196,21 @@ namespace bpr::qt {
 	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
 	/// [[BPR-0657]]. A card's Reply: the thread identity the next draft answers.
 	using workbench_review_reply_dispatch = std::function<void(const std::string&)>;
+	/// RFC-BPR-0127 ([[BPR-2158]]). A comment's state change asked from a
+	/// card or the composer: Keep local on my draft (`Draft`), Make draft or
+	/// Delete on my Local comment (`Local`), or Save the composer's words as
+	/// a Local comment. The composition decides it through the core and the
+	/// store; nothing here does.
+	struct comment_state_gesture
+	{
+		card_action                          Action = card_action::keep_local;
+		std::string                          Identity;
+		std::optional<core::review_draft_id> Draft;
+		std::optional<std::uint64_t>         Local;
+		/// What the composer holds, for Save.
+		std::string Body;
+	};
+	using workbench_comment_state_dispatch = std::function<void(const comment_state_gesture&)>;
 	/// [[BPR-0657]]. A card's Resolve or Unresolve, with what the window knows
 	/// of the thread and the server so the composition can decide it.
 	struct thread_resolution_gesture
@@ -813,6 +828,17 @@ namespace bpr::qt {
 		/// \brief [[BPR-1773]]. Where a thread's Ask agent goes, by the
 		/// thread's card identity.
 		void set_conversation_ask_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). Where Keep local, Make draft,
+		/// Delete and Save of a Local comment go.
+		void set_comment_state_dispatch(workbench_comment_state_dispatch aDispatch);
+		/// \brief RFC-BPR-0127. My Local comments, as the composition placed
+		/// them against the comparison shown.
+		void present_local_comments(std::vector<local_comment_card> aComments);
+		/// \brief RFC-BPR-0127. A refused state change, said where it was asked.
+		void refuse_comment_state(const QString& aWhy);
+		/// \brief RFC-BPR-0127. Closes the drawer's composer after its words
+		/// were saved as a Local comment.
+		void close_drawer_composer();
 		/// \brief RFC-BPR-0116 ([[BPR-2074]]). A thread's Was this addressed?,
 		/// on the threads named here.
 		void set_conversation_addressed_dispatch(std::function<void(const std::string&)> aDispatch);
@@ -1633,6 +1659,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-1212]]. The code's Add comment and Suggest change, as
 		/// the right-click menu offers them.
 		[[nodiscard]] auto add_comment_action() const noexcept -> QAction*;
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). N: a Local comment on the
+		/// selected lines, the composer in Comments opened on Local.
+		[[nodiscard]] auto local_comment_action() const noexcept -> QAction*;
+		/// \brief RFC-BPR-0127. The composer in Comments is on Local.
+		[[nodiscard]] auto composing_local() const noexcept -> bool;
 		[[nodiscard]] auto suggest_change_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1212]]. The menu a right-click on the code opens at a
 		/// point of a pane, built as the gesture builds it; the caller owns it.
@@ -3357,9 +3388,12 @@ namespace bpr::qt {
 		void                                                        publish_pending_file_comment();
 		QString                                                     CommentDraftUnavailable;
 		std::optional<core::source_line_ref>                        WritingAnchor;
-		QAction*                                                    AddCommentAction    = nullptr;
-		QAction*                                                    SuggestChangeAction = nullptr;
-		QPointer<QWidget>                                           DiscussReturnFocus;
+		QAction*                                                    AddCommentAction   = nullptr;
+		QAction*                                                    LocalCommentAction = nullptr;
+		/// RFC-BPR-0127. The drawer's composer opens, or was switched, on Local.
+		bool              ComposeLocal        = false;
+		QAction*          SuggestChangeAction = nullptr;
+		QPointer<QWidget> DiscussReturnFocus;
 		/// [[BPR-1089]]. Where focus was on the Overview when a count opened
 		/// Discuss, so going back to the Overview finds the same cell.
 		QPointer<QWidget> OverviewReturnFocus;
@@ -3593,6 +3627,8 @@ namespace bpr::qt {
 		bool                                    DeferredReplyInPlace = false;
 		workbench_thread_resolution_dispatch    ThreadResolutionDispatch;
 		std::function<void(const std::string&)> ConversationAskDispatch;
+		workbench_comment_state_dispatch        CommentStateDispatch;
+		void                                    dispatch_comment_state(card_action aAction, const std::string& aIdentity);
 		std::function<void(const std::string&)> ConversationAddressedDispatch;
 		std::function<void()>                   WhatChangedDispatch;
 		/// [[BPR-1773]]. Words waiting for a thread's reply to open, and how

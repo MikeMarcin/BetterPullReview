@@ -120,6 +120,9 @@ namespace bpr::qt {
 			Tabs->setAccessibleTabName(index, tab_name(index));
 			Tabs->setTabToolTip(index, tab_about(index));
 		}
+		// RFC-BPR-0127 ([[BPR-2158]]). Notes is gone: a pull request's Local
+		// comments are in the Comments tab.
+		Tabs->setTabVisible(index_of(overview_drawer_tab::notes), false);
 		Tools = new QWidget{ Header };
 		Tools->setObjectName(QStringLiteral("overviewStatusTools"));
 		auto* const tools = new QHBoxLayout{ Tools };
@@ -264,6 +267,9 @@ namespace bpr::qt {
 		for (const auto tab : { overview_drawer_tab::comments, overview_drawer_tab::notes, overview_drawer_tab::agent }) {
 			const auto index = index_of(tab);
 			if (Tabs->isTabVisible(index) == aShown) {
+				continue;
+			}
+			if (tab == overview_drawer_tab::notes) {
 				continue;
 			}
 			if (!aShown && Tabs->currentIndex() == index) {

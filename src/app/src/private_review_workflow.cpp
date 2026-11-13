@@ -891,6 +891,62 @@ namespace bpr::app {
 				 }
 			 });
 	}
+	void private_review_workflow::keep_local(const core::review_draft_id aDraft, const std::uint64_t aRevision, application::local_comment_record aComment, local_completion aDone)
+	{
+		auto kept = std::make_shared<std::optional<application::local_comment_record>>();
+		post([aDraft, aRevision, comment = std::move(aComment), kept](context& aContext) {
+			result output;
+			*kept          = take(aContext.Store->keep_local({ .Draft = aDraft, .ExpectedRevision = aRevision, .Comment = comment }));
+			output.Drafts  = accepted(application::review_composition_application_host(*aContext.Store).restore(std::nullopt, aDraft));
+			output.Refresh = false;
+			return output; },
+			 [this, kept, done = std::move(aDone)](auto aCommit) {
+				 if (aCommit && Drafts) {
+					 Drafts(*aCommit, false);
+				 }
+				 if (done) {
+					 done(aCommit && kept->has_value() ? application::private_run_result<application::local_comment_record>{ std::move(**kept) }
+													   : std::unexpected(aCommit ? application::private_run_error{ .Store = application::private_store_failure::unavailable } : aCommit.error()));
+				 }
+			 });
+	}
+	void private_review_workflow::make_draft(const application::local_comment_id aComment, const application::local_comment_revision aRevision, std::string aBody, const core::source_line_ref aAnchor,
+											 const std::optional<std::uint32_t> aStartLine, std::optional<std::string> aReplyToThread, draft_completion aDone)
+	{
+		if (!Binding) {
+			if (aDone) {
+				aDone(std::unexpected(application::private_run_error{ .Policy = core::private_review_refusal::invalid_target }));
+			}
+			return;
+		}
+		auto binding       = *Binding;
+		binding.Comparison = aAnchor.Comparison;
+		post([binding, aComment, aRevision, body = std::move(aBody), aAnchor, aStartLine, reply = std::move(aReplyToThread)](context& aContext) {
+			result     output;
+			const auto frontier = take(aContext.Store->frontier());
+			require(frontier.NextIdentity != 0U, core::private_review_refusal::bounds);
+			auto scoped  = binding;
+			scoped.Scope = frontier.Scope;
+			auto draft   = core::review_comment_draft{ .Id = core::review_draft_id{ frontier.NextIdentity }, .Anchor = aAnchor, .Body = body, .State = core::review_draft_state::drafting };
+			draft.StartLine     = aStartLine;
+			draft.ReplyToThread = reply;
+			auto write                 = application::private_store_write{ };
+			write.ExpectedNextIdentity = frontier.NextIdentity;
+			write.Drafts               = { { application::private_draft_record{ scoped, { draft, 1U, { }, std::nullopt } }, 0U } };
+			write.MakeDraftFrom        = std::pair{ aComment, aRevision };
+			static_cast<void>(take(aContext.Store->commit(write)));
+			output.Drafts  = accepted(application::review_composition_application_host(*aContext.Store).restore(std::nullopt, draft.Id));
+			output.Refresh = false;
+			return output; },
+			 [this, done = std::move(aDone)](auto aCommit) {
+				 if (aCommit && Drafts) {
+					 Drafts(*aCommit, false);
+				 }
+				 if (done) {
+					 done(std::move(aCommit));
+				 }
+			 });
+	}
 	void private_review_workflow::settle_review_comments(std::string aKey, bool aPublished, std::optional<core::review_submission_proposal> aProposal)
 	{
 		if (!Binding) {

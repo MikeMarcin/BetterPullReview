@@ -67,6 +67,17 @@ namespace bpr::app {
 		/// it is carried. Answers on the decision lane whether it was deleted.
 		void discard_earlier_suggestion(core::review_draft_id, std::uint64_t aRevision, std::function<void(bool)>);
 		void settle_review_comments(std::string aKey, bool aPublished, std::optional<core::review_submission_proposal>);
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). Keep local: the draft at its
+		/// revision becomes `aComment` in one store transaction; the draft's
+		/// end fans out to every window. Answers on the decision lane with
+		/// the stored comment, or the refusal.
+		using local_completion = std::function<void(application::private_run_result<application::local_comment_record>)>;
+		void keep_local(core::review_draft_id, std::uint64_t aRevision, application::local_comment_record aComment, local_completion);
+		/// \brief RFC-BPR-0127. Make draft: the Local comment at its revision
+		/// becomes a new draft at `aAnchor` (its range and reply target), not
+		/// in the review, in one store transaction; the draft fans out.
+		void make_draft(application::local_comment_id, application::local_comment_revision, std::string aBody, core::source_line_ref aAnchor, std::optional<std::uint32_t> aStartLine,
+						std::optional<std::string> aReplyToThread, draft_completion);
 		/// [[BPR-1245]]. Records the draft as it stands on this lane, after every draft change
 		/// already queued, as one reviewer revision that History then shows; answers on the decision lane.
 		void record_workshop_press(core::review_draft_id, press_completion);

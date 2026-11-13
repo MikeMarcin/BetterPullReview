@@ -148,7 +148,55 @@ namespace bpr::qt {
 		discard_suggested_change,
 		undo_suggested_change,
 		close_suggested_change,
+		/// RFC-BPR-0127 ([[BPR-2158]]). My Local comment becomes a draft
+		/// of the same kind at the same place, not in the review, or at the
+		/// selected line ("Make draft on line N"). Nothing is published.
+		make_draft,
+		/// RFC-BPR-0127. My draft becomes a Local comment: only on this
+		/// computer, never sent.
+		keep_local,
+		/// RFC-BPR-0127. My Local comment is deleted, once the window has asked.
+		delete_local,
+		/// RFC-BPR-0127. My Local comment's words, copied as written.
+		copy_local,
+		/// RFC-BPR-0127. The composer's state control: Local chosen.
+		compose_local,
+		/// RFC-BPR-0127. The composer's state control: Draft (or Reply) chosen.
+		compose_draft,
+		/// RFC-BPR-0127. Save the composer's words as a Local comment (⌘↩).
+		save_local,
 	};
+
+	/// \brief RFC-BPR-0127 ([[BPR-2158]]). One of my Local comments, as the
+	/// window placed it against the comparison shown: only on this computer,
+	/// never sent. Nothing here decides where it is.
+	struct local_comment_card
+	{
+		std::uint64_t Id       = 0U;
+		std::uint64_t Revision = 0U;
+		QString       Body;
+		/// The comparison shown, where it is drawn at its line; none for a
+		/// comment the comparison does not place.
+		std::optional<core::file_comparison_digest> Comparison;
+		core::diff_side                             Side = core::diff_side::right;
+		/// Its one-based line, and the first of a range.
+		std::optional<std::uint32_t> Line;
+		std::optional<std::uint32_t> FirstLine;
+		/// The thread a Local reply answers, by its provider identity.
+		std::optional<std::string> ReplyToThread;
+		/// Not at a line of its own here: why (outdated), drawn after the
+		/// placed cards as an outdated thread is.
+		QString Notice;
+		/// What Make draft is offered as: "Make draft", "Make draft on line
+		/// N", or empty when it is not offered; and why not.
+		QString MakeDraft;
+		QString MakeDraftWhy;
+
+		auto operator==(const local_comment_card&) const -> bool = default;
+	};
+
+	/// \brief RFC-BPR-0127. What assistive technology hears for each state.
+	[[nodiscard]] auto comment_state_words(bool aLocal, bool aDraft, bool aInReview) -> QString;
 
 	/// \brief [[BPR-1733]]. My kept suggestion written on an earlier head of
 	/// the file shown, as the core decided at this head (RFC-BPR-0090, "A new
@@ -226,6 +274,9 @@ namespace bpr::qt {
 		/// The post's depth beneath the root, one for the first reply.
 		std::size_t Depth = 0U;
 		bool        Mine  = false;
+		/// RFC-BPR-0127. My Local reply inside the thread, after its
+		/// published posts: only on this computer.
+		bool Local = false;
 		/// Newer than my cursor, as the ledger decided ([[BPR-0656]]).
 		bool Unread = false;
 		/// "author" for the pull request's author, "reviewer" otherwise.
@@ -322,6 +373,12 @@ namespace bpr::qt {
 		/// `thread_reply_refusal_text` says why.
 		core::thread_reply_refusal ReplyRefusal = core::thread_reply_refusal::none;
 		bool                       Draft        = false;
+		/// RFC-BPR-0127 ([[BPR-2158]]). My Local comment: dashed as a draft
+		/// is, marked with the computer, never sent. `Draft` is also set.
+		bool               Local = false;
+		local_comment_card LocalComment;
+		/// RFC-BPR-0127. How many of my Local replies the thread holds.
+		std::size_t LocalReplies = 0U;
 		/// [[BPR-1345]]. My draft is pending in my review, or held by its
 		/// submission.
 		bool Pending = false;
@@ -488,6 +545,9 @@ namespace bpr::qt {
 		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: whether it is
 		/// offered on these lines, and where a press stands.
 		agent_suggestion_presentation AgentSuggestion;
+		/// RFC-BPR-0127 ([[BPR-2158]]). The composer opens on Local (N): its
+		/// foot is Delete and Save, and nothing in it can send.
+		bool Local = false;
 
 		auto operator==(const draft_composer_presentation&) const -> bool = default;
 	};
@@ -643,6 +703,16 @@ namespace bpr::qt {
 		/// carried to, or at its own, while that comparison is shown. The
 		/// window says what each offers; nothing here decides it.
 		void set_moved_suggestions(std::vector<moved_suggestion_card> aMoved);
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). My Local comments: at their
+		/// lines in the line's group (after published threads, before my
+		/// draft), my Local replies inside their threads' cards, and the
+		/// outdated after the placed cards with their reason.
+		void               set_local_comments(std::vector<local_comment_card> aComments);
+		[[nodiscard]] auto local_comments() const noexcept -> const std::vector<local_comment_card>&;
+		/// \brief RFC-BPR-0127. The identity of a Local comment's card, and
+		/// the comment a card identity names.
+		[[nodiscard]] static auto local_comment_identity(std::uint64_t aId) -> std::string;
+		[[nodiscard]] static auto local_comment_of(const std::string& aIdentity) -> std::optional<std::uint64_t>;
 		/// \brief [[BPR-1733]]. The identity of a moved suggestion's note.
 		[[nodiscard]] static auto moved_suggestion_identity(core::review_draft_id aDraft) -> std::string;
 		/// \brief [[BPR-1733]]. What a moved suggestion's note says about where
@@ -1089,6 +1159,7 @@ namespace bpr::qt {
 		std::vector<core::review_comment_draft>                                              SavedDrafts;
 		std::vector<core::reply_draft_decision>                                              UnsentReplies;
 		std::vector<moved_suggestion_card>                                                   MovedSuggestions;
+		std::vector<local_comment_card>                                                      LocalComments;
 		std::optional<core::file_comparison_digest>                                          CurrentComparison;
 		card_line_locator                                                                    Locator;
 		card_thread_dispatch                                                                 ThreadDispatch;

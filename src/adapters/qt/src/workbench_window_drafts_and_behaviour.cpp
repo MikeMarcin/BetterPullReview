@@ -259,6 +259,8 @@ namespace bpr::qt {
 			.Review      = draft_review(),
 			// RFC-BPR-0118. Suggest the change, on lines that take a suggestion.
 			.AgentSuggestion = agent_suggestion_presentation_now(),
+			// RFC-BPR-0127. N opened it on Local.
+			.Local = ComposeLocal,
 		});
 		publish_pending_file_comment();
 	}

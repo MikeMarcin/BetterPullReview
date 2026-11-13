@@ -1321,6 +1321,16 @@ namespace bpr::qt {
 		return AddCommentAction;
 	}
 
+	auto workbench_window::local_comment_action() const noexcept -> QAction*
+	{
+		return LocalCommentAction;
+	}
+
+	auto workbench_window::composing_local() const noexcept -> bool
+	{
+		return ComposeLocal;
+	}
+
 	auto workbench_window::suggest_change_action() const noexcept -> QAction*
 	{
 		return SuggestChangeAction;
@@ -1530,6 +1540,7 @@ namespace bpr::qt {
 		}
 		const auto side = WritingAnchor.has_value() ? WritingAnchor->Side : core::diff_side::right;
 		WritingAnchor.reset();
+		ComposeLocal = false;
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			ConversationPanel->cards()->end_draft();
 		}

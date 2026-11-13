@@ -331,6 +331,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1212]]. What the draft editor holds for my draft, on
 		/// the composer of a draft being written in the drawer.
 		void present_draft(const std::optional<draft_composer_presentation>& aDraft);
+		/// \brief RFC-BPR-0127. Local is chosen in the composer.
+		[[nodiscard]] auto local_chosen() const noexcept -> bool;
 		/// \brief [[BPR-1212]]. Whether this card is my draft's composer.
 		[[nodiscard]] auto writing() const noexcept -> bool;
 		/// \brief [[BPR-1345]]. What ⌘↩ does in the composer. v002 (owner,
@@ -502,13 +504,21 @@ namespace bpr::qt {
 		/// [[RFC-BPR-0090]]. Convert, shown in the sending buttons' place
 		/// while GitHub cannot apply the suggestion; and whether the change
 		/// written in the code is content even when the field is empty.
-		note_button*       ConvertAction = nullptr;
-		QString            ConvertWords;
-		bool               CodeChange   = false;
-		QBoxLayout*        DraftActions = nullptr;
-		QWidget*           Privacy      = nullptr;
-		draft_review_state Review       = draft_review_state::none;
-		suggestion_mark*   Suggestion   = nullptr;
+		note_button* ConvertAction = nullptr;
+		QString      ConvertWords;
+		bool         CodeChange   = false;
+		QBoxLayout*  DraftActions = nullptr;
+		QWidget*     Privacy      = nullptr;
+		/// RFC-BPR-0127 ([[BPR-2158]]). The composer's state control (Local,
+		/// Draft), Save for Local and the sentence beside it.
+		QToolButton*       StateLocal  = nullptr;
+		QToolButton*       StateDraft  = nullptr;
+		note_button*       SaveLocal   = nullptr;
+		QLabel*            LocalWords  = nullptr;
+		bool               LocalChosen = false;
+		void               choose_local(bool aLocal, bool aDispatch);
+		draft_review_state Review     = draft_review_state::none;
+		suggestion_mark*   Suggestion = nullptr;
 		/// [[BPR-2051]].
 		enhance_button*     EnhanceButton = nullptr;
 		enhance_suggestion* EnhancePanel  = nullptr;

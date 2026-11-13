@@ -872,7 +872,30 @@ namespace bpr::qt {
 		AddCommentAction = new QAction{ tr("Add comment"), this };
 		AddCommentAction->setObjectName(QStringLiteral("addCommentAction"));
 		AddCommentAction->setIcon(conversation_icon(conversation_glyph::comment, palette()));
-		connect(AddCommentAction, &QAction::triggered, this, [this] { static_cast<void>(comment_on_selected_lines(false)); });
+		connect(AddCommentAction, &QAction::triggered, this, [this] {
+			ComposeLocal = false;
+			static_cast<void>(comment_on_selected_lines(false));
+		});
+		// RFC-BPR-0127 ([[BPR-2158]]). N: the same composer, opened on Local,
+		// in Comments. Comment…, the gutter and Reply open it on Draft; the
+		// choice is not remembered between comments.
+		LocalCommentAction = new QAction{ tr("Local comment"), this };
+		LocalCommentAction->setObjectName(QStringLiteral("localCommentAction"));
+		LocalCommentAction->setIcon(conversation_icon(conversation_glyph::computer, palette()));
+		LocalCommentAction->setToolTip(tr("A comment only on this computer, on the selected lines (N)"));
+		LocalCommentAction->setShortcuts(shortcut_keys(shortcut_command::new_note));
+		LocalCommentAction->setShortcutContext(Qt::WindowShortcut);
+		addAction(LocalCommentAction);
+		connect(LocalCommentAction, &QAction::triggered, this, [this] {
+			if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+				TrayTabs->setCurrentIndex(tray_comments_tab);
+			}
+			ComposeLocal = true;
+			if (!comment_on_selected_lines(false)) {
+				ComposeLocal = false;
+			}
+			refresh_cards();
+		});
 		SuggestChangeAction = new QAction{ tr("Suggest change"), this };
 		SuggestChangeAction->setObjectName(QStringLiteral("suggestChangeAction"));
 		SuggestChangeAction->setIcon(conversation_icon(conversation_glyph::suggest, palette()));

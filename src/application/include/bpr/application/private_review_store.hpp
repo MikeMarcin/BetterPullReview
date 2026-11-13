@@ -275,8 +275,9 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto list_thread_dependents(core::private_review_thread_id, std::optional<private_dependency_cursor> aCursor = { }) -> private_store_result<private_dependency_page> = 0;
 		/// \brief Explicitly selected cleanup only; external references refuse, no cross-object cascade.
 		[[nodiscard]] virtual auto erase_local_object(private_object_reference, std::uint64_t aExpectedVersion = 0) -> private_store_result<void> = 0;
-		/// \brief RFC-BPR-0127. Keep local: removes the unsent draft, which no
-		/// publication references, and stores the Local comment, or neither.
+		/// \brief RFC-BPR-0127. Keep local: the unsent draft, which no
+		/// publication references, ends as discarded a revision on and the
+		/// Local comment is stored, or neither.
 		[[nodiscard]] virtual auto keep_local(const private_keep_local&) -> private_store_result<local_comment_record> { return std::unexpected(private_store_failure::unavailable); }
 		/// \brief Requires producer quiescence; retains incarnation and all high waters.
 		[[nodiscard]] virtual auto purge() -> private_store_result<void> = 0;

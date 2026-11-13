@@ -2000,15 +2000,29 @@ namespace bpr::qt {
 			row->addWidget(NewPill, 0, Qt::AlignVCenter);
 			row->addSpacing(4);
 		}
+		// RFC-BPR-0127 (owner, Q1). The computer is Local and nothing else; a
+		// draft wears its pencil; no state wears a lock. Each state is said
+		// in words to assistive technology.
 		if (aCard.Writing) {
-			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::lock, Style.Colours.SignalInk, header };
-			DraftState        = state;
+			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::edit, Style.Colours.SignalInk, header };
+			state->setAccessibleName(comment_state_words(false, true, aCard.Pending));
+			DraftState = state;
+			row->addWidget(state);
+		} else if (aCard.Local) {
+			auto* const state = new state_label{ QStringLiteral("Local"), conversation_glyph::computer, Style.Colours.Ink2, header };
+			state->setObjectName(QStringLiteral("threadLocalState"));
+			state->setAccessibleName(comment_state_words(true, false, false));
+			state->setToolTip(QStringLiteral("Only on this computer"));
 			row->addWidget(state);
 		} else if (aCard.Draft && aCard.Pending) {
 			// [[BPR-1345]]. Sent with the review when it is finished.
-			row->addWidget(new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::lock, Style.Colours.SignalInk, header });
+			auto* const state = new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::edit, Style.Colours.SignalInk, header };
+			state->setAccessibleName(comment_state_words(false, true, true));
+			row->addWidget(state);
 		} else if (aCard.Draft) {
-			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
+			auto* const state = new state_label{ QStringLiteral("Draft, not in your review"), conversation_glyph::edit, Style.Colours.Faint, header };
+			state->setAccessibleName(comment_state_words(false, true, false));
+			row->addWidget(state);
 		} else if (aCard.ResolutionPending) {
 			// [[BPR-1741]]. Shown at once; GitHub's answer settles it.
 			row->addWidget(new state_label{ aCard.Resolved ? QStringLiteral("Resolving…") : QStringLiteral("Reopening…"), std::nullopt, Style.Colours.Faint, header });
@@ -2386,6 +2400,44 @@ namespace bpr::qt {
 			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::discard_reply); } });
 			actions->addWidget(discard);
 			footRow->addLayout(actions);
+		} else if (aCard.Local) {
+			// RFC-BPR-0127 ([[BPR-2158]]). My Local comment: only on this
+			// computer. Make draft moves it (the same words and place, not in
+			// the review); its words can be copied or it can be deleted.
+			// Nothing here sends it.
+			footRow->setContentsMargins(text_left, 2, text_right, 10);
+			footRow->setSpacing(8);
+			if (notice != nullptr) {
+				footRow->addWidget(notice);
+			}
+			auto* const actions = new QHBoxLayout{ };
+			actions->setSpacing(4);
+			auto* const make = new note_button{ note_button::kind::primary, aCard.LocalComment.MakeDraft.isEmpty() ? QStringLiteral("Make draft") : aCard.LocalComment.MakeDraft, Foot };
+			make->setObjectName(QStringLiteral("threadMakeDraft"));
+			make->setIcon(conversation_icon(conversation_glyph::edit, palette));
+			make->setEnabled(!aCard.LocalComment.MakeDraft.isEmpty());
+			make->setToolTip(aCard.LocalComment.MakeDraft.isEmpty() ? aCard.LocalComment.MakeDraftWhy
+																	: QStringLiteral("Make it a draft at the same place, not in your review. Nothing is published."));
+			make->setAccessibleDescription(make->toolTip());
+			make->set_style(Style);
+			connect(make, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::make_draft); } });
+			actions->addWidget(make);
+			auto* const copy = card_button(Foot);
+			copy->setObjectName(QStringLiteral("threadCopyLocal"));
+			copy->setAutoRaise(true);
+			copy->setText(QStringLiteral("Copy text"));
+			copy->setToolTip(QStringLiteral("Copy the comment as written"));
+			copy->setIcon(conversation_icon(conversation_glyph::copy, palette));
+			copy->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::copy));
+			copy->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			copy->setFocusPolicy(Qt::StrongFocus);
+			connect(copy, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::copy_local); } });
+			actions->addWidget(copy);
+			actions->addStretch(1);
+			auto* const discard = tool(Foot, QStringLiteral("threadDeleteLocal"), QStringLiteral("Delete local comment"), conversation_glyph::trash, palette);
+			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_local); } });
+			actions->addWidget(discard);
+			footRow->addLayout(actions);
 		} else if (aCard.Draft && aCard.MovedSuggestion) {
 			// [[BPR-1733]]. My kept suggestion from an earlier head: written
 			// again at its lines here when the core carries it, or its change
@@ -2440,6 +2492,19 @@ namespace bpr::qt {
 			connect(edit, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::edit_draft); } });
 			auto* const remove = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Delete draft"), conversation_glyph::trash, palette);
 			connect(remove, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
+			// RFC-BPR-0127 ([[BPR-2158]]). Keep local: the same words and place,
+			// out of the review, only on this computer.
+			auto* const keep = card_button(Foot);
+			keep->setObjectName(QStringLiteral("threadKeepLocal"));
+			keep->setAutoRaise(true);
+			keep->setText(QStringLiteral("Keep local"));
+			keep->setToolTip(QStringLiteral("Keep it only on this computer. It leaves your review and is never sent."));
+			keep->setAccessibleDescription(keep->toolTip());
+			keep->setIcon(conversation_icon(conversation_glyph::computer, palette));
+			keep->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::computer));
+			keep->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			keep->setFocusPolicy(Qt::StrongFocus);
+			connect(keep, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::keep_local); } });
 			// [[BPR-1345]]. A pending draft goes with the review; it is opened
 			// to change it, and nothing here publishes it on its own.
 			if (aCard.Pending) {
@@ -2448,6 +2513,7 @@ namespace bpr::qt {
 				actions->addWidget(publish);
 			}
 			actions->addWidget(edit);
+			actions->addWidget(keep);
 			actions->addStretch(1);
 			actions->addWidget(remove);
 			footRow->addLayout(actions);
@@ -2711,12 +2777,50 @@ namespace bpr::qt {
 		// split arrow carries Add single comment.
 		DraftActions = new QBoxLayout{ QBoxLayout::LeftToRight };
 		DraftActions->setSpacing(6);
-		auto* const privacy = new state_label{ QStringLiteral("Private until you publish"), conversation_glyph::lock, Style.Colours.Faint, Foot };
-		privacy->setObjectName(QStringLiteral("threadDraftPrivacy"));
-		privacy->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-		privacy->show_whole_or_glyph(QStringLiteral("Only you see this draft until you publish it."));
-		Privacy = privacy;
-		DraftActions->addWidget(privacy, 1);
+		// RFC-BPR-0127 ([[BPR-2158]]). Where "Private until you publish"
+		// stood, the comment's state: Local or Draft, two segments joined.
+		// Local is only on this computer; Draft is meant to be sent.
+		auto* const states = new QWidget{ Foot };
+		states->setObjectName(QStringLiteral("threadCommentState"));
+		states->setAccessibleName(QStringLiteral("Comment state"));
+		auto* const statesRow = new QHBoxLayout{ states };
+		statesRow->setContentsMargins(0, 0, 0, 0);
+		statesRow->setSpacing(0);
+		const auto segment = [&](const QString& aText, const conversation_glyph aGlyph, const QString& aName, const QString& aTip) {
+			auto* const button = card_button(states);
+			button->setObjectName(aName);
+			button->setCheckable(true);
+			button->setAutoRaise(false);
+			button->setText(aText);
+			button->setIcon(conversation_icon(aGlyph, palette));
+			button->setProperty("conversationGlyph", static_cast<int>(aGlyph));
+			button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			button->setToolTip(aTip);
+			button->setAccessibleDescription(aTip);
+			button->setFocusPolicy(Qt::StrongFocus);
+			statesRow->addWidget(button);
+			return button;
+		};
+		StateLocal = segment(QStringLiteral("Local"), conversation_glyph::computer, QStringLiteral("threadStateLocal"), QStringLiteral("Only on this computer"));
+		StateDraft = segment(QStringLiteral("Draft"), conversation_glyph::edit, QStringLiteral("threadStateDraft"), QStringLiteral("A draft you can add to your review or post"));
+		StateLocal->setAccessibleName(comment_state_words(true, false, false));
+		StateDraft->setChecked(true);
+		connect(StateLocal, &QToolButton::clicked, this, [this] { choose_local(true, true); });
+		connect(StateDraft, &QToolButton::clicked, this, [this] { choose_local(false, true); });
+		Privacy = states;
+		DraftActions->addWidget(states);
+		LocalWords = new QLabel{ QStringLiteral("Only on this computer. Never sent."), Foot };
+		LocalWords->setObjectName(QStringLiteral("threadLocalWords"));
+		LocalWords->setTextFormat(Qt::PlainText);
+		LocalWords->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		{
+			auto ink = LocalWords->palette();
+			ink.setColor(QPalette::WindowText, Style.Colours.Faint);
+			LocalWords->setPalette(ink);
+		}
+		LocalWords->hide();
+		DraftActions->addWidget(LocalWords, 1);
+		DraftActions->addStretch(0);
 		auto* const discard = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Delete this comment"), conversation_glyph::trash, palette);
 		discard->setAccessibleName(QStringLiteral("Delete comment"));
 		connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
@@ -2773,6 +2877,16 @@ namespace bpr::qt {
 		ConvertAction->hide();
 		connect(ConvertAction, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::convert_draft); } });
 		DraftActions->addWidget(ConvertAction);
+		// RFC-BPR-0127. Local's one action: Save (⌘↩). Nothing here can send it.
+		SaveLocal = new note_button{ note_button::kind::primary, QStringLiteral("Save"), Foot };
+		SaveLocal->setObjectName(QStringLiteral("threadSaveLocal"));
+		SaveLocal->setAccessibleName(QStringLiteral("Save local comment"));
+		SaveLocal->setToolTip(QStringLiteral("Keep it only on this computer  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		SaveLocal->setAccessibleDescription(QStringLiteral("Saves this comment only on this computer. It is never sent."));
+		SaveLocal->set_style(Style);
+		SaveLocal->hide();
+		connect(SaveLocal, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::save_local); } });
+		DraftActions->addWidget(SaveLocal);
 		aFoot.addLayout(DraftActions);
 		present_review_state();
 		connect(ReplyBox, &QPlainTextEdit::textChanged, this, [this] {
@@ -2889,6 +3003,11 @@ namespace bpr::qt {
 		if (DraftState != nullptr) {
 			static_cast<state_label*>(DraftState)->set_text(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
 		}
+		// RFC-BPR-0127. N opens the composer on Local; the choice is not
+		// remembered between comments.
+		if (aDraft.has_value() && aDraft->Local != LocalChosen) {
+			choose_local(aDraft->Local, false);
+		}
 		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines, inCode);
 		present_agent_suggestion(aDraft.has_value() ? aDraft->AgentSuggestion : agent_suggestion_presentation{ });
 		// [[RFC-BPR-0090]]. The code's change counts as content, and a held
@@ -2953,8 +3072,56 @@ namespace bpr::qt {
 		return Writing;
 	}
 
+	auto open_thread_card::local_chosen() const noexcept -> bool
+	{
+		return LocalChosen;
+	}
+
+	void open_thread_card::choose_local(const bool aLocal, const bool aDispatch)
+	{
+		if (StateLocal == nullptr || StateDraft == nullptr) {
+			return;
+		}
+		StateLocal->setChecked(aLocal);
+		StateDraft->setChecked(!aLocal);
+		const auto changed = LocalChosen != aLocal;
+		LocalChosen        = aLocal;
+		// Local's foot: Delete and Save, and the sentence. Draft's is today's.
+		if (Publish != nullptr && ReviewAction != nullptr && SplitAction != nullptr) {
+			ReviewAction->setVisible(!aLocal && ConvertWords.isEmpty());
+			if (aLocal) {
+				Publish->hide();
+				SplitAction->hide();
+			} else {
+				Publish->setVisible(ConvertWords.isEmpty());
+				SplitAction->hide();
+			}
+		}
+		if (ConvertAction != nullptr && aLocal) {
+			ConvertAction->hide();
+		}
+		if (SaveLocal != nullptr) {
+			SaveLocal->setVisible(aLocal);
+		}
+		if (LocalWords != nullptr) {
+			LocalWords->setVisible(aLocal);
+		}
+		if (!aLocal) {
+			fit_draft_actions();
+		}
+		if (changed && aDispatch && Action) {
+			Action(aLocal ? card_action::compose_local : card_action::compose_draft);
+		}
+		if (changed && HeightChanged) {
+			HeightChanged();
+		}
+	}
+
 	auto open_thread_card::primary_action() const noexcept -> card_action
 	{
+		if (LocalChosen) {
+			return card_action::save_local;
+		}
 		switch (Review) {
 		case draft_review_state::none:
 		case draft_review_state::in_progress: return card_action::review_draft;
@@ -3000,11 +3167,8 @@ namespace bpr::qt {
 											  ? QStringLiteral("Takes this comment out of your review and posts it to the pull request now, on its own.")
 											  : QStringLiteral("Posts this one comment to the pull request now, on its own. No review is submitted."));
 		ReviewAction->setAccessibleName(ReviewAction->text());
-		if (auto* const privacy = static_cast<state_label*>(Privacy); privacy != nullptr) {
-			const auto reviewing = Review != draft_review_state::none;
-			privacy->set_text(reviewing ? QStringLiteral("Pending until you finish the review") : QStringLiteral("Private until you publish"));
-			privacy->show_whole_or_glyph(reviewing ? QStringLiteral("Only you see your review's comments until you finish the review.")
-												   : QStringLiteral("Only you see this draft until you publish it."));
+		if (StateDraft != nullptr) {
+			StateDraft->setAccessibleName(comment_state_words(false, true, Review == draft_review_state::pending));
 		}
 		Publish->updateGeometry();
 		ReviewAction->updateGeometry();
@@ -3012,7 +3176,7 @@ namespace bpr::qt {
 
 	void open_thread_card::fit_draft_actions()
 	{
-		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr || !ConvertWords.isEmpty()) {
+		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr || !ConvertWords.isEmpty() || LocalChosen) {
 			return;
 		}
 		// Room for the lock, Delete and both pills side by side, or the

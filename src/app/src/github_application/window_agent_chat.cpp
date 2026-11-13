@@ -304,6 +304,7 @@ namespace bpr::app {
 			}
 		}
 		Window->private_notes()->present(std::move(projection));
+		present_local_comments();
 		auto draft = current_agent_draft_observation();
 		if (draft.has_value()
 			&& draft->Draft.State != core::review_draft_state::drafting) {

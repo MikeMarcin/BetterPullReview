@@ -1697,9 +1697,17 @@ namespace bpr::adapters::sqlite::detail {
 					auto refs = db.sql("SELECT 1 FROM private_publication WHERE scope_id=?1 AND draft_id=?2 LIMIT 1", Scope, aKeep.Draft.value());
 					require(!refs.row(), error::references_present);
 					refs.done();
-					s.Counts[9] -= record_size(db, "private_draft", aKeep.Draft.value()) + (d.Draft.Composition ? 0 : d.Draft.Draft.Body.size());
-					--s.Counts[6];
-					db.write("DELETE FROM private_draft WHERE scope_id=?1 AND id=?2", Scope, aKeep.Draft.value());
+					// The draft ends as discarded, a revision on, so every window's
+					// shared drafts adopt its end from the store; its words live on
+					// as the Local comment.
+					auto ended              = d;
+					ended.Draft.Revision    = d.Draft.Revision + 1U;
+					ended.Draft.Draft.State = core::review_draft_state::discarded;
+					auto       ids          = allocation{ s.Last + 1U };
+					auto       admitsActive = false;
+					const auto writes       = std::array{ private_draft_write{ ended, d.Draft.Revision } };
+					store_drafts(db, s, ids, writes, admitsActive);
+					ids.finish(s);
 					auto count = db.sql("SELECT COUNT(*),COALESCE(MAX(id),0),EXISTS(SELECT 1 FROM private_local_comment WHERE scope_id=?1 AND id=?2) FROM private_local_comment WHERE scope_id=?1", Scope, aKeep.Draft.value());
 					require(count.row() && static_cast<std::size_t>(count.integer(0)) < application::maximum_local_comments, error::quota);
 					const auto taken = count.integer(2) != 0;

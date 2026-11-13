@@ -29,13 +29,17 @@
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAbstractListModel>
+#include <QAccessible>
+#include <QAccessibleAnnouncementEvent>
 #include <QAction>
 #include <QAnyStringView>
 #include <QBoxLayout>
 #include <QByteArrayView>
 #include <QChar>
+#include <QClipboard>
 #include <QFlags>
 #include <QGridLayout>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
@@ -72,6 +76,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstddef>
 #include <functional>
 #include <initializer_list>
@@ -356,24 +361,8 @@ namespace bpr::qt {
 					.Description = mark.Description,
 				});
 			}
-			// [[BPR-1592]]. A noted line's number is a dashed cell, as my
-			// draft's is; a line that has a thread keeps the thread's mark.
-			// The open note washes its line in the writing blue.
-			if (PrivateNotes != nullptr) {
-				for (const auto& note : PrivateNotes->line_marks(side)) {
-					const auto taken = std::ranges::find(marks, note.Line, &diff_line_mark::Line);
-					if (taken != marks.end()) {
-						taken->Writing = taken->Writing || (note.Open && onNotesTab);
-						continue;
-					}
-					auto mark        = diff_line_mark{ };
-					mark.Line        = note.Line;
-					mark.Draft       = true;
-					mark.Writing     = note.Open && onNotesTab;
-					mark.Description = note.Description;
-					marks.push_back(std::move(mark));
-				}
-			}
+			// RFC-BPR-0127 ([[BPR-2158]]). Local comments are cards in Comments
+			// and mark their lines through `line_marks`: one mark a line.
 			ComparisonSurface->set_line_marks(side, std::move(marks));
 		}
 		update_new_comment_group();
@@ -406,16 +395,10 @@ namespace bpr::qt {
 
 	void workbench_window::toggle_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
 	{
-		// [[BPR-1592]]. On the Notes tab a noted line's mark opens its note;
-		// elsewhere, a line with no thread but a note opens the note too.
-		const auto note       = PrivateNotes != nullptr ? PrivateNotes->note_on_line(aSide, aLine) : std::nullopt;
-		const auto onNotesTab = TrayTabs != nullptr && TrayTabs->currentIndex() == tray_notes_tab;
-		if (const auto identity = thread_on_line(aSide, aLine); identity.has_value() && !(note && onNotesTab)) {
+		// RFC-BPR-0127 ([[BPR-2158]]). One mark a line: a thread, a draft or
+		// a Local comment, all cards in Comments, opened alike.
+		if (const auto identity = thread_on_line(aSide, aLine); identity.has_value()) {
 			ConversationPanel->cards()->toggle_thread(*identity);
-			return;
-		}
-		if (note) {
-			show_private_note(*note);
 		}
 	}
 
@@ -424,14 +407,11 @@ namespace bpr::qt {
 		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
 		}
-		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_notes_tab) {
-			TrayTabs->setCurrentIndex(tray_notes_tab);
+		// RFC-BPR-0127. A Local comment is a card in Comments.
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+			TrayTabs->setCurrentIndex(tray_comments_tab);
 		}
-		if (PrivateNotes->open_note_id() == aId) {
-			PrivateNotes->close_note();
-			return;
-		}
-		PrivateNotes->open_note(aId);
+		ConversationPanel->cards()->toggle_thread(conversation_cards_view::local_comment_identity(aId));
 	}
 
 	void workbench_window::show_agent(const bool aAsk)
@@ -508,7 +488,9 @@ namespace bpr::qt {
 				chosen     = candidate;
 				auto width = 0;
 				for (auto index = 0; index < tabCount; ++index) {
-					width += tabs->face_width(index, textOf(candidate, index), glyphOf(candidate, index));
+					if (tabs->isTabVisible(index)) {
+						width += tabs->face_width(index, textOf(candidate, index), glyphOf(candidate, index));
+					}
 				}
 				if (width <= room) {
 					break;
@@ -728,12 +710,11 @@ namespace bpr::qt {
 		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
 		}
-		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_notes_tab) {
-			TrayTabs->setCurrentIndex(tray_notes_tab);
+		// RFC-BPR-0127. Go to note arrives at its Local comment, in Comments.
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+			TrayTabs->setCurrentIndex(tray_comments_tab);
 		}
-		if (PrivateNotes->open_note_id() != aId) {
-			PrivateNotes->open_note(aId);
-		}
+		ConversationPanel->cards()->open_thread(conversation_cards_view::local_comment_identity(aId));
 	}
 
 	void workbench_window::resume_private_note_open()
@@ -1913,6 +1894,71 @@ namespace bpr::qt {
 	void workbench_window::set_conversation_ask_dispatch(std::function<void(const std::string&)> aDispatch)
 	{
 		ConversationAskDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_comment_state_dispatch(workbench_comment_state_dispatch aDispatch)
+	{
+		CommentStateDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_local_comments(std::vector<local_comment_card> aComments)
+	{
+		if (ConversationPanel == nullptr) {
+			return;
+		}
+		ConversationPanel->cards()->set_local_comments(std::move(aComments));
+		apply_thread_marks();
+	}
+
+	void workbench_window::close_drawer_composer()
+	{
+		leave_drawer_draft(false);
+	}
+
+	void workbench_window::refuse_comment_state(const QString& aWhy)
+	{
+		statusBar()->showMessage(aWhy, 10000);
+		QAccessibleAnnouncementEvent event{ this, aWhy };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Assertive);
+		QAccessible::updateAccessibility(&event);
+	}
+
+	void workbench_window::dispatch_comment_state(const card_action aAction, const std::string& aIdentity)
+	{
+		auto gesture     = comment_state_gesture{ };
+		gesture.Action   = aAction;
+		gesture.Identity = aIdentity;
+		if (const auto local = conversation_cards_view::local_comment_of(aIdentity); local.has_value()) {
+			gesture.Local = local;
+			if (aAction == card_action::copy_local) {
+				const auto& comments = ConversationPanel->cards()->local_comments();
+				const auto  found    = std::ranges::find(comments, *local, &local_comment_card::Id);
+				if (found != comments.end()) {
+					if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+						clipboard->setText(found->Body);
+					}
+					statusBar()->showMessage(tr("Copied the comment."), 4000);
+				}
+				return;
+			}
+		} else if (aIdentity == "draft:unpublished") {
+			if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()) {
+				gesture.Draft = ReviewEditor->shown_draft()->Id;
+			}
+		} else if (aIdentity.starts_with("draft:unpublished:")) {
+			auto       value = std::uint64_t{ 0U };
+			const auto text  = std::string_view{ aIdentity }.substr(18);
+			if (std::from_chars(text.data(), text.data() + text.size(), value).ec == std::errc{ } && value != 0U) {
+				gesture.Draft = core::review_draft_id{ value };
+			}
+		}
+		if (aAction == card_action::save_local && ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()) {
+			gesture.Draft = ReviewEditor->shown_draft()->Id;
+			gesture.Body  = ReviewEditor->shown_draft()->Body;
+		}
+		if (CommentStateDispatch) {
+			CommentStateDispatch(gesture);
+		}
 	}
 
 	void workbench_window::set_conversation_addressed_dispatch(std::function<void(const std::string&)> aDispatch)

@@ -439,7 +439,8 @@ namespace {
 		expect(keep(first, 2).error() == private_store_failure::conflict && store->load_draft(first.Draft.Draft.Id).has_value(), "a stale revision keeps nothing local and leaves the draft");
 		auto kept = keep(first, 1);
 		expect(kept.has_value() && kept->Id.value() == first.Draft.Draft.Id.value() && kept->Body == first.Draft.Draft.Body && kept->Revision.value() > 0U, "Keep local takes the draft's identity and text");
-		expect(store->load_draft(first.Draft.Draft.Id).error() == private_store_failure::missing, "the draft is gone");
+		const auto ended = store->load_draft(first.Draft.Draft.Id);
+		expect(ended && ended->Draft.Draft.State == review_draft_state::discarded && ended->Draft.Revision == 2U, "the draft ends as discarded, a revision on, for every window to adopt");
 		auto observed = (*ledger)->load_private();
 		expect(observed && observed->LocalComments.size() == 1U && observed->LocalComments.front() == *kept, "the ledger answers the kept comment");
 
