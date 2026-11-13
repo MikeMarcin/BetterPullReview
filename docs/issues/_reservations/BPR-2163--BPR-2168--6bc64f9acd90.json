@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2163",
+    "BPR-2164",
+    "BPR-2165",
+    "BPR-2166",
+    "BPR-2167",
+    "BPR-2168"
+  ],
+  "reserve_for": "ask-v1",
+  "purpose": "RFC-BPR-0128 Ask: quick asks, three scopes, reports in a file tab: import cards",
+  "created": "2026-11-13T08:46:01.177579+00:00",
+  "base": "489c64452194503795e647dc35c9fd3af0e36ccc"
+}
