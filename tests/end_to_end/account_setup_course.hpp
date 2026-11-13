@@ -24,6 +24,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace bpr::e2e {
 	class account_setup_driver final
@@ -58,6 +59,10 @@ namespace bpr::e2e {
 
 		/// \brief Connect presses, one per account consented to.
 		[[nodiscard]] auto connects() const noexcept -> std::size_t { return Connects; }
+		/// \brief The accounts the setup offered when Connect was pressed. The
+		/// driver presses Connect on the timer tick that first sees them, so a
+		/// course polling the phase can miss the account step entirely.
+		[[nodiscard]] auto offered() const noexcept -> const std::vector<core::account_setup_account>& { return Offered; }
 		void               stop() { Timer.stop(); }
 
 	private:
@@ -123,6 +128,7 @@ namespace bpr::e2e {
 					choose_login(*setup);
 				}
 				if (Pressed != state.Request && press(QStringLiteral("accountSetupConnect"))) {
+					Offered = state.Accounts;
 					Pressed = state.Request;
 					++Connects;
 				}
@@ -136,11 +142,12 @@ namespace bpr::e2e {
 			}
 		}
 
-		QPointer<qt::workbench_window> Window;
-		plan                           Plan;
-		QTimer                         Timer;
-		std::size_t                    Connects = 0U;
-		std::optional<std::uint64_t>   Pressed;
+		QPointer<qt::workbench_window>           Window;
+		plan                                     Plan;
+		QTimer                                   Timer;
+		std::size_t                              Connects = 0U;
+		std::optional<std::uint64_t>             Pressed;
+		std::vector<core::account_setup_account> Offered;
 	};
 } // namespace bpr::e2e
 

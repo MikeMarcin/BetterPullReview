@@ -270,14 +270,25 @@ namespace {
 	{
 		auto driver = e2e::account_setup_driver{ aWindow, e2e::account_setup_driver::plan{ } };
 		driver.begin();
-		const auto discovered = wait_for([&] { return aWindow.account_setup()->projection().State.Phase == core::account_setup_phase::choosing_account; }, "GitHub CLI discovery", std::chrono::seconds{ 180 });
-		if (!discovered) {
-			fail("GitHub CLI discovery stopped at " + std::string{ core::stable_name(aWindow.account_setup()->projection().State.Phase) });
-		}
-		for (const auto& account : aWindow.account_setup()->projection().State.Accounts) {
+		// The driver presses Connect on the tick that first shows the accounts
+		// and Start reviewing once connected, so the account step can pass
+		// between two polls here and the setup be back at idle, signed in. Wait
+		// for the outcome; stop early only on an account step that refuses.
+		const auto connected = [&] { return aWindow.github_status_text() == "GitHub account connected." && !aWindow.account_setup()->isVisible(); };
+		const auto refused   = [&] {
+			const auto& state = aWindow.account_setup()->projection().State;
+			return state.Phase == core::account_setup_phase::choosing_account && state.Problem != core::account_setup_problem::none
+				&& state.Problem != core::account_setup_problem::connection_failed;
+		};
+		const auto settled = wait_for([&] { return connected() || refused(); }, "GitHub CLI sign-in", std::chrono::seconds{ 180 });
+		for (const auto& account : driver.offered()) {
 			say("cli-account:" + account.Login + (account.ActiveInGh ? " (active in gh)" : ""));
 		}
-		require([&] { return aWindow.github_status_text() == "GitHub account connected." && !aWindow.account_setup()->isVisible(); }, "GitHub account connected");
+		if (!settled || !connected()) {
+			const auto& state = aWindow.account_setup()->projection().State;
+			fail("GitHub CLI sign-in stopped at " + std::string{ core::stable_name(state.Phase) } + " (problem " + std::string{ core::stable_name(state.Problem) } + ", status \"" + aWindow.github_status_text()
+				 + "\", connects " + std::to_string(driver.connects()) + ")");
+		}
 		say("setup-connects:" + std::to_string(driver.connects()));
 		std::string login;
 		for (auto* card : aWindow.server_cards()) {
