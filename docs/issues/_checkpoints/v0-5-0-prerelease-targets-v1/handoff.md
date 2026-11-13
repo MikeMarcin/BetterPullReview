@@ -2556,3 +2556,41 @@ Fresh `rfc-implementer`, same lane; nothing pushed. Owner correction in force: n
 Runs at `0f444ac0a`: `core_local_draft_publication`, `core_local_draft_tour`, `local_draft_publication`, `application_local_draft{,_tour,_publication}_desktop_public_path`, `application_dependable_session_public_path`, `application_composition_source_contract`, `architecture_boundaries` pass; documentation gate OK on lane and main; board validate clean.
 
 Next: RFC-BPR-0127 milestone 2 (BPR-2158), see below.
+
+### RFC-BPR-0127 milestone 2 (BPR-2158), first round (2026-11-13)
+
+Frontend-design was loaded first. BPR-2158 is engineered in part and **not claimed**: it depends on BPR-2157, which stays In Progress. Design, evidence and what is not built: [BPR-2158 card](../../10-backlog/BPR-2158-comments-drawer-holds-local-comments.md#progress-2026-11-13-not-claimed).
+
+| Commit | What |
+|---|---|
+| `9e408149a` | Store move: `keep_local` (the draft ends discarded, a revision on; the Local comment is stored, keeping the draft's identity where free) and `MakeDraftFrom` in one transaction; storage test |
+| `e8553b931` | Local cards in Comments, the computer glyph, the composer's Local/Draft control, N (`localCommentAction`), the workflow's moves, the composition (`window_local_comments.cpp`), Notes tabs hidden, one gutter mark naming everything |
+| `007d48bdc` | Qt tests; tests follow the retired Notes tab and N |
+| `beede2fc3` | Composed look `--attended-local-comments-look`; Local reply marked in the open thread; app inventory and pin resealed. **Frozen commit** |
+| `14261ddb7` | BPR-2158 progress record |
+
+Runs at `beede2fc3` (dev, Debug, macOS), all passing:
+- Qt: `qt_conversation_cards_view`, `qt_workbench_window_scale_{100,125,200}`, `qt_keyboard_shortcuts_scale_{100,125}`, `qt_private_notes_panel`, `qt_enhance_control`, `qt_drawer_surfaces_fit_scale_{100,125}`, `qt_button_faces`, `qt_tour_chat_in_tab`, `qt_hide_drawers_native_menu_key`.
+- Storage and host: `sqlite_private_review_storage`, `sqlite_review_ledger_storage`, `application_review_ledger_host`, `application_private_review_host`, `application_review_ledger_composition_contract`.
+- Composed courses: `application_review_submission_composition_public_path`, `application_review_tour_composition_public_path`, `application_explain_file_public_path`, `application_dependable_session_public_path`, `application_local_draft_publication_desktop_public_path`.
+- Contracts: `application_composition_source_contract`, `architecture_boundaries`.
+- The documentation gate is OK.
+
+Owner look, filed and not waited on:
+- Session `12534e154303dd1913382442a83b8c8f`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v001-2026-11-13/state`. Its URL is in `serve.log` beside the state.
+- Cursor 9. Host PID 68507, its Tailscale serve child 68517.
+- Frozen root `/Users/jaeger/comments-absorb-notes-v001.1a7vqce8` from `beede2fc33b5`; the launcher check reached `ATTENDED_LOCAL_COMMENTS_SHOWN:6`.
+- One Accept/Reject each: `comment-states-on-a-line`, `composer-state-and-computer-icon` (a line glyph, not `SP_ComputerIcon`, asked as part of the look), `notes-tab-retired`.
+- After hand-back, read from cursor 9 and record the verdicts verbatim on BPR-2158. Stop host 68507 with the attended-review `stop`, then `freeze_attended_build.py remove` the root once nothing runs from it.
+- The look holds no migrated note: one is an ordinary Local comment and looks the same. Migration evidence is AC11's storage course.
+
+Remaining in milestone 2:
+- Edge chips for Local comments on the pull request, a whole file or another file (AC06).
+- The reply composer's Local/Reply control.
+- Editing a Local comment in place, and asking before Delete.
+- Composed AC04 and AC05 courses (Keep local in the review lowers the pending count; refusals).
+- Hidden tabs out of the accessibility tree.
+- Retiring the `private_notes_panel` code.
+- BPR-2157's composed AC03 (a Send in a thread holding a Local reply sends none of it; a file-level Local) and AC13 (counts unchanged by Local), then close BPR-2157 and claim BPR-2158.
+
+Not touched: the v005 and v006 roots and PIDs 26296 and 51569; PIDs 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
