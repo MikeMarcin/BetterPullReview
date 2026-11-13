@@ -2120,3 +2120,32 @@ Known gaps (in the ledger): the Tour tab hosts the local tour editor, not the
 pull request's Tour panel; a pull request opened from Home is not put in
 author state by itself (author state comes with the draft associated with it,
 which is how the look shows "a pull request opened by its author").
+
+Owner look, filed and not waited on: session
+`767b92339e278ea303b3836f21426fd3`, state
+`/Users/jaeger/.attended-review-state/local-draft-in-pr-window-v003-2026-11-13/state`
+(serve output beside it; the URL stays there), cursor 15, host PID 84895
+(its `tailscale serve` child 84904). One Accept/Reject each:
+`draft-in-pr-window` (its copy value is the second command, the pull request
+opened by its author: `BPR_ATTENDED_LOCAL_DRAFT_PULL_REQUEST=512`),
+`local-changes-commit-push`, `edit-view`, `agent-commit-message`,
+`home-selection`. Frozen root `/Users/jaeger/local-draft-in-pr-window-v003.3yt_ouf8`
+from `af839e73d89c` (executable SHA-256 `0cbb9ec0db39…`; launcher check
+reached `ATTENDED_LOCAL_DRAFT_AUTHOR_SHOWN … 2 ahead of GitHub`), launch
+`python3 /Users/jaeger/local-draft-in-pr-window-v003.3yt_ouf8/launch.py`.
+The look opens fixture pull request #512 (promo-v1), then the draft from a
+generated worktree it copies to `$TMPDIR/bpr-local-draft-look-<pid>` so Git
+can write; those copies are the look's own scratch.
+
+Renders compared offscreen (native looks need a cocoa window on the shared
+desktop, which this lane does not open): the draft
+(`build/dev/tests/end_to_end/local-draft-author/a-review.png`) against a pull
+request (`build/dev/tests/adapters_qt/workbench-window-100-navigation-labels-selected-1280.png`):
+the same title row, review bar, Files/Search tabs, diff viewer, tray and
+status bar; the draft swaps in its candidate, branch and Create Draft PR…,
+and adds Local Changes.
+
+Next: read session `767b9233…` from cursor 15 after hand-back. Accepts finish
+BPR-2062/2065 where their other criteria allow; a Reject is a new round. Then
+stop host 84895 with the attended-review `stop` and remove the root with
+`freeze_attended_build.py remove`. Session `0002b9fa…` (explain-file) untouched.
