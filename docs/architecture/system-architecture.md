@@ -276,6 +276,22 @@ written while it could hold evidence without it and deletes objects that only
 its artifacts pinned; core reads such a record (and a publication plan whose
 digest covered evidence, after checking that digest) and drops the evidence.
 
+BPR-2171 keeps the profile's Discuss preferences in its own
+`state/v1/discuss.sqlite3`: the width of Discuss's centred column and, per
+repository (`host/owner/name`, folded), the authors marked as a bot or as not
+one. `core/discuss_preferences.hpp` decides who is a bot (a mark in that
+repository, otherwise GitHub's App login, held as `<name>[bot]`), drops a mark
+that says what GitHub says, and reads the stored form (a damaged mark is left
+out; a newer build's store reads as nothing and is never overwritten). The
+application's `discuss_preferences_host` holds them for every window and
+writes them on the workbench effect lane as the filter memory does; Reset
+settings removes the file. `core/conversation_timeline.hpp` names each file
+once over its threads (`file` rows) and folds a file's resolved threads into
+its row and runs of bot comments into one `bots` row, after the filters; a
+fold's key stays while its first member does. A closed note's preview is
+presentation: Qt reads the body through the open card's GitHub-dialect import
+and keeps the first paragraph's words and one word per kind of block.
+
 BPR-1844 remembers the Only new and Hide resolved filters of Discuss, Threads
 and Review's Comments for the profile, in its own
 `state/v1/view-filters.sqlite3` (one versioned row, a nullable value per view;

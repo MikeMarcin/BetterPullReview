@@ -485,6 +485,20 @@ namespace bpr::app {
 					Profile->ViewFilterMemory->remember(aChoice);
 				}
 			});
+		// [[BPR-2171]]. The profile's Discuss preferences: each repository's
+		// bot marks and the column, for every window.
+		Window->set_discuss_preferences(
+			[this] { return Profile->DiscussPreferences ? Profile->DiscussPreferences->preferences() : core::discuss_preferences{ }; },
+			[this](const std::string& aRepository, const std::string& aLogin, const bool aBot) {
+				if (!Closing && Profile->DiscussPreferences) {
+					static_cast<void>(Profile->DiscussPreferences->mark(aRepository, aLogin, aBot));
+				}
+			},
+			[this](const core::discuss_column aColumn) {
+				if (!Closing && Profile->DiscussPreferences) {
+					static_cast<void>(Profile->DiscussPreferences->set_column(aColumn));
+				}
+			});
 		// [[BPR-1089]]. The Overview's chips: its request is counted from the
 		// kept label buckets, and a count's activation lists exactly its
 		// conversations in Discuss. Neither asks a provider.

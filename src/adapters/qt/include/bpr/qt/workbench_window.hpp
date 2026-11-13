@@ -33,6 +33,7 @@
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/suggest_change.hpp"
+#include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/account_setup_view.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -79,6 +80,7 @@
 #include <QMainWindow>
 #include <QPointer>
 #include <QSplitter>
+class QAbstractButton;
 class QAbstractItemView;
 class QTabWidget;
 #include <QString>
@@ -1043,6 +1045,16 @@ namespace bpr::qt {
 		/// opens a pull request, and tells a reviewer's own choice. The
 		/// memory is never pushed into a window: each keeps its own filters.
 		void set_view_filter_memory(std::function<core::view_filter_defaults()> aDefaults, std::function<void(const core::view_filter_remember&)> aRemember);
+		/// \brief [[BPR-2171]]. The profile's Discuss preferences: what they
+		/// are now, a Mark as bot or Not a bot in a repository, and the
+		/// column's width. The window shows them on each pull request and
+		/// each time Discuss shows.
+		void set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark,
+									 std::function<void(core::discuss_column)> aColumn);
+		/// \brief [[BPR-2171]]. Shows the profile's Discuss preferences again.
+		void apply_discuss_preferences();
+		/// \brief [[BPR-2171]]. Settings › Review › Reading: Discuss column.
+		[[nodiscard]] auto discuss_column_buttons() const -> const std::vector<QAbstractButton*>&;
 		/// \brief [[BPR-1844]]. This window's filters, view by view, as the
 		/// pull request opened with them and the reviewer then chose; a
 		/// filter the window cleared by itself (a reveal, a count's listing)
@@ -3734,6 +3746,12 @@ namespace bpr::qt {
 		/// filters, and the profile's memory it opens with and tells.
 		core::view_filter_state                                ViewFilters;
 		std::function<core::view_filter_defaults()>            ViewFilterDefaults;
+		/// [[BPR-2171]].
+		std::function<core::discuss_preferences()>                              DiscussPreferencesRead;
+		std::function<void(const std::string&, const std::string&, bool)> DiscussMark;
+		std::function<void(core::discuss_column)>                               DiscussColumnDispatch;
+		std::string                                                             DiscussRepository;
+		std::vector<QAbstractButton*>                                           DiscussColumnButtons;
 		std::function<void(const core::view_filter_remember&)> ViewFilterRemember;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.

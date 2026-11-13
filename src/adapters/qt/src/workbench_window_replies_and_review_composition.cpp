@@ -556,6 +556,11 @@ namespace bpr::qt {
 		if (ToggleStatusDrawerAction != nullptr) {
 			ToggleStatusDrawerAction->setEnabled(page == OverviewPage);
 		}
+		// [[BPR-2171]]. Another window may have marked a bot or changed the
+		// column: Discuss shows the profile's preferences as they are now.
+		if (page == DiscussPage && CentreStack->currentWidget() != DiscussPage) {
+			apply_discuss_preferences();
+		}
 		const auto enteringOverview = page == OverviewPage && CentreStack->currentWidget() != OverviewPage;
 		const auto enteringThreads  = page == ThreadsPage && CentreStack->currentWidget() != ThreadsPage;
 		// Author state's Edit view covers Review's comparison.

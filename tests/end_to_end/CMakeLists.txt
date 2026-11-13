@@ -5343,6 +5343,24 @@ set_tests_properties(application_conversation_read_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CONVERSATION_RENDER_ROOT=${PROJECT_BINARY_DIR}/conversation-renders" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "CONVERSATION_READ_PUBLIC_PATH_OK")
 
+# [[BPR-2171]]. Discuss on a busy pull request: the column, files once with
+# folds, the review's verdict on its own comment, Fold bots, Mark as bot and
+# Only this file; renders at three sizes (native with BPR_NATIVE_LOOK=1).
+bpr_add_executable(test_discuss_busy_public_path discuss_busy_public_path.cpp)
+if(APPLE)
+    target_sources(test_discuss_busy_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
+target_link_libraries(test_discuss_busy_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_discuss_busy_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_discuss_busy_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_discuss_busy_public_path)
+bpr_enable_warnings(test_discuss_busy_public_path)
+bpr_add_network_isolated_test(NAME application_discuss_busy_public_path WINDOWS_UNCONTAINED
+    COMMAND test_discuss_busy_public_path)
+set_tests_properties(application_discuss_busy_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_DISCUSS_RENDER_ROOT=${PROJECT_BINARY_DIR}/discuss-busy-renders" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "DISCUSS_BUSY_PUBLIC_PATH_OK")
+
 # RFC-BPR-0127 ([[BPR-2157]], [[BPR-2158]]): Local comments through the
 # composed window and the Comments drawer; the sends that must not carry them.
 bpr_add_executable(test_local_comments_composition_public_path local_comments_composition_public_path.cpp)

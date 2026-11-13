@@ -686,6 +686,9 @@ namespace bpr::app {
 		// [[BPR-1844]]. The store outlives the host that writes through it.
 		std::unique_ptr<view_filter_memory_store>             ViewFilterStore;
 		std::unique_ptr<application::view_filter_memory_host> ViewFilterMemory;
+		/// [[BPR-2171]]. Bot marks per repository and Discuss's column.
+		std::unique_ptr<discuss_preferences_store>             DiscussStore;
+		std::unique_ptr<application::discuss_preferences_host> DiscussPreferences;
 		// [[BPR-1850]]. The store, sink and timer outlive the host.
 		std::unique_ptr<pull_request_activity_store>                 ActivityStore;
 		std::unique_ptr<qt::pull_request_activity_notification_sink> ActivitySink;

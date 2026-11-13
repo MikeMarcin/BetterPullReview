@@ -320,6 +320,11 @@ namespace bpr::qt {
 			ConversationPanel->cards()->set_pull_request_author(
 				QString::fromStdString(aPullRequest.AuthorLogin));
 		}
+		// [[BPR-2171]]. Bots are marked per repository.
+		if (const auto key = core::repository_mark_key(aPullRequest.Hostname, aPullRequest.Owner, aPullRequest.RepositoryName); key != DiscussRepository) {
+			DiscussRepository = key;
+			apply_discuss_preferences();
+		}
 		// [[BPR-1157]]. Another pull request arriving takes the review surface
 		// back from a local cycle; the same one refreshed behind it does not.
 		const auto arriving = IdentityOwner != QString::fromStdString(aPullRequest.Owner)

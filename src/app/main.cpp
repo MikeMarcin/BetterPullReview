@@ -47,6 +47,7 @@
 	#include "github_application_fixture_access.hpp"
 	#include "src/private_review_fixture_course.hpp"
 	#include "src/review_submission_fixture.hpp"
+	#include "src/discuss_busy_fixture.hpp"
 	#include "src/startup_diagnostic.hpp"
 #endif
 
@@ -287,6 +288,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-chat-status" },
 		bpr::app::command_line_option{ .Name = "attended-agent-picker" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
+		bpr::app::command_line_option{ .Name = "attended-busy-discuss-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-agent-draft-all-check" },
 		bpr::app::command_line_option{ .Name = "attended-agent-helpers", .TakesValue = true },
@@ -12426,6 +12428,13 @@ auto main(int argc, char** argv) -> int
 			fixtureOptions.ReviewSubmissionServer->AttendedCommentReview = "pr-chip-review-one";
 			fixtureOptions.ReviewSubmissionServer->ReviewHistory         = R"json([{"id":4001,"node_id":"pr-chip-review-one","state":"CHANGES_REQUESTED","submitted_at":"2026-10-16T01:00:00Z","body":"The clamp reads well. Two things before this lands: the retry budget needs a test that exhausts it, and begin_frame now returns early without recording timing.","commit_id":"2222222222222222222222222222222222222222","user":{"node_id":"U_reviewer_one","login":"reviewer-one","type":"User"}},{"id":4002,"node_id":"pr-chip-review-two","state":"APPROVED","submitted_at":"2026-10-18T02:00:00Z","body":"Looks good once the skipped-frame counter is in.","commit_id":"2222222222222222222222222222222222222222","user":{"node_id":"U_author_two","login":"author-two","type":"User"}}])json";
 			fixtureOptions.ReviewSubmissionServer->ConversationComments  = R"json([{"id":5001,"node_id":"pr-chip-author","created_at":"2026-10-17T01:00:00Z","body":"Added a test that runs the budget out. On the early return: I would rather not record a frame that never submitted. OK to leave Stats_ untouched there?","user":{"node_id":"U_jiayin","login":"jiayin","type":"User"}},{"id":5002,"node_id":"pr-chip-perf","created_at":"2026-10-17T02:00:00Z","body":"Perf run on the 5K panel: frame time unchanged within noise. Fine by me.","user":{"node_id":"U_tbutler","login":"tbutler","type":"User"}},{"id":5003,"node_id":"pr-chip-reply","created_at":"2026-10-18T01:00:00Z","body":"Agreed on not recording it. Please count the skipped frames instead, so the soak run shows how often the budget runs out.","user":{"node_id":"U_reviewer_one","login":"reviewer-one","type":"User"}}])json";
+		}
+		// [[BPR-2171]]. conversations-v1 as a busy pull request: reviews with
+		// Markdown summaries bundling its threads, bot reports in a row.
+		if (launch.has("--attended-busy-discuss-look")) {
+			fixtureOptions.ReviewSubmissionServer = std::make_shared<bpr::app::detail::review_submission_fixture_state>();
+			fixtureOptions.RepeatReadSessions     = true;
+			bpr::app::detail::serve_busy_discuss(*fixtureOptions.ReviewSubmissionServer);
 		}
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || attendedUnknownReviewLook || attendedFinishReviewLook;
 		// [[BPR-1293]]. On conversations-v1 after the file, its read state;

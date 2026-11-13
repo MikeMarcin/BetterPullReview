@@ -2799,7 +2799,9 @@ namespace {
 			   "the review's line carries its verdict and who gave it");
 		expect(view.open_card()->findChild<QLabel*>(QStringLiteral("conversationReviewVerdict")) == nullptr, "the review's body is a comment, without the verdict repeated");
 		const auto path = std::ranges::find(lines, file.Id, &qt::timeline_line::Id);
-		expect(path != lines.end() && path->Kind == qt::timeline_line::kind::path && path->Path == QStringLiteral("src/a.cpp:9"), "the thread the review carried shows its path and line");
+		expect(path != lines.end() && path->Kind == qt::timeline_line::kind::path && path->Path == QStringLiteral("src/a.cpp")
+				   && std::ranges::find(view.cards(), file.Id, &qt::thread_card::Id)->Line == 9U,
+			   "the thread the review carried shows under its file ([[BPR-2171]]: named once), its line on the thread");
 		const auto at    = path->Rect.translated(0, -view.verticalScrollBar()->value()).center();
 		auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ at }, view.viewport()->mapToGlobal(QPointF{ at }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(view.viewport(), &press);
@@ -3484,10 +3486,10 @@ namespace {
 			const auto fresh    = std::vector<std::pair<kind, std::string>>{ { kind::fresh, "" } };
 			const auto expected = std::vector<std::pair<kind, std::string>>{
 				{ kind::bundle, "review:dos" },
-				{ kind::path, "Client/AppCore/include/AppCore/Instance.h:18" },
+				{ kind::path, "Client/AppCore/include/AppCore/Instance.h" },
 			};
 			const auto tail = std::vector<std::pair<kind, std::string>>{
-				{ kind::path, "Client/AppCore/src/Instance.cpp:42" },
+				{ kind::path, "Client/AppCore/src/Instance.cpp" },
 				{ kind::verdict, "review:csw" },
 				{ kind::verdict, "review:sau" },
 			};
@@ -3496,7 +3498,7 @@ namespace {
 				whole.insert(whole.end(), fresh.begin(), fresh.end());
 			}
 			whole.insert(whole.end(), tail.begin(), tail.end());
-			expect(lines == whole, where + "one quiet line over the bundle, each thread under its path and line, the approvals as compact lines, and nothing for the body-less Commented reviews");
+			expect(lines == whole, where + "one quiet line over the bundle, each thread under its file, the approvals as compact lines, and nothing for the body-less Commented reviews");
 			const auto& bundle = view.timeline_lines().front();
 			expect(bundle.Author == QStringLiteral("dosullivan") && bundle.Verdict.isEmpty() && !bundle.When.isEmpty(), where + "a Commented bundle names who and when, and no verdict");
 			const auto& approval = view.timeline_lines()[discuss ? 3U : 4U];

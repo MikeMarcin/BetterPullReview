@@ -251,6 +251,46 @@ namespace bpr::qt {
 		ViewFilterRemember = std::move(aRemember);
 	}
 
+	void workbench_window::set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark,
+												   std::function<void(core::discuss_column)> aColumn)
+	{
+		DiscussPreferencesRead = std::move(aRead);
+		DiscussMark            = std::move(aMark);
+		DiscussColumnDispatch  = std::move(aColumn);
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->set_author_bot_dispatch([this](const std::string& aLogin, const bool aBot) {
+				if (DiscussMark && !DiscussRepository.empty()) {
+					DiscussMark(DiscussRepository, aLogin, aBot);
+				}
+				apply_discuss_preferences();
+			});
+		}
+		apply_discuss_preferences();
+	}
+
+	void workbench_window::apply_discuss_preferences()
+	{
+		// [[BPR-2171]]. This repository's bot marks and the column's width.
+		const auto preferences = DiscussPreferencesRead ? DiscussPreferencesRead() : core::discuss_preferences{ };
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			auto* const cards = ConversationPanel->cards();
+			cards->set_author_bots(core::marks_of(preferences, DiscussRepository));
+			const auto width = core::discuss_column_width(preferences.Column);
+			cards->set_column_width(width.has_value() ? std::optional{ static_cast<int>(*width) } : std::nullopt);
+		}
+		const auto chosen = static_cast<std::size_t>(preferences.Column);
+		if (chosen < DiscussColumnButtons.size() && !DiscussColumnButtons[chosen]->isChecked()) {
+			const auto applying = std::exchange(ApplyingBehaviour, true);
+			DiscussColumnButtons[chosen]->setChecked(true);
+			ApplyingBehaviour = applying;
+		}
+	}
+
+	auto workbench_window::discuss_column_buttons() const -> const std::vector<QAbstractButton*>&
+	{
+		return DiscussColumnButtons;
+	}
+
 	auto workbench_window::view_filters() const noexcept -> const core::view_filter_state&
 	{
 		return ViewFilters;

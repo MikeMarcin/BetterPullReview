@@ -1,5 +1,6 @@
 #include "github_application/session_settings.hpp"
 
+#include "bpr/adapters/sqlite/discuss_preferences_store.hpp"
 #include "bpr/adapters/sqlite/pull_request_activity_store.hpp"
 #include "bpr/adapters/sqlite/view_filter_memory_store.hpp"
 
@@ -11,6 +12,14 @@ namespace bpr::app {
 	auto pull_request_activity_store::load() const -> core::activity_memory_read { return adapters::sqlite::load_pull_request_activity(Root); }
 
 	auto pull_request_activity_store::store(const core::activity_memory& aMemory) -> bool { return adapters::sqlite::store_pull_request_activity(Root, aMemory); }
+
+	discuss_preferences_store::discuss_preferences_store(std::filesystem::path aRoot)
+		: Root{ std::move(aRoot) }
+	{ }
+
+	auto discuss_preferences_store::load() const -> core::discuss_preferences_read { return adapters::sqlite::load_discuss_preferences(Root); }
+
+	auto discuss_preferences_store::store(const core::discuss_preferences& aPreferences) -> bool { return adapters::sqlite::store_discuss_preferences(Root, aPreferences); }
 
 	view_filter_memory_store::view_filter_memory_store(std::filesystem::path aRoot)
 		: Root{ std::move(aRoot) }

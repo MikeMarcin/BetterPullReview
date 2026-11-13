@@ -1184,6 +1184,40 @@ namespace bpr::qt {
 		// [[BPR-1597]]: a row of Review › Reading.
 		auto* const readingInfo = new info_glyph{ QStringLiteral("Threads and Discuss stop at this width on a wide screen. The code comparison always uses the whole window."), BehaviourEditor };
 		readingInfo->setObjectName(QStringLiteral("readingWidthInfo"));
+		// [[BPR-2171]]. The owner, 2026-11-13, on Discuss's column: "should be
+		// a setting, Centered I think." A Discuss preference of the profile,
+		// kept in its own store, so its buttons dispatch on their own.
+		auto* const discussColumn       = new QWidget{ BehaviourEditor };
+		auto* const discussColumnLayout = new QHBoxLayout{ discussColumn };
+		discussColumnLayout->setContentsMargins(0, 0, 0, 0);
+		discussColumnLayout->setSpacing(4);
+		discussColumn->setObjectName(QStringLiteral("discussColumn"));
+		auto* const discussColumnGroup = new QButtonGroup{ discussColumn };
+		discussColumnGroup->setExclusive(true);
+		DiscussColumnButtons.clear();
+		for (const auto& [words, name, width] : { std::tuple{ QStringLiteral("Narrow"), QStringLiteral("discussColumnNarrow"), core::discuss_column::narrow },
+												   std::tuple{ QStringLiteral("Column"), QStringLiteral("discussColumnColumn"), core::discuss_column::column },
+												   std::tuple{ QStringLiteral("Wide"), QStringLiteral("discussColumnWide"), core::discuss_column::wide },
+												   std::tuple{ QStringLiteral("Full width"), QStringLiteral("discussColumnFull"), core::discuss_column::full } }) {
+			auto* const button = new quiet_tool_button{ discussColumn };
+			button->setObjectName(name);
+			button->setText(words);
+			button->setAccessibleName(QStringLiteral("Discuss column: ") + words);
+			button->setCheckable(true);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setChecked(width == core::default_discuss_column);
+			discussColumnGroup->addButton(button);
+			discussColumnLayout->addWidget(button);
+			DiscussColumnButtons.push_back(button);
+			connect(button, &QToolButton::toggled, this, [this, chosen = width](const bool aChecked) {
+				if (aChecked && !ApplyingBehaviour && DiscussColumnDispatch) {
+					DiscussColumnDispatch(chosen);
+					apply_discuss_preferences();
+				}
+			});
+		}
+		auto* const discussColumnInfo = new info_glyph{ QStringLiteral("Discuss lists the conversation in a centred column this wide. An open comment with code may grow wider."), BehaviourEditor };
+		discussColumnInfo->setObjectName(QStringLiteral("discussColumnInfo"));
 		addGroup(
 			column,
 			QStringLiteral("Reading"),
@@ -1210,6 +1244,7 @@ namespace bpr::qt {
 					 readingInfo,
 					 nullptr,
 					 4 },
+				row{ 0U, QStringLiteral("Discuss column"), QStringLiteral("discussColumnRow"), { }, discussColumnInfo, discussColumn, 4 },
 			},
 			[](application::review_behaviour_settings& aNext) {
 				aNext.MarkRead       = application::review_behaviour_settings{ }.MarkRead;

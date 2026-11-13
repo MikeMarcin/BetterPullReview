@@ -331,7 +331,7 @@ Final content: Ω 日本語 🦊
 		const auto summary = std::ranges::find(lines, std::string{ "review:summary" }, &qt::timeline_line::Id);
 		const auto file    = std::ranges::find(lines, std::string{ "review-thread:thread" }, &qt::timeline_line::Id);
 		expect(summary != lines.end() && summary->Kind == qt::timeline_line::kind::bundle && summary->Verdict.isEmpty() && file != lines.end() && file > summary
-				   && file->Kind == qt::timeline_line::kind::path && file->Path == QStringLiteral("src/file.cpp:7"),
+				   && file->Kind == qt::timeline_line::kind::path && file->Path == QStringLiteral("src/file.cpp"),
 			   "an empty commented review is the line over its exact file comment, shown at its path and line");
 		expect(std::ranges::find(cards->cards(), std::string{ "review-thread:thread" }, &qt::thread_card::Id)->Bundle == "review:summary",
 			   "the file comment is its own thread, posted in the review");

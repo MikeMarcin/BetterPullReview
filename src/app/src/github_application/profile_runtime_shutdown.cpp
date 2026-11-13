@@ -84,6 +84,9 @@ namespace bpr::app {
 		if (ViewFilterMemory) {
 			ViewFilterMemory->shutdown();
 		}
+		if (DiscussPreferences) {
+			DiscussPreferences->shutdown();
+		}
 		if (EpochActors) {
 			EpochActors->shutdown();
 		}
@@ -103,7 +106,7 @@ namespace bpr::app {
 		if ((Connections && !Connections->quiescent()) || ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
 			|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent()) || (Discovery && !Discovery->is_quiescent())
 			|| (AppearancePreferences && !AppearancePreferences->is_quiescent()) || (WorkbenchPreferences && !WorkbenchPreferences->is_quiescent())
-			|| (ViewFilterMemory && !ViewFilterMemory->quiescent())
+			|| (ViewFilterMemory && !ViewFilterMemory->quiescent()) || (DiscussPreferences && !DiscussPreferences->quiescent())
 			|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)
 			|| (Images && !Images->quiescent())) {
 			return;
