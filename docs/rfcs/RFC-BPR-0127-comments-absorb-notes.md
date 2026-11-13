@@ -369,6 +369,36 @@ open.
 | Q13 | Insights' Private notes tile? | Rename to Local comments; the history continues |
 | Q14 | How many may share a line? | Any number Local; drafts as today; Make draft refused where my draft already stands |
 
+## Owner amendment: one state control (looks v003 to v005, 2026-11-13)
+
+The owner, on the composer's foot (the computer and pencil segmented toggle):
+"i dunno why we have 2 differnt UX for the local vs draft. This one seems much
+simpler and subtler than the big ass make draft button and I don't know what
+it's not sufficient." And: "can we do pencil with slash when you're not allowed
+to make a draft". On the reason written under a refused Make draft: "just the
+tooltip is enough". On the agent answer's keep action: "There's a lot of
+overlap on the UX here."
+
+- Every surface that shows or moves my unsent comment between Local and Draft
+  uses the composer's control: two joined icon segments, the computer (Local)
+  and the pencil (Draft), the present state on. This replaces Make draft and
+  Keep local buttons on a Local comment's card, a Local reply, my draft's
+  card and my draft reply, Finish your review's not-in-review rows, and the
+  agent's keep actions (answer footer, finding cards, Explain this file). The
+  Threads row menu and the finding queue keep their menu item or list action,
+  wearing the same glyphs.
+- A move that is not allowed disables its segment and says why in the
+  segment's tooltip alone (at most 60 characters); a refused Draft shows the
+  pencil struck through. No reason is written in the card.
+- AC10 reads with this: where nothing is kept yet, the control's segments are
+  the keep actions. Local is always offered; Draft is offered where a line or
+  thread takes one, and is the struck pencil where none does. Once kept, Go
+  to comment or Go to draft stands in the control's place.
+- A draft reply of mine in a thread shows in the thread's Reply field as a
+  draft (the pencil, "Draft reply" and its words) with the control beside it,
+  so the draft that holds the thread's one draft reply is visible where a
+  Local reply's Draft is refused because of it.
+
 ## Acceptance criteria
 
 - **AC01:** The right drawer's tabs are Comments, Tour and Agent, and the Overview drawer has no Notes tab; N on a selected line opens the composer on Local in Comments.
