@@ -26,7 +26,6 @@
 #include "bpr/qt/folder_list_editor.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
@@ -138,7 +137,7 @@ namespace {
 		settle();
 		aWindow.choose_modality(qt::review_modality::review);
 		settle();
-		aWindow.tray_tabs()->setCurrentIndex(3);
+		aWindow.tray_tabs()->setCurrentIndex(2);
 		auto profile        = core::agent_profile{ };
 		profile.Id          = core::agent_profile_id{ 1U };
 		profile.DisplayName = "Claude Code";
@@ -290,7 +289,6 @@ namespace {
 				facts.Version = QStringLiteral("0.4.2");
 				aColumn.addWidget(new qt::about_window{ facts, qt::about_actions{ }, &aHost });
 			});
-			sweep_small(aCourse, "private-notes", key, profile, [](QVBoxLayout& aColumn, QWidget& aHost) { aColumn.addWidget(new qt::private_notes_panel{ &aHost }); });
 		}
 	}
 } // namespace

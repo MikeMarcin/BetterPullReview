@@ -66,7 +66,7 @@ namespace {
 		settle();
 		aWindow.choose_modality(qt::review_modality::review);
 		settle();
-		aWindow.tray_tabs()->setCurrentIndex(3);
+		aWindow.tray_tabs()->setCurrentIndex(2);
 		auto profile        = core::agent_profile{ };
 		profile.Id          = core::agent_profile_id{ 1U };
 		profile.DisplayName = "Claude Code";

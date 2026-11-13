@@ -1,6 +1,5 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/enhance_control.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -183,8 +182,8 @@ namespace {
 	}
 
 	/// [[BPR-2051]] owner look. With an output folder, draws the three icon
-	/// options in Light and Dark: the icon alone at 16 and 32 points, and in a
-	/// real note's foot beside Ask agent with a suggestion shown.
+	/// options in Light and Dark: the icon alone at 16, 32 and 64 points.
+	/// RFC-BPR-0127: the Notes panel it was also drawn in is retired.
 	void render_options(const QString& aFolder)
 	{
 		QDir{ }.mkpath(aFolder);
@@ -194,26 +193,6 @@ namespace {
 				const auto style = static_cast<qt::enhance_glyph_style>(index);
 				qt::set_enhance_glyph_style(style);
 				QApplication::setPalette(palette);
-				auto panel = qt::private_notes_panel{ };
-				panel.setPalette(palette);
-				panel.resize(360, 420);
-				auto asked = std::uint64_t{ 0U };
-				panel.set_enhance_dispatch([&asked](qt::enhance_request aRequest) { asked = aRequest.Id; }, [](std::uint64_t) { });
-				panel.present({ .Scope = 1U, .Available = true, .Notes = { { .Id = 7U, .Revision = 1U, .Label = "Pull request", .Text = "check the cache invalidation here, it looks like it might be missing the delete path??" } } });
-				panel.show_elsewhere(true);
-				panel.show();
-				drain();
-				panel.open_note(7U);
-				drain();
-				if (auto* const button = panel.enhance_control(); button != nullptr) {
-					button->click();
-					drain();
-					expect(panel.present_enhancement({ .Id = asked, .Replacement = std::string{ "Check cache invalidation here: the delete path may be missing." } }), "the render's suggestion is shown");
-				}
-				drain();
-				const auto name = QStringLiteral("%1/note-%2-%3.png").arg(aFolder, QString::number(index + 1), dark ? QStringLiteral("dark") : QStringLiteral("light"));
-				expect(panel.grab().save(name), "a note render saves");
-				panel.hide();
 			}
 			// The icons alone, side by side, at two sizes.
 			auto sheet = QImage{ 3 * 200, 120, QImage::Format_ARGB32_Premultiplied };

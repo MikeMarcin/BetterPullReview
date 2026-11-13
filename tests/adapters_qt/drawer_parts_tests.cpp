@@ -285,9 +285,9 @@ namespace {
 		expect(drawer.width() == static_cast<int>(application::default_status_drawer_width) && fixture.Reported.empty(),
 			   "Status opens at 340 pixels and reports nothing it was not asked");
 		// RFC-BPR-0089: Commits sits beside Status. [[BPR-1781]]: then
-		// Comments, Notes, Tour and Agent; Prepare review tour is the Tour
+		// Comments, Tour and Agent; Prepare review tour is the Tour
 		// tab's own action, not an icon on the row.
-		expect(drawer.tabs()->count() == 6 && drawer.tabs()->accessibleTabName(0) == QStringLiteral("Status") && drawer.tabs()->accessibleTabName(1) == QStringLiteral("Commits")
+		expect(drawer.tabs()->count() == 5 && drawer.tabs()->accessibleTabName(0) == QStringLiteral("Status") && drawer.tabs()->accessibleTabName(1) == QStringLiteral("Commits")
 				   && drawer.findChild<QToolButton*>(QStringLiteral("overviewPrepareTour")) == nullptr && drawer.github_button()->isVisible() && drawer.hide_button()->isVisible()
 				   && !drawer.rail()->isVisible(),
 			   "its header holds Status and Commits, with Open on GitHub and Hide at the right");
@@ -341,24 +341,26 @@ namespace {
 		save(fixture.Window, QStringLiteral("status-drawer"));
 	}
 
-	/// [[BPR-1781]]. Overview's drawer holds the conversation tabs: six,
-	/// the Tour tab only while there is a tour to show, all on one row.
+	/// [[BPR-1781]]. Overview's drawer holds the conversation tabs: five
+	/// (RFC-BPR-0127: Notes is gone), the Tour tab only while there is a
+	/// tour to show, all on one row.
 	void test_overview_drawer_has_the_conversation_tabs()
 	{
 		status_fixture fixture;
 		make(fixture);
 		auto&       drawer = *fixture.Drawer;
 		auto* const tabs   = drawer.tabs();
-		const auto  names  = QStringList{ QStringLiteral("Status"), QStringLiteral("Commits"), QStringLiteral("Comments"), QStringLiteral("Notes"), QStringLiteral("Tour"), QStringLiteral("Agent") };
-		for (auto index = 0; index < 6; ++index) {
+		const auto  names  = QStringList{ QStringLiteral("Status"), QStringLiteral("Commits"), QStringLiteral("Comments"), QStringLiteral("Tour"), QStringLiteral("Agent") };
+		expect(tabs->count() == 5, "five tabs, none of them Notes");
+		for (auto index = 0; index < 5; ++index) {
 			expect(tabs->accessibleTabName(index) == names[index], "tab " + std::to_string(index) + " is " + names[index].toStdString());
 		}
-		expect(!drawer.tour_tab_shown() && !tabs->isTabVisible(4), "with no tour to show there is no Tour tab");
+		expect(!drawer.tour_tab_shown() && !tabs->isTabVisible(3), "with no tour to show there is no Tour tab");
 		auto observed = std::vector<qt::overview_drawer_tab>{ };
 		drawer.set_tab_observer([&observed](const qt::overview_drawer_tab aTab) { observed.push_back(aTab); });
-		for (const auto tab : { qt::overview_drawer_tab::comments, qt::overview_drawer_tab::notes, qt::overview_drawer_tab::agent }) {
+		for (const auto tab : { qt::overview_drawer_tab::comments, qt::overview_drawer_tab::agent }) {
 			auto* const holder = drawer.holder(tab);
-			expect(holder != nullptr && holder->layout() != nullptr, "Comments, Notes and Agent are holders a borrowed panel goes in");
+			expect(holder != nullptr && holder->layout() != nullptr, "Comments and Agent are holders a borrowed panel goes in");
 			auto* const borrowed = new QLabel{ QStringLiteral("borrowed"), holder };
 			holder->layout()->addWidget(borrowed);
 			drawer.show_tab(tab);
@@ -374,7 +376,7 @@ namespace {
 				width += tabs->tabRect(index).width();
 			}
 		}
-		expect(width <= drawer.header()->width(), "five tabs fit the header at the default width");
+		expect(width <= drawer.header()->width(), "the shown tabs fit the header at the default width");
 		expect(tabs->tabText(tabs->currentIndex()) == QStringLiteral("Agent"), "the open tab is named at the default width");
 		const auto compact = tabs->tabText(0).isEmpty();
 		for (auto index = 0; index < names.size(); ++index) {
@@ -406,7 +408,7 @@ namespace {
 		drawer.show_tab(qt::overview_drawer_tab::comments);
 		settle();
 		expect(!drawer.rail()->isVisible() && drawer.current_tab() == qt::overview_drawer_tab::comments, "a collapsed drawer opens on the tab asked for");
-		expect(qt::drawer_principle_violations(drawer, { .EmptyValueRows = false }).isEmpty(), "six tabs keep the principles");
+		expect(qt::drawer_principle_violations(drawer, { .EmptyValueRows = false }).isEmpty(), "five tabs keep the principles");
 		drawer.resize(560, drawer.height());
 		fixture.Split->setSizes({ 640, 560 });
 		settle();

@@ -320,7 +320,7 @@ namespace {
 		expect(stopGlyph != nullptr && stopGlyph->isVisible() && stopGlyph->text() == QStringLiteral("2"), "the open stop's glyph counts its two turns");
 		click(stopGlyph);
 		settle();
-		expect(chat->isVisible() && chat->parentWidget() == split && split->isAncestorOf(chat) && tabs->currentIndex() == 2, "the stop's chat is the Tour tab's second column");
+		expect(chat->isVisible() && chat->parentWidget() == split && split->isAncestorOf(chat) && tabs->currentIndex() == 1, "the stop's chat is the Tour tab's second column");
 		expect(window.findChildren<QWidget*>(QStringLiteral("tourSideChat")).size() == 1, "and there is no chat anywhere else");
 		expect(chat->current() == stopOne && chat->turn_count() == 2U && stopGlyph->isChecked(), "it is the stop's chat, and the stop is marked");
 		auto* const route = editor->findChild<QListWidget*>(QStringLiteral("tourOutline"));
@@ -493,7 +493,7 @@ namespace {
 		settle();
 		expect(!chat->isVisible() && drawer_width(window) <= 420 && badge->isVisible() && badge->text() == QStringLiteral("2"), "on Comments: no chat, the narrow drawer, the count on Tour");
 		draw(window, QStringLiteral("tour-chat-comments"), aTheme);
-		tabs->setCurrentIndex(2);
+		tabs->setCurrentIndex(1);
 		settle();
 		expect(chat->isVisible() && chat->current() == stopOne && drawer_width(window) >= 700, "back on Tour, the chat as it was, and the room for it");
 		coloured("after leaving the Tour tab and coming back");
@@ -509,7 +509,7 @@ namespace {
 		tabs->setCurrentIndex(0);
 		settle();
 		expect(drawer_width(window) <= 420, "the narrow drawer is still its own width");
-		tabs->setCurrentIndex(2);
+		tabs->setCurrentIndex(1);
 		settle();
 		expect(std::abs(drawer_width(window) - dragged) <= 4, "the chat's width is remembered: " + std::to_string(drawer_width(window)) + " for " + std::to_string(dragged));
 

@@ -89,7 +89,7 @@ namespace {
 		settle();
 		aWindow.choose_modality(qt::review_modality::review);
 		settle();
-		aWindow.tray_tabs()->setCurrentIndex(3);
+		aWindow.tray_tabs()->setCurrentIndex(2);
 		settle();
 		auto profile        = core::agent_profile{ };
 		profile.Id          = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);

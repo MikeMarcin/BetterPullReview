@@ -162,7 +162,7 @@ namespace {
 	{
 		aWindow.open_agent_action()->trigger();
 		QApplication::processEvents();
-		expect(aWindow.tray_tabs()->currentIndex() == 3 && aWindow.agent_tab()->isVisible(),
+		expect(aWindow.tray_tabs()->currentIndex() == 2 && aWindow.agent_tab()->isVisible(),
 			   "the Agent action opens the accepted drawer tab");
 	}
 
