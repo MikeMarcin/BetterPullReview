@@ -2653,3 +2653,11 @@ Evidence (dev, Debug, macOS): see the [BPR-2158 card](../../60-done/BPR-2158-com
 Milestone 3 (BPR-2159) work in progress is parked on branch `claude/bpr-2159-wip` (`7ddf5abf3`, unbuilt): Threads' state filter (All, Published, Draft, Local) with Local rows, Overview's Local chip and folder sums, Finish your review's Local line and Keep Local on not-in-review rows. Cherry-pick it onto the lane, build, then: the Overview Note column and Private notes row go, My review counts by state, Insights' tile rename, Threads row menu's Make Draft/Keep Local, the window wiring of `set_local_dispatch`, `set_local_show` and `set_outside_keep_local` (Keep Local from a list needs the draft's path when its comparison is not shown: `comment_state_gesture::Path`), tests and an AC07-AC09 course.
 
 Not touched: the v005 and v006 roots and PIDs 26296 and 51569; PIDs 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`. Session 3fefa366's host 29437/29448 was stopped with the attended-review `stop`. `/Users/jaeger/comments-absorb-notes-v002._jfvvf9h` is **not removed**: the owner's frozen app, PID 38152, runs from it; remove it with `freeze_attended_build.py remove` once that app is closed.
+
+Owner look v003, filed and not waited on:
+- Session `acaf71a2f3272811be5bfa4f25222fb9`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v003-2026-11-13/state`. Its URL is in `serve.log` beside the state.
+- Cursor 27. Host PID 98149, its Tailscale serve child 98159.
+- Frozen root `/Users/jaeger/comments-absorb-notes-v003.as90oxpw` from `6e7bbc13a36f`; offscreen on a scratch home it reached `ATTENDED_LOCAL_COMMENTS_SHOWN:6`. (A first v003 root, from `89c971d05` before the chip fix, was removed with `freeze_attended_build.py remove`; nothing ran from it.)
+- Nine Accept/Reject questions, one per fix (see the BPR-2158 card). After hand-back: read from cursor 27, record verbatim on BPR-2158 and the ledger, stop host 98149 with the attended-review `stop`, remove the root once nothing runs from it.
+
+Next action: reconcile look v003 when forwarded; then cherry-pick `claude/bpr-2159-wip` and continue milestone 3 (BPR-2159, claimed).

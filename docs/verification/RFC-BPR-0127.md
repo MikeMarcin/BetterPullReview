@@ -69,3 +69,7 @@ Session `3fefa3666ff9e2c2fc0943c4672f8b1e` (state `/Users/jaeger/.attended-revie
 > Img 5 I dont understand why this comment says "pull request" and also other comments that are not focused need to show their line numbers.
 
 The six fixes and their evidence are on the [BPR-2158 card](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md#owner-look-v002-reject-session-3fefa366-handed-back-2026-11-13t193244z).
+
+## Owner look v003 filed (2026-11-13)
+
+The six v002 fixes and the narrow-drawer chips, one question each: session `acaf71a2f3272811be5bfa4f25222fb9` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v003-2026-11-13/state`, cursor 27), frozen root `/Users/jaeger/comments-absorb-notes-v003.as90oxpw` from `6e7bbc13a36f`. Not waited on. Evidence is on the [BPR-2158 card](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md#look-v002-rework-2026-11-13-third-round).
