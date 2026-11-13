@@ -620,6 +620,9 @@ namespace bpr::qt {
 	};
 
 	class open_thread_card;
+	namespace detail {
+		struct note_preview;
+	}
 	class scoped_prose_editor;
 
 	/// \brief [[BPR-1775]]. Save pressed while editing one of my published
@@ -1335,6 +1338,16 @@ namespace bpr::qt {
 		measurement_generation        PreviousMeasurements;
 		QFont                         MeasurementFont;
 		std::uint64_t                 MeasurementCount = 0U;
+		/// [[BPR-2171]]. Each closed note's preview, by its card, kept while
+		/// its body is the same: read once, not at every width.
+		struct preview_entry
+		{
+			QString                                     Body;
+			qsizetype                                   Header = 0;
+			std::shared_ptr<const detail::note_preview> Preview;
+		};
+		mutable std::unordered_map<std::string, preview_entry> Previews;
+		[[nodiscard]] auto preview_for(const thread_card& aCard) const -> const detail::note_preview&;
 		open_thread_card*             OpenCard         = nullptr;
 		std::vector<QAbstractButton*> Chips;
 		std::size_t                   ChipsShown = 0U;

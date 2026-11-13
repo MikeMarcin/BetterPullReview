@@ -2033,6 +2033,18 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
     )
 endforeach()
 
+# [[BPR-2171]]. A closed note's preview: words, block tokens, ellipsis.
+bpr_add_executable(test_better_pull_review_conversation_preview_tests conversation_preview_tests.cpp)
+target_link_libraries(test_better_pull_review_conversation_preview_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_conversation_preview_tests)
+bpr_enable_warnings(test_better_pull_review_conversation_preview_tests)
+bpr_add_network_isolated_test(NAME qt_conversation_preview COMMAND test_better_pull_review_conversation_preview_tests)
+set_tests_properties(qt_conversation_preview PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "CONVERSATION_PREVIEW_OK"
+    TIMEOUT 60
+)
+
 # [[BPR-1543]]. GitHub parity: comments, line breaks, alerts and footnotes,
 # compared with GitHub's own rendering of each fixture.
 bpr_add_executable(test_better_pull_review_markdown_github_tests markdown_github_tests.cpp)

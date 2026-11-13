@@ -19,6 +19,7 @@
 #include "conversation_file_identities.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
+#include "conversation_preview.hpp"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -329,20 +330,18 @@ namespace bpr::qt {
 			return aPost.TourStop.has_value() ? QString::fromStdString(aPost.TourStop->Title) + QChar::LineSeparator + narrative_of(aPost) : narrative_of(aPost);
 		}
 
-		/// \brief A closed note's body: one flowing paragraph, the header in
-		/// semibold and inline code in the code font, backticks dropped as the
-		/// prototype sets them.
+		/// \brief A closed note's body: [[BPR-2171]] its preview's words on
+		/// one flowing line, the header in semibold and inline code in the
+		/// code font.
 		struct display_text
 		{
 			QString                         Text;
 			QList<QTextLayout::FormatRange> Formats;
 		};
 
-		[[nodiscard]] auto display_of(const card_post& aPost, const QFont& aFont, const QFont& aCodeFont, const QColor& aCodeFill) -> display_text
+		[[nodiscard]] auto display_of(const card_post& aPost, const detail::note_preview& aPreview, const QFont& aFont, const QFont& aCodeFont, const QColor& aCodeFill) -> display_text
 		{
 			auto result = display_text{ };
-			auto body   = narrative_of(aPost);
-			body.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
 			// [[BPR-1806]]. A tour stop's note leads with its title, in
 			// semibold, on a line of its own.
 			if (aPost.TourStop.has_value()) {
@@ -352,23 +351,14 @@ namespace bpr::qt {
 				format.setFontWeight(QFont::DemiBold);
 				result.Formats.push_back(QTextLayout::FormatRange{ .start = 0, .length = static_cast<int>(title.size()), .format = format });
 			}
-			const auto lead   = result.Text.size();
-			const auto header = std::clamp<qsizetype>(aPost.HeaderLength, 0, body.size());
-			result.Text += body.left(header);
-			if (header > 0) {
+			const auto lead = static_cast<int>(result.Text.size());
+			result.Text += aPreview.Text;
+			for (const auto& [start, length] : aPreview.Strong) {
 				auto format = QTextCharFormat{ };
 				format.setFontWeight(QFont::DemiBold);
-				result.Formats.push_back(QTextLayout::FormatRange{ .start = static_cast<int>(lead), .length = static_cast<int>(header), .format = format });
+				result.Formats.push_back(QTextLayout::FormatRange{ .start = lead + start, .length = length, .format = format });
 			}
-			auto at = header;
-			while (at < body.size()) {
-				const auto open  = body.indexOf(QLatin1Char{ '`' }, at);
-				const auto close = open < 0 ? -1 : body.indexOf(QLatin1Char{ '`' }, open + 1);
-				if (open < 0 || close < 0 || close == open + 1) {
-					result.Text += body.mid(at);
-					break;
-				}
-				result.Text += body.mid(at, open - at);
+			for (const auto& [start, length] : aPreview.Code) {
 				auto code = QTextCharFormat{ };
 				code.setFontFamilies(aCodeFont.families());
 				code.setFontFixedPitch(true);
@@ -376,42 +366,96 @@ namespace bpr::qt {
 					code.setFontPointSize(aFont.pointSizeF() * 0.9);
 				}
 				code.setBackground(aCodeFill);
-				result.Formats.push_back(QTextLayout::FormatRange{ .start = static_cast<int>(result.Text.size()), .length = static_cast<int>(close - open - 1), .format = code });
-				result.Text += body.mid(open + 1, close - open - 1);
-				at = close + 1;
+				result.Formats.push_back(QTextLayout::FormatRange{ .start = lead + start, .length = length, .format = code });
 			}
 			return result;
 		}
 
-		/// \brief Lays \p aDisplay out at \p aWidth, at most \p aLines lines,
-		/// eliding the last when the text goes on.
-		[[nodiscard]] auto clamp_lines(display_text aDisplay, const QFont& aFont, const int aWidth, const int aLines) -> display_text
+		/// \brief [[BPR-2171]]. The quiet words naming a note's blocks.
+		[[nodiscard]] auto token_font(const QFont& aFont) -> QFont
 		{
-			auto layout = QTextLayout{ aDisplay.Text, aFont };
-			layout.setFormats(aDisplay.Formats);
-			auto option = QTextOption{ };
-			option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-			layout.setTextOption(option);
-			layout.beginLayout();
-			auto starts = std::vector<int>{ };
-			for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
-				line.setLineWidth(aWidth);
-				starts.push_back(line.textStart());
-				if (static_cast<int>(starts.size()) > aLines) {
-					break;
-				}
+			return scaled(aFont, 0.8);
+		}
+		constexpr int token_pad    = 5;
+		constexpr int token_gap    = 4;
+		constexpr int token_height = 15;
+		constexpr int token_lead   = 6;
+
+		[[nodiscard]] auto tokens_width(const QStringList& aTokens, const QFont& aFont) -> int
+		{
+			if (aTokens.isEmpty()) {
+				return 0;
 			}
-			layout.endLayout();
-			if (static_cast<int>(starts.size()) <= aLines) {
+			const auto metrics = QFontMetrics{ token_font(aFont) };
+			auto       width   = token_lead;
+			for (const auto& token : aTokens) {
+				width += metrics.horizontalAdvance(token) + 2 * token_pad + token_gap;
+			}
+			return width - token_gap;
+		}
+
+		/// \brief Lays \p aDisplay out at \p aWidth, at most \p aLines lines,
+		/// the last narrowed by \p aReserve for the tokens. [[BPR-2171]]. It
+		/// ends with an ellipsis only when words were left out, cut at a word
+		/// boundary and never inside inline code; tokens are never cut, the
+		/// words give way to them.
+		[[nodiscard]] auto clamp_lines(display_text aDisplay, const bool aOmitted, const QFont& aFont, const int aWidth, const int aLines, const int aReserve) -> display_text
+		{
+			const auto ellipsis = QString{ QChar{ 0x2026 } };
+			const auto lastWide = std::max(40, aWidth - aReserve);
+			const auto lay      = [&aDisplay, &aFont, aWidth, aLines](const int aLast) {
+				auto layout = QTextLayout{ aDisplay.Text, aFont };
+				layout.setFormats(aDisplay.Formats);
+				auto option = QTextOption{ };
+				option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+				layout.setTextOption(option);
+				layout.beginLayout();
+				auto lines = std::vector<std::pair<int, int>>{ };
+				for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
+					line.setLineWidth(static_cast<int>(lines.size()) == aLines - 1 ? aLast : aWidth);
+					lines.emplace_back(line.textStart(), line.textLength());
+					if (static_cast<int>(lines.size()) > aLines) {
+						break;
+					}
+				}
+				layout.endLayout();
+				return lines;
+			};
+			const auto lines = lay(lastWide);
+			if (static_cast<int>(lines.size()) <= aLines && !aOmitted) {
 				return aDisplay;
 			}
-			const auto last = starts[static_cast<std::size_t>(aLines - 1)];
-			const auto rest = aDisplay.Text.mid(last);
-			// Room for the semibold header when it is on this line too.
-			const auto elided = QFontMetrics{ aFont }.elidedText(rest, Qt::ElideRight, std::max(1, aWidth - 6));
-			aDisplay.Text     = aDisplay.Text.left(last) + elided;
+			// Room for the ellipsis on the last line shown.
+			const auto room  = std::max(20, lastWide - QFontMetrics{ aFont }.horizontalAdvance(ellipsis) - 2);
+			const auto again = lay(room);
+			auto       cut   = static_cast<int>(aDisplay.Text.size());
+			if (static_cast<int>(again.size()) >= aLines) {
+				const auto& last = again[static_cast<std::size_t>(aLines - 1)];
+				cut              = last.first + last.second;
+			}
+			cut = std::min(cut, static_cast<int>(aDisplay.Text.size()));
+			if (cut < aDisplay.Text.size()) {
+				// Back to a word boundary, never inside inline code.
+				auto boundary = cut;
+				while (boundary > 0 && !aDisplay.Text.at(boundary - 1).isSpace() && !aDisplay.Text.at(boundary).isSpace()) {
+					--boundary;
+				}
+				const auto lineStart = static_cast<int>(again.size()) >= aLines ? again[static_cast<std::size_t>(aLines - 1)].first : 0;
+				if (boundary > lineStart) {
+					cut = boundary;
+				}
+				for (const auto& format : aDisplay.Formats) {
+					if (format.format.fontFixedPitch() && cut > format.start && cut < format.start + format.length && format.start > lineStart) {
+						cut = format.start;
+					}
+				}
+			}
+			while (cut > 0 && aDisplay.Text.at(cut - 1).isSpace()) {
+				--cut;
+			}
+			aDisplay.Text = aDisplay.Text.left(cut) + ellipsis;
 			for (auto& format : aDisplay.Formats) {
-				format.length = std::max(0, std::min(format.start + format.length, static_cast<int>(aDisplay.Text.size())) - format.start);
+				format.length = std::max(0, std::min(format.start + format.length, cut) - format.start);
 			}
 			return aDisplay;
 		}
@@ -893,6 +937,7 @@ namespace bpr::qt {
 		PullRequestComments = false;
 		NewConversationBoundary.clear();
 		clear_measurements();
+		Previews.clear();
 		Retained.clear();
 		AnnotatedBodies.clear();
 		RetainedMarks.clear();
@@ -2787,6 +2832,21 @@ namespace bpr::qt {
 		return found == Measurements.Notes.end() ? nullptr : &found->second;
 	}
 
+	auto conversation_cards_view::preview_for(const thread_card& aCard) const -> const detail::note_preview&
+	{
+		static const auto none = detail::note_preview{ };
+		if (aCard.Posts.empty()) {
+			return none;
+		}
+		const auto& root  = aCard.Posts.front();
+		const auto  body  = narrative_of(root);
+		auto&       entry = Previews[aCard.Id];
+		if (entry.Preview == nullptr || entry.Body != body || entry.Header != root.HeaderLength) {
+			entry = preview_entry{ .Body = body, .Header = root.HeaderLength, .Preview = std::make_shared<const detail::note_preview>(detail::preview_of(body, root.HeaderLength)) };
+		}
+		return *entry.Preview;
+	}
+
 	void conversation_cards_view::measure_closed(thread_card& aCard, const int aWidth)
 	{
 		if (MeasurementFont != font()) {
@@ -2816,16 +2876,20 @@ namespace bpr::qt {
 		const auto lines   = aCard.Resolved ? 1 : 2;
 		const auto width   = std::max(40, aWidth - text_left - note_right);
 		auto       count   = 0;
-		if (!aCard.Posts.empty() && !body.isEmpty()) {
-			// One line when the whole body fits the width, otherwise as many as
-			// the note shows. Measured by advance, not laid out: a large review
-			// measures a thousand notes when its pull request arrives, and the
-			// paint lays out only the few on screen.
-			auto flowing = body;
-			flowing.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
-			const auto header  = std::clamp<qsizetype>(aCard.Posts.front().HeaderLength, 0, flowing.size());
-			const auto advance = QFontMetrics{ semibold(font()) }.horizontalAdvance(flowing.left(header))
-				+ QFontMetrics{ font() }.horizontalAdvance(flowing.mid(header));
+		if (!aCard.Posts.empty() && !body.trimmed().isEmpty()) {
+			// One line when the whole preview fits the width, otherwise as
+			// many as the note shows. Measured by advance, not laid out: a
+			// large review measures a thousand notes when its pull request
+			// arrives, and the paint lays out only the few on screen.
+			// [[BPR-2171]]. The preview's words, an ellipsis when words were
+			// left out, and its tokens.
+			const auto& preview = preview_for(aCard);
+			auto        strong  = 0;
+			for (const auto& [start, length] : preview.Strong) {
+				strong += QFontMetrics{ semibold(font()) }.horizontalAdvance(preview.Text.mid(start, length)) - QFontMetrics{ font() }.horizontalAdvance(preview.Text.mid(start, length));
+			}
+			const auto advance = QFontMetrics{ font() }.horizontalAdvance(preview.Text) + strong + (preview.Omitted ? QFontMetrics{ font() }.horizontalAdvance(QChar{ 0x2026 }) : 0)
+				+ tokens_width(preview.Tokens, font());
 			// [[BPR-1806]]. A tour stop's title has its own line.
 			count = aCard.Posts.front().TourStop.has_value() ? lines : advance <= width ? 1
 																						: lines;
@@ -4214,7 +4278,10 @@ namespace bpr::qt {
 			bodyTop += noticeHeight;
 		}
 		if (measure != nullptr && measure->Lines > 0) {
-			const auto display = clamp_lines(display_of(root, font(), CodeFont, colours.Hover), font(), std::max(40, rect.width() - text_left - note_right), measure->Lines);
+			const auto& preview = preview_for(aCard);
+			const auto  wide    = std::max(40, rect.width() - text_left - note_right);
+			const auto  reserve = tokens_width(preview.Tokens, font());
+			const auto  display = clamp_lines(display_of(root, preview, font(), CodeFont, colours.Hover), preview.Omitted, font(), wide, measure->Lines, reserve);
 			auto       layout  = QTextLayout{ display.Text, font() };
 			layout.setFormats(display.Formats);
 			auto option = QTextOption{ };
@@ -4223,16 +4290,42 @@ namespace bpr::qt {
 			layout.beginLayout();
 			auto y     = 0.0;
 			auto lines = 0;
+			auto lastEnd = 0.0;
+			auto lastTop = 0.0;
 			for (auto line = layout.createLine(); line.isValid() && lines < measure->Lines; line = layout.createLine()) {
-				line.setLineWidth(std::max(40, rect.width() - text_left - note_right));
+				line.setLineWidth(lines == measure->Lines - 1 ? std::max(40, wide - reserve) : wide);
 				line.setPosition(QPointF{ 0.0, y + (body_line_height(font()) - line.height()) / 2.0 });
+				lastEnd = line.naturalTextWidth();
+				lastTop = y;
 				y += body_line_height(font());
 				++lines;
 			}
 			layout.endLayout();
+			aPainter.save();
 			aPainter.setPen(colours.Ink);
-			aPainter.setClipRect(QRect{ left, bodyTop, rect.width() - text_left - note_right + 2, lines * body_line_height(font()) + 2 }, Qt::IntersectClip);
+			aPainter.setClipRect(QRect{ left, bodyTop, rect.width() - text_left - note_right + 2, std::max(1, lines) * body_line_height(font()) + 2 }, Qt::IntersectClip);
 			layout.draw(&aPainter, QPointF{ static_cast<qreal>(left), static_cast<qreal>(bodyTop) });
+			aPainter.restore();
+			// [[BPR-2171]]. One quiet word for each kind of block that is not
+			// words, after them on the last line.
+			if (!preview.Tokens.isEmpty()) {
+				const auto tokenFont = token_font(font());
+				const auto metrics = QFontMetrics{ tokenFont };
+				auto       x       = left + static_cast<int>(std::ceil(lastEnd)) + (display.Text.isEmpty() ? 0 : token_lead);
+				const auto tokenTop = bodyTop + static_cast<int>(lastTop) + (body_line_height(font()) - token_height) / 2;
+				aPainter.save();
+				aPainter.setFont(tokenFont);
+				for (const auto& token : preview.Tokens) {
+					const auto chip = QRectF{ static_cast<qreal>(x) + 0.5, static_cast<qreal>(tokenTop) + 0.5, static_cast<qreal>(metrics.horizontalAdvance(token) + 2 * token_pad) - 1.0, static_cast<qreal>(token_height) - 1.0 };
+					aPainter.setPen(QPen{ colours.Rule, 1.0 });
+					aPainter.setBrush(Qt::NoBrush);
+					aPainter.drawRoundedRect(chip, 3.0, 3.0);
+					aPainter.setPen(colours.Faint);
+					aPainter.drawText(chip, Qt::AlignCenter, token);
+					x += metrics.horizontalAdvance(token) + 2 * token_pad + token_gap;
+				}
+				aPainter.restore();
+			}
 		}
 		aPainter.restore();
 	}

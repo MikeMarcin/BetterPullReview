@@ -128,6 +128,7 @@ add_library(
         src/painted_glyph_icon.cpp
         src/progress_mark.cpp
         src/conversation_open_card.cpp
+        src/conversation_preview.cpp
         src/conversation_reactions.cpp
         src/repositories_drawer.cpp
         src/files_tree.cpp
