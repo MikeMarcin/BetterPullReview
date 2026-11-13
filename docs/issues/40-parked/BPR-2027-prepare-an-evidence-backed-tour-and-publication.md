@@ -45,3 +45,16 @@ Session state `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v005-
 Each decision carries a screenshot attachment in the session state. Not fixed in this round (coordinator, 2026-11-13: the next round fixes them). Host 6331/6340 stopped with the attended-review `stop`.
 
 AC08 stays pending: the tour look was rejected (three differently styled Accept buttons), so BPR-2027 stays parked `human-review` until a reworked look is accepted; the description look was rejected (other modes' drawers stay open on going to Overview).
+
+## Rework (2026-11-13)
+
+All three notes fixed on the lane (`f3fc567f3`, `b8dca6417`, `1f153d3b5`,
+RFC-BPR-0106 amendment `195140d79`); evidence in the
+RFC-BPR-0110 ledger on the lane `claude/v0-5-0-prerelease-targets-52265d` (`docs/verification/RFC-BPR-0110.md`, "Rework of the owner's verdicts").
+AC08 still waits for the owner's look: session `a0cbb9ddda6d1ae524e5d63d4a3342d7`, state
+`/Users/jaeger/.attended-review-state/local-draft-tour-panel-v006-2026-11-13/state`
+(serve output beside it; the URL stays there), cursor 9, filed 2026-11-13 and
+not waited on. Frozen root `/Users/jaeger/local-draft-tour-panel-v006.txmtt3kc`
+from `195140d7968f` (launcher check reached `ATTENDED_LOCAL_DRAFT_TOUR_SHOWN`).
+One Accept/Reject each: `tour-one-accept`, `overview-closes-drawers`,
+`publish-step-marks-aligned`.
