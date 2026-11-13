@@ -90,3 +90,23 @@ AC13's course now counts Threads' threads, not its Local rows (Local comments ar
 ## Owner look v004 filed (2026-11-13)
 
 Milestone 3's look, one Accept/Reject each: `threads-state-filter`, `threads-row-move`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`, `finish-review-keep-local`. Session `8ce7e45524c31cb13950f64babfa0ddf` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v004-2026-11-13/state`, cursor 21), frozen root `/Users/jaeger/comments-absorb-notes-v004.r230gldo` from `c5d5da4df652` (`--attended-local-comments-look` on `conventional-comments-v1`), launcher check `ATTENDED_FILE_SHOWN`. Not waited on.
+
+## Milestones 4 and 5 closed (2026-11-13, fifth round)
+
+[[BPR-2160]] Done at `a7db82152`; [[BPR-2161]] Done at `eeaeb2c20`. Evidence is on the cards ([BPR-2160](../issues/60-done/BPR-2160-one-keep-action-on-agent-surfaces.md#progress-2026-11-13), [BPR-2161](../issues/60-done/BPR-2161-local-pr-draft-notes-become-local-comments.md#progress-2026-11-13)).
+
+| Criterion | Card | Evidence | Result |
+|---|---|---|---|
+| AC10 | [[BPR-2160]] | `application_agent_keep_action_public_path` (new, three runs): the answer about the pull request offers Keep local alone and keeps a Local comment on the pull request, then Go to comment; the answer about a selected line offers Draft comment alone and drafts there, then Go to draft; of six finding cards, Draft comment where the line takes a draft, Keep local past the file's end (a whole-file Local comment) and on a file the pull request does not change (on the pull request); the finding queue offers exactly one of the two. `application_explain_file_public_path`: Keep local, Go to comment. `qt_workbench_window_scale_*`, `qt_finding_queue_view`, `core_local_comment` (`decide_keep`) | Pass (owner look v005 pending) |
+| AC12 | [[BPR-2160]] | Same course, all four settings of Include my local comments and Include my drafts: the turn request carries Local comments exactly with the first and the draft exactly with the second; `core_agent_context_supplement` (admission per kind, per session) | Pass |
+| AC03, AC04, AC05, AC07, AC08, AC09, AC13 | | `application_local_comments_composition_public_path` and `application_local_comments_found_public_path` rerun at `a7db82152` | Pass |
+
+Ask agent on my own unsent comment, one recording path: my draft's menu offers Ask agent about this draft, and the same course shows the agent receiving it as my own comment with its line, recorded in Private history by `record_note_press`. The local PR draft's notes read as Local comments (BPR-2161): `application_local_draft_desktop_public_path` checks the words, and a render of it is on the card.
+
+## Owner look v005 filed (2026-11-13)
+
+Milestone 4's look, one Accept/Reject each: `answer-one-keep-action`, `finding-card-keep-action`, `kept-local-go-to-comment`, `ask-agent-about-draft`. Session `4329741d72227f49c0ee4a0b94c4e9f1` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v005-2026-11-13/state`, cursor 12), frozen root `/Users/jaeger/comments-absorb-notes-v005.7ub_34li` from `ff4a39c437c8`, launcher check `ATTENDED_AGENT_SHOWN:findings=6`. Not waited on.
+
+## Closeout state
+
+Every criterion has direct engineering evidence ([[BPR-2162]] checklist). RFC-BPR-0127 is **not closed**. Its closeout waits on the verdicts of looks v003 (`acaf71a2…`), v004 (`8ce7e455…`) and v005 (`4329741d…`).
