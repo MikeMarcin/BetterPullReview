@@ -2696,3 +2696,42 @@ Next: milestone 4 (`one-keep-action`, BPR-2160, Ready, not claimed). Design star
 - Ends in an owner look with a fixture holding an agent answer and a finding card.
 
 Not touched: sessions `acaf71a2…` and `3fefa366…`; the v002, v003, v005 and v006 roots; PIDs 38152, 98149/98159, 26296, 51569, 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
+
+### RFC-BPR-0127 milestones 4 and 5 closed; closeout waits on looks (2026-11-13, fifth round)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines in commits. Frontend-design was loaded first.
+
+| Commit | What |
+|---|---|
+| `0c127fed4` | Claim BPR-2160 |
+| `a9346a9fd`, `3efbc109c`, `a7db82152` | BPR-2160: `core::decide_keep`; one keep action on the answer footer, finding cards, finding queue and Explain this file (Draft comment where a thread or line takes a draft, else Keep local on the file or pull request; Go to draft / Go to comment); Draft all passes a kept card over; Ask agent on my draft by the Local comment's one recording path; opt-ins "Include my local comments" / "Include my drafts", launch panel "Local comments" / "Draft"; wording sweep (Enhance "Comments and replies", the prompt, the docs); composed course `application_agent_keep_action_public_path` (AC10, AC12, Ask agent on a draft); the suggestions fixture gains a finding on a file outside the pull request; app source pin resealed |
+| `ff4a39c43` | BPR-2161: the local PR draft's notes read as Local comments, with the computer glyph. **Frozen commit for look v005** |
+| `eeaeb2c20` | Claim BPR-2161; its course check; BPR-2069 named in the new words |
+| `25651115b` | **BPR-2160 Done, BPR-2161 Done**; BPR-2162 In Progress with every criterion evidenced; architecture docs; ledger |
+| main `e02c15952` | Mirror of the card moves, BPR-2069, LIVE_IMPORT and ledger |
+
+Runs (dev, Debug, macOS), all passing:
+- Core: `core_local_comment`, `core_agent_draft_all`, `core_agent_turn`, `core_prompt_macro`, `core_explain_file`.
+- Qt: `qt_workbench_window_scale_{100,125,200}`, `qt_finding_queue_view`, `qt_agent_launch_panel`, `qt_side_chat_panel`, `qt_agent_finding_cards_{retained,restart}`, `qt_prompt_macro_chips`, `qt_explain_file_card_scale_*`, `qt_conversation_cards_view`, `qt_local_draft_window`.
+- Composed: `application_agent_keep_action_public_path` (three runs), `application_explain_file_public_path`, `application_review_tour_composition_public_path`, `application_local_comments_{composition,found}_public_path`, `application_local_draft_{desktop,tour,publication}_desktop_public_path`.
+- Contracts: `application_agent_{chat,invocation}_composition_contract`, `application_composition_source_contract`, `architecture_boundaries`.
+- Format gate passes; documentation gate OK on lane and main; board validate clean on both. `coding-tidy` not run.
+
+Owner look v005, filed and not waited on:
+- Session `4329741d72227f49c0ee4a0b94c4e9f1`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v005-2026-11-13/state`. Its URL is in `serve.log` beside the state.
+- Cursor 12. Host PID 82478, its Tailscale serve child 82486.
+- Frozen root `/Users/jaeger/comments-absorb-notes-v005.7ub_34li` from `ff4a39c437c8` (`--attended-agent-look`, suggestions fixture as `codex`, nested-folders-v1). Its launcher check reached `ATTENDED_AGENT_SHOWN:findings=6`.
+- One Accept/Reject each: `answer-one-keep-action`, `finding-card-keep-action`, `kept-local-go-to-comment`, `ask-agent-about-draft`.
+
+**RFC-BPR-0127 is not closed.** Every criterion has direct engineering evidence on BPR-2162. The closeout waits on the verdicts of v003 (`acaf71a2…`, host 98149/98159), v004 (`8ce7e455…`, host 42869/42879) and v005 (`4329741d…`, host 82478/82486).
+
+Next action:
+- Reconcile each look when it is forwarded. Read from its cursor, record verbatim on the card and the ledger, stop its host with the attended-review `stop`, and `freeze_attended_build.py remove` its root once nothing runs from it.
+- If all three are Accept: finish BPR-2162 (Done) and close RFC-BPR-0127, then mirror to main.
+- A Reject is a rework round.
+
+Decisions made this round:
+- An answer about the pull request now keeps a Local comment (Keep local). It no longer drafts a pull request comment, per AC10: "a Local comment where none [no line] can".
+- AC12's evidence is at the turn request (`agent_chat_turn_request` IncludeNotes/IncludeDraft). The launch still refuses mutable prose and directs to Private history (RFC-BPR-0023), as before.
+
+Not touched: sessions `acaf71a2…` and `8ce7e455…`; the v002, v003, v004, v005-tour and v006 roots; PIDs 38152, 98149/98159, 42869/42879, 26296, 51569, 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
