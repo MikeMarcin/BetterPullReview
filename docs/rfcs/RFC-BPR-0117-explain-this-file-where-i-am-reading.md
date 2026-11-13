@@ -73,6 +73,6 @@ RFC; the Agent tab's attached lines cover it today.
 
 ## Proposed delivery
 
-[Explain this file](../issues/20-ready/BPR-2076-explain-this-file-in-review.md) and
+[Explain this file](../issues/30-in-progress/BPR-2076-explain-this-file-in-review.md) and
 [closeout](../issues/10-backlog/BPR-2077-close-rfc-0117.md) form the second
 [milestone](plans/agent-assistance-v1/milestone-plan.json).
