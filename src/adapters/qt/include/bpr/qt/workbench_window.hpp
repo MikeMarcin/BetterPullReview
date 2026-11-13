@@ -2943,9 +2943,9 @@ namespace bpr::qt {
 			std::uint32_t First = 0U;
 			std::uint32_t Last  = 0U;
 		};
-		std::optional<local_reveal> LocalReveal;
-		void                        apply_local_reveal();
-		std::vector<application::workbench_file_projection>          FilesBehindDraft;
+		std::optional<local_reveal>                         LocalReveal;
+		void                                                apply_local_reveal();
+		std::vector<application::workbench_file_projection> FilesBehindDraft;
 		/// The draft's own rows, by path, in the Files tree's order.
 		std::vector<std::string> LocalFiles;
 		/// The review bar's actions a draft hides, and its own slots.

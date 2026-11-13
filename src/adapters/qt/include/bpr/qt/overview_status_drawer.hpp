@@ -135,7 +135,7 @@ namespace bpr::qt {
 		QWidget*                                 AgentHolder    = nullptr;
 		QWidget*                                 StatusPage     = nullptr;
 		void                                     show_page(int aIndex);
-		overview_tour_summary*                   TourSummary    = nullptr;
+		overview_tour_summary*                   TourSummary = nullptr;
 		std::function<void(overview_drawer_tab)> TabObserver;
 	};
 

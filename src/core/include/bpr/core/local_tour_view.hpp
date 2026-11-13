@@ -62,7 +62,7 @@ namespace bpr::core {
 		/// Why each yellow stop is yellow, in the local draft's words
 		/// (RFC-BPR-0110 X05: "with that word as its reason").
 		std::vector<std::pair<std::uint64_t, local_stop_reason>> Reasons;
-		auto operator==(const local_tour_view&) const -> bool = default;
+		auto                                                     operator==(const local_tour_view&) const -> bool = default;
 	};
 
 	/// \brief The question running now, when one is, on its thread.
@@ -98,7 +98,7 @@ namespace bpr::core {
 		std::string          Solution;
 		std::string          Title;
 		std::string          Text;
-		std::size_t          Index                                   = 0;
+		std::size_t          Index                                            = 0;
 		auto                 operator==(const local_tour_edit&) const -> bool = default;
 	};
 	/// \brief RFC-BPR-0111's tour follow-up, its private half (RFC-BPR-0110

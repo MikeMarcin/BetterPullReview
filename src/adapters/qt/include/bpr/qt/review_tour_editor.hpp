@@ -163,7 +163,7 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0110 X19: where "Update PR description after publishing"
 		/// starts for this pull request: off for one associated with a local
 		/// draft. Turning it on asks for a new Preview, as every change does.
-		void               set_description_publication_default(bool aOn);
+		void set_description_publication_default(bool aOn);
 		/// \brief RFC-BPR-0110. A local draft's words while its tour shows;
 		/// none for a pull request's.
 		void               set_local_words(std::optional<tour_local_words> aWords);

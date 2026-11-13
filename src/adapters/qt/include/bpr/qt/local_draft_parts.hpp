@@ -207,22 +207,22 @@ namespace bpr::qt {
 		void ask_discard();
 		void changed();
 
-		QWidget*                                      Owner = nullptr;
-		local_draft_dispatch                          Dispatch;
-		application::local_draft_workbench_projection Projection;
-		application::local_changes_projection         LocalProjection;
-		std::function<bool()>                         DiscardQuestion;
+		QWidget*                                              Owner = nullptr;
+		local_draft_dispatch                                  Dispatch;
+		application::local_draft_workbench_projection         Projection;
+		application::local_changes_projection                 LocalProjection;
+		std::function<bool()>                                 DiscardQuestion;
 		std::function<std::optional<QString>(const QString&)> RenameQuestion;
-		bool                                          Presenting = false;
+		bool                                                  Presenting = false;
 
-		QPointer<QWidget>               BarLeading;
-		QPointer<QWidget>               BarTrailing;
-		QPointer<QWidget>               NoticeRow;
-		QPointer<QWidget>               FilesFooter;
-		QPointer<local_changes_panel>   LocalChanges;
-		QPointer<QWidget>               EditPage;
-		QPointer<QWidget>               NotesPage;
-		QPointer<QWidget>               StatusPage;
+		QPointer<QWidget>             BarLeading;
+		QPointer<QWidget>             BarTrailing;
+		QPointer<QWidget>             NoticeRow;
+		QPointer<QWidget>             FilesFooter;
+		QPointer<local_changes_panel> LocalChanges;
+		QPointer<QWidget>             EditPage;
+		QPointer<QWidget>             NotesPage;
+		QPointer<QWidget>             StatusPage;
 
 		QLabel*                                                               Identity          = nullptr;
 		QLabel*                                                               Notice            = nullptr;

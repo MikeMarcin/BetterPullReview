@@ -120,7 +120,7 @@ namespace bpr::qt {
 			// What a pull request open behind the draft shows comes back on leaving.
 			OverviewBehindDraft            = PresentedOverview;
 			DescriptionEditableBehindDraft = OverviewPage != nullptr && OverviewPage->description_editable();
-			FilesBehindDraft    = PublishedFiles;
+			FilesBehindDraft               = PublishedFiles;
 			// Another draft opens on Review, in two panes (X23 as amended).
 			if (Modality != nullptr) {
 				Modality->adopt(review_modality::review);

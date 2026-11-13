@@ -370,14 +370,14 @@ namespace {
 
 		// Chats and proposals.
 		auto [d1, conversation] = ok(core::append_turn(next, next.Version, core::local_stop_thread(next.Preparation.Tour.Stops[0].Id), "agent-1", "Claude",
-														 { .Author = true, .Subject = core::local_subject::stop, .Text = "Say why." }, 106),
+													   { .Author = true, .Subject = core::local_subject::stop, .Text = "Say why." }, 106),
 									 "a question on a stop");
 		const auto proposals    = std::vector<core::local_proposal_draft>{ { .Target = core::local_proposal_target::problem, .Text = "Searches outlive cancel." },
 																		   { .Target = core::local_proposal_target::description, .Text = "Body." } };
 		const auto readings     = std::vector{ file("int a2;\nvoid cancel() {\n  stop();\n}\nint b;\n") };
 		auto [d2, ids]          = ok(core::record_proposals(d1, d1.Version, conversation, 2U, proposals, readings, "Claude", "v1", 107), "proposals");
 		auto [d3, same]         = ok(core::append_turn(d2, d2.Version, core::local_stop_thread(next.Preparation.Tour.Stops[0].Id), "agent-1", "Claude",
-														 { .Author = false, .Text = "Because.", .Proposals = ids, .CostMicros = 20000U }, 108),
+													   { .Author = false, .Text = "Because.", .Proposals = ids, .CostMicros = 20000U }, 108),
 									 "the answer");
 		expect(same == conversation, "one conversation");
 		view = core::view_local_tour(d3, core::local_tour_asking{ .Thread = "change", .Text = "And the rest?" });
@@ -393,7 +393,7 @@ namespace {
 			   "a stale proposal stays readable and refused");
 
 		// Commands.
-		const auto stop = core::tour_stop_id{ next.Preparation.Tour.Stops[1].Id };
+		const auto stop    = core::tour_stop_id{ next.Preparation.Tour.Stops[1].Id };
 		auto       command = core::tour_command{ .Kind = core::tour_command_kind::solution, .Text = "New solution." };
 		expect(core::translate_local_tour_command(next, command) == std::vector{ core::local_tour_edit{ .Kind = core::local_tour_edit_kind::brief, .Problem = "Searches outlived cancel.", .Solution = "New solution." } },
 			   "the Solution saves with the Problem as it is");

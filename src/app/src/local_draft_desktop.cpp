@@ -217,11 +217,11 @@ namespace bpr::app {
 		present_tour();
 		// Created here: the window becomes the pull request.
 		if (aProjection.Draft) {
-			const auto& draft  = *aProjection.Draft;
-			const auto* link   = draft.Publication && draft.Publication->Journal.Link ? &*draft.Publication->Journal.Link : nullptr;
-			const auto  linked = link != nullptr && draft.Publication->Journal.Phase == core::local_publication_phase::linked;
-			const auto  seen   = LinkedSeen.find(draft.Id.Value);
-			const auto  became = seen != LinkedSeen.end() && !seen->second && linked;
+			const auto& draft          = *aProjection.Draft;
+			const auto* link           = draft.Publication && draft.Publication->Journal.Link ? &*draft.Publication->Journal.Link : nullptr;
+			const auto  linked         = link != nullptr && draft.Publication->Journal.Phase == core::local_publication_phase::linked;
+			const auto  seen           = LinkedSeen.find(draft.Id.Value);
+			const auto  became         = seen != LinkedSeen.end() && !seen->second && linked;
 			LinkedSeen[draft.Id.Value] = linked;
 			if (became && OpenPullRequest && Window.showing_local_draft()) {
 				const auto& repository = draft.Target.Target.Repository;
@@ -250,8 +250,8 @@ namespace bpr::app {
 		if (projection.Asking) {
 			asking = core::local_tour_asking{ .Thread = projection.AskingThread, .Text = projection.AskingText };
 		}
-		auto view  = core::view_local_tour(*projection.Draft, asking);
-		auto shown = application::tour_presentation{ };
+		auto view           = core::view_local_tour(*projection.Draft, asking);
+		auto shown          = application::tour_presentation{ };
 		shown.Draft         = std::make_shared<const core::review_tour>(view.Tour);
 		shown.SavedRevision = view.Tour.Revision;
 		shown.ChangedFiles  = view.Files;
@@ -305,7 +305,7 @@ namespace bpr::app {
 		if (Closing || TourEditInFlight || TourEdits.empty() || Host->projection().Busy) {
 			return;
 		}
-		auto edit        = std::move(TourEdits.front());
+		auto edit = std::move(TourEdits.front());
 		TourEdits.pop_front();
 		TourEditInFlight = true;
 		edit.Apply();
@@ -345,14 +345,14 @@ namespace bpr::app {
 		if (!tour_shown() || editor == nullptr) {
 			return;
 		}
-		const auto* const stop = editor->selected_stop();
+		const auto* const stop      = editor->selected_stop();
 		const auto        draftStop = [&]() -> const core::local_tour_stop* {
-            if (stop == nullptr) {
-                return nullptr;
-            }
-            const auto& stops = View->projection().Draft->Preparation.Tour.Stops;
-            const auto  found = std::ranges::find(stops, stop->Id.value(), &core::local_tour_stop::Id);
-            return found == stops.end() ? nullptr : &*found;
+			if (stop == nullptr) {
+				return nullptr;
+			}
+			const auto& stops = View->projection().Draft->Preparation.Tour.Stops;
+			const auto  found = std::ranges::find(stops, stop->Id.value(), &core::local_tour_stop::Id);
+			return found == stops.end() ? nullptr : &*found;
 		}();
 		switch (aAction) {
 		case qt::tour_editor_action::add_stop:
@@ -416,9 +416,10 @@ namespace bpr::app {
 		if (!tour_shown()) {
 			return;
 		}
-		auto question    = application::local_draft_question{ .Thread = core::local_thread_of(aAsk.Thread), .Subject = core::local_subject_of(aAsk.Thread), .Stop = aAsk.Thread.Kind == core::tour_thread_kind::stop ? aAsk.Thread.Stop.value() : 0U };
-		auto text        = aAsk.Question.toStdString();
-		const auto part  = aAsk.Thread.Kind == core::tour_thread_kind::problem ? std::string{ "Problem" } : aAsk.Thread.Kind == core::tour_thread_kind::solution ? std::string{ "Solution" } : std::string{ "stop" };
+		auto       question = application::local_draft_question{ .Thread = core::local_thread_of(aAsk.Thread), .Subject = core::local_subject_of(aAsk.Thread), .Stop = aAsk.Thread.Kind == core::tour_thread_kind::stop ? aAsk.Thread.Stop.value() : 0U };
+		auto       text     = aAsk.Question.toStdString();
+		const auto part     = aAsk.Thread.Kind == core::tour_thread_kind::problem ? std::string{ "Problem" } : aAsk.Thread.Kind == core::tour_thread_kind::solution ? std::string{ "Solution" }
+																																									: std::string{ "stop" };
 		if (aAsk.Fresh) {
 			// Enhance: a rewrite of the part, proposed for the author to accept.
 			text = "Rewrite this " + part + " so it reads clearly and accurately. Propose the rewrite; do not change anything else.";
@@ -448,9 +449,9 @@ namespace bpr::app {
 			return;
 		}
 		const auto thread = aHook == core::writing_hook::problem ? core::tour_thread{ .Kind = core::tour_thread_kind::problem }
-			: aHook == core::writing_hook::solution             ? core::tour_thread{ .Kind = core::tour_thread_kind::solution }
-																: core::tour_thread{ };
-		auto ask = qt::tour_ask{ .Thread = thread, .Fresh = true };
+			: aHook == core::writing_hook::solution              ? core::tour_thread{ .Kind = core::tour_thread_kind::solution }
+																 : core::tour_thread{ };
+		auto       ask    = qt::tour_ask{ .Thread = thread, .Fresh = true };
 		if (auto* const editor = Window.tour_editor(); editor != nullptr && aHook != core::writing_hook::problem && aHook != core::writing_hook::solution && editor->selected_stop() != nullptr) {
 			ask.Thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = editor->selected_stop()->Id };
 		}

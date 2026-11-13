@@ -59,7 +59,7 @@ namespace bpr::core {
 
 		[[nodiscard]] auto project_stop(std::string_view aDraft, const local_tour_stop& aStop, const git_commit_oid& aHead, const std::uint64_t aLatest) -> tour_stop
 		{
-			auto stop  = tour_stop{ .Id = tour_stop_id{ aStop.Id }, .Title = aStop.Title, .Body = aStop.Text };
+			auto       stop  = tour_stop{ .Id = tour_stop_id{ aStop.Id }, .Title = aStop.Title, .Body = aStop.Text };
 			const auto exact = aStop.Current.Correspondence == local_correspondence::exact && aStop.Current.Candidate == aLatest;
 			// The stop's lines: where they are on the latest candidate when
 			// they are exactly there, else where the author bound them.
@@ -70,8 +70,8 @@ namespace bpr::core {
 			const auto  comparison = file_comparison_digest{ digest("comparison", { aDraft, lines.Path }) };
 			stop.Original          = tour_source_range{ .First = { comparison, lines.Side, lines.FirstLine }, .Last = { comparison, lines.Side, lines.LastLine }, .Commit = lines.Commit, .Path = lines.Path };
 			stop.Mapping           = exact ? tour_mapping::exact_original : tour_mapping::changed_material;
-			stop.Preparation = tour_preparation::editing;
-			const auto decision = decide_local_stop(aStop);
+			stop.Preparation       = tour_preparation::editing;
+			const auto decision    = decide_local_stop(aStop);
 			if (decision.State == tour_acceptance_state::not_accepted) {
 				return stop;
 			}
@@ -82,8 +82,8 @@ namespace bpr::core {
 			if (decision.State == tour_acceptance_state::accepted) {
 				acceptance.Material.push_back({ .Range = *stop.Destination });
 			} else {
-				auto range   = *stop.Destination;
-				range.Commit = range.Commit == aHead ? local_tour_commit(aDraft, 0U) : range.Commit;
+				auto range      = *stop.Destination;
+				range.Commit    = range.Commit == aHead ? local_tour_commit(aDraft, 0U) : range.Commit;
 				const auto gone = decision.Reason == local_stop_reason::missing || decision.Reason == local_stop_reason::unavailable;
 				acceptance.Head = range.Commit;
 				acceptance.Material.push_back({ .Range = range, .CheckedAt = aHead, .Verdict = gone ? tour_material_verdict::missing : tour_material_verdict::changed });
@@ -98,8 +98,8 @@ namespace bpr::core {
 			if (!aThread.starts_with(prefix)) {
 				return std::nullopt;
 			}
-			auto value = std::uint64_t{ 0U };
-			const auto digits = aThread.substr(prefix.size());
+			auto       value        = std::uint64_t{ 0U };
+			const auto digits       = aThread.substr(prefix.size());
 			const auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), value);
 			if (error != std::errc{ } || end != digits.data() + digits.size() || value == 0U) {
 				return std::nullopt;
@@ -177,9 +177,9 @@ namespace bpr::core {
 
 	auto view_local_tour(const local_draft& aDraft, const std::optional<local_tour_asking>& aAsking) -> local_tour_view
 	{
-		auto        view   = local_tour_view{ };
-		const auto  id     = std::string_view{ aDraft.Id.Value };
-		const auto* latest = latest_candidate(aDraft);
+		auto        view    = local_tour_view{ };
+		const auto  id      = std::string_view{ aDraft.Id.Value };
+		const auto* latest  = latest_candidate(aDraft);
 		const auto  ordinal = latest != nullptr ? latest->Ordinal : 0U;
 		const auto  head    = local_tour_commit(id, ordinal);
 		const auto& local   = aDraft.Preparation.Tour;
@@ -207,9 +207,9 @@ namespace bpr::core {
 		// The conversations, turn by turn, as the side chat reads runs: an
 		// author's question and the answer that followed it. Earlier
 		// candidates' conversations stay readable before the open ones.
-		auto runs     = std::vector<tour_agent_run>{ };
-		auto runOf    = std::map<std::uint64_t, tour_agent_run_id>{ };
-		auto ordered  = std::vector<const local_conversation*>{ };
+		auto runs    = std::vector<tour_agent_run>{ };
+		auto runOf   = std::map<std::uint64_t, tour_agent_run_id>{ };
+		auto ordered = std::vector<const local_conversation*>{ };
 		for (const auto& conversation : aDraft.Preparation.Conversations) {
 			ordered.push_back(&conversation);
 		}
@@ -239,8 +239,8 @@ namespace bpr::core {
 					run.Reply          = answer.Text;
 					if (const auto cost = cost_of(answer.CostMicros)) {
 						total += *cost;
-						known       = true;
-						run.Cost    = cost;
+						known    = true;
+						run.Cost = cost;
 					}
 					if (known) {
 						run.SessionCost = total;
@@ -316,11 +316,11 @@ namespace bpr::core {
 
 	auto carry_local_tour_to_pull_request(const local_draft& aDraft, const local_publication_result& aResult, const review_tour& aTarget) -> local_tour_carry
 	{
-		auto carry    = local_tour_carry{ .Tour = aTarget, .Mapping = map_local_publication(aDraft, aResult) };
-		auto& tour    = carry.Tour;
+		auto        carry = local_tour_carry{ .Tour = aTarget, .Mapping = map_local_publication(aDraft, aResult) };
+		auto&       tour  = carry.Tour;
 		const auto& local = aDraft.Preparation.Tour;
-		tour.Problem  = local.Problem;
-		tour.Solution = local.Solution;
+		tour.Problem      = local.Problem;
+		tour.Solution     = local.Solution;
 		tour.Stops.clear();
 		auto files = std::vector<std::string>{ };
 		for (const auto& file : aResult.Files) {

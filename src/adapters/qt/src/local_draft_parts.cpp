@@ -574,9 +574,9 @@ namespace bpr::qt {
 
 	void local_draft_parts::present_header()
 	{
-		const auto& view = Projection;
-		auto source = text_of(view.Draft ? view.Draft->Branch : view.Branch);
-		auto target = target_text(view);
+		const auto& view   = Projection;
+		auto        source = text_of(view.Draft ? view.Draft->Branch : view.Branch);
+		auto        target = target_text(view);
 		Identity->setText(target.isEmpty() ? source : QStringLiteral("%1 into %2").arg(source, target));
 		Identity->setToolTip(QStringLiteral("Worktree: %1").arg(text_of(view.Draft ? view.Draft->Worktree.Location : view.Location)));
 		Identity->setAccessibleName(Identity->text());

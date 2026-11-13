@@ -12,8 +12,8 @@
 #include "review_cycle_desktop.hpp"
 
 #include <QApplication>
-#include <QDir>
 #include <QCheckBox>
+#include <QDir>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -330,9 +330,7 @@ try {
 
 	// The tour follow-up's private half: the draft's tour as the pull
 	// request's own tour draft, anchored at its head (RFC-BPR-0110 "On publication").
-	auto target  = core::review_tour{ .Id = core::tour_draft_id{ 1U }, .Owner = { core::bpr_profile_id{ 1U }, core::git_host_id{ 1U }, { }, core::github_account_id{ 7U }, core::repository_id{ 1U }, core::pull_request_id{ 7U } },
-									  .Base = page->projection().Draft->Candidates.back().Base,
-									  .Head = page->projection().Draft->Candidates.back().Head };
+	auto target  = core::review_tour{ .Id = core::tour_draft_id{ 1U }, .Owner = { core::bpr_profile_id{ 1U }, core::git_host_id{ 1U }, { }, core::github_account_id{ 7U }, core::repository_id{ 1U }, core::pull_request_id{ 7U } }, .Base = page->projection().Draft->Candidates.back().Base, .Head = page->projection().Draft->Candidates.back().Head };
 	auto carried = std::optional<core::local_tour_carry>{ };
 	drafts->host().carry_tour(page->projection().Draft->Id, target, [&carried](core::local_tour_carry aCarry) { carried = std::move(aCarry); });
 	await(lanes, [&] { return carried.has_value(); }, "the tour is carried");
@@ -342,8 +340,8 @@ try {
 			   && carried->Tour.Stops[0].Destination->Path == "src/search.cpp" && carried->Tour.Stops[0].Destination->FirstLine == 0U && carried->Mapping.Unresolved == 0U,
 		   "the stop anchors at the pull request's head");
 	expect(core::decide_tour_stop_acceptance(carried->Tour, carried->Tour.Stops[0]).State == core::tour_acceptance_state::accepted, "and stays Accepted there");
-	auto moved   = target;
-	moved.Head   = page->projection().Draft->Candidates.back().Base;
+	auto moved = target;
+	moved.Head = page->projection().Draft->Candidates.back().Base;
 	carried.reset();
 	drafts->host().carry_tour(page->projection().Draft->Id, moved, [&carried](core::local_tour_carry aCarry) { carried = std::move(aCarry); });
 	await(lanes, [&] { return carried.has_value(); }, "the tour is carried to another head");

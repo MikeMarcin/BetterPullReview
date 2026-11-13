@@ -131,7 +131,7 @@ namespace bpr::app {
 		/// \brief The Search tab's results answer the draft's search.
 		void attach_search();
 		/// \brief The panes' code colours for the Edit view.
-		void               adopt_appearance(const qt::appearance_profile& aProfile);
+		void adopt_appearance(const qt::appearance_profile& aProfile);
 		/// \brief RFC-BPR-0110 as amended (owner: "I thought we chose to stick
 		/// with the PR view and just augment it"). While the window shows this
 		/// draft, its Tour panel shows the draft's tour: presented from the
@@ -155,7 +155,7 @@ namespace bpr::app {
 		/// \brief RFC-BPR-0111 as drawn: when the shown draft's pull request is
 		/// created (or linked), the window becomes that pull request.
 		using pull_request_opener = std::function<void(const std::string& aHost, const std::string& aOwner, const std::string& aName, std::uint64_t aNumber)>;
-		void set_pull_request_opener(pull_request_opener aOpener);
+		void               set_pull_request_opener(pull_request_opener aOpener);
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 
@@ -170,17 +170,17 @@ namespace bpr::app {
 		};
 		std::deque<tour_edit> TourEdits;
 		bool                  TourEditInFlight = false;
-		pull_request_opener                   OpenPullRequest;
+		pull_request_opener   OpenPullRequest;
 		/// Whether each draft seen was linked when last published.
-		std::map<std::string, bool>           LinkedSeen;
-		std::optional<std::string> TypedProblem;
-		std::optional<std::string> TypedSolution;
-		void                  queue_tour_edit(std::string aKey, std::function<void()> aApply);
-		void                  flush_tour_edits();
+		std::map<std::string, bool> LinkedSeen;
+		std::optional<std::string>  TypedProblem;
+		std::optional<std::string>  TypedSolution;
+		void                        queue_tour_edit(std::string aKey, std::function<void()> aApply);
+		void                        flush_tour_edits();
 		/// The view last presented, for the panel's proposals by index.
 		std::optional<core::local_tour_view> TourView;
 		void                                 ask_local(application::local_draft_question aQuestion);
-		qt::workbench_window& Window;
+		qt::workbench_window&                Window;
 		/// RFC-BPR-0111. Create draft PR's own lane; outlives the host's work on it.
 		std::unique_ptr<worker_executor>        PublishLane;
 		std::function<void(const std::string&)> Copier;
