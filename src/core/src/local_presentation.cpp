@@ -47,6 +47,32 @@ namespace bpr::core {
 		return file_identity{ digest("file", { aSubject, aPath }) };
 	}
 
+	auto local_presentation_identity_of(const std::string_view aSubject) -> local_presentation_identity
+	{
+		const auto subject   = digest("subject", { aSubject });
+		const auto scope     = pull_request_authority_scope_id{ digest("scope", { aSubject }) };
+		const auto authority = pull_request_authority{
+			.Profile         = host_profile_id{ nonzero(subject, 0U) },
+			.ProfileRevision = github_profile_revision{ 1U },
+			.Host            = git_host_id{ nonzero(subject, 8U) },
+			.HostAuthority   = host_authority_fingerprint{ digest("host", { aSubject }) },
+			.Account         = github_account_id{ nonzero(subject, 16U) },
+			.Viewer          = github_viewer_actor_id{ nonzero(subject, 24U) },
+			.Repository      = repository_id{ nonzero(subject, 4U) },
+			.Cache           = repository_cache_scope_id{ digest("cache", { aSubject }) },
+			.PullRequest     = pull_request_id{ nonzero(subject, 12U) },
+			.Number          = pull_request_number{ 1U },
+			.Scope           = scope,
+			.Mode            = github_access_mode::authenticated,
+		};
+		const auto incarnation = epoch_catalog_incarnation_id{ digest("incarnation", { aSubject }) };
+		return {
+			.Authority = authority,
+			.Left      = { .Authority = scope, .Incarnation = incarnation, .Kind = comparison_anchor_kind::epoch_base, .Epoch = epoch_ordinal{ 1 } },
+			.Right     = { .Authority = scope, .Incarnation = incarnation, .Kind = comparison_anchor_kind::epoch_head, .Epoch = epoch_ordinal{ 2 } },
+		};
+	}
+
 	auto local_presentation_key(const std::string_view aSubject, const std::string_view aPath, const std::optional<std::span<const std::uint8_t>> aLeft,
 								const std::optional<std::span<const std::uint8_t>> aRight, const diff_options& aOptions) -> std::optional<file_comparison_key>
 	{
@@ -69,29 +95,13 @@ namespace bpr::core {
 		if (!left || !right) {
 			return std::nullopt;
 		}
-		const auto subject   = digest("subject", { aSubject });
-		const auto scope     = pull_request_authority_scope_id{ digest("scope", { aSubject }) };
-		const auto authority = pull_request_authority{
-			.Profile         = host_profile_id{ nonzero(subject, 0U) },
-			.ProfileRevision = github_profile_revision{ 1U },
-			.Host            = git_host_id{ nonzero(subject, 8U) },
-			.HostAuthority   = host_authority_fingerprint{ digest("host", { aSubject }) },
-			.Account         = github_account_id{ nonzero(subject, 16U) },
-			.Viewer          = github_viewer_actor_id{ nonzero(subject, 24U) },
-			.Repository      = repository_id{ nonzero(subject, 4U) },
-			.Cache           = repository_cache_scope_id{ digest("cache", { aSubject }) },
-			.PullRequest     = pull_request_id{ nonzero(subject, 12U) },
-			.Number          = pull_request_number{ 1U },
-			.Scope           = scope,
-			.Mode            = github_access_mode::authenticated,
-		};
-		const auto incarnation = epoch_catalog_incarnation_id{ digest("incarnation", { aSubject }) };
+		const auto identity = local_presentation_identity_of(aSubject);
 		return file_comparison_key{
-			.Authority   = authority,
-			.Repository  = authority.Repository,
-			.PullRequest = authority.PullRequest,
-			.LeftAnchor  = { .Authority = scope, .Incarnation = incarnation, .Kind = comparison_anchor_kind::epoch_base, .Epoch = epoch_ordinal{ 1 } },
-			.RightAnchor = { .Authority = scope, .Incarnation = incarnation, .Kind = comparison_anchor_kind::epoch_head, .Epoch = epoch_ordinal{ 1 } },
+			.Authority   = identity.Authority,
+			.Repository  = identity.Authority.Repository,
+			.PullRequest = identity.Authority.PullRequest,
+			.LeftAnchor  = identity.Left,
+			.RightAnchor = identity.Right,
 			.LeftBlob    = *left,
 			.RightBlob   = *right,
 			.File        = local_presentation_file(aSubject, aPath),

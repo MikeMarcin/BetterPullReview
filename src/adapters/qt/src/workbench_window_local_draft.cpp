@@ -143,6 +143,14 @@ namespace bpr::qt {
 		update_strip_identity();
 		apply_strip_width();
 		apply_local_draft_surface();
+		if (entering && LocalDraftObserver) {
+			LocalDraftObserver(true);
+		}
+	}
+
+	void workbench_window::set_local_draft_observer(std::function<void(bool)> aObserver)
+	{
+		LocalDraftObserver = std::move(aObserver);
 	}
 
 	void workbench_window::leave_local_draft()
@@ -152,6 +160,9 @@ namespace bpr::qt {
 		}
 		LocalDraftShown   = false;
 		LocalChangesShown = false;
+		if (LocalDraftObserver) {
+			LocalDraftObserver(false);
+		}
 		LocalShown.reset();
 		LocalFiles.clear();
 		LocalCycleTitle.clear();

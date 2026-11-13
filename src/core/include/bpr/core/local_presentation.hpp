@@ -18,6 +18,17 @@
 /// the subject, the path and the exact bytes, and domain-separated from every
 /// pull request's. Nothing here reads Git or GitHub.
 namespace bpr::core {
+	/// \brief The authority and the two anchors every comparison of one local
+	/// subject shares, so Find in files over the subject's files reaches the
+	/// comparisons the viewer shows.
+	struct local_presentation_identity
+	{
+		pull_request_authority     Authority;
+		comparison_anchor_identity Left;
+		comparison_anchor_identity Right;
+	};
+	[[nodiscard]] auto local_presentation_identity_of(std::string_view aSubject) -> local_presentation_identity;
+
 	/// \brief The file identity a local subject's path has in the Files drawer
 	/// and in its comparisons. Equal subjects and paths give equal identities.
 	[[nodiscard]] auto local_presentation_file(std::string_view aSubject, std::string_view aPath) -> file_identity;

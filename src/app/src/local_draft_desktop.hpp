@@ -41,6 +41,8 @@ namespace bpr::qt {
 namespace bpr::app {
 	class suggestion_text_source;
 	class code_syntax_relay;
+	class local_draft_corpus;
+	class pr_search_controller;
 
 	/// \brief The packaged syntax definitions and the lane their classifier
 	/// runs on, so a draft's comparison and Edit view are coloured as a pull
@@ -121,6 +123,10 @@ namespace bpr::app {
 		/// \brief Replaces the one-time hooks question, for a course.
 		void               set_consent_question(std::function<bool()> aQuestion);
 		[[nodiscard]] auto view() noexcept -> qt::local_draft_parts*;
+		/// \brief Find in files over the shown candidate, through the window's Search tab.
+		void search(int aGesture);
+		/// \brief The Search tab's results answer the draft's search.
+		void attach_search();
 		/// \brief The panes' code colours for the Edit view.
 		void adopt_appearance(const qt::appearance_profile& aProfile);
 		void               shutdown();
@@ -162,6 +168,9 @@ namespace bpr::app {
 		std::unique_ptr<application::syntax_classification_application_host> SyntaxHost;
 		std::deque<wanted_syntax>                                            SyntaxWanted;
 		std::optional<wanted_syntax>                                         SyntaxClassifying;
+		std::unique_ptr<local_draft_corpus>   SearchCorpus;
+		std::unique_ptr<worker_executor>      SearchLane;
+		std::unique_ptr<pr_search_controller> Find;
 		bool BringForward = false;
 		bool Closing      = false;
 	};

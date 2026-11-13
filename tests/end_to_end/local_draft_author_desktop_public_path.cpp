@@ -10,6 +10,8 @@
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/source_find_bar.hpp"
+#include "bpr/qt/source_search_panel.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -140,6 +142,13 @@ namespace {
 			appearance.apply_to(*Window);
 			Window->comparison_surface()->adopt_appearance(appearance);
 			Drafts->adopt_appearance(appearance);
+			// As the composition routes it: the Search tab's gestures reach the draft's search.
+			Window->set_pr_search_dispatch([this](const qt::source_find_gesture aGesture) { Drafts->search(static_cast<int>(aGesture)); });
+			Window->set_local_draft_observer([this](const bool aShown) {
+				if (aShown) {
+					Drafts->attach_search();
+				}
+			});
 			Drafts->set_folder_chooser([aChosen] { return aChosen; });
 			Drafts->set_consent_question([] { return true; });
 			settle(Lanes);
@@ -197,6 +206,30 @@ try {
 	expect(viewer->token_spans(core::diff_side::right) != nullptr, "the viewer colours the draft's code as it colours a pull request's");
 	expect(page->local_projection().Observed && !page->local_projection().Hosted.Observed && changes->push_button()->text() == QStringLiteral("Check Again"),
 		   "opening reads the worktree only; GitHub is not read yet");
+
+	// Find in files: the pull request's Search tab over the candidate; a result opens in the viewer.
+	auto* const findAction = window.findChild<QAction*>(QStringLiteral("sourceFilesAction"));
+	expect(findAction != nullptr && findAction->isEnabled(), "Find in files is offered for the draft");
+	findAction->trigger();
+	settle(s.Lanes);
+	auto* const search = window.pr_search();
+	expect(tabs->currentWidget() == search && search->isVisible(), "it opens the Search tab");
+	search->bar()->query_editor()->setPlainText(QStringLiteral("parse_port"));
+	search->bar()->flush();
+	settle_until(s.Lanes, [&] { return search->projection().Status != core::source_search_status::searching && search->projection().Summary.Matches > 0U; });
+	expect(search->projection().Summary.Matches > 0U && search->projection().Scope && search->projection().Corpus, "the candidate's files are searched");
+	capture(window, QStringLiteral("search"));
+	const auto& matches = *search->projection().Matches;
+	const auto  hit     = std::ranges::find_if(matches, [&](const application::source_search_match& aMatch) {
+        const auto entry = std::ranges::find(search->projection().Corpus->Entries, aMatch.File, &application::source_corpus_entry::File);
+        return entry != search->projection().Corpus->Entries.end() && entry->path() == "src/endpoint.cpp";
+    });
+	expect(hit != matches.end(), "a match in src/endpoint.cpp");
+	search->Activate(static_cast<std::uint32_t>(std::distance(matches.begin(), hit)));
+	settle_until(s.Lanes, [&] { return window.local_comparison() && window.local_comparison()->Path == "src/endpoint.cpp" && viewer->current_result(); });
+	expect(window.local_comparison() && window.local_comparison()->Path == "src/endpoint.cpp", "a result opens its file in the viewer");
+	tabs->setCurrentIndex(0);
+	settle(s.Lanes);
 
 	// Check Again reads the hosted branch through the author's Git.
 	changes->push_button()->click();

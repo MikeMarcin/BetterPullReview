@@ -1481,7 +1481,7 @@ namespace bpr::qt {
 		const bool queryFocus = focused && ComparisonSurface->source_find()->isAncestorOf(focused);
 		const bool textFocus  = qobject_cast<QLineEdit*>(focused) || qobject_cast<QPlainTextEdit*>(focused) || qobject_cast<QTextEdit*>(focused);
 
-		const auto filesCommands = core::project_source_files_commands({ .PullRequest = HasGithubPullRequest && !showing_home() && !LocalCycleShown && static_cast<bool>(PrSearchDispatch), .Modal = QApplication::activeModalWidget() != nullptr, .Editor = textFocus && !sourceFocus && !queryFocus && !(focused && SearchPanel && SearchPanel->isAncestorOf(focused)), .Query = SearchPanel && !SearchPanel->projection().Query.empty(), .Hits = SearchPanel && SearchPanel->projection().CurrentMatch.has_value() });
+		const auto filesCommands = core::project_source_files_commands({ .PullRequest = (HasGithubPullRequest || LocalDraftShown) && !showing_home() && !LocalCycleShown && static_cast<bool>(PrSearchDispatch), .Modal = QApplication::activeModalWidget() != nullptr, .Editor = textFocus && !sourceFocus && !queryFocus && !(focused && SearchPanel && SearchPanel->isAncestorOf(focused)), .Query = SearchPanel && !SearchPanel->projection().Query.empty(), .Hits = SearchPanel && SearchPanel->projection().CurrentMatch.has_value() });
 		for (std::size_t index = 0; index < SourceFilesActions.size(); ++index) {
 			if (SourceFilesActions[index]) {
 				describe_action(SourceFilesActions[index], filesCommands[index], index == 0 ? tr("Search full changed files in the active comparison") : tr("Open the next exact search occurrence"), tr("Open a pull request and leave modal dialogs"));

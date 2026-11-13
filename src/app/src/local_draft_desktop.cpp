@@ -12,6 +12,8 @@
 #include "bpr/core/git_objects.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "local_draft_search.hpp"
+#include "pr_search_controller.hpp"
 #include "syntax_text_sources.hpp"
 
 #include <QClipboard>
@@ -70,6 +72,39 @@ namespace bpr::app {
 																								   application::appearance_host_limits{ .OutstandingRequests = 1U, .TokenSpanCacheEntries = 8U });
 			SyntaxHost->observe_work(aSyntax.Insights);
 			Window.set_local_syntax_dispatch([this](const std::string& aPath, const std::string& aDocument) { want_syntax(aPath, aDocument); });
+		}
+		// Find in files: the pull request's own search host and panel, over the shown candidate.
+		SearchCorpus = std::make_unique<local_draft_corpus>([root = aProfileRoot] { return adapters::sqlite::open_local_draft_store(root); });
+		SearchLane   = std::make_unique<worker_executor>();
+		if (Window.pr_search() != nullptr && Window.comparison_surface() != nullptr) {
+			Find = std::make_unique<pr_search_controller>(
+				*Window.pr_search(), *Window.comparison_surface(), *SearchCorpus, core::default_source_regex_engine(), aDecisions, *SearchLane,
+				[this]() -> std::optional<core::source_search_scope> {
+					if (Closing || View == nullptr || !Window.showing_local_draft() || !View->projection().Draft) {
+						return std::nullopt;
+					}
+					const auto& draft = *View->projection().Draft;
+					const auto  shown = std::ranges::find(draft.Candidates, View->projection().Shown, &core::local_draft_candidate::Ordinal);
+					if (shown == draft.Candidates.end()) {
+						return std::nullopt;
+					}
+					auto scope = local_search_scope(draft, *shown);
+					SearchCorpus->set_candidate(scope, local_candidate_subject(draft, shown->Ordinal), shown->Changes);
+					return scope;
+				},
+				[this](const core::source_search_scope&, const application::source_corpus_entry& aEntry, pr_search_controller::result_tab) -> std::optional<core::document_tab_id> {
+					const auto path = std::string{ aEntry.path() };
+					if (!Window.open_local_file(QString::fromUtf8(path.data(), static_cast<qsizetype>(path.size())))) {
+						return std::nullopt;
+					}
+					return local_search_tab;
+				},
+				[this](const core::source_search_scope&, core::file_identity, const std::string& aPath, const core::source_match_location& aLocation) {
+					const auto& shown = Window.local_comparison();
+					return shown && shown->Path == aPath && shown->Context.Key.File != core::file_identity{ }
+						&& (aLocation.Side == core::diff_side::left ? shown->Context.Key.LeftBlob : shown->Context.Key.RightBlob) == std::optional{ aLocation.Blob };
+				},
+				[this]() -> std::optional<core::document_tab_id> { return Window.showing_local_draft() ? std::optional{ local_search_tab } : std::nullopt; });
 		}
 		Window.set_local_change_dispatch([this](const std::string& aPath, const core::local_change_hunk aChange, const bool aStage) {
 			if (aStage) {
@@ -371,6 +406,29 @@ namespace bpr::app {
 		return View;
 	}
 
+	void local_draft_desktop::search(const int aGesture)
+	{
+		if (Closing || !Find) {
+			return;
+		}
+		const auto gesture = static_cast<qt::source_find_gesture>(aGesture);
+		if (gesture == qt::source_find_gesture::document_changed) {
+			Find->open();
+		} else if (gesture == qt::source_find_gesture::next || gesture == qt::source_find_gesture::previous) {
+			Find->navigate(gesture == qt::source_find_gesture::next ? core::change_navigation_direction::next : core::change_navigation_direction::previous);
+		} else {
+			Find->dispatch(gesture);
+		}
+	}
+
+	void local_draft_desktop::attach_search()
+	{
+		if (Find) {
+			Find->attach();
+			Find->observe_scope();
+		}
+	}
+
 	void local_draft_desktop::adopt_appearance(const qt::appearance_profile& aProfile)
 	{
 		if (View != nullptr) {
@@ -448,6 +506,9 @@ namespace bpr::app {
 		if (SyntaxHost) {
 			SyntaxHost->shutdown();
 		}
+		if (Find) {
+			Find->shutdown();
+		}
 		if (Changes) {
 			Changes->shutdown();
 		}
@@ -458,6 +519,6 @@ namespace bpr::app {
 
 	auto local_draft_desktop::is_quiescent() const noexcept -> bool
 	{
-		return (!Host || Host->is_quiescent()) && (!Changes || Changes->is_quiescent());
+		return (!Host || Host->is_quiescent()) && (!Changes || Changes->is_quiescent()) && (!Find || Find->is_quiescent());
 	}
 }

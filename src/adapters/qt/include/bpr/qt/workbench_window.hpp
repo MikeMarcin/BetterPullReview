@@ -1367,6 +1367,9 @@ namespace bpr::qt {
 		/// \brief Where Stage Change and Unstage Change on the code's menu go:
 		/// the path, the change, and whether it is staged (true) or unstaged.
 		void set_local_change_dispatch(std::function<void(const std::string&, core::local_change_hunk, bool)> aDispatch);
+		/// \brief Told when a local draft starts or stops being shown, so the
+		/// Search tab's results go to the draft's search or the pull request's.
+		void set_local_draft_observer(std::function<void(bool)> aObserver);
 		/// \brief The tab index of Local Changes, or -1 when it is not in the tabs.
 		[[nodiscard]] auto local_changes_tab() const -> int;
 		/// \brief Home's author entry: Prepare pull request… and In
@@ -2870,6 +2873,7 @@ namespace bpr::qt {
 		bool LocalChangesShown = false;
 		std::function<void(const std::string&, const std::string&)> LocalSyntaxDispatch;
 		std::function<void(const std::string&, core::local_change_hunk, bool)> LocalChangeDispatch;
+		std::function<void(bool)>                                              LocalDraftObserver;
 		/// What a pull request open behind the draft had, restored on leaving.
 		std::optional<application::pull_request_overview_projection> OverviewBehindDraft;
 		std::vector<application::workbench_file_projection>         FilesBehindDraft;

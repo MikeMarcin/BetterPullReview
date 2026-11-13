@@ -219,6 +219,7 @@ if(BPR_BUILD_QT)
             src/private_review_workflow.cpp
             src/review_cycle_desktop.cpp
             src/local_draft_desktop.cpp
+            src/local_draft_search.cpp
             src/local_draft_handoff.cpp
             src/profile_admission.cpp
             src/system_browser_opener.cpp

@@ -1562,6 +1562,11 @@ namespace bpr::app {
                 if(!endpoint || endpoint->blob()!=aLocation.Blob || endpoint->side()!=aLocation.Side){return false;}
                 const auto path=endpoint->path().generic_u8string();return std::string_view{reinterpret_cast<const char*>(path.data()),path.size()}==aPath; }, [this] { return TabHost ? TabHost->state().Active : std::nullopt; });
 		Window->set_pr_search_dispatch([this](auto aGesture) {
+			// A local draft searches its own candidate through the same panel.
+			if (DraftDesktop && Window->showing_local_draft() && !Closing) {
+				DraftDesktop->search(static_cast<int>(aGesture));
+				return;
+			}
 			if (!PrFind || Closing) {
 				return;
 			}
@@ -1571,6 +1576,17 @@ namespace bpr::app {
 				PrFind->navigate(aGesture == qt::source_find_gesture::next ? core::change_navigation_direction::next : core::change_navigation_direction::previous);
 			} else {
 				PrFind->dispatch(aGesture);
+			}
+		});
+		Window->set_local_draft_observer([this](const bool aShown) {
+			if (Closing) {
+				return;
+			}
+			if (aShown && DraftDesktop) {
+				DraftDesktop->attach_search();
+			} else if (!aShown && PrFind) {
+				PrFind->attach();
+				PrFind->observe_scope();
 			}
 		});
 		Window->set_document_tab_dispatch([this](const core::document_tab_intent& aIntent) {
