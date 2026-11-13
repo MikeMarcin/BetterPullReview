@@ -2769,3 +2769,29 @@ Decisions made this round (the owner may overrule them in the look):
 - The fixture's threads carry no times, so lone threads lead the list; the look's reviews and bots start a screen down.
 
 Not touched: sessions `acaf71a2…`, `8ce7e455…`, `4329741d…` and their roots; the v002, v005 local-draft and v006 roots; PIDs 38152, 51569, 26296, 98149/98159, 42869/42879, 82478/82486, 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
+
+### RFC-BPR-0127 rework round 6 and BPR-2171 follow-ups (2026-11-13)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines. Frontend-design loaded first.
+
+Step 0: looks v003 (`acaf71a2…`: 8 Accept, `make-draft-reason` Reject), v004 (`8ce7e455…`: `finish-review-keep-local` Reject, six undecided) and v005 (`4329741d…`: `answer-one-keep-action` Reject, three undecided) recorded verbatim on the ledger and BPR-2162 (`62d426638`, main `6f678dd5f`). Hosts 98149/98159, 42869/42879, 82478/82486 stopped with the attended-review `stop`; roots `comments-absorb-notes-v003.as90oxpw`, `-v004.r230gldo`, `-v005.7ub_34li` removed with `freeze_attended_build.py remove` (nothing ran from them). Discuss session `277831a5…` (handed back 22:59:49Z: ac1-ac4 Accept, ac5 Reject) recorded on BPR-2171; host 26008/26018 stopped; root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` **kept**: the owner's app PID 28776 runs from it.
+
+| Commit | What |
+|---|---|
+| `bd40efb4e` | `comment_state_toggle` (computer and pencil, struck pencil when Draft is refused) on cards, Local replies, draft cards, composers, Finish review rows, agent surfaces; refusal words at most 60 characters; the draft reply shown in its thread's Reply field (the v003 blocking cause) |
+| `ae46036fe` | Agent keep actions through the control; the composer field fits once (v005 overlap); one way to Discuss on a draft; Finish review rows at the sheet's widths; `--attended-agent-draft-first` |
+| `8b16fbefb` | Discuss: Only this file keeps the centred column and band; Discuss from Review opens the thread open there; formatting; app source pin resealed (it had not been since BPR-2160) |
+| `dd8acd200` | RFC owner amendment (one state control); BPR-2162 round 6 and BPR-2171 records. **Frozen commit** |
+
+Integration pass at `8b16fbefb` (dev, Debug, macOS): 37 of 37, listed on BPR-2162; `application_composition_source_contract`, `application_review_round_trip_composition_contract`, `architecture_boundaries` pass; documentation gate OK. Not run: `coding-tidy`, `qt_conversation_finder_scale_200`, the full suite.
+
+Owner look v006, filed and not waited on: session `5dd1e60daeb1b265f39c6e3f84247a43`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v006-2026-11-13/state` (URL in `serve.log` beside it), cursor 36, host PID 9121 (Tailscale child 9129). Roots: `/Users/jaeger/comments-absorb-notes-v006.csdaortz`, `/Users/jaeger/comments-absorb-notes-agent-v006.6vrnvubx`, `/Users/jaeger/discuss-busy-pr-v002.16ews593`. Twelve questions, listed on the ledger.
+
+Next action: on handback read from cursor 36; record verbatim on BPR-2162, BPR-2171 and the ledger; stop host 9121 with `stop`; remove the three roots (and `discuss-busy-pr-v001.tj2qtseq` once PID 28776 has ended) with `freeze_attended_build.py remove`. All of RFC-BPR-0127's questions Accept: finish BPR-2162 and close the RFC. Both Discuss questions Accept: finish BPR-2171. Mirror card moves to main.
+
+Decisions made this round (the owner may overrule them in the look):
+- AC10 reads with the amendment: Local is always offered on the agent surfaces; Draft where a line or thread takes one, else the struck pencil.
+- Threads' row menu and the finding queue keep their menu item and list action, with the control's glyphs, rather than an inline control (Threads rows are painted, not widgets).
+- The Make draft rule is unchanged (a line and a thread each hold one draft of mine); the fix makes the draft that holds it visible and movable.
+
+Not touched: the v002 root and PID 38152; the v005 local-draft root and PID 26296; the v006 local-draft root and PID 51569; PIDs 20044, 39623, 74290, 74692/74706, 10695/39804, 28776; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
