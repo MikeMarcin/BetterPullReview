@@ -647,10 +647,17 @@ namespace bpr::qt {
 		ReadMeter->set_segments({ { static_cast<double>(progress.FilesRead), Colours.Accepted } }, static_cast<double>(progress.FilesTotal));
 		ReadMeter->setAccessibleName(filesReady ? filesRead + QStringLiteral(" files read") : QString{ });
 		ReadMeter->setVisible(filesReady && progress.FilesTotal != 0U);
-		set_value(overview_value::private_notes, value(progress.NotesReadiness, count_text(progress.PrivateNotes)), false);
-		show_value(overview_value::private_notes, progress.PrivateNotes != 0U || !notesReady);
-		set_value(overview_value::drafted_comments, count_text(progress.DraftedComments.value_or(0U)), false);
-		show_value(overview_value::drafted_comments, progress.DraftedComments.value_or(0U) != 0U);
+		// RFC-BPR-0127 ([[BPR-2159]]). My comments by state: in the review,
+		// not in it, and Local; the window's roster when it has told us.
+		const auto inReview    = MineTotals ? MineTotals->InReview : progress.DraftedComments.value_or(0U);
+		const auto notInReview = MineTotals ? MineTotals->NotInReview : 0U;
+		const auto local       = MineTotals ? MineTotals->Local : progress.PrivateNotes;
+		set_value(overview_value::in_review, count_text(inReview), false);
+		show_value(overview_value::in_review, inReview != 0U);
+		set_value(overview_value::not_in_review, count_text(notInReview), false);
+		show_value(overview_value::not_in_review, notInReview != 0U);
+		set_value(overview_value::local_comments, value(progress.NotesReadiness, count_text(local)), false);
+		show_value(overview_value::local_comments, local != 0U || !notesReady);
 		NewThreadsText->setText(plural(NewThreads, QStringLiteral("1 thread with new posts"), QStringLiteral("%1 threads with new posts")));
 		NewThreadsGo->setAccessibleName(QStringLiteral("Go to the %1").arg(NewThreadsText->text()));
 		auto unread = palette();
@@ -679,7 +686,7 @@ namespace bpr::qt {
 		}
 		auto summary = filesReady ? filesRead + QStringLiteral(" files read") : QStringLiteral("File progress: %1").arg(value(progress.FilesReadiness, { }));
 		if (!notesReady) {
-			summary += QStringLiteral("; private notes: %1").arg(value(progress.NotesReadiness, { }));
+			summary += QStringLiteral("; local comments: %1").arg(value(progress.NotesReadiness, { }));
 		}
 		header->setAccessibleName(QStringLiteral("My review: %1").arg(summary));
 	}

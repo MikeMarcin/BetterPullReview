@@ -251,16 +251,28 @@ namespace bpr::app {
 										  }));
 				return;
 			}
-			if (draft == drafts.end() || !shown || shown->Comparison != draft->Draft.Anchor.Comparison) {
+			if (draft == drafts.end()) {
+				refuse(QStringLiteral("There is no draft to keep local. Nothing changed."));
+				return;
+			}
+			// RFC-BPR-0127 ([[BPR-2159]]). From a list (Finish your review,
+			// Threads) the draft's comparison need not be shown: its file is
+			// the roster's path, and it keeps its comparison, outdated
+			// elsewhere ("unmatched") until that comparison shows it.
+			const auto onShown = shown.has_value() && shown->Comparison == draft->Draft.Anchor.Comparison;
+			if (!onShown && aGesture.Path.empty()) {
 				refuse(QStringLiteral("Return to the draft's comparison to keep it local. Nothing changed."));
 				return;
 			}
-			auto input = core::keep_local_input{ .Draft = draft->Draft, .File = shown->File };
+			const auto file      = onShown ? shown->File : core::file_identity_of(aGesture.Path);
+			const auto filePath  = onShown ? (SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt)
+										   : std::optional{ aGesture.Path };
+			auto       input     = core::keep_local_input{ .Draft = draft->Draft, .File = file };
 			if (aGesture.Action == qt::card_action::save_local && !aGesture.Body.empty()) {
 				input.Draft.Body = aGesture.Body;
 			}
 			const auto* const surface = Window->comparison_surface();
-			if (surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Digest == draft->Draft.Anchor.Comparison) {
+			if (onShown && surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Digest == draft->Draft.Anchor.Comparison) {
 				if (const auto line = core::note_line_anchor_at(surface->current_result()->Alignment, draft->Draft.Anchor.Side, draft->Draft.Anchor.Line); line.has_value()) {
 					input.ShownBlob = line->Blob;
 				}
@@ -277,7 +289,7 @@ namespace bpr::app {
 			auto comment = application::local_comment_record{ .Body = input.Draft.Body, .StartLine = decided->StartLine, .ReplyToThread = decided->ReplyToThread };
 			if (decided->Place.File && decided->Place.Comparison) {
 				comment.Attachment = application::local_comment_attachment{ .File = *decided->Place.File, .Comparison = *decided->Place.Comparison, .Line = decided->Place.Line };
-				comment.FilePath   = SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt;
+				comment.FilePath   = filePath;
 			}
 			// Save with words the store has not seen yet: they are the
 			// draft's first, then the draft moves with them.

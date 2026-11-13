@@ -73,8 +73,6 @@ namespace bpr::application {
 		/// Unread posts on the file; absent until the ledger keeps post read
 		/// state ([[BPR-0648]]).
 		std::optional<std::size_t> UnreadCount;
-		/// My private note on the file, if I left one.
-		std::optional<std::string> Note;
 
 		auto operator<=>(const overview_file_row&) const = default;
 	};
@@ -134,6 +132,7 @@ namespace bpr::application {
 		/// [[BPR-1339]]. Files read or accepted (`core::progress_done`).
 		std::size_t                FilesRead    = 0U;
 		std::size_t                FilesTotal   = 0U;
+		/// RFC-BPR-0127. My Local comments on this pull request.
 		std::size_t                PrivateNotes = 0U;
 		std::optional<std::size_t> DraftedComments;
 		overview_readiness         FilesReadiness = overview_readiness::ready;

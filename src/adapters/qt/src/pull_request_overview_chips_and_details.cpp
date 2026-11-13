@@ -142,6 +142,7 @@ namespace bpr::qt {
 			open_comments_menu(aCell, Files->viewport()->mapToGlobal(aChip.Box.bottomLeft().toPoint()));
 			break;
 		case overview_comment_chip::kind::drafts:
+		case overview_comment_chip::kind::local:
 			break;
 		}
 	}

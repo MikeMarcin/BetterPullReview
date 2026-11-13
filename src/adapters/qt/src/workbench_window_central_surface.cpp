@@ -489,6 +489,9 @@ namespace bpr::qt {
 		OverviewPage = new pull_request_overview_page{ CentreStack };
 		// [[BPR-2093]]. A drafts chip lists the row's drafts in Threads.
 		OverviewPage->set_drafts_dispatch([this](const QString& aPath) { static_cast<void>(show_drafts_in_threads(aPath)); });
+		// RFC-BPR-0127 ([[BPR-2159]]). A Local chip: Threads on Local, at the
+		// row's first.
+		OverviewPage->set_local_dispatch([this](const QString& aPath) { static_cast<void>(show_state_in_threads(finder_state::local, aPath)); });
 		// [[BPR-1588]]. Status's tab row carries Open on GitHub too.
 		if (OpenOnGithubAction != nullptr) {
 			OverviewPage->set_open_on_github_action(OpenOnGithubAction);
@@ -1235,9 +1238,23 @@ namespace bpr::qt {
 				static_cast<void>(open_roster_draft(core::review_draft_id{ std::stoull(aLocation.Thread.substr(finder_saved_draft_prefix.size())) }));
 				return;
 			}
+			// RFC-BPR-0127 ([[BPR-2159]]). A Local row goes to its card.
+			if (aLocation.Thread.starts_with(finder_local_prefix)) {
+				open_local_from_threads(std::stoull(aLocation.Thread.substr(finder_local_prefix.size())), false);
+				return;
+			}
 			static_cast<void>(open_thread_from_threads(aLocation.Thread, aLocation.Post, aDestination));
 		});
 		Finder->set_leave_dispatch([this] { leave_threads(); });
+		// RFC-BPR-0127 ([[BPR-2159]]). The row menu's Make Draft and Keep
+		// Local.
+		Finder->set_move_dispatch([this](const std::uint64_t aId, const bool aKeepLocal) {
+			if (aKeepLocal) {
+				keep_listed_draft_local(core::review_draft_id{ aId });
+			} else {
+				open_local_from_threads(aId, true);
+			}
+		});
 		// [[BPR-1582]]. The row menu's Mark as read is the card's Mark read.
 		Finder->set_read_dispatch([this](const std::string& aThread, const bool aRead) {
 			if (aRead && ConversationReadDispatch) {
@@ -1416,6 +1433,10 @@ namespace bpr::qt {
 				}
 			},
 			[this](const review_submission_editor::outside_draft& aDraft) { static_cast<void>(open_roster_draft(aDraft.Id)); });
+		// RFC-BPR-0127 ([[BPR-2159]]). Keep Local on a not-in-review row, and
+		// the Local line's Show.
+		ReviewSubmissionEditor->set_outside_keep_local([this](const review_submission_editor::outside_draft& aDraft) { keep_listed_draft_local(aDraft.Id); });
+		ReviewSubmissionEditor->set_local_show([this] { static_cast<void>(show_state_in_threads(finder_state::local, QString{ })); });
 		ReviewSubmissionEditor->set_pending_leave_out([this](const core::review_submission_comment& aComment) {
 			if (DraftReviewDispatch) {
 				DraftReviewDispatch({ aComment.Draft }, false);

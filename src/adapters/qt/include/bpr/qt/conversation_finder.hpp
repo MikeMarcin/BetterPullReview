@@ -316,6 +316,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1582]]. Where the row menu's Mark as read and Mark as
 		/// unread go.
 		void set_read_dispatch(finder_read_dispatch aDispatch);
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). The row menu's Make Draft on
+		/// my Local comment (`aKeepLocal` false, its Local identity) or Keep
+		/// Local on my saved draft (true, its draft identity).
+		void set_move_dispatch(std::function<void(std::uint64_t, bool)> aDispatch);
+		/// \brief The row menu's Make Draft or Keep Local, while it is open.
+		[[nodiscard]] auto move_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1699]]. Where the row menu's Mark All from an
 		/// author as Read goes, with the GitHub login, and how many of that
 		/// author's posts on the pull request are new; without a count the
@@ -422,6 +428,7 @@ namespace bpr::qt {
 		void               refresh_colours();
 		void               open_label_menu();
 		void               open_state_menu();
+		[[nodiscard]] auto count_of(finder_state aState) const -> std::size_t;
 		void               tell_filter_choice() const;
 		void               pick(std::size_t aItem, std::optional<std::size_t> aBead, core::workbench_thread_destination aDestination);
 		[[nodiscard]] auto discuss_shown(std::size_t aItem) const -> bool;
@@ -485,12 +492,14 @@ namespace bpr::qt {
 		QPointer<QAction>          OpenReview;
 		QPointer<QAction>          OpenDiscuss;
 		QPointer<QAction>          ReadAction;
+		QPointer<QAction>          MoveAction;
 		QPointer<QAction>          AuthorReadAction;
 		std::string                MenuRow;
 		std::optional<std::size_t> MenuBead;
 
 		finder_pick_dispatch                       PickDispatch;
 		finder_read_dispatch                       ReadDispatch;
+		std::function<void(std::uint64_t, bool)>   MoveDispatch;
 		std::function<void(const std::string&)>    AuthorReadDispatch;
 		std::function<std::size_t(const QString&)> AuthorUnreadCount;
 		core::reading_width                        ReadingWidth = core::default_reading_width;

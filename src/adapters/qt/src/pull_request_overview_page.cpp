@@ -136,14 +136,15 @@ namespace bpr::qt {
 				return QStringLiteral("Checks");
 			case overview_value::files_read:
 				return QStringLiteral("Files read");
-			case overview_value::private_notes:
-				return QStringLiteral("Private notes");
-			case overview_value::drafted_comments:
+			case overview_value::in_review:
+				return QStringLiteral("In review");
+			case overview_value::not_in_review:
+				return QStringLiteral("Not in review");
+			case overview_value::local_comments:
 				break;
 			}
-			// [[BPR-1589]]. My comments not yet published, as Compose review
-			// lists them.
-			return QStringLiteral("Pending comments");
+			// RFC-BPR-0127 ([[BPR-2159]]). My comments by state.
+			return QStringLiteral("Local comments");
 		}
 
 		[[nodiscard]] auto value_object_name(const overview_value aValue) -> QString
@@ -163,12 +164,14 @@ namespace bpr::qt {
 				return QStringLiteral("overviewChecksValue");
 			case overview_value::files_read:
 				return QStringLiteral("overviewFilesReadValue");
-			case overview_value::private_notes:
-				return QStringLiteral("overviewPrivateNotesValue");
-			case overview_value::drafted_comments:
+			case overview_value::in_review:
+				return QStringLiteral("overviewInReviewValue");
+			case overview_value::not_in_review:
+				return QStringLiteral("overviewNotInReviewValue");
+			case overview_value::local_comments:
 				break;
 			}
-			return QStringLiteral("overviewDraftedCommentsValue");
+			return QStringLiteral("overviewLocalCommentsValue");
 		}
 
 		void expand_new_folders(QTreeView& aView, const QModelIndex& aParent, const int aFirst, const int aLast)
@@ -566,7 +569,7 @@ namespace bpr::qt {
 		Files->setAccessibleName(QStringLiteral("Files table"));
 		const auto keysHelp = QStringLiteral(
 			"Every file with its operation, line counts, whether it changed "
-			"since my last review, my read state, comment counts and my note; "
+			"since my last review, my read state and comment counts; "
 			"activate a file to read it; click a folder, or use Left and Right, to hide and show its files; "
 			"%1; "
 			"Tab steps from a row onto its comment chips, Enter or Space lists a chip's threads and Escape returns to the row; "
@@ -590,10 +593,10 @@ namespace bpr::qt {
 		Files->setEditTriggers(QAbstractItemView::NoEditTriggers);
 		// [[BPR-1363]]. Each column as wide as the widest cell of the whole
 		// tree, every file whether its folder is open or not, so opening or
-		// closing a folder, a scroll or a refresh moves no column; Note takes
-		// the rest. Delegate measures stay bounded on a large review: only the
+		// closing a folder, a scroll or a refresh moves no column; File takes
+		// the rest (RFC-BPR-0127: the Note column is gone). Delegate measures stay bounded on a large review: only the
 		// widest few cells by their text are measured.
-		FileColumns = new steady_columns{ *Files, overview_file_model::note_column, [](const QModelIndex& aIndex) {
+		FileColumns = new steady_columns{ *Files, overview_file_model::file_column, [](const QModelIndex& aIndex) {
 											 return aIndex.data(overview_file_model::folder_role).toBool() ? 1 : 0;
 										 } };
 		connect(Model, &QAbstractItemModel::rowsInserted, this,
@@ -825,7 +828,7 @@ namespace bpr::qt {
 		attention.Details->addWidget(RequirementDetails);
 		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) { RequirementDetails->setVisible(aOpen); });
 
-		// My review: files read with a bar, my notes and pending comments, and
+		// My review: files read with a bar, my comments by state, and
 		// the threads with posts I have not read, with Go to them. It opens to
 		// what happened since my last review that has a value.
 		const auto  myReview = makeSection(overview_status_section::my_review, QStringLiteral("My review"), QStringLiteral("overviewMyReviewSection"));
@@ -835,8 +838,9 @@ namespace bpr::qt {
 		ReadMeter->setObjectName(QStringLiteral("overviewReadMeter"));
 		myReview.Body->addWidget(ReadMeter);
 		myReview.Body->addSpacing(4);
-		addValue(myReview.Body, overview_value::private_notes);
-		addValue(myReview.Body, overview_value::drafted_comments);
+		addValue(myReview.Body, overview_value::in_review);
+		addValue(myReview.Body, overview_value::not_in_review);
+		addValue(myReview.Body, overview_value::local_comments);
 		NewThreadsRow = new QWidget{ myBody };
 		NewThreadsRow->setObjectName(QStringLiteral("overviewNewThreads"));
 		auto* const newLayout = new QHBoxLayout{ NewThreadsRow };

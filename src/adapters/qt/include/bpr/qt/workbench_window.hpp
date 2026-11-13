@@ -2875,6 +2875,10 @@ namespace bpr::qt {
 		void present_mine_counts();
 		/// Threads' Local rows, the counts and Finish your review's line.
 		void present_local_found(const std::vector<local_comment_card>& aComments);
+		/// Keep Local on a listed draft (Finish your review, Threads).
+		void keep_listed_draft_local(core::review_draft_id aDraft);
+		/// A Local row of Threads: its card in Review; then Make Draft.
+		void open_local_from_threads(std::uint64_t aLocal, bool aMakeDraft);
 		std::function<void(std::vector<core::review_draft_id>, bool)> DraftReviewDispatch;
 		std::function<void(core::review_draft_id, std::uint64_t)>     CarriedSuggestionDispatch;
 		/// [[BPR-1733]]. The moved suggestions the composition last presented.
@@ -3092,6 +3096,9 @@ namespace bpr::qt {
 		void show_agent(bool aAsk);
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
+		/// RFC-BPR-0127 ([[BPR-2159]]). Make Draft once the pending Local
+		/// comment is open in its file.
+		bool PendingLocalMakeDraft = false;
 		/// Owner look v004. A line a link asked for, selected once its file's
 		/// comparison is shown and measured; tried again until then, ten seconds at most.
 		struct pending_line_go

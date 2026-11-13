@@ -915,7 +915,7 @@ namespace bpr::application {
 		sort_check_rows(projection);
 		project_status(aSnapshot, projection);
 
-		// The files. [[BPR-0972]]. Receipts and notes are ordered by file once,
+		// The files. [[BPR-0972]]. Receipts are ordered by file once,
 		// so each file's are a binary search; the first for a file answers,
 		// as a search from the front did.
 		auto receipts = std::vector<const core::file_receipt*>{ };
@@ -924,15 +924,6 @@ namespace bpr::application {
 			receipts.push_back(&receipt);
 		}
 		std::ranges::stable_sort(receipts, { }, [](const core::file_receipt* aReceipt) { return aReceipt->File; });
-		auto notes = std::vector<const local_comment_record*>{ };
-		if (aContext.Private.has_value()) {
-			for (const auto& note : aContext.Private->LocalComments) {
-				if (note.Attachment.has_value()) {
-					notes.push_back(&note);
-				}
-			}
-			std::ranges::stable_sort(notes, { }, [](const local_comment_record* aNote) { return aNote->Attachment->File; });
-		}
 		projection.Files.reserve(aSnapshot.Files.size());
 		for (const auto& file : aSnapshot.Files) {
 			auto row                       = overview_file_row{ };
@@ -953,9 +944,10 @@ namespace bpr::application {
 				++*since.FilesChanged;
 			}
 			// [[BPR-1404]]. A file identity joins private observations. Without
-			// either population there is nothing to join, so a refresh need not
-			// derive every path's identity on the serialized presentation lane.
-			if (!receipts.empty() || !notes.empty()) {
+			// receipts there is nothing to join, so a refresh need not derive
+			// every path's identity on the serialized presentation lane.
+			// RFC-BPR-0127 ([[BPR-2159]]): Overview has no Note column.
+			if (!receipts.empty()) {
 				const auto identity = core::file_identity_of(file.Path);
 				const auto receipt  = std::ranges::lower_bound(receipts, identity, { }, [](const core::file_receipt* aReceipt) { return aReceipt->File; });
 				if (receipt != receipts.end() && (*receipt)->File == identity) {
@@ -964,10 +956,6 @@ namespace bpr::application {
 					if (core::progress_done(**receipt)) {
 						++projection.Progress.FilesRead;
 					}
-				}
-				const auto note = std::ranges::lower_bound(notes, identity, { }, [](const local_comment_record* aNote) { return aNote->Attachment->File; });
-				if (note != notes.end() && (*note)->Attachment->File == identity) {
-					row.Note = (*note)->Body;
 				}
 			}
 			const auto facts = factsByPath.find(std::string_view{ file.Path });

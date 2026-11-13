@@ -375,9 +375,6 @@ namespace bpr::qt {
 			if (!folder && column == overview_file_model::removed_column) {
 				option.palette.setColor(QPalette::Text, Colours.Defect);
 			}
-			if (!folder && column == overview_file_model::note_column) {
-				option.palette.setColor(QPalette::Text, option.palette.color(QPalette::PlaceholderText));
-			}
 			if (remainder) {
 				option.font.setWeight(QFont::DemiBold);
 				option.palette.setColor(QPalette::Text, option.palette.color(QPalette::PlaceholderText));

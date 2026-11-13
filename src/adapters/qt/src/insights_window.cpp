@@ -799,7 +799,9 @@ namespace bpr::qt {
 		header->addLayout(rangeColumn);
 		aColumn.addLayout(header);
 		auto*             tiles = grid(aColumn, 4);
-		const QStringList titles{ tr("Reviews submitted"), tr("Files accepted"), tr("Comments posted"), tr("Private notes") };
+		// RFC-BPR-0127 ([[BPR-2159]], Q13). Private notes became Local comments;
+		// the tile keeps counting the same history.
+		const QStringList titles{ tr("Reviews submitted"), tr("Files accepted"), tr("Comments posted"), tr("Local comments") };
 		for (int index = 0; index < 4; ++index) {
 			const auto labels                              = tile(*tiles, index, 4, titles[index], tr("No activity yet"));
 			ReviewValues[static_cast<std::size_t>(index)]  = labels.Value;
@@ -838,7 +840,7 @@ namespace bpr::qt {
 		const auto  date   = [](std::int64_t aDay) { return QLocale{ }.toString(QDate{ 1970, 1, 1 }.addDays(aDay), QLocale::ShortFormat); };
 		CountedSince->setText(ReviewsSnapshot.Available ? tr("Counted on this computer since %1").arg(date(ReviewsSnapshot.StartedDay)) : tr("Local review statistics unavailable"));
 		const std::array  metrics{ metric::submitted, metric::accepted, metric::comments, metric::notes };
-		const QStringList empty{ tr("No submitted reviews yet"), tr("No accepted files yet"), tr("No posted comments yet"), tr("No private notes yet") };
+		const QStringList empty{ tr("No submitted reviews yet"), tr("No accepted files yet"), tr("No posted comments yet"), tr("No local comments yet") };
 		for (std::size_t index = 0; index < metrics.size(); ++index) {
 			ReviewValues[index]->setText(value(metrics[index]) ? number(value(metrics[index])) : empty[static_cast<int>(index)]);
 			ReviewValues[index]->setProperty("insightsType", value(metrics[index]) ? "value" : "empty");

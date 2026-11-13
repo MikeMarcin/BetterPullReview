@@ -333,11 +333,12 @@ namespace {
 		auto notesOnly = context;
 		notesOnly.Receipts.clear();
 		const auto noteProjection = application::project_pull_request_overview(snapshot(), notesOnly);
-		expect(row_named(noteProjection, "Engine/Renderer/HairStrandsVoxelization.cpp").Note
-					   == std::optional<std::string>{ "Re-read the atomic move" }
+		// RFC-BPR-0127 ([[BPR-2159]]). A Local comment is counted, not put
+		// on a row: Overview has no Note column.
+		expect(noteProjection.Progress.PrivateNotes == 1U
 				   && !row_named(noteProjection, "Engine/Renderer/HairStrandsVoxelization.cpp").Read
 				   && noteProjection.Progress.FilesRead == 0U,
-			   "a private note reaches its exact row without a receipt population");
+			   "a Local comment is counted without a receipt population");
 
 		// The head I reviewed is the head: nothing changed since.
 		context.Head = commit('c');

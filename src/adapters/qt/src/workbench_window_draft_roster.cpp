@@ -1,3 +1,4 @@
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -95,6 +96,11 @@ namespace bpr::qt {
 			counts[path].Local = local;
 		}
 		OverviewPage->set_drafts(std::move(counts));
+		// My review counts my comments by state: a reply is not in the
+		// review, a held draft is.
+		OverviewPage->set_mine_totals(overview_draft_count{ .InReview    = DraftRoster.InReview + DraftRoster.Held,
+															.NotInReview = DraftRoster.NotInReview + DraftRoster.Replies,
+															.Local       = LocalTotal });
 	}
 
 	void workbench_window::present_local_found(const std::vector<local_comment_card>& aComments)
@@ -120,9 +126,9 @@ namespace bpr::qt {
 		if (Finder != nullptr) {
 			Finder->set_local_comments(std::move(rows));
 		}
-		LocalTotal = aComments.size();
-		if (byPath != LocalByPath) {
+		if (byPath != LocalByPath || LocalTotal != aComments.size()) {
 			LocalByPath = std::move(byPath);
+			LocalTotal  = aComments.size();
 			present_mine_counts();
 		}
 		if (ReviewSubmissionEditor != nullptr) {
@@ -173,6 +179,45 @@ namespace bpr::qt {
 			return false;
 		}
 		return true;
+	}
+
+	void workbench_window::keep_listed_draft_local(const core::review_draft_id aDraft)
+	{
+		// RFC-BPR-0127 ([[BPR-2159]]). Keep Local from a list: the draft's
+		// file goes with it, so it can be kept when its comparison is not
+		// the one shown.
+		const auto found = std::ranges::find(DraftRoster.Entries, aDraft, &core::draft_roster_entry::Id);
+		auto gesture     = comment_state_gesture{ .Action = card_action::keep_local, .Identity = std::string{ finder_saved_draft_prefix } + std::to_string(aDraft.value()), .Draft = aDraft };
+		if (found != DraftRoster.Entries.end()) {
+			gesture.Path = found->Path;
+		}
+		if (CommentStateDispatch) {
+			CommentStateDispatch(gesture);
+		}
+	}
+
+	void workbench_window::open_local_from_threads(const std::uint64_t aLocal, const bool aMakeDraft)
+	{
+		// RFC-BPR-0127 ([[BPR-2159]]). A Local row opens its card in Review,
+		// at its file and line; Make Draft from the row's menu is then the
+		// card's, decided against that file's comparison.
+		if (ConversationPanel == nullptr) {
+			return;
+		}
+		const auto& comments = ConversationPanel->cards()->local_comments();
+		const auto  found    = std::ranges::find(comments, aLocal, &local_comment_card::Id);
+		if (found == comments.end()) {
+			return;
+		}
+		PendingLocalMakeDraft = aMakeDraft;
+		if (found->Place == local_comment_place::other_file) {
+			open_local_elsewhere(conversation_cards_view::local_comment_identity(aLocal));
+			return;
+		}
+		PendingNoteOpen = aLocal;
+		choose_home(false);
+		choose_modality(review_modality::review);
+		resume_private_note_open();
 	}
 
 	auto workbench_window::show_drafts_in_threads(const QString& aPath) -> bool

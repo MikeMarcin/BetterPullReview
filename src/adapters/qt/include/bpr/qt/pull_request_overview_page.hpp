@@ -208,7 +208,7 @@ namespace bpr::qt {
 	/// without files of its own takes no row. Siblings keep projection order
 	/// and surviving items keep their indexes across refresh. Columns follow the
 	/// accepted table: operation, file, added, removed, changed, read,
-	/// comments, note. The model holds the projection's rows and decides
+	/// comments (RFC-BPR-0127: no note). The model holds the projection's rows and decides
 	/// nothing about them.
 	class overview_file_model final : public QAbstractItemModel
 	{
@@ -221,7 +221,6 @@ namespace bpr::qt {
 			changed_column,
 			read_column,
 			comments_column,
-			note_column,
 			column_count,
 		};
 
@@ -512,11 +511,14 @@ namespace bpr::qt {
 		my_unresolved_threads,
 		checks,
 		files_read,
-		private_notes,
-		drafted_comments,
+		/// RFC-BPR-0127 ([[BPR-2159]]). My review counts my comments by
+		/// state: in the review, not in it, and Local.
+		in_review,
+		not_in_review,
+		local_comments,
 	};
 
-	inline constexpr std::size_t overview_value_count = 9U;
+	inline constexpr std::size_t overview_value_count = 10U;
 
 	using overview_path_dispatch = std::function<void(const QString&)>;
 	/// [[BPR-1089]]. The view's chips, mode and sort, for the host to count.
@@ -683,6 +685,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-2093]]. My drafts per file, by path; the Comments
 		/// column shows them. Empty clears them.
 		void set_drafts(std::map<QString, overview_draft_count> aDrafts);
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). My review's counts: my drafts
+		/// in the review and not in it, and my Local comments, all of them.
+		void set_mine_totals(overview_draft_count aTotals);
 		/// \brief [[BPR-2093]]. Where a drafts chip goes: the file's (or the
 		/// folder's) path, to list its drafts.
 		void set_drafts_dispatch(std::function<void(const QString&)> aDispatch);
@@ -1016,6 +1021,7 @@ namespace bpr::qt {
 		overview_drill_down_dispatch                          DrillDownDispatch;
 		std::function<void(const QString&)>                   DraftsDispatch;
 		std::function<void(const QString&)>                   LocalDispatch;
+		std::optional<overview_draft_count>                   MineTotals;
 		QToolButton*                                          OpenCounts    = nullptr;
 		QToolButton*                                          AllCounts     = nullptr;
 		QToolButton*                                          Uncertain     = nullptr;

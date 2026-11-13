@@ -661,9 +661,17 @@ namespace bpr::qt {
 		}
 		const auto id = *PendingNoteOpen;
 		PendingNoteOpen.reset();
-		show_private_note(id);
+		const auto makeDraft = std::exchange(PendingLocalMakeDraft, false);
+		if (ConversationPanel->cards()->open_thread_id() != conversation_cards_view::local_comment_identity(id)) {
+			show_private_note(id);
+		}
 		if (found->Line.has_value() && ComparisonSurface != nullptr) {
 			static_cast<void>(ComparisonSurface->reveal_conversation_line(found->Side, *found->Line - 1U));
+		}
+		// RFC-BPR-0127 ([[BPR-2159]]). Make Draft from a Threads row, now
+		// that its file is shown.
+		if (makeDraft) {
+			dispatch_comment_state(card_action::make_draft, conversation_cards_view::local_comment_identity(id));
 		}
 	}
 

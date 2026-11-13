@@ -970,6 +970,16 @@ namespace bpr::qt {
 			}
 		}
 
+		/// RFC-BPR-0127. Words the chip may show, so it keeps the widest's
+		/// width and nothing beside it moves when a choice changes it.
+		void set_reserve(QStringList aReserve)
+		{
+			if (Reserve != aReserve) {
+				Reserve = std::move(aReserve);
+				updateGeometry();
+			}
+		}
+
 		void set_glyph(const conversation_glyph aGlyph)
 		{
 			if (Glyph != aGlyph) {
@@ -1000,8 +1010,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto sizeHint() const -> QSize override
 		{
 			auto width = 9 + 16 + 9;
-			if (!Count.isEmpty()) {
-				width += 5 + QFontMetrics{ weighted(font(), QFont::DemiBold) }.horizontalAdvance(Count);
+			const auto metrics = QFontMetrics{ weighted(font(), QFont::DemiBold) };
+			auto       words   = Count.isEmpty() ? 0 : metrics.horizontalAdvance(Count);
+			for (const auto& reserve : Reserve) {
+				words = std::max(words, metrics.horizontalAdvance(reserve));
+			}
+			if (words != 0) {
+				width += 5 + words;
 			}
 			if (Menu) {
 				width += 5 + 12;
@@ -1054,7 +1069,8 @@ namespace bpr::qt {
 				x += width;
 			}
 			if (Menu) {
-				x += 5;
+				// The arrow keeps the chip's right edge, whatever its words.
+				x = std::max(x + 5, width() - 9 - 12);
 				painter.setOpacity(0.7);
 				paint_conversation_glyph(painter, QRectF{ static_cast<qreal>(x), (height() - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::down, ink);
 			}
@@ -1073,6 +1089,7 @@ namespace bpr::qt {
 		bool                                Menu = false;
 		bool                                On   = false;
 		QString                             Count;
+		QStringList                         Reserve;
 		std::optional<core::feedback_label> Label;
 		note_colours                        Colours;
 		feedback_mark_theme                 Theme;
@@ -1610,13 +1627,21 @@ namespace bpr::qt {
 	auto conversation_finder::state_count(const finder_state aState) -> std::size_t
 	{
 		refresh();
-		switch (aState) {
-		case finder_state::all:       return Conversations.size();
-		case finder_state::published: return static_cast<std::size_t>(std::ranges::count_if(Conversations, [](const finder_conversation& aConversation) { return !aConversation.Draft; }));
-		case finder_state::draft:     return SavedDrafts.size();
-		case finder_state::local:     return LocalComments.size();
-		}
-		return 0U;
+		return count_of(aState);
+	}
+
+	auto conversation_finder::count_of(const finder_state aState) const -> std::size_t
+	{
+		// The rows each choice shows, counted from the rows themselves.
+		return static_cast<std::size_t>(std::ranges::count_if(Conversations, [aState](const finder_conversation& aConversation) {
+			switch (aState) {
+			case finder_state::all:       return true;
+			case finder_state::published: return !aConversation.Draft;
+			case finder_state::draft:     return aConversation.Draft && !aConversation.Local;
+			case finder_state::local:     return aConversation.Local;
+			}
+			return false;
+		}));
 	}
 
 	auto conversation_finder::show_state(const finder_state aState, const QString& aPath) -> bool
@@ -2215,22 +2240,19 @@ namespace bpr::qt {
 		LabelChip->setAccessibleName(label);
 		// RFC-BPR-0127 ([[BPR-2159]]). The state filter names its choice and
 		// how many rows it shows.
-		const auto count = [this](const finder_state aState) -> std::size_t {
-			switch (aState) {
-			case finder_state::all:       return Conversations.size();
-			case finder_state::published: return static_cast<std::size_t>(std::ranges::count_if(Conversations, [](const finder_conversation& aConversation) { return !aConversation.Draft; }));
-			case finder_state::draft:     return SavedDrafts.size();
-			case finder_state::local:     return LocalComments.size();
-			}
-			return 0U;
-		};
+		const auto count = [this](const finder_state aState) { return count_of(aState); };
 		const auto state = Filters.State;
 		DraftsChip->set_glyph(state == finder_state::local ? conversation_glyph::computer : state == finder_state::draft ? conversation_glyph::edit
 																																	 : conversation_glyph::comment);
+		auto reserve = QStringList{ };
+		for (const auto choice : { finder_state::all, finder_state::published, finder_state::draft, finder_state::local }) {
+			reserve.push_back(QStringLiteral("%1 %2").arg(finder_state_text(choice)).arg(count(choice)));
+		}
+		DraftsChip->set_reserve(std::move(reserve));
 		DraftsChip->set_count(QStringLiteral("%1 %2").arg(finder_state_text(state)).arg(count(state)));
 		DraftsChip->set_on(state != finder_state::all);
-		const auto mine = QStringLiteral("Show: %1 (%2). Choose All, Published, Draft or Local").arg(finder_state_text(state)).arg(count(state));
-		DraftsChip->setToolTip(mine);
+		const auto mine = QStringLiteral("Show: %1 (%2)").arg(finder_state_text(state)).arg(count(state));
+		DraftsChip->setToolTip(QStringLiteral("Show All, Published, Draft or Local"));
 		DraftsChip->setAccessibleName(mine);
 	}
 
@@ -2411,7 +2433,8 @@ namespace bpr::qt {
 		// My draft is written beside its line; Discuss does not list it.
 		if (Conversations[Items[aItem]->Conversation].Draft) {
 			OpenDiscuss->setEnabled(false);
-			OpenDiscuss->setToolTip(QStringLiteral("Your draft is written beside its line, in Review"));
+			OpenDiscuss->setToolTip(Conversations[Items[aItem]->Conversation].Local ? QStringLiteral("Your local comment is beside its line, in Review")
+																					: QStringLiteral("Your draft is written beside its line, in Review"));
 		}
 		const auto menuPick = [this](const core::workbench_thread_destination aDestination) {
 			const auto row = std::ranges::find(Items, MenuRow, [](const std::unique_ptr<item>& aEntry) { return aEntry->Key; });
@@ -2421,6 +2444,24 @@ namespace bpr::qt {
 		};
 		QObject::connect(OpenReview, &QAction::triggered, this, [menuPick] { menuPick(core::workbench_thread_destination::review); });
 		QObject::connect(OpenDiscuss, &QAction::triggered, this, [menuPick] { menuPick(core::workbench_thread_destination::discuss); });
+		// RFC-BPR-0127 ([[BPR-2159]]). On my own rows, the move to the
+		// other unsent state: Make Draft on a Local comment, Keep Local on a
+		// saved draft. A published thread offers neither.
+		MoveAction = nullptr;
+		if (const auto& mine = Conversations[Items[aItem]->Conversation]; mine.Local || (mine.Draft && mine.DraftId != 0U)) {
+			menu->addSeparator();
+			const auto local = mine.Local;
+			const auto id    = local ? std::stoull(mine.Id.substr(finder_local_prefix.size())) : mine.DraftId;
+			MoveAction       = menu->addAction(local ? QStringLiteral("Make Draft") : QStringLiteral("Keep Local"));
+			MoveAction->setObjectName(local ? QStringLiteral("threadFinderMakeDraftAction") : QStringLiteral("threadFinderKeepLocalAction"));
+			MoveAction->setEnabled(static_cast<bool>(MoveDispatch));
+			MoveAction->setToolTip(local ? QStringLiteral("Make it a draft, not in your review") : QStringLiteral("Only on this computer"));
+			QObject::connect(MoveAction, &QAction::triggered, this, [this, id, local] {
+				if (MoveDispatch) {
+					MoveDispatch(id, !local);
+				}
+			});
+		}
 		// [[BPR-1582]]. Mark as read or Mark as unread, as the core decides
 		// from the thread's read state; never on my draft.
 		const auto& conversation = Conversations[Items[aItem]->Conversation];
@@ -2520,6 +2561,16 @@ namespace bpr::qt {
 	void conversation_finder::set_read_dispatch(finder_read_dispatch aDispatch)
 	{
 		ReadDispatch = std::move(aDispatch);
+	}
+
+	void conversation_finder::set_move_dispatch(std::function<void(std::uint64_t, bool)> aDispatch)
+	{
+		MoveDispatch = std::move(aDispatch);
+	}
+
+	auto conversation_finder::move_action() const noexcept -> QAction*
+	{
+		return MoveAction;
 	}
 
 	auto conversation_finder::author_read_action() const noexcept -> QAction*

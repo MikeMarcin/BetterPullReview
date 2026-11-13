@@ -502,6 +502,15 @@ namespace bpr::qt {
 		Files->viewport()->update();
 	}
 
+	void pull_request_overview_page::set_mine_totals(const overview_draft_count aTotals)
+	{
+		if (MineTotals == aTotals) {
+			return;
+		}
+		MineTotals = aTotals;
+		present_my_review();
+	}
+
 	void pull_request_overview_page::set_drafts_dispatch(std::function<void(const QString&)> aDispatch)
 	{
 		DraftsDispatch = std::move(aDispatch);

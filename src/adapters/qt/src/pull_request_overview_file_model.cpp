@@ -204,8 +204,9 @@ namespace bpr::qt {
 
 	auto overview_local_text(const overview_comment_chip& aChip) -> QString
 	{
-		const auto local = aChip.Count == 1U ? QStringLiteral("1 local comment of yours") : QStringLiteral("%1 local comments of yours").arg(aChip.Count);
-		return QStringLiteral("%1 here, only on this computer. Never sent.\nClick or press Enter to list them in Threads.").arg(local);
+		// Owner: a tooltip of 60 characters at most, no explainer.
+		return aChip.Count == 1U ? QStringLiteral("1 local comment, only on this computer")
+								 : QStringLiteral("%1 local comments, only on this computer").arg(aChip.Count);
 	}
 
 	auto overview_comment_chips(const core::feedback_counter_projection* const aCountsOrNull, const QRect& aCell, const QFont& aFont, const std::optional<overview_draft_count> aDrafts)
@@ -804,8 +805,6 @@ namespace bpr::qt {
 			case comments_column:
 				return QStringLiteral("%1 threads, %2 unresolved")
 					.arg(count_text(row->ThreadCount), count_text(row->UnresolvedThreadCount));
-			case note_column:
-				return row->Note.has_value() ? text(*row->Note) : QString{ };
 			default:
 				return { };
 			}
@@ -831,8 +830,6 @@ namespace bpr::qt {
 				return row->UnresolvedThreadCount == 0U
 					? count_text(row->ThreadCount)
 					: QStringLiteral("%1 / %2").arg(count_text(row->UnresolvedThreadCount), count_text(row->ThreadCount));
-			case note_column:
-				return row->Note.has_value() ? text(*row->Note) : QString{ };
 			default:
 				return { };
 			}
@@ -878,8 +875,6 @@ namespace bpr::qt {
 			return QStringLiteral("Read");
 		case comments_column:
 			return QStringLiteral("Comments");
-		case note_column:
-			return QStringLiteral("Note");
 		default:
 			return { };
 		}
