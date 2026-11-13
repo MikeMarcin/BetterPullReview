@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2145"
 title: "Suggested prompt macros: chips come from the core"
-status: "Blocked"
-blocked_by: "lane-rfc-0102-0107-base"
+status: "In Progress"
 rfcs: ["RFC-BPR-0125"]
 depends_on: ["BPR-2144"]
 priority: "P2"
 platforms: ["mac","linux","win"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-2144--BPR-2150--17b3cd6e7b65.json","milestone_acceptance":"AC05-AC10"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-2144--BPR-2150--17b3cd6e7b65.json","milestone_acceptance":"AC05-AC10","base":"branch rfc0125-m2-on-lane off claude/v0-5-0-prerelease-targets-52265d (owner choice 2026-11-12)"}
 ---
 
 # Suggested prompt macros: chips come from the core
