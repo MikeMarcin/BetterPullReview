@@ -134,7 +134,7 @@ namespace {
 			Window->resize(1280, 860);
 			Window->show();
 			Cycles = std::make_unique<app::review_cycle_desktop>(*Window, aProfile, core::bpr_profile_id{ 1 }, Lanes, Lanes, app::review_cycle_syntax{ }, &Lanes);
-			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, std::nullopt, Lanes, Lanes, { }, &Lanes);
+			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, std::nullopt, Lanes, Lanes, app::local_draft_syntax{ }, &Lanes);
 			Drafts->set_folder_chooser([aChosen] { return aChosen; });
 			// The scripted agent: it records what it was sent and answers.
 			Drafts->set_agent(

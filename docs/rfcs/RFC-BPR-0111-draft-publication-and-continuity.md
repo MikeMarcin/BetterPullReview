@@ -221,8 +221,20 @@ The reopening above is reconciled by the commit-and-push milestone.
   write.
 - A minimal Pull request area on the draft page from existing controls.
 
-Not built: the tour follow-up (no path carries the local tour to the pull
-request's tour store, so `map_local_publication` is still unused by any
-publication). Fork heads and GHES are not supported. Results and live
-evidence: [ledger](../verification/RFC-BPR-0111.md).
+Fork heads and GHES are not supported. Results and live evidence:
+[ledger](../verification/RFC-BPR-0111.md).
+
+In the pull request window (2026-11-13, the accepted design): Create Draft
+PR… stands where Submit review does and opens Overview's Status tab, which
+carries the publish steps in RFC-BPR-0099's step list (Push the branch,
+Create the draft pull request, Publish the tour with how many stops are still
+to accept), the named push with Copy and Check Again, Create Draft PR once the
+pushed branch is the candidate, the error-role banner, and What is sent (from,
+into, as, version, title, unresolved stops, what stays here). When the draft
+pull request is created (or an open one linked) the window opens it. The tour
+follow-up's private half is built: the draft's tour is carried onto the pull
+request's empty tour draft at its head (RFC-BPR-0110 "In the pull request
+window"); publishing that tour stays the pull request's Tour (RFC-BPR-0099),
+which X20 governs. The Publish-the-tour checkbox is gone: a draft with stops
+always carries its tour.
 

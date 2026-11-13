@@ -289,6 +289,50 @@ the record below describes what remains.
   its tour with "Update PR description after publishing" off; changing it
   asks for a new Preview, as every change of that option does.
 
+### In the pull request window (2026-11-13)
+
+The owner's redesign ("I thought we chose to stick with the PR view and just
+augment it"; accepted design `docs/design/local-draft-pr-window-v1`) moved the
+local draft into the pull request window and rejected the draft's own
+Description and Tour areas. They are deleted. What replaced them:
+
+- **The Tour tab is the window's own Tour panel** (RFC-BPR-0099's head, route
+  and agent bar; RFC-BPR-0106's stops at rest and editing, rings, Accept;
+  RFC-BPR-0100's side chats and Enhance). `core::view_local_tour` projects the
+  draft's preparation into the shapes the panel reads (a `review_tour`, a
+  `tour_agent_session`, a `tour_proposal`), and `translate_local_tour_command`
+  turns the panel's commands back into the draft's own edits. The draft's
+  record is unchanged in form; nothing projected is stored, published or sent.
+  The projected owner and commit identities are derived from the draft and a
+  candidate's ordinal in a domain of their own, as the viewer's comparison
+  identities are (`local_presentation`); where the panel would show a commit,
+  it shows "candidate N".
+- **Local-only differences through the same panel.** No Publish in the head
+  and no publication page for a local tour (X04). A stop's ring comes from
+  `decide_local_stop`, with the draft's own reason word ("Changed since
+  accepted: changed.", X05). Typing saves a stop's text without accepting it
+  (`edit_local_stop`); Save accepts; Mark not accepted withdraws
+  (`unaccept_local_stop`). Use Selected Lines rebinds to the latest
+  candidate's lines. Proposals on the Problem, Solution or a stop wait in the
+  panel; a stale one shows refused ("the target changed"); a stop outside the
+  candidate is left out. Problem and Solution have their own chats (threads
+  `problem`, `solution`). Enhance and a field's draft ask the part's chat for
+  a proposed rewrite. Draft the tour asks the whole change. Ask more is not
+  offered: every local turn replays or resumes its conversation.
+  Split, duplicate, merge, undo and outlines do nothing for a local tour.
+- **The description is Overview's.** Overview's description editor saves the
+  draft's body (with its title); Rename… in the candidate pop-up changes the
+  title. The exact public preview is `compose_local_publication` (title, body,
+  tour; no conversation, note or proposal).
+- **The carry (On publication).** `carry_local_tour_to_pull_request` maps the
+  draft's tour onto its pull request's empty private tour draft at the pull
+  request's head: an exact stop is anchored there and keeps its acceptance; any
+  other comes across with its text and no lines, needing attention, never
+  dropped. The window offers it once, when the pull request's tour draft loads
+  empty and Home marks it as made from the draft. `map_local_publication`'s
+  anchors now count lines from zero, as every tour destination does (they were
+  one-based and unused).
+
 ## Proposed delivery
 
 [Local narrative and tour ownership](../issues/10-backlog/BPR-2026-add-local-description-and-tour-ownership.md),

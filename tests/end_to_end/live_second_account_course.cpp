@@ -1754,27 +1754,48 @@ namespace {
 		auto* const view = aWindow.local_draft();
 		require([&] { return view != nullptr && view->projection().Draft.has_value() && !view->projection().Busy; }, "the local draft opens");
 		auto* const area = view->publication();
-		// The publish steps are Overview's author panel.
-		aWindow.choose_modality(qt::review_modality::overview);
-		const auto checked = [&](const std::string& aWhat) {
-			require([&] { return area->check_button()->isEnabled(); }, "Check GitHub is available");
-			area->check_button()->click();
-			require([&] { return !view->projection().Publishing.Checking && view->projection().Publishing.Checked; }, aWhat, std::chrono::seconds{ 120 });
-			say("live-draft:state " + text(area->state()->text()));
-		};
-		checked("GitHub is read before the push");
+		auto* const tour = aWindow.tour_editor();
+
+		// One stop on the commit's file, in the window's own Tour panel, accepted.
+		const auto path = view->projection().Draft->Candidates.back().Changes.front().Path;
+		require([&] { return aWindow.open_local_file(QString::fromStdString(path)); }, "the commit's file is in Files");
+		require([&] { return view->projection().File && view->projection().File->Path == path && aWindow.comparison_surface()->current_result() != nullptr; }, "the file shows");
+		const auto digest = aWindow.comparison_surface()->current_result()->Alignment.Digest;
+		static_cast<void>(aWindow.comparison_surface()->restore_source_range({ .Comparison = digest, .Side = core::diff_side::right, .Line = 0U }, { .Comparison = digest, .Side = core::diff_side::right, .Line = 0U }));
+		aWindow.tray_tabs()->setCurrentIndex(2);
+		tour->trigger(qt::tour_editor_action::add_stop);
+		require([&] { return !view->projection().Draft->Preparation.Tour.Stops.empty(); }, "a stop is added in the Tour panel");
+		const auto stop = core::tour_stop_id{ view->projection().Draft->Preparation.Tour.Stops.front().Id };
+		tour->go_to_stop(stop);
+		tour->begin_stop_edit();
+		tour->stop_title()->setPlainText(QStringLiteral("The disposable change"));
+		tour->stop_body()->setPlainText(QStringLiteral("This file is the course's one change."));
+		require([&] { return !view->projection().Busy && view->projection().Draft->Preparation.Tour.Stops.front().Text == "This file is the course's one change."; }, "the stop's text is saved");
+		tour->save_stop_edit();
+		require([&] { return view->projection().Draft->Preparation.Tour.Stops.front().Accepted; }, "the stop is accepted");
+		say("live-draft:stop accepted");
+
+		// Create Draft PR… opens Overview's Status tab and reads GitHub.
+		view->create_button()->click();
+		require([&] { return !view->projection().Publishing.Checking && view->projection().Publishing.Checked; }, "GitHub is read before the push", std::chrono::seconds{ 120 });
+		say("live-draft:state " + text(area->state()->text()));
+		for (const auto& row : area->steps()->row_texts()) {
+			say("live-draft:step " + text(row));
+		}
 		const auto& first = view->projection().Publishing;
-		if (first.Branch != core::hosted_branch_state::missing || !first.Push || area->create_button()->isEnabled()) {
+		if (aWindow.current_modality() != qt::review_modality::overview || first.Branch != core::hosted_branch_state::missing || !first.Push || area->create_button()->isVisible()) {
 			fail("an unpushed branch must name the push and offer no creation: " + text(area->state()->text()));
 		}
 		say("live-draft:push " + first.Push->Command);
 		checkpoint(aOptions.Root, "push", "{\"command\":" + json_text(first.Push->Command) + "}");
-		checked("GitHub is read after the push");
+		require([&] { return area->check_button()->isEnabled(); }, "Check Again is available");
+		area->check_button()->click();
+		require([&] { return !view->projection().Publishing.Checking && view->projection().Publishing.Checked; }, "GitHub is read after the push", std::chrono::seconds{ 120 });
 		const auto& second = view->projection().Publishing;
 		if (second.Branch != core::hosted_branch_state::matches || !area->create_button()->isEnabled()) {
 			fail("the pushed branch must be the candidate: " + text(area->state()->text()));
 		}
-		say("live-draft:preview " + second.Preview);
+		say("live-draft:sent " + text(area->sent_text()));
 		area->create_button()->click();
 		require(
 			[&] {
@@ -1783,7 +1804,7 @@ namespace {
 					&& draft->Publication->Journal.Phase != core::local_publication_phase::authorized;
 			},
 			"Create draft PR answers", std::chrono::seconds{ 180 });
-		const auto& draft   = *view->projection().Draft;
+		const auto  draft   = *view->projection().Draft;
 		const auto& journal = draft.Publication->Journal;
 		say("live-draft:phase " + std::string{ core::name(journal.Phase) } + " state " + text(area->state()->text()));
 		for (const auto& row : area->steps()->row_texts()) {
@@ -1792,14 +1813,26 @@ namespace {
 		if (journal.Phase != core::local_publication_phase::linked || !journal.Link || !draft.Association) {
 			fail("the draft pull request was not created and linked: " + journal.Reason);
 		}
-		if (area->check_button()->isEnabled() || area->create_button()->isEnabled()) {
-			fail("a linked draft must offer no second creation");
+		// The window becomes the pull request, and its tour draft holds the
+		// draft's stop at the pull request's head.
+		require(
+			[&] {
+				const auto& shown = tour->shown().Draft;
+				return !aWindow.showing_local_draft() && !tour->local_words() && shown && shown->Head == journal.Link->Head && !shown->Stops.empty();
+			},
+			"the window opens the pull request with the draft's tour", std::chrono::seconds{ 180 });
+		const auto& carried  = *tour->shown().Draft;
+		const auto  anchored = carried.Stops.front().Destination && carried.Stops.front().Destination->Commit == journal.Link->Head && carried.Stops.front().Destination->Path == path;
+		const auto  accepted = core::decide_tour_stop_acceptance(carried, carried.Stops.front()).State == core::tour_acceptance_state::accepted;
+		say("live-draft:carried stops=" + std::to_string(carried.Stops.size()) + " anchored=" + (anchored ? "yes" : "no") + " accepted=" + (accepted ? "yes" : "no"));
+		if (!anchored || !accepted) {
+			fail("the carried stop must be anchored at the pull request's head and accepted");
 		}
 		std::ofstream out{ aOptions.Root / "live-draft.json" };
 		out << "{\"number\":" << journal.Link->Number << ",\"url\":" << json_text(journal.Link->Url) << ",\"head\":" << json_text(std::string{ core::canonical_hex(journal.Link->Head).view() })
 			<< ",\"candidate_head\":" << json_text(std::string{ core::canonical_hex(draft.Publication->Plan.Head).view() }) << ",\"draft\":" << (journal.Link->Draft ? "true" : "false")
 			<< ",\"drifted\":" << (journal.Link->Drifted ? "true" : "false") << ",\"title\":" << json_text(draft.Publication->Plan.Title) << ",\"author\":" << json_text(journal.Link->Author)
-			<< "}\n";
+			<< ",\"carried_stops\":" << carried.Stops.size() << ",\"carried_anchored\":" << (anchored ? "true" : "false") << "}\n";
 		say("live-draft:linked #" + std::to_string(journal.Link->Number));
 	}
 }
