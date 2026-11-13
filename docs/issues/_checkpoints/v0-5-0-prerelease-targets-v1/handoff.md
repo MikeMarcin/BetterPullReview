@@ -2262,6 +2262,13 @@ the attended-review `stop`; roots `local-draft-in-pr-window-v003.3yt_ouf8`
 and `explain-file-v001.4gr0t3jw` removed with `freeze_attended_build.py
 remove`.
 
+Main mirror: `f0c799c71` (BPR-2156 reserved), `ca15aa0d9` (card moves,
+RFC statuses, verdict sections of the RFC-BPR-0108, 0113 and 0114 ledgers,
+RFC-BPR-0118 and its record; BPR-2076's ledger link written as a lane path).
+NEXT_ID (BPR-2157) and `_reservations` equal on lane and main. The lane's
+renames of BPR-2021, 2022 and 2062 and the BPR-2156 card landed in
+`c74171d0d` (staged with the code); their texts in `8cf1a29be`.
+
 AC06 of RFC-BPR-0118 is pending: no attended session filed (the coordinator
 withheld the look until the Ask model). BPR-2078 is parked `human-review`.
 
