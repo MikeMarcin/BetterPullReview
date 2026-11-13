@@ -1131,6 +1131,8 @@ namespace bpr::qt {
 			step->setIconSize(QSize{ 16, 16 });
 			step->setFocusPolicy(Qt::StrongFocus);
 			step->setAccessibleName(action->text());
+			step->setAccessibleDescription(button == &PreviousCommentButton ? QStringLiteral("Open the comment before this one, or the previous file's last")
+																			: QStringLiteral("Open the comment after this one, or the next file's first"));
 			*button = step;
 		}
 		DefectRow = new QWidget{ commentsContents };

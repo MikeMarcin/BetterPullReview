@@ -3711,8 +3711,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# comments look also uses. No new effect or path. Third round: the
 	# Notes panel's dispatch, presentation and attended notes look are
 	# removed; Ask agent on a Local comment reaches the existing note path.
+	# Owner look v002 rework: Make draft's refusal names the line's or the
+	# thread's draft. Words only.
 	set(bpr_expected_production_app_manifest_digest
-        "3e2c3bd689965add27285c3ca8bfbfbc0603ef81b20c8456cd918542d3f24f37"
+        "fc7129b1404b1177e484ed12e4aba92977bcc088e1db65bd6d3704f712ac5fb6"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

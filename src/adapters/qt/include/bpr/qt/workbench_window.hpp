@@ -3420,7 +3420,7 @@ namespace bpr::qt {
 		/// [[BPR-1532]]. First and Last change; menu and keys only, no
 		/// review-bar button.
 		std::array<navigation_entry, 2>                                                      ChangeEnds{ };
-		QAction*                                                                             NextNewCommentAction = nullptr;
+		QAction*                                                                             NextNewCommentAction  = nullptr;
 		QAction*                                                                             PreviousCommentAction = nullptr;
 		QAction*                                                                             NextCommentAction     = nullptr;
 		QToolButton*                                                                         PreviousCommentButton = nullptr;

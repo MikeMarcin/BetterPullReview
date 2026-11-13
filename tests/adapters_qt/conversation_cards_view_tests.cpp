@@ -24,6 +24,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFontMetrics>
+#include <QHelpEvent>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -1263,6 +1264,99 @@ namespace {
 	/// control: Draft chosen for a comment; Local turns its foot to Save and
 	/// the sentence, ⌘↩ saves it as Local, and Draft brings today's row back.
 	/// N's preset (`draft_composer_presentation::Local`) opens it on Local.
+	/// \brief Owner look v002 ([[BPR-2158]]), rejected. A new comment's
+	/// composer on a line above the drawer's top is whole in view, its notch
+	/// still at its line, while an open published thread keeps hanging at
+	/// its line. My Local reply's tooltip sits right under its tag; no
+	/// control in the open card anchors a tooltip to a large area, which is
+	/// how a tooltip ends up far from what it names. Make draft, when it is
+	/// not offered, says why in words under it.
+	auto test_look_v002_rework() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 700);
+		view.show();
+		QApplication::processEvents();
+		auto lineY = std::map<std::uint32_t, int>{ { 5U, -40 }, { 22U, 200 } };
+		view.set_line_locator([&lineY](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			const auto found = lineY.find(aLine);
+			return found == lineY.end() ? std::nullopt : std::optional{ found->second };
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 22U);
+		auto post = reply("c-1", "review-thread:T1", "tbutler", "issue: begin_frame() can hand back the frame still on screen.");
+		post.Line = 22U;
+		view.adopt({ root, post });
+		const auto comparison = core::file_comparison_digest{ };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 4U } }, comparison);
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft() && view.open_card() != nullptr && view.open_card()->geometry().top() >= 0,
+			   "a new comment's composer on a line above the drawer's top is whole in view (top " + std::to_string(view.open_card() != nullptr ? view.open_card()->geometry().top() : -999) + ")");
+		view.end_draft();
+		view.set_draft(std::nullopt, comparison);
+		QApplication::processEvents();
+		lineY[22U] = -40;
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		expect(view.open_card() != nullptr && view.open_card()->geometry().top() < 0, "negative control: an open published thread still hangs at its line, above the top");
+		lineY[22U] = 200;
+		view.close_thread();
+
+		view.set_local_comments({
+			qt::local_comment_card{ .Id = 7U, .Revision = 1U, .Body = QStringLiteral("Check retained() after a resize."), .ReplyToThread = std::string{ "T1" }, .MakeDraftWhy = QStringLiteral("Can't make a draft: your draft reply in this thread is already open. A thread holds one draft reply of yours; send or delete it first.") },
+			qt::local_comment_card{ .Id = 8U, .Revision = 1U, .Body = QStringLiteral("Height is not clamped here."), .Comparison = comparison, .Side = core::diff_side::right, .Line = 22U, .MakeDraftWhy = QStringLiteral("Can't make a draft: your draft on this line already stands. A line holds one draft of yours; publish or delete it first."), .Path = QStringLiteral("src/a.cpp") },
+		});
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		auto* const card = view.open_card();
+		expect(card != nullptr, "the thread with my Local reply is open");
+		// The guard: no widget of the open card anchors a tooltip to a large
+		// area, the bug the owner has seen again and again.
+		const auto offenders = [card] {
+			auto found = QStringList{ };
+			for (auto* const widget : card->findChildren<QWidget*>()) {
+				if (!widget->isVisibleTo(card) || widget->height() <= 40) {
+					continue;
+				}
+				if (const auto target = qt::standard_tooltip_target(*widget, widget->rect().center()); target.has_value() && target->Anchor.height() > 40) {
+					found.push_back(QStringLiteral("%1 '%2' (%3 px): %4").arg(QString::fromLatin1(widget->metaObject()->className()), widget->objectName()).arg(target->Anchor.height()).arg(target->Text));
+				}
+			}
+			return found;
+		};
+		const auto bad = offenders();
+		expect(bad.isEmpty(), "no tooltip in the open card is anchored to a large area: " + bad.join(QStringLiteral("; ")).toStdString());
+		const auto posts = card->findChildren<QWidget*>(QStringLiteral("threadPost"));
+		const auto local = std::ranges::find_if(posts, [](const QWidget* aPost) { return aPost->accessibleDescription() == qt::comment_state_words(true, false, false); });
+		expect(local != posts.end() && (*local)->height() > 40, "my Local reply is a post of the thread");
+		(*local)->setToolTip(QStringLiteral("negative control"));
+		expect(!offenders().isEmpty(), "negative control: a tooltip on the whole post is caught");
+		(*local)->setToolTip(QString{ });
+		// Its tag's tooltip, right under the tag.
+		auto shown = false;
+		for (auto x = 0; x < (*local)->width() && !shown; x += 4) {
+			const auto point = QPoint{ x, 14 };
+			QHelpEvent help{ QEvent::ToolTip, point, (*local)->mapToGlobal(point) };
+			QApplication::sendEvent(*local, &help);
+			if (const auto* const tip = qobject_cast<const QLabel*>(qt::anchored_tooltip()); tip != nullptr && tip->text().startsWith(QStringLiteral("Only on this computer"))) {
+				const auto gap = tip->geometry().top() - (*local)->mapToGlobal(point).y();
+				expect(gap > 0 && gap <= 24, "the Local reply's tooltip sits right under its tag (" + std::to_string(gap) + " px below the pointer)");
+				shown = true;
+			}
+		}
+		qt::hide_anchored_tooltip();
+		expect(shown, "pointing at \"Local reply\" shows what it means");
+		auto* const replyWhy = card->findChild<QLabel*>(QStringLiteral("threadLocalReplyMakeDraftWhy"));
+		expect(replyWhy != nullptr && replyWhy->isVisibleTo(card) && replyWhy->text().contains(QStringLiteral("draft reply in this thread")), "a Local reply's Make draft says in words why it is not offered");
+		view.open_thread("local:8");
+		QApplication::processEvents();
+		auto* const lineWhy = view.open_card()->findChild<QLabel*>(QStringLiteral("threadMakeDraftWhy"));
+		expect(lineWhy != nullptr && lineWhy->isVisibleTo(view.open_card()) && lineWhy->text().contains(QStringLiteral("draft on this line")) && !button(view, "threadMakeDraft")->isEnabled(),
+			   "a Local comment's Make draft says in words why it is not offered");
+		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("conversationPullRequestHeader")) == nullptr, "a Local comment on a line never says Pull request");
+	}
+
 	auto test_composer_state_control() -> void
 	{
 		qt::conversation_cards_view view;
@@ -3765,6 +3859,7 @@ auto main(int argc, char** argv) -> int
 	test_local_comments_share_a_line();
 	test_local_comments_edges_and_editing();
 	test_composer_state_control();
+	test_look_v002_rework();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_controls();

@@ -239,7 +239,8 @@ namespace bpr::qt {
 				static_cast<void>(ComparisonSurface->reveal_conversation_line(*aCard.Side, *aCard.Line - 1U));
 			}
 		};
-		const auto& current = !cards->open_thread_id().empty() ? cards->open_thread_id() : cards->current_thread();
+		// From the comment open; with none open, the first or the last.
+		const auto& current = cards->open_thread_id();
 		const auto  at      = std::ranges::find_if(shown, [&current](const thread_card* aCard) { return aCard->Id == current; });
 		if (at != shown.end()) {
 			const auto index = static_cast<std::ptrdiff_t>(std::distance(shown.begin(), at)) + (aForward ? 1 : -1);

@@ -3959,7 +3959,7 @@ namespace {
 				   "the open thread spans the drawer at its narrowest and widest");
 			expect(window.tray_tabs()->width() >= window.tray_tabs()->sizeHint().width()
 					   && window.conversation_panel()->filter_unread_button()->isVisible()
-					   && window.next_new_comment_button()->isVisible(),
+					   && window.next_comment_button()->isVisible() && window.previous_comment_button()->isVisible(),
 				   "every tab shows whole, and the tools stay on screen, beside the tabs or under them");
 			for (auto* const post : opened->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
 				auto* const reader = dynamic_cast<qt::markdown_body_view*>(post->findChild<QWidget*>(QStringLiteral("threadPostReader")));

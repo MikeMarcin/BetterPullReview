@@ -4154,7 +4154,7 @@ namespace bpr::qt {
 		auto afterName = left + QFontMetrics{ bold }.horizontalAdvance(shownWho) + 8;
 		if (aCard.Line.has_value() && *aCard.Line > 0U && !timeline()) {
 			const auto words = aCard.FirstLine.has_value() && *aCard.FirstLine < *aCard.Line ? QStringLiteral("%1–%2").arg(*aCard.FirstLine).arg(*aCard.Line)
-																							   : QString::number(*aCard.Line);
+																							 : QString::number(*aCard.Line);
 			auto       mono  = CodeFont;
 			mono.setPointSizeF(small.pointSizeF());
 			const auto x    = afterName;

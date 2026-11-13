@@ -16690,12 +16690,32 @@ namespace {
 		};
 		auto* const onlyNew = window.conversation_panel()->filter_unread_button();
 		expect(comments->isVisible() && !findings->isVisible() && window.conversation_panel()->isVisible()
-				   && window.next_new_comment_button()->isVisible() && onTabRow(window.next_new_comment_button())
+				   && window.next_comment_button()->isVisible() && onTabRow(window.next_comment_button()) && onTabRow(window.previous_comment_button())
+				   && !window.next_new_comment_button()->isVisible()
 				   && onlyNew->isVisible() && onTabRow(onlyNew)
-				   && window.next_new_comment_button()->defaultAction() == window.next_new_comment_action()
+				   && window.next_comment_button()->defaultAction() == window.next_comment_action() && window.previous_comment_button()->defaultAction() == window.previous_comment_action()
 				   && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
 				   && !window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible(),
 			   "Comments controls stay in the header tools row, wrapping below the tabs when needed, with private tools hidden");
+		// Owner look v002 ([[BPR-2158]]): Previous and Next comment step
+		// through every comment of the file, read or not, by button or key.
+		{
+			auto* const cards = window.conversation_panel()->cards();
+			cards->close_thread();
+			window.next_comment_action()->trigger();
+			process_events();
+			const auto first = cards->open_thread_id();
+			window.next_comment_action()->trigger();
+			process_events();
+			const auto second = cards->open_thread_id();
+			window.previous_comment_action()->trigger();
+			process_events();
+			expect(first == "review-thread:a" && second == "review-thread:b" && cards->open_thread_id() == "review-thread:a"
+					   && !window.next_comment_action()->shortcuts().isEmpty() && !window.previous_comment_action()->shortcuts().isEmpty(),
+				   "Next comment opens the first, then the next; Previous goes back; both have keys (" + first + ", " + second + ")");
+			cards->close_thread();
+			process_events();
+		}
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();
 			expect(!rendered.isNull(), "the right tray renders in the composed window");
@@ -16734,7 +16754,7 @@ namespace {
 
 		// Keyboard: the tabs are a focus stop, and the arrow keys move between them.
 		expect(tabs->focusPolicy() == Qt::StrongFocus && window.focus_order().contains(tabs)
-				   && window.focus_order().contains(window.next_new_comment_button()),
+				   && window.focus_order().contains(window.previous_comment_button()) && window.focus_order().contains(window.next_comment_button()),
 			   "the tray's tabs and the Comments tab's tool are declared focus stops");
 		// RFC-BPR-0127: Notes is gone; Tour follows Comments.
 		tabs->setCurrentIndex(1);
