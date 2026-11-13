@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2158"
 title: "Comments absorbs Notes: Local cards, the state control, N and one gutter mark"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0127"]
 depends_on: ["BPR-2157"]
 priority: "P2"
