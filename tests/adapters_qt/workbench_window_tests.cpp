@@ -16154,7 +16154,7 @@ namespace {
 					window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 					process_events();
 				};
-				const auto at_end = [field] { return field->textCursor().position() == static_cast<int>(field->toPlainText().size()); };
+				const auto atEnd = [field] { return field->textCursor().position() == static_cast<int>(field->toPlainText().size()); };
 				window.side_chat()->send_action()->setEnabled(true);
 				field->clear();
 				auto* button = chosen();
@@ -16185,7 +16185,7 @@ namespace {
 				field->clear();
 				button = chosen();
 				mouse(*button, Qt::ShiftModifier);
-				expect(field->toPlainText() == prompt && field->hasFocus() && at_end() && agent->turn_count() == before + 1U && agent->state() != qt::agent_tab_state::working,
+				expect(field->toPlainText() == prompt && field->hasFocus() && atEnd() && agent->turn_count() == before + 1U && agent->state() != qt::agent_tab_state::working,
 					   "Shift-click puts the prompt in the question field to edit, focused and at its end, and sends nothing");
 
 				// Words already typed are kept: a click sends the prompt alone
@@ -16202,7 +16202,7 @@ namespace {
 				// Shift-Return adds it after the words, on its own line.
 				button = chosen();
 				keys(*button, Qt::Key_Return, Qt::ShiftModifier);
-				expect(field->toPlainText() == typed + QStringLiteral("\n") + prompt && field->hasFocus() && at_end() && agent->turn_count() == before + 2U,
+				expect(field->toPlainText() == typed + QStringLiteral("\n") + prompt && field->hasFocus() && atEnd() && agent->turn_count() == before + 2U,
 					   "Shift-Return adds the prompt after the words in the field, never replacing them, and sends nothing");
 
 				// Return and Space send, as a click does; Shift-Space edits.

@@ -1747,9 +1747,9 @@ namespace bpr::qt {
 		refresh();
 	}
 
-	void agent_tab_view::set_line_links(agent_reference_files_source aResolve, agent_reference_navigation aNavigate)
+	void agent_tab_view::set_line_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate)
 	{
-		LineResolve  = std::move(aResolve);
+		LineResolve  = std::move(aFiles);
 		LineNavigate = std::move(aNavigate);
 		for (auto& kept : Turns) {
 			show_question(kept);
@@ -2543,7 +2543,7 @@ namespace bpr::qt {
 		// The session's total: the conversation's own, when kept with it,
 		// else this thread's turns added up.
 		if (const auto total = Launch.last_session_cost()) {
-			present_session_cost(*total);
+			present_session_cost(total);
 		} else if (cost) {
 			present_session_cost(SessionTotal.value_or(0U) + *cost);
 		}
@@ -3450,7 +3450,7 @@ namespace bpr::qt {
 		if (aOutcome.Refused > 0U) {
 			reasons << (aOutcome.Refused == 1U ? tr("1 could not be drafted; its card says why") : tr("%1 could not be drafted; their cards say why").arg(aOutcome.Refused));
 		}
-		const auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
+		auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
 		if (reasons.isEmpty()) {
 			return drafted;
 		}
