@@ -32,3 +32,23 @@ Decisions recorded with them: bots are detected from GitHub's author type (a Git
 - AC4 Folding: a file's resolved threads fold into a count on its row; runs of bot comments fold to one row when the Fold bots quick filter is on (off by default, beside Hide resolved). Bots: `[bot]` logins automatically, plus a per-author Mark as bot / Not a bot kept per repository on this computer.
 - AC5 "Only this file" is one toggle replacing the "Pull request | File" choice.
 - AC6 Native renders at 1280x800, 1728x1117 and 2560x1440, light and dark, on `conversations-v1`; one attended look, one Accept/Reject question per item 1 to 5.
+
+## Design notes
+
+- The collapsed preview is presentation (`conversation_preview.cpp`): Qt reads the body through the same GitHub-dialect import the open card uses (`import_github_markdown`), so no Markdown parser was written. A body with no Markdown character takes a fast path that only sets inline code. Code tokens use core's Linguist names (`markdown_code_language_of`). The preview is kept per card while its body is unchanged, not per width.
+- The core timeline names each file once (`timeline_filters::Files`, `file` rows) and folds (`FoldResolved`, `FoldBots`, `Unfolded`) after the filters. A thread with a post not yet read, and a kept one, never fold. A thread asked for by name (a link, Threads' Discuss button, a key) opens its fold.
+- Resolved threads fold in Discuss only; Overview's Comments names files once but folds nothing. Fold bots is a per-window quick filter, off by default and not remembered across pull requests.
+- Bots: `[bot]` logins (GitHub's App accounts, as the read holds them) plus per-repository marks, kept in `state/v1/discuss.sqlite3` with the column width (Settings > Review > Reading > Discuss column: Narrow 680, Column 820, Wide 1100, Full width). A mark that repeats what GitHub says is removed. The thread menu offers "Mark <login> as a Bot" or "Mark <login> as Not a Bot".
+- "Only this file" is one toggle; the file chooser appears beside it while it is on.
+- A review whose own comment comes first carries its verdict and date on that comment's name line; its separate line is not drawn (its rail stays). A comment outside a review shows its date. Threads keep author and avatar and show their line beside the author.
+
+## Progress (2026-11-13)
+
+Frontend-design was loaded first. Lane commits `2037d395b` (allocation and design), `783017414` (core), `b83372963` (preview), `be6e66fbd` (timeline, panel, store and host), `fe748bd57` (composition, overlay, course), then the integration commit that records this section.
+
+Evidence:
+- Core: `core_conversation_timeline` (files and folds), `core_discuss_preferences`.
+- Store and host: `sqlite_discuss_preferences_store`, `application_discuss_preferences_host`, `sqlite_profile_data_reset_files`.
+- Qt: `qt_conversation_preview` (the design's six bodies), `qt_conversation_cards_view`, `qt_github_conversation_panel`, `qt_composed_markdown_1_0`, `qt_workbench_window_scale_100`, `qt_settings_window`, `qt_view_filter_memory_window`.
+- Composed: `application_discuss_busy_public_path` serves conversations-v1 as a busy pull request (`src/app/src/discuss_busy_fixture.hpp`: four reviews, two runs of bot reports, a person to mark as a bot, a quoted reply) and checks the 820 column at three window sizes, file rows with folded resolved counts, the review's verdict and date on its own comment, dates on lone comments, Only this file, Fold bots (two rows, counts unchanged), Mark as Bot through the thread menu (a third row), and an open card with code wider than the column. `application_conversation_read_public_path` and `architecture_boundaries` pass.
+- Native renders (Cocoa, `BPR_NATIVE_LOOK=1`, light and dark) at 1280x800, 1728x1117 and 2560x1440 from that course, kept outside the repository.
