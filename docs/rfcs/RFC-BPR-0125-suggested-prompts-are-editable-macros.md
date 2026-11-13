@@ -57,7 +57,7 @@ still proposed, would add a third list about a failed check.
   lane a map from the chip's text to its subject and review flag
   (`SuggestionSubjects`) rides beside them. The tour's are three constant
   arrays in
-  [tour_chat_prompts.hpp](../../src/application/include/bpr/application/tour_chat_prompts.hpp),
+  `tour_chat_prompts.hpp` (removed by milestone 2),
   put there by [[BPR-1934]] "so Agent settings can later make them editable".
   No translation is shipped.
 - **The chip's text is the message.** Each is "sent as written".
