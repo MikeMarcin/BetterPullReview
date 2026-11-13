@@ -137,9 +137,9 @@ namespace bpr::qt {
 		pickWells->setContentsMargins(2, 2, 2, 2);
 		pickWells->setSpacing(0);
 		const auto names = std::array{ QStringLiteral("Uncommitted"), QStringLiteral("Not pushed"), QStringLiteral("Whole PR") };
-		const auto tips  = std::array{ QStringLiteral("Your files against your last commit: what a commit would take"),
-									   QStringLiteral("Your files against the branch on GitHub: what GitHub does not have yet"),
-									   QStringLiteral("Your files against the target at the merge base: what the pull request will contain") };
+		const auto tips  = std::array{ QStringLiteral("Changes since your last commit."),
+									   QStringLiteral("Changes GitHub does not have yet."),
+									   QStringLiteral("Everything the pull request contains.") };
 		const auto ids   = std::array{ QStringLiteral("localChangesUncommitted"), QStringLiteral("localChangesNotPushed"), QStringLiteral("localChangesWholePullRequest") };
 		for (std::size_t index = 0U; index < Picks.size(); ++index) {
 			auto* const segment = new pick_segment{ pickRow };
@@ -195,12 +195,12 @@ namespace bpr::qt {
 		UnstagedTitle = heading(QStringLiteral("Unstaged"), uncommitted);
 		Stage         = new QPushButton{ QStringLiteral("Stage"), uncommitted };
 		Stage->setObjectName(QStringLiteral("localChangesStage"));
-		Stage->setToolTip(QStringLiteral("Stage the selected files; a double-click stages one"));
+		Stage->setToolTip(QStringLiteral("Stage the selected files."));
 		Unstaged    = tree(uncommitted, QStringLiteral("Unstaged files"), QStringLiteral("localChangesUnstaged"));
 		StagedTitle = heading(QStringLiteral("Staged"), uncommitted);
 		Unstage     = new QPushButton{ QStringLiteral("Unstage"), uncommitted };
 		Unstage->setObjectName(QStringLiteral("localChangesUnstage"));
-		Unstage->setToolTip(QStringLiteral("Unstage the selected files; a double-click unstages one"));
+		Unstage->setToolTip(QStringLiteral("Unstage the selected files."));
 		Staged             = tree(uncommitted, QStringLiteral("Staged files"), QStringLiteral("localChangesStaged"));
 		const auto buttons = std::max(Stage->sizeHint().width(), Unstage->sizeHint().width());
 		Stage->setFixedWidth(buttons);
@@ -249,12 +249,6 @@ namespace bpr::qt {
 		Subject->setAccessibleName(QStringLiteral("Commit subject"));
 		Subject->setPlaceholderText(QStringLiteral("Subject"));
 		subjectRow->addWidget(Subject, 1);
-		Suggest = new QToolButton{ box };
-		Suggest->setObjectName(QStringLiteral("localChangesSuggest"));
-		Suggest->setAccessibleName(QStringLiteral("Write the commit message with the agent"));
-		Suggest->setAutoRaise(true);
-		Suggest->setIcon(enhance_icon(palette()));
-		subjectRow->addWidget(Suggest);
 		boxColumn->addLayout(subjectRow);
 		Description = new QPlainTextEdit{ box };
 		Description->setObjectName(QStringLiteral("localChangesDescription"));
@@ -268,9 +262,18 @@ namespace bpr::qt {
 		Amend->setObjectName(QStringLiteral("localChangesAmend"));
 		commitRow->addWidget(Amend);
 		commitRow->addStretch(1);
+		// Owner, 2026-11-13: the agent's nib belongs next to Commit, in the
+		// agent's accent, as every agent run's control is.
+		Suggest = new QToolButton{ box };
+		Suggest->setObjectName(QStringLiteral("localChangesSuggest"));
+		Suggest->setAccessibleName(QStringLiteral("Write the commit message with the agent"));
+		Suggest->setAutoRaise(true);
+		wear_agent_accent(*Suggest, palette());
+		Suggest->setIcon(enhance_icon(Suggest->palette()));
+		commitRow->addWidget(Suggest);
 		Commit = new QPushButton{ QStringLiteral("Commit"), box };
 		Commit->setObjectName(QStringLiteral("localChangesCommit"));
-		Commit->setToolTip(QStringLiteral("Commit what is staged, with your Git identity, signing and hooks"));
+		Commit->setToolTip(QStringLiteral("Commit what is staged."));
 		commitRow->addWidget(Commit);
 		boxColumn->addLayout(commitRow);
 		Banner = new QLabel{ box };
@@ -296,7 +299,7 @@ namespace bpr::qt {
 		Command = new QLabel{ box };
 		Command->setObjectName(QStringLiteral("localChangesCommand"));
 		Command->setAccessibleName(QStringLiteral("Push command"));
-		Command->setToolTip(QStringLiteral("The push exactly as it will run in your worktree, never forced"));
+		Command->setToolTip(QStringLiteral("The push as it will run; never forced."));
 		Command->setWordWrap(true);
 		Command->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		Command->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
@@ -376,8 +379,8 @@ namespace bpr::qt {
 			Picks[index]->setText(QStringLiteral("%1  %2").arg(names[index]).arg(counts[index]));
 		}
 		Picks[1]->setEnabled(view.NotPushedAvailable);
-		Picks[1]->setToolTip(view.NotPushedAvailable ? QStringLiteral("Your files against the branch on GitHub: what GitHub does not have yet")
-													 : QStringLiteral("Unavailable: the branch is not on GitHub yet"));
+		Picks[1]->setToolTip(view.NotPushedAvailable ? QStringLiteral("Changes GitHub does not have yet.")
+													 : QStringLiteral("Not on GitHub yet."));
 		Picks[static_cast<std::size_t>(view.Comparison)]->setChecked(true);
 		Pages->setCurrentIndex(view.Comparison == core::local_comparison::uncommitted ? 0 : 1);
 		present_lists();
@@ -473,13 +476,13 @@ namespace bpr::qt {
 		// The blue button is the next step: Commit once it can run.
 		Commit->setDefault(Commit->isEnabled());
 		Amend->setEnabled(view.AmendOffered || Amend->isChecked());
-		Amend->setToolTip(view.AmendOffered ? QStringLiteral("Replace your last commit, which GitHub does not have yet")
-											: QStringLiteral("Unavailable: GitHub has your last commit, so amending it would need a forced push"));
+		Amend->setToolTip(view.AmendOffered ? QStringLiteral("Replace your last commit.")
+											: QStringLiteral("GitHub already has your last commit."));
 		const auto agent = AgentName.isEmpty() ? QStringLiteral("the agent") : AgentName;
 		Suggest->setEnabled(idle && view.AgentAvailable && !view.Status.Staged.empty());
-		Suggest->setToolTip(!view.AgentAvailable             ? QStringLiteral("Needs an agent, chosen in the window's footer")
-								: view.Status.Staged.empty() ? QStringLiteral("Stage a change first: %1 writes the message from what is staged").arg(agent)
-															 : QStringLiteral("Ask %1 for a subject and description from the staged change; you can edit them before you commit").arg(agent));
+		Suggest->setToolTip(!view.AgentAvailable             ? QStringLiteral("Choose an agent in the footer first.")
+								: view.Status.Staged.empty() ? QStringLiteral("Stage a change first.")
+															 : QStringLiteral("Write the message with %1.").arg(agent));
 		if (view.Running == application::local_changes_operation::suggesting) {
 			Suggest->setToolTip(QStringLiteral("%1 is writing the message…").arg(agent));
 		}
@@ -487,6 +490,7 @@ namespace bpr::qt {
 			Suggest->setToolTip(text_of(view.SuggestFailure));
 		}
 		wear_agent_accent(*Suggest, palette());
+		Suggest->setIcon(enhance_icon(Suggest->palette()));
 	}
 
 	void local_changes_panel::present_push()
@@ -547,7 +551,7 @@ namespace bpr::qt {
 		const auto idle = view.Running == application::local_changes_operation::none;
 		Push->setEnabled(view.Running == application::local_changes_operation::pushing || (idle && view.Active));
 		Push->setDefault(idle && view.Push.Default);
-		Push->setToolTip(view.Push.Offered ? QStringLiteral("Send the branch to GitHub as the command below runs it; it never forces") : QStringLiteral("Read GitHub's branch again"));
+		Push->setToolTip(view.Push.Offered ? QStringLiteral("Push the branch to GitHub.") : QStringLiteral("Read GitHub's branch again."));
 		Command->setText(view.Command ? text_of(view.Command->Text) : QString{ });
 		Command->setVisible(view.Command.has_value());
 		auto banner = QString{ };
@@ -611,8 +615,8 @@ namespace bpr::qt {
 	void local_changes_panel::restyle()
 	{
 		if (Suggest != nullptr) {
-			Suggest->setIcon(enhance_icon(palette()));
 			wear_agent_accent(*Suggest, palette());
+			Suggest->setIcon(enhance_icon(Suggest->palette()));
 		}
 		if (Unstaged != nullptr && !Presenting) {
 			present_lists();

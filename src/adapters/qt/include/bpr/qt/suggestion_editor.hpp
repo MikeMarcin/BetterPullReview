@@ -122,6 +122,8 @@ namespace bpr::qt {
 		/// arrives and a line that merely moved keeps its colours. Other text
 		/// clears the colours.
 		void set_syntax(std::vector<suggestion_line_syntax> aLines);
+		/// \brief How many lines the syntax colours last given describe.
+		[[nodiscard]] auto syntax_lines() const noexcept -> std::size_t { return Syntax.size(); }
 		/// \brief Places the only caret by byte offsets of the text: a
 		/// selection of [`aStart`, `aEnd`), or a caret when they are equal.
 		void select_bytes(std::uint64_t aStart, std::uint64_t aEnd);

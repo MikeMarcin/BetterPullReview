@@ -153,6 +153,7 @@ namespace bpr::qt {
 		connect(statusBar(), &QStatusBar::messageChanged, this, [this](const QString&) { update_dif_presentation(); });
 
 		build_local_draft_slots();
+		build_home_selection();
 		configure_tool_buttons();
 		refresh_toolbar_icons();
 		apply_focus_order();

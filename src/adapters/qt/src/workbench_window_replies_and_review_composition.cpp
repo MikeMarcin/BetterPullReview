@@ -1320,6 +1320,9 @@ namespace bpr::qt {
 		menu->setObjectName(QStringLiteral("codeContextMenu"));
 		menu->setToolTipsVisible(true);
 		const auto& selection = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
+		if (LocalDraftShown && !selection.has_value()) {
+			return menu;
+		}
 		if (selection.has_value()) {
 			// [[BPR-1212]] slice 1. "Lines a–b" when the selection covers several.
 			const auto range = ComparisonSurface->line_draft_range();
@@ -1340,6 +1343,12 @@ namespace bpr::qt {
 			// [[BPR-1335]]. The line's thread, reachable without its marker.
 			const auto side = selection->PreferredLine.Side;
 			const auto line = selection->PreferredLine.Line;
+			// A local draft's code has no threads or comments; in Local
+			// Changes a change of the shown file is staged or unstaged here.
+			if (LocalDraftShown) {
+				add_local_change_items(*menu, side, line);
+				return menu;
+			}
 			if (thread_on_line(side, line).has_value()) {
 				auto* const open = menu->addAction(tr("Open thread"));
 				open->setObjectName(QStringLiteral("codeContextMenuOpenThread"));

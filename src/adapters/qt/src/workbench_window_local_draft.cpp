@@ -19,10 +19,15 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"
 
+#include <QAbstractItemView>
 #include <QAction>
+#include <QApplication>
+#include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QBoxLayout>
 #include <QLabel>
 #include <QListView>
+#include <QMenu>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -596,5 +601,140 @@ namespace bpr::qt {
 				static_cast<void>(ComparisonSurface->restore_source_range({ .Comparison = digest, .Side = core::diff_side::right, .Line = aFirst - 1U },
 																		  { .Comparison = digest, .Side = core::diff_side::right, .Line = std::max(aFirst, aLast) - 1U }));
 			});
+	}
+
+	void workbench_window::set_local_change_dispatch(std::function<void(const std::string&, core::local_change_hunk, bool)> aDispatch)
+	{
+		LocalChangeDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::add_local_change_items(QMenu& aMenu, const core::diff_side aSide, const std::uint32_t aLine)
+	{
+		if (!LocalChangesShown || LocalDraft == nullptr || !LocalChangeDispatch) {
+			return;
+		}
+		const auto& file = LocalDraft->local_projection().File;
+		if (!file || file->Comparison != core::local_comparison::uncommitted) {
+			return;
+		}
+		// The band whose lines hold the one clicked, on its side.
+		const auto band = std::ranges::find_if(file->Bands, [aSide, aLine](const core::local_change_band& aBand) {
+			const auto begin = aSide == core::diff_side::left ? aBand.Shown.LeftBegin : aBand.Shown.RightBegin;
+			const auto end   = aSide == core::diff_side::left ? aBand.Shown.LeftEnd : aBand.Shown.RightEnd;
+			return aLine >= begin && aLine < std::max(end, begin + 1U);
+		});
+		if (band == file->Bands.end()) {
+			return;
+		}
+		aMenu.addSeparator();
+		const auto path = file->Path;
+		if (band->Unstaged && band->Stage) {
+			auto* const stage = aMenu.addAction(tr("Stage Change"));
+			stage->setObjectName(QStringLiteral("localStageChangeAction"));
+			connect(stage, &QAction::triggered, this, [this, path, hunk = *band->Stage] {
+				if (LocalChangeDispatch) {
+					LocalChangeDispatch(path, hunk, true);
+				}
+			});
+		}
+		if (band->Staged) {
+			auto* const unstage = aMenu.addAction(tr("Unstage Change"));
+			unstage->setObjectName(QStringLiteral("localUnstageChangeAction"));
+			connect(unstage, &QAction::triggered, this, [this, path, hunk = band->Unstage.value_or(band->Shown)] {
+				if (LocalChangeDispatch) {
+					LocalChangeDispatch(path, hunk, false);
+				}
+			});
+		}
+	}
+
+	namespace {
+		/// Escape in a Home list clears Home's selection.
+		class home_escape_filter final : public QObject
+		{
+		public:
+			home_escape_filter(QObject* aParent, std::function<void()> aClear)
+				: QObject{ aParent }
+				, Clear{ std::move(aClear) }
+			{
+			}
+
+		protected:
+			auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(aEvent)->key() == Qt::Key_Escape && static_cast<QKeyEvent*>(aEvent)->modifiers() == Qt::NoModifier) {
+					auto* const view = qobject_cast<QAbstractItemView*>(aWatched);
+					if (view != nullptr && view->selectionModel() != nullptr && (view->selectionModel()->hasSelection() || view->currentIndex().isValid())) {
+						Clear();
+						return true;
+					}
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			std::function<void()> Clear;
+		};
+
+		auto home_views(QWidget* const aHome) -> QList<QAbstractItemView*>
+		{
+			return aHome == nullptr ? QList<QAbstractItemView*>{ } : aHome->findChildren<QAbstractItemView*>();
+		}
+	}
+
+	void workbench_window::clear_home_selection(const QAbstractItemView* const aKept)
+	{
+		for (auto* const view : home_views(HomePage)) {
+			if (view == aKept || view->selectionModel() == nullptr) {
+				continue;
+			}
+			if (view->selectionModel()->hasSelection() || view->currentIndex().isValid()) {
+				view->selectionModel()->clear();
+			}
+		}
+	}
+
+	auto workbench_window::home_selected_rows() const -> int
+	{
+		auto rows = 0;
+		for (auto* const view : home_views(HomePage)) {
+			if (view->isVisibleTo(HomePage) && view->selectionModel() != nullptr) {
+				rows += static_cast<int>(view->selectionModel()->selectedIndexes().size());
+			}
+		}
+		return rows;
+	}
+
+	void workbench_window::build_home_selection()
+	{
+		auto* const escape = new home_escape_filter{ this, [this] { clear_home_selection(nullptr); } };
+		// A row chosen in one list leaves no row chosen in another; the
+		// lists are made as Home groups its rows, so each is met as it is used.
+		const auto adopt = [this, escape](QAbstractItemView* const aView) {
+			if (aView == nullptr || aView->property("bprHomeExclusive").toBool() || aView->selectionModel() == nullptr) {
+				return;
+			}
+			aView->setProperty("bprHomeExclusive", true);
+			aView->installEventFilter(escape);
+			connect(aView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this, aView](const QItemSelection& aSelected) {
+				if (!aSelected.isEmpty()) {
+					clear_home_selection(aView);
+				}
+			});
+		};
+		for (auto* const view : home_views(HomePage)) {
+			adopt(view);
+		}
+		connect(qApp, &QApplication::focusChanged, this, [this, adopt](QWidget*, QWidget* const aNow) {
+			if (HomePage == nullptr || aNow == nullptr || !HomePage->isAncestorOf(aNow)) {
+				return;
+			}
+			for (auto* widget = aNow; widget != nullptr && widget != HomePage; widget = widget->parentWidget()) {
+				if (auto* const view = qobject_cast<QAbstractItemView*>(widget); view != nullptr) {
+					adopt(view);
+					return;
+				}
+			}
+		});
 	}
 }

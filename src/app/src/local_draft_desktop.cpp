@@ -71,6 +71,13 @@ namespace bpr::app {
 			SyntaxHost->observe_work(aSyntax.Insights);
 			Window.set_local_syntax_dispatch([this](const std::string& aPath, const std::string& aDocument) { want_syntax(aPath, aDocument); });
 		}
+		Window.set_local_change_dispatch([this](const std::string& aPath, const core::local_change_hunk aChange, const bool aStage) {
+			if (aStage) {
+				Changes->stage_change(aPath, aChange);
+			} else {
+				Changes->unstage_change(aPath, aChange);
+			}
+		});
 		// Author state: the author's own Git in their own worktree, separate
 		// from the isolated reader (RFC-BPR-0114 as amended 2026-11-12).
 		AuthorGit     = adapters::git::make_installed_author_git(aGitExecutable.empty() ? std::filesystem::path{ } : aGitExecutable);
@@ -431,6 +438,7 @@ namespace bpr::app {
 		// A window already gone took the page with it: nothing to detach.
 		if (View != nullptr) {
 			Window.set_local_syntax_dispatch({ });
+			Window.set_local_change_dispatch({ });
 			View->set_dispatch({ });
 			View->set_preparation_dispatch({ });
 			View->publication()->set_dispatch({ });

@@ -78,6 +78,7 @@
 #include <QMainWindow>
 #include <QPointer>
 #include <QSplitter>
+class QAbstractItemView;
 class QTabWidget;
 #include <QString>
 
@@ -1328,6 +1329,8 @@ namespace bpr::qt {
 		void               present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents);
 		void               set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume);
 		[[nodiscard]] auto home_cycles_list() const noexcept -> QListWidget*;
+		/// \brief The Home rows selected now, in every list: one at most.
+		[[nodiscard]] auto home_selected_rows() const -> int;
 		/// \brief RFC-BPR-0108 as amended by the owner, 2026-11-13: a local
 		/// draft is shown in this window's own review surface, with only the
 		/// additions `local_draft_parts` names. Built with the window.
@@ -1361,6 +1364,9 @@ namespace bpr::qt {
 		/// \brief Chooses a draft file's row in the Files tree, as a click on it does.
 		/// \returns Whether the draft has that file.
 		auto open_local_file(const QString& aPath) -> bool;
+		/// \brief Where Stage Change and Unstage Change on the code's menu go:
+		/// the path, the change, and whether it is staged (true) or unstaged.
+		void set_local_change_dispatch(std::function<void(const std::string&, core::local_change_hunk, bool)> aDispatch);
 		/// \brief The tab index of Local Changes, or -1 when it is not in the tabs.
 		[[nodiscard]] auto local_changes_tab() const -> int;
 		/// \brief Home's author entry: Prepare pull request… and In
@@ -2165,6 +2171,13 @@ namespace bpr::qt {
 		void apply_local_draft_surface();
 		/// \brief Places the draft's parts in the window's slots, once.
 		void build_local_draft_slots();
+		/// \brief Owner, Home 1 accept with a note (2026-11-13): one row is
+		/// selected across Home's lists, and Escape in a list clears it.
+		void build_home_selection();
+		/// \brief Clears every Home list's selection but `aKept`'s.
+		void clear_home_selection(const QAbstractItemView* aKept);
+		/// \brief Stage Change or Unstage Change for the change on a line, in Local Changes' uncommitted comparison.
+		void add_local_change_items(QMenu& aMenu, core::diff_side aSide, std::uint32_t aLine);
 		/// \brief The status bar's line for a local draft.
 		[[nodiscard]] auto local_draft_status() const -> QString;
 		/// \brief Steps the Files tree to the previous or next draft file.
@@ -2856,6 +2869,7 @@ namespace bpr::qt {
 		/// Which source the diff viewer shows: Local Changes' file (true) or the candidate's.
 		bool LocalChangesShown = false;
 		std::function<void(const std::string&, const std::string&)> LocalSyntaxDispatch;
+		std::function<void(const std::string&, core::local_change_hunk, bool)> LocalChangeDispatch;
 		/// What a pull request open behind the draft had, restored on leaving.
 		std::optional<application::pull_request_overview_projection> OverviewBehindDraft;
 		std::vector<application::workbench_file_projection>         FilesBehindDraft;
