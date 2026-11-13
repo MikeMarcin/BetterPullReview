@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2156"
+  ],
+  "reserve_for": "local-draft-polish",
+  "purpose": "Local draft polish after look 767b9233: Changes tab name, folder icons per OS in Files and Overview, edit view underrail",
+  "created": "2026-11-13T06:45:57.187363+00:00",
+  "base": "8195599f8bcfbd37619f876dc9f938467d6d354b"
+}
