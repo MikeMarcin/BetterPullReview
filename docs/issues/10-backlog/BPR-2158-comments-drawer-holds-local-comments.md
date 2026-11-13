@@ -63,3 +63,7 @@ Not built yet (this milestone):
 - `private_notes_panel` still exists as a hidden backend; its code retirement is pending.
 
 The migrated note: the look does not hold one. A migrated note is an ordinary Local comment (same table, same card), so it looks the same. AC11's migration evidence is `sqlite_review_ledger_storage`.
+
+## Owner look v001: Accept (session 12534e15, handed back 2026-11-13T17:44:00Z)
+
+Verified in `session.json`: `comment-states-on-a-line` **Accept**, `composer-state-and-computer-icon` **Accept** (the line-drawn computer glyph included), `notes-tab-retired` **Accept**, each with no note. The look criterion is met for the frozen build from `beede2fc33b5`; the [RFC-BPR-0127 ledger](../../verification/RFC-BPR-0127.md#owner-verdicts-first-look-attended-session-12534e154303dd1913382442a83b8c8f-handed-back-2026-11-13t174400z) records it. Host 68507/68517 stopped; the root removed.
