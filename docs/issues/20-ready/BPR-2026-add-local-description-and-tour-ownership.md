@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2026"
 title: "Add local description and tour ownership"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0110"]
 metadata: {"criteria":["AC01","AC03","AC04"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0011","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0038-add-local-description-and-tour-ownership.md"}
 depends_on: ["BPR-2016", "BPR-2017", "BPR-2022"]
