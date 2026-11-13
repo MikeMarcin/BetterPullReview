@@ -956,7 +956,12 @@ namespace {
 		// change pair and its position, a gap, the progress track (Seen, Read,
 		// Accept and the private-progress menu, [[BPR-1578]]), a spacer,
 		// Compose review and Comment.
-		const auto barActions         = bar->actions();
+		// A local draft's candidate and publish slots (RFC-BPR-0108 as amended,
+		// 2026-11-13) are hidden in a review; the review's order is the rest.
+		auto barActions = bar->actions();
+		barActions.removeIf([](const QAction* aAction) {
+			return aAction->objectName() == QLatin1String{ "reviewBarLocalDraftAction" } || aAction->objectName() == QLatin1String{ "reviewBarLocalPublishAction" };
+		});
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
 			return ordered.size() == 19

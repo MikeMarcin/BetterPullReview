@@ -23,6 +23,10 @@ namespace bpr::app {
 		~pr_search_controller() override;
 		/// \brief Takes the panel's result gestures, when another controller had them.
 		void               attach();
+		/// \brief The panel is gone with its window: nothing touches it again.
+		void abandon_panel() noexcept { PanelGone = true; }
+		/// \brief What the scope is called in the panel; a pull request's number when empty.
+		void set_scope_name(QString aName) { ScopeName = std::move(aName); }
 		void               open();
 		void               dispatch(qt::source_find_gesture aGesture);
 		void               navigate(core::change_navigation_direction aDirection);
@@ -60,6 +64,8 @@ namespace bpr::app {
 			core::source_match_location          Location;
 		};
 		std::optional<reveal> Pending;
+		bool                  PanelGone = false;
+		QString               ScopeName;
 		QTimer                RevealTimer;
 		std::uint64_t         ReadingGeneration = 0U;
 		void                  try_reveal();

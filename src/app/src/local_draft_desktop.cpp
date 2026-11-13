@@ -105,6 +105,9 @@ namespace bpr::app {
 					&& (aLocation.Side == core::diff_side::left ? shown->Context.Key.LeftBlob : shown->Context.Key.RightBlob) == std::optional{ aLocation.Blob };
 				},
 				[this]() -> std::optional<core::document_tab_id> { return Window.showing_local_draft() ? std::optional{ local_search_tab } : std::nullopt; });
+			Find->set_scope_name(QStringLiteral("Local draft"));
+			// The panel is the window's; a desktop outliving it leaves it alone.
+			QObject::connect(Window.pr_search(), &QObject::destroyed, [find = Find.get()] { find->abandon_panel(); });
 		}
 		Window.set_local_change_dispatch([this](const std::string& aPath, const core::local_change_hunk aChange, const bool aStage) {
 			if (aStage) {
