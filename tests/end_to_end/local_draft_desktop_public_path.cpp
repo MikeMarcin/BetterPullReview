@@ -156,7 +156,7 @@ namespace {
 			Window->resize(1280, 800);
 			Window->show();
 			Cycles = std::make_unique<app::review_cycle_desktop>(*Window, aProfile, core::bpr_profile_id{ 1 }, Lanes, Lanes, app::review_cycle_syntax{ }, &Lanes);
-			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, std::nullopt, Lanes, Lanes);
+			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, std::nullopt, Lanes, Lanes, { }, &Lanes);
 			Drafts->set_folder_chooser([aChosen] { return aChosen; });
 			Drafts->view()->set_discard_question([] { return true; });
 			settle(Lanes);

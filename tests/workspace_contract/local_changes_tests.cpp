@@ -6,13 +6,18 @@
 #include "workspace_fixture.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdlib>
 #include <deque>
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 /// \file
@@ -25,7 +30,10 @@
 /// commit, Amend while GitHub lacks the commit; a push to a local bare
 /// "hosted" repository, never forced; a push refused before anything runs
 /// when the hosted branch has commits the branch lacks; Save's changed-on-disk
-/// rule and exact bytes; and the agent's commit message from the staged diff.
+/// rule and exact bytes; the agent's commit message from the staged diff; and
+/// (RFC-BPR-0114 AC06) a push whose pre-push hook hangs, stopped by the author
+/// and timed out by its bound: each kills the hook, says why, reads GitHub
+/// again and repeats nothing.
 
 namespace {
 	using namespace bpr;
@@ -217,6 +225,171 @@ namespace {
 		expect(aCourse.out(aCourse.Hosted, { "rev-parse", "refs/heads/fix/ports" }) == hostedTip, "GitHub's branch is unchanged");
 	}
 
+	/// An effect lane of its own thread, as the composition gives the author's
+	/// Git, so Stop can be pressed while a push runs.
+	class thread_lane final : public application::effect_executor
+	{
+	public:
+		thread_lane()
+			: Worker{ [this](const std::stop_token& aStop) { work(aStop); } }
+		{
+		}
+		~thread_lane() override
+		{
+			Worker.request_stop();
+			Changed.notify_all();
+		}
+		thread_lane(const thread_lane&)                    = delete;
+		auto operator=(const thread_lane&) -> thread_lane& = delete;
+		thread_lane(thread_lane&&)                         = delete;
+		auto operator=(thread_lane&&) -> thread_lane&      = delete;
+		void post(std::function<void()> aTask) override
+		{
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				Tasks.push_back(std::move(aTask));
+			}
+			Changed.notify_all();
+		}
+
+	private:
+		void work(const std::stop_token& aStop)
+		{
+			while (!aStop.stop_requested()) {
+				auto task = std::function<void()>{ };
+				{
+					auto lock = std::unique_lock{ Mutex };
+					Changed.wait(lock, [&] { return aStop.stop_requested() || !Tasks.empty(); });
+					if (Tasks.empty()) {
+						continue;
+					}
+					task = std::move(Tasks.front());
+					Tasks.pop_front();
+				}
+				task();
+			}
+		}
+		std::mutex                        Mutex;
+		std::condition_variable           Changed;
+		std::deque<std::function<void()>> Tasks;
+		std::jthread                      Worker;
+	};
+
+	/// A worktree whose pre-push hook marks that it ran and then hangs.
+	auto hanging_push(const git_runner& aGit, const std::filesystem::path& aRoot, const std::string& aName) -> std::pair<std::filesystem::path, std::filesystem::path>
+	{
+		const auto hosted = aRoot / (aName + "-hosted.git");
+		const auto work   = aRoot / aName;
+		aGit(aRoot, { "init", "--quiet", "--bare", "-b", "main", hosted.string() });
+		std::filesystem::create_directories(work);
+		aGit(work, { "init", "--quiet", "-b", "main" });
+		aGit(work, { "config", "user.name", "Author" });
+		aGit(work, { "config", "user.email", "author@example.invalid" });
+		commit_file(aGit, work, "a.txt", "a\n", "Initial");
+		aGit(work, { "push", "--quiet", hosted.string(), "main" });
+		aGit(work, { "checkout", "--quiet", "-b", "fix/slow" });
+		commit_file(aGit, work, "b.txt", "b\n", "Slow");
+		const auto hook = work / ".git" / "hooks" / "pre-push";
+		write_file(hook, "#!/bin/sh\necho ran >> \"$(git rev-parse --git-dir)/pre-push-ran\"\nsleep 30\n");
+		std::filesystem::permissions(hook, std::filesystem::perms::owner_all);
+		return { work, hosted };
+	}
+
+	[[nodiscard]] auto hook_runs(const std::filesystem::path& aWork) -> std::size_t
+	{
+		const auto text = std::filesystem::exists(aWork / ".git" / "pre-push-ran") ? read_file(aWork / ".git" / "pre-push-ran") : std::string{ };
+		return static_cast<std::size_t>(std::ranges::count(text, '\n'));
+	}
+
+	/// RFC-BPR-0114 AC06: a push its bound stops, and one the author stops.
+	void stopped_and_timed_out_pushes(const git_runner& aGit, const std::filesystem::path& aRoot, const std::filesystem::path& aGitExecutable)
+	{
+		const auto allowed = [](const std::string&) { return true; };
+		const auto subject = [](const std::filesystem::path& aWork, const std::filesystem::path& aHosted) {
+			return application::local_changes_subject{ .Worktree = aWork.string(), .Branch = "fix/slow", .FallbackUrl = aHosted.string(), .Target = "main", .ConsentKey = "slow" };
+		};
+		auto matcher = std::shared_ptr<application::diff_line_matcher_port>{ core::make_xdiff_line_matcher() };
+		auto files   = adapters::git::make_worktree_files();
+		{
+			// Timed out: the hooks' bound is a second and a half here.
+			const auto [work, hosted] = hanging_push(aGit, aRoot, "timeout");
+			auto       author         = adapters::git::make_installed_author_git(aGitExecutable, { .Hooks = std::chrono::milliseconds{ 1500 } });
+			auto       effects        = queue{ };
+			auto       decisions      = queue{ };
+			auto       port           = recorder{ };
+			auto       host           = application::local_changes_host{ *author, *files, matcher, effects, decisions, port, { .Allowed = allowed } };
+			const auto drain          = [&] {
+				while (!effects.Tasks.empty() || !decisions.Tasks.empty()) {
+					for (auto* lane : { &effects, &decisions }) {
+						while (!lane->Tasks.empty()) {
+							auto task = std::move(lane->Tasks.front());
+							lane->Tasks.pop_front();
+							task();
+						}
+					}
+				}
+			};
+			host.open(subject(work, hosted));
+			host.check_again();
+			drain();
+			expect(port.Last.Push.Offered, "the slow branch can be pushed");
+			const auto started = std::chrono::steady_clock::now();
+			host.push();
+			drain();
+			const auto took = std::chrono::steady_clock::now() - started;
+			std::cout << "TIMEOUT took=" << std::chrono::duration_cast<std::chrono::milliseconds>(took).count() << "ms failure="
+					  << (port.Last.Failure ? application::name(port.Last.Failure->Failure) : std::string_view{ "none" }) << '\n';
+			expect(port.Last.Failure && port.Last.Failure->Failure == application::author_git_failure::timeout && took < std::chrono::seconds{ 15 },
+				   "AC06: the push's bound kills the hanging hook and says it timed out");
+			expect(port.Last.Hosted.Observed && !port.Last.Hosted.Tip && port.Last.Push.Offered, "AC06: GitHub is read again: the branch is not there, Push is offered again");
+			expect(hook_runs(work) == 1U, "AC06: nothing was repeated");
+			host.shutdown();
+		}
+		{
+			// Stopped by the author while the hook hangs.
+			const auto [work, hosted] = hanging_push(aGit, aRoot, "stopped");
+			auto       author         = adapters::git::make_installed_author_git(aGitExecutable);
+			auto       effects        = thread_lane{ };
+			auto       decisions      = queue{ };
+			auto       port           = recorder{ };
+			auto       host           = application::local_changes_host{ *author, *files, matcher, effects, decisions, port, { .Allowed = allowed } };
+			const auto settle         = [&](const std::function<bool()>& aDone) {
+				const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 20 };
+				while (!aDone() && std::chrono::steady_clock::now() < deadline) {
+					while (!decisions.Tasks.empty()) {
+						auto task = std::move(decisions.Tasks.front());
+						decisions.Tasks.pop_front();
+						task();
+					}
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+				}
+			};
+			host.open(subject(work, hosted));
+			host.check_again();
+			settle([&] { return port.Last.Hosted.Observed && port.Last.Running == application::local_changes_operation::none; });
+			expect(port.Last.Push.Offered, "the slow branch can be pushed");
+			host.push();
+			settle([&] { return hook_runs(work) == 1U; });
+			expect(hook_runs(work) == 1U && port.Last.Running == application::local_changes_operation::pushing, "the push is in flight, its hook running");
+			const auto started = std::chrono::steady_clock::now();
+			host.stop();
+			settle([&] { return port.Last.Running == application::local_changes_operation::none; });
+			const auto took = std::chrono::steady_clock::now() - started;
+			std::cout << "STOPPED took=" << std::chrono::duration_cast<std::chrono::milliseconds>(took).count() << "ms failure="
+					  << (port.Last.Failure ? application::name(port.Last.Failure->Failure) : std::string_view{ "none" }) << '\n';
+			expect(port.Last.Failure && port.Last.Failure->Failure == application::author_git_failure::cancelled && took < std::chrono::seconds{ 10 },
+				   "AC06: Stop kills the push and its hook at once and says it was stopped");
+			expect(port.Last.Hosted.Observed && !port.Last.Hosted.Tip, "AC06: GitHub is read again after the stop: the branch is not there");
+			expect(aGit.output(hosted, { "for-each-ref", "--format=%(refname)", "refs/heads/fix/slow" }, aRoot / "refs.txt").empty(), "nothing reached the hosted repository");
+			// Long enough for a repeated push to have started its hook again.
+			const auto quiet = std::chrono::steady_clock::now() + std::chrono::milliseconds{ 500 };
+			settle([&] { return std::chrono::steady_clock::now() > quiet; });
+			expect(hook_runs(work) == 1U, "AC06: nothing was repeated");
+			host.shutdown();
+		}
+		std::cout << "stopped-and-timed-out-pushes:pass\n";
+	}
+
 	void save_and_agent(course& aCourse)
 	{
 		const auto file = aCourse.Work / "src" / "crlf.txt";
@@ -363,6 +536,7 @@ auto main(int argc, char** argv) -> int
 	save_and_agent(c);
 	declined(c);
 	c.Host->shutdown();
+	stopped_and_timed_out_pushes(*git, root, std::filesystem::path{ argv[2] });
 	std::cout << "local-changes:pass\n";
 #endif
 	return EXIT_SUCCESS;

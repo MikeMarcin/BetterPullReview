@@ -233,6 +233,18 @@ try {
 	expect(submitted() == before + 1U, "#18 publishes while #17's own submission is held on its lane");
 	release();
 
+	// 2b. RFC-BPR-0114 AC06 ([[BPR-2065]]): a push in flight. The author's
+	// own Git runs on a lane of its own; held as a push waiting on its hooks
+	// or the network holds it, a review submission still completes.
+	release = access::hold_author_git_lane(*owner);
+	ready(second, "#18's Approve is offered while a push is in flight");
+	before = submitted();
+	approve_button(*window)->click();
+	pump_until([&] { return submitted() > before; }, 10'000);
+	observe(*window, "second-while-push-held", 0);
+	expect(submitted() == before + 1U, "RFC-BPR-0114 AC06: #18 publishes while a push holds the author's Git lane");
+	release();
+
 	// 3. AC03: #18's own submission cannot start. It waits, says for what,
 	// and at the bound ends not published with Retry; the summary is kept,
 	// and Retry sends it once the obstruction is gone.

@@ -153,6 +153,15 @@ namespace bpr::app {
 		return hold_fixture_effects(aApplication.Implementation->ReviewSubmissionEffects);
 	}
 
+	auto detail::github_application_fixture_access::hold_author_git_lane(github_application& aApplication) -> std::function<void()>
+	{
+		auto* const drafts = aApplication.Implementation->DraftDesktop.get();
+		if (drafts == nullptr) {
+			return [] { };
+		}
+		return hold_fixture_effects(drafts->author_git_lane());
+	}
+
 	auto detail::github_application_fixture_access::hold_review_submission_lane(
 		github_application& aApplication) -> std::function<void()>
 	{

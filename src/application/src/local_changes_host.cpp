@@ -420,8 +420,11 @@ namespace bpr::application {
 			run(
 				aOperation,
 				[write = std::move(aWrite), aCheckHost, known = Projection.Hosted](implementation& aSelf, const local_changes_subject& aSubject, std::stop_token aStop) {
-					auto done  = write(aSelf, aSubject, aStop);
-					auto found = aSelf.observe(aSubject, known, aCheckHost && done.has_value(), std::stop_token{ });
+					auto done = write(aSelf, aSubject, aStop);
+					// RFC-BPR-0114 AC06: a push stopped, timed out or failed may
+					// have reached GitHub all the same; what is there is read
+					// again, and nothing is repeated.
+					auto found = aSelf.observe(aSubject, known, aCheckHost, std::stop_token{ });
 					return std::pair{ std::move(done), std::move(found) };
 				},
 				[aOperation](implementation& aSelf, std::pair<author_git_result<void>, observation> aOutcome) {

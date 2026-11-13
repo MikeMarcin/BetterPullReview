@@ -70,7 +70,7 @@ namespace bpr::app {
 	public:
 		local_draft_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, std::filesystem::path aGitExecutable,
 							std::optional<std::filesystem::path> aWindowsSystemRoot, application::effect_executor& aEffects, application::decision_executor& aDecisions,
-							local_draft_syntax aSyntax = { });
+							local_draft_syntax aSyntax = { }, application::effect_executor* aAuthorGitLane = nullptr);
 		~local_draft_desktop() override;
 		local_draft_desktop(const local_draft_desktop&)                    = delete;
 		auto operator=(const local_draft_desktop&) -> local_draft_desktop& = delete;
@@ -118,6 +118,10 @@ namespace bpr::app {
 		/// \brief Shows a draft another interface opened (`bpr draft open`).
 		void               show_draft(const core::local_draft_id& aId);
 		[[nodiscard]] auto host() noexcept -> application::local_draft_workbench&;
+		/// \brief RFC-BPR-0114 AC06. The author's own Git (status, commit,
+		/// push) runs on this lane of its own, so a push waiting on its hooks
+		/// or the network holds up no other work, a review submission least.
+		[[nodiscard]] auto author_git_lane() noexcept -> application::effect_executor&;
 		/// \brief Author state's host, while a draft on its own worktree shows.
 		[[nodiscard]] auto changes() noexcept -> application::local_changes_host&;
 		/// \brief An attended look's pull request opened by its author: the
@@ -192,6 +196,9 @@ namespace bpr::app {
 		/// the one-time question's answers (`author-git-consent.txt`).
 		std::unique_ptr<application::author_git_port>    AuthorGit;
 		std::unique_ptr<application::worktree_file_port> WorktreeFiles;
+		/// Outlives the host whose effects run on it; a course may lend its own.
+		std::unique_ptr<worker_executor>                 OwnAuthorGitLane;
+		application::effect_executor*                    AuthorGitLane = nullptr;
 		std::unique_ptr<application::local_changes_host> Changes;
 		std::filesystem::path                            ConsentFile;
 		std::unique_ptr<worker_executor>                 CommitAgentLane;

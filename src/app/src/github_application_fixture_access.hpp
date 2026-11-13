@@ -2272,6 +2272,10 @@ namespace bpr::app::detail {
 		/// \brief [[RFC-BPR-0105]]. Holds the current review host's own lane,
 		/// so the shown review's submission cannot start, until the returned
 		/// function releases it or thirty seconds pass. Empty without a host.
+		/// \brief RFC-BPR-0114 AC06 ([[BPR-2065]]). Holds the lane the
+		/// author's own Git runs on (a push in flight), until the returned
+		/// release runs or 30 seconds pass.
+		[[nodiscard]] static auto hold_author_git_lane(github_application& aApplication) -> std::function<void()>;
 		[[nodiscard]] static auto hold_review_submission_lane(
 			github_application& aApplication) -> std::function<void()>;
 		/// \brief [[RFC-BPR-0105]]. Shortens the bound on waiting to start.

@@ -40,7 +40,7 @@ namespace bpr::app {
 
 	local_draft_desktop::local_draft_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, std::filesystem::path aGitExecutable,
 											 std::optional<std::filesystem::path> aWindowsSystemRoot, application::effect_executor& aEffects, application::decision_executor& aDecisions,
-											 local_draft_syntax aSyntax)
+											 local_draft_syntax aSyntax, application::effect_executor* const aAuthorGitLane)
 		: Window{ aWindow }
 		, Source{ adapters::workspace::make_local_workspace_source() }
 	{
@@ -121,8 +121,12 @@ namespace bpr::app {
 		AuthorGit     = adapters::git::make_installed_author_git(aGitExecutable.empty() ? std::filesystem::path{ } : aGitExecutable);
 		WorktreeFiles = adapters::git::make_worktree_files();
 		ConsentFile   = aProfileRoot / "author-git-consent.txt";
+		if (aAuthorGitLane == nullptr) {
+			OwnAuthorGitLane = std::make_unique<worker_executor>();
+		}
+		AuthorGitLane = aAuthorGitLane != nullptr ? aAuthorGitLane : OwnAuthorGitLane.get();
 		Changes       = std::make_unique<application::local_changes_host>(
-			*AuthorGit, *WorktreeFiles, core::make_xdiff_line_matcher(), aEffects, aDecisions, *this,
+			*AuthorGit, *WorktreeFiles, core::make_xdiff_line_matcher(), *AuthorGitLane, aDecisions, *this,
 			application::local_changes_consent{
 				.Allowed =
 					[this](const std::string& aKey) {
@@ -570,6 +574,11 @@ namespace bpr::app {
 			BringForward = true;
 			Host->resume(associated->Id);
 		}
+	}
+
+	auto local_draft_desktop::author_git_lane() noexcept -> application::effect_executor&
+	{
+		return *AuthorGitLane;
 	}
 
 	auto local_draft_desktop::changes() noexcept -> application::local_changes_host&

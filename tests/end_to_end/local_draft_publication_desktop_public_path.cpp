@@ -225,7 +225,7 @@ try {
 	window->resize(1280, 860);
 	window->show();
 	auto cycles = std::make_unique<app::review_cycle_desktop>(*window, profileRoot.path(), core::bpr_profile_id{ 1 }, lanes, lanes, app::review_cycle_syntax{ }, &lanes);
-	auto drafts = std::make_unique<app::local_draft_desktop>(*window, profileRoot.path(), gitExecutable, std::nullopt, lanes, lanes);
+	auto drafts = std::make_unique<app::local_draft_desktop>(*window, profileRoot.path(), gitExecutable, std::nullopt, lanes, lanes, { }, &lanes);
 	auto github = std::make_shared<scripted_github>();
 	auto copied = std::string{ };
 	drafts->set_folder_chooser([&worktree] { return QString::fromStdString(worktree.string()); });
