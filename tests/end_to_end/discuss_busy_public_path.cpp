@@ -186,13 +186,17 @@ try {
 	settle();
 
 	// An open card with code grows wider than the column.
-	const auto open = std::ranges::find(cards->cards(), std::string{ "review:busy-review-jiayin" }, &qt::thread_card::Id);
 	window.resize(1728, 1117);
 	settle();
-	cards->open_thread(open->Id);
-	settle();
+	cards->open_thread("review:busy-review-jiayin");
+	wait_for(
+		[&] {
+			const auto found = std::ranges::find(cards->cards(), std::string{ "review:busy-review-jiayin" }, &qt::thread_card::Id);
+			return found != cards->cards().end() && found->Rect.width() > cards->column().second;
+		},
+		"an open card holding code grows wider than the column");
 	const auto wide = std::ranges::find(cards->cards(), std::string{ "review:busy-review-jiayin" }, &qt::thread_card::Id);
-	expect(wide != cards->cards().end() && wide->Rect.width() > cards->column().second, "an open card holding code grows wider than the column");
+	expect(wide != cards->cards().end(), "the open card is listed");
 	cards->verticalScrollBar()->setValue(std::max(0, wide->Rect.top() - 120));
 	render(QStringLiteral("discuss-open-code-1728x1117"), 1728, 1117);
 
