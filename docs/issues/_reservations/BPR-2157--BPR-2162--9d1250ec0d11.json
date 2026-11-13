@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2157",
+    "BPR-2158",
+    "BPR-2159",
+    "BPR-2160",
+    "BPR-2161",
+    "BPR-2162"
+  ],
+  "reserve_for": "comments-absorb-notes-v1",
+  "purpose": "RFC-BPR-0127 comments absorb notes: import cards",
+  "created": "2026-11-13T08:46:00.545699+00:00",
+  "base": "489c64452194503795e647dc35c9fd3af0e36ccc"
+}

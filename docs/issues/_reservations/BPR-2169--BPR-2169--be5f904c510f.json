@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2169"
+  ],
+  "reserve_for": "main",
+  "purpose": "Live second-account course sign-in race (account setup driver passes the account step between polls)",
+  "created": "2026-11-13T08:46:01.814839+00:00",
+  "base": "489c64452194503795e647dc35c9fd3af0e36ccc"
+}
