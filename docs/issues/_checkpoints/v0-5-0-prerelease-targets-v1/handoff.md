@@ -2661,3 +2661,38 @@ Owner look v003, filed and not waited on:
 - Nine Accept/Reject questions, one per fix (see the BPR-2158 card). After hand-back: read from cursor 27, record verbatim on BPR-2158 and the ledger, stop host 98149 with the attended-review `stop`, remove the root once nothing runs from it.
 
 Next action: reconcile look v003 when forwarded; then cherry-pick `claude/bpr-2159-wip` and continue milestone 3 (BPR-2159, claimed).
+
+### RFC-BPR-0127 milestone 3 closed, look v004 filed (2026-11-13, fourth round)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines in commits. Frontend-design was loaded first.
+
+| Commit | What |
+|---|---|
+| `2fa8c82fa` | The parked WIP (`claude/bpr-2159-wip` `7ddf5abf3`) cherry-picked |
+| `9543551e2` | Overview: no Note column (no fill column; File stays draggable), My review by state (In review, Not in review, Local comments), the application's per-row note join removed; Insights tile Local comments; Threads row menu Make Draft / Keep Local; window wiring (`set_local_dispatch`, `set_local_show`, `set_outside_keep_local`, Finder move and Local picks); Keep Local from a list uses the roster's path when the draft's comparison is not shown |
+| `406e9934f` | Qt evidence: finder, overview page, review submission editor |
+| `b0ea75ce8` | Composed course `application_local_comments_found_public_path` (AC07-AC09); Threads' open-draft row carries its identity (it was listed twice) and follows the roster; AC13's course counts threads, not Local rows; app source pin resealed |
+| `c5d5da4df` | **BPR-2159 Done** (AC07, AC08, AC09); ledger. **Frozen commit for look v004** |
+| `06a2c6fd7` | BPR-2160 Ready (not claimed) |
+| main `e6425c822`, next | Mirrors |
+
+Evidence: [BPR-2159 card](../../60-done/BPR-2159-local-comments-found-and-counted.md#progress-2026-11-13); documentation gate OK on lane and main; format gate passes.
+
+Owner look v004, filed and not waited on:
+- Session `8ce7e45524c31cb13950f64babfa0ddf`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v004-2026-11-13/state`. Its URL is in `serve.log` beside the state.
+- Cursor 21. Host PID 42869, its Tailscale serve child 42879.
+- Frozen root `/Users/jaeger/comments-absorb-notes-v004.r230gldo` from `c5d5da4df652`; the freeze's launcher check reached `ATTENDED_FILE_SHOWN`.
+- Seven Accept/Reject questions (see the ledger). After hand-back: read from cursor 21, record verbatim on BPR-2159 and the ledger, stop host 42869 with the attended-review `stop`, remove the root with `freeze_attended_build.py remove` once nothing runs from it.
+
+Look v003 (session `acaf71a2…`, host 98149/98159) was not touched; reconcile it when forwarded.
+
+Next: milestone 4 (`one-keep-action`, BPR-2160, Ready, not claimed). Design start:
+- **Surfaces with two actions today:** the Agent answer footer (`agent_tab_view.cpp` ~1417, Save as note beside Draft comment), finding cards (`agent_tab_view.cpp` ~3330, `agent_finding_card_action::save_note`, state `noted`), the finding queue (`finding_queue_view.cpp` `add_to_private_notes`), the Explain this file card (`explain_file_card.cpp`, Keep as note / Go to note).
+- **Core first:** one decision "where can this be kept": a draft where a line of the shown comparison takes one, else a Local comment on the file or the pull request (the RFC's "the keep action's choice of state from whether a draft has a place"). Reuse `decide_make_draft`'s placement rules.
+- **Follow-up:** Go to draft or Go to comment, both opening what was made; `agent_finding_card_memory::Note` keeps the note identity space, so a note-era Go to note still arrives.
+- **Opt-ins (AC12):** `side_chat_panel.cpp` "Include my private notes" becomes "Include my local comments"; `agent_launch_panel.cpp`'s "Private notes" row becomes "Local comments"; drafts keep their own opt-in.
+- **Ask agent** on my own unsent comment through one recording path (`record_note_press`).
+- **Wording sweep:** Enhance settings "Comments and replies"; the docs in `docs/ux/ai-experience.md`, `docs/architecture/ai-agent-boundary.md`.
+- Ends in an owner look with a fixture holding an agent answer and a finding card.
+
+Not touched: sessions `acaf71a2…` and `3fefa366…`; the v002, v003, v005 and v006 roots; PIDs 38152, 98149/98159, 26296, 51569, 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
