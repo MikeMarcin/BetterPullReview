@@ -80,6 +80,8 @@ namespace bpr::qt {
 			overview.BaseRef        = draft.Target.Target.Branch;
 			overview.HeadRef        = draft.Branch;
 			overview.Draft          = true;
+			// No count: a draft's commits are the worktree's, not a pull request's.
+			overview.AuthorLogin = "This draft";
 			if (const auto* const shown = shown_candidate(aView); shown != nullptr) {
 				for (const auto& change : shown->Changes) {
 					const auto slash = change.Path.rfind('/');
@@ -413,6 +415,7 @@ namespace bpr::qt {
 			for (auto* const action : ReviewBar->actions()) {
 				const auto name    = action->objectName();
 				const auto pullish = name == QLatin1String{ "reviewBarUpdatesAction" } || name == QLatin1String{ "reviewBarProgressGapAction" }
+					|| name == QLatin1String{ "reviewBarComparingAction" } || name == QLatin1String{ "reviewBarComparisonDividerAction" }
 					|| name == QLatin1String{ "workbenchProgressTrackAction" } || action == ComposeReviewAction || action == CommentAction || action == HeaderSourceAction;
 				if (pullish) {
 					action->setVisible(!local);
@@ -486,13 +489,14 @@ namespace bpr::qt {
 				CentreStack->setCurrentWidget(current_modality() == review_modality::overview && local ? static_cast<QWidget*>(OverviewPage) : ComparisonPage);
 			}
 		}
-		if (local) {
-			if (FilePositionLabel != nullptr) {
-				const auto& shown = LocalDraft->projection().File;
-				const auto  found = shown ? std::ranges::find(LocalFiles, shown->Path) : LocalFiles.end();
-				FilePositionLabel->setText(found == LocalFiles.end() ? QString{ } : QStringLiteral("File %1 of %2").arg(std::distance(LocalFiles.begin(), found) + 1).arg(LocalFiles.size()));
-			}
+		// Explain this file asks about a pull request's file; a draft's waits.
+		if (ExplainFileButton != nullptr) {
+			ExplainFileButton->setVisible(!local);
 		}
+		if (EpochSelectors != nullptr) {
+			EpochSelectors->setVisible(!local);
+		}
+		update_strip_positions();
 		update_action_state();
 		update_status_text();
 		apply_drawer_layout();
@@ -568,7 +572,11 @@ namespace bpr::qt {
 		}
 		// Overview: the author's panel beside the pull request it would be.
 		if (OverviewPage != nullptr && OverviewPage->status_splitter() != nullptr) {
-			OverviewPage->status_splitter()->addWidget(LocalDraft->author_panel());
+			auto* const splitter = OverviewPage->status_splitter();
+			splitter->addWidget(LocalDraft->author_panel());
+			splitter->setStretchFactor(splitter->indexOf(LocalDraft->author_panel()), 0);
+			LocalDraft->author_panel()->setMinimumWidth(300);
+			LocalDraft->author_panel()->setMaximumWidth(420);
 		}
 		// A stop's lines are the viewer's selection, on the candidate's side.
 		LocalDraft->set_comparison_links(

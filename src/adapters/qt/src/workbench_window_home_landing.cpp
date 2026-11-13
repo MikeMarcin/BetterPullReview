@@ -1202,6 +1202,15 @@ namespace bpr::qt {
 				? QStringLiteral("File %1/%2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
 				: fileWords;
 		}
+		// A local draft counts its own files, as the core counts a pull request's.
+		if (LocalDraftShown && LocalDraft != nullptr) {
+			const auto& shown = LocalDraft->projection().File;
+			const auto  found = shown ? std::ranges::find(LocalFiles, shown->Path) : LocalFiles.end();
+			if (found != LocalFiles.end()) {
+				fileWords = QStringLiteral("File %1 of %2").arg(std::distance(LocalFiles.begin(), found) + 1).arg(LocalFiles.size());
+				fileText  = fileWords;
+			}
+		}
 		present(*FilePositionLabel, QStringLiteral("File"), fileText, fileWords);
 
 		// Derived from the comparison the surface holds, exactly as the host
@@ -1787,6 +1796,10 @@ namespace bpr::qt {
 	{
 		// As the files drawer: shown while the core offers no drawer command,
 		// so a reviewer with nothing open can still reach a pull request.
+		// A local draft has no repository to choose: the drawer stays closed.
+		if (LocalDraftShown) {
+			return core::workbench_drawer_state::collapsed;
+		}
 		const auto toggle = command(core::workbench_command_id::toggle_repositories_drawer);
 		if (!toggle || !toggle->Enabled) {
 			return core::workbench_drawer_state::expanded;

@@ -271,12 +271,15 @@ namespace bpr::qt {
 			commits += QStringLiteral(" (%1 returned by GitHub)")
 						   .arg(count_text(aProjection.ReturnedCommitCount));
 		}
-		Summary->setText(QStringLiteral("%1 wants to merge %2 into %3 from %4.%5")
-							 .arg(text(aProjection.AuthorLogin),
-								  commits,
-								  text(aProjection.BaseRef),
-								  text(aProjection.HeadRef),
-								  state));
+		// A local draft has no commit count of GitHub's to state.
+		Summary->setText(aProjection.CommitCount == 0U && aProjection.Number.value() == 0U
+							 ? QStringLiteral("%1 would merge %2 into %3.").arg(text(aProjection.AuthorLogin), text(aProjection.HeadRef), text(aProjection.BaseRef))
+							 : QStringLiteral("%1 wants to merge %2 into %3 from %4.%5")
+								   .arg(text(aProjection.AuthorLogin),
+										commits,
+										text(aProjection.BaseRef),
+										text(aProjection.HeadRef),
+										state));
 		if (updateBody) {
 			Body->present_body(aProjection.Body);
 		}
