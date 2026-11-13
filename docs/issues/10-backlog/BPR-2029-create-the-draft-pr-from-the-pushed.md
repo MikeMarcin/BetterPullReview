@@ -54,3 +54,12 @@ Session state `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v005-
 Each decision carries a screenshot attachment in the session state. Not fixed in this round (coordinator, 2026-11-13: the next round fixes them). Host 6331/6340 stopped with the attended-review `stop`.
 
 The publish steps look (RFC-BPR-0111 AC01, AC07 surfaces) was accepted with the owner's question about the step circles' vertical alignment, to be checked in the next round.
+
+## Readiness judgment (2026-11-13)
+
+BPR-2028 is Done, so this card's dependency is met. Its evidence, from the [ledger](../../verification/RFC-BPR-0111.md):
+- AC01 passes live: draft #184 at `1237dbefd`, with the push named, the author's own commit, and the carried tour stop anchored and Accepted.
+- AC02 passes (`core_local_draft_publication`, `local_draft_publication`).
+- AC07 passes on fixture, and the owner accepted the publish steps (session 411e2c74, aligned in a0cbb9dd), except one clause: "a review submission for another pull request completes while a creation is in flight". That clause has no course: `application_local_draft_publication_desktop_public_path` shows only the draft's own lane free during a held creation.
+
+The card was not readied. `issue_board.py move` refuses, because `docs/rfcs/assets/local-draft-authoring-v1/AMENDMENTS.md` (protected) links this card's Backlog path, as it links BPR-2031's. Any lane move would edit protected content. Closing RFC-BPR-0111 needs a decision on that link (an exception for the link line, or a path-preserving approach) and a course for AC07's submission clause.
