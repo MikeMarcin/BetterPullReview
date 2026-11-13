@@ -6414,10 +6414,12 @@ namespace {
 		timer->start();
 	}
 
-	/// RFC-BPR-0110. Through the draft page, as an author would: include the
-	/// working README, refresh, write the description and the tour's brief,
-	/// add a stop on src/search.cpp and accept it with Save, add one on the
-	/// README left to accept, and ask the scripted agent about the change.
+	/// RFC-BPR-0110 as amended (owner: "stick with the PR view and just
+	/// augment it"). Through the pull request window's own surfaces, as an
+	/// author would: include the working README, refresh, write the
+	/// description in Overview and the tour's Problem and Solution in the Tour
+	/// panel, add a stop on src/search.cpp and accept it with Save, add one on
+	/// the README left to accept, and ask the scripted agent in the side chat.
 	void prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* const aTimer)
 	{
 		aTimer->setInterval(50);
@@ -6447,11 +6449,11 @@ namespace {
 			const auto  shown = [&](const char* aPath) {
 				return view.File && view.File->Path == aPath && view.File->Status == bpr::application::review_material_status::available;
 			};
-			auto&      window = aApplication.window();
-			const auto open   = [&](const char* aPath) { static_cast<void>(window.open_local_file(QString::fromLatin1(aPath))); };
+			auto&       window = aApplication.window();
+			auto* const tour   = window.tour_editor();
+			const auto  open   = [&](const char* aPath) { static_cast<void>(window.open_local_file(QString::fromLatin1(aPath))); };
 			// The lines selected in the window's own comparison, as a person drags them.
-			const auto  select = [&](const std::uint32_t aFirst, const std::uint32_t aLast) { page->reveal(view.File->Path, aFirst, aLast); };
-			auto* const tour   = page->tour();
+			const auto select = [&](const std::uint32_t aFirst, const std::uint32_t aLast) { page->reveal(view.File->Path, aFirst, aLast); };
 			switch (*stage) {
 			case 0:
 				for (int row = 0; row < page->working()->count(); ++row) {
@@ -6467,62 +6469,103 @@ namespace {
 				}
 				*stage = 2;
 				return;
-			case 2:
+			case 2: {
 				if (view.Draft->Candidates.size() < 2U) {
 					return;
 				}
-				page->description()->body()->setPlainText(QStringLiteral(
-					"## Summary\n\nSearch no longer reads past an empty query, and the engine goes through search().\n\n## Testing\n\n- [x] search_tests on macOS\n- [ ] Linux not run\n"));
-				page->description()->body()->document()->setModified(true);
-				page->description()->save_button()->click();
-				tour->problem()->setPlainText(QStringLiteral("An empty query made search() read the byte after the string."));
-				tour->solution()->setPlainText(QStringLiteral("search() checks for the empty query first; engine() calls it."));
-				tour->save_brief_button()->click();
-				*stage = 3;
-				return;
-			case 3:
-				open("src/search.cpp");
-				if (shown("src/search.cpp")) {
-					select(1U, 4U);
-					tour->add_stop_button()->click();
-					*stage = 4;
-				}
-				return;
-			case 4:
-				if (prep.Tour.Stops.size() != 1U) {
+				// The description, in Overview's own editor.
+				window.choose_modality(bpr::qt::review_modality::overview);
+				auto* const overview = window.overview_page();
+				if (!overview->description_editing() && !overview->begin_description_edit()) {
 					return;
 				}
-				tour->stops()->setCurrentRow(0);
-				tour->stop_title()->setText(QStringLiteral("The empty query returns first"));
-				tour->stop_text()->setPlainText(QStringLiteral("An empty string returns 0 before anything reads aText[0]'s successor. This is the fix."));
-				tour->save_button()->click();
+				overview->description_editor()->setPlainText(QStringLiteral(
+					"## Problem\n\nAn empty query made `search()` read the byte after the string.\n\n## Solution\n\n`search()` checks for the empty query first; `engine()` calls it.\n\n## Testing\n\n- [x] search_tests on macOS\n- [ ] Linux not run\n"));
+				overview->description_save_button()->click();
+				*stage = 3;
+				return;
+			}
+			case 3:
+				if (prep.Description.Body.empty()) {
+					return;
+				}
+				window.choose_modality(bpr::qt::review_modality::review);
+				window.tray_tabs()->setCurrentIndex(2);
+				tour->open_step(bpr::core::tour_step::problem);
+				tour->problem_editor()->setPlainText(QStringLiteral("An empty query made search() read the byte after the string."));
+				*stage = 4;
+				return;
+			case 4:
+				if (prep.Tour.Problem.empty()) {
+					return;
+				}
+				tour->open_step(bpr::core::tour_step::solution);
+				tour->solution_editor()->setPlainText(QStringLiteral("search() checks for the empty query first; engine() calls it."));
 				*stage = 5;
 				return;
 			case 5:
-				open("README.md");
-				if (shown("README.md")) {
-					select(3U, 3U);
-					tour->add_stop_button()->click();
+				if (prep.Tour.Solution.empty()) {
+					return;
+				}
+				open("src/search.cpp");
+				if (shown("src/search.cpp")) {
+					select(1U, 4U);
+					tour->open_step(bpr::core::tour_step::stops);
+					tour->trigger(bpr::qt::tour_editor_action::add_stop);
 					*stage = 6;
 				}
 				return;
 			case 6:
+				if (prep.Tour.Stops.size() != 1U) {
+					return;
+				}
+				tour->go_to_stop(bpr::core::tour_stop_id{ prep.Tour.Stops[0].Id });
+				tour->begin_stop_edit();
+				tour->stop_title()->setPlainText(QStringLiteral("The empty query returns first"));
+				tour->stop_body()->setPlainText(QStringLiteral("An empty string returns 0 before anything reads `aText[0]`'s successor. This is the fix."));
+				*stage = 7;
+				return;
+			case 7:
+				if (prep.Tour.Stops[0].Text.empty()) {
+					return;
+				}
+				tour->save_stop_edit();
+				*stage = 8;
+				return;
+			case 8:
+				open("README.md");
+				if (shown("README.md")) {
+					select(3U, 3U);
+					tour->trigger(bpr::qt::tour_editor_action::add_stop);
+					*stage = 9;
+				}
+				return;
+			case 9:
 				if (prep.Tour.Stops.size() != 2U) {
 					return;
 				}
-				window.tray_tabs()->setCurrentIndex(2);
-				tour->stops()->setCurrentRow(-1);
-				static_cast<void>(window.comparison_surface()->clear_line_selection());
-				tour->chat()->composer()->setText(QStringLiteral("Is the empty query the only case that reads past the string?"));
-				tour->chat()->ask_button()->click();
-				*stage = 7;
+				tour->go_to_stop(bpr::core::tour_stop_id{ prep.Tour.Stops[1].Id });
+				tour->begin_stop_edit();
+				tour->stop_title()->setPlainText(QStringLiteral("The README says so"));
+				tour->stop_body()->setPlainText(QStringLiteral("The README's search section now says an empty query finds nothing."));
+				*stage = 10;
+				return;
+			case 10:
+				if (prep.Tour.Stops[1].Text.empty()) {
+					return;
+				}
+				tour->finish_stop_edit();
+				tour->open_side_chat(bpr::core::tour_thread{ });
+				tour->side_chat()->composer()->setPlainText(QStringLiteral("Is the empty query the only case that reads past the string?"));
+				tour->side_chat()->send_button()->click();
+				*stage = 11;
 				return;
 			default:
 				if (prep.Conversations.empty() || prep.Conversations.back().Turns.size() < 2U) {
 					return;
 				}
 				window.tray_tabs()->setCurrentIndex(2);
-				tour->stops()->setCurrentRow(1);
+				tour->go_to_stop(bpr::core::tour_stop_id{ prep.Tour.Stops[1].Id });
 				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_TOUR_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
 				return;
 			}

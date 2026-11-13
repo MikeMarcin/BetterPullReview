@@ -176,38 +176,7 @@ namespace bpr::app {
 				},
 			.OpenLocalFile     = [this](const std::string& aPath) { Changes->open_file(aPath); },
 			.Save              = [this](const std::string& aPath, std::vector<std::uint8_t> aRead, std::vector<std::uint8_t> aEdited) { Changes->save(aPath, std::move(aRead), std::move(aEdited)); },
-			.CreatePullRequest = [this] { Host->check_publication(false); },
-		});
-		// RFC-BPR-0110: the Description and Tour areas. Nothing here publishes.
-		View->set_preparation_dispatch({
-			.SaveDescription = [this](const std::string& aTitle, const std::string& aBody) { Host->save_description(aTitle, aBody); },
-			.SaveBrief       = [this](const std::string& aProblem, const std::string& aSolution) { Host->save_brief(aProblem, aSolution); },
-			.Transfer        = [this](const std::string& aPassage) { Host->transfer_to_description(aPassage); },
-			.AddStop         = [this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const std::string& aTitle,
-									  const std::string& aText) { Host->add_stop(aPath, aFirst, aLast, aTitle, aText); },
-			.SaveStop        = [this](const std::uint64_t aStop, const std::string& aTitle, const std::string& aText, const std::string& aPath, const std::uint32_t aFirst,
-									  const std::uint32_t aLast) { Host->save_stop(aStop, aTitle, aText, aPath, aFirst, aLast); },
-			.AcceptStop      = [this](const std::uint64_t aStop) { Host->accept_stop(aStop); },
-			.RemoveStop      = [this](const std::uint64_t aStop) { Host->remove_stop(aStop); },
-			.MoveStop        = [this](const std::uint64_t aStop, const std::size_t aIndex) { Host->move_stop(aStop, aIndex); },
-			.DecideProposal  = [this](const std::uint64_t aProposal, const bool aAccept) { Host->decide_proposal(aProposal, aAccept); },
-			.Ask =
-				[this](application::local_draft_question aQuestion) {
-					const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
-					if (!choice) {
-						return;
-					}
-					const auto describing  = aQuestion.Subject == core::local_subject::title || aQuestion.Subject == core::local_subject::description;
-					aQuestion.Agent        = choice->Identity;
-					aQuestion.AgentName    = choice->Name;
-					aQuestion.Profile      = choice->Profile;
-					aQuestion.Instructions = describing ? choice->Description : choice->Discussion;
-					aQuestion.Version      = describing ? choice->DescriptionVersion : choice->DiscussionVersion;
-					aQuestion.Delivery     = choice->Delivery;
-					Host->ask(std::move(aQuestion));
-				},
-			.StopAsking = [this] { Host->stop_asking(); },
-			.NewSession = [this](const std::uint64_t aConversation) { Host->new_session(aConversation); },
+			.CreatePullRequest = [this] { open_publication(); },
 		});
 		Window.set_local_draft_entry_dispatch(
 			[this] {
@@ -245,6 +214,301 @@ namespace bpr::app {
 		}
 		Window.present_local_draft(aProjection);
 		follow_author_state(aProjection);
+		present_tour();
+		// Created here: the window becomes the pull request.
+		if (aProjection.Draft) {
+			const auto& draft  = *aProjection.Draft;
+			const auto* link   = draft.Publication && draft.Publication->Journal.Link ? &*draft.Publication->Journal.Link : nullptr;
+			const auto  linked = link != nullptr && draft.Publication->Journal.Phase == core::local_publication_phase::linked;
+			const auto  seen   = LinkedSeen.find(draft.Id.Value);
+			const auto  became = seen != LinkedSeen.end() && !seen->second && linked;
+			LinkedSeen[draft.Id.Value] = linked;
+			if (became && OpenPullRequest && Window.showing_local_draft()) {
+				const auto& repository = draft.Target.Target.Repository;
+				OpenPullRequest(repository.Host, repository.Owner, repository.Name, link->Number);
+			}
+		}
+		if (!aProjection.Busy) {
+			TourEditInFlight = false;
+			flush_tour_edits();
+		}
+	}
+
+	auto local_draft_desktop::tour_shown() const -> bool
+	{
+		return !Closing && View != nullptr && Window.showing_local_draft() && View->projection().Draft.has_value();
+	}
+
+	void local_draft_desktop::present_tour()
+	{
+		auto* const editor = Window.tour_editor();
+		if (!tour_shown() || editor == nullptr) {
+			return;
+		}
+		const auto& projection = View->projection();
+		auto        asking     = std::optional<core::local_tour_asking>{ };
+		if (projection.Asking) {
+			asking = core::local_tour_asking{ .Thread = projection.AskingThread, .Text = projection.AskingText };
+		}
+		auto view  = core::view_local_tour(*projection.Draft, asking);
+		auto shown = application::tour_presentation{ };
+		shown.Draft         = std::make_shared<const core::review_tour>(view.Tour);
+		shown.SavedRevision = view.Tour.Revision;
+		shown.ChangedFiles  = view.Files;
+		shown.Saving        = !TourEdits.empty() || TourEditInFlight;
+		// The draft's own words: a candidate, never a commit; its reasons.
+		auto reasons = std::make_shared<std::vector<std::pair<std::uint64_t, core::local_stop_reason>>>(view.Reasons);
+		auto stops   = std::make_shared<std::vector<core::local_tour_stop>>(projection.Draft->Preparation.Tour.Stops);
+		editor->set_local_words(qt::tour_local_words{
+			.Reason =
+				[reasons](const core::tour_stop_id aStop) {
+					const auto found = std::ranges::find(*reasons, aStop.value(), &std::pair<std::uint64_t, core::local_stop_reason>::first);
+					if (found == reasons->end() || found->second == core::local_stop_reason::not_accepted || found->second == core::local_stop_reason::none) {
+						return QString{ };
+					}
+					return QStringLiteral("Changed since accepted: %1.").arg(QString::fromUtf8(core::name(found->second).data(), static_cast<qsizetype>(core::name(found->second).size())));
+				},
+			.Source =
+				[stops](const core::tour_stop_id aStop) {
+					const auto found = std::ranges::find(*stops, aStop.value(), &core::local_tour_stop::Id);
+					if (found == stops->end()) {
+						return QString{ };
+					}
+					const auto& source = found->Source;
+					return QStringLiteral("%1 · lines %2–%3 · candidate %4").arg(QString::fromStdString(source.Path)).arg(source.FirstLine).arg(source.LastLine).arg(source.Candidate);
+				},
+		});
+		editor->set_description_publication_default(core::update_description_by_default(true));
+		editor->present(shown);
+		editor->present_tour_session(view.Session, view.Proposal);
+		editor->set_tour_running(std::nullopt, false, projection.Asking);
+		if (!projection.AskFailure.empty()) {
+			editor->show_writing_notice(QString::fromStdString(projection.AskFailure));
+		}
+		TourView = std::move(view);
+	}
+
+	void local_draft_desktop::queue_tour_edit(std::string aKey, std::function<void()> aApply)
+	{
+		if (!aKey.empty() && !TourEdits.empty() && TourEdits.back().Key == aKey) {
+			TourEdits.back().Apply = std::move(aApply);
+		} else {
+			TourEdits.push_back({ .Key = std::move(aKey), .Apply = std::move(aApply) });
+		}
+		flush_tour_edits();
+	}
+
+	void local_draft_desktop::flush_tour_edits()
+	{
+		if (Closing || TourEditInFlight || TourEdits.empty() || Host->projection().Busy) {
+			return;
+		}
+		auto edit        = std::move(TourEdits.front());
+		TourEdits.pop_front();
+		TourEditInFlight = true;
+		edit.Apply();
+	}
+
+	void local_draft_desktop::tour_command(const core::tour_command& aCommand)
+	{
+		if (!tour_shown()) {
+			return;
+		}
+		for (auto& edit : core::translate_local_tour_command(*View->projection().Draft, aCommand)) {
+			switch (edit.Kind) {
+			case core::local_tour_edit_kind::brief:
+				// The Problem and Solution as typed, each kept until sent; the
+				// one waiting edit sends both, the other as the draft has it.
+				(aCommand.Kind == core::tour_command_kind::problem ? TypedProblem : TypedSolution) = aCommand.Text;
+				queue_tour_edit("brief", [this] {
+					const auto& tour = Host->projection().Draft->Preparation.Tour;
+					Host->save_brief(std::exchange(TypedProblem, std::nullopt).value_or(tour.Problem), std::exchange(TypedSolution, std::nullopt).value_or(tour.Solution));
+				});
+				break;
+			case core::local_tour_edit_kind::stop_text:
+				queue_tour_edit("stop:" + std::to_string(edit.Stop), [this, edit] { Host->edit_stop(edit.Stop, edit.Title, edit.Text); });
+				break;
+			case core::local_tour_edit_kind::accept:   queue_tour_edit({ }, [this, stop = edit.Stop] { Host->accept_stop(stop); }); break;
+			case core::local_tour_edit_kind::unaccept: queue_tour_edit({ }, [this, stop = edit.Stop] { Host->unaccept_stop(stop); }); break;
+			case core::local_tour_edit_kind::remove:   queue_tour_edit({ }, [this, stop = edit.Stop] { Host->remove_stop(stop); }); break;
+			case core::local_tour_edit_kind::move:     queue_tour_edit({ }, [this, stop = edit.Stop, index = edit.Index] { Host->move_stop(stop, index); }); break;
+			case core::local_tour_edit_kind::none:     break;
+			}
+		}
+	}
+
+	void local_draft_desktop::tour_action(const qt::tour_editor_action aAction)
+	{
+		auto* const editor = Window.tour_editor();
+		if (!tour_shown() || editor == nullptr) {
+			return;
+		}
+		const auto* const stop = editor->selected_stop();
+		const auto        draftStop = [&]() -> const core::local_tour_stop* {
+            if (stop == nullptr) {
+                return nullptr;
+            }
+            const auto& stops = View->projection().Draft->Preparation.Tour.Stops;
+            const auto  found = std::ranges::find(stops, stop->Id.value(), &core::local_tour_stop::Id);
+            return found == stops.end() ? nullptr : &*found;
+		}();
+		switch (aAction) {
+		case qt::tour_editor_action::add_stop:
+		case qt::tour_editor_action::insert_after:
+			// A stop on the lines selected in the latest candidate's comparison.
+			if (const auto lines = View->selected_lines()) {
+				queue_tour_edit({ }, [this, chosen = *lines] { Host->add_stop(chosen.Path, chosen.First, chosen.Last, { }, { }); });
+			} else {
+				editor->show_notice(QStringLiteral("Select lines of the latest candidate in Review, then add the stop."));
+			}
+			return;
+		case qt::tour_editor_action::retarget_stop:
+			if (draftStop == nullptr) {
+				return;
+			}
+			if (const auto lines = View->selected_lines()) {
+				queue_tour_edit({ }, [this, id = draftStop->Id, title = draftStop->Title, text = draftStop->Text, chosen = *lines] { Host->edit_stop(id, title, text, chosen.Path, chosen.First, chosen.Last); });
+			} else {
+				editor->show_notice(QStringLiteral("Select lines of the latest candidate in Review first."));
+			}
+			return;
+		case qt::tour_editor_action::navigate_stop:
+			if (draftStop != nullptr) {
+				// Its lines where they are exactly on the latest candidate, else where it was bound.
+				const auto exact = draftStop->Current.Correspondence == core::local_correspondence::exact;
+				View->reveal(draftStop->Source.Path, exact ? draftStop->Current.FirstLine : draftStop->Source.FirstLine, exact ? draftStop->Current.LastLine : draftStop->Source.LastLine,
+							 exact ? std::uint64_t{ 0U } : draftStop->Source.Candidate);
+			}
+			return;
+		case qt::tour_editor_action::ask_code:
+			editor->ask_about_code(std::nullopt);
+			return;
+		default:
+			// Publication, import, conflicts and undo belong to a pull
+			// request's tour; a local draft has none of them.
+			return;
+		}
+	}
+
+	void local_draft_desktop::ask_local(application::local_draft_question aQuestion)
+	{
+		const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
+		if (!choice) {
+			if (auto* const editor = Window.tour_editor(); editor != nullptr) {
+				editor->show_notice(QStringLiteral("Choose an agent in the status bar to ask about this draft."));
+			}
+			return;
+		}
+		const auto describing  = aQuestion.Subject == core::local_subject::title || aQuestion.Subject == core::local_subject::description;
+		aQuestion.Agent        = choice->Identity;
+		aQuestion.AgentName    = choice->Name;
+		aQuestion.Profile      = choice->Profile;
+		aQuestion.Instructions = describing ? choice->Description : choice->Discussion;
+		aQuestion.Version      = describing ? choice->DescriptionVersion : choice->DiscussionVersion;
+		aQuestion.Delivery     = choice->Delivery;
+		Host->ask(std::move(aQuestion));
+	}
+
+	void local_draft_desktop::tour_ask(const qt::tour_ask& aAsk)
+	{
+		if (!tour_shown()) {
+			return;
+		}
+		auto question    = application::local_draft_question{ .Thread = core::local_thread_of(aAsk.Thread), .Subject = core::local_subject_of(aAsk.Thread), .Stop = aAsk.Thread.Kind == core::tour_thread_kind::stop ? aAsk.Thread.Stop.value() : 0U };
+		auto text        = aAsk.Question.toStdString();
+		const auto part  = aAsk.Thread.Kind == core::tour_thread_kind::problem ? std::string{ "Problem" } : aAsk.Thread.Kind == core::tour_thread_kind::solution ? std::string{ "Solution" } : std::string{ "stop" };
+		if (aAsk.Fresh) {
+			// Enhance: a rewrite of the part, proposed for the author to accept.
+			text = "Rewrite this " + part + " so it reads clearly and accurately. Propose the rewrite; do not change anything else.";
+		} else if (aAsk.Update) {
+			text = "Rewrite this " + part + " from our conversation. Propose the rewrite.";
+		}
+		if (aAsk.Passage) {
+			if (aAsk.Passage->Field == core::tour_passage_field::stop_code && !aAsk.Passage->Path.empty()) {
+				question.Subject   = core::local_subject::lines;
+				question.LinesPath = aAsk.Passage->Path;
+				question.FirstLine = aAsk.Passage->FirstLine;
+				question.LastLine  = aAsk.Passage->LastLine;
+			} else if (!aAsk.Passage->Text.empty()) {
+				text += "\n\nAbout this passage:\n> " + aAsk.Passage->Text;
+			}
+		}
+		if (text.empty()) {
+			return;
+		}
+		question.Text = std::move(text);
+		ask_local(std::move(question));
+	}
+
+	void local_draft_desktop::tour_writing(const core::writing_hook aHook)
+	{
+		if (!tour_shown()) {
+			return;
+		}
+		const auto thread = aHook == core::writing_hook::problem ? core::tour_thread{ .Kind = core::tour_thread_kind::problem }
+			: aHook == core::writing_hook::solution             ? core::tour_thread{ .Kind = core::tour_thread_kind::solution }
+																: core::tour_thread{ };
+		auto ask = qt::tour_ask{ .Thread = thread, .Fresh = true };
+		if (auto* const editor = Window.tour_editor(); editor != nullptr && aHook != core::writing_hook::problem && aHook != core::writing_hook::solution && editor->selected_stop() != nullptr) {
+			ask.Thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = editor->selected_stop()->Id };
+		}
+		tour_ask(ask);
+	}
+
+	void local_draft_desktop::tour_stop()
+	{
+		if (tour_shown()) {
+			Host->stop_asking();
+		}
+	}
+
+	void local_draft_desktop::tour_decide(const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText)
+	{
+		if (!tour_shown() || !TourView || aIndex >= TourView->ProposalItems.size() || aDecision == core::tour_proposal_decision::pending) {
+			return;
+		}
+		const auto proposal = TourView->ProposalItems[aIndex];
+		const auto accepted = aDecision == core::tour_proposal_decision::accepted;
+		queue_tour_edit({ }, [this, proposal, accepted] { Host->decide_proposal(proposal, accepted); });
+		// The author's edit of the proposed text, after it is accepted.
+		const auto& item = TourView->Proposal->Items[aIndex];
+		const auto  text = aText.toStdString();
+		if (!accepted || aText.isNull() || text == item.Text) {
+			return;
+		}
+		if (item.Part == core::tour_proposal_part::problem || item.Part == core::tour_proposal_part::solution) {
+			const auto problem = item.Part == core::tour_proposal_part::problem;
+			queue_tour_edit({ }, [this, problem, text] {
+				const auto& tour = Host->projection().Draft->Preparation.Tour;
+				Host->save_brief(problem ? text : tour.Problem, problem ? tour.Solution : text);
+			});
+		} else if (item.Part == core::tour_proposal_part::stop_text) {
+			queue_tour_edit({ }, [this, stop = item.StopId.value(), title = item.Stop.Title, text] { Host->edit_stop(stop, title, text); });
+		}
+	}
+
+	void local_draft_desktop::save_description(const std::string& aBody)
+	{
+		if (tour_shown()) {
+			Host->save_description(View->projection().Draft->Title, aBody);
+		}
+	}
+
+	void local_draft_desktop::set_pull_request_opener(pull_request_opener aOpener)
+	{
+		OpenPullRequest = std::move(aOpener);
+	}
+
+	void local_draft_desktop::open_publication()
+	{
+		if (!tour_shown()) {
+			return;
+		}
+		Window.show_local_publication();
+		const auto& view = View->projection().Publishing;
+		if (!view.Checking && !view.Creating) {
+			Host->check_publication(!View->projection().Draft->Preparation.Tour.Stops.empty());
+		}
 	}
 
 	void local_draft_desktop::follow_author_state(const application::local_draft_workbench_projection& aProjection)
@@ -501,7 +765,6 @@ namespace bpr::app {
 			Window.set_local_syntax_dispatch({ });
 			Window.set_local_change_dispatch({ });
 			View->set_dispatch({ });
-			View->set_preparation_dispatch({ });
 			View->publication()->set_dispatch({ });
 			View->local_changes()->set_dispatch({ });
 			Window.set_local_draft_entry_dispatch({ }, { });

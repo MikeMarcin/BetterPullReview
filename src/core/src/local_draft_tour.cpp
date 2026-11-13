@@ -1562,11 +1562,12 @@ namespace bpr::core {
 					const auto there     = correspond(binding, std::numeric_limits<std::uint64_t>::max(), *file);
 					entry.Correspondence = there.Correspondence;
 					if (there.Correspondence == local_correspondence::exact) {
+						// A tour's destination counts lines from zero; the draft's from one.
 						entry.Anchor    = tour_code_destination{ .Commit    = aResult.Head,
 																 .Path      = stop.Source.Path,
 																 .Side      = diff_side::right,
-																 .FirstLine = there.FirstLine,
-																 .LastLine  = there.LastLine };
+																 .FirstLine = there.FirstLine - 1U,
+																 .LastLine  = there.LastLine - 1U };
 						entry.Permalink = permalink(aResult, stop.Source.Path, there.FirstLine, there.LastLine);
 					}
 				}

@@ -271,9 +271,9 @@ namespace {
 															 .Files  = { file("int a;\nvoid cancel() {\n  stop();\n}\nint z;\n") } };
 		const auto mapping = core::map_local_publication(draft, result);
 		expect(mapping.DescriptionPreserved, "the accepted full description is the pull request's body");
-		expect(mapping.Stops.size() == 2U && mapping.Stops[0].Anchor && mapping.Stops[0].Anchor->FirstLine == 2U
+		expect(mapping.Stops.size() == 2U && mapping.Stops[0].Anchor && mapping.Stops[0].Anchor->FirstLine == 1U && mapping.Stops[0].Anchor->LastLine == 3U
 				   && mapping.Stops[0].Permalink == "https://github.com/acme/engine/blob/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/src/search.cpp#L2-L4",
-			   "a matching stop acquires the pull request's anchor");
+			   "a matching stop acquires the pull request's anchor (zero-based, as a tour counts lines)");
 		expect(!mapping.Stops[1].Anchor && mapping.Stops[1].Correspondence == core::local_correspondence::changed && mapping.Unresolved == 1U,
 			   "a mismatched stop stays local, with its reason");
 		expect(draft.Preparation.Tour.Stops.size() == 2U, "no stop is dropped");

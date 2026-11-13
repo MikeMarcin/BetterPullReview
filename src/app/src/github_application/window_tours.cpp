@@ -223,7 +223,9 @@ namespace bpr::app {
 			return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && (p.SavedRevision == p.Draft->Revision || untouched);
 		});
 		Window->prepare_tour_action()->setEnabled(false);
-		Window->tour_editor()->present({ });
+		if (!local_tour_shown()) {
+			Window->tour_editor()->present({ });
+		}
 	}
 
 	/// The draft this window holds in memory for an opaque selector, current or retired; decision lane.
@@ -445,7 +447,9 @@ namespace bpr::app {
 			TourAttentionHead  = { };
 			auto shown         = TourHost->presentation();
 			shown.ChangedFiles = tour_changed_files();
-			Window->tour_editor()->present(shown);
+			if (!local_tour_shown()) {
+				Window->tour_editor()->present(shown);
+			}
 			Window->prepare_tour_action()->setEnabled(static_cast<bool>(TourHost->presentation().Draft));
 			observe_tour_head();
 			return;
@@ -494,12 +498,15 @@ namespace bpr::app {
 																			   }
 																		   }
 																	   }
-																	   Window->tour_editor()->present(projected);
+																	   if (!local_tour_shown()) {
+																		   Window->tour_editor()->present(projected);
+																	   }
 #if defined(BPR_AGENT_INTEGRATIONS)
 																	   // [[BPR-1931]]. Undo reset goes once the tour changes.
 																	   present_tour_reset();
 #endif
 																	   finish_pending_tour_start(projected);
+																	   carry_local_tour(projected);
 																	   if (TourPublication) {
 																		   TourPublication->observe(projected);
 																	   }
@@ -1078,8 +1085,7 @@ namespace bpr::app {
 			const auto  profile = writing_agent();
 			const auto& prefs   = Profile->WorkbenchPreferences->accepted();
 			if (Closing || !profile || !writes_tool_free(*profile) || !prefs) {
-				DraftDesktop->view()->tour()->notice()->setText(
-					QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker, or keep writing yourself."));
+				Window->tour_editor()->show_notice(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker, or keep writing yourself."));
 				return std::nullopt;
 			}
 			auto identity = tour_native_agent();
@@ -1202,12 +1208,16 @@ namespace bpr::app {
 			}
 		}
 		refresh_tour_host_idle();
-		Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour, aKind == core::tour_agent_request::ask);
+		if (!local_tour_shown()) {
+			Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour, aKind == core::tour_agent_request::ask);
+		}
 		present_tour_session();
 		if (!dispatch_agent_invocation(aAgent, { }, { }, false, aPrompt, continued, core::agent_entry_point::ask_about_selection, { }, true, launch)) {
 			static_cast<void>(core::finish_tour_run(TourAgent, *run, core::tour_agent_run_state::failed, "The tour session could not start this request."));
 			TourRun.reset();
-			Window->tour_editor()->set_tour_running(std::nullopt, false);
+			if (!local_tour_shown()) {
+				Window->tour_editor()->set_tour_running(std::nullopt, false);
+			}
 			present_tour_session();
 			return false;
 		}
@@ -1342,7 +1352,9 @@ namespace bpr::app {
 		}
 		present_tour_live(std::nullopt);
 		TourFooterPlace.reset();
-		Window->tour_editor()->set_tour_running(std::nullopt, false);
+		if (!local_tour_shown()) {
+			Window->tour_editor()->set_tour_running(std::nullopt, false);
+		}
 		TourAskPending = false;
 		if (TourDraftPending) {
 			TourDraftPending = false;
@@ -1424,7 +1436,9 @@ namespace bpr::app {
 		finish_tour_footer(aResult);
 		present_tour_live(std::nullopt);
 		refresh_tour_host_idle();
-		Window->tour_editor()->set_tour_running(std::nullopt, false);
+		if (!local_tour_shown()) {
+			Window->tour_editor()->set_tour_running(std::nullopt, false);
+		}
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			finish_tour_draft(run, aResult, words);
@@ -2282,7 +2296,9 @@ namespace bpr::app {
 					return aRun.ConversationScope != key || (selected != TourSelectedConversations.end() && aRun.Conversation != selected->second);
 				});
 			}
-			Window->tour_editor()->present_tour_session(shown, TourProposal);
+			if (!local_tour_shown()) {
+				Window->tour_editor()->present_tour_session(shown, TourProposal);
+			}
 			refresh_tour_host_idle();
 			present_tour_continuation();
 			present_tour_reset();
@@ -2954,8 +2970,71 @@ namespace bpr::app {
 		Window->tour_editor()->show_notice(QStringLiteral("The proposed source text is unavailable. Preview again before moving this destination."));
 	}
 
+	void github_application::implementation::carry_local_tour(const application::tour_presentation& aProjection)
+	{
+		// A pull request made from a local draft starts its private tour
+		// draft with the draft's tour, once, while that draft is still empty.
+		if (!DraftDesktop || !TourOwner || TourCarryAsked == TourOwner || aProjection.Loading || !aProjection.Draft || !WindowRead->accepted_snapshot()) {
+			return;
+		}
+		const auto& draft = *aProjection.Draft;
+		if (!draft.Problem.empty() || !draft.Solution.empty() || !draft.Stops.empty() || draft.Remote || draft.ReadOnly) {
+			TourCarryAsked = TourOwner;
+			return;
+		}
+		const auto& snapshot = *WindowRead->accepted_snapshot();
+		const auto& marks    = DraftDesktop->host().home().Marks;
+		const auto  mark     = std::ranges::find_if(marks, [&snapshot](const application::local_draft_mark& aMark) {
+			return aMark.Owner == snapshot.Repository.Owner && aMark.Name == snapshot.Repository.Name && aMark.Number == snapshot.PullRequest.Number.value();
+		});
+		if (mark == marks.end()) {
+			return;
+		}
+		TourCarryAsked   = TourOwner;
+		const auto weak  = std::weak_ptr<const int>{ WindowLifetime };
+		const auto owner = *TourOwner;
+		DraftDesktop->host().carry_tour(mark->Id, draft, [this, weak, owner](core::local_tour_carry aCarry) {
+			if (weak.expired() || Closing || TourOwner != owner || !TourHost) {
+				return;
+			}
+			const auto shown = TourHost->presentation();
+			if (!shown.Draft || !shown.Draft->Stops.empty() || !shown.Draft->Problem.empty() || !shown.Draft->Solution.empty() || aCarry.Tour.Head != shown.Draft->Head) {
+				return;
+			}
+			static_cast<void>(TourHost->execute({ .Command = { .Draft = shown.Draft->Id, .Owner = shown.Draft->Owner, .ExpectedRevision = shown.Draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = std::move(aCarry.Tour) } }));
+		});
+	}
+
+	auto github_application::implementation::local_tour_shown() const -> bool
+	{
+		// RFC-BPR-0110 as amended: while the window shows a local draft, its
+		// Tour panel is the draft's, and the pull request's tour waits.
+		return DraftDesktop && DraftDesktop->tour_shown();
+	}
+
+	void github_application::implementation::restore_tour_panel()
+	{
+		if (Window == nullptr || Closing) {
+			return;
+		}
+		Window->tour_editor()->set_local_words(std::nullopt);
+		Window->tour_editor()->set_tour_running(std::nullopt, false);
+		if (TourHost) {
+			auto shown         = TourHost->presentation();
+			shown.ChangedFiles = tour_changed_files();
+			Window->tour_editor()->present(shown);
+		} else {
+			Window->tour_editor()->present({ });
+		}
+		present_tour_session();
+	}
+
 	void github_application::implementation::dispatch_tour_action(qt::tour_editor_action aAction)
 	{
+		if (local_tour_shown()) {
+			DraftDesktop->tour_action(aAction);
+			return;
+		}
 		if (Closing || !TourHost || !current(DraftWindow)) {
 			return;
 		}

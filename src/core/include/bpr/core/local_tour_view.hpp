@@ -101,6 +101,24 @@ namespace bpr::core {
 		std::size_t          Index                                   = 0;
 		auto                 operator==(const local_tour_edit&) const -> bool = default;
 	};
+	/// \brief RFC-BPR-0111's tour follow-up, its private half (RFC-BPR-0110
+	/// "On publication"): the draft's tour as the pull request's own private
+	/// tour draft, `aTarget` (its owner, identity, base and head), mapped by
+	/// `map_local_publication` against the pull request's exact result.
+	/// \details The Problem and Solution come across. Every stop comes across
+	/// in route order: one whose lines are exactly at the pull request's head
+	/// gets that anchor, and keeps its acceptance when the author had accepted
+	/// it (accepted again there, at that head); any other keeps its title and
+	/// text with no lines, so it needs the author's attention and blocks the
+	/// tour's publication until it has lines and is accepted. Nothing is
+	/// published; the pull request's Tour publishes it (RFC-BPR-0099).
+	struct local_tour_carry
+	{
+		review_tour               Tour;
+		local_publication_mapping Mapping;
+	};
+	[[nodiscard]] auto carry_local_tour_to_pull_request(const local_draft& aDraft, const local_publication_result& aResult, const review_tour& aTarget) -> local_tour_carry;
+
 	/// \brief The local edits a panel command stands for, in order.
 	[[nodiscard]] auto translate_local_tour_command(const local_draft& aDraft, const tour_command& aCommand) -> std::vector<local_tour_edit>;
 }

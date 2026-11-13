@@ -345,7 +345,10 @@ namespace bpr::qt {
 		State->setText(local_publication_state_text(aProjection));
 		const auto pushNeeded = view.Push.has_value() && !linked;
 		Push->setVisible(pushNeeded);
-		Push->setText(view.Push ? text_of(view.Push->Command) : QString{ });
+		if (const auto command = view.Push ? text_of(view.Push->Command) : QString{ }; Push->text() != command) {
+			Push->setText(command);
+			Push->setCursorPosition(0);
+		}
 		Copy->setVisible(pushNeeded);
 		Check->setText(view.Checked ? tr("Check Again") : tr("Check GitHub"));
 		Check->setVisible(!linked);

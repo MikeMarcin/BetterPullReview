@@ -118,10 +118,9 @@ namespace {
 			   "Local Changes is a tab beside Files and Search, shown only in author state");
 		expect(parts->files_footer()->parentWidget() != nullptr && tabs->widget(0)->isAncestorOf(parts->files_footer()), "the working files are the Files tab's footer");
 		expect(!parts->working()->isVisible(), "behind a disclosure");
-		for (auto* const root : { parts->bar_leading(), parts->bar_trailing(), parts->notice_row(), parts->files_footer(), parts->edit_page(), parts->notes_page(), parts->author_panel() }) {
+		for (auto* const root : { parts->bar_leading(), parts->bar_trailing(), parts->notice_row(), parts->files_footer(), parts->edit_page(), parts->notes_page(), parts->status_page() }) {
 			short_tooltips(*root, "the draft's additions");
 		}
-		short_tooltips(*parts->tour(), "the draft's tour");
 		std::cout << "draft-parts-in-window:pass\n";
 	}
 

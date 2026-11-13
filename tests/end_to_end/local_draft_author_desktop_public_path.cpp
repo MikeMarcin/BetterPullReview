@@ -10,6 +10,8 @@
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/source_find_bar.hpp"
 #include "bpr/qt/source_search_panel.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
@@ -241,7 +243,8 @@ try {
 	capture(window, QStringLiteral("a-review"));
 	window.choose_modality(qt::review_modality::overview);
 	settle(s.Lanes);
-	expect(window.overview_page()->isVisible() && page->author_panel()->isVisible(), "Overview is the pull request's, with the author's panel");
+	expect(window.overview_page()->isVisible() && window.overview_page()->status_drawer()->status_page() == page->status_page() && window.overview_page()->description_editable(),
+		   "Overview is the pull request's: its description editable, its Status tab the publish steps");
 	capture(window, QStringLiteral("a-overview"));
 	window.choose_modality(qt::review_modality::review);
 	settle(s.Lanes);

@@ -537,6 +537,10 @@ namespace bpr::app {
 			-> std::expected<void, application::review_mutation_failure>;
 
 		std::unique_ptr<application::review_tour_host> TourHost;
+		/// RFC-BPR-0111's tour follow-up, private half: the owner whose empty
+		/// tour draft has been offered its local draft's tour.
+		std::optional<core::tour_owner> TourCarryAsked;
+		void                            carry_local_tour(const application::tour_presentation& aProjection);
 		/// [[BPR-1157]]. Local Review Cycles in this window: no account needed.
 		std::unique_ptr<review_cycle_desktop> CycleDesktop;
 		/// RFC-BPR-0108. Prepare pull request… and the local draft page.
@@ -920,6 +924,10 @@ namespace bpr::app {
 		[[nodiscard]] auto enhancement_context_key() const -> std::array<std::uint8_t, 32>;
 
 		void dispatch_tour_action(qt::tour_editor_action aAction);
+		/// RFC-BPR-0110 as amended: the Tour panel shows a local draft's tour.
+		[[nodiscard]] auto local_tour_shown() const -> bool;
+		/// The pull request's tour back in the panel once the draft is left.
+		void restore_tour_panel();
 
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff);
 

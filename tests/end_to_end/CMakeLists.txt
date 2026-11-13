@@ -5405,7 +5405,7 @@ if(TARGET Git::Git)
     bpr_add_network_isolated_test(NAME application_local_draft_publication_desktop_public_path WINDOWS_UNCONTAINED
         COMMAND test_local_draft_publication_desktop_public_path --git "$<TARGET_FILE:Git::Git>")
     set_tests_properties(application_local_draft_publication_desktop_public_path PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-publication-desktop"
         PASS_REGULAR_EXPRESSION "local-draft-publication-desktop-public-path:pass"
         TIMEOUT 180)
 endif()

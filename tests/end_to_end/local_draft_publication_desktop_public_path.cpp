@@ -4,12 +4,15 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QApplication>
+#include <QDir>
 #include <QCheckBox>
 #include <QLabel>
 #include <QLineEdit>
@@ -28,24 +31,40 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 /// \file
 /// \brief RFC-BPR-0111 AC07 and AC04 ([[BPR-2029]], [[BPR-2030]]) through
 /// the real workbench window and the real local-draft composition, on a real
 /// Git worktree, with a scripted pull request catalog in place of GitHub:
-/// the Pull request area names the push for an unpushed branch; after the
-/// push the exact plan is shown and Create draft PR is offered; a lost answer
-/// is read for, never resent, and said in the error-role banner with its
-/// recovering action; a creation held in flight leaves the page's own lane
-/// free (a note is recorded meanwhile) and shows Sending; released, the steps
-/// read Sent and the draft is linked, with no second creation offered.
+/// Create Draft PR… opens Overview's Status tab with the publish steps (the
+/// accepted design); the unpushed branch names the push; after the push what
+/// is sent is shown and Create Draft PR is offered; a lost answer is read
+/// for, never resent, and said in the error-role banner with its recovering
+/// action; a creation held in flight leaves the draft's own lane free and
+/// shows Sending; released, the steps read Sent, the draft is linked with no
+/// second creation offered, the window is asked to open the pull request,
+/// and the draft's tour is carried onto the pull request's tour draft at its
+/// head (and anchors nothing at another head).
 
 namespace {
 	using namespace bpr;
 	using tests::expect;
 	using tests::workspace_contract::git_runner;
 	using tests::workspace_contract::write_file;
+
+	void capture(QWidget& aWidget, const QString& aName)
+	{
+		const auto directory = qEnvironmentVariable("BPR_LOCAL_DRAFT_RENDER_DIR");
+		const auto image     = aWidget.grab().toImage();
+		expect(!image.isNull(), "rendered window");
+		if (!directory.isEmpty()) {
+			QDir{ }.mkpath(directory);
+			expect(image.save(QDir{ directory }.filePath(aName + QStringLiteral(".png"))), "render saved");
+		}
+		std::cout << "RENDER " << aName.toStdString() << ' ' << image.width() << 'x' << image.height() << '\n';
+	}
 
 	void settle(application::manual_executor& aLanes)
 	{
@@ -219,20 +238,40 @@ try {
 	settle(lanes);
 	auto* const page = window->local_draft();
 	expect(page != nullptr && page->projection().Draft, "the worktree opens as a local draft");
-	// The publish steps are Overview's author panel, beside the pull request it would be.
-	window->choose_modality(qt::review_modality::overview);
+	// The tour goes with the pull request: one accepted stop on the pushed file.
+	auto opened = std::optional<std::tuple<std::string, std::string, std::string, std::uint64_t>>{ };
+	drafts->set_pull_request_opener([&opened](const std::string& aHost, const std::string& aOwner, const std::string& aName, const std::uint64_t aNumber) { opened = std::tuple{ aHost, aOwner, aName, aNumber }; });
+	drafts->host().add_stop("src/search.cpp", 1U, 1U, "Search returns two", "The answer is two now.");
 	settle(lanes);
-	expect(page->author_panel()->isVisible() && page->publication()->isVisible(), "the publish steps are on Overview");
-	auto* const area = page->publication();
-	expect(!area->create_button()->isEnabled(), "nothing can be created before GitHub is read");
+	drafts->host().accept_stop(page->projection().Draft->Preparation.Tour.Stops.at(0).Id);
+	settle(lanes);
+	expect(core::decide_local_stop(page->projection().Draft->Preparation.Tour.Stops.at(0)).State == core::tour_acceptance_state::accepted, "the stop is accepted");
+
+	// Create Draft PR… stands where Submit review does and opens Overview's
+	// Status tab, where the publish steps are; GitHub is read for the plan.
+	expect(page->create_button()->text() == QStringLiteral("Create Draft PR…") && page->create_button()->isVisible(), "Create Draft PR… in the review bar");
+	page->create_button()->click();
+	settle(lanes);
+	auto* const area   = page->publication();
+	auto* const status = window->overview_page()->status_drawer();
+	expect(window->current_modality() == qt::review_modality::overview && status->current_tab() == qt::overview_drawer_tab::status && status->status_page() == page->status_page()
+			   && area->isVisible(),
+		   "the publish steps are Overview's Status tab");
 
 	// AC01, AC07: the unpushed branch names the push; nothing is offered.
-	area->check_button()->click();
 	await(lanes, [&] { return page->projection().Publishing.Checked && !page->projection().Publishing.Checking; }, "GitHub is read");
-	expect(area->state()->text().contains(QStringLiteral("is not on GitHub")) && area->push_command()->isVisibleTo(page->author_panel())
+	capture(*window, QStringLiteral("status-push"));
+	const auto steps = area->steps()->row_texts();
+	for (const auto& row : steps) {
+		std::cout << "STEP " << row.toStdString() << '\n';
+	}
+	expect(area->headline()->text() == QStringLiteral("Not on GitHub") && area->state()->text().contains(QStringLiteral("is not on GitHub")) && area->push_command()->isVisibleTo(page->status_page())
 			   && area->push_command()->text().startsWith(QStringLiteral("git -C ")) && area->push_command()->text().contains(QStringLiteral("https://github.com/acme/engine.git"))
-			   && !area->create_button()->isEnabled(),
-		   "AC01: the push is named and Create draft PR is not offered");
+			   && !area->create_button()->isVisibleTo(page->status_page()),
+		   "AC01: the push is named and Create Draft PR is not offered");
+	expect(steps.size() == 3U && steps[0] == QStringLiteral("Waiting: Push feature/cancel") && steps[1] == QStringLiteral("Waiting: Create the draft pull request")
+			   && steps[2] == QStringLiteral("Waiting: Publish the tour"),
+		   "the three steps, in the accepted step list");
 	area->copy_button()->click();
 	expect(copied == area->push_command()->text().toStdString(), "Copy hands the exact command to the clipboard");
 
@@ -244,15 +283,18 @@ try {
 	}
 	area->check_button()->click();
 	await(lanes, [&] { return !page->projection().Publishing.Checking && page->projection().Publishing.Branch == core::hosted_branch_state::matches; }, "the pushed branch");
-	expect(area->create_button()->isEnabled() && !area->push_command()->isVisibleTo(page->author_panel()) && area->preview()->toPlainText().contains(QStringLiteral("as author"))
-			   && area->preview()->toPlainText().contains(QStringLiteral("acme/engine main from feature/cancel")),
-		   "AC02: the exact plan is shown and Create draft PR is offered");
+	std::cout << "SENT " << area->sent_text().toStdString() << '\n';
+	expect(area->create_button()->isEnabled() && !area->push_command()->isVisibleTo(page->status_page()) && area->sent_text().contains(QStringLiteral("As author"))
+			   && area->sent_text().contains(QStringLiteral("From acme/engine feature/cancel")) && area->sent_text().contains(QStringLiteral("Into acme/engine main"))
+			   && area->steps()->row_texts().at(0) == QStringLiteral("Sent: Push feature/cancel"),
+		   "AC02: what is sent is shown and Create Draft PR is offered");
+	capture(*window, QStringLiteral("status-ready"));
 
 	// AC04, AC07: a lost answer is read for, said in the error role and never resent.
 	github->LoseRequest = true;
 	area->create_button()->click();
 	await(lanes, [&] { return !page->projection().Publishing.Creating && page->projection().Draft->Publication->Journal.Phase == core::local_publication_phase::prepared; }, "the lost answer is read for");
-	expect(github->Creates == 1 && area->banner()->isVisibleTo(page->author_panel()) && area->banner()->title()->text() == QStringLiteral("The draft pull request was not created.")
+	expect(github->Creates == 1 && area->banner()->isVisibleTo(page->status_page()) && area->banner()->title()->text() == QStringLiteral("The draft pull request was not created.")
 			   && area->banner()->buttons().size() == 1U && area->banner()->buttons().front()->text() == QStringLiteral("Preview again"),
 		   "AC07: nothing found after the lost answer: an error-role banner with its recovering action, and nothing resent");
 	std::cout << "BANNER " << area->banner()->title()->text().toStdString() << " / " << area->banner()->why()->text().toStdString() << " / "
@@ -276,12 +318,37 @@ try {
 	for (const auto& row : rows) {
 		std::cout << "STEP " << row.toStdString() << '\n';
 	}
-	expect(github->Creates == 2 && rows.size() == 2U && rows[0] == QStringLiteral("Sent: Create the draft pull request") && rows[1] == QStringLiteral("Sent: Link it to this draft"),
-		   "AC07: each step advanced to Sent");
-	expect(area->state()->text() == QStringLiteral("Draft pull request #7 is on GitHub, linked to this draft.") && area->link()->text() == QStringLiteral("https://github.com/acme/engine/pull/7")
-			   && !area->create_button()->isEnabled() && !area->check_button()->isEnabled() && !area->banner()->isVisibleTo(page->author_panel()),
+	expect(github->Creates == 2 && rows.size() == 3U && rows[0] == QStringLiteral("Sent: Push feature/cancel") && rows[1] == QStringLiteral("Sent: Create the draft pull request")
+			   && rows[2] == QStringLiteral("Waiting: Publish the tour (from the Tour tab)"),
+		   "AC07: each step advanced to Sent; the tour waits for the pull request's Tour");
+	expect(area->headline()->text() == QStringLiteral("Draft pull request #7") && area->state()->text() == QStringLiteral("Draft pull request #7 is on GitHub, linked to this draft.")
+			   && area->link()->text() == QStringLiteral("https://github.com/acme/engine/pull/7") && !area->create_button()->isVisibleTo(page->status_page())
+			   && !area->check_button()->isVisibleTo(page->status_page()) && !area->banner()->isVisibleTo(page->status_page()),
 		   "AC05: linked, and no second creation offered");
 	expect(page->projection().Draft->Association && page->projection().Draft->Association->Number == 7U, "the draft is associated");
+	expect(opened == std::tuple{ std::string{ "github.com" }, std::string{ "acme" }, std::string{ "engine" }, std::uint64_t{ 7U } }, "on creation the window opens the pull request");
+
+	// The tour follow-up's private half: the draft's tour as the pull
+	// request's own tour draft, anchored at its head (RFC-BPR-0110 "On publication").
+	auto target  = core::review_tour{ .Id = core::tour_draft_id{ 1U }, .Owner = { core::bpr_profile_id{ 1U }, core::git_host_id{ 1U }, { }, core::github_account_id{ 7U }, core::repository_id{ 1U }, core::pull_request_id{ 7U } },
+									  .Base = page->projection().Draft->Candidates.back().Base,
+									  .Head = page->projection().Draft->Candidates.back().Head };
+	auto carried = std::optional<core::local_tour_carry>{ };
+	drafts->host().carry_tour(page->projection().Draft->Id, target, [&carried](core::local_tour_carry aCarry) { carried = std::move(aCarry); });
+	await(lanes, [&] { return carried.has_value(); }, "the tour is carried");
+	std::cout << "CARRIED stops=" << carried->Tour.Stops.size() << " unresolved=" << carried->Mapping.Unresolved << " correspondence="
+			  << (carried->Mapping.Stops.empty() ? std::string{ "none" } : std::string{ core::name(carried->Mapping.Stops[0].Correspondence) }) << '\n';
+	expect(carried->Tour.Stops.size() == 1U && carried->Tour.Stops[0].Destination && carried->Tour.Stops[0].Destination->Commit == target.Head
+			   && carried->Tour.Stops[0].Destination->Path == "src/search.cpp" && carried->Tour.Stops[0].Destination->FirstLine == 0U && carried->Mapping.Unresolved == 0U,
+		   "the stop anchors at the pull request's head");
+	expect(core::decide_tour_stop_acceptance(carried->Tour, carried->Tour.Stops[0]).State == core::tour_acceptance_state::accepted, "and stays Accepted there");
+	auto moved   = target;
+	moved.Head   = page->projection().Draft->Candidates.back().Base;
+	carried.reset();
+	drafts->host().carry_tour(page->projection().Draft->Id, moved, [&carried](core::local_tour_carry aCarry) { carried = std::move(aCarry); });
+	await(lanes, [&] { return carried.has_value(); }, "the tour is carried to another head");
+	expect(carried->Tour.Stops.size() == 1U && !carried->Tour.Stops[0].Destination && carried->Mapping.Unresolved == 1U && carried->Tour.Stops[0].Title == "Search returns two",
+		   "a head that is not the candidate anchors nothing; the stop comes without lines, not dropped");
 
 	drafts->shutdown();
 	cycles->shutdown();

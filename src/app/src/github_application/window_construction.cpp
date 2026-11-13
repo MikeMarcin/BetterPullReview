@@ -116,6 +116,10 @@ namespace bpr::app {
 		Window->set_review_navigation_dispatch([this](const auto aCommand) { request_review_navigation(aCommand); });
 		Window->set_close_review_dispatch([this] { close_review(); });
 		Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
+			if (!Closing && local_tour_shown()) {
+				DraftDesktop->tour_command(aCommand);
+				return;
+			}
 			if (!Closing && TourHost && current(DraftWindow)) {
 				aCommand.Attention = current_tour_attention();
 				// [[BPR-2014]]. Accepting records the code at every reference
@@ -189,6 +193,17 @@ namespace bpr::app {
 		// account through its pull request catalog (a gh connection carries
 		// it). A tests-enabled build creates nothing unless the agent-run live
 		// course composed it, and then only on MikeMarcin/BPR-Test.
+		// RFC-BPR-0111 as drawn: a draft pull request created from the window
+		// opens there, read fresh as any opened pull request is.
+		DraftDesktop->set_pull_request_opener([this](const std::string& aHost, const std::string& aOwner, const std::string& aName, const std::uint64_t aNumber) {
+			if (Closing || !SetupDestination) {
+				return;
+			}
+			Window->leave_local_draft();
+			retire_setup_effects();
+			cancel_restoration(true);
+			SetupDestination->submit("https://" + aHost + "/" + aOwner + "/" + aName + "/pull/" + std::to_string(aNumber));
+		});
 		DraftDesktop->set_publishing([this]() -> std::optional<application::github_publication_account> {
 			if (Closing || !Host) {
 				return std::nullopt;
@@ -322,7 +337,15 @@ namespace bpr::app {
 			[this](const qt::reaction_gesture& aGesture) { react_to_post(aGesture); });
 		// [[BPR-1774]]. Save in Overview's description editor.
 		Window->overview_page()->set_description_save_dispatch(
-			[this](const qt::overview_description_save& aSave) { save_description(aSave); });
+			[this](const qt::overview_description_save& aSave) {
+				// A local draft's description is the draft's, saved with its title.
+				if (local_tour_shown()) {
+					DraftDesktop->save_description(aSave.Body);
+					Window->overview_page()->close_description_editor();
+					return;
+				}
+				save_description(aSave);
+			});
 		// [[BPR-1852]]. Ready for review and Convert to draft, from Overview
 		// and the Pull Request menu.
 		Window->set_draft_state_dispatch(
@@ -1519,13 +1542,39 @@ namespace bpr::app {
 			},
 			[this](core::writing_hook aHook) { test_writing_hook(aHook); });
 		compose_skill_catalog();
-		Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
+		Window->tour_editor()->set_writing_dispatch(
+			[this](core::writing_hook aHook, qt::prose_capture aCaptured) {
+				if (local_tour_shown()) {
+					DraftDesktop->tour_writing(aHook);
+					return;
+				}
+				request_writing(aHook, std::move(aCaptured));
+			},
+			[this] {
+				if (local_tour_shown()) {
+					DraftDesktop->tour_stop();
+					return;
+				}
+				cancel_writing();
+			});
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1900]]. The tour session's gestures: Draft the tour, Stop,
 		// and each proposed field's or stop's Accept and Discard.
-		Window->tour_editor()->side_chat()->set_continuation_dispatch([this](const core::tour_thread& aThread) { choose_tour_continuation(aThread); });
-		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) { observe_tour_native_history(aThread, std::move(aChoice)); });
+		Window->tour_editor()->side_chat()->set_continuation_dispatch([this](const core::tour_thread& aThread) {
+			if (!local_tour_shown()) {
+				choose_tour_continuation(aThread);
+			}
+		});
+		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) {
+			if (!local_tour_shown()) {
+				observe_tour_native_history(aThread, std::move(aChoice));
+			}
+		});
 		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) {
+			if (local_tour_shown()) {
+				DraftDesktop->tour_ask(aAsk);
+				return;
+			}
 			TourAskFresh     = aAsk.Fresh;
 			TourAskSkillText = aAsk.SkillText;
 			request_tour_ask(aAsk.Thread, aAsk.Passage, aAsk.Question, aAsk.Update);
@@ -1533,16 +1582,71 @@ namespace bpr::app {
 			TourAskSkillText.reset();
 		});
 		// [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour and its Undo.
-		Window->tour_editor()->set_tour_shape_dispatch([this] { clear_tour_focus(); }, [this] { reset_tour(); }, [this] { undo_tour_reset(); });
-		Window->tour_editor()->side_chat()->set_focus_undo_dispatch([this](const core::tour_agent_run_id aRun) { undo_tour_focus(aRun); });
+		Window->tour_editor()->set_tour_shape_dispatch(
+			[this] {
+				if (!local_tour_shown()) {
+					clear_tour_focus();
+				}
+			},
+			[this] {
+				if (!local_tour_shown()) {
+					reset_tour();
+				}
+			},
+			[this] {
+				if (!local_tour_shown()) {
+					undo_tour_reset();
+				}
+			});
+		Window->tour_editor()->side_chat()->set_focus_undo_dispatch([this](const core::tour_agent_run_id aRun) {
+			if (!local_tour_shown()) {
+				undo_tour_focus(aRun);
+			}
+		});
 		// [[BPR-1941]]. Delete on a chat turn that ended without an answer.
 		Window->tour_editor()->side_chat()->set_delete_dispatch([this](const core::tour_agent_run_id aRun) {
+			if (local_tour_shown()) {
+				return;
+			}
 			if (core::remove_tour_run(TourAgent, aRun)) {
 				present_tour_session();
 			}
 		});
-		Window->tour_editor()->set_tour_session_dispatch([this] { request_tour_draft(); }, [this] { cancel_tour_run(); }, [this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decide_tour_proposal(aIndex, aDecision, aText); }, [this](const std::size_t aIndex) { relocate_tour_proposal(aIndex); });
-		Window->tour_editor()->set_tour_ask_more_dispatch([this](const core::tour_agent_run_id aRun) { ask_more_from(aRun); });
+		Window->tour_editor()->set_tour_session_dispatch(
+			[this] {
+				if (local_tour_shown()) {
+					// Draft the tour, for a local draft: a whole-change question
+					// whose proposals wait in the tour.
+					DraftDesktop->tour_ask({ .Question = QStringLiteral("Draft the tour: propose a Problem, a Solution and stops on this candidate's lines.") });
+					return;
+				}
+				request_tour_draft();
+			},
+			[this] {
+				if (local_tour_shown()) {
+					DraftDesktop->tour_stop();
+					return;
+				}
+				cancel_tour_run();
+			},
+			[this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) {
+				if (local_tour_shown()) {
+					DraftDesktop->tour_decide(aIndex, aDecision, aText);
+					return;
+				}
+				decide_tour_proposal(aIndex, aDecision, aText);
+			},
+			[this](const std::size_t aIndex) {
+				if (!local_tour_shown()) {
+					relocate_tour_proposal(aIndex);
+				}
+			});
+		Window->tour_editor()->set_tour_ask_more_dispatch([this](const core::tour_agent_run_id aRun) {
+			// A local draft's turns replay or resume their conversation; none is fresh.
+			if (!local_tour_shown()) {
+				ask_more_from(aRun);
+			}
+		});
 #endif
 		WorkbenchHost = std::make_unique<
 			application::workbench_application_host>(
@@ -1602,9 +1706,13 @@ namespace bpr::app {
 			}
 			if (aShown && DraftDesktop) {
 				DraftDesktop->attach_search();
-			} else if (!aShown && PrFind) {
-				PrFind->attach();
-				PrFind->observe_scope();
+				DraftDesktop->present_tour();
+			} else if (!aShown) {
+				if (PrFind) {
+					PrFind->attach();
+					PrFind->observe_scope();
+				}
+				restore_tour_panel();
 			}
 		});
 		Window->set_document_tab_dispatch([this](const core::document_tab_intent& aIntent) {

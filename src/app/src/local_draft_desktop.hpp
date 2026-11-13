@@ -8,6 +8,8 @@
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/workspace_source_port.hpp"
+#include "bpr/core/local_tour_view.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 
 #include "bpr/qt/local_draft_parts.hpp"
 
@@ -18,6 +20,7 @@
 #include <deque>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -129,10 +132,54 @@ namespace bpr::app {
 		void attach_search();
 		/// \brief The panes' code colours for the Edit view.
 		void               adopt_appearance(const qt::appearance_profile& aProfile);
+		/// \brief RFC-BPR-0110 as amended (owner: "I thought we chose to stick
+		/// with the PR view and just augment it"). While the window shows this
+		/// draft, its Tour panel shows the draft's tour: presented from the
+		/// draft through `core::view_local_tour`, and its gestures turned into
+		/// the draft's own edits, questions and decisions here.
+		[[nodiscard]] auto tour_shown() const -> bool;
+		void               present_tour();
+		void               tour_command(const core::tour_command& aCommand);
+		/// \returns Whether the action was the draft's (it always is while
+		/// `tour_shown`); a pull request's publication actions do nothing.
+		void tour_action(qt::tour_editor_action aAction);
+		void tour_ask(const qt::tour_ask& aAsk);
+		/// \brief A one-shot writing request (a field's draft) asks the part's chat.
+		void tour_writing(core::writing_hook aHook);
+		void tour_stop();
+		void tour_decide(std::size_t aIndex, core::tour_proposal_decision aDecision, const QString& aText);
+		/// \brief Overview's description Save, for this draft: the body, with the draft's title.
+		void save_description(const std::string& aBody);
+		/// \brief Create Draft PR…: Overview's Status tab, and GitHub read for the plan.
+		void open_publication();
+		/// \brief RFC-BPR-0111 as drawn: when the shown draft's pull request is
+		/// created (or linked), the window becomes that pull request.
+		using pull_request_opener = std::function<void(const std::string& aHost, const std::string& aOwner, const std::string& aName, std::uint64_t aNumber)>;
+		void set_pull_request_opener(pull_request_opener aOpener);
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 
 	private:
+		/// The draft's edits wait for the one before to be written, so the
+		/// panel's typing is never lost to a stale version; a text edit
+		/// replaces the one waiting for the same field.
+		struct tour_edit
+		{
+			std::string           Key;
+			std::function<void()> Apply;
+		};
+		std::deque<tour_edit> TourEdits;
+		bool                  TourEditInFlight = false;
+		pull_request_opener                   OpenPullRequest;
+		/// Whether each draft seen was linked when last published.
+		std::map<std::string, bool>           LinkedSeen;
+		std::optional<std::string> TypedProblem;
+		std::optional<std::string> TypedSolution;
+		void                  queue_tour_edit(std::string aKey, std::function<void()> aApply);
+		void                  flush_tour_edits();
+		/// The view last presented, for the panel's proposals by index.
+		std::optional<core::local_tour_view> TourView;
+		void                                 ask_local(application::local_draft_question aQuestion);
 		qt::workbench_window& Window;
 		/// RFC-BPR-0111. Create draft PR's own lane; outlives the host's work on it.
 		std::unique_ptr<worker_executor>        PublishLane;

@@ -926,9 +926,9 @@ namespace bpr::qt {
 				counts << QStringLiteral("%1 to push").arg(ahead);
 			}
 			const auto ink = Owner->palette().color(QPalette::Window).lightness() < 128 ? QStringLiteral("#d29922") : QStringLiteral("#9a6700");
-			text += counts.isEmpty() ? QStringLiteral("&nbsp;&nbsp;Up to date") : QStringLiteral("&nbsp;&nbsp;<span style=\"color:%1\">%2</span>").arg(ink, counts.join(QStringLiteral(", ")));
+			text += counts.isEmpty() ? QStringLiteral("&nbsp;&nbsp;<span>Up to date</span>") : QStringLiteral("&nbsp;&nbsp;<span style=\"color:%1\">%2</span>").arg(ink, counts.join(QStringLiteral(", ")));
 		} else if (Projection.Draft && !Projection.RefreshOffered) {
-			text += QStringLiteral("&nbsp;&nbsp;Worktree unchanged");
+			text += QStringLiteral("&nbsp;&nbsp;<span>Worktree unchanged</span>");
 		}
 		return text;
 	}

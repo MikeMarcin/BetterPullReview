@@ -1650,6 +1650,47 @@ namespace bpr::application {
 		}
 	}
 
+	void local_draft_workbench::carry_tour(core::local_draft_id aDraft, core::review_tour aTarget, std::function<void(core::local_tour_carry)> aDone)
+	{
+		auto& self = *Implementation;
+		self.run(
+			[draft = std::move(aDraft), target = std::move(aTarget)](implementation& aSelf, std::stop_token) -> std::optional<core::local_tour_carry> {
+				auto* stored = aSelf.store();
+				if (stored == nullptr) {
+					return std::nullopt;
+				}
+				auto found = stored->find(draft);
+				if (!found) {
+					return std::nullopt;
+				}
+				const auto* latest = core::latest_candidate(*found);
+				auto        result = core::local_publication_result{ .Number = found->Association ? found->Association->Number : 0U, .Head = target.Head, .Base = target.Base };
+				if (found->Association) {
+					result.Host  = found->Association->Host;
+					result.Owner = found->Association->Owner;
+					result.Name  = found->Association->Name;
+				}
+				// The pushed bytes are the candidate's only when the candidate
+				// is the head's own commit with nothing uncommitted in it.
+				if (latest != nullptr && latest->Head == target.Head && latest->Included.empty()) {
+					auto paths = std::vector<std::string>{ };
+					for (const auto& stop : found->Preparation.Tour.Stops) {
+						if (std::ranges::find(paths, stop.Source.Path) == paths.end()) {
+							paths.push_back(stop.Source.Path);
+						}
+					}
+					result.Files = read_candidate_files(*stored, *latest, paths, { }, { }, core::maximum_local_draft_candidate_bytes);
+				}
+				return core::carry_local_tour_to_pull_request(*found, result, target);
+			},
+			[done = std::move(aDone)](implementation& aSelf, std::optional<core::local_tour_carry> aCarry) {
+				aSelf.publish();
+				if (aCarry && done) {
+					done(std::move(*aCarry));
+				}
+			});
+	}
+
 	void local_draft_workbench::rebind()
 	{
 		Implementation->rebind();

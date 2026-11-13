@@ -11,6 +11,7 @@
 #include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/local_draft.hpp"
 #include "bpr/core/local_draft_tour.hpp"
+#include "bpr/core/local_tour_view.hpp"
 #include "bpr/core/review_cycle_views.hpp"
 
 #include <array>
@@ -376,6 +377,14 @@ namespace bpr::application {
 		void associate_pull_request(std::uint64_t aNumber);
 		void cancel_publication();
 		/// \brief Confirms the rebind a moved worktree offered.
+		/// \brief RFC-BPR-0111's tour follow-up, its private half: draft
+		/// `aDraft`'s tour carried onto its pull request's empty tour draft
+		/// `aTarget`. Its stops anchor at the pull request's head only when
+		/// the latest candidate is that head's commit with no working files
+		/// (the bytes the author pushed); otherwise every stop comes without
+		/// lines. `aDone` is told on the decision lane; nothing when the
+		/// draft cannot be read.
+		void carry_tour(core::local_draft_id aDraft, core::review_tour aTarget, std::function<void(core::local_tour_carry)> aDone);
 		void rebind();
 		/// \brief Removes the open draft's private preparation. The caller
 		/// has asked first. The worktree, its branches and any pull request

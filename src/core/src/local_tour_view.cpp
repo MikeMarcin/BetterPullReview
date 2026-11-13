@@ -1,6 +1,7 @@
 #include "bpr/core/local_tour_view.hpp"
 
 #include "bpr/core/sha256.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 
 #include <algorithm>
 #include <array>
@@ -64,7 +65,11 @@ namespace bpr::core {
 			// they are exactly there, else where the author bound them.
 			stop.Destination = exact ? destination(aDraft, aLatest, aStop.Source.Path, aStop.Source.Side, aStop.Current.FirstLine, aStop.Current.LastLine)
 									 : destination(aDraft, aStop.Source.Candidate, aStop.Source.Path, aStop.Source.Side, aStop.Source.FirstLine, aStop.Source.LastLine);
-			stop.Mapping     = exact ? tour_mapping::exact_original : tour_mapping::changed_material;
+			// The same lines as a range, so the route says them whole.
+			const auto& lines      = *stop.Destination;
+			const auto  comparison = file_comparison_digest{ digest("comparison", { aDraft, lines.Path }) };
+			stop.Original          = tour_source_range{ .First = { comparison, lines.Side, lines.FirstLine }, .Last = { comparison, lines.Side, lines.LastLine }, .Commit = lines.Commit, .Path = lines.Path };
+			stop.Mapping           = exact ? tour_mapping::exact_original : tour_mapping::changed_material;
 			stop.Preparation = tour_preparation::editing;
 			const auto decision = decide_local_stop(aStop);
 			if (decision.State == tour_acceptance_state::not_accepted) {
@@ -307,6 +312,35 @@ namespace bpr::core {
 			view.Proposal = std::move(proposal);
 		}
 		return view;
+	}
+
+	auto carry_local_tour_to_pull_request(const local_draft& aDraft, const local_publication_result& aResult, const review_tour& aTarget) -> local_tour_carry
+	{
+		auto carry    = local_tour_carry{ .Tour = aTarget, .Mapping = map_local_publication(aDraft, aResult) };
+		auto& tour    = carry.Tour;
+		const auto& local = aDraft.Preparation.Tour;
+		tour.Problem  = local.Problem;
+		tour.Solution = local.Solution;
+		tour.Stops.clear();
+		auto files = std::vector<std::string>{ };
+		for (const auto& file : aResult.Files) {
+			files.push_back(file.Path);
+		}
+		for (std::size_t index = 0U; index < local.Stops.size() && index < maximum_tour_stops; ++index) {
+			const auto& from    = local.Stops[index];
+			const auto& mapping = carry.Mapping.Stops[index];
+			auto        stop    = tour_stop{ .Id = tour_stop_id{ index + 1U }, .Title = from.Title, .Body = from.Text, .Preparation = tour_preparation::editing };
+			if (mapping.Anchor) {
+				stop.Destination = mapping.Anchor;
+				stop.Mapping     = tour_mapping::exact_original;
+				if (decide_local_stop(from).State == tour_acceptance_state::accepted) {
+					stop.Acceptance = accept_tour_stop(tour, stop, files);
+				}
+			}
+			tour.Stops.push_back(std::move(stop));
+		}
+		tour.LastStopId = tour.Stops.size();
+		return carry;
 	}
 
 	auto translate_local_tour_command(const local_draft& aDraft, const tour_command& aCommand) -> std::vector<local_tour_edit>
