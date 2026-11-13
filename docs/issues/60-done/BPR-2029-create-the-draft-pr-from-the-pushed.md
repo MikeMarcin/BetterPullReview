@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2029"
 title: "Create the draft PR from the pushed branch"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0111"]
 metadata: {"criteria":["AC01","AC02","AC07"],"resolved_choices":["PUBLISH-01"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0014","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0041-create-the-draft-pr-from-the-pushed.md"}
 depends_on: ["BPR-2028"]
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"1237dbefd","evidence":{"kind":"command","detail":"live_draft_course.py live-draft on BPR-Test #184; local_draft_publication re-run at 0f444ac0a"}},{"criterion":"AC02","outcome":"pass","revision":"0f444ac0a","evidence":{"kind":"command","detail":"core_local_draft_publication, local_draft_publication"}},{"criterion":"AC07","outcome":"pass","revision":"0f444ac0a","evidence":{"kind":"command","detail":"application_local_draft_publication_desktop_public_path; application_dependable_session_public_path step 2c; publish steps accepted in sessions 411e2c74, a0cbb9dd"}}]
 ---
 
 # Create the draft PR from the pushed branch
@@ -63,3 +64,16 @@ BPR-2028 is Done, so this card's dependency is met. Its evidence, from the [ledg
 - AC07 passes on fixture, and the owner accepted the publish steps (session 411e2c74, aligned in a0cbb9dd), except one clause: "a review submission for another pull request completes while a creation is in flight". That clause has no course: `application_local_draft_publication_desktop_public_path` shows only the draft's own lane free during a held creation.
 
 The card was not readied. `issue_board.py move` refuses, because `docs/rfcs/assets/local-draft-authoring-v1/AMENDMENTS.md` (protected) links this card's Backlog path, as it links BPR-2031's. Any lane move would edit protected content. Closing RFC-BPR-0111 needs a decision on that link (an exception for the link line, or a path-preserving approach) and a course for AC07's submission clause.
+
+## Closeout (2026-11-13)
+
+Both obstacles above are resolved. By the coordinator's decision the
+local-draft-authoring amendment record names this card as a card reference
+(`d3e7cb8a8`). AC07's submission clause has its course:
+`application_dependable_session_public_path` step 2c (`0f444ac0a`) holds
+Create Draft PR's lane in the composed desktop and #18's Approve still
+reaches GitHub ([ledger](../../verification/RFC-BPR-0111.md#ac07s-submission-clause-and-closeout-2026-11-13)).
+
+- AC01: Pass, live draft #184 at `1237dbefd` (and #178, #179); `local_draft_publication` re-run at `0f444ac0a`.
+- AC02: Pass, `core_local_draft_publication`, `local_draft_publication` re-run at `0f444ac0a`.
+- AC07: Pass, `application_local_draft_publication_desktop_public_path` and `application_dependable_session_public_path` at `0f444ac0a`; the owner accepted the publish steps (sessions 411e2c74, a0cbb9dd).
