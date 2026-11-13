@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2031"
 title: "Verify and close RFC-BPR-0111"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0111"]
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07"],"resolved_choices":["PUBLISH-01"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0016","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0043-close-built-in-draft-publication-and-continuity.md","draft_title":"Close built-in draft publication and continuity"}
 depends_on: ["BPR-2029", "BPR-2030"]
