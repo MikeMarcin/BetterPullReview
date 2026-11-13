@@ -1138,6 +1138,127 @@ namespace {
 			   "AC06: an outdated one offers Make draft only with a line selected, and says so");
 	}
 
+	/// \brief RFC-BPR-0127 ([[BPR-2158]]) AC06, AC14. Where a Local comment
+	/// can be: one on the pull request is counted on the pull request link and
+	/// drawn on Overview's Comments tab; one on the whole file is the file
+	/// chip's and drawn after the placed cards; one on another file is the
+	/// Other files chip's, whose menu goes to it. None is drawn at a line.
+	/// A Local comment is edited in place and saved only on this computer;
+	/// my Local reply in a thread offers Make draft, Copy text and Delete; the
+	/// reply field's state control is Local and Reply, and Local's ⌘↩ saves.
+	auto test_local_comments_edges_and_editing() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 700);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 22U ? std::optional{ 200 } : aLine == 40U ? std::optional{ 480 }
+																																							   : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 22U);
+		view.adopt({ root });
+		const auto comparison = core::file_comparison_digest{ };
+		view.set_draft(std::nullopt, comparison);
+		auto links = std::vector<std::string>{ };
+		view.set_pull_request_link_dispatch([&links](const std::string& aId) { links.push_back(aId); });
+		view.set_local_comments({
+			qt::local_comment_card{ .Id = 1U, .Revision = 1U, .Body = QStringLiteral("Ask about the release note."), .MakeDraftWhy = QStringLiteral("Select a line in the code to make it a draft there."), .Place = qt::local_comment_place::pull_request },
+			qt::local_comment_card{ .Id = 2U, .Revision = 1U, .Body = QStringLiteral("This whole file wants a test."), .MakeDraftWhy = QStringLiteral("Select a line in the code to make it a draft there."), .Place = qt::local_comment_place::whole_file },
+			qt::local_comment_card{ .Id = 3U, .Revision = 1U, .Body = QStringLiteral("Check the caller here."), .Place = qt::local_comment_place::other_file, .Path = QStringLiteral("src/b.cpp"), .PathLine = 12U },
+			qt::local_comment_card{ .Id = 4U, .Revision = 1U, .Body = QStringLiteral("And this one."), .Place = qt::local_comment_place::other_file, .Path = QStringLiteral("src/c.cpp") },
+			qt::local_comment_card{ .Id = 7U, .Revision = 1U, .Body = QStringLiteral("Check retained() after a resize."), .ReplyToThread = std::string{ "T1" }, .MakeDraft = QStringLiteral("Make draft") },
+			qt::local_comment_card{ .Id = 8U, .Revision = 3U, .Body = QStringLiteral("Height is not clamped here."), .Comparison = comparison, .Side = core::diff_side::right, .Line = 22U, .MakeDraft = QStringLiteral("Make draft") },
+		});
+		QApplication::processEvents();
+		const auto& cards = view.cards();
+		const auto  has   = [&cards](const char* aId) { return std::ranges::find(cards, std::string{ aId }, &qt::thread_card::Id) != cards.end(); };
+		const auto  whole = std::ranges::find(cards, std::string{ "local:2" }, &qt::thread_card::Id);
+		expect(!has("local:1") && !has("local:3") && !has("local:4") && whole != cards.end() && !whole->Line && whole->Notice == QStringLiteral("On this whole file, not on a line."),
+			   "AC06: beside the code only this file's are drawn, the whole file's after the placed cards at no line");
+		auto* const file      = view.local_file_chip();
+		auto* const elsewhere = view.local_elsewhere_chip();
+		auto* const pull      = view.pull_request_comments_chip();
+		std::cout << "LOCAL_EDGE_CHIPS " << file->accessibleName().toStdString() << " | " << elsewhere->accessibleName().toStdString() << " | " << pull->accessibleName().toStdString() << '\n';
+		expect(file->isVisible() && file->accessibleName() == QStringLiteral("This file: 1 local comment, only on this computer"), "AC06, AC14: the file's chip counts its Local comment, in words");
+		expect(elsewhere->isVisible() && elsewhere->accessibleName() == QStringLiteral("Other files: 2 local comments, only on this computer") && elsewhere->focusPolicy() != Qt::NoFocus,
+			   "AC06, AC14: the Other files chip counts theirs, and is reachable by keyboard");
+		expect(pull->accessibleName().endsWith(QStringLiteral(", 1 local comment")), "AC06: the pull request link counts my Local comment on the pull request");
+		file->click();
+		QApplication::processEvents();
+		expect(view.open_thread_id() == "local:2", "the file's chip opens its comment");
+		auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
+		elsewhere->click();
+		QApplication::processEvents();
+		auto* const menu = view.local_elsewhere_menu();
+		expect(menu != nullptr && menu->actions().size() == 2U && menu->actions().front()->text().startsWith(QStringLiteral("src/b.cpp:12")), "the Other files chip lists them, each with its file and line");
+		menu->actions().front()->trigger();
+		menu->close();
+		QApplication::processEvents();
+		expect(!actions.empty() && actions.back() == std::pair{ qt::card_action::open_local_elsewhere, std::string{ "local:3" } }, "choosing one goes to its file, then its line");
+
+		// Edited in place: saved only on this computer, at its revision.
+		auto edits = std::vector<std::tuple<std::uint64_t, std::uint64_t, std::string>>{ };
+		view.set_local_edit_dispatch([&edits](const std::uint64_t aId, const std::uint64_t aRevision, const std::string& aBody) { edits.emplace_back(aId, aRevision, aBody); });
+		expect(view.comment_editable("local:8") && view.begin_comment_edit("local:8"), "my Local comment is editable in place");
+		QApplication::processEvents();
+		auto* const editor = view.comment_editor();
+		expect(editor != nullptr && view.open_card()->findChild<QLabel*>(QStringLiteral("threadCommentEditHint")) != nullptr
+				   && view.open_card()->findChild<QLabel*>(QStringLiteral("threadCommentEditHint"))->text() == QStringLiteral("Only on this computer. Never sent."),
+			   "its editor says it is only on this computer");
+		editor->setPlainText(QStringLiteral("Height is not clamped; width is."));
+		QApplication::processEvents();
+		view.comment_edit_save_button()->click();
+		QApplication::processEvents();
+		expect(edits.size() == 1U && edits.front() == std::tuple{ std::uint64_t{ 8U }, std::uint64_t{ 3U }, std::string{ "Height is not clamped; width is." } },
+			   "Save gives its identity, its revision and the words; nothing is sent");
+		auto saved = view.local_comments();
+		std::ranges::find(saved, std::uint64_t{ 8U }, &qt::local_comment_card::Id)->Body = QStringLiteral("Height is not clamped; width is.");
+		view.set_local_comments(std::move(saved));
+		QApplication::processEvents();
+		expect(!view.comment_editing().has_value(), "the stored words end the edit");
+
+		// My Local reply in the thread: its own actions, by its identity.
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		auto* const make = button(view, "threadLocalReplyMakeDraft");
+		auto* const drop = button(view, "threadLocalReplyDelete");
+		expect(make != nullptr && make->isEnabled() && drop != nullptr && button(view, "threadLocalReplyCopy") != nullptr, "my Local reply offers Make draft, Copy text and Delete");
+		make->click();
+		drop->click();
+		expect(actions.size() >= 2U && actions[actions.size() - 2U] == std::pair{ qt::card_action::make_draft, std::string{ "local:7" } }
+				   && actions.back() == std::pair{ qt::card_action::delete_local, std::string{ "local:7" } },
+			   "they go to the window by the reply's identity");
+
+		// The reply field's state control: Local and Reply.
+		view.begin_reply("review-thread:T1");
+		QApplication::processEvents();
+		auto* const localState = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadReplyStateLocal"));
+		auto* const replyState = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadReplyStateReply"));
+		auto* const saveLocal  = button(view, "threadReplySaveLocal");
+		auto* const send       = button(view, "threadReplyPublish");
+		expect(localState != nullptr && replyState != nullptr && replyState->isChecked() && saveLocal != nullptr && !saveLocal->isVisibleTo(view.open_card()) && send->isVisibleTo(view.open_card()),
+			   "Reply opens on Reply, with Send");
+		localState->click();
+		QApplication::processEvents();
+		expect(localState->isChecked() && saveLocal->isVisibleTo(view.open_card()) && !send->isVisibleTo(view.open_card()) && localState->focusPolicy() != Qt::NoFocus,
+			   "Local: Save in Send's place, reachable by keyboard");
+		view.reply_editor()->setPlainText(QStringLiteral("Only for me."));
+		QApplication::processEvents();
+		auto submit = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+		QApplication::sendEvent(view.reply_editor(), &submit);
+		QApplication::processEvents();
+		expect(actions.back() == std::pair{ qt::card_action::save_local, std::string{ "review-thread:T1" } } && view.reply_editor() == nullptr, "⌘↩ saves it as a Local reply and folds the field");
+
+		// On Overview's Comments tab: my Local comment on the pull request.
+		view.show_pull_request_comments(true);
+		QApplication::processEvents();
+		const auto pr = std::ranges::find(view.cards(), std::string{ "local:1" }, &qt::thread_card::Id);
+		expect(pr != view.cards().end() && pr->Notice == QStringLiteral("On the pull request. Only on this computer.") && !has("local:8") && !file->isVisible() && !elsewhere->isVisible(),
+			   "AC06: Overview's Comments tab draws my Local comment on the pull request, and nothing at a line");
+		view.show_pull_request_comments(false);
+	}
+
 	/// \brief RFC-BPR-0127 ([[BPR-2158]]) AC01, AC14. The composer's state
 	/// control: Draft chosen for a comment; Local turns its foot to Save and
 	/// the sentence, ⌘↩ saves it as Local, and Draft brings today's row back.
@@ -3642,6 +3763,7 @@ auto main(int argc, char** argv) -> int
 	test_notes_hang_from_their_lines_and_one_opens_pinned();
 	test_start_a_review_in_the_composer();
 	test_local_comments_share_a_line();
+	test_local_comments_edges_and_editing();
 	test_composer_state_control();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
