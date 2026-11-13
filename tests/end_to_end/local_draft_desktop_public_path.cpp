@@ -252,7 +252,20 @@ try {
 		emit page->note_editor()->returnPressed();
 		settle(s.Lanes);
 		expect(page->notes()->count() == 1 && page->notes()->item(0)->text().contains(QStringLiteral("cancellation")), "a note on the selected file");
+		// RFC-BPR-0127 ([[BPR-2161]], Q8). The draft's notes read as Local
+		// comments, marked with the computer; their record is unchanged.
+		expect(page->notes()->accessibleName() == QStringLiteral("Local comments") && page->note_editor()->placeholderText() == QStringLiteral("Add a local comment")
+				   && page->note_editor()->accessibleName() == QStringLiteral("New local comment") && !page->notes()->item(0)->icon().isNull()
+				   && page->notes()->item(0)->toolTip() == QStringLiteral("Your local comment. Only on this computer.")
+				   && page->notes()->item(0)->data(Qt::AccessibleDescriptionRole).toString() == QStringLiteral("Local comment, only on this computer"),
+			   "BPR-2161: the draft's notes are called Local comments, with the computer");
+		std::cout << "local-draft: vocabulary=" << page->notes()->accessibleName().toStdString() << " | " << page->note_editor()->placeholderText().toStdString() << " | " << page->notes()->item(0)->toolTip().toStdString() << '\n';
 		capture(window, QStringLiteral("local-draft-candidate-two"));
+		// The tray's Comments shows them while the draft shows.
+		window.tray_tabs()->setCurrentIndex(0);
+		settle(s.Lanes);
+		expect(page->notes_page()->isVisible(), "the tray's Comments shows the draft's Local comments");
+		capture(window, QStringLiteral("local-draft-local-comments"));
 	}
 
 	{

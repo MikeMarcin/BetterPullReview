@@ -34,7 +34,7 @@ Cards were cut at import from the draft's suggested milestones:
 | [BPR-2158](../../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md) | Comments absorbs Notes | AC01, AC02, AC04, AC05, AC06, AC14 |
 | [BPR-2159](../../issues/60-done/BPR-2159-local-comments-found-and-counted.md) | Threads, Overview, My review, Finish your review | AC07, AC08, AC09 |
 | [BPR-2160](../../issues/30-in-progress/BPR-2160-one-keep-action-on-agent-surfaces.md) | One keep action, wording | AC10, AC12 |
-| [BPR-2161](../../issues/10-backlog/BPR-2161-local-pr-draft-notes-become-local-comments.md) | Local PR drafts' vocabulary (Q8) | none |
+| [BPR-2161](../../issues/30-in-progress/BPR-2161-local-pr-draft-notes-become-local-comments.md) | Local PR drafts' vocabulary (Q8) | none |
 | [BPR-2162](../../issues/10-backlog/BPR-2162-close-rfc-0127.md) | Closeout | all |
 
 IDs were allocated on `main` with `scripts/allocate_issue_id.py` in the main
