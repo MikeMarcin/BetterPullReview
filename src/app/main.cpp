@@ -6600,9 +6600,11 @@ namespace {
 		{
 			phase                Phase = phase::drawer;
 			std::string          Thread;
-			bpr::core::diff_side Side  = bpr::core::diff_side::right;
-			std::uint32_t        Line  = 0U;
-			int                  Ticks = 0;
+			bpr::core::diff_side Side              = bpr::core::diff_side::right;
+			std::uint32_t        Line              = 0U;
+			int                  Ticks             = 0;
+			bool                 SeededFile        = false;
+			bool                 SeededPullRequest = false;
 		};
 		auto* const timer = new QTimer{ &aApplication.window() };
 		timer->setInterval(50);
@@ -6694,6 +6696,23 @@ namespace {
 			case phase::replies: {
 				const auto thread = std::ranges::find(shown, state->Thread, &bpr::qt::thread_card::Id);
 				if (thread == shown.end() || thread->LocalReplies < 1U || !thread->UnsentReply.has_value()) {
+					return;
+				}
+				// BPR-2158, second look: a Local comment on the whole file and
+				// one on the pull request, as a migrated note leaves them, so
+				// the This file chip and the pull request link's count show.
+				const auto& locals = cards->local_comments();
+				const auto  placed = [&locals](const bpr::qt::local_comment_place aPlace) { return std::ranges::any_of(locals, [aPlace](const bpr::qt::local_comment_card& aCard) { return aCard.Place == aPlace; }); };
+				if (!placed(bpr::qt::local_comment_place::whole_file)) {
+					if (!state->SeededFile) {
+						state->SeededFile = bpr::app::detail::github_application_fixture_access::seed_local_comment(aApplication, "Whole file: the frame pool's lifetime is not documented anywhere. Ask before approving.", true);
+					}
+					return;
+				}
+				if (!placed(bpr::qt::local_comment_place::pull_request)) {
+					if (!state->SeededPullRequest) {
+						state->SeededPullRequest = bpr::app::detail::github_application_fixture_access::seed_local_comment(aApplication, "Before approving: run the soak test with the retry budget at 1.", false);
+					}
 					return;
 				}
 				cards->open_thread(state->Thread);
