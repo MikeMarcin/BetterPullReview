@@ -10,7 +10,8 @@ timings are nongating; nothing below is a timing claim.
 
 Engineering evidence for each card is on the card:
 [BPR-2157](../issues/60-done/BPR-2157-comments-absorb-notes-model-store-migration.md),
-[BPR-2158](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md).
+[BPR-2158](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md),
+[BPR-2159](../issues/60-done/BPR-2159-local-comments-found-and-counted.md).
 
 ## Owner verdicts, first look (attended session 12534e154303dd1913382442a83b8c8f, handed back 2026-11-13T17:44:00Z)
 
@@ -73,3 +74,15 @@ The six fixes and their evidence are on the [BPR-2158 card](../issues/60-done/BP
 ## Owner look v003 filed (2026-11-13)
 
 The six v002 fixes and the narrow-drawer chips, one question each: session `acaf71a2f3272811be5bfa4f25222fb9` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v003-2026-11-13/state`, cursor 27), frozen root `/Users/jaeger/comments-absorb-notes-v003.as90oxpw` from `6e7bbc13a36f`. Not waited on. Evidence is on the [BPR-2158 card](../issues/60-done/BPR-2158-comments-drawer-holds-local-comments.md#look-v002-rework-2026-11-13-third-round).
+
+## Milestone 3 closed (2026-11-13, fourth round)
+
+[[BPR-2159]] Done at `b0ea75ce8`. Evidence is on the [BPR-2159 card](../issues/60-done/BPR-2159-local-comments-found-and-counted.md#progress-2026-11-13).
+
+| Criterion | Card | Evidence | Result |
+|---|---|---|---|
+| AC07 | [[BPR-2159]] | `qt_conversation_finder_scale_{100,125,200}` `test_my_drafts`; `application_local_comments_found_public_path`: Local rows in their file's group; each of All, Published, Draft and Local shows exactly its rows with its count; under Local, Only new and Hide resolved hide none; a reopened pull request starts on All | Pass |
+| AC08 | [[BPR-2159]] | `qt_pull_request_overview_page` `test_local_chip_and_my_review_by_state`; the composed course: the Local chip beside the drafts chip, the folder's sum, its activation lands on Threads on Local at the file's first, no Note column, My review by state with no Private notes row | Pass |
+| AC09 | [[BPR-2159]] | `qt_review_submission_editor_scale_{100,125,200}`; the composed course: no Local comment pending or not in the review; Keep Local on a not-in-review row removes it; "N local comments stay on this computer" with Show, absent at zero | Pass |
+
+AC13's course now counts Threads' threads, not its Local rows (Local comments are Threads rows by AC07, and no thread's count moves). Owner look v004 for milestone 3 is filed below, not waited on.
