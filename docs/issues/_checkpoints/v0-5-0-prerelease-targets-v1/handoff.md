@@ -2516,7 +2516,7 @@ Session `d420cccb…` was handed back at 16:14:32Z. `tour-one-button-style` was 
 
 | Commit | What |
 |---|---|
-| `b4d1c3a5e`-era verdict commit, `a143adfc1` | Verdict recorded; BPR-2027 Done (AC08 pass) |
+| `faa0761e0`, `a143adfc1` | Verdict recorded; BPR-2027 Done (AC08 pass) |
 | `ffe23a183`, `966e078ec`, `3ceefb3e9` | BPR-2028 Ready, claimed, Done: **RFC-BPR-0110 Auto-Verified**. Closeout re-run at `a143adfc1`: 25 local-draft, tour-publication and Tour rows pass. `application_review_tour_publication_stop` failed once under parallel GUI load and passed alone three times |
 | `a559d12e5` | BPR-2029 readiness judgment |
 | main `01b881e0d` | Mirror of all of the above |
