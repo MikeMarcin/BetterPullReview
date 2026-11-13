@@ -52,3 +52,7 @@ Evidence:
 - Qt: `qt_conversation_preview` (the design's six bodies), `qt_conversation_cards_view`, `qt_github_conversation_panel`, `qt_composed_markdown_1_0`, `qt_workbench_window_scale_100`, `qt_settings_window`, `qt_view_filter_memory_window`.
 - Composed: `application_discuss_busy_public_path` serves conversations-v1 as a busy pull request (`src/app/src/discuss_busy_fixture.hpp`: four reviews, two runs of bot reports, a person to mark as a bot, a quoted reply) and checks the 820 column at three window sizes, file rows with folded resolved counts, the review's verdict and date on its own comment, dates on lone comments, Only this file, Fold bots (two rows, counts unchanged), Mark as Bot through the thread menu (a third row), and an open card with code wider than the column. `application_conversation_read_public_path` and `architecture_boundaries` pass.
 - Native renders (Cocoa, `BPR_NATIVE_LOOK=1`, light and dark) at 1280x800, 1728x1117 and 2560x1440 from that course, kept outside the repository.
+
+## Owner look (filed 2026-11-13, not waited on)
+
+Session `277831a56c39ae71bdd20451783d4e33`, state `/Users/jaeger/.attended-review-state/discuss-busy-pr-v001-2026-11-13/state` (URL in `serve.log` beside it), cursor 15, host PID 26008 (Tailscale child 26018). Frozen root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` from `c4a8137a55ee`. One Accept/Reject question per item: AC1 preview, AC2 column, AC3 files once, AC4 folding and bots, AC5 Only this file. AC6's renders are done; its look waits on these verdicts.
