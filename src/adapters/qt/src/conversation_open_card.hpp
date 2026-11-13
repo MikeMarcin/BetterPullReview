@@ -353,6 +353,10 @@ namespace bpr::qt {
 		auto               present_enhancement(const enhance_outcome& aOutcome) -> bool;
 		[[nodiscard]] auto enhance_control() const noexcept -> enhance_button* { return EnhanceButton; }
 		[[nodiscard]] auto enhance_panel() const noexcept -> enhance_suggestion* { return EnhancePanel; }
+		/// \brief RFC-BPR-0118. Suggest the change on the drawer draft; null
+		/// on a card that writes no new comment.
+		[[nodiscard]] auto suggest_change_control() const noexcept -> suggest_change_button* { return SuggestButton; }
+		[[nodiscard]] auto suggest_change_view() const noexcept -> suggest_change_panel* { return SuggestPanel; }
 		/// \brief [[BPR-1084]]. Beside the reply's label chip: whether a
 		/// suggested change in the reply is native in this thread or text only.
 		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
@@ -509,6 +513,10 @@ namespace bpr::qt {
 		enhance_suggestion* EnhancePanel  = nullptr;
 		enhance_binding*    Enhance       = nullptr;
 		void                build_enhance(QBoxLayout& aControls, enhance_surface aSurface);
+		/// RFC-BPR-0118. Suggest the change in the tool row, and its panel.
+		suggest_change_button* SuggestButton = nullptr;
+		suggest_change_panel*  SuggestPanel  = nullptr;
+		void                   present_agent_suggestion(const agent_suggestion_presentation& aSuggestion);
 		/// [[BPR-1212]]. The composer's line button, state and change view.
 		QToolButton* Where      = nullptr;
 		QWidget*     DraftState = nullptr;

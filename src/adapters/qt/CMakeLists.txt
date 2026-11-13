@@ -32,6 +32,7 @@ add_library(
         src/disclosure_button.cpp
         src/drawer_parts.cpp
         src/enhance_control.cpp
+        src/suggest_change_control.cpp
         src/overview_status_drawer.cpp
         src/overview_tour_summary.cpp
         src/tour_publication_surfaces.cpp
@@ -183,6 +184,7 @@ add_library(
         src/workbench_window_home_views.cpp
         src/workbench_window_queue_controls_and_menus.cpp
         src/workbench_window_replies_and_review_composition.cpp
+        src/workbench_window_agent_suggestion.cpp
         src/workbench_window_repositories_and_files.cpp
         src/workbench_window_settings_and_layout.cpp
         src/workbench_window_support.cpp

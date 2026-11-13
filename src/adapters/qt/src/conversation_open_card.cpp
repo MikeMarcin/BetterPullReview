@@ -2614,10 +2614,45 @@ namespace bpr::qt {
 		// [[BPR-2051]]. Enhance first in the field's own tool row, as on every
 		// surface; its suggestion under that row.
 		build_enhance(*controls, enhance_surface::comment);
+		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change beside Enhance, in
+		// the same accent, shown only where the lines can take a suggestion;
+		// what came of it under Enhance's panel.
+		SuggestButton = new suggest_change_button{ Editor };
+		SuggestButton->hide();
+		connect(SuggestButton, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::suggest_change); } });
+		controls->insertWidget(1, SuggestButton, 0, Qt::AlignVCenter);
 		controls->addWidget(Suggestion);
 		controls->addStretch(1);
 		editor->addLayout(controls);
 		editor->addWidget(EnhancePanel);
+		SuggestPanel       = new suggest_change_panel{ Editor };
+		auto* const first  = new note_button{ note_button::kind::primary, QStringLiteral("Keep change"), SuggestPanel };
+		auto* const second = new note_button{ note_button::kind::secondary, QStringLiteral("Discard"), SuggestPanel };
+		first->setObjectName(QStringLiteral("suggestChangeFirst"));
+		second->setObjectName(QStringLiteral("suggestChangeSecond"));
+		first->set_style(Style);
+		second->set_style(Style);
+		SuggestPanel->set_buttons(first, second);
+		connect(first, &QAbstractButton::clicked, this, [this] {
+			switch (SuggestPanel->phase()) {
+			case agent_suggestion_phase::proposed: if (Action) { Action(card_action::keep_suggested_change); } break;
+			case agent_suggestion_phase::kept:     if (Action) { Action(card_action::undo_suggested_change); } break;
+			case agent_suggestion_phase::refused:
+				SuggestPanel->toggle_reply();
+				if (HeightChanged) {
+					HeightChanged();
+				}
+				break;
+			case agent_suggestion_phase::running:
+			case agent_suggestion_phase::idle: break;
+			}
+		});
+		connect(second, &QAbstractButton::clicked, this, [this] {
+			if (Action) {
+				Action(SuggestPanel->phase() == agent_suggestion_phase::proposed ? card_action::discard_suggested_change : card_action::close_suggested_change);
+			}
+		});
+		editor->addWidget(SuggestPanel);
 		ReplyStatus = new QLabel{ Editor };
 		ReplyStatus->setObjectName(QStringLiteral("threadDraftStatus"));
 		ReplyStatus->setWordWrap(true);
@@ -2746,6 +2781,24 @@ namespace bpr::qt {
 		};
 	}
 
+	void open_thread_card::present_agent_suggestion(const agent_suggestion_presentation& aSuggestion)
+	{
+		if (SuggestButton == nullptr || SuggestPanel == nullptr) {
+			return;
+		}
+		const auto running = aSuggestion.Phase == agent_suggestion_phase::running;
+		const auto shown   = aSuggestion.Offered || aSuggestion.Phase != agent_suggestion_phase::idle;
+		const auto before  = std::pair{ SuggestButton->isVisibleTo(Editor), SuggestPanel->isVisibleTo(Editor) };
+		SuggestButton->set_running(running);
+		SuggestButton->setVisible(shown);
+		SuggestButton->setEnabled(running || (aSuggestion.Offered && aSuggestion.Phase != agent_suggestion_phase::proposed));
+		const auto lineBefore = SuggestPanel->line_text();
+		SuggestPanel->present(aSuggestion);
+		if (HeightChanged && (before != std::pair{ SuggestButton->isVisibleTo(Editor), SuggestPanel->isVisibleTo(Editor) } || lineBefore != SuggestPanel->line_text())) {
+			HeightChanged();
+		}
+	}
+
 	void open_thread_card::bind_enhance(enhance_dispatch aDispatch, enhance_cancel aCancel)
 	{
 		if (Enhance != nullptr) {
@@ -2806,6 +2859,7 @@ namespace bpr::qt {
 			static_cast<state_label*>(DraftState)->set_text(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
 		}
 		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines, inCode);
+		present_agent_suggestion(aDraft.has_value() ? aDraft->AgentSuggestion : agent_suggestion_presentation{ });
 		// [[RFC-BPR-0090]]. The code's change counts as content, and a held
 		// suggestion offers Convert in place of the sending buttons.
 		CodeChange      = inCode && aDraft->Change.has_value() && !aDraft->Change->unchanged();

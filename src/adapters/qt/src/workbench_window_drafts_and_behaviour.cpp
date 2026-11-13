@@ -257,6 +257,8 @@ namespace bpr::qt {
 			.Notice      = notice,
 			.Retry       = ReviewEditor->publication_retry_offered(),
 			.Review      = draft_review(),
+			// RFC-BPR-0118. Suggest the change, on lines that take a suggestion.
+			.AgentSuggestion = agent_suggestion_presentation_now(),
 		});
 		publish_pending_file_comment();
 	}

@@ -14,6 +14,7 @@
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/enhance_control.hpp"
+#include "bpr/qt/suggest_change_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -137,6 +138,16 @@ namespace bpr::qt {
 		/// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed?: the Agent tab
 		/// asks it of this conversation. Nothing is resolved or posted.
 		was_addressed,
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change on the drawer
+		/// draft's lines, or Stop while the agent writes it.
+		suggest_change,
+		/// RFC-BPR-0118. The agent's change open in the code goes into the
+		/// comment (Keep change), is dropped (Discard), the comment goes back
+		/// to how it was (Undo), or the panel closes (Done, Dismiss).
+		keep_suggested_change,
+		discard_suggested_change,
+		undo_suggested_change,
+		close_suggested_change,
 	};
 
 	/// \brief [[BPR-1733]]. My kept suggestion written on an earlier head of
@@ -474,6 +485,9 @@ namespace bpr::qt {
 		/// decides its foot: Add single comment and Start a review, or Add
 		/// review comment as the main action while a review is in progress.
 		draft_review_state Review = draft_review_state::none;
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: whether it is
+		/// offered on these lines, and where a press stands.
+		agent_suggestion_presentation AgentSuggestion;
 
 		auto operator==(const draft_composer_presentation&) const -> bool = default;
 	};

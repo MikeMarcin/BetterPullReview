@@ -45,6 +45,7 @@
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/explain_file_card.hpp"
+#include "bpr/core/suggest_change.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -1203,6 +1204,36 @@ namespace bpr::qt {
 		[[nodiscard]] auto explain_card() const noexcept -> explain_file_card* { return ExplainCard; }
 		void               present_explain_file(const explain_file_progress& aProgress);
 		void               dismiss_explain_file();
+		/// \brief RFC-BPR-0118 ([[BPR-2078]]). One press of Suggest the change
+		/// on the drawer draft: its lines, the head as the press read it, and
+		/// the reviewer's words.
+		struct suggest_change_press
+		{
+			core::review_draft_id        Draft;
+			core::source_line_ref        Anchor;
+			std::uint32_t                First = 0U;
+			std::uint32_t                Last  = 0U;
+			std::vector<core::text_line> Head;
+			std::string                  Prose;
+		};
+		/// \brief RFC-BPR-0118. Where a press goes, and where Stop goes.
+		void set_suggest_change_dispatch(std::function<void(const suggest_change_press&)> aDispatch, std::function<void()> aCancel);
+		/// \brief RFC-BPR-0118. Whether an agent is set up; a press without
+		/// one says so in the panel.
+		void set_suggest_change_ready(bool aReady);
+		/// \brief RFC-BPR-0118. The press was not sent, or the run ended
+		/// without an answer: \p aWords, in the panel.
+		void refuse_suggest_change(const QString& aWords);
+		/// \brief RFC-BPR-0118. The agent's answer to the running press. The
+		/// core decides (`core::decide_suggested_change`) against the head
+		/// now: an accepted reply opens in the head pane, unsaved; a refused
+		/// one says which check failed and keeps the reply as text.
+		/// \returns The core's refusal, `none` when it opened.
+		auto offer_suggested_change(const std::string& aAnswer) -> core::suggest_change_refusal;
+		/// \brief RFC-BPR-0118. The panel's state, for tests and the composition.
+		[[nodiscard]] auto agent_suggestion_presentation_now() const -> agent_suggestion_presentation;
+		/// \brief RFC-BPR-0118. The card actions, as the drawer's buttons send them.
+		void act_on_agent_suggestion(card_action aAction);
 		/// \brief The active tab's file; empty when no tab is open.
 		[[nodiscard]] auto active_document_path() const -> QString;
 		/// \brief [[BPR-1132]]. Ctrl+Tab and Ctrl+Shift+Tab (the Control key on
@@ -2806,6 +2837,29 @@ namespace bpr::qt {
 		/// the tabs the host last published, the tab keys and the older-pair
 		/// notice.
 		document_tab_strip* DocumentTabs = nullptr;
+		/// RFC-BPR-0118. Suggest the change: where a press and Stop go, and
+		/// the press under way or its outcome, for the draft it was made on.
+		std::function<void(const suggest_change_press&)> SuggestChangeDispatch;
+		std::function<void()>                            SuggestChangeCancel;
+		bool                                             SuggestChangeReady = false;
+		struct agent_suggestion_state
+		{
+			core::review_draft_id        Draft;
+			core::source_line_ref        Anchor;
+			std::uint32_t                First = 0U;
+			std::uint32_t                Last  = 0U;
+			std::vector<core::text_line> Asked;
+			agent_suggestion_phase       Phase = agent_suggestion_phase::idle;
+			QString                      Line;
+			QString                      Reply;
+			/// Kept: the draft's body before Keep, which Undo restores.
+			QString BodyBefore;
+			/// The head pane's edit was open before the agent's change.
+			bool WasOpen = false;
+		};
+		std::optional<agent_suggestion_state>   AgentSuggestion;
+		[[nodiscard]] auto                      suggest_change_offered() const -> bool;
+		void                                    press_suggest_change();
 		/// RFC-BPR-0117. Explain this file's control, its card and where a
 		/// press goes.
 		QToolButton*                                         ExplainFileButton = nullptr;
@@ -3258,6 +3312,10 @@ namespace bpr::qt {
 			bool OwnBlock = false;
 			/// The head pane's edit is open.
 			bool Open = false;
+			/// RFC-BPR-0118. The agent's change is in the edit and not in the
+			/// draft: the body keeps `Kept`, the lines before it, until Keep.
+			bool                         Proposed = false;
+			std::vector<core::text_line> Kept;
 		};
 		std::optional<pane_suggestion> PaneSuggestion;
 		/// [[RFC-BPR-0090]]. Suggestions GitHub cannot apply where they go, by

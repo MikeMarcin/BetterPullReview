@@ -977,6 +977,12 @@ namespace bpr::qt {
 				[this] {
 					if (PaneSuggestion.has_value()) {
 						PaneSuggestion->Open = false;
+						// RFC-BPR-0118. Leaving the edit with the agent's change
+						// unkept drops it; the draft never held it.
+						if (std::exchange(PaneSuggestion->Proposed, false) && AgentSuggestion.has_value() && AgentSuggestion->Phase == agent_suggestion_phase::proposed) {
+							AgentSuggestion.reset();
+							statusBar()->showMessage(tr("The agent's change was not kept. Your comment is unchanged."), 6000);
+						}
 					}
 					// The drawer shows the kept change once the edit has gone.
 					QTimer::singleShot(0, this, [this] { present_inline_draft(); });
@@ -1139,6 +1145,20 @@ namespace bpr::qt {
 
 	void workbench_window::compose_pane_suggestion()
 	{
+		// RFC-BPR-0118. While the agent's change waits to be kept, the draft
+		// keeps the lines it had: the edit shows the change, the body does not.
+		if (PaneSuggestion.has_value() && PaneSuggestion->Proposed) {
+			const auto first = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
+			const auto held  = core::plan_pull_request_suggestion(core::pull_request_suggestion_input{
+				 .First = first, .Last = PaneSuggestion->Anchor.Line, .Original = PaneSuggestion->Original, .Edited = PaneSuggestion->Kept, .Prose = PaneSuggestion->Prose.toStdString() });
+			const auto& draft = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt;
+			if (draft.has_value() && draft->Anchor == PaneSuggestion->Anchor && !ReviewEditor->body_editor()->isReadOnly()
+				&& ReviewEditor->body_editor()->toPlainText() != QString::fromStdString(held.Body)) {
+				ReviewEditor->body_editor()->setPlainText(QString::fromStdString(held.Body));
+			}
+			present_inline_draft();
+			return;
+		}
 		const auto plan = pane_suggestion_plan();
 		if (!plan.has_value() || ReviewEditor == nullptr || ReviewEditor->body_editor()->isReadOnly()) {
 			return;

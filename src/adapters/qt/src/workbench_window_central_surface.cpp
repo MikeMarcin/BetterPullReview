@@ -746,6 +746,14 @@ namespace bpr::qt {
 				case card_action::carry_suggestion:
 					carry_moved_suggestion(aIdentity);
 					break;
+				case card_action::suggest_change:
+				case card_action::keep_suggested_change:
+				case card_action::discard_suggested_change:
+				case card_action::undo_suggested_change:
+				case card_action::close_suggested_change:
+					// RFC-BPR-0118. Suggest the change on the drawer draft.
+					act_on_agent_suggestion(aAction);
+					break;
 				case card_action::copy_change:
 					// [[BPR-1733]]. The note copied the change itself.
 					statusBar()->showMessage(tr("Copied the suggested lines."), 4000);
