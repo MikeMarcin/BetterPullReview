@@ -8,6 +8,7 @@
 #include <QComboBox>
 #include <QDateTime>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -98,15 +99,6 @@ namespace bpr::qt {
 				return { };
 			}
 			return QStringLiteral("%1 %2").arg(repository_text(target->Target.Repository), text_of(target->Target.Branch));
-		}
-
-		auto heading(const QString& aText, QWidget* const aOwner) -> QLabel*
-		{
-			auto* const label = new QLabel{ aText, aOwner };
-			auto        font  = label->font();
-			font.setWeight(QFont::DemiBold);
-			label->setFont(font);
-			return label;
 		}
 	}
 
@@ -286,42 +278,20 @@ namespace bpr::qt {
 		noteColumn->addWidget(NoteEditor);
 		NotesPage->hide();
 
-		TourArea = new local_draft_tour_area{ Owner };
-		TourArea->hide();
-
-		// Overview's author panel: the title, the description and the steps.
-		AuthorPanel = new QWidget{ Owner };
-		AuthorPanel->setObjectName(QStringLiteral("localDraftAuthorPanel"));
-		auto* const panel = new QVBoxLayout{ AuthorPanel };
-		panel->setContentsMargins(12, 10, 12, 10);
-		panel->setSpacing(8);
-		Title = new QLineEdit{ AuthorPanel };
-		Title->setObjectName(QStringLiteral("localDraftTitle"));
-		Title->setAccessibleName(QStringLiteral("Pull request title"));
-		Title->setPlaceholderText(QStringLiteral("Title"));
-		auto titleFont = Title->font();
-		titleFont.setWeight(QFont::DemiBold);
-		Title->setFont(titleFont);
-		panel->addWidget(heading(QStringLiteral("Title"), AuthorPanel));
-		panel->addWidget(Title);
-		DescriptionArea = new local_draft_description_area{ AuthorPanel };
-		panel->addWidget(DescriptionArea, 2);
-		panel->addWidget(heading(QStringLiteral("Publish"), AuthorPanel));
-		PublicationArea = new local_draft_publication_area{ AuthorPanel };
-		panel->addWidget(PublicationArea, 1);
-		AuthorPanel->hide();
+		// Overview's Status tab: the publish steps (the accepted design).
+		auto* const status = new QScrollArea{ Owner };
+		status->setObjectName(QStringLiteral("localDraftStatusPage"));
+		status->setFrameShape(QFrame::NoFrame);
+		status->setWidgetResizable(true);
+		status->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		PublicationArea = new local_draft_publication_area{ status };
+		status->setWidget(PublicationArea);
+		status->hide();
+		StatusPage = status;
 
 		Links.Selection = [] { return std::optional<local_draft_lines>{ }; };
 		Links.Reveal    = [this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) { reveal(aPath, aFirst, aLast); };
-		DescriptionArea->set_dispatch(&PreparationDispatch, &Links);
-		TourArea->set_dispatch(&PreparationDispatch, &Links);
 
-		connect(Title, &QLineEdit::editingFinished, this, [this] {
-			if (!Presenting && Dispatch.Rename && Projection.Draft && !Title->text().trimmed().isEmpty() && Title->text().trimmed() != text_of(Projection.Draft->Title)) {
-				Dispatch.Rename(utf8(Title->text().trimmed()));
-			}
-			Title->setModified(false);
-		});
 		connect(Refresh, &QPushButton::clicked, this, [this] {
 			if (Dispatch.Refresh) {
 				Dispatch.Refresh();
@@ -415,11 +385,6 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 	}
 
-	void local_draft_parts::set_preparation_dispatch(local_draft_preparation_dispatch aDispatch)
-	{
-		PreparationDispatch = std::move(aDispatch);
-	}
-
 	void local_draft_parts::set_comparison_links(std::function<std::optional<local_draft_lines>()> aSelection, std::function<void(const std::string&, std::uint32_t, std::uint32_t)> aReveal)
 	{
 		Links.Selection = [this, selection = std::move(aSelection)]() -> std::optional<local_draft_lines> {
@@ -433,14 +398,15 @@ namespace bpr::qt {
 		RevealInComparison = std::move(aReveal);
 	}
 
-	void local_draft_parts::reveal(const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast)
+	void local_draft_parts::reveal(const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const std::uint64_t aCandidate)
 	{
 		const auto* latest = Projection.Draft ? core::latest_candidate(*Projection.Draft) : nullptr;
 		if (latest == nullptr) {
 			return;
 		}
-		if (Projection.Shown != latest->Ordinal && Dispatch.ShowCandidate) {
-			Dispatch.ShowCandidate(latest->Ordinal);
+		const auto candidate = aCandidate == 0U ? latest->Ordinal : aCandidate;
+		if (Projection.Shown != candidate && Dispatch.ShowCandidate) {
+			Dispatch.ShowCandidate(candidate);
 		}
 		if ((!Projection.File || Projection.File->Path != aPath) && Dispatch.OpenFile) {
 			Dispatch.OpenFile(aPath);
@@ -448,6 +414,11 @@ namespace bpr::qt {
 		if (RevealInComparison) {
 			RevealInComparison(aPath, aFirst, aLast);
 		}
+	}
+
+	auto local_draft_parts::selected_lines() const -> std::optional<local_draft_lines>
+	{
+		return Links.Selection ? Links.Selection() : std::nullopt;
 	}
 
 	void local_draft_parts::open_file(const std::string& aPath, const bool aEditing)
@@ -490,6 +461,32 @@ namespace bpr::qt {
 		DiscardQuestion = std::move(aQuestion);
 	}
 
+	void local_draft_parts::set_rename_question(std::function<std::optional<QString>(const QString&)> aQuestion)
+	{
+		RenameQuestion = std::move(aQuestion);
+	}
+
+	void local_draft_parts::ask_rename()
+	{
+		if (!Projection.Draft || !Dispatch.Rename) {
+			return;
+		}
+		const auto current = text_of(Projection.Draft->Title);
+		auto       chosen  = std::optional<QString>{ };
+		if (RenameQuestion) {
+			chosen = RenameQuestion(current);
+		} else {
+			auto accepted = false;
+			auto text     = QInputDialog::getText(Owner, QStringLiteral("Rename Local Draft"), QStringLiteral("Pull request title:"), QLineEdit::Normal, current, &accepted);
+			if (accepted) {
+				chosen = std::move(text);
+			}
+		}
+		if (chosen && !chosen->trimmed().isEmpty() && chosen->trimmed() != current) {
+			Dispatch.Rename(utf8(chosen->trimmed()));
+		}
+	}
+
 	void local_draft_parts::ask_discard()
 	{
 		if (!Projection.Draft || !Dispatch.Discard) {
@@ -521,8 +518,6 @@ namespace bpr::qt {
 			PresentedDraft = std::move(id);
 			WorkingDisclosure->setChecked(false);
 		}
-		DescriptionArea->present(aProjection);
-		TourArea->present(aProjection);
 		PublicationArea->present(aProjection);
 		present_header();
 		present_recovery();
@@ -580,11 +575,6 @@ namespace bpr::qt {
 	void local_draft_parts::present_header()
 	{
 		const auto& view = Projection;
-		// The author's unsaved typing stays; anything else shows the draft's title.
-		if (!Title->isModified()) {
-			Title->setText(title_text());
-		}
-		Title->setReadOnly(!view.Draft);
 		auto source = text_of(view.Draft ? view.Draft->Branch : view.Branch);
 		auto target = target_text(view);
 		Identity->setText(target.isEmpty() ? source : QStringLiteral("%1 into %2").arg(source, target));
@@ -617,6 +607,10 @@ namespace bpr::qt {
 			refresh->setObjectName(QStringLiteral("localDraftRefreshAction"));
 			refresh->setEnabled(view.RefreshOffered && !view.Busy);
 			refresh->setToolTip(QStringLiteral("Capture the worktree as a new candidate."));
+			// The title is the pull request's, and Overview shows it; it is renamed here.
+			auto* const rename = CandidateMenu->addAction(QStringLiteral("Rename…"), this, [this] { ask_rename(); });
+			rename->setObjectName(QStringLiteral("localDraftRenameAction"));
+			rename->setToolTip(QStringLiteral("Change the pull request's title."));
 			auto* const discard = CandidateMenu->addAction(QStringLiteral("Discard…"), Discard, &QPushButton::click);
 			discard->setObjectName(QStringLiteral("localDraftDiscardAction"));
 		} else {
@@ -947,11 +941,9 @@ namespace bpr::qt {
 	auto local_draft_parts::local_changes() const noexcept -> local_changes_panel* { return LocalChanges; }
 	auto local_draft_parts::edit_page() const noexcept -> QWidget* { return EditPage; }
 	auto local_draft_parts::notes_page() const noexcept -> QWidget* { return NotesPage; }
-	auto local_draft_parts::tour() const noexcept -> local_draft_tour_area* { return TourArea; }
-	auto local_draft_parts::author_panel() const noexcept -> QWidget* { return AuthorPanel; }
+	auto local_draft_parts::status_page() const noexcept -> QWidget* { return StatusPage; }
 	auto local_draft_parts::projection() const noexcept -> const application::local_draft_workbench_projection& { return Projection; }
 	auto local_draft_parts::local_projection() const noexcept -> const application::local_changes_projection& { return LocalProjection; }
-	auto local_draft_parts::title_editor() const noexcept -> QLineEdit* { return Title; }
 	auto local_draft_parts::identity() const noexcept -> QLabel* { return Identity; }
 	auto local_draft_parts::notice() const noexcept -> QLabel* { return Notice; }
 	auto local_draft_parts::working() const noexcept -> QListWidget* { return Working; }
@@ -970,7 +962,6 @@ namespace bpr::qt {
 	auto local_draft_parts::save_button() const noexcept -> QPushButton* { return Save; }
 	auto local_draft_parts::create_button() const noexcept -> QPushButton* { return Create; }
 	auto local_draft_parts::branch_button() const noexcept -> QToolButton* { return Branch; }
-	auto local_draft_parts::description() const noexcept -> local_draft_description_area* { return DescriptionArea; }
 	auto local_draft_parts::publication() const noexcept -> local_draft_publication_area* { return PublicationArea; }
 
 	auto local_draft_parts::candidate_actions() const -> QList<QAction*>

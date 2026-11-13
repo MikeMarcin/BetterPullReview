@@ -13,7 +13,6 @@ add_library(
         src/suggestion_editor.cpp
         src/suggestion_composer.cpp
         src/review_cycle_view.cpp
-        src/local_draft_preparation_area.cpp
         src/local_draft_publication_area.cpp
         src/local_draft_parts.cpp
         src/review_cycle_share_sheet.cpp

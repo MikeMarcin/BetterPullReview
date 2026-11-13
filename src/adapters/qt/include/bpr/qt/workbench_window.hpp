@@ -1373,6 +1373,9 @@ namespace bpr::qt {
 		/// \brief Returns to Home or to the open pull request.
 		void               leave_local_draft();
 		[[nodiscard]] auto showing_local_draft() const noexcept -> bool;
+		/// \brief RFC-BPR-0111 as drawn: Create Draft PR… opens Overview at the
+		/// Status tab, where the publish steps are.
+		void show_local_publication();
 		/// \brief The draft's projection: its files fill the Files tree and
 		/// Overview, its parts are presented.
 		void present_local_draft(const application::local_draft_workbench_projection& aProjection);
@@ -2932,6 +2935,16 @@ namespace bpr::qt {
 		std::function<void(bool)>                                              LocalDraftObserver;
 		/// What a pull request open behind the draft had, restored on leaving.
 		std::optional<application::pull_request_overview_projection> OverviewBehindDraft;
+		bool                                                         DescriptionEditableBehindDraft = false;
+		/// Lines a tour stop asked for, selected once their file shows.
+		struct local_reveal
+		{
+			std::string   Path;
+			std::uint32_t First = 0U;
+			std::uint32_t Last  = 0U;
+		};
+		std::optional<local_reveal> LocalReveal;
+		void                        apply_local_reveal();
 		std::vector<application::workbench_file_projection>          FilesBehindDraft;
 		/// The draft's own rows, by path, in the Files tree's order.
 		std::vector<std::string> LocalFiles;

@@ -1526,6 +1526,30 @@ namespace bpr::application {
 		});
 	}
 
+	void local_draft_workbench::edit_stop(const std::uint64_t aStop, std::string aTitle, std::string aText, std::string aPath, const std::uint32_t aFirst, const std::uint32_t aLast)
+	{
+		auto& self = *Implementation;
+		if (!self.Projection.Draft) {
+			return;
+		}
+		if (aPath.empty()) {
+			self.prepare(core::edit_local_stop(*self.Projection.Draft, self.Projection.Draft->Version, aStop, std::move(aTitle), std::move(aText), std::nullopt, core::diff_side::right, 0U,
+											   0U, self.Now()));
+			return;
+		}
+		self.with_reading(std::move(aPath), [aStop, aFirst, aLast, title = std::move(aTitle), text = std::move(aText), now = self.Now()](const core::local_draft& aDraft, const core::local_file_reading& aFile) mutable {
+			return core::edit_local_stop(aDraft, aDraft.Version, aStop, std::move(title), std::move(text), aFile, core::diff_side::right, aFirst, aLast, now);
+		});
+	}
+
+	void local_draft_workbench::unaccept_stop(const std::uint64_t aStop)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::unaccept_local_stop(*self.Projection.Draft, self.Projection.Draft->Version, aStop, self.Now()));
+		}
+	}
+
 	void local_draft_workbench::accept_stop(const std::uint64_t aStop)
 	{
 		auto& self = *Implementation;

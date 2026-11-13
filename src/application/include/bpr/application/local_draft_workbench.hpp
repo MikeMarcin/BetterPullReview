@@ -348,7 +348,11 @@ namespace bpr::application {
 		void add_stop(std::string aPath, std::uint32_t aFirst, std::uint32_t aLast, std::string aTitle, std::string aText);
 		/// \brief Save: the text, and new lines when `aPath` is not empty. Signs the stop off.
 		void save_stop(std::uint64_t aStop, std::string aTitle, std::string aText, std::string aPath = { }, std::uint32_t aFirst = 0, std::uint32_t aLast = 0);
+		/// \brief The Tour panel's typing, and Use Selected Lines with a path:
+		/// the stop's title and text (and lines) saved, not accepted.
+		void edit_stop(std::uint64_t aStop, std::string aTitle, std::string aText, std::string aPath = { }, std::uint32_t aFirst = 0, std::uint32_t aLast = 0);
 		void accept_stop(std::uint64_t aStop);
+		void unaccept_stop(std::uint64_t aStop);
 		void remove_stop(std::uint64_t aStop);
 		void move_stop(std::uint64_t aStop, std::size_t aIndex);
 		void decide_proposal(std::uint64_t aProposal, bool aAccept);

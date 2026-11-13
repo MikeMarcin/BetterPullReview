@@ -97,6 +97,16 @@ namespace bpr::qt {
 		std::uint32_t StopLast  = 1U;
 	};
 
+	/// \brief RFC-BPR-0110 as amended (owner, 2026-11-13: "stick with the PR
+	/// view and just augment it"). A local draft's tour in this panel: why a
+	/// yellow stop is yellow, and where its lines are, in the draft's own
+	/// words (a candidate, never a commit). Empty text keeps the panel's own.
+	struct tour_local_words
+	{
+		std::function<QString(core::tour_stop_id)> Reason;
+		std::function<QString(core::tour_stop_id)> Source;
+	};
+
 	/// \brief Native Markdown interaction and inert projections for private tour preparation.
 	class review_tour_editor final : public QWidget
 	{
@@ -154,6 +164,10 @@ namespace bpr::qt {
 		/// starts for this pull request: off for one associated with a local
 		/// draft. Turning it on asks for a new Preview, as every change does.
 		void               set_description_publication_default(bool aOn);
+		/// \brief RFC-BPR-0110. A local draft's words while its tour shows;
+		/// none for a pull request's.
+		void               set_local_words(std::optional<tour_local_words> aWords);
+		[[nodiscard]] auto local_words() const noexcept -> bool { return LocalWords.has_value(); }
 		void               show_problem();
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
@@ -358,6 +372,7 @@ namespace bpr::qt {
 
 	private:
 		std::function<void()>                                                      PresentedObserver;
+		std::optional<tour_local_words>                                            LocalWords;
 		void                                                                       edit(core::tour_command_kind aKind, const std::string& aText);
 		void                                                                       add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QBoxLayout* aLayout);
 		std::function<void(core::writing_hook, prose_capture)>                     WritingRequest;

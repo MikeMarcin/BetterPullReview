@@ -1209,6 +1209,11 @@ namespace bpr::qt {
 
 	void workbench_window::open_tour_page(const bool aPublication)
 	{
+		// RFC-BPR-0110 X04: a local draft's tour publishes nothing; its pull
+		// request is created by Create Draft PR….
+		if (aPublication && LocalDraftShown) {
+			return;
+		}
 		if (!TourPageOpen) {
 			TourPageOpen     = true;
 			auto* const body = static_cast<QHBoxLayout*>(TourPageBody->layout());

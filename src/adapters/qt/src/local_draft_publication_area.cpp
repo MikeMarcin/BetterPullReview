@@ -3,12 +3,14 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
 
-#include <QCheckBox>
+#include "bpr/core/git_objects.hpp"
+#include "bpr/core/local_draft_tour.hpp"
+
 #include <QFontDatabase>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
@@ -31,39 +33,46 @@ namespace bpr::qt {
 			return application::tour_step_state::waiting;
 		}
 
-		[[nodiscard]] auto steps_of(const core::local_draft& aDraft) -> std::vector<application::tour_publication_step_view>
+		/// The three steps the accepted design draws in the Status tab: push
+		/// the branch, create the draft pull request, publish the tour (when
+		/// the draft has one). Link it to this draft shows only when it failed.
+		[[nodiscard]] auto steps_of(const application::local_draft_workbench_projection& aProjection) -> std::vector<application::tour_publication_step_view>
 		{
 			auto out = std::vector<application::tour_publication_step_view>{ };
-			if (!aDraft.Publication) {
+			if (!aProjection.Draft) {
 				return out;
 			}
-			const auto& publication = *aDraft.Publication;
-			const auto& journal     = publication.Journal;
-			const auto  adopted     = journal.Link && journal.Link->Adopted;
-			out.push_back({ .Label  = adopted ? "Create the draft pull request (one was open already)" : "Create the draft pull request",
-							.State  = step_of(journal.Create),
-							.Reason = journal.Create == core::local_step_state::failed ? journal.Reason : std::string{ } });
-			auto link = application::tour_publication_step_view{ .Label = "Link it to this draft" };
-			auto tour = application::tour_publication_step_view{ .Label = "Publish the tour" };
-			for (const auto& step : journal.FollowUps) {
-				auto& row  = step.Kind == core::local_follow_up::association ? link : tour;
-				row.State  = step_of(step.State);
-				row.Reason = step.State == core::local_step_state::failed ? step.Reason : std::string{ };
+			const auto& draft   = *aProjection.Draft;
+			const auto& view    = aProjection.Publishing;
+			const auto* journal = draft.Publication ? &draft.Publication->Journal : nullptr;
+			const auto  created = journal != nullptr && journal->Phase == core::local_publication_phase::linked;
+			auto        push    = application::tour_publication_step_view{ .Label = "Push " + draft.Branch };
+			push.State          = created || (view.Checked && view.Branch == core::hosted_branch_state::matches) ? application::tour_step_state::sent : application::tour_step_state::waiting;
+			out.push_back(std::move(push));
+			auto create = application::tour_publication_step_view{ .Label = "Create the draft pull request" };
+			if (journal != nullptr && journal->Phase != core::local_publication_phase::prepared) {
+				const auto adopted = journal->Link && journal->Link->Adopted;
+				create.Label       = adopted ? "Create the draft pull request (one was open already)" : create.Label;
+				create.State       = step_of(journal->Create);
+				create.Reason      = journal->Create == core::local_step_state::failed ? journal->Reason : std::string{ };
+			} else if (view.Creating) {
+				create.State = application::tour_step_state::sending;
 			}
-			if (journal.Phase == core::local_publication_phase::refused || journal.Phase == core::local_publication_phase::cancelled) {
-				link.State = application::tour_step_state::not_sent;
-				tour.State = application::tour_step_state::not_sent;
-			}
-			out.push_back(std::move(link));
-			if (publication.Plan.TourFollowUp) {
-				if (tour.State == application::tour_step_state::waiting) {
-					if (const auto blocked = core::tour_follow_up_blocked(aDraft); blocked == core::tour_follow_up_block::unaccepted) {
-						tour.Reason = "Waits until every stop is accepted.";
-					} else if (blocked == core::tour_follow_up_block::drifted) {
-						tour.Reason = "The pull request's head is not this candidate.";
-					} else if (!blocked) {
-						tour.Reason = "Publish it from the pull request's Tour.";
+			out.push_back(std::move(create));
+			if (journal != nullptr) {
+				for (const auto& step : journal->FollowUps) {
+					if (step.Kind == core::local_follow_up::association && step.State == core::local_step_state::failed) {
+						out.push_back({ .Label = "Link it to this draft", .State = application::tour_step_state::failed, .Reason = step.Reason });
 					}
+				}
+			}
+			if (!draft.Preparation.Tour.Stops.empty()) {
+				const auto head = core::decide_local_tour_head(draft);
+				auto       tour = application::tour_publication_step_view{ .Label = "Publish the tour" };
+				if (head.ToAccept > 0U) {
+					tour.Label += " (" + std::to_string(head.ToAccept) + " to accept)";
+				} else if (created) {
+					tour.Label += " (from the Tour tab)";
 				}
 				out.push_back(std::move(tour));
 			}
@@ -168,48 +177,69 @@ namespace bpr::qt {
 	local_draft_publication_area::local_draft_publication_area(QWidget* const aParent)
 		: QWidget{ aParent }
 	{
+		// The accepted design's Status tab: where the draft stands, the
+		// publish steps, the push to run, and what is sent.
 		setObjectName(QStringLiteral("localDraftPublicationArea"));
 		auto* const column = new QVBoxLayout{ this };
-		column->setContentsMargins(0, 8, 0, 0);
+		column->setContentsMargins(14, 14, 14, 14);
 		column->setSpacing(8);
 
-		auto* const head = new QHBoxLayout{ };
-		head->setSpacing(6);
+		Headline = new QLabel{ this };
+		Headline->setObjectName(QStringLiteral("localDraftPublicationHeadline"));
+		Headline->setTextFormat(Qt::PlainText);
+		auto headlineFont = Headline->font();
+		headlineFont.setWeight(QFont::DemiBold);
+		headlineFont.setPointSizeF(headlineFont.pointSizeF() + 1.0);
+		Headline->setFont(headlineFont);
+		column->addWidget(Headline);
+
 		State = new QLabel{ this };
 		State->setObjectName(QStringLiteral("localDraftPublicationState"));
 		State->setTextFormat(Qt::PlainText);
 		State->setWordWrap(true);
 		State->setTextInteractionFlags(Qt::TextSelectableByMouse);
-		head->addWidget(State, 1);
-		Check = new quiet_push_button{ tr("Check GitHub"), this };
-		Check->setObjectName(QStringLiteral("localDraftPublicationCheck"));
-		Check->setToolTip(tr("Check that the pushed branch is this candidate."));
-		Create = new QPushButton{ tr("Create draft PR"), this };
-		Create->setObjectName(QStringLiteral("localDraftPublicationCreate"));
-		Create->setToolTip(tr("Create the draft pull request as previewed."));
-		const auto width = std::max(Check->sizeHint().width(), Create->sizeHint().width());
-		Check->setMinimumWidth(width);
-		Create->setMinimumWidth(width);
-		head->addWidget(Check);
-		head->addWidget(Create);
-		column->addLayout(head);
+		State->setForegroundRole(QPalette::PlaceholderText);
+		column->addWidget(State);
 
-		PushRow          = new QWidget{ this };
-		auto* const push = new QHBoxLayout{ PushRow };
-		push->setContentsMargins(0, 0, 0, 0);
-		push->setSpacing(6);
-		Push = new QLineEdit{ PushRow };
+		const auto caption = [this](const QString& aText) {
+			auto* const label = new QLabel{ aText, this };
+			label->setTextFormat(Qt::PlainText);
+			auto font = label->font();
+			font.setWeight(QFont::DemiBold);
+			label->setFont(font);
+			label->setForegroundRole(QPalette::PlaceholderText);
+			return label;
+		};
+		column->addSpacing(6);
+		column->addWidget(caption(tr("Create draft pull request")));
+		Steps = new tour_step_list{ this };
+		Steps->setObjectName(QStringLiteral("localDraftPublicationSteps"));
+		column->addWidget(Steps);
+
+		Push = new QLineEdit{ this };
 		Push->setObjectName(QStringLiteral("localDraftPublicationPush"));
 		Push->setReadOnly(true);
 		Push->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
 		Push->setAccessibleName(tr("The push to run"));
 		Push->setToolTip(tr("Run this in a terminal to push the candidate."));
-		push->addWidget(Push, 1);
-		Copy = new quiet_push_button{ tr("Copy"), PushRow };
+		column->addWidget(Push);
+
+		auto* const actions = new QHBoxLayout{ };
+		actions->setSpacing(6);
+		Copy = new quiet_push_button{ tr("Copy"), this };
 		Copy->setObjectName(QStringLiteral("localDraftPublicationCopy"));
-		Copy->setMinimumWidth(width);
-		push->addWidget(Copy);
-		column->addWidget(PushRow);
+		Copy->setToolTip(tr("Copy the push."));
+		Check = new quiet_push_button{ tr("Check GitHub"), this };
+		Check->setObjectName(QStringLiteral("localDraftPublicationCheck"));
+		Check->setToolTip(tr("Check that the pushed branch is this candidate."));
+		Create = new QPushButton{ tr("Create Draft PR"), this };
+		Create->setObjectName(QStringLiteral("localDraftPublicationCreate"));
+		Create->setToolTip(tr("Create the draft pull request as shown under What is sent."));
+		actions->addWidget(Copy);
+		actions->addWidget(Check);
+		actions->addWidget(Create);
+		actions->addStretch(1);
+		column->addLayout(actions);
 
 		Existing           = new QWidget{ this };
 		auto* const exists = new QHBoxLayout{ Existing };
@@ -221,45 +251,36 @@ namespace bpr::qt {
 		Associate = new quiet_push_button{ tr("Link to this draft"), Existing };
 		Associate->setObjectName(QStringLiteral("localDraftPublicationAssociate"));
 		Associate->setToolTip(tr("Link the open pull request to this draft."));
-		Associate->setMinimumWidth(width);
 		exists->addWidget(Associate);
 		column->addWidget(Existing);
 
-		Tour = new QCheckBox{ tr("Publish the tour afterwards"), this };
-		Tour->setObjectName(QStringLiteral("localDraftPublicationTour"));
-		Tour->setToolTip(tr("Publish the tour once the pull request exists."));
-		column->addWidget(Tour);
+		Banner = new tour_publication_banner_view{ this };
+		Banner->setObjectName(QStringLiteral("localDraftPublicationBanner"));
+		column->addWidget(Banner);
 
-		Preview = new QPlainTextEdit{ this };
-		Preview->setObjectName(QStringLiteral("localDraftPublicationPreview"));
-		Preview->setReadOnly(true);
-		Preview->setAccessibleName(tr("What Create draft PR sends"));
-		Preview->setMaximumHeight(Preview->fontMetrics().lineSpacing() * 12);
-		column->addWidget(Preview);
+		column->addSpacing(6);
+		SentCaption = caption(tr("What is sent"));
+		column->addWidget(SentCaption);
+		Sent = new QWidget{ this };
+		Sent->setObjectName(QStringLiteral("localDraftPublicationSent"));
+		SentRows = new QFormLayout{ Sent };
+		SentRows->setContentsMargins(0, 0, 0, 0);
+		SentRows->setHorizontalSpacing(14);
+		SentRows->setVerticalSpacing(4);
+		SentRows->setLabelAlignment(Qt::AlignLeft);
+		column->addWidget(Sent);
 
 		Link = new QLabel{ this };
 		Link->setObjectName(QStringLiteral("localDraftPublicationLink"));
 		Link->setTextFormat(Qt::PlainText);
+		Link->setWordWrap(true);
 		Link->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		column->addWidget(Link);
-
-		Steps = new tour_step_list{ this };
-		Steps->setObjectName(QStringLiteral("localDraftPublicationSteps"));
-		column->addWidget(Steps);
-		Banner = new tour_publication_banner_view{ this };
-		Banner->setObjectName(QStringLiteral("localDraftPublicationBanner"));
-		column->addWidget(Banner);
 		column->addStretch(1);
 
 		connect(Check, &QPushButton::clicked, this, [this] {
 			if (Dispatch.Check) {
-				Dispatch.Check(Tour->isChecked());
-			}
-		});
-		connect(Tour, &QCheckBox::toggled, this, [this](const bool aOn) {
-			// The tour choice is part of the plan: a changed choice is checked again.
-			if (Dispatch.Check && Projection.Publishing.Checked && !Projection.Publishing.Checking && !Projection.Publishing.Creating) {
-				Dispatch.Check(aOn);
+				Dispatch.Check(follows_tour());
 			}
 		});
 		connect(Create, &QPushButton::clicked, this, [this] {
@@ -282,14 +303,32 @@ namespace bpr::qt {
 			if (aRemedy == application::tour_publication_remedy::check_status && Dispatch.Recover) {
 				Dispatch.Recover();
 			} else if (aRemedy == application::tour_publication_remedy::preview_again && Dispatch.Check) {
-				Dispatch.Check(Tour->isChecked());
+				Dispatch.Check(follows_tour());
 			}
 		});
+	}
+
+	auto local_draft_publication_area::follows_tour() const -> bool
+	{
+		return Projection.Draft && !Projection.Draft->Preparation.Tour.Stops.empty();
 	}
 
 	void local_draft_publication_area::set_dispatch(local_draft_publication_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
+	}
+
+	auto local_draft_publication_area::sent_text() const -> QString
+	{
+		auto lines = QStringList{ };
+		for (int row = 0; row < SentRows->rowCount(); ++row) {
+			const auto* const label = qobject_cast<QLabel*>(SentRows->itemAt(row, QFormLayout::LabelRole) != nullptr ? SentRows->itemAt(row, QFormLayout::LabelRole)->widget() : nullptr);
+			const auto* const field = qobject_cast<QLabel*>(SentRows->itemAt(row, QFormLayout::FieldRole) != nullptr ? SentRows->itemAt(row, QFormLayout::FieldRole)->widget() : nullptr);
+			if (label != nullptr && field != nullptr) {
+				lines.push_back(label->text() + QStringLiteral(" ") + field->text());
+			}
+		}
+		return lines.join(QLatin1Char{ '\n' });
 	}
 
 	void local_draft_publication_area::present(const application::local_draft_workbench_projection& aProjection)
@@ -301,32 +340,60 @@ namespace bpr::qt {
 		const auto* plan   = draft != nullptr && draft->Publication ? &draft->Publication->Plan : nullptr;
 		const auto  phase  = draft != nullptr && draft->Publication ? draft->Publication->Journal.Phase : core::local_publication_phase::prepared;
 		const auto  linked = phase == core::local_publication_phase::linked;
+		const auto* link   = linked && draft->Publication->Journal.Link ? &*draft->Publication->Journal.Link : nullptr;
+		Headline->setText(link != nullptr ? tr("Draft pull request #%1").arg(link->Number) : tr("Not on GitHub"));
 		State->setText(local_publication_state_text(aProjection));
-		Check->setEnabled(draft != nullptr && !busy && !linked && phase != core::local_publication_phase::uncertain);
-		Create->setEnabled(draft != nullptr && !busy && view.Checked && !view.Refusal && !view.Digest.empty() && view.AccountAvailable && phase == core::local_publication_phase::prepared
-						   && view.Branch == core::hosted_branch_state::matches);
-		Create->setToolTip(Create->isEnabled() ? tr("Create the draft pull request as previewed.")
-											   : tr("Check GitHub first."));
-		PushRow->setVisible(view.Push.has_value() && !linked);
+		const auto pushNeeded = view.Push.has_value() && !linked;
+		Push->setVisible(pushNeeded);
 		Push->setText(view.Push ? text_of(view.Push->Command) : QString{ });
+		Copy->setVisible(pushNeeded);
+		Check->setText(view.Checked ? tr("Check Again") : tr("Check GitHub"));
+		Check->setVisible(!linked);
+		Check->setEnabled(draft != nullptr && !busy && phase != core::local_publication_phase::uncertain);
+		const auto ready = draft != nullptr && view.Checked && !view.Refusal && !view.Digest.empty() && view.AccountAvailable && phase == core::local_publication_phase::prepared
+			&& view.Branch == core::hosted_branch_state::matches;
+		Create->setVisible(ready || view.Creating);
+		Create->setEnabled(ready && !busy);
+		Create->setDefault(ready);
 		Existing->setVisible(view.Existing.has_value() && !linked);
 		ExistingText->setText(view.Existing ? tr("#%1 is open from this branch.").arg(view.Existing->Number) : QString{ });
 		Associate->setEnabled(!busy && view.AccountAvailable);
-		const auto stops = draft != nullptr && !draft->Preparation.Tour.Stops.empty();
-		Tour->setEnabled(stops && !busy && !linked);
-		{
-			const auto blocker = QSignalBlocker{ Tour };
-			Tour->setChecked(plan != nullptr ? plan->TourFollowUp : Tour->isChecked() && stops);
+		Steps->present(steps_of(aProjection));
+
+		// What is sent: the plan when one was made, else what the draft would send.
+		while (SentRows->rowCount() > 0) {
+			SentRows->removeRow(0);
 		}
-		Preview->setVisible(!view.Preview.empty() && !linked);
-		if (Preview->toPlainText() != text_of(view.Preview)) {
-			Preview->setPlainText(text_of(view.Preview));
+		if (draft != nullptr && !linked) {
+			const auto  repository = text_of(draft->Target.Target.Repository.Owner) + QLatin1Char{ '/' } + text_of(draft->Target.Target.Repository.Name);
+			const auto* latest     = core::latest_candidate(*draft);
+			const auto  row        = [this](const QString& aLabel, const QString& aValue) {
+				auto* const label = new QLabel{ aLabel, Sent };
+				label->setForegroundRole(QPalette::PlaceholderText);
+				auto* const value = new QLabel{ aValue, Sent };
+				value->setTextFormat(Qt::PlainText);
+				value->setWordWrap(true);
+				value->setTextInteractionFlags(Qt::TextSelectableByMouse);
+				SentRows->addRow(label, value);
+			};
+			row(tr("From"), repository + QLatin1Char{ ' ' } + text_of(draft->Branch));
+			row(tr("Into"), repository + QLatin1Char{ ' ' } + text_of(draft->Target.Target.Branch));
+			if (plan != nullptr && !plan->Destination.Login.empty()) {
+				row(tr("As"), text_of(plan->Destination.Login));
+			}
+			if (latest != nullptr) {
+				row(tr("Version"), tr("Candidate %1, %2").arg(latest->Ordinal).arg(QString::fromStdString(std::string{ core::canonical_hex(latest->Head).view() }).left(7)));
+			}
+			row(tr("Title"), text_of(draft->Title));
+			if (plan != nullptr && !plan->Unaccepted.empty()) {
+				row(tr("Unresolved"), tr("%n stop(s) not accepted", nullptr, static_cast<int>(plan->Unaccepted.size())));
+			}
+			row(tr("Kept here"), tr("Notes and conversations"));
 		}
+		SentCaption->setVisible(SentRows->rowCount() > 0);
+		Sent->setVisible(SentRows->rowCount() > 0);
 		Link->setVisible(linked);
 		Link->setText(linked ? text_of(view.Linked) : QString{ });
-		const auto rows = draft != nullptr && phase != core::local_publication_phase::prepared ? steps_of(*draft) : std::vector<application::tour_publication_step_view>{ };
-		Steps->setVisible(!rows.empty());
-		Steps->present(rows);
 		Banner->present(draft != nullptr ? banner_of(*draft) : std::nullopt);
 	}
 }

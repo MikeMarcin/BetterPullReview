@@ -7,7 +7,6 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
-#include "bpr/qt/local_draft_preparation_area.hpp"
 #include "bpr/qt/view_picker.hpp"
 
 #include <QObject>
@@ -58,6 +57,23 @@ namespace bpr::qt {
 		std::function<void()> CreatePullRequest;
 	};
 
+	/// \brief Lines chosen in the window's comparison: a file of the latest
+	/// candidate and its new-side lines.
+	struct local_draft_lines
+	{
+		std::string   Path;
+		std::uint32_t First = 0;
+		std::uint32_t Last  = 0;
+	};
+
+	/// \brief What the parts lend: the comparison's selection, and arriving
+	/// at lines there.
+	struct local_draft_page_links
+	{
+		std::function<std::optional<local_draft_lines>()>                     Selection;
+		std::function<void(const std::string&, std::uint32_t, std::uint32_t)> Reveal;
+	};
+
 	/// \brief What a local draft adds to the pull request window (RFC-BPR-0108
 	/// as amended by the owner, 2026-11-13: "augment the real PR window, do not
 	/// rebuild it").
@@ -77,9 +93,13 @@ namespace bpr::qt {
 	///   behind a disclosure;
 	/// - the Local Changes tab (author state only, always present then);
 	/// - the Edit view's page (the view picker's third view);
-	/// - the Notes and Tour tabs' pages;
-	/// - Overview's author panel: the title, the description and the
-	///   publishing steps.
+	/// - the Notes tab's page;
+	/// - Overview's Status tab page: the publish steps.
+	///
+	/// The Tour tab is the window's own Tour panel, and the description is
+	/// Overview's own (RFC-BPR-0110 as amended, owner 2026-11-13: "stick with
+	/// the PR view and just augment it"); the composition presents the
+	/// draft's tour and description in them.
 	///
 	/// It decides nothing and performs no effect: gestures leave through
 	/// `local_draft_dispatch`.
@@ -95,7 +115,6 @@ namespace bpr::qt {
 		auto operator=(local_draft_parts&&) -> local_draft_parts&      = delete;
 
 		void set_dispatch(local_draft_dispatch aDispatch);
-		void set_preparation_dispatch(local_draft_preparation_dispatch aDispatch);
 		/// \brief How a tour stop reads the lines selected in the window's
 		/// comparison and reveals a stop's lines there.
 		void set_comparison_links(std::function<std::optional<local_draft_lines>()> aSelection, std::function<void(const std::string&, std::uint32_t, std::uint32_t)> aReveal);
@@ -116,8 +135,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto local_changes() const noexcept -> local_changes_panel*;
 		[[nodiscard]] auto edit_page() const noexcept -> QWidget*;
 		[[nodiscard]] auto notes_page() const noexcept -> QWidget*;
-		[[nodiscard]] auto tour() const noexcept -> local_draft_tour_area*;
-		[[nodiscard]] auto author_panel() const noexcept -> QWidget*;
+		[[nodiscard]] auto status_page() const noexcept -> QWidget*;
 
 		// What the window reads.
 		[[nodiscard]] auto projection() const noexcept -> const application::local_draft_workbench_projection&;
@@ -136,16 +154,23 @@ namespace bpr::qt {
 		/// \brief The Edit view's text as read, for its syntax request.
 		[[nodiscard]] auto edit_document() const -> std::string;
 
-		/// \brief Arrives at lines: Review, that file, those lines selected.
-		void reveal(const std::string& aPath, std::uint32_t aFirst, std::uint32_t aLast);
+		/// \brief Arrives at lines: Review, that file, those lines selected, on
+		/// candidate `aCandidate` (0: the latest).
+		void reveal(const std::string& aPath, std::uint32_t aFirst, std::uint32_t aLast, std::uint64_t aCandidate = 0U);
+		/// \brief The lines selected in the window's comparison of the latest
+		/// candidate, for a tour stop.
+		[[nodiscard]] auto selected_lines() const -> std::optional<local_draft_lines>;
 		/// \brief The window opened a file of the candidate (Files or Search);
 		/// in the Edit view the same file opens in the editor too.
 		void open_file(const std::string& aPath, bool aEditing);
 		/// \brief Replaces the discard question, for a course that cannot answer one.
 		void set_discard_question(std::function<bool()> aQuestion);
+		/// \brief Replaces Rename…'s question, for a course: the title chosen, or none.
+		void set_rename_question(std::function<std::optional<QString>(const QString&)> aQuestion);
+		/// \brief Rename… in the candidate pop-up: the pull request's title.
+		void ask_rename();
 
 		// Controls, for courses.
-		[[nodiscard]] auto title_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto identity() const noexcept -> QLabel*;
 		[[nodiscard]] auto notice() const noexcept -> QLabel*;
 		[[nodiscard]] auto working() const noexcept -> QListWidget*;
@@ -166,7 +191,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto save_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto create_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto branch_button() const noexcept -> QToolButton*;
-		[[nodiscard]] auto description() const noexcept -> local_draft_description_area*;
 		[[nodiscard]] auto publication() const noexcept -> local_draft_publication_area*;
 
 		/// \brief Called after any presentation, so the window lays its slots out again.
@@ -188,6 +212,7 @@ namespace bpr::qt {
 		application::local_draft_workbench_projection Projection;
 		application::local_changes_projection         LocalProjection;
 		std::function<bool()>                         DiscardQuestion;
+		std::function<std::optional<QString>(const QString&)> RenameQuestion;
 		bool                                          Presenting = false;
 
 		QPointer<QWidget>               BarLeading;
@@ -197,10 +222,8 @@ namespace bpr::qt {
 		QPointer<local_changes_panel>   LocalChanges;
 		QPointer<QWidget>               EditPage;
 		QPointer<QWidget>               NotesPage;
-		QPointer<local_draft_tour_area> TourArea;
-		QPointer<QWidget>               AuthorPanel;
+		QPointer<QWidget>               StatusPage;
 
-		QLineEdit*                                                            Title             = nullptr;
 		QLabel*                                                               Identity          = nullptr;
 		QLabel*                                                               Notice            = nullptr;
 		QWidget*                                                              TargetRow         = nullptr;
@@ -224,9 +247,7 @@ namespace bpr::qt {
 		QLabel*                                                               EditState         = nullptr;
 		QPushButton*                                                          Save              = nullptr;
 		suggestion_editor*                                                    Editor            = nullptr;
-		local_draft_description_area*                                         DescriptionArea   = nullptr;
 		local_draft_publication_area*                                         PublicationArea   = nullptr;
-		local_draft_preparation_dispatch                                      PreparationDispatch;
 		local_draft_page_links                                                Links;
 		std::function<void(const std::string&, std::uint32_t, std::uint32_t)> RevealInComparison;
 

@@ -97,6 +97,12 @@ namespace bpr::qt {
 		/// \brief Shows or hides the Tour tab; a hidden open tab gives way to Status.
 		void               set_tour_tab_shown(bool aShown);
 		[[nodiscard]] auto tour_tab_shown() const -> bool;
+		/// \brief RFC-BPR-0111 as drawn in the accepted local-draft design: a
+		/// local draft's Status tab carries its publish steps. A page given
+		/// here stands in Status's place (and Commits waits) until it is taken
+		/// back with null; the page the drawer was built with is kept.
+		void               set_status_page(QWidget* aPage);
+		[[nodiscard]] auto status_page() const noexcept -> QWidget*;
 		/// \brief Told when the open tab changes, by the reviewer or `show_tab`.
 		void set_tab_observer(std::function<void(overview_drawer_tab)> aObserver);
 
@@ -127,6 +133,8 @@ namespace bpr::qt {
 		QWidget*                                 CommentsHolder = nullptr;
 		QWidget*                                 NotesHolder    = nullptr;
 		QWidget*                                 AgentHolder    = nullptr;
+		QWidget*                                 StatusPage     = nullptr;
+		void                                     show_page(int aIndex);
 		overview_tour_summary*                   TourSummary    = nullptr;
 		std::function<void(overview_drawer_tab)> TabObserver;
 	};

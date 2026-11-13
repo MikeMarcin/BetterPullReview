@@ -3428,7 +3428,10 @@ namespace bpr::qt {
 		Complete->setDefault(offered);
 		AcceptReason->setVisible(false);
 		if (offered) {
-			auto reason = acceptance_reason(decision);
+			auto reason = LocalWords && LocalWords->Reason ? LocalWords->Reason(stop->Id) : QString{ };
+			if (reason.isEmpty()) {
+				reason = acceptance_reason(decision);
+			}
 			if (!can) {
 				reason += (reason.isEmpty() ? QString{ } : QStringLiteral(" ")) + (need == core::tour_accept_need::title ? tr("Give it a title to accept it.") : need == core::tour_accept_need::explanation ? tr("Write its explanation to accept it.")
 																					   : need == core::tour_accept_need::lines_at_head                                                                       ? tr("Choose its lines again to accept it.")
@@ -3441,6 +3444,12 @@ namespace bpr::qt {
 			Complete->setAccessibleDescription(reason.isEmpty() ? tr("Accepts this stop as it is now.") : reason);
 		}
 		Complete->setToolTip(tr("Accept this stop as it is now (%1)").arg(Complete->shortcut().toString(QKeySequence::NativeText)));
+	}
+	void review_tour_editor::set_local_words(std::optional<tour_local_words> aWords)
+	{
+		LocalWords = std::move(aWords);
+		refresh_complete();
+		refresh_foot();
 	}
 	auto review_tour_editor::acceptance_reason(const core::tour_acceptance_decision& aDecision) const -> QString
 	{
@@ -4528,6 +4537,11 @@ namespace bpr::qt {
 		if (stop->Mapped) {
 			Source->setText(Source->text() + tr("\nProposed mapping: ") + label(*stop->Mapped));
 		}
+		if (LocalWords && LocalWords->Source) {
+			if (const auto words = LocalWords->Source(stop->Id); !words.isEmpty()) {
+				Source->setText(words);
+			}
+		}
 		const auto mapping = stop->Mapping == core::tour_mapping::exact_original ? tr("Exact original") : stop->Mapping == core::tour_mapping::unchanged_material ? tr("Moved with unchanged selected material")
 			: stop->Mapping == core::tour_mapping::changed_material                                                                                               ? tr("Changed material")
 			: stop->Mapping == core::tour_mapping::ambiguous                                                                                                      ? tr("Ambiguous")
@@ -5255,7 +5269,14 @@ namespace bpr::qt {
 	{
 		// [[BPR-1991]]. The head: where the tour stands, from the draft and
 		// the publication's progress, the same decision Overview shows.
-		const auto head = core::decide_tour_head(Shown.Loading ? nullptr : Shown.Draft.get(), HeadProgress);
+		auto head = core::decide_tour_head(Shown.Loading ? nullptr : Shown.Draft.get(), HeadProgress);
+		// RFC-BPR-0110 X04: a local tour's head states its stops and how many
+		// are still to accept, with no Publish; creating the pull request
+		// belongs to the window's Create Draft PR….
+		if (LocalWords) {
+			head.Actions.clear();
+			head.PublishDisabled = false;
+		}
 		if (head == Head->shown()) {
 			return;
 		}

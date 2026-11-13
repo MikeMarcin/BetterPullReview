@@ -152,7 +152,7 @@ namespace bpr::qt {
 		Pages->addWidget(AgentHolder);
 		set_tour_tab_shown(false);
 		connect(Tabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
-			Pages->setCurrentIndex(aIndex);
+			show_page(aIndex);
 			fit_tabs();
 			if (TabObserver && aIndex >= 0) {
 				TabObserver(static_cast<overview_drawer_tab>(aIndex));
@@ -173,6 +173,42 @@ namespace bpr::qt {
 			Github->setToolTip(key.isEmpty() ? QStringLiteral("Open on GitHub") : QStringLiteral("Open on GitHub (%1)").arg(key));
 			Github->show();
 		}
+	}
+
+	void overview_status_drawer::show_page(const int aIndex)
+	{
+		if (aIndex == index_of(overview_drawer_tab::status) && StatusPage != nullptr) {
+			Pages->setCurrentWidget(StatusPage);
+		} else {
+			Pages->setCurrentIndex(aIndex);
+		}
+	}
+
+	void overview_status_drawer::set_status_page(QWidget* const aPage)
+	{
+		if (StatusPage == aPage) {
+			return;
+		}
+		if (StatusPage != nullptr) {
+			Pages->removeWidget(StatusPage);
+			StatusPage->hide();
+		}
+		StatusPage = aPage;
+		if (StatusPage != nullptr) {
+			Pages->addWidget(StatusPage);
+		}
+		const auto commits = index_of(overview_drawer_tab::commits);
+		if (StatusPage != nullptr && Tabs->currentIndex() == commits) {
+			Tabs->setCurrentIndex(index_of(overview_drawer_tab::status));
+		}
+		Tabs->setTabVisible(commits, StatusPage == nullptr);
+		show_page(Tabs->currentIndex());
+		fit_tabs();
+	}
+
+	auto overview_status_drawer::status_page() const noexcept -> QWidget*
+	{
+		return StatusPage;
 	}
 
 	void overview_status_drawer::show_tab(const overview_drawer_tab aTab)

@@ -118,7 +118,8 @@ namespace bpr::qt {
 		HomeRequested       = false;
 		if (entering) {
 			// What a pull request open behind the draft shows comes back on leaving.
-			OverviewBehindDraft = PresentedOverview;
+			OverviewBehindDraft            = PresentedOverview;
+			DescriptionEditableBehindDraft = OverviewPage != nullptr && OverviewPage->description_editable();
 			FilesBehindDraft    = PublishedFiles;
 			// Another draft opens on Review, in two panes (X23 as amended).
 			if (Modality != nullptr) {
@@ -146,6 +147,17 @@ namespace bpr::qt {
 		apply_local_draft_surface();
 		if (entering && LocalDraftObserver) {
 			LocalDraftObserver(true);
+		}
+	}
+
+	void workbench_window::show_local_publication()
+	{
+		if (!LocalDraftShown) {
+			return;
+		}
+		choose_modality(review_modality::overview);
+		if (OverviewPage != nullptr && OverviewPage->status_drawer() != nullptr) {
+			OverviewPage->status_drawer()->show_tab(overview_drawer_tab::status);
 		}
 	}
 
@@ -179,6 +191,10 @@ namespace bpr::qt {
 			}
 		}
 		apply_local_draft_surface();
+		if (OverviewPage != nullptr) {
+			OverviewPage->close_description_editor();
+			OverviewPage->set_description_editable(DescriptionEditableBehindDraft);
+		}
 		// The pull request behind the draft, as it was.
 		apply_file_rows(FilesBehindDraft);
 		FilesBehindDraft.clear();
@@ -300,6 +316,7 @@ namespace bpr::qt {
 		ComparisonSurface->set_loading(aPresentation->Context, path);
 		if (aPresentation->Result && aPresentation->Index) {
 			ComparisonSurface->publish({ .Context = aPresentation->Context, .Result = aPresentation->Result, .Index = aPresentation->Index });
+			apply_local_reveal();
 			// The panes' colours, by the same classifier as a pull request's.
 			if (LocalSyntaxDispatch) {
 				for (const auto& side : { aPresentation->Left, aPresentation->Right }) {
@@ -478,19 +495,20 @@ namespace bpr::qt {
 				const auto index = TrayTabs->currentIndex();
 				if (local && index == tray_notes_tab) {
 					TrayPages->setCurrentWidget(LocalDraft->notes_page());
-				} else if (local && index == tray_tour_tab) {
-					TrayPages->setCurrentWidget(LocalDraft->tour());
 				} else if (index >= 0 && index < TrayPages->count()) {
 					TrayPages->setCurrentIndex(index);
 				}
 			}
 		}
-		// Overview: the author's panel stands where a pull request's status does.
+		// Overview: the Status tab carries the publish steps; the description
+		// is Overview's own, editable as a pull request's author's is.
 		if (OverviewPage != nullptr) {
 			if (auto* const drawer = OverviewPage->status_drawer(); drawer != nullptr) {
-				drawer->setVisible(!local);
+				drawer->set_status_page(local && LocalDraft->projection().Draft ? LocalDraft->status_page() : nullptr);
 			}
-			LocalDraft->author_panel()->setVisible(local && LocalDraft->projection().Draft.has_value());
+			if (local) {
+				OverviewPage->set_description_editable(LocalDraft->projection().Draft.has_value());
+			}
 		}
 		// The centre: the Edit view's page covers the comparison in Review.
 		if (CentreStack != nullptr && LocalEditHolder != nullptr) {
@@ -567,28 +585,15 @@ namespace bpr::qt {
 			LocalEditHolder = LocalDraft->edit_page();
 			CentreStack->addWidget(LocalEditHolder);
 		}
-		// The tray's Notes and Tour show the draft's pages while it shows.
+		// The tray's Notes shows the draft's notes while it shows; its Tour is
+		// the window's own Tour panel, which the composition gives the draft's tour.
 		if (TrayPages != nullptr && TrayTabs != nullptr) {
 			TrayPages->addWidget(LocalDraft->notes_page());
-			TrayPages->addWidget(LocalDraft->tour());
 			connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
-				if (!LocalDraftShown) {
-					return;
-				}
-				if (aIndex == tray_notes_tab) {
+				if (LocalDraftShown && aIndex == tray_notes_tab) {
 					TrayPages->setCurrentWidget(LocalDraft->notes_page());
-				} else if (aIndex == tray_tour_tab) {
-					TrayPages->setCurrentWidget(LocalDraft->tour());
 				}
 			});
-		}
-		// Overview: the author's panel beside the pull request it would be.
-		if (OverviewPage != nullptr && OverviewPage->status_splitter() != nullptr) {
-			auto* const splitter = OverviewPage->status_splitter();
-			splitter->addWidget(LocalDraft->author_panel());
-			splitter->setStretchFactor(splitter->indexOf(LocalDraft->author_panel()), 0);
-			LocalDraft->author_panel()->setMinimumWidth(300);
-			LocalDraft->author_panel()->setMaximumWidth(420);
 		}
 		// A stop's lines are the viewer's selection, on the candidate's side.
 		LocalDraft->set_comparison_links(
@@ -614,13 +619,24 @@ namespace bpr::qt {
 				if (current_modality() != review_modality::review) {
 					choose_modality(review_modality::review);
 				}
-				if (!LocalShown || LocalShown->Path != aPath || ComparisonSurface == nullptr || !ComparisonSurface->current_result() || aFirst == 0U) {
+				if (aFirst == 0U) {
 					return;
 				}
-				const auto digest = ComparisonSurface->current_result()->Alignment.Digest;
-				static_cast<void>(ComparisonSurface->restore_source_range({ .Comparison = digest, .Side = core::diff_side::right, .Line = aFirst - 1U },
-																		  { .Comparison = digest, .Side = core::diff_side::right, .Line = std::max(aFirst, aLast) - 1U }));
+				// The file may still be loading: its lines are selected when it shows.
+				LocalReveal = local_reveal{ .Path = aPath, .First = aFirst, .Last = std::max(aFirst, aLast) };
+				apply_local_reveal();
 			});
+	}
+
+	void workbench_window::apply_local_reveal()
+	{
+		if (!LocalReveal || !LocalShown || LocalShown->Path != LocalReveal->Path || ComparisonSurface == nullptr || !ComparisonSurface->current_result()) {
+			return;
+		}
+		const auto digest = ComparisonSurface->current_result()->Alignment.Digest;
+		static_cast<void>(ComparisonSurface->restore_source_range({ .Comparison = digest, .Side = core::diff_side::right, .Line = LocalReveal->First - 1U },
+																  { .Comparison = digest, .Side = core::diff_side::right, .Line = LocalReveal->Last - 1U }));
+		LocalReveal.reset();
 	}
 
 	void workbench_window::set_local_change_dispatch(std::function<void(const std::string&, core::local_change_hunk, bool)> aDispatch)
