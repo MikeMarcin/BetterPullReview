@@ -2093,3 +2093,30 @@ Plan (status updated as it goes):
 4. Agent commit message beside Commit, nib in the agent accent.
 5. Short tooltips on the touched surfaces.
 6. Home: one selection across its lists; Escape clears it.
+
+All six done (status 2026-11-13). Main mirror `0cec1ec77` (verdicts on
+BPR-2062, 2065, 2073, 2074, 2138; no card moved this round).
+
+| Commit | What |
+|---|---|
+| `f6497fb90` | Verdicts recorded, hosts stopped, roots removed |
+| `f8bcd3b31`..`22090f1fe` | Core `local_presentation` (a local comparison's identity for the viewer); `present_local_comparison` on both hosts; Qt `local_draft_parts` in the window's slots; `local_draft_view` and `local_diff_view` deleted; composition feeds the window and classifies the draft's texts |
+| `2b1eb64f1`..`a84bcaa95` | Stage/Unstage Change on the code's menu; nib beside Commit in the accent; short tooltips (draft, Local Changes, publish steps, picker, Enhance, footer); Home's one selection with Escape; courses drive the window; Find in files over the candidate (`local_draft_search`) |
+| `337b7d1ea`, `40f74bdbc` | Coordinator item 4: `prompt_kind` (RFC-BPR-0125) renamed `prompt_ask` as on `rfc0125-m2-on-lane` `ad948e5c8` (the rename is there, not in `224b97603`); `core_prompt_headers_together` |
+| `9b55e58c8`..`2bb702657` | Search controller outlives its panel safely; app pin resealed; attended author look copies its worktree where Git may write (the v002 look's staging failed on the read-only root: "Unable to create … index.lock: Permission denied") |
+| `af839e73d` | Ledgers |
+
+Coordinator items (2026-11-13): (1) the agent chat course's brace is balanced
+at `153e28d0f` (and the course passes); (2) `qt_workbench_window_scale_100`
+passes at HEAD (its review-bar order now sets the draft's two hidden slots
+aside); (3) the full `coding-format-check` passes at HEAD (2350 files); the
+14 files reported at `d47362061` were already fixed by `153e28d0f`; (4) done
+as above.
+
+Runs at the candidate: see the [RFC-BPR-0108 ledger](../../../verification/RFC-BPR-0108.md#local-draft-in-the-pull-request-window-2026-11-13).
+Documentation gate passes.
+
+Known gaps (in the ledger): the Tour tab hosts the local tour editor, not the
+pull request's Tour panel; a pull request opened from Home is not put in
+author state by itself (author state comes with the draft associated with it,
+which is how the look shows "a pull request opened by its author").
