@@ -2351,6 +2351,10 @@ namespace bpr::qt {
 	void review_submission_editor::set_outside_keep_local(std::function<void(const outside_draft&)> aKeepLocal)
 	{
 		OutsideKeepLocal = std::move(aKeepLocal);
+		// Rows already listed offer Local once there is somewhere to send it.
+		for (auto* const state : Outside->findChildren<QWidget*>(QStringLiteral("wholeReviewOutsideState"))) {
+			static_cast<comment_state_toggle*>(state)->set_local(static_cast<bool>(OutsideKeepLocal), tr("Keep it only on this computer"));
+		}
 	}
 
 	void review_submission_editor::set_local_count(const std::size_t aCount)

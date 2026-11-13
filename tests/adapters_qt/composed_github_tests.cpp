@@ -6122,7 +6122,7 @@ namespace {
 		QApplication::processEvents();
 		const auto cards = agent->finding_cards();
 		expect(cards.size() == 1U && cards.front()->isVisible(), "the finding appears in the Agent conversation");
-		auto* const offered = cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
+		auto* const offered = cards.front()->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
 		expect(offered != nullptr && offered->isVisible(), "the visible finding offers Draft a comment");
 		offered->click();
 		QApplication::processEvents();

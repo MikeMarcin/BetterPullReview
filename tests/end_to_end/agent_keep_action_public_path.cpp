@@ -31,6 +31,7 @@
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -177,10 +178,16 @@ auto main(int argc, char** argv) -> int
 		const auto prTurn = ask(QStringLiteral("What could this change break?"), "pull-request answer");
 		auto*      keep   = tab->turn_note_button(prTurn);
 		auto*      draft  = tab->turn_draft_button(prTurn);
-		expect(shown(keep) && keep->text() == QStringLiteral("Keep local") && !shown(draft), "an answer no thread or line takes offers Keep local alone: keep=" + std::to_string(shown(keep)) + " draft=" + std::to_string(shown(draft)) + " keep-text=" + (keep != nullptr ? keep->text().toStdString() : std::string{ }) + " overview=" + std::to_string(window.showing_overview()) + " answer=" + tab->turn_answer(prTurn).left(80).toStdString());
-		keep->click();
+		// Owner look v005: the answer is kept through the state control.
+		const auto segment = [&](const std::size_t aTurn, const char* aName) {
+			return tab->turn_keep_state(aTurn) != nullptr ? tab->turn_keep_state(aTurn)->findChild<QAbstractButton*>(QString::fromLatin1(aName)) : nullptr;
+		};
+		expect(shown(tab->turn_keep_state(prTurn)) && segment(prTurn, "agentTurnKeepStateLocal")->isEnabled() && !segment(prTurn, "agentTurnKeepStateDraft")->isEnabled()
+				   && segment(prTurn, "agentTurnKeepStateDraft")->property("draftRefused").toBool() && !shown(keep) && !shown(draft),
+			   "an answer no thread or line takes offers Local, and Draft struck through: overview=" + std::to_string(window.showing_overview()) + " answer=" + tab->turn_answer(prTurn).left(80).toStdString());
+		segment(prTurn, "agentTurnKeepStateLocal")->click();
 		wait([&] { return keep->text() == QStringLiteral("Go to comment") || keep->text().startsWith(QStringLiteral("Not kept")); }, "Keep local keeps the answer");
-		expect(keep->text() == QStringLiteral("Go to comment"), "Keep local becomes Go to comment: " + keep->text().toStdString());
+		expect(keep->text() == QStringLiteral("Go to comment") && shown(keep) && !shown(tab->turn_keep_state(prTurn)), "Local becomes Go to comment: " + keep->text().toStdString());
 		wait([&] { return window.open_file_in_review(path) && window.active_document_path() == path && window.comparison_surface() != nullptr && window.comparison_surface()->current_result() != nullptr; },
 			 "the file opens in Review");
 		auto* const surface = window.comparison_surface();
@@ -197,24 +204,33 @@ auto main(int argc, char** argv) -> int
 		auto* const elsewhere = card_with(*tab, prTurn, QStringLiteral("The guide still names the renderer's old path."));
 		std::cout << "keep-action: cards=" << tab->turn_cards(prTurn).size() << " placed=" << (placed != nullptr) << " gone=" << (gone != nullptr) << " elsewhere=" << (elsewhere != nullptr) << '\n';
 		expect(placed != nullptr && gone != nullptr && elsewhere != nullptr, "the answer's findings are cards under it");
-		const auto offers = [](QWidget* aCard, const char* aShown, const char* aHidden) {
-			return shown(aCard->findChild<QPushButton*>(QString::fromLatin1(aShown))) && !shown(aCard->findChild<QPushButton*>(QString::fromLatin1(aHidden)));
+		// Owner look v005: each card's state control; Local always, Draft
+		// where its line takes one (else the struck pencil).
+		const auto takesDraft = [](QWidget* aCard) {
+			auto* const draftSegment = aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
+			auto* const localSegment = aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal"));
+			return draftSegment != nullptr && localSegment != nullptr && localSegment->isEnabled() && localSegment->isVisibleTo(aCard) && draftSegment->isEnabled();
+		};
+		const auto keepsOnly = [](QWidget* aCard) {
+			auto* const draftSegment = aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
+			auto* const localSegment = aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal"));
+			return draftSegment != nullptr && localSegment != nullptr && localSegment->isEnabled() && localSegment->isVisibleTo(aCard) && !draftSegment->isEnabled() && draftSegment->property("draftRefused").toBool();
 		};
 		tab->refresh();
-		expect(offers(placed, "agentFindingDraftComment", "agentFindingKeepLocal"), "a finding whose line is in its file offers Draft comment alone");
+		expect(takesDraft(placed), "a finding whose line is in its file offers Draft and Local");
 		// The gone one's line is known to be past the file's end once its
 		// file is shown, which it is.
-		expect(offers(gone, "agentFindingKeepLocal", "agentFindingDraftComment"), "a finding past its file's end offers Keep local alone");
+		expect(keepsOnly(gone), "a finding past its file's end offers Local, its Draft struck through");
 		const auto onFile = count_place(*cards, qt::local_comment_place::whole_file);
-		gone->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal"))->click();
+		gone->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal"))->click();
 		wait([&] { return shown(gone->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment"))); }, "a kept finding offers Go to comment");
 		wait([&] { return count_place(*cards, qt::local_comment_place::whole_file) == onFile + 1U; }, "the finding is a Local comment on its file");
 		expect(gone->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text() == QStringLiteral("Kept local."), "the card says it was kept local");
-		expect(offers(elsewhere, "agentFindingKeepLocal", "agentFindingDraftComment"), "a finding on a file the pull request does not change offers Keep local alone");
+		expect(keepsOnly(elsewhere), "a finding on a file the pull request does not change offers Local, its Draft struck through");
 		const auto before = count_place(*cards, qt::local_comment_place::pull_request);
-		elsewhere->findChild<QPushButton*>(QStringLiteral("agentFindingKeepLocal"))->click();
+		elsewhere->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal"))->click();
 		wait([&] { return count_place(*cards, qt::local_comment_place::pull_request) == before + 1U; }, "the finding on another file is a Local comment on the pull request");
-		placed->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+		placed->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->click();
 		wait([&] { return placed->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Drafted")); },
 			 "Draft comment drafts the placed finding");
 		std::cout << "keep-action: cards=pass\n";
@@ -225,8 +241,8 @@ auto main(int argc, char** argv) -> int
 		const auto linesTurn = ask(QStringLiteral("What do these lines do?"), "lines answer");
 		keep                 = tab->turn_note_button(linesTurn);
 		draft                = tab->turn_draft_button(linesTurn);
-		expect(shown(draft) && draft->text() == QStringLiteral("Draft comment") && !shown(keep), "an answer about selected lines offers Draft comment alone");
-		draft->click();
+		expect(shown(tab->turn_keep_state(linesTurn)) && segment(linesTurn, "agentTurnKeepStateDraft")->isEnabled() && !shown(draft) && !shown(keep), "an answer about selected lines offers Draft in its state control");
+		segment(linesTurn, "agentTurnKeepStateDraft")->click();
 		wait([&] { return draft->text() == QStringLiteral("Go to draft") || draft->text().startsWith(QStringLiteral("Not drafted")); }, "Draft comment drafts the answer");
 		expect(draft->text() == QStringLiteral("Go to draft"), "Draft comment becomes Go to draft: " + draft->text().toStdString());
 		wait([&] { const auto& shownDraft = window.review_editor()->shown_draft(); return shownDraft && !shownDraft->Body.empty() && shownDraft->Anchor.Line == 4U; }, "the draft stands at the selected line");

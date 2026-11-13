@@ -1440,8 +1440,10 @@ auto main(int argc, char** argv) -> int
 		// chosen in the label control and the header in the editor's own
 		// spelling, followed by the agent's words.
 		const auto labelledAnswer = answerText.startsWith(QStringLiteral("**Suggestion (Non-Blocking):** "));
-		if (labelledAnswer && draftButton != nullptr && !draftButton->isHidden() && draftButton->text() == QStringLiteral("Draft comment")) {
-			draftButton->click();
+		// Owner look v005: Draft is pressed in the answer's state control.
+		auto* const draftSegment = tab->turn_count() != 0U && tab->turn_keep_state(last) != nullptr ? tab->turn_keep_state(last)->findChild<QAbstractButton*>(QStringLiteral("agentTurnKeepStateDraft")) : nullptr;
+		if (labelledAnswer && draftButton != nullptr && draftSegment != nullptr && !tab->turn_keep_state(last)->isHidden() && draftSegment->isEnabled() && draftButton->text() == QStringLiteral("Draft comment")) {
+			draftSegment->click();
 			auto terms = wait_terms{ };
 			drafted    = wait_until_reporting(terms, [&](wait_terms& aTerms) {
 				QApplication::processEvents();

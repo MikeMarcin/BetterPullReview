@@ -290,6 +290,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-busy-discuss-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-agent-draft-first" },
 		bpr::app::command_line_option{ .Name = "attended-agent-draft-all-check" },
 		bpr::app::command_line_option{ .Name = "attended-agent-helpers", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
@@ -7967,6 +7968,18 @@ namespace {
 			// for the person leaves both to them.
 			if (*step == 2) {
 				const auto shown = QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count());
+				// RFC-BPR-0127, owner look v005 ("There's a lot of overlap on
+				// the UX here"). `--attended-agent-draft-first`: a course
+				// presses Draft on the first card, as the person did, and
+				// reports (and with the render root draws) the draft's
+				// composer in Comments.
+				if (QCoreApplication::arguments().contains(QStringLiteral("--attended-agent-draft-first"))) {
+					QTextStream{ stdout } << shown << '\n';
+					QTextStream{ stdout }.flush();
+					*step  = 10;
+					*ticks = 0;
+					return;
+				}
 				if (!QCoreApplication::arguments().contains(QStringLiteral("--attended-agent-draft-all-check"))) {
 					done(shown);
 					return;
@@ -7975,6 +7988,31 @@ namespace {
 				QTextStream{ stdout }.flush();
 				*step  = 3;
 				*ticks = 0;
+				return;
+			}
+			if (*step == 10 || *step == 11) {
+				auto* const cards = window.conversation_panel()->cards();
+				if (*step == 10) {
+					const auto found = tab->turn_cards(0U);
+					auto* const draft = found.empty() ? nullptr : found.front()->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
+					if (draft == nullptr || !draft->isEnabled()) {
+						return;
+					}
+					draft->click();
+					*step = 11;
+					return;
+				}
+				if (!cards->writing_draft() || cards->draft_editor() == nullptr || cards->draft_editor()->toPlainText().isEmpty()) {
+					return;
+				}
+				QCoreApplication::processEvents();
+				if (const auto root = qEnvironmentVariable("BPR_ATTENDED_AGENT_RENDER"); !root.isEmpty()) {
+					static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent-draft.png"), "PNG"));
+					if (cards->open_card() != nullptr) {
+						static_cast<void>(cards->open_card()->grab().save(root + QStringLiteral("/app-agent-draft-card.png"), "PNG"));
+					}
+				}
+				done(QStringLiteral("ATTENDED_AGENT_DRAFT_OPEN:%1").arg(cards->draft_editor()->toPlainText().size()));
 				return;
 			}
 			const auto last  = tab->turn_count() == 0U ? 0U : tab->turn_count() - 1U;

@@ -49,6 +49,7 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -384,7 +385,7 @@ namespace bpr::qt {
 			{
 				setObjectName(QStringLiteral("threadReplyText"));
 				setFrameShape(QFrame::NoFrame);
-				setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+				setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 				setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 				setTabChangesFocus(true);
 				document()->setDocumentMargin(0.0);
@@ -397,15 +398,56 @@ namespace bpr::qt {
 
 			void fit()
 			{
+				// Owner look v005 ("a lot of overlap"). A fit resizes the
+				// field, and a resize asks for a fit: once at a time. The
+				// scrollbar is shown only when the text is taller than the
+				// field may grow, so showing it cannot rewrap the text into a
+				// different height (the field swung between two heights,
+				// left a minimum above its maximum, and the rows under it
+				// were drawn over it).
+				if (Fitting) {
+					return;
+				}
+				Fitting = true;
 				// The plain layout measures the document in lines, wrapped
 				// lines included.
-				const auto lines  = std::max<qreal>(1.0, document()->size().height());
-				const auto pixels = static_cast<int>(std::ceil(lines * fontMetrics().lineSpacing()));
-				const auto height = std::clamp(pixels + 2, reply_minimum, reply_maximum);
-				if (height != this->height() || minimumHeight() != height) {
-					setFixedHeight(height);
+				const auto measure = [this] {
+					const auto lines = std::max<qreal>(1.0, document()->size().height());
+					return static_cast<int>(std::ceil(lines * fontMetrics().lineSpacing())) + 2;
+				};
+				auto pixels = measure();
+				if (pixels > reply_maximum && verticalScrollBarPolicy() != Qt::ScrollBarAsNeeded) {
+					setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+				} else if (pixels <= reply_maximum && verticalScrollBarPolicy() != Qt::ScrollBarAlwaysOff) {
+					setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+					pixels = measure();
 				}
+				const auto height = std::clamp(pixels, reply_minimum, reply_maximum);
+				if (height != this->height() || minimumHeight() != height || maximumHeight() != height) {
+					const auto changed = minimumHeight() != height || maximumHeight() != height;
+					setMinimumHeight(0);
+					setMaximumHeight(height);
+					setMinimumHeight(height);
+					// The card is told after this layout pass, so the rows
+					// under the field are laid out apart from it.
+					if (changed && Refit) {
+						QTimer::singleShot(0, this, [this] {
+							if (Refit) {
+								Refit();
+							}
+						});
+					}
+				}
+				Fitting = false;
 			}
+
+			/// The field's own height changed.
+			std::function<void()> Refit;
+
+		private:
+			bool Fitting = false;
+
+		public:
 
 			/// RFC-BPR-0118. Adds the field's own items to its right-click menu.
 			std::function<void(QMenu&)> ExtendMenu;
@@ -2093,7 +2135,9 @@ namespace bpr::qt {
 			row->addWidget(new state_label{ QStringLiteral("Outdated"), std::nullopt, Style.Colours.Faint, header });
 		}
 		row->addStretch(1);
-		if (aCard.Path.isEmpty()) {
+		// Owner look v005 ("a lot of overlap"): a draft being written has its
+		// own way there (Open in Discuss, below); one glyph, one action.
+		if (aCard.Path.isEmpty() && !aCard.Writing) {
 			auto* const show = tool(header, QStringLiteral("conversationShowInDiscuss"), QStringLiteral("Show in Discuss"), conversation_glyph::maximize, palette);
 			connect(show, &QToolButton::clicked, this, [this] { const auto dispatch=ShowInDiscussRequested;const auto id=Id;if(dispatch){dispatch(id);} });
 			row->addWidget(show);
@@ -2709,6 +2753,11 @@ namespace bpr::qt {
 				editor->addWidget(outdated);
 			}
 			ReplyBox = new reply_text{ Editor };
+		static_cast<reply_text*>(ReplyBox)->Refit = [this] {
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		};
 			ReplyBox->setAccessibleName(aCard.ReplyOnThread ? QStringLiteral("Reply to the outdated thread")
 											: aCard.Line    ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line)
 															: QStringLiteral("Reply"));
@@ -2840,6 +2889,11 @@ namespace bpr::qt {
 		editor->setSpacing(7);
 		ReplyBox = new reply_text{ Editor };
 		ReplyBox->setObjectName(QStringLiteral("threadDraftText"));
+		static_cast<reply_text*>(ReplyBox)->Refit = [this] {
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		};
 		const auto line = aCard.Line.value_or(0U);
 		ReplyBox->setAccessibleName(QStringLiteral("Comment on line %1").arg(line));
 		ReplyBox->setPlaceholderText(QStringLiteral("Comment on line %1. Type : at the start for a label.").arg(line));
@@ -3194,6 +3248,8 @@ namespace bpr::qt {
 			}
 		}
 		const auto former = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
+		const auto noticeShown = !ReplyStatus->isHidden();
+		const auto noticeWords = ReplyStatus->text();
 		if (!LastNotice.isEmpty()) {
 			ReplyStatus->setText(LastNotice);
 			ReplyStatus->setAccessibleName(LastNotice);
@@ -3201,6 +3257,12 @@ namespace bpr::qt {
 		} else if (!former.isEmpty() && ReplyStatus->text() == former) {
 			// [[BPR-1329]]. A notice that no longer holds goes with it.
 			ReplyStatus->hide();
+		}
+		// Owner look v005 ("a lot of overlap"): a notice that comes or goes
+		// changes the composer's height; the card is told, so its rows are
+		// laid out apart and none is drawn over the field.
+		if ((noticeShown != !ReplyStatus->isHidden() || noticeWords != ReplyStatus->text()) && HeightChanged) {
+			HeightChanged();
 		}
 		Review = aDraft.has_value() ? aDraft->Review : draft_review_state::none;
 		present_review_state();

@@ -12,6 +12,7 @@
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include <QAbstractButton>
 #include <QApplication>
 #include <QPushButton>
 #include <QScrollArea>
@@ -91,6 +92,15 @@ auto main(int argc, char** argv) -> int
 	expect(!card->status_line()->live() && card->status_line()->text().contains(QStringLiteral("answered")), "the line says how it ended");
 	expect(card->answer_view()->isVisible() && card->answer_view()->original_body().find("](bpr-line:") != std::string::npos, "the answer's references are links");
 	expect(card->keep_button()->isEnabled(), "Keep local is offered once answered");
+	{
+		// Owner look v005: kept through the state control; a whole file takes
+		// no draft, so Draft is the struck pencil, its reason its tooltip.
+		auto* const draftSegment = card->keep_state()->findChild<QAbstractButton*>(QStringLiteral("explainFileKeepDraft"));
+		auto* const localSegment = card->keep_state()->findChild<QAbstractButton*>(QStringLiteral("explainFileKeepLocal"));
+		expect(card->keep_state()->isVisibleTo(card) && !card->keep_button()->isVisibleTo(card) && localSegment != nullptr && localSegment->isEnabled() && draftSegment != nullptr && !draftSegment->isEnabled()
+				   && draftSegment->property("draftRefused").toBool() && draftSegment->toolTip().size() <= 60,
+			   "the state control keeps it: Local, and Draft struck through");
+	}
 	expect(geometry(*card)[0].size() == before[0].size() && geometry(*card)[1].size() == before[1].size(), "the actions keep their size from the press to the end");
 
 	// A long answer scrolls inside the card rather than pushing the file away.
@@ -109,7 +119,8 @@ auto main(int argc, char** argv) -> int
 	expect(kept == 1 && !card->keep_button()->isEnabled(), "Keep local sends the file and the answer once");
 	card->present_note(true, { }, 42U);
 	QApplication::processEvents();
-	expect(card->note() == 42U && card->keep_button()->text() == QStringLiteral("Go to comment") && card->keep_button()->isEnabled(), "kept: Go to comment, in the same place");
+	expect(card->note() == 42U && card->keep_button()->text() == QStringLiteral("Go to comment") && card->keep_button()->isEnabled() && card->keep_button()->isVisibleTo(card) && !card->keep_state()->isVisibleTo(card),
+		   "kept: Go to comment in the state control's place");
 	expect(geometry(*card)[0] == geometry(*card)[0] && card->keep_button()->size() == before[0].size(), "Go to comment keeps the button's size");
 	card->continue_button()->click();
 	expect(continued == 3U, "Continue in Agent tab names the turn");

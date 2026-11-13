@@ -564,6 +564,38 @@ auto main(int argc, char** argv) -> int
 		QApplication::processEvents();
 		expect(editor.outside_heading()->text() == QStringLiteral("2 drafts aren't in this review") && editor.outside_rows().size() == 2 && editor.pending_rows().size() == 2,
 			   "the kept draft leaves the list; a Local comment is never pending or not in the review");
+		{
+			// Owner looks v004 ("this is getting cut off") and v005: each row
+			// carries the state control every comment of mine has, whole at
+			// the sheet's widths, beside Add; its Local keeps the draft local.
+			const auto before = editor.size();
+			for (const auto width : { 300, 380, 560 }) {
+				editor.resize(width, editor.height());
+				QApplication::processEvents();
+				for (auto* const item : editor.outside_list()->findChildren<QWidget*>(QStringLiteral("wholeReviewOutsideItem"))) {
+					auto* const state = item->findChild<QWidget*>(QStringLiteral("wholeReviewOutsideState"));
+					expect(state != nullptr && state->isVisibleTo(item), "each row carries the state control");
+					const auto right = state->mapTo(item, QPoint{ state->width(), 0 }).x();
+					expect(right <= item->width() && state->width() >= state->sizeHint().width(), "the state control is whole at the sheet's widths");
+					for (auto* const segment : state->findChildren<QAbstractButton*>()) {
+						expect(segment->width() >= segment->sizeHint().width() && segment->height() >= segment->sizeHint().height(), "its segments are not cut");
+					}
+					if (auto* const add = item->findChild<QToolButton*>(QStringLiteral("wholeReviewOutsideAdd")); add != nullptr) {
+						expect(add->mapTo(item, QPoint{ add->width(), 0 }).x() <= state->mapTo(item, QPoint{ 0, 0 }).x() && add->width() >= add->sizeHint().width(), "Add stands whole beside it");
+					}
+					auto* const open = item->findChild<QAbstractButton*>(QStringLiteral("wholeReviewOutsideOpen"));
+					expect(open != nullptr && open->width() > 0 && open->mapTo(item, QPoint{ open->width(), 0 }).x() <= state->mapTo(item, QPoint{ 0, 0 }).x(), "the row's words end before it");
+				}
+			}
+			editor.resize(before);
+			QApplication::processEvents();
+			// The rows listed now (those replaced wait for the event loop).
+			auto* const local        = editor.outside_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewOutsideLocal")).at(editor.outside_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewOutsideLocal")).size() - 2);
+			auto* const draftSegment = editor.outside_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewOutsideDraft")).at(editor.outside_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewOutsideDraft")).size() - 2);
+			expect(local != nullptr && draftSegment != nullptr && draftSegment->isChecked() && !local->isChecked() && local->isEnabled() && local->toolTip().size() <= 60, "Draft is on; Local is offered");
+			local->click();
+			expect(kept.size() == 2U && kept.back() == core::review_draft_id{ 22U }, "Local keeps that draft local");
+		}
 		auto shownLocal = 0;
 		editor.set_local_show([&shownLocal] { ++shownLocal; });
 		expect(editor.local_line()->isVisible() && editor.local_line_label()->text() == QStringLiteral("1 local comment stays on this computer"), "one quiet line counts the Local comments");

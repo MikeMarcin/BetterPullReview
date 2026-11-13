@@ -468,18 +468,16 @@ namespace bpr::qt {
 		// for a finding anchored at a line, Keep local for any other. The
 		// promotion it asks for is still `core::promote_agent_finding`'s.
 		const auto keep = core::decide_keep({ .ThreadReply = false, .LineTakesDraft = subject && subject->Verdict.anchored() && subject->Finding.Anchor.Line.has_value(), .FileInPullRequest = false }).Kind;
-		// Owner look v005: the state control's pair, the computer and the
-		// pencil, both shown; where no line takes a draft the pencil is
-		// struck through, disabled, and says why in its tooltip.
+		// Owner look v005: the state control's glyphs, the pencil for Draft
+		// and the computer for Local. Which one is offered stays the core's
+		// choice; whether the promotion is legal stays the core's answer.
 		if (auto* const draft = action(finding_queue_action::convert_to_draft_comment); draft != nullptr) {
-			const auto allowed = keep == core::keep_kind::draft;
-			draft->setIcon(conversation_icon(allowed ? conversation_glyph::edit : conversation_glyph::edit_refused, palette()));
-			draft->setEnabled(selected && allowed);
-			draft->setToolTip(!selected || allowed ? QStringLiteral("Draft it at its line, not published") : QStringLiteral("No line here takes a draft"));
+			draft->setIcon(conversation_icon(conversation_glyph::edit, palette()));
+			draft->setVisible(keep == core::keep_kind::draft);
 		}
 		if (auto* const local = action(finding_queue_action::keep_local); local != nullptr) {
 			local->setIcon(conversation_icon(conversation_glyph::computer, palette()));
-			local->setToolTip(QStringLiteral("Keep it as a local comment, only here"));
+			local->setVisible(keep == core::keep_kind::local);
 		}
 	}
 } // namespace bpr::qt

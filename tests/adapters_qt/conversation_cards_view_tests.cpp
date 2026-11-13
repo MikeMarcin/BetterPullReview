@@ -1368,6 +1368,51 @@ namespace {
 		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("conversationPullRequestHeader")) == nullptr, "a Local comment on a line never says Pull request");
 	}
 
+	/// \brief Owner look v005 ("There's a lot of overlap on the UX here").
+	/// The agent drafted a long comment on a line GitHub may not place: the
+	/// composer's notice arrived after it was laid out, the card kept its
+	/// old height, and the label chip and Enhance were drawn over the text.
+	/// Every row of the composer stands clear of the next.
+	auto test_composer_notice_keeps_rows_apart() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(300, 900);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 1U ? std::optional{ 40 } : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		view.adopt({ });
+		const auto comparison = core::file_comparison_digest{ };
+		const auto body = std::string{ "The budget is reset on every call, because the counter is restored before the check runs, so the budget is effectively unbounded. "
+									   "Consider moving the reset into `begin_request` instead:\n\n```cpp\nvoid Renderer::begin_request() {\n    frame_budget_.reset();\n}\n```\n\n"
+									   "This keeps per-frame work bounded while still giving each request a fresh budget." };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 0U }, .Body = body }, comparison);
+		QApplication::processEvents();
+		const auto draftId = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; })->Id;
+		view.open_thread(draftId);
+		QApplication::processEvents();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		QApplication::processEvents();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1"),
+															.Notice = QStringLiteral("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line.") });
+		for (auto spin = 0; spin < 50; ++spin) {
+			QApplication::processEvents();
+			QThread::msleep(4);
+		}
+		auto* const card   = view.open_card();
+		auto* const text   = card != nullptr ? card->findChild<QWidget*>(QStringLiteral("threadDraftText")) : nullptr;
+		auto* const labels = card != nullptr ? card->findChild<QWidget*>(QStringLiteral("threadDraftLabels")) : nullptr;
+		auto* const status = card != nullptr ? card->findChild<QWidget*>(QStringLiteral("threadDraftStatus")) : nullptr;
+		expect(text != nullptr && labels != nullptr && status != nullptr && status->isVisibleTo(card), "the composer shows its field, its tools and the notice");
+		const auto bottomOf = [card](QWidget* aWidget) { return aWidget->mapTo(card, QPoint{ 0, aWidget->height() }).y(); };
+		const auto topOf    = [card](QWidget* aWidget) { return aWidget->mapTo(card, QPoint{ 0, 0 }).y(); };
+		std::cout << "composer rows: text " << topOf(text) << "-" << bottomOf(text) << " labels " << topOf(labels) << "-" << bottomOf(labels) << " status " << topOf(status) << "-" << bottomOf(status) << '\n';
+		expect(bottomOf(text) <= topOf(labels) && bottomOf(labels) <= topOf(status), "the field, its tool row and the notice do not overlap");
+		expect(text->height() >= text->minimumSizeHint().height() && labels->height() >= labels->minimumSizeHint().height(), "nothing is squeezed below its own minimum");
+		expect(card->findChild<QWidget*>(QStringLiteral("threadMaximizeDraft")) != nullptr && card->findChild<QWidget*>(QStringLiteral("conversationShowInDiscuss")) == nullptr,
+			   "the draft being written has one way to Discuss, not two of the same glyph");
+	}
+
 	auto test_composer_state_control() -> void
 	{
 		qt::conversation_cards_view view;
@@ -3333,9 +3378,9 @@ namespace {
 					writing->clearFocus();
 				}
 				statesRead(*view.open_card(), *writing, name + " draft", floor);
-				// The draft's Show in Discuss and Maximize (expand), Close
-				// (collapse), and the composer's Delete.
-				toolsRead(*view.open_card(), { QStringLiteral("conversationShowInDiscuss"), QStringLiteral("threadMaximizeDraft"), QStringLiteral("threadClose"), QStringLiteral("threadDeleteDraft") },
+				// The draft's Maximize (expand; owner look v005: one way to
+				// Discuss, not two), Close (collapse), and the composer's Delete.
+				toolsRead(*view.open_card(), { QStringLiteral("threadMaximizeDraft"), QStringLiteral("threadClose"), QStringLiteral("threadDeleteDraft") },
 						  name + " draft", indicator);
 				if (!aDirectory.isEmpty()) {
 					auto* const trash = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadDeleteDraft"));
@@ -3881,6 +3926,7 @@ auto main(int argc, char** argv) -> int
 	test_local_comments_share_a_line();
 	test_local_comments_edges_and_editing();
 	test_composer_state_control();
+	test_composer_notice_keeps_rows_apart();
 	test_look_v002_rework();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
