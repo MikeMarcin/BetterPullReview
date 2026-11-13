@@ -77,13 +77,17 @@ namespace bpr::qt {
 			{ core::writing_hook::review_proposed_fix, "Was this addressed", "Review threads, Was this addressed?",
 			  "What the agent is told when you ask whether a thread you commented in was addressed.",
 			  "Sent with Was this addressed? The answer is the agent's claim; nothing is resolved or posted." },
+			// RFC-BPR-0117 ([[BPR-2076]]). Explain this file.
+			{ core::writing_hook::review_explain_file, "Explain this file", "Review, a file's Explain this file",
+			  "What the agent is told when you ask it to explain the file you are reading.",
+			  "Sent with Explain this file. The answer shows over the file; nothing is posted." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
 
 		[[nodiscard]] constexpr auto returning_hook(const core::writing_hook aHook) noexcept -> bool
 		{
-			return aHook == core::writing_hook::review_latest_upload || aHook == core::writing_hook::review_proposed_fix;
+			return aHook == core::writing_hook::review_latest_upload || aHook == core::writing_hook::review_proposed_fix || aHook == core::writing_hook::review_explain_file;
 		}
 
 		/// A prompt's row: its name, where it is used on a quieter second
@@ -231,8 +235,9 @@ namespace bpr::qt {
 			item->setData(hook_role, static_cast<int>(core::writing_hook::suggested_comment));
 			item->setData(usage_role, tr(facts_of(core::writing_hook::suggested_comment).Where));
 		}
-		// RFC-BPR-0116. The returning questions, before the review skill.
-		for (const auto hook : { core::writing_hook::review_latest_upload, core::writing_hook::review_proposed_fix }) {
+		// RFC-BPR-0116. The returning questions, and RFC-BPR-0117's Explain
+		// this file, before the review skill.
+		for (const auto hook : { core::writing_hook::review_latest_upload, core::writing_hook::review_proposed_fix, core::writing_hook::review_explain_file }) {
 			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
@@ -641,6 +646,7 @@ namespace bpr::qt {
 		TestButton->setEnabled(!feedback && !suggested && !local && !returning);
 		TestButton->setToolTip(feedback        ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
 								   : suggested ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
+								   : hook == core::writing_hook::review_explain_file ? tr("Test uses a tour field. Press Explain this file over a file in Review to try this prompt.")
 								   : returning ? tr("Test uses a tour field. Ask it on a pull request with commits since your review to try this prompt.")
 								   : local     ? tr("Test uses a tour field. Ask in a local draft's conversation to try this prompt.")
 											   : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));

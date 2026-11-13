@@ -63,13 +63,12 @@ namespace bpr::core {
 
 	/// \brief Whether an entry point acts on what the reviewer has selected.
 	///
-	/// \details True for the two actions that have no subject without one:
-	/// asking about the selection, and analyzing the current file — the
-	/// selection is the only input that names a file, so with nothing selected
-	/// there is no current file and the core will not guess which one was
-	/// meant.
+	/// \details True only for asking about the selection, which has no
+	/// subject without one.
 	///
-	/// False for the others. The latest upload, a workshopped comment (which
+	/// False for the others. Since RFC-BPR-0117 ([[BPR-2076]]) analyzing the
+	/// current file acts on the file open in Review, which Explain this file
+	/// names: the selection is no longer the only input that names a file. The latest upload, a workshopped comment (which
 	/// may be a pull-request-level comment anchored to no line at all), the
 	/// review, and a full agent session take their subject from the session's
 	/// own `agent_revision_binding`. Asking about a conversation and, since

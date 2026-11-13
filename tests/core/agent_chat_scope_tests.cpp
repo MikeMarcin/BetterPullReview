@@ -167,7 +167,7 @@ namespace {
 		},
 		entry_point_row{
 			core::agent_entry_point::analyze_current_file,
-			true,
+			false,
 			"analyze_current_file",
 		},
 		entry_point_row{
@@ -281,10 +281,11 @@ namespace {
 				"is refused exactly as an absent one is");
 		}
 		expect(
-			refused == 2U && permitted == 6U,
-			"two of the eight act on the reviewer's selection; four take "
-			"their subject from the session's binding and two, since "
-			"RFC-BPR-0116, from the conversation the reviewer chose");
+			refused == 1U && permitted == 7U,
+			"one of the eight acts on the reviewer's selection; four take "
+			"their subject from the session's binding, two, since "
+			"RFC-BPR-0116, from the conversation the reviewer chose, and "
+			"one, since RFC-BPR-0117, from the file open in Review");
 	}
 
 	/// \brief An entry point nobody declared is refused before anything else.

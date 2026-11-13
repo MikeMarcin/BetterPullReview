@@ -2570,6 +2570,7 @@ namespace bpr::qt {
 		case core::writing_hook::local_commit_message: return false;
 		case core::writing_hook::review_latest_upload: // RFC-BPR-0116 Nor the returning questions.
 		case core::writing_hook::review_proposed_fix:  return false;
+		case core::writing_hook::review_explain_file:  return false; // RFC-BPR-0117 Nor Explain this file.
 		}
 		return false;
 	}

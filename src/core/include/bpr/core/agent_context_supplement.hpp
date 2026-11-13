@@ -6,6 +6,7 @@
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/diff_semantics.hpp"
+#include "bpr/core/explain_file.hpp"
 #include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_skill.hpp"
@@ -531,6 +532,9 @@ namespace bpr::core {
 		/// RFC-BPR-0116. A returning question's material up front; outside
 		/// its bounds the request is refused whole.
 		std::optional<supplement_returning> Returning;
+		/// RFC-BPR-0117. Explain this file's material up front; outside its
+		/// bounds the request is refused whole.
+		std::optional<supplement_explain> Explain;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -592,6 +596,9 @@ namespace bpr::core {
 		/// RFC-BPR-0116. Carried through unchanged; absent for every launch
 		/// that is not a returning question.
 		std::optional<supplement_returning> Returning;
+		/// RFC-BPR-0117. Carried through unchanged; absent for every launch
+		/// that is not Explain this file.
+		std::optional<supplement_explain> Explain;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

@@ -84,6 +84,9 @@ namespace bpr::application {
 	/// returning questions' prompts, `resources/review-preparation/review-*.md`.
 	inline constexpr std::string_view review_latest_upload_hook_version = "review-latest-upload-v1";
 	inline constexpr std::string_view review_proposed_fix_hook_version  = "review-proposed-fix-v1";
+	/// \brief RFC-BPR-0117 ([[BPR-2076]]). Version of Explain this file's
+	/// prompt, `resources/review-preparation/review-explain-file.md`.
+	inline constexpr std::string_view review_explain_file_hook_version = "review-explain-file-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.

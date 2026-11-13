@@ -130,6 +130,10 @@ namespace bpr::application {
 		/// material, up front: both revisions and the change between them,
 		/// or a thread's lines then and now. Absent for every other launch.
 		std::optional<core::supplement_returning> Returning;
+		/// RFC-BPR-0117 ([[BPR-2076]]). Explain this file's material, up
+		/// front: the file's change and its text at the head. Absent for
+		/// every other launch.
+		std::optional<core::supplement_explain> Explain;
 		/// [[BPR-1916]]. Skills the prompt named, carried inline
 		/// (`application::inline_skills`); empty for every launch that named
 		/// none.

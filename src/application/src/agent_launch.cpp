@@ -2572,6 +2572,7 @@ namespace bpr::application {
 			.Subject            = aObservation.Subject,
 			.LookingAt          = aObservation.LookingAt,
 			.Returning          = aObservation.Returning,
+			.Explain            = aObservation.Explain,
 		};
 		if (tourRun) {
 			request.TourPrompt = core::agent_tour_prompt{ .Session = aSession.Id, .Text = aObservation.TourPrompt };
@@ -2806,6 +2807,19 @@ namespace bpr::application {
 			}
 			encode_returning_lines_into(aResult, "returning.then", aReturning.Then);
 			encode_returning_lines_into(aResult, "returning.now", aReturning.Now);
+		}
+
+		/// RFC-BPR-0117. What Explain this file carries up front.
+		template <typename TSink>
+		void encode_explain_into(TSink& aResult, const core::supplement_explain& aExplain)
+		{
+			append_field(aResult, "explain.path", aExplain.Path);
+			append_field(aResult, "explain.base_commit", aExplain.BaseCommit);
+			append_field(aResult, "explain.head_commit", aExplain.HeadCommit);
+			append_number(aResult, "explain.change.cut", aExplain.ChangeCut ? 1 : 0);
+			append_field(aResult, "explain.change", aExplain.Change);
+			append_field(aResult, "explain.content.state", core::stable_name(aExplain.ContentState));
+			append_field(aResult, "explain.content", aExplain.Content);
 		}
 
 		template <typename TSink>
@@ -3203,6 +3217,11 @@ namespace bpr::application {
 			// thread's lines then and now.
 			if (aSupplement.Returning) {
 				encode_returning_into(aResult, *aSupplement.Returning);
+			}
+			// RFC-BPR-0117. Explain this file's material, written only when
+			// present.
+			if (aSupplement.Explain) {
+				encode_explain_into(aResult, *aSupplement.Explain);
 			}
 		}
 

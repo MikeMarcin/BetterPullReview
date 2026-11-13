@@ -75,6 +75,9 @@ namespace bpr::core {
 		/// RFC-BPR-0116. A returning question was pressed: What changed since
 		/// my review, or Was this addressed?
 		std::optional<returning_operation> Returning;
+		/// RFC-BPR-0117 ([[BPR-2076]]). Explain this file was pressed on this
+		/// file; empty otherwise.
+		std::string Explain;
 
 		auto operator<=>(const agent_question_facts&) const = default;
 	};
@@ -94,7 +97,9 @@ namespace bpr::core {
 	///
 	/// \details Pure. In order:
 	///
-	/// 0. RFC-BPR-0116. What changed since my review is about the pull
+	/// 0. RFC-BPR-0117. Explain this file is about that file
+	///    (`analyze_current_file`) whatever is attached or selected.
+	///    RFC-BPR-0116. What changed since my review is about the pull
 	///    request (`analyze_latest_upload`) whatever is attached; Was this
 	///    addressed? is about the attached conversation
 	///    (`evaluate_proposed_fix`) and is not sent without one.

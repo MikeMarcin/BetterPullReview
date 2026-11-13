@@ -128,6 +128,7 @@ add_library(
         src/local_draft.cpp
         src/local_changes.cpp
         src/returning_review.cpp
+        src/explain_file.cpp
         src/local_draft_publication.cpp
         src/local_draft_tour.cpp
         src/review_skill.cpp

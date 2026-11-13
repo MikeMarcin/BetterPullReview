@@ -83,6 +83,8 @@ namespace bpr::app {
 		// RFC-BPR-0116 The returning questions.
 		case core::writing_hook::review_latest_upload: return "review-latest-upload";
 		case core::writing_hook::review_proposed_fix:  return "review-proposed-fix";
+		// RFC-BPR-0117 Explain this file.
+		case core::writing_hook::review_explain_file: return "review-explain-file";
 		}
 		return "problem";
 	}

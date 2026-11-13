@@ -32,6 +32,9 @@ namespace bpr::core {
 
 	auto decide_agent_question(const agent_question_facts& aFacts) -> std::optional<agent_question>
 	{
+		if (!aFacts.Explain.empty()) {
+			return agent_question{ .Subject = agent_question_subject::file, .EntryPoint = agent_entry_point::analyze_current_file, .File = aFacts.Explain };
+		}
 		if (aFacts.Returning) {
 			switch (*aFacts.Returning) {
 			case returning_operation::latest_upload: return agent_question{ .Subject = agent_question_subject::pull_request, .EntryPoint = agent_entry_point::analyze_latest_upload };
