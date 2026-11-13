@@ -2315,7 +2315,24 @@ rate 4,985 to 4,925). Not caused by this round's changes as far as read; it
 needs its own investigation (the window's `begin_account_setup` returned
 without starting discovery).
 
-Pending: BPR-2027 AC08 owner look (session below); BPR-2028 closes
+Owner look, filed and not waited on: session
+`411e2c7497822b381ac2601afe7909f3`, state
+`/Users/jaeger/.attended-review-state/local-draft-tour-panel-v005-2026-11-13/state`
+(serve output beside it; the URL stays there), cursor 9, host PID 6331 (its
+`tailscale serve` child 6340). One Accept/Reject each:
+`local-tour-in-tour-panel`, `local-description-in-overview`,
+`publish-steps-in-status`. Frozen root
+`/Users/jaeger/local-draft-tour-panel-v005.kgbcys_i` from `89156b02d99e`
+(product as `6887928bd`; executable SHA-256 `531e566d6c38…`; launcher check
+reached `ATTENDED_LOCAL_DRAFT_TOUR_SHOWN`), launch
+`python3 /Users/jaeger/local-draft-tour-panel-v005.kgbcys_i/launch.py`.
+After hand-back: read from cursor 9; Accept of the tour candidate finishes
+BPR-2027 (AC08), then BPR-2028 closes RFC-BPR-0110 and BPR-2029..2031 can be
+claimed (the live run is still owed); a Reject is a new round. Then stop host
+6331 with the attended-review `stop` and `freeze_attended_build.py remove` the
+root.
+
+Pending: BPR-2027 AC08 owner look (session above); BPR-2028 closes
 RFC-BPR-0110 after it; BPR-2029 depends on BPR-2028, so BPR-2029..2031 are not
 claimed (their evidence is on the ledger, the live run missing); RFC-BPR-0110
 and 0111 stay open. Left on disk: `/Users/jaeger/local-draft-tour-panel-v004.9ao22ezm`
