@@ -207,6 +207,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1757]]. The room the author's name is painted
 		/// in, before the post's tools.
 		[[nodiscard]] auto name_rect() const -> QRect;
+		/// \brief Owner look v002 ([[BPR-2158]]). Where the computer and
+		/// "Local reply" are painted, which its tooltip is anchored to;
+		/// empty on any other post.
+		[[nodiscard]] auto local_tag_rect() const noexcept -> QRect { return LocalTag; }
 		/// \brief [[BPR-1581]]. How strongly the post's arrival is marked,
 		/// from 1 to 0.
 		void               set_arrival(qreal aStrength);
@@ -262,6 +266,7 @@ namespace bpr::qt {
 		void               refresh_source_button();
 
 		card_post           Post;
+		QRect               LocalTag;
 		open_card_style     Style;
 		bool                RuleAbove    = false;
 		bool                Hovered      = false;

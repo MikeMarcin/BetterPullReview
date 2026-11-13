@@ -1087,6 +1087,10 @@ namespace bpr::qt {
 		if (NextNewCommentAction != nullptr) {
 			NextNewCommentAction->setIcon(conversation_icon(conversation_glyph::next_new, ink));
 		}
+		if (PreviousCommentAction != nullptr && NextCommentAction != nullptr) {
+			PreviousCommentAction->setIcon(conversation_icon(conversation_glyph::up, ink));
+			NextCommentAction->setIcon(conversation_icon(conversation_glyph::down, ink));
+		}
 		Drawers[0].Toggle->setIcon(strip_icon(strip_glyph::files_drawer, ink));
 		Drawers[2].Toggle->setIcon(strip_icon(strip_glyph::repositories_drawer, ink));
 		Navigation[0].Action->setIcon(strip_icon(strip_glyph::previous_file, ink));

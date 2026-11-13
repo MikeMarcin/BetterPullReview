@@ -1274,6 +1274,25 @@ namespace bpr::qt {
 						 QFontMetrics{ badge_font() }.elidedText(tour_stop_badge(Stop, Count), Qt::ElideRight, room));
 	}
 
+	namespace {
+		/// Owner look v002 ([[BPR-2158]]): "I don't understand why the mark
+		/// draft button is unavailable here". Why Make draft is not offered,
+		/// said in words under it, not only in a disabled button's tooltip.
+		[[nodiscard]] auto make_draft_reason(const QString& aWhy, const open_card_style& aStyle, QWidget* aParent, const QString& aName) -> QLabel*
+		{
+			auto* const why = new QLabel{ aWhy, aParent };
+			why->setObjectName(aName);
+			why->setWordWrap(true);
+			why->setTextFormat(Qt::PlainText);
+			why->setFont(scaled(why->font(), 0.92));
+			auto ink = why->palette();
+			ink.setColor(QPalette::WindowText, aStyle.Colours.Ink2);
+			why->setPalette(ink);
+			why->setAccessibleName(aWhy);
+			return why;
+		}
+	} // namespace
+
 	thread_post_view::thread_post_view(const card_post& aPost, const open_card_style& aStyle, const bool aRuleAbove, QWidget* const aParent)
 		: QWidget{ aParent }
 		, Post{ aPost }
@@ -1285,8 +1304,10 @@ namespace bpr::qt {
 		setAccessibleName(aPost.Name.isEmpty() ? shown_author(aPost.Author) : aPost.Name);
 		setAccessibleDescription(aPost.Unread ? QStringLiteral("New") : QString{ });
 		if (aPost.Local) {
+			// Owner look v002: its words name the tag, not the whole post,
+			// so they are answered at the tag (`event`), never as the
+			// post's own tooltip, which anchors to the whole post.
 			setAccessibleDescription(comment_state_words(true, false, false));
-			setToolTip(QStringLiteral("Only on this computer"));
 		}
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 		// RFC-BPR-0036. The body reads through the shared Markdown reader, in
@@ -1692,7 +1713,10 @@ namespace bpr::qt {
 			painter.fillRect(QRect{ 0, 0, 3, height() }, colours.Route);
 		}
 		if (RuleAbove) {
-			painter.setPen(QPen{ with_alpha(colours.Rule, 0.6), 1.0 });
+			// Owner look v002 ([[BPR-2158]]): "these lines between comments
+			// are slightly too subtle, compare it to slack's". The stronger
+			// rule, whole, as Slack's are.
+			painter.setPen(QPen{ colours.Rule2, 1.0 });
 			painter.drawLine(QPointF{ 0.0, 0.5 }, QPointF{ static_cast<qreal>(width()), 0.5 });
 		}
 		const auto rail = rail_rect();
@@ -1737,6 +1761,9 @@ namespace bpr::qt {
 			painter.setFont(small);
 			painter.setPen(colours.Ink2);
 			painter.drawText(QRect{ x + 16, post_padding, std::max(0, tools - x - 16), name }, Qt::AlignLeft | Qt::AlignVCenter, words);
+			LocalTag = QRect{ x, post_padding, 16 + QFontMetrics{ small }.horizontalAdvance(words), name };
+		} else {
+			LocalTag = QRect{ };
 		}
 	}
 
@@ -1754,6 +1781,12 @@ namespace bpr::qt {
 			}
 			if (QRect{ gut_left, post_padding, avatar_size, avatar_size }.contains(point)) {
 				show_anchored_tooltip(*this, QRect{ gut_left, post_padding, avatar_size, avatar_size }, shown_author(Post.Author));
+				return true;
+			}
+			// Owner look v002 ([[BPR-2158]]). "Local reply" says what it
+			// means right under itself.
+			if (!LocalTag.isEmpty() && LocalTag.contains(point)) {
+				show_anchored_tooltip(*this, LocalTag, QStringLiteral("Only on this computer. Never sent."));
 				return true;
 			}
 			// [[BPR-1757]]. A name cut short says itself whole.
@@ -1951,7 +1984,11 @@ namespace bpr::qt {
 		row->setContentsMargins(8, 0, 4, 0);
 		row->setSpacing(2);
 		const auto& palette = this->palette();
-		if (aCard.Path.isEmpty()) {
+		// Owner look v002 ([[BPR-2158]]): "I dont understand why this comment
+		// says \"pull request\"". Only a comment on the pull request says so;
+		// my Local comments and drafts on a file never do.
+		const auto onPullRequest = aCard.Local ? aCard.LocalComment.Place == local_comment_place::pull_request : aCard.Path.isEmpty() && !aCard.Draft;
+		if (onPullRequest) {
 			// [[BPR-1757]]. In a narrow drawer the scope gives way to
 			// the verdict, which stays whole.
 			auto* const scope = new yielding_label{ QStringLiteral("Pull request"), header };
@@ -2390,6 +2427,11 @@ namespace bpr::qt {
 				connect(remove, &QToolButton::clicked, this, [this, id = post.Id] { if (PostAction) { PostAction(card_action::delete_local, id); } });
 				localRow->addWidget(remove);
 				column->addLayout(localRow);
+				if (post.LocalMakeDraft.isEmpty() && !post.LocalMakeDraftWhy.isEmpty()) {
+					auto* const why = make_draft_reason(post.LocalMakeDraftWhy, Style, this, QStringLiteral("threadLocalReplyMakeDraftWhy"));
+					why->setContentsMargins(text_left + 4, 0, text_right, 6);
+					column->addWidget(why);
+				}
 			}
 			first = false;
 		}
@@ -2486,6 +2528,9 @@ namespace bpr::qt {
 			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_local); } });
 			actions->addWidget(discard);
 			footRow->addLayout(actions);
+			if (aCard.LocalComment.MakeDraft.isEmpty() && !aCard.LocalComment.MakeDraftWhy.isEmpty()) {
+				footRow->addWidget(make_draft_reason(aCard.LocalComment.MakeDraftWhy, Style, Foot, QStringLiteral("threadMakeDraftWhy")));
+			}
 		} else if (aCard.Draft && aCard.MovedSuggestion) {
 			// [[BPR-1733]]. My kept suggestion from an earlier head: written
 			// again at its lines here when the core carries it, or its change
@@ -2658,6 +2703,12 @@ namespace bpr::qt {
 			build_enhance(*controls, enhance_surface::reply);
 			controls->addWidget(Suggestion);
 			controls->addStretch(1);
+			// Owner look v002 ([[BPR-2158]]): "this compose looks like a
+			// mess". The writing tools keep the first row; the state and
+			// the sending actions take a row of their own under them, so
+			// nothing is cut to a letter in a narrow drawer.
+			auto* const actions = new QHBoxLayout{ };
+			actions->setSpacing(6);
 			// RFC-BPR-0127 ([[BPR-2158]]). In a thread the state control is
 			// Local and Reply: Local keeps the reply only on this computer,
 			// inside this thread, with Save (⌘↩) in Send's place.
@@ -2690,7 +2741,8 @@ namespace bpr::qt {
 				StateDraft->setChecked(true);
 				connect(StateLocal, &QToolButton::clicked, this, [this] { choose_local(true, false); });
 				connect(StateDraft, &QToolButton::clicked, this, [this] { choose_local(false, false); });
-				controls->addWidget(states);
+				actions->addWidget(states);
+				actions->addStretch(1);
 			}
 			auto* const cancel = new quiet_tool_button{ Editor };
 			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
@@ -2698,14 +2750,14 @@ namespace bpr::qt {
 			cancel->setText(QStringLiteral("Cancel"));
 			cancel->setFocusPolicy(Qt::StrongFocus);
 			connect(cancel, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::cancel_reply); } });
-			controls->addWidget(cancel);
+			actions->addWidget(cancel);
 			Publish = new note_button{ note_button::kind::primary, aCard.Path.isEmpty() ? QStringLiteral("Send") : QStringLiteral("Publish"), Editor };
 			Publish->setObjectName(QStringLiteral("threadReplyPublish"));
 			Publish->setIcon(conversation_icon(conversation_glyph::send, palette));
 			Publish->setToolTip(QStringLiteral("Publish reply  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 			Publish->set_style(Style);
 			connect(Publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_reply); } });
-			controls->addWidget(Publish);
+			actions->addWidget(Publish);
 			SaveLocal = new note_button{ note_button::kind::primary, QStringLiteral("Save"), Editor };
 			SaveLocal->setObjectName(QStringLiteral("threadReplySaveLocal"));
 			SaveLocal->setAccessibleName(QStringLiteral("Save local reply"));
@@ -2714,8 +2766,9 @@ namespace bpr::qt {
 			SaveLocal->set_style(Style);
 			SaveLocal->hide();
 			connect(SaveLocal, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::save_local); } });
-			controls->addWidget(SaveLocal);
+			actions->addWidget(SaveLocal);
 			editor->addLayout(controls);
+			editor->addLayout(actions);
 			editor->addWidget(EnhancePanel);
 			ReplyStatus = new QLabel{ Editor };
 			ReplyStatus->setObjectName(QStringLiteral("threadReplyStatus"));

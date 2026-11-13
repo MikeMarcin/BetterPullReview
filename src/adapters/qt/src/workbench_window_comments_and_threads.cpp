@@ -1537,6 +1537,7 @@ namespace bpr::qt {
 		}
 		const auto& unread = ConversationPanel->cards()->unread_conversations_in_navigation_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
+		update_comment_steps();
 		// [[BPR-1699]]. Offered while anything on the pull request is new.
 		if (MarkAllCommentsRead != nullptr) {
 			MarkAllCommentsRead->setEnabled(!unread.empty() && static_cast<bool>(ConversationsReadDispatch));

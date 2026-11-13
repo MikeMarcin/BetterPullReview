@@ -27,11 +27,17 @@ namespace bpr::app {
 			return { };
 		}
 
-		[[nodiscard]] auto make_draft_words(const core::make_draft_refusal aRefusal) -> QString
+		/// Owner look v002 ([[BPR-2158]]): two Local comments on one line,
+		/// one offering Make draft and one not, read as arbitrary. A line
+		/// and a thread each hold one draft of mine; the words say which
+		/// draft stands in the way and what frees it.
+		[[nodiscard]] auto make_draft_words(const core::make_draft_refusal aRefusal, const bool aReply = false) -> QString
 		{
 			switch (aRefusal) {
 			case core::make_draft_refusal::select_a_line: return QStringLiteral("Select a line in the code to make it a draft there.");
-			case core::make_draft_refusal::draft_stands:  return QStringLiteral("Your draft already stands there. Nothing is merged.");
+			case core::make_draft_refusal::draft_stands:
+				return aReply ? QStringLiteral("Can't make a draft: your draft reply in this thread is already open. A thread holds one draft reply of yours; send or delete it first.")
+							  : QStringLiteral("Can't make a draft: your draft on this line already stands. A line holds one draft of yours; publish or delete it first.");
 			}
 			return { };
 		}
@@ -118,7 +124,7 @@ namespace bpr::app {
 			if (const auto target = core::decide_make_draft(input); target.has_value()) {
 				card.MakeDraft = target->Reanchored ? QStringLiteral("Make draft on line %1").arg(target->Anchor.Line + 1U) : QStringLiteral("Make draft");
 			} else {
-				card.MakeDraftWhy = make_draft_words(target.error());
+				card.MakeDraftWhy = make_draft_words(target.error(), comment.ReplyToThread.has_value());
 			}
 			cards.push_back(std::move(card));
 		}
@@ -191,7 +197,7 @@ namespace bpr::app {
 			input.Drafts      = drafts;
 			const auto target = core::decide_make_draft(input);
 			if (!target) {
-				refuse(make_draft_words(target.error()));
+				refuse(make_draft_words(target.error(), found->ReplyToThread.has_value()));
 				return;
 			}
 			PrivateReview->make_draft(found->Id, found->Revision, found->Body, target->Anchor, target->StartLine, target->ReplyToThread, [this, refuse](auto aCommit) {

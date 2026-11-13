@@ -1114,6 +1114,25 @@ namespace bpr::qt {
 		NextNewCommentButton->setAccessibleName(QStringLiteral("Next new comment"));
 		NextNewCommentButton->setAccessibleDescription(QStringLiteral(
 			"Reveal the next thread with a post newer than what you have read"));
+		// Owner look v002 ([[BPR-2158]]). Previous and Next comment replace
+		// Next new comment on the tab row; Next new keeps its key and menu.
+		NextNewCommentButton->hide();
+		for (auto& [button, action, glyph, name] : std::array{
+				 std::tuple{ &PreviousCommentButton, PreviousCommentAction, conversation_glyph::up, QStringLiteral("workbenchPreviousCommentButton") },
+				 std::tuple{ &NextCommentButton, NextCommentAction, conversation_glyph::down, QStringLiteral("workbenchNextCommentButton") },
+			 }) {
+			auto* const step = new quiet_tool_button{ commentsContents };
+			step->set_tinted(true);
+			step->setObjectName(name);
+			step->setDefaultAction(action);
+			action->setIcon(conversation_icon(glyph, palette()));
+			step->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			step->setAutoRaise(true);
+			step->setIconSize(QSize{ 16, 16 });
+			step->setFocusPolicy(Qt::StrongFocus);
+			step->setAccessibleName(action->text());
+			*button = step;
+		}
 		DefectRow = new QWidget{ commentsContents };
 		DefectRow->setObjectName(QStringLiteral("workbenchDefectRow"));
 		auto* const commentsTools = new QHBoxLayout{ DefectRow };
@@ -1703,7 +1722,10 @@ namespace bpr::qt {
 		commentsToolsRow->addSpacing(4);
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
-		commentsToolsRow->addWidget(NextNewCommentButton);
+		PreviousCommentButton->setParent(CommentsTools);
+		NextCommentButton->setParent(CommentsTools);
+		commentsToolsRow->addWidget(PreviousCommentButton);
+		commentsToolsRow->addWidget(NextCommentButton);
 		// [[BPR-1593]]. The Tour tab's tools: Add stop, and Expand to the
 		// tour page.
 		TourTools = new QWidget{ CommentsTools->parentWidget() };

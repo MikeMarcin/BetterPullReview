@@ -197,6 +197,83 @@ namespace bpr::qt {
 		go_to_conversation(next);
 	}
 
+	void workbench_window::update_comment_steps()
+	{
+		if (PreviousCommentAction == nullptr || NextCommentAction == nullptr || ConversationPanel == nullptr) {
+			return;
+		}
+		const auto any = !ConversationPanel->cards()->cards().empty() || !ConversationPanel->cards()->threads_in_file_order().empty();
+		PreviousCommentAction->setEnabled(any);
+		NextCommentAction->setEnabled(any);
+		const auto keyed = [](QAction* const aAction, const QString& aWords) {
+			const auto key = aAction->shortcut().toString(QKeySequence::NativeText);
+			aAction->setToolTip(key.isEmpty() ? aWords : QStringLiteral("%1 (%2)").arg(aWords, key));
+		};
+		keyed(PreviousCommentAction, any ? QStringLiteral("Previous comment") : QStringLiteral("Previous comment: no comments"));
+		keyed(NextCommentAction, any ? QStringLiteral("Next comment") : QStringLiteral("Next comment: no comments"));
+	}
+
+	void workbench_window::step_comment(const bool aForward)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		auto* const cards = ConversationPanel->cards();
+		// The comments of the file shown, as Comments orders them: published
+		// threads, my Local comments and drafts at their lines, then the rest.
+		auto shown = std::vector<const thread_card*>{ };
+		for (const auto& card : cards->cards()) {
+			if (!card.Writing) {
+				shown.push_back(&card);
+			}
+		}
+		const auto open = [this, cards](const thread_card& aCard) {
+			if (!aCard.Draft && !aCard.Local) {
+				go_to_conversation(aCard.Id);
+				return;
+			}
+			if (cards->open_thread_id() != aCard.Id) {
+				cards->open_thread(aCard.Id);
+			}
+			if (aCard.Side.has_value() && aCard.Line.has_value() && *aCard.Line > 0U && ComparisonSurface != nullptr) {
+				static_cast<void>(ComparisonSurface->reveal_conversation_line(*aCard.Side, *aCard.Line - 1U));
+			}
+		};
+		const auto& current = !cards->open_thread_id().empty() ? cards->open_thread_id() : cards->current_thread();
+		const auto  at      = std::ranges::find_if(shown, [&current](const thread_card* aCard) { return aCard->Id == current; });
+		if (at != shown.end()) {
+			const auto index = static_cast<std::ptrdiff_t>(std::distance(shown.begin(), at)) + (aForward ? 1 : -1);
+			if (index >= 0 && index < static_cast<std::ptrdiff_t>(shown.size())) {
+				open(*shown[static_cast<std::size_t>(index)]);
+				return;
+			}
+		} else if (!shown.empty()) {
+			open(aForward ? *shown.front() : *shown.back());
+			return;
+		}
+		// Past this file's comments: the next file's first, or the previous
+		// file's last, wrapping at the pull request's ends.
+		const auto threads = cards->threads_in_file_order();
+		if (threads.empty()) {
+			statusBar()->showMessage(tr("No other comments in this pull request."), 4000);
+			return;
+		}
+		auto file = QString{ };
+		for (const auto* card : shown) {
+			if (!card->Path.isEmpty()) {
+				file = card->Path;
+				break;
+			}
+		}
+		if (aForward) {
+			const auto later = std::ranges::find_if(threads, [&file](const auto& aThread) { return aThread.second > file; });
+			go_to_conversation(later != threads.end() ? later->first : threads.front().first);
+		} else {
+			const auto earlier = std::ranges::find_if(threads.rbegin(), threads.rend(), [&file](const auto& aThread) { return aThread.second < file; });
+			go_to_conversation(earlier != threads.rend() ? earlier->first : threads.back().first);
+		}
+	}
+
 	void workbench_window::go_to_conversation(const std::string& aIdentity)
 	{
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {

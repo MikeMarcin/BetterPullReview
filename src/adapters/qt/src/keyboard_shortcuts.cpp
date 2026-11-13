@@ -59,6 +59,8 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::go_to_line, .Group = navigation, .Binding = bound, .Title = "Go to line…", .Keys = "Ctrl+G", .StepsAsideWhileTyping = true, .Objects = "goToLineAction;desktopGoToLineAction" },
 #endif
 			shortcut_entry{ .Command = command::next_new_comment, .Group = navigation, .Binding = bound, .Title = "Next new comment", .Keys = "Alt+N", .Objects = "nextNewCommentAction" },
+			shortcut_entry{ .Command = command::previous_comment, .Group = navigation, .Binding = bound, .Title = "Previous comment", .Keys = "Alt+[", .StepsAsideWhileTyping = true, .Objects = "previousCommentAction" },
+			shortcut_entry{ .Command = command::next_comment, .Group = navigation, .Binding = bound, .Title = "Next comment", .Keys = "Alt+]", .StepsAsideWhileTyping = true, .Objects = "nextCommentAction" },
 			shortcut_entry{ .Command = command::home, .Group = navigation, .Binding = bound, .Title = "Home, or back to the review", .Keys = "Ctrl+Shift+H", .Objects = "workbenchHomeAction" },
 #if defined(Q_OS_MACOS)
 			// Control-Tab on macOS too, which Qt names Meta.

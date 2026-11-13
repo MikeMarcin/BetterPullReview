@@ -842,7 +842,8 @@ namespace bpr::qt {
 		// [[BPR-1134]]. The tray's tabs, then the Comments tab's tool and its
 		// conversation.
 		append(TrayTabs);
-		append(NextNewCommentButton);
+		append(PreviousCommentButton);
+		append(NextCommentButton);
 		append(PreviousDefectButton);
 		append(NextDefectButton);
 		append(Drawers[1].Panel->focus_stop());

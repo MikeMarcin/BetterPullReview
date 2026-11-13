@@ -912,6 +912,10 @@ namespace bpr::qt {
 		/// \details [[BPR-0972]]. Decided once per adopted forest or read
 		/// state and retained, so a scroll frame that asks again walks nothing.
 		[[nodiscard]] auto unread_threads_in_file_order() const -> const std::vector<std::string>&;
+		/// \brief Owner look v002 ([[BPR-2158]]). Every review thread on a file
+		/// with its path, in file and then line order: Previous and Next
+		/// comment walk it past the file shown.
+		[[nodiscard]] auto threads_in_file_order() const -> std::vector<std::pair<std::string, QString>>;
 		/// \brief [[BPR-1601]]. File threads, then PR comments and summaries in Discuss order.
 		[[nodiscard]] auto unread_conversations_in_navigation_order() const -> const std::vector<std::string>&;
 		/// \brief The zero-based lines of the threads whose first post is unread.

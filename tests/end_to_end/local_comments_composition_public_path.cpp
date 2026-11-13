@@ -355,7 +355,9 @@ int main(int aArgc, char** aArgv)
 		refused->click();
 		wait_for([&] { return window.statusBar()->currentMessage().contains(QStringLiteral("already stands")); }, "AC05: Make draft where my draft stands is refused, and says why");
 	} else {
-		expect(refused->toolTip() == QStringLiteral("Your draft already stands there. Nothing is merged."), "AC05: Make draft where my draft stands is refused, and says why");
+		auto* const why = open_button(*cards, "threadMakeDraft")->parentWidget()->findChild<QLabel*>(QStringLiteral("threadMakeDraftWhy"));
+		expect(refused->toolTip().contains(QStringLiteral("your draft on this line already stands")) && why != nullptr && why->isVisible() && why->text() == refused->toolTip(),
+			   "AC05: Make draft where my draft stands is refused, and says why in words under it");
 	}
 	QApplication::processEvents();
 	expect(window.draft_roster() == rosterBefore && card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == second->Id; }).has_value(), "AC05: nothing changed");

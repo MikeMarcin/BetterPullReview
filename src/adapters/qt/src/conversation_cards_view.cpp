@@ -1941,6 +1941,25 @@ namespace bpr::qt {
 		return *UnreadThreads;
 	}
 
+	auto conversation_cards_view::threads_in_file_order() const -> std::vector<std::pair<std::string, QString>>
+	{
+		auto threads = std::vector<const application::github_conversation_projection*>{ };
+		for (const auto& node : Retained) {
+			if (node.Kind == application::github_conversation_kind::review_thread && !node.ParentId.has_value() && !node.Deleted && !node.Path.empty()) {
+				threads.push_back(&node);
+			}
+		}
+		std::ranges::stable_sort(threads, [](const auto* aLeft, const auto* aRight) {
+			return std::pair{ aLeft->Path, aLeft->Line.value_or(0U) } < std::pair{ aRight->Path, aRight->Line.value_or(0U) };
+		});
+		auto ids = std::vector<std::pair<std::string, QString>>{ };
+		ids.reserve(threads.size());
+		for (const auto* thread : threads) {
+			ids.emplace_back(thread->Id, QString::fromStdString(thread->Path));
+		}
+		return ids;
+	}
+
 	auto conversation_cards_view::unread_conversations_in_navigation_order() const -> const std::vector<std::string>&
 	{
 		if (UnreadConversations.has_value()) {
@@ -3723,6 +3742,15 @@ namespace bpr::qt {
 			} else {
 				const auto at = static_cast<std::size_t>(std::distance(Cards.begin(), open));
 				tops[at]      = target(at);
+				// Owner look v002 ([[BPR-2158]]): "if I scroll until just 5 is
+				// visible at the top and then add a comment on line 5 then
+				// full pull comment composer isn't shown". A line at the
+				// code's top is above the drawer's own top, which starts
+				// under its tab and tools rows; the composer being written
+				// stays whole in view, its notch still pointing at its line.
+				if (Cards[at].Writing) {
+					tops[at] = std::max(tops[at], verticalScrollBar()->value() + note_margin);
+				}
 				for (auto index = at; index-- > 0U;) {
 					tops[index] = std::min(target(index), tops[index + 1U] - note_gap - Cards[index].Rect.height());
 				}
@@ -4119,11 +4147,33 @@ namespace bpr::qt {
 		const auto who      = shown_author(root.Author);
 		const auto shownWho = QFontMetrics{ bold }.elidedText(who, Qt::ElideRight, std::max(0, right - left));
 		aPainter.drawText(QRect{ left, top, std::max(0, right - left), nameH }, Qt::AlignLeft | Qt::AlignVCenter, shownWho);
+		// Owner look v002 ([[BPR-2158]]): "other comments that are not
+		// focused need to show their line numbers". Its line beside its
+		// author, as the open card's header names it: the target and the
+		// number, in the code's face.
+		auto afterName = left + QFontMetrics{ bold }.horizontalAdvance(shownWho) + 8;
+		if (aCard.Line.has_value() && *aCard.Line > 0U && !timeline()) {
+			const auto words = aCard.FirstLine.has_value() && *aCard.FirstLine < *aCard.Line ? QStringLiteral("%1–%2").arg(*aCard.FirstLine).arg(*aCard.Line)
+																							   : QString::number(*aCard.Line);
+			auto       mono  = CodeFont;
+			mono.setPointSizeF(small.pointSizeF());
+			const auto x    = afterName;
+			const auto need = 15 + QFontMetrics{ mono }.horizontalAdvance(words);
+			if (x + need <= right) {
+				aPainter.save();
+				paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(x), top + (nameH - 11) / 2.0, 11.0, 11.0 }, conversation_glyph::target, colours.Faint);
+				aPainter.setFont(mono);
+				aPainter.setPen(colours.Ink2);
+				aPainter.drawText(QRect{ x + 14, top, need, nameH }, Qt::AlignLeft | Qt::AlignVCenter, words);
+				aPainter.restore();
+				afterName += need + 8;
+			}
+		}
 		// [[BPR-1806]]. A published tour stop says so beside its author: the
 		// tour's route marker, then "Stop 6 of 9".
 		if (!aCard.Draft && root.TourStop.has_value()) {
 			const auto badge = tour_stop_badge(*root.TourStop, root.TourStopCount);
-			const auto x     = left + QFontMetrics{ bold }.horizontalAdvance(shownWho) + 8;
+			const auto x     = afterName;
 			const auto room  = right - x - 12;
 			if (room > 24) {
 				aPainter.save();

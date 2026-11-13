@@ -1098,6 +1098,12 @@ namespace bpr::qt {
 		/// \brief Next new comment: window-owned, with its key, and no presenter
 		/// in the title row ([[BPR-1129]]).
 		[[nodiscard]] auto next_new_comment_action() const noexcept -> QAction*;
+		/// \brief Owner look v002 ([[BPR-2158]]). Previous and Next comment:
+		/// the Comments tab's tools, and their keys.
+		[[nodiscard]] auto previous_comment_action() const noexcept -> QAction* { return PreviousCommentAction; }
+		[[nodiscard]] auto next_comment_action() const noexcept -> QAction* { return NextCommentAction; }
+		[[nodiscard]] auto previous_comment_button() const noexcept -> QToolButton* { return PreviousCommentButton; }
+		[[nodiscard]] auto next_comment_button() const noexcept -> QToolButton* { return NextCommentButton; }
 		/// \brief Adopts the complete bounded local defect queue.
 		void present_defects(std::vector<core::defect_history> aDefects, std::map<core::defect_id, std::string> aThreads = { });
 		void clear_defects();
@@ -2497,6 +2503,11 @@ namespace bpr::qt {
 		void present_reply_placement();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
+		/// Owner look v002. The comment before or after the one open (or the
+		/// first or last in view), in Comments' order, then the next file's.
+		void step_comment(bool aForward);
+		/// Their enablement and tooltips follow the comments.
+		void update_comment_steps();
 		/// \brief [[BPR-1601, BPR-1810]]. Goes to one conversation where the
 		/// reader is, as Next new comment does: a comment on the pull request
 		/// in its conversation, a thread on another file at its line, and
@@ -3410,6 +3421,10 @@ namespace bpr::qt {
 		/// review-bar button.
 		std::array<navigation_entry, 2>                                                      ChangeEnds{ };
 		QAction*                                                                             NextNewCommentAction = nullptr;
+		QAction*                                                                             PreviousCommentAction = nullptr;
+		QAction*                                                                             NextCommentAction     = nullptr;
+		QToolButton*                                                                         PreviousCommentButton = nullptr;
+		QToolButton*                                                                         NextCommentButton     = nullptr;
 		conversation_read_dispatch                                                           ConversationReadDispatch;
 		std::function<void(core::conversation_reply_action, core::conversation_reply_draft)> ConversationReplyDispatch;
 		std::optional<thread_reply_presentation>                                             ConversationReply;

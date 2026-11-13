@@ -600,6 +600,22 @@ namespace bpr::qt {
 		NextNewCommentAction->setEnabled(false);
 		addAction(NextNewCommentAction);
 		connect(NextNewCommentAction, &QAction::triggered, this, [this] { step_to_next_new_comment(); });
+		// Owner look v002 ([[BPR-2158]]): "I want a real next comment prev
+		// comment control in that top bar in the comment drawer controls.
+		// Instead of this \"next new comment\"". Every comment in turn, read
+		// or not, then into the next file's.
+		PreviousCommentAction = new QAction{ QStringLiteral("Previous comment"), this };
+		PreviousCommentAction->setObjectName(QStringLiteral("previousCommentAction"));
+		PreviousCommentAction->setShortcuts(shortcut_keys(shortcut_command::previous_comment));
+		PreviousCommentAction->setShortcutContext(Qt::WindowShortcut);
+		addAction(PreviousCommentAction);
+		connect(PreviousCommentAction, &QAction::triggered, this, [this] { step_comment(false); });
+		NextCommentAction = new QAction{ QStringLiteral("Next comment"), this };
+		NextCommentAction->setObjectName(QStringLiteral("nextCommentAction"));
+		NextCommentAction->setShortcuts(shortcut_keys(shortcut_command::next_comment));
+		NextCommentAction->setShortcutContext(Qt::WindowShortcut);
+		addAction(NextCommentAction);
+		connect(NextCommentAction, &QAction::triggered, this, [this] { step_comment(true); });
 
 		ToolbarSpacer = rowSpacer(
 			PrimaryToolbar,
