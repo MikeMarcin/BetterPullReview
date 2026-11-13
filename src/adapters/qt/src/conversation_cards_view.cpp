@@ -112,7 +112,7 @@ namespace bpr::qt {
 			bool Link = false;
 			/// RFC-BPR-0127. My Local comments it leads to, counted beside
 			/// the computer.
-			std::size_t Locals = 0U;
+			std::size_t        Locals = 0U;
 			[[nodiscard]] auto locals_width() const -> int
 			{
 				return Locals > 0U ? 6 + 12 + 3 + QFontMetrics{ font() }.horizontalAdvance(QString::number(Locals)) + 6 : 0;
@@ -2314,11 +2314,11 @@ namespace bpr::qt {
 		const auto plural = [](const std::size_t aCount) { return aCount == 1U ? tr("1 local comment") : tr("%1 local comments").arg(aCount); };
 		const auto shown  = isVisible() && !Feed && !PullRequestComments && Scope == cards_scope::this_file;
 		const auto sync   = [&](QAbstractButton* const aButton, const std::size_t aCount, const QString& aName, const QString& aTip) {
-			auto* const chip     = static_cast<pull_request_chip*>(aButton);
-			chip->Colours        = colours;
-			const auto changed   = chip->Locals != aCount;
-			chip->Locals         = aCount;
-			const auto name      = QStringLiteral("%1: %2, only on this computer").arg(aName, plural(aCount));
+			auto* const chip   = static_cast<pull_request_chip*>(aButton);
+			chip->Colours      = colours;
+			const auto changed = chip->Locals != aCount;
+			chip->Locals       = aCount;
+			const auto name    = QStringLiteral("%1: %2, only on this computer").arg(aName, plural(aCount));
 			if (chip->accessibleName() != name) {
 				chip->setAccessibleName(name);
 			}
@@ -2355,7 +2355,7 @@ namespace bpr::qt {
 			}
 			auto words = comment.Body.simplified();
 			words.replace(QLatin1Char{ '`' }, QString{ });
-			const auto where  = comment.PathLine ? QStringLiteral("%1:%2").arg(comment.Path).arg(*comment.PathLine) : comment.Path;
+			const auto  where = comment.PathLine ? QStringLiteral("%1:%2").arg(comment.Path).arg(*comment.PathLine) : comment.Path;
 			auto* const entry = menu->addAction(QStringLiteral("%1  %2").arg(where, words.size() > 48 ? words.left(48) + QChar{ 0x2026 } : words));
 			entry->setIcon(conversation_icon(conversation_glyph::computer, palette()));
 			entry->setToolTip(tr("Go to %1").arg(where));
@@ -2406,7 +2406,8 @@ namespace bpr::qt {
 			chip->Locals = locals;
 			chip->updateGeometry();
 		}
-		const auto localWords = locals == 0U ? QString{ } : locals == 1U ? tr(", 1 local comment") : tr(", %1 local comments").arg(locals);
+		const auto localWords = locals == 0U ? QString{ } : locals == 1U ? tr(", 1 local comment")
+																		 : tr(", %1 local comments").arg(locals);
 		chip->setText(tr("Pull request conversation"));
 		chip->setAccessibleName((unread > 0U ? tr("Pull request conversation: %1 comments, %2 new").arg(count).arg(unread) : tr("Pull request conversation: %1 comments").arg(count)) + localWords);
 		chip->setAccessibleDescription(tr("Opens the pull request's comments and reviews on Overview's Comments tab"));
@@ -3056,7 +3057,7 @@ namespace bpr::qt {
 					continue;
 				}
 			}
-			const auto placed = local.Place == local_comment_place::line && Scope == cards_scope::this_file && CurrentComparison.has_value() && local.Comparison == CurrentComparison && local.Line.has_value();
+			const auto placed    = local.Place == local_comment_place::line && Scope == cards_scope::this_file && CurrentComparison.has_value() && local.Comparison == CurrentComparison && local.Line.has_value();
 			const auto wholeFile = local.Place == local_comment_place::whole_file;
 			if (!placed && !PullRequestComments && (wholeFile ? Scope != cards_scope::this_file : local.Notice.isEmpty())) {
 				continue;

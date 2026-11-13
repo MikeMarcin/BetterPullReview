@@ -410,10 +410,10 @@ namespace bpr::qt {
 		void               set_notch(int aY);
 		[[nodiscard]] auto notch() const noexcept -> int;
 
-		std::function<void(card_action)>                        Action;
+		std::function<void(card_action)> Action;
 		/// RFC-BPR-0127. An action on one post of the card: my Local reply
 		/// inside a published thread (Make draft, Copy text, Delete).
-		std::function<void(card_action, const std::string&)> PostAction;
+		std::function<void(card_action, const std::string&)>    PostAction;
 		std::function<void(const std::string&, const QString&)> Link;
 		/// RFC-BPR-0084. A published post's image references, by post identity.
 		std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> ImageRequest;

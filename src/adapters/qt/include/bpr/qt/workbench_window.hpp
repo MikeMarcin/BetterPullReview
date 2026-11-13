@@ -3101,12 +3101,12 @@ namespace bpr::qt {
 		/// [[BPR-1592]]. Goes to another file's note: its file, then its line.
 		void open_private_note_elsewhere(const private_note_item& aNote);
 		/// [[BPR-1592]]. Opens a note waiting for its file once it shows.
-		void     resume_private_note_open();
+		void resume_private_note_open();
 		/// RFC-BPR-0127. Delete on my Local comment, once asked.
-		void                      confirm_delete_local(const std::string& aIdentity);
+		void                           confirm_delete_local(const std::string& aIdentity);
 		QPointer<destructive_question> DeleteLocalConfirmation;
-		void                      open_local_elsewhere(const std::string& aIdentity);
-		QWidget* TrayCommentsCount = nullptr;
+		void                           open_local_elsewhere(const std::string& aIdentity);
+		QWidget*                       TrayCommentsCount = nullptr;
 
 		/// The Home button is the way back to the review behind Home.
 		bool HomeActionReturns = false;

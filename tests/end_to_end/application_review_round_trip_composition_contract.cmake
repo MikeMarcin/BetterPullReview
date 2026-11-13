@@ -3704,8 +3704,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# RFC-BPR-0127 (BPR-2157): the window's notes are Local comments
 	# (store_local_comment, LocalComments, Body); the same ledger calls on the
 	# same lane. No new effect, provider, grant or publication path.
+	# RFC-BPR-0127 (BPR-2158, second round): a Local comment edited in place
+	# persists through the same ledger call at its revision; Keep local frees
+	# its line through leave_deleted_draft, as Delete does; a tests-only seam
+	# stores a whole-file or pull request comment. No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "25f8b6c19b742b59ad4e2841c9a7afb7eff02abd28596a3e8f98d7df57dde48c"
+        "b07c5443e5ec8214a3f3c8dff1dd82fb2c9871714160f5f04c0fbbf53e03d4a8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -74,13 +74,13 @@ namespace {
 	/// label counts, Overview's thread counts per file, and Home's row.
 	struct counters
 	{
-		QString                                                      Status;
-		QString                                                      CommentsTab;
-		QString                                                      NextNew;
-		std::vector<std::pair<std::string, std::size_t>>             Threads;
-		std::map<core::feedback_label, std::size_t>                  Labels;
+		QString                                                                                    Status;
+		QString                                                                                    CommentsTab;
+		QString                                                                                    NextNew;
+		std::vector<std::pair<std::string, std::size_t>>                                           Threads;
+		std::map<core::feedback_label, std::size_t>                                                Labels;
 		std::vector<std::tuple<std::string, std::size_t, std::size_t, std::optional<std::size_t>>> Files;
-		std::optional<core::queue_item>                              Home;
+		std::optional<core::queue_item>                                                            Home;
 
 		auto operator==(const counters&) const -> bool = default;
 	};
@@ -137,11 +137,11 @@ int main(int aArgc, char** aArgv)
 	{
 		bool terminal = false;
 		auto startup  = access::start(app::detail::github_public_path_fixture::conversations_v1, options, [&](auto aResult) {
-            terminal = true;
-            if (aResult) {
-                application = std::move(*aResult);
-            }
-        });
+			terminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
+		});
 		wait_for([&] { return terminal && startup->is_quiescent(); }, "composition starts");
 		expect(application != nullptr, "startup succeeds");
 	}
@@ -171,8 +171,8 @@ int main(int aArgc, char** aArgv)
 	}
 	window.tray_tabs()->setCurrentIndex(0);
 	wait_for([&] { return card_of(*cards, [&](const qt::thread_card& aCard) { return aCard.Id == threadId && aCard.Line == std::optional{ line }; }).has_value(); }, "the thread hangs at its line in Comments");
-	const auto before = read_counters(window);
-	const auto evidence = [&] { return access::review_mutation_evidence(*application); };
+	const auto before    = read_counters(window);
+	const auto evidence  = [&] { return access::review_mutation_evidence(*application); };
 	const auto mutations = evidence();
 
 	// N and Save: a Local comment on the thread's line.
@@ -408,8 +408,8 @@ int main(int aArgc, char** aArgv)
 	window.close_drawer_composer(false);
 	{
 		const std::scoped_lock lock{ server->Mutex };
-		const auto             local = [](const std::string& aBody) { return aBody.find("LOCAL-ONLY") != std::string::npos; };
-		auto                   sent  = std::size_t{ 0U };
+		const auto             local  = [](const std::string& aBody) { return aBody.find("LOCAL-ONLY") != std::string::npos; };
+		auto                   sent   = std::size_t{ 0U };
 		auto                   bodies = std::size_t{ 0U };
 		for (const auto* const list : { &server->StagedComments, &server->CompatibilityComments, &server->FileComments, &server->PreviousComments }) {
 			for (const auto& comment : *list) {

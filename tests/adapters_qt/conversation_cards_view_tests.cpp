@@ -1212,7 +1212,7 @@ namespace {
 		QApplication::processEvents();
 		expect(edits.size() == 1U && edits.front() == std::tuple{ std::uint64_t{ 8U }, std::uint64_t{ 3U }, std::string{ "Height is not clamped; width is." } },
 			   "Save gives its identity, its revision and the words; nothing is sent");
-		auto saved = view.local_comments();
+		auto saved                                                                       = view.local_comments();
 		std::ranges::find(saved, std::uint64_t{ 8U }, &qt::local_comment_card::Id)->Body = QStringLiteral("Height is not clamped; width is.");
 		view.set_local_comments(std::move(saved));
 		QApplication::processEvents();
