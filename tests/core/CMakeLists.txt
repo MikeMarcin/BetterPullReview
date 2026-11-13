@@ -1723,6 +1723,14 @@ bpr_enable_warnings(test_conversation_timeline)
 bpr_add_network_isolated_test(NAME core_conversation_timeline COMMAND test_conversation_timeline)
 set_tests_properties(core_conversation_timeline PROPERTIES PASS_REGULAR_EXPRESSION "CONVERSATION_TIMELINE_OK")
 
+# [[BPR-2171]]. Who Discuss treats as a bot, and its column's width.
+bpr_add_executable(test_discuss_preferences discuss_preferences_tests.cpp)
+target_link_libraries(test_discuss_preferences PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_discuss_preferences)
+bpr_enable_warnings(test_discuss_preferences)
+bpr_add_network_isolated_test(NAME core_discuss_preferences COMMAND test_discuss_preferences)
+set_tests_properties(core_discuss_preferences PROPERTIES PASS_REGULAR_EXPRESSION "DISCUSS_PREFERENCES_OK")
+
 # [[BPR-1844]]. Remembered Discuss, Threads and Review Comments filters.
 bpr_add_executable(
     test_better_pull_review_view_filter_memory_core_tests

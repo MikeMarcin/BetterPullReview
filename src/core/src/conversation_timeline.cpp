@@ -1,6 +1,7 @@
 #include "bpr/core/conversation_timeline.hpp"
 
 #include <algorithm>
+#include <optional>
 #include <string_view>
 #include <tuple>
 #include <unordered_map>
@@ -78,11 +79,40 @@ namespace bpr::core {
 			result.Threads += aItem.Kind == timeline_item_kind::thread ? 1U : 0U;
 			result.Unread += aItem.Unread ? 1U : 0U;
 		};
+		// [[BPR-2171]]. Each unit becomes pieces: a head row (a bundle's or a
+		// verdict's line, or a bots row) or a comment shown after the filters.
+		// A thread's context says which threads share a file row: those of one
+		// bundle, or lone threads in a row.
+		struct piece
+		{
+			const timeline_item* Item = nullptr;
+			std::string          Review;
+			std::string          Context;
+			std::optional<timeline_row> Head;
+		};
+		struct shown_unit
+		{
+			std::vector<piece> Pieces;
+			/// Its author is a bot and nothing in it is kept.
+			bool Bot = false;
+			/// What the unit carried that is a comment, in order.
+			std::vector<const timeline_item*> Comments;
+			std::string_view Author;
+		};
+		auto shownUnits = std::vector<shown_unit>{ };
+		shownUnits.reserve(units.size());
 		for (auto& entry : units) {
+			auto unit = shown_unit{ };
 			if (entry.Review == nullptr) {
-				if (shown(*entry.Members.front(), aFilters)) {
-					comment(*entry.Members.front(), std::string{ });
+				const auto& item = *entry.Members.front();
+				if (!shown(item, aFilters)) {
+					continue;
 				}
+				unit.Pieces.push_back(piece{ .Item = &item, .Context = item.Kind == timeline_item_kind::thread ? std::string{ "lone" } : std::string{ } });
+				unit.Comments.push_back(&item);
+				unit.Bot    = item.Bot && !item.Kept;
+				unit.Author = item.Author;
+				shownUnits.push_back(std::move(unit));
 				continue;
 			}
 			const auto& review = *entry.Review;
@@ -103,22 +133,106 @@ namespace bpr::core {
 				// Carried nothing: only a verdict that matters for merging shows.
 				if (verdict != timeline_verdict::none && !filtering) {
 					head.Kind = timeline_row_kind::verdict;
-					result.Rows.push_back(std::move(head));
-					++result.Verdicts;
+					unit.Pieces.push_back(piece{ .Head = std::move(head) });
+					shownUnits.push_back(std::move(unit));
 				}
 				continue;
 			}
-			auto headed = false;
+			auto kept = false;
 			for (const auto* member : members) {
 				if (!shown(*member, aFilters)) {
 					continue;
 				}
-				if (!headed) {
-					result.Rows.push_back(head);
-					headed = true;
+				if (unit.Pieces.empty()) {
+					unit.Pieces.push_back(piece{ .Head = head });
 				}
-				comment(*member, review.Id);
+				unit.Pieces.push_back(piece{ .Item = member, .Review = review.Id, .Context = member->Kind == timeline_item_kind::thread ? "bundle:" + review.Id : std::string{ } });
+				unit.Comments.push_back(member);
+				kept = kept || member->Kept;
 			}
+			if (!unit.Pieces.empty()) {
+				unit.Bot    = review.Bot && !kept;
+				unit.Author = review.Author;
+				shownUnits.push_back(std::move(unit));
+			}
+		}
+		// Runs of bot units take one bots row.
+		auto pieces = std::vector<piece>{ };
+		for (std::size_t at = 0U; at < shownUnits.size();) {
+			const auto& first = shownUnits[at];
+			if (!aFilters.FoldBots || !first.Bot || first.Comments.empty()) {
+				pieces.insert(pieces.end(), first.Pieces.begin(), first.Pieces.end());
+				++at;
+				continue;
+			}
+			auto end = at;
+			while (end < shownUnits.size() && shownUnits[end].Bot && !shownUnits[end].Comments.empty()) {
+				++end;
+			}
+			auto row = timeline_row{ .Kind = timeline_row_kind::bots, .Id = "bots:" + first.Comments.front()->Id };
+			row.Fold = row.Id;
+			row.Open = aFilters.Unfolded.contains(row.Fold);
+			for (auto unit = at; unit < end; ++unit) {
+				for (const auto* item : shownUnits[unit].Comments) {
+					row.Members.push_back(item->Id);
+				}
+				if (std::ranges::find(row.Authors, shownUnits[unit].Author) == row.Authors.end()) {
+					row.Authors.emplace_back(shownUnits[unit].Author);
+				}
+			}
+			const auto open = row.Open;
+			if (!open) {
+				result.Folded += row.Members.size();
+			}
+			pieces.push_back(piece{ .Head = std::move(row) });
+			if (open) {
+				for (auto unit = at; unit < end; ++unit) {
+					pieces.insert(pieces.end(), shownUnits[unit].Pieces.begin(), shownUnits[unit].Pieces.end());
+				}
+			}
+			at = end;
+		}
+		for (std::size_t at = 0U; at < pieces.size();) {
+			auto& current = pieces[at];
+			if (current.Head.has_value()) {
+				result.Verdicts += current.Head->Kind == timeline_row_kind::verdict ? 1U : 0U;
+				result.Rows.push_back(std::move(*current.Head));
+				++at;
+				continue;
+			}
+			const auto& item = *current.Item;
+			if (!aFilters.Files || item.Kind != timeline_item_kind::thread) {
+				comment(item, current.Review);
+				++at;
+				continue;
+			}
+			// One file row over the threads that follow one another on it.
+			auto end = at + 1U;
+			while (end < pieces.size() && !pieces[end].Head.has_value() && pieces[end].Item->Kind == timeline_item_kind::thread
+				   && pieces[end].Context == current.Context && pieces[end].Item->Path == item.Path) {
+				++end;
+			}
+			const auto folds = [&aFilters](const timeline_item& aThread) { return aFilters.FoldResolved && aThread.Resolved && !aThread.Unread && !aThread.Kept; };
+			auto       row   = timeline_row{ .Kind = timeline_row_kind::file, .Id = item.Id, .Review = current.Review, .Path = item.Path };
+			for (auto member = at; member < end; ++member) {
+				if (folds(*pieces[member].Item)) {
+					row.Members.push_back(pieces[member].Item->Id);
+				}
+			}
+			if (!row.Members.empty()) {
+				row.Fold = "file:" + item.Id;
+				row.Open = aFilters.Unfolded.contains(row.Fold);
+			}
+			const auto open = row.Open;
+			result.Rows.push_back(std::move(row));
+			for (auto member = at; member < end; ++member) {
+				if (!open && folds(*pieces[member].Item)) {
+					++result.Folded;
+					continue;
+				}
+				comment(*pieces[member].Item, pieces[member].Review);
+			}
+			at = end;
 		}
 		return result;
 	}
