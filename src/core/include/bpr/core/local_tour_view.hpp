@@ -118,6 +118,11 @@ namespace bpr::core {
 		local_publication_mapping Mapping;
 	};
 	[[nodiscard]] auto carry_local_tour_to_pull_request(const local_draft& aDraft, const local_publication_result& aResult, const review_tour& aTarget) -> local_tour_carry;
+	/// \brief What the window says when the pull request's tour draft refuses
+	/// the carry (`aRefusal` from applying it as a restore), so a carried
+	/// tour is never dropped in silence. The local draft keeps its tour. Empty
+	/// for `tour_refusal::none`.
+	[[nodiscard]] auto local_tour_carry_refusal_words(tour_refusal aRefusal) -> std::string;
 
 	/// \brief The local edits a panel command stands for, in order.
 	[[nodiscard]] auto translate_local_tour_command(const local_draft& aDraft, const tour_command& aCommand) -> std::vector<local_tour_edit>;

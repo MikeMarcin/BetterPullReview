@@ -10,6 +10,7 @@
 #include <map>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bpr::core {
@@ -312,6 +313,27 @@ namespace bpr::core {
 			view.Proposal = std::move(proposal);
 		}
 		return view;
+	}
+
+	auto local_tour_carry_refusal_words(const tour_refusal aRefusal) -> std::string
+	{
+		const auto why = [aRefusal]() -> std::string_view {
+			switch (aRefusal) {
+			case tour_refusal::none:            return { };
+			case tour_refusal::identity:        return "it belongs to another pull request or account";
+			case tour_refusal::conflict:        return "the pull request's tour changed meanwhile";
+			case tour_refusal::invalid_source:  return "a stop's lines could not be placed in it";
+			case tour_refusal::invalid_command: return "the tour could not be read";
+			case tour_refusal::bounds:          return "it is larger than a tour may be";
+			case tour_refusal::incomplete:      return "a stop is missing its title, explanation or lines";
+			case tour_refusal::exhausted:       return "the tour has no room for more stops";
+			}
+			return "it was refused";
+		}();
+		if (why.empty()) {
+			return { };
+		}
+		return "The local draft's tour could not start this pull request's tour: " + std::string{ why } + ". The local draft keeps its tour.";
 	}
 
 	auto carry_local_tour_to_pull_request(const local_draft& aDraft, const local_publication_result& aResult, const review_tour& aTarget) -> local_tour_carry

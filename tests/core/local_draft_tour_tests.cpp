@@ -410,8 +410,25 @@ namespace {
 	}
 }
 
+namespace {
+	/// The window applies a carry as a restore of the pull request's empty
+	/// tour draft; a refusal is said, never dropped (2026-11-13 follow-up of
+	/// the carry that opened #182 with an empty tour).
+	void test_carry_refusal_words()
+	{
+		expect(core::local_tour_carry_refusal_words(core::tour_refusal::none).empty(), "an applied carry says nothing");
+		for (const auto refusal : { core::tour_refusal::identity, core::tour_refusal::conflict, core::tour_refusal::invalid_source, core::tour_refusal::invalid_command, core::tour_refusal::bounds,
+									core::tour_refusal::incomplete, core::tour_refusal::exhausted }) {
+			const auto words = core::local_tour_carry_refusal_words(refusal);
+			expect(words.starts_with("The local draft's tour could not start this pull request's tour: ") && words.ends_with(" The local draft keeps its tour."), "each refusal is said: " + words);
+		}
+		expect(core::local_tour_carry_refusal_words(core::tour_refusal::invalid_source).find("a stop's lines could not be placed") != std::string::npos, "invalid_source names the stop's lines");
+	}
+}
+
 auto main() -> int
 {
+	test_carry_refusal_words();
 	test_signed_out_authoring();
 	test_correspondence();
 	test_refresh_keeps_only_exact();

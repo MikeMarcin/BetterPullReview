@@ -3696,8 +3696,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# opens one. The author's Git runs on a worker lane of its own; a fixture
 	# hold of that lane is tests-only. main.cpp's tour look drives the panel.
 	# No grant, credential, provider, mutation branch or publication change.
+	# Owner looks of 2026-11-13: the tour notices say apply, not accept, for
+	# parts that accept no stop, and a carry the pull request's tour draft
+	# refuses is shown in the Tour panel instead of dropped. No new effect.
 	set(bpr_expected_production_app_manifest_digest
-        "dd5652b7f4693924a116ae1b1ce5d94e389392d61da60d721a10b3afe762b691"
+        "b31b05f231f19f1f0f7def9d823555a953fecc722bb7200013ce1ca3b2f2c89b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

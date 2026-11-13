@@ -2998,10 +2998,22 @@ namespace bpr::app {
 				return;
 			}
 			const auto shown = TourHost->presentation();
-			if (!shown.Draft || !shown.Draft->Stops.empty() || !shown.Draft->Problem.empty() || !shown.Draft->Solution.empty() || aCarry.Tour.Head != shown.Draft->Head) {
+			if (!shown.Draft || !shown.Draft->Stops.empty() || !shown.Draft->Problem.empty() || !shown.Draft->Solution.empty()) {
+				// The author began this tour meanwhile: theirs stands.
 				return;
 			}
-			static_cast<void>(TourHost->execute({ .Command = { .Draft = shown.Draft->Id, .Owner = shown.Draft->Owner, .ExpectedRevision = shown.Draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = std::move(aCarry.Tour) } }));
+			// A carry the tour draft refuses is said, never dropped in silence
+			// (the refusal that opened #182 with an empty tour was discarded here).
+			auto refusal = core::tour_refusal::conflict;
+			if (aCarry.Tour.Head == shown.Draft->Head) {
+				const auto applied = TourHost->execute({ .Command = { .Draft = shown.Draft->Id, .Owner = shown.Draft->Owner, .ExpectedRevision = shown.Draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = std::move(aCarry.Tour) } });
+				const auto taken   = applied.Status == application::tour_service_status::accepted || applied.Status == application::tour_service_status::unchanged;
+				refusal            = taken ? core::tour_refusal::none : applied.Refusal != core::tour_refusal::none ? applied.Refusal
+																													: core::tour_refusal::conflict;
+			}
+			if (const auto words = core::local_tour_carry_refusal_words(refusal); !words.empty() && Window != nullptr) {
+				Window->tour_editor()->show_notice(QString::fromStdString(words));
+			}
 		});
 	}
 

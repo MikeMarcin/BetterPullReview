@@ -316,7 +316,8 @@ namespace {
 				const auto box        = label->contentsRect();
 				const auto text       = std::min(box.height(), label->heightForWidth(label->width()));
 				const auto vertical   = label->alignment() & Qt::AlignVertical_Mask;
-				const auto top        = vertical == Qt::AlignTop ? 0.0 : vertical == Qt::AlignBottom ? double(box.height() - text) : (box.height() - text) / 2.0;
+				const auto top        = vertical == Qt::AlignTop ? 0.0 : vertical == Qt::AlignBottom ? double(box.height() - text)
+																									 : (box.height() - text) / 2.0;
 				const auto lineCentre = label->mapTo(row, QPointF{ 0.0, box.top() + top + (label->fontMetrics().height() / 2.0) }).y();
 				if (std::abs(markCentre - lineCentre) > 1.0) {
 					std::cerr << "row " << label->text().toStdString() << " at width " << width << ": mark centre " << markCentre << ", first line centre " << lineCentre << '\n';
@@ -329,7 +330,8 @@ namespace {
 					expect(row->height() == rows.back()->height(), "one-line steps are rows of one height");
 				}
 			}
-			save(host, aPrefix, roomy ? "step-marks-roomy.png" : width == 420 ? "step-marks.png" : "step-marks-narrow.png");
+			save(host, aPrefix, roomy ? "step-marks-roomy.png" : width == 420 ? "step-marks.png"
+																			  : "step-marks-narrow.png");
 		}
 	}
 }
