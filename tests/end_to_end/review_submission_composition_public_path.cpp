@@ -482,13 +482,13 @@ auto main(int argc, char** argv) -> int
 					expect(!ledger.empty() && ::sqlite3_open_v2(ledger.string().c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK,
 						   "the private ledger opens for reading");
 					::sqlite3_stmt* query = nullptr;
-					expect(::sqlite3_prepare_v2(database, "SELECT path FROM private_note_path", -1, &query, nullptr) == SQLITE_OK, "the note path table is read");
+					expect(::sqlite3_prepare_v2(database, "SELECT path FROM private_local_comment WHERE path IS NOT NULL", -1, &query, nullptr) == SQLITE_OK, "the Local comments' paths are read");
 					auto paths = QStringList{ };
 					while (::sqlite3_step(query) == SQLITE_ROW) {
 						paths.push_back(QString::fromUtf8(reinterpret_cast<const char*>(::sqlite3_column_text(query, 0))));
 					}
 					::sqlite3_finalize(query);
-					expect(::sqlite3_prepare_v2(database, "SELECT side,line FROM private_note_line", -1, &query, nullptr) == SQLITE_OK, "the note line table is read");
+					expect(::sqlite3_prepare_v2(database, "SELECT side,line FROM private_local_comment WHERE line IS NOT NULL", -1, &query, nullptr) == SQLITE_OK, "the Local comments' lines are read");
 					auto lines = std::vector<std::pair<int, int>>{ };
 					while (::sqlite3_step(query) == SQLITE_ROW) {
 						lines.emplace_back(::sqlite3_column_int(query, 0), ::sqlite3_column_int(query, 1));
@@ -501,11 +501,11 @@ auto main(int argc, char** argv) -> int
 						   "the line note's side and line are kept in the ledger");
 				}
 				notes->open_note(noteId);
-				notes->body_editor()->setPlainText(QString(static_cast<qsizetype>(core::maximum_note_bytes) + 1, QLatin1Char{ 'x' }));
+				notes->body_editor()->setPlainText(QString(static_cast<qsizetype>(core::maximum_comment_body_bytes) + 1, QLatin1Char{ 'x' }));
 				notes->save_action()->trigger();
 				// [[BPR-1246]]. The ledger answers on its own lane ([[BPR-1211]]),
 				// so the refusal is waited for rather than read at once.
-				wait([&] { return notes->body_editor()->toPlainText().size() == static_cast<qsizetype>(core::maximum_note_bytes) + 1
+				wait([&] { return notes->body_editor()->toPlainText().size() == static_cast<qsizetype>(core::maximum_comment_body_bytes) + 1
 							   && notes->findChild<QLabel*>(QStringLiteral("privateNoteStatus"))->text().contains(QStringLiteral("invalid_record")); },
 					 "refused write retains the full local candidate and says why");
 				notes->discard_action()->trigger();
@@ -563,6 +563,23 @@ auto main(int argc, char** argv) -> int
 				if (argc > 1) {
 					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-note-promoted.png")), "promoted private note render");
 				}
+				// RFC-BPR-0127 AC03 ([[BPR-2157]]). Local comments on the
+				// line and on the pull request stand through every send this
+				// course makes; none is ever sent (checked at its end).
+				window.tray_tabs()->setCurrentIndex(1);
+				QApplication::processEvents();
+				notes->new_line_action()->trigger();
+				wait([&] { return notes->writing(); }, "N opens a Local comment at the line");
+				notes->body_editor()->setPlainText(QStringLiteral("LOCAL-ONLY: a line comment, never sent."));
+				notes->save_action()->trigger();
+				wait([&] { return newest("LOCAL-ONLY: a line comment, never sent.") != nullptr; }, "the Local line comment is kept");
+				notes->close_note();
+				notes->new_review_action()->trigger();
+				notes->body_editor()->setPlainText(QStringLiteral("LOCAL-ONLY: a pull request comment, never sent."));
+				notes->save_action()->trigger();
+				wait([&] { return newest("LOCAL-ONLY: a pull request comment, never sent.") != nullptr; }, "the Local pull request comment is kept");
+				notes->close_note();
+				window.tray_tabs()->setCurrentIndex(0);
 				window.close_review_composition();
 				window.open_review_composition();
 			}
@@ -622,9 +639,10 @@ auto main(int argc, char** argv) -> int
 		application = make(app::detail::github_epoch_fixture_phase::reuse);
 		open(*application, cli);
 		auto* restoredNotes = application->window().private_notes();
-		wait([&] { return restoredNotes->notes().size() == 1U; }, "private note survives application reconstruction through SQLite");
-		expect(restoredNotes->notes().front().Text == "A private note, copied literally." && restoredNotes->notes().front().Attachment && restoredNotes->notes().front().Attachment->Line,
-			   "promotion retained the durable private source, with its line");
+		// The note and the two Local comments written for AC03.
+		wait([&] { return restoredNotes->notes().size() == 3U; }, "private note survives application reconstruction through SQLite");
+		const auto promotedSource = std::ranges::find(restoredNotes->notes(), std::string{ "A private note, copied literally." }, &qt::private_note_item::Text);
+		expect(promotedSource != restoredNotes->notes().end() && promotedSource->Attachment && promotedSource->Attachment->Line, "promotion retained the durable private source, with its line");
 		auto& restored = *application->window().review_submission_editor_view();
 		submitted(restored);
 		expect(restored.last_submitted()->Id == pending.Id && restored.last_submitted()->Attempt == pending.Attempt
@@ -1459,6 +1477,41 @@ auto main(int argc, char** argv) -> int
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->Submissions == before + 1U, "Comment submits once");
 			expect(server->Reviews.back().Proposal.Disposition == core::review_disposition::comment, "as a comment");
+		}
+		{
+			// RFC-BPR-0127 AC03. Every body the fixture server received: none
+			// carries a Local comment's words, and both are still Local.
+			std::scoped_lock lock{ server->Mutex };
+			const auto       local = [](const std::string_view aBody) { return aBody.find("LOCAL-ONLY") != std::string_view::npos; };
+			auto             sent  = std::size_t{ 0U };
+			for (const auto& review : server->Reviews) {
+				sent += local(review.Proposal.Body) ? 1U : 0U;
+				for (const auto& comment : review.Proposal.Comments) {
+					sent += local(comment.Body) ? 1U : 0U;
+				}
+			}
+			for (const auto* const comments : { &server->PreviousComments, &server->StagedComments, &server->CompatibilityComments, &server->FileComments }) {
+				sent += static_cast<std::size_t>(std::ranges::count_if(*comments, [&local](const application::staged_review_comment& aComment) { return local(aComment.Body); }));
+			}
+			sent += static_cast<std::size_t>(std::ranges::count_if(server->ReviewPosts, local));
+			sent += server->StagedDescription && local(*server->StagedDescription) ? 1U : 0U;
+			expect(!server->Reviews.empty() && sent == 0U, "no review, comment, reply or post the server received carries a Local comment");
+		}
+		{
+			auto ledger = std::filesystem::path{ };
+			for (const auto& entry : std::filesystem::recursive_directory_iterator{ *dataRoot }) {
+				if (entry.path().filename() == "review-ledger.sqlite3") {
+					ledger = entry.path();
+				}
+			}
+			::sqlite3* database = nullptr;
+			expect(!ledger.empty() && ::sqlite3_open_v2(ledger.string().c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK, "the private ledger opens for reading at the end");
+			::sqlite3_stmt* query = nullptr;
+			expect(::sqlite3_prepare_v2(database, "SELECT COUNT(*) FROM private_local_comment WHERE CAST(body AS TEXT) LIKE 'LOCAL-ONLY:%'", -1, &query, nullptr) == SQLITE_OK && ::sqlite3_step(query) == SQLITE_ROW, "the Local comments are counted");
+			const auto kept = ::sqlite3_column_int(query, 0);
+			::sqlite3_finalize(query);
+			::sqlite3_close(database);
+			expect(kept == 2, "both Local comments are still Local after every send");
 		}
 		shutdown(*application);
 		cli.check();

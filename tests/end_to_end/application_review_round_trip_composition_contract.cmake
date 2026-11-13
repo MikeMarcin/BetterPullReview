@@ -3699,8 +3699,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Owner looks of 2026-11-13: the tour notices say apply, not accept, for
 	# parts that accept no stop, and a carry the pull request's tour draft
 	# refuses is shown in the Tour panel instead of dropped. No new effect.
+	# RFC-BPR-0127 (BPR-2157): the window's notes are Local comments
+	# (store_local_comment, LocalComments, Body); the same ledger calls on the
+	# same lane. No new effect, provider, grant or publication path.
 	set(bpr_expected_production_app_manifest_digest
-        "b31b05f231f19f1f0f7def9d823555a953fecc722bb7200013ce1ca3b2f2c89b"
+        "e66e7225c7590beeadc84c480fe46795caba2e481cf87f407e8f51a9304560eb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

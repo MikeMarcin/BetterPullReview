@@ -1213,7 +1213,7 @@ provider, no coordinator, and no publication path reachable from it.**
 `agent_finding_outcome` has no field a `review_publication_proposal` or a
 `review_mutation_target` could occupy. `promoted_note` builds the one note,
 and writing it reaches exactly one port method,
-`review_ledger_store_port::store_note`; that is the single authority agent
+`review_ledger_store_port::store_local_comment`; that is the single authority agent
 output may reach. Every outcome is presented, refusal included,
 and `PresentedOutcomes` is asserted equal to `Actions`, because an outcome that
 was computed and not presented is one the reviewer never saw (BPR-0500,
@@ -1436,7 +1436,7 @@ Windows and Linux native verification remain pending. The Mac courses are
 `application_mcp_context_helper` and `application_mcp_terminal_diagnostics`.
 
 Nothing the agent returns reaches a second authority. The finding host's only
-durable write is `review_ledger_store_port::store_note`, and there is no branch
+durable write is `review_ledger_store_port::store_local_comment`, and there is no branch
 in that path that could publish, open a defect, move a review head, or admit a
 session (BPR-0500, `application_agent_invocation_host`).
 
@@ -1465,7 +1465,7 @@ session (BPR-0500, `application_agent_invocation_host`).
 | The external terminal refuses a payload as `unsupported_finding_transport` | `application_agent_finding_protocol` |
 | Deleting the validation call at the decode-to-core seam fails an invalid-anchor case | `application_agent_finding_protocol` |
 | A payload arriving after an accepted head move is stale with its analyzed OIDs intact | `application_agent_invocation_host` |
-| A promoted note reaches `store_note` and no other authority | `application_agent_invocation_host` |
+| A promoted note reaches `store_local_comment` and no other authority | `application_agent_invocation_host` |
 | The advertised MCP tool list equals the source enumeration exactly | `application_mcp_context_helper` |
 | Every MCP refusal — connect, bind, escape, symlink, and each write/draft/publish/note name — is refused by its own cause | `application_mcp_context_helper` |
 | The helper child's environment is exactly the two allowlisted names while the parent holds secrets | `application_mcp_context_helper` |
