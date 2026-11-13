@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2160"
 title: "One keep action on the agent surfaces, and the wording sweep"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0127"]
 depends_on: ["BPR-2158"]
 priority: "P2"
