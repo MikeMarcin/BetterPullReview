@@ -2674,7 +2674,7 @@ Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines in comm
 | `b0ea75ce8` | Composed course `application_local_comments_found_public_path` (AC07-AC09); Threads' open-draft row carries its identity (it was listed twice) and follows the roster; AC13's course counts threads, not Local rows; app source pin resealed |
 | `c5d5da4df` | **BPR-2159 Done** (AC07, AC08, AC09); ledger. **Frozen commit for look v004** |
 | `06a2c6fd7` | BPR-2160 Ready (not claimed) |
-| main `e6425c822`, next | Mirrors |
+| main `e6425c822`, `c034f39fe` | Mirrors (BPR-2159 Done; BPR-2160 Ready and look v004) |
 
 Evidence: [BPR-2159 card](../../60-done/BPR-2159-local-comments-found-and-counted.md#progress-2026-11-13); documentation gate OK on lane and main; format gate passes.
 
