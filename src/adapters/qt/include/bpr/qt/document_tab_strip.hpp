@@ -92,6 +92,12 @@ namespace bpr::qt {
 		/// \brief A tab's menu, built as a right-click builds it; the caller
 		/// owns it.
 		[[nodiscard]] auto make_tab_menu(core::document_tab_id aTab, QWidget* aParent) -> QMenu*;
+		/// \brief RFC-BPR-0117 ([[BPR-2076]]). What the holder adds to a tab's
+		/// menu, after the strip's own items (Explain This File).
+		void set_menu_extension(std::function<void(const document_tab_presentation& aTab, QMenu& aMenu)> aExtension) { MenuExtension = std::move(aExtension); }
+		/// \brief RFC-BPR-0117. A control of the holder's at the strip's right,
+		/// before the plus (Explain this file); the strip takes ownership.
+		void add_trailing_control(QWidget* aControl);
 
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
@@ -110,6 +116,7 @@ namespace bpr::qt {
 		void               open_tab_menu(const QPoint& aAt);
 
 		document_tab_dispatch                  Dispatch;
+		std::function<void(const document_tab_presentation&, QMenu&)> MenuExtension;
 		std::vector<document_tab_presentation> Tabs;
 		/// The tabs the bar shows, in its order.
 		std::vector<core::document_tab_id> Shown;

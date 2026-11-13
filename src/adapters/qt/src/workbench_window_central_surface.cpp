@@ -425,6 +425,43 @@ namespace bpr::qt {
 			}
 		});
 		comparisonColumn->addWidget(DocumentTabs);
+		// RFC-BPR-0117 ([[BPR-2076]]). Explain this file: a text control at the
+		// header's right, before the plus, in the Agent accent because a press
+		// starts the agent; and the same command in each tab's menu. Its
+		// answer's card stands under the header while it is the active file's.
+		ExplainFileButton = new quiet_tool_button{ DocumentTabs };
+		ExplainFileButton->setObjectName(QStringLiteral("explainFileButton"));
+		ExplainFileButton->setAutoRaise(true);
+		ExplainFileButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		ExplainFileButton->setText(tr("Explain this file"));
+		ExplainFileButton->setAccessibleName(ExplainFileButton->text());
+		ExplainFileButton->setFocusPolicy(Qt::StrongFocus);
+		ExplainFileButton->setFixedHeight(DocumentTabs->new_tab_button()->sizeHint().height());
+		ExplainFileButton->setEnabled(false);
+		wear_agent_accent(*ExplainFileButton, palette());
+		connect(ExplainFileButton, &QToolButton::clicked, this, [this] {
+			if (const auto path = active_document_path(); ExplainFileDispatch && !path.isEmpty()) {
+				ExplainFileDispatch(path);
+			}
+		});
+		DocumentTabs->add_trailing_control(ExplainFileButton);
+		DocumentTabs->set_menu_extension([this](const document_tab_presentation& aTab, QMenu& aMenu) {
+			auto* const explain = aMenu.addAction(tr("Explain This File"));
+			explain->setObjectName(QStringLiteral("documentTabExplainFile"));
+			explain->setEnabled(ExplainFileOffered && static_cast<bool>(ExplainFileDispatch) && !aTab.Path.isEmpty());
+			connect(explain, &QAction::triggered, this, [this, tab = aTab.Id, path = aTab.Path] {
+				if (!ExplainFileDispatch) {
+					return;
+				}
+				// The file is explained where it is read: its tab first.
+				if (DocumentTabDispatch && active_document_path() != path) {
+					DocumentTabDispatch(core::activate_tab_intent{ .Tab = tab });
+				}
+				ExplainFileDispatch(path);
+			});
+		});
+		ExplainCard = new explain_file_card{ ComparisonPage };
+		comparisonColumn->addWidget(ExplainCard);
 		// RFC-BPR-0089 M3. Over a split file's diff, its per-commit diffs; it
 		// takes no room while hidden, so every other diff keeps its geometry.
 		SplitStrip = new split_diff_strip{ ComparisonPage };

@@ -39,6 +39,7 @@
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
@@ -1181,6 +1182,21 @@ namespace bpr::qt {
 		void set_document_tab_dispatch(document_tab_dispatch aDispatch);
 		/// \brief [[BPR-1132]]. The comparison's header: the document tabs.
 		[[nodiscard]] auto document_tabs() const noexcept -> document_tab_strip*;
+		/// \brief RFC-BPR-0117 ([[BPR-2076]]). Explain this file, at the
+		/// comparison's header and in a tab's menu: where a press goes, with
+		/// the active tab's file.
+		void set_explain_file_dispatch(std::function<void(const QString& aPath)> aDispatch);
+		/// \brief RFC-BPR-0117. Whether a press can be sent now (the agent is
+		/// set up and not answering); the control stays where it is either way.
+		void               set_explain_file_offered(bool aOffered);
+		[[nodiscard]] auto explain_file_button() const noexcept -> QToolButton* { return ExplainFileButton; }
+		/// \brief RFC-BPR-0117. The answer's card at the file's header; shown
+		/// while it holds a turn for the active tab's file.
+		[[nodiscard]] auto explain_card() const noexcept -> explain_file_card* { return ExplainCard; }
+		void               present_explain_file(const explain_file_progress& aProgress);
+		void               dismiss_explain_file();
+		/// \brief The active tab's file; empty when no tab is open.
+		[[nodiscard]] auto active_document_path() const -> QString;
 		/// \brief [[BPR-1132]]. Ctrl+Tab and Ctrl+Shift+Tab (the Control key on
 		/// macOS too), window-owned.
 		[[nodiscard]] auto next_tab_action() const noexcept -> QAction*;
@@ -2720,6 +2736,13 @@ namespace bpr::qt {
 		/// the tabs the host last published, the tab keys and the older-pair
 		/// notice.
 		document_tab_strip*                                  DocumentTabs = nullptr;
+		/// RFC-BPR-0117. Explain this file's control, its card and where a
+		/// press goes.
+		QToolButton*                         ExplainFileButton = nullptr;
+		explain_file_card*                   ExplainCard       = nullptr;
+		std::function<void(const QString&)>  ExplainFileDispatch;
+		bool                                 ExplainFileOffered = false;
+		void                                 refresh_explain_file();
 		document_tab_dispatch                                DocumentTabDispatch;
 		std::optional<application::document_tabs_projection> TabsProjection;
 		QAction*                                             NextTabAction     = nullptr;

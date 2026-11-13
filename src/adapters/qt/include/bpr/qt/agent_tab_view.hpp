@@ -16,6 +16,7 @@
 #include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/skill_references.hpp"
+#include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
@@ -437,6 +438,21 @@ namespace bpr::qt {
 		[[nodiscard]] auto turn_ask_more_button(std::size_t aTurn) const -> QPushButton*;
 		/// Whether a turn's question was a returning one, and which.
 		[[nodiscard]] auto turn_returning(std::size_t aTurn) const -> std::optional<core::returning_operation>;
+		/// \brief RFC-BPR-0117 ([[BPR-2076]]). Asks Explain this file of
+		/// `aPath` as a turn here, as a suggestion is sent, without showing the
+		/// tab. Answers the refusal's words when nothing was sent, else empty.
+		auto ask_explain_file(const QString& aPath) -> QString;
+		/// \brief RFC-BPR-0117. Each Explain this file turn as it starts, runs
+		/// and ends, or a refusal of one, for the card at the file's header.
+		void set_explain_observer(std::function<void(const explain_file_progress&)> aObserver) { ExplainObserver = std::move(aObserver); }
+		/// \brief RFC-BPR-0117. The file a turn explained; empty for any other.
+		[[nodiscard]] auto turn_explain(std::size_t aTurn) const -> QString;
+		/// \brief RFC-BPR-0117. Continue in Agent tab: brings the turn into view.
+		void reveal_turn(std::size_t aTurn);
+		/// \brief An answer's reference, followed as the tab's own are.
+		void open_reference(const QString& aLink) { follow_link(aLink); }
+		/// \brief Sets another surface's answer as the tab's answers are set.
+		void dress_answer_view(markdown_body_view& aView) const { dress_answer(aView); }
 		void               set_conversation_dismiss(std::function<void()> aDismiss);
 		[[nodiscard]] auto conversation_chip() const noexcept -> QWidget* { return ConversationChip; }
 		[[nodiscard]] auto conversation_chip_text() const -> QString;
@@ -719,6 +735,9 @@ namespace bpr::qt {
 			/// RFC-BPR-0116. A returning question's fresh first answer: the
 			/// claim it leads with, and Ask more.
 			std::optional<core::returning_operation> Returning;
+			/// RFC-BPR-0117. The file Explain this file asked about; empty for
+			/// every other turn.
+			QString                                  Explain;
 			QPointer<QLabel>                         Claim;
 			QPointer<QPushButton>                    AskMore;
 			QPointer<QWidget>                        Asked;
@@ -878,6 +897,12 @@ namespace bpr::qt {
 		std::map<QString, core::returning_operation>        ReturningPrompts;
 		std::optional<core::returning_operation>            SendingReturning;
 		std::optional<core::returning_operation>            PendingReturning;
+		/// RFC-BPR-0117. The file Explain this file is being sent for, the
+		/// one a sent question was for, and who is told of its turns.
+		QString                                             SendingExplain;
+		QString                                             PendingExplain;
+		std::function<void(const explain_file_progress&)>   ExplainObserver;
+		void publish_explain(std::size_t aTurn, std::optional<agent_run_status> aRunning, const QString& aEnding, bool aAnswered, qint64 aSeconds);
 		core::latest_upload_offer                           LatestUpload;
 		QLabel*                                             LatestUploadNote = nullptr;
 		std::function<void(const QString&, const QString&)> AskMoreDispatch;

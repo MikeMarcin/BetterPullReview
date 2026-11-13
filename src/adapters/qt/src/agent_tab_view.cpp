@@ -769,6 +769,7 @@ namespace bpr::qt {
 			PendingKeepsField = KeepingDraft;
 			PendingAbout      = ConversationShown;
 			PendingReturning  = SendingReturning;
+			PendingExplain    = SendingExplain;
 			// [[BPR-1773]]. Where its answer's Draft comment would go is
 			// decided now, while what it was asked on is on screen.
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
@@ -1118,6 +1119,10 @@ namespace bpr::qt {
 			next.About       = PendingAbout;
 			next.DraftTarget = PendingDraftTarget;
 			next.Returning   = PendingReturning;
+			next.Explain     = PendingExplain;
+			if (!next.Explain.isEmpty()) {
+				next.ContextFile = next.Explain;
+			}
 			// Sent: the field is ready for the next question, unless it
 			// holds what the reviewer typed before a suggestion was sent.
 			if (!PendingKeepsField) {
@@ -1129,12 +1134,19 @@ namespace bpr::qt {
 		PendingAbout.reset();
 		PendingDraftTarget.reset();
 		PendingReturning.reset();
+		PendingExplain.clear();
 		PendingReview  = false;
 		FindingsAtTurn = FindingsPresented;
 		next.AskedAt   = QDateTime::currentDateTime();
 		add_turn_widgets(next);
 		Turns.push_back(std::move(next));
 		Thread->show();
+		if (!Turns.back().Explain.isEmpty()) {
+			auto status  = agent_run_status{ };
+			status.Agent = Launch.profile_selector()->currentText();
+			status.Stage = agent_run_stage::preparing;
+			publish_explain(Turns.size() - 1U, status, { }, false, 0);
+		}
 	}
 
 	void agent_tab_view::add_turn_widgets(turn& aTurn)
@@ -2161,6 +2173,61 @@ namespace bpr::qt {
 		KeepingDraft = false;
 	}
 
+	auto agent_tab_view::ask_explain_file(const QString& aPath) -> QString
+	{
+		if (!panels_alive() || aPath.isEmpty()) {
+			return tr("Not sent.");
+		}
+		if (State == agent_tab_state::working) {
+			return tr("Not sent. The agent is answering another question.");
+		}
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		composer->setPlainText(tr("Explain %1").arg(aPath));
+		// Sent alone, as a suggestion is; what the reviewer had typed stays.
+		KeepingDraft   = !draft.trimmed().isEmpty();
+		SendingExplain = aPath;
+		ask();
+		SendingExplain.clear();
+		if (KeepingDraft) {
+			composer->setPlainText(draft);
+		} else if (!send_refusal_text().isEmpty()) {
+			composer->clear();
+		}
+		KeepingDraft = false;
+		return send_refusal_text();
+	}
+
+	auto agent_tab_view::turn_explain(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].Explain : QString{ }; }
+
+	void agent_tab_view::reveal_turn(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || Turns[aTurn].Widget == nullptr) {
+			return;
+		}
+		if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
+			scroll->ensureWidgetVisible(Turns[aTurn].Widget, 0, 12);
+		}
+	}
+
+	void agent_tab_view::publish_explain(const std::size_t aTurn, std::optional<agent_run_status> aRunning, const QString& aEnding, const bool aAnswered, const qint64 aSeconds)
+	{
+		if (!ExplainObserver || aTurn >= Turns.size()) {
+			return;
+		}
+		const auto& kept     = Turns[aTurn];
+		auto        progress = explain_file_progress{ .Path = kept.Explain, .Turn = aTurn, .Running = std::move(aRunning), .Started = Started, .Seconds = aSeconds, .AnswerText = kept.AnswerText, .Ending = aEnding, .Answered = aAnswered };
+		if (Launch.activity_reported()) {
+			progress.Activity = Launch.activity();
+			if (progress.Running) {
+				progress.Running->Activity          = Launch.activity();
+				progress.Running->ActivityStartedMs = Launch.activity_started_ms();
+			}
+		}
+		progress.Answer = LineNavigate && LineResolve ? agent_markdown_with_reference_links(kept.AnswerText, LineResolve(), kept.ContextFile) : kept.AnswerText;
+		ExplainObserver(progress);
+	}
+
 	auto agent_tab_view::turn_claim(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].Claim.data() : nullptr; }
 
 	auto agent_tab_view::turn_ask_more_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].AskMore.data() : nullptr; }
@@ -2199,6 +2266,9 @@ namespace bpr::qt {
 			if (RunObserver) {
 				RunObserver(status, Started);
 			}
+			if (!current.Explain.isEmpty()) {
+				publish_explain(Turns.size() - 1U, status, { }, false, seconds);
+			}
 			return;
 		}
 		case agent_launch_panel::phase::running: {
@@ -2220,6 +2290,9 @@ namespace bpr::qt {
 			current.Footer->present(status, Started);
 			if (RunObserver) {
 				RunObserver(status, Started);
+			}
+			if (!current.Explain.isEmpty()) {
+				publish_explain(Turns.size() - 1U, status, { }, false, seconds);
 			}
 			return;
 		}
@@ -2330,6 +2403,9 @@ namespace bpr::qt {
 			claim_findings(Turns.size() - 1U);
 		}
 		ClearSession->setVisible(true);
+		if (!current.Explain.isEmpty()) {
+			publish_explain(Turns.size() - 1U, std::nullopt, footer, succeeded, seconds);
+		}
 		if (ThreadObserver) {
 			ThreadObserver(thread_turns());
 		}
@@ -2419,7 +2495,7 @@ namespace bpr::qt {
 				kept.Draft->setVisible(actions.DraftComment);
 			}
 			if (kept.AskMore != nullptr) {
-				kept.AskMore->setVisible(kept.Returning.has_value() && actions.SaveNote);
+				kept.AskMore->setVisible((kept.Returning.has_value() || !kept.Explain.isEmpty()) && actions.SaveNote);
 			}
 			kept.RecoveryKind = actions.Recovery;
 			if (kept.Recovery != nullptr) {
@@ -3410,6 +3486,7 @@ namespace bpr::qt {
 			.Review               = SendingSuggestion && SendingSuggestion->second,
 			.OpenFile             = context.OpenFile.toStdString(),
 			.Returning            = SendingReturning,
+			.Explain              = SendingExplain.toStdString(),
 		};
 		LastQuestion = core::decide_agent_question(facts);
 		if (!LastQuestion) {
@@ -3586,6 +3663,9 @@ namespace bpr::qt {
 		if (!panels_alive() || aRefusal == core::agent_send_refusal::none) {
 			return;
 		}
+		// RFC-BPR-0117. An Explain this file refused says so on its card.
+		const auto explained = !SendingExplain.isEmpty() ? SendingExplain : PendingExplain;
+		PendingExplain.clear();
 		// Refused: the question stays in the field, and no turn waits for it.
 		PendingQuestion.reset();
 		PendingAbout.reset();
@@ -3603,6 +3683,9 @@ namespace bpr::qt {
 			// The host's words, with its stable names made readable.
 			detail.replace(QLatin1Char{ '_' }, QLatin1Char{ ' ' });
 			text += QStringLiteral(" ") + tr("(%1)").arg(detail);
+		}
+		if (!explained.isEmpty() && ExplainObserver) {
+			ExplainObserver(explain_file_progress{ .Path = explained, .Turn = Turns.size(), .Ending = text, .Answered = false });
 		}
 		ShownRefusal = aRefusal;
 		RefusalText->setText(text);

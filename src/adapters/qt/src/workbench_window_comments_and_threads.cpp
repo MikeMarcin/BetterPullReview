@@ -1474,6 +1474,62 @@ namespace bpr::qt {
 		}
 		DocumentTabs->present(std::move(tabs));
 		update_tab_actions();
+		refresh_explain_file();
+	}
+
+	void workbench_window::set_explain_file_dispatch(std::function<void(const QString&)> aDispatch)
+	{
+		ExplainFileDispatch = std::move(aDispatch);
+		refresh_explain_file();
+	}
+
+	void workbench_window::set_explain_file_offered(const bool aOffered)
+	{
+		ExplainFileOffered = aOffered;
+		refresh_explain_file();
+	}
+
+	auto workbench_window::active_document_path() const -> QString
+	{
+		if (DocumentTabs == nullptr) {
+			return { };
+		}
+		for (const auto& tab : DocumentTabs->tabs()) {
+			if (tab.Active) {
+				return tab.Path;
+			}
+		}
+		return { };
+	}
+
+	void workbench_window::present_explain_file(const explain_file_progress& aProgress)
+	{
+		if (ExplainCard == nullptr) {
+			return;
+		}
+		ExplainCard->present(aProgress);
+		refresh_explain_file();
+	}
+
+	void workbench_window::dismiss_explain_file()
+	{
+		if (ExplainCard != nullptr) {
+			ExplainCard->clear();
+		}
+		refresh_explain_file();
+	}
+
+	/// RFC-BPR-0117. The control is enabled while a press can be sent on an
+	/// open file; the card shows while its file is the active tab's.
+	void workbench_window::refresh_explain_file()
+	{
+		const auto path = active_document_path();
+		if (ExplainFileButton != nullptr) {
+			ExplainFileButton->setEnabled(ExplainFileOffered && static_cast<bool>(ExplainFileDispatch) && !path.isEmpty());
+		}
+		if (ExplainCard != nullptr) {
+			ExplainCard->setVisible(!ExplainCard->path().isEmpty() && ExplainCard->path() == path);
+		}
 	}
 
 	void workbench_window::update_tab_actions()
