@@ -47,3 +47,7 @@ from that answer (AC12; `application_local_draft_tour_desktop_public_path`,
 `claude_resume_canary.py`). The agent-assistance actions (RFC-BPR-0116 to
 0121) take `assistance_first_answer` when they are built. Record: the
 [RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md#second-pass-2026-11-12-resumed-local-discussion-ask-more-one-call-per-fresh-click).
+
+## Owner look
+
+Ask more: accepted in attended session `dfc73933…` (decision `658e5a46`, 2026-11-12), no note. [RFC-BPR-0101 ledger](../../verification/RFC-BPR-0101.md).
