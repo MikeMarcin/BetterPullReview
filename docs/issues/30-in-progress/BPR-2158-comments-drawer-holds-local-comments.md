@@ -91,3 +91,7 @@ Evidence (dev, Debug, macOS):
 Not built yet (this milestone):
 - The hidden Notes tabs are still tabs (hidden with `setTabVisible`, so Qt reports them invisible), and `private_notes_panel` is still the hidden backend for the old Notes surface and the courses that drive it. Retiring it moves `review_submission_composition_public_path`, `review_tour_composition_public_path`, `explain_file_public_path`, `hide_drawers_native_menu_key_tests` and five Qt test files off the panel.
 - A draft held by a submitted review still offers the Local segment, which is then refused with its reason; disabling it there is a possible refinement.
+
+## Owner look v002 filed (2026-11-13)
+
+Session `3fefa3666ff9e2c2fc0943c4672f8b1e` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v002-2026-11-13/state`, cursor 12), frozen root `/Users/jaeger/comments-absorb-notes-v002._jfvvf9h` from `6ffcf4cce274`, launcher check `ATTENDED_LOCAL_COMMENTS_SHOWN:6`. One Accept/Reject each: `local-edge-chips`, `reply-local-state`, `local-reply-actions`, `local-edit-and-delete`. Not waited on.

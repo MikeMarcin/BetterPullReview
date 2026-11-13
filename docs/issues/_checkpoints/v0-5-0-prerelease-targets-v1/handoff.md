@@ -2594,3 +2594,43 @@ Remaining in milestone 2:
 - BPR-2157's composed AC03 (a Send in a thread holding a Local reply sends none of it; a file-level Local) and AC13 (counts unchanged by Local), then close BPR-2157 and claim BPR-2158.
 
 Not touched: the v005 and v006 roots and PIDs 26296 and 51569; PIDs 20044, 39623, 74290, 74692/74706, 10695/39804; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
+
+### RFC-BPR-0127 milestone 2, second round (2026-11-13)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines in commits. Frontend-design was loaded first.
+
+Owner verdict on session `12534e15…` (forwarded by the coordinator, verified in `session.json`): `comment-states-on-a-line`, `composer-state-and-computer-icon` (the line-drawn computer glyph included) and `notes-tab-retired` all **Accept**, no notes. Recorded on BPR-2158 and in the new [RFC-BPR-0127 ledger](../../../verification/RFC-BPR-0127.md). Host 68507/68517 stopped with the attended-review `stop`; `/Users/jaeger/comments-absorb-notes-v001.1a7vqce8` removed with `freeze_attended_build.py remove` (nothing ran from it).
+
+| Commit | What |
+|---|---|
+| `a8d2d9366` | Verdict recorded; ledger started (main `be5eb5774`) |
+| `98069b5c5` | Edge chips (pull request count, This file, Other files), the reply field's Local/Reply control, edit in place, Delete asks, the Local reply's row; Save as Local moves a stored draft |
+| next | Qt evidence `test_local_comments_edges_and_editing` |
+| `64476cd4d` | Composed course `application_local_comments_composition_public_path`; N on a line where my draft stands opens it on Draft; Keep local frees its line (`leave_deleted_draft`); Make draft's offer recomputed on draft changes and redrawn |
+| `fe32da7ee` | Formatting; app source pin resealed |
+| `b79461670` | **BPR-2157 Done** (AC03, AC11, AC13) |
+| `e384701c1`, `bf8303a93` | BPR-2158 Ready, claimed |
+| `6ffcf4cce` | The look also seeds a whole-file and a pull request Local comment; pin resealed. **Frozen commit for look v002** |
+| main `ddecc6d8f` | Mirror of the card moves, LIVE_IMPORT links and the ledger |
+
+Runs (dev, Debug, macOS), all passing: `application_local_comments_composition_public_path` (four runs), `qt_conversation_cards_view`, `qt_workbench_window_scale_{100,125,200}`, `qt_drawer_surfaces_fit_scale_100`, `application_review_submission_composition_public_path`, `application_conversation_read_public_path`, `architecture_boundaries`, `application_composition_source_contract` (after each reseal). Format gate passes; `coding-tidy` not run. Documentation gate OK on lane and main; board validate clean.
+
+Findings this round:
+- The conversations fixture does not complete an inline thread reply's publication (Publish leaves the draft drafting, nothing reaches the server). The course records what Send hands to publication and checks every received body at the end.
+- After a submitted review the course could not reopen a reply in the same thread (no reply draft is offered); not investigated.
+- A draft held by a submitted review still offers the composer's Local segment; Save is then refused with its reason.
+
+BPR-2158 remains In Progress for:
+- Retiring `private_notes_panel` (hidden backend) and removing the hidden Notes tabs (now `setTabVisible(false)`). The courses and Qt tests that drive the panel move to the Comments drawer first: `review_submission_composition_public_path`, `review_tour_composition_public_path`, `explain_file_public_path`, `hide_drawers_native_menu_key_tests`, `workbench_window_tests`, `drawer_surfaces_fit_tests`, `button_faces_tests`, `enhance_control_tests`, `private_notes_panel_tests`; `dispatch_private_note`, `ask_agent_about_note` and the attended notes look in `main.cpp` read it.
+- Owner look v002 (below), filed and not waited on.
+
+Then milestone 3 (`finding-and-counting`, BPR-2159). It was not started this round.
+
+Owner look v002, filed and not waited on:
+- Session `3fefa3666ff9e2c2fc0943c4672f8b1e`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v002-2026-11-13/state`. Its URL is in `serve.log` beside the state.
+- Cursor 12. Host PID 29437, its Tailscale serve child 29448.
+- Frozen root `/Users/jaeger/comments-absorb-notes-v002._jfvvf9h` from `6ffcf4cce274`; the launcher check reached `ATTENDED_LOCAL_COMMENTS_SHOWN:6`.
+- One Accept/Reject each: `local-edge-chips` (AC06), `reply-local-state`, `local-reply-actions`, `local-edit-and-delete`.
+- After hand-back, read from cursor 12 and record the verdicts verbatim on BPR-2158 and the ledger. Stop host 29437 with the attended-review `stop`, then `freeze_attended_build.py remove` the root once nothing runs from it.
+
+Next action: retire `private_notes_panel` and the hidden Notes tabs (list above), then finish BPR-2158 (all its ACs have evidence; the panel retirement is the remaining milestone work), then milestone 3 (BPR-2159).
