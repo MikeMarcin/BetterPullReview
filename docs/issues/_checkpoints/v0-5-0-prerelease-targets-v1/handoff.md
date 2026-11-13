@@ -2194,3 +2194,80 @@ scope); then BPR-2151. Implementation also needs, from the lane: the
 BPR-2153's qualification. Not touched: sessions `767b9233…` and
 `0002b9fa…` and their roots and hosts, PID 74290, host 74692/74706, PIDs
 10695/39804, Tailscale 44738, BPR-Test #152 and `-next`.
+
+## agent-assistance-v1: comment-to-suggested-change (2026-11-13)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Frontend-design was
+loaded before the Qt work. P05 (the checks before a reply is shown) is
+unconfirmed and built as written. Record:
+[RFC-BPR-0118](../../../verification/RFC-BPR-0118.md).
+
+Coordinator directions this round: (1) merge `rfc0125-m2-on-lane`
+(`c596320e5`) with a normal merge commit: `8ba69de50`; (2) owner redirect to
+one Ask model: the action's core, host and prompt built, its entry on the
+draft field's right-click menu, no new visible control, no owner look of its
+placement (recorded on RFC-BPR-0118); (3) sessions `767b9233…` (all accept)
+and `0002b9fa…` (BPR-2076 reject, "folded into Ask") folded in.
+
+| Commit | What |
+|---|---|
+| `ad5d5d816`, `6c48db176` | RFC-BPR-0118 In Progress; ready and claim BPR-2078 |
+| `5690f3540` | Core `suggest_change` (material, structured reply, P05 checks); seventh workshop operation; question rule; prompt `review.suggest-change` (schema 32, hook tables 0 to 14); `suggest.*` supplement fields |
+| `1f26865cf` | Panel and window press/decision/proposal/Keep/Discard/Undo (with a tool-row control, removed next) |
+| `8ba69de50` | Merge `rfc0125-m2-on-lane` (`c596320e5`) |
+| `47a5ed625` | Entry on the field's right-click menu; Agent tab turns; app composition (`window_suggest_change.cpp`); stub reply; composed course |
+| `c74171d0d` | Regressions for the new hook and M2 (`side_chat_panel_tests` member list), launch policy and storage tests, clang-format 22, app pin resealed. Product candidate |
+| this commit | Ledgers, verdicts, card moves (BPR-2078 parked `human-review`; BPR-2021, 2022, 2062, 2145 Done; RFC-BPR-0108 Auto-Verified; BPR-2156 Backlog) |
+
+Runs at `c74171d0d` (dev, Debug, macOS; 49 of 49 pass): `core_suggest_change`,
+`core_agent_chat_scope`, `core_agent_question`, `core_agent_context_supplement`
+(its member list, stale since RFC-BPR-0116, fixed), `core_explain_file`,
+`core_returning_review`, `core_prompt_macro`, `core_review_preparation`,
+`core_pull_request_suggestion`, `core_agent_configuration`,
+`application_agent_launch_policy`, `application_agent_launch`,
+`application_writing_delivery`, `application_agent_comment_workshop_host`,
+`tour_cli_composition`, `sqlite_workbench_settings_storage`,
+`sqlite_agent_setup_storage`, `sqlite_agent_configuration_storage`,
+`architecture_boundaries`, `test_network_isolation_manifest`,
+`application_composition_source_contract`,
+`application_agent_chat_*_contract` (all), `application_agent_invocation_composition_contract`,
+`application_review_round_trip_composition_contract`,
+`application_profile_tour_handoff_public_path`, `qt_prompt_macro_chips`,
+`qt_tour_side_chat`, `qt_side_chat_panel`, `qt_review_draft_editor`,
+`qt_conversation_cards_view`, `qt_settings_window`,
+`qt_agent_configuration_dialogs`, `qt_workbench_window_scale_100`,
+`qt_explain_file_card_scale_100`, `application_suggest_change_public_path`,
+`application_explain_file_public_path`,
+`application_returning_review_{latest,addressed,gone}_public_path`,
+`application_agent_chat_replies`. Full clang-format 22 check (2359 files) and
+the documentation gate pass. Whole dev tree builds. clang-tidy not run.
+
+RFC-BPR-0125 milestone 2 and the assistance actions: the merged Agent tab
+shows the core's macro offers, and RFC-BPR-0116's returning prompts stay
+beside them (first, as the host's questions, not macros); Explain this file
+is a header control and Suggest the change a draft-field action, neither an
+Agent tab chip. Not rewired: the Ask model will decide how they become quick
+asks. BPR-2145 Done: `qt_prompt_macro_chips` (AC05 to AC10) passes at the
+candidate.
+
+Sessions folded in: `767b9233…` all five accepted (verbatim in the
+RFC-BPR-0108 ledger); BPR-2021 (AC06), BPR-2062 Done; BPR-2022 Done and
+RFC-BPR-0108 Auto-Verified; BPR-2065 stays In Progress (AC06 has no course);
+BPR-2026..2031 not moved (their evidence ran on the deleted draft page and
+their looks were rejected; RFC-BPR-0110/0111 need the PR-window rework);
+follow-up BPR-2156 (Backlog, allocated on main `f0c799c71`): Changes tab
+name, per-OS folder icons, Edit view underrail. `0002b9fa…` BPR-2076 Reject
+recorded; parked pending Ask. Hosts 84895/84904 and 29331/29341 stopped with
+the attended-review `stop`; roots `local-draft-in-pr-window-v003.3yt_ouf8`
+and `explain-file-v001.4gr0t3jw` removed with `freeze_attended_build.py
+remove`.
+
+AC06 of RFC-BPR-0118 is pending: no attended session filed (the coordinator
+withheld the look until the Ask model). BPR-2078 is parked `human-review`.
+
+Not touched: PID 74290, host 74692/74706, PIDs 10695/39804, Tailscale
+44738, BPR-Test #152 and `-next`. No live GitHub or live agent call.
+
+Next: BPR-2079 (closeout; needs an installed-agent run and AC06) once the Ask
+model settles the entry. Next milestone in plan order:
+`failing-check-question`.

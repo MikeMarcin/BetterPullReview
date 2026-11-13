@@ -74,3 +74,9 @@ same round fixes.
 ## Local draft in the pull request window (2026-11-13)
 
 The Edit view, Local Changes, staging, commit and push are now the pull request window's additions; see the [RFC-BPR-0108 ledger](RFC-BPR-0108.md#local-draft-in-the-pull-request-window-2026-11-13). Edit has syntax colours and follows the file chosen in Files, Local Changes or Search; the agent's nib is beside Commit in the agent accent (`qt_local_draft_window` holds it, with an accent inventory of Local Changes and the one-sentence tooltips).
+
+## Owner verdicts (attended session 767b92339e278ea303b3836f21426fd3, handed back 2026-11-13T06:41:17Z)
+
+All five looks accepted, two with notes; verbatim in the
+[RFC-BPR-0108 ledger](RFC-BPR-0108.md#owner-verdicts-attended-session-767b92339e278ea303b3836f21426fd3-handed-back-2026-11-13t064117z).
+The notes are follow-up [[BPR-2156]].

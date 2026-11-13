@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2062"
 title: "Save policy and the worktree write port"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0113"]
 metadata: {"criteria":["AC02","AC03","AC06"],"milestone_plan":{"id":"local-draft-authoring-v1","path":"docs/rfcs/plans/local-draft-authoring-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2062--BPR-2071--3110069c9cbb.json","imported_from":"docs/rfcs/assets/local-draft-authoring-v1/cards/DRAFT-0001-save-policy-and-worktree-write-port.md"}
 depends_on: ["BPR-2020"]
+acceptance: [{"criterion":"AC02","outcome":"pass","revision":"af839e73d","evidence":{"kind":"command","detail":"local_changes: a file changed on disk is not overwritten (changed_on_disk, Reload offered); the write is a temporary file and a rename. An interrupted save has no course"}},{"criterion":"AC03","outcome":"pass","revision":"af839e73d","evidence":{"kind":"command","detail":"core_local_changes: every Edit refusal with its reason"}},{"criterion":"AC06","outcome":"pass","revision":"af839e73d","evidence":{"kind":"command","detail":"Opening reads only; the write is the host port; a review not in author state offers no Edit (qt_workbench_window_*); owner accepted the Edit view in session 767b9233 (edit-view, with a note on the underrail, follow-up card)"}}]
 ---
 
 # Save policy and the worktree write port

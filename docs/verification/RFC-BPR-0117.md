@@ -80,3 +80,15 @@ work. Debug timings are nongating; nothing below is a timing claim.
 - The card appears under the header, so the file moves down by the card's
   height (at most fourteen lines of answer) when it opens; the control itself
   does not move.
+
+## Owner verdict (attended session 0002b9fad401fad26fe5fa36206d539b, handed back 2026-11-13T06:31:42Z)
+
+- `BPR-2076-explain-this-file`: **Reject** (decision `3deb7d9f`, 2026-11-13T06:31:41Z)
+> I think this gets folded into Ask.
+
+The owner is redesigning the agent-assistance entry points around one Ask
+model (an Ask menu at pull request scope, Ask on a file, Ask on a thread;
+quick asks from suggested-prompt macros). [[BPR-2076]] stays parked pending
+that redesign. The frozen root `/Users/jaeger/explain-file-v001.4gr0t3jw` was
+removed and host 29331 (child 29341) stopped after hand-back.
+

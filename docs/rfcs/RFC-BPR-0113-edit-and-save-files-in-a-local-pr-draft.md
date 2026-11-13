@@ -163,7 +163,7 @@ the authoring pack does not build it twice.
 
 ## Proposed delivery
 
-[Save policy and write port](../issues/30-in-progress/BPR-2062-save-policy-and-worktree-write-port.md),
+[Save policy and write port](../issues/60-done/BPR-2062-save-policy-and-worktree-write-port.md),
 [the editor in Changes](../issues/10-backlog/BPR-2063-the-editor-in-changes.md) and
 [closeout](../issues/10-backlog/BPR-2064-close-rfc-0113.md) form the first
 [milestone](plans/local-draft-authoring-v1/milestone-plan.json). They need the local draft's durable
