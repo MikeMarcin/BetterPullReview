@@ -331,8 +331,12 @@ namespace bpr::core {
 			const auto& mapping = carry.Mapping.Stops[index];
 			auto        stop    = tour_stop{ .Id = tour_stop_id{ index + 1U }, .Title = from.Title, .Body = from.Text, .Preparation = tour_preparation::editing };
 			if (mapping.Anchor) {
-				stop.Destination = mapping.Anchor;
-				stop.Mapping     = tour_mapping::exact_original;
+				// A stop at a destination with no local source range, as an
+				// agent's proposed stop is: `exact_original` would claim an
+				// `Original` range it does not have, which `apply` refuses.
+				stop.Destination    = mapping.Anchor;
+				stop.Mapping        = tour_mapping::unavailable;
+				stop.ReaffirmedHead = mapping.Anchor->Commit;
 				if (decide_local_stop(from).State == tour_acceptance_state::accepted) {
 					stop.Acceptance = accept_tour_stop(tour, stop, files);
 				}

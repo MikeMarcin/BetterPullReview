@@ -20,6 +20,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabBar>
+#include <array>
 
 #include <atomic>
 #include <chrono>
@@ -330,7 +331,7 @@ try {
 
 	// The tour follow-up's private half: the draft's tour as the pull
 	// request's own tour draft, anchored at its head (RFC-BPR-0110 "On publication").
-	auto target  = core::review_tour{ .Id = core::tour_draft_id{ 1U }, .Owner = { core::bpr_profile_id{ 1U }, core::git_host_id{ 1U }, { }, core::github_account_id{ 7U }, core::repository_id{ 1U }, core::pull_request_id{ 7U } }, .Base = page->projection().Draft->Candidates.back().Base, .Head = page->projection().Draft->Candidates.back().Head };
+	auto target  = core::review_tour{ .Id = core::tour_draft_id{ 1U }, .Owner = { core::bpr_profile_id{ 1U }, core::git_host_id{ 1U }, core::host_authority_fingerprint{ std::array<std::uint8_t, 32>{ 3U } }, core::github_account_id{ 7U }, core::repository_id{ 1U }, core::pull_request_id{ 7U } }, .Base = page->projection().Draft->Candidates.back().Base, .Head = page->projection().Draft->Candidates.back().Head };
 	auto carried = std::optional<core::local_tour_carry>{ };
 	drafts->host().carry_tour(page->projection().Draft->Id, target, [&carried](core::local_tour_carry aCarry) { carried = std::move(aCarry); });
 	await(lanes, [&] { return carried.has_value(); }, "the tour is carried");
@@ -340,6 +341,16 @@ try {
 			   && carried->Tour.Stops[0].Destination->Path == "src/search.cpp" && carried->Tour.Stops[0].Destination->FirstLine == 0U && carried->Mapping.Unresolved == 0U,
 		   "the stop anchors at the pull request's head");
 	expect(core::decide_tour_stop_acceptance(carried->Tour, carried->Tour.Stops[0]).State == core::tour_acceptance_state::accepted, "and stays Accepted there");
+	// The window applies the carry to the pull request's tour draft as a
+	// restore (`carry_local_tour`); the core must accept it there, or the
+	// window opens the pull request with an empty tour.
+	{
+		const auto applied = core::apply(target, { .Draft = target.Id, .Owner = target.Owner, .ExpectedRevision = target.Revision, .Kind = core::tour_command_kind::restore, .Restore = carried->Tour });
+		std::cout << "RESTORE refusal=" << static_cast<int>(applied.Refusal) << " changed=" << (applied.Changed ? "yes" : "no") << " stops=" << applied.Accepted.Stops.size() << '\n';
+		expect(applied.Refusal == core::tour_refusal::none && applied.Changed && applied.Accepted.Stops.size() == 1U
+				   && core::decide_tour_stop_acceptance(applied.Accepted, applied.Accepted.Stops[0]).State == core::tour_acceptance_state::accepted,
+			   "the carried tour restores onto the pull request's tour draft, Accepted");
+	}
 	auto moved = target;
 	moved.Head = page->projection().Draft->Candidates.back().Base;
 	carried.reset();

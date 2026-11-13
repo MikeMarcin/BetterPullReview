@@ -1829,12 +1829,19 @@ namespace {
 		}
 		// The window becomes the pull request, and its tour draft holds the
 		// draft's stop at the pull request's head.
-		require(
+		const auto opened = wait_for(
 			[&] {
 				const auto& shown = tour->shown().Draft;
 				return !aWindow.showing_local_draft() && !tour->local_words() && shown && shown->Head == journal.Link->Head && !shown->Stops.empty();
 			},
 			"the window opens the pull request with the draft's tour", std::chrono::seconds{ 180 });
+		if (!opened) {
+			// Which part of the opening did not happen.
+			const auto& shown = tour->shown().Draft;
+			fail("the window did not open the pull request with the draft's tour: local draft shown " + std::string{ aWindow.showing_local_draft() ? "yes" : "no" } + ", local words "
+				 + (tour->local_words() ? "yes" : "no") + ", tour draft " + (shown ? "yes" : "no") + ", at the link's head " + (shown && shown->Head == journal.Link->Head ? "yes" : "no") + ", stops "
+				 + std::to_string(shown ? shown->Stops.size() : 0U) + ", window title \"" + aWindow.windowTitle().toStdString() + "\"");
+		}
 		const auto& carried  = *tour->shown().Draft;
 		const auto  anchored = carried.Stops.front().Destination && carried.Stops.front().Destination->Commit == journal.Link->Head && carried.Stops.front().Destination->Path == path;
 		const auto  accepted = core::decide_tour_stop_acceptance(carried, carried.Stops.front()).State == core::tour_acceptance_state::accepted;
