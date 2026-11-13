@@ -2461,3 +2461,51 @@ remove` once closed). Not touched: PIDs 20044, 74290, host 74692/74706,
 BPR-Test #152 and `-next`, the main checkout's untracked
 `docs/rfcs/assets/queue-and-steer-v1/`.
 
+
+## RFC-BPR-0127 local-comment-model, BPR-2170, and the tour-one-accept rework (2026-11-13)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Frontend-design was loaded first. Owner amendments in force as before.
+
+| Commit | What |
+|---|---|
+| `807d8f5be`, `d6ccfb8b3`; main `6abd8a6e7` | BPR-2170 Done: Explain this file wears a changed Agent accent (the document tab strip re-wears its run controls); Resend sends a typed question again (lost since `7ff279c29`). `qt_workbench_agent_send_refusal` passes |
+| `b50f64f54`, `f0639a9b2`; main `771509b86` | Ready and claim BPR-2157 |
+| `e270bbfa4` | `tests/fixtures/review-ledger/v11-notes.sqlite`: a schema 11 ledger the shipped code wrote, notes before and after the path and line tables |
+| `25d98b02a`, `84cde1c7f`, `72a0d55af` | BPR-2157: core `local_comment`, ledger port `store_local_comment`/`erase_local_comment`/`LocalComments`, schema 12 `private_local_comment` and the note migration, tests, AC03 course, docs, app source pin resealed |
+| `3b385c04d` | Session a0cbb9dd rework: one button style for every Tour panel and card action (`make_tour_action`), test of class/flat/style/font/height. Frozen commit |
+| `91a448ca7`, this commit; main `f463b4544`, mirror of this commit | Verdicts of a0cbb9dd verbatim; new session record |
+
+State:
+- `local-comment-model` is engineered; see the [BPR-2157 card](../../30-in-progress/BPR-2157-comments-absorb-notes-model-store-migration.md#progress-2026-11-13) for the design, the identity decision and the evidence.
+- AC11 passes against the shipped schema 11 file, interrupted at every statement.
+- AC03 passes for Local comments on a line and on the pull request through the submission course. Threads, files and Publish response have no surface before milestones 2 to 4.
+- AC13 has core evidence only.
+- BPR-2157 stays In Progress until AC03 and AC13 have composed evidence with the Comments drawer (milestone 2).
+- Integration pass at `72a0d55af`: 114 rows (note, ledger, private, agent launch and invocation, overview, explain, finding, feedback, local_comment, `architecture_boundaries`, source contract) pass. The 8 `qt_tour*` rows and `qt_workbench_agent_send_refusal` pass at `3b385c04d`. The documentation gate is OK.
+
+Pre-existing failures, not this round's:
+- `qt_document_tabs_scale_100` fails the same way without BPR-2170.
+- `application_review_tour_link_public_path` clicks `tourReturn`, which `93b1045a8` removed.
+- `application_review_tour_cli_ordinary_stop` stops at account-setup consent.
+
+Session a0cbb9dd, handed back, verified in `session.json`:
+- `overview-closes-drawers`: Accept.
+- `publish-step-marks-aligned`: Accept.
+- `tour-one-accept`: Reject (button style). Verbatim on BPR-2027 and the 0106/0110 ledgers.
+
+Host 45750/45758 was stopped with the attended-review `stop`. `/Users/jaeger/local-draft-tour-panel-v006.txmtt3kc` is **not removed**: PID 51569, the owner's frozen app, runs from it. Remove it with `freeze_attended_build.py remove` once that app is closed. The v005 root is in the same state with PID 26296.
+
+New look, filed, not waited on:
+- Session `d420cccbfbe3c56bb172612cf51aa661`, state `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v007-2026-11-13/state`, cursor 3, host PID 92512 (Tailscale 92524).
+- Root `/Users/jaeger/local-draft-tour-panel-v007.hvczp7ad` from `3b385c04dacf`. One question, `tour-one-button-style`.
+- After hand-back: an Accept finishes BPR-2027 AC08 (the drawers part is accepted), then BPR-2028 closes RFC-BPR-0110. A Reject is a new round. Stop host 92512 and remove the v007 root.
+
+Next: RFC-BPR-0127 `comments-absorb-notes` (BPR-2158).
+- The Comments drawer absorbs the Notes tab, with the state control, N, the computer icon and one gutter mark.
+- It needs the move store operation. Settle how a move keeps identity: Local comments keep the note identity space, drafts the private frontier.
+- With it, finish AC03 (threads, files) and AC13 composed, then close BPR-2157.
+- Owner look on a frozen build whose fixture has Local, Draft and Published comments on one line and a migrated note. The fixture must be written: promo-v1 has none.
+
+Pending decisions:
+- A selected Local comment over the supplement's 16 KiB refuses the agent request (milestone 4).
+- The Overview Note column now shows text (milestone 3 retires it).
