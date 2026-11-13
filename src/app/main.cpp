@@ -6555,6 +6555,8 @@ namespace {
 					return;
 				}
 				tour->finish_stop_edit();
+				// The look's agent is scripted; no agent is set up in its fresh home.
+				tour->set_agent_readiness(bpr::qt::agent_setup_readiness::ready);
 				tour->open_side_chat(bpr::core::tour_thread{ });
 				tour->side_chat()->composer()->setPlainText(QStringLiteral("Is the empty query the only case that reads past the string?"));
 				tour->side_chat()->send_button()->click();
