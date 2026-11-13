@@ -82,7 +82,8 @@ and keeps "answer in words" for a question.
 
 A revision is also shown in the chat, as a card that lists its operations in
 plain words (merge, remove, move, new, rewritten) with three actions:
-**Accept all**, **Review each in the tour** (the grey markers that exist
+**Accept all** (named **Apply all** since the owner's 2026-11-13 amendment in
+[RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md#owner-amendment-one-accept-2026-11-13)), **Review each in the tour** (the grey markers that exist
 today) and **Discard**. Accepting or discarding in either place settles the
 card in the other. Accept all puts the changes in the draft; each new or
 changed stop still needs its own acceptance under

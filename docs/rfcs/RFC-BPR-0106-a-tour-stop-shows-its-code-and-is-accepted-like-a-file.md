@@ -264,6 +264,35 @@ agent settings".
   saved when Enhance was pressed: saving a changed prompt while it runs
   neither changes nor discards it. Enhance writes nothing to GitHub.
 
+### Owner amendment: one Accept (2026-11-13)
+
+The owner, rejecting the local draft's Tour panel in session `411e2c74…`:
+"Seems like a lot of different button styles. I see 3 buttons that say
+accept and they all look totally different and I'm not sure why." The panel
+then showed the stop's Accept (the platform's default button), a proposed
+stop's Accept (a bordered chip) and the tour chat card's Accept all (another
+chip), and the proposal box's Accept all beside them, which did the same as
+the card's.
+
+This replaces "The proposal cards keep their words (Accept, Accept all, Edit
+text, Discard)" above and RFC-BPR-0100's Accept all:
+
+- **Accept** is said only where pressing it accepts a stop: the stop's own
+  Accept, the edited stop's Accept, and the Accept on a stop's own proposed
+  text (which accepts the stop with it). All three are one button: the
+  platform's default push button, at one size.
+- A proposed part that accepts no stop says what it does: **Add to tour** (a
+  new stop), **Use this text** (the Problem or Solution), and as before
+  Remove, Merge, Split, Reorder. These keep the quiet button.
+- **Apply all** replaces Accept all, offered once per set of parts: the tour
+  chat's revision is applied from its card in the chat; the panel's
+  Proposed line offers it only for parts that have no card (a Draft Tour run).
+  It still accepts no stop.
+
+Checked by `qt_tour_chat_in_tab` (every visible Accept in the window is the
+default button at the stop Accept's size; no other button starts with
+Accept) and `qt_tour_agent_session_view` (one Apply all per revision).
+
 ## Acceptance criteria
 
 - **AC01:** Each listed way of arriving at a stop, including choosing the

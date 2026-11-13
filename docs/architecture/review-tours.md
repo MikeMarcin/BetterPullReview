@@ -197,7 +197,7 @@ ring and rail that turn amber once it is accepted. A stop's new explanation
 sits on its card, where **Ready, next** is. A proposed Problem or Solution sits
 under the part's own text, with a "Proposed" pill on its step. Each has
 **Accept** at the right, with **Edit text** and **Discard** before it. One line
-under the button counts them, with **Accept all**. **Ready, next** shows only
+under the button counts them, with **Apply all** (for parts no chat card holds). **Ready, next** shows only
 when it can act: a read stop whose title, explanation and lines are confirmed
 and which is not yet Ready. Until the lines are confirmed (Show in code, then
 Use selected lines while editing) the location line says "Lines not
@@ -270,7 +270,7 @@ changed. **Update the Solution from this chat**" (or the Problem, this stop, the
 asks for the part rewritten from the chat; the proposal is accepted, edited or discarded in the
 chat. A request for a change (fewer stops, a merge, a rewrite) is answered with the change in the
 same turn, as the conversation contract states; a whole-tour revision is also a card in the chat
-that lists its parts in plain words, with **Accept all**, **Review each** (in the tour, where the
+that lists its parts in plain words, with **Apply all**, **Review each** (in the tour, where the
 parts wait marked grey) and **Discard**, drawn from the one proposal so deciding in either place
 settles the other. Under the transcript sit only a notice when something is not as usual (a
 transcript replay, native continuation unavailable, a moved head with Continue old revision), the
