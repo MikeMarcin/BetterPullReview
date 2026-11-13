@@ -231,6 +231,10 @@ resume". The classification, agreed with the coordinator the same day:
   no session (Claude `--no-session-persistence`, Codex `exec --ephemeral`)
   and a native turn on it is refused.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: "Save as note" reads Keep local (or Draft comment where a line can take one); "notes" in the explicit-action rule read local comments. The rule is unchanged. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01:** Each listed form, in prose, in emphasis and as a whole code

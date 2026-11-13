@@ -72,6 +72,10 @@ embeds no website, reruns nothing and executes no repository code.
   no native session, nothing saved. It is one model call with no tools: the context it needs is in the request. Ask more on the answer promotes it into a
   resumed session whose first turn carries the answer.
 
+### Owner amendment (2026-11-13): the Ask model
+
+The owner chose the Ask model of [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) on 2026-11-13: one Ask control at the pull request, a file and a thread listing the quick asks (macros with Quick ask ticked) filtered by context, Was this addressed? on any thread, a merge of main as one line, and a long answer read as a report in a file tab. For this RFC: Why did a check fail? is also a quick ask on the pull request, greyed while no check has failed; its row on the check stays. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0128.
+
 ## Acceptance criteria
 
 - **AC01:** Ask why it failed is on failed, timed-out, cancelled and action-required check rows and on no other row; a press opens the Agent tab with a chip naming the check and its commit and sends nothing.

@@ -470,6 +470,10 @@ sections above; the [design record](assets/insights-window-v1/DECISIONS.md) quot
 - **Q4 Streaks:** cut. Owner: "too hard to get it right with holidays and
   whatnot".
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: the Insights Private notes tile is renamed Local comments and its history continues. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01 Window.**

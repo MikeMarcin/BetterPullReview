@@ -79,6 +79,14 @@ RFC; the Agent tab's attached lines cover it today.
   seeds the next question with it, as Ask more does.
 - Record: [verification](../verification/RFC-BPR-0117.md).
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: Keep as note (AC03; card BPR-2076, parked on its look) keeps a Local comment on the file, labelled Keep local. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
+### Owner amendment (2026-11-13): the Ask model
+
+The owner chose the Ask model of [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) on 2026-11-13: one Ask control at the pull request, a file and a thread listing the quick asks (macros with Quick ask ticked) filtered by context, Was this addressed? on any thread, a merge of main as one line, and a long answer read as a report in a file tab. For this RFC: Explain this file is a quick ask in the file's Ask and in the file tab's right-click menu; the file header's Ask takes its control's place (Q3 there). Its answer is a report card and a report in a file tab (Q4 there), not a card under the header. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0128.
+
 ## Acceptance criteria
 
 - **AC01:** Explain this file on a file's header and context menu sends `analyze_current_file` with that file as the subject and no selection, and the turn is in the pull request's Agent tab history.

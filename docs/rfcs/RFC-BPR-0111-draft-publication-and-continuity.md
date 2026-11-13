@@ -184,6 +184,10 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
   linked local draft is read with the one-row rule in
   [the local draft RFC](RFC-BPR-0108-local-pr-drafts.md#fitted-to-this-packs-other-decisions).
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: owner answer Q8: what stays private names local comments; and (Q12) a local draft's comments do not follow it to the pull request after Create draft PR. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - **AC01:** From a branch the author has pushed, the built-in path creates a GitHub draft from a local preparation without enterprise tools, publishing the author's own commits unchanged. When the remote branch is missing or differs from the candidate, BPR names the push to the hosted repository and pushes nothing itself; checkout data is unchanged throughout.

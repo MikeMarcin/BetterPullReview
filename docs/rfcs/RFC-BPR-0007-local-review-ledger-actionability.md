@@ -119,6 +119,10 @@ y-coordinates, or comparison scroll positions.
 
 The domain derives an ordered actionable queue from GitHub state, local receipts, defect state, and current filters. The UI can explain why an item is next.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: the persisted local notes, with their path (amendment 2026-10-06) and line (amendment 2026-10-17), are a Local comment's anchor; the path and line rules are kept word for word. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - Read, accepted, excluded, and seen states survive restart.

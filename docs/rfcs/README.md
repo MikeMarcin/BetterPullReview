@@ -826,4 +826,20 @@ Drafted 2026-11-12 from the owner's idea ("I wonder if we can make suggested pro
 |---|---|---|---|
 | [RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md) | Queue follow-ups in BPR and steer native agent chats | Proposed | RFC-BPR-0092, RFC-BPR-0096, RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0103 |
 
-Imported 2026-11-12 at the owner's request ("Add to queue /implement-rfc Implement the RFC"); queued behind the lane's current work, no card started. [Import](assets/queue-and-steer-v1.LIVE_IMPORT.md); [plan](plans/queue-and-steer-v1/MILESTONES.md), one milestone. Owner questions Q1 to Q18 on the RFC are open; Q1 decides the BPR-1930 whole-tour feedback buffer, which RFC-BPR-0101's fresh first draft left as the one fresh-to-conversation path without Ask more.
+Imported 2026-11-12 at the owner's request ("Add to queue /implement-rfc Implement the RFC"); queued behind the lane's current work, no card started. [Import](assets/queue-and-steer-v1.LIVE_IMPORT.md); [plan](plans/queue-and-steer-v1/MILESTONES.md), one milestone. The owner answered Q1 to Q18 on 2026-11-13 (the tour feedback buffer folds into the queue, the local draft's discussion is included, follow-up behaviour is a Queue or Steer setting defaulting to Queue, a queue belongs to its session, queued messages are edited in place) and added one Stop all in the agent footer (AC09).
+
+## Comments absorb notes
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) | Comments absorb notes: one comment that is Local, Draft or Published | Proposed | RFC-BPR-0007, RFC-BPR-0023, RFC-BPR-0085 |
+
+Imported 2026-11-13; the owner accepted the design and all fourteen defaults, with a computer icon ("Only on this computer") instead of a lock for Local comments. No card started. [Import](assets/comments-absorb-notes-v1.LIVE_IMPORT.md); [plan](plans/comments-absorb-notes-v1/MILESTONES.md), five milestones; [accepted design](../design/comments-absorb-notes-v1/README.md). Its amendments are recorded on RFC-BPR-0007, 0011, 0012, 0023, 0049, 0085, 0086, 0094, 0101, 0102, 0107, 0108, 0110, 0111, 0113, 0115, 0116, 0117, 0118, 0121 and 0125.
+
+## Ask
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) | Ask: quick asks at three scopes, and long answers read in a file tab | Proposed | RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0116, RFC-BPR-0117, RFC-BPR-0125 |
+
+Written at import 2026-11-13 from the owner's Ask decisions: option 1C, quick asks as macros with a Quick ask checkbox filtered by context, Ask at the pull request, a file and a thread, Was this addressed? on any thread, a merge of main as one line, and the report read in a file tab. Q1 to Q14 other than the host are open, each built as its default unless answered. No card started. [Import](assets/ask-v1.LIVE_IMPORT.md); [plan](plans/ask-v1/MILESTONES.md), three milestones; [chosen design](../design/ask-v1/README.md). Its amendments are recorded on RFC-BPR-0116, 0117, 0118, 0119 and 0125.

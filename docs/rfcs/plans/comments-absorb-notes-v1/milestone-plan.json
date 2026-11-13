@@ -1,0 +1,110 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "comments-absorb-notes-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0127"
+    ],
+    "issues": [
+      "BPR-2157",
+      "BPR-2158",
+      "BPR-2159",
+      "BPR-2160",
+      "BPR-2161",
+      "BPR-2162"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "local-comment-model",
+      "outcome": "One store answers what unsent comments I have: every private note is a Local comment with its text, anchor and order kept, and no action that sends anything can send one.",
+      "work": [
+        {
+          "issue": "BPR-2157"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The migration of a ledger holding notes from before and after the path and line tables gives one Local comment each, repeatable after interruption.",
+        "No send path admits a Local comment, and counters ignore Local.",
+        "The Notes tab reads the new store and nothing else looks different."
+      ],
+      "boundary": "Core, host and SQLite only; no visible change beyond the Notes tab reading the new store. Review Cycle notes, the note: label and local PR drafts' records are untouched."
+    },
+    {
+      "id": "comments-absorb-notes",
+      "outcome": "The Comments drawer holds Local, Draft and Published comments with one state control, N for Local, the computer icon for Local and one gutter mark a line; the Notes tab is gone.",
+      "work": [
+        {
+          "issue": "BPR-2158"
+        }
+      ],
+      "depends_on": [
+        "local-comment-model"
+      ],
+      "exit_criteria": [
+        "AC01, AC02, AC04 to AC06 and AC14 pass on the composed application.",
+        "The owner's look on a frozen build with all three states on one line is filed (Accept or Reject)."
+      ],
+      "boundary": "The drawer, composer and gutter. Threads, Overview, Finish your review and agent surfaces wait for their milestones."
+    },
+    {
+      "id": "finding-and-counting",
+      "outcome": "Local comments are found and counted where drafts are: Threads' state filter, Overview's Local chip and My review, and one quiet line in Finish your review.",
+      "work": [
+        {
+          "issue": "BPR-2159"
+        }
+      ],
+      "depends_on": [
+        "comments-absorb-notes"
+      ],
+      "exit_criteria": [
+        "AC07 to AC09 pass on the composed application.",
+        "The owner's look is filed (Accept or Reject)."
+      ],
+      "boundary": "Threads, Overview, Finish your review and Insights' tile name. No change to what a review sends."
+    },
+    {
+      "id": "one-keep-action",
+      "outcome": "Every agent surface that offered a note and a draft offers one keep action, and the private-context opt-ins name local comments and drafts.",
+      "work": [
+        {
+          "issue": "BPR-2160"
+        }
+      ],
+      "depends_on": [
+        "comments-absorb-notes"
+      ],
+      "exit_criteria": [
+        "AC10 and AC12 pass on the composed application.",
+        "The owner's look is filed (Accept or Reject)."
+      ],
+      "boundary": "What the agent surfaces keep, and wording. Where the agent surfaces are reached is RFC-BPR-0128's."
+    },
+    {
+      "id": "local-pr-draft-vocabulary",
+      "outcome": "A local PR draft's notes read as Local comments, with Keep local, and its storage is unchanged; the RFC closes.",
+      "work": [
+        {
+          "issue": "BPR-2161"
+        },
+        {
+          "issue": "BPR-2162"
+        }
+      ],
+      "depends_on": [
+        "comments-absorb-notes",
+        "finding-and-counting",
+        "one-keep-action"
+      ],
+      "exit_criteria": [
+        "A rendered local draft shows the new words with storage unchanged.",
+        "Every criterion of RFC-BPR-0127 has direct evidence on the closeout and the amended RFCs are reconciled."
+      ],
+      "boundary": "Vocabulary and card only (owner, Q8); nothing follows a local draft to its pull request (Q12)."
+    }
+  ],
+  "unplanned_work": []
+}

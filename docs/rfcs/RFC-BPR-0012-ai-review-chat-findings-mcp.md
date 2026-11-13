@@ -73,6 +73,10 @@ segment, group, and move-relation identities. They never infer an exact line
 from measured y-coordinates or a ribbon path, and uncertain/opposing-span
 mapping remains visible.
 
+### Owner amendment (2026-11-13): comments absorb notes
+
+The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: finding promotion offers a draft comment and a defect; a finding no line can take is kept as a Local comment instead of a private note. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
+
 ## Acceptance criteria
 
 - Every AI action originates from an explicit visible user command.
