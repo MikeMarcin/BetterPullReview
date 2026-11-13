@@ -244,3 +244,19 @@ app source pin pass with it.
 AC04 now through the window on real code. Evidence otherwise reused
 unchanged. Not run: Windows and Linux, the whole dev suite. RFC-BPR-0106 is
 Auto-Verified.
+
+## Owner verdicts (attended session a0cbb9ddda6d1ae524e5d63d4a3342d7, handed back 2026-11-13T15:18:37Z)
+
+Session state `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v006-2026-11-13/state`, frozen build from `195140d7968f`. Verified in its `session.json`. Verbatim notes, each the candidate's final decision:
+
+| Candidate | Verdict | Owner's note |
+|---|---|---|
+| `overview-closes-drawers` | **Accept** (15:15:06Z) | |
+| `publish-step-marks-aligned` | **Accept** (15:15:22Z) | |
+| `tour-one-accept` | **Reject** (15:18:36Z), with a screenshot | "You missed the mark my complaint wasn't about the wording accept. My complaint was that the button STYLE was inconsistent and it still is. The acceypt style looks better than the "Add to tour" or "Apply all" button styles. (And I don't mean the blue color). That said you can keep the new wording." |
+
+The Overview drawers part of the look and the publish step marks are accepted. The new wording is kept.
+
+Rework `3b385c04d`: every action button in the Tour panel and on its proposal and revision cards is now the stop Accept's platform push button (`make_tour_action`). That covers Accept, Add to tour, Use this text, Apply all, Remove, Merge, Split, Reorder, Move to nearest change, Review each, Edit text, Discard, Ask more and the reset buttons. Only the default Accept is filled. `qt_tour_chat_in_tab` checks that every Tour action shares class, flatness, style, font and height with the stop's Accept. `qt_tour_agent_session_view` and `qt_tour_side_chat` now expect Ask more in that style. The eight `qt_tour*` rows and `qt_workbench_agent_send_refusal` pass. Draft Tour keeps its icon chip: it is the panel's run control, not a card action. Host 45750/45758 was stopped with the attended-review `stop`. The v006 root stays on disk: PID 51569, the owner's frozen app, still runs from it.
+
+`application_review_tour_link_public_path` and `application_review_tour_cli_ordinary_stop` fail on this lane without this change being involved. The first clicks `tourReturn`, which `93b1045a8` removed on 2026-11-10. The second stops at account-setup consent.
