@@ -3670,10 +3670,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# draft's texts with the packaged definitions (syntax_text_sources.hpp, moved
 	# from review_cycle_desktop.cpp). window_construction routes the Search tab
 	# to the draft while it shows. No grant, credential, provider, mutation
-	# branch or publication change.
+	# branch or publication change. main.cpp's attended author look copies its
+	# generated worktree where Git may write (a frozen root is read-only).
 	# No grant, credential, provider, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "3d23b68661aed6fc23856c1ac460659475891519ca26e656187ebccb7c7de67c"
+        "0def768d8eb2cb1c8b8dd68433b23daecf858b551abc3ad63a23831f84133a9a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

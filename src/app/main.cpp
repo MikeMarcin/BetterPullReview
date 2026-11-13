@@ -71,6 +71,7 @@
 #include <QCryptographicHash>
 #include <QDialog>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QFontInfo>
@@ -6302,8 +6303,51 @@ namespace {
 	/// RFC-BPR-0108. After the pull request is shown, Home's Prepare Pull
 	/// Request… opens the named worktree, as a person choosing it would, and
 	/// says when its proposed diff is shown.
+	/// \brief The author look's worktree, copied where Git may write: a frozen
+	/// root is read-only, and staging, committing and pushing write the
+	/// worktree's index and its local "GitHub". The copy's configuration names
+	/// its own copy of that repository. Nothing outside the copy changes.
+	auto writable_author_look(const std::string& aWorktree) -> std::string
+	{
+		const auto worktree = QFileInfo{ QString::fromStdString(aWorktree) };
+		const auto source   = worktree.absoluteDir().absolutePath();
+		const auto target   = QDir{ QDir::tempPath() }.filePath(QStringLiteral("bpr-local-draft-look-%1").arg(QCoreApplication::applicationPid()));
+		QDir{ target }.removeRecursively();
+		auto entries = QDirIterator{ source, QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot | QDir::System, QDirIterator::Subdirectories };
+		QDir{ }.mkpath(target);
+		while (entries.hasNext()) {
+			const auto path     = entries.next();
+			const auto info     = entries.fileInfo();
+			const auto relative = QDir{ source }.relativeFilePath(path);
+			const auto copy     = QDir{ target }.filePath(relative);
+			if (info.isDir() && !info.isSymLink()) {
+				QDir{ }.mkpath(copy);
+			} else if (info.isFile()) {
+				QDir{ }.mkpath(QFileInfo{ copy }.absolutePath());
+				QFile::copy(path, copy);
+				QFile::setPermissions(copy, QFile::permissions(copy) | QFileDevice::WriteOwner);
+			}
+		}
+		// The worktree's configuration names its local "GitHub" by path.
+		for (const auto& config : { QDir{ target }.filePath(worktree.fileName() + QStringLiteral("/.git/config")) }) {
+			auto file = QFile{ config };
+			if (file.open(QIODevice::ReadOnly)) {
+				auto text = QString::fromUtf8(file.readAll());
+				file.close();
+				text.replace(source, target);
+				if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+					file.write(text.toUtf8());
+				}
+			}
+		}
+		return QDir{ target }.filePath(worktree.fileName()).toStdString();
+	}
+
 	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication)
 	{
+		if (AttendedLocalDraftAuthor) {
+			AttendedLocalDraftPath = writable_author_look(AttendedLocalDraftPath);
+		}
 		auto* const timer = new QTimer{ &aApplication.window() };
 		timer->setInterval(50);
 		const auto ticks = std::make_shared<int>(0);

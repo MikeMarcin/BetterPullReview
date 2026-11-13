@@ -729,10 +729,10 @@ namespace bpr::qt {
 		// Escape in any Home list clears the selection it shows.
 		auto* const escape = new home_escape_filter{ this, [this] { clear_home_selection(nullptr); } };
 		const auto  adopt  = [escape](QAbstractItemView* const aView) {
-            if (aView != nullptr && !aView->property("bprHomeEscape").toBool()) {
-                aView->setProperty("bprHomeEscape", true);
-                aView->installEventFilter(escape);
-            }
+			if (aView != nullptr && !aView->property("bprHomeEscape").toBool()) {
+				aView->setProperty("bprHomeEscape", true);
+				aView->installEventFilter(escape);
+			}
 		};
 		if (HomeDraftsList != nullptr) {
 			connect(HomeDraftsList->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this] {
