@@ -22,6 +22,6 @@ In the Agent tab and tour chats the reviewer queues follow-ups that BPR releases
 - Installed Claude and Codex App Server each accept a native correction on the running conversation; unsupported drivers keep Queue without a paid probe.
 - Queue maintenance adds no model call, and a steered run's native parts count once.
 - The composed Qt flow shows pending, paused, sent and uncertain input with Stop reachable and keyboard and accessibility actions.
-- The owner's answers to Q1 to Q18 are recorded on the RFC before the cards they shape are built.
+- Stop all in the agent footer stops every active turn and pauses every queue; a queue belongs to its session, not to a window, and a message being edited is held.
 
-**Boundary:** Agent tab and tour chats only (Q2 may add the local draft's discussion). Enhance, comment workshops, Review Cycle Send to Agent, external terminals and fresh first drafts are outside; the BPR-1930 feedback buffer is left as it is until Q1 is answered. No model API client, SDK runtime or second agent loop.
+**Boundary:** Agent tab, tour chats and the local draft's discussion (owner, Q2). Enhance, comment workshops, Review Cycle Send to Agent, external terminals and fresh first drafts are outside; the BPR-1930 feedback buffer is folded into the queue (owner, Q1). No model API client, SDK runtime or second agent loop.
