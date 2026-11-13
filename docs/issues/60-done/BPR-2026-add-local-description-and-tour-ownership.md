@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2026"
 title: "Add local description and tour ownership"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0110"]
 metadata: {"criteria":["AC01","AC03","AC04"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0011","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0038-add-local-description-and-tour-ownership.md"}
 depends_on: ["BPR-2016", "BPR-2017", "BPR-2022"]
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"6887928bd","evidence":{"kind":"command","detail":"application_local_draft_tour_desktop_public_path: signed out, an uncommitted candidate; description in Overview's editor, Problem/Solution and a stop in the window's Tour panel bind the candidate's exact bytes; core_local_draft_tour test_panel_view: no fabricated identity reaches the record"}},{"criterion":"AC03","outcome":"pass","revision":"6887928bd","evidence":{"kind":"command","detail":"Same course: captured candidate bytes only, live helper edit excluded; outside-candidate stop never offered; stale proposal refused; accepted refresh starts a new session, earlier turns readable (tool-free route)"}},{"criterion":"AC04","outcome":"pass","revision":"6887928bd","evidence":{"kind":"command","detail":"Same course after restart: description, tour, conversations, proposals resume with no agent process; local prompts in Settings and the sharing format as recorded on the ledger"}}]
 ---
 
 # Add local description and tour ownership
