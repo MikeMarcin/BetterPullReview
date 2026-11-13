@@ -2337,3 +2337,83 @@ RFC-BPR-0110 after it; BPR-2029 depends on BPR-2028, so BPR-2029..2031 are not
 claimed (their evidence is on the ledger, the live run missing); RFC-BPR-0110
 and 0111 stay open. Left on disk: `/Users/jaeger/local-draft-tour-panel-v004.9ao22ezm`
 (a failed freeze's export; `remove` refuses it as not a frozen build).
+
+## Live sign-in diagnosis, tour carry fix, and the comments/Ask/queue import (2026-11-13)
+
+Fresh `rfc-implementer`, same lane; nothing pushed. Owner amendments in force:
+"If you need it you need it go build it."; "main should be the source of truth
+for the tracker"; "Continue working unattended, you can file reviews but dont
+block on their results". Frontend-design was not loaded: no UX was designed
+this round (accepted mockups copied as they are).
+
+Part 1, the live course's "stopped at idle": **not an application defect and
+not a release blocker.** The account setup driver (`tests/end_to_end/account_setup_course.hpp`)
+presses Connect on the tick that shows gh's accounts and Start reviewing once
+connected, so the course's poll for `choosing_account` missed it and saw the
+setup back at `idle`, signed in. Reproduced with `--course reader --pull 1`,
+instrumented, fixed test-only (`0a85bc2b5`). No bisect was needed: the course
+was ported onto the driver by main's `f0dfd707c` (BPR-2132), merged here at
+`75ab1e0fa`; `main` has the same course defect, card **BPR-2169** (Backlog,
+on main) carries it there. The live run then exposed a **real product defect
+in the shipped composition (lane-only code)**: a pull request created from a
+local draft opened with an empty tour, because `carry_local_tour_to_pull_request`
+made a destination-only stop `exact_original` without `Original` and
+`core::apply` refused the restore (`invalid_source`), discarded by
+`carry_local_tour`. Fixed test-first in `1237dbefd` (the fixture course now
+applies the carry as the window does; it failed before). Live on BPR-Test the
+draft course passes (#184; #181 to #184 closed, branches deleted; rate 4,877
+→ 4,601). Ledgers: RFC-BPR-0111 and 0110.
+
+Part 2, imports (docs only): RFC-BPR-0127 comments absorb notes (BPR-2157..2162,
+plan `comments-absorb-notes-v1`, design `docs/design/comments-absorb-notes-v1`,
+draft and inventory under `docs/rfcs/assets/comments-absorb-notes-v1`; all
+fourteen defaults accepted, Local marked with a computer icon); RFC-BPR-0128
+Ask (BPR-2163..2168, plan `ask-v1`, design `docs/design/ask-v1`; report host
+= file tab; Q1 to Q14 otherwise open, built as defaults); owner amendments on
+RFC-BPR-0007, 0011, 0012, 0023, 0049, 0085, 0086, 0094, 0101, 0102, 0107,
+0108, 0110, 0111, 0113, 0115, 0116, 0117, 0118, 0119, 0121, 0125; RFC-BPR-0126
+owner answers Q1 to Q18 (fold-in, local-draft discussion, Queue|Steer setting
+default Queue with Cmd+Return, edit hold, queue tied to the session, steer
+after the tool call) and Stop all (new AC09, AC04 amended; BPR-2151, 2154,
+2155 and the plan follow).
+
+Session `411e2c74…` folded in (coordinator's instruction, verified in its
+`session.json`): `local-tour-in-tour-panel` Reject, `local-description-in-overview`
+Reject, `publish-steps-in-status` Accept with a note; verbatim on BPR-2027,
+2028, 2029 and the RFC-BPR-0110/0111 ledgers; not fixed this round. Host
+6331/6340 stopped with the attended-review `stop`. Its root
+`/Users/jaeger/local-draft-tour-panel-v005.kgbcys_i` is **not removed**: PID
+26296 (the owner's frozen app, launched from that root) still runs from it;
+remove it with `freeze_attended_build.py remove` once that app is closed.
+`/Users/jaeger/local-draft-tour-panel-v004.9ao22ezm` (failed export, no
+process) removed.
+
+| Commit | What |
+|---|---|
+| main `eaf625a0f` | BPR-2157..2162, 2163..2168, 2169 reserved (counter BPR-2170; dry run offered BPR-2170) |
+| `0a85bc2b5` | Live course sign-in waits for the outcome (test-only) |
+| `f85b216ec` | Counter and receipts from main |
+| `4b091837f` | RFC-BPR-0126 owner answers, Stop all |
+| `fbdc1e509` | Import RFC-BPR-0127 and 0128, amendments, BPR-2169 |
+| `b281fc291` | Session 411e2c74 verdicts |
+| `1237dbefd` | The tour carry fix and its failing-first check; live course diagnostic. Product candidate |
+| `3af4dc0bc` | Ledgers |
+| main `aa26649c9` | Mirror: RFCs 0127/0128, cards, plans, designs, amendments, 0126 answers, verdicts, BPR-2169 |
+| this commit | Handoff |
+
+Runs at `1237dbefd` (dev, Debug, macOS): 19 focused rows (local draft core,
+host, Qt and desktop courses, review tour, tour stop acceptance, profile tour
+handoff, account setup, setup destination, device flow, remembered
+connection) and the 9 other account-setup-driver courses pass;
+`application_composition_source_contract`, `architecture_boundaries` pass;
+clang-format 22 on the changed files; documentation gate OK on lane and main;
+`issue_board.py validate` clean on both; plan checks pass. The whole dev tree
+builds.
+
+NEXT_ID BPR-2170 and `_reservations` equal on lane and main. The main
+checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/` is untouched.
+
+Next: rework round for the two rejected looks (three differently styled
+Accept buttons in the local Tour panel; other modes' drawers left open on
+Overview) and the publish steps' circle alignment question; then a new look;
+then BPR-2028, BPR-2029 (its live evidence is now on the ledger).
