@@ -652,10 +652,10 @@ namespace bpr::qt {
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
 		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.
-		void          fit_card_text(markdown_body_view& aView) const;
-		void          show_card_state(card_entry& aEntry);
+		void fit_card_text(markdown_body_view& aView) const;
+		void show_card_state(card_entry& aEntry);
 		/// RFC-BPR-0127. Shows the card's one keep action, Draft comment or Keep local.
-		void show_card_keep(const card_entry& aEntry) const;
+		void          show_card_keep(const card_entry& aEntry) const;
 		void          act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);
 		std::uint64_t NextCardId = 1U;
 		/// The findings that arrived during the turn that just ended go

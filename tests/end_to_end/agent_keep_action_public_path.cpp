@@ -136,12 +136,12 @@ auto main(int argc, char** argv) -> int
 	}
 	std::unique_ptr<app::github_application> application;
 	try {
-		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto options                 = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
 		options.CodexAgentExecutable = stub;
 		options.CodexSearch          = app::detail::claude_search_environment{ .PathVariable = stub.parent_path().string() };
-		auto terminal                 = false;
-		auto startup                  = access::start(app::detail::github_public_path_fixture::nested_folders_v1,
-													  std::move(options), [&](auto aResult) { terminal = true; if (aResult) { application = std::move(*aResult); } });
+		auto terminal                = false;
+		auto startup                 = access::start(app::detail::github_public_path_fixture::nested_folders_v1,
+													 std::move(options), [&](auto aResult) { terminal = true; if (aResult) { application = std::move(*aResult); } });
 		wait([&] { return terminal && startup && startup->is_quiescent(); }, "startup terminal");
 		expect(application != nullptr, "startup succeeds");
 		application->show();
@@ -158,17 +158,17 @@ auto main(int argc, char** argv) -> int
 		auto* const cards    = window.conversation_panel()->cards();
 		const auto  mutation = access::review_mutation_evidence(*application);
 		const auto  ask      = [&](const QString& aQuestion, const std::string& aStep) {
-            const auto before = tab->turn_count();
-            wait([&] {
-                if (tab->turn_count() == before && tab->state() != qt::agent_tab_state::working) {
-                    window.side_chat()->composer()->setPlainText(aQuestion);
-                    tab->ask_button()->click();
-                }
-                return tab->turn_count() == before + 1U;
-            },
-					   aStep + ": sent");
-            wait([&] { return tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent && !tab->turn_answer(before).isEmpty(); }, aStep + ": answered");
-            return before;
+			const auto before = tab->turn_count();
+			wait([&] {
+				if (tab->turn_count() == before && tab->state() != qt::agent_tab_state::working) {
+					window.side_chat()->composer()->setPlainText(aQuestion);
+					tab->ask_button()->click();
+				}
+				return tab->turn_count() == before + 1U;
+			},
+				 aStep + ": sent");
+			wait([&] { return tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent && !tab->turn_answer(before).isEmpty(); }, aStep + ": answered");
+			return before;
 		};
 
 		// AC10, the answer footer about the pull request, asked on Overview
@@ -247,7 +247,6 @@ auto main(int argc, char** argv) -> int
 			std::cout << "keep-action: queue draft=" << draftOffered << " keep=" << keepOffered << '\n';
 			expect(draftOffered >= 1 && keepOffered >= 1, "the queue offers Draft comment for the anchored finding and Keep local for the others");
 		}
-
 
 		// AC12. Each opt-in carries its own kind, and only its own.
 		auto* const chat       = window.side_chat();

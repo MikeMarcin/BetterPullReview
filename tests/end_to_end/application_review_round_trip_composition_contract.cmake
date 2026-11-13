@@ -3715,8 +3715,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# thread's draft. Words only. RFC-BPR-0127 (BPR-2159): Keep Local from a
 	# list keeps a draft whose comparison is not shown, taking its file from
 	# the roster's path; the same store move. No new effect or path.
+	# RFC-BPR-0127 (BPR-2160): an agent surface's one keep action is chosen
+	# by core::decide_keep; Keep local stores a Local comment on the file or
+	# the pull request through the same ledger call; Ask agent on my draft
+	# records it in Private history through the Local comment's one path
+	# (record_note_press). Words only elsewhere. No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "7ffc7837b8ffab708a890e85cf4e94614b06b9895092ef413bf06b29d822a72a"
+        "3d497c7adc1b402e8a76055368e9c0162201c9f7e0d9f2bcef1cbce87c00b0cf"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -29,8 +29,8 @@ namespace bpr::core {
 				continue;
 			}
 			switch (card.State) {
-			case draft_all_card_state::drafted:   ++plan.AlreadyDrafted; continue;
-			case draft_all_card_state::dismissed: ++plan.Dismissed; continue;
+			case draft_all_card_state::drafted:    ++plan.AlreadyDrafted; continue;
+			case draft_all_card_state::dismissed:  ++plan.Dismissed; continue;
 			case draft_all_card_state::working:    ++plan.Busy; continue;
 			case draft_all_card_state::kept_local: ++plan.KeptLocal; continue;
 			case draft_all_card_state::open:       break;

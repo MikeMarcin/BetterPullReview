@@ -3331,7 +3331,7 @@ namespace bpr::qt {
 		col->addSpacing(2);
 		auto* const actions = new QHBoxLayout{ };
 		actions->setSpacing(6);
-		const auto  index = aEntry.Id;
+		const auto index = aEntry.Id;
 		// RFC-BPR-0127. One keep action, in one place: Draft comment where
 		// its line takes a draft, Keep local where none does
 		// (`core::decide_keep`; `show_card_state` shows the one).

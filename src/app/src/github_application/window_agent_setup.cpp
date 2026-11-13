@@ -216,7 +216,7 @@ namespace bpr::app {
 		if (Closing || tab == nullptr) {
 			return;
 		}
-		const auto& finding = aRequest.Finding;
+		const auto& finding   = aRequest.Finding;
 		const auto  keepLocal = aRequest.Action == qt::agent_finding_card_action::keep_local;
 		const auto  keepText  = [&finding] {
 			auto text = finding.Claim;
@@ -825,7 +825,7 @@ namespace bpr::app {
 		if (Closing || Window == nullptr || !WindowRead->accepted_snapshot() || aDraft.shared()) {
 			return;
 		}
-		const auto path = SelectedDiffPublication ? SelectedDiffPublication->Request.File.PresentationPath : std::string{ };
+		const auto path   = SelectedDiffPublication ? SelectedDiffPublication->Request.File.PresentationPath : std::string{ };
 		AskedConversation = asked_conversation{
 			.Identity    = "draft:" + std::to_string(aDraft.Id.value()),
 			.PullRequest = WindowRead->accepted_snapshot()->PullRequest.Number.value(),
