@@ -524,9 +524,7 @@ namespace bpr::qt {
 			}
 		}
 		// Explain this file asks about a pull request's file; a draft's waits.
-		if (ExplainFileButton != nullptr) {
-			ExplainFileButton->setVisible(!local);
-		}
+		refresh_ask_controls();
 		if (EpochSelectors != nullptr) {
 			EpochSelectors->setVisible(!local);
 		}

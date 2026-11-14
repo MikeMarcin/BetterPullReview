@@ -74,6 +74,7 @@ add_library(
         src/agent_suggestion_list.cpp
         src/agent_run_status.cpp
         src/explain_file_card.cpp
+        src/ask_menu.cpp
         src/agent_run_settings_picker.cpp
         src/agent_footer.cpp
         src/agent_feature.cpp

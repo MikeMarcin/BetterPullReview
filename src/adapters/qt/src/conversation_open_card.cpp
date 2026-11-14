@@ -1,5 +1,7 @@
 #include "conversation_open_card.hpp"
 
+#include "bpr/qt/ask_menu.hpp"
+
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/workbench_interaction.hpp"
@@ -2155,45 +2157,8 @@ namespace bpr::qt {
 				});
 				row->addWidget(resolve);
 			}
-			// [[BPR-1773]]. Ask the agent about this conversation, with the
-			// Agent tab's own mark.
-			if (aCard.Kind == QStringLiteral("Inline thread") && !aCard.Path.isEmpty() && !aCard.Posts.empty()) {
-				auto* const askAgent = card_button(header);
-				askAgent->setObjectName(QStringLiteral("threadAskAgent"));
-				askAgent->setAutoRaise(true);
-				askAgent->setIcon(drawer_icon(drawer_glyph::agent, palette));
-				askAgent->setToolTip(QStringLiteral("Ask agent about this conversation"));
-				askAgent->setAccessibleName(askAgent->toolTip());
-				askAgent->setFocusPolicy(Qt::StrongFocus);
-				askAgent->setIconSize(QSize{ 16, 16 });
-				askAgent->setCursor(Qt::ArrowCursor);
-				connect(askAgent, &QToolButton::clicked, this, [this] {
-					if (Action) {
-						Action(card_action::ask_agent);
-					}
-				});
-				row->addWidget(askAgent);
-				// RFC-BPR-0116 ([[BPR-2074]]). Asks the agent at once, so it
-				// wears the Agent accent; at the header's own tool height.
-				if (Style.AddressedOffered) {
-					auto* const addressed = card_button(header);
-					addressed->setObjectName(QStringLiteral("threadWasAddressed"));
-					addressed->setAutoRaise(true);
-					addressed->setToolButtonStyle(Qt::ToolButtonTextOnly);
-					addressed->setText(QStringLiteral("Was this addressed?"));
-					addressed->setAccessibleName(addressed->text());
-					addressed->setFocusPolicy(Qt::StrongFocus);
-					addressed->setCursor(Qt::ArrowCursor);
-					addressed->setFixedHeight(askAgent->sizeHint().height());
-					wear_agent_accent(*addressed, palette);
-					connect(addressed, &QToolButton::clicked, this, [this] {
-						if (Action) {
-							Action(card_action::was_addressed);
-						}
-					});
-					row->addWidget(addressed);
-				}
-			}
+			// RFC-BPR-0128 ([[BPR-2164]]). Ask agent and Was this addressed? left
+			// the header for the thread's Ask, where a reply is written.
 			const auto  unread = aCard.UnreadCount;
 			auto* const read   = tool(header, QStringLiteral("threadMarkRead"),
 									  unread == 0U ? QStringLiteral("Nothing new") : unread == 1U ? QStringLiteral("Mark 1 new as read")
@@ -2682,6 +2647,7 @@ namespace bpr::qt {
 				ink.setColor(QPalette::WindowText, Style.Colours.Ink2);
 				refusal->setPalette(ink);
 				footRow->addWidget(refusal, 1);
+				add_ask(*footRow, Foot, QStringLiteral("threadAsk"));
 			} else {
 				// [[BPR-1374]]. My unsent reply in this thread is opened by Reply.
 				ReplyField = new note_button{ note_button::kind::reply_field, aCard.UnsentReply.has_value() ? QStringLiteral("Continue your reply") : QStringLiteral("Reply"), Foot };
@@ -2711,6 +2677,7 @@ namespace bpr::qt {
 				field->setSpacing(6);
 				field->addWidget(DraftReplyState, 0, Qt::AlignVCenter);
 				field->addWidget(ReplyField, 1);
+				add_ask(*field, Foot, QStringLiteral("threadAsk"));
 				footRow->addLayout(field);
 				present_unsent_reply(aCard);
 			}
@@ -2771,6 +2738,9 @@ namespace bpr::qt {
 			Labels->set_theme(Style.Marks);
 			style_reply_chip(*Labels->chip(), Style);
 			controls->addWidget(Labels);
+			// RFC-BPR-0128 ([[BPR-2164]]). The thread's Ask beside the label
+			// picker: Plain, Ask, Publish.
+			add_ask(*controls, Editor, QStringLiteral("threadReplyAsk"));
 			// [[BPR-1084]]. A small mark beside the chip, shown only for a
 			// suggested change; its tooltip says what GitHub will do with it.
 			Placement  = aCard.Suggestion;
@@ -3101,6 +3071,18 @@ namespace bpr::qt {
 				HeightChanged();
 			}
 		});
+	}
+
+	void open_thread_card::add_ask(QBoxLayout& aRow, QWidget* const aParent, const QString& aName)
+	{
+		if (!Style.AskMenu) {
+			return;
+		}
+		auto* const ask = new ask_menu_button{ aParent };
+		ask->setObjectName(aName);
+		ask->setAccessibleDescription(tr("Ask the agent a quick question about this thread"));
+		ask->set_filler(Style.AskMenu);
+		aRow.addWidget(ask, 0, Qt::AlignVCenter);
 	}
 
 	void open_thread_card::build_enhance(QBoxLayout& aControls, const enhance_surface aSurface)

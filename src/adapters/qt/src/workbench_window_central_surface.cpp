@@ -330,6 +330,15 @@ namespace bpr::qt {
 			comparing->setAutoRaise(true);
 			comparing->setParent(ReviewBar);
 			ReviewBar->insertWidget(FilePositionAction, comparing)->setObjectName(QStringLiteral("reviewBarComparingAction"));
+			// RFC-BPR-0128 ([[BPR-2164]]), option 1C. The review bar's Ask,
+			// beside the comparison: the pull request's quick asks, then the
+			// open file's, then the open thread's (Q2).
+			ReviewAskButton = new ask_menu_button{ ReviewBar };
+			ReviewAskButton->setObjectName(QStringLiteral("reviewAskButton"));
+			ReviewAskButton->setAccessibleName(tr("Ask about this pull request"));
+			ReviewAskButton->set_filler([this](QMenu& aMenu) { fill_quick_ask(aMenu, ask_request(core::quick_ask_anchor::review_bar)); });
+			ReviewAskButton->hide();
+			ReviewBar->insertWidget(FilePositionAction, ReviewAskButton)->setObjectName(QStringLiteral("reviewBarAskAction"));
 			ReviewBar->insertWidget(FilePositionAction, new strip_divider{ ReviewBar })
 				->setObjectName(QStringLiteral("reviewBarComparisonDividerAction"));
 			if (auto* const menu = comparing->menu(); menu != nullptr) {
@@ -429,40 +438,28 @@ namespace bpr::qt {
 			}
 		});
 		comparisonColumn->addWidget(DocumentTabs);
-		// RFC-BPR-0117 ([[BPR-2076]]). Explain this file: a text control at the
-		// header's right, before the plus, in the Agent accent because a press
-		// starts the agent; and the same command in each tab's menu. Its
-		// answer's card stands under the header while it is the active file's.
-		ExplainFileButton = new quiet_tool_button{ DocumentTabs };
-		ExplainFileButton->setObjectName(QStringLiteral("explainFileButton"));
-		ExplainFileButton->setAutoRaise(true);
-		ExplainFileButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-		ExplainFileButton->setText(tr("Explain this file"));
-		ExplainFileButton->setAccessibleName(ExplainFileButton->text());
-		ExplainFileButton->setFocusPolicy(Qt::StrongFocus);
-		ExplainFileButton->setFixedHeight(DocumentTabs->new_tab_button()->sizeHint().height());
-		ExplainFileButton->setEnabled(false);
-		wear_agent_accent(*ExplainFileButton, palette());
-		connect(ExplainFileButton, &QToolButton::clicked, this, [this] {
-			if (const auto path = active_document_path(); ExplainFileDispatch && !path.isEmpty()) {
-				ExplainFileDispatch(path);
-			}
-		});
-		DocumentTabs->add_trailing_control(ExplainFileButton);
+		// RFC-BPR-0128 ([[BPR-2164]]), Q3. The file header's Ask, where Explain
+		// this file stood: an ordinary control (its glyph in the Agent accent,
+		// because its rows start runs), before the plus; and Ask in each tab's
+		// menu, the tab's file's quick asks, in Explain This File's place.
+		FileAskButton = new ask_menu_button{ DocumentTabs };
+		FileAskButton->setObjectName(QStringLiteral("fileAskButton"));
+		FileAskButton->setAccessibleName(tr("Ask about this file"));
+		FileAskButton->setFixedHeight(DocumentTabs->new_tab_button()->sizeHint().height());
+		FileAskButton->setEnabled(false);
+		FileAskButton->set_filler([this](QMenu& aMenu) { fill_quick_ask(aMenu, ask_request(core::quick_ask_anchor::file)); });
+		ExplainFileButton = FileAskButton;
+		DocumentTabs->add_trailing_control(FileAskButton);
 		DocumentTabs->set_menu_extension([this](const document_tab_presentation& aTab, QMenu& aMenu) {
-			auto* const explain = aMenu.addAction(tr("Explain This File"));
-			explain->setObjectName(QStringLiteral("documentTabExplainFile"));
-			explain->setEnabled(ExplainFileOffered && static_cast<bool>(ExplainFileDispatch) && !aTab.Path.isEmpty());
-			connect(explain, &QAction::triggered, this, [this, tab = aTab.Id, path = aTab.Path] {
-				if (!ExplainFileDispatch) {
-					return;
-				}
-				// The file is explained where it is read: its tab first.
-				if (DocumentTabDispatch && active_document_path() != path) {
-					DocumentTabDispatch(core::activate_tab_intent{ .Tab = tab });
-				}
-				ExplainFileDispatch(path);
-			});
+			if (!QuickAskSource || aTab.Path.isEmpty()) {
+				return;
+			}
+			auto* const ask = aMenu.addMenu(tr("Ask"));
+			ask->setObjectName(QStringLiteral("documentTabAskMenu"));
+			ask->menuAction()->setObjectName(QStringLiteral("documentTabAsk"));
+			auto request = ask_request(core::quick_ask_anchor::file);
+			request.File = aTab.Path;
+			fill_quick_ask(*ask, request);
 		});
 		ExplainCard = new explain_file_card{ ComparisonPage };
 		comparisonColumn->addWidget(ExplainCard);

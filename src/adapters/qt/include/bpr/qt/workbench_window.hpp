@@ -46,6 +46,7 @@
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/enhance_control.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
@@ -1258,7 +1259,21 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0117. Whether a press can be sent now (the agent is
 		/// set up and not answering); the control stays where it is either way.
 		void               set_explain_file_offered(bool aOffered);
+		/// \brief RFC-BPR-0128 ([[BPR-2164]]): the file header's Ask, in
+		/// Explain this file's place (Q3).
 		[[nodiscard]] auto explain_file_button() const noexcept -> QToolButton* { return ExplainFileButton; }
+		/// \brief RFC-BPR-0128 ([[BPR-2164]]). The Ask controls: the review
+		/// bar's, the file header's and each thread's (its reply row and its
+		/// right-click menu), and a file tab's right-click Ask. The source
+		/// decides the rows when a menu opens; a press goes to the dispatch.
+		void               set_quick_ask(ask_menu_source aSource, ask_menu_dispatch aDispatch);
+		[[nodiscard]] auto review_ask_button() const noexcept -> ask_menu_button* { return ReviewAskButton; }
+		[[nodiscard]] auto file_ask_button() const noexcept -> ask_menu_button* { return FileAskButton; }
+		/// \brief What an Ask menu of `aAnchor` is about now: the active file
+		/// and the Comments drawer's open thread.
+		[[nodiscard]] auto ask_request(core::quick_ask_anchor aAnchor) const -> ask_menu_request;
+		/// \brief Fills `aMenu` for `aRequest`, as each Ask control does.
+		void fill_quick_ask(QMenu& aMenu, const ask_menu_request& aRequest);
 		/// \brief RFC-BPR-0117. The answer's card at the file's header; shown
 		/// while it holds a turn for the active tab's file.
 		[[nodiscard]] auto explain_card() const noexcept -> explain_file_card* { return ExplainCard; }
@@ -2953,6 +2968,12 @@ namespace bpr::qt {
 		/// RFC-BPR-0117. Explain this file's control, its card and where a
 		/// press goes.
 		QToolButton*                                         ExplainFileButton = nullptr;
+		ask_menu_button*                                     FileAskButton     = nullptr;
+		ask_menu_button*                                     ReviewAskButton   = nullptr;
+		ask_menu_source                                      QuickAskSource;
+		ask_menu_dispatch                                    QuickAskDispatch;
+		void                                                 refresh_ask_controls();
+		void                                                 activate_document_path(const QString& aPath);
 		explain_file_card*                                   ExplainCard       = nullptr;
 		std::function<void(const QString&)>                  ExplainFileDispatch;
 		bool                                                 ExplainFileOffered = false;

@@ -10,6 +10,7 @@
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QAbstractButton>
+#include <QMenu>
 #include <QColor>
 #include <QFont>
 #include <QString>
@@ -109,6 +110,9 @@ namespace bpr::qt {
 		bool TourOpenOffered = false;
 		/// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed? is offered here.
 		bool AddressedOffered = false;
+		/// RFC-BPR-0128 ([[BPR-2164]]). Fills the thread's Ask menu when it
+		/// opens; none shows no Ask.
+		std::function<void(QMenu&)> AskMenu;
 		/// [[BPR-1802]]. The pull request's repository, whose permalinks show
 		/// as snippet boxes.
 		std::optional<core::markdown_repository> PermalinkRepository;
@@ -546,6 +550,9 @@ namespace bpr::qt {
 		enhance_suggestion* EnhancePanel  = nullptr;
 		enhance_binding*    Enhance       = nullptr;
 		void                build_enhance(QBoxLayout& aControls, enhance_surface aSurface);
+		/// RFC-BPR-0128 ([[BPR-2164]]). The thread's Ask, when the style has a
+		/// menu for it.
+		void add_ask(QBoxLayout& aRow, QWidget* aParent, const QString& aName);
 		/// RFC-BPR-0118. Suggest the change in the tool row, and its panel.
 		QAction*              SuggestAction = nullptr;
 		suggest_change_panel* SuggestPanel  = nullptr;

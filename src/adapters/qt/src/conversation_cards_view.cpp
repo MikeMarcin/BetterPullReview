@@ -26,6 +26,7 @@
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QDateTime>
+#include <QFileInfo>
 #include <QFocusEvent>
 #include <QFont>
 #include <QFontMetrics>
@@ -869,17 +870,16 @@ namespace bpr::qt {
 			threads->setToolTip(QStringLiteral("Show this thread's row in Threads"));
 			connect(threads, &QAction::triggered, menu, [this, post] { if (ActionDispatch) { ActionDispatch(card_action::show_in_threads, post); } });
 		}
-		// [[BPR-1773]]. Ask the agent about a review thread on a file.
-		if (card.Kind == QStringLiteral("Inline thread") && !card.Path.isEmpty() && !card.Posts.empty()) {
-			add(card_action::ask_agent, QStringLiteral("Ask agent about this conversation"), true, { });
-			menu->actions().back()->setObjectName(QStringLiteral("threadAskAgentAction"));
-			menu->actions().back()->setToolTip(QStringLiteral("Open the Agent tab with this conversation and its lines attached to your next question"));
-			// RFC-BPR-0116 ([[BPR-2074]]). On a thread I commented in once
-			// commits followed my comment.
-			if (AddressedThreads.contains(card.Id)) {
-				add(card_action::was_addressed, QStringLiteral("Was This Addressed?"), true, { });
-				menu->actions().back()->setObjectName(QStringLiteral("threadWasAddressedAction"));
-			}
+		// RFC-BPR-0128 ([[BPR-2164]]). One Ask item, its quick asks under it,
+		// in the place of Ask agent about this conversation and Was This
+		// Addressed?. Custom question… attaches the conversation as Ask agent
+		// did.
+		if (AskMenuFiller && !card.Posts.empty()) {
+			auto* const ask = menu->addMenu(QStringLiteral("Ask"));
+			ask->setObjectName(QStringLiteral("threadAskMenu"));
+			ask->menuAction()->setObjectName(QStringLiteral("threadAskMenuAction"));
+			ask->menuAction()->setToolTip(QStringLiteral("Ask the agent a quick question about this thread"));
+			AskMenuFiller(*ask, QString::fromStdString(card.Id), thread_title(card.Id));
 		}
 		if (!card.Posts.empty()) {
 			auto* copy = menu->addAction(QStringLiteral("Copy first post"));
@@ -1452,6 +1452,24 @@ namespace bpr::qt {
 		}
 		TourOpenOffered = aOffered;
 		rebuild_open_card();
+	}
+
+	void conversation_cards_view::set_ask_menu_filler(ask_menu_filler aFiller)
+	{
+		AskMenuFiller = std::move(aFiller);
+		rebuild_open_card();
+	}
+
+	auto conversation_cards_view::thread_title(const std::string& aThread) const -> QString
+	{
+		const auto at = std::ranges::find(Cards, aThread, &thread_card::Id);
+		if (at == Cards.end()) {
+			return QStringLiteral("Thread");
+		}
+		if (at->Path.isEmpty()) {
+			return QStringLiteral("Conversation");
+		}
+		return at->Line ? QStringLiteral("Thread on line %1").arg(*at->Line) : QStringLiteral("Thread on %1").arg(QFileInfo{ at->Path }.fileName());
 	}
 
 	void conversation_cards_view::set_addressed_threads(std::set<std::string> aThreads)
@@ -3743,6 +3761,9 @@ namespace bpr::qt {
 		style.CommentEditOffered     = CommentEditOffered;
 		style.TourOpenOffered        = TourOpenOffered && static_cast<bool>(TourOpenDispatch);
 		style.AddressedOffered       = AddressedThreads.contains(card.Id);
+		if (AskMenuFiller && !card.Posts.empty()) {
+			style.AskMenu = [filler = AskMenuFiller, thread = QString::fromStdString(card.Id), title = thread_title(card.Id)](QMenu& aMenu) { filler(aMenu, thread, title); };
+		}
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
 		style.Colours.CodeInk        = CodeInk;
 		style.CodeTheme              = CodeTheme;

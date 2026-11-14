@@ -1468,9 +1468,7 @@ namespace bpr::qt {
 	void workbench_window::refresh_explain_file()
 	{
 		const auto path = active_document_path();
-		if (ExplainFileButton != nullptr) {
-			ExplainFileButton->setEnabled(ExplainFileOffered && static_cast<bool>(ExplainFileDispatch) && !path.isEmpty());
-		}
+		refresh_ask_controls();
 		if (ExplainCard != nullptr) {
 			ExplainCard->setVisible(!ExplainCard->path().isEmpty() && ExplainCard->path() == path);
 		}
@@ -2065,3 +2063,87 @@ namespace bpr::qt {
 		return std::pair{ aFirst, std::move(*lines) };
 	}
 }
+
+namespace bpr::qt {
+	void workbench_window::set_quick_ask(ask_menu_source aSource, ask_menu_dispatch aDispatch)
+	{
+		QuickAskSource = std::move(aSource);
+		// A row pressed in a tab's menu acts on that tab's file: the file is
+		// asked about where it is read, its tab first.
+		aDispatch.Ask = [this, pressed = std::move(aDispatch.Ask)](const ask_menu_request& aRequest, const core::quick_ask_row& aRow) {
+			activate_document_path(aRequest.File);
+			if (pressed) {
+				pressed(aRequest, aRow);
+			}
+		};
+		aDispatch.Custom = [this, asked = std::move(aDispatch.Custom)](const ask_menu_request& aRequest) {
+			activate_document_path(aRequest.File);
+			if (asked) {
+				asked(aRequest);
+			}
+		};
+		QuickAskDispatch = std::move(aDispatch);
+		if (ConversationPanel != nullptr) {
+			if (QuickAskSource) {
+				ConversationPanel->cards()->set_ask_menu_filler([this](QMenu& aMenu, const QString& aThread, const QString& aTitle) {
+					auto request        = ask_request(core::quick_ask_anchor::thread);
+					request.Thread      = aThread;
+					request.ThreadTitle = aTitle;
+					fill_quick_ask(aMenu, request);
+				});
+			} else {
+				ConversationPanel->cards()->set_ask_menu_filler({ });
+			}
+		}
+		refresh_ask_controls();
+	}
+
+	auto workbench_window::ask_request(const core::quick_ask_anchor aAnchor) const -> ask_menu_request
+	{
+		auto request   = ask_menu_request{ .Anchor = aAnchor, .File = active_document_path() };
+		if (aAnchor != core::quick_ask_anchor::file && ConversationPanel != nullptr) {
+			const auto& open = ConversationPanel->cards()->open_identity();
+			if (!open.empty()) {
+				request.Thread      = QString::fromStdString(open);
+				request.ThreadTitle = ConversationPanel->cards()->thread_title(open);
+			}
+		}
+		return request;
+	}
+
+	void workbench_window::fill_quick_ask(QMenu& aMenu, const ask_menu_request& aRequest)
+	{
+		const auto rows = QuickAskSource ? QuickAskSource(aRequest) : std::nullopt;
+		fill_ask_menu(aMenu, rows.value_or(core::quick_ask_menu{ }), aRequest, QuickAskDispatch);
+	}
+
+	/// RFC-BPR-0128. The Ask controls show while the agent's features are
+	/// offered; the file's is enabled while a file is open.
+	void workbench_window::refresh_ask_controls()
+	{
+		const auto offered = static_cast<bool>(QuickAskSource);
+		if (FileAskButton != nullptr) {
+			FileAskButton->setEnabled(offered && !active_document_path().isEmpty());
+			FileAskButton->setVisible(offered && !LocalDraftShown);
+		}
+		if (ReviewAskButton != nullptr) {
+			ReviewAskButton->setVisible(offered && !LocalDraftShown);
+			if (auto* const action = ReviewBar != nullptr ? ReviewBar->findChild<QAction*>(QStringLiteral("reviewBarAskAction")) : nullptr; action != nullptr) {
+				action->setVisible(offered && !LocalDraftShown);
+			}
+		}
+	}
+
+	void workbench_window::activate_document_path(const QString& aPath)
+	{
+		if (DocumentTabs == nullptr || aPath.isEmpty() || active_document_path() == aPath || !DocumentTabDispatch) {
+			return;
+		}
+		for (const auto& tab : DocumentTabs->tabs()) {
+			if (tab.Path == aPath) {
+				DocumentTabDispatch(core::activate_tab_intent{ .Tab = tab.Id });
+				return;
+			}
+		}
+	}
+} // namespace bpr::qt

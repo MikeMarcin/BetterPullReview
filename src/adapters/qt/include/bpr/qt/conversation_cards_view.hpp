@@ -899,6 +899,12 @@ namespace bpr::qt {
 		void set_tour_open_offered(bool aOffered);
 		/// \brief RFC-BPR-0116 ([[BPR-2074]]). The threads Was this addressed?
 		/// is offered on, by identity.
+		/// \brief RFC-BPR-0128 ([[BPR-2164]]). Fills a thread's Ask menu (its
+		/// identity and section title): the open card's Ask and the thread's
+		/// right-click Ask. None offers no Ask.
+		using ask_menu_filler = std::function<void(QMenu&, const QString& aThread, const QString& aTitle)>;
+		void               set_ask_menu_filler(ask_menu_filler aFiller);
+		[[nodiscard]] auto thread_title(const std::string& aThread) const -> QString;
 		void               set_addressed_threads(std::set<std::string> aThreads);
 		[[nodiscard]] auto addressed_threads() const noexcept -> const std::set<std::string>& { return AddressedThreads; }
 		[[nodiscard]] auto tour_open_offered() const noexcept -> bool;
@@ -1063,6 +1069,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto reply_label_controls() const -> feedback_label_controls*;
 		/// \brief The open thread's card, while one is open.
 		[[nodiscard]] auto open_card() const -> QWidget*;
+		/// \brief RFC-BPR-0128. The open thread's identity; empty for none.
+		[[nodiscard]] auto open_identity() const noexcept -> const std::string& { return Open; }
 		/// \brief The out-of-view chips shown now, top first then bottom.
 		[[nodiscard]] auto edge_chips() const -> std::vector<QAbstractButton*>;
 		/// \brief What the notes scroll by themselves beyond the code.
@@ -1353,6 +1361,7 @@ namespace bpr::qt {
 		bool                                                                      CommentEditOffered = false;
 		bool                                                                      TourOpenOffered    = false;
 		std::set<std::string>                                                     AddressedThreads;
+		ask_menu_filler                                                           AskMenuFiller;
 		std::function<void(const std::string&, const core::published_tour_stop&)> TourOpenDispatch;
 		/// [[BPR-1810]]. Where a stop's chevrons go, and which chevron the
 		/// stepped-to thread's plate takes focus on ("" for none).
