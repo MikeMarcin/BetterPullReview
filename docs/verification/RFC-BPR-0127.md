@@ -160,6 +160,19 @@ Session `5dd1e60daeb1b265f39c6e3f84247a43`, state `/Users/jaeger/.attended-revie
 
 One Accept/Reject each: `state-control-cards-replies`, `draft-refused-struck-pencil`, `finish-review-rows`, `agent-keep-one-control`, `threads-row-move` (its menu items now wear the glyphs), and v004's five unchanged surfaces asked again: `threads-state-filter`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`. For BPR-2171: `discuss-from-review-open-comment`, `discuss-only-this-file-column`. Not waited on.
 
+## Owner verdicts, look v006 (session 5dd1e60daeb1b265f39c6e3f84247a43, handed back 2026-11-14T00:40:36Z)
+
+Verified in `session.json`, by the human actor:
+
+| Candidate | Outcome | Saved | Note |
+|---|---|---|---|
+| `agent-keep-one-control` | **Reject** | 00:35:51Z | "That's too subtle in the agent context." (one screenshot: a finding card in the Agent tab, its icon-only control at the card's foot) |
+| `discuss-from-review-open-comment` | **Reject** | 00:40:33Z | "didn't work. seems like going to discuss (cmd+3) is deslecting the comment because its unselected when i go back to review (cmd+2) and discuss never scrolls or selects it." |
+
+No decision: `state-control-cards-replies`, `draft-refused-struck-pencil`, `finish-review-rows`, `threads-row-move`, `threads-state-filter`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`, `discuss-only-this-file-column`. Asked again in v007.
+
+Host 9121 (Tailscale 9129) stopped with the attended-review `stop`; nothing ran from the roots, and `comments-absorb-notes-v006.csdaortz`, `comments-absorb-notes-agent-v006.6vrnvubx` and `discuss-busy-pr-v002.16ews593` were removed with `freeze_attended_build.py remove`.
+
 ## Closeout state
 
 Every criterion has direct engineering evidence ([[BPR-2162]] checklist). RFC-BPR-0127 is **not closed**. Looks v003 to v005 were answered with three rejects, reworked in round 6. Its closeout waits on look v006 (`5dd1e60d…`).

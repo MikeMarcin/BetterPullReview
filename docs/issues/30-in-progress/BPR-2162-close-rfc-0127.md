@@ -78,3 +78,7 @@ Session `5dd1e60daeb1b265f39c6e3f84247a43`, state `/Users/jaeger/.attended-revie
 One Accept/Reject each: `state-control-cards-replies`, `draft-refused-struck-pencil`, `finish-review-rows`, `agent-keep-one-control`, `threads-row-move` (its menu items now wear the glyphs), and v004's five unchanged surfaces asked again: `threads-state-filter`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`. For BPR-2171: `discuss-from-review-open-comment`, `discuss-only-this-file-column`. Not waited on.
 
 Every criterion holds apart from these pending looks. On their verdicts: all Accept finishes this card and closes RFC-BPR-0127; a Reject is another round.
+
+### Look v006 verdicts
+
+`agent-keep-one-control` **Reject**: "That's too subtle in the agent context." The nine RFC-BPR-0127 questions besides it: no decision, asked again. Verbatim on the [ledger](../../verification/RFC-BPR-0127.md#owner-verdicts-look-v006-session-5dd1e60daeb1b265f39c6e3f84247a43-handed-back-2026-11-14t004036z).
