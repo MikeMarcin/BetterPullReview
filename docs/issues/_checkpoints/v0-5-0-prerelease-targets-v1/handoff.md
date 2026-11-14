@@ -2814,3 +2814,11 @@ Owner look v007, filed and not waited on: session `efe2da80b42f60b91e24da153dc8e
 Next action: on handback read from cursor 36, record verbatim, stop host 25283, remove the three roots. RFC-BPR-0127's questions all Accept: finish BPR-2162 and close the RFC. Both Discuss questions Accept: finish BPR-2171. Mirror card moves to main.
 
 Decision this round (the owner may overrule it): Explain this file's answer is about a whole file, which takes no draft, so its Draft is always disabled; it keeps nothing now.
+
+### RFC-BPR-0127 closed; BPR-2171 Done (2026-11-14)
+
+Look v007 (`efe2da80…`, handed back 01:50:15Z): all twelve Accept, recorded verbatim on the ledger. BPR-2162 Done and RFC-BPR-0127 closed (Auto-Verified); BPR-2171 Done. Host 25283 stopped; the three v007 roots removed. One fault: `comments-absorb-notes-v007.00rkixl7` was removed while the owner's app (PID 56196, launched after the hand-back) was still running from it. That process was not touched.
+
+The owner's asides are Backlog cards, allocated on main: BPR-2172 (the composer's placement warning takes less space), BPR-2173 (drawer scroll after opening the bottom comment; screenshots in `docs/verification/RFC-BPR-0127-v007-asides/`), BPR-2174 (my draft reply in a thread reads clearly, normal undo), BPR-2175 (Compose review hides when navigating).
+
+Another implementer is building RFC-BPR-0128 on this lane; this round committed only docs and cards by path.

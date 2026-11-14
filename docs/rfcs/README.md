@@ -832,7 +832,7 @@ Imported 2026-11-12 at the owner's request ("Add to queue /implement-rfc Impleme
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) | Comments absorb notes: one comment that is Local, Draft or Published | Proposed | RFC-BPR-0007, RFC-BPR-0023, RFC-BPR-0085 |
+| [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) | Comments absorb notes: one comment that is Local, Draft or Published | Auto-Verified | Closed 2026-11-14 by [BPR-2162](../issues/60-done/BPR-2162-close-rfc-0127.md): every criterion evidenced on the [ledger](../verification/RFC-BPR-0127.md), owner looks accepted through v007, AC10 as the owner amended it (Draft alone on agent surfaces); follow-ups BPR-2172 to BPR-2175 |
 
 Imported 2026-11-13; the owner accepted the design and all fourteen defaults, with a computer icon ("Only on this computer") instead of a lock for Local comments. No card started. [Import](assets/comments-absorb-notes-v1.LIVE_IMPORT.md); [plan](plans/comments-absorb-notes-v1/MILESTONES.md), five milestones; [accepted design](../design/comments-absorb-notes-v1/README.md). Its amendments are recorded on RFC-BPR-0007, 0011, 0012, 0023, 0049, 0085, 0086, 0094, 0101, 0102, 0107, 0108, 0110, 0111, 0113, 0115, 0116, 0117, 0118, 0121 and 0125.
 

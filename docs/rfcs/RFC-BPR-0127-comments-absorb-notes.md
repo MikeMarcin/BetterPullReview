@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0127"
 title: "Comments absorb notes: one comment that is Local, Draft or Published"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"owner request 2026-11-12 (verbatim below); imported 2026-11-13 from docs/rfcs/assets/comments-absorb-notes-v1, where it was RFC-DRAFT-0001","inspected_revision":"47a5ed625","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d","milestone_plan":{"id":"comments-absorb-notes-v1","path":"docs/rfcs/plans/comments-absorb-notes-v1/milestone-plan.json"},"baseline":"f85b216ecc7d4a7df2c7c5c263a0cf8be1f3d93a","accepted_design":"docs/design/comments-absorb-notes-v1/index.html","mandate":"owner, 2026-11-13: all fourteen recommended defaults accepted, except the lock for Local comments, which is a computer icon with the tooltip 'Only on this computer'; imported with cards and a plan, no card started"}
 depends_on: ["RFC-BPR-0007", "RFC-BPR-0023", "RFC-BPR-0085"]
 ---
