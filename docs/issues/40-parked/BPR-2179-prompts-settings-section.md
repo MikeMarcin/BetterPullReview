@@ -101,3 +101,10 @@ The owner left two questions open, and the coordinator set defaults for them. Th
 - **Repository overrides:** may add, remove and reorder on a surface.
 
 The layout is settled; the build waits on a written spec from the designer.
+
+Owner, 2026-11-14 (after v004), verbatim: "btw I think our "system" prompts should also be in this prompt library but treated differently, no way to add new ones, no way to delete them only reset, and no way to add them to a surface"
+
+Decided:
+- The system prompts appear in the same Prompt library, marked as system. These are the instructions the app sends with an ask, today's "Built-in prompts" section.
+- They can be edited and reset, but not added, deleted, duplicated onto a surface, or placed on one: drag and Add to are refused for them.
+- The separate "Built-in prompts" settings section is removed.
