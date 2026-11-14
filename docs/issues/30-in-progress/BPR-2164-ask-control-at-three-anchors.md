@@ -27,3 +27,27 @@ Load `frontend-design:frontend-design` first; the accepted design is [docs/desig
 ## Notes
 
 Ends in an owner look (Accept or Reject) on a frozen build whose fixture holds a returning pull request with threads by others.
+
+## Progress (2026-11-14)
+
+Frontend-design was loaded first. Built and evidenced; see the
+[verification record](../../verification/RFC-BPR-0128.md#milestone-ask-menu-bpr-2163-bpr-2164).
+
+- **AC01** passes (`application_ask_menu_public_path`, `qt_conversation_cards_view`,
+  `qt_workbench_window_scale_{100,125,200}`): the review bar's Ask right after
+  the comparison; the file header's Ask in the tab strip where Explain this
+  file stood (Q3); the open thread's Ask beside Reply; Ask items in a thread's
+  and a file tab's menus; Ask agent about this conversation, Was This
+  Addressed? and Explain This File are gone from those menus and the header;
+  no row was added (the controls sit in existing rows).
+- **AC02** passes: only Quick ask macros on a scope that applies; rows name
+  what a press reads (threads, files, and commits where the commit list holds
+  the reviewed commit); Custom question… attaches the thread and sends nothing;
+  Edit Quick Asks… opens Settings at Agents & context with the suggested
+  prompts focused.
+- **AC08** passes on automation: each Ask is named and takes keyboard focus;
+  rows are menu actions with their text; a greyed row is reachable by the
+  arrow keys (`SH_Menu_AllowActiveAndDisabled`) and its reason shows beside it
+  and is its accessible text. A screen-reader pass by a person is not run.
+
+Ends in the owner's look (filed; see the handoff).
