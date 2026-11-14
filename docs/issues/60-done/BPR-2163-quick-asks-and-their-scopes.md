@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2163"
 title: "Quick asks: a macro's Quick ask flag, its scopes, and when it is offered"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2163--BPR-2168--6bc64f9acd90.json","milestone_plan":{"id":"ask-v1","path":"docs/rfcs/plans/ask-v1/milestone-plan.json"},"criteria":["AC03","AC04"],"origin":"imported 2026-11-13 from the owner's Ask design (docs/design/ask-v1); cards cut at import"}
+acceptance: [{"criterion":"AC03","outcome":"pass","revision":"7b3fe6eaa","evidence":{"kind":"command","detail":"core_quick_ask; application_ask_menu_public_path (greyed reason as tooltip, status tip and What's This; absent subject not listed; building every menu launched no agent)"}},{"criterion":"AC04","outcome":"pass","revision":"7b3fe6eaa","evidence":{"kind":"command","detail":"core_quick_ask, sqlite_agent_setup_storage, application_ask_menu_public_path (Quick ask and scopes saved through Settings and read back from the store; narrower scope unavailable; built-in rows; What changed sends system=1 as before)"}}]
 ---
 
 # BPR-2163: Quick asks: a macro's Quick ask flag, its scopes, and when it is offered
