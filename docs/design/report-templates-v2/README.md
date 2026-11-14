@@ -68,6 +68,7 @@ and type.
 | Was this addressed? | [light](png/ad-html-light.png), [dark](png/ad-html-dark.png) | [light](png/ad-qt-light.png), [dark](png/ad-qt-dark.png) |
 | Review file | [light](png/rf-html-light.png), [dark](png/rf-html-dark.png) | [light](png/rf-qt-light.png), [dark](png/rf-qt-dark.png) |
 | The floating menu, open | [light](png/menu-light.png), [dark](png/menu-dark.png) | |
+| Review file, inside the window | | [light](png/window-light.png), [dark](png/window-dark.png) |
 
 ## The hand
 
@@ -119,4 +120,7 @@ Chrome's headless mode on a throwaway profile. Neither is a screen capture.
 - **Syntax colours** in code are not drawn in either version.
 - **The Qt version is laid out by `QTextDocument` alone**, not by the app's
   `markdown_body_view`, which adds its own code-block tools and link handling.
-- **No owner look was filed for this round.**
+
+## Status
+
+Awaiting the owner's answers.
