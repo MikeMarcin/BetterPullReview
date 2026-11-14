@@ -1,7 +1,6 @@
 #include "bpr/qt/explain_file_card.hpp"
 
-#include "bpr/qt/quiet_tool_button.hpp"
-#include "comment_state_toggle.hpp"
+#include "conversation_glyphs.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -72,30 +71,22 @@ namespace bpr::qt {
 		Status = new agent_run_status_line{ this };
 		Status->setObjectName(QStringLiteral("explainFileStatus"));
 		row->addWidget(Status, 1);
-		// Owner look v005: kept through the state control every comment of
-		// mine has. A whole file takes no draft, so Draft is the struck
-		// pencil; Keep local stands only as Go to comment once kept.
-		KeepState = new comment_state_toggle{ QPalette::Base, this };
-		KeepState->setObjectName(QStringLiteral("explainFileKeepState"));
-		KeepState->local_button()->setObjectName(QStringLiteral("explainFileKeepLocal"));
-		KeepState->draft_button()->setObjectName(QStringLiteral("explainFileKeepDraft"));
-		KeepState->set_names(tr("Keep local"), tr("Draft comment"));
-		KeepState->set_local(true, tr("Keep it as a local comment on this file"));
-		KeepState->set_draft(false, tr("A whole file takes no draft"));
-		KeepState->set_state(comment_state_toggle::state::none);
-		KeepState->LocalChosen = [this] {
-			if (KeepButton != nullptr && KeepButton->isEnabled()) {
-				KeepButton->click();
-			}
-		};
-		row->addWidget(KeepState, 0, Qt::AlignVCenter);
-		KeepButton = new quiet_push_button{ tr("Keep local"), this };
+		// Owner, look v006 ("Don't have keep local there, just draft is
+		// fine"): the card's keep action is Draft alone. An explanation of a
+		// whole file has no line to draft on, so Draft is shown disabled with
+		// the pencil struck through, and says why in its tooltip.
+		KeepButton = new quiet_push_button{ tr("Draft"), this };
 		KeepButton->setObjectName(QStringLiteral("explainFileKeep"));
+		KeepButton->setIcon(conversation_icon(conversation_glyph::edit_refused, palette()));
+		KeepButton->setProperty("draftRefused", true);
+		KeepButton->setToolTip(tr("A whole file takes no draft"));
+		KeepButton->setAccessibleDescription(KeepButton->toolTip());
+		row->addWidget(KeepButton);
 		ContinueButton = new quiet_push_button{ tr("Continue in Agent tab"), this };
 		ContinueButton->setObjectName(QStringLiteral("explainFileContinue"));
 		DismissButton = new quiet_push_button{ tr("Dismiss"), this };
 		DismissButton->setObjectName(QStringLiteral("explainFileDismiss"));
-		for (auto* const button : { KeepButton.data(), ContinueButton.data(), DismissButton.data() }) {
+		for (auto* const button : { ContinueButton.data(), DismissButton.data() }) {
 			button->setFlat(true);
 			row->addWidget(button);
 		}
@@ -128,11 +119,6 @@ namespace bpr::qt {
 			}
 		});
 		hide();
-	}
-
-	auto explain_file_card::keep_state() const noexcept -> QWidget*
-	{
-		return KeepState;
 	}
 
 	void explain_file_card::set_dresser(std::function<void(markdown_body_view&)> aDresser)
@@ -168,11 +154,8 @@ namespace bpr::qt {
 			Answer->set_body(Shown.Answer.toStdString(), "explain-file-" + std::to_string(Serial));
 		}
 		Scroll->setVisible(!Shown.Answer.isEmpty());
-		KeepButton->setText(Note != 0U ? tr("Go to comment") : tr("Keep local"));
-		KeepButton->setEnabled(Note != 0U || (Shown.Answered && !Shown.Running && !Keeping));
-		KeepButton->setVisible(Note != 0U);
-		KeepState->setVisible(Note == 0U);
-		KeepState->local_button()->setEnabled(Shown.Answered && !Shown.Running && !Keeping);
+		KeepButton->setText(Note != 0U ? tr("Go to comment") : tr("Draft"));
+		KeepButton->setEnabled(Note != 0U);
 		fit_answer();
 		show();
 		updateGeometry();
@@ -220,7 +203,7 @@ namespace bpr::qt {
 	{
 		auto widest  = 0;
 		auto tallest = 0;
-		for (const auto& words : std::array{ tr("Keep local"), tr("Go to comment"), tr("Continue in Agent tab"), tr("Dismiss") }) {
+		for (const auto& words : std::array{ tr("Draft"), tr("Go to comment"), tr("Continue in Agent tab"), tr("Dismiss") }) {
 			auto probe = quiet_push_button{ words };
 			probe.setFont(font());
 			widest  = std::max(widest, probe.sizeHint().width());

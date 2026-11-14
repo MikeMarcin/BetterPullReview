@@ -383,21 +383,32 @@ overlap on the UX here."
   uses the composer's control: two joined icon segments, the computer (Local)
   and the pencil (Draft), the present state on. This replaces Make draft and
   Keep local buttons on a Local comment's card, a Local reply, my draft's
-  card and my draft reply, Finish your review's not-in-review rows, and the
-  agent's keep actions (answer footer, finding cards, Explain this file). The
-  Threads row menu and the finding queue keep their menu item or list action,
-  wearing the same glyphs.
+  card and my draft reply, and Finish your review's not-in-review rows. The
+  Threads row menu keeps its menu item, wearing the same glyphs. The agent's
+  surfaces are the exception below.
 - A move that is not allowed disables its segment and says why in the
   segment's tooltip alone (at most 60 characters); a refused Draft shows the
   pencil struck through. No reason is written in the card.
-- AC10 reads with this: where nothing is kept yet, the control's segments are
-  the keep actions. Local is always offered; Draft is offered where a line or
-  thread takes one, and is the struck pencil where none does. Once kept, Go
-  to comment or Go to draft stands in the control's place.
 - A draft reply of mine in a thread shows in the thread's Reply field as a
   draft (the pencil, "Draft reply" and its words) with the control beside it,
   so the draft that holds the thread's one draft reply is visible where a
   Local reply's Draft is refused because of it.
+
+
+### Owner amendment to AC10 (look v006, 2026-11-14)
+
+The owner, on the state control in the agent's answer: "That's too subtle in
+the agent context." Then: "Don't have keep local there, just draft is fine,
+they can move it to local after. Local is rare and almost non-existent for
+agent comments you want to keep."
+
+AC10 now reads: the Agent answer footer, finding card, finding queue and
+Explain this file card each offer one keep action, **Draft**: a raised button
+with the pencil and its name, as large as the footer's other buttons. It makes
+a draft where a line or thread can take one; where none can, it is shown
+disabled with the pencil struck through and says why in its tooltip. No agent
+surface offers Keep local. Its follow-up (Go to draft) goes to the draft it
+made, whose card carries the state control, so it can be moved to Local there.
 
 ## Acceptance criteria
 

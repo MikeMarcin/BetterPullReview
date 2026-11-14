@@ -19,7 +19,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
-#include "comment_state_toggle.hpp"
+#include "conversation_glyphs.hpp"
 
 #include <QAbstractItemModel>
 #include <QAccessible>
@@ -1422,19 +1422,6 @@ namespace bpr::qt {
 		// takes a draft (`core::decide_keep`), else Draft comment below. Keep
 		// local keeps the whole reply, or the part selected in it, as a Local
 		// comment on the pull request.
-		// Owner look v005 ("There's a lot of overlap on the UX here"): the
-		// answer is kept through the state control every comment of mine
-		// has, Local or Draft; the two buttons below stand only as Go to
-		// comment and Go to draft once it is kept.
-		auto* const keepState = new comment_state_toggle{ QPalette::Base, reply };
-		keepState->setObjectName(QStringLiteral("agentTurnKeepState"));
-		keepState->local_button()->setObjectName(QStringLiteral("agentTurnKeepStateLocal"));
-		keepState->draft_button()->setObjectName(QStringLiteral("agentTurnKeepStateDraft"));
-		keepState->set_names(tr("Keep local"), tr("Draft comment"));
-		keepState->set_local(true, tr("Keep it as a local comment, only here"));
-		keepState->set_state(comment_state_toggle::state::none);
-		keepState->hide();
-		footerRow->addWidget(keepState);
 		auto* const save = new quiet_push_button{ tr("Keep local"), reply };
 		save->setObjectName(QStringLiteral("agentTurnKeepLocal"));
 		save->setFlat(true);
@@ -1447,11 +1434,16 @@ namespace bpr::qt {
 		// private draft where the host decided when it was asked (the
 		// conversation's reply or the lines asked on). Nothing is published.
 		// Once drafted it goes to the draft.
-		auto* const draft = new quiet_push_button{ tr("Draft comment"), reply };
+		// Owner, look v006 ("That's too subtle in the agent context" and
+		// "Don't have keep local there, just draft is fine, they can move it
+		// to local after"): the answer's one keep action is Draft, a raised
+		// button with the pencil and its name, as large as the footer's
+		// others; where no line or thread takes a draft it is disabled with
+		// the pencil struck through and says why in its tooltip.
+		auto* const draft = new quiet_push_button{ tr("Draft"), reply };
 		draft->setObjectName(QStringLiteral("agentTurnDraftComment"));
-		draft->setFlat(true);
-		draft->setToolTip(aTurn.DraftTarget && !aTurn.DraftTarget->Tip.isEmpty() ? aTurn.DraftTarget->Tip
-																				 : tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
+		draft->setFlat(false);
+		draft->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 		draft->hide();
 		footerRow->addWidget(draft);
 		// [[BPR-2138]], RFC-BPR-0116. Ask more on a returning question's
@@ -1498,31 +1490,20 @@ namespace bpr::qt {
 		replyColumn->addLayout(footerRow);
 		column->addWidget(reply);
 		ThreadColumn->addWidget(box);
-		aTurn.Widget           = box;
-		aTurn.Answer           = answer;
-		aTurn.Footer           = footer;
-		aTurn.Activity         = activity;
-		aTurn.SaveNote         = save;
-		aTurn.CardColumn       = cards;
-		aTurn.Copy             = copy;
-		aTurn.AskedTime        = askedTime;
-		aTurn.AnsweredTime     = answeredTime;
-		aTurn.Draft            = draft;
-		aTurn.KeepState        = keepState;
-		keepState->LocalChosen = [save] {
-			if (save->isEnabled()) {
-				save->click();
-			}
-		};
-		keepState->DraftChosen = [draft] {
-			if (draft->isEnabled()) {
-				draft->click();
-			}
-		};
-		aTurn.Asked    = asked;
-		aTurn.Reply    = reply;
-		aTurn.Recovery = recovery;
-		aTurn.Delete   = remove;
+		aTurn.Widget       = box;
+		aTurn.Answer       = answer;
+		aTurn.Footer       = footer;
+		aTurn.Activity     = activity;
+		aTurn.SaveNote     = save;
+		aTurn.CardColumn   = cards;
+		aTurn.Copy         = copy;
+		aTurn.AskedTime    = askedTime;
+		aTurn.AnsweredTime = answeredTime;
+		aTurn.Draft        = draft;
+		aTurn.Asked        = asked;
+		aTurn.Reply        = reply;
+		aTurn.Recovery     = recovery;
+		aTurn.Delete       = remove;
 		connect(recovery, &QPushButton::clicked, this, [this, recovery] {
 			for (const auto& kept : Turns) {
 				if (kept.Recovery == recovery) {
@@ -3106,9 +3087,7 @@ namespace bpr::qt {
 				continue;
 			}
 			turn.Drafted = false;
-			turn.Draft->setText(tr("Draft comment"));
-			turn.Draft->setToolTip(!turn.DraftTarget->Tip.isEmpty() ? turn.DraftTarget->Tip
-																	: tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
+			turn.Draft->setText(tr("Draft"));
 			turn.Draft->setEnabled(true);
 			present_keep(turn);
 		}
@@ -3116,27 +3095,28 @@ namespace bpr::qt {
 
 	void agent_tab_view::present_keep(turn& aTurn)
 	{
-		auto* const state = static_cast<comment_state_toggle*>(aTurn.KeepState.data());
-		if (state == nullptr || aTurn.SaveNote == nullptr || aTurn.Draft == nullptr) {
+		if (aTurn.SaveNote == nullptr || aTurn.Draft == nullptr) {
 			return;
 		}
+		// Owner, look v006: no Keep local on the agent's answer; Draft alone.
+		aTurn.SaveNote->setVisible(aTurn.KeepOffered && aTurn.Note != 0U);
 		// RFC-BPR-0127 (`core::decide_keep`): Draft where the host found a
 		// thread or line to take a draft; else the struck pencil says why.
 		const auto canDraft = aTurn.DraftTarget.has_value() && !aTurn.DraftTarget->Local;
-		state->set_draft(canDraft, canDraft ? tr("Draft it where you asked") : tr("No line or thread here takes a draft"));
-		// Once kept, or refused with its reason, the button says so and
-		// goes there; until then the state control keeps it.
-		const auto localSaid = aTurn.SaveNote->text() != tr("Keep local");
-		const auto draftSaid = aTurn.Draft->text() != tr("Draft comment");
-		aTurn.SaveNote->setVisible(aTurn.KeepOffered && localSaid);
-		aTurn.Draft->setVisible(aTurn.KeepOffered && draftSaid);
-		state->setVisible(aTurn.KeepOffered && !(aTurn.Note != 0U || aTurn.Drafted));
-		state->set_state(comment_state_toggle::state::none);
+		const auto said     = aTurn.Drafted || aTurn.Draft->text().startsWith(tr("Not drafted"));
+		if (!said) {
+			aTurn.Draft->setText(tr("Draft"));
+			aTurn.Draft->setEnabled(canDraft);
+			aTurn.Draft->setToolTip(canDraft ? tr("Draft it where you asked; nothing is posted") : tr("No line or thread here takes a draft"));
+		}
+		const auto refused = !canDraft && !aTurn.Drafted;
+		aTurn.Draft->setIcon(conversation_icon(refused ? conversation_glyph::edit_refused : conversation_glyph::edit, palette()));
+		aTurn.Draft->setProperty("draftRefused", refused);
+		aTurn.Draft->setAccessibleDescription(aTurn.Draft->toolTip());
+		aTurn.Draft->setVisible(aTurn.KeepOffered);
 	}
 
 	auto agent_tab_view::turn_draft_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Draft.data() : nullptr; }
-
-	auto agent_tab_view::turn_keep_state(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].KeepState.data() : nullptr; }
 
 	auto agent_tab_view::turn_asked(const std::size_t aTurn) const -> QString
 	{
@@ -3398,21 +3378,14 @@ namespace bpr::qt {
 		// RFC-BPR-0127. One keep action, in one place: Draft comment where
 		// its line takes a draft, Keep local where none does
 		// (`core::decide_keep`; `show_card_state` shows the one).
-		// Owner look v005: the state control every comment of mine has.
-		// Local keeps it on its file or the pull request; Draft drafts it at
-		// its line, the struck pencil where no line takes one.
-		auto* const keep = new comment_state_toggle{ QPalette::Base, card };
-		keep->setObjectName(QStringLiteral("agentFindingKeep"));
-		keep->local_button()->setObjectName(QStringLiteral("agentFindingKeepLocal"));
-		keep->draft_button()->setObjectName(QStringLiteral("agentFindingDraftComment"));
-		keep->local_button()->setText(tr("Keep local"));
-		keep->draft_button()->setText(tr("Draft comment"));
-		keep->set_names(tr("Keep local"), tr("Draft comment"));
-		keep->set_local(true, tr("Keep it as a local comment, only here"));
-		keep->set_state(comment_state_toggle::state::none);
-		keep->LocalChosen = [this, index] { act_on_card(index, agent_finding_card_action::keep_local); };
-		keep->DraftChosen = [this, index] { act_on_card(index, agent_finding_card_action::draft_comment); };
-		actions->addWidget(keep);
+		// Owner, look v006 ("Don't have keep local there, just draft is
+		// fine"): the card's one keep action is Draft, raised, with the
+		// pencil; struck through and disabled where its line takes no draft.
+		auto* const draft = new quiet_push_button{ tr("Draft"), card };
+		draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
+		draft->setIcon(conversation_icon(conversation_glyph::edit, palette()));
+		connect(draft, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::draft_comment); });
+		actions->addWidget(draft);
 		auto* const dismiss = new quiet_push_button{ tr("Dismiss"), card };
 		dismiss->setObjectName(QStringLiteral("agentFindingDismiss"));
 		dismiss->setFlat(true);
@@ -3500,9 +3473,14 @@ namespace bpr::qt {
 		const auto open      = aEntry.State == agent_finding_card_state::open || aEntry.State == agent_finding_card_state::refused;
 		const auto placeable = !aEntry.Gone && (!FindingPlaceable || FindingPlaceable(aEntry.Finding));
 		const auto keep      = core::decide_keep({ .ThreadReply = false, .LineTakesDraft = placeable, .FileInPullRequest = false }).Kind;
-		if (auto* const state = static_cast<comment_state_toggle*>(aEntry.Widget->findChild<QWidget*>(QStringLiteral("agentFindingKeep"))); state != nullptr) {
-			state->setVisible(open);
-			state->set_draft(keep == core::keep_kind::draft, keep == core::keep_kind::draft ? tr("Draft it at its line, not published") : tr("No line here takes a draft"));
+		if (auto* const draft = aEntry.Widget->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment")); draft != nullptr) {
+			const auto allowed = keep == core::keep_kind::draft;
+			draft->setVisible(open);
+			draft->setEnabled(allowed);
+			draft->setIcon(conversation_icon(allowed ? conversation_glyph::edit : conversation_glyph::edit_refused, palette()));
+			draft->setProperty("draftRefused", !allowed);
+			draft->setToolTip(allowed ? tr("Draft it at its line; nothing is posted") : tr("No line here takes a draft"));
+			draft->setAccessibleDescription(draft->toolTip());
 		}
 	}
 

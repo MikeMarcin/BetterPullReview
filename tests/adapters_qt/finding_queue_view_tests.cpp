@@ -348,13 +348,12 @@ namespace {
 		expect(
 			view.claim_text() == QStringLiteral("This name reads oddly."),
 			"and the finding is still shown rather than dropped");
-		// RFC-BPR-0127. Of Draft comment and Keep local, one is offered,
-		// and it is `core::decide_keep`'s choice: Keep local for a finding
-		// whose anchor did not hold.
+		// RFC-BPR-0127, owner look v006 ("Don't have keep local there, just
+		// draft is fine"): Draft comment alone; never Keep local.
 		expect(
-			!view.action(qt::finding_queue_action::convert_to_draft_comment)->isVisible()
-				&& view.action(qt::finding_queue_action::keep_local)->isVisible(),
-			"an unanchored finding offers Keep local, not Draft comment");
+			view.action(qt::finding_queue_action::convert_to_draft_comment)->isVisible()
+				&& !view.action(qt::finding_queue_action::keep_local)->isVisible(),
+			"an unanchored finding offers Draft comment, and no Keep local");
 		for (const auto action : { qt::finding_queue_action::open_evidence,
 								   qt::finding_queue_action::convert_to_draft_defect,
 								   qt::finding_queue_action::keep_local }) {

@@ -102,11 +102,6 @@ namespace {
 
 	[[nodiscard]] auto shown(const QWidget* aWidget) -> bool { return aWidget != nullptr && !aWidget->isHidden(); }
 
-	[[nodiscard]] auto count_place(const qt::conversation_cards_view& aCards, const qt::local_comment_place aPlace) -> std::size_t
-	{
-		return static_cast<std::size_t>(std::ranges::count(aCards.local_comments(), aPlace, &qt::local_comment_card::Place));
-	}
-
 	[[nodiscard]] auto card_with(const qt::agent_tab_view& aTab, const std::size_t aTurn, const QString& aClaim) -> QWidget*
 	{
 		for (auto* const card : aTab.turn_cards(aTurn)) {
@@ -173,80 +168,57 @@ auto main(int argc, char** argv) -> int
 			return before;
 		};
 
-		// AC10, the answer footer about the pull request, asked on Overview
-		// (no thread, no lines): Keep local alone.
+		// AC10 with the owner's v006 amendment ("Don't have keep local there,
+		// just draft is fine, they can move it to local after"): every agent
+		// surface offers Draft alone; where nothing takes a draft it is
+		// disabled with the pencil struck, and nothing offers Keep local.
 		const auto prTurn = ask(QStringLiteral("What could this change break?"), "pull-request answer");
 		auto*      keep   = tab->turn_note_button(prTurn);
 		auto*      draft  = tab->turn_draft_button(prTurn);
-		// Owner look v005: the answer is kept through the state control.
-		const auto segment = [&](const std::size_t aTurn, const char* aName) {
-			return tab->turn_keep_state(aTurn) != nullptr ? tab->turn_keep_state(aTurn)->findChild<QAbstractButton*>(QString::fromLatin1(aName)) : nullptr;
-		};
-		expect(shown(tab->turn_keep_state(prTurn)) && segment(prTurn, "agentTurnKeepStateLocal")->isEnabled() && !segment(prTurn, "agentTurnKeepStateDraft")->isEnabled()
-				   && segment(prTurn, "agentTurnKeepStateDraft")->property("draftRefused").toBool() && !shown(keep) && !shown(draft),
-			   "an answer no thread or line takes offers Local, and Draft struck through: overview=" + std::to_string(window.showing_overview()) + " answer=" + tab->turn_answer(prTurn).left(80).toStdString());
-		segment(prTurn, "agentTurnKeepStateLocal")->click();
-		wait([&] { return keep->text() == QStringLiteral("Go to comment") || keep->text().startsWith(QStringLiteral("Not kept")); }, "Keep local keeps the answer");
-		expect(keep->text() == QStringLiteral("Go to comment") && shown(keep) && !shown(tab->turn_keep_state(prTurn)), "Local becomes Go to comment: " + keep->text().toStdString());
+		expect(!shown(keep) && shown(draft) && !draft->isEnabled() && draft->text() == QStringLiteral("Draft") && draft->property("draftRefused").toBool(),
+			   "an answer no thread or line takes offers Draft, disabled and struck, and no Keep local: overview=" + std::to_string(window.showing_overview()) + " answer=" + tab->turn_answer(prTurn).left(80).toStdString());
+		std::cout << "keep-action: footer-refused=pass\n";
 		wait([&] { return window.open_file_in_review(path) && window.active_document_path() == path && window.comparison_surface() != nullptr && window.comparison_surface()->current_result() != nullptr; },
 			 "the file opens in Review");
 		auto* const surface = window.comparison_surface();
-		wait([&] { return count_place(*cards, qt::local_comment_place::pull_request) == 1U; }, "the answer is a Local comment on the pull request");
-		keep->click();
-		QApplication::processEvents();
-		expect(count_place(*cards, qt::local_comment_place::pull_request) == 1U, "Go to comment keeps nothing more");
-		std::cout << "keep-action: footer-local=pass\n";
-		wait([&] { return window.open_file_in_review(path) && window.active_document_path() == path && surface->current_result() != nullptr; }, "the file is shown again");
 
-		// AC10, finding cards: the placed one drafts, the others keep local.
+		// AC10, finding cards: the placed one drafts; the others offer Draft
+		// disabled.
 		auto* const placed    = card_with(*tab, prTurn, QStringLiteral("resets `frame_budget_` on every call"));
 		auto* const gone      = card_with(*tab, prTurn, QStringLiteral("An unused member is left behind."));
 		auto* const elsewhere = card_with(*tab, prTurn, QStringLiteral("The guide still names the renderer's old path."));
 		std::cout << "keep-action: cards=" << tab->turn_cards(prTurn).size() << " placed=" << (placed != nullptr) << " gone=" << (gone != nullptr) << " elsewhere=" << (elsewhere != nullptr) << '\n';
 		expect(placed != nullptr && gone != nullptr && elsewhere != nullptr, "the answer's findings are cards under it");
-		// Owner look v005: each card's state control; Local always, Draft
-		// where its line takes one (else the struck pencil).
-		const auto takesDraft = [](QWidget* aCard) {
-			auto* const draftSegment = aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
-			auto* const localSegment = aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal"));
-			return draftSegment != nullptr && localSegment != nullptr && localSegment->isEnabled() && localSegment->isVisibleTo(aCard) && draftSegment->isEnabled();
-		};
-		const auto keepsOnly = [](QWidget* aCard) {
-			auto* const draftSegment = aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
-			auto* const localSegment = aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal"));
-			return draftSegment != nullptr && localSegment != nullptr && localSegment->isEnabled() && localSegment->isVisibleTo(aCard) && !draftSegment->isEnabled() && draftSegment->property("draftRefused").toBool();
-		};
+		const auto draftOf = [](QWidget* aCard) { return aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment")); };
+		const auto noLocal = [](QWidget* aCard) { return aCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal")) == nullptr; };
 		tab->refresh();
-		expect(takesDraft(placed), "a finding whose line is in its file offers Draft and Local");
+		expect(draftOf(placed) != nullptr && draftOf(placed)->isEnabled() && noLocal(placed), "a finding whose line is in its file offers Draft");
 		// The gone one's line is known to be past the file's end once its
 		// file is shown, which it is.
-		expect(keepsOnly(gone), "a finding past its file's end offers Local, its Draft struck through");
-		const auto onFile = count_place(*cards, qt::local_comment_place::whole_file);
-		gone->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal"))->click();
-		wait([&] { return shown(gone->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment"))); }, "a kept finding offers Go to comment");
-		wait([&] { return count_place(*cards, qt::local_comment_place::whole_file) == onFile + 1U; }, "the finding is a Local comment on its file");
-		expect(gone->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text() == QStringLiteral("Kept local."), "the card says it was kept local");
-		expect(keepsOnly(elsewhere), "a finding on a file the pull request does not change offers Local, its Draft struck through");
-		const auto before = count_place(*cards, qt::local_comment_place::pull_request);
-		elsewhere->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal"))->click();
-		wait([&] { return count_place(*cards, qt::local_comment_place::pull_request) == before + 1U; }, "the finding on another file is a Local comment on the pull request");
-		placed->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+		expect(!draftOf(gone)->isEnabled() && draftOf(gone)->property("draftRefused").toBool() && noLocal(gone), "a finding past its file's end offers Draft disabled and struck");
+		expect(!draftOf(elsewhere)->isEnabled() && draftOf(elsewhere)->property("draftRefused").toBool() && noLocal(elsewhere), "a finding on a file the pull request does not change offers Draft disabled and struck");
+		draftOf(placed)->click();
 		wait([&] { return placed->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Drafted")); },
-			 "Draft comment drafts the placed finding");
+			 "Draft drafts the placed finding");
 		std::cout << "keep-action: cards=pass\n";
+		// Kept as a draft, it can be moved to Local from its card (the state
+		// control): the owner's "they can move it to local after".
 
-		// AC10, the answer footer about selected lines: Draft comment alone.
+		// AC10, the answer footer about selected lines: Draft drafts there.
 		wait([&] { return window.open_file_in_review(path) && surface->current_result() != nullptr; }, "the file is shown again");
 		expect(surface->select_conversation_line(core::diff_side::right, 4U), "a line is selected");
 		const auto linesTurn = ask(QStringLiteral("What do these lines do?"), "lines answer");
 		keep                 = tab->turn_note_button(linesTurn);
 		draft                = tab->turn_draft_button(linesTurn);
-		expect(shown(tab->turn_keep_state(linesTurn)) && segment(linesTurn, "agentTurnKeepStateDraft")->isEnabled() && !shown(draft) && !shown(keep), "an answer about selected lines offers Draft in its state control");
-		segment(linesTurn, "agentTurnKeepStateDraft")->click();
-		wait([&] { return draft->text() == QStringLiteral("Go to draft") || draft->text().startsWith(QStringLiteral("Not drafted")); }, "Draft comment drafts the answer");
-		expect(draft->text() == QStringLiteral("Go to draft"), "Draft comment becomes Go to draft: " + draft->text().toStdString());
+		expect(shown(draft) && draft->isEnabled() && draft->text() == QStringLiteral("Draft") && !shown(keep), "an answer about selected lines offers Draft");
+		draft->click();
+		wait([&] { return draft->text() == QStringLiteral("Go to draft") || draft->text().startsWith(QStringLiteral("Not drafted")); }, "Draft drafts the answer");
+		expect(draft->text() == QStringLiteral("Go to draft"), "Draft becomes Go to draft: " + draft->text().toStdString());
 		wait([&] { const auto& shownDraft = window.review_editor()->shown_draft(); return shownDraft && !shownDraft->Body.empty() && shownDraft->Anchor.Line == 4U; }, "the draft stands at the selected line");
 		std::cout << "keep-action: footer-draft=pass\n";
+		// A Local comment of mine for the opt-ins below (no agent surface
+		// keeps one now).
+		expect(access::seed_local_comment(*application, "LOCAL-ONLY: kept by hand.", false), "a Local comment is stored");
 		// AC10, the finding queue offers the core's one keep action, for the
 		// delivery of the turn asked with the file open, whose findings are
 		// anchored against it where their lines hold.
@@ -257,12 +229,12 @@ auto main(int argc, char** argv) -> int
 				queue->select(ordinal);
 				const auto d = queue->action(qt::finding_queue_action::convert_to_draft_comment)->isVisible();
 				const auto k = queue->action(qt::finding_queue_action::keep_local)->isVisible();
-				expect(d != k, "the queue offers exactly one of Draft comment and Keep local");
+				expect(d && !k, "the queue offers Draft comment and never Keep local");
 				draftOffered += d ? 1 : 0;
 				keepOffered += k ? 1 : 0;
 			}
 			std::cout << "keep-action: queue draft=" << draftOffered << " keep=" << keepOffered << '\n';
-			expect(draftOffered >= 1 && keepOffered >= 1, "the queue offers Draft comment for the anchored finding and Keep local for the others");
+			expect(keepOffered == 0, "no Keep local in the queue");
 		}
 
 		// RFC-BPR-0127, "One action where there were two": Ask agent on my

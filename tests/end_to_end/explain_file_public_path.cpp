@@ -213,18 +213,16 @@ auto main(int argc, char** argv) -> int
 			return result;
 		}
 
-		// AC03. Keep local: a Local comment on the file (RFC-BPR-0127),
-		// naming the agent.
+		// RFC-BPR-0127, owner look v006 ("Don't have keep local there, just
+		// draft is fine"): the card offers Draft alone, and a whole file takes
+		// no draft, so it is disabled with the pencil struck and keeps nothing.
 		auto* const cards       = window.conversation_panel()->cards();
 		const auto  notesBefore = cards->local_comments().size();
+		expect(!card->keep_button()->isEnabled() && card->keep_button()->text() == QStringLiteral("Draft") && card->keep_button()->property("draftRefused").toBool(),
+			   "the card's Draft is disabled: a whole file takes no draft");
 		card->keep_button()->click();
-		wait([&] { return card->note() != 0U; }, "Keep local makes a Local comment");
-		wait([&] { return cards->local_comments().size() == notesBefore + 1U; }, "the Local comment is listed");
-		const auto& notes = cards->local_comments();
-		const auto  kept  = std::ranges::find(notes, card->note(), &qt::local_comment_card::Id);
-		expect(kept != notes.end() && kept->Body.startsWith(QStringLiteral("Agent: Claude explained this file.")) && kept->Place == qt::local_comment_place::whole_file && !kept->Line,
-			   "the Local comment is on the file and not a line, and names its agent origin");
-		expect(card->keep_button()->text() == QStringLiteral("Go to comment"), "Keep local becomes Go to comment");
+		QApplication::processEvents();
+		expect(card->note() == 0U && cards->local_comments().size() == notesBefore, "nothing is kept");
 
 		// AC03. Continue in Agent tab opens that turn.
 		card->continue_button()->click();

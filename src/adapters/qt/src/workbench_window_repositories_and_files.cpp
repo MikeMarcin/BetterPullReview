@@ -1265,7 +1265,7 @@ namespace bpr::qt {
 			if (auto shownThread = ConversationPanel->cards()->open_thread_id(); !shownThread.empty() && !shownThread.starts_with("draft") && !shownThread.starts_with("local:")) {
 				const auto tries  = std::make_shared<int>(0);
 				const auto reopen = std::make_shared<std::function<void()>>();
-				*reopen = [this, open = std::move(shownThread), tries, weak = std::weak_ptr<std::function<void()>>{ reopen }] {
+				*reopen           = [this, open = std::move(shownThread), tries, weak = std::weak_ptr<std::function<void()>>{ reopen }] {
 					if (ConversationPanel == nullptr || Modality == nullptr || Modality->current() != review_modality::review) {
 						return;
 					}

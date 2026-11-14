@@ -545,10 +545,6 @@ namespace bpr::qt {
 		/// a new draft.
 		void               release_answer_draft(const std::string& aKey);
 		[[nodiscard]] auto turn_draft_button(std::size_t aTurn) const -> QPushButton*;
-		/// \brief RFC-BPR-0127, owner look v005. The answer's state control:
-		/// Local keeps it here, Draft drafts it where a line or thread takes
-		/// one (else the struck pencil says why).
-		[[nodiscard]] auto turn_keep_state(std::size_t aTurn) const -> QWidget*;
 		/// \brief What a turn was asked about, as the line above its question
 		/// names it; empty for a turn about the pull request.
 		[[nodiscard]] auto turn_about(std::size_t aTurn) const -> QString;
@@ -800,11 +796,9 @@ namespace bpr::qt {
 			std::optional<agent_answer_draft_target> DraftTarget;
 			QPointer<QPushButton>                    Draft;
 			bool                                     Drafted = false;
-			/// RFC-BPR-0127, owner look v005. The state control (Local, Draft)
-			/// that keeps the answer; Keep local and Draft comment above
-			/// stand only as Go to comment and Go to draft once kept.
-			QPointer<QWidget> KeepState;
-			bool              KeepOffered = false;
+			/// RFC-BPR-0127, owner look v006. Whether the answer offers its
+			/// one keep action, Draft.
+			bool KeepOffered = false;
 			/// RFC-BPR-0116. A returning question's fresh first answer: the
 			/// claim it leads with, and Ask more.
 			std::optional<core::returning_operation> Returning;
@@ -868,8 +862,8 @@ namespace bpr::qt {
 		/// The question and the answer as shown, their references links.
 		void show_question(turn& aTurn);
 		void show_answer(turn& aTurn);
-		/// RFC-BPR-0127. Shows the answer's state control, or its Go to
-		/// comment or Go to draft once kept.
+		/// RFC-BPR-0127, owner look v006. Shows the answer's Draft, struck
+		/// where nothing takes a draft, or Go to draft once drafted.
 		void         present_keep(turn& aTurn);
 		QWidget*     Thread       = nullptr;
 		QVBoxLayout* ThreadColumn = nullptr;
