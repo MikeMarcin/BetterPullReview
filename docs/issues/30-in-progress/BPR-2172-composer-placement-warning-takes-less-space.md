@@ -22,3 +22,15 @@ The warning is the composer's notice "GitHub may not place a comment on this lin
 
 The notice is a warning mark on the composer's tool row (beside the label chip); pressing it (or keyboard activation) discloses the sentence, and it is named for assistive technology. The composer's height does not grow by three lines for it. Owner look on a frozen build with a draft on a line GitHub may not place.
 
+
+## Progress (2026-11-14, branch `claude/parallel-backlog-2156-2172-2173`)
+
+`draft_composer_presentation::NoticeFolds`: the window folds a target notice
+that leaves Publish offered (where the comment goes) to `threadDraftNoticeMark`,
+a warning mark beside the label chip; press or Space discloses the sentence
+under the row and hides it again; its accessible name is "Placement warning"
+and its description the sentence. Publication notices and blocking notices
+keep their lines. Checked in `qt_conversation_cards_view`
+(`test_placement_notice_is_a_warning_mark`). Every non-blocking target notice
+folds, including "Goes on the head at line N": the look asks whether that is
+right. Pending: the owner's look.

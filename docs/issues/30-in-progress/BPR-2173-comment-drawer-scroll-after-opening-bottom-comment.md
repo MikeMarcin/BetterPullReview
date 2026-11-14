@@ -22,3 +22,14 @@ Seen on the frozen `--attended-local-comments-look` (conventional-comments-v1, s
 
 Reproduced in a Qt or composed test first. Opening a card below an open thread brings the opened card into view whole (its top below the drawer's tools row), with no stretch of empty drawer under it. Owner look on the same fixture.
 
+
+## Progress (2026-11-14, branch `claude/parallel-backlog-2156-2172-2173`)
+
+Reproduced first in `qt_conversation_cards_view`
+(`test_opening_the_card_below_an_open_thread_shows_it_whole`): a tall thread
+open at line 6, the drawer scrolled to my Local comment under it, opening that
+comment left its top at -118 px (scroll 214). `conversation_cards_view::reveal_opened`
+now scrolls the notes, no further than their end needs, so the opened card's
+top is clear of the edge chips and its foot is in view; a card whose line is
+off the code's view is still reached by the code moving. Pending: the owner's
+look on the same fixture.
