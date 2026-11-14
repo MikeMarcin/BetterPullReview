@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2176"
 title: "Remove the review bar's Comment button and the Tour tab's Add stop button"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
