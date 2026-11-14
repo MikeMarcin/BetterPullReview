@@ -174,8 +174,8 @@ theme at a time, then trimmed to the frame:
 
 So C's card is chosen: the summary as an ordinary answer with the report
 attached as one row. What the report looks like once that attachment is opened
-is not chosen; C's tab above is one drawing of it, and round 2
-(`docs/design/report-card-v2/`) asks it properly.
+is not chosen; C's tab above is one drawing of it, and
+[round 2](../report-card-v2/README.md) asks it properly.
 
 - Attended-review session `c95f9e8417c8ea6f35b145e15f81c63a`, candidate
   `report-card-v1` at revision `86dda070d240` (the commit that added these
