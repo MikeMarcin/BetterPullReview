@@ -2881,3 +2881,31 @@ its sheet exists in `qt::prompt_macros_panel`.
 
 Not touched: session `efe2da80…` and host 25283/25291 with the v007 roots;
 other agents' processes; BPR-Test.
+
+## Parallel backlog: BPR-2156, BPR-2172, BPR-2173, BPR-2175 (2026-11-14)
+
+Branch `claude/parallel-backlog-2156-2172-2173` from the lane at `612194781`;
+nothing pushed or merged. Frontend-design was loaded before the UI work. Board
+moves are mirrored to `main` on branch `claude/parallel-backlog-mirror`
+(`d8c21db83`, a fast-forward of `main` at `86a3f41c4`): the main checkout could
+not be written from this worktree, so `main` itself is not moved yet.
+
+- BPR-2173 (In Progress, owner look pending): reproduced first in
+  `qt_conversation_cards_view` (`test_opening_the_card_below_an_open_thread_shows_it_whole`:
+  opened card top -118 at scroll 214, as the owner's image 1); fixed by
+  `conversation_cards_view::reveal_opened`.
+- BPR-2172 (In Progress, owner look pending): `draft_composer_presentation::NoticeFolds`;
+  the window folds a non-blocking target notice to the composer's warning mark
+  (`threadDraftNoticeMark`), which discloses the sentence on press.
+- BPR-2156 (In Progress): "Changes" everywhere; the style's folder icon in the
+  Files tree and Overview's folder rows. The Edit view's underrail is
+  `workbench_strip::group_rail` (the review bar), outside this branch's
+  permitted scope: not changed.
+- BPR-2175 (In Progress, mockups only): `docs/design/compose-review-lightbox-v1/`;
+  attended session `e77aa2f7d163c62e21a368b7c023b3dc`, state
+  `/Users/jaeger/.attended-review-state/compose-review-lightbox-v001-2026-11-14/state`,
+  two candidates. Nothing is built for it.
+
+No frozen build was made: the data volume had under 1.5 GB free and a freeze
+root takes about 3 GB. The build tree here was reconfigured with empty
+`CMAKE_*_FLAGS_DEBUG` to fit.

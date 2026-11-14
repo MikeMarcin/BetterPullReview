@@ -935,7 +935,7 @@ namespace bpr::qt {
 			const auto mode   = selected ? QIcon::Selected : QIcon::Normal;
 			style->standardIcon(QStyle::SP_DirIcon, &option, option.widget)
 				.paint(aPainter, QRect{ centre.x() - (side / 2), centre.y() - (side / 2), side, side }, Qt::AlignCenter, mode);
-			rect.setLeft(rect.left() + name_inset + 2);
+			rect.setLeft(rect.left() + name_inset);
 		}
 		auto small = option.font;
 		small.setPointSizeF(small.pointSizeF() * 0.85);
