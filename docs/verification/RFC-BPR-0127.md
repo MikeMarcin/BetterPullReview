@@ -147,6 +147,19 @@ With the screenshot of the composer's foot (the computer and pencil segmented to
 
 Hosts 98149/98159, 42869/42879 and 82478/82486 were stopped with the attended-review `stop`. No process ran from the roots, and `/Users/jaeger/comments-absorb-notes-v003.as90oxpw`, `-v004.r230gldo` and `-v005.7ub_34li` were removed with `freeze_attended_build.py remove`. The rejects open a rework round (below).
 
+## Rework round 6 (2026-11-13): one state control
+
+The owner's direction is an [amendment on the RFC](../rfcs/RFC-BPR-0127-comments-absorb-notes.md#owner-amendment-one-state-control-looks-v003-to-v005-2026-11-13); the four fixes, their causes and evidence are on [[BPR-2162]] ([rework round 6](../issues/30-in-progress/BPR-2162-close-rfc-0127.md#rework-round-6-2026-11-13-one-state-control)). Integration pass at `8b16fbefb`: 37 suites and courses, all passing; the documentation gate is OK.
+
+## Owner look v006 filed (2026-11-13)
+
+Session `5dd1e60daeb1b265f39c6e3f84247a43`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v006-2026-11-13/state` (its URL is in `serve.log` beside it), cursor 36, host PID 9121 (Tailscale child 9129). Frozen from `dd8acd200f9b`, three roots, each launcher check passed:
+- `/Users/jaeger/comments-absorb-notes-v006.csdaortz` (conventional-comments-v1, `--attended-local-comments-look`, `ATTENDED_LOCAL_COMMENTS_SHOWN:6`);
+- `/Users/jaeger/comments-absorb-notes-agent-v006.6vrnvubx` (nested-folders-v1, `--attended-agent-look` with the suggestions fixture as `codex`, `ATTENDED_AGENT_SHOWN:findings=6`);
+- `/Users/jaeger/discuss-busy-pr-v002.16ews593` (conversations-v1, `--attended-read-state --attended-busy-discuss-look`, `ATTENDED_FILE_SHOWN`).
+
+One Accept/Reject each: `state-control-cards-replies`, `draft-refused-struck-pencil`, `finish-review-rows`, `agent-keep-one-control`, `threads-row-move` (its menu items now wear the glyphs), and v004's five unchanged surfaces asked again: `threads-state-filter`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`. For BPR-2171: `discuss-from-review-open-comment`, `discuss-only-this-file-column`. Not waited on.
+
 ## Closeout state
 
-Every criterion has direct engineering evidence ([[BPR-2162]] checklist). RFC-BPR-0127 is **not closed**. Its closeout waits on the verdicts of looks v003 (`acaf71a2…`), v004 (`8ce7e455…`) and v005 (`4329741d…`).
+Every criterion has direct engineering evidence ([[BPR-2162]] checklist). RFC-BPR-0127 is **not closed**. Looks v003 to v005 were answered with three rejects, reworked in round 6. Its closeout waits on look v006 (`5dd1e60d…`).

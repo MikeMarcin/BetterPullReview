@@ -56,3 +56,25 @@ Evidence:
 ## Owner look (filed 2026-11-13, not waited on)
 
 Session `277831a56c39ae71bdd20451783d4e33`, state `/Users/jaeger/.attended-review-state/discuss-busy-pr-v001-2026-11-13/state` (URL in `serve.log` beside it), cursor 15, host PID 26008 (Tailscale child 26018). Frozen root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` from `c4a8137a55ee`. One Accept/Reject question per item: AC1 preview, AC2 column, AC3 files once, AC4 folding and bots, AC5 Only this file. AC6's renders are done; its look waits on these verdicts.
+
+## Owner verdicts (session 277831a5, handed back 2026-11-13T22:59:49Z)
+
+Verified in `session.json`, every decision by the human actor:
+
+| Candidate | Outcome | Saved | Note |
+|---|---|---|---|
+| `ac1-collapsed-preview` | **Accept** | 22:52:33Z | "Can switching to discuss from review with a comment open show that comment in disscuss?" |
+| `ac2-readable-column` | **Accept** | 22:52:47Z | none |
+| `ac3-files-once` | **Accept** | 22:53:32Z | none |
+| `ac4-folding-and-bots` | **Accept** | 22:53:56Z | none |
+| `ac5-only-this-file` | **Reject** | 22:59:48Z | "\"Only this file\" breaks the column formatting." (one screenshot: with the toggle on, the list and the file's name ran full width from the left edge) |
+
+Host 26008 (Tailscale 26018) was stopped with the attended-review `stop`. The frozen root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` is **kept**: the owner's app (PID 28776) was still running from it. Remove it with `freeze_attended_build.py remove` once that process has ended.
+
+## Rework (2026-11-13)
+
+Lane commit `8b16fbefb`.
+- **(b) Only this file keeps the column.** The cause: the column applied only to the whole pull request's time-ordered list, so Only this file fell back to full width. Discuss's list is now a centred column in both. The column is centred on the whole list area whether or not a scrollbar shows, so a short list that loses its scrollbar no longer moves the column, or the band above it, by half a scrollbar. The file's name is drawn on the column's edge.
+- **(a) Discuss from Review shows the open comment.** Choosing Discuss (the segment or ⌘3) while Review holds a published thread open opens that thread in Discuss, in view, the way Show Thread in Discuss does. Drafts and Local comments are not Discuss's and are left alone.
+- Evidence: `application_discuss_busy_public_path` adds, at 1280x800, 1728x1117 and 2560x1440, Only this file on: the column equal to the whole pull request's (820, the same left edge), the band's toggle on the column's edge and unmoved (`ONLY_THIS_FILE 1728x1117 column=454+820 whole=454+820 toggle=454 was=454 edge=454`); then a thread open in Review is open and in view after choosing Discuss (`DISCUSS_CARRIED review-thread:PRRT_cv_t430`). The owner's screenshot shows (b)'s fault; the check's first run, with the column applied but centred on the narrowed viewport, still failed on the scrollbar shift (`column=230+820 whole=221+820`). (a)'s check was written with its fix.
+- One question each for (a) and (b), `discuss-from-review-open-comment` and `discuss-only-this-file-column`, is in session `5dd1e60daeb1b265f39c6e3f84247a43` (frozen root `/Users/jaeger/discuss-busy-pr-v002.16ews593` from `dd8acd200f9b`; details on the [RFC-BPR-0127 ledger](../../verification/RFC-BPR-0127.md#owner-look-v006-filed-2026-11-13)). Not waited on. If both are accepted, this card can finish.
