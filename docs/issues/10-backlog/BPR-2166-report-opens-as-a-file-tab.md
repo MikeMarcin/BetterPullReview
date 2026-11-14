@@ -31,4 +31,9 @@ Ends in an owner look (Accept or Reject) on a frozen build serving a pull reques
 - ask-v002, **Reject**: "Aren't we supposed to have a mack agent for testing
   now? " (no Fixture agent answer; fixed under [[BPR-2177]]).
 - ask-v003, **Reject**: "The footer does not say fixture agent" (the footer
-  named Claude Code; fixed under [[BPR-2177]]). Asked again in ask-v004.
+  named Claude Code; fixed under [[BPR-2177]]).
+- ask-v004, **Reject**: the Fixture agent's answer to What changed since my
+  review was refused as malformed_frame (its init frame listed tools for a
+  tool-free run; fixed under [[BPR-2177]], with every ask now pressed by the
+  freeze check and `application_fixture_agent_every_ask`). Asked again in
+  ask-v005.

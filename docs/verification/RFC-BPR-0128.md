@@ -260,3 +260,41 @@ Default model" before the fix), and on a setup whose Ready line is not
 "Fixture agent is ready". `freeze --check` fails unless the frozen build's
 footer says Fixture agent (`ATTENDED_FIXTURE_AGENT_ANSWERED:…:footer=…`).
 Host 4137/4149 stopped; root `ask-v003.vfh_7ety` removed.
+
+## Owner look ask-v004 (session `88b6acef99947ab22775b220057b2189`)
+
+Frozen from `e97dc8bca`. Handed back 2026-11-14 at sequence 20 ("still doesnt
+work", through the coordinator). One verdict, verbatim; the other four were
+left unanswered (no decision):
+
+- `BPR-2166-report-file-tab`, **Reject**: "What went wrong: A line of its
+  output isn't in the format its profile names, or arrived out of order.
+  (malformed_frame)
+
+  It wrote 136 bytes of output and 0 bytes of errors.
+
+  First line this app couldn't read:
+  {"type":"system","subtype":"init","session_id":"fixture-agent","tools":["Read","Grep"],"mcp_servers":[],"plugins":[],"model":"fixture"}"
+  (Its attachment shows the Agent tab after What changed since my review,
+  "Native continuation", "Fixture agent stopped before answering — Fixture
+  agent answered in a form this app can't read.", the footer "Fixture agent ·
+  Default model" and a "renderer.cpp 6" chip in the composer.)
+
+Root cause: What changed since my review is a tool-free writing run
+(`--tools ""` and the rest of `claude_writing_restrictions`); the app reads
+Claude's init frame and refuses one that reports any tool or MCP server
+(BPR-1375). The fixture agent always reported Read and Grep and always read a
+file, so every tool-free run failed; the app was right. The freeze check had
+asked only What could this change break?, an ordinary chat. Fixed
+([[BPR-2177]]): the fixture agent reports the tools its launch gave
+(`--tools`): none for a tool-free run, which then answers without reading, the
+read-only set for a read-only run (`fixture_agent_answers`). The check now asks
+everything a look offers, at the push the look opens on and before the Agent
+tab is opened: What changed first with the line-6 chip, then every quick ask of
+the review bar, the file and a thread (more than five runs confirmed), a typed
+question with the line chip, a second in the same conversation and two queued
+at once; every turn must be answered. The new course
+`application_fixture_agent_every_ask` runs the application itself that way
+(17 asks); with the old fixture agent it fails on What changed with the
+owner's exact malformed_frame line. `freeze --check` runs the same at the next
+push. Host 12600/12617 stopped; root `ask-v004.vxhvuzyw` removed.
