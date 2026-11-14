@@ -356,7 +356,7 @@ namespace {
 			"an unanchored finding offers Draft comment, and no Keep local");
 		for (const auto action : { qt::finding_queue_action::open_evidence,
 								   qt::finding_queue_action::convert_to_draft_defect,
-								   qt::finding_queue_action::keep_local }) {
+								   qt::finding_queue_action::convert_to_draft_comment }) {
 			expect(
 				view.action(action)->isEnabled(),
 				std::string{ qt::stable_name(action) }

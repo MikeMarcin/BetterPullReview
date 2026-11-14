@@ -82,3 +82,7 @@ Lane commit `8b16fbefb`.
 ## Look v006 verdicts (session 5dd1e60d, handed back 2026-11-14T00:40:36Z)
 
 `discuss-from-review-open-comment` **Reject** (00:40:33Z): "didn't work. seems like going to discuss (cmd+3) is deslecting the comment because its unselected when i go back to review (cmd+2) and discuss never scrolls or selects it." `discuss-only-this-file-column`: no decision, asked again.
+
+## Rework (2026-11-14): Command-3 and Command-2
+
+Lane commit `98fae8076`. Cause: the modality strip shows its new choice before it reports it, so when Command-3 (or the Discuss segment) reached the window, the strip already said Discuss and the carry from Review never ran; v006's course had called the window directly and missed it. The window now decides from the modality it last applied. Choosing Review from Discuss reopens the thread beside the code once Review's card set lists it (the switch rebuilds that set, which had dropped it). `application_discuss_busy_public_path` now drives the strip's own Command-3 and Command-2: it failed first at "and it is in view" and then at "Command-2 returns to Review with the thread still open"; it passes with both fixes, including Command-3 again.
