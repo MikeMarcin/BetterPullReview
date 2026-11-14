@@ -258,14 +258,18 @@ namespace bpr::qt {
 		EditState = new QLabel{ editHead };
 		EditState->setObjectName(QStringLiteral("localDraftEditState"));
 		headRow->addWidget(EditState);
-		Save = new QPushButton{ QStringLiteral("Save"), editHead };
+		Save = new QPushButton{ editHead };
 		Save->setObjectName(QStringLiteral("localDraftSave"));
 		// [[BPR-2156]]. The owner, on the Edit view: "save should use the
-		// standard save icon". The platform's own (SF Symbols on macOS,
-		// Segoe Fluent on Windows, the icon theme on Linux), the style's
-		// where the platform has none; Reload takes the platform's refresh.
+		// standard save icon", then (look of 2026-11-14): "Drop the word Save
+		// just have the icon … isn't it just QIcon::ThemeIcon::DocumentSave".
+		// The icon alone, `DocumentSave` (the style's save icon where the
+		// platform has none); Reload takes the platform's refresh. Its name
+		// and tooltip carry the word.
 		Save->setIcon(save_icon(*Save, false));
-		Save->setFixedWidth(Save->fontMetrics().horizontalAdvance(QStringLiteral("Reload")) + Save->iconSize().width() + 42);
+		Save->setAccessibleName(QStringLiteral("Save"));
+		Save->setToolTip(QStringLiteral("Save: write the file to your worktree."));
+		Save->setFixedWidth(Save->iconSize().width() + 24);
 		headRow->addWidget(Save);
 		edit->addWidget(editHead);
 		Editor = new suggestion_editor{ EditPage };
@@ -886,9 +890,9 @@ namespace bpr::qt {
 		EditName->setText(QStringLiteral("%1%2").arg(EditDirty ? QStringLiteral("● ") : QString{ }, text_of(file->Path)));
 		EditState->setText(changedOnDisk ? QStringLiteral("Changed on disk") : EditDirty ? QStringLiteral("Not saved")
 																						 : QString{ });
-		Save->setText(changedOnDisk ? QStringLiteral("Reload") : QStringLiteral("Save"));
+		Save->setAccessibleName(changedOnDisk ? QStringLiteral("Reload") : QStringLiteral("Save"));
 		Save->setIcon(save_icon(*Save, changedOnDisk));
-		Save->setToolTip(changedOnDisk ? QStringLiteral("Read the file again; your edits are dropped.") : QStringLiteral("Write the file to your worktree."));
+		Save->setToolTip(changedOnDisk ? QStringLiteral("Reload: read the file again; your edits are dropped.") : QStringLiteral("Save: write the file to your worktree."));
 		Save->setEnabled(changedOnDisk || (EditDirty && LocalProjection.Running == application::local_changes_operation::none));
 		// The gutter keeps the comparison; a line edited since the last save is dashed.
 		const auto marks   = file->Marks;
