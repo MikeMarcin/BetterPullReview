@@ -421,6 +421,35 @@ auto main(int argc, char** argv) -> int
 	emit picker->menu()->aboutToShow();
 	expect(find("agentRunSettingsBuilds")->isChecked() && find("agentRunSettingsBuilds")->toolTip().contains(QStringLiteral("Codex's sandbox holds")), "Codex allowed to build: checked, and its tooltip says Codex's sandbox holds it");
 
+	// RFC-BPR-0126 AC09 ([[BPR-2151]], owner Q10/AC09): one Stop all beside
+	// the picker, shown while any turn runs or any message is queued; it
+	// stops every run and asks the window to pause every queue.
+	{
+		auto stoppedAll = std::string{ };
+		auto pausedAll  = 0;
+		footer->set_stop_all_dispatch([&pausedAll] { ++pausedAll; });
+		footer->present_run(qt::agent_footer_place::agent_tab, std::nullopt);
+		footer->present_run(qt::agent_footer_place::tour_chat, std::nullopt);
+		footer->present_run(qt::agent_footer_place::draft_tour, std::nullopt);
+		footer->present_queued(0U);
+		settle();
+		expect(footer->stop_all_button() != nullptr && !footer->stop_all_button()->isVisible(), "Stop all hides while nothing runs and nothing waits");
+		footer->present_queued(2U);
+		settle();
+		expect(footer->stop_all_button()->isVisible() && footer->stop_all_button()->accessibleName() == QStringLiteral("Stop all"), "a queued message shows Stop all, named");
+		auto started2 = QElapsedTimer{ };
+		started2.start();
+		footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking, waiting_on_helpers()), .Started = started2, .Stop = [&stoppedAll] { stoppedAll += "agent;"; } });
+		footer->present_run(qt::agent_footer_place::tour_chat, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking, waiting_on_helpers()), .Started = started2, .Stop = [&stoppedAll] { stoppedAll += "tour;"; } });
+		settle();
+		expect(footer->stop_all_button()->isVisible() && footer->stop_all_button()->focusPolicy() != Qt::NoFocus, "and so does a running turn; it takes keyboard focus");
+		footer->stop_all_button()->click();
+		expect(stoppedAll == "agent;tour;" && pausedAll == 1, "it stops every run and pauses every queue: " + stoppedAll);
+		footer->present_run(qt::agent_footer_place::agent_tab, std::nullopt);
+		footer->present_run(qt::agent_footer_place::tour_chat, std::nullopt);
+		footer->present_queued(0U);
+		settle();
+	}
 	// Look ask-v005 (owner, 2026-11-14: "I don't know why it says setup
 	// agent on launch if the agent is already set up"): the window shows its
 	// footer before the agents are known, so the picker is hidden and the

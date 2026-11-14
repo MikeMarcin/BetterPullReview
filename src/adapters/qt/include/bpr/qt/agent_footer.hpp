@@ -95,6 +95,12 @@ namespace bpr::qt {
 		void present_setup(const QString& aNeed, bool aFailed = false);
 		/// \brief Agent settings… and Set up an agent…: Settings › Agents & context.
 		void set_settings_dispatch(std::function<void()> aDispatch);
+		/// \brief RFC-BPR-0126 AC09: how many messages wait in any session's
+		/// queue; Stop all shows while one does or a turn runs.
+		void present_queued(std::size_t aQueued);
+		/// \brief Stop all, after it has stopped every run it shows: the window
+		/// pauses every queue, so nothing starts next.
+		void set_stop_all_dispatch(std::function<void()> aDispatch);
 		/// \brief How long a finished run's ending stays, in milliseconds.
 		void set_finished_hold(int aMilliseconds);
 
@@ -106,6 +112,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto runs_button() const noexcept -> QToolButton* { return RunsButton; }
 		[[nodiscard]] auto runs_menu() const noexcept -> QMenu* { return RunsMenu; }
 		[[nodiscard]] auto settings_button() const noexcept -> QPushButton* { return SettingsButton; }
+		[[nodiscard]] auto stop_all_button() const noexcept -> QPushButton* { return StopAllButton; }
 		[[nodiscard]] auto cost_label() const noexcept -> QLabel* { return Cost; }
 		/// \brief The footer as words, left to right, for tests and the
 		/// accessible description.
@@ -131,6 +138,9 @@ namespace bpr::qt {
 		QString                                                               Need;
 		bool                                                                  NeedFailed = false;
 		std::function<void()>                                                 SettingsDispatch;
+		std::function<void()>                                                 StopAllDispatch;
+		std::size_t                                                           Queued         = 0U;
+		QPushButton*                                                          StopAllButton  = nullptr;
 		agent_run_settings_picker*                                            Picker         = nullptr;
 		QWidget*                                                              RunArea        = nullptr;
 		QLabel*                                                               Dot            = nullptr;

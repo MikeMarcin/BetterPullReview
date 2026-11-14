@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace bpr::application {
 	agent_queue_host::agent_queue_host(agent_queue_dependencies aDependencies)
@@ -73,6 +74,28 @@ namespace bpr::application {
 	{
 		core::pause(Queues[aSession], aWhy);
 		commit(aSession);
+	}
+
+	void agent_queue_host::pause_all(const core::queue_pause aWhy)
+	{
+		auto sessions = std::vector<std::string>{ };
+		for (const auto& [session, queue] : Queues) {
+			if (!queue.Entries.empty()) {
+				sessions.push_back(session);
+			}
+		}
+		for (const auto& session : sessions) {
+			pause(session, aWhy);
+		}
+	}
+
+	auto agent_queue_host::queued_count() const -> std::size_t
+	{
+		auto count = std::size_t{ 0 };
+		for (const auto& [session, queue] : Queues) {
+			count += static_cast<std::size_t>(std::ranges::count(queue.Entries, core::queued_state::queued, &core::queued_entry::State));
+		}
+		return count;
 	}
 
 	void agent_queue_host::observe(const std::string& aSession, const core::queue_agent aAgent)

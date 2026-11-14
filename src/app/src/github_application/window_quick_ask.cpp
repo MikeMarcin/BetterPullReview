@@ -9,6 +9,7 @@
 
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/core/quick_ask.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -55,6 +56,15 @@ namespace bpr::app {
 			dependencies.Store   = AgentQueueStore.get();
 			dependencies.Release = [this](const std::string&, const core::queued_entry& aEntry) { return release_queued(aEntry); };
 			dependencies.Changed = [this](const std::string& aSession, const core::agent_queue& aQueue) {
+				// RFC-BPR-0126 AC09: Stop all shows while any session's queue
+				// holds a message.
+				if (!Closing && Window != nullptr) {
+					QTimer::singleShot(0, Window.get(), [this] {
+						if (!Closing && Window != nullptr && Window->agent_footer_widget() != nullptr && AgentQueue) {
+							Window->agent_footer_widget()->present_queued(AgentQueue->queued_count());
+						}
+					});
+				}
 				if (Closing || Window == nullptr || aSession != ask_session_key()) {
 					return;
 				}
@@ -71,6 +81,15 @@ namespace bpr::app {
 			};
 			AgentQueue = std::make_unique<application::agent_queue_host>(std::move(dependencies));
 			AgentQueue->load();
+			// RFC-BPR-0126 AC09: Stop all, after the footer stopped every run,
+			// pauses every queue, so nothing starts next.
+			if (auto* const footer = Window->agent_footer_widget(); footer != nullptr) {
+				footer->set_stop_all_dispatch([this] {
+					if (!Closing && AgentQueue) {
+						AgentQueue->pause_all(core::queue_pause::stopped);
+					}
+				});
+			}
 		}
 		Window->agent_tab()->set_availability_observer([this](const bool aSettled) { observe_ask_queue(aSettled); });
 		auto* const tab = Window->agent_tab();

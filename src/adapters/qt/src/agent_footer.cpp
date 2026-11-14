@@ -195,6 +195,37 @@ namespace bpr::qt {
 		});
 		row->addWidget(SettingsButton);
 
+		// RFC-BPR-0126 AC09 ([[BPR-2151]]): one Stop all beside the picker,
+		// in a fixed slot, shown while any turn runs or any message waits.
+		StopAllButton = new quiet_push_button{ tr("Stop all"), this };
+		StopAllButton->setObjectName(QStringLiteral("agentFooterStopAll"));
+		StopAllButton->setFlat(true);
+		StopAllButton->setAccessibleName(tr("Stop all"));
+		StopAllButton->setToolTip(tr("Stop every agent turn and pause every queue, so nothing starts next"));
+		StopAllButton->setFocusPolicy(Qt::StrongFocus);
+		{
+			auto keep = StopAllButton->sizePolicy();
+			keep.setRetainSizeWhenHidden(true);
+			StopAllButton->setSizePolicy(keep);
+		}
+		connect(StopAllButton, &QPushButton::clicked, this, [this] {
+			// Each run's own Stop, then the window pauses every queue.
+			auto stops = std::vector<std::function<void()>>{ };
+			for (const auto& each : Runs) {
+				if (each && each->Stop) {
+					stops.push_back(each->Stop);
+				}
+			}
+			for (const auto& stopping : stops) {
+				stopping();
+			}
+			if (StopAllDispatch) {
+				StopAllDispatch();
+			}
+		});
+		row->addWidget(StopAllButton);
+		StopAllButton->hide();
+
 		Picker = new agent_run_settings_picker{ std::move(aSource), this };
 		Picker->setObjectName(QStringLiteral("agentFooterPicker"));
 		Picker->installEventFilter(this);
@@ -253,6 +284,16 @@ namespace bpr::qt {
 		Costs[index_of(aPlace)] = aCost;
 		refresh();
 	}
+
+	void agent_footer::present_queued(const std::size_t aQueued)
+	{
+		if (Queued != aQueued) {
+			Queued = aQueued;
+			refresh();
+		}
+	}
+
+	void agent_footer::set_stop_all_dispatch(std::function<void()> aDispatch) { StopAllDispatch = std::move(aDispatch); }
 
 	void agent_footer::present_setup(const QString& aNeed, const bool aFailed)
 	{
@@ -380,6 +421,7 @@ namespace bpr::qt {
 		const auto chosen = !Picker->isHidden();
 		SettingsButton->setText(chosen ? tr("Agent settings…") : tr("Set up an agent…"));
 		SettingsButton->setVisible(!Need.isEmpty() || Picker->isHidden());
+		StopAllButton->setVisible(count > 0U || Queued > 0U);
 		Divider->setVisible(RunArea->isVisibleTo(this) || RunsButton->isVisibleTo(this));
 
 		const auto total = total_cost();

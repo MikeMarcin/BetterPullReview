@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_queue.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -48,6 +49,10 @@ namespace bpr::application {
 		[[nodiscard]] auto withdraw(const std::string& aSession, std::uint64_t aId) -> core::queue_refusal;
 		[[nodiscard]] auto resume(const std::string& aSession) -> core::queue_refusal;
 		void               pause(const std::string& aSession, core::queue_pause aWhy);
+		/// \brief RFC-BPR-0126 AC09, Stop all: every session's queue pauses.
+		void pause_all(core::queue_pause aWhy);
+		/// \brief Messages waiting to be sent, across every session.
+		[[nodiscard]] auto queued_count() const -> std::size_t;
 		/// \brief What the session's agent can take now: releases the next
 		/// entry when it is idle.
 		void observe(const std::string& aSession, core::queue_agent aAgent);
