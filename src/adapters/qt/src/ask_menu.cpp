@@ -4,9 +4,13 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 
+#include <QContextMenuEvent>
 #include <QEvent>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QMenu>
+#include <QMouseEvent>
+#include <QPointer>
 #include <QProxyStyle>
 
 namespace bpr::qt {
@@ -36,7 +40,109 @@ namespace bpr::qt {
 			}
 			return { };
 		}
+		/// What a row's own menu acts on.
+		struct row_binding
+		{
+			ask_menu_request    Request;
+			core::quick_ask_row Row;
+			ask_menu_dispatch   Dispatch;
+		};
+
+		/// RFC-BPR-0128, owner look ask-v001: "I don't think right click
+		/// should send the message ... in fact there should be a context
+		/// menu." A right click on a row opens the row's own menu and is never
+		/// a press; the Menu key does the same for the row in focus.
+		class ask_row_filter final : public QObject
+		{
+		public:
+			using QObject::QObject;
+
+			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				auto* const menu = qobject_cast<QMenu*>(aWatched);
+				if (menu == nullptr) {
+					return false;
+				}
+				if (aEvent->type() == QEvent::MouseButtonPress || aEvent->type() == QEvent::MouseButtonRelease || aEvent->type() == QEvent::MouseButtonDblClick) {
+					auto* const mouse = static_cast<QMouseEvent*>(aEvent);
+					if (mouse->button() != Qt::RightButton) {
+						// Shift on the click that presses a row drafts it.
+						menu->setProperty("bprAskShift", mouse->modifiers().testFlag(Qt::ShiftModifier));
+						return false;
+					}
+					if (aEvent->type() == QEvent::MouseButtonRelease) {
+						if (auto* const action = menu->actionAt(mouse->position().toPoint()); action != nullptr) {
+							open(*menu, *action, mouse->globalPosition().toPoint());
+						}
+					}
+					return true;
+				}
+				if (aEvent->type() == QEvent::ContextMenu) {
+					auto* const context = static_cast<QContextMenuEvent*>(aEvent);
+					auto* const action  = context->reason() == QContextMenuEvent::Keyboard ? menu->activeAction() : menu->actionAt(context->pos());
+					if (action != nullptr) {
+						open(*menu, *action, context->reason() == QContextMenuEvent::Keyboard ? menu->mapToGlobal(menu->actionGeometry(action).bottomLeft()) : context->globalPos());
+					}
+					return true;
+				}
+				return false;
+			}
+
+		private:
+			static void open(QMenu& aMenu, QAction& aAction, const QPoint& aAt)
+			{
+				if (auto* const rowMenu = make_ask_row_menu(aMenu, aAction, &aMenu); rowMenu != nullptr) {
+					rowMenu->setAttribute(Qt::WA_DeleteOnClose);
+					rowMenu->popup(aAt);
+				}
+			}
+		};
 	} // namespace
+
+	auto make_ask_row_menu(QMenu& aMenu, QAction& aRow, QWidget* const aParent) -> QMenu*
+	{
+		const auto binding = aRow.property("bprAskRow").value<std::shared_ptr<row_binding>>();
+		if (!binding) {
+			return nullptr;
+		}
+		auto* const menu = new QMenu{ aParent };
+		menu->setObjectName(QStringLiteral("askRowMenu"));
+		const auto close = [outer = QPointer<QMenu>{ &aMenu }] {
+			if (outer) {
+				outer->close();
+			}
+		};
+		auto* const queue = menu->addAction(QObject::tr("Queue"));
+		queue->setObjectName(QStringLiteral("askRowQueue"));
+		queue->setEnabled(binding->Row.Enabled && static_cast<bool>(binding->Dispatch.Ask));
+		QObject::connect(queue, &QAction::triggered, menu, [binding, close] {
+			close();
+			binding->Dispatch.Ask(binding->Request, binding->Row);
+		});
+		auto* const draft = menu->addAction(QObject::tr("Draft in Agent Tab"));
+		draft->setObjectName(QStringLiteral("askRowDraft"));
+		draft->setEnabled(static_cast<bool>(binding->Dispatch.Draft));
+		QObject::connect(draft, &QAction::triggered, menu, [binding, close] {
+			close();
+			binding->Dispatch.Draft(binding->Request, binding->Row);
+		});
+		menu->addSeparator();
+		auto* const edit = menu->addAction(QObject::tr("Edit Quick Ask\u2026"));
+		edit->setObjectName(QStringLiteral("askRowEdit"));
+		edit->setEnabled(static_cast<bool>(binding->Dispatch.EditOne));
+		QObject::connect(edit, &QAction::triggered, menu, [binding, close] {
+			close();
+			binding->Dispatch.EditOne(binding->Row.Id);
+		});
+		auto* const hide = menu->addAction(QObject::tr("Hide from Quick Asks"));
+		hide->setObjectName(QStringLiteral("askRowHide"));
+		hide->setEnabled(static_cast<bool>(binding->Dispatch.Hide));
+		QObject::connect(hide, &QAction::triggered, menu, [binding, close] {
+			close();
+			binding->Dispatch.Hide(binding->Row.Id);
+		});
+		return menu;
+	}
 
 	auto agent_glyph(const QPalette& aGround) -> QIcon
 	{
@@ -89,6 +195,7 @@ namespace bpr::qt {
 			style->setParent(&aMenu);
 			aMenu.setStyle(style);
 			aMenu.setProperty("bprAskMenuStyled", true);
+			aMenu.installEventFilter(new ask_row_filter{ &aMenu });
 			// The keyboard reaches a greyed row too; its reason shows beside it.
 			QObject::connect(&aMenu, &QMenu::hovered, &aMenu, [menu = &aMenu](QAction* const aAction) {
 				if (aAction != nullptr && !aAction->isEnabled() && !aAction->toolTip().isEmpty()) {
@@ -112,13 +219,25 @@ namespace bpr::qt {
 				action->setData(QString::fromStdString(row.Id));
 				action->setEnabled(row.Enabled && static_cast<bool>(aDispatch.Ask));
 				const auto reason = quick_ask_reason_words(row.Reason, row.Scope);
-				const auto tip    = row.Enabled ? (count.isEmpty() ? label : QObject::tr("%1: reads %2").arg(label, count)) : reason;
+				const auto waits  = row.Waits == core::quick_ask_reason::agent_not_set_up ? QObject::tr(" It waits until the agent is set up.")
+					: row.Waits == core::quick_ask_reason::agent_busy                     ? QObject::tr(" It waits until the agent's current answer finishes.")
+																						  : QString{ };
+				const auto tip    = row.Enabled ? (count.isEmpty() ? QObject::tr("%1. Click queues it; Shift+click drafts it.").arg(label) : QObject::tr("%1: reads %2. Click queues it; Shift+click drafts it.").arg(label, count)) + waits : reason;
 				action->setToolTip(tip);
 				action->setStatusTip(tip);
 				action->setWhatsThis(tip);
-				QObject::connect(action, &QAction::triggered, &aMenu, [dispatch = aDispatch.Ask, request = aRequest, decided = row] {
-					if (dispatch) {
-						dispatch(request, decided);
+				action->setProperty("bprAskRow", QVariant::fromValue(std::make_shared<row_binding>(row_binding{ .Request = aRequest, .Row = row, .Dispatch = aDispatch })));
+				// Owner look ask-v001: Shift+click drafts the message; a plain
+				// click queues it (owner, 2026-11-14).
+				QObject::connect(action, &QAction::triggered, &aMenu, [menu = &aMenu, dispatch = aDispatch, request = aRequest, decided = row] {
+					const auto shift = menu->property("bprAskShift").toBool() || QGuiApplication::keyboardModifiers().testFlag(Qt::ShiftModifier);
+					menu->setProperty("bprAskShift", false);
+					if (shift) {
+						if (dispatch.Draft) {
+							dispatch.Draft(request, decided);
+						}
+					} else if (dispatch.Ask) {
+						dispatch.Ask(request, decided);
 					}
 				});
 			}

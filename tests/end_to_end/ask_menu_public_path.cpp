@@ -169,7 +169,7 @@ auto main(int argc, char** argv) -> int
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication qtApplication{ argc, argv };
 	const auto   course = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
-	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report")) {
+	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report" && course != "queue")) {
 		std::cerr << "usage: ask_menu_public_path menu|addressed|report STUB [--attended]\n";
 		return EXIT_FAILURE;
 	}
@@ -209,6 +209,45 @@ auto main(int argc, char** argv) -> int
 		auto* const cards      = window.conversation_panel()->cards();
 		const auto  path       = QStringLiteral("src/engine/renderer.cpp");
 		wait([&] { return window.what_changed_action()->isEnabled(); }, "the returning pull request's commits are read");
+		if (course == "queue") {
+			// Owner, 2026-11-14: "a plain click queues it. We might not have
+			// set up the agent yet or we might be running other things
+			// already." Before setup: queued, the Agent tab offers setup, and
+			// nothing runs; once set up it runs. Busy: the next waits its turn.
+			wait([&] { return window.go_to_file_line(path, 12U, false) && window.active_document_path() == path; }, "the file opens");
+			auto* const ask = window.review_ask_button();
+			wait([&] { return ask->isVisible() && window.what_changed_action()->isEnabled(); }, "the review bar's Ask shows, and the commits since the review are read");
+			// The installed Claude (the stub) is the agent this session asks.
+			window.open_agent_question();
+			auto* const selector = window.agent_panel()->profile_selector();
+			if (const auto index = selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())); index >= 0) {
+				selector->setCurrentIndex(index);
+			}
+			ask->refresh_menu();
+			auto* const changed = row(*ask->menu(), QStringLiteral("agent-tab.what-changed"), QStringLiteral("pull-request"));
+			expect(changed != nullptr, "What changed is listed before setup");
+			changed->trigger();
+			QApplication::processEvents();
+			expect(tab->queue_note()->text().contains(QStringLiteral("waiting for the agent's setup")) && launchesAt() == 0U,
+				   "before setup it is queued and nothing runs: " + tab->queue_note()->text().toStdString());
+			agent_ready(window);
+			wait([&] { return answer_of(*tab).find("RETURNING_ECHO") != std::string::npos && access::agent_invocation_evidence(*application).Quiescent && tab->state() != qt::agent_tab_state::working; },
+				 "once set up, the queued ask runs");
+			expect(tab->queue_note()->text().isEmpty(), "and leaves the queue");
+			const auto turns = tab->turn_count();
+			ask->refresh_menu();
+			row(*ask->menu(), QStringLiteral("agent-tab.what-changed"), QStringLiteral("pull-request"))->trigger();
+			ask->refresh_menu();
+			row(*ask->menu(), QStringLiteral("agent-tab.explain-file"), QStringLiteral("file"))->trigger();
+			QApplication::processEvents();
+			expect(tab->queue_note()->text().contains(QStringLiteral("Explain this file")) || tab->turn_count() > turns, "while one runs, the next waits its turn: " + tab->queue_note()->text().toStdString());
+			wait([&] { return tab->turn_count() == turns + 2U && tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent && tab->queue_note()->text().isEmpty(); },
+				 "both run, one after the other");
+			expect(tab->turn_returning(turns) == core::returning_operation::latest_upload && tab->turn_explain(turns + 1U) == path, "in the order they were queued");
+			shutdown(*application);
+			std::cout << "ask-menu-queue:pass\n";
+			return EXIT_SUCCESS;
+		}
 		agent_ready(window);
 		wait([&] { return window.go_to_file_line(path, 12U, false) && window.active_document_path() == path && !cards->cards().empty(); }, "the file opens beside its threads");
 		const auto setupLaunches = launchesAt();
@@ -489,6 +528,7 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "ask-menu: " << aError.what() << '\n';
 		if (application) {
 			const auto& tab = *application->window().agent_tab();
+			std::cerr << "queue: " << tab.queue_note()->text().toStdString() << " turns=" << tab.turn_count() << " claims=" << application->window().conversation_panel()->cards()->thread_claims().size() << '\n';
 			std::cerr << "github-status: " << application->window().github_status_text() << "\nagent-panel: " << application->window().agent_panel()->status_text().toStdString()
 					  << "\nlast-answer: " << answer_of(tab) << '\n';
 			shutdown(*application);

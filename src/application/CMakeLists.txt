@@ -211,6 +211,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/agent_finding_card_host.cpp
             src/prompt_turn_name_host.cpp
             src/prompt_macro_host.cpp
+            src/agent_queue_host.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
             src/agent_scratch_folder.cpp

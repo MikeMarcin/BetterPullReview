@@ -314,9 +314,10 @@ namespace bpr::core {
 					menu.Hidden.push_back(std::move(withheld));
 					continue;
 				}
-				// The agent's own state greys every row that could run.
+				// The agent's own state greys nothing: a press queues it, and the
+				// row says what it will wait for.
 				if (decided->Enabled && aFacts.Agent != quick_ask_agent::ready) {
-					*decided = greyed(std::move(*decided), aFacts.Agent == quick_ask_agent::busy ? quick_ask_reason::agent_busy : quick_ask_reason::agent_not_set_up);
+					decided->Waits = aFacts.Agent == quick_ask_agent::busy ? quick_ask_reason::agent_busy : quick_ask_reason::agent_not_set_up;
 				}
 				(macro.Action != prompt_action::none ? actions : others).push_back(std::move(*decided));
 			}

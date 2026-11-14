@@ -85,16 +85,17 @@ namespace bpr::app {
 
 		/// \brief [[BPR-2177]]. Which programs a fixture build may start; a
 		/// program it refuses is never run, and the run says why.
-		void               set_admission(std::function<bool(const std::string&)> aAdmit) { Admit = std::move(aAdmit); }
+		/// A bare `claude` or `codex` is started from the folder the run named.
+		void               set_admission(std::function<std::optional<std::string>(const std::string&)> aAdmit) { Admit = std::move(aAdmit); }
 		[[nodiscard]] auto refusals() const noexcept -> std::size_t { return Refusals.load(); }
 
 		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Launcher.native_connections_quiescent(); }
 
 	private:
-		adapters::agent::agent_process_launcher& Launcher;
-		std::atomic_size_t                       Invocations = 0U;
-		std::function<bool(const std::string&)>  Admit;
-		std::atomic_size_t                       Refusals = 0U;
+		adapters::agent::agent_process_launcher&                      Launcher;
+		std::atomic_size_t                                            Invocations = 0U;
+		std::function<std::optional<std::string>(const std::string&)> Admit;
+		std::atomic_size_t                                            Refusals = 0U;
 	};
 #endif
 	/// \brief Names one core promotion refusal for a reviewer to read.

@@ -2583,7 +2583,8 @@ namespace bpr::app::detail {
 			github_application& aApplication, std::string aRequest)
 			-> application::mcp_helper_refusal;
 		/// \brief [[BPR-2177]]. Whether this run's launch guard admits a program.
-		[[nodiscard]] static auto fixture_agent_admits(const github_application& aApplication, const std::string& aExecutable) -> bool;
+		/// The program it would start, or none when it refuses.
+		[[nodiscard]] static auto fixture_agent_admits(const github_application& aApplication, const std::string& aExecutable) -> std::optional<std::string>;
 		[[nodiscard]] static auto agent_invocation_evidence(
 			const github_application& aApplication) noexcept
 			-> agent_invocation_composition_evidence;

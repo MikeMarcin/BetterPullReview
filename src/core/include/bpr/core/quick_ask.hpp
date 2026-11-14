@@ -141,6 +141,11 @@ namespace bpr::core {
 		bool           Enabled = true;
 		/// Why it is greyed; `none` while enabled.
 		quick_ask_reason Reason = quick_ask_reason::none;
+		/// Owner, 2026-11-14: "a plain click queues it. We might not have set
+		/// up the agent yet or we might be running other things already." A
+		/// row the agent's state alone holds back stays enabled and says what
+		/// it will wait for: `agent_not_set_up` or `agent_busy`.
+		quick_ask_reason Waits = quick_ask_reason::none;
 		/// What a press reads: "18 commits", "12 threads".
 		std::uint32_t  Count = 0U;
 		quick_ask_unit Unit  = quick_ask_unit::none;

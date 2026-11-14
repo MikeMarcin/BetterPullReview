@@ -39,8 +39,17 @@ namespace bpr::qt {
 	/// \brief What a menu's items do.
 	struct ask_menu_dispatch
 	{
-		/// A quick ask was pressed.
+		/// A quick ask was pressed: it is queued on the session (owner,
+		/// 2026-11-14: "a plain click queues it"), and runs when the agent is
+		/// set up and free.
 		std::function<void(const ask_menu_request&, const core::quick_ask_row&)> Ask;
+		/// Shift+click, or the row's menu's Draft in Agent tab: its message in
+		/// the Agent tab's field, not sent.
+		std::function<void(const ask_menu_request&, const core::quick_ask_row&)> Draft;
+		/// The row's menu: Edit quick ask… (its sheet in Settings) and Hide
+		/// from quick asks (Quick ask off).
+		std::function<void(const std::string& aId)> EditOne;
+		std::function<void(const std::string& aId)> Hide;
 		/// Custom question…: the Agent tab on the narrowest subject the
 		/// request names; nothing is sent.
 		std::function<void(const ask_menu_request&)> Custom;
@@ -63,6 +72,10 @@ namespace bpr::qt {
 	/// Quick Asks…. Greyed rows can be reached by keyboard, which shows their
 	/// reason.
 	void fill_ask_menu(QMenu& aMenu, const core::quick_ask_menu& aRows, const ask_menu_request& aRequest, const ask_menu_dispatch& aDispatch);
+	/// \brief A row's own menu (a right click, or the Menu key on a row):
+	/// Queue, Draft in Agent tab, Edit quick ask…, Hide from quick asks. A
+	/// right click never runs a row. Null for a row with no quick ask.
+	[[nodiscard]] auto make_ask_row_menu(QMenu& aMenu, QAction& aRow, QWidget* aParent) -> QMenu*;
 
 	/// \brief The Ask control: an ordinary button with the agent glyph in the
 	/// accent whose menu is decided each time it opens.

@@ -7,6 +7,7 @@
 
 #include "github_application/window_composition.hpp"
 
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
@@ -14,6 +15,8 @@
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <QTimer>
+
+#include <cstdio>
 
 #include <algorithm>
 
@@ -41,10 +44,54 @@ namespace bpr::app {
 		}
 		Window->set_quick_ask([this](const qt::ask_menu_request& aRequest) { return quick_ask_menu(aRequest); },
 							  qt::ask_menu_dispatch{
-								  .Ask    = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { press_quick_ask(aRequest, aRow); },
+								  .Ask   = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { queue_quick_ask(aRequest, aRow); },
+								  .Draft = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { draft_quick_ask(aRequest, aRow); },
+								  .EditOne =
+									  [this](const std::string& aId) {
+										  Window->open_settings(qt::settings_page::agents_and_context);
+										  Window->reveal_prompt_macros();
+										  Window->prompt_macros()->edit(aId);
+									  },
+								  .Hide =
+									  [this](const std::string& aId) {
+										  auto macros = PromptMacroSet.macros();
+										  for (auto& macro : macros) {
+											  if (macro.Id == aId) {
+												  macro.Body.QuickAsk = false;
+											  }
+										  }
+										  if (PromptMacros) {
+											  PromptMacros->save(application::prompt_macro_differences_of(core::shipped_prompt_macros(), macros));
+										  }
+									  },
+
 								  .Custom = [this](const qt::ask_menu_request& aRequest) { ask_custom_question(aRequest); },
 								  .Edit   = [this] { Window->open_settings(qt::settings_page::agents_and_context); Window->reveal_prompt_macros(); },
 							  });
+		if (!AgentQueue) {
+			AgentQueueStore      = adapters::sqlite::make_agent_queue_store(ApplicationDataRoot);
+			auto dependencies    = application::agent_queue_dependencies{ };
+			dependencies.Store   = AgentQueueStore.get();
+			dependencies.Release = [this](const std::string&, const core::queued_entry& aEntry) { return release_queued(aEntry); };
+			dependencies.Changed = [this](const std::string& aSession, const core::agent_queue& aQueue) {
+				if (Closing || Window == nullptr || aSession != ask_session_key()) {
+					return;
+				}
+				auto waiting = QStringList{ };
+				for (const auto& entry : aQueue.Entries) {
+					if (entry.State == core::queued_state::queued) {
+						waiting << QString::fromStdString(entry.Input.Label);
+					}
+				}
+				const auto state = aQueue.Paused != core::queue_pause::none                      ? QStringLiteral("paused")
+					: Window->agent_tab()->setup_readiness() != qt::agent_setup_readiness::ready ? QStringLiteral("waiting for the agent's setup")
+																								 : QStringLiteral("waiting its turn");
+				Window->agent_tab()->present_queue(waiting, state);
+			};
+			AgentQueue = std::make_unique<application::agent_queue_host>(std::move(dependencies));
+			AgentQueue->load();
+		}
+		Window->agent_tab()->set_availability_observer([this](const bool aSettled) { observe_ask_queue(aSettled); });
 		auto* const tab = Window->agent_tab();
 		// RFC-BPR-0128 ([[BPR-2166]]). A report card's Open: the report as a
 		// tab beside the files; its references go where the Agent tab's go.
@@ -128,89 +175,175 @@ namespace bpr::app {
 		return core::decide_quick_asks(PromptMacroSet.macros(), quick_ask_facts(aRequest), aRequest.Anchor);
 	}
 
-	/// A press decides the menu again under the facts it is made under, and
-	/// acts only on a row that is still listed and enabled.
-	void github_application::implementation::press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow)
+	/// A press queues the quick ask on its session (owner, 2026-11-14).
+	void github_application::implementation::press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { queue_quick_ask(aRequest, aRow); }
+
+	auto github_application::implementation::ask_session_key() const -> std::string
 	{
-		const auto  menu = quick_ask_menu(aRequest);
-		const auto* row  = menu ? core::find_quick_ask(*menu, aRow.Id, aRow.Scope) : nullptr;
-		if (row == nullptr || !row->Enabled || Window == nullptr) {
+		// The Agent tab's session of this pull request: the queue is the
+		// session's, not the window's (RFC-BPR-0126 Q10).
+		if (!AgentReview) {
+			return { };
+		}
+		return "agent-tab:" + AgentReview->Hostname + "/" + AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name + "#" + std::to_string(AgentReview->Number.value());
+	}
+
+	/// A plain click: each run the row asks (one a thread or file at a wider
+	/// scope) is queued on the session; a wide press asks first (Q5).
+	void github_application::implementation::queue_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow)
+	{
+		const auto  menu    = quick_ask_menu(aRequest);
+		const auto* row     = menu ? core::find_quick_ask(*menu, aRow.Id, aRow.Scope) : nullptr;
+		const auto  session = ask_session_key();
+		if (row == nullptr || session.empty() || !AgentQueue || Window == nullptr) {
 			return;
 		}
-		auto* const tab = Window->agent_tab();
-		switch (row->Action) {
-		case core::prompt_action::what_changed:
-			dismiss_asked_conversation();
-			ask_what_changed();
+		if (!row->Enabled) {
 			return;
-		case core::prompt_action::explain_file: ask_explain_file(aRequest.File.toStdString()); return;
-		case core::prompt_action::was_addressed:
-			// Q5: one run a thread, one after another; a long run asks first.
-			if (core::quick_ask_needs_confirmation(*row) && !Window->confirm_quick_ask_runs(row->Each.size(), QString::fromStdString(row->Label))) {
-				return;
-			}
-			for (const auto& thread : row->Each) {
-				QuickAskQueue.push_back([this, thread] { ask_was_addressed(thread); });
-			}
-			drain_quick_asks();
-			return;
-		case core::prompt_action::none: break;
 		}
-		const auto id = QString::fromStdString(row->Id);
 		if (core::quick_ask_needs_confirmation(*row) && !Window->confirm_quick_ask_runs(row->Each.size(), QString::fromStdString(row->Label))) {
 			return;
 		}
-		if (row->Subject == core::prompt_subject::conversation) {
-			// Each thread is attached as Ask agent attaches it, and its
-			// suggested prompt is sent from the Agent tab; one run a thread.
-			for (const auto& thread : row->Each) {
-				QuickAskQueue.push_back([this, thread, id, tab] {
-					ask_agent_about_thread(thread);
-					tab->send_prompt(id);
-				});
-			}
-			drain_quick_asks();
-			return;
+		const auto scope = std::string{ core::stable_name(row->Scope) };
+		auto       items = row->Each;
+		if (items.empty()) {
+			items.emplace_back();
 		}
-		if (row->Subject == core::prompt_subject::open_file && row->Scope == core::prompt_scope::pull_request) {
-			// A file's prompt at the pull request: one run a file, each with
-			// its file open.
-			for (const auto& file : row->Each) {
-				QuickAskQueue.push_back([this, file, id, tab] {
-					static_cast<void>(Window->open_file_in_review(QString::fromStdString(file)));
-					dismiss_asked_conversation();
-					Window->open_agent_question();
-					tab->send_prompt(id);
-				});
+		const auto byThread = row->Subject == core::prompt_subject::conversation;
+		const auto byFile   = row->Subject == core::prompt_subject::open_file && row->Scope == core::prompt_scope::pull_request;
+		for (const auto& item : items) {
+			auto input = core::queued_input{ .QuickAsk = row->Id, .Scope = scope, .File = aRequest.File.toStdString(), .Thread = aRequest.Thread.toStdString(), .Label = row->Label };
+			if (byThread && !item.empty()) {
+				input.Thread = item;
 			}
-			drain_quick_asks();
-			return;
+			if (byFile && !item.empty()) {
+				input.File = item;
+			}
+			if (AgentQueue->enqueue(session, std::move(input)) != core::queue_refusal::none) {
+				Window->open_agent_question();
+				Window->agent_panel()->refuse("The queue is full: nothing more was queued.");
+				break;
+			}
 		}
-		dismiss_asked_conversation();
 		Window->open_agent_question();
-		tab->send_prompt(id);
+		if (Window->agent_tab()->setup_readiness() != qt::agent_setup_readiness::ready) {
+			// Queued; the Agent tab offers its setup, and the ask runs after.
+			Window->open_agent_setup();
+		}
+		observe_ask_queue(false);
 	}
 
-	/// Starts the next waiting run once the Agent tab has finished the one
-	/// before; the host's own lane, polled while runs wait.
-	void github_application::implementation::drain_quick_asks()
+	/// Shift+click: the quick ask's message in the Agent tab's field, on its
+	/// subject; nothing is sent.
+	void github_application::implementation::draft_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow)
 	{
-		if (Closing || Window == nullptr || Window->agent_tab() == nullptr || QuickAskQueue.empty()) {
-			QuickAskDraining = false;
+		if (Window == nullptr) {
 			return;
 		}
-		if (Window->agent_tab()->state() == qt::agent_tab_state::working) {
-			QuickAskDraining = true;
-			QTimer::singleShot(250, Window.get(), [this] { drain_quick_asks(); });
+		auto* const tab = Window->agent_tab();
+		if (aRow.Subject == core::prompt_subject::conversation && !aRow.Each.empty()) {
+			ask_agent_about_thread(aRow.Each.front());
+		} else if (aRow.Subject == core::prompt_subject::conversation && !aRequest.Thread.isEmpty()) {
+			ask_agent_about_thread(aRequest.Thread.toStdString());
+		} else {
+			dismiss_asked_conversation();
+			Window->open_agent_question();
+		}
+		if (aRow.Action == core::prompt_action::none) {
+			tab->draft_prompt(QString::fromStdString(aRow.Id));
+		} else {
+			tab->draft_text(QString::fromStdString(aRow.Label));
+		}
+	}
+
+	/// What the session's agent can take now; a settled turn first settles
+	/// the entry it ran.
+	void github_application::implementation::observe_ask_queue([[maybe_unused]] const bool aSettled)
+	{
+		if (Closing || Window == nullptr || !AgentQueue) {
 			return;
 		}
-		auto next = std::move(QuickAskQueue.front());
-		QuickAskQueue.pop_front();
-		next();
-		QuickAskDraining = !QuickAskQueue.empty();
-		if (QuickAskDraining) {
-			QTimer::singleShot(250, Window.get(), [this] { drain_quick_asks(); });
+		const auto  session = ask_session_key();
+		auto* const tab     = Window->agent_tab();
+		if (session.empty() || tab == nullptr) {
+			return;
 		}
+		const auto working = tab->state() == qt::agent_tab_state::working;
+		// The run retires before the next input goes (RFC-BPR-0126: real
+		// completion, not a raw result).
+		const auto retired = AgentHost == nullptr || AgentHost->is_quiescent();
+		if (AgentQueue->sending(session)) {
+			if (working) {
+				QueueTurnSeen = true;
+			} else if (QueueTurnSeen && retired) {
+				QueueTurnSeen = false;
+				AgentQueue->settle(session, core::queue_pause::none);
+			} else if (QueueTurnSeen && QueueRetireChecks < 100U) {
+				// The turn ended and its run is still retiring: look again
+				// shortly. This observes retirement; it never resends.
+				++QueueRetireChecks;
+				QTimer::singleShot(100, Window.get(), [this] { observe_ask_queue(false); });
+				return;
+			}
+		}
+		const auto agent = tab->setup_readiness() != qt::agent_setup_readiness::ready ? core::queue_agent::not_set_up
+			: working || !retired || !tab->ready_to_send()                            ? core::queue_agent::busy
+																					  : core::queue_agent::idle;
+		AgentQueue->observe(session, agent);
+	}
+
+	/// Starts one queued entry's turn through the existing launch paths, and
+	/// opens the Agent tab at it (owner look ask-v001, img 1: "just opening
+	/// the agent drawer in the session and scrolling to the question and
+	/// response").
+	auto github_application::implementation::release_queued(const core::queued_entry& aEntry) -> bool
+	{
+		if (Closing || Window == nullptr) {
+			return false;
+		}
+		auto* const tab   = Window->agent_tab();
+		const auto  set   = PromptMacroSet.macros();
+		const auto  macro = std::ranges::find(set, aEntry.Input.QuickAsk, &core::prompt_macro::Id);
+		if (macro == set.end()) {
+			return false;
+		}
+		const auto turns  = tab->turn_count();
+		const auto id     = QString::fromStdString(macro->Id);
+		QueueTurnSeen     = false;
+		QueueRetireChecks = 0U;
+		switch (macro->Action) {
+		case core::prompt_action::what_changed:
+			dismiss_asked_conversation();
+			ask_what_changed();
+			break;
+		case core::prompt_action::explain_file:  ask_explain_file(aEntry.Input.File); break;
+		case core::prompt_action::was_addressed: ask_was_addressed(aEntry.Input.Thread); break;
+		case core::prompt_action::none:
+			if (macro->Body.Subject == core::prompt_subject::conversation) {
+				ask_agent_about_thread(aEntry.Input.Thread);
+			} else {
+				if (macro->Body.Subject == core::prompt_subject::open_file && !aEntry.Input.File.empty()) {
+					static_cast<void>(Window->open_file_in_review(QString::fromStdString(aEntry.Input.File)));
+				}
+				dismiss_asked_conversation();
+			}
+			tab->send_prompt(id);
+			break;
+		}
+		Window->open_agent_question();
+		QTimer::singleShot(0, Window.get(), [this, turns] {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto* const shown = Window->agent_tab();
+			if (shown->turn_count() > turns) {
+				shown->reveal_turn(shown->turn_count() - 1U);
+				observe_ask_queue(false);
+			}
+		});
+		// A turn may start on the next pass (Explain this file reads its
+		// material first): the press went out unless the tab refused it.
+		return tab->send_refusal_text().isEmpty();
 	}
 
 	/// RFC-BPR-0128 ([[BPR-2165]]). A Was this addressed? answer's claim

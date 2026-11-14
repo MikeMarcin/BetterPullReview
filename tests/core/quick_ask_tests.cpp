@@ -216,18 +216,17 @@ namespace {
 				   && std::ranges::find(menu.Hidden, std::string{ "conversation.draft-reply" }, &prompt_withheld::Id) != menu.Hidden.end(),
 			   "a condition that fails is not listed, with its reason kept");
 
-		// The agent's state greys every row that could run.
+		// Owner, 2026-11-14 ("a plain click queues it"): the agent's state
+		// greys nothing; a row says what it will wait for.
 		facts       = returning_facts();
 		facts.Agent = quick_ask_agent::busy;
-		for (const auto& section : decide_quick_asks(set, facts, quick_ask_anchor::review_bar).Sections) {
-			for (const auto& each : section.Rows) {
-				expect(!each.Enabled, each.Id);
-			}
-		}
+		menu        = decide_quick_asks(set, facts, quick_ask_anchor::review_bar);
+		row         = find_quick_ask(menu, "agent-tab.what-changed", prompt_scope::pull_request);
+		expect(row != nullptr && row->Enabled && row->Waits == quick_ask_reason::agent_busy, "busy: still offered, waiting its turn");
 		facts.Agent = quick_ask_agent::not_set_up;
 		menu        = decide_quick_asks(set, facts, quick_ask_anchor::file);
 		row         = find_quick_ask(menu, "agent-tab.explain-file", prompt_scope::file);
-		expect(row != nullptr && row->Reason == quick_ask_reason::agent_not_set_up, "no agent: greyed, saying so");
+		expect(row != nullptr && row->Enabled && row->Waits == quick_ask_reason::agent_not_set_up, "no agent: still offered, waiting for setup");
 	}
 
 	void test_reviewer_choices()

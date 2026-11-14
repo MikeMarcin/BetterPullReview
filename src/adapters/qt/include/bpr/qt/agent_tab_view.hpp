@@ -477,6 +477,20 @@ namespace bpr::qt {
 		/// turn, the report's title and its Markdown (references as links).
 		using report_dispatch = std::function<void(std::size_t aTurn, const QString& aTitle, const QString& aMarkdown)>;
 		void set_report_dispatch(report_dispatch aDispatch) { ReportDispatch = std::move(aDispatch); }
+		/// \brief RFC-BPR-0128 with RFC-BPR-0126's queue. Told when the agent
+		/// may take more: setup finished, or a turn settled.
+		/// `aSettled` is true when a turn has just settled.
+		void set_availability_observer(std::function<void(bool aSettled)> aObserver) { AvailabilityObserver = std::move(aObserver); }
+		/// \brief Shift+click on a quick ask: its message in the field, sent by
+		/// nobody until the reviewer sends it.
+		void draft_prompt(const QString& aPrompt);
+		/// \brief Whether a question can be sent now (not answering, Send on).
+		[[nodiscard]] auto ready_to_send() const -> bool;
+		/// \brief Puts `aText` in the field for the reviewer to finish.
+		void draft_text(const QString& aText);
+		/// \brief What waits its turn in this session's queue.
+		void               present_queue(const QStringList& aWaiting, const QString& aState);
+		[[nodiscard]] auto queue_note() const noexcept -> QLabel* { return QueueNote; }
 		/// \brief Opens turn `aTurn`'s report, as its card's Open does.
 		void               open_report(std::size_t aTurn);
 		[[nodiscard]] auto turn_report_card(std::size_t aTurn) const -> QWidget*;
@@ -1013,6 +1027,8 @@ namespace bpr::qt {
 		std::map<QString, core::returning_operation> ReturningPrompts;
 		claim_observer                               ClaimObserver;
 		report_dispatch                              ReportDispatch;
+		std::function<void(bool)>                    AvailabilityObserver;
+		QLabel*                                      QueueNote = nullptr;
 		std::optional<core::returning_operation>     SendingReturning;
 		std::optional<core::returning_operation>     PendingReturning;
 		/// RFC-BPR-0117. The file Explain this file is being sent for, the

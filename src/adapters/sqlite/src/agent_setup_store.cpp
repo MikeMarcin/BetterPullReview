@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -332,6 +333,23 @@ namespace bpr::adapters::sqlite {
 									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 63),"
 									"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
 									"PRIMARY KEY(place, position)) STRICT")
+				// RFC-BPR-0126 ([[BPR-2151]]). Each session's queue: its state
+				// and its entries in order; a session's queue is written whole.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_queues("
+									"session TEXT PRIMARY KEY CHECK(length(CAST(session AS BLOB)) BETWEEN 1 AND 1024),"
+									"revision INTEGER NOT NULL CHECK(revision >= 0),"
+									"last_id INTEGER NOT NULL CHECK(last_id >= 0),"
+									"paused TEXT NOT NULL CHECK(length(CAST(paused AS BLOB)) <= 64)) STRICT")
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_queue_entries("
+									"session TEXT NOT NULL REFERENCES agent_queues(session) ON DELETE CASCADE,"
+									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15),"
+									"id INTEGER NOT NULL CHECK(id >= 1),"
+									"quick_ask TEXT NOT NULL, scope TEXT NOT NULL, file TEXT NOT NULL, thread TEXT NOT NULL,"
+									"label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384),"
+									"state TEXT NOT NULL, held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1),"
+									"PRIMARY KEY(session, position)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_macro_revision("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
@@ -2561,6 +2579,122 @@ namespace bpr::adapters::sqlite {
 			std::filesystem::path Root;
 		};
 
+		/// RFC-BPR-0126 ([[BPR-2151]]). Each session's queue.
+		class agent_queue_store final : public application::agent_queue_store_port
+		{
+		public:
+			explicit agent_queue_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+
+			[[nodiscard]] auto load() -> std::optional<std::map<std::string, core::agent_queue>> override
+			{
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					auto* const db     = store->Database.get();
+					auto        queues = std::map<std::string, core::agent_queue>{ };
+					auto        meta   = detail::prepare(db, "SELECT session,revision,last_id,paused FROM agent_queues");
+					if (!meta) {
+						return std::nullopt;
+					}
+					for (auto step = sqlite3_step(meta->Value); step == SQLITE_ROW; step = sqlite3_step(meta->Value)) {
+						auto& queue       = queues[column_text(meta->Value, 0).value_or(std::string{ })];
+						queue.Revision    = static_cast<std::uint64_t>(sqlite3_column_int64(meta->Value, 1));
+						queue.LastId      = static_cast<std::uint64_t>(sqlite3_column_int64(meta->Value, 2));
+						const auto paused = column_text(meta->Value, 3).value_or(std::string{ });
+						queue.Paused      = named_value<core::queue_pause>(paused, 8U).value_or(core::queue_pause::restarted);
+					}
+					auto entries = detail::prepare(db, "SELECT session,id,quick_ask,scope,file,thread,label,text,state,held FROM agent_queue_entries ORDER BY session,position");
+					if (!entries) {
+						return std::nullopt;
+					}
+					for (auto step = sqlite3_step(entries->Value); step == SQLITE_ROW; step = sqlite3_step(entries->Value)) {
+						auto entry  = core::queued_entry{ .Id = static_cast<std::uint64_t>(sqlite3_column_int64(entries->Value, 1)) };
+						entry.Input = core::queued_input{
+							.QuickAsk = column_text(entries->Value, 2).value_or(std::string{ }),
+							.Scope    = column_text(entries->Value, 3).value_or(std::string{ }),
+							.File     = column_text(entries->Value, 4).value_or(std::string{ }),
+							.Thread   = column_text(entries->Value, 5).value_or(std::string{ }),
+							.Label    = column_text(entries->Value, 6).value_or(std::string{ }),
+							.Text     = column_text(entries->Value, 7).value_or(std::string{ }),
+						};
+						entry.State = named_value<core::queued_state>(column_text(entries->Value, 8).value_or(std::string{ }), 4U).value_or(core::queued_state::delivery_unknown);
+						entry.Held  = sqlite3_column_int64(entries->Value, 9) != 0;
+						queues[column_text(entries->Value, 0).value_or(std::string{ })].Entries.push_back(std::move(entry));
+					}
+					return queues;
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store(const std::string& aSession, const core::agent_queue& aQueue) -> bool override
+			{
+				try {
+					auto store = open(Root);
+					if (!store || aSession.empty() || aQueue.Entries.size() > core::maximum_queued_inputs) {
+						return false;
+					}
+					auto* const db = store->Database.get();
+					if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+						return false;
+					}
+					auto ok = false;
+					if (auto erase = detail::prepare(db, "DELETE FROM agent_queues WHERE session=?1"); erase) {
+						bind_text(erase->Value, 1, aSession);
+						ok = sqlite3_step(erase->Value) == SQLITE_DONE;
+					}
+					if (ok && !aQueue.Entries.empty()) {
+						if (auto meta = detail::prepare(db, "INSERT INTO agent_queues(session,revision,last_id,paused) VALUES(?1,?2,?3,?4)"); meta) {
+							bind_text(meta->Value, 1, aSession);
+							sqlite3_bind_int64(meta->Value, 2, static_cast<std::int64_t>(aQueue.Revision));
+							sqlite3_bind_int64(meta->Value, 3, static_cast<std::int64_t>(aQueue.LastId));
+							bind_text(meta->Value, 4, std::string{ core::stable_name(aQueue.Paused) });
+							ok = sqlite3_step(meta->Value) == SQLITE_DONE;
+						} else {
+							ok = false;
+						}
+						auto position = std::int64_t{ 0 };
+						for (const auto& entry : aQueue.Entries) {
+							if (!ok) {
+								break;
+							}
+							auto row = detail::prepare(db, "INSERT INTO agent_queue_entries(session,position,id,quick_ask,scope,file,thread,label,text,state,held) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)");
+							if (!row) {
+								ok = false;
+								break;
+							}
+							bind_text(row->Value, 1, aSession);
+							sqlite3_bind_int64(row->Value, 2, position++);
+							sqlite3_bind_int64(row->Value, 3, static_cast<std::int64_t>(entry.Id));
+							bind_text(row->Value, 4, entry.Input.QuickAsk);
+							bind_text(row->Value, 5, entry.Input.Scope);
+							bind_text(row->Value, 6, entry.Input.File);
+							bind_text(row->Value, 7, entry.Input.Thread);
+							bind_text(row->Value, 8, entry.Input.Label);
+							bind_text(row->Value, 9, entry.Input.Text);
+							bind_text(row->Value, 10, std::string{ core::stable_name(entry.State) });
+							sqlite3_bind_int64(row->Value, 11, entry.Held ? 1 : 0);
+							ok = sqlite3_step(row->Value) == SQLITE_DONE;
+						}
+					}
+					if (!ok) {
+						static_cast<void>(detail::execute(db, "ROLLBACK"));
+						return false;
+					}
+					return detail::execute(db, "COMMIT").has_value();
+				} catch (...) {
+					return false;
+				}
+			}
+
+		private:
+			std::filesystem::path Root;
+		};
+
 		/// [[BPR-2016]], RFC-BPR-0107. What an import changes, read and
 		/// written across this file and the profile's workbench settings.
 		class agent_configuration_store final : public application::agent_configuration_store_port
@@ -2827,6 +2961,11 @@ namespace bpr::adapters::sqlite {
 	auto make_prompt_turn_name_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_turn_name_store_port>
 	{
 		return std::make_unique<prompt_turn_name_store>(aRoot);
+	}
+
+	auto make_agent_queue_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_queue_store_port>
+	{
+		return std::make_unique<agent_queue_store>(aRoot);
 	}
 
 	auto make_prompt_macro_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_macro_store_port>

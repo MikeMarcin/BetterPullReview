@@ -116,7 +116,7 @@ namespace bpr::app {
 	/// agents: the fixture agent's, each executable a course set, and each
 	/// search path. A program named `claude` or `codex` elsewhere (the person's
 	/// own) is refused; in a person's session, so is any program elsewhere.
-	auto github_application::implementation::fixture_agent_admission() const -> std::function<bool(const std::string&)>
+	auto github_application::implementation::fixture_agent_admission() const -> std::function<std::optional<std::string>(const std::string&)>
 	{
 		auto folders = std::vector<std::filesystem::path>{ };
 		#if defined(BPR_FIXTURE_AGENT_DIRECTORY)
@@ -147,22 +147,33 @@ namespace bpr::app {
 				folder = std::move(canonical);
 			}
 		}
-		return [allowed = std::move(folders), person = FixtureAgentSession](const std::string& aExecutable) {
+		return [allowed = std::move(folders), person = FixtureAgentSession](const std::string& aExecutable) -> std::optional<std::string> {
 			const auto program = std::filesystem::path{ aExecutable };
 			const auto stem    = program.stem().string();
 			const auto agent   = stem == "claude" || stem == "codex";
 			if (!agent && !person) {
-				return true;
+				return aExecutable;
 			}
 			if (!program.is_absolute()) {
-				return false;
+				// A bare name starts only from a folder this run named, never
+				// from the PATH the process inherited.
+				for (const auto& folder : allowed) {
+					auto error = std::error_code{ };
+					if (const auto candidate = folder / program; std::filesystem::is_regular_file(candidate, error)) {
+						return candidate.string();
+					}
+				}
+				return std::nullopt;
 			}
 			auto error = std::error_code{ };
 			auto where = std::filesystem::weakly_canonical(program, error).parent_path();
 			if (error) {
 				where = program.parent_path();
 			}
-			return std::ranges::find(allowed, where) != allowed.end();
+			if (std::ranges::find(allowed, where) != allowed.end()) {
+				return aExecutable;
+			}
+			return std::nullopt;
 		};
 	}
 	#endif

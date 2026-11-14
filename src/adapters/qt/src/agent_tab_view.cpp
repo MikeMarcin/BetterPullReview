@@ -603,6 +603,14 @@ namespace bpr::qt {
 		LatestUploadNote->setForegroundRole(QPalette::PlaceholderText);
 		LatestUploadNote->hide();
 		contentCol->addWidget(LatestUploadNote);
+		// RFC-BPR-0128 with RFC-BPR-0126's queue (owner, 2026-11-14: "a plain
+		// click queues it"). What waits its turn, in words.
+		QueueNote = new QLabel{ content };
+		QueueNote->setObjectName(QStringLiteral("agentQueueNote"));
+		QueueNote->setWordWrap(true);
+		QueueNote->setTextFormat(Qt::PlainText);
+		QueueNote->hide();
+		contentCol->addWidget(QueueNote);
 		// [[BPR-1847]], owner 2026-11-03: "doesn't make sense to show
 		// suggested prompts before the wizard completes." While the setup
 		// is unfinished and not on screen, its way in stands where they would.
@@ -2400,6 +2408,36 @@ namespace bpr::qt {
 			ToldReadiness = readiness;
 			ReadinessObserver();
 		}
+		if (AvailabilityObserver) {
+			AvailabilityObserver(false);
+		}
+	}
+
+	void agent_tab_view::draft_prompt(const QString& aPrompt) { choose_prompt(aPrompt, true); }
+
+	auto agent_tab_view::ready_to_send() const -> bool { return State != agent_tab_state::working && Chat.send_action() != nullptr && Chat.send_action()->isEnabled(); }
+
+	void agent_tab_view::draft_text(const QString& aText)
+	{
+		if (!panels_alive()) {
+			return;
+		}
+		auto* const composer = Chat.composer();
+		composer->setPlainText(aText);
+		auto cursor = composer->textCursor();
+		cursor.movePosition(QTextCursor::End);
+		composer->setTextCursor(cursor);
+		composer->setFocus(Qt::OtherFocusReason);
+	}
+
+	void agent_tab_view::present_queue(const QStringList& aWaiting, const QString& aState)
+	{
+		if (QueueNote == nullptr) {
+			return;
+		}
+		QueueNote->setText(aWaiting.isEmpty() ? QString{ } : tr("Queued (%1): %2").arg(aState, aWaiting.join(QStringLiteral(", "))));
+		QueueNote->setAccessibleName(QueueNote->text());
+		QueueNote->setVisible(!aWaiting.isEmpty());
 	}
 
 	auto agent_tab_view::suggestions_verdict() const -> core::agent_suggestions_verdict
@@ -2702,6 +2740,10 @@ namespace bpr::qt {
 		current.Footer->setToolTip(detail);
 		// [[BPR-2051]]. The window's footer says how it ended, for a moment,
 		// after where it started: "answered in 1:12 · $0.41 · 2 findings".
+		// RFC-BPR-0126: a settled turn may release the next queued input.
+		if (AvailabilityObserver) {
+			QMetaObject::invokeMethod(this, [this] { if (AvailabilityObserver) { AvailabilityObserver(true); } }, Qt::QueuedConnection);
+		}
 		if (EndedObserver) {
 			auto ending    = parts;
 			ending.front() = succeeded ? tr("answered in %1").arg(agent_elapsed_words(seconds)) : tr("stopped after %1").arg(agent_elapsed_words(seconds));

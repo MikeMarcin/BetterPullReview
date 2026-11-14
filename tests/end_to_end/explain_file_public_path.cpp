@@ -107,17 +107,15 @@ namespace {
 		}
 	}
 
-	[[nodiscard]] auto card_answer(const qt::workbench_window& aWindow) -> std::string
+	[[nodiscard]] auto last_answer(const qt::workbench_window& aWindow) -> std::string
 	{
-		const auto* const card = aWindow.explain_card();
-		return card == nullptr ? std::string{ } : card->progress().AnswerText.toStdString();
+		const auto* const tab = aWindow.agent_tab();
+		return tab->turn_count() == 0U ? std::string{ } : tab->turn_answer(tab->turn_count() - 1U).toStdString();
 	}
 
 	[[nodiscard]] auto settled(app::github_application& aApplication, const qt::workbench_window& aWindow) -> bool
 	{
-		const auto* const card = aWindow.explain_card();
-		return card != nullptr && card->progress().Answered && !card->progress().Running && card_answer(aWindow).find("EXPLAIN_ECHO") != std::string::npos
-			&& access::agent_invocation_evidence(aApplication).Quiescent;
+		return last_answer(aWindow).find("EXPLAIN_ECHO") != std::string::npos && access::agent_invocation_evidence(aApplication).Quiescent && aWindow.agent_tab()->state() != qt::agent_tab_state::working;
 	}
 }
 
@@ -177,40 +175,34 @@ auto main(int argc, char** argv) -> int
 		// RFC-BPR-0128 (Q3): the file header's Ask stands in Explain this
 		// file's place, and Explain this file is its first quick ask.
 		auto* const button = window.file_ask_button();
-		auto* const card   = window.explain_card();
 		const auto  row    = [button]() -> QAction* {
 			button->refresh_menu();
 			return button->menu()->findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.explain-file_file"));
 		};
 		wait([&] { return button != nullptr && button->isEnabled() && button->isVisible() && row() != nullptr && row()->isEnabled(); }, "Explain this file is offered in the file header's Ask");
-		expect(button->text() == QStringLiteral("Ask") && row()->text() == QStringLiteral("Explain this file"), "the file's Ask lists Explain this file");
-		expect(card != nullptr && card->isHidden(), "no card before a press");
+		expect(button->text() == QStringLiteral("Ask") && row()->text().startsWith(QStringLiteral("Explain this file")), "the file's Ask lists Explain this file");
 		const auto setupLaunches = launchesAt();
 		const auto mutation      = access::review_mutation_evidence(*application);
 		const auto turnsBefore   = tab->turn_count();
 
-		// AC01, AC02, AC04. The press.
-		auto sawRunning = false;
+		// AC01, AC02, AC04. The press: a queued ask that runs at once, its
+		// turn shown in the Agent tab (owner look ask-v001: no card over the
+		// file; the Agent tab opens at the question and its answer).
 		row()->trigger();
-		wait([&] {
-			sawRunning = sawRunning || (card->isVisible() && card->progress().Running.has_value());
-			return settled(*application, window);
-		},
-			 "the answer arrives in the card");
-		const auto answer = card_answer(window);
+		wait([&] { return tab->turn_count() == turnsBefore + 1U && settled(*application, window); }, "the answer arrives in the Agent tab");
+		const auto answer = last_answer(window);
 		const auto last   = tab->turn_count() - 1U;
 		expect(launchesAt() == setupLaunches + 1U, "one press, one call");
-		expect(tab->turn_count() == turnsBefore + 1U && tab->turn_explain(last) == path, "the question is a turn in the Agent tab's history, about the file");
+		expect(tab->turn_explain(last) == path, "the question is a turn in the Agent tab's history, about the file");
 		expect(answer.find("system=1") != std::string::npos, "its own prompt was the system prompt:\n" + answer);
 		expect(answer.find("change=1") != std::string::npos && answer.find("content=1") != std::string::npos, "the file's change and its text were in the request:\n" + answer);
 		expect(answer.find("subject=1") != std::string::npos, "the file is the question's subject:\n" + answer);
-		expect(card->isVisible() && card->path() == path, "the card stands at the file's header");
-		expect(card->answer_view() != nullptr && card->answer_view()->original_body().find("](") != std::string::npos, "the answer's references are links");
-		expect(card->status_line() != nullptr && !card->status_line()->live() && card->status_line()->text().contains(QStringLiteral("answered")), "the card's line says how the turn ended");
-		std::cout << "explain-file: saw-running=" << (sawRunning ? 1 : 0) << " answer=" << answer.substr(0U, answer.find('\n')) << '\n';
+		expect(window.explain_card() == nullptr || window.explain_card()->isHidden(), "no card stands over the file");
+		expect(tab->isVisible(), "the Agent tab is open at the turn");
+		std::cout << "explain-file: answer=" << answer.substr(0U, answer.find('\n')) << '\n';
 
 		if (attended) {
-			window.setWindowTitle(QStringLiteral("Explain this file — synthetic data — close to finish"));
+			window.setWindowTitle(QStringLiteral("Explain this file, synthetic data, close to finish"));
 			QApplication::setQuitOnLastWindowClosed(true);
 			window.set_profile_management_dispatch({ }, { }, [] { QApplication::quit(); });
 			QTimer::singleShot(30 * 60 * 1000, &qtApplication, &QApplication::quit);
@@ -220,22 +212,6 @@ auto main(int argc, char** argv) -> int
 			shutdown(*application);
 			return result;
 		}
-
-		// RFC-BPR-0127, owner look v006 ("Don't have keep local there, just
-		// draft is fine"): the card offers Draft alone, and a whole file takes
-		// no draft, so it is disabled with the pencil struck and keeps nothing.
-		auto* const cards       = window.conversation_panel()->cards();
-		const auto  notesBefore = cards->local_comments().size();
-		expect(!card->keep_button()->isEnabled() && card->keep_button()->text() == QStringLiteral("Draft") && card->keep_button()->property("draftRefused").toBool(),
-			   "the card's Draft is disabled: a whole file takes no draft");
-		card->keep_button()->click();
-		QApplication::processEvents();
-		expect(card->note() == 0U && cards->local_comments().size() == notesBefore, "nothing is kept");
-
-		// AC03. Continue in Agent tab opens that turn.
-		card->continue_button()->click();
-		QApplication::processEvents();
-		expect(tab->isVisible(), "the Agent tab is open");
 
 		// AC01. The tab's menu sends the same question.
 		auto*      strip  = window.document_tabs();
@@ -249,12 +225,6 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return tab->turn_count() == turnsBefore + 2U && settled(*application, window); }, "the menu's question is answered");
 		expect(tab->turn_explain(tab->turn_count() - 1U) == path && launchesAt() == setupLaunches + 2U, "the menu sends the same question about the file");
 
-		// AC03. Dismiss removes the card and makes no note; the turn stays.
-		const auto notesNow = cards->local_comments().size();
-		card->dismiss_button()->click();
-		QApplication::processEvents();
-		expect(card->isHidden() && cards->local_comments().size() == notesNow && tab->turn_count() == turnsBefore + 2U, "Dismiss removes the card, makes no note, and the turn stays in the history");
-
 		// AC05. Nothing reached GitHub.
 		const auto after = access::review_mutation_evidence(*application);
 		expect(after.Submissions == mutation.Submissions && after.TargetObservations == mutation.TargetObservations && after.StoredComments == mutation.StoredComments, "nothing reached GitHub");
@@ -265,8 +235,7 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "explain-file: " << aError.what() << '\n';
 		if (application) {
 			auto& window = application->window();
-			std::cerr << "github-status: " << window.github_status_text() << "\nagent-panel: " << window.agent_panel()->status_text().toStdString() << "\ncard: " << card_answer(window)
-					  << "\ncard-ending: " << (window.explain_card() != nullptr ? window.explain_card()->progress().Ending.toStdString() : std::string{ }) << '\n';
+			std::cerr << "github-status: " << window.github_status_text() << "\nagent-panel: " << window.agent_panel()->status_text().toStdString() << "\nlast: " << last_answer(window) << '\n';
 			shutdown(*application);
 		}
 		return EXIT_FAILURE;

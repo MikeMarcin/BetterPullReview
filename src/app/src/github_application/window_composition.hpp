@@ -176,6 +176,7 @@
 	#include "bpr/application/agent_finding_host.hpp"
 	#include "bpr/application/agent_invocation_host.hpp"
 	#include "bpr/application/agent_program_resolution.hpp"
+	#include "bpr/application/agent_queue_host.hpp"
 	#include "bpr/application/agent_realignment.hpp"
 	#include "bpr/application/agent_run_diagnosis.hpp"
 	#include "bpr/application/agent_setup_host.hpp"
@@ -800,10 +801,21 @@ namespace bpr::app {
 		[[nodiscard]] auto returning_commit_listing() const -> std::string;
 		/// RFC-BPR-0128 ([[BPR-2165]]). A wider scope's runs, one after
 		/// another, and each Was this addressed? claim on its thread.
-		void                                    drain_quick_asks();
+		/// RFC-BPR-0128 with RFC-BPR-0126's queue (owner, 2026-11-14: "a
+		/// plain click queues it"). The session's queue: a quick ask is
+		/// queued, released when the agent is set up and free, and its turn
+		/// shown in the Agent tab.
+		[[nodiscard]] auto                                   ask_session_key() const -> std::string;
+		void                                                 queue_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
+		void                                                 draft_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
+		void                                                 observe_ask_queue(bool aSettled);
+		[[nodiscard]] auto                                   release_queued(const core::queued_entry& aEntry) -> bool;
+		std::unique_ptr<application::agent_queue_store_port> AgentQueueStore;
+		std::unique_ptr<application::agent_queue_host>       AgentQueue;
+		/// The released entry's turn has been seen running.
+		bool                                    QueueTurnSeen     = false;
+		std::uint32_t                           QueueRetireChecks = 0U;
 		void                                    record_thread_claim(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn);
-		std::deque<std::function<void()>>       QuickAskQueue;
-		bool                                    QuickAskDraining = false;
 		std::map<std::string, qt::thread_claim> ThreadClaims;
 		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested
 		/// prompts reach the window.
@@ -2139,10 +2151,10 @@ namespace bpr::app {
 		const bool&                                                               AttendedAgentSearch                    = Profile->AttendedAgentSearch;
 		const bool&                                                               FixtureAgentSession                    = Profile->FixtureAgentSession;
 		/// [[BPR-2177]]. Which agent programs a fixture build may start.
-		[[nodiscard]] auto fixture_agent_admission() const -> std::function<bool(const std::string&)>;
-		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
-		bool                                                                      ReviewLedgerRoundTripPassed            = false;
-		bool                                                                      FixtureReviewMutationHostComposed      = false;
+		[[nodiscard]] auto fixture_agent_admission() const -> std::function<std::optional<std::string>(const std::string&)>;
+		bool               ReviewLedgerWasPresentOnEntry     = false;
+		bool               ReviewLedgerRoundTripPassed       = false;
+		bool               FixtureReviewMutationHostComposed = false;
 #endif
 		decltype(github_profile_runtime::OwnedVault)&       OwnedVault       = Profile->OwnedVault;
 		decltype(github_profile_runtime::TransportFactory)& TransportFactory = Profile->TransportFactory;
@@ -2251,6 +2263,8 @@ namespace bpr::app {
 			std::string                             Key;
 			std::optional<core::supplement_explain> Material;
 			QString                                 Agent;
+			/// The turn the Agent tab was opened at, plus one; 0 for none.
+			std::size_t Shown = 0U;
 		};
 		explain_file_state ExplainFile;
 		/// RFC-BPR-0118. The material of the press under way, sent with it.

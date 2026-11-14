@@ -2901,3 +2901,11 @@ bpr_add_network_isolated_test(NAME qt_local_draft_window COMMAND test_local_draf
 set_tests_properties(qt_local_draft_window PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment}"
     PASS_REGULAR_EXPRESSION "local-draft-window:pass" TIMEOUT 120)
+# RFC-BPR-0128, owner look ask-v001. An Ask row: plain click asks (queued),
+# Shift+click drafts, right click opens the row's own menu.
+bpr_add_executable(test_better_pull_review_qt_ask_menu_tests ask_menu_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_ask_menu_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_ask_menu_tests)
+bpr_enable_warnings(test_better_pull_review_qt_ask_menu_tests)
+bpr_add_network_isolated_test(NAME qt_ask_menu COMMAND test_better_pull_review_qt_ask_menu_tests)
+set_tests_properties(qt_ask_menu PROPERTIES PASS_REGULAR_EXPRESSION "ask-menu-tests:pass")

@@ -97,7 +97,9 @@ auto main(int argc, char** argv) -> int
 		// The guard: only the fixture agent's folder is admitted.
 		expect(access::fixture_agent_admits(*application, (fixtureFolder / "claude").string()) && access::fixture_agent_admits(*application, (fixtureFolder / "codex").string()),
 			   "the fixture agent is admitted");
-		for (const auto& refused : { (real / "claude").string(), (real / "codex").string(), std::string{ "/opt/homebrew/bin/claude" }, std::string{ "claude" }, std::string{ "/usr/local/bin/some-wrapper" } }) {
+		const auto bare = access::fixture_agent_admits(*application, "claude");
+		expect(bare && std::filesystem::path{ *bare }.parent_path() == fixtureFolder, "a bare claude starts the fixture agent, never the PATH's: " + bare.value_or("refused"));
+		for (const auto& refused : { (real / "claude").string(), (real / "codex").string(), std::string{ "/opt/homebrew/bin/claude" }, std::string{ "/usr/local/bin/some-wrapper" } }) {
 			expect(!access::fixture_agent_admits(*application, refused), "a real agent program is refused: " + refused);
 		}
 

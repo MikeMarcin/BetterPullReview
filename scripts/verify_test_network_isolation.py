@@ -329,6 +329,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_ask_menu_public_path": "unmeasured (registered on macOS)",
     "application_ask_addressed_public_path": "unmeasured (registered on macOS)",
     "application_ask_report_public_path": "unmeasured (registered on macOS)",
+    "application_ask_queue_public_path": "unmeasured (registered on macOS)",
+    "application_fixture_agent_guard_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.

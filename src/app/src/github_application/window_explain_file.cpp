@@ -52,7 +52,15 @@ namespace bpr::app {
 			if (aProgress.Running) {
 				ExplainFile.Agent = aProgress.Running->Agent;
 			}
-			Window->present_explain_file(aProgress);
+			// Owner look ask-v001 (img 1): "I'm not sure this is beneficial. I
+			// think just opening the agent drawer in the session and scrolling
+			// to the question and response is probably good enough." No card
+			// over the file: the Agent tab opens at the turn, streaming there.
+			if (aProgress.Turn != std::numeric_limits<std::size_t>::max() && ExplainFile.Shown != aProgress.Turn + 1U) {
+				ExplainFile.Shown = aProgress.Turn + 1U;
+				Window->open_agent_question();
+				Window->agent_tab()->reveal_turn(aProgress.Turn);
+			}
 		});
 		card->set_dresser([tab](qt::markdown_body_view& aView) { tab->dress_answer_view(aView); });
 		card->set_link_dispatch([tab](const QString& aLink) { tab->open_reference(aLink); });
@@ -71,10 +79,11 @@ namespace bpr::app {
 		Window->set_explain_file_offered(tab->setup_readiness() == qt::agent_setup_readiness::ready);
 	}
 
-	void github_application::implementation::refuse_explain_file(const std::string& aPath, const QString& aWords)
+	void github_application::implementation::refuse_explain_file([[maybe_unused]] const std::string& aPath, const QString& aWords)
 	{
 		if (Window != nullptr) {
-			Window->present_explain_file(qt::explain_file_progress{ .Path = QString::fromStdString(aPath), .Turn = no_turn, .Ending = aWords, .Answered = false });
+			Window->open_agent_question();
+			Window->agent_panel()->refuse(aWords.toStdString());
 		}
 	}
 

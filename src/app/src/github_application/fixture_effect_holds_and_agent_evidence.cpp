@@ -905,15 +905,15 @@ namespace bpr::app {
 		return evidence;
 	}
 	#endif
-	auto detail::github_application_fixture_access::fixture_agent_admits(const github_application& aApplication, const std::string& aExecutable) -> bool
+	auto detail::github_application_fixture_access::fixture_agent_admits(const github_application& aApplication, const std::string& aExecutable) -> std::optional<std::string>
 	{
 		const auto* const implementation = aApplication.Implementation.get();
 	#if defined(BPR_AGENT_INTEGRATIONS)
-		return implementation != nullptr && implementation->fixture_agent_admission()(aExecutable);
+		return implementation != nullptr ? implementation->fixture_agent_admission()(aExecutable) : std::nullopt;
 	#else
 		static_cast<void>(implementation);
 		static_cast<void>(aExecutable);
-		return false;
+		return std::nullopt;
 	#endif
 	}
 

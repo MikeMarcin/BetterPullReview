@@ -4,6 +4,7 @@
 #include "bpr/application/agent_configuration_exchange.hpp"
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_finding_card_host.hpp"
+#include "bpr/application/agent_queue_host.hpp"
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/native_agent_session.hpp"
@@ -66,6 +67,9 @@ namespace bpr::adapters::sqlite {
 	/// each place's order and the set's revision. A write from an older
 	/// revision changes nothing; a row a newer build wrote is kept. Settings
 	/// resets remove it with the file.
+	/// \brief RFC-BPR-0126 ([[BPR-2151]]). The same file's queues, one a
+	/// session, each written whole.
+	[[nodiscard]] auto make_agent_queue_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_queue_store_port>;
 	[[nodiscard]] auto make_prompt_macro_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_macro_store_port>;
 	/// \brief [[BPR-2016]], RFC-BPR-0107. What an agent and prompt import
 	/// changes: this file's agent list, edited review skill and each writing
