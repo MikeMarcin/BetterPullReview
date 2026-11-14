@@ -88,3 +88,16 @@ The session was handed back with no choice saved, so the owner answered in chat,
 Decided:
 - Direction 2 "Two pages" is the basis, made into one Settings page: Surfaces above, Prompt library below.
 - Library rows lose their per-surface marks and grid, because the Surfaces section already gives the at-a-glance view.
+
+## Look prompts-settings-v004, 2026-11-14 (owner)
+
+The owner rejected v004. Their note, verbatim: "It's okay if the settings page scrolls we don't have to vertically squash the prompts library."
+
+Decided:
+- The v004 one-page layout stands, with one change: in a short window the Settings page scrolls. Surfaces does not fold, and the Prompt library keeps its full height.
+
+The owner left two questions open, and the coordinator set defaults for them. The owner can change either.
+- **"Any of these" with no condition holding:** the row is hidden only when every condition is of the hides kind. Otherwise it is greyed, and its tooltip gives the first greys-kind condition's reason.
+- **Repository overrides:** may add, remove and reorder on a surface.
+
+The layout is settled; the build waits on a written spec from the designer.
