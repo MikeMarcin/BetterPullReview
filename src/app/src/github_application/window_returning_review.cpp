@@ -119,7 +119,7 @@ namespace bpr::app {
 			}
 			const auto commit = opening == nullptr             ? std::string{ }
 				: !opening->Observation.OriginalCommit.empty() ? opening->Observation.OriginalCommit
-															: opening->Observation.Commit;
+															   : opening->Observation.Commit;
 			const auto asked  = core::proposed_fix_facts{ .ReviewerCommented = opening != nullptr, .LastCommentCommit = commit, .CurrentHead = headHex };
 			if (!core::proposed_fix_offered(asked) || thread.Path.empty()) {
 				continue;

@@ -958,8 +958,18 @@ namespace {
 		// A local draft's candidate and publish slots (RFC-BPR-0108 as amended,
 		// 2026-11-13) are hidden in a review; the review's order is the rest.
 		auto barActions = bar->actions();
+		// RFC-BPR-0128 ([[BPR-2164]]). The review bar's Ask stands right after
+		// the comparison (option 1C); it shows only where the agent's
+		// features are composed, so the order below is checked without it.
+		{
+			const auto all     = bar->actions();
+			const auto compare = std::ranges::find_if(all, [](const QAction* aAction) { return aAction->objectName() == QLatin1String{ "reviewBarComparingAction" }; });
+			expect(compare != all.end() && std::next(compare) != all.end() && (*std::next(compare))->objectName() == QLatin1String{ "reviewBarAskAction" },
+				   "the review bar's Ask follows the comparison");
+		}
 		barActions.removeIf([](const QAction* aAction) {
-			return aAction->objectName() == QLatin1String{ "reviewBarLocalDraftAction" } || aAction->objectName() == QLatin1String{ "reviewBarLocalPublishAction" };
+			return aAction->objectName() == QLatin1String{ "reviewBarLocalDraftAction" } || aAction->objectName() == QLatin1String{ "reviewBarLocalPublishAction" }
+			|| aAction->objectName() == QLatin1String{ "reviewBarAskAction" };
 		});
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;

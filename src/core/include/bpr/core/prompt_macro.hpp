@@ -617,6 +617,10 @@ namespace bpr::core {
 		auto operator<=>(const prompt_builtin&) const = default;
 	};
 
+	/// \brief RFC-BPR-0125 milestone 4. The sample values the editor's
+	/// preview expands against when no pull request window is at hand.
+	[[nodiscard]] auto sample_prompt_facts(prompt_place aPlace) -> prompt_facts;
+
 	/// \brief Today's suggested prompts as built-ins, each place in order.
 	[[nodiscard]] auto shipped_prompt_macros() -> std::vector<prompt_builtin>;
 

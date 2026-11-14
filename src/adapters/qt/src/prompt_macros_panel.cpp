@@ -148,27 +148,6 @@ namespace bpr::qt {
 			return { };
 		}
 
-		/// Sample values for a preview with no pull request window.
-		[[nodiscard]] auto sample_facts(const prompt_place aPlace) -> core::prompt_facts
-		{
-			auto facts             = core::prompt_facts{ };
-			facts.Place            = aPlace;
-			facts.PullRequest      = core::prompt_pull_request{ .Number = 42U, .Title = "Render retained frames before presenting", .Url = "https://github.com/octo/render/pull/42", .Author = "octocat", .Base = "main", .Head = "retained-frames" };
-			facts.Repository       = "octo/render";
-			facts.OpenFile         = "src/render/renderer.cpp";
-			facts.Lines            = core::prompt_line_range{ .First = 5U, .Last = 8U };
-			facts.ConversationFile = "src/render/renderer.cpp";
-			facts.TakesReplies     = true;
-			facts.Draft            = false;
-			facts.AuthorIsMe       = false;
-			facts.ChecksFailing    = false;
-			facts.ChatEmpty        = true;
-			if (aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_part || aPlace == prompt_place::tour_whole) {
-				facts.Thread = core::prompt_tour_part{ .Place = aPlace, .Part = aPlace == prompt_place::tour_stop ? "Stop 3" : aPlace == prompt_place::tour_part ? "the Problem" : "", .StopNumber = 3U, .StopTitle = "The frame pool" };
-			}
-			return facts;
-		}
-
 		[[nodiscard]] auto shipped_macro(const std::string& aId) -> std::optional<core::prompt_macro>
 		{
 			for (const auto& builtin : core::shipped_prompt_macros()) {
@@ -558,7 +537,7 @@ namespace bpr::qt {
 		AsReview->setChecked(Edited.Body.Kind == core::prompt_ask::review);
 		Bytes->setText(tr("%1 of %2 bytes").arg(QLocale{ }.toString(static_cast<qulonglong>(Edited.Body.Template.size())), QLocale{ }.toString(static_cast<qulonglong>(core::maximum_prompt_template_bytes))));
 
-		const auto facts      = Preview ? *Preview : sample_facts(Edited.Place);
+		const auto facts      = Preview ? *Preview : core::sample_prompt_facts(Edited.Place);
 		auto       against    = facts;
 		against.Place         = Edited.Place;
 		const auto evaluation = core::evaluate_prompt_macro(Edited, against);
@@ -631,7 +610,7 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("promptMacrosPanel"));
 		setAccessibleName(tr("Suggested prompts"));
-		auto* const column  = new QVBoxLayout{ this };
+		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
 		auto* const heading = new QLabel{ tr("Suggested prompts"), this };
 		auto        bold    = heading->font();
@@ -647,7 +626,7 @@ namespace bpr::qt {
 		Status->hide();
 		column->addWidget(Status);
 		for (auto index = std::size_t{ 0 }; index < core::prompt_place_count; ++index) {
-			const auto place = static_cast<prompt_place>(index);
+			const auto  place = static_cast<prompt_place>(index);
 			auto* const title = new QLabel{ place_words(place), this };
 			column->addWidget(title);
 			auto* const list = new QListWidget{ this };
@@ -772,7 +751,7 @@ namespace bpr::qt {
 	auto prompt_macros_panel::sentence(const core::prompt_macro& aMacro) -> QString
 	{
 		auto words = aMacro.Body.Kind == core::prompt_ask::review ? tr("A review of %1").arg(subject_words(aMacro.Body.Subject).toLower())
-															   : tr("A question about %1").arg(subject_words(aMacro.Body.Subject).toLower());
+																  : tr("A question about %1").arg(subject_words(aMacro.Body.Subject).toLower());
 		if (aMacro.Body.Conditions.empty()) {
 			words += QLatin1Char('.');
 		} else {

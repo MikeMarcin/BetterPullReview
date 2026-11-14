@@ -2111,7 +2111,7 @@ namespace bpr::qt {
 
 	auto workbench_window::ask_request(const core::quick_ask_anchor aAnchor) const -> ask_menu_request
 	{
-		auto request   = ask_menu_request{ .Anchor = aAnchor, .File = active_document_path() };
+		auto request = ask_menu_request{ .Anchor = aAnchor, .File = active_document_path() };
 		if (aAnchor != core::quick_ask_anchor::file && ConversationPanel != nullptr) {
 			const auto& open = ConversationPanel->cards()->open_identity();
 			if (!open.empty()) {

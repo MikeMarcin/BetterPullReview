@@ -41,12 +41,12 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/claude_wrapper_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/enhance_control.hpp"
-#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
@@ -57,6 +57,7 @@
 #include "bpr/qt/home_status_line.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/prompt_macros_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/resident_filter.hpp"
@@ -69,7 +70,6 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
-#include "bpr/qt/prompt_macros_panel.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #if defined(_WIN32)
 	#include "bpr/qt/windows_caption_buttons.hpp"
@@ -1259,7 +1259,7 @@ namespace bpr::qt {
 		void set_explain_file_dispatch(std::function<void(const QString& aPath)> aDispatch);
 		/// \brief RFC-BPR-0117. Whether a press can be sent now (the agent is
 		/// set up and not answering); the control stays where it is either way.
-		void               set_explain_file_offered(bool aOffered);
+		void set_explain_file_offered(bool aOffered);
 		/// \brief RFC-BPR-0128 ([[BPR-2164]]): the file header's Ask, in
 		/// Explain this file's place (Q3).
 		[[nodiscard]] auto explain_file_button() const noexcept -> QToolButton* { return ExplainFileButton; }
@@ -2988,7 +2988,7 @@ namespace bpr::qt {
 		std::function<bool(std::size_t, const QString&)>     QuickAskConfirm;
 		void                                                 refresh_ask_controls();
 		void                                                 activate_document_path(const QString& aPath);
-		explain_file_card*                                   ExplainCard       = nullptr;
+		explain_file_card*                                   ExplainCard = nullptr;
 		std::function<void(const QString&)>                  ExplainFileDispatch;
 		bool                                                 ExplainFileOffered = false;
 		void                                                 refresh_explain_file();

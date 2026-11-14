@@ -57,7 +57,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto problems_text() const -> QString;
 		/// \brief Closes the sheet as a button would (Save, Duplicate,
 		/// Delete): what a test presses in place of the reviewer.
-		void finish(outcome aOutcome);
+		void               finish(outcome aOutcome);
 		[[nodiscard]] auto preview_text() const -> QString;
 
 	private:
@@ -67,31 +67,31 @@ namespace bpr::qt {
 		void keyPressEvent(QKeyEvent* aEvent) override;
 		void reject() override;
 
-		core::prompt_macro                  Original;
-		core::prompt_macro                  Edited;
-		std::vector<core::prompt_macro>     Siblings;
-		std::optional<core::prompt_macro>   Shipped;
-		std::optional<core::prompt_facts>   Preview;
-		outcome                             Outcome   = outcome::cancelled;
-		bool                                Refreshing = false;
-		QLineEdit*                          Name       = nullptr;
-		QLabel*                             ChipReads  = nullptr;
-		QComboBox*                          Place      = nullptr;
-		QComboBox*                          Subject    = nullptr;
-		QRadioButton*                       AsQuestion = nullptr;
-		QRadioButton*                       AsReview   = nullptr;
-		QCheckBox*                          QuickAsk   = nullptr;
-		std::array<QToolButton*, 3>         Scopes{ };
-		QPlainTextEdit*                     Template   = nullptr;
-		QLabel*                             Bytes      = nullptr;
-		QLabel*                             BuiltInNote = nullptr;
-		QLabel*                             PreviewText = nullptr;
-		QLabel*                             ShowsNow    = nullptr;
-		QVBoxLayout*                        Conditions  = nullptr;
-		QPushButton*                        AddCondition = nullptr;
-		QLabel*                             Needs       = nullptr;
-		QLabel*                             Problems    = nullptr;
-		QPushButton*                        Save        = nullptr;
+		core::prompt_macro                Original;
+		core::prompt_macro                Edited;
+		std::vector<core::prompt_macro>   Siblings;
+		std::optional<core::prompt_macro> Shipped;
+		std::optional<core::prompt_facts> Preview;
+		outcome                           Outcome    = outcome::cancelled;
+		bool                              Refreshing = false;
+		QLineEdit*                        Name       = nullptr;
+		QLabel*                           ChipReads  = nullptr;
+		QComboBox*                        Place      = nullptr;
+		QComboBox*                        Subject    = nullptr;
+		QRadioButton*                     AsQuestion = nullptr;
+		QRadioButton*                     AsReview   = nullptr;
+		QCheckBox*                        QuickAsk   = nullptr;
+		std::array<QToolButton*, 3>       Scopes{ };
+		QPlainTextEdit*                   Template     = nullptr;
+		QLabel*                           Bytes        = nullptr;
+		QLabel*                           BuiltInNote  = nullptr;
+		QLabel*                           PreviewText  = nullptr;
+		QLabel*                           ShowsNow     = nullptr;
+		QVBoxLayout*                      Conditions   = nullptr;
+		QPushButton*                      AddCondition = nullptr;
+		QLabel*                           Needs        = nullptr;
+		QLabel*                           Problems     = nullptr;
+		QPushButton*                      Save         = nullptr;
 	};
 
 	/// \brief The roster.
@@ -119,27 +119,27 @@ namespace bpr::qt {
 		[[nodiscard]] static auto state_words(const core::prompt_set_entry& aEntry) -> QString;
 		/// \brief Opens the sheet on `aId`; for tests, `aEdit` changes the
 		/// sheet before it is accepted in place of the reviewer.
-		void edit(const std::string& aId, const std::function<void(prompt_macro_sheet&)>& aEdit = { });
-		void add_prompt(core::prompt_place aPlace, const std::function<void(prompt_macro_sheet&)>& aEdit = { });
-		void move(core::prompt_place aPlace, int aRow, int aBy);
-		void toggle(const std::string& aId, bool aOn);
+		void               edit(const std::string& aId, const std::function<void(prompt_macro_sheet&)>& aEdit = { });
+		void               add_prompt(core::prompt_place aPlace, const std::function<void(prompt_macro_sheet&)>& aEdit = { });
+		void               move(core::prompt_place aPlace, int aRow, int aBy);
+		void               toggle(const std::string& aId, bool aOn);
 		[[nodiscard]] auto status_text() const -> QString;
 
 	private:
-		void rebuild();
-		void save(std::vector<core::prompt_macro> aMacros);
-		void open_sheet(core::prompt_macro aMacro, bool aNew, const std::function<void(prompt_macro_sheet&)>& aEdit);
+		void               rebuild();
+		void               save(std::vector<core::prompt_macro> aMacros);
+		void               open_sheet(core::prompt_macro aMacro, bool aNew, const std::function<void(prompt_macro_sheet&)>& aEdit);
 		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
-		application::prompt_macro_projection                                   Projection;
-		std::vector<core::prompt_macro>                                        Macros;
-		std::function<void(std::vector<core::prompt_macro>)>                   SaveDispatch;
-		std::function<std::optional<core::prompt_facts>(core::prompt_place)>   PreviewFacts;
-		std::array<QListWidget*, core::prompt_place_count>                     Lists{ };
-		QLabel*                                                                Status  = nullptr;
-		QPushButton*                                                           Add     = nullptr;
-		QPushButton*                                                           Restore = nullptr;
-		bool                                                                   Filling = false;
+		application::prompt_macro_projection                                 Projection;
+		std::vector<core::prompt_macro>                                      Macros;
+		std::function<void(std::vector<core::prompt_macro>)>                 SaveDispatch;
+		std::function<std::optional<core::prompt_facts>(core::prompt_place)> PreviewFacts;
+		std::array<QListWidget*, core::prompt_place_count>                   Lists{ };
+		QLabel*                                                              Status  = nullptr;
+		QPushButton*                                                         Add     = nullptr;
+		QPushButton*                                                         Restore = nullptr;
+		bool                                                                 Filling = false;
 	};
 } // namespace bpr::qt
 

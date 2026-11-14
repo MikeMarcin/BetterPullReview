@@ -926,7 +926,7 @@ namespace bpr::qt {
 		void               set_thread_claims(std::map<std::string, thread_claim> aClaims);
 		[[nodiscard]] auto thread_claims() const noexcept -> const std::map<std::string, thread_claim>& { return Claims; }
 		/// \brief The chip's Open the answer: the Agent tab at that turn.
-		void set_claim_answer_dispatch(std::function<void(std::size_t)> aDispatch) { ClaimAnswerDispatch = std::move(aDispatch); }
+		void               set_claim_answer_dispatch(std::function<void(std::size_t)> aDispatch) { ClaimAnswerDispatch = std::move(aDispatch); }
 		void               set_ask_menu_filler(ask_menu_filler aFiller);
 		[[nodiscard]] auto thread_title(const std::string& aThread) const -> QString;
 		void               set_addressed_threads(std::set<std::string> aThreads);

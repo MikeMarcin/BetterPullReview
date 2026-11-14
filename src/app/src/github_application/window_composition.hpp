@@ -145,9 +145,9 @@
 
 #include <array>
 #include <atomic>
-#include <deque>
 #include <chrono>
 #include <cstddef>
+#include <deque>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -186,8 +186,6 @@
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
 	#include "bpr/application/prompt_macro_host.hpp"
 	#include "bpr/application/prompt_turn_name_host.hpp"
-	#include "bpr/core/quick_ask.hpp"
-	#include "bpr/qt/ask_menu.hpp"
 	#include "bpr/application/review_skill_host.hpp"
 	#include "bpr/application/tour_agent_context.hpp"
 	#include "bpr/application/tour_agent_drafting.hpp"
@@ -195,10 +193,12 @@
 	#include "bpr/core/agent_finding.hpp"
 	#include "bpr/core/agent_grant.hpp"
 	#include "bpr/core/agent_setup.hpp"
+	#include "bpr/core/quick_ask.hpp"
 	#include "bpr/core/tour_agent_session.hpp"
 	#include "bpr/qt/agent_configuration_dialogs.hpp"
 	#include "bpr/qt/agent_launch_panel.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
+	#include "bpr/qt/ask_menu.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
 	#include "bpr/qt/side_chat_panel.hpp"
 #endif
@@ -798,10 +798,10 @@ namespace bpr::app {
 		void               ask_custom_question(const qt::ask_menu_request& aRequest);
 		/// RFC-BPR-0128 ([[BPR-2165]]). A wider scope's runs, one after
 		/// another, and each Was this addressed? claim on its thread.
-		void                                  drain_quick_asks();
-		void                                  record_thread_claim(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn);
-		std::deque<std::function<void()>>     QuickAskQueue;
-		bool                                  QuickAskDraining = false;
+		void                                    drain_quick_asks();
+		void                                    record_thread_claim(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn);
+		std::deque<std::function<void()>>       QuickAskQueue;
+		bool                                    QuickAskDraining = false;
 		std::map<std::string, qt::thread_claim> ThreadClaims;
 		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested
 		/// prompts reach the window.
@@ -2454,7 +2454,7 @@ namespace bpr::app {
 		std::unique_ptr<application::prompt_macro_store_port> PromptMacroStore;
 		std::unique_ptr<application::prompt_macro_host>       PromptMacros;
 		core::prompt_macro_set                                PromptMacroSet = core::merge_prompt_macros(core::shipped_prompt_macros(), { });
-		std::unique_ptr<application::prompt_turn_name_host>       PromptTurnNames;
+		std::unique_ptr<application::prompt_turn_name_host>   PromptTurnNames;
 		/// RFC-BPR-0125 (AC07). Each turn shown takes the name it was sent
 		/// under; a thread shown before the names were read takes them then.
 		[[nodiscard]] auto named_turns(std::vector<qt::agent_thread_turn> aTurns) const -> std::vector<qt::agent_thread_turn>;

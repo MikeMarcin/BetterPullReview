@@ -6,8 +6,8 @@
 #include "bpr/qt/scoped_prose_editor.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
-#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -3785,9 +3785,9 @@ namespace bpr::qt {
 			.OnFile            = !card.Path.isEmpty(),
 			.Picked            = Picked,
 		};
-		style.CommentEditOffered     = CommentEditOffered;
-		style.TourOpenOffered        = TourOpenOffered && static_cast<bool>(TourOpenDispatch);
-		style.AddressedOffered       = AddressedThreads.contains(card.Id);
+		style.CommentEditOffered = CommentEditOffered;
+		style.TourOpenOffered    = TourOpenOffered && static_cast<bool>(TourOpenDispatch);
+		style.AddressedOffered   = AddressedThreads.contains(card.Id);
 		if (const auto claim = Claims.find(card.Id); claim != Claims.end()) {
 			style.Claim       = claim->second;
 			style.ClaimAnswer = ClaimAnswerDispatch;

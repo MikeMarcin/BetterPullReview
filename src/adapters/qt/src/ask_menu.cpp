@@ -1,13 +1,13 @@
 #include "bpr/qt/ask_menu.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 
 #include <QEvent>
 #include <QFileInfo>
 #include <QMenu>
 #include <QProxyStyle>
-#include <QToolTip>
 
 namespace bpr::qt {
 	namespace {
@@ -92,10 +92,9 @@ namespace bpr::qt {
 			// The keyboard reaches a greyed row too; its reason shows beside it.
 			QObject::connect(&aMenu, &QMenu::hovered, &aMenu, [menu = &aMenu](QAction* const aAction) {
 				if (aAction != nullptr && !aAction->isEnabled() && !aAction->toolTip().isEmpty()) {
-					const auto place = menu->actionGeometry(aAction);
-					QToolTip::showText(menu->mapToGlobal(place.topRight()), aAction->toolTip(), menu);
+					show_anchored_tooltip(*menu, menu->actionGeometry(aAction), aAction->toolTip(), anchored_tooltip_hold::focus);
 				} else {
-					QToolTip::hideText();
+					hide_anchored_tooltip();
 				}
 			});
 		}

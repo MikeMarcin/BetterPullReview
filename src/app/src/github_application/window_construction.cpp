@@ -37,10 +37,10 @@
 
 #include <QDesktopServices>
 #include <QGuiApplication>
-#include <QWindow>
 #include <QObject>
 #include <QStyleHints>
 #include <QTextStream>
+#include <QWindow>
 
 #include <algorithm>
 #include <iterator>
@@ -1574,7 +1574,7 @@ namespace bpr::app {
 			if (!context.PullRequest) {
 				return std::nullopt;
 			}
-			auto facts        = core::prompt_facts{ .Place = aPlace, .PullRequest = context.PullRequest, .Repository = context.Repository };
+			auto facts = core::prompt_facts{ .Place = aPlace, .PullRequest = context.PullRequest, .Repository = context.Repository };
 			if (!context.OpenFile.isEmpty()) {
 				facts.OpenFile = context.OpenFile.toStdString();
 			}

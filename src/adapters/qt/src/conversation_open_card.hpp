@@ -10,9 +10,9 @@
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QAbstractButton>
-#include <QMenu>
 #include <QColor>
 #include <QFont>
+#include <QMenu>
 #include <QString>
 #include <QWidget>
 

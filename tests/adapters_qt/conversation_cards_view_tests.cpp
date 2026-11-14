@@ -1,7 +1,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
-#include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/ask_menu.hpp"
+#include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/github_cli_consent.hpp"

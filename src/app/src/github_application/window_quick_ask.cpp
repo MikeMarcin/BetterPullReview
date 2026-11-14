@@ -60,16 +60,16 @@ namespace bpr::app {
 		auto  facts = core::quick_ask_facts{ };
 		auto* tab   = Window != nullptr ? Window->agent_tab() : nullptr;
 		if (tab != nullptr) {
-			const auto context = tab->suggestion_context_now();
-			facts.Base.PullRequest = context.PullRequest;
-			facts.Base.Repository  = context.Repository;
-			facts.Base.Draft       = context.Draft;
-			facts.Base.AuthorIsMe  = context.AuthorIsMe;
+			const auto context       = tab->suggestion_context_now();
+			facts.Base.PullRequest   = context.PullRequest;
+			facts.Base.Repository    = context.Repository;
+			facts.Base.Draft         = context.Draft;
+			facts.Base.AuthorIsMe    = context.AuthorIsMe;
 			facts.Base.ChecksFailing = context.ChecksFailing;
-			facts.Base.ChatEmpty   = tab->turn_count() == 0U;
-			facts.Agent            = tab->setup_readiness() != qt::agent_setup_readiness::ready ? core::quick_ask_agent::not_set_up
+			facts.Base.ChatEmpty     = tab->turn_count() == 0U;
+			facts.Agent              = tab->setup_readiness() != qt::agent_setup_readiness::ready ? core::quick_ask_agent::not_set_up
 				: tab->state() == qt::agent_tab_state::working                                    ? core::quick_ask_agent::busy
-																									: core::quick_ask_agent::ready;
+																								  : core::quick_ask_agent::ready;
 		}
 		if (!aRequest.File.isEmpty()) {
 			facts.File = aRequest.File.toStdString();
@@ -77,8 +77,8 @@ namespace bpr::app {
 		if (!aRequest.Thread.isEmpty()) {
 			facts.Thread = aRequest.Thread.toStdString();
 		}
-		facts.Reviewed     = ReturningReview.Earlier.has_value();
-		facts.LatestUpload = ReturningReview.Offer.State;
+		facts.Reviewed       = ReturningReview.Earlier.has_value();
+		facts.LatestUpload   = ReturningReview.Offer.State;
 		const auto& snapshot = WindowRead != nullptr ? WindowRead->accepted_snapshot() : std::nullopt;
 		if (!snapshot) {
 			return facts;
@@ -91,7 +91,7 @@ namespace bpr::app {
 		}
 		const auto head = std::string{ snapshot->PullRequest.HeadOid.value() };
 		for (const auto& thread : snapshot->ReviewThreads) {
-			auto entry     = core::quick_ask_thread{ .Identity = thread_identity(thread), .Path = thread.Path };
+			auto entry         = core::quick_ask_thread{ .Identity = thread_identity(thread), .Path = thread.Path };
 			entry.TakesReplies = thread.ViewerReplyPermission != application::github_permission_state::denied;
 			// Q6: the baseline is the commit the thread started on.
 			if (!thread.Comments.empty()) {
@@ -119,14 +119,17 @@ namespace bpr::app {
 	/// acts only on a row that is still listed and enabled.
 	void github_application::implementation::press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow)
 	{
-		const auto menu = quick_ask_menu(aRequest);
-		const auto* row = menu ? core::find_quick_ask(*menu, aRow.Id, aRow.Scope) : nullptr;
+		const auto  menu = quick_ask_menu(aRequest);
+		const auto* row  = menu ? core::find_quick_ask(*menu, aRow.Id, aRow.Scope) : nullptr;
 		if (row == nullptr || !row->Enabled || Window == nullptr) {
 			return;
 		}
 		auto* const tab = Window->agent_tab();
 		switch (row->Action) {
-		case core::prompt_action::what_changed: dismiss_asked_conversation(); ask_what_changed(); return;
+		case core::prompt_action::what_changed:
+			dismiss_asked_conversation();
+			ask_what_changed();
+			return;
 		case core::prompt_action::explain_file: ask_explain_file(aRequest.File.toStdString()); return;
 		case core::prompt_action::was_addressed:
 			// Q5: one run a thread, one after another; a long run asks first.

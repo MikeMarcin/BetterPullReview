@@ -1,7 +1,5 @@
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
-#include "bpr/qt/review_tour_editor.hpp"
-#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -20,7 +18,9 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/usage_ring.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "github_presentation_text.hpp"
@@ -1548,7 +1548,6 @@ namespace bpr::qt {
 		update_notification_controls();
 	}
 }
-
 
 namespace bpr::qt {
 	void workbench_window::present_prompt_macros(const application::prompt_macro_projection& aProjection)

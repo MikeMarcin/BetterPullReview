@@ -173,7 +173,7 @@ auto main(int argc, char** argv) -> int
 		QApplication::processEvents();
 		expect(launchesAt() == 0U, "opening and scrolling a file launches no agent");
 		agent_ready(window);
-		auto* const tab    = window.agent_tab();
+		auto* const tab = window.agent_tab();
 		// RFC-BPR-0128 (Q3): the file header's Ask stands in Explain this
 		// file's place, and Explain this file is its first quick ask.
 		auto* const button = window.file_ask_button();

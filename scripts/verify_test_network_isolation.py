@@ -319,6 +319,15 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_returning_review_gone_public_path": "unmeasured (registered on macOS)",
     "application_explain_file_public_path": "unmeasured (registered on macOS)",
     "application_suggest_change_public_path": "unmeasured (registered on macOS)",
+    # RFC-BPR-0127 and BPR-2171, registered on this lane without an entry.
+    "sqlite_discuss_preferences_store": "unmeasured (registered on macOS)",
+    "application_agent_keep_action_public_path": "unmeasured (registered on macOS)",
+    "application_discuss_busy_public_path": "unmeasured (registered on macOS)",
+    "application_local_comments_composition_public_path": "unmeasured (registered on macOS)",
+    "application_local_comments_found_public_path": "unmeasured (registered on macOS)",
+    # RFC-BPR-0128 ([[BPR-2164]], [[BPR-2165]]). The Ask menus' courses.
+    "application_ask_menu_public_path": "unmeasured (registered on macOS)",
+    "application_ask_addressed_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.

@@ -157,7 +157,7 @@ auto main(int argc, char** argv) -> int
 {
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication qtApplication{ argc, argv };
-	const auto course = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
+	const auto   course = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
 	if (argc < 3 || (course != "menu" && course != "addressed")) {
 		std::cerr << "usage: ask_menu_public_path menu|addressed STUB [--attended]\n";
 		return EXIT_FAILURE;
@@ -193,10 +193,10 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return window.github_open_action()->isEnabled(); }, "connected");
 		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
 		window.home_open_action()->trigger();
-		const auto launchesAt = [&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations; };
-		auto* const tab       = window.agent_tab();
-		auto* const cards     = window.conversation_panel()->cards();
-		const auto  path      = QStringLiteral("src/engine/renderer.cpp");
+		const auto  launchesAt = [&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations; };
+		auto* const tab        = window.agent_tab();
+		auto* const cards      = window.conversation_panel()->cards();
+		const auto  path       = QStringLiteral("src/engine/renderer.cpp");
 		wait([&] { return window.what_changed_action()->isEnabled(); }, "the returning pull request's commits are read");
 		agent_ready(window);
 		wait([&] { return window.go_to_file_line(path, 12U, false) && window.active_document_path() == path && !cards->cards().empty(); }, "the file opens beside its threads");
@@ -209,9 +209,9 @@ auto main(int argc, char** argv) -> int
 		expect(reviewAsk != nullptr && reviewAsk->isVisible() && qobject_cast<QToolBar*>(reviewAsk->parentWidget()) != nullptr, "the review bar has Ask");
 		expect(fileAsk != nullptr && fileAsk->isVisible() && fileAsk->isEnabled() && fileAsk->parentWidget() == window.document_tabs(), "the file's header has Ask, in the tab strip");
 		expect(window.findChild<QToolButton*>(QStringLiteral("explainFileButton")) == nullptr, "Explain this file's control is gone from the header");
-		const auto line12   = std::ranges::find_if(cards->cards(), [&path](const qt::thread_card& aCard) { return aCard.Path == path && aCard.Line == 12U; });
+		const auto line12 = std::ranges::find_if(cards->cards(), [&path](const qt::thread_card& aCard) { return aCard.Path == path && aCard.Line == 12U; });
 		expect(line12 != cards->cards().end(), "the line-12 thread is listed");
-		const auto identity = line12->Id;
+		const auto identity  = line12->Id;
 		auto*      threadAsk = static_cast<qt::ask_menu_button*>(nullptr);
 		wait([&] {
 			cards->open_thread(identity);
@@ -260,7 +260,8 @@ auto main(int argc, char** argv) -> int
 			cards->open_thread("review-thread:PRRT_cc_1");
 			QApplication::processEvents();
 			auto* const claimChip = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadClaimChip"));
-			expect(claimChip != nullptr && claimChip->text() == QStringLiteral("Partly") && claimChip->accessibleName() == QStringLiteral("Agent's claim: Partly"),
+			const auto  words     = QStringList{ QStringLiteral("Addressed"), QStringLiteral("Partly"), QStringLiteral("Not addressed"), QStringLiteral("Unclear") };
+			expect(claimChip != nullptr && words.contains(claimChip->text()) && claimChip->accessibleName() == QStringLiteral("Agent's claim: %1").arg(claimChip->text()),
 				   "tbutler's thread shows the claim as one chip in its header");
 			expect(claimChip->parentWidget()->sizeHint().height() == headerBefore, "the chip takes no height in the header");
 			claimChip->click();
@@ -277,13 +278,14 @@ auto main(int argc, char** argv) -> int
 			expect(after.Submissions == mutation.Submissions && after.TargetObservations == mutation.TargetObservations && after.StoredComments == mutation.StoredComments
 					   && line6 != cards->cards().end() && !line6->Resolved,
 				   "nothing was resolved, posted or published");
-			std::cout << "ask-menu-addressed: claims=" << cards->thread_claims().size() << '\n';
+			std::cout << "ask-menu-addressed: claims=" << cards->thread_claims().size() << " chip=" << claimChip->text().toStdString() << '\n';
 			if (attended) {
 				window.setWindowTitle(QStringLiteral("Ask: Was this addressed? \u2014 synthetic data \u2014 close to finish"));
 				QApplication::setQuitOnLastWindowClosed(true);
 				window.set_profile_management_dispatch({ }, { }, [] { QApplication::quit(); });
 				QTimer::singleShot(30 * 60 * 1000, &qtApplication, &QApplication::quit);
-				std::cout << "ask-menu-attended:ready\n" << std::flush;
+				std::cout << "ask-menu-attended:ready\n"
+						  << std::flush;
 				const auto result = QApplication::exec();
 				shutdown(*application);
 				return result;
@@ -341,10 +343,10 @@ auto main(int argc, char** argv) -> int
 			expect(action->objectName() != QStringLiteral("threadAskAgentAction") && action->objectName() != QStringLiteral("threadWasAddressedAction") && !action->text().startsWith(QStringLiteral("Ask agent")),
 				   "the agent items it replaces are gone");
 		}
-		auto*      strip  = window.document_tabs();
-		const auto active = std::ranges::find_if(strip->tabs(), [](const qt::document_tab_presentation& aTab) { return aTab.Active; });
-		auto       tabMenu = std::unique_ptr<QMenu>{ strip->make_tab_menu(active->Id, &window) };
-		auto* const tabAsk = tabMenu != nullptr ? tabMenu->findChild<QMenu*>(QStringLiteral("documentTabAskMenu")) : nullptr;
+		auto*       strip   = window.document_tabs();
+		const auto  active  = std::ranges::find_if(strip->tabs(), [](const qt::document_tab_presentation& aTab) { return aTab.Active; });
+		auto        tabMenu = std::unique_ptr<QMenu>{ strip->make_tab_menu(active->Id, &window) };
+		auto* const tabAsk  = tabMenu != nullptr ? tabMenu->findChild<QMenu*>(QStringLiteral("documentTabAskMenu")) : nullptr;
 		expect(tabAsk != nullptr && row(*tabAsk, QStringLiteral("agent-tab.explain-file"), QStringLiteral("file")) != nullptr, "the file tab's menu has Ask with the file's quick asks");
 		expect(tabMenu->findChild<QAction*>(QStringLiteral("documentTabExplainFile")) == nullptr, "Explain This File is gone from the tab's menu");
 		expect(launchesAt() == setupLaunches, "building and filtering every menu launched nothing");

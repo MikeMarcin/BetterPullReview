@@ -2931,6 +2931,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_local_comments.cpp"
         "src/github_application/window_navigation.cpp"
         "src/github_application/window_probe_states.hpp"
+        "src/github_application/window_quick_ask.cpp"
         "src/github_application/window_read_state.cpp"
         "src/github_application/window_returning_review.cpp"
         "src/github_application/window_review_drafts.cpp"
@@ -3117,6 +3118,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_local_comments.cpp"
         "src/github_application/window_navigation.cpp"
         "src/github_application/window_probe_states.hpp"
+        "src/github_application/window_quick_ask.cpp"
         "src/github_application/window_read_state.cpp"
         "src/github_application/window_returning_review.cpp"
         "src/github_application/window_review_drafts.cpp"
@@ -3725,8 +3727,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# length; the agent look's --attended-agent-draft-first, a fixture-only
 	# course step. BPR-2161 and BPR-2171's composition (Discuss preferences
 	# host, the busy look) sealed here too. No new effect or path.
+	# RFC-BPR-0128 ([[BPR-2163]], [[BPR-2164]], [[BPR-2165]]): the Ask menus'
+	# composition (window_quick_ask.cpp), the suggested prompts' store and
+	# host, Was this addressed? on any thread with its claims. Presses go
+	# through the existing launch paths; no new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "d312a4df846e8f2605bab052e2b269183e56bc6f43df870966439a2f450686b4"
+        "8022074b619a42392cb7a061f54e55a87dd2c525d6d90572a9e23349af1a3a8a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

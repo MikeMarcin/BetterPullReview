@@ -214,7 +214,7 @@ auto main(int argc, char** argv) -> int
 				expect(tab->ask_button() != nullptr, "the question field is ready for more");
 			}
 		} else {
-			auto* const cards   = window.conversation_panel()->cards();
+			auto* const cards = window.conversation_panel()->cards();
 			// RFC-BPR-0128: any review thread whose start commits have
 			// followed, whoever wrote it; README.md's thread started on the
 			// head, so it is not offered.

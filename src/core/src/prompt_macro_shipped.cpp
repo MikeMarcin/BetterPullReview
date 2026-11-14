@@ -55,6 +55,29 @@ namespace bpr::core {
 		auto lines(const prompt_lines_value aValue) -> prompt_condition { return { .Fact = prompt_fact::selected_lines, .Lines = aValue }; }
 	} // namespace
 
+	auto sample_prompt_facts(const prompt_place aPlace) -> prompt_facts
+	{
+		auto facts             = prompt_facts{ };
+		facts.Place            = aPlace;
+		facts.PullRequest      = prompt_pull_request{ .Number = 42U, .Title = "Render retained frames before presenting", .Url = "https://github.com/octo/render/pull/42", .Author = "octocat", .Base = "main", .Head = "retained-frames" };
+		facts.Repository       = "octo/render";
+		facts.OpenFile         = "src/render/renderer.cpp";
+		facts.Lines            = prompt_line_range{ .First = 5U, .Last = 8U };
+		facts.ConversationFile = "src/render/renderer.cpp";
+		facts.TakesReplies     = true;
+		facts.Draft            = false;
+		facts.AuthorIsMe       = false;
+		facts.ChecksFailing    = false;
+		facts.ChatEmpty        = true;
+		if (aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_part || aPlace == prompt_place::tour_whole) {
+			facts.Thread = prompt_tour_part{ .Place = aPlace, .Part = aPlace == prompt_place::tour_stop ? "Stop 3" : aPlace == prompt_place::tour_part ? "the Problem"
+																																					   : "",
+											 .StopNumber = 3U,
+											 .StopTitle  = "The frame pool" };
+		}
+		return facts;
+	}
+
 	auto shipped_prompt_macros() -> std::vector<prompt_builtin>
 	{
 		using enum prompt_subject;
