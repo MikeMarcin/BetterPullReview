@@ -121,8 +121,8 @@ trimmed to the frame. `frame` is one of `start`, `a-open`, `a-read`, `b-open`,
 
 So the reading is B's: the report opens with everything open and reads from
 the top. Its ruler is dropped; the reader moves between sections through a
-menu button. A's folding and C's paging are dropped. Round 4
-(`docs/design/report-card-v4/`) draws that button and its menu.
+menu button. A's folding and C's paging are dropped.
+[Round 4](../report-card-v4/README.md) draws that button and its menu.
 
 - Attended-review session `bff4dd72e9f6b027789ae5c1da4eeefe`, candidate
   `report-card-v3-reading` at revision `629e69ca7374` (the commit that added
