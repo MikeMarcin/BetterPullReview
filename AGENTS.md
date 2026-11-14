@@ -85,6 +85,12 @@ network, or process effects.
 - An attended candidate that asks for a file on disk names every path in its
   command absolutely. A copy label saying "in the repository" is not a working
   directory, and a relative path run from elsewhere writes nothing useful.
+- Looks never spend the owner's agent usage (owner, 2026-11-14: "why am I
+  wasting a ton of money just seeing how buttons and UI flow works"). A
+  tests-on look runs the fixture agent ("Fixture agent" in the picker), never
+  an installed Claude Code or Codex; its launcher's `--check` refuses an image
+  that could start one. Only a `freeze --live` build runs a real agent, and
+  only when the look is about the agent itself.
 - Freeze an attended build with `scripts/freeze_attended_build.py freeze` and
   remove its root with `remove`; do not hand-write a launcher or delete a root
   directly. A tests-on build compiles absolute paths to its fixtures and

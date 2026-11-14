@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2176"
 title: "Remove the review bar's Comment button and the Tour tab's Add stop button"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -31,3 +31,15 @@ Asked whether to remove both: "Yes, file a card".
 ## Outcome
 
 Neither button appears. The C key and Alt+Shift+T still work, with no window action lost (tested). Nothing else in the review bar or the Tour tab header shifts. Tests and courses that look for either object name are updated. Owner look on a fixture with a tour.
+
+## Progress (2026-11-14)
+
+Built test first: `test_the_duplicate_comment_and_add_stop_buttons_are_gone`
+(in `qt_workbench_window_scale_{100,125,200}`) failed on the review bar's
+Comment button, then passed. Gone: the review bar's Comment split button and
+its `commentMenu`, and the Tour tab header's Add stop tool. Kept and tested:
+Option-C (`composeInlineDraftAction`, Alt+C, a window shortcut) and
+Option-Shift-T (`addTourStopAction`), both in the Pull Request menu, which now
+names Comment's target when it opens. The review-bar order, presenter and
+geometry checks follow (18 actions, Compose review last). The owner's look on a
+fixture with a tour is in session ask-v002.
