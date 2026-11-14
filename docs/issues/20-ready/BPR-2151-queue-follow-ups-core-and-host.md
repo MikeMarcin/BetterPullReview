@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2151"
 title: "BPR queues follow-ups and releases them only after real completion"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0126"]
 depends_on: []
 priority: "P2"
