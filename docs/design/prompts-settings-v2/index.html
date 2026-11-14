@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompts in Settings, round 2 (BPR-2179)</title>
+<style>
+html{background:#e3e4e8}
+html[data-page=dark]{background:#131416}
+body.doc{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;color:#1b1c20;-webkit-font-smoothing:antialiased}
+html[data-page=dark] body.doc{color:#e6e7ea}
+.wrap{max-width:1240px;margin:0 auto;padding:44px 40px 120px}
+.doc a{color:#0b4fd6;text-underline-offset:3px}
+html[data-page=dark] .doc a{color:#7fb2ff}
+.doc a:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px}
+.themer{float:right;font-size:13.5px}
+header.top h1{font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-.022em;margin:0 0 12px}
+header.top p{max-width:72ch;margin:0 0 8px;font-size:16px;line-height:1.5;opacity:.82}
+.doc h2.band{font-size:21px;font-weight:680;letter-spacing:-.014em;margin:72px 0 6px}
+.doc h2.band + p{max-width:74ch;margin:0;opacity:.82}
+.trade{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 32px;max-width:1160px;margin:18px 0 0;padding:0}
+.trade div{font-size:14px;line-height:1.5}
+.trade dt{font-weight:650;margin:0 0 2px}
+.trade dd{margin:0;opacity:.82}
+figure.shot{margin:28px 0 0}
+figure.shot .scroll{overflow-x:auto;padding:6px 6px 46px;margin:0 -6px -26px}
+figure.shot figcaption{max-width:78ch;margin:0;font-size:14px;line-height:1.5;opacity:.82}
+figure.shot figcaption b{font-weight:650}
+@media (max-width:860px){.wrap{padding:26px 16px 80px}.trade{grid-template-columns:1fr}}
+body.shotpage{margin:0;padding:28px;display:inline-block;background:transparent}
+
+.mac{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;--mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;font:13px/16px var(--font);color:var(--text);-webkit-font-smoothing:antialiased;cursor:default;text-align:left}
+.mac *{box-sizing:border-box}
+.mac[data-theme=light]{--win:#fff;--side:#f6f6f6;--base:#fff;--sel:#dcdcdc;--ctl:rgba(0,0,0,.078);--segon:#fff;--text:rgba(0,0,0,.88);--text2:rgba(0,0,0,.56);--text3:rgba(0,0,0,.34);--hair:rgba(0,0,0,.10);--edge:rgba(0,0,0,.17);--listedge:rgba(0,0,0,.15);--group:rgba(0,0,0,.035);--groupedge:rgba(0,0,0,.06);--field:#fff;--accent:#007aff;--agent:#5a4fe0;--tokbg:rgba(0,122,255,.13);--toktx:#0a4aa8;--over:#0b7672;--overbg:rgba(11,118,114,.10);--overedge:rgba(11,118,114,.55);--winedge:rgba(0,0,0,.24);--shadow:0 26px 64px rgba(0,0,0,.20),0 3px 10px rgba(0,0,0,.10);--chip:rgba(0,0,0,.055);--chipface:#fff}
+.mac[data-theme=dark]{--win:#1e1e1e;--side:#191919;--base:#171717;--sel:#3a3a3a;--ctl:rgba(255,255,255,.092);--segon:rgba(255,255,255,.20);--text:rgba(255,255,255,.90);--text2:rgba(255,255,255,.58);--text3:rgba(255,255,255,.34);--hair:rgba(255,255,255,.10);--edge:rgba(255,255,255,.16);--listedge:rgba(255,255,255,.075);--group:rgba(255,255,255,.045);--groupedge:rgba(255,255,255,.07);--field:#171717;--accent:#0a84ff;--agent:#a9a5ff;--tokbg:rgba(10,132,255,.24);--toktx:#cfe3ff;--over:#4fd0c9;--overbg:rgba(79,208,201,.13);--overedge:rgba(79,208,201,.6);--winedge:rgba(255,255,255,.17);--shadow:0 26px 64px rgba(0,0,0,.6),0 3px 10px rgba(0,0,0,.4);--chip:rgba(255,255,255,.08);--chipface:#232323}
+.mac.win{position:relative;width:1160px;height:840px;border-radius:12px;background:var(--win);overflow:hidden;box-shadow:0 0 0 .5px var(--winedge),var(--shadow)}
+.mac svg.i{flex:none;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block}
+.mac svg.i.f{fill:currentColor;stroke:none}
+.titlebar{position:relative;height:30px;display:flex;align-items:center;justify-content:center;font-weight:600;box-shadow:0 .5px 0 var(--hair)}
+.lights{position:absolute;left:11px;top:9px;display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.lights i:nth-child(2){background:#febc2e}
+.lights i:nth-child(3){background:#28c840}
+.wbody{display:flex;height:810px}
+.side{flex:none;width:196px;background:var(--side);padding:9px 7px 0;box-shadow:.5px 0 0 var(--hair)}
+.search{display:flex;align-items:center;gap:6px;height:22px;padding:0 6px;border-radius:5.5px;background:var(--field);box-shadow:inset 0 0 0 1px var(--edge);color:var(--text3)}
+.search svg.i{width:13px;height:13px}
+.search.w{width:190px;flex:none}
+.nav{list-style:none;margin:8px 0 0;padding:0}
+.nav li{height:22px;line-height:22px;padding:0 7px;border-radius:5px}
+.nav li.on{background:var(--sel)}
+.page{position:relative;flex:1;min-width:0;padding:13px 28px 0}
+.ptitle{display:flex;align-items:center;gap:8px;height:26px;margin:0 0 3px}
+.ptitle h1{font-size:16px;line-height:22px;font-weight:700;margin:0;letter-spacing:-.012em}
+.lede{margin:0 0 11px;color:var(--text2);line-height:17px}
+.lede.inl{margin:1px 0 0 8px}
+.sp{flex:1}
+.gap{flex:none;width:14px}
+.cap{color:var(--text2)}
+.t3{color:var(--text3)}
+.nw{white-space:nowrap}
+.lnk{color:var(--accent);white-space:nowrap}
+.cmd{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:4.5px;background:var(--chip);font-family:var(--mono);font-size:11px;color:var(--text)}
+
+/* controls, as QMacStyle draws them */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;flex:none;height:24px;padding:0 11px;border-radius:7px;background:var(--ctl);color:var(--text);white-space:nowrap}
+.btn svg.i{width:11px;height:11px;stroke-width:1.8;color:var(--text2)}
+.btn.s{height:20px;padding:0 8px;border-radius:6px;font-size:11.5px}
+.btn.dis{color:var(--text3)}
+.btn.rv{color:var(--over);background:var(--overbg)}
+.btn.rv svg.i{color:var(--over)}
+.pop{display:inline-flex;align-items:center;gap:8px;flex:none;height:24px;padding:0 6px 0 10px;border-radius:7px;background:var(--ctl);white-space:nowrap}
+.pop svg.i{width:8px;height:12px;margin-left:auto;color:var(--text2)}
+.pop.ov{box-shadow:inset 0 0 0 1.5px var(--overedge)}
+.chk{flex:none;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4.5px;background:var(--ctl);box-shadow:inset 0 0 0 .5px var(--edge)}
+.chk.on{background:var(--accent);box-shadow:none;color:#fff}
+.chk svg.i{width:10px;height:10px;stroke-width:2.3}
+.chk.ov{outline:2px solid var(--over);outline-offset:2px}
+.field{display:flex;align-items:center;height:22px;padding:0 7px;border-radius:5.5px;background:var(--field);box-shadow:inset 0 0 0 1px var(--edge)}
+.field.name{height:28px;font-size:14.5px;font-weight:650;letter-spacing:-.01em;flex:1;min-width:0}
+.seg{display:inline-flex;flex:none;height:24px;padding:2px;border-radius:7px;background:var(--ctl)}
+.seg > span{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 10px;border-radius:5px;white-space:nowrap}
+.seg > span.on{background:var(--segon);box-shadow:0 .5px 1.5px rgba(0,0,0,.22),0 0 0 .5px rgba(0,0,0,.06);font-weight:500}
+.bb{display:inline-flex;align-items:center;justify-content:center;gap:1px;flex:none;height:20px;min-width:26px;padding:0 5px;border-radius:5px;background:var(--ctl);color:var(--text2)}
+.bb svg.i{width:11px;height:11px;stroke-width:1.7}
+.bb svg.i.car{width:7px;height:7px;stroke-width:2}
+.tag{flex:none;display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:4.5px;background:var(--chip);color:var(--text2);font-size:11px;white-space:nowrap}
+.tag.over{background:var(--overbg);color:var(--over)}
+.tok{display:inline-flex;align-items:center;gap:4px;flex:none;height:20px;padding:0 5px 0 8px;border-radius:5px;background:var(--tokbg);color:var(--toktx);font-size:12px;white-space:nowrap}
+.tok svg.i{width:9px;height:9px;stroke-width:2;opacity:.65}
+.ovdot{flex:none;display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--over)}
+.grp{border-radius:9px;background:var(--group);box-shadow:inset 0 0 0 1px var(--groupedge)}
+.listbox{background:var(--base);box-shadow:inset 0 0 0 1px var(--listedge);border-radius:7px;overflow:hidden}
+.tools{display:flex;align-items:center;gap:9px;margin:0 0 10px}
+.fchk{display:inline-flex;align-items:center;gap:6px;margin-left:6px}
+.grip{width:8px !important;height:14px !important;color:var(--text3)}
+.m{color:var(--agent)}
+
+/* rows */
+.r{position:relative;display:flex;align-items:center;gap:8px;height:30px;padding:0 10px 0 8px}
+.r + .r::before,.r + .openbody + .r::before{content:"";position:absolute;left:8px;right:0;top:0;height:1px;background:var(--hair);transform:scaleY(.5);transform-origin:top}
+.r .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.r.on{background:var(--sel)}
+.r.on::before,.r.on + .r::before{display:none}
+.r.off .nm,.r.off .shows{color:var(--text3)}
+.colh{display:flex;align-items:center;gap:8px;height:26px;padding:0 10px 0 8px;font-size:11.5px;color:var(--text2);box-shadow:0 .5px 0 var(--hair)}
+
+/* text area */
+.ta{background:var(--field);box-shadow:inset 0 0 0 1px var(--edge);border-radius:6px;padding:8px 10px;font:11.5px/17px var(--mono);white-space:pre-wrap;overflow:hidden}
+.ta .ph{color:var(--agent);background:color-mix(in srgb,var(--agent) 13%,transparent);border-radius:3px;padding:1px 2px}
+.ta.ov{box-shadow:inset 0 0 0 1px var(--edge),inset 3px 0 0 var(--over)}
+.ta .diff{background:var(--overbg);box-shadow:0 0 0 1px var(--overbg);border-radius:2px}
+.under{display:flex;align-items:center;gap:6px;height:18px;margin-top:7px;font-size:11.5px}
+.lab{display:flex;align-items:baseline;gap:8px;font-weight:600;margin:0 0 6px}
+.lab .t3{font-weight:400;font-size:11.5px}
+.ovl{display:flex;align-items:center;gap:10px;min-height:20px;margin-top:6px;color:var(--over);font-size:11.5px;white-space:nowrap}
+.ovl .lnk{color:var(--over);text-decoration:underline;text-underline-offset:2px}
+.foot{display:flex;align-items:center;gap:8px}
+.edhead{display:flex;align-items:center;gap:8px}
+
+/* ---- direction 1: grid ---- */
+.split{display:flex;gap:14px;height:682px}
+.d1list{flex:none;width:486px;display:flex;flex-direction:column}
+.d1list .r,.d1list .colh{gap:7px}
+.cells{display:flex;flex:none;margin-left:auto}
+.d1list .colh{height:30px}
+.cell{flex:none;display:flex;justify-content:center;gap:4px;width:64px}
+.cell.h{font-size:11px;color:var(--text2);white-space:nowrap}
+.gm{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;position:relative}
+.gm:not(.on)::after{content:"";width:3px;height:3px;border-radius:50%;background:var(--text3);opacity:.7}
+.gm svg.i{width:14px;height:14px}
+.gm.c{color:var(--text)}
+.gm.ov{box-shadow:0 0 0 1.5px var(--over);background:var(--overbg)}
+.r.off .gm.on{opacity:.38}
+.legend{margin-top:auto;display:flex;align-items:center;gap:16px;height:30px;padding:0 10px;font-size:11.5px;color:var(--text2);box-shadow:0 -.5px 0 var(--hair)}
+.lg{display:inline-flex;align-items:center;gap:5px}
+.lg svg.i{width:13px;height:13px;color:var(--text)}
+.lg svg.i.m{color:var(--agent)}
+.lg.ovt{color:var(--over)}
+.ovbox{display:inline-block;width:12px;height:12px;border-radius:3.5px;box-shadow:0 0 0 1.5px var(--over);background:var(--overbg)}
+.d1ed{flex:1;min-width:0;padding:14px;display:flex;flex-direction:column}
+.d1ed .edhead{margin-bottom:12px}
+.d1ed .lab.sec{margin-top:14px}
+.lab.sends{align-items:center;margin-bottom:7px}
+.lab.sends .cap,.lab.sends .seg{font-weight:400}
+.d1ed .tok{font-size:11.5px}
+.d1ed .mxc{gap:5px;flex-wrap:nowrap}
+.mx{font-size:13px}
+.mxh{display:flex;align-items:center;height:24px;padding:0 10px;font-size:11.5px;color:var(--text2);box-shadow:0 .5px 0 var(--hair)}
+.c1{flex:none;width:76px;display:flex;justify-content:center}
+.c2{flex:none;width:98px;display:flex;justify-content:center}
+.mxs{position:relative;padding:0 10px 7px}
+.mxs + .mxs::before{content:"";position:absolute;left:10px;right:0;top:0;height:1px;background:var(--hair);transform:scaleY(.5)}
+.mxs.none{padding-bottom:0}
+.mxs.none b{color:var(--text2);font-weight:400}
+.mxr{display:flex;align-items:center;height:30px}
+.mxr b{font-weight:600}
+.mxn{color:var(--text2);font-size:11.5px;margin:-4px 0 2px}
+.mxc{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:1px 0 2px;font-size:11.5px}
+.ovl.in{margin:5px 0 1px}
+.ansrow{display:flex;align-items:center;gap:8px;margin-top:12px}
+.d1ed .foot{margin-top:14px}
+.ta.grow{flex:1;min-height:150px}
+
+/* ---- direction 2: sentences ---- */
+.d2list{position:relative}
+.thumb{position:absolute;right:3px;width:6px;border-radius:3px;background:var(--text3);opacity:.7;z-index:2}
+.r2 .nm{flex:none;width:262px}
+.d2list .colh .nm{flex:none;width:262px;margin-left:39px}
+.shows{display:flex;gap:16px;white-space:nowrap;color:var(--text2)}
+.shows b{font-weight:500;color:var(--text)}
+.r2 .go{width:11px;height:11px;color:var(--text3);stroke-width:1.8;margin-left:4px}
+.r2.open{background:var(--group)}
+.r2.open .nm{font-weight:650}
+.r2.open .go{color:var(--text2)}
+.openbody{position:relative;background:var(--group);padding:4px 16px 14px 47px}
+.openbody::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--hair)}
+.tabrow{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.tabrow .seg .ovdot{margin-right:1px}
+.lnk.add{display:inline-flex;align-items:center;gap:3px;margin-left:4px}
+.lnk.add svg.i{width:11px;height:11px;stroke-width:1.9}
+.cols{display:flex;gap:26px}
+.colL{flex:1;min-width:0}
+.colL .field.name{margin-bottom:8px;flex:none}
+.colR{flex:none;width:352px}
+.sc{margin:0 0 9px}
+.sch{display:flex;align-items:center;gap:7px;height:22px}
+.sch b{font-weight:600}
+.sc.none .sch b{font-weight:400;color:var(--text2)}
+.scl{display:flex;align-items:center;gap:7px;min-height:22px;padding-left:22px}
+.scl.toks{padding-left:44px;gap:6px;margin-bottom:2px}
+.scl.cap{font-size:11.5px;min-height:18px}
+.openbody .ovl.in{padding-left:44px;margin:3px 0 2px}
+.openbody .foot{margin-top:12px}
+
+/* ---- direction 3: surfaces ---- */
+.lanes{display:flex;gap:12px;align-items:stretch}
+.lane{flex:1;min-width:0;padding:8px 8px 6px}
+.lh{font-weight:650;font-size:13px;padding:0 4px 3px}
+.sub{display:flex;align-items:baseline;gap:8px;padding:5px 4px 3px;font-size:11.5px;color:var(--text2);font-weight:600}
+.sub .t3{font-weight:400}
+.mi{display:flex;align-items:center;gap:6px;height:24px;padding:0 6px 0 4px;border-radius:6px}
+.mi .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.mi svg.i.m{width:13px;height:13px}
+.ci{display:flex;align-items:flex-start;gap:6px;padding:3px 6px 3px 4px;border-radius:6px}
+.ci .grip{margin-top:4px}
+.cw{flex:1;min-width:0}
+.cl{display:flex;align-items:center;gap:6px}
+.chipx{display:inline-flex;align-items:center;height:21px;padding:0 9px;border-radius:10.5px;background:var(--chipface);box-shadow:inset 0 0 0 1px var(--edge);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.when{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0 1px 1px}
+.tok.s{height:16px;padding:0 6px;border-radius:4px;font-size:10.5px}
+.mi.sel,.ci.sel{background:var(--accent);color:#fff}
+.mi.sel svg.i,.ci.sel svg.i{color:#fff}
+.ci.sel .tok.s{background:rgba(255,255,255,.2);color:#fff}
+.ci.sel .chipx{background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.5);color:#fff}
+.ci.sel .tag.over,.mi.sel .tag.over{background:rgba(255,255,255,.2);color:#fff}
+.ci.sel .ovdot,.mi.sel .ovdot{background:#fff}
+.mi.sib,.ci.sib{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.lk{width:12px !important;height:12px !important;color:var(--accent);stroke-width:1.6 !important}
+.mi.gone .nm,.ci.gone .chipx{color:var(--text3);text-decoration:line-through}
+.mi.gone svg.i.m{opacity:.4}
+.rvb{height:18px;min-width:22px;color:var(--over);background:var(--overbg)}
+.addr{display:flex;align-items:center;gap:5px;height:22px;padding:0 4px 0 18px;color:var(--accent);font-size:12px}
+.addr svg.i{width:10px;height:10px;stroke-width:2}
+.mac{--d3ta:152px}
+.d3ed{margin-top:12px;padding:12px 14px}
+.d3ed .edhead{margin-bottom:8px;gap:6px}
+.cap.s{font-size:11.5px}
+.d3ed .colR{width:372px}
+.seg.tabs{margin-bottom:8px}
+.seg.tabs svg.i{width:12px;height:12px;color:var(--text2)}
+.seg.tabs svg.i.m{color:var(--agent)}
+.tabbody .scl{padding-left:2px}
+.tabbody .scl.toks{padding-left:2px}
+.d3ed .foot{margin-top:10px}
+.ovstrip .t3{margin-right:4px}
+.ovstrip{display:flex;align-items:center;gap:8px;margin:-2px 0 10px;padding:5px 6px 5px 10px;border-radius:7px;background:var(--overbg);color:var(--over);font-size:12px}
+.rvt{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 6px 0 8px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--overedge);white-space:nowrap}
+.rvt svg.i{width:10px;height:10px;stroke-width:1.9}
+</style></head>
+<body class="doc">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></symbol>
+  <symbol id="i-ud" viewBox="0 0 10 14"><path d="M2.4 5.3 5 2.7l2.6 2.6M2.4 8.7 5 11.3l2.6-2.6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16"><path d="M3.6 6 8 10.4 12.4 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.2 8.6 6.5 11.8 12.8 4.4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 8 14"><circle cx="2" cy="3" r="1"/><circle cx="6" cy="3" r="1"/><circle cx="2" cy="7" r="1"/><circle cx="6" cy="7" r="1"/><circle cx="2" cy="11" r="1"/><circle cx="6" cy="11" r="1"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 16 16"><path d="M6.8 2.4c.5 3.4 1.7 4.6 5.4 5.4-3.7.8-4.9 2-5.4 5.4-.5-3.4-1.7-4.6-5.4-5.4 3.7-.8 4.9-2 5.4-5.4z"/><path d="M12.7 1.2c.2 1.2.6 1.7 1.9 2-1.3.3-1.7.8-1.9 2-.2-1.2-.6-1.7-1.9-2 1.3-.3 1.7-.8 1.9-2z"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 16 16"><rect x="1.2" y="4.4" width="13.6" height="7.2" rx="3.6"/><path d="M5.2 8h5.6"/></symbol>
+  <symbol id="i-revert" viewBox="0 0 16 16"><path d="M5.8 3.2 2.8 6.2l3 3"/><path d="M3 6.2h6.2a3.5 3.5 0 0 1 0 7H7.4"/></symbol>
+  <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.9 9.1a2.7 2.7 0 0 0 3.8 0l2-2a2.7 2.7 0 0 0-3.8-3.8l-.9.9"/><path d="M9.1 6.9a2.7 2.7 0 0 0-3.8 0l-2 2a2.7 2.7 0 0 0 3.8 3.8l.9-.9"/></symbol>
+</svg>
+<div class="wrap">
+<a class="themer" id="themer" href="?theme=dark">Dark</a>
+<header class="top"><h1>Prompts in Settings: three ways to show one prompt in several places</h1>
+<p>Mockups for <a href="../../issues/40-parked/BPR-2179-prompts-settings-section.md">BPR-2179</a>, round 2. Each direction is the whole Prompts section, drawn twice: with “Was this addressed?” open for all repositories, then as acme/checkout-api changes it. “Was this addressed?” is in the thread Ask menu and is a thread chip when there are new replies or pushes since the comment; it is also in the pull request Ask menu, where one ask covers every open thread.</p>
+<p>All three keep the filter, a large edit area, drag to reorder, and placement visible in the list. The prompts, conditions and repository are invented.</p></header>
+
+<h2 class="band">Direction 1: Grid</h2>
+<p>One row per prompt. The three scopes are fixed columns, each with a mark for the Ask menu and a mark for the chip, so a column reads top to bottom as “everything on a thread”. The editor repeats the same grid at full size.</p>
+<dl class="trade"><div><dt>One prompt, several places</dt><dd>A prompt is one row; its places are marks along it. The editor has one line per scope with two boxes, and the chip’s conditions under the line.</dd></div><div><dt>A repository’s changes</dt><dd>A “Prompts for” pop-up switches the whole section to a repository. Whatever differs there is ringed in teal, in the list and in the editor, and each has its own Use app-wide.</dd></div><div><dt>What it gives up</dt><dd>The marks need learning (a small legend carries them). Conditions are not visible in the list; they are in the editor.</dd></div></dl>
+<figure class="shot"><div class="scroll"><div class="mac win" data-theme="light" data-frame="d1-app">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li class="">General</li><li class="">Accounts &amp; hosts</li><li class="">Repositories</li><li class="">Home &amp; queue</li><li class="">Review</li><li class="">Comments</li><li class="">Appearance</li><li class="">Notifications</li><li class="">Agents</li><li class="on">Prompts</li><li class="">Storage &amp; privacy</li></ul></div>
+    <div class="page"><div class="ptitle"><h1>Prompts</h1><span class="sp"></span><span class="cap">Prompts for</span><span class="pop ">All repositories<svg class="i "><use href="#i-ud"/></svg></span></div>
+<p class="lede">Drag to set the order. Menus list prompts in that order; chips show the first 5 whose conditions hold.</p>
+<div class="tools"><div class="search w"><svg class="i "><use href="#i-search"/></svg><span>Filter prompts</span></div>
+<span class="seg"><span class="on">All</span><span class="">Pull request</span><span class="">File</span><span class="">Thread</span></span><span class="sp"></span><span class="btn "><svg class="i "><use href="#i-plus"/></svg>New prompt</span></div>
+<div class="split"><div class="listbox d1list">
+  <div class="colh"><span class="nm">Prompt</span><span class="cells"><span class="cell h">Pull request</span><span class="cell h">File</span><span class="cell h">Thread</span></span></div>
+  <div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">What changed since my review</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r on "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Was this addressed?</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Review this pull request</span><span class="tag ">Edited</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">What could this change break?</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Explain this file</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Summarize this conversation</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Is the concern raised here right?</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Draft a reply to this conversation</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Check the error handling</span><span class="tag ">Yours</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r off"><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk  "></span><span class="nm">Explain the code this comment is on</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span></span></div>
+  <div class="legend"><span class="lg"><svg class="i f m"><use href="#i-spark"/></svg>In the Ask menu</span><span class="lg"><svg class="i "><use href="#i-chip"/></svg>Suggested chip</span></div>
+</div><div class="grp ed d1ed">
+  <div class="edhead"><div class="field name">Was this addressed?</div><span class="tag ">Built-in</span></div>
+  <div class="lab sends">Sends<span class="sp"></span><span class="cap">Answer as</span><span class="seg"><span class="on">A question</span><span class="">Findings</span></span></div>
+  <div class="ta grow">Was the concern in <span class="ph">{thread}</span> addressed?
+
+Read the replies and every commit pushed since the comment. Answer Yes, Partly or No first, then name the commit and lines that settle it. If nothing changed, say that nothing changed.</div>
+  <div class="under"><span class="cap">Insert</span><span class="cmd">{file}</span><span class="cmd">{lines}</span><span class="cmd">{thread}</span><span class="sp"></span><span class="t3">224 of 8,192 bytes</span></div>
+  <div class="lab sec">Where it shows<span class="t3">a chip shows when all its conditions hold</span></div>
+  <div class="listbox mx">
+    <div class="mxh"><span class="sp"></span><span class="c1">Ask menu</span><span class="c2">Suggested chip</span></div>
+    <div class="mxs"><div class="mxr"><b>Pull request</b><span class="sp"></span><span class="c1"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span></span><span class="c2"><span class="chk  "></span></span></div><div class="mxn">One ask covers every open thread.</div></div>
+    <div class="mxs none"><div class="mxr"><b>File</b><span class="sp"></span><span class="c1"><span class="chk  "></span></span><span class="c2"><span class="chk  "></span></span></div></div>
+    <div class="mxs"><div class="mxr"><b>Thread</b><span class="sp"></span><span class="c1"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span></span><span class="c2"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span></span></div>
+      <div class="mxc"><span class="cap">Chip when</span><span class="tok ">New replies or pushes since the comment<svg class="i "><use href="#i-x"/></svg></span><span class="bb" title="Add a condition"><svg class="i "><use href="#i-plus"/></svg><svg class="i car"><use href="#i-down"/></svg></span></div></div>
+  </div>
+  <div class="foot"><span class="btn dis">Reset to default</span><span class="btn ">Duplicate</span><span class="sp"></span><span class="t3">Saved</span></div>
+</div></div></div>
+  </div>
+</div></div><figcaption><b>1, all repositories.</b> “Was this addressed?” reads along its row: Ask menu on a pull request, Ask menu and chip on a thread. The row that is off stays in the list, dimmed.</figcaption></figure>
+<figure class="shot"><div class="scroll"><div class="mac win" data-theme="light" data-frame="d1-repo">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li class="">General</li><li class="">Accounts &amp; hosts</li><li class="">Repositories</li><li class="">Home &amp; queue</li><li class="">Review</li><li class="">Comments</li><li class="">Appearance</li><li class="">Notifications</li><li class="">Agents</li><li class="on">Prompts</li><li class="">Storage &amp; privacy</li></ul></div>
+    <div class="page"><div class="ptitle"><h1>Prompts</h1><span class="sp"></span><span class="cap">Prompts for</span><span class="pop ov">acme/checkout-api<svg class="i "><use href="#i-ud"/></svg></span></div>
+<p class="lede">acme/checkout-api starts from your prompts for all repositories. What you change here applies to its pull requests only.</p>
+<div class="tools"><div class="search w"><svg class="i "><use href="#i-search"/></svg><span>Filter prompts</span></div>
+<span class="seg"><span class="on">All</span><span class="">Pull request</span><span class="">File</span><span class="">Thread</span></span><span class="fchk"><span class="chk  "></span>Changed here<span class="t3">3</span></span><span class="sp"></span><span class="btn "><svg class="i "><use href="#i-plus"/></svg>New prompt</span></div>
+<div class="split"><div class="listbox d1list">
+  <div class="colh"><span class="nm">Prompt</span><span class="cells"><span class="cell h">Pull request</span><span class="cell h">File</span><span class="cell h">Thread</span></span></div>
+  <div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">What changed since my review</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r on "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Was this addressed?</span><i class="ovdot" title="Text changed here"></i><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c ov"><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Review this pull request</span><span class="tag ">Edited</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">What could this change break?</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Explain this file</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Summarize this conversation</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Is the concern raised here right?</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span></span></div><div class="r off"><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk  ov"></span><span class="nm">Draft a reply to this conversation</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Check the error handling</span><span class="tag ">Yours</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Check ledger invariants</span><span class="tag over">Only here</span><span class="cells"><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm on c "><svg class="i "><use href="#i-chip"/></svg></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span></span></div><div class="r off"><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk  "></span><span class="nm">Explain the code this comment is on</span><span class="cells"><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm "></i><i class="gm  "></i></span><span class="cell"><i class="gm on m"><svg class="i f"><use href="#i-spark"/></svg></i><i class="gm  "></i></span></span></div>
+  <div class="legend"><span class="lg"><svg class="i f m"><use href="#i-spark"/></svg>In the Ask menu</span><span class="lg"><svg class="i "><use href="#i-chip"/></svg>Suggested chip</span><span class="lg ovt"><i class="ovbox"></i>Differs from app-wide</span></div>
+</div><div class="grp ed d1ed">
+  <div class="edhead"><div class="field name">Was this addressed?</div><span class="tag ">Built-in</span></div>
+  <div class="lab sends">Sends<span class="sp"></span><span class="cap">Answer as</span><span class="seg"><span class="on">A question</span><span class="">Findings</span></span></div>
+  <div class="ta ov grow">Was the concern in <span class="ph">{thread}</span> addressed?
+
+Read the replies and every commit pushed since the comment. Answer Yes, Partly or No first, then name the commit and lines that settle it. If nothing changed, say that nothing changed.
+
+A bot reply of “Fixed in &lt;sha&gt;” proves nothing here: check that the commit is on the branch.</div><div class="ovl"><span>Differs from app-wide.</span><span class="lnk">Show app-wide text</span><span class="sp"></span><span class="btn s rv"><svg class="i "><use href="#i-revert"/></svg>Use app-wide</span></div>
+  <div class="under"><span class="cap">Insert</span><span class="cmd">{file}</span><span class="cmd">{lines}</span><span class="cmd">{thread}</span><span class="sp"></span><span class="t3">322 of 8,192 bytes</span></div>
+  <div class="lab sec">Where it shows<span class="t3">a chip shows when all its conditions hold</span></div>
+  <div class="listbox mx">
+    <div class="mxh"><span class="sp"></span><span class="c1">Ask menu</span><span class="c2">Suggested chip</span></div>
+    <div class="mxs"><div class="mxr"><b>Pull request</b><span class="sp"></span><span class="c1"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span></span><span class="c2"><span class="chk on ov"><svg class="i "><use href="#i-check"/></svg></span></span></div><div class="mxn">One ask covers every open thread.</div><div class="mxc"><span class="cap">Chip when</span><span class="tok ">New pushes since my review<svg class="i "><use href="#i-x"/></svg></span><span class="bb" title="Add a condition"><svg class="i "><use href="#i-plus"/></svg><svg class="i car"><use href="#i-down"/></svg></span></div><div class="ovl in"><span>App-wide: not a chip on a pull request.</span><span class="sp"></span><span class="btn s rv"><svg class="i "><use href="#i-revert"/></svg>Use app-wide</span></div></div>
+    <div class="mxs none"><div class="mxr"><b>File</b><span class="sp"></span><span class="c1"><span class="chk  "></span></span><span class="c2"><span class="chk  "></span></span></div></div>
+    <div class="mxs"><div class="mxr"><b>Thread</b><span class="sp"></span><span class="c1"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span></span><span class="c2"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span></span></div>
+      <div class="mxc"><span class="cap">Chip when</span><span class="tok ">New replies or pushes since the comment<svg class="i "><use href="#i-x"/></svg></span><span class="bb" title="Add a condition"><svg class="i "><use href="#i-plus"/></svg><svg class="i car"><use href="#i-down"/></svg></span></div></div>
+  </div>
+  <div class="foot"><span class="btn "><svg class="i "><use href="#i-revert"/></svg>Use app-wide for this prompt</span><span class="sp"></span><span class="t3 nw">Saved here</span></div>
+</div></div></div>
+  </div>
+</div></div><figcaption><b>1, a repository.</b> acme/checkout-api changes the text, makes it a chip on a pull request, turns “Draft a reply” off and adds a prompt of its own. Teal marks each difference; Use app-wide reverts one, or the whole prompt.</figcaption></figure>
+
+<h2 class="band">Direction 2: Sentences</h2>
+<p>One row per prompt, and its places are written out: “Pull request menu, Thread menu and chip”. A row opens in place into a wide editor, where each scope is a ticked line with its places and the chip’s conditions beneath. Repositories are tabs on the prompt.</p>
+<dl class="trade"><div><dt>One prompt, several places</dt><dd>A prompt is one row; its places are words, so nothing needs a legend. Open, each scope is a short paragraph of ticks, read top to bottom.</dd></div><div><dt>A repository’s changes</dt><dd>Each prompt has an App-wide tab and one per repository that changes it. On a repository’s tab the changed text is highlighted and the changed tick is ringed, each with Use app-wide. Rows name the repositories that differ.</dd></div><div><dt>What it gives up</dt><dd>No view of a whole repository’s list, so a repository cannot have its own order. Words are slower to scan down than a column of marks, and the open row pushes the rest of the list down.</dd></div></dl>
+<figure class="shot"><div class="scroll"><div class="mac win" data-theme="light" data-frame="d2-app">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li class="">General</li><li class="">Accounts &amp; hosts</li><li class="">Repositories</li><li class="">Home &amp; queue</li><li class="">Review</li><li class="">Comments</li><li class="">Appearance</li><li class="">Notifications</li><li class="">Agents</li><li class="on">Prompts</li><li class="">Storage &amp; privacy</li></ul></div>
+    <div class="page"><div class="ptitle"><h1>Prompts</h1></div>
+<p class="lede">Drag to set the order. Menus list prompts in that order; chips show the first 5 whose conditions hold. Open a prompt to change it.</p>
+<div class="tools"><div class="search w"><svg class="i "><use href="#i-search"/></svg><span>Filter prompts</span></div>
+<span class="seg"><span class="on">All</span><span class="">Pull request</span><span class="">File</span><span class="">Thread</span></span><span class="sp"></span><span class="btn "><svg class="i "><use href="#i-plus"/></svg>New prompt</span></div>
+<div class="listbox d2list">
+  <div class="colh"><span class="nm">Prompt</span><span class="shows">Shows in</span></div>
+  <div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">What changed since my review</span><span class="shows"><span class="sw"><b>Pull request</b> menu and chip</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 open "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Was this addressed?</span><span class="shows"><span class="sw"><b>Pull request</b> menu</span><span class="sw"><b>Thread</b> menu and chip</span></span><span class="sp"></span><span class="tag over">Differs in acme/checkout-api</span><svg class="i go"><use href="#i-down"/></svg></div><div class="openbody">
+  <div class="tabrow"><span class="seg"><span class="on">App-wide</span><span class=""><i class="ovdot"></i>acme/checkout-api</span></span><span class="lnk add"><svg class="i "><use href="#i-plus"/></svg>Repository…</span><span class="gap"></span><span class="sp"></span><span class="tag ">Built-in</span></div>
+  <div class="cols">
+    <div class="colL"><div class="field name">Was this addressed?</div><div class="ta" style="height:168px">Was the concern in <span class="ph">{thread}</span> addressed?
+
+Read the replies and every commit pushed since the comment. Answer Yes, Partly or No first, then name the commit and lines that settle it. If nothing changed, say that nothing changed.</div><div class="under"><span class="cap">Insert</span><span class="cmd">{file}</span><span class="cmd">{lines}</span><span class="cmd">{thread}</span><span class="sp"></span><span class="t3">224 of 8,192 bytes</span></div></div>
+    <div class="colR"><div class="lab">Where it shows</div><div class="sc"><div class="sch"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><b>On a thread</b></div>
+        <div class="scl"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Ask menu</div>
+        <div class="scl"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Suggested chip, when all of these hold</div>
+        <div class="scl toks"><span class="tok ">New replies or pushes since the comment<svg class="i "><use href="#i-x"/></svg></span><span class="bb" title="Add a condition"><svg class="i "><use href="#i-plus"/></svg><svg class="i car"><use href="#i-down"/></svg></span></div></div><div class="sc"><div class="sch"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><b>On a pull request</b></div>
+        <div class="scl"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Ask menu<span class="gap"></span><span class="chk  "></span>Suggested chip</div>
+        <div class="scl cap">One ask covers every open thread.</div></div><div class="sc none"><div class="sch"><span class="chk  "></span><b>On a file</b></div></div></div>
+  </div>
+  <div class="foot"><span class="btn dis">Reset to default</span><span class="btn ">Duplicate</span><span class="gap"></span><span class="cap">Answer as</span><span class="seg"><span class="on">A question</span><span class="">Findings</span></span><span class="sp"></span><span class="t3">Saved</span></div>
+</div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Review this pull request</span><span class="shows"><span class="sw"><b>Pull request</b> menu and chip</span></span><span class="sp"></span><span class="tag ">Edited</span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">What could this change break?</span><span class="shows"><span class="sw"><b>Pull request</b> menu</span><span class="sw"><b>File</b> menu</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Explain this file</span><span class="shows"><span class="sw"><b>File</b> menu and chip</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Summarize this conversation</span><span class="shows"><span class="sw"><b>Thread</b> menu and chip</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Is the concern raised here right?</span><span class="shows"><span class="sw"><b>Thread</b> menu and chip</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Draft a reply to this conversation</span><span class="shows"><span class="sw"><b>Thread</b> menu and chip</span></span><span class="sp"></span><span class="tag over">Off in acme/checkout-api</span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Check the error handling</span><span class="shows"><span class="sw"><b>Pull request</b> menu</span><span class="sw"><b>File</b> menu and chip</span></span><span class="sp"></span><span class="tag ">Yours</span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 off"><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk  "></span><span class="nm">Explain the code this comment is on</span><span class="shows"><span class="t3">Off</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Check ledger invariants</span><span class="shows"><span class="sw"><b>Pull request</b> menu</span><span class="sw"><b>File</b> menu and chip</span></span><span class="sp"></span><span class="tag over">Only in acme/checkout-api</span><span class="tag ">Yours</span><svg class="i go"><use href="#i-right"/></svg></div>
+</div></div>
+  </div>
+</div></div><figcaption><b>2, App-wide tab.</b> The row says where the prompt shows; the opened row holds the text at the left and one block per scope at the right.</figcaption></figure>
+<figure class="shot"><div class="scroll"><div class="mac win" data-theme="light" data-frame="d2-repo">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li class="">General</li><li class="">Accounts &amp; hosts</li><li class="">Repositories</li><li class="">Home &amp; queue</li><li class="">Review</li><li class="">Comments</li><li class="">Appearance</li><li class="">Notifications</li><li class="">Agents</li><li class="on">Prompts</li><li class="">Storage &amp; privacy</li></ul></div>
+    <div class="page"><div class="ptitle"><h1>Prompts</h1></div>
+<p class="lede">Drag to set the order. Menus list prompts in that order; chips show the first 5 whose conditions hold. Open a prompt to change it.</p>
+<div class="tools"><div class="search w"><svg class="i "><use href="#i-search"/></svg><span>Filter prompts</span></div>
+<span class="seg"><span class="on">All</span><span class="">Pull request</span><span class="">File</span><span class="">Thread</span></span><span class="sp"></span><span class="btn "><svg class="i "><use href="#i-plus"/></svg>New prompt</span></div>
+<div class="listbox d2list"><i class="thumb" style="top:34px;height:520px"></i>
+  <div class="colh"><span class="nm">Prompt</span><span class="shows">Shows in</span></div>
+  <div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">What changed since my review</span><span class="shows"><span class="sw"><b>Pull request</b> menu and chip</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 open "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Was this addressed?</span><span class="shows"><span class="sw"><b>Pull request</b> menu</span><span class="sw"><b>Thread</b> menu and chip</span></span><span class="sp"></span><span class="tag over">Differs in acme/checkout-api</span><svg class="i go"><use href="#i-down"/></svg></div><div class="openbody">
+  <div class="tabrow"><span class="seg"><span class="">App-wide</span><span class="on"><i class="ovdot"></i>acme/checkout-api</span></span><span class="lnk add"><svg class="i "><use href="#i-plus"/></svg>Repository…</span><span class="gap"></span><span class="cap nw">Only what differs here is kept; the rest follows App-wide.</span><span class="sp"></span><span class="tag ">Built-in</span></div>
+  <div class="cols">
+    <div class="colL"><div class="field name">Was this addressed?</div><div class="ta ov" style="height:190px">Was the concern in <span class="ph">{thread}</span> addressed?
+
+Read the replies and every commit pushed since the comment. Answer Yes, Partly or No first, then name the commit and lines that settle it. If nothing changed, say that nothing changed.
+
+<span class="diff">A bot reply of “Fixed in &lt;sha&gt;” proves nothing here: check that the commit is on the branch.</span></div><div class="ovl"><span>Highlighted text differs from App-wide.</span><span class="sp"></span><span class="btn s rv"><svg class="i "><use href="#i-revert"/></svg>Use app-wide</span></div><div class="under"><span class="cap">Insert</span><span class="cmd">{file}</span><span class="cmd">{lines}</span><span class="cmd">{thread}</span><span class="sp"></span><span class="t3">322 of 8,192 bytes</span></div></div>
+    <div class="colR"><div class="lab">Where it shows</div><div class="sc"><div class="sch"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><b>On a thread</b></div>
+        <div class="scl"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Ask menu</div>
+        <div class="scl"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Suggested chip, when all of these hold</div>
+        <div class="scl toks"><span class="tok ">New replies or pushes since the comment<svg class="i "><use href="#i-x"/></svg></span><span class="bb" title="Add a condition"><svg class="i "><use href="#i-plus"/></svg><svg class="i car"><use href="#i-down"/></svg></span></div></div><div class="sc"><div class="sch"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><b>On a pull request</b></div>
+        <div class="scl"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Ask menu</div>
+        <div class="scl ovline"><span class="chk on ov"><svg class="i "><use href="#i-check"/></svg></span>Suggested chip, when all of these hold</div>
+        <div class="scl toks"><span class="tok ">New pushes since my review<svg class="i "><use href="#i-x"/></svg></span><span class="bb" title="Add a condition"><svg class="i "><use href="#i-plus"/></svg><svg class="i car"><use href="#i-down"/></svg></span></div>
+        <div class="ovl in"><span>App-wide: not a chip.</span><span class="sp"></span><span class="btn s rv"><svg class="i "><use href="#i-revert"/></svg>Use app-wide</span></div>
+        <div class="scl cap">One ask covers every open thread.</div></div><div class="sc none"><div class="sch"><span class="chk  "></span><b>On a file</b></div></div></div>
+  </div>
+  <div class="foot"><span class="btn "><svg class="i "><use href="#i-revert"/></svg>Remove acme/checkout-api’s changes</span><span class="sp"></span><span class="t3 nw">Saved for acme/checkout-api</span></div>
+</div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Review this pull request</span><span class="shows"><span class="sw"><b>Pull request</b> menu and chip</span></span><span class="sp"></span><span class="tag ">Edited</span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">What could this change break?</span><span class="shows"><span class="sw"><b>Pull request</b> menu</span><span class="sw"><b>File</b> menu</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Explain this file</span><span class="shows"><span class="sw"><b>File</b> menu and chip</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Summarize this conversation</span><span class="shows"><span class="sw"><b>Thread</b> menu and chip</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Is the concern raised here right?</span><span class="shows"><span class="sw"><b>Thread</b> menu and chip</span></span><span class="sp"></span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Draft a reply to this conversation</span><span class="shows"><span class="sw"><b>Thread</b> menu and chip</span></span><span class="sp"></span><span class="tag over">Off in acme/checkout-api</span><svg class="i go"><use href="#i-right"/></svg></div><div class="r r2 "><svg class="i f grip"><use href="#i-grip"/></svg><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span><span class="nm">Check the error handling</span><span class="shows"><span class="sw"><b>Pull request</b> menu</span><span class="sw"><b>File</b> menu and chip</span></span><span class="sp"></span><span class="tag ">Yours</span><svg class="i go"><use href="#i-right"/></svg></div>
+</div></div>
+  </div>
+</div></div><figcaption><b>2, a repository’s tab.</b> Only what differs is kept for acme/checkout-api: the highlighted sentence and the pull request chip. Remove the repository’s changes at the bottom, or one at a time.</figcaption></figure>
+
+<h2 class="band">Direction 3: Surfaces</h2>
+<p>The three Ask menus and their chips drawn as they show, side by side. A prompt appears once in every place it shows; picking one fills it and outlines the others, and the editor below has a tab per scope.</p>
+<dl class="trade"><div><dt>One prompt, several places</dt><dd>A prompt appears in each list it is in. Selecting any of them outlines the rest, with a link mark. Dragging a prompt onto another list shows it there too.</dd></div><div><dt>A repository’s changes</dt><dd>A “Prompts for” pop-up shows the lists as the repository will see them, with what differs tagged in place: Added here, Off here, Only here. The editor names each difference with its own revert.</dd></div><div><dt>What it gives up</dt><dd>There is no single list of prompts: a prompt that shows nowhere, or is off, needs a shelf (not drawn). Each of the six lists has its own order, which is more than the one order settled in the grill round.</dd></div></dl>
+<figure class="shot"><div class="scroll"><div class="mac win" data-theme="light" data-frame="d3-app">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li class="">General</li><li class="">Accounts &amp; hosts</li><li class="">Repositories</li><li class="">Home &amp; queue</li><li class="">Review</li><li class="">Comments</li><li class="">Appearance</li><li class="">Notifications</li><li class="">Agents</li><li class="on">Prompts</li><li class="">Storage &amp; privacy</li></ul></div>
+    <div class="page"><div class="ptitle"><h1>Prompts</h1><span class="lede inl">Drag within a list to reorder it, or onto another list to show the prompt there too.</span><span class="sp"></span><span class="cap">Prompts for</span><span class="pop ">All repositories<svg class="i "><use href="#i-ud"/></svg></span></div>
+<div class="tools"><div class="search w"><svg class="i "><use href="#i-search"/></svg><span>Filter prompts</span></div>
+<span class="seg"><span class="on">All</span><span class="">Pull request</span><span class="">File</span><span class="">Thread</span></span><span class="sp"></span><span class="btn "><svg class="i "><use href="#i-plus"/></svg>New prompt</span></div>
+<div class="lanes"><div class="lane grp"><div class="lh">Pull request</div>
+  <div class="sub">Ask menu</div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">What changed since my review</span><span class="sp"></span></div><div class="mi sib"><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Was this addressed?</span><span class="sp"></span><svg class="i lk"><use href="#i-link"/></svg></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Review this pull request</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">What could this change break?</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Check the error handling</span><span class="sp"></span></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Add to this menu…</div>
+  <div class="sub">Suggested chips<span class="t3">the first 5 that match show</span></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">What changed since my review</span><span class="sp"></span></div><div class="when"><span class="tok s">New pushes since my review</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Review this pull request</span><span class="sp"></span></div><div class="when"><span class="tok s">Pull request is not mine</span></div></div></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Suggest here…</div>
+</div><div class="lane grp"><div class="lh">File</div>
+  <div class="sub">Ask menu</div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">What could this change break?</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Explain this file</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Check the error handling</span><span class="sp"></span></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Add to this menu…</div>
+  <div class="sub">Suggested chips<span class="t3">the first 5 that match show</span></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Explain this file</span><span class="sp"></span></div><div class="when"><span class="tok s">I haven&#x27;t reviewed this file</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Check the error handling</span><span class="sp"></span></div><div class="when"><span class="tok s">I haven&#x27;t reviewed this file</span></div></div></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Suggest here…</div>
+</div><div class="lane grp"><div class="lh">Thread</div>
+  <div class="sub">Ask menu</div><div class="mi sel"><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Was this addressed?</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Summarize this conversation</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Is the concern raised here right?</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Draft a reply to this conversation</span><span class="sp"></span></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Add to this menu…</div>
+  <div class="sub">Suggested chips<span class="t3">the first 5 that match show</span></div><div class="ci sib"><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Was this addressed?</span><span class="sp"></span><svg class="i lk"><use href="#i-link"/></svg></div><div class="when"><span class="tok s">New replies or pushes since the comment</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Summarize this conversation</span><span class="sp"></span></div><div class="when"><span class="tok s">Thread is unresolved</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Is the concern raised here right?</span><span class="sp"></span></div><div class="when"><span class="tok s">Pull request is mine</span><span class="tok s">Thread is unresolved</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Draft a reply to this conversation</span><span class="sp"></span></div><div class="when"><span class="tok s">Replies since my comment</span></div></div></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Suggest here…</div>
+</div></div>
+<div class="grp ed d3ed ">
+  <div class="cols">
+    <div class="colL"><div class="edhead"><div class="field name">Was this addressed?</div><span class="tag ">Built-in</span></div><div class="ta" style="height:var(--d3ta)">Was the concern in <span class="ph">{thread}</span> addressed?
+
+Read the replies and every commit pushed since the comment. Answer Yes, Partly or No first, then name the commit and lines that settle it. If nothing changed, say that nothing changed.</div><div class="under"><span class="cap">Insert</span><span class="cmd">{file}</span><span class="cmd">{lines}</span><span class="cmd">{thread}</span><span class="sp"></span><span class="t3">224 of 8,192 bytes</span></div></div>
+    <div class="colR"><div class="lab">Where it shows<span class="t3">3 places, outlined above</span></div><span class="seg tabs"><span class="">Pull request<svg class="i f m"><use href="#i-spark"/></svg></span><span class="">File</span><span class="on">Thread<svg class="i f m"><use href="#i-spark"/></svg><svg class="i "><use href="#i-chip"/></svg></span></span><div class="tabbody"><div class="scl"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Ask menu<span class="gap"></span><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Suggested chip</div><div class="scl toks"><span class="cap">Chip when</span><span class="tok ">New replies or pushes since the comment<svg class="i "><use href="#i-x"/></svg></span><span class="bb" title="Add a condition"><svg class="i "><use href="#i-plus"/></svg><svg class="i car"><use href="#i-down"/></svg></span></div></div></div>
+  </div>
+  <div class="foot"><span class="btn dis">Reset to default</span><span class="btn ">Duplicate</span><span class="gap"></span><span class="cap">Answer as</span><span class="seg"><span class="on">A question</span><span class="">Findings</span></span><span class="sp"></span><span class="t3">Saved</span></div>
+</div></div>
+  </div>
+</div></div><figcaption><b>3, all repositories.</b> “Was this addressed?” is selected in the thread menu; its thread chip and its pull request menu entry are outlined. Each chip carries its conditions under it.</figcaption></figure>
+<figure class="shot"><div class="scroll"><div class="mac win" data-theme="light" data-frame="d3-repo">
+  <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div>
+  <div class="wbody">
+    <div class="side"><div class="search"><svg class="i "><use href="#i-search"/></svg><span>Search settings</span></div><ul class="nav"><li class="">General</li><li class="">Accounts &amp; hosts</li><li class="">Repositories</li><li class="">Home &amp; queue</li><li class="">Review</li><li class="">Comments</li><li class="">Appearance</li><li class="">Notifications</li><li class="">Agents</li><li class="on">Prompts</li><li class="">Storage &amp; privacy</li></ul></div>
+    <div class="page"><div class="ptitle"><h1>Prompts</h1><span class="lede inl">Drag within a list to reorder it, or onto another list to show the prompt there too.</span><span class="sp"></span><span class="cap">Prompts for</span><span class="pop ov">acme/checkout-api<svg class="i "><use href="#i-ud"/></svg></span></div>
+<div class="tools"><div class="search w"><svg class="i "><use href="#i-search"/></svg><span>Filter prompts</span></div>
+<span class="seg"><span class="on">All</span><span class="">Pull request</span><span class="">File</span><span class="">Thread</span></span><span class="sp"></span><span class="btn "><svg class="i "><use href="#i-plus"/></svg>New prompt</span></div>
+<div class="lanes"><div class="lane grp"><div class="lh">Pull request</div>
+  <div class="sub">Ask menu</div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">What changed since my review</span><span class="sp"></span></div><div class="mi sib"><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Was this addressed?</span><i class="ovdot"></i><span class="sp"></span><svg class="i lk"><use href="#i-link"/></svg></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Review this pull request</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">What could this change break?</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Check the error handling</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Check ledger invariants</span><span class="sp"></span><span class="tag over">Only here</span></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Add to this menu…</div>
+  <div class="sub">Suggested chips<span class="t3">the first 5 that match show</span></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">What changed since my review</span><span class="sp"></span></div><div class="when"><span class="tok s">New pushes since my review</span></div></div></div><div class="ci sel"><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Was this addressed?</span><i class="ovdot"></i><span class="sp"></span><span class="tag over">Added here</span></div><div class="when"><span class="tok s">New pushes since my review</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Review this pull request</span><span class="sp"></span></div><div class="when"><span class="tok s">Pull request is not mine</span></div></div></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Suggest here…</div>
+</div><div class="lane grp"><div class="lh">File</div>
+  <div class="sub">Ask menu</div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">What could this change break?</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Explain this file</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Check the error handling</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Check ledger invariants</span><span class="sp"></span><span class="tag over">Only here</span></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Add to this menu…</div>
+  <div class="sub">Suggested chips<span class="t3">the first 5 that match show</span></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Explain this file</span><span class="sp"></span></div><div class="when"><span class="tok s">I haven&#x27;t reviewed this file</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Check the error handling</span><span class="sp"></span></div><div class="when"><span class="tok s">I haven&#x27;t reviewed this file</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Check ledger invariants</span><span class="sp"></span><span class="tag over">Only here</span></div><div class="when"><span class="tok s">I haven&#x27;t reviewed this file</span></div></div></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Suggest here…</div>
+</div><div class="lane grp"><div class="lh">Thread</div>
+  <div class="sub">Ask menu</div><div class="mi sib"><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Was this addressed?</span><i class="ovdot"></i><span class="sp"></span><svg class="i lk"><use href="#i-link"/></svg></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Summarize this conversation</span><span class="sp"></span></div><div class="mi "><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Is the concern raised here right?</span><span class="sp"></span></div><div class="mi gone"><svg class="i f grip"><use href="#i-grip"/></svg><svg class="i f m"><use href="#i-spark"/></svg><span class="nm">Draft a reply to this conversation</span><span class="sp"></span><span class="tag over">Off here</span><span class="bb rvb"><svg class="i "><use href="#i-revert"/></svg></span></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Add to this menu…</div>
+  <div class="sub">Suggested chips<span class="t3">the first 5 that match show</span></div><div class="ci sib"><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Was this addressed?</span><i class="ovdot"></i><span class="sp"></span><svg class="i lk"><use href="#i-link"/></svg></div><div class="when"><span class="tok s">New replies or pushes since the comment</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Summarize this conversation</span><span class="sp"></span></div><div class="when"><span class="tok s">Thread is unresolved</span></div></div></div><div class="ci "><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Is the concern raised here right?</span><span class="sp"></span></div><div class="when"><span class="tok s">Pull request is mine</span><span class="tok s">Thread is unresolved</span></div></div></div><div class="ci gone"><svg class="i f grip"><use href="#i-grip"/></svg><div class="cw"><div class="cl"><span class="chipx">Draft a reply to this conversation</span><span class="sp"></span><span class="tag over">Off here</span><span class="bb rvb"><svg class="i "><use href="#i-revert"/></svg></span></div><div class="when"><span class="tok s">Replies since my comment</span></div></div></div><div class="addr"><svg class="i "><use href="#i-plus"/></svg>Suggest here…</div>
+</div></div>
+<div class="grp ed d3ed hasstrip"><div class="ovstrip"><span>In acme/checkout-api this prompt differs from app-wide in 2 ways</span><span class="rvt">Text<svg class="i "><use href="#i-revert"/></svg></span><span class="rvt">Pull request chip<svg class="i "><use href="#i-revert"/></svg></span><span class="sp"></span><span class="t3 nw">Saved here</span><span class="btn s rv"><svg class="i "><use href="#i-revert"/></svg>Use app-wide for all</span></div>
+  <div class="cols">
+    <div class="colL"><div class="edhead"><div class="field name">Was this addressed?</div><span class="tag ">Built-in</span></div><div class="ta ov" style="height:var(--d3ta)">Was the concern in <span class="ph">{thread}</span> addressed?
+
+Read the replies and every commit pushed since the comment. Answer Yes, Partly or No first, then name the commit and lines that settle it. If nothing changed, say that nothing changed.
+
+A bot reply of “Fixed in &lt;sha&gt;” proves nothing here: check that the commit is on the branch.</div><div class="under"><span class="cap">Insert</span><span class="cmd">{file}</span><span class="cmd">{lines}</span><span class="cmd">{thread}</span><span class="sp"></span><span class="t3">322 of 8,192 bytes</span></div></div>
+    <div class="colR"><div class="lab">Where it shows<span class="t3">4 places here, outlined above</span></div><span class="seg tabs"><span class="on">Pull request<svg class="i f m"><use href="#i-spark"/></svg><svg class="i "><use href="#i-chip"/></svg></span><span class="">File</span><span class="">Thread<svg class="i f m"><use href="#i-spark"/></svg><svg class="i "><use href="#i-chip"/></svg></span></span><div class="tabbody"><div class="scl"><span class="chk on "><svg class="i "><use href="#i-check"/></svg></span>Ask menu<span class="gap"></span><span class="chk on ov"><svg class="i "><use href="#i-check"/></svg></span>Suggested chip</div><div class="scl toks"><span class="cap">Chip when</span><span class="tok ">New pushes since my review<svg class="i "><use href="#i-x"/></svg></span><span class="bb" title="Add a condition"><svg class="i "><use href="#i-plus"/></svg><svg class="i car"><use href="#i-down"/></svg></span></div><div class="scl cap">One ask covers every open thread.</div></div></div>
+  </div>
+  
+</div></div>
+  </div>
+</div></div><figcaption><b>3, a repository.</b> In acme/checkout-api the prompt is also a pull request chip (Added here), “Draft a reply” is struck through (Off here) and one prompt is Only here. The editor’s strip lists the two differences.</figcaption></figure>
+</div>
+<script>
+(function(){
+  var q=new URLSearchParams(location.search), theme=q.get("theme")==="dark"?"dark":"light", frame=q.get("frame");
+  document.documentElement.setAttribute("data-page",theme);
+  document.querySelectorAll(".mac.win").forEach(function(w){w.setAttribute("data-theme",theme)});
+  var t=document.getElementById("themer");
+  if(t){t.textContent=theme==="dark"?"Light":"Dark";t.href=theme==="dark"?"?theme=light":"?theme=dark"}
+  if(frame){
+    var w=document.querySelector('.mac.win[data-frame="'+frame+'"]');
+    if(w){var s=document.querySelector("svg[aria-hidden]");document.body.className="shotpage";document.body.textContent="";document.body.appendChild(s);document.body.appendChild(w)}
+  }
+})();
+</script>
+</body></html>
