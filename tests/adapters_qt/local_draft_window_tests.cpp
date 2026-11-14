@@ -119,6 +119,10 @@ namespace {
 			   "Changes ([[BPR-2156]]: not \"Local Changes\") is a tab beside Files and Search, shown only in author state");
 		expect(parts->files_footer()->parentWidget() != nullptr && tabs->widget(0)->isAncestorOf(parts->files_footer()), "the working files are the Files tab's footer");
 		expect(!parts->working()->isVisible(), "behind a disclosure");
+		// [[BPR-2156]]. The owner: "save should use the standard save icon".
+		expect(parts->save_button()->text() == QStringLiteral("Save") && !parts->save_button()->icon().isNull()
+				   && parts->save_button()->sizeHint().width() <= parts->save_button()->width(),
+			   "Edit's Save wears the platform's save icon beside its word, and fits it");
 		for (auto* const root : { parts->bar_leading(), parts->bar_trailing(), parts->notice_row(), parts->files_footer(), parts->edit_page(), parts->notes_page(), parts->status_page() }) {
 			short_tooltips(*root, "the draft's additions");
 		}

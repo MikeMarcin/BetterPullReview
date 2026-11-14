@@ -33,6 +33,10 @@ notes, verbatim:
   platform's own folder look on Windows and Linux).
 - The Edit view's tab strip underrail: the rule sits under the active tab, or
   is not drawn, in the Edit view.
+- The same `edit-view` note went on: "Btw save should use the standard save
+  icon." Added here (2026-11-14, coordinator's instruction to do it this
+  round): an ID could not be allocated from this branch, since the allocator
+  reserves only on `main`'s integrator.
 
 ## Acceptance
 
@@ -40,3 +44,19 @@ notes, verbatim:
 - Files and Overview show folder icons styled per platform; renders at 100 %
   and 200 % on macOS, and the platform icon source on the others.
 - The Edit view shows no stray underrail in a render of the look's fixture.
+- Edit's Save wears the platform's save icon (Reload its refresh icon).
+
+## Progress (2026-11-14, branch `claude/parallel-backlog-2156-2172-2173`)
+
+- "Changes" in the tab's label, accessible name and the writing-hooks text;
+  `qt_local_draft_window` and `application_local_draft_author_desktop_public_path` pass.
+- The style's folder icon in the Files tree (in a file mark's slot) and on
+  Overview's folder rows; `qt_files_tree` checks both, and the folder rows
+  pass at 125 % and 200 %.
+- The underrail was the review bar's progress-track rail, drawn at the hidden
+  track's stale geometry: `workbench_strip::group_rail` now draws no rail for a
+  group with a hidden end. Reproduced first in `qt_workbench_window_scale_100`
+  (rail 875..1081 under the hidden track); all three scales pass.
+- Save's icon: `QIcon::fromTheme(DocumentSave)`, the style's save icon as the
+  fallback; checked in `qt_local_draft_window`.
+- Pending: the owner's look on a frozen build.

@@ -9,6 +9,7 @@
 #include <QComboBox>
 #include <QDateTime>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -19,6 +20,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
+#include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -27,6 +29,14 @@
 
 namespace bpr::qt {
 	namespace {
+		/// \brief [[BPR-2156]]. The platform's save (or, for Reload, refresh)
+		/// icon, else the style's.
+		[[nodiscard]] auto save_icon(const QWidget& aButton, const bool aReload) -> QIcon
+		{
+			const auto fallback = aButton.style()->standardIcon(aReload ? QStyle::SP_BrowserReload : QStyle::SP_DialogSaveButton, nullptr, &aButton);
+			return QIcon::fromTheme(aReload ? QIcon::ThemeIcon::ViewRefresh : QIcon::ThemeIcon::DocumentSave, fallback);
+		}
+
 		constexpr int path_role = Qt::UserRole + 1;
 		constexpr int note_role = Qt::UserRole + 2;
 
@@ -250,7 +260,12 @@ namespace bpr::qt {
 		headRow->addWidget(EditState);
 		Save = new QPushButton{ QStringLiteral("Save"), editHead };
 		Save->setObjectName(QStringLiteral("localDraftSave"));
-		Save->setFixedWidth(Save->fontMetrics().horizontalAdvance(QStringLiteral("Reload")) + 36);
+		// [[BPR-2156]]. The owner, on the Edit view: "save should use the
+		// standard save icon". The platform's own (SF Symbols on macOS,
+		// Segoe Fluent on Windows, the icon theme on Linux), the style's
+		// where the platform has none; Reload takes the platform's refresh.
+		Save->setIcon(save_icon(*Save, false));
+		Save->setFixedWidth(Save->fontMetrics().horizontalAdvance(QStringLiteral("Reload")) + Save->iconSize().width() + 42);
 		headRow->addWidget(Save);
 		edit->addWidget(editHead);
 		Editor = new suggestion_editor{ EditPage };
@@ -872,6 +887,7 @@ namespace bpr::qt {
 		EditState->setText(changedOnDisk ? QStringLiteral("Changed on disk") : EditDirty ? QStringLiteral("Not saved")
 																						 : QString{ });
 		Save->setText(changedOnDisk ? QStringLiteral("Reload") : QStringLiteral("Save"));
+		Save->setIcon(save_icon(*Save, changedOnDisk));
 		Save->setToolTip(changedOnDisk ? QStringLiteral("Read the file again; your edits are dropped.") : QStringLiteral("Write the file to your worktree."));
 		Save->setEnabled(changedOnDisk || (EditDirty && LocalProjection.Running == application::local_changes_operation::none));
 		// The gutter keeps the comparison; a line edited since the last save is dashed.
