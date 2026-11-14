@@ -70,6 +70,8 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QStackedWidget>
 #include <QStyle>
 #include <QTabBar>
 #include <QTemporaryDir>
@@ -102,6 +104,30 @@ namespace {
 		if (!aCondition) {
 			throw std::runtime_error{ aMessage };
 		}
+	}
+
+	/// With `BPR_ASK_RENDER_ROOT` set, a widget is saved there as a PNG (the
+	/// owner's looks; native with BPR_NATIVE_LOOK=1 on macOS).
+	void render(QWidget& aWidget, const QString& aName)
+	{
+		const auto root = qEnvironmentVariable("BPR_ASK_RENDER_ROOT");
+		if (root.isEmpty()) {
+			return;
+		}
+		QApplication::processEvents();
+		static_cast<void>(aWidget.grab().save(root + QLatin1Char('/') + aName + QStringLiteral(".png")));
+	}
+
+	/// The same, with `aShown` scrolled into view first.
+	void render_showing(QWidget& aWidget, QWidget& aShown, const QString& aName)
+	{
+		for (auto* parent = aShown.parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+			if (auto* const scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr) {
+				scroll->ensureWidgetVisible(&aShown, 0, 0);
+				break;
+			}
+		}
+		render(aWidget, aName);
 	}
 
 	void shutdown(app::github_application& aApplication)
@@ -304,7 +330,9 @@ auto main(int argc, char** argv) -> int
 			typeAndReturn(QStringLiteral("Third, steered"), Qt::ControlModifier);
 			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("Steer isn't available")),
 				   "Cmd+Return asks to steer; with no steering it is queued and says so (Q17): " + window.agent_panel()->status_text().toStdString());
+			render_showing(window, *list(), QStringLiteral("queue-pending-list"));
 			expect(pressIn(QStringLiteral("agentQueueEdit"), QStringLiteral("First follow-up")), "Edit a typed message");
+			render_showing(window, *list(), QStringLiteral("queue-edit-hold"));
 			auto* const field = list()->findChild<QLineEdit*>(QStringLiteral("agentQueueEditField"));
 			expect(field != nullptr && field->text() == QStringLiteral("First follow-up"), "edited in place");
 			field->setText(QStringLiteral("First follow-up, edited"));
@@ -321,6 +349,18 @@ auto main(int argc, char** argv) -> int
 				 "on Resume every waiting message runs, in order");
 			expect(tab->turn_explain(settledTurns + 1U) == path && tab->turn_question(settledTurns + 2U) == QStringLiteral("Second follow-up") && tab->turn_question(settledTurns + 3U) == QStringLiteral("First follow-up, edited"),
 				   "in the order the list shows: " + tab->turn_question(settledTurns + 2U).toStdString() + " then " + tab->turn_question(settledTurns + 3U).toStdString());
+			// The Follow-up behaviour setting, for the owner's look.
+			if (!qEnvironmentVariable("BPR_ASK_RENDER_ROOT").isEmpty()) {
+				window.open_settings(qt::settings_page::agents_and_context);
+				window.settings()->resize(1100, 860);
+				if (auto* const behaviour = window.settings()->findChild<QWidget*>(QStringLiteral("settingsFollowUp")); behaviour != nullptr) {
+					if (auto* const scroll = qobject_cast<QScrollArea*>(window.settings()->pages()->currentWidget()); scroll != nullptr) {
+						scroll->ensureWidgetVisible(behaviour);
+					}
+				}
+				render(*window.settings(), QStringLiteral("queue-follow-up-setting"));
+				window.settings()->hide();
+			}
 			shutdown(*application);
 			std::cout << "ask-menu-queue:pass\n";
 			return EXIT_SUCCESS;
@@ -363,6 +403,11 @@ auto main(int argc, char** argv) -> int
 			window.reveal_prompt_macros();
 			auto* const page = window.prompts();
 			expect(page != nullptr && window.settings()->current_page() == qt::settings_page::prompts && page->library_list()->count() > 0, "Settings › Prompts lists the prompts");
+			if (!qEnvironmentVariable("BPR_ASK_RENDER_ROOT").isEmpty()) {
+				window.settings()->resize(1180, 840);
+				page->select("conversation.summarize");
+				render(*window.settings(), QStringLiteral("prompts-settings-page"));
+			}
 			auto* const prChips = page->surface_list(core::prompt_surface::pull_request_chips);
 			const auto  rowOf   = [prChips](const QString& aName) {
 				for (auto at = 0; at < prChips->count(); ++at) {

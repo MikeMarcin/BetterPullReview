@@ -5474,6 +5474,10 @@ endif()
 # returning-review-v1 at its next push, with the scoped writing stub as the
 # installed Claude.
 bpr_add_executable(test_ask_menu_public_path ask_menu_public_path.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_ask_menu_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
 target_link_libraries(test_ask_menu_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite)
 target_compile_definitions(test_ask_menu_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_ask_menu_public_path)
