@@ -2909,3 +2909,29 @@ not be written from this worktree, so `main` itself is not moved yet.
 No frozen build was made: the data volume had under 1.5 GB free and a freeze
 root takes about 3 GB. The build tree here was reconfigured with empty
 `CMAKE_*_FLAGS_DEBUG` to fit.
+
+### Second round (2026-11-14)
+
+`main` was fast-forwarded to `d8c21db83` by the coordinator. On the branch:
+`2de874459` (BPR-2156 underrail: `workbench_strip::group_rail` draws no rail
+for a group with a hidden end; test first in `qt_workbench_window_scale_100`,
+rail 875..1081 under the hidden progress track), `3213ec287` (Edit's Save
+wears the platform's save icon; added to BPR-2156 because the allocator
+reserves IDs only for `main`'s integrator), `3f17faf8a`
+(`BPR_ATTENDED_LOCAL_COMMENTS_LOOK` lets the local draft look's launcher open
+the Local comments look on the same file; app source pin resealed),
+`200ba998f` (BPR-2175 look v001 verbatim: window controls Accept, lightbox
+Reject; host stopped; the next mockups belong to a separate design worker).
+
+Frozen root `/Users/jaeger/parallel-backlog-v001.407f470w` from `200ba998fa15`
+(executable SHA-256 `c4b4d3639364…`; launcher check reached
+`ATTENDED_LOCAL_DRAFT_AUTHOR_SHOWN … 2 ahead of GitHub`, no real agent
+started); the two environment variants were opened offscreen with stand-in
+agents: `ATTENDED_LOCAL_COMMENTS_SHOWN:30` and
+`ATTENDED_LOCAL_DRAFT_AUTHOR_SHOWN … 2 ahead of #512`. Session
+`9afc3306d0cf788e0c2eaaec43d5b882`, state
+`/Users/jaeger/.attended-review-state/parallel-backlog-v001-2026-11-14/state`,
+cursor 21, seven candidates (BPR-2173-drawer-scroll, BPR-2172-placement-mark,
+BPR-2172-what-folds, BPR-2156-changes-tab, BPR-2156-folder-icons,
+BPR-2156-edit-underrail, BPR-2156-save-icon). Remove the root with
+`scripts/freeze_attended_build.py remove` once decided.
