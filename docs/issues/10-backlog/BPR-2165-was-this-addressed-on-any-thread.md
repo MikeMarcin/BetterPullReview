@@ -25,3 +25,24 @@ RFC-BPR-0116 widened: offered on any review thread, whoever started it; at a fil
 ## Notes
 
 Ends in an owner look (Accept or Reject).
+
+## Progress (2026-11-14)
+
+Frontend-design was loaded first. Built; see the
+verification record (`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-prerelease-targets-52265d`).
+
+- **AC05** passes on the composed application
+  (`application_ask_addressed_public_path`, scoped writing stub): offered on
+  tbutler's line-6 thread (not mine); the file's row runs once a thread (two
+  runs, two claims); the pull request's row reads five threads; README.md's
+  thread, started on the head, is greyed "No commits since this thread
+  started."; the chip in the open thread's header ("Partly"), the closed
+  cards' heights and the header's height unchanged; a press shows the lines as
+  the thread started and now; nothing resolved, posted or published.
+  `application_returning_review_addressed_public_path` follows the widened
+  offer.
+- **Q5 (assumption):** more than five runs ask first; put to the owner.
+- **Live installed-agent run** passes (Claude Code 2.1.319, at `7b3fe6eaa`).
+- **Not claimed:** it depends on [[BPR-2164]] being Done, which is parked on
+  the owner's look; the work is done on this lane and the look is filed with
+  it. Claim and finish it once BPR-2164 is Done.

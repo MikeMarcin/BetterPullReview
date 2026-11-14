@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0128"
 title: "Ask: quick asks at three scopes, and long answers read in a file tab"
-status: "Proposed"
+status: "In Progress"
 metadata: {"origin":"owner design session 2026-11-12 and 2026-11-13 (options 1A to 1C, 2a to 2c, then the Ask mockups); imported 2026-11-13","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d","milestone_plan":{"id":"ask-v1","path":"docs/rfcs/plans/ask-v1/milestone-plan.json"},"baseline":"f85b216ecc7d4a7df2c7c5c263a0cf8be1f3d93a","accepted_design":"docs/design/ask-v1/index.html","mandate":"owner, 2026-11-13: option 1C (the Ask menu), quick asks as macros with a Quick ask checkbox filtered by context, Ask at the pull request, a file and a thread, Was this addressed? on any thread, a merge of main as one line, and the report read in a file tab; imported with cards and a plan, no card started"}
 depends_on: ["RFC-BPR-0101", "RFC-BPR-0102", "RFC-BPR-0116", "RFC-BPR-0117", "RFC-BPR-0125"]
 ---
@@ -195,6 +195,27 @@ answers otherwise.
 | Q12 | One prompt at several scopes (the toggles), rather than one scope a prompt? | Toggles |
 | Q13 | What changed, Was this addressed? and Explain this file gain built-in rows in Suggested prompts? | Yes |
 | Q14 | The claim chip in ordinary roles with the glyph in the accent (not the accent's wash)? | Ordinary roles |
+
+## Implementation notes (2026-11-14)
+
+Recorded in the verification record (`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-prerelease-targets-52265d`).
+
+- **Q5, an assumption.** No threshold was given. A press that would start
+  more than five runs (one a thread or file) asks first; five or fewer start
+  at once, one after another. The owner's look asks it.
+- **Built as the defaults:** Q1, Q2, Q3, Q6, Q12, Q13, Q14. Q4, Q7, Q9, Q10 and
+  Q11 belong to milestone `reports-in-a-file-tab`.
+- **RFC-BPR-0125's store and sheet** did not exist; AC04 needs them. Its
+  store and roster ([[BPR-2146]]) were built, and the sheet with the Quick ask
+  row, so a Quick ask is saved with its macro.
+- **The thread's Ask** stands beside Reply in the open thread's foot, and
+  beside the label picker while a reply is written; the header's Ask agent and
+  Was this addressed? controls left for it. Custom question… attaches the
+  thread as Ask agent did. Edit Quick Asks… is in every Ask menu.
+- **Why did a check fail?** (RFC-BPR-0119) is not built, so it has no row.
+- **What a row reads.** What changed names its commits only when the pull
+  request's commit list holds the reviewed commit; a rebased branch's row
+  names none.
 
 ## Acceptance criteria
 
