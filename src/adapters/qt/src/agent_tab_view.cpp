@@ -1774,12 +1774,16 @@ namespace bpr::qt {
 		// RFC-BPR-0128 ([[BPR-2166]]), Q7. A report by its shape: the card
 		// stands in the answer's place; the answer stays the turn's text.
 		const auto answer = aTurn.AnswerText.toStdString();
+		// Q4: Explain this file and What changed since my review answer as
+		// reports whatever their length.
+		const auto always = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload;
 		const auto report = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix && aTurn.Returning != core::returning_operation::addressed_threads
-			? core::is_report_answer(answer)
+			? (core::is_report_answer(answer) || (always && !aTurn.AnswerText.trimmed().isEmpty()))
 			: false;
 		if (aTurn.ReportCard != nullptr) {
 			if (report) {
-				const auto card = core::report_card_of(answer);
+				const auto named = always ? (!aTurn.Explain.isEmpty() ? tr("Explain %1").arg(aTurn.Explain) : tr("What changed since your review")) : QString{ };
+				const auto card  = core::report_card_of(answer, named.toStdString());
 				aTurn.ReportTitle->setText(QString::fromStdString(card.Title));
 				aTurn.ReportMeta->setText(tr("%n section(s)", nullptr, static_cast<int>(card.Sections)) + tr(", %n line(s)", nullptr, static_cast<int>(card.Lines)));
 				aTurn.ReportLead->setText(QString::fromStdString(card.Lead));
@@ -2612,7 +2616,9 @@ namespace bpr::qt {
 			return;
 		}
 		const auto& turn = Turns[aTurn];
-		const auto  card = core::report_card_of(turn.AnswerText.toStdString());
+		// The title the card shows (Q4: the question's, for an answer that is
+		// a report by what was asked).
+		const auto card = core::report_card_of(turn.AnswerText.toStdString(), turn.ReportTitle != nullptr ? turn.ReportTitle->text().toStdString() : std::string{ });
 		// References are links in the report as they are in the answer.
 		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
 		ReportDispatch(aTurn, QString::fromStdString(card.Title), shown);

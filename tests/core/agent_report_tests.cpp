@@ -38,6 +38,10 @@ namespace {
 		expect(card.Title == "What changed since your review" && card.Sections == 3U && card.Lead == "18 commits: the frame pool, and a merge of main.\nNothing else.\nThe clear now waits.",
 			   "the card: title, sections and the first lines: " + card.Lead);
 		expect(report_card_of("First line\nsecond").Title == "First line", "no heading: the first line is the title");
+		// Q4: an answer that is a report by what was asked keeps its first
+		// line in the lead and takes the question's title.
+		const auto asked = report_card_of("First line\nsecond", "Explain a.cpp");
+		expect(asked.Title == "Explain a.cpp" && asked.Lead.find("First line") != std::string::npos, "no heading, a title given: the title, and the lead from the start");
 	}
 
 	void test_merges_fold_and_areas_group()

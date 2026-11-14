@@ -55,7 +55,10 @@ namespace bpr::core {
 		auto operator<=>(const report_card&) const = default;
 	};
 	inline constexpr std::size_t report_card_lead_lines = 3U;
-	[[nodiscard]] auto           report_card_of(std::string_view aAnswer) -> report_card;
+	/// \details `aTitle`: Q4, the title of an answer that is a report by what
+	/// was asked (Explain this file, What changed); used when it has no
+	/// heading, its lead then starting at its first line.
+	[[nodiscard]] auto report_card_of(std::string_view aAnswer, std::string_view aTitle = { }) -> report_card;
 
 	/// \brief One commit as a listing reads it.
 	struct listed_commit

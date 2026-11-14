@@ -132,7 +132,7 @@ namespace bpr::core {
 		return report_outline(aAnswer).size() >= report_minimum_headings || lines_of(aAnswer).size() > report_minimum_lines;
 	}
 
-	auto report_card_of(const std::string_view aAnswer) -> report_card
+	auto report_card_of(const std::string_view aAnswer, const std::string_view aTitle) -> report_card
 	{
 		auto       card    = report_card{ };
 		const auto lines   = lines_of(aAnswer);
@@ -143,6 +143,8 @@ namespace bpr::core {
 		if (!outline.empty()) {
 			card.Title = outline.front().Title;
 			from       = outline.front().Line + 1U;
+		} else if (!aTitle.empty()) {
+			card.Title = std::string{ aTitle };
 		} else {
 			while (from < lines.size() && trimmed(lines[from]).empty()) {
 				++from;

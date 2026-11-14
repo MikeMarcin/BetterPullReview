@@ -49,7 +49,9 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/prompt_macros_panel.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -323,6 +325,27 @@ auto main(int argc, char** argv) -> int
 			expect(!window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"))->isEnabled(), "the file controls are drawn in place and off (Q9)");
 			expect(!window.file_ask_button()->isVisible(), "a report's tab has no file Ask (look ask-v005)");
 			expect(tab->isVisible() && tab->ask_button() != nullptr, "the Agent tab keeps its place beside the report");
+			// AC06: the Tour tab keeps its place and takes input while the
+			// report shows; the Agent tab's question field still takes input.
+			{
+				// As a person does: the drawer's Tour tab.
+				auto* const tray = window.findChild<QTabBar*>(QStringLiteral("workbenchTrayTabs"));
+				for (auto index = 0; tray != nullptr && index < tray->count(); ++index) {
+					if (tray->tabText(index) == QStringLiteral("Tour")) {
+						tray->setCurrentIndex(index);
+					}
+				}
+				QApplication::processEvents();
+			}
+			expect(window.tour_editor() != nullptr && window.tour_editor()->isVisible() && window.tour_editor()->isEnabled() && window.report_shown() && report->isVisible(),
+				   "the Tour tab opens beside the report and takes input: editor " + std::to_string(window.tour_editor() != nullptr) + " visible "
+					   + std::to_string(window.tour_editor() != nullptr && window.tour_editor()->isVisible()) + " report " + std::to_string(window.report_shown()) + " shown " + std::to_string(report->isVisible()));
+			window.open_agent_question();
+			QApplication::processEvents();
+			auto* const typed = access::side_chat_panel(*application)->composer();
+			typed->setPlainText(QStringLiteral("About this report"));
+			expect(typed->isEnabled() && typed->toPlainText() == QStringLiteral("About this report") && window.report_shown(), "the Agent tab's field takes input beside the report");
+			typed->clear();
 			report->go_to_heading(2);
 			// A code reference read in the report: its file's tab, at the line.
 			const auto& body = report->body()->original_body();

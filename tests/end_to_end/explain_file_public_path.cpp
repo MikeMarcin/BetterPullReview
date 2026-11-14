@@ -36,6 +36,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QPushButton>
@@ -199,6 +200,14 @@ auto main(int argc, char** argv) -> int
 		expect(answer.find("subject=1") != std::string::npos, "the file is the question's subject:\n" + answer);
 		expect(window.explain_card() == nullptr || window.explain_card()->isHidden(), "no card stands over the file");
 		expect(tab->isVisible(), "the Agent tab is open at the turn");
+		// RFC-BPR-0128 Q4 ([[BPR-2166]]): Explain this file answers as a
+		// report whatever its length, named for the file.
+		{
+			const auto* const card  = tab->turn_report_card(last);
+			const auto* const title = card != nullptr ? card->findChild<QLabel*>(QStringLiteral("agentTurnReportTitle")) : nullptr;
+			expect(card != nullptr && card->isVisibleTo(tab) && title != nullptr && title->text() == QStringLiteral("Explain src/engine/renderer.cpp"),
+				   "the answer is a report card named for the file: " + (title != nullptr ? title->text().toStdString() : std::string{ "none" }));
+		}
 		std::cout << "explain-file: answer=" << answer.substr(0U, answer.find('\n')) << '\n';
 
 		if (attended) {
