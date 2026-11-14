@@ -2938,3 +2938,48 @@ BPR-2146 AC11 to AC13; BPR-2147 unclaimed. Do not build BPR-2178 here.
 
 Not touched: host 25283/25291 with the v007 roots; other agents' processes;
 BPR-Test.
+
+## RFC-BPR-0128: ask-v002 verdicts, Fixture agent fixes, ask-v003 filed (2026-11-14)
+
+ask-v002 handed back (sequence 107); verdicts verbatim in the
+[record](../../../verification/RFC-BPR-0128.md#owner-look-ask-v002-session-7268b4daaedd9f9318ced6f27e78c873).
+Host 45701/45710 stopped with `stop`; root `ask-v002.bbyayhpn` removed once
+nothing ran from it.
+
+| Commit | What |
+|---|---|
+| `4c50283ba` | Fixture agent set up and chosen in every person's session on a tests-on build (only fixture profiles offered, Claude first; Codex profiles are the fixture; its Check runs once by itself); report-shaped Explain this file and What could break; returning-review-v1 gets a seventh thread (Q5 now reachable: six threads); `freeze --check` asks in the frozen build and fails unless the Fixture agent answers as a report; row menu Queue and Draft only; pin |
+| `8d51a468e` | Verdicts recorded; BPR-2164, BPR-2165, BPR-2176 Done; BPR-2179 parked; BPR-2177 progress |
+| `be416d9f6` | The freeze check asks before the Agent tab was ever opened (the first ask-v003 freeze caught the setup waiting for nothing); pin. **Frozen commit** |
+| main `68ccd1dbd` | BPR-2179 reserved and parked (Prompts as a settings section; mockups first) |
+| main `2e6d54284` | Mirror: BPR-2164, BPR-2165, BPR-2176 Done; BPR-2177 progress |
+
+BPR-2163 is Done and Done is terminal, so the Prompts rework is the new card
+BPR-2179 (the coordinator asked for a reopen). Mockups A, B, C (frontend-design
+loaded) were rendered offscreen; generator outside the repository.
+
+Runs (dev, Debug, macOS): `qt_ask_menu`, `application_ask_{menu,addressed,report,queue}_public_path`,
+`application_fixture_agent_guard_public_path`, `fixture_agent_answers`,
+`application_returning_review_*`, `application_explain_file_public_path`,
+`freeze_attended_build_contract`, `architecture_boundaries`,
+`test_network_isolation_*`, `qt_workbench_window_scale_100`,
+`application_review_round_trip_composition_contract`, documentation gate (lane
+and main). Not run: `coding-tidy`, the full suite.
+
+Owner look `ask-v003`, filed and not waited on: session
+`09daeb8e2bb15c2c5f23a3dbbddce62c`, state
+`/Users/jaeger/.attended-review-state/ask-v003-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 12, host PID 4137 (Tailscale child 4149). Root
+`/Users/jaeger/ask-v003.vfh_7ety` from `be416d9f6` (executable SHA-256
+`b19369bf1651…`; both heads shown; `CHECK_OK (fixture agent answers):
+ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:report=1`). Four questions:
+`BPR-2166-report-file-tab`, `RFC-BPR-0128-Q5-threshold`,
+`ask-right-click-menu` (Queue and Draft only), `BPR-2179-prompts-mockup`
+(options A, B, C with the renders).
+
+Next action: on handback read from cursor 12, record verbatim, stop host 4137,
+remove the root. Then: build BPR-2179 in the chosen layout; Q5's answer sets
+`core::quick_ask_confirm_above`; BPR-2166/2167 remaining (Q4, merge count,
+AC06 tour checks, AC07 listings); BPR-2168 closeout after the looks; BPR-2151
+queue UI; BPR-2146 AC11 to AC13. Owner note on the thread Ask ("I'm surprised
+there's no ask on the threads mode.") is recorded, not yet carded.
