@@ -80,3 +80,11 @@ Decided:
 - A prompt's conditions belong to the prompt itself, not to where it is placed. To use different conditions, duplicate the prompt.
 - Conditions combine as either "all of these are true" or "any of these are true".
 - The WeakAuras trigger editor is the interaction reference.
+
+## Look prompts-settings-v003, 2026-11-14 (owner)
+
+The session was handed back with no choice saved, so the owner answered in chat, verbatim: "So 2 is closest. \n\nBut I don't think you need separate settings pages, Just put surfaces over library in the same page.\n\nThen I don't think you need those grids in library anymore because surfaces already answers the "at a glance" view I wanted."
+
+Decided:
+- Direction 2 "Two pages" is the basis, made into one Settings page: Surfaces above, Prompt library below.
+- Library rows lose their per-surface marks and grid, because the Surfaces section already gives the at-a-glance view.
