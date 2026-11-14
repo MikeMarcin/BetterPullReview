@@ -1899,6 +1899,7 @@ namespace bpr::qt {
 		}
 		if (SettingsWindow != nullptr) {
 			SettingsWindow->withdraw_page(settings_page::agents_and_context);
+			SettingsWindow->withdraw_page(settings_page::prompts);
 		}
 	}
 

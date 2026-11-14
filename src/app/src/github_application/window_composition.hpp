@@ -824,6 +824,12 @@ namespace bpr::app {
 		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested
 		/// prompts reach the window.
 		void present_prompt_macros(const application::prompt_macro_projection& aProjection);
+		/// \brief [[BPR-2179]]. The open pull request's `owner/name`, whose
+		/// layer the chips and menus read; empty with none open.
+		[[nodiscard]] auto prompt_repository() const -> std::string;
+		/// \brief [[BPR-2179]]. Presents the prompts again for the pull
+		/// request now open.
+		void refresh_prompt_repository();
 
 		/// RFC-BPR-0117 ([[BPR-2076]]). Explain this file: the press, its
 		/// material up front, its card's three actions. Defined in

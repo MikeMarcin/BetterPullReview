@@ -6,6 +6,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/local_comment.hpp"
 #include "bpr/core/note_placement.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -1606,7 +1607,7 @@ namespace bpr::app {
 		// the selected lines, one-based.
 		// RFC-BPR-0125. The suggested prompts are the shipped set until the
 		// profile's store holds the reviewer's own (milestone 3).
-		tab->present_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros());
+		tab->present_prompt_macros(core::placed_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { })));
 		tab->set_suggestion_context([this] {
 			auto context = qt::agent_suggestion_context{ };
 			// RFC-BPR-0125. The names a suggested prompt may fill in and the

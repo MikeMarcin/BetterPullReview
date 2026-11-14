@@ -54,6 +54,12 @@ namespace bpr::core {
 		/// How many of the pull request's commits follow that commit; none
 		/// when the commit list does not hold it (a rebased branch).
 		std::optional<std::uint32_t> CommitsSince;
+		/// [[BPR-2179]]. The thread is resolved; none when unknown.
+		std::optional<bool> Resolved;
+		/// [[BPR-2179]]. Replies follow its first comment.
+		std::optional<bool> Replied;
+		/// [[BPR-2179]]. Someone replied after my last comment on it.
+		std::optional<bool> RepliesSinceMine;
 
 		auto operator<=>(const quick_ask_thread&) const = default;
 	};
@@ -86,6 +92,8 @@ namespace bpr::core {
 		/// The pull request's changed files, for a file's quick ask at the
 		/// pull request.
 		std::vector<std::string> Files;
+		/// [[BPR-2179]]. The files I have marked reviewed; none when unknown.
+		std::optional<std::vector<std::string>> ReviewedFiles;
 
 		auto operator<=>(const quick_ask_facts&) const = default;
 	};
@@ -118,6 +126,9 @@ namespace bpr::core {
 		no_threads_match,
 		/// A file's quick ask at the pull request: no file meets it.
 		no_files_match,
+		/// [[BPR-2179]]. A condition of the greys kind is untrue;
+		/// `quick_ask_row::Condition` is the one whose reason is given.
+		condition,
 	};
 	[[nodiscard]] auto stable_name(quick_ask_reason aReason) noexcept -> std::string_view;
 
@@ -152,6 +163,9 @@ namespace bpr::core {
 		/// A wider scope asks once for each: the threads, or the files, a
 		/// press runs on, in the pull request's order.
 		std::vector<std::string> Each;
+		/// [[BPR-2179]]. The untrue condition a `condition` row gives the
+		/// reason of.
+		std::optional<prompt_condition> Condition;
 
 		auto operator<=>(const quick_ask_row&) const = default;
 	};

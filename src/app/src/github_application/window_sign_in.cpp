@@ -79,6 +79,8 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 			observe_clone_repository();
 			observe_conversation();
+			// [[BPR-2179]]. A pull request uses its repository's prompts.
+			refresh_prompt_repository();
 #endif
 			const auto authority = workbench_authority(aHandoff);
 			const auto snapshot  = Host != nullptr
@@ -199,6 +201,7 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 		observe_clone_repository();
 		observe_conversation();
+		refresh_prompt_repository();
 #endif
 		// [[BPR-1365]]. No recent entry is open any more.
 		if (closed) {

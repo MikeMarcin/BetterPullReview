@@ -1582,30 +1582,14 @@ namespace bpr::app {
 			PromptMacros = std::make_unique<application::prompt_macro_host>(std::move(dependencies));
 		}
 		PromptMacros->load();
-		Window->prompt_macros()->set_save_dispatch([this](std::vector<core::prompt_macro> aMacros) {
+		// [[BPR-2179]]. Settings › Prompts saves the whole library with every
+		// surface; the host stores what differs from the shipped set.
+		Window->prompts()->set_save_dispatch([this](std::vector<core::prompt_macro> aMacros, core::prompt_surfaces aSurfaces, std::vector<core::prompt_repository_layer> aLayers) {
 			if (!Closing && PromptMacros) {
-				PromptMacros->save(application::prompt_macro_differences_of(core::shipped_prompt_macros(), aMacros));
+				auto differences         = application::prompt_macro_differences_of(core::shipped_prompt_macros(), aMacros, aSurfaces);
+				differences.Repositories = std::move(aLayers);
+				PromptMacros->save(std::move(differences));
 			}
-		});
-		Window->prompt_macros()->set_preview_facts([this](const core::prompt_place aPlace) -> std::optional<core::prompt_facts> {
-			if (Closing || Window == nullptr || Window->agent_tab() == nullptr) {
-				return std::nullopt;
-			}
-			const auto context = Window->agent_tab()->suggestion_context_now();
-			if (!context.PullRequest) {
-				return std::nullopt;
-			}
-			auto facts = core::prompt_facts{ .Place = aPlace, .PullRequest = context.PullRequest, .Repository = context.Repository };
-			if (!context.OpenFile.isEmpty()) {
-				facts.OpenFile = context.OpenFile.toStdString();
-			}
-			if (context.Lines) {
-				facts.Lines = core::prompt_line_range{ .First = context.Lines->first, .Last = context.Lines->second };
-			}
-			facts.Draft         = context.Draft;
-			facts.AuthorIsMe    = context.AuthorIsMe;
-			facts.ChecksFailing = context.ChecksFailing;
-			return facts;
 		});
 		QObject::connect(qGuiApp, &QGuiApplication::focusWindowChanged, Window.get(), [this](QWindow* const aFocus) {
 			if (!Closing && PromptMacros && Window && aFocus != nullptr && aFocus == Window->windowHandle()) {

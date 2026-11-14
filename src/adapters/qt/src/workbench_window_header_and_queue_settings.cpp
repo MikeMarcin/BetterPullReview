@@ -1,3 +1,4 @@
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
@@ -1117,20 +1118,19 @@ namespace bpr::qt {
 		// saved values that move once.
 		ClaudeWrapper = new claude_wrapper_panel{ this };
 		ClaudeWrapper->hide();
-		// RFC-BPR-0125 milestone 3 ([[BPR-2146]]): Suggested prompts, between
-		// the agents and Built-in prompts, with RFC-BPR-0128's Quick ask.
-		PromptMacros = new prompt_macros_panel{ agents };
-		column->addSpacing(12);
-		column->addWidget(PromptMacros);
-		WritingHooks = new writing_hooks_panel{ agents };
-		column->addSpacing(12);
-		column->addWidget(WritingHooks);
+		// [[BPR-2179]]. The owner, 2026-11-14: agents and prompts are separate
+		// sections. Prompts holds Surfaces above the Prompt library; the
+		// system prompts (Built-in prompts until now) are in the library.
+		Prompts      = new prompts_page;
+		WritingHooks = new writing_hooks_panel{ Prompts };
 		WritingHooks->present_label_helper(Behaviour.LabelHelper);
 		// [[BPR-1917]]. The review skill is one of the built-in prompts: it is
 		// listed with them, under the Agent tab, and shows its own editor.
-		ReviewSkill = new review_skill_panel{ agents };
+		ReviewSkill = new review_skill_panel{ Prompts };
 		WritingHooks->adopt_review_skill(ReviewSkill);
+		Prompts->adopt_system_prompts(WritingHooks);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
+		SettingsWindow->adopt_panel(settings_page::prompts, Prompts);
 		// [[BPR-1856]], owner 2026-11-04: Add repository comes first on
 		// Repositories; the clone folders and linked clones follow it.
 		CloneFolders = new clone_folders_panel;
@@ -1552,24 +1552,27 @@ namespace bpr::qt {
 }
 
 namespace bpr::qt {
-	void workbench_window::present_prompt_macros(const application::prompt_macro_projection& aProjection)
+	void workbench_window::present_prompt_macros(const application::prompt_macro_projection& aProjection, const std::string& aRepository)
 	{
-		auto macros = aProjection.Set.macros();
+		// [[BPR-2179]]. The chips and menus read each surface's placements,
+		// as the open pull request's repository has them.
+		auto macros = core::placed_prompt_macros(core::prompt_set_for_repository(aProjection.Set, aRepository));
 		if (AgentTab != nullptr) {
 			AgentTab->present_prompt_macros(macros);
 		}
 		if (TourEditor != nullptr && TourEditor->side_chat() != nullptr) {
 			TourEditor->side_chat()->set_prompt_macros(macros);
 		}
-		if (PromptMacros != nullptr) {
-			PromptMacros->present(aProjection);
+		if (Prompts != nullptr) {
+			Prompts->present(aProjection);
 		}
 	}
 
 	void workbench_window::reveal_prompt_macros()
 	{
-		if (PromptMacros != nullptr) {
-			PromptMacros->reveal();
+		open_settings(settings_page::prompts);
+		if (Prompts != nullptr) {
+			Prompts->reveal();
 		}
 	}
 } // namespace bpr::qt

@@ -48,7 +48,7 @@
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
-#include "bpr/qt/prompt_macros_panel.hpp"
+#include "bpr/qt/prompts_page.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -359,36 +359,29 @@ auto main(int argc, char** argv) -> int
 			};
 			window.open_agent_question();
 			wait([&] { return chips().contains(QStringLiteral("Review this pull request")) && chips().contains(QStringLiteral("What could this change break?")); }, "the shipped chips show");
-			window.open_settings(qt::settings_page::agents_and_context);
+			// [[BPR-2179]]: Settings › Prompts, Surfaces above the library.
 			window.reveal_prompt_macros();
-			auto* const macros = window.prompt_macros();
-			expect(macros != nullptr && macros->list(core::prompt_place::agent_tab)->count() > 0, "Settings lists the prompts");
-			// AC11: every macro under its place, with its sentence and state.
-			auto* const list  = macros->list(core::prompt_place::agent_tab);
-			auto        rowOf = [list](const QString& aName) {
-				for (auto at = 0; at < list->count(); ++at) {
-					if (list->item(at)->text().startsWith(aName)) {
+			auto* const page = window.prompts();
+			expect(page != nullptr && window.settings()->current_page() == qt::settings_page::prompts && page->library_list()->count() > 0, "Settings › Prompts lists the prompts");
+			auto* const prChips = page->surface_list(core::prompt_surface::pull_request_chips);
+			const auto  rowOf   = [prChips](const QString& aName) {
+				for (auto at = 0; at < prChips->count(); ++at) {
+					if (prChips->item(at)->text() == aName) {
 						return at;
 					}
 				}
 				return -1;
 			};
-			expect(rowOf(QStringLiteral("Review this pull request")) >= 0 && !list->item(rowOf(QStringLiteral("Review this pull request")))->toolTip().isEmpty(), "a prompt is listed with its sentence");
-			// Turning one off removes its chip from the open window.
-			macros->toggle("agent-tab.review-pull-request", false);
-			window.open_agent_question();
-			if (window.settings() != nullptr) {
-				window.settings()->hide();
-			}
-			wait([&] { return !chips().isEmpty() && !chips().contains(QStringLiteral("Review this pull request")); }, "its chip leaves the open window, no restart");
-			// A new order by keyboard (Alt+Up) reaches the chips.
+			expect(rowOf(QStringLiteral("What could this change break?")) > 0 && !prChips->item(rowOf(QStringLiteral("What could this change break?")))->toolTip().isEmpty(),
+				   "a surface lists its placements, each named");
+			// A new order by keyboard (Option-Up on a placement) reaches the chips.
 			const auto before = chips();
-			window.open_settings(qt::settings_page::agents_and_context);
-			window.reveal_prompt_macros();
-			list->setCurrentRow(rowOf(QStringLiteral("What could this change break?")));
+			prChips->setFocus(Qt::OtherFocusReason);
+			prChips->setCurrentRow(rowOf(QStringLiteral("What could this change break?")));
+			QApplication::processEvents();
 			{
 				QKeyEvent up{ QEvent::KeyPress, Qt::Key_Up, Qt::AltModifier };
-				QApplication::sendEvent(list, &up);
+				QApplication::sendEvent(prChips, &up);
 			}
 			window.settings()->hide();
 			window.open_agent_question();
@@ -397,6 +390,10 @@ auto main(int argc, char** argv) -> int
 				return now != before && now.indexOf(QStringLiteral("What could this change break?")) < before.indexOf(QStringLiteral("What could this change break?"));
 			},
 				 "a new order made by keyboard reaches the chips");
+			// Turning one off removes its chip from the open window.
+			page->set_on("agent-tab.review-pull-request", false);
+			window.open_agent_question();
+			wait([&] { return !chips().isEmpty() && !chips().contains(QStringLiteral("Review this pull request")); }, "its chip leaves the open window, no restart");
 			wait([&] { return chips().size() >= 3; }, "the chips show in their new order");
 			const auto ordered = chips();
 			// AC13: the suggestions toggle still hides every chip.
@@ -453,20 +450,19 @@ auto main(int argc, char** argv) -> int
 			}
 			// Restore built-ins… returns the shipped text, order and On, after
 			// its question, and keeps the reviewer's own prompt.
-			reopened.open_settings(qt::settings_page::agents_and_context);
 			reopened.reveal_prompt_macros();
-			auto* const macros2 = reopened.prompt_macros();
-			macros2->add_prompt(core::prompt_place::agent_tab, [](qt::prompt_macro_sheet& aSheet) {
-				aSheet.name_field()->setText(QStringLiteral("My own check"));
-				aSheet.template_field()->setPlainText(QStringLiteral("Check the pull request for my own concern."));
-				aSheet.finish(qt::prompt_macro_sheet::outcome::saved);
+			auto* const page2 = reopened.prompts();
+			const auto  own   = page2->new_prompt();
+			page2->edit_selected([](core::prompt_macro& aMacro) {
+				aMacro.Body.Name     = "My own check";
+				aMacro.Body.Template = "Check the pull request for my own concern.";
 			});
+			expect(page2->place(own, core::prompt_surface::pull_request_chips) == core::placement_refusal::none, "the reviewer's own prompt is placed on the pull request's chips");
 			reopened.settings()->hide();
 			reopened.open_agent_question();
 			wait([&] { return chips2().contains(QStringLiteral("My own check")); }, "the reviewer's own prompt is a chip");
-			reopened.open_settings(qt::settings_page::agents_and_context);
 			reopened.reveal_prompt_macros();
-			macros2->findChild<QPushButton*>(QStringLiteral("promptMacrosRestore"))->click();
+			page2->findChild<QPushButton*>(QStringLiteral("promptsRestore"))->click();
 			QApplication::processEvents();
 			reopened.settings()->hide();
 			reopened.open_agent_question();
@@ -783,46 +779,46 @@ auto main(int argc, char** argv) -> int
 		QApplication::processEvents();
 		expect(tab->isVisible() && tab->conversation_chip_text().contains(QStringLiteral("renderer.cpp")) && tab->turn_count() == turns && launchesAt() == setupLaunches,
 			   "Custom question… opens the Agent tab on the thread and sends nothing");
-		// Edit Quick Asks… opens Settings at the suggested prompts.
+		// Edit Quick Asks… opens Settings › Prompts ([[BPR-2179]]).
 		barMenu->findChild<QAction*>(QStringLiteral("quickAskEdit"))->trigger();
 		QApplication::processEvents();
-		auto* const macros = window.prompt_macros();
-		expect(macros != nullptr && window.settings() != nullptr && window.settings()->current_page() == qt::settings_page::agents_and_context, "Edit Quick Asks… opens Settings at Agents & context");
-		expect(macros->list(core::prompt_place::agent_tab)->count() > 0, "the suggested prompts are listed");
-		// AC04. The built-in rows, and the sheet's Quick ask row.
-		const auto has = [macros](const std::string& aId) { return std::ranges::any_of(macros->macros(), [&aId](const core::prompt_macro& aMacro) { return aMacro.Id == aId; }); };
+		auto* const page = window.prompts();
+		expect(page != nullptr && window.settings() != nullptr && window.settings()->current_page() == qt::settings_page::prompts, "Edit Quick Asks… opens Settings at Prompts");
+		expect(page->library_list()->count() > 0 && page->surface_list(core::prompt_surface::pull_request_menu)->count() > 0, "the library and the surfaces are listed");
+		// AC04. The built-in rows are in the library and on their menus.
+		const auto has = [page](const std::string& aId) { return std::ranges::any_of(page->library(), [&aId](const core::prompt_macro& aMacro) { return aMacro.Id == aId; }); };
 		expect(has("agent-tab.what-changed") && has("conversation.was-addressed") && has("agent-tab.explain-file"), "What changed, Was this addressed? and Explain this file have built-in rows");
-		macros->edit("agent-tab.what-could-break", [](qt::prompt_macro_sheet& aSheet) {
-			expect(aSheet.quick_ask_box()->isChecked() && aSheet.scope_button(core::prompt_scope::pull_request)->isChecked(), "a shipped quick ask's sheet says so");
-			expect(!aSheet.scope_button(core::prompt_scope::file)->isEnabled() && !aSheet.scope_button(core::prompt_scope::thread)->isEnabled(), "a scope narrower than the pull request cannot be set");
-			aSheet.quick_ask_box()->setChecked(false);
-			aSheet.finish(qt::prompt_macro_sheet::outcome::saved);
+		// Off the pull request's menu, and the reviewer's own on the file's.
+		page->remove("agent-tab.what-could-break", core::prompt_surface::pull_request_menu);
+		const auto own = page->new_prompt();
+		page->edit_selected([](core::prompt_macro& aMacro) {
+			aMacro.Body.Name     = "Security pass on {file.name}";
+			aMacro.Body.Template = "Check {file} for injection.";
 		});
-		macros->add_prompt(core::prompt_place::agent_tab, [](qt::prompt_macro_sheet& aSheet) {
-			aSheet.name_field()->setText(QStringLiteral("Security pass on {file.name}"));
-			aSheet.template_field()->setPlainText(QStringLiteral("Check {file} for injection."));
-			auto* const about = aSheet.findChild<QComboBox*>(QStringLiteral("promptMacroSubject"));
-			about->setCurrentIndex(about->findText(QStringLiteral("The open file")));
-			aSheet.quick_ask_box()->setChecked(true);
-			expect(aSheet.scope_button(core::prompt_scope::file)->isChecked() && !aSheet.scope_button(core::prompt_scope::thread)->isEnabled(), "a file's prompt: File on, Thread unavailable");
-			aSheet.scope_button(core::prompt_scope::pull_request)->setChecked(true);
-			expect(aSheet.save_button()->isEnabled(), "the sheet can be saved: " + aSheet.problems_text().toStdString());
-			aSheet.finish(qt::prompt_macro_sheet::outcome::saved);
-		});
+		expect(page->place(own, core::prompt_surface::pull_request_menu) == core::placement_refusal::placeholder_unfilled && !page->last_refusal().isEmpty(),
+			   "the pull request's menu refuses {file}, with a reason");
+		expect(page->place(own, core::prompt_surface::file_menu) == core::placement_refusal::none, "the file's menu takes it");
 		wait([&] {
 			fileAsk->refresh_menu();
 			return std::ranges::any_of(rows(*fileAsk->menu()), [](const QString& aName) { return aName.startsWith(QStringLiteral("quickAsk_own.")); });
 		},
 			 "the own quick ask is in the file's Ask");
 		reviewAsk->refresh_menu();
-		expect(row(*reviewAsk->menu(), QStringLiteral("agent-tab.what-could-break"), QStringLiteral("pull-request")) == nullptr, "Quick ask off: no longer in the review bar's Ask");
-		auto store  = adapters::sqlite::make_prompt_macro_store(*dataRoot);
-		auto stored = store->load();
-		expect(stored && stored->Revision == 2U, "both edits are in the profile's store");
-		const auto change = std::ranges::find(stored->Differences.Changes, std::string{ "agent-tab.what-could-break" }, &core::prompt_builtin_change::Id);
-		expect(change != stored->Differences.Changes.end() && change->Body && !change->Body->QuickAsk, "Quick ask off is saved with the built-in");
-		expect(stored->Differences.Own.size() == 1U && stored->Differences.Own.front().Body.QuickAsk && stored->Differences.Own.front().Body.Scopes == core::prompt_scopes{ .File = true, .PullRequest = true },
-			   "the own prompt's Quick ask and scopes are saved");
+		expect(row(*reviewAsk->menu(), QStringLiteral("agent-tab.what-could-break"), QStringLiteral("pull-request")) == nullptr, "taken off its menu: no longer in the review bar's Ask");
+		auto store = adapters::sqlite::make_prompt_macro_store(*dataRoot);
+		wait([&] {
+			const auto stored = store->load();
+			if (!stored || stored->Differences.Own.size() != 1U) {
+				return false;
+			}
+			const auto changes = core::merge_prompt_macros(core::shipped_prompt_macros(), stored->Differences).Surfaces;
+			const auto on      = [&changes](const core::prompt_surface aSurface, const std::string& aId) {
+				const auto& list = changes.Lists.at(static_cast<std::size_t>(aSurface));
+				return std::ranges::find(list, aId) != list.end();
+			};
+			return on(core::prompt_surface::file_menu, stored->Differences.Own.front().Id) && !on(core::prompt_surface::pull_request_menu, "agent-tab.what-could-break");
+		},
+			 "both edits, with their surfaces, are in the profile's store");
 		const auto sheetLaunches = launchesAt();
 		expect(sheetLaunches == setupLaunches, "editing prompts launched nothing");
 

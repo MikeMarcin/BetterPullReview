@@ -231,7 +231,9 @@ namespace {
 		context.PullRequest = pull_request();
 		context.Repository  = "octo/app";
 		aHarness.set_context(context);
-		expect(tab.suggestions() == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("Review src/render/renderer.cpp"), QStringLiteral("What could this change break?") }, "AC05 a file open adds Review <file>");
+		// [[BPR-2179]]: the pull request's chips, then the file's, each in
+		// its surface's order.
+		expect(tab.suggestions() == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("What could this change break?"), QStringLiteral("Review src/render/renderer.cpp") }, "AC05 a file open adds Review <file>");
 		render(*tab.suggestions_widget(), QStringLiteral("rfc0125-m2-chips-shipped"));
 		context.Lines = std::pair{ 34U, 34U };
 		aHarness.set_context(context);

@@ -107,6 +107,10 @@ namespace bpr::application {
 	/// built-in whose body or On differs, every own macro, and each place's
 	/// order when it is not the shipped order.
 	[[nodiscard]] auto prompt_macro_differences_of(const std::vector<core::prompt_builtin>& aShipped, const std::vector<core::prompt_macro>& aEdited) -> core::prompt_macro_differences;
+	/// \brief [[BPR-2179]]. The same, with every surface as `aSurfaces` has
+	/// it: a surface is stored where it differs from what the fields describe.
+	[[nodiscard]] auto prompt_macro_differences_of(const std::vector<core::prompt_builtin>& aShipped, const std::vector<core::prompt_macro>& aEdited, const core::prompt_surfaces& aSurfaces)
+		-> core::prompt_macro_differences;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PROMPT_MACRO_HOST_HPP

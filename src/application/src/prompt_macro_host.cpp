@@ -1,5 +1,7 @@
 #include "bpr/application/prompt_macro_host.hpp"
 
+#include "bpr/core/prompt_surfaces.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <deque>
@@ -216,6 +218,14 @@ namespace bpr::application {
 				differences.Orders.push_back({ .Place = here, .Ids = std::move(edited) });
 			}
 		}
+		return differences;
+	}
+
+	auto prompt_macro_differences_of(const std::vector<core::prompt_builtin>& aShipped, const std::vector<core::prompt_macro>& aEdited, const core::prompt_surfaces& aSurfaces)
+		-> core::prompt_macro_differences
+	{
+		auto differences     = prompt_macro_differences_of(aShipped, aEdited);
+		differences.Surfaces = core::prompt_surface_changes_of(aEdited, aSurfaces);
 		return differences;
 	}
 } // namespace bpr::application

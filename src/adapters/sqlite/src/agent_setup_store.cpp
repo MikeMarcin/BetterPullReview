@@ -8,6 +8,7 @@
 
 #include "bpr/core/agent_finding_card_memory.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_composition.hpp"
 #include "bpr/core/review_preparation.hpp"
 
@@ -355,6 +356,38 @@ namespace bpr::adapters::sqlite {
 									"label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384),"
 									"state TEXT NOT NULL, held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1),"
 									"PRIMARY KEY(session, position)) STRICT")
+				// [[BPR-2179]]. Each surface the reviewer changed: its list
+				// and what it took off, identities one a line. `layer` is
+				// empty for every repository, else the repository's, whose
+				// row also says what it added and whether `ids` is its own
+				// order.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS prompt_surface_lists("
+									"layer TEXT NOT NULL CHECK(length(CAST(layer AS BLOB)) <= 256),"
+									"surface TEXT NOT NULL CHECK(length(CAST(surface AS BLOB)) BETWEEN 1 AND 64),"
+									"ids TEXT NOT NULL CHECK(length(CAST(ids AS BLOB)) <= 8448),"
+									"removed TEXT NOT NULL CHECK(length(CAST(removed AS BLOB)) <= 8448),"
+									"added TEXT NOT NULL CHECK(length(CAST(added AS BLOB)) <= 8448),"
+									"ordered INTEGER NOT NULL CHECK(ordered BETWEEN 0 AND 1),"
+									"PRIMARY KEY(layer, surface)) STRICT")
+				// [[BPR-2179]]. A repository's prompts: an override of an
+				// app-wide prompt's fields (`kind` 0, a null field follows the
+				// app-wide one) or one of its own (`kind` 1).
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS prompt_repository_prompts("
+									"repository TEXT NOT NULL CHECK(length(CAST(repository AS BLOB)) BETWEEN 1 AND 256),"
+									"kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 1),"
+									"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
+									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 63),"
+									"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) <= 64),"
+									"subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB)) <= 64),"
+									"name TEXT CHECK(name IS NULL OR length(CAST(name AS BLOB)) <= 120),"
+									"template TEXT CHECK(template IS NULL OR length(CAST(template AS BLOB)) <= 8192),"
+									"ask TEXT CHECK(ask IS NULL OR length(CAST(ask AS BLOB)) <= 64),"
+									"conditions TEXT CHECK(conditions IS NULL OR length(CAST(conditions AS BLOB)) <= 8192),"
+									"match TEXT CHECK(match IS NULL OR length(CAST(match AS BLOB)) <= 16),"
+									"on_state INTEGER CHECK(on_state IS NULL OR on_state BETWEEN 0 AND 1),"
+									"PRIMARY KEY(repository, kind, id)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_macro_revision("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
@@ -2275,9 +2308,12 @@ namespace bpr::adapters::sqlite {
 		/// Conditions as text: one per line, `fact`, `is` or `not`, the lines
 		/// value, then each pattern, separated by the unit separator. A
 		/// pattern holding a control character is not stored.
-		[[nodiscard]] auto encode_conditions(const std::vector<core::prompt_condition>& aConditions) -> std::optional<std::string>
+		/// [[BPR-2179]]. "Any of these" leads as a line of its own, and
+		/// `thread-activity` keeps what it counts in the lines field, so an
+		/// earlier build reads either row as a newer build's and keeps it.
+		[[nodiscard]] auto encode_conditions(const std::vector<core::prompt_condition>& aConditions, const core::prompt_match aMatch = core::prompt_match::all) -> std::optional<std::string>
 		{
-			auto text = std::string{ };
+			auto text = std::string{ aMatch == core::prompt_match::any ? "any" : "" };
 			for (const auto& condition : aConditions) {
 				if (!text.empty()) {
 					text += '\n';
@@ -2286,7 +2322,12 @@ namespace bpr::adapters::sqlite {
 				text += '\x1f';
 				text += condition.Negated ? "not" : "is";
 				text += '\x1f';
-				text += lines_name(condition.Lines);
+				if (condition.Fact == core::prompt_fact::thread_activity) {
+					text += condition.Activity == core::prompt_activity_value::replies ? "replies" : condition.Activity == core::prompt_activity_value::pushes ? "pushes"
+																																							   : "both";
+				} else {
+					text += lines_name(condition.Lines);
+				}
 				for (const auto& pattern : condition.Patterns) {
 					if (std::ranges::any_of(pattern, [](const char aCharacter) { return static_cast<unsigned char>(aCharacter) < 0x20U; })) {
 						return std::nullopt;
@@ -2310,9 +2351,15 @@ namespace bpr::adapters::sqlite {
 			return parts;
 		}
 
-		[[nodiscard]] auto decode_conditions(const std::string_view aText) -> std::optional<std::vector<core::prompt_condition>>
+		[[nodiscard]] auto decode_conditions(std::string_view aText, core::prompt_match* const aMatch = nullptr) -> std::optional<std::vector<core::prompt_condition>>
 		{
 			auto conditions = std::vector<core::prompt_condition>{ };
+			if (aText == "any" || aText.starts_with("any\n")) {
+				if (aMatch != nullptr) {
+					*aMatch = core::prompt_match::any;
+				}
+				aText.remove_prefix(std::min<std::size_t>(aText.size(), 4U));
+			}
 			if (aText.empty()) {
 				return conditions;
 			}
@@ -2326,7 +2373,15 @@ namespace bpr::adapters::sqlite {
 					return std::nullopt;
 				}
 				auto condition = core::prompt_condition{ .Fact = *fact, .Negated = fields[1] == "not" };
-				if (fields[2] == "one") {
+				if (*fact == core::prompt_fact::thread_activity) {
+					if (fields[2] == "replies") {
+						condition.Activity = core::prompt_activity_value::replies;
+					} else if (fields[2] == "pushes") {
+						condition.Activity = core::prompt_activity_value::pushes;
+					} else if (fields[2] != "both") {
+						return std::nullopt;
+					}
+				} else if (fields[2] == "one") {
 					condition.Lines = core::prompt_lines_value::one;
 				} else if (fields[2] == "several") {
 					condition.Lines = core::prompt_lines_value::several;
@@ -2428,6 +2483,9 @@ namespace bpr::adapters::sqlite {
 							}
 						}
 					}
+					if (!write_surfaces(db, aDifferences.Surfaces) || !write_layers(db, aDifferences.Repositories)) {
+						return rollback(prompt_macro_write::failed);
+					}
 					auto revision = detail::prepare(db, "INSERT OR REPLACE INTO prompt_macro_revision(singleton,revision) VALUES(1,?1)");
 					if (!revision) {
 						return rollback(prompt_macro_write::failed);
@@ -2476,7 +2534,9 @@ namespace bpr::adapters::sqlite {
 						macro.Body.Template   = column_text(row->Value, 5).value_or(std::string{ });
 						const auto subject    = named_value<core::prompt_subject>(column_text(row->Value, 6).value_or(std::string{ }), 8U);
 						const auto ask        = named_value<core::prompt_ask>(column_text(row->Value, 7).value_or(std::string{ }), 2U);
-						auto       when       = decode_conditions(column_text(row->Value, 8).value_or(std::string{ }));
+						auto       match      = core::prompt_match::all;
+						auto       when       = decode_conditions(column_text(row->Value, 8).value_or(std::string{ }), &match);
+						macro.Body.Match      = match;
 						known                 = known && subject && ask && when;
 						macro.Body.Subject    = subject.value_or(core::prompt_subject::pull_request);
 						macro.Body.Kind       = ask.value_or(core::prompt_ask::question);
@@ -2521,7 +2581,279 @@ namespace bpr::adapters::sqlite {
 					}
 					found->Ids.push_back(std::move(*id));
 				}
+				if (!read_layers(aDatabase, stored.Differences.Repositories)) {
+					return std::nullopt;
+				}
+				auto surfaces = detail::prepare(aDatabase, "SELECT surface,ids,removed FROM prompt_surface_lists WHERE layer='' ORDER BY surface");
+				if (!surfaces) {
+					return std::nullopt;
+				}
+				for (auto step = sqlite3_step(surfaces->Value); step != SQLITE_DONE; step = sqlite3_step(surfaces->Value)) {
+					if (step != SQLITE_ROW) {
+						return std::nullopt;
+					}
+					// A surface a newer build names is kept and never read.
+					const auto surface = core::find_prompt_surface(column_text(surfaces->Value, 0).value_or(std::string{ }));
+					if (!surface) {
+						continue;
+					}
+					stored.Differences.Surfaces.push_back({ .Surface = *surface,
+															.Ids     = identity_lines(column_text(surfaces->Value, 1).value_or(std::string{ })),
+															.Removed = identity_lines(column_text(surfaces->Value, 2).value_or(std::string{ })) });
+				}
+				std::ranges::sort(stored.Differences.Surfaces, { }, &core::prompt_surface_change::Surface);
 				return stored;
+			}
+
+			[[nodiscard]] static auto identity_lines(const std::string_view aText) -> std::vector<std::string>
+			{
+				auto ids = std::vector<std::string>{ };
+				if (aText.empty()) {
+					return ids;
+				}
+				for (const auto line : split(aText, '\n')) {
+					if (!line.empty() && ids.size() < core::maximum_prompt_macros) {
+						ids.emplace_back(line);
+					}
+				}
+				return ids;
+			}
+
+			[[nodiscard]] static auto joined_identities(const std::vector<std::string>& aIds) -> std::optional<std::string>
+			{
+				auto text = std::string{ };
+				if (aIds.size() > core::maximum_prompt_macros) {
+					return std::nullopt;
+				}
+				for (const auto& id : aIds) {
+					if (id.empty() || id.size() > 128U || id.find('\n') != std::string::npos) {
+						return std::nullopt;
+					}
+					if (!text.empty()) {
+						text += '\n';
+					}
+					text += id;
+				}
+				return text;
+			}
+
+			[[nodiscard]] static auto optional_text(sqlite3_stmt* const aRow, const int aColumn) -> std::optional<std::string>
+			{
+				return sqlite3_column_type(aRow, aColumn) == SQLITE_NULL ? std::nullopt : column_text(aRow, aColumn);
+			}
+
+			static void bind_optional(sqlite3_stmt* const aRow, const int aIndex, const std::optional<std::string>& aText)
+			{
+				if (aText) {
+					bind_text(aRow, aIndex, *aText);
+				} else {
+					sqlite3_bind_null(aRow, aIndex);
+				}
+			}
+
+			/// [[BPR-2179]]. Every repository's layer; a row this build
+			/// cannot read is left out.
+			[[nodiscard]] static auto read_layers(sqlite3* const aDatabase, std::vector<core::prompt_repository_layer>& aLayers) -> bool
+			{
+				const auto layer = [&aLayers](const std::string& aRepository) -> core::prompt_repository_layer& {
+					auto found = std::ranges::find(aLayers, aRepository, &core::prompt_repository_layer::Repository);
+					if (found == aLayers.end()) {
+						aLayers.push_back({ .Repository = aRepository });
+						return aLayers.back();
+					}
+					return *found;
+				};
+				auto prompts = detail::prepare(aDatabase, "SELECT repository,kind,id,place,subject,name,template,ask,conditions,match,on_state FROM prompt_repository_prompts ORDER BY repository,kind,position");
+				if (!prompts) {
+					return false;
+				}
+				for (auto step = sqlite3_step(prompts->Value); step != SQLITE_DONE; step = sqlite3_step(prompts->Value)) {
+					if (step != SQLITE_ROW) {
+						return false;
+					}
+					const auto repository = column_text(prompts->Value, 0).value_or(std::string{ });
+					const auto kind       = sqlite3_column_int64(prompts->Value, 1);
+					auto       id         = column_text(prompts->Value, 2).value_or(std::string{ });
+					const auto name       = optional_text(prompts->Value, 5);
+					const auto text       = optional_text(prompts->Value, 6);
+					const auto ask        = optional_text(prompts->Value, 7);
+					const auto when       = optional_text(prompts->Value, 8);
+					const auto match      = optional_text(prompts->Value, 9);
+					const auto on         = sqlite3_column_type(prompts->Value, 10) == SQLITE_NULL ? std::optional<bool>{ } : std::optional{ sqlite3_column_int64(prompts->Value, 10) != 0 };
+					auto       conditions = when ? decode_conditions(*when) : std::optional{ std::vector<core::prompt_condition>{ } };
+					const auto kindValue  = ask ? named_value<core::prompt_ask>(*ask, 2U) : std::optional{ core::prompt_ask::question };
+					if (!conditions || !kindValue || repository.empty()) {
+						continue;
+					}
+					if (kind == 0) {
+						auto change = core::prompt_override{ .Id = std::move(id), .Name = name, .Template = text, .On = on };
+						if (ask) {
+							change.Kind = kindValue;
+						}
+						if (when) {
+							change.Conditions = std::move(conditions);
+						}
+						if (match) {
+							change.Match = *match == "any" ? core::prompt_match::any : core::prompt_match::all;
+						}
+						layer(repository).Overrides.push_back(std::move(change));
+						continue;
+					}
+					const auto place   = named_value<core::prompt_place>(column_text(prompts->Value, 3).value_or(std::string{ }), core::prompt_place_count);
+					const auto subject = named_value<core::prompt_subject>(column_text(prompts->Value, 4).value_or(std::string{ }), 8U);
+					if (!place || !subject) {
+						continue;
+					}
+					auto own            = core::prompt_macro{ .Id = std::move(id), .Place = *place, .On = on.value_or(true) };
+					own.Body.Name       = name.value_or(std::string{ });
+					own.Body.Template   = text.value_or(std::string{ });
+					own.Body.Subject    = *subject;
+					own.Body.Kind       = *kindValue;
+					own.Body.Conditions = std::move(*conditions);
+					own.Body.Match      = match && *match == "any" ? core::prompt_match::any : core::prompt_match::all;
+					layer(repository).Own.push_back(std::move(own));
+				}
+				auto surfaces = detail::prepare(aDatabase, "SELECT layer,surface,ids,removed,added,ordered FROM prompt_surface_lists WHERE layer<>'' ORDER BY layer,surface");
+				if (!surfaces) {
+					return false;
+				}
+				for (auto step = sqlite3_step(surfaces->Value); step != SQLITE_DONE; step = sqlite3_step(surfaces->Value)) {
+					if (step != SQLITE_ROW) {
+						return false;
+					}
+					const auto surface = core::find_prompt_surface(column_text(surfaces->Value, 1).value_or(std::string{ }));
+					if (!surface) {
+						continue;
+					}
+					auto change = core::prompt_repository_surface{ .Surface = *surface,
+																   .Added   = identity_lines(column_text(surfaces->Value, 4).value_or(std::string{ })),
+																   .Removed = identity_lines(column_text(surfaces->Value, 3).value_or(std::string{ })) };
+					if (sqlite3_column_int64(surfaces->Value, 5) != 0) {
+						change.Order = identity_lines(column_text(surfaces->Value, 2).value_or(std::string{ }));
+					}
+					layer(column_text(surfaces->Value, 0).value_or(std::string{ })).Surfaces.push_back(std::move(change));
+				}
+				std::ranges::sort(aLayers, { }, &core::prompt_repository_layer::Repository);
+				for (auto& each : aLayers) {
+					std::ranges::sort(each.Surfaces, { }, &core::prompt_repository_surface::Surface);
+				}
+				return true;
+			}
+
+			/// [[BPR-2179]]. Replaces every repository's layer.
+			[[nodiscard]] static auto write_layers(sqlite3* const aDatabase, const std::vector<core::prompt_repository_layer>& aLayers) -> bool
+			{
+				if (!detail::execute(aDatabase, "DELETE FROM prompt_repository_prompts") || !detail::execute(aDatabase, "DELETE FROM prompt_surface_lists WHERE layer<>''")
+					|| aLayers.size() > core::maximum_prompt_repositories) {
+					return false;
+				}
+				for (const auto& layer : aLayers) {
+					if (layer.Repository.empty() || layer.Repository.size() > 256U) {
+						return false;
+					}
+					auto       position = std::int64_t{ 0 };
+					const auto row      = [&](const std::int64_t aKind, const std::string& aId, const std::string& aPlace, const std::string& aSubject, const std::optional<std::string>& aName,
+											  const std::optional<std::string>& aTemplate, const std::optional<std::string>& aAsk, const std::optional<std::string>& aConditions,
+											  const std::optional<std::string>& aMatch, const std::optional<bool> aOn) {
+						if (position >= static_cast<std::int64_t>(core::maximum_prompt_macros)) {
+							return false;
+						}
+						auto insert = detail::prepare(aDatabase,
+													  "INSERT INTO prompt_repository_prompts(repository,kind,id,position,place,subject,name,template,ask,conditions,match,on_state) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)");
+						if (!insert) {
+							return false;
+						}
+						bind_text(insert->Value, 1, layer.Repository);
+						sqlite3_bind_int64(insert->Value, 2, aKind);
+						bind_text(insert->Value, 3, aId);
+						sqlite3_bind_int64(insert->Value, 4, position++);
+						bind_text(insert->Value, 5, aPlace);
+						bind_text(insert->Value, 6, aSubject);
+						bind_optional(insert->Value, 7, aName);
+						bind_optional(insert->Value, 8, aTemplate);
+						bind_optional(insert->Value, 9, aAsk);
+						bind_optional(insert->Value, 10, aConditions);
+						bind_optional(insert->Value, 11, aMatch);
+						if (aOn) {
+							sqlite3_bind_int64(insert->Value, 12, *aOn ? 1 : 0);
+						} else {
+							sqlite3_bind_null(insert->Value, 12);
+						}
+						return sqlite3_step(insert->Value) == SQLITE_DONE;
+					};
+					for (const auto& change : layer.Overrides) {
+						auto conditions = std::optional<std::string>{ };
+						if (change.Conditions) {
+							conditions = encode_conditions(*change.Conditions);
+							if (!conditions) {
+								return false;
+							}
+						}
+						const auto ask   = change.Kind ? std::optional{ std::string{ core::stable_name(*change.Kind) } } : std::nullopt;
+						const auto match = change.Match ? std::optional{ std::string{ core::stable_name(*change.Match) } } : std::nullopt;
+						if (!row(0, change.Id, { }, { }, change.Name, change.Template, ask, conditions, match, change.On)) {
+							return false;
+						}
+					}
+					position = 0;
+					for (const auto& own : layer.Own) {
+						const auto conditions = encode_conditions(own.Body.Conditions);
+						if (!conditions
+							|| !row(1, own.Id, std::string{ core::stable_name(own.Place) }, std::string{ core::stable_name(own.Body.Subject) }, own.Body.Name, own.Body.Template,
+									std::string{ core::stable_name(own.Body.Kind) }, conditions, std::string{ core::stable_name(own.Body.Match) }, own.On)) {
+							return false;
+						}
+					}
+					for (const auto& change : layer.Surfaces) {
+						const auto ids     = joined_identities(change.Order.value_or(std::vector<std::string>{ }));
+						const auto removed = joined_identities(change.Removed);
+						const auto added   = joined_identities(change.Added);
+						auto       insert  = detail::prepare(aDatabase, "INSERT INTO prompt_surface_lists(layer,surface,ids,removed,added,ordered) VALUES(?1,?2,?3,?4,?5,?6)");
+						if (!ids || !removed || !added || !insert) {
+							return false;
+						}
+						bind_text(insert->Value, 1, layer.Repository);
+						bind_text(insert->Value, 2, std::string{ core::stable_name(change.Surface) });
+						bind_text(insert->Value, 3, *ids);
+						bind_text(insert->Value, 4, *removed);
+						bind_text(insert->Value, 5, *added);
+						sqlite3_bind_int64(insert->Value, 6, change.Order ? 1 : 0);
+						if (sqlite3_step(insert->Value) != SQLITE_DONE) {
+							return false;
+						}
+					}
+				}
+				return true;
+			}
+
+			/// Replaces every surface this build names with `aChanges`.
+			[[nodiscard]] static auto write_surfaces(sqlite3* const aDatabase, const std::vector<core::prompt_surface_change>& aChanges) -> bool
+			{
+				for (auto index = std::size_t{ 0 }; index < core::prompt_surface_count; ++index) {
+					auto erase = detail::prepare(aDatabase, "DELETE FROM prompt_surface_lists WHERE layer='' AND surface=?1");
+					if (!erase) {
+						return false;
+					}
+					bind_text(erase->Value, 1, std::string{ core::stable_name(static_cast<core::prompt_surface>(index)) });
+					if (sqlite3_step(erase->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				for (const auto& change : aChanges) {
+					const auto ids     = joined_identities(change.Ids);
+					const auto removed = joined_identities(change.Removed);
+					auto       row     = detail::prepare(aDatabase, "INSERT OR REPLACE INTO prompt_surface_lists(layer,surface,ids,removed,added,ordered) VALUES('',?1,?2,?3,'',1)");
+					if (!ids || !removed || !row) {
+						return false;
+					}
+					bind_text(row->Value, 1, std::string{ core::stable_name(change.Surface) });
+					bind_text(row->Value, 2, *ids);
+					bind_text(row->Value, 3, *removed);
+					if (sqlite3_step(row->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				return true;
 			}
 
 			/// Deletes every row this build reads; a newer build's rows stay.
@@ -2561,7 +2893,7 @@ namespace bpr::adapters::sqlite {
 				if (aPosition >= static_cast<std::int64_t>(core::maximum_prompt_macros)) {
 					return false;
 				}
-				const auto conditions = aBody != nullptr ? encode_conditions(aBody->Conditions) : std::optional{ std::string{ } };
+				const auto conditions = aBody != nullptr ? encode_conditions(aBody->Conditions, aBody->Match) : std::optional{ std::string{ } };
 				if (!conditions) {
 					return false;
 				}

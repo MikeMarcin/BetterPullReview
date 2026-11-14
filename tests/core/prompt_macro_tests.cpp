@@ -313,7 +313,9 @@ namespace {
 		expect(!wildcard_pattern_valid("a\\") && !wildcard_pattern_valid("[[:nope:]]") && wildcard_pattern_valid("[]]") && wildcard_pattern_valid("[!a-z]*.cpp") && wildcard_pattern_valid("[[:alpha:]]"),
 			   "pattern validity follows the matcher");
 		expect(parse_prompt_patterns(" src/**,  *.cpp ,, ") == std::vector<std::string>{ "src/**", "*.cpp" }, "the pattern field splits on commas");
-		const auto place = prompt_macro{ .Id = "own.place", .Place = prompt_place::conversation, .Body = { .Name = "P", .Template = "x", .Subject = prompt_subject::conversation, .Conditions = { { .Fact = prompt_fact::file_open } } } };
+		// [[BPR-2179]]: placement decides scope, so only a tour chat refuses
+		// the review's facts.
+		const auto place = prompt_macro{ .Id = "own.place", .Place = prompt_place::tour_stop, .Body = { .Name = "P", .Template = "x", .Subject = prompt_subject::stop, .Conditions = { { .Fact = prompt_fact::file_open } } } };
 		expect(has(place, prompt_problem::fact_not_for_place), "a fact the place does not hold is refused");
 	}
 

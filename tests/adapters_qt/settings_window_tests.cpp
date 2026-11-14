@@ -286,7 +286,7 @@ namespace {
 		for (auto row = 0; row < settings->sidebar()->count(); ++row) {
 			pages.push_back(settings->sidebar()->item(row)->text());
 		}
-		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents & context"), QStringLiteral("Storage & privacy") },
+		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents & context"), QStringLiteral("Prompts"), QStringLiteral("Storage & privacy") },
 			   "the sidebar is General, Accounts & hosts, Repositories, Home & queue, Review, Comments, then the rest as before");
 		for (auto index = std::size_t{ 0U }; index < qt::settings_page_count; ++index) {
 			const auto page = static_cast<qt::settings_page>(index);
@@ -752,7 +752,9 @@ auto main(int argc, char** argv) -> int
 		const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR");
 		const auto render    = [&](const QString& aName) {
 			if (!directory.isEmpty()) {
-				window.settings()->present(qt::settings_page::agents_and_context);
+				// [[BPR-2179]]: the system prompts are in Prompts' library.
+				window.settings()->present(qt::settings_page::prompts);
+				window.prompts()->select_system(static_cast<int>(core::writing_hook::problem));
 				window.settings()->resize(1100, 900);
 				panel->resize(900, 640);
 				QApplication::processEvents();
@@ -763,7 +765,8 @@ auto main(int argc, char** argv) -> int
 		panel->show_preview(false);
 		render(QStringLiteral("prompt-editor-changed.png"));
 		// Completion while typing, with each skill's source.
-		window.settings()->present(qt::settings_page::agents_and_context);
+		window.settings()->present(qt::settings_page::prompts);
+		window.prompts()->select_system(static_cast<int>(core::writing_hook::problem));
 		window.settings()->show();
 		text->setFocus();
 		QApplication::processEvents();

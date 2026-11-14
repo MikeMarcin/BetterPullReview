@@ -7,6 +7,7 @@
 #include <array>
 #include <functional>
 #include <optional>
+#include <vector>
 class QButtonGroup;
 class QLabel;
 class QListWidget;
@@ -57,6 +58,28 @@ namespace bpr::qt {
 		[[nodiscard]] auto preview_text() const -> QString;
 		[[nodiscard]] auto skill_completion() const noexcept -> skill_completer* { return Completer; }
 
+		/// \brief [[BPR-2179]]. One system prompt as the Prompts library lists
+		/// it: its group (Tour tab, Comments and notes, Local drafts, Agent
+		/// tab), name, where it is used, and Changed or Unsaved.
+		struct system_row
+		{
+			QString Group;
+			QString Name;
+			QString Usage;
+			QString Marker;
+			/// A `core::writing_hook`, or the review skill's own key.
+			int Key = 0;
+		};
+		/// \brief [[BPR-2179]]. Every system prompt, in the section's order.
+		[[nodiscard]] auto system_rows() const -> std::vector<system_row>;
+		/// \brief [[BPR-2179]]. Shows one system prompt, by its key.
+		void select_system(int aKey);
+		/// \brief [[BPR-2179]]. Shown inside the Prompts library, which lists
+		/// the prompts itself: the heading and list are hidden.
+		void set_embedded(bool aEmbedded);
+		/// \brief [[BPR-2179]]. Told when a row's Changed or Unsaved changes.
+		void set_rows_changed(std::function<void()> aChanged) { RowsChanged = std::move(aChanged); }
+
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 
@@ -75,6 +98,7 @@ namespace bpr::qt {
 		std::optional<std::pair<core::writing_hook, std::string>>        Undo;
 		std::function<bool(core::writing_hook, std::string)>             Save;
 		std::function<void(core::writing_hook)>                          Test;
+		std::function<void()>                                            RowsChanged;
 		bool                                                             Loading          = false;
 		bool                                                             ReviewSkillShown = false;
 		QListWidget*                                                     Hook;

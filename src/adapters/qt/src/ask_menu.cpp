@@ -3,6 +3,7 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/prompt_words.hpp"
 
 #include <QContextMenuEvent>
 #include <QEnterEvent>
@@ -160,6 +161,7 @@ namespace bpr::qt {
 		case thread_commit_unknown:    return QObject::tr("The commit this thread started on isn't in this pull request.");
 		case no_threads_match:         return QObject::tr("No thread here meets its conditions.");
 		case no_files_match:           return QObject::tr("No file meets its conditions.");
+		case condition:                return QObject::tr("Its conditions don't hold yet.");
 		}
 		return { };
 	}
@@ -208,7 +210,8 @@ namespace bpr::qt {
 				action->setObjectName(QStringLiteral("quickAsk_%1_%2").arg(QString::fromStdString(row.Id), QString::fromLatin1(core::stable_name(section.Scope))));
 				action->setData(QString::fromStdString(row.Id));
 				action->setEnabled(row.Enabled && static_cast<bool>(aDispatch.Ask));
-				const auto reason = quick_ask_reason_words(row.Reason, row.Scope);
+				// [[BPR-2179]]. A condition of the greys kind gives its own reason.
+				const auto reason = row.Reason == core::quick_ask_reason::condition && row.Condition ? prompt_condition_reason(*row.Condition) : quick_ask_reason_words(row.Reason, row.Scope);
 				const auto waits  = row.Waits == core::quick_ask_reason::agent_not_set_up ? QObject::tr(" It waits until the agent is set up.")
 					: row.Waits == core::quick_ask_reason::agent_busy                     ? QObject::tr(" It waits until the agent's current answer finishes.")
 																						  : QString{ };

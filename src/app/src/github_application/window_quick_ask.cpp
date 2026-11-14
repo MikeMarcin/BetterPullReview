@@ -8,6 +8,7 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_report_view.hpp"
@@ -48,7 +49,7 @@ namespace bpr::app {
 								  .Ask    = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { queue_quick_ask(aRequest, aRow); },
 								  .Draft  = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { draft_quick_ask(aRequest, aRow); },
 								  .Custom = [this](const qt::ask_menu_request& aRequest) { ask_custom_question(aRequest); },
-								  .Edit   = [this] { Window->open_settings(qt::settings_page::agents_and_context); Window->reveal_prompt_macros(); },
+								  .Edit   = [this] { Window->reveal_prompt_macros(); },
 							  });
 		if (!AgentQueue) {
 			AgentQueueStore      = adapters::sqlite::make_agent_queue_store(ApplicationDataRoot);
@@ -254,7 +255,7 @@ namespace bpr::app {
 		if (Closing || Window == nullptr || Window->agent_tab() == nullptr) {
 			return std::nullopt;
 		}
-		return core::decide_quick_asks(PromptMacroSet.macros(), quick_ask_facts(aRequest), aRequest.Anchor);
+		return core::decide_quick_asks(core::placed_prompt_macros(core::prompt_set_for_repository(PromptMacroSet, prompt_repository())), quick_ask_facts(aRequest), aRequest.Anchor);
 	}
 
 	/// A press queues the quick ask on its session (owner, 2026-11-14).
@@ -410,8 +411,16 @@ namespace bpr::app {
 			});
 			return refused.isEmpty();
 		}
-		const auto set   = PromptMacroSet.macros();
-		const auto macro = std::ranges::find(set, aEntry.Input.QuickAsk, &core::prompt_macro::Id);
+		// [[BPR-2179]]. The copy on the menu it was queued from: placement
+		// decides what it asks about.
+		const auto set   = core::placed_prompt_macros(core::prompt_set_for_repository(PromptMacroSet, prompt_repository()));
+		auto       macro = std::ranges::find_if(set, [&aEntry](const core::prompt_macro& aMacro) {
+			return aMacro.Id == aEntry.Input.QuickAsk && aMacro.Surface && core::is_menu(*aMacro.Surface) && core::surface_scope(*aMacro.Surface)
+				&& core::stable_name(*core::surface_scope(*aMacro.Surface)) == aEntry.Input.Scope;
+		});
+		if (macro == set.end()) {
+			macro = std::ranges::find(set, aEntry.Input.QuickAsk, &core::prompt_macro::Id);
+		}
 		if (macro == set.end()) {
 			return false;
 		}
@@ -503,7 +512,24 @@ namespace bpr::app {
 	{
 		PromptMacroSet = aProjection.Set;
 		if (Window != nullptr) {
-			Window->present_prompt_macros(aProjection);
+			Window->present_prompt_macros(aProjection, prompt_repository());
+			auto repositories = QStringList{ };
+			if (const auto open = prompt_repository(); !open.empty()) {
+				repositories << QString::fromStdString(open);
+			}
+			Window->prompts()->set_repositories(repositories);
+		}
+	}
+
+	auto github_application::implementation::prompt_repository() const -> std::string
+	{
+		return AgentReview ? AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name : std::string{ };
+	}
+
+	void github_application::implementation::refresh_prompt_repository()
+	{
+		if (PromptMacros) {
+			present_prompt_macros(PromptMacros->projection());
 		}
 	}
 #endif

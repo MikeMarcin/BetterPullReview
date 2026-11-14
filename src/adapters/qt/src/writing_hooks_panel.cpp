@@ -536,6 +536,9 @@ namespace bpr::qt {
 				Hook->item(row)->setData(marker_role, aChanged ? tr("Changed") : QString{ });
 			}
 		}
+		if (RowsChanged) {
+			RowsChanged();
+		}
 	}
 
 	void writing_hooks_panel::select_review_skill()
@@ -691,6 +694,42 @@ namespace bpr::qt {
 		refresh_preview();
 	}
 
+	auto writing_hooks_panel::system_rows() const -> std::vector<system_row>
+	{
+		auto rows  = std::vector<system_row>{ };
+		auto group = QString{ };
+		for (int row = 0; row < Hook->count(); ++row) {
+			const auto* const item = Hook->item(row);
+			if (item->data(header_role).toBool()) {
+				group = item->text();
+				continue;
+			}
+			rows.push_back({ .Group = group, .Name = item->text(), .Usage = item->data(usage_role).toString(), .Marker = item->data(marker_role).toString(), .Key = item->data(hook_role).toInt() });
+		}
+		return rows;
+	}
+
+	void writing_hooks_panel::select_system(const int aKey)
+	{
+		for (int row = 0; row < Hook->count(); ++row) {
+			const auto role = Hook->item(row)->data(hook_role);
+			if (role.isValid() && role.toInt() == aKey) {
+				Hook->setCurrentRow(row);
+				return;
+			}
+		}
+	}
+
+	void writing_hooks_panel::set_embedded(const bool aEmbedded)
+	{
+		Hook->setVisible(!aEmbedded);
+		for (const auto* const name : { "writingHooksHeading", "writingHooksExplanation" }) {
+			if (auto* const label = findChild<QLabel*>(QString::fromLatin1(name)); label != nullptr) {
+				label->setVisible(!aEmbedded);
+			}
+		}
+	}
+
 	void writing_hooks_panel::refresh_rows()
 	{
 		for (int row = 0; row < Hook->count(); ++row) {
@@ -702,6 +741,9 @@ namespace bpr::qt {
 			const auto index = static_cast<std::size_t>(role.toInt());
 			item->setData(marker_role, Unsaved[index] ? tr("Unsaved") : !Settings.Overrides[index].empty() ? tr("Changed")
 																										   : QString{ });
+		}
+		if (RowsChanged) {
+			RowsChanged();
 		}
 	}
 

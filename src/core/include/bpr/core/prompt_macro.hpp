@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_question.hpp"
 
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -94,6 +95,45 @@ namespace bpr::core {
 		auto operator<=>(const prompt_scopes&) const = default;
 	};
 
+	/// \brief [[BPR-2179]]. Where prompts appear: the Ask menus and
+	/// suggested chips of the pull request, a file and a thread, and the
+	/// tour's three chats. The decisions over surfaces are in
+	/// `prompt_surfaces.hpp`; the values are here so a macro set carries them.
+	enum class prompt_surface : std::uint8_t {
+		pull_request_menu,
+		pull_request_chips,
+		file_menu,
+		file_chips,
+		thread_menu,
+		thread_chips,
+		tour_stop,
+		tour_part,
+		whole_tour,
+	};
+	inline constexpr std::size_t prompt_surface_count = 9U;
+
+	/// \brief [[BPR-2179]]. Every surface's placements, in order, by prompt
+	/// identity; one prompt is on one surface at most once.
+	struct prompt_surfaces
+	{
+		std::array<std::vector<std::string>, prompt_surface_count> Lists;
+
+		auto operator<=>(const prompt_surfaces&) const = default;
+	};
+
+	/// \brief [[BPR-2179]]. A profile's change to one surface: its list as
+	/// the reviewer left it, and the prompts the fields would put there that
+	/// the reviewer took off. A prompt the fields put there that is in
+	/// neither (a built-in a later release adds) goes to the end.
+	struct prompt_surface_change
+	{
+		prompt_surface           Surface = prompt_surface::pull_request_menu;
+		std::vector<std::string> Ids;
+		std::vector<std::string> Removed;
+
+		auto operator<=>(const prompt_surface_change&) const = default;
+	};
+
 	/// \brief RFC-BPR-0128 (Q13). A built-in row that stands for one of the
 	/// host's agent actions. What it sends stays in Built-in prompts; the row
 	/// carries its name, Quick ask, scopes and On.
@@ -145,11 +185,50 @@ namespace bpr::core {
 		takes_replies,
 		/// The chat holds no turn yet. Agent tab and the tour chats.
 		empty_chat,
+		/// [[BPR-2179]]. Commits followed my review or Seen of the pull request.
+		pushes_since_review,
+		/// [[BPR-2179]]. The file has an unresolved review thread.
+		file_unresolved_threads,
+		/// [[BPR-2179]]. I have not marked the file reviewed.
+		file_unreviewed,
+		/// [[BPR-2179]]. The thread is not resolved.
+		thread_unresolved,
+		/// [[BPR-2179]]. Replies or pushes (`prompt_condition::Activity`)
+		/// followed the thread's first comment.
+		thread_activity,
+		/// [[BPR-2179]]. Someone replied after my last comment on the thread.
+		replies_since_mine,
 	};
-	inline constexpr std::size_t prompt_fact_count = 9U;
+	inline constexpr std::size_t prompt_fact_count = 15U;
 	[[nodiscard]] auto           stable_name(prompt_fact aFact) noexcept -> std::string_view;
 	/// \brief Whether a condition on `aFact` may be written in `aPlace`.
 	[[nodiscard]] auto prompt_fact_allowed(prompt_place aPlace, prompt_fact aFact) noexcept -> bool;
+
+	/// \brief [[BPR-2179]], RFC-BPR-0128 Q1. What an unmet condition does to
+	/// an Ask menu row: one about whether the subject is there hides it; one
+	/// about whether it can run yet greys it, with a reason.
+	enum class prompt_condition_kind : std::uint8_t {
+		greys,
+		hides,
+	};
+	[[nodiscard]] auto prompt_fact_kind(prompt_fact aFact) noexcept -> prompt_condition_kind;
+
+	/// \brief [[BPR-2179]]. How a prompt's conditions combine.
+	enum class prompt_match : std::uint8_t {
+		/// All of these are true.
+		all,
+		/// Any of these is true.
+		any,
+	};
+	[[nodiscard]] auto stable_name(prompt_match aMatch) noexcept -> std::string_view;
+
+	/// \brief [[BPR-2179]]. What "New replies or pushes since the comment"
+	/// counts.
+	enum class prompt_activity_value : std::uint8_t {
+		replies_or_pushes,
+		replies,
+		pushes,
+	};
 
 	/// \brief The value a `selected_lines` condition compares with.
 	enum class prompt_lines_value : std::uint8_t {
@@ -170,6 +249,8 @@ namespace bpr::core {
 		bool                     Negated  = false;
 		prompt_lines_value       Lines    = prompt_lines_value::any;
 		std::vector<std::string> Patterns = { };
+		/// Read only by `thread_activity`.
+		prompt_activity_value Activity = prompt_activity_value::replies_or_pushes;
 
 		auto operator<=>(const prompt_condition&) const = default;
 	};
@@ -202,6 +283,8 @@ namespace bpr::core {
 		/// RFC-BPR-0128. Listed in the Ask menus at `Scopes`.
 		bool          QuickAsk = false;
 		prompt_scopes Scopes   = { };
+		/// [[BPR-2179]]. All of these, or any of these.
+		prompt_match Match = prompt_match::all;
 
 		auto operator<=>(const prompt_macro_body&) const = default;
 	};
@@ -220,6 +303,10 @@ namespace bpr::core {
 		/// RFC-BPR-0128. A built-in action row; never one of the reviewer's
 		/// own. An action row is never an Agent tab chip.
 		prompt_action Action = prompt_action::none;
+		/// [[BPR-2179]]. The surface this copy is offered on
+		/// (`placed_prompt_macros`); none for a library entry, which the
+		/// decisions read by its own fields.
+		std::optional<prompt_surface> Surface;
 
 		auto operator<=>(const prompt_macro&) const = default;
 	};
@@ -365,6 +452,14 @@ namespace bpr::core {
 		std::optional<bool>        AuthorIsMe;
 		std::optional<bool>        ChecksFailing;
 		std::optional<bool>        ChatEmpty;
+		/// [[BPR-2179]]. The newer conditions' facts.
+		std::optional<bool> PushesSinceReview;
+		std::optional<bool> FileUnresolvedThreads;
+		std::optional<bool> FileUnreviewed;
+		std::optional<bool> ThreadUnresolved;
+		std::optional<bool> ThreadReplies;
+		std::optional<bool> ThreadPushes;
+		std::optional<bool> RepliesSinceMine;
 		/// A tour chat's own part.
 		std::optional<prompt_tour_part> Thread;
 		/// The part where tour text is selected, this chat's or another's.
@@ -470,6 +565,22 @@ namespace bpr::core {
 	/// slash against the last segment, one with a slash against the whole
 	/// path, `**` crossing folders; a repository folds ASCII case.
 	[[nodiscard]] auto prompt_condition_holds(const prompt_condition& aCondition, const prompt_facts& aFacts) -> bool;
+
+	/// \brief [[BPR-2179]]. A prompt's conditions decided together.
+	struct prompt_conditions_outcome
+	{
+		/// All of them (or, for Any, one of them) hold; true with none.
+		bool Holds = true;
+		/// Not holding, and an Ask menu leaves the row out: under All, an
+		/// untrue condition hides; under Any, every condition hides.
+		bool Hides = false;
+		/// The condition whose reason a greyed row gives: the first untrue
+		/// greys condition. Meaningless while `Holds` or `Hides`.
+		std::size_t Reason = 0U;
+
+		auto operator<=>(const prompt_conditions_outcome&) const = default;
+	};
+	[[nodiscard]] auto decide_prompt_conditions(const prompt_macro_body& aBody, const prompt_facts& aFacts) -> prompt_conditions_outcome;
 
 	/// \brief Decides one macro against `aFacts`, whatever place `aFacts`
 	/// names: the caller chooses which macros a place considers.
@@ -648,6 +759,52 @@ namespace bpr::core {
 		auto operator<=>(const prompt_place_order&) const = default;
 	};
 
+	/// \brief [[BPR-2179]] (spec section 11). One repository's change to one
+	/// app-wide prompt: each field it set, on its own; a field it left follows
+	/// later app-wide edits.
+	struct prompt_override
+	{
+		std::string                                  Id;
+		std::optional<std::string>                   Name;
+		std::optional<std::string>                   Template;
+		std::optional<prompt_ask>                    Kind;
+		std::optional<std::vector<prompt_condition>> Conditions;
+		std::optional<prompt_match>                  Match;
+		std::optional<bool>                          On;
+
+		auto operator<=>(const prompt_override&) const = default;
+	};
+
+	/// \brief [[BPR-2179]]. One repository's change to one surface: the
+	/// placements it added and removed, and its own order once it reorders
+	/// (the coordinator's default: a repository may reorder). A placement
+	/// added app-wide afterwards goes to the end of a reordered surface.
+	struct prompt_repository_surface
+	{
+		prompt_surface                          Surface = prompt_surface::pull_request_menu;
+		std::vector<std::string>                Added;
+		std::vector<std::string>                Removed;
+		std::optional<std::vector<std::string>> Order;
+
+		auto operator<=>(const prompt_repository_surface&) const = default;
+	};
+
+	/// \brief [[BPR-2179]]. A repository's differences from the app-wide
+	/// prompts and surfaces, applied to its pull requests only.
+	struct prompt_repository_layer
+	{
+		/// `owner/name`, as the window names it.
+		std::string                  Repository;
+		std::vector<prompt_override> Overrides;
+		/// The repository's own prompts ("Only here").
+		std::vector<prompt_macro>              Own;
+		std::vector<prompt_repository_surface> Surfaces;
+
+		auto operator<=>(const prompt_repository_layer&) const = default;
+	};
+	/// \brief The most repositories a profile keeps a layer for.
+	inline constexpr std::size_t maximum_prompt_repositories = 64U;
+
 	/// \brief What a profile stores: only differences from the shipped set.
 	struct prompt_macro_differences
 	{
@@ -655,6 +812,10 @@ namespace bpr::core {
 		/// The reviewer's own macros, in full.
 		std::vector<prompt_macro>       Own;
 		std::vector<prompt_place_order> Orders;
+		/// [[BPR-2179]]. Each surface the reviewer changed.
+		std::vector<prompt_surface_change> Surfaces;
+		/// [[BPR-2179]]. Each repository's layer.
+		std::vector<prompt_repository_layer> Repositories;
 
 		auto operator<=>(const prompt_macro_differences&) const = default;
 	};
@@ -681,6 +842,12 @@ namespace bpr::core {
 		/// an own macro reusing an identity or flagged built-in, and own
 		/// macros past `maximum_prompt_macros`.
 		std::vector<std::string> Dropped;
+		/// [[BPR-2179]]. Where each prompt appears: the surfaces the fields
+		/// describe, with the stored surface changes applied.
+		prompt_surfaces Surfaces;
+		/// [[BPR-2179]]. The repositories' layers, applied by
+		/// `prompt_set_for_repository`.
+		std::vector<prompt_repository_layer> Repositories;
 
 		/// \brief The macros alone, in order, for `decide_prompt_offers`.
 		[[nodiscard]] auto macros() const -> std::vector<prompt_macro>;

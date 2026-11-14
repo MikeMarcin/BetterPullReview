@@ -2198,6 +2198,13 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_enable_warnings(test_prompt_macro_chips)
     bpr_add_network_isolated_test(NAME qt_prompt_macro_chips COMMAND test_prompt_macro_chips)
     set_tests_properties(qt_prompt_macro_chips PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "prompt-macro-chips:pass" TIMEOUT 60)
+    # [[BPR-2179]]. Settings › Prompts: Surfaces above the Prompt library.
+    bpr_add_executable(test_prompts_page prompts_page_tests.cpp)
+    target_link_libraries(test_prompts_page PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_prompts_page)
+    bpr_enable_warnings(test_prompts_page)
+    bpr_add_network_isolated_test(NAME qt_prompts_page COMMAND test_prompts_page)
+    set_tests_properties(qt_prompts_page PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "prompts-page:pass" TIMEOUT 60)
 endif()
 bpr_add_executable(test_review_tour_agent_setup_call review_tour_agent_setup_call_tests.cpp) # [[BPR-1881]]
 target_link_libraries(test_review_tour_agent_setup_call PRIVATE BetterPullReview::AdapterQt)

@@ -58,7 +58,7 @@
 #include "bpr/qt/home_status_line.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/progress_mark.hpp"
-#include "bpr/qt/prompt_macros_panel.hpp"
+#include "bpr/qt/prompts_page.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/resident_filter.hpp"
@@ -1607,13 +1607,15 @@ namespace bpr::qt {
 			-> github_conversation_panel*;
 		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
 		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
-		/// \brief RFC-BPR-0125 milestone 3 ([[BPR-2146]]). Settings' suggested
-		/// prompts, between the agents and Built-in prompts.
-		[[nodiscard]] auto prompt_macros() const noexcept -> prompt_macros_panel* { return PromptMacros; }
+		/// \brief [[BPR-2179]]. Settings › Prompts: Surfaces and the Prompt
+		/// library, the system prompts among them.
+		[[nodiscard]] auto prompts() const noexcept -> prompts_page* { return Prompts; }
 		/// \brief The profile's suggested prompts reach the Agent tab's chips,
 		/// the tour chats and Settings.
-		void present_prompt_macros(const application::prompt_macro_projection& aProjection);
-		/// \brief Edit Quick Asks…: Settings shows the suggested prompts.
+		/// [[BPR-2179]]: with `aRepository`'s layer applied to them, the
+		/// chips and menus being the open pull request's.
+		void present_prompt_macros(const application::prompt_macro_projection& aProjection, const std::string& aRepository = { });
+		/// \brief Edit Quick Asks…: Settings › Prompts, brought into view.
 		void reveal_prompt_macros();
 		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
 		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
@@ -3827,7 +3829,7 @@ namespace bpr::qt {
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
 		writing_hooks_panel*                               WritingHooks  = nullptr;
-		prompt_macros_panel*                               PromptMacros  = nullptr;
+		prompts_page*                                      Prompts       = nullptr;
 		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
 		agent_setup_view*                                  AgentSetup    = nullptr;
 		agent_programs_panel*                              AgentPrograms = nullptr;

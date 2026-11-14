@@ -15636,7 +15636,7 @@ namespace {
 		// Owner look v004 ("in an hour I wont remember which file line 34 was
 		// in"): the lines' prompt names their file.
 		expect(agent->suggestions()
-					   == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("Review src/engine/renderer.cpp"), QStringLiteral("What could this change break?"),
+					   == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("What could this change break?"), QStringLiteral("Review src/engine/renderer.cpp"),
 									   QStringLiteral("Explain the selected block (src/engine/renderer.cpp lines 440–447)") }
 				   && agent->suggestion_buttons().size() == 4U,
 			   "an open file and selected lines add their own suggestions; a selected block says so, naming its file and lines (owner look v005)");

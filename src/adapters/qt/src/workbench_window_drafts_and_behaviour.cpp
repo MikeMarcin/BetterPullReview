@@ -1408,9 +1408,9 @@ namespace bpr::qt {
 			if (SettingsWindow == nullptr) {
 				return;
 			}
-			SettingsWindow->present(settings_page::agents_and_context);
-			if (WritingHooks != nullptr) {
-				WritingHooks->select_hook(core::writing_hook::feedback);
+			SettingsWindow->present(settings_page::prompts);
+			if (Prompts != nullptr) {
+				Prompts->select_system(static_cast<int>(core::writing_hook::feedback));
 			}
 		});
 		auto* const countsInfo = new info_glyph{ QStringLiteral("Where the Overview's comment counts start. Open counts unresolved threads; All counts every one. Switching on an Overview changes only that view."), BehaviourEditor };

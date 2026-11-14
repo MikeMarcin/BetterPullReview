@@ -11,6 +11,7 @@
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/local_comment.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -735,7 +736,7 @@ namespace bpr::qt {
 		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
 		Suggestions->set_choose_dispatch([this](const QString& aKey, const bool aEditFirst) { choose_prompt(aKey, aEditFirst); });
 		// RFC-BPR-0125. The shipped set until the host gives the profile's.
-		PromptMacros = core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros();
+		PromptMacros = core::placed_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { }));
 		contentCol->addWidget(Suggestions);
 		// RFC-BPR-0116 ([[BPR-2073]]). Why What changed since my review is not
 		// offered when the earlier revision cannot be read, said where the
@@ -2561,6 +2562,13 @@ namespace bpr::qt {
 		const auto offers = core::decide_prompt_offers(PromptMacros, facts);
 		Offered           = offers.Chips;
 		Offered.insert(Offered.end(), offers.More.begin(), offers.More.end());
+		// [[BPR-2179]]. A prompt only on an Ask menu is no chip, but a press
+		// from the menu still sends it.
+		for (auto& offer : core::menu_prompt_offers(PromptMacros, facts)) {
+			if (std::ranges::find(Offered, offer.Id, &core::prompt_offer::Id) == Offered.end()) {
+				Offered.push_back(std::move(offer));
+			}
+		}
 		auto chips = std::vector<agent_suggestion>{ };
 		auto more  = std::vector<agent_suggestion>{ };
 		ReturningPrompts.clear();

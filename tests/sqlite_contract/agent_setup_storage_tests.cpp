@@ -435,23 +435,35 @@ try {
 		auto       macros = adapters::sqlite::make_prompt_macro_store(scratch.path());
 		const auto empty  = macros->load();
 		expect(empty && empty->Revision == 0U && empty->Differences == core::prompt_macro_differences{ } && empty->Newer.empty(), "no prompts stored: the shipped set, revision 0");
-		auto body              = core::prompt_macro_body{ .Name = "What could this change break?", .Template = "What could {pr.title} break?", .Subject = core::prompt_subject::pull_request };
-		body.QuickAsk          = false;
-		auto own               = core::prompt_macro{ .Id = "own.security", .Place = core::prompt_place::agent_tab, .Body = { .Name = "Security pass on {file.name}", .Template = "Check {file}", .Subject = core::prompt_subject::open_file } };
-		own.Body.Conditions    = { { .Fact = core::prompt_fact::path, .Patterns = { "src/**", "*.cpp" } }, { .Fact = core::prompt_fact::draft, .Negated = true } };
-		own.Body.QuickAsk      = true;
+		auto body           = core::prompt_macro_body{ .Name = "What could this change break?", .Template = "What could {pr.title} break?", .Subject = core::prompt_subject::pull_request };
+		body.QuickAsk       = false;
+		auto own            = core::prompt_macro{ .Id = "own.security", .Place = core::prompt_place::agent_tab, .Body = { .Name = "Security pass on {file.name}", .Template = "Check {file}", .Subject = core::prompt_subject::open_file } };
+		own.Body.Conditions = { { .Fact = core::prompt_fact::path, .Patterns = { "src/**", "*.cpp" } }, { .Fact = core::prompt_fact::draft, .Negated = true } };
+		own.Body.QuickAsk   = true;
+		// [[BPR-2179]]. Any of these, and a condition with what it counts.
+		own.Body.Match = core::prompt_match::any;
+		own.Body.Conditions.push_back({ .Fact = core::prompt_fact::thread_activity, .Activity = core::prompt_activity_value::replies });
 		own.Body.Scopes        = { .File = true, .PullRequest = true };
 		own.On                 = false;
 		const auto differences = core::prompt_macro_differences{
 			.Changes = { { .Id = "agent-tab.what-could-break", .Body = body, .WrittenAgainst = 1U }, { .Id = "agent-tab.review-pull-request", .On = false } },
 			.Own     = { own },
 			.Orders  = { { .Place = core::prompt_place::agent_tab, .Ids = { "own.security", "agent-tab.review-pull-request" } } },
+			// [[BPR-2179]]. Surfaces as changed: one emptied, one reordered.
+			.Surfaces = { { .Surface = core::prompt_surface::pull_request_chips, .Ids = { }, .Removed = { "agent-tab.review-pull-request", "agent-tab.what-could-break" } },
+						  { .Surface = core::prompt_surface::file_menu, .Ids = { "own.security", "agent-tab.explain-file" }, .Removed = { } } },
+			// [[BPR-2179]]. A repository's layer: an override, one of its own,
+			// a surface with an addition, a removal and its own order.
+			.Repositories = { { .Repository = "octo/render",
+								.Overrides  = { { .Id = "agent-tab.what-could-break", .Template = "What could break here?", .On = false } },
+								.Own        = { { .Id = "own.only-here", .Body = { .Name = "Only here", .Template = "Ask here" } } },
+								.Surfaces   = { { .Surface = core::prompt_surface::thread_menu, .Added = { "own.only-here" }, .Removed = { "conversation.summarize" }, .Order = std::vector<std::string>{ "own.only-here" } } } } },
 		};
 		expect(macros->store(differences, 0U) == application::prompt_macro_write::stored, "a write from the revision read is stored");
 		macros.reset();
 		macros          = adapters::sqlite::make_prompt_macro_store(scratch.path());
 		const auto read = macros->load();
-		expect(read && read->Revision == 1U && read->Differences == differences, "a restart reads the same prompts back, Quick ask and scopes included");
+		expect(read && read->Revision == 1U && read->Differences == differences, "a restart reads the same prompts back, Quick ask, scopes and surfaces included");
 		expect(macros->store({ }, 0U) == application::prompt_macro_write::stale && macros->load() == read, "a write from an older revision changes nothing");
 		auto withBadPattern                        = differences;
 		withBadPattern.Own.front().Body.Conditions = { { .Fact = core::prompt_fact::path, .Patterns = { "a\nb" } } };

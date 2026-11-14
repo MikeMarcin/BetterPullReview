@@ -5,15 +5,49 @@
 
 namespace bpr::core {
 	namespace {
+		[[nodiscard]] auto menu_surface(const prompt_surface aSurface) noexcept -> bool
+		{
+			return aSurface == prompt_surface::pull_request_menu || aSurface == prompt_surface::file_menu || aSurface == prompt_surface::thread_menu;
+		}
+
 		/// A review thread on a file: what Was this addressed? asks about.
 		[[nodiscard]] auto addressable(const quick_ask_thread& aThread) -> bool { return aThread.Review && !aThread.Path.empty(); }
+
+		/// [[BPR-2179]]. The facts the newer conditions read about a file.
+		void add_file_facts(prompt_facts& aFacts, const quick_ask_facts& aFrom, const std::string& aPath)
+		{
+			aFacts.FileUnresolvedThreads = std::ranges::any_of(aFrom.Threads, [&aPath](const quick_ask_thread& aThread) { return aThread.Path == aPath && aThread.Review && aThread.Resolved == false; });
+			aFacts.FileUnreviewed.reset();
+			if (aFrom.ReviewedFiles) {
+				aFacts.FileUnreviewed = std::ranges::find(*aFrom.ReviewedFiles, aPath) == aFrom.ReviewedFiles->end();
+			}
+		}
+
+		/// [[BPR-2179]]. The facts the pull request's newer conditions read.
+		[[nodiscard]] auto with_review_facts(prompt_facts aFacts, const quick_ask_facts& aFrom) -> prompt_facts
+		{
+			if (!aFacts.PushesSinceReview) {
+				aFacts.PushesSinceReview = aFrom.Reviewed && aFrom.CommitsSinceReview > 0U;
+			}
+			return aFacts;
+		}
 
 		/// The facts a thread's own question is decided against.
 		[[nodiscard]] auto thread_facts(const quick_ask_facts& aFacts, const quick_ask_thread& aThread) -> prompt_facts
 		{
-			auto facts         = aFacts.Base;
+			auto facts         = with_review_facts(aFacts.Base, aFacts);
 			facts.Place        = prompt_place::conversation;
 			facts.TakesReplies = aThread.TakesReplies;
+			facts.ThreadUnresolved.reset();
+			if (aThread.Resolved) {
+				facts.ThreadUnresolved = !*aThread.Resolved;
+			}
+			facts.ThreadReplies    = aThread.Replied;
+			facts.ThreadPushes     = aThread.Changed;
+			facts.RepliesSinceMine = aThread.RepliesSinceMine;
+			if (!aThread.Path.empty()) {
+				add_file_facts(facts, aFacts, aThread.Path);
+			}
 			facts.ConversationFile.reset();
 			if (!aThread.Path.empty()) {
 				facts.ConversationFile = aThread.Path;
@@ -25,10 +59,11 @@ namespace bpr::core {
 		/// The facts a file's own question is decided against.
 		[[nodiscard]] auto file_facts(const quick_ask_facts& aFacts, const std::string& aPath) -> prompt_facts
 		{
-			auto facts     = aFacts.Base;
+			auto facts     = with_review_facts(aFacts.Base, aFacts);
 			facts.Place    = prompt_place::agent_tab;
 			facts.OpenFile = aPath;
 			facts.Lines.reset();
+			add_file_facts(facts, aFacts, aPath);
 			return facts;
 		}
 
@@ -36,11 +71,12 @@ namespace bpr::core {
 		/// open file stays, as the Agent tab's chips read it.
 		[[nodiscard]] auto pull_request_facts(const quick_ask_facts& aFacts) -> prompt_facts
 		{
-			auto facts  = aFacts.Base;
+			auto facts  = with_review_facts(aFacts.Base, aFacts);
 			facts.Place = prompt_place::agent_tab;
 			facts.OpenFile.reset();
 			if (aFacts.File) {
 				facts.OpenFile = aFacts.File;
+				add_file_facts(facts, aFacts, *aFacts.File);
 			}
 			facts.Lines.reset();
 			return facts;
@@ -178,6 +214,15 @@ namespace bpr::core {
 				}
 				auto evaluation = evaluate_prompt_macro(aMacro, facts);
 				if (!evaluation.Offer) {
+					// RFC-BPR-0128 Q1: an untrue condition of the greys kind
+					// lists the row greyed, with that condition's reason.
+					if (evaluation.Unmet == prompt_unmet::condition) {
+						if (const auto decided = decide_prompt_conditions(aMacro.Body, facts); !decided.Hides) {
+							aRow.Label     = each_label(aMacro, facts, "");
+							aRow.Condition = aMacro.Body.Conditions.at(decided.Reason);
+							return greyed(std::move(aRow), quick_ask_reason::condition);
+						}
+					}
 					aWithheld = { .Id = aMacro.Id, .Unmet = evaluation.Unmet, .Condition = evaluation.Condition };
 					return std::nullopt;
 				}
@@ -270,6 +315,7 @@ namespace bpr::core {
 		case quick_ask_reason::thread_commit_unknown:    return "thread-commit-unknown";
 		case quick_ask_reason::no_threads_match:         return "no-threads-match";
 		case quick_ask_reason::no_files_match:           return "no-files-match";
+		case quick_ask_reason::condition:                return "condition";
 		}
 		return "unknown";
 	}
@@ -284,7 +330,8 @@ namespace bpr::core {
 			auto actions = std::vector<quick_ask_row>{ };
 			auto others  = std::vector<quick_ask_row>{ };
 			for (const auto& macro : aOrdered) {
-				if (!macro.Body.QuickAsk || !macro.Body.Scopes.has(scope) || !prompt_scope_allowed(macro.Place, macro.Body.Subject, scope)) {
+				if (!macro.Body.QuickAsk || !macro.Body.Scopes.has(scope) || !prompt_scope_allowed(macro.Place, macro.Body.Subject, scope)
+					|| (macro.Surface && !menu_surface(*macro.Surface))) {
 					continue;
 				}
 				if (!macro.On) {
@@ -319,7 +366,9 @@ namespace bpr::core {
 				if (decided->Enabled && aFacts.Agent != quick_ask_agent::ready) {
 					decided->Waits = aFacts.Agent == quick_ask_agent::busy ? quick_ask_reason::agent_busy : quick_ask_reason::agent_not_set_up;
 				}
-				(macro.Action != prompt_action::none ? actions : others).push_back(std::move(*decided));
+				// [[BPR-2179]]. A placed copy keeps its surface's order; the
+				// library's own fields put the action rows first.
+				(macro.Action != prompt_action::none && !macro.Surface ? actions : others).push_back(std::move(*decided));
 			}
 			if (actions.empty() && others.empty()) {
 				continue;

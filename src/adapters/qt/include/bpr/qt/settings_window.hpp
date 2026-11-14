@@ -45,10 +45,12 @@ namespace bpr::qt {
 		appearance,
 		notifications,
 		agents_and_context,
+		/// [[BPR-2179]]. Surfaces and the Prompt library, apart from the agents.
+		prompts,
 		storage_and_privacy,
 	};
 
-	inline constexpr std::size_t settings_page_count = 10U;
+	inline constexpr std::size_t settings_page_count = 11U;
 
 	/// \brief [[BPR-1289]]. What a Settings search result holds besides the
 	/// name it shows (`Qt::DisplayRole`).

@@ -76,7 +76,8 @@ add_library(
         src/explain_file_card.cpp
         src/ask_menu.cpp
         src/agent_report_view.cpp
-        src/prompt_macros_panel.cpp
+        src/prompt_words.cpp
+        src/prompts_page.cpp
         src/agent_run_settings_picker.cpp
         src/agent_footer.cpp
         src/agent_feature.cpp
