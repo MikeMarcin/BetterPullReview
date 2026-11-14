@@ -850,19 +850,10 @@ namespace bpr::qt {
 		addAction(FinishReviewAction);
 		connect(FinishReviewAction, &QAction::triggered, this, [this] { open_review_composition(false); });
 		ReviewBar->addAction(ComposeReviewAction);
-		ReviewBar->addAction(CommentAction);
-		// [[BPR-1133]]. Comment's arrow opens its menu, which names what
-		// Comment would start: "Comment on line 431…" or "Reply to tbutler's
-		// thread…". It offers that plain comment alone. Labels are chosen in
-		// the editor's chip, never here (owner, BPR-1083 comment-menu-v001).
-		CommentMenu = new QMenu{ this };
-		CommentMenu->setObjectName(QStringLiteral("commentMenu"));
-		CommentMenu->addAction(CommentAction);
-		connect(CommentMenu, &QMenu::aboutToShow, this, [this] { update_comment_target(); });
-		if (auto* const commentButton = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CommentAction)); commentButton != nullptr) {
-			commentButton->setMenu(CommentMenu);
-			commentButton->setPopupMode(QToolButton::MenuButtonPopup);
-		}
+		// [[BPR-2176]] (owner, 2026-11-14). Comment has no button of its own:
+		// Option-C, Return in the code, the gutter's + and Reply say it
+		// better. The Pull Request menu names what it would start.
+		connect(PullRequestMenu, &QMenu::aboutToShow, this, [this] { update_comment_target(); });
 		PullRequestMenu->addSeparator();
 		PullRequestMenu->addAction(ComposeReviewAction);
 		PullRequestMenu->addAction(CommentAction);

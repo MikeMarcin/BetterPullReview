@@ -1751,16 +1751,14 @@ namespace bpr::qt {
 		NextCommentButton->setParent(CommentsTools);
 		commentsToolsRow->addWidget(PreviousCommentButton);
 		commentsToolsRow->addWidget(NextCommentButton);
-		// [[BPR-1593]]. The Tour tab's tools: Add stop, and Expand to the
-		// tour page.
+		// [[BPR-1593]]. The Tour tab's tools: Expand to the tour page.
+		// [[BPR-2176]]: Add stop left; Option-Shift-T, the Pull Request menu
+		// and the code menu add a stop.
 		TourTools = new QWidget{ CommentsTools->parentWidget() };
 		TourTools->setObjectName(QStringLiteral("workbenchTourTools"));
 		auto* const tourToolsRow = new QHBoxLayout{ TourTools };
 		tourToolsRow->setContentsMargins(0, 0, 0, 0);
 		tourToolsRow->setSpacing(1);
-		auto* const addStop = make_drawer_tool(TourTools, conversation_icon(conversation_glyph::comment, palette()), tr("Add a stop on the selected lines"), QStringLiteral("workbenchAddTourStopTool"));
-		connect(addStop, &QToolButton::clicked, this, [this] { TourEditor->trigger(tour_editor_action::add_stop); });
-		tourToolsRow->addWidget(addStop);
 		auto* const expandTour = make_drawer_tool(TourTools, conversation_icon(conversation_glyph::maximize, palette()), tr("Expand to the tour page"), QStringLiteral("workbenchExpandTourTool"));
 		connect(expandTour, &QToolButton::clicked, this, [this] { open_tour_page(false); });
 		tourToolsRow->addWidget(expandTour);

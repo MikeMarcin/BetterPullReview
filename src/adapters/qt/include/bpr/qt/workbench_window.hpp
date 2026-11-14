@@ -1241,9 +1241,6 @@ namespace bpr::qt {
 		/// and tooltip name that target ("Comment on line 431…", "Reply to
 		/// tbutler's thread…").
 		[[nodiscard]] auto comment_action() const noexcept -> QAction*;
-		/// \brief [[BPR-1133]]. Comment's arrow menu: the target-named command,
-		/// where RFC-BPR-0048's labels will be offered.
-		[[nodiscard]] auto comment_menu() const noexcept -> QMenu*;
 		/// \brief [[BPR-1132]]. Shows the window's document tabs, as the host
 		/// published them, in the comparison's header.
 		void publish(const application::document_tabs_projection& aProjection);
@@ -2950,7 +2947,6 @@ namespace bpr::qt {
 		QPointer<destructive_question>                                  DiscardReplyConfirmation;
 		void                                                            act_on_kept_reply(card_action aAction, const std::string& aIdentity);
 		/// [[BPR-1133]]. Comment's arrow menu.
-		QMenu* CommentMenu = nullptr;
 		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,
 		/// the tabs the host last published, the tab keys and the older-pair
 		/// notice.

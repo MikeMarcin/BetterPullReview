@@ -1284,11 +1284,6 @@ namespace bpr::qt {
 		return CommentAction;
 	}
 
-	auto workbench_window::comment_menu() const noexcept -> QMenu*
-	{
-		return CommentMenu;
-	}
-
 	void workbench_window::publish(const application::document_tabs_projection& aProjection)
 	{
 		TabsProjection = aProjection;

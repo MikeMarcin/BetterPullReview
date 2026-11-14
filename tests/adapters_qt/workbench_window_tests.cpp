@@ -973,7 +973,7 @@ namespace {
 		});
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
-			return ordered.size() == 19
+			return ordered.size() == 18
 				&& named(ordered, 0, "reviewBarInsetAction")
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
@@ -996,8 +996,8 @@ namespace {
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
 				// Compose review, shown only while a review is in progress.
 				&& ordered[16] == window.review_chip_action()
-				&& ordered[17] == window.compose_review_action()
-				&& ordered[18] == window.comment_action();
+				// [[BPR-2176]]: Compose review is last; Comment has no button.
+				&& ordered[17] == window.compose_review_action();
 		};
 		const auto reviewRow   = matchesReviewOrder(barActions);
 		auto       labelsAfter = barActions;
@@ -1079,7 +1079,6 @@ namespace {
 			std::pair{ navigation[3], bar },
 			std::pair{ conversations, toolbar },
 			std::pair{ window.compose_review_action(), bar },
-			std::pair{ window.comment_action(), bar },
 		};
 		for (const auto& [action, row] : required) {
 			auto* const button = qobject_cast<QToolButton*>(row->widgetForAction(action));
@@ -1120,12 +1119,11 @@ namespace {
 			   "the modality sits at the title row's right, beside refresh and the comments toggle");
 		auto* const barSpacer = bar->findChild<QWidget*>(QStringLiteral("reviewBarSpacer"));
 		auto* const compose   = bar->widgetForAction(window.compose_review_action());
-		auto* const comment   = bar->widgetForAction(window.comment_action());
 		expect(barSpacer != nullptr && barSpacer->width() > 0
 				   && barSpacer->x() > window.review_controls_button()->x()
-				   && compose->x() > barSpacer->x() && comment->x() > compose->x()
-				   && comment->geometry().right() > bar->width() - 12,
-			   "Compose review and Comment sit at the review bar's right, after its spacer");
+				   && compose->x() > barSpacer->x()
+				   && compose->geometry().right() > bar->width() - 12,
+			   "Compose review sits at the review bar's right, after its spacer");
 
 		auto* const reviewButton = window.review_controls_button();
 		auto* const reviewMenu   = window.review_controls_menu();
@@ -1148,7 +1146,6 @@ namespace {
 			window.review_details_toggle_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
 			reviewButton->icon().pixmap(QSize{ 24, 24 }).toImage(),
 			window.compose_review_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
-			window.comment_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
 		};
 		for (std::size_t first = 0U; first < secondaryIcons.size(); ++first) {
 			for (std::size_t second = first + 1U; second < secondaryIcons.size(); ++second) {
@@ -6631,7 +6628,7 @@ namespace {
 				  .Path        = "src/file.cpp" } },
 			QStringLiteral("two conversations"));
 		// Before any comparison there is no line, and no thread chosen.
-		emit window.comment_menu()->aboutToShow();
+		emit window.pull_request_menu()->aboutToShow();
 		expect(!window.comment_action()->isEnabled()
 				   && window.comment_action()->text().contains(QStringLiteral("Select a current-head"))
 				   && window.comment_action()->toolTip().contains(QStringLiteral("Select a current-head")),
@@ -6641,13 +6638,11 @@ namespace {
 		process_events();
 
 		auto* const comment = window.comment_action();
-		auto* const menu    = window.comment_menu();
-		auto* const button  = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(comment));
 		auto* const stack   = window.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
 		auto* const page    = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
-		expect(button != nullptr && button->popupMode() == QToolButton::MenuButtonPopup && button->menu() == menu
-				   && menu != nullptr && menu->actions() == QList<QAction*>{ comment } && stack != nullptr && page != nullptr,
-			   "Comment's arrow opens a menu that offers the plain comment alone, and no label");
+		// [[BPR-2176]]: Comment has no button; it is the window's command.
+		expect(window.review_bar()->widgetForAction(comment) == nullptr && stack != nullptr && page != nullptr,
+			   "Comment is the window's command, with no button of its own");
 		const auto usable = [&] {
 			return comment->isEnabled() && window.review_editor()->shown_draft()
 				&& window.review_editor()->publish_action()->isEnabled();
@@ -6666,8 +6661,9 @@ namespace {
 		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 12U), "select the current-head side of the first change");
 		admit(window.comparison_surface()->selection());
 		expect(usable(), "the host's exact editable draft makes Comment available");
-		const auto key       = comment->shortcut().toString(QKeySequence::NativeText);
-		const auto showsMenu = [menu] { emit menu->aboutToShow(); };
+		const auto key = comment->shortcut().toString(QKeySequence::NativeText);
+		// [[BPR-2176]]: the Pull Request menu names Comment's target now.
+		const auto showsMenu = [&window] { emit window.pull_request_menu()->aboutToShow(); };
 		const auto back      = [&window] {
 			QKeyEvent press{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
 			QApplication::sendEvent(window.focusWidget() != nullptr ? window.focusWidget() : &window, &press);
@@ -6746,17 +6742,6 @@ namespace {
 		expect(window.conversation_panel()->cards()->isVisible() && !window.conversation_panel()->cards()->feed() && card != cards.end(),
 			   "both threads' cards sit beside the code");
 		save_render(window, QStringLiteral("comment-reply-cards"));
-		menu->popup(button->mapToGlobal(QPoint{ 0, button->height() }));
-		process_events();
-		const auto menuRender = menu->grab();
-		expect(!menuRender.isNull() && menu->isVisible(), "Comment's menu opens from its arrow");
-		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
-			const QFileInfo file{ path };
-			expect(menuRender.save(QStringLiteral("%1/%2-comment-menu.png").arg(file.path(), file.completeBaseName()), "PNG"),
-				   "the menu render is saved for inspection");
-		}
-		menu->hide();
-		process_events();
 		// [[BPR-1290]]. The thread opens in place; its Reply is written there.
 		auto* const notes = window.conversation_panel()->cards();
 		notes->open_thread("review-thread:t22");
@@ -8048,7 +8033,6 @@ namespace {
 			window.review_view_picker()->segment(qt::review_view::one_pane),
 			barStop(window.header_source_action()),
 			barStop(window.compose_review_action()),
-			barStop(window.comment_action()),
 		};
 		const auto barFirst = expanded.indexOf(barOrder.front());
 		expect(barFirst > expanded.indexOf(window.primary_toolbar()->widgetForAction(window.settings_action()))
@@ -8654,7 +8638,7 @@ namespace {
 			process_events();
 			expect(QApplication::focusWidget() == editor && menuOptionKeys() == 0 && compose->shortcut().isEmpty(),
 				   "while a text widget has the keyboard the native menu bar carries no Option+character key");
-			QMetaObject::invokeMethod(window.findChild<QMenu*>(QStringLiteral("commentMenu")), "aboutToShow");
+			QMetaObject::invokeMethod(window.pull_request_menu(), "aboutToShow");
 			expect(window.findChild<QAction*>(QStringLiteral("composeInlineDraftAction"))->toolTip().contains(QStringLiteral("(⌥C)")),
 				   "a tooltip refreshed while typing still names the lifted key");
 			for (const auto& entry : bindings) {
@@ -10562,7 +10546,7 @@ namespace {
 		process_events();
 		expect(button->isVisible() && button->toolButtonStyle() == Qt::ToolButtonIconOnly && lead()
 				   && button->accessibleName() == QStringLiteral("Compose review: approve or comment") && !folded()
-				   && bar->widgetForAction(window.comment_action())->geometry().right() <= bar->width(),
+				   && button->geometry().right() <= bar->width(),
 			   "at the window's floor the words yield to the icon, its name and edge stay, and nothing folds away");
 		const auto floor = window.minimumWidth();
 		// From wide to the floor the words shorten to "Approve…" and then go,
@@ -10584,7 +10568,7 @@ namespace {
 				process_events();
 				const auto now = form();
 				steady         = steady && now <= 2 && now >= last && !folded() && button->isVisible()
-					&& bar->widgetForAction(window.comment_action())->geometry().right() <= bar->width();
+					&& button->geometry().right() <= bar->width();
 				if (now <= 2) {
 					seen.at(static_cast<std::size_t>(now)) = true;
 				}
@@ -14049,6 +14033,41 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-2176]] (owner, 2026-11-14: "both of this speech bubble
+	/// boxes for add comment and add tour stop are both useless duplicate
+	/// ways"). The review bar has no Comment button and the Tour tab's header
+	/// no Add stop tool; Option-C comments and Option-Shift-T adds a stop, as
+	/// the window's own commands, and the Pull Request menu keeps both.
+	void test_the_duplicate_comment_and_add_stop_buttons_are_gone()
+	{
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const bar = window.findChild<QToolBar*>(QStringLiteral("workbenchReviewBar"));
+		expect(bar != nullptr && !bar->actions().contains(window.comment_action()) && bar->widgetForAction(window.comment_action()) == nullptr,
+			   "the review bar has no Comment button");
+		expect(window.findChild<QMenu*>(QStringLiteral("commentMenu")) == nullptr, "nor the menu that only repeated it");
+		auto* const comment = window.comment_action();
+		expect(comment != nullptr && window.actions().contains(comment) && comment->shortcut() == QKeySequence{ QStringLiteral("Alt+C") } && comment->shortcutContext() == Qt::WindowShortcut
+				   && window.pull_request_menu()->actions().contains(comment),
+			   "Option-C is still the window's Comment, and the Pull Request menu keeps it");
+		auto* const stop = window.add_tour_stop_action();
+		expect(stop != nullptr && window.actions().contains(stop) && stop->shortcut() == QKeySequence{ QStringLiteral("Alt+Shift+T") } && window.pull_request_menu()->actions().contains(stop),
+			   "Option-Shift-T is still the window's Add tour stop, in the Pull Request menu");
+		window.open_review_tour();
+		process_events();
+		auto* const tools = window.findChild<QWidget*>(QStringLiteral("workbenchTourTools"));
+		expect(tools != nullptr && window.findChild<QToolButton*>(QStringLiteral("workbenchAddTourStopTool")) == nullptr
+				   && tools->findChild<QToolButton*>(QStringLiteral("workbenchExpandTourTool")) != nullptr,
+			   "the Tour tab's header has Expand and no Add stop");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1593]]. RFC-BPR-0085 D4 and AC06: the Tour tab is the
 	/// route, the brief one card, the current stop written in place on it;
 	/// Expand opens the tour page in the main pane with no drawers, its
@@ -14089,7 +14108,7 @@ namespace {
 		expect(editor->stop_view().Mode == core::tour_stop_view_mode::read && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()) && outline->itemWidget(outline->item(1)) != nullptr,
 			   "the current stop opens in place on the route");
 		expect(!editor->findChild<QTabWidget*>(QStringLiteral("tourRoadmap"))->isVisible() && tools != nullptr && tools->isVisible(),
-			   "the route shows no section tabs, and the tab row has Add stop and Expand");
+			   "the route shows no section tabs, and the tab row has Expand ([[BPR-2176]]: no Add stop)");
 		editor->show_problem();
 		process_events();
 		expect(editor->problem_editor()->isVisible() && editor->brief_open() == 0, "the brief opens in place to its field");
@@ -25437,6 +25456,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
 	runCase("test_threads_opens_a_thread_in_discuss", &test_threads_opens_a_thread_in_discuss);
 	runCase("test_a_large_file_leaves_the_widget_count_bounded", &test_a_large_file_leaves_the_widget_count_bounded);
+	runCase("test_the_duplicate_comment_and_add_stop_buttons_are_gone", &test_the_duplicate_comment_and_add_stop_buttons_are_gone);
 	if (!listCases) {
 		std::cout << "workbench-window-tests:pass\n";
 	}
