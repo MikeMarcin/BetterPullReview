@@ -1,6 +1,6 @@
 # Discuss on a busy pull request
 
-The owner's chosen design for [BPR-2171](../../issues/30-in-progress/BPR-2171-discuss-reads-cleanly-on-a-busy-pull-request.md),
+The owner's chosen design for [BPR-2171](../../issues/60-done/BPR-2171-discuss-reads-cleanly-on-a-busy-pull-request.md),
 2026-11-13: option **B** of [index.html](index.html), with the decisions
 below. The page holds the findings (with code citations), today's state and
 options A, B and C. `png/` holds headless renders of the HTML frames in

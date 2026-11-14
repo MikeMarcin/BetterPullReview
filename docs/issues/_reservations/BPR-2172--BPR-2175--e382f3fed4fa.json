@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2172",
+    "BPR-2173",
+    "BPR-2174",
+    "BPR-2175"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Owner asides from RFC-BPR-0127 look v007 (session efe2da80): agent draft warning, comment drawer scroll, draft reply, compose review dismissal",
+  "created": "2026-11-14T01:51:52.466336+00:00",
+  "base": "456a70efe217d4fa395fd714581cf5ed6c99c4c7"
+}

@@ -149,7 +149,7 @@ Hosts 98149/98159, 42869/42879 and 82478/82486 were stopped with the attended-re
 
 ## Rework round 6 (2026-11-13): one state control
 
-The owner's direction is an [amendment on the RFC](../rfcs/RFC-BPR-0127-comments-absorb-notes.md#owner-amendment-one-state-control-looks-v003-to-v005-2026-11-13); the four fixes, their causes and evidence are on [[BPR-2162]] ([rework round 6](../issues/30-in-progress/BPR-2162-close-rfc-0127.md#rework-round-6-2026-11-13-one-state-control)). Integration pass at `8b16fbefb`: 37 suites and courses, all passing; the documentation gate is OK.
+The owner's direction is an [amendment on the RFC](../rfcs/RFC-BPR-0127-comments-absorb-notes.md#owner-amendment-one-state-control-looks-v003-to-v005-2026-11-13); the four fixes, their causes and evidence are on [[BPR-2162]] ([rework round 6](../issues/60-done/BPR-2162-close-rfc-0127.md#rework-round-6-2026-11-13-one-state-control)). Integration pass at `8b16fbefb`: 37 suites and courses, all passing; the documentation gate is OK.
 
 ## Owner look v006 filed (2026-11-13)
 
@@ -181,6 +181,29 @@ AC10 amended by the owner (Draft alone on the agent's surfaces) and BPR-2171's C
 
 Session `efe2da80b42f60b91e24da153dc8ea5b`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v007-2026-11-14/state` (URL in `serve.log` beside it), cursor 36, host PID 25283 (Tailscale child 25291). Frozen from `debf04a89a09`, three roots, each launcher check passed: `/Users/jaeger/comments-absorb-notes-v007.00rkixl7` (local comments look), `/Users/jaeger/comments-absorb-notes-agent-v007.md0c4l3i` (agent look), `/Users/jaeger/discuss-busy-pr-v003.yq18qmr0` (busy Discuss). One Accept/Reject each: `agent-draft-only` (new, AC10 as amended), `discuss-from-review-open-comment` (reworked), and v006's ten undecided asked again: `state-control-cards-replies`, `draft-refused-struck-pencil`, `finish-review-rows`, `threads-row-move`, `threads-state-filter`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`, `discuss-only-this-file-column`. Not waited on.
 
+## Owner verdicts, look v007 (session efe2da80b42f60b91e24da153dc8ea5b, handed back 2026-11-14T01:50:15Z)
+
+Verified in `session.json`, every decision by the human actor: all twelve **Accept**.
+
+| Candidate | Outcome | Saved | Note |
+|---|---|---|---|
+| `state-control-cards-replies` | **Accept** | 01:49:35Z | none |
+| `draft-refused-struck-pencil` | **Accept** | 01:40:05Z | “Aside: reproducible bug on comment drawer scrolling, going from image 2 and clicking the bottom comment gives image 1. (two screenshots)” |
+| `finish-review-rows` | **Accept** | 01:48:43Z | none |
+| `agent-draft-only` | **Accept** | 01:36:08Z | “Can we make this warning take less space, maybe it's just a warning sign on the row above and expands a disclosure on click or something? (one screenshot)” |
+| `threads-row-move` | **Accept** | 01:50:06Z | none |
+| `threads-state-filter` | **Accept** | 01:50:13Z | none |
+| `overview-local-chip` | **Accept** | 01:49:09Z | none |
+| `overview-no-note-column` | **Accept** | 01:49:24Z | none |
+| `my-review-by-state` | **Accept** | 01:48:56Z | none |
+| `finish-review-local-line` | **Accept** | 01:48:12Z | “Aside: i'm really confused at what i'm looking at here, why is this draft reply minimized like that? It also desn't seem to respect normal undo/redo rules. Draft reply seems very funky. / I feel like clicking off compose review into the diff or drawers or review bar or using the mode tabs should hide it. It feels more in the way than helpful staying open when i'm trying to navigate the app. (one screenshot)” |
+| `discuss-from-review-open-comment` | **Accept** | 01:36:37Z | none |
+| `discuss-only-this-file-column` | **Accept** | 01:37:14Z | none |
+
+The asides are follow-up cards, allocated on main: [[BPR-2172]] (the composer's placement warning takes less space), [[BPR-2173]] (drawer scroll after opening the bottom comment; the screenshots are in [RFC-BPR-0127-v007-asides](RFC-BPR-0127-v007-asides/)), [[BPR-2174]] (my draft reply in a thread, and its undo), [[BPR-2175]] (Compose review hides when navigating).
+
+Host 25283 (Tailscale 25291) stopped with the attended-review `stop`. The three roots were removed with `freeze_attended_build.py remove`. One fault: `comments-absorb-notes-v007.00rkixl7` was removed while an app the owner had launched from it after the hand-back (PID 56196) was still running. The process check ran in the same command as the removal and did not stop it. The process was left alone.
+
 ## Closeout state
 
-Every criterion has direct engineering evidence ([[BPR-2162]] checklist). RFC-BPR-0127 is **not closed**. Looks v003 to v005 were answered with three rejects, reworked in round 6. Look v006 was answered with two rejects, reworked in round 7. Its closeout waits on look v007 (`efe2da80…`).
+Every criterion has direct engineering evidence and every owner look is accepted (looks 12534e15, v003 to v007). **RFC-BPR-0127 is closed** (Auto-Verified, 2026-11-14) by [[BPR-2162]].

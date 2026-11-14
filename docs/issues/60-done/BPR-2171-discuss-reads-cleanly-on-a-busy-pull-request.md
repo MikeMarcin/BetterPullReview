@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2171"
 title: "Discuss reads cleanly on a busy pull request"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0028", "RFC-BPR-0085"]
 depends_on: []
 priority: "P1"
@@ -90,3 +90,7 @@ Lane commit `98fae8076`. Cause: the modality strip shows its new choice before i
 ### Owner look v007 filed (2026-11-14)
 
 Session `efe2da80b42f60b91e24da153dc8ea5b`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v007-2026-11-14/state` (URL in `serve.log` beside it), cursor 36, host PID 25283 (Tailscale child 25291). Frozen from `debf04a89a09`, three roots, each launcher check passed: `/Users/jaeger/comments-absorb-notes-v007.00rkixl7` (local comments look), `/Users/jaeger/comments-absorb-notes-agent-v007.md0c4l3i` (agent look), `/Users/jaeger/discuss-busy-pr-v003.yq18qmr0` (busy Discuss). One Accept/Reject each: `agent-draft-only` (new, AC10 as amended), `discuss-from-review-open-comment` (reworked), and v006's ten undecided asked again: `state-control-cards-replies`, `draft-refused-struck-pencil`, `finish-review-rows`, `threads-row-move`, `threads-state-filter`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`, `discuss-only-this-file-column`. Not waited on.
+
+## Done (2026-11-14)
+
+Look v007 (session `efe2da80…`): `discuss-from-review-open-comment` **Accept** (01:36:37Z, no note) and `discuss-only-this-file-column` **Accept** (01:37:14Z, no note). With v001's ac1 to ac4 accepted, every item is accepted; AC6's renders were made in round one. Host 25283 stopped; root `discuss-busy-pr-v003.yq18qmr0` removed.
