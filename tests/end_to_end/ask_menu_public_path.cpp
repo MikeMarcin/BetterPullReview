@@ -436,6 +436,7 @@ auto main(int argc, char** argv) -> int
 			reopened.home_open_action()->trigger();
 			wait([&] { return reopened.what_changed_action()->isEnabled(); }, "the pull request opens again");
 			agent_ready(reopened);
+			wait([&] { return reopened.go_to_file_line(path, 12U, false) && reopened.active_document_path() == path; }, "the file and its line, as before");
 			auto* const tab2   = reopened.agent_tab();
 			const auto  chips2 = [tab2] {
 				auto texts = QStringList{ };
@@ -447,7 +448,9 @@ auto main(int argc, char** argv) -> int
 				return texts;
 			};
 			reopened.open_agent_question();
-			wait([&] { return chips2() == ordered; }, "the chip turned off and the new order survive a restart");
+			if (!e2e::wait_until_plain([&] { return chips2() == ordered; }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "the chip turned off and the new order survive a restart: " + chips2().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() };
+			}
 			// Restore built-ins… returns the shipped text, order and On, after
 			// its question, and keeps the reviewer's own prompt.
 			reopened.open_settings(qt::settings_page::agents_and_context);
