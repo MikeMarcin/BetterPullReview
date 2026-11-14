@@ -1,6 +1,6 @@
 # Compose review as the lightbox
 
-Mockups for [BPR-2175](../../issues/30-in-progress/BPR-2175-compose-review-hides-when-navigating.md),
+Mockups for [BPR-2175](../../issues/60-done/BPR-2175-compose-review-hides-when-navigating.md),
 2026-11-14. Not accepted; nothing is built from them until the owner accepts
 them.
 

@@ -1,6 +1,6 @@
 # Compose review in the lightbox, round 2
 
-Mockups for [BPR-2175](../../issues/30-in-progress/BPR-2175-compose-review-hides-when-navigating.md),
+Mockups for [BPR-2175](../../issues/60-done/BPR-2175-compose-review-hides-when-navigating.md),
 2026-11-14, after the owner rejected [round 1](../compose-review-lightbox-v1/README.md):
 "we changed way too much compared with the existing compose review … I would
 like the comment box and my action to be on the right or bottom". Not accepted;
