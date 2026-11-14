@@ -2944,7 +2944,7 @@ Accept, Save icon Reject; BPR-2172 mark and folds Reject, "show me in
 screenshots") and session `fd03fb4a…` (BPR-2175 option D, content Accept).
 Both hosts stopped; root `parallel-backlog-v001` removed with the freeze tool.
 BPR-2173's move to Done is mirrored on branch `claude/parallel-backlog-mirror-3`
-(`f7a891f8f`, a fast-forward of `main` at `2e6d54284`).
+(`ad81c132b`, a fast-forward of `main` at `06ef487ae`).
 
 Built: `5f943c306` (Save as the DocumentSave icon alone); `819bd6b87` and
 `7b9afcaa0` (BPR-2175 option D: the lightbox, two columns, comments in full up
