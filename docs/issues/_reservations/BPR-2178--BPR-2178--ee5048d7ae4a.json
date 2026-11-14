@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2178"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "claude wrapper: -p first, check without --version",
+  "created": "2026-11-14T04:39:59.489704+00:00",
+  "base": "dcbdd5466c29fd461e8ef6e3026553c200d45d6f"
+}
