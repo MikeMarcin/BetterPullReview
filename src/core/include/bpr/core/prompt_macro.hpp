@@ -69,6 +69,56 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto stable_name(prompt_ask aKind) noexcept -> std::string_view;
 
+	/// \brief RFC-BPR-0128. Where a quick ask is asked: about a thread, a
+	/// file or the pull request. Widest last.
+	enum class prompt_scope : std::uint8_t {
+		thread,
+		file,
+		pull_request,
+	};
+	inline constexpr std::size_t prompt_scope_count = 3U;
+	/// \brief `thread`, `file`, `pull-request`.
+	[[nodiscard]] auto stable_name(prompt_scope aScope) noexcept -> std::string_view;
+
+	/// \brief RFC-BPR-0128. The scopes a quick ask is on; each can be on.
+	struct prompt_scopes
+	{
+		bool Thread      = false;
+		bool File        = false;
+		bool PullRequest = false;
+
+		[[nodiscard]] auto has(prompt_scope aScope) const noexcept -> bool;
+		void               set(prompt_scope aScope, bool aOn) noexcept;
+		[[nodiscard]] auto any() const noexcept -> bool { return Thread || File || PullRequest; }
+
+		auto operator<=>(const prompt_scopes&) const = default;
+	};
+
+	/// \brief RFC-BPR-0128 (Q13). A built-in row that stands for one of the
+	/// host's agent actions. What it sends stays in Built-in prompts; the row
+	/// carries its name, Quick ask, scopes and On.
+	enum class prompt_action : std::uint8_t {
+		/// An ordinary macro: it sends its template.
+		none,
+		/// What changed since my review (RFC-BPR-0116).
+		what_changed,
+		/// Was this addressed? (RFC-BPR-0116, widened by RFC-BPR-0128).
+		was_addressed,
+		/// Explain this file (RFC-BPR-0117).
+		explain_file,
+	};
+	inline constexpr std::size_t prompt_action_count = 4U;
+	[[nodiscard]] auto           stable_name(prompt_action aAction) noexcept -> std::string_view;
+
+	/// \brief RFC-BPR-0128. The scope a subject is asked at itself: a
+	/// conversation is a thread, the open file a file, the pull request the
+	/// pull request. None for subjects no quick ask can have (lines, tour).
+	[[nodiscard]] auto subject_scope(prompt_subject aSubject) noexcept -> std::optional<prompt_scope>;
+	/// \brief RFC-BPR-0128. Whether a quick ask about `aSubject` in `aPlace`
+	/// may be on at `aScope`: the subject has a scope and `aScope` is not
+	/// narrower than it (a wider one asks once for each).
+	[[nodiscard]] auto prompt_scope_allowed(prompt_place aPlace, prompt_subject aSubject, prompt_scope aScope) noexcept -> bool;
+
 	/// \brief Whether `aPlace` offers `aSubject` as About.
 	[[nodiscard]] auto prompt_subject_allowed(prompt_place aPlace, prompt_subject aSubject) noexcept -> bool;
 	/// \brief Whether `aKind` may be asked about `aSubject` in `aPlace`.
@@ -149,6 +199,9 @@ namespace bpr::core {
 		prompt_subject                Subject    = prompt_subject::pull_request;
 		prompt_ask                    Kind       = prompt_ask::question;
 		std::vector<prompt_condition> Conditions = { };
+		/// RFC-BPR-0128. Listed in the Ask menus at `Scopes`.
+		bool          QuickAsk = false;
+		prompt_scopes Scopes   = { };
 
 		auto operator<=>(const prompt_macro_body&) const = default;
 	};
@@ -164,6 +217,9 @@ namespace bpr::core {
 		prompt_macro_body Body;
 		/// Off: kept, never offered.
 		bool On = true;
+		/// RFC-BPR-0128. A built-in action row; never one of the reviewer's
+		/// own. An action row is never an Agent tab chip.
+		prompt_action Action = prompt_action::none;
 
 		auto operator<=>(const prompt_macro&) const = default;
 	};
@@ -512,6 +568,14 @@ namespace bpr::core {
 		duplicate_name,
 		/// Advice. The text holds a well-known credential prefix.
 		credential_prefix,
+		/// Blocks. RFC-BPR-0128. Quick ask on an About no Ask menu asks
+		/// (selected lines, the tour), or in a tour chat.
+		quick_ask_not_for_subject,
+		/// Blocks. RFC-BPR-0128. Quick ask with no scope on.
+		quick_ask_without_scope,
+		/// Blocks. RFC-BPR-0128. A scope narrower than the About; `Detail`
+		/// is the scope's stable name.
+		scope_narrower_than_subject,
 	};
 	[[nodiscard]] auto stable_name(prompt_problem aProblem) noexcept -> std::string_view;
 	/// \brief Whether `aProblem` blocks Save.

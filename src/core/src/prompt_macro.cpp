@@ -471,6 +471,70 @@ namespace bpr::core {
 		return "unknown";
 	}
 
+	auto stable_name(const prompt_scope aScope) noexcept -> std::string_view
+	{
+		switch (aScope) {
+		case prompt_scope::thread:       return "thread";
+		case prompt_scope::file:         return "file";
+		case prompt_scope::pull_request: return "pull-request";
+		}
+		return "unknown";
+	}
+
+	auto prompt_scopes::has(const prompt_scope aScope) const noexcept -> bool
+	{
+		switch (aScope) {
+		case prompt_scope::thread:       return Thread;
+		case prompt_scope::file:         return File;
+		case prompt_scope::pull_request: return PullRequest;
+		}
+		return false;
+	}
+
+	void prompt_scopes::set(const prompt_scope aScope, const bool aOn) noexcept
+	{
+		switch (aScope) {
+		case prompt_scope::thread:       Thread = aOn; break;
+		case prompt_scope::file:         File = aOn; break;
+		case prompt_scope::pull_request: PullRequest = aOn; break;
+		}
+	}
+
+	auto stable_name(const prompt_action aAction) noexcept -> std::string_view
+	{
+		switch (aAction) {
+		case prompt_action::none:          return "none";
+		case prompt_action::what_changed:  return "what-changed";
+		case prompt_action::was_addressed: return "was-addressed";
+		case prompt_action::explain_file:  return "explain-file";
+		}
+		return "unknown";
+	}
+
+	auto subject_scope(const prompt_subject aSubject) noexcept -> std::optional<prompt_scope>
+	{
+		switch (aSubject) {
+		case prompt_subject::conversation:   return prompt_scope::thread;
+		case prompt_subject::open_file:      return prompt_scope::file;
+		case prompt_subject::pull_request:   return prompt_scope::pull_request;
+		case prompt_subject::selected_lines:
+		case prompt_subject::stop:
+		case prompt_subject::part:
+		case prompt_subject::selected_text:
+		case prompt_subject::tour:           return std::nullopt;
+		}
+		return std::nullopt;
+	}
+
+	auto prompt_scope_allowed(const prompt_place aPlace, const prompt_subject aSubject, const prompt_scope aScope) noexcept -> bool
+	{
+		if ((aPlace != prompt_place::agent_tab && aPlace != prompt_place::conversation) || !prompt_subject_allowed(aPlace, aSubject)) {
+			return false;
+		}
+		const auto own = subject_scope(aSubject);
+		return own && static_cast<std::uint8_t>(aScope) >= static_cast<std::uint8_t>(*own);
+	}
+
 	auto prompt_subject_allowed(const prompt_place aPlace, const prompt_subject aSubject) noexcept -> bool
 	{
 		switch (aPlace) {
@@ -832,7 +896,9 @@ namespace bpr::core {
 		}
 		for (const auto& macro : aOrdered) {
 			const auto takenAbove = macro.Body.Subject == prompt_subject::selected_text && selectionPlace == macro.Place;
-			if (macro.Place == aFacts.Place && !takenAbove) {
+			// RFC-BPR-0128. An action row is asked from the Ask menus; the
+			// Agent tab keeps its own returning suggestions.
+			if (macro.Place == aFacts.Place && !takenAbove && macro.Action == prompt_action::none) {
 				consider(macro, aFacts, false);
 			}
 		}
@@ -845,24 +911,27 @@ namespace bpr::core {
 	auto stable_name(const prompt_problem aProblem) noexcept -> std::string_view
 	{
 		switch (aProblem) {
-		case prompt_problem::no_name:               return "no-name";
-		case prompt_problem::name_too_long:         return "name-too-long";
-		case prompt_problem::name_not_one_line:     return "name-not-one-line";
-		case prompt_problem::no_template:           return "no-template";
-		case prompt_problem::template_too_long:     return "template-too-long";
-		case prompt_problem::unknown_variable:      return "unknown-variable";
-		case prompt_problem::other_place_variable:  return "other-place-variable";
-		case prompt_problem::subject_not_for_place: return "subject-not-for-place";
-		case prompt_problem::kind_not_for_subject:  return "kind-not-for-subject";
-		case prompt_problem::too_many_conditions:   return "too-many-conditions";
-		case prompt_problem::fact_not_for_place:    return "fact-not-for-place";
-		case prompt_problem::no_patterns:           return "no-patterns";
-		case prompt_problem::too_many_patterns:     return "too-many-patterns";
-		case prompt_problem::pattern_too_long:      return "pattern-too-long";
-		case prompt_problem::bad_pattern:           return "bad-pattern";
-		case prompt_problem::conditions_contradict: return "conditions-contradict";
-		case prompt_problem::duplicate_name:        return "duplicate-name";
-		case prompt_problem::credential_prefix:     return "credential-prefix";
+		case prompt_problem::no_name:                     return "no-name";
+		case prompt_problem::name_too_long:               return "name-too-long";
+		case prompt_problem::name_not_one_line:           return "name-not-one-line";
+		case prompt_problem::no_template:                 return "no-template";
+		case prompt_problem::template_too_long:           return "template-too-long";
+		case prompt_problem::unknown_variable:            return "unknown-variable";
+		case prompt_problem::other_place_variable:        return "other-place-variable";
+		case prompt_problem::subject_not_for_place:       return "subject-not-for-place";
+		case prompt_problem::kind_not_for_subject:        return "kind-not-for-subject";
+		case prompt_problem::too_many_conditions:         return "too-many-conditions";
+		case prompt_problem::fact_not_for_place:          return "fact-not-for-place";
+		case prompt_problem::no_patterns:                 return "no-patterns";
+		case prompt_problem::too_many_patterns:           return "too-many-patterns";
+		case prompt_problem::pattern_too_long:            return "pattern-too-long";
+		case prompt_problem::bad_pattern:                 return "bad-pattern";
+		case prompt_problem::conditions_contradict:       return "conditions-contradict";
+		case prompt_problem::duplicate_name:              return "duplicate-name";
+		case prompt_problem::credential_prefix:           return "credential-prefix";
+		case prompt_problem::quick_ask_not_for_subject:   return "quick-ask-not-for-subject";
+		case prompt_problem::quick_ask_without_scope:     return "quick-ask-without-scope";
+		case prompt_problem::scope_narrower_than_subject: return "scope-narrower-than-subject";
 		}
 		return "unknown";
 	}
@@ -904,6 +973,24 @@ namespace bpr::core {
 		}
 		for (auto index = std::size_t{ 0 }; index < body.Conditions.size(); ++index) {
 			validate_condition(problems, aMacro.Place, body.Conditions[index], index);
+		}
+		// RFC-BPR-0128. A quick ask is on at least one scope, none narrower
+		// than what it is about.
+		if (body.QuickAsk) {
+			const auto own = (aMacro.Place == prompt_place::agent_tab || aMacro.Place == prompt_place::conversation) ? subject_scope(body.Subject) : std::nullopt;
+			if (!own) {
+				problems.push_back(problem(prompt_problem::quick_ask_not_for_subject));
+			} else if (!body.Scopes.any()) {
+				problems.push_back(problem(prompt_problem::quick_ask_without_scope));
+			}
+		}
+		if (subject_scope(body.Subject)) {
+			for (const auto scope : { prompt_scope::thread, prompt_scope::file, prompt_scope::pull_request }) {
+				if (body.Scopes.has(scope) && !prompt_scope_allowed(aMacro.Place, body.Subject, scope) && prompt_subject_allowed(aMacro.Place, body.Subject)
+					&& (aMacro.Place == prompt_place::agent_tab || aMacro.Place == prompt_place::conversation)) {
+					problems.push_back({ .Problem = prompt_problem::scope_narrower_than_subject, .Detail = std::string{ stable_name(scope) } });
+				}
+			}
 		}
 		if (const auto index = contradiction(aMacro, implied_needs(aMacro, name, text))) {
 			problems.push_back({ .Problem = prompt_problem::conditions_contradict, .Condition = *index });
@@ -1025,7 +1112,7 @@ namespace bpr::core {
 			}
 		}
 		for (const auto& own : aStored.Own) {
-			if (own.BuiltIn || own.Id.empty() || known(own.Id) || entries.size() >= maximum_prompt_macros) {
+			if (own.BuiltIn || own.Id.empty() || own.Action != prompt_action::none || known(own.Id) || entries.size() >= maximum_prompt_macros) {
 				set.Dropped.push_back(own.Id);
 				continue;
 			}

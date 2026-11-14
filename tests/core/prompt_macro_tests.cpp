@@ -145,7 +145,9 @@ namespace {
 	void test_shipped_equals_today()
 	{
 		const auto set = shipped_set();
-		expect(set.size() == 22U, "22 built-ins");
+		// RFC-BPR-0128 added three action rows (What changed, Explain this file,
+		// Was this addressed?), which are never chips.
+		expect(set.size() == 25U, "25 built-ins");
 		expect(std::ranges::all_of(set, [](const prompt_macro& aMacro) { return aMacro.BuiltIn && aMacro.On && prompt_macro_valid(aMacro); }), "every built-in is on and valid");
 		const auto lineChoices = std::vector<std::optional<prompt_line_range>>{ std::nullopt, prompt_line_range{ 34U, 34U }, prompt_line_range{ 34U, 36U } };
 		for (const auto& file : { std::optional<std::string>{ }, std::optional<std::string>{ "src/render/renderer.cpp" }, std::optional<std::string>{ "README.md" } }) {
@@ -412,7 +414,7 @@ namespace {
 				agentTab.push_back(entry.Macro.Id);
 			}
 		}
-		expect(agentTab == std::vector<std::string>{ "own.1", "agent-tab.what-could-break", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.explain-line", "agent-tab.explain-block" },
+		expect(agentTab == std::vector<std::string>{ "own.1", "agent-tab.what-could-break", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.explain-line", "agent-tab.explain-block", "agent-tab.what-changed", "agent-tab.explain-file" },
 			   "the stored order, then the built-ins it does not name after the place's last built-in");
 		const auto entry = [&merged](const std::string_view aId) {
 			return *std::ranges::find_if(merged.Entries, [aId](const prompt_set_entry& aEntry) { return aEntry.Macro.Id == aId; });
@@ -434,7 +436,7 @@ namespace {
 				newPlace.push_back(item.Macro.Id);
 			}
 		}
-		expect(newPlace == std::vector<std::string>{ "agent-tab.explain-block", "own.1", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.what-could-break", "agent-tab.explain-line", "agent-tab.new" },
+		expect(newPlace == std::vector<std::string>{ "agent-tab.explain-block", "own.1", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.what-could-break", "agent-tab.explain-line", "agent-tab.new", "agent-tab.what-changed", "agent-tab.explain-file" },
 			   "a new built-in appears on, after its place's other built-ins");
 
 		// The profile bound.

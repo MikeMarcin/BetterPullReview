@@ -1866,3 +1866,11 @@ bpr_enable_hardening(test_local_comment)
 bpr_enable_warnings(test_local_comment)
 bpr_add_network_isolated_test(NAME core_local_comment COMMAND test_local_comment)
 set_tests_properties(core_local_comment PROPERTIES PASS_REGULAR_EXPRESSION "LOCAL_COMMENT_OK")
+# RFC-BPR-0128 ([[BPR-2163]]). Quick asks: Quick ask and scopes, their
+# legality, the built-in action rows, and each Ask menu's rows.
+bpr_add_executable(test_better_pull_review_quick_ask_core_tests quick_ask_tests.cpp)
+target_link_libraries(test_better_pull_review_quick_ask_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_quick_ask_core_tests)
+bpr_enable_warnings(test_better_pull_review_quick_ask_core_tests)
+bpr_add_network_isolated_test(NAME core_quick_ask COMMAND test_better_pull_review_quick_ask_core_tests)
+set_tests_properties(core_quick_ask PROPERTIES PASS_REGULAR_EXPRESSION "quick-ask-tests:pass")
