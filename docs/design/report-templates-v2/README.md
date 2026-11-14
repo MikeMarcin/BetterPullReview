@@ -123,4 +123,15 @@ Chrome's headless mode on a throwaway profile. Neither is a screen capture.
 
 ## Status
 
-Awaiting the owner's answers.
+Awaiting the owner's answers, asked on 2026-11-14 as two questions: how
+reports render (Qt rich text, or add Qt WebEngine), and whether the report tab
+keeps the slate palette (Accept or Reject).
+
+- Attended-review session `e663f2a4bdaf91e53744b636e9324611`, candidates
+  `report-render-engine` and `report-slate-palette` at revision
+  `0089f9d85340`.
+- External state directory
+  `~/.attended-review-state/report-templates-v002-2026-11-14/` (`state/` is
+  the session, `material/` a copy of both rounds' folders at that revision for
+  the owner to open).
+- Lifecycle when this was written: prepared and served, unanswered.
