@@ -43,6 +43,7 @@
 	#include "bpr/qt/agent_setup_view.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
+	#include "bpr/qt/side_chat_panel.hpp"
 	#include "bpr/qt/workshop_candidate_line.hpp"
 	#include "bpr/qt/writing_hooks_panel.hpp"
 	#include "github_application_fixture_access.hpp"
@@ -87,6 +88,7 @@
 #include <QMessageBox>
 #include <QPixmap>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSize>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -7899,18 +7901,50 @@ namespace {
 	}
 
 	#if defined(BPR_AGENT_INTEGRATIONS)
-	// [[BPR-2177]], look ask-v002 (owner, 2026-11-14: "Aren't we supposed to
-	// have a mack agent for testing now?"). `BPR_ATTENDED_FIXTURE_AGENT_CHECK=1`:
-	// once the file shows, the build proves a look gets the fixture agent's
-	// answer: the picker has the fixture agent, and the review bar's Ask >
-	// What could this change break?, pressed before the Agent tab was ever
-	// opened, is answered by it as a report with no setup step. A freeze's `--check` reads the line.
+	// [[BPR-2177]]. `BPR_ATTENDED_FIXTURE_AGENT_CHECK=1`: once the file shows,
+	// the build proves a look gets the fixture agent's answer to everything it
+	// offers. Look ask-v004 (owner, 2026-11-14: "still doesnt work") failed on
+	// What changed since my review, a tool-free run, while the check had asked
+	// only What could this change break?; so it asks everything, as a person
+	// would and before the Agent tab was ever opened: the line-6 chip set,
+	// What changed first (the look's path), then every quick ask the review
+	// bar, the file and a thread offer (more than five runs confirmed), a
+	// typed question with the line chip, a second one in the same
+	// conversation, and two asks queued at once. Every turn must be answered.
+	// `BPR_ATTENDED_FOOTER_SHOT=FILE` saves the window after What changed. A
+	// freeze's `--check` and `fixture_agent_every_ask` read the line.
 	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication)
 	{
+		using access = bpr::app::detail::github_application_fixture_access;
+		struct ask_step
+		{
+			QString Name;
+			/// Presses it; false while it is not offered yet.
+			std::function<bool()> Press;
+			/// Turns it must add at least.
+			std::size_t Turns = 1U;
+		};
+		struct check_state
+		{
+			std::vector<ask_step>       Steps;
+			std::size_t                 Next           = 0U;
+			bool                        Planned        = false;
+			bool                        Waiting        = false;
+			std::size_t                 TurnsBefore    = 0U;
+			std::uint64_t               LaunchesBefore = 0U;
+			int                         Calm           = 0;
+			automated_clock::time_point StepStarted;
+			automated_clock::time_point Tried;
+			QStringList                 Asked;
+			QStringList                 Skipped;
+			bool                        Report = false;
+			QString                     Footer;
+		};
 		auto* const timer   = new QTimer{ &aApplication.window() };
 		const auto  started = automated_clock::now();
+		auto        state   = std::make_shared<check_state>();
 		timer->setInterval(100);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, asked = false, turns = std::size_t{ 0 }, alive = aApplication.liveness()]() mutable {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, state, alive = aApplication.liveness()]() mutable {
 			if (alive.expired()) {
 				return;
 			}
@@ -7923,57 +7957,170 @@ namespace {
 				timer->stop();
 				timer->deleteLater();
 			};
-			const auto last = tab->turn_count() > 0U ? tab->turn_count() - 1U : 0U;
-			if (automated_clock::now() - started > std::chrono::seconds{ 60 }) {
+			const auto flat = [](QString aText) { return aText.left(240).replace(QLatin1Char('\n'), QLatin1Char(' ')); };
+			const auto step = state->Next < state->Steps.size() ? state->Steps[state->Next].Name : QStringLiteral("plan");
+			if (automated_clock::now() - started > std::chrono::seconds{ 300 } || (state->Waiting && automated_clock::now() - state->StepStarted > std::chrono::seconds{ 90 })) {
 				const auto* const setup = window.agent_setup();
-				const auto        step  = setup != nullptr ? QString::fromUtf8(bpr::core::stable_name(setup->projection().Step).data()) : QStringLiteral("none");
-				auto              rows  = std::string{ };
-				if (setup != nullptr) {
-					for (const auto& row : setup->projection().State.Rows) {
-						rows += std::string{ bpr::core::stable_name(row.Agent) } + "=" + row.Path + (row.Verdict.Permitted ? "+" : "-") + std::to_string(static_cast<int>(row.Verdict.Refusal)) + " ";
+				const auto        last  = tab->turn_count() > 0U ? tab->turn_count() - 1U : 0U;
+				finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:timeout:step=%1:setup=%2:picker=%3:turns=%4:queue=%5:answer=%6")
+						   .arg(step, setup != nullptr ? QString::fromUtf8(bpr::core::stable_name(setup->projection().Step).data()) : QStringLiteral("none"), picker->currentText())
+						   .arg(tab->turn_count())
+						   .arg(flat(tab->queue_note()->text()), tab->turn_count() > 0U ? flat(tab->turn_answer(last)) : QString{ }));
+				return;
+			}
+			const auto path = std::string{ "src/engine/renderer.cpp" };
+			if (!state->Planned) {
+				if (!picker->currentText().startsWith(QStringLiteral("Fixture agent")) || !window.go_to_file_line(QString::fromStdString(path), 6U, false)) {
+					return;
+				}
+				window.set_quick_ask_confirmation([](std::size_t, const QString&) { return true; });
+				const auto press_row = [&window](bpr::qt::ask_menu_button* aButton, const QString& aRow) {
+					return [&window, aButton, aRow]() {
+						static_cast<void>(window);
+						aButton->refresh_menu();
+						auto* const row = aButton->menu() != nullptr ? aButton->menu()->findChild<QAction*>(aRow) : nullptr;
+						if (row == nullptr || !row->isEnabled()) {
+							return false;
+						}
+						row->trigger();
+						return true;
+					};
+				};
+				const auto rows_of = [](const QMenu& aMenu) {
+					auto rows = std::vector<std::pair<QString, std::size_t>>{ };
+					for (auto* const action : aMenu.actions()) {
+						if (action->objectName().startsWith(QStringLiteral("quickAsk_")) && action->isEnabled()) {
+							// "6 threads": one run a thread.
+							const auto found = QRegularExpression{ QStringLiteral("(\\d+) threads?") }.match(action->text());
+							const auto count = found.hasMatch() ? found.captured(1).toUInt() : 0U;
+							const auto each  = action->objectName().contains(QStringLiteral("was-addressed")) && count > 0U ? static_cast<std::size_t>(count) : 1U;
+							rows.emplace_back(action->objectName(), each);
+						}
+					}
+					return rows;
+				};
+				auto* const review = window.review_ask_button();
+				auto* const file   = window.file_ask_button();
+				review->refresh_menu();
+				file->refresh_menu();
+				// The look's own path first.
+				const auto changed = QStringLiteral("quickAsk_agent-tab.what-changed_pull-request");
+				state->Steps.push_back({ .Name = QStringLiteral("review bar: What changed since my review"), .Press = press_row(review, changed) });
+				for (const auto& [row, each] : rows_of(*review->menu())) {
+					if (row != changed) {
+						state->Steps.push_back({ .Name = QStringLiteral("review bar: ") + row, .Press = press_row(review, row), .Turns = each });
 					}
 				}
-				const auto why = setup != nullptr ? QString::fromStdString(rows + "| " + setup->projection().CheckDetail + " / " + setup->projection().WorkspaceDetail).left(400).replace(QLatin1Char('\n'), QLatin1Char(' ')) : QString{ };
-				finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:timeout:asked=%1:setup=%2:step=%3:checks=%4/%5:detail=%6:picker=%7:answer=%8")
-						   .arg(asked ? 1 : 0)
-						   .arg(tab->setup_readiness() == bpr::qt::agent_setup_readiness::ready ? QStringLiteral("ready") : QStringLiteral("unfinished"))
-						   .arg(step)
-						   .arg(setup != nullptr ? static_cast<int>(setup->projection().State.AgentCheck.State) : -1)
-						   .arg(setup != nullptr ? static_cast<int>(setup->projection().State.WorkspaceCheck.State) : -1)
-						   .arg(why, picker->currentText(), tab->turn_count() > turns ? tab->turn_answer(last).left(160).replace(QLatin1Char('\n'), QLatin1Char(' ')) : QString{ }));
+				for (const auto& [row, each] : rows_of(*file->menu())) {
+					state->Steps.push_back({ .Name = QStringLiteral("file: ") + row, .Press = press_row(file, row), .Turns = each });
+				}
+				auto thread   = window.ask_request(bpr::core::quick_ask_anchor::thread);
+				thread.Thread = QStringLiteral("review-thread:PRRT_cc_2");
+				QMenu threadMenu;
+				window.fill_quick_ask(threadMenu, thread);
+				for (const auto& [row, each] : rows_of(threadMenu)) {
+					state->Steps.push_back({ .Name = QStringLiteral("thread: ") + row, .Press = [&window, thread, row]() {
+												QMenu menu;
+												window.fill_quick_ask(menu, thread);
+												auto* const action = menu.findChild<QAction*>(row);
+												if (action == nullptr || !action->isEnabled()) {
+													return false;
+												}
+												action->trigger();
+												return true;
+											} });
+				}
+				const auto typed = [&aApplication, &window, path](const QString& aText) {
+					return [&aApplication, &window, path, aText]() {
+						window.open_agent_question();
+						auto* const chat = access::side_chat_panel(aApplication);
+						if (chat == nullptr || !window.go_to_file_line(QString::fromStdString(path), 6U, false)) {
+							return false;
+						}
+						chat->composer()->setPlainText(aText);
+						QCoreApplication::processEvents();
+						if (!chat->send_action()->isEnabled()) {
+							return false;
+						}
+						chat->send_action()->trigger();
+						return true;
+					};
+				};
+				state->Steps.push_back({ .Name = QStringLiteral("typed with the line chip"), .Press = typed(QStringLiteral("What does this line do?")) });
+				state->Steps.push_back({ .Name = QStringLiteral("typed again in the same conversation"), .Press = typed(QStringLiteral("And why was it changed?")) });
+				state->Steps.push_back({ .Name = QStringLiteral("two queued at once"), .Press = [press_row, review, file]() {
+											return press_row(review, QStringLiteral("quickAsk_agent-tab.what-could-break_pull-request"))() && press_row(file, QStringLiteral("quickAsk_agent-tab.explain-file_file"))();
+										},
+										 .Turns = 2U });
+				state->Planned = true;
 				return;
 			}
-			if (!asked) {
-				// As the person would: Ask straight away, before the Agent tab
-				// was ever opened; the quick ask waits for the setup, which
-				// needs no step.
-				if (!picker->currentText().startsWith(QStringLiteral("Fixture agent"))) {
+			const auto evidence = access::agent_invocation_evidence(aApplication);
+			if (!state->Waiting) {
+				if (state->Next == state->Steps.size()) {
+					auto* const footer = window.agent_footer_widget();
+					state->Footer      = footer != nullptr && footer->picker() != nullptr ? footer->picker()->property("agentRunSettingsText").toString() : QString{ };
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:footer=%2:asks=%3:skipped=%4:report=%5")
+							   .arg(picker->currentText(), state->Footer)
+							   .arg(state->Asked.size())
+							   .arg(state->Skipped.join(QLatin1Char(',')))
+							   .arg(state->Report ? 1 : 0));
 					return;
 				}
-				auto* const ask = window.review_ask_button();
-				ask->refresh_menu();
-				auto* const row = ask->menu() != nullptr ? ask->menu()->findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.what-could-break_pull-request")) : nullptr;
-				if (row == nullptr || !row->isEnabled()) {
+				auto& next = state->Steps[state->Next];
+				if (tab->state() == bpr::qt::agent_tab_state::working || !evidence.Quiescent) {
 					return;
 				}
-				turns = tab->turn_count();
-				row->trigger();
-				asked = true;
+				state->TurnsBefore    = tab->turn_count();
+				state->LaunchesBefore = evidence.AgentProcessLauncherInvocations;
+				if (state->Tried == automated_clock::time_point{ }) {
+					state->Tried = automated_clock::now();
+				}
+				if (!next.Press()) {
+					// Not offered yet (What changed waits for the commits since
+					// the review): tried again for a while. The look's own
+					// path is never skipped.
+					if (automated_clock::now() - state->Tried < std::chrono::seconds{ 20 }) {
+						return;
+					}
+					if (state->Next == 0U) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:not-offered:step=%1").arg(next.Name));
+						return;
+					}
+					state->Skipped << next.Name;
+					state->Tried = { };
+					++state->Next;
+					return;
+				}
+				state->Tried       = { };
+				state->Waiting     = true;
+				state->Calm        = 0;
+				state->StepStarted = automated_clock::now();
 				return;
 			}
-			if (tab->turn_count() <= turns || !tab->turn_answer(last).contains(QStringLiteral("Fixture agent: a canned answer"))) {
+			auto&      current = state->Steps[state->Next];
+			const auto settled = tab->state() != bpr::qt::agent_tab_state::working && evidence.Quiescent && tab->queue_note()->text().isEmpty()
+				&& tab->turn_count() >= state->TurnsBefore + current.Turns;
+			state->Calm = settled ? state->Calm + 1 : 0;
+			if (state->Calm < 10) {
 				return;
 			}
-			const auto* const card = tab->turn_report_card(last);
-			// Look ask-v003 (owner, 2026-11-14: "The footer does not say
-			// fixture agent"): the footer's words, and with
-			// `BPR_ATTENDED_FOOTER_SHOT=FILE` a picture of the window.
-			auto* const footer = window.agent_footer_widget();
-			const auto  words  = footer != nullptr && footer->picker() != nullptr ? footer->picker()->property("agentRunSettingsText").toString() : QString{ };
-			if (const auto shot = qEnvironmentVariable("BPR_ATTENDED_FOOTER_SHOT"); !shot.isEmpty()) {
-				static_cast<void>(window.grab().save(shot));
+			for (auto turn = state->TurnsBefore; turn < tab->turn_count(); ++turn) {
+				if (!tab->turn_footer(turn).contains(QStringLiteral("answered"))) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:unanswered:step=%1:turn=%2:footer=%3:answer=%4").arg(current.Name).arg(turn).arg(flat(tab->turn_footer(turn)), flat(tab->turn_answer(turn))));
+					return;
+				}
 			}
-			finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:footer=%2:report=%3").arg(picker->currentText(), words).arg(card != nullptr && !card->isHidden() ? 1 : 0));
+			if (state->Next == 0U) {
+				const auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
+				state->Report          = card != nullptr && !card->isHidden();
+				if (const auto shot = qEnvironmentVariable("BPR_ATTENDED_FOOTER_SHOT"); !shot.isEmpty()) {
+					static_cast<void>(window.grab().save(shot));
+				}
+			}
+			state->Asked << current.Name;
+			state->Waiting = false;
+			++state->Next;
 		});
 		timer->start();
 	}

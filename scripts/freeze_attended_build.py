@@ -188,7 +188,7 @@ def start(command, log_path, offscreen, path_first=None, extra_environment=None)
 def await_shown(process, log_path, ready=None):
     """Returns (shown line or None, head or None, message)."""
     ready = ready or READY
-    deadline = time.monotonic() + WAIT_SECONDS + (60 if ready != READY else 0)
+    deadline = time.monotonic() + WAIT_SECONDS + (360 if ready != READY else 0)
     while time.monotonic() < deadline:
         text = log_path.read_text(encoding="utf-8", errors="replace")
         lines = text.splitlines()
@@ -249,8 +249,13 @@ def check(native):
             # as a report, with no step and no real agent.
             log_path = scratch / "fixture-agent.log"
             sentinels(scratch / "real-agents", scratch / "real-agent-started")
-            process = start(arguments(None, "single"), log_path, offscreen=True, path_first=scratch / "real-agents",
-                            extra_environment={{"BPR_ATTENDED_FIXTURE_AGENT_CHECK": "1"}})
+            # Look ask-v004 (owner: "still doesnt work"): at the push the
+            # look opens on, the build asks everything it offers (What changed
+            # since my review first, every quick ask, typed questions with the
+            # line chip, a continuation, a queue); every turn must answer.
+            process = start(arguments(scratch if NEXT_PUSH else None, "reuse" if NEXT_PUSH else "single"), log_path, offscreen=True,
+                            path_first=scratch / "real-agents",
+                            extra_environment={{"BPR_ATTENDED_FIXTURE_AGENT_CHECK": "1", "BPR_FIXTURE_AGENT_PAUSE_MS": "30"}})
             try:
                 line, _, message = await_shown(process, log_path, "ATTENDED_FIXTURE_AGENT_ANSWERED")
             finally:

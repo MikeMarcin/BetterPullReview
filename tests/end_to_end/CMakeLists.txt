@@ -5509,6 +5509,16 @@ if(APPLE OR UNIX)
     set_tests_properties(application_fixture_agent_guard_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "fixture-agent-guard:pass")
 endif()
+# [[BPR-2177]], look ask-v004 ("still doesnt work"). The application itself, as
+# a look runs it at the next push: every quick ask it offers, typed questions
+# with the line chip, a continuation and a queue, each answered by the fixture
+# agent, with no real agent started.
+if(APPLE)
+    bpr_add_network_isolated_test(NAME application_fixture_agent_every_ask
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/fixture_agent_every_ask.py" "$<TARGET_FILE:app_better_pull_review>")
+    set_tests_properties(application_fixture_agent_every_ask PROPERTIES
+        TIMEOUT 600 PASS_REGULAR_EXPRESSION "fixture-agent-every-ask:pass" RUN_SERIAL TRUE)
+endif()
 # [[BPR-2177]]. The fixture agent's own answers, streams and scripted failures.
 bpr_add_network_isolated_test(NAME fixture_agent_answers
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/fixture_agent_tests.py" "${CMAKE_BINARY_DIR}/fixture-agent")

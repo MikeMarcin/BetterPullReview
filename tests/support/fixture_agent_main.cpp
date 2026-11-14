@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -138,9 +139,35 @@ namespace {
 		return { };
 	}
 
-	auto run_claude(const std::string& aRequest) -> int
+	/// \brief The tools a launch gave Claude (`--tools`), as Claude's init
+	/// frame lists them: none for a tool-free writing run (What changed since
+	/// my review, a rewrite), the read-only set for a read-only run, and Read
+	/// and Grep for an ordinary chat. Look ask-v004 (owner, 2026-11-14:
+	/// "still doesnt work"): the init frame always listed Read and Grep, which
+	/// the app rightly refuses from a run it gave no tools.
+	auto tools_of(const std::vector<std::string>& aArguments) -> std::vector<std::string>
 	{
-		std::cout << R"({"type":"system","subtype":"init","session_id":"fixture-agent","tools":["Read","Grep"],"mcp_servers":[],"plugins":[],"model":"fixture"})" << '\n'
+		const auto given = std::ranges::find(aArguments, std::string{ "--tools" });
+		if (given == aArguments.end() || std::next(given) == aArguments.end()) {
+			return { "Read", "Grep" };
+		}
+		auto tools = std::vector<std::string>{ };
+		auto list  = std::string_view{ *std::next(given) };
+		while (!list.empty()) {
+			const auto comma = list.find(',');
+			tools.emplace_back(list.substr(0U, comma));
+			list = comma == std::string_view::npos ? std::string_view{ } : list.substr(comma + 1U);
+		}
+		return tools;
+	}
+
+	auto run_claude(const std::string& aRequest, const std::vector<std::string>& aTools) -> int
+	{
+		auto listed = std::string{ };
+		for (const auto& tool : aTools) {
+			listed += (listed.empty() ? "\"" : ",\"") + tool + "\"";
+		}
+		std::cout << R"({"type":"system","subtype":"init","session_id":"fixture-agent","tools":[)" << listed << R"(],"mcp_servers":[],"plugins":[],"model":"fixture"})" << '\n'
 				  << std::flush;
 		const auto failure = failure_for(aRequest);
 		if (failure == "crash") {
@@ -155,12 +182,16 @@ namespace {
 					  << std::flush;
 			return 1;
 		}
-		pause();
-		std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-read","role":"assistant","content":[{"type":"tool_use","id":"read-1","name":"Read","input":{"file_path":"src/engine/renderer.cpp"}}]}})" << '\n'
-				  << std::flush;
-		pause();
-		std::cout << R"({"type":"user","session_id":"fixture-agent","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"read-1","content":"fixture file"}]}})" << '\n'
-				  << std::flush;
+		// A run with Read reads a file first, in steps; a tool-free run
+		// answers straight away.
+		if (std::ranges::find(aTools, std::string{ "Read" }) != aTools.end()) {
+			pause();
+			std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-read","role":"assistant","content":[{"type":"tool_use","id":"read-1","name":"Read","input":{"file_path":"src/engine/renderer.cpp"}}]}})" << '\n'
+					  << std::flush;
+			pause();
+			std::cout << R"({"type":"user","session_id":"fixture-agent","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"read-1","content":"fixture file"}]}})" << '\n'
+					  << std::flush;
+		}
 		pause();
 		const auto encoded = escape(answer_for(aRequest));
 		std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-answer","role":"assistant","content":[{"type":"text","text":")" << encoded << "\"}]}}\n";
@@ -235,5 +266,5 @@ auto main(int argc, char** argv) -> int
 			break;
 		}
 	}
-	return codex ? run_codex(request) : run_claude(request);
+	return codex ? run_codex(request) : run_claude(request, tools_of(arguments));
 }

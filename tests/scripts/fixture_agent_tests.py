@@ -74,6 +74,16 @@ def main() -> int:
     block = findings.split("```bpr-findings\n", 1)[1].split("\n```", 1)[0]
     expect(len(json.loads(block)["findings"]) == 2, "the findings block is JSON with two findings")
 
+    # Look ask-v004: a tool-free run (What changed since my review) is told
+    # `--tools ""`; its init frame lists no tool and it reads no file.
+    free = run(claude, ["--tools", "", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], user("returning.operation\tlatest_upload"))
+    first = frames(free.stdout)
+    expect(first[0]["type"] == "system" and first[0]["tools"] == [] and first[0]["mcp_servers"] == [], f"a tool-free run's init lists no tool: {first[0]}")
+    expect(not any(frame.get("type") == "user" or '"tool_use"' in json.dumps(frame) for frame in first), "a tool-free run uses no tool")
+    expect("# What changed since your review" in claude_answer(free.stdout), "and still answers")
+    narrow = frames(run(claude, ["--tools", "Read,Grep,Glob,Bash", "-p"], user("anything")).stdout)
+    expect(narrow[0]["tools"] == ["Read", "Grep", "Glob", "Bash"], f"a read-only run's init lists its tools: {narrow[0]}")
+
     crashed = run(claude, ["-p"], user("FIXTURE_CRASH"))
     expect(crashed.returncode != 0 and "scripted" in crashed.stderr, "a scripted crash fails")
     limited = run(claude, ["-p"], user("anything"), {"BPR_FIXTURE_AGENT_FAIL": "usage-limit"})
