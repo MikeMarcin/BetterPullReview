@@ -27,3 +27,29 @@ Core: the bounded pending-input state of one conversation (stable entry IDs, dis
 ## Notes
 
 Owner answers 2026-11-13 (on the RFC): Q1 fold the BPR-1930 whole-tour feedback buffer into the queue (first queued message, sent with the Ask more seed; the timer poll goes); Q2 the local draft's discussion is in scope; Q9 a message being edited is held, not sent or skipped, and the queue continues on Save or Cancel; Q10 the queue belongs to the session and is drained by the host, closing or switching windows does not pause it; Stop all (AC09, host side: stop every active turn and pause every queue).
+
+## Progress (2026-11-14, for RFC-BPR-0128's queued Ask)
+
+The owner, refining look ask-v001: "I would modify this to a plain click
+queues it. We might not have set up the agent yet or we might be running other
+things already." Built as the queue's core and a first host:
+
+- Core `bpr/core/agent_queue.hpp`: stable entry ids in displayed order, a
+  revision refusing stale edits, 16 inputs and 256 KiB, the 16 KiB question
+  limit, Queued/Sending/Sent/Delivery unknown, the edit hold (Q9: never sent,
+  never skipped; Save or Cancel lifts it and the queue stays paused), pauses
+  with reasons (reviewer, Stop, failure, usage limit, restart, unknown
+  delivery, changed target), release of the next entry only while idle and
+  unpaused, restore opening paused with an interrupted send uncertain.
+  `core_agent_queue`.
+- Host `application::agent_queue_host`: queues by session (Q10: the session's,
+  not the window's), stored whole per session in `agent-setup.sqlite3`
+  (`agent_queues`, `agent_queue_entries`), restored paused; releases one entry
+  when told the agent is idle and settles it when its turn has run and the run
+  retired. The window's Ask uses it (`application_ask_queue_public_path`:
+  queued before setup and run after; a second waits its turn and runs next).
+
+Not yet: the composer's Queue/Steer, the pending list's Edit/Remove/reorder UI,
+Pause/Resume controls, Stop all (AC09), tour proposals, revalidation of private
+selections at release, the multi-window stale-write path through a shared
+store, and AC02 to AC04's full evidence. The card stays In Progress.

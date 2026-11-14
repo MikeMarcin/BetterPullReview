@@ -122,3 +122,54 @@ unlisted courses), `qt_settings_window`, `qt_workbench_window_scale_{100,125,200
 `application_suggest_change_public_path`, `application_local_comments_*`,
 `sqlite_workbench_settings_storage`, `core_returning_review`. clang-format 22 on
 every changed file. Not run: `coding-tidy`, the full suite.
+
+## Owner look ask-v001 (session `6102c30f502abd70884a1a0f9d331a8e`)
+
+Handed back 2026-11-14 ("handed back until you fix that": the look ran the
+installed Claude Code; see [[BPR-2177]]). One verdict, verbatim:
+
+- `BPR-2163-quick-ask-editor`, **Reject**: "First we need shift click to from
+  ask dropdown to skill draft the message instead of send it. I don't think
+  righy click should send the message either that feels unintuitive for
+  someone that's not sure if there is a context menu.. in fact there should be
+  a context menu.
+
+  img 1: I'm not sure this is beneficial.  I think just opening the agent
+  drawer in the session and scrolling to the question and response is probably
+  good enough." (Its attachment shows Explain this file's answer bar, "Claude
+  answered in 0:00." with a struck Draft, Continue in Agent tab and Dismiss.)
+
+The other five were not decided. Refinement (owner, through the coordinator):
+"I would modify this to a plain click queues it. We might not have set up the
+agent yet or we might be running other things already."
+
+Built in response: a plain click queues the quick ask on the session
+(RFC-BPR-0126's queue, [[BPR-2151]]); Shift+click drafts it in the Agent tab;
+a right click opens the row's own menu (Queue, Draft in Agent Tab, Edit Quick
+Ask…, Hide from Quick Asks) and never sends (`qt_ask_menu`); Explain this
+file's answer bar is gone, and every Ask opens the Agent tab at its turn; the
+agent's state greys no row. Host 44478 stopped; root `ask-v001.29vwy7ai`
+removed (no app ran from it).
+
+## Milestone `reports-in-a-file-tab` ([[BPR-2166]], [[BPR-2167]]), first round
+
+Built, cards not claimable while [[BPR-2164]] waits on the look:
+
+- Core: the document tabs' report kind (opens after the active tab, never
+  loads, never persisted (Q10), a code reference opening its file's tab beside
+  it), a report by its shape (Q7: two headings or more than 40 lines) with
+  outline and card, and a commit listing that folds a merge of the base
+  branch to one line (with whether it changed this pull request's files, from
+  the commit filter's trees) and groups the rest by area. `core_document_tabs`,
+  `core_agent_report`.
+- Qt and app: a long answer is a report card in the Agent tab; Open report
+  opens it as a tab in the files' strip (agent glyph, Close Report alone in its
+  menu) with its outline beside it; while it shows, the review bar's file
+  controls are drawn in place and off (Q9); a reference opens the file's tab
+  and the report's tab returns to the report. What changed's request carries
+  the commit listing (`returning.commits`). `application_ask_report_public_path`.
+- Not yet: Q4 (Explain this file answering as a report by default rather than
+  by shape), the merge's commit count (GitHub's commit list does not say how
+  many commits a merge brought; the count needs the merge's ancestry from the
+  review's objects), the Tour tab and tour chat checks of AC06, and AC07's other
+  places commits are listed (the Commits filter).
