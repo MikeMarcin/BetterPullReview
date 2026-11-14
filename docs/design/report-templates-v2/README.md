@@ -68,6 +68,7 @@ and type.
 | Was this addressed? | [light](png/ad-html-light.png), [dark](png/ad-html-dark.png) | [light](png/ad-qt-light.png), [dark](png/ad-qt-dark.png) |
 | Review file | [light](png/rf-html-light.png), [dark](png/rf-html-dark.png) | [light](png/rf-qt-light.png), [dark](png/rf-qt-dark.png) |
 | The floating menu, open | [light](png/menu-light.png), [dark](png/menu-dark.png) | |
+| Review file, inside the window | | [light](png/window-light.png), [dark](png/window-dark.png) |
 
 ## The hand
 
@@ -119,4 +120,18 @@ Chrome's headless mode on a throwaway profile. Neither is a screen capture.
 - **Syntax colours** in code are not drawn in either version.
 - **The Qt version is laid out by `QTextDocument` alone**, not by the app's
   `markdown_body_view`, which adds its own code-block tools and link handling.
-- **No owner look was filed for this round.**
+
+## Status
+
+Awaiting the owner's answers, asked on 2026-11-14 as two questions: how
+reports render (Qt rich text, or add Qt WebEngine), and whether the report tab
+keeps the slate palette (Accept or Reject).
+
+- Attended-review session `e663f2a4bdaf91e53744b636e9324611`, candidates
+  `report-render-engine` and `report-slate-palette` at revision
+  `0089f9d85340`.
+- External state directory
+  `~/.attended-review-state/report-templates-v002-2026-11-14/` (`state/` is
+  the session, `material/` a copy of both rounds' folders at that revision for
+  the owner to open).
+- Lifecycle when this was written: prepared and served, unanswered.
