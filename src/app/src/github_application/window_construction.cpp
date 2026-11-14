@@ -37,6 +37,7 @@
 
 #include <QDesktopServices>
 #include <QGuiApplication>
+#include <QWindow>
 #include <QObject>
 #include <QStyleHints>
 #include <QTextStream>
@@ -1543,6 +1544,53 @@ namespace bpr::app {
 			PromptTurnNames       = std::make_unique<application::prompt_turn_name_host>(std::move(dependencies));
 		}
 		PromptTurnNames->load();
+		// RFC-BPR-0125 milestone 3 ([[BPR-2146]]), RFC-BPR-0128. The
+		// profile's suggested prompts: read at start and whenever the window
+		// comes back to the front, so another window's edit reaches it.
+		PromptMacroStore = adapters::sqlite::make_prompt_macro_store(ApplicationDataRoot);
+		{
+			auto dependencies     = application::prompt_macro_dependencies{ };
+			dependencies.Store    = PromptMacroStore.get();
+			dependencies.Effects  = &WorkbenchEffects;
+			dependencies.Decision = &DecisionLane;
+			dependencies.Changed  = [this](const application::prompt_macro_projection& aProjection) {
+				if (!Closing) {
+					present_prompt_macros(aProjection);
+				}
+			};
+			PromptMacros = std::make_unique<application::prompt_macro_host>(std::move(dependencies));
+		}
+		PromptMacros->load();
+		Window->prompt_macros()->set_save_dispatch([this](std::vector<core::prompt_macro> aMacros) {
+			if (!Closing && PromptMacros) {
+				PromptMacros->save(application::prompt_macro_differences_of(core::shipped_prompt_macros(), aMacros));
+			}
+		});
+		Window->prompt_macros()->set_preview_facts([this](const core::prompt_place aPlace) -> std::optional<core::prompt_facts> {
+			if (Closing || Window == nullptr || Window->agent_tab() == nullptr) {
+				return std::nullopt;
+			}
+			const auto context = Window->agent_tab()->suggestion_context_now();
+			if (!context.PullRequest) {
+				return std::nullopt;
+			}
+			auto facts        = core::prompt_facts{ .Place = aPlace, .PullRequest = context.PullRequest, .Repository = context.Repository };
+			if (!context.OpenFile.isEmpty()) {
+				facts.OpenFile = context.OpenFile.toStdString();
+			}
+			if (context.Lines) {
+				facts.Lines = core::prompt_line_range{ .First = context.Lines->first, .Last = context.Lines->second };
+			}
+			facts.Draft         = context.Draft;
+			facts.AuthorIsMe    = context.AuthorIsMe;
+			facts.ChecksFailing = context.ChecksFailing;
+			return facts;
+		});
+		QObject::connect(qGuiApp, &QGuiApplication::focusWindowChanged, Window.get(), [this](QWindow* const aFocus) {
+			if (!Closing && PromptMacros && Window && aFocus != nullptr && aFocus == Window->windowHandle()) {
+				PromptMacros->load();
+			}
+		});
 		compose_agent_setup_view();
 		observe_conversation();
 #endif

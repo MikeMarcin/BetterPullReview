@@ -1,4 +1,7 @@
 #include "bpr/core/review_comment_range.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -1112,6 +1115,11 @@ namespace bpr::qt {
 		// saved values that move once.
 		ClaudeWrapper = new claude_wrapper_panel{ this };
 		ClaudeWrapper->hide();
+		// RFC-BPR-0125 milestone 3 ([[BPR-2146]]): Suggested prompts, between
+		// the agents and Built-in prompts, with RFC-BPR-0128's Quick ask.
+		PromptMacros = new prompt_macros_panel{ agents };
+		column->addSpacing(12);
+		column->addWidget(PromptMacros);
 		WritingHooks = new writing_hooks_panel{ agents };
 		column->addSpacing(12);
 		column->addWidget(WritingHooks);
@@ -1540,3 +1548,27 @@ namespace bpr::qt {
 		update_notification_controls();
 	}
 }
+
+
+namespace bpr::qt {
+	void workbench_window::present_prompt_macros(const application::prompt_macro_projection& aProjection)
+	{
+		auto macros = aProjection.Set.macros();
+		if (AgentTab != nullptr) {
+			AgentTab->present_prompt_macros(macros);
+		}
+		if (TourEditor != nullptr && TourEditor->side_chat() != nullptr) {
+			TourEditor->side_chat()->set_prompt_macros(macros);
+		}
+		if (PromptMacros != nullptr) {
+			PromptMacros->present(aProjection);
+		}
+	}
+
+	void workbench_window::reveal_prompt_macros()
+	{
+		if (PromptMacros != nullptr) {
+			PromptMacros->reveal();
+		}
+	}
+} // namespace bpr::qt

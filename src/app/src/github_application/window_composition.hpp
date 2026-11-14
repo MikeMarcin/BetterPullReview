@@ -183,7 +183,10 @@
 	#include "bpr/application/claude_process_wrapper.hpp"
 	#include "bpr/application/clone_link_host.hpp"
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
+	#include "bpr/application/prompt_macro_host.hpp"
 	#include "bpr/application/prompt_turn_name_host.hpp"
+	#include "bpr/core/quick_ask.hpp"
+	#include "bpr/qt/ask_menu.hpp"
 	#include "bpr/application/review_skill_host.hpp"
 	#include "bpr/application/tour_agent_context.hpp"
 	#include "bpr/application/tour_agent_drafting.hpp"
@@ -783,6 +786,18 @@ namespace bpr::app {
 		/// Sets a returning turn's launch: fresh, tool-free where the agent
 		/// has the mode, with its own prompt as the system prompt.
 		void launch_returning(application::agent_invocation_request& aInvocation, core::agent_profile_id aProfile);
+
+		/// RFC-BPR-0128 ([[BPR-2163]], [[BPR-2164]]). The Ask menus: their
+		/// facts from what the window holds, a press, Custom question….
+		/// `window_quick_ask.cpp`.
+		void               bind_quick_ask();
+		[[nodiscard]] auto quick_ask_facts(const qt::ask_menu_request& aRequest) const -> core::quick_ask_facts;
+		[[nodiscard]] auto quick_ask_menu(const qt::ask_menu_request& aRequest) const -> std::optional<core::quick_ask_menu>;
+		void               press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
+		void               ask_custom_question(const qt::ask_menu_request& aRequest);
+		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested
+		/// prompts reach the window.
+		void present_prompt_macros(const application::prompt_macro_projection& aProjection);
 
 		/// RFC-BPR-0117 ([[BPR-2076]]). Explain this file: the press, its
 		/// material up front, its card's three actions. Defined in
@@ -2426,6 +2441,11 @@ namespace bpr::app {
 		/// RFC-BPR-0125 (AC07). The names suggested prompts' turns were sent
 		/// under: store, then host.
 		std::unique_ptr<application::prompt_turn_name_store_port> PromptTurnNameStore;
+		/// RFC-BPR-0125 milestone 3, RFC-BPR-0128. The profile's suggested
+		/// prompts and the set the Ask menus are decided from.
+		std::unique_ptr<application::prompt_macro_store_port> PromptMacroStore;
+		std::unique_ptr<application::prompt_macro_host>       PromptMacros;
+		core::prompt_macro_set                                PromptMacroSet = core::merge_prompt_macros(core::shipped_prompt_macros(), { });
 		std::unique_ptr<application::prompt_turn_name_host>       PromptTurnNames;
 		/// RFC-BPR-0125 (AC07). Each turn shown takes the name it was sent
 		/// under; a thread shown before the names were read takes them then.

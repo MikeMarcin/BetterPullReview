@@ -69,6 +69,7 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
+#include "bpr/qt/prompt_macros_panel.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #if defined(_WIN32)
 	#include "bpr/qt/windows_caption_buttons.hpp"
@@ -1602,6 +1603,14 @@ namespace bpr::qt {
 			-> github_conversation_panel*;
 		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
 		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
+		/// \brief RFC-BPR-0125 milestone 3 ([[BPR-2146]]). Settings' suggested
+		/// prompts, between the agents and Built-in prompts.
+		[[nodiscard]] auto prompt_macros() const noexcept -> prompt_macros_panel* { return PromptMacros; }
+		/// \brief The profile's suggested prompts reach the Agent tab's chips,
+		/// the tour chats and Settings.
+		void present_prompt_macros(const application::prompt_macro_projection& aProjection);
+		/// \brief Edit Quick Asks…: Settings shows the suggested prompts.
+		void reveal_prompt_macros();
 		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
 		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
 		/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
@@ -3807,6 +3816,7 @@ namespace bpr::qt {
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
 		writing_hooks_panel*                               WritingHooks  = nullptr;
+		prompt_macros_panel*                               PromptMacros  = nullptr;
 		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
 		agent_setup_view*                                  AgentSetup    = nullptr;
 		agent_programs_panel*                              AgentPrograms = nullptr;

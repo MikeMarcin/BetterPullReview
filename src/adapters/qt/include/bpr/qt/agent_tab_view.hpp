@@ -345,6 +345,9 @@ namespace bpr::qt {
 		/// and how the turn ended.
 		[[nodiscard]] auto conversation_thread() const noexcept -> QWidget* { return Thread; }
 		[[nodiscard]] auto turn_count() const noexcept -> std::size_t { return Turns.size(); }
+		/// \brief RFC-BPR-0128. The facts the suggested prompts read now, for
+		/// the Ask menus.
+		[[nodiscard]] auto suggestion_context_now() const -> agent_suggestion_context { return current_suggestion_context(); }
 		[[nodiscard]] auto turn_answer(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_question(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_footer(std::size_t aTurn) const -> QString;

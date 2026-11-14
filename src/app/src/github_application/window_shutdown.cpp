@@ -145,6 +145,9 @@ namespace bpr::app {
 		if (AgentFindingCards) {
 			AgentFindingCards->shutdown();
 		}
+		if (PromptMacros) {
+			PromptMacros->shutdown();
+		}
 		if (PromptTurnNames) {
 			PromptTurnNames->shutdown();
 		}
@@ -280,7 +283,7 @@ namespace bpr::app {
 			|| (ReviewSkill && !ReviewSkill->is_quiescent()) || (AgentConfiguration && !AgentConfiguration->is_quiescent())
 			|| (AgentConversation && !AgentConversation->is_quiescent())
 			|| (AgentFindingCards && !AgentFindingCards->is_quiescent())
-			|| (PromptTurnNames && !PromptTurnNames->is_quiescent())
+			|| (PromptTurnNames && !PromptTurnNames->is_quiescent()) || (PromptMacros && !PromptMacros->is_quiescent())
 #endif
 			|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 			|| (PrivateReview && !PrivateReview->is_quiescent())
