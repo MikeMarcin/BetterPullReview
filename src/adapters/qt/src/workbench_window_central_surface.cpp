@@ -445,11 +445,13 @@ namespace bpr::qt {
 		FileAskButton = new ask_menu_button{ DocumentTabs };
 		FileAskButton->setObjectName(QStringLiteral("fileAskButton"));
 		FileAskButton->setAccessibleName(tr("Ask about this file"));
-		FileAskButton->setFixedHeight(DocumentTabs->new_tab_button()->sizeHint().height());
+		FileAskButton->setToolTip(tr("Ask about this file"));
+		// Look ask-v005: on the active file's tab, smaller than the tab.
+		FileAskButton->set_compact(document_tab_strip::height_pixels - 10);
 		FileAskButton->setEnabled(false);
 		FileAskButton->set_filler([this](QMenu& aMenu) { fill_quick_ask(aMenu, ask_request(core::quick_ask_anchor::file)); });
 		ExplainFileButton = FileAskButton;
-		DocumentTabs->add_trailing_control(FileAskButton);
+		DocumentTabs->set_active_tab_control(FileAskButton);
 		DocumentTabs->set_menu_extension([this](const document_tab_presentation& aTab, QMenu& aMenu) {
 			if (!QuickAskSource || aTab.Path.isEmpty()) {
 				return;

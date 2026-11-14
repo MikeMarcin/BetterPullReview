@@ -101,6 +101,14 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0117. A control of the holder's at the strip's right,
 		/// before the plus (Explain this file); the strip takes ownership.
 		void add_trailing_control(QWidget* aControl);
+		/// \brief Look ask-v005 (owner, 2026-11-14: "Filetab ask should be on
+		/// the tab and smaller than the tab so it doesnt read like another tab.
+		/// Should only be shown for the active tab. Shouldn't be shown for
+		/// report card tabs."). A control of the holder's drawn on the active
+		/// tab itself, while offered, never on a report's tab; the strip owns
+		/// it.
+		void set_active_tab_control(QWidget* aControl);
+		void offer_active_tab_control(bool aOffered);
 
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
@@ -123,12 +131,14 @@ namespace bpr::qt {
 		std::vector<document_tab_presentation>                        Tabs;
 		/// The tabs the bar shows, in its order.
 		std::vector<core::document_tab_id> Shown;
-		QTabBar*                           Bar        = nullptr;
-		QScrollArea*                       Scroll     = nullptr;
-		QToolButton*                       NewTab     = nullptr;
-		QLabel*                            Status     = nullptr;
-		bool                               Rebuilding = false;
-		int                                MinimumTab = minimum_tab_width;
+		QTabBar*                           Bar           = nullptr;
+		QScrollArea*                       Scroll        = nullptr;
+		QToolButton*                       NewTab        = nullptr;
+		QLabel*                            Status        = nullptr;
+		QWidget*                           ActiveControl = nullptr;
+		bool                               ActiveOffered = false;
+		bool                               Rebuilding    = false;
+		int                                MinimumTab    = minimum_tab_width;
 	};
 } // namespace bpr::qt
 

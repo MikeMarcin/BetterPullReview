@@ -338,6 +338,24 @@ namespace bpr::qt {
 		row->insertWidget(row->indexOf(NewTab), aControl);
 	}
 
+	void document_tab_strip::set_active_tab_control(QWidget* const aControl)
+	{
+		ActiveControl = aControl;
+		if (ActiveControl != nullptr) {
+			ActiveControl->setParent(this);
+			ActiveControl->hide();
+		}
+		rebuild();
+	}
+
+	void document_tab_strip::offer_active_tab_control(const bool aOffered)
+	{
+		if (ActiveOffered != aOffered) {
+			ActiveOffered = aOffered;
+			rebuild();
+		}
+	}
+
 	auto document_tab_strip::sizeHint() const -> QSize
 	{
 		return QSize{ 240, height_pixels };
@@ -444,6 +462,12 @@ namespace bpr::qt {
 		Rebuilding = true;
 		{
 			const QSignalBlocker blocker{ Bar };
+			// The active tab's control leaves its tab before the tabs go:
+			// their buttons go with them.
+			if (ActiveControl != nullptr) {
+				ActiveControl->hide();
+				ActiveControl->setParent(this);
+			}
 			while (Bar->count() > 0) {
 				Bar->removeTab(0);
 			}
@@ -476,7 +500,22 @@ namespace bpr::qt {
 					accessible.append(QStringLiteral(", %1").arg(state.toLower()));
 				}
 				Bar->setAccessibleTabName(index, accessible);
-				if (tab.OwnComparison && !tab.OwnPair.isEmpty()) {
+				const auto pill    = tab.OwnComparison && !tab.OwnPair.isEmpty();
+				const auto control = tab.Active && !tab.Report && ActiveControl != nullptr && ActiveOffered;
+				if (control) {
+					auto* const holder = new QWidget{ Bar };
+					holder->setObjectName(QStringLiteral("documentTabActiveControls"));
+					auto* const row = new QHBoxLayout{ holder };
+					row->setContentsMargins(0, 0, 0, 0);
+					row->setSpacing(4);
+					if (pill) {
+						row->addWidget(new pair_pill{ tab.OwnPair, holder });
+					}
+					ActiveControl->setParent(holder);
+					row->addWidget(ActiveControl);
+					ActiveControl->show();
+					Bar->setTabButton(index, pillSide, holder);
+				} else if (pill) {
 					Bar->setTabButton(index, pillSide, new pair_pill{ tab.OwnPair, Bar });
 				}
 				Shown.push_back(tab.Id);

@@ -180,7 +180,7 @@ auto main(int argc, char** argv) -> int
 			return button->menu()->findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.explain-file_file"));
 		};
 		wait([&] { return button != nullptr && button->isEnabled() && button->isVisible() && row() != nullptr && row()->isEnabled(); }, "Explain this file is offered in the file header's Ask");
-		expect(button->text() == QStringLiteral("Ask") && row()->text().startsWith(QStringLiteral("Explain this file")), "the file's Ask lists Explain this file");
+		expect(row()->text().startsWith(QStringLiteral("Explain this file")), "the file's Ask lists Explain this file");
 		const auto setupLaunches = launchesAt();
 		const auto mutation      = access::review_mutation_evidence(*application);
 		const auto turnsBefore   = tab->turn_count();

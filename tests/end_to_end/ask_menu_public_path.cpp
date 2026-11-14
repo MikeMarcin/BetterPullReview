@@ -257,7 +257,27 @@ auto main(int argc, char** argv) -> int
 		auto* const reviewAsk = window.review_ask_button();
 		auto* const fileAsk   = window.file_ask_button();
 		expect(reviewAsk != nullptr && reviewAsk->isVisible() && qobject_cast<QToolBar*>(reviewAsk->parentWidget()) != nullptr, "the review bar has Ask");
-		expect(fileAsk != nullptr && fileAsk->isVisible() && fileAsk->isEnabled() && fileAsk->parentWidget() == window.document_tabs(), "the file's header has Ask, in the tab strip");
+		// Look ask-v005 (owner, 2026-11-14): "Filetab ask should be on the tab
+		// and smaller than the tab so it doesnt read like another tab. Should
+		// only be shown for the active tab. Shouldn't be shown for report card
+		// tabs."
+		{
+			auto* const bar     = window.document_tabs()->tab_bar();
+			const auto  current = bar->currentIndex();
+			expect(fileAsk != nullptr && fileAsk->isVisible() && fileAsk->isEnabled(), "the file has Ask");
+			auto onTab = -1;
+			for (auto index = 0; index < bar->count(); ++index) {
+				for (const auto side : { QTabBar::LeftSide, QTabBar::RightSide }) {
+					if (auto* const button = bar->tabButton(index, side); button != nullptr && (button == fileAsk || button->isAncestorOf(fileAsk))) {
+						onTab = index;
+					}
+				}
+			}
+			expect(onTab == current, "the file's Ask is on the active tab itself: on tab " + std::to_string(onTab) + " of active " + std::to_string(current));
+			expect(fileAsk->height() < bar->tabRect(current).height() && fileAsk->width() < bar->tabRect(current).width() / 3, "and smaller than the tab");
+			expect(fileAsk->text().isEmpty() || fileAsk->toolButtonStyle() == Qt::ToolButtonIconOnly, "it is a glyph, not a labelled button that reads like a tab");
+			expect(fileAsk->accessibleName() == QStringLiteral("Ask about this file"), "named for assistive technology");
+		}
 		expect(window.findChild<QToolButton*>(QStringLiteral("explainFileButton")) == nullptr, "Explain this file's control is gone from the header");
 		const auto line12 = std::ranges::find_if(cards->cards(), [&path](const qt::thread_card& aCard) { return aCard.Path == path && aCard.Line == 12U; });
 		expect(line12 != cards->cards().end(), "the line-12 thread is listed");
@@ -294,7 +314,8 @@ auto main(int argc, char** argv) -> int
 				   "Open report opens it as a tab in the files' strip");
 			auto* const report = window.report_view();
 			expect(window.report_shown() && report->isVisible() && !window.comparison_surface()->isVisible() && report->outline()->count() == 3, "the report shows with its outline in the comparison's place");
-			expect(!window.file_ask_button()->isEnabled() && !window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"))->isEnabled(), "the file controls are drawn in place and off (Q9)");
+			expect(!window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"))->isEnabled(), "the file controls are drawn in place and off (Q9)");
+			expect(!window.file_ask_button()->isVisible(), "a report's tab has no file Ask (look ask-v005)");
 			expect(tab->isVisible() && tab->ask_button() != nullptr, "the Agent tab keeps its place beside the report");
 			report->go_to_heading(2);
 			// A code reference read in the report: its file's tab, at the line.
@@ -304,7 +325,7 @@ auto main(int argc, char** argv) -> int
 			const auto link = body.substr(open + 2U, body.find(')', open) - open - 2U);
 			tab->open_reference(QString::fromStdString(link));
 			wait([&] { return !window.report_shown() && window.active_document_path() == path && window.comparison_surface()->isVisible(); }, "a reference opens its file's tab");
-			expect(strip->tabs().size() == files + 1U && window.file_ask_button()->isEnabled(), "the report's tab stays beside it, and the file controls are back");
+			expect(strip->tabs().size() == files + 1U && window.file_ask_button()->isEnabled() && window.file_ask_button()->isVisible(), "the report's tab stays beside it, and the file controls are back");
 			// The report's tab returns to the report.
 			const auto  reportAt = std::ranges::find_if(strip->tabs(), [](const qt::document_tab_presentation& aTab) { return aTab.Report; });
 			auto* const bar      = strip->findChild<QTabBar*>(QStringLiteral("documentTabBar"));

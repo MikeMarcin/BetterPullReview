@@ -13,6 +13,8 @@
 #include <QPointer>
 #include <QProxyStyle>
 
+#include <algorithm>
+
 namespace bpr::qt {
 	namespace {
 		/// A greyed row is reached by the arrow keys like any other, so its
@@ -298,4 +300,13 @@ namespace bpr::qt {
 	}
 
 	void ask_menu_button::wear_glyph() { setIcon(agent_glyph(palette())); }
+
+	void ask_menu_button::set_compact(const int aHeight)
+	{
+		setText({ });
+		setToolButtonStyle(Qt::ToolButtonIconOnly);
+		const auto glyph = std::max(10, aHeight - 6);
+		setIconSize(QSize{ glyph, glyph });
+		setFixedSize(QSize{ aHeight + glyph / 2 + 6, aHeight });
+	}
 } // namespace bpr::qt

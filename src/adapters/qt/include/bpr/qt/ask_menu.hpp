@@ -89,6 +89,9 @@ namespace bpr::qt {
 		void set_filler(std::function<void(QMenu&)> aFiller);
 		/// \brief Fills the menu now, as opening it does (tests, keyboard).
 		void refresh_menu();
+		/// \brief Look ask-v005: the glyph alone, smaller than a tab, for a
+		/// control drawn on a file's tab.
+		void set_compact(int aHeight);
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;

@@ -2211,7 +2211,7 @@ namespace bpr::qt {
 		const auto offered = static_cast<bool>(QuickAskSource);
 		if (FileAskButton != nullptr) {
 			FileAskButton->setEnabled(offered && !active_document_path().isEmpty());
-			FileAskButton->setVisible(offered && !LocalDraftShown);
+			DocumentTabs->offer_active_tab_control(offered && !LocalDraftShown);
 		}
 		if (ReviewAskButton != nullptr) {
 			ReviewAskButton->setVisible(offered && !LocalDraftShown);
