@@ -122,4 +122,14 @@ evidence that its example parses.
 
 ## Status
 
-Awaiting the owner's choice.
+Awaiting the owner's choice, asked on 2026-11-14 as one select question (A or
+B) with a note:
+
+- Attended-review session `cbb8554abee0c3273461da24fde5b3a2`, candidate
+  `report-templates-v1` at revision `2e74bd6d6702` (the commit that added
+  these mockups).
+- External state directory
+  `~/.attended-review-state/report-templates-v001-2026-11-14/` (`state/` is
+  the session, `material/` a copy of this folder at that revision for the
+  owner to open).
+- Lifecycle when this was written: prepared and served, unanswered.
