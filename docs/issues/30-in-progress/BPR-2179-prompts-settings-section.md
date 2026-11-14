@@ -224,3 +224,16 @@ Frontend-design loaded for the page.
 Open for the owner: the Agent tab's chip order above; the spec's footnoted
 greys kinds; system prompts' Save/Discard against autosave; which
 repositories Prompts for lists.
+
+### Look prompts-v001 (filed 2026-11-14)
+
+Session `c6fcc366221e664f5f4c37d884b0ec2c`, state
+`/Users/jaeger/.attended-review-state/prompts-v001-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 36. Root `/Users/jaeger/prompts-v001.l5nlwa6h`
+frozen from `738546b20` (tests-on, Fixture agent; its check answered all 17
+asks). Twelve questions, one Accept/Reject each, with native off-screen
+pictures from the root's own test executables: `BPR-2179-one-page`,
+`-edit-obvious`, `-placing`, `-conditions`, `-system-prompts`,
+`-repository`, `-agent-tab-chips`, and BPR-2151's `-pending-list`,
+`-edit-hold`, `-stop-all`, `-follow-up-setting`, `-cmd-return`. AC03 waits on
+the owner's verdicts.

@@ -3225,3 +3225,44 @@ fails on "auth-seed failed", from the merged parallel lane.
 
 Next: BPR-2179 slice 2 (placements storage), then 3 and 4; on ask-v007's
 handback read from cursor 12.
+
+## BPR-2179 slices 2 to 7 built; look prompts-v001 filed (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `1a7f4be40` | BPR-2179 slices 2 to 7: surfaces stored and read by chips and menus; Settings › Prompts; condition kinds and All/Any; system prompts in the library; repository layers |
+| `738546b20` | The ask courses save renders for looks (BPR_ASK_RENDER_ROOT; native with BPR_NATIVE_LOOK=1). **prompts-v001 frozen commit** |
+
+Runs (dev, Debug, macOS), passing: `core_prompt_surfaces`, `core_prompt_macro`,
+`core_prompt_headers_together`, `core_quick_ask`, `sqlite_agent_setup_storage`,
+`qt_prompts_page` (new), `qt_settings_window`, `qt_feedback_label_settings`,
+`qt_workbench_window_scale_100`, `qt_ask_menu`, `qt_prompt_macro_chips`,
+`qt_tour_side_chat`, `qt_quiet_buttons`, `qt_button_faces`,
+`application_ask_menu_public_path`, `application_prompt_macros_public_path`,
+`application_ask_queue_public_path`, `architecture_boundaries`; format applied
+to changed files; documentation gate OK. Not run: `coding-tidy`, other window
+scales, the full suite. Under BPR_NATIVE_LOOK the `macros` course fails a
+focus step (offscreen it passes); its render was still saved.
+
+Owner look `prompts-v001`, filed and not waited on: session
+`c6fcc366221e664f5f4c37d884b0ec2c`, state
+`/Users/jaeger/.attended-review-state/prompts-v001-2026-11-14/state` (URL in
+`serve.log`), cursor 36, host PID 33657 (Tailscale child 33666). Root
+`/Users/jaeger/prompts-v001.l5nlwa6h` from `738546b20`, frozen with the
+committed freeze script (the worktree's uncommitted copy, another writer's,
+asks for a `menus=` field `738546b20` does not print). Twelve questions (seven
+BPR-2179, five BPR-2151 queue controls).
+
+`application_document_tabs_restoration_public_path` ("auth-seed failed"),
+diagnosed, not fixed: after Home's sign-in the account setup stays at phase
+`connected` ("Connected as …", visible), and `update_home_surface` hides the
+queue surface (`reviewQueueLanding`) while `account_setup_shown()`; so
+`home_list()->queue_shown()` is false. Waiting does not help. The course
+either must finish the setup (its Done) or the app must close the setup on
+connect when it was opened from Home's card; neither file changed on the
+parallel lane, so the cause is a behaviour difference the merge exposed, not
+yet found.
+
+Next: on prompts-v001's handback read from cursor 36; the spec's open
+questions (Agent tab chip order, footnoted greys kinds, system prompt Save vs
+autosave, which repositories Prompts for lists).
