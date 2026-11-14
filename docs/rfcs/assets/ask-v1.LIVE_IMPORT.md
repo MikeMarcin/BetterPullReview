@@ -30,8 +30,8 @@ amendment and points here.
 | Card | What | Criteria |
 |---|---|---|
 | [BPR-2163](../../issues/60-done/BPR-2163-quick-asks-and-their-scopes.md) | Quick asks: flag, scopes, availability | AC03, AC04 |
-| [BPR-2164](../../issues/40-parked/BPR-2164-ask-control-at-three-anchors.md) | One Ask control at three anchors | AC01, AC02, AC08 |
-| [BPR-2165](../../issues/10-backlog/BPR-2165-was-this-addressed-on-any-thread.md) | Was this addressed? anywhere, claim chip | AC05 |
+| [BPR-2164](../../issues/60-done/BPR-2164-ask-control-at-three-anchors.md) | One Ask control at three anchors | AC01, AC02, AC08 |
+| [BPR-2165](../../issues/60-done/BPR-2165-was-this-addressed-on-any-thread.md) | Was this addressed? anywhere, claim chip | AC05 |
 | [BPR-2166](../../issues/10-backlog/BPR-2166-report-opens-as-a-file-tab.md) | The report as a file tab | AC06 |
 | [BPR-2167](../../issues/10-backlog/BPR-2167-merge-of-main-is-one-line.md) | A merge of main is one line | AC07 |
 | [BPR-2168](../../issues/10-backlog/BPR-2168-close-rfc-0128.md) | Closeout | all |

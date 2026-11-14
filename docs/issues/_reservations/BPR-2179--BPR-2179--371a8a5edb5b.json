@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2179"
+  ],
+  "reserve_for": "prompts-settings",
+  "purpose": "owner look ask-v002: Prompts as a settings section of its own, beside Agents, where editing a quick ask is obvious (BPR-2163 follow-up)",
+  "created": "2026-11-14T05:25:45.548553+00:00",
+  "base": "d8c21db83e1cb3612c4a186d9072b38e1f33db6a"
+}

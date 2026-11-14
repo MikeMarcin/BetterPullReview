@@ -173,3 +173,58 @@ Built, cards not claimable while [[BPR-2164]] waits on the look:
   many commits a merge brought; the count needs the merge's ancestry from the
   review's objects), the Tour tab and tour chat checks of AC06, and AC07's other
   places commits are listed (the Commits filter).
+
+## Owner look ask-v002 (session `7268b4daaedd9f9318ced6f27e78c873`)
+
+Frozen from `612194781`, on the Fixture agent. Handed back 2026-11-14 at
+sequence 107. Verdicts, verbatim; the attachments stay in the session's state
+(`/Users/jaeger/.attended-review-state/ask-v002-2026-11-14/state`) and are
+described here:
+
+- `BPR-2164-review-bar-ask`, **Accept**.
+- `BPR-2164-file-ask`, **Accept**.
+- `BPR-2164-thread-ask`, **Accept**: "I'm surprised there's no ask on the
+  threads mode."
+- `BPR-2165-claim-chips`, **Accept**.
+- `BPR-2176-buttons-gone`, **Accept**.
+- `ask-click-queues`, **Accept**.
+- `ask-opens-agent-tab`, **Accept**.
+- `ask-shift-click-drafts`, **Accept**.
+- `ask-right-click-menu`, **Accept**: "Drop edit and hide from the individual
+  question menu, the edit quick ask on the top level ask dropdown is
+  sufficient.
+
+  Otherwise good." (Its attachment shows the review bar's Ask menu with a
+  row's menu open: Queue, Draft in Agent Tab, Edit Quick Ask…, Hide from Quick
+  Asks.)
+- `BPR-2166-report-file-tab`, **Reject**: "Aren't we supposed to have a mack
+  agent for testing now? " (Its attachment shows the Agent tab with "Codex
+  stopped before answering", "Codex didn't start. It wrote: codex was not
+  found on PATH or in the usu…", and the footer "Codex · Default model".)
+- `RFC-BPR-0128-Q5-threshold`, **Reject**: "cant tell missing mock agent and
+  response."
+- `BPR-2163-quick-ask-editor`, **Reject**: "It's not really clear that you can
+  open and edit these. I feel like we can do better on the UX design. I also
+  think we should split agents and prompts into separate settings sections."
+  (Two attachments: Settings > Agents & context > Suggested prompts, a list of
+  checkbox rows; and a prompt's sheet.)
+
+Why the look had no fixture answer: the picker took its first offered agent,
+Codex's app-server profile, before the setup had chosen one (the host's policy
+had not arrived, so the found Claude was not yet permitted, and a pick made
+while the setup is known is kept); nothing pointed that profile at the fixture
+agent, so its launch searched the person's PATH. The setup also stopped at
+Check it works. Fixed ([[BPR-2177]]): a person's session on a tests-on build
+offers the fixture agent alone, Claude's protocol first; Codex's profiles are
+the fixture agent too; the fixture agent's Check runs once by itself when a
+review opens, so the setup is ready with no step. Explain this file and What
+could this change break? answer as reports. The returning-review fixture has a
+seventh thread, so the pull request's Was this addressed? reads six threads and
+asks first (Q5). `freeze --check` now asks What could this change break? in the
+frozen build and fails unless the Fixture agent answers it as a report
+(`FIXTURE_AGENT_SILENT`). Course `application_fixture_agent_guard_public_path`
+now fails on a setup that needs a step or a picker not on the fixture agent.
+
+The row menu is Queue and Draft in Agent Tab (`qt_ask_menu`). BPR-2163 reopens
+for a Prompts section of its own; mockups go to the next look before anything
+is built.

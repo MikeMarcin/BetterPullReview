@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2176"
 title: "Remove the review bar's Comment button and the Tour tab's Add stop button"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation": "docs/issues/_reservations/BPR-2176--BPR-2176--c8e0137a3d08.json", "origin": "owner, 2026-11-14, with a screenshot of both speech-bubble buttons"}
+acceptance: [{"criterion":"outcome","outcome":"pass","revision":"612194781","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200} (test_the_duplicate_comment_and_add_stop_buttons_are_gone); owner Accept (BPR-2176-buttons-gone) in look ask-v002 on conventional-comments-v1 with a tour"}}]
 ---
 
 # BPR-2176: Remove the review bar's Comment button and the Tour tab's Add stop button
@@ -43,3 +44,8 @@ Option-Shift-T (`addTourStopAction`), both in the Pull Request menu, which now
 names Comment's target when it opens. The review-bar order, presenter and
 geometry checks follow (18 actions, Compose review last). The owner's look on a
 fixture with a tour is in session ask-v002.
+
+## Owner look ask-v002 (2026-11-14)
+
+`BPR-2176-buttons-gone` **Accept** (frozen from `612194781`, on
+conventional-comments-v1 with its tour). Done.
