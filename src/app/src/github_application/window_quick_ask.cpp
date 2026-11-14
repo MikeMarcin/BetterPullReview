@@ -78,6 +78,28 @@ namespace bpr::app {
 					: Window->agent_tab()->setup_readiness() != qt::agent_setup_readiness::ready ? QStringLiteral("waiting for the agent's setup")
 																								 : QStringLiteral("waiting its turn");
 				Window->agent_tab()->present_queue(waiting, state);
+				// RFC-BPR-0126 ([[BPR-2151]]): the pending list with its
+				// controls; a paused queue says why.
+				auto rows = std::vector<qt::agent_tab_view::queue_row>{ };
+				for (const auto& entry : aQueue.Entries) {
+					rows.push_back({
+						.Id = entry.Id,
+						// A typed message reads as its text, edited or not.
+						.Label   = QString::fromStdString(entry.Input.QuickAsk.empty() && !entry.Input.Text.empty() ? entry.Input.Text.substr(0U, entry.Input.Text.find('\n')) : entry.Input.Label),
+						.Text    = QString::fromStdString(entry.Input.QuickAsk.empty() ? entry.Input.Text : std::string{ }),
+						.Held    = entry.Held,
+						.Sending = entry.State != core::queued_state::queued,
+					});
+				}
+				const auto why = aQueue.Paused == core::queue_pause::reviewer ? QStringLiteral("Paused")
+					: aQueue.Paused == core::queue_pause::stopped             ? QStringLiteral("Paused: Stop all")
+					: aQueue.Paused == core::queue_pause::failed              ? QStringLiteral("Paused: a run failed")
+					: aQueue.Paused == core::queue_pause::usage_limit         ? QStringLiteral("Paused: the agent's usage limit")
+					: aQueue.Paused == core::queue_pause::restarted           ? QStringLiteral("Paused since the app restarted")
+					: aQueue.Paused == core::queue_pause::delivery_unknown    ? QStringLiteral("Paused: a message may not have been delivered")
+					: aQueue.Paused == core::queue_pause::changed_target      ? QStringLiteral("Paused: what a message is about has changed")
+																			  : QStringLiteral("Queued, %1").arg(state);
+				Window->agent_tab()->present_queue_rows(std::move(rows), why, aQueue.Paused != core::queue_pause::none);
 			};
 			AgentQueue = std::make_unique<application::agent_queue_host>(std::move(dependencies));
 			AgentQueue->load();
@@ -93,6 +115,57 @@ namespace bpr::app {
 		}
 		Window->agent_tab()->set_availability_observer([this](const bool aSettled) { observe_ask_queue(aSettled); });
 		auto* const tab = Window->agent_tab();
+		// RFC-BPR-0126 ([[BPR-2151]]). The pending list's controls, on the
+		// session's one queue.
+		const auto onQueue = [this](auto aAct) {
+			return [this, aAct](auto... aArgs) {
+				if (!Closing && AgentQueue && !ask_session_key().empty()) {
+					static_cast<void>(aAct(*AgentQueue, ask_session_key(), aArgs...));
+					observe_ask_queue(false);
+				}
+			};
+		};
+		tab->set_queue_dispatch(qt::agent_tab_view::queue_dispatch{
+			.Edit   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId) { return aQueue.hold(aSession, aId); }),
+			.Save   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId, const QString& aText) {
+				return aQueue.release_hold(aSession, aId, aText.trimmed().isEmpty() ? std::nullopt : std::optional{ aText.toStdString() });
+			}),
+			.Cancel = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId) { return aQueue.release_hold(aSession, aId, std::nullopt); }),
+			.Remove = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId) { return aQueue.withdraw(aSession, aId); }),
+			.Move   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId, const int aBy) { return aQueue.reorder(aSession, aId, aBy); }),
+			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession) {
+				aQueue.pause(aSession, core::queue_pause::reviewer);
+				return core::queue_refusal::none;
+			}),
+			.Resume = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession) { return aQueue.resume(aSession); }),
+		});
+		// Q4/Q5 as answered: a typed message while a turn runs or messages
+		// wait is queued on the session (Steer is not built: a driver that
+		// cannot steer keeps Queue and says so, Q17).
+		tab->set_follow_up([this](const QString& aText, const bool aSteer) {
+			const auto session = ask_session_key();
+			if (Closing || Window == nullptr || !AgentQueue || session.empty()) {
+				return false;
+			}
+			auto label = aText.section(QLatin1Char('\n'), 0, 0).trimmed();
+			if (label.size() > 80) {
+				label = label.left(79) + QStringLiteral("\u2026");
+			}
+			auto input = core::queued_input{ .Scope = "message", .File = Window->active_document_path().toStdString(), .Label = label.toStdString(), .Text = aText.toStdString() };
+			if (AskedConversation) {
+				input.Thread = AskedConversation->Identity;
+			}
+			if (const auto refused = AgentQueue->enqueue(session, std::move(input)); refused != core::queue_refusal::none) {
+				Window->agent_panel()->refuse(refused == core::queue_refusal::full || refused == core::queue_refusal::too_large ? "The queue is full: nothing more was queued."
+																																: "That message can't be queued.");
+				return false;
+			}
+			if (aSteer) {
+				Window->agent_panel()->refuse("Steer isn't available for this agent yet, so the message was queued.");
+			}
+			observe_ask_queue(false);
+			return true;
+		});
 		// RFC-BPR-0128 ([[BPR-2166]]). A report card's Open: the report as a
 		// tab beside the files; its references go where the Agent tab's go.
 		tab->set_report_dispatch([this](const qt::agent_report_document& aReport) {
@@ -317,9 +390,28 @@ namespace bpr::app {
 		if (Closing || Window == nullptr) {
 			return false;
 		}
-		auto* const tab   = Window->agent_tab();
-		const auto  set   = PromptMacroSet.macros();
-		const auto  macro = std::ranges::find(set, aEntry.Input.QuickAsk, &core::prompt_macro::Id);
+		auto* const tab = Window->agent_tab();
+		// RFC-BPR-0126: a typed message, sent as typed on the subject it was
+		// queued with.
+		if (aEntry.Input.QuickAsk.empty()) {
+			QueueTurnSeen     = false;
+			QueueRetireChecks = 0U;
+			const auto turns  = tab->turn_count();
+			if (!aEntry.Input.Thread.empty()) {
+				ask_agent_about_thread(aEntry.Input.Thread);
+			}
+			Window->open_agent_question();
+			const auto refused = tab->send_released(QString::fromStdString(aEntry.Input.Text));
+			QTimer::singleShot(0, Window.get(), [this, turns] {
+				if (!Closing && Window != nullptr && Window->agent_tab()->turn_count() > turns) {
+					Window->agent_tab()->reveal_turn(Window->agent_tab()->turn_count() - 1U);
+					observe_ask_queue(false);
+				}
+			});
+			return refused.isEmpty();
+		}
+		const auto set   = PromptMacroSet.macros();
+		const auto macro = std::ranges::find(set, aEntry.Input.QuickAsk, &core::prompt_macro::Id);
 		if (macro == set.end()) {
 			return false;
 		}

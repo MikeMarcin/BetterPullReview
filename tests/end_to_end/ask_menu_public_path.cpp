@@ -248,6 +248,78 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return tab->turn_count() == turns + 2U && tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent && tab->queue_note()->text().isEmpty(); },
 				 "both run, one after the other");
 			expect(tab->turn_returning(turns) == core::returning_operation::latest_upload && tab->turn_explain(turns + 1U) == path, "in the order they were queued");
+
+			// RFC-BPR-0126 ([[BPR-2151]]): the pending list and typed
+			// follow-ups. With a message waiting and the queue paused, typed
+			// messages queue (Send says Queue), are edited in place (held,
+			// never sent), move, are removed, and run in order on Resume.
+			const auto list   = [&] { return tab->queue_list(); };
+			const auto rowsOf = [&] {
+				auto labels = QStringList{ };
+				for (auto* const label : list()->findChildren<QLabel*>(QStringLiteral("agentQueueLabel"))) {
+					labels << label->text();
+				}
+				return labels;
+			};
+			const auto pressIn = [&](const QString& aName, const QString& aLabel = { }) {
+				for (auto* const row : list()->findChildren<QWidget*>(QStringLiteral("agentQueueRow"))) {
+					auto* const label = row->findChild<QLabel*>(QStringLiteral("agentQueueLabel"));
+					if (aLabel.isEmpty() || (label != nullptr && label->text() == aLabel)) {
+						if (auto* const button = row->findChild<QPushButton*>(aName); button != nullptr) {
+							button->click();
+							QApplication::processEvents();
+							return true;
+						}
+					}
+				}
+				if (auto* const button = list()->findChild<QPushButton*>(aName); button != nullptr && aLabel.isEmpty()) {
+					button->click();
+					QApplication::processEvents();
+					return true;
+				}
+				return false;
+			};
+			const auto settledTurns = tab->turn_count();
+			ask->refresh_menu();
+			row(*ask->menu(), QStringLiteral("agent-tab.what-changed"), QStringLiteral("pull-request"))->trigger();
+			ask->refresh_menu();
+			row(*ask->menu(), QStringLiteral("agent-tab.explain-file"), QStringLiteral("file"))->trigger();
+			QApplication::processEvents();
+			wait([&] { return list()->isVisible(); }, "a waiting message shows in the pending list");
+			expect(pressIn(QStringLiteral("agentQueuePauseResume")), "Pause queue");
+			auto* const composer      = access::side_chat_panel(*application)->composer();
+			const auto  typeAndReturn = [&](const QString& aText, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
+				composer->setPlainText(aText);
+				QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, aModifiers };
+				QApplication::sendEvent(composer, &press);
+				QApplication::processEvents();
+			};
+			wait([&] { return tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent; }, "the running ask finishes");
+			expect(access::side_chat_panel(*application)->send_action()->text() == QStringLiteral("Queue"), "with messages waiting, Send says Queue: " + access::side_chat_panel(*application)->send_action()->text().toStdString());
+			typeAndReturn(QStringLiteral("First follow-up"));
+			typeAndReturn(QStringLiteral("Second follow-up"));
+			expect(composer->toPlainText().isEmpty() && rowsOf().contains(QStringLiteral("First follow-up")) && rowsOf().contains(QStringLiteral("Second follow-up")),
+				   "typed messages are queued, the field cleared: " + rowsOf().join(QLatin1Char('|')).toStdString());
+			typeAndReturn(QStringLiteral("Third, steered"), Qt::ControlModifier);
+			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("Steer isn't available")),
+				   "Cmd+Return asks to steer; with no steering it is queued and says so (Q17): " + window.agent_panel()->status_text().toStdString());
+			expect(pressIn(QStringLiteral("agentQueueEdit"), QStringLiteral("First follow-up")), "Edit a typed message");
+			auto* const field = list()->findChild<QLineEdit*>(QStringLiteral("agentQueueEditField"));
+			expect(field != nullptr && field->text() == QStringLiteral("First follow-up"), "edited in place");
+			field->setText(QStringLiteral("First follow-up, edited"));
+			expect(pressIn(QStringLiteral("agentQueueSave")), "Save");
+			expect(rowsOf().contains(QStringLiteral("First follow-up, edited")), "the edit is kept: " + rowsOf().join(QLatin1Char('|')).toStdString());
+			expect(pressIn(QStringLiteral("agentQueueRemove"), QStringLiteral("Third, steered")), "Remove");
+			expect(!rowsOf().contains(QStringLiteral("Third, steered")), "removed");
+			expect(pressIn(QStringLiteral("agentQueueUp"), QStringLiteral("Second follow-up")), "Move up");
+			const auto order = rowsOf();
+			expect(order.indexOf(QStringLiteral("Second follow-up")) < order.indexOf(QStringLiteral("First follow-up, edited")), "moved up: " + order.join(QLatin1Char('|')).toStdString());
+			expect(launchesAt() > 0U && tab->turn_count() == settledTurns + 1U, "nothing more ran while paused");
+			expect(pressIn(QStringLiteral("agentQueuePauseResume")), "Resume queue");
+			wait([&] { return tab->turn_count() == settledTurns + 4U && tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent && !list()->isVisible(); },
+				 "on Resume every waiting message runs, in order");
+			expect(tab->turn_explain(settledTurns + 1U) == path && tab->turn_question(settledTurns + 2U) == QStringLiteral("Second follow-up") && tab->turn_question(settledTurns + 3U) == QStringLiteral("First follow-up, edited"),
+				   "in the order the list shows: " + tab->turn_question(settledTurns + 2U).toStdString() + " then " + tab->turn_question(settledTurns + 3U).toStdString());
 			shutdown(*application);
 			std::cout << "ask-menu-queue:pass\n";
 			return EXIT_SUCCESS;

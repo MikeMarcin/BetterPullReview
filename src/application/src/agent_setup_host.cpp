@@ -797,6 +797,16 @@ namespace bpr::application {
 		}
 	}
 
+	void agent_setup_host::set_follow_up_steer(const bool aSteer)
+	{
+		auto& host = *Implementation;
+		if (host.Projection.Preferences.FollowUpSteer != aSteer) {
+			host.Projection.Preferences.FollowUpSteer = aSteer;
+			host.save();
+			host.publish();
+		}
+	}
+
 	void agent_setup_host::load_catalog(const std::uint32_t aEntry)
 	{
 		auto&       host   = *Implementation;

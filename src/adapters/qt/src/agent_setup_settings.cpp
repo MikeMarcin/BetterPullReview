@@ -6,6 +6,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
@@ -15,6 +16,7 @@
 #include <QFontDatabase>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -323,6 +325,48 @@ namespace bpr::qt {
 			send_run_limit();
 		});
 		connect(RunLimit, &QSpinBox::editingFinished, this, [this] { send_run_limit(); });
+		// RFC-BPR-0126 Q4/Q5 as answered (owner, 2026-11-13: "Default is a
+		// setting, queue initially with a shortcut to the secondary action.
+		// See codex setting for inspiration."): Follow-up behaviour, Queue or
+		// Steer, a segmented choice; Cmd+Return the other for one message.
+		{
+			auto* const followRow = new QHBoxLayout{ };
+			auto* const says      = new QLabel{ tr("Follow-up behaviour"), this };
+			says->setToolTip(tr("What a message typed while the agent is answering does"));
+			followRow->addWidget(says);
+			followRow->addStretch(1);
+			auto* const segments = new QWidget{ this };
+			segments->setObjectName(QStringLiteral("settingsFollowUp"));
+			segments->setAccessibleName(tr("Follow-up behaviour"));
+			auto* const pair = new QHBoxLayout{ segments };
+			pair->setContentsMargins(0, 0, 0, 0);
+			pair->setSpacing(0);
+			auto* const group = new QButtonGroup{ segments };
+			FollowUpQueue     = new QPushButton{ tr("Queue"), segments };
+			FollowUpQueue->setObjectName(QStringLiteral("settingsFollowUpQueue"));
+			FollowUpSteer = new QPushButton{ tr("Steer"), segments };
+			FollowUpSteer->setObjectName(QStringLiteral("settingsFollowUpSteer"));
+			for (auto* const option : { FollowUpQueue, FollowUpSteer }) {
+				option->setCheckable(true);
+				group->addButton(option);
+				pair->addWidget(option);
+			}
+			FollowUpQueue->setChecked(true);
+			group->setExclusive(true);
+			followRow->addWidget(segments);
+			column->addLayout(followRow);
+			const auto  other = QKeySequence{ Qt::ControlModifier }.toString(QKeySequence::NativeText);
+			auto* const hint  = new QLabel{ tr("Queue follow-ups while the agent answers, or steer the run it is on. Press %1Return to do the other for one message.").arg(other), this };
+			hint->setObjectName(QStringLiteral("settingsFollowUpHint"));
+			hint->setWordWrap(true);
+			hint->setForegroundRole(QPalette::PlaceholderText);
+			column->addWidget(hint);
+			connect(FollowUpSteer, &QPushButton::toggled, this, [this](const bool aSteer) {
+				if (Dispatch.SetFollowUpSteer) {
+					Dispatch.SetFollowUpSteer(aSteer);
+				}
+			});
+		}
 		// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d: "we need to
 		// make sure that our app doesn't just consume disk space without
 		// bounds"). The scratch folders' limit, how long an unused one is
@@ -495,6 +539,12 @@ namespace bpr::qt {
 			const auto blockToggle  = QSignalBlocker{ RunLimitOn };
 			const auto blockMinutes = QSignalBlocker{ RunLimit };
 			RunLimitOn->setChecked(aPreferences.RunLimitMinutes != 0U);
+			if (FollowUpSteer != nullptr) {
+				const auto blockSteer = QSignalBlocker{ FollowUpSteer };
+				const auto blockQueue = QSignalBlocker{ FollowUpQueue };
+				FollowUpSteer->setChecked(aPreferences.FollowUpSteer);
+				FollowUpQueue->setChecked(!aPreferences.FollowUpSteer);
+			}
 			RunLimit->setEnabled(aPreferences.RunLimitMinutes != 0U);
 			if (aPreferences.RunLimitMinutes != 0U && !RunLimit->hasFocus()) {
 				RunLimit->setValue(static_cast<int>(aPreferences.RunLimitMinutes));

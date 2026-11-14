@@ -70,6 +70,36 @@ namespace bpr::application {
 		return refused;
 	}
 
+	auto agent_queue_host::reorder(const std::string& aSession, const std::uint64_t aId, const int aBy) -> core::queue_refusal
+	{
+		auto&      queue   = Queues[aSession];
+		const auto refused = core::reorder(queue, aId, aBy, queue.Revision);
+		if (refused == core::queue_refusal::none) {
+			commit(aSession);
+		}
+		return refused;
+	}
+
+	auto agent_queue_host::hold(const std::string& aSession, const std::uint64_t aId) -> core::queue_refusal
+	{
+		auto&      queue   = Queues[aSession];
+		const auto refused = core::hold(queue, aId, queue.Revision);
+		if (refused == core::queue_refusal::none) {
+			commit(aSession);
+		}
+		return refused;
+	}
+
+	auto agent_queue_host::release_hold(const std::string& aSession, const std::uint64_t aId, std::optional<std::string> aText) -> core::queue_refusal
+	{
+		auto&      queue   = Queues[aSession];
+		const auto refused = core::release_hold(queue, aId, std::move(aText), queue.Revision);
+		if (refused == core::queue_refusal::none) {
+			commit(aSession);
+		}
+		return refused;
+	}
+
 	void agent_queue_host::pause(const std::string& aSession, const core::queue_pause aWhy)
 	{
 		core::pause(Queues[aSession], aWhy);

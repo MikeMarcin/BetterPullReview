@@ -42,6 +42,7 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLayoutItem>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QLocale>
 #include <QMenu>
@@ -740,6 +741,17 @@ namespace bpr::qt {
 		QueueNote->setTextFormat(Qt::PlainText);
 		QueueNote->hide();
 		contentCol->addWidget(QueueNote);
+		// RFC-BPR-0126 ([[BPR-2151]]). The session's waiting messages, each
+		// with Edit (a typed one, held while edited), Remove and Move up and
+		// down, and Pause or Resume for the queue.
+		QueueList = new QWidget{ content };
+		QueueList->setObjectName(QStringLiteral("agentQueueList"));
+		QueueList->setAccessibleName(tr("Queued messages"));
+		new QVBoxLayout{ QueueList };
+		QueueList->layout()->setContentsMargins(0, 0, 0, 0);
+		QueueList->layout()->setSpacing(2);
+		QueueList->hide();
+		contentCol->addWidget(QueueList);
 		// [[BPR-1847]], owner 2026-11-03: "doesn't make sense to show
 		// suggested prompts before the wizard completes." While the setup
 		// is unfinished and not on screen, its way in stands where they would.
@@ -1229,6 +1241,7 @@ namespace bpr::qt {
 		}
 		Head->setText(head.left(7));
 		Head->setVisible(!head.isEmpty() && head != QStringLiteral("—"));
+		refresh_send_label();
 		Head->setToolTip(tr("The head the session reads. %1").arg(Chat.session_state_text()));
 		// The added context, above the words, only when there is some.
 		Chips->setText(Chat.chips_text());
@@ -2588,6 +2601,182 @@ namespace bpr::qt {
 		cursor.movePosition(QTextCursor::End);
 		composer->setTextCursor(cursor);
 		composer->setFocus(Qt::OtherFocusReason);
+	}
+
+	void agent_tab_view::set_follow_up_steer(const bool aSteer)
+	{
+		FollowUpSteer = aSteer;
+		refresh_send_label();
+	}
+
+	/// While a turn runs or messages wait, Send says what Return will do.
+	void agent_tab_view::refresh_send_label()
+	{
+		auto* const send = Chat.send_action();
+		if (send == nullptr) {
+			return;
+		}
+		const auto following = FollowUp && (State == agent_tab_state::working || QueueOccupied);
+		const auto other     = QStringLiteral("%1Return").arg(QKeySequence{ Qt::ControlModifier }.toString(QKeySequence::NativeText));
+		const auto words     = !following ? tr("Send")
+			: FollowUpSteer               ? tr("Steer (Return) · Queue (%1)").arg(other)
+										  : tr("Queue (Return) · Steer (%1)").arg(other);
+		send->setToolTip(words);
+		send->setText(!following ? tr("Send") : FollowUpSteer ? tr("Steer")
+															  : tr("Queue"));
+	}
+
+	auto agent_tab_view::send_released(const QString& aText) -> QString
+	{
+		if (!panels_alive()) {
+			return tr("Not sent.");
+		}
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		composer->setPlainText(aText);
+		KeepingDraft = !draft.trimmed().isEmpty();
+		Releasing    = true;
+		ask();
+		Releasing = false;
+		if (KeepingDraft) {
+			composer->setPlainText(draft);
+		}
+		KeepingDraft = false;
+		return send_refusal_text();
+	}
+
+	void agent_tab_view::present_queue_rows(std::vector<queue_row> aRows, const QString& aState, const bool aPaused)
+	{
+		QueueOccupied = std::ranges::any_of(aRows, [](const queue_row& aRow) { return !aRow.Sending; });
+		refresh_send_label();
+		if (QueueList == nullptr) {
+			return;
+		}
+		auto* const column = static_cast<QVBoxLayout*>(QueueList->layout());
+		while (auto* const item = column->takeAt(0)) {
+			// Out of the list at once (a control pressed may be inside it),
+			// deleted when the press is done.
+			if (auto* const gone = item->widget(); gone != nullptr) {
+				gone->hide();
+				gone->setParent(nullptr);
+				gone->deleteLater();
+			}
+			delete item;
+		}
+		if (aRows.empty()) {
+			EditingQueued.reset();
+			QueueList->hide();
+			return;
+		}
+		const auto button = [this](QWidget* aParent, const QString& aText, const QString& aName, const QString& aSpoken) {
+			auto* const made = new quiet_push_button{ aParent };
+			made->setText(aText);
+			made->setObjectName(aName);
+			made->setFlat(true);
+			made->setAccessibleName(aSpoken);
+			made->setToolTip(aSpoken);
+			made->setFocusPolicy(Qt::StrongFocus);
+			static_cast<void>(this);
+			return made;
+		};
+		for (std::size_t index = 0U; index < aRows.size(); ++index) {
+			const auto& entry = aRows[index];
+			auto* const row   = new QWidget{ QueueList };
+			row->setObjectName(QStringLiteral("agentQueueRow"));
+			row->setProperty("agentQueueId", QVariant::fromValue<qulonglong>(entry.Id));
+			auto* const line = new QHBoxLayout{ row };
+			line->setContentsMargins(0, 0, 0, 0);
+			line->setSpacing(4);
+			const auto id = entry.Id;
+			if (EditingQueued == entry.Id && entry.Held) {
+				// Edited in place, held: never sent, and nothing passes it.
+				auto* const field = new QLineEdit{ entry.Text, row };
+				field->setObjectName(QStringLiteral("agentQueueEditField"));
+				field->setAccessibleName(tr("Queued message"));
+				line->addWidget(field, 1);
+				auto* const save   = button(row, tr("Save"), QStringLiteral("agentQueueSave"), tr("Save the queued message"));
+				auto* const cancel = button(row, tr("Cancel"), QStringLiteral("agentQueueCancel"), tr("Keep the queued message as it was"));
+				connect(save, &QPushButton::clicked, this, [this, id, field] {
+					EditingQueued.reset();
+					if (QueueDispatch.Save) {
+						QueueDispatch.Save(id, field->text());
+					}
+				});
+				connect(field, &QLineEdit::returnPressed, save, &QPushButton::click);
+				connect(cancel, &QPushButton::clicked, this, [this, id] {
+					EditingQueued.reset();
+					if (QueueDispatch.Cancel) {
+						QueueDispatch.Cancel(id);
+					}
+				});
+				line->addWidget(save);
+				line->addWidget(cancel);
+				column->addWidget(row);
+				QTimer::singleShot(0, field, [field] { field->setFocus(Qt::OtherFocusReason); });
+				continue;
+			}
+			auto* const label = new QLabel{ row };
+			label->setObjectName(QStringLiteral("agentQueueLabel"));
+			label->setText(entry.Sending ? tr("%1 (sending)").arg(entry.Label) : entry.Held ? tr("%1 (being edited)").arg(entry.Label)
+																							: entry.Label);
+			label->setTextFormat(Qt::PlainText);
+			label->setForegroundRole(entry.Sending ? QPalette::PlaceholderText : QPalette::WindowText);
+			line->addWidget(label, 1);
+			if (!entry.Sending) {
+				if (!entry.Text.isEmpty()) {
+					auto* const edit = button(row, tr("Edit"), QStringLiteral("agentQueueEdit"), tr("Edit the queued message: %1").arg(entry.Label));
+					connect(edit, &QPushButton::clicked, this, [this, id] {
+						EditingQueued = id;
+						if (QueueDispatch.Edit) {
+							QueueDispatch.Edit(id);
+						}
+					});
+					line->addWidget(edit);
+				}
+				auto* const up     = button(row, QStringLiteral("\u2191"), QStringLiteral("agentQueueUp"), tr("Move up: %1").arg(entry.Label));
+				auto* const down   = button(row, QStringLiteral("\u2193"), QStringLiteral("agentQueueDown"), tr("Move down: %1").arg(entry.Label));
+				auto* const remove = button(row, tr("Remove"), QStringLiteral("agentQueueRemove"), tr("Remove from the queue: %1").arg(entry.Label));
+				up->setEnabled(index > 0U && !aRows[index - 1U].Sending);
+				down->setEnabled(index + 1U < aRows.size());
+				connect(up, &QPushButton::clicked, this, [this, id] {
+					if (QueueDispatch.Move) {
+						QueueDispatch.Move(id, -1);
+					}
+				});
+				connect(down, &QPushButton::clicked, this, [this, id] {
+					if (QueueDispatch.Move) {
+						QueueDispatch.Move(id, 1);
+					}
+				});
+				connect(remove, &QPushButton::clicked, this, [this, id] {
+					if (QueueDispatch.Remove) {
+						QueueDispatch.Remove(id);
+					}
+				});
+				line->addWidget(up);
+				line->addWidget(down);
+				line->addWidget(remove);
+			}
+			column->addWidget(row);
+		}
+		auto* const foot = new QWidget{ QueueList };
+		auto* const feet = new QHBoxLayout{ foot };
+		feet->setContentsMargins(0, 0, 0, 0);
+		auto* const state = new QLabel{ aState, foot };
+		state->setObjectName(QStringLiteral("agentQueueState"));
+		state->setForegroundRole(QPalette::PlaceholderText);
+		feet->addWidget(state, 1);
+		auto* const toggle = button(foot, aPaused ? tr("Resume queue") : tr("Pause queue"), QStringLiteral("agentQueuePauseResume"), aPaused ? tr("Resume queue") : tr("Pause queue"));
+		connect(toggle, &QPushButton::clicked, this, [this, aPaused] {
+			if (aPaused && QueueDispatch.Resume) {
+				QueueDispatch.Resume();
+			} else if (!aPaused && QueueDispatch.Pause) {
+				QueueDispatch.Pause();
+			}
+		});
+		feet->addWidget(toggle);
+		column->addWidget(foot);
+		QueueList->show();
 	}
 
 	void agent_tab_view::present_queue(const QStringList& aWaiting, const QString& aState)
@@ -4079,6 +4268,16 @@ namespace bpr::qt {
 		if (!direct && run_slash_command(text)) {
 			return;
 		}
+		// RFC-BPR-0126 Q4/Q5 as answered: while a turn runs or messages wait,
+		// a typed message is a follow-up (Queue by default, Steer by the
+		// setting; Cmd+Return the other for one message).
+		const auto typed = !SendingMacro && !SendingReturning && SendingExplain.isEmpty() && SendingSuggest.isEmpty() && !DraftedMacro && !Releasing;
+		if (typed && FollowUp && !text.isEmpty() && (State == agent_tab_state::working || QueueOccupied)) {
+			if (FollowUp(text, FollowUpSteer != Opposite)) {
+				Chat.composer()->clear();
+				return;
+			}
+		}
 		Notice->hide();
 		hide_send_refusal();
 		// [[BPR-1817]]. Asked of the core before anything is sent: a send
@@ -4476,7 +4675,11 @@ namespace bpr::qt {
 				if (Chat.composer()->toPlainText().trimmed().isEmpty() && !modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier)) {
 					return true;
 				}
+				// Cmd+Return (Ctrl+Return off macOS): the other follow-up for
+				// this one message.
+				Opposite = modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier);
 				ask();
+				Opposite = false;
 				return true;
 			}
 		}

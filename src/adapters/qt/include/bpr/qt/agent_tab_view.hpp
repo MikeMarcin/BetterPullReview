@@ -494,7 +494,45 @@ namespace bpr::qt {
 		/// \brief Puts `aText` in the field for the reviewer to finish.
 		void draft_text(const QString& aText);
 		/// \brief What waits its turn in this session's queue.
-		void               present_queue(const QStringList& aWaiting, const QString& aState);
+		void present_queue(const QStringList& aWaiting, const QString& aState);
+		/// \brief RFC-BPR-0126 ([[BPR-2151]]). One waiting message as the
+		/// pending list shows it.
+		struct queue_row
+		{
+			std::uint64_t Id = 0U;
+			QString       Label;
+			/// A typed message's text; empty for a quick ask, which is not
+			/// edited in place.
+			QString Text;
+			bool    Held    = false;
+			bool    Sending = false;
+		};
+		/// \brief What the pending list's controls ask of the session's queue.
+		struct queue_dispatch
+		{
+			std::function<void(std::uint64_t)>                 Edit;
+			std::function<void(std::uint64_t, const QString&)> Save;
+			std::function<void(std::uint64_t)>                 Cancel;
+			std::function<void(std::uint64_t)>                 Remove;
+			std::function<void(std::uint64_t, int)>            Move;
+			std::function<void()>                              Pause;
+			std::function<void()>                              Resume;
+		};
+		void set_queue_dispatch(queue_dispatch aDispatch) { QueueDispatch = std::move(aDispatch); }
+		/// \brief The session's waiting messages, in order, with the queue's
+		/// state ("waiting its turn", "paused: Stop") and whether it is paused.
+		void               present_queue_rows(std::vector<queue_row> aRows, const QString& aState, bool aPaused);
+		[[nodiscard]] auto queue_list() const noexcept -> QWidget* { return QueueList; }
+		/// \brief RFC-BPR-0126 Q4/Q5 as answered: while a turn runs or messages
+		/// wait, a typed message is a follow-up; Queue (the default) or Steer
+		/// by the setting, Cmd+Return (Ctrl+Return off macOS) the other for
+		/// one message. Returns whether it was taken.
+		using follow_up = std::function<bool(const QString& aText, bool aSteer)>;
+		void set_follow_up(follow_up aFollowUp) { FollowUp = std::move(aFollowUp); }
+		void set_follow_up_steer(bool aSteer);
+		/// \brief A queued typed message released: sent as typed, bypassing
+		/// the follow-up. Empty when it went.
+		[[nodiscard]] auto send_released(const QString& aText) -> QString;
 		[[nodiscard]] auto queue_note() const noexcept -> QLabel* { return QueueNote; }
 		/// \brief Opens turn `aTurn`'s report, as its card's Open does.
 		void               open_report(std::size_t aTurn);
@@ -1033,6 +1071,15 @@ namespace bpr::qt {
 		report_dispatch                              ReportDispatch;
 		std::function<void(bool)>                    AvailabilityObserver;
 		QLabel*                                      QueueNote = nullptr;
+		QWidget*                                     QueueList = nullptr;
+		queue_dispatch                               QueueDispatch;
+		follow_up                                    FollowUp;
+		bool                                         FollowUpSteer = false;
+		bool                                         QueueOccupied = false;
+		bool                                         Opposite      = false;
+		bool                                         Releasing     = false;
+		std::optional<std::uint64_t>                 EditingQueued;
+		void                                         refresh_send_label();
 		std::optional<core::returning_operation>     SendingReturning;
 		std::optional<core::returning_operation>     PendingReturning;
 		/// RFC-BPR-0117. The file Explain this file is being sent for, the

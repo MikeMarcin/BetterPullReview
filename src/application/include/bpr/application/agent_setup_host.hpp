@@ -187,6 +187,8 @@ namespace bpr::application {
 		[[nodiscard]] auto set_scratch_policy(std::uint32_t aLimitMiB, std::uint32_t aKeepDays) -> bool;
 		/// \brief Owner look v004: the Agent tab's Suggestions toggle, kept.
 		void set_suggestions_hidden(bool aHidden);
+		/// \brief RFC-BPR-0126 Q4/Q5: Queue (false, the default) or Steer.
+		void set_follow_up_steer(bool aSteer);
 		/// \brief Owner look v006 ("Codex is totally missing its model
 		/// settings"). Asks an added agent's harness what it offers, once per
 		/// window: a Codex protocol's `model/list` through its own program and

@@ -508,6 +508,12 @@ namespace {
 		again.Host->set_suggestions_hidden(true);
 		again.settle();
 		expect(again.state().Preferences.SuggestionsHidden && again.Store.Stored->SuggestionsHidden, "hiding them is kept for the profile");
+		// RFC-BPR-0126 Q4/Q5 as answered: a follow-up is queued by default;
+		// Steer is a setting kept for the profile.
+		expect(!again.state().Preferences.FollowUpSteer, "follow-ups queue by default");
+		again.Host->set_follow_up_steer(true);
+		again.settle();
+		expect(again.state().Preferences.FollowUpSteer && again.Store.Stored->FollowUpSteer, "Steer is kept for the profile");
 
 		auto answer = std::optional<std::optional<core::agent_entry_refusal>>{ };
 		again.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };

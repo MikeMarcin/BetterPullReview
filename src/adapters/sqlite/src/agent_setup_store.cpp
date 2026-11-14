@@ -233,6 +233,11 @@ namespace bpr::adapters::sqlite {
 									"CREATE TABLE IF NOT EXISTS agent_suggestions("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
 									"hidden INTEGER NOT NULL CHECK(hidden IN (0,1))) STRICT")
+				// RFC-BPR-0126 Q4/Q5: a follow-up steers (1) or is queued (0).
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_follow_up("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"steer INTEGER NOT NULL CHECK(steer IN (0,1))) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_list("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
@@ -572,6 +577,14 @@ namespace bpr::adapters::sqlite {
 				if (committed) {
 					sqlite3_bind_int64(hidden->Value, 1, aPreferences.SuggestionsHidden ? 1 : 0);
 					committed = sqlite3_step(hidden->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				auto followUp = detail::prepare(aDatabase, "INSERT OR REPLACE INTO agent_follow_up VALUES(1,?1)");
+				committed     = followUp.has_value();
+				if (committed) {
+					sqlite3_bind_int64(followUp->Value, 1, aPreferences.FollowUpSteer ? 1 : 0);
+					committed = sqlite3_step(followUp->Value) == SQLITE_DONE;
 				}
 			}
 			if (committed) {
@@ -977,6 +990,9 @@ namespace bpr::adapters::sqlite {
 					}
 					if (auto hidden = detail::prepare(store->Database.get(), "SELECT hidden FROM agent_suggestions WHERE singleton=1"); hidden && sqlite3_step(hidden->Value) == SQLITE_ROW) {
 						loaded.SuggestionsHidden = sqlite3_column_int64(hidden->Value, 0) != 0;
+					}
+					if (auto followUp = detail::prepare(store->Database.get(), "SELECT steer FROM agent_follow_up WHERE singleton=1"); followUp && sqlite3_step(followUp->Value) == SQLITE_ROW) {
+						loaded.FollowUpSteer = sqlite3_column_int64(followUp->Value, 0) != 0;
 					}
 					return application::valid(loaded) ? loaded : application::agent_setup_preferences{ };
 				} catch (...) {

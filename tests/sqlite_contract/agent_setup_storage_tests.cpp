@@ -189,7 +189,9 @@ try {
 	listed.RunLimitMinutes = 45U;
 	listed.PreferredAgent  = 2U;
 	// Owner look v004: the Agent tab's Suggestions toggle is kept.
-	listed.SuggestionsHidden  = true;
+	listed.SuggestionsHidden = true;
+	// RFC-BPR-0126 Q4/Q5: Follow-up behaviour, Steer, is kept.
+	listed.FollowUpSteer      = true;
 	listed.Agents[0].Identity = std::string(32U, 'a');
 	expect(store->load()->ScratchLimitMiB == core::default_agent_scratch_limit_mib && store->load()->ScratchKeepDays == core::default_agent_scratch_keep_days, "the scratch policy starts at 256 MiB and 30 days");
 	// RFC-BPR-0104 as amended 2026-11-11: the scratch folder limit and how

@@ -73,6 +73,8 @@ namespace bpr::qt {
 			/// Owner decision 2026-10-23: the run time limit in minutes, 0 for
 			/// none. Answers whether it was taken.
 			std::function<bool(std::uint32_t)> SetRunLimit;
+			/// RFC-BPR-0126 Q4/Q5: Queue (false) or Steer for a follow-up.
+			std::function<void(bool)> SetFollowUpSteer;
 			/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d): the
 			/// scratch folder limit in MiB and the days an unused folder is
 			/// kept (0: until cleared), answering whether they were taken;
@@ -187,6 +189,8 @@ namespace bpr::qt {
 		QPushButton*                                       DownButton      = nullptr;
 		QLabel*                                            Status          = nullptr;
 		QCheckBox*                                         RunLimitOn      = nullptr;
+		QPushButton*                                       FollowUpQueue   = nullptr;
+		QPushButton*                                       FollowUpSteer   = nullptr;
 		QSpinBox*                                          RunLimit        = nullptr;
 		QSpinBox*                                          ScratchLimit    = nullptr;
 		QCheckBox*                                         ScratchKeepOn   = nullptr;

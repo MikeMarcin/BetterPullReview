@@ -65,6 +65,11 @@ namespace bpr::application {
 		/// Owner look v004: the Agent tab's suggested prompts were hidden
 		/// with its Suggestions toggle; they show by default.
 		bool SuggestionsHidden = false;
+		/// RFC-BPR-0126 Q4/Q5 as answered (owner, 2026-11-13: "Default is a
+		/// setting, queue initially with a shortcut to the secondary
+		/// action"): a follow-up typed while a turn runs steers it; off, the
+		/// default, it is queued. Cmd+Return does the other for one message.
+		bool FollowUpSteer = false;
 		/// [[BPR-2051]]. Each added agent's last check, by entry id.
 		std::vector<agent_entry_check_record> EntryChecks;
 		/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d). The

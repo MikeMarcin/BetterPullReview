@@ -53,3 +53,34 @@ Not yet: the composer's Queue/Steer, the pending list's Edit/Remove/reorder UI,
 Pause/Resume controls, Stop all (AC09), tour proposals, revalidation of private
 selections at release, the multi-window stale-write path through a shared
 store, and AC02 to AC04's full evidence. The card stays In Progress.
+
+## Progress (2026-11-14): the queue's controls
+
+Following the owner's answers on RFC-BPR-0126 (Q4/Q5, Q9 refined, Q10,
+AC09):
+
+- **Q9 as refined** (`1441cd92c`, `core_agent_queue`): an edited queued
+  message is held without pausing the queue; nothing is sent past it; Save or
+  Cancel lets it continue unless paused for another reason.
+- **Stop all** (`153a597cc`, `qt_agent_footer`, AC09): one Stop all in the
+  agent footer beside the picker, in a fixed slot shown while any turn runs or
+  any message waits; it stops every run the footer shows and pauses every
+  session's queue (`agent_queue_host::pause_all`).
+- **Follow-ups and the pending list** (`application_ask_queue_public_path`):
+  while a turn runs or messages wait, a typed message is queued on the session
+  (Send says Queue; Cmd+Return, Ctrl+Return off macOS, the other for one
+  message). Steer is not built ([[BPR-2153]]), so a steered message is queued
+  and the Agent tab says Steer isn't available (Q17). The pending list shows
+  each waiting message with Edit (a typed one, in place, held while edited),
+  Move up, Move down and Remove, the queue's state (why it is paused) and
+  Pause queue or Resume queue; on Resume they run in the list's order. A
+  typed message keeps the conversation it was asked about.
+- **The setting** (`sqlite_agent_setup_storage`, `application_agent_setup_host`):
+  Settings > Agents & context, Follow-up behaviour: Queue (the default) or
+  Steer, with "Press ⌘Return to do the other for one message"; kept with the
+  profile.
+
+Not yet: the lines a typed follow-up was asked about (its file and
+conversation are kept, its line selection is not), Steer itself (BPR-2153),
+tour proposals, the multi-window store sharing (the queue host is still one a
+window, keyed by session), and AC02 to AC04's full evidence.

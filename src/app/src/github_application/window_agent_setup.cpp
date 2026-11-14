@@ -1784,6 +1784,10 @@ namespace bpr::app {
 					}
 				},
 			.SetRunLimit         = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+			.SetFollowUpSteer    = [this](const bool aSteer) {
+                if (!Closing && AgentSetup) {
+                    AgentSetup->set_follow_up_steer(aSteer);
+                } },
 			.SetScratchPolicy    = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
 				const auto taken = !Closing && AgentSetup && AgentSetup->set_scratch_policy(aLimitMiB, aKeepDays);
 				present_run_settings();
@@ -2163,6 +2167,7 @@ namespace bpr::app {
 			ClaudeWrapperSource->set({ });
 		}
 		Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
+		Window->agent_tab()->set_follow_up_steer(aProjection.Preferences.FollowUpSteer);
 		Window->agent_tab()->set_suggestions_shown(!aProjection.Preferences.SuggestionsHidden);
 		// [[BPR-1823]], owner ruling 2026-10-29. The saved agent is the
 		// first pick only; a setup update never moves the reviewer's

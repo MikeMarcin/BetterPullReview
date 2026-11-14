@@ -48,6 +48,11 @@ namespace bpr::application {
 		[[nodiscard]] auto enqueue(const std::string& aSession, core::queued_input aInput) -> core::queue_refusal;
 		[[nodiscard]] auto withdraw(const std::string& aSession, std::uint64_t aId) -> core::queue_refusal;
 		[[nodiscard]] auto resume(const std::string& aSession) -> core::queue_refusal;
+		[[nodiscard]] auto reorder(const std::string& aSession, std::uint64_t aId, int aBy) -> core::queue_refusal;
+		/// \brief Q9 as refined: an edit holds its entry; Save (new text) or
+		/// Cancel (none) lifts the hold and the queue continues.
+		[[nodiscard]] auto hold(const std::string& aSession, std::uint64_t aId) -> core::queue_refusal;
+		[[nodiscard]] auto release_hold(const std::string& aSession, std::uint64_t aId, std::optional<std::string> aText) -> core::queue_refusal;
 		void               pause(const std::string& aSession, core::queue_pause aWhy);
 		/// \brief RFC-BPR-0126 AC09, Stop all: every session's queue pauses.
 		void pause_all(core::queue_pause aWhy);
