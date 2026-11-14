@@ -2822,3 +2822,62 @@ Look v007 (`efe2da80…`, handed back 01:50:15Z): all twelve Accept, recorded ve
 The owner's asides are Backlog cards, allocated on main: BPR-2172 (the composer's placement warning takes less space), BPR-2173 (drawer scroll after opening the bottom comment; screenshots in `docs/verification/RFC-BPR-0127-v007-asides/`), BPR-2174 (my draft reply in a thread reads clearly, normal undo), BPR-2175 (Compose review hides when navigating).
 
 Another implementer is building RFC-BPR-0128 on this lane; this round committed only docs and cards by path.
+
+## RFC-BPR-0128 Ask: milestones `ask-menu` and `addressed-anywhere` (2026-11-14)
+
+Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines.
+Frontend-design was loaded before the Qt work. Owner decisions in force: 1C,
+quick asks as macros with a Quick ask checkbox filtered by context, Ask at the
+pull request, a file and a thread, Was this addressed? on any thread, a merge
+of main as one line, answers in the Agent tab, the report as a file tab (Q8).
+Q5 had no threshold: built as **more than five runs ask first** (an
+assumption, asked in the look). Record: [RFC-BPR-0128](../../../verification/RFC-BPR-0128.md).
+
+| Commit | What |
+|---|---|
+| `993435add`, `e7454e160`, `1118221d3` | RFC-BPR-0128 In Progress; claim BPR-2163 and BPR-2146 (RFC-BPR-0125's store, which AC04 needs) |
+| `104ec3663` | Core: Quick ask and scopes with legality, three built-in action rows, `decide_quick_asks` |
+| `9cd904011` | Store (`agent-setup.sqlite3` differences, revision, newer rows kept) and `prompt_macro_host` |
+| `a2891f7bf`, `3928c2e10` | Qt Ask control and menus at the review bar, file header, file tab menu, thread reply row and thread menu; Settings Suggested prompts roster and sheet; app composition |
+| `0a10f8c51`, `51178e1f0` | Courses `application_ask_menu_public_path`, `application_ask_addressed_public_path`; Was this addressed? on any thread with claim chips; fixture threads name their start commits |
+| `7b3fe6eaa` | Integration fixes, app inventory and source pin resealed. **Product candidate** |
+| `235a8bb48` | BPR-2163 Done (AC03, AC04) |
+| `a9d238f92` | BPR-2164 parked `human-review` (AC01, AC02, AC08 pass) |
+| `fefe81d2d` | BPR-2165 progress (engineered; not claimable while BPR-2164 is parked). **Frozen commit** |
+| main `dc21339d2` | Mirror of the card moves and RFC status (verification links as lane references) |
+
+Runs at `7b3fe6eaa` (dev, Debug, macOS): 51 of 51 focused rows (listed in the
+record), the documentation gate, board validate. Live: the addressed course
+with the installed Claude Code 2.1.319 passed (two runs, two claims).
+`coding-tidy` and the full suite not run.
+
+Owner look `ask-v001`, filed and not waited on: session
+`6102c30f502abd70884a1a0f9d331a8e`, state
+`/Users/jaeger/.attended-review-state/ask-v001-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 18, host PID 44478 (Tailscale child 44488).
+Frozen root `/Users/jaeger/ask-v001.29vwy7ai` (executable SHA-256
+`064d05006b4b…`; both launcher checks reached `ATTENDED_FILE_SHOWN`; both
+courses pass from the root). Six questions, one Accept/Reject each:
+`BPR-2164-review-bar-ask`, `BPR-2164-file-ask`, `BPR-2164-thread-ask`,
+`BPR-2163-quick-ask-editor`, `BPR-2165-claim-chips`, `RFC-BPR-0128-Q5-threshold`.
+
+Next action: on handback read from cursor 18, record verbatim on the cards and
+the record, stop host 44478 with the attended-review `stop`, remove the root
+with `freeze_attended_build.py remove` once nothing runs from it. All three
+BPR-2164 questions Accept: finish BPR-2164 Done, then ready, claim and finish
+BPR-2165 (AC05 evidenced). Q5's answer sets `core::quick_ask_confirm_above`.
+Then milestone `reports-in-a-file-tab` (BPR-2166, BPR-2167, then BPR-2168):
+not started. Findings for it: the core tab model (`document_tabs.hpp`) needs a
+report kind; GitHub's pull request commit list already shows a merge of main
+as one commit, so AC07's "Merged main (N commits)" needs the merge's second
+parent counted from the review's own objects, and What changed's diff between
+heads carries main's changes on this pull request's files, which the report
+must fold.
+
+Still open on BPR-2146 (In Progress): AC11 (a chip off in an open window and
+after a restart, through a course), AC12's unreadable store on screen, AC13.
+BPR-2147 (the sheet's full RFC-BPR-0125 milestone 4) is not claimed; much of
+its sheet exists in `qt::prompt_macros_panel`.
+
+Not touched: session `efe2da80…` and host 25283/25291 with the v007 roots;
+other agents' processes; BPR-Test.
