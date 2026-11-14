@@ -13141,12 +13141,15 @@ auto main(int argc, char** argv) -> int
 							AttendedLocalDraftPullRequest = number.toULongLong();
 						}
 						look = std::string{ "local-draft" };
-						// [[BPR-2172]], [[BPR-2173]]. And a third: the owner's
-						// command can ask for the Local comments look on the
-						// same fixture file instead of the draft.
-						if (!qEnvironmentVariable("BPR_ATTENDED_LOCAL_COMMENTS_LOOK").isEmpty()) {
+						// [[BPR-2172]], [[BPR-2173]], [[BPR-2175]]. And others:
+						// the owner's command can ask, by name, for the Local
+						// comments look or Finish your review on the same
+						// fixture file instead of the draft, so one frozen build
+						// serves a round's looks.
+						if (const auto instead = qEnvironmentVariable("BPR_ATTENDED_LOOK_INSTEAD");
+							instead == QStringLiteral("local-comments") || (instead == QStringLiteral("finish-review") && attendedFinishReviewLook)) {
 							AttendedLocalDraftPath.clear();
-							look = std::string{ "local-comments" };
+							look = instead.toStdString();
 						}
 					}
 					if (attendedConversationLook) {

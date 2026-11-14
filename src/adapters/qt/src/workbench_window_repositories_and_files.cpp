@@ -1229,6 +1229,12 @@ namespace bpr::qt {
 
 	void workbench_window::choose_modality(const review_modality aModality, const core::workbench_modality_entry aEntry)
 	{
+		// [[BPR-2175]]. The owner: "clicking off compose review into the diff
+		// or drawers or review bar or using the mode tabs should hide it".
+		// Choosing a mode closes the lightbox, its words kept.
+		if (aEntry == core::workbench_modality_entry::choose && ReviewSheetOpen) {
+			close_review_sheet();
+		}
 		// A local draft has Overview and Review; Discuss and Threads wait
 		// until a pull request exists.
 		if (LocalDraftShown && !showing_home()) {

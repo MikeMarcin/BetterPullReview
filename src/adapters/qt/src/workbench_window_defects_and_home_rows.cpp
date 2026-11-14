@@ -510,8 +510,10 @@ namespace bpr::qt {
 		if (ComposeReviewPage != nullptr && aWatched == ComposeReviewPage->viewport() && aEvent != nullptr && aEvent->type() == QEvent::Resize) {
 			centre_review_page();
 		}
-		// [[BPR-1590]]. The sheet keeps to the review area's right edge.
-		if (aWatched == CentralSplitter && aEvent != nullptr && (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::Move) && ReviewSheetOpen) {
+		// [[BPR-1590]]. The sheet keeps to the review area; [[BPR-2175]]: the
+		// lightbox re-fits the window as it is resized, zoomed or made full
+		// screen, and stays open.
+		if ((aWatched == CentralSplitter || (aWatched == centralWidget() && aWatched != nullptr)) && aEvent != nullptr && (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::Move) && ReviewSheetOpen) {
 			place_review_sheet();
 		}
 		if (aWatched == DifCornerSlot && aEvent != nullptr

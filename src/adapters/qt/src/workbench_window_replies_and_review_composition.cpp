@@ -762,7 +762,19 @@ namespace bpr::qt {
 		if (ReviewSheet == nullptr || CentralSplitter == nullptr) {
 			return;
 		}
-		ReviewSheet->place(CentralSplitter->geometry());
+		// [[BPR-2175]]. The lightbox covers the window below its title row
+		// (the strip with the mode tabs and the window's own controls), down
+		// to the status line; the composer takes two columns when the panel
+		// is wide enough for them (the owner's option D).
+		auto* const central = centralWidget();
+		const auto  top     = central != nullptr ? central->geometry().top() : 0;
+		const auto  area    = QRect{ 0, top, width(), std::max(0, height() - top) };
+		if (ReviewSubmissionEditor != nullptr) {
+			const auto room = std::min(area.width() - (2 * compose_review_sheet::margin), compose_review_sheet::lightbox_width);
+			ReviewSubmissionEditor->set_two_columns(room >= compose_review_sheet::two_column_width);
+			ReviewSheet->content_layout()->activate();
+		}
+		ReviewSheet->place(area);
 	}
 
 	void workbench_window::move_review_composer(const bool aToSheet)
@@ -784,6 +796,8 @@ namespace bpr::qt {
 		} else {
 			ReviewSheet->content_layout()->removeWidget(ReviewSubmissionEditor);
 			pageColumn->addWidget(ReviewSubmissionEditor, 1);
+			// The expanded page keeps today's one column.
+			ReviewSubmissionEditor->set_two_columns(false);
 		}
 		ReviewSubmissionEditor->show();
 		// The sheet's header names the review; the page shows the editor's own title.

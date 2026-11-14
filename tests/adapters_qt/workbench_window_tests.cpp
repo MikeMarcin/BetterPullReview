@@ -145,6 +145,7 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -10666,6 +10667,105 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-2175]]. The owner: "clicking off compose review into the
+	/// diff or drawers or review bar or using the mode tabs should hide it",
+	/// and "make sure we can still do basic window controls while lightbox
+	/// stays open like drag window or resize it". A press on the dimmed
+	/// window (the diff, a drawer, the review bar under it), Esc and a mode
+	/// tab each close the lightbox with its words kept; a press inside it or
+	/// on the title row does not. Resizing, minimising and restoring, zooming
+	/// and full screen keep it open and fitted to the new size.
+	void test_compose_review_lightbox_gestures_and_window_controls()
+	{
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		window.publish(both_files_enabled());
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const sheet = window.review_sheet();
+		auto* const body  = window.review_submission_editor_view()->body_editor();
+		const auto  words = QStringLiteral("Kept across every way out.");
+		const auto  open  = [&] {
+			if (!window.review_sheet_open()) {
+				window.compose_review_action()->trigger();
+			}
+			process_events();
+			return window.review_sheet_open() && sheet->isVisible();
+		};
+		const auto press = [&](QWidget* aWidget, const QPoint aAt) {
+			auto down = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aAt }, aWidget->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(aWidget, &down);
+			auto up = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ aAt }, aWidget->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(aWidget, &up);
+			process_events();
+		};
+		const auto fitted = [&] {
+			const auto area  = QRect{ 0, window.centralWidget()->geometry().top(), window.width(), window.height() - window.centralWidget()->geometry().top() };
+			const auto panel = sheet->panel().translated(sheet->pos());
+			return sheet->geometry() == area && area.contains(panel) && std::abs(panel.center().x() - area.center().x()) <= 1;
+		};
+		expect(open(), "Compose review opens the lightbox");
+		body->setPlainText(words);
+		process_events();
+		expect(sheet->geometry().top() == window.centralWidget()->geometry().top() && fitted(), "it dims the window below the title row, its panel centred");
+
+		// A press inside the panel keeps it; one on the title row does too.
+		press(sheet, sheet->panel().center());
+		expect(window.review_sheet_open(), "a press inside the lightbox keeps it open");
+		auto* const titleRow = window.modality()->parentWidget();
+		press(titleRow, QPoint{ titleRow->width() / 2, titleRow->height() - 2 });
+		expect(window.review_sheet_open(), "a press on the title row (where the window is dragged) keeps it open");
+
+		// A press on the dimmed window: the diff's place, a drawer's, the review bar's.
+		for (const auto at : { QPoint{ sheet->width() / 2, sheet->height() - 4 }, QPoint{ 4, sheet->height() / 2 }, QPoint{ sheet->width() / 2, 4 } }) {
+			expect(open(), "the lightbox opens again");
+			press(sheet, at);
+			expect(!window.review_sheet_open() && !sheet->isVisible() && body->toPlainText() == words,
+				   "a press on the dimmed window outside the lightbox closes it, its words kept (at " + std::to_string(at.x()) + "," + std::to_string(at.y()) + ")");
+		}
+
+		// Esc.
+		expect(open(), "it opens again");
+		body->setFocus(Qt::OtherFocusReason);
+		window_key(window, Qt::Key_Escape, Qt::NoModifier);
+		expect(!window.review_sheet_open() && body->toPlainText() == words, "Esc closes it, its words kept");
+
+		// A mode tab.
+		expect(open(), "it opens again");
+		window.modality()->button(qt::review_modality::discuss)->click();
+		process_events();
+		expect(!window.review_sheet_open() && window.current_modality() == qt::review_modality::discuss && body->toPlainText() == words,
+			   "choosing another mode tab closes it and shows that mode, its words kept");
+		window.modality()->button(qt::review_modality::review)->click();
+		process_events();
+		expect(open() && body->toPlainText() == words, "opening it again shows it as it was");
+
+		// The window's own controls keep it open and fitted.
+		window.resize(1'000, 700);
+		process_events();
+		expect(window.review_sheet_open() && fitted() && sheet->scroll()->horizontalScrollBar()->maximum() == 0, "resized smaller, it stays open and re-fits");
+		window.resize(1'700, 1'000);
+		process_events();
+		expect(window.review_sheet_open() && fitted(), "resized larger, it stays open and re-fits");
+		window.showMinimized();
+		process_events();
+		window.showNormal();
+		process_events();
+		expect(window.review_sheet_open() && sheet->isVisible() && fitted(), "minimised and restored, it is still open and fitted");
+		window.showMaximized();
+		process_events();
+		expect(window.review_sheet_open() && fitted(), "zoomed, it stays open and fitted");
+		window.showFullScreen();
+		process_events();
+		expect(window.review_sheet_open() && fitted(), "full screen, it stays open and fitted");
+		window.showNormal();
+		process_events();
+		expect(window.review_sheet_open() && fitted() && body->toPlainText() == words, "back to normal, still open, its words kept");
+		window.close_review_sheet();
+		window.hide();
+	}
+
 	/// [[BPR-1700]]. Compose review in each state, in the built-in light
 	/// and dark themes, for a person to look at: no review, focused, a kept
 	/// draft, a review in progress, one being submitted, and the narrowest
@@ -10859,9 +10959,21 @@ namespace {
 			expect(window.review_sheet_open() && sheet->isVisible() && window.current_modality() == qt::review_modality::review && sheet->title()->text() == QStringLiteral("Finish your review")
 					   && !whole->title_label()->isVisible(),
 				   name + ": Finish review opens the sheet over Review, named once in its header");
-			const auto area = sheet->parentWidget()->rect();
-			expect(sheet->width() - qt::compose_review_sheet::shadow_width >= 540 && sheet->x() >= 320 && sheet->geometry().right() == area.right(),
-				   name + ": 540 pixels at the right edge, with the code visible beside it");
+			// [[BPR-2175]] (the owner's option D). A lightbox over the window
+			// below its title row: the panel centred, the comments on the
+			// left and the summary with its verdicts on the right.
+			const auto panel = sheet->panel().translated(sheet->pos());
+			expect(sheet->parentWidget() == &window && sheet->geometry().top() == window.centralWidget()->geometry().top() && sheet->width() == window.width()
+					   && sheet->geometry().bottom() == window.rect().bottom() && std::abs(panel.center().x() - window.rect().center().x()) <= 1
+					   && panel.width() >= qt::compose_review_sheet::two_column_width && whole->two_columns(),
+				   name + ": a lightbox below the title row, its panel centred and in two columns");
+			{
+				auto* const summary = whole->body_editor();
+				auto* const list    = whole->pending_list();
+				expect(summary->mapTo(&window, QPoint{ }).x() > list->mapTo(&window, QPoint{ }).x() + list->width() - 4
+						   && whole->findChild<QAbstractButton*>(QStringLiteral("wholeReviewComment"))->mapTo(&window, QPoint{ }).x() > list->mapTo(&window, QPoint{ }).x() + list->width() - 4,
+					   name + ": the summary and the verdicts stand to the right of the comments");
+			}
 			const auto violations = qt::drawer_principle_violations(*sheet);
 			expect(violations.isEmpty(), name + ": the sheet keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
 			if (!root.isEmpty()) {
@@ -10913,19 +11025,25 @@ namespace {
 			expect(window.current_modality() == qt::review_modality::discuss && window.review_sheet_open() && sheet->isVisible() && rows.front()->hasFocus(),
 				   name + ": a single click selects a pending row and opens nothing");
 			{
-				// One line each, whatever the comment's length.
-				auto heights = std::set<int>{ };
+				// [[BPR-2175]] (option D). In the lightbox each comment's words
+				// show in full up to four lines, the very long one cut at the
+				// fourth; the suggestion shows its lines under its words.
+				const auto line    = rows.front()->fontMetrics().lineSpacing();
+				auto       tallest = 0;
+				auto       least   = std::numeric_limits<int>::max();
 				for (const auto* row : rows) {
-					heights.insert(row->height());
+					tallest = std::max(tallest, row->height());
+					least   = std::min(least, row->height());
 				}
-				expect(heights.size() == 1U && *heights.begin() < 2 * rows.front()->fontMetrics().height() + 14, name + ": every pending row is one line, the very long comment's too");
+				expect(least >= (2 * line) && tallest <= (8 * line) + 40 && tallest > least,
+					   name + ": in the lightbox the comments show their words, up to four lines (" + std::to_string(least) + ".." + std::to_string(tallest) + ")");
 			}
 
 			// Narrow: the sheet gives way to keep the code visible.
 			window.resize(900, 700);
 			process_events();
-			expect(sheet->x() >= 300 && sheet->width() - qt::compose_review_sheet::shadow_width >= 360 && sheet->scroll()->horizontalScrollBar()->maximum() == 0,
-				   name + ": at a narrow window the sheet narrows, the code stays visible, and nothing scrolls sideways");
+			expect(sheet->panel().width() >= qt::compose_review_sheet::minimum_width && sheet->panel().width() <= window.width() && sheet->scroll()->horizontalScrollBar()->maximum() == 0,
+				   name + ": at a narrow window the lightbox narrows and nothing scrolls sideways");
 			window.close_review_sheet();
 			expect(!sheet->isVisible() && window.current_modality() == qt::review_modality::discuss, name + ": Close changes nothing else");
 		}
@@ -12847,6 +12965,99 @@ namespace {
 		window.present_unplaceable_review_comments({ });
 		window.present_whole_diff_comment(std::nullopt);
 		course.settle();
+	}
+
+	/// \brief [[BPR-2172]]. The owner, on look v007 of RFC-BPR-0127: "Can we
+	/// make this warning take less space, maybe it's just a warning sign on
+	/// the row above and expands a disclosure on click". Through the window,
+	/// each note about where a comment goes that still lets you publish is
+	/// the composer's warning mark, its sentence shown on a press; a note
+	/// that stops Publish keeps its lines. With `BPR_NOTICE_RENDER_ROOT` set,
+	/// each composer is rendered, mark closed and open, for the owner's look.
+	void test_placement_notices_fold_into_the_composer_mark()
+	{
+		auto       course = line_gesture_course{ false };
+		auto&      window = course.Window;
+		auto*      cards  = window.conversation_panel()->cards();
+		const auto root   = qEnvironmentVariable("BPR_NOTICE_RENDER_ROOT");
+		struct notice_case final
+		{
+			const char*                                       Name;
+			core::filtered_comment_placement                  Placement;
+			core::filtered_comment_refusal                    Refusal;
+			core::diff_side                                   Side;
+			std::uint32_t                                     Line;
+			std::optional<core::off_hunk_creation_capability> Learned;
+			bool                                              Folds;
+			const char*                                       Starts;
+		};
+		const auto cases = std::array{
+			notice_case{ "may-not-place", core::filtered_comment_placement::file_comment, core::filtered_comment_refusal::outside_github_diff, core::diff_side::right, 6U, core::off_hunk_creation_capability::unknown, true, "GitHub may not place a comment on this line." },
+			notice_case{ "cannot-place", core::filtered_comment_placement::file_comment, core::filtered_comment_refusal::outside_github_diff, core::diff_side::right, 6U, core::off_hunk_creation_capability::unsupported, true, "GitHub can't place a comment on this line." },
+			notice_case{ "file-comment", core::filtered_comment_placement::file_comment, core::filtered_comment_refusal::outside_github_diff, core::diff_side::right, 6U, std::nullopt, true, "GitHub shows no change near this line at the head" },
+			notice_case{ "head-line", core::filtered_comment_placement::head, core::filtered_comment_refusal::none, core::diff_side::right, 9U, std::nullopt, true, "Goes on the head at line 10" },
+			notice_case{ "base-line", core::filtered_comment_placement::head, core::filtered_comment_refusal::none, core::diff_side::left, 9U, std::nullopt, true, "Goes on base line 10" },
+			notice_case{ "earlier-commit", core::filtered_comment_placement::earlier_commit, core::filtered_comment_refusal::none, core::diff_side::right, 6U, std::nullopt, true, "Goes on commit 61e8dbc" },
+			notice_case{ "working-out", core::filtered_comment_placement::refused, core::filtered_comment_refusal::lines_pending, core::diff_side::right, 6U, std::nullopt, false, "Working out where GitHub puts a comment" },
+		};
+		for (const auto& shown : cases) {
+			const auto name = std::string{ shown.Name };
+			course.reset();
+			course.click(course.right(6U));
+			// As the off-hunk course selects its line.
+			wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 6U; }, 2000);
+			expect(course.Accepted.has_value(), name + ": a line is selected");
+			const auto anchor = course.Accepted->Draft.Anchor;
+			window.present_whole_diff_comment(qt::filtered_comment_presentation{
+				.Selection = anchor,
+				.Target    = { .Placement = shown.Placement, .Refusal = shown.Refusal, .Side = shown.Side, .Line = shown.Line },
+				.Commit    = QStringLiteral("61e8dbc"),
+				.Learned   = shown.Learned,
+			});
+			window.comment_action()->trigger();
+			wait_for([cards] { return cards->writing_draft() && cards->draft_editor() != nullptr; }, 2000);
+			expect(cards->draft_editor() != nullptr, name + ": Comment opens the line's composer in the drawer");
+			cards->draft_editor()->setPlainText(QStringLiteral("issue: the retry budget resets every frame."));
+			course.settle();
+			auto* const card   = cards->open_card();
+			auto* const mark   = card != nullptr ? card->findChild<QToolButton*>(QStringLiteral("threadDraftNoticeMark")) : nullptr;
+			auto* const status = card != nullptr ? card->findChild<QLabel*>(QStringLiteral("threadDraftStatus")) : nullptr;
+			expect(mark != nullptr && status != nullptr, name + ": the composer has its mark and its status line");
+			const auto words = window.filtered_comment_notice().first;
+			expect(words.startsWith(QString::fromLatin1(shown.Starts)), name + ": the window's note is the expected one: " + words.toStdString());
+			const auto save = [&](const char* aState) {
+				if (!root.isEmpty()) {
+					// The open card and a margin round it, drawn at twice the
+					// pixels so the owner reads it as on a Retina screen.
+					auto* const drawer = window.conversation_panel();
+					auto* const opened = cards->open_card();
+					const auto  area   = QRect{ opened->mapTo(drawer, QPoint{ }), opened->size() }.adjusted(-12, -12, 12, 12).intersected(drawer->rect());
+					auto        image  = QImage{ area.size() * 2, QImage::Format_ARGB32_Premultiplied };
+					image.setDevicePixelRatio(2.0);
+					image.fill(drawer->palette().color(QPalette::Window));
+					drawer->render(&image, QPoint{ }, QRegion{ area });
+					expect(image.save(QStringLiteral("%1/notice-%2-%3.png").arg(root, QString::fromStdString(name), QString::fromLatin1(aState)), "PNG"), name + ": the render is saved");
+				}
+			};
+			if (shown.Folds) {
+				expect(mark->isVisibleTo(card) && !status->isVisibleTo(card) && mark->accessibleDescription() == words, name + ": the note folds into the mark beside the label chip");
+				save("closed");
+				mark->click();
+				course.settle();
+				expect(status->isVisibleTo(card) && status->text() == words, name + ": pressing the mark shows the sentence under the row");
+				save("open");
+				mark->click();
+				course.settle();
+				expect(!status->isVisibleTo(card), name + ": pressing it again hides it");
+			} else {
+				expect(!mark->isVisibleTo(card) && status->isVisibleTo(card) && status->text() == words, name + ": a note that stops Publish keeps its lines, and there is no mark");
+				save("kept");
+			}
+			cards->draft_editor()->clear();
+			course.settle();
+			window.present_whole_diff_comment(std::nullopt);
+		}
+		course.reset();
 	}
 
 	/// \brief [[RFC-BPR-0090]] M3. A suggestion GitHub cannot apply where it
@@ -25293,6 +25504,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_the_pane_edit_takes_the_editor_gestures", &test_the_pane_edit_takes_the_editor_gestures);
 		runCase("test_a_held_suggestion_is_converted_and_a_kept_one_reopens", &test_a_held_suggestion_is_converted_and_a_kept_one_reopens);
 		runCase("test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment", &test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment);
+		runCase("test_placement_notices_fold_into_the_composer_mark", &test_placement_notices_fold_into_the_composer_mark);
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);
 		runCase("test_a_drag_onto_an_empty_line_takes_it", &test_a_drag_onto_an_empty_line_takes_it);
 		runCase("test_comment_takes_the_selected_lines", &test_comment_takes_the_selected_lines);
@@ -25344,6 +25556,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_composition_pages_retain_editors_and_never_submit_on_navigation", &test_composition_pages_retain_editors_and_never_submit_on_navigation);
 	runCase("test_composition_keys_open_the_pages_and_esc_returns", &test_composition_keys_open_the_pages_and_esc_returns);
 	runCase("test_finish_review_is_a_sheet_beside_the_code", &test_finish_review_is_a_sheet_beside_the_code);
+	runCase("test_compose_review_lightbox_gestures_and_window_controls", &test_compose_review_lightbox_gestures_and_window_controls);
 	runCase("test_the_tour_is_a_route_expanding_to_its_page", &test_the_tour_is_a_route_expanding_to_its_page);
 	runCase("test_the_agent_is_a_drawer_tab", &test_the_agent_is_a_drawer_tab);
 	runCase("test_a_reply_drafts_all_its_suggested_comments", &test_a_reply_drafts_all_its_suggested_comments);

@@ -567,6 +567,8 @@ namespace bpr::qt {
 		CentralStack->addWidget(HomePage);
 		CentralStack->addWidget(ReviewSurface);
 		setCentralWidget(CentralStack);
+		// [[BPR-2175]]. Compose review's lightbox follows the whole content area.
+		CentralStack->installEventFilter(this);
 		connect(CentralStack, &QStackedWidget::currentChanged, statusBar(), [this] { statusBar()->update(); });
 
 		// [[BPR-0646]]. Refresh sits in the strip's right region, before the

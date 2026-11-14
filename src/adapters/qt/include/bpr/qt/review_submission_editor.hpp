@@ -24,9 +24,11 @@
 
 class QAbstractButton;
 class QAction;
+class QBoxLayout;
 class QLabel;
 class QMenu;
 class QPlainTextEdit;
+class QSpacerItem;
 class QTextEdit;
 class QToolButton;
 class QVBoxLayout;
@@ -160,7 +162,12 @@ namespace bpr::qt {
 		void set_context(const QString& aContext);
 		/// \brief [[BPR-1590]] v002. In the sheet beside the code, one faint
 		/// line under the box says a row shows its line behind the sheet.
-		void               set_reveal_hint(bool aShown);
+		void set_reveal_hint(bool aShown);
+		/// \brief [[BPR-2175]] (the owner's option D). The comments on the
+		/// left and the summary with its verdicts on the right, each comment
+		/// in full up to four lines; or today's one column.
+		void               set_two_columns(bool aTwo);
+		[[nodiscard]] auto two_columns() const noexcept -> bool;
 		[[nodiscard]] auto context_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-1345]]. One row per carried comment, hidden with none.
 		/// \details v002: a row is a button that goes to its comment, beside
@@ -398,11 +405,17 @@ namespace bpr::qt {
 		QVBoxLayout*                                                PendingRows     = nullptr;
 		QLabel*                                                     Carries         = nullptr;
 		/// [[BPR-1590]] v002. The pull request line, the box's heading and its rules.
-		QLabel*                                      Context         = nullptr;
-		QWidget*                                     Heading         = nullptr;
-		QWidget*                                     HeadingRule     = nullptr;
-		QWidget*                                     SummaryRule     = nullptr;
-		QLabel*                                      RevealHint      = nullptr;
+		QLabel*                                      Context     = nullptr;
+		QWidget*                                     Heading     = nullptr;
+		QWidget*                                     HeadingRule = nullptr;
+		QWidget*                                     SummaryRule = nullptr;
+		QLabel*                                      RevealHint  = nullptr;
+		QBoxLayout*                                  Columns     = nullptr;
+		QVBoxLayout*                                 LeftColumn  = nullptr;
+		QVBoxLayout*                                 RightColumn = nullptr;
+		QSpacerItem*                                 LeftSpace   = nullptr;
+		bool                                         TwoColumns  = false;
+		void                                         align_pending_tools();
 		QLabel*                                      SummaryHeading  = nullptr;
 		bool                                         HintWanted      = false;
 		QToolButton*                                 Details         = nullptr;

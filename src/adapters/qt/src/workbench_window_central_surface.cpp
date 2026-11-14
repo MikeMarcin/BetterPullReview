@@ -1349,7 +1349,9 @@ namespace bpr::qt {
 		// whatever the modality shows; Expand makes it the focused page in
 		// Discuss, whose Restore brings the sheet back. The composer is one
 		// widget, lent to whichever is open.
-		ReviewSheet = new compose_review_sheet{ ReviewSurface };
+		// [[BPR-2175]]. The lightbox is the window's own child: it dims the
+		// whole window below its title row, whatever the modality shows.
+		ReviewSheet = new compose_review_sheet{ this };
 		ReviewSheet->scroll()->viewport()->setBackgroundRole(QPalette::Base);
 		{
 			const auto expandKey = shortcut_key(shortcut_command::draft_to_discuss).toString(QKeySequence::NativeText);
