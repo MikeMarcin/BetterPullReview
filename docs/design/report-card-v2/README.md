@@ -134,4 +134,14 @@ and `c-tab`.
 
 ## Status
 
-Awaiting the owner's choice.
+Awaiting the owner's choice, asked on 2026-11-14 as one select question (A, B
+or C) with a note:
+
+- Attended-review session `6427e38b7088fff0461b7af92f62c466`, candidate
+  `report-card-v2-opened` at revision `10a96baf690c` (the commit that added
+  these mockups).
+- External state directory
+  `~/.attended-review-state/report-card-v002-2026-11-14/` (`state/` is the
+  session, `material/` a copy of both rounds' folders at that revision for the
+  owner to open).
+- Lifecycle when this was written: prepared and served, unanswered.
