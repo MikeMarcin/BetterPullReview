@@ -234,8 +234,16 @@ try {
 	// Owner, ac1-collapsed-preview: "Can switching to discuss from review
 	// with a comment open show that comment in disscuss?" A thread open in
 	// Review is opened in Discuss, in view, when Discuss is chosen.
-	window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
-	settle();
+	// Owner, v006: "didn't work. seems like going to discuss (cmd+3) is
+	// deslecting the comment because its unselected when i go back to review
+	// (cmd+2) and discuss never scrolls or selects it." Through the strip's
+	// own keys, as the owner pressed them.
+	auto* const modality = window.modality();
+	const auto  press    = [&](const qt::review_modality aModality) {
+		modality->action(aModality)->trigger();
+		settle();
+	};
+	press(qt::review_modality::review);
 	std::string carried;
 	wait_for([&] {
 		const auto& shown = cards->cards();
@@ -248,9 +256,8 @@ try {
 		return cards->open_thread_id() == carried;
 	},
 			 "a thread is open beside the code in Review");
-	window.choose_modality(qt::review_modality::discuss, core::workbench_modality_entry::choose);
-	settle();
-	wait_for([&] { return cards->feed() && cards->open_thread_id() == carried; }, "choosing Discuss opens that thread there");
+	press(qt::review_modality::discuss);
+	wait_for([&] { return cards->feed() && cards->open_thread_id() == carried; }, "Command-3 opens that thread in Discuss");
 	{
 		const auto found = std::ranges::find(cards->cards(), carried, &qt::thread_card::Id);
 		const auto top   = cards->verticalScrollBar()->value();
@@ -258,6 +265,10 @@ try {
 		std::cout << "DISCUSS_CARRIED " << carried << '\n';
 	}
 	render(QStringLiteral("discuss-carried-from-review-1280x800"), 1280, 800);
+	press(qt::review_modality::review);
+	wait_for([&] { return !cards->feed() && cards->open_thread_id() == carried; }, "Command-2 returns to Review with the thread still open");
+	press(qt::review_modality::discuss);
+	wait_for([&] { return cards->feed() && cards->open_thread_id() == carried; }, "and Command-3 again opens it in Discuss");
 
 	application->begin_shutdown();
 	application.reset();

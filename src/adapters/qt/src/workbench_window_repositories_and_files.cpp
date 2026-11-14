@@ -1243,14 +1243,47 @@ namespace bpr::qt {
 		// disscuss?" Choosing Discuss while Review holds a published thread
 		// open brings it there, opened and in view, as Show Thread in
 		// Discuss does. Drafts and Local comments are not Discuss's.
-		if (aModality == review_modality::discuss && aEntry == core::workbench_modality_entry::choose && Modality != nullptr && Modality->current() == review_modality::review
-			&& CompositionPage == nullptr && ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+		// The strip shows its choice before it reports it (Command-3 and the
+		// segment), so where the window was is the modality last applied,
+		// not the strip's.
+		if (aModality == review_modality::discuss && aEntry == core::workbench_modality_entry::choose && Modality != nullptr && LastUsedModality == std::optional{ review_modality::review }
+			&& !showing_home() && CompositionPage == nullptr && ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			const auto open = ConversationPanel->cards()->open_thread_id();
 			if (!open.empty() && !open.starts_with("draft") && !open.starts_with("local:")) {
 				const auto post = ConversationPanel->cards()->picked_post();
 				if (open_conversation_in_discuss(open, post, core::workbench_discuss_filters{ })) {
 					return;
 				}
+			}
+		}
+		// And back: choosing Review from Discuss keeps the thread open there,
+		// beside the code, when it is on the file Review shows (owner, v006:
+		// "its unselected when i go back to review (cmd+2)"). The card set
+		// is rebuilt by the switch, so it is opened once that set lists it.
+		if (aModality == review_modality::review && aEntry == core::workbench_modality_entry::choose && LastUsedModality == std::optional{ review_modality::discuss }
+			&& !showing_home() && ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			if (auto shownThread = ConversationPanel->cards()->open_thread_id(); !shownThread.empty() && !shownThread.starts_with("draft") && !shownThread.starts_with("local:")) {
+				const auto tries  = std::make_shared<int>(0);
+				const auto reopen = std::make_shared<std::function<void()>>();
+				*reopen = [this, open = std::move(shownThread), tries, weak = std::weak_ptr<std::function<void()>>{ reopen }] {
+					if (ConversationPanel == nullptr || Modality == nullptr || Modality->current() != review_modality::review) {
+						return;
+					}
+					auto* const cards = ConversationPanel->cards();
+					if (cards->open_thread_id() == open) {
+						return;
+					}
+					if (std::ranges::any_of(cards->cards(), [&open](const thread_card& aCard) { return aCard.Id == open; }) && !cards->feed()) {
+						cards->open_thread(open);
+						return;
+					}
+					if (++*tries < 20) {
+						if (const auto again = weak.lock(); again) {
+							QTimer::singleShot(25, this, [again] { (*again)(); });
+						}
+					}
+				};
+				QTimer::singleShot(0, this, [reopen] { (*reopen)(); });
 			}
 		}
 		if (ReviewNavigationDispatch) {
