@@ -52,3 +52,7 @@ Next round: today's Compose review content exactly as it is (its one-click
 actions, its comment rendering), only put in the lightbox, with the comment
 box and the action on the right or at the bottom; no Submit review step. Two
 variants, right and bottom. Nothing is built before a variant is accepted.
+
+## Mockup round 2 (2026-11-14)
+
+[compose-review-lightbox-v2](../../design/compose-review-lightbox-v2/README.md) (`fab8ae093`, a separate design worker): options A to E, each today's Finish your review content with its one-click verdicts, comments and actions on the right or at the bottom. Attended session `fd03fb4ab1abc68d8f5f9ff1b903a7c0`, state `/Users/jaeger/.attended-review-state/compose-review-lightbox-v002-2026-11-14/state`: one choice among A to E or "Keep the existing window", and one Accept/Reject that the content matches today's panel.
