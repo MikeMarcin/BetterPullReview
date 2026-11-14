@@ -13,6 +13,7 @@
 #include <QListWidget>
 #include <QPainter>
 #include <QPainterPath>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStyledItemDelegate>
@@ -59,6 +60,27 @@ namespace bpr::qt {
 				painter.drawLine(QPointF{ 7.0, y }, QPointF{ 23.0, y });
 			}
 			return QIcon{ pixmap };
+		}
+
+		/// A heading's Markdown title as it reads rendered: code spans,
+		/// emphasis and links give up their marks.
+		[[nodiscard]] auto plain_heading(QString aTitle) -> QString
+		{
+			static const auto link     = QRegularExpression{ QStringLiteral(R"(!?\[([^\]]*)\]\([^)]*\))") };
+			static const auto emphasis = QRegularExpression{ QStringLiteral(R"((\*\*|__|\*|_)(\S(?:.*?\S)?)\1)") };
+			// A link keeps its words (a code span among them); outside a code
+			// span, emphasis gives up its marks.
+			aTitle.replace(link, QStringLiteral("\\1"));
+			auto       plain = QString{ };
+			const auto spans = aTitle.split(QLatin1Char('`'));
+			for (auto at = 0; at < spans.size(); ++at) {
+				auto span = spans[at];
+				if (at % 2 == 0) {
+					span.replace(emphasis, QStringLiteral("\\2"));
+				}
+				plain += span;
+			}
+			return plain.trimmed();
 		}
 
 		[[nodiscard]] auto bubble_glyph(const QColor& aInk) -> QPixmap
@@ -227,6 +249,13 @@ namespace bpr::qt {
 		});
 		column->addWidget(Body);
 		column->addStretch(1);
+		// Look ask-v008: room under the last section, made when a section is
+		// chosen, so any section can come to the top however short the
+		// report is.
+		Tail = new QWidget{ Column };
+		Tail->setObjectName(QStringLiteral("agentReportTail"));
+		Tail->setFixedHeight(0);
+		column->addWidget(Tail);
 		centre->addStretch(1);
 		centre->addWidget(Column, 100);
 		centre->addStretch(1);
@@ -308,6 +337,30 @@ namespace bpr::qt {
 		Body->set_body(shown, "agent-report-" + std::to_string(aDocument.Turn));
 		dress_headings();
 		Headings.clear();
+		Tail->setFixedHeight(0);
+		// Look ask-v008 (the menu went nowhere): a section is found by the
+		// block its heading renders as, in order, and named as it reads
+		// there. Its Markdown title ("`src/main.cpp:6`: Not addressed") is not
+		// the rendered text, and a block's heading level is no guide: the
+		// paragraph under a heading can carry its level too.
+		HeadingBlocks.clear();
+		if (auto* const view = Body->rendered_view(); view != nullptr) {
+			auto block = view->document()->begin();
+			for (const auto& section : card.Outline) {
+				const auto wanted = plain_heading(QString::fromStdString(section.Title));
+				while (block.isValid() && block.text().trimmed() != wanted) {
+					block = block.next();
+				}
+				if (!block.isValid()) {
+					break;
+				}
+				HeadingBlocks.push_back(block.blockNumber());
+				block = block.next();
+			}
+			if (HeadingBlocks.size() != card.Outline.size()) {
+				HeadingBlocks.clear();
+			}
+		}
 		const QSignalBlocker blocker{ Sections };
 		Sections->clear();
 		const auto add = [this](const QString& aText, const int aKind, const int aIndex, const int aIndent) {
@@ -324,9 +377,13 @@ namespace bpr::qt {
 		add(tr("Summary"), kind_section, 0, 0);
 		auto index = 1;
 		for (const auto& section : card.Outline) {
-			Headings.push_back(QString::fromStdString(section.Title));
+			auto name = plain_heading(QString::fromStdString(section.Title));
+			if (!HeadingBlocks.empty()) {
+				name = Body->rendered_view()->document()->findBlockByNumber(HeadingBlocks[static_cast<std::size_t>(index - 1)]).text().trimmed();
+			}
+			Headings.push_back(name);
 			// A sub-section's row is indented 14 points.
-			add(QString::fromStdString(section.Title), kind_section, index++, static_cast<int>(std::min<std::uint32_t>(section.Depth, 3U)));
+			add(name, kind_section, index++, static_cast<int>(std::min<std::uint32_t>(section.Depth, 3U)));
 		}
 		add({ }, kind_divider, 0, 0);
 		auto* const conversation = add(tr("Show in conversation"), kind_conversation, 0, 0);
@@ -407,14 +464,16 @@ namespace bpr::qt {
 		if (view == nullptr) {
 			return -1;
 		}
-		// The nth heading's own block: the first block from the previous
-		// heading on whose text is the heading's.
-		auto block = view->document()->begin();
-		for (auto seen = 0; block.isValid(); block = block.next()) {
-			if (block.text().trimmed() == Headings[static_cast<std::size_t>(aIndex - 1)] && block.blockFormat().headingLevel() > 0) {
-				break;
+		// The nth heading's own block: by its place among the headings, else
+		// the first heading block whose text is the heading's.
+		auto block = QTextBlock{ };
+		if (static_cast<std::size_t>(aIndex) <= HeadingBlocks.size()) {
+			block = view->document()->findBlockByNumber(HeadingBlocks[static_cast<std::size_t>(aIndex - 1)]);
+		}
+		for (auto each = view->document()->begin(); !block.isValid() && each.isValid(); each = each.next()) {
+			if (each.text().trimmed() == Headings[static_cast<std::size_t>(aIndex - 1)] && each.blockFormat().headingLevel() > 0) {
+				block = each;
 			}
-			static_cast<void>(seen);
 		}
 		if (!block.isValid()) {
 			const auto found = view->document()->find(Headings[static_cast<std::size_t>(aIndex - 1)]);
@@ -429,11 +488,39 @@ namespace bpr::qt {
 
 	void agent_report_view::go_to_heading(const int aIndex)
 	{
+		// Laid out now, inner first, so the offsets and the range are this
+		// report's and not what the page last held.
+		const auto settle = [this] {
+			fit_body();
+			Column->layout()->activate();
+			Scroll->widget()->layout()->activate();
+			QEvent request{ QEvent::LayoutRequest };
+			QCoreApplication::sendEvent(Scroll, &request);
+		};
+		settle();
 		const auto offset = heading_offset(aIndex);
 		if (offset < 0) {
 			return;
 		}
-		Scroll->verticalScrollBar()->setValue(aIndex == 0 ? 0 : offset - 8);
+		auto* const bar    = Scroll->verticalScrollBar();
+		const auto  wanted = aIndex == 0 ? 0 : std::max(0, offset - 8);
+		// Look ask-v008: a report that fits the pane (or a last section
+		// shorter than it) cannot scroll its heading to the top; the room
+		// under it is made first.
+		if (wanted > bar->maximum()) {
+			// The page is as tall as its least height or the pane, so the
+			// least height is what the room is added to.
+			const auto least = Scroll->widget()->minimumSizeHint().height();
+			Tail->setFixedHeight(Tail->height() + std::max(0, wanted + Scroll->viewport()->height() - least));
+			settle();
+		}
+		bar->setValue(wanted);
+	}
+
+	auto agent_report_view::section_top(const int aIndex) const -> int
+	{
+		const auto offset = heading_offset(aIndex);
+		return offset < 0 ? -1 : offset - Scroll->verticalScrollBar()->value();
 	}
 
 	auto agent_report_view::current_section() const -> int

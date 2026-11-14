@@ -262,7 +262,9 @@ def check(native):
                 stop(process)
             # Look ask-v003 (owner: "The footer does not say fixture agent").
             if (line is None or not line.startswith("ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent")
-                    or ":footer=Fixture agent" not in line or not line.endswith(":report=1")):
+                    or ":footer=Fixture agent" not in line or ":report=1:menus=" not in line
+                    # Look ask-v008: every report's menu reached each section.
+                    or not line.rsplit("=", 1)[1].isdigit() or int(line.rsplit("=", 1)[1]) < 5):
                 print(f"CHECK_FAILED (fixture agent answers): FIXTURE_AGENT_SILENT: {{line or message}}")
                 return 1
             if (scratch / "real-agent-started").exists():

@@ -7938,6 +7938,7 @@ namespace {
 			automated_clock::time_point Tried;
 			QStringList                 Asked;
 			QStringList                 Skipped;
+			QStringList                 Menus;
 			bool                        Report = false;
 			QString                     Footer;
 		};
@@ -8078,11 +8079,12 @@ namespace {
 				if (state->Next == state->Steps.size()) {
 					auto* const footer = window.agent_footer_widget();
 					state->Footer      = footer != nullptr && footer->picker() != nullptr ? footer->picker()->property("agentRunSettingsText").toString() : QString{ };
-					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:footer=%2:asks=%3:skipped=%4:report=%5")
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:footer=%2:asks=%3:skipped=%4:report=%5:menus=%6")
 							   .arg(picker->currentText(), state->Footer)
 							   .arg(state->Asked.size())
 							   .arg(state->Skipped.join(QLatin1Char(',')))
-							   .arg(state->Report ? 1 : 0));
+							   .arg(state->Report ? 1 : 0)
+							   .arg(state->Menus.size()));
 					return;
 				}
 				auto& next = state->Steps[state->Next];
@@ -8126,13 +8128,15 @@ namespace {
 			// Look ask-v007: an answer that is a report shows its attachment
 			// row (What changed, Explain this file, What could this change
 			// break?, and Was this addressed? about several threads).
-			for (const auto* const reported : { "what-changed", "explain-file", "what-could-break", "was-addressed_pull-request", "was-addressed_file" }) {
-				if (current.Name.contains(QLatin1StringView{ reported }) && tab->turn_count() > state->TurnsBefore) {
-					const auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
-					if (card == nullptr || card->isHidden()) {
-						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:no-report:step=%1:answer=%2").arg(current.Name, flat(tab->turn_answer(tab->turn_count() - 1U))));
-						return;
-					}
+			// The first step, What changed, is named for the person.
+			const auto reported = state->Next == 0U || current.Name.contains(QStringLiteral("what-changed")) || current.Name.contains(QStringLiteral("explain-file"))
+				|| current.Name.contains(QStringLiteral("what-could-break")) || current.Name.contains(QStringLiteral("was-addressed_pull-request"))
+				|| current.Name.contains(QStringLiteral("was-addressed_file"));
+			if (reported && tab->turn_count() > state->TurnsBefore) {
+				const auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
+				if (card == nullptr || card->isHidden()) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:no-report:step=%1:answer=%2").arg(current.Name, flat(tab->turn_answer(tab->turn_count() - 1U))));
+					return;
 				}
 			}
 			for (auto turn = state->TurnsBefore; turn < tab->turn_count(); ++turn) {
@@ -8189,6 +8193,51 @@ namespace {
 			}
 			if (current.Name.contains(QStringLiteral("was-addressed_pull-request"))) {
 				shoot(QStringLiteral("addressed-pull-request.png"));
+			}
+			// Look ask-v008 ("the hamburger menu navigation doesn't work"):
+			// every report's menu, each section chosen with Return, brings
+			// that section's heading to the top of the pane.
+			if (reported && current.Turns == 1U) {
+				const auto* const card   = tab->turn_report_card(tab->turn_count() - 1U);
+				auto* const       open   = card != nullptr ? card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")) : nullptr;
+				auto* const       report = window.report_view();
+				if (open == nullptr || report == nullptr) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-menu:step=%1:no-report-row").arg(current.Name));
+					return;
+				}
+				open->click();
+				QCoreApplication::processEvents();
+				auto sections = 0;
+				while (sections < report->outline()->count() && !report->outline()->item(sections)->data(Qt::AccessibleTextRole).toString().isEmpty()) {
+					++sections;
+				}
+				// Summary, then a row a section.
+				for (auto section = sections - 1; section >= 0; --section) {
+					report->open_menu();
+					QCoreApplication::processEvents();
+					report->outline()->setCurrentRow(section);
+					QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+					QApplication::sendEvent(report->outline(), &press);
+					QCoreApplication::processEvents();
+					const auto top = report->section_top(section);
+					if (report->popover()->isVisible() || report->current_section() != section || (section > 0 && (top < 0 || top > 12))) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-menu:step=%1:section=%2:of=%3:top=%4:current=%5:open=%6")
+								   .arg(current.Name)
+								   .arg(section)
+								   .arg(sections - 1)
+								   .arg(top)
+								   .arg(report->current_section())
+								   .arg(report->popover()->isVisible() ? 1 : 0));
+						return;
+					}
+				}
+				if (sections < 2) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-menu:step=%1:no-sections").arg(current.Name));
+					return;
+				}
+				state->Menus << current.Name;
+				static_cast<void>(window.go_to_file_line(QString::fromStdString(path), 6U, false));
+				QCoreApplication::processEvents();
 			}
 			state->Asked << current.Name;
 			state->Waiting = false;

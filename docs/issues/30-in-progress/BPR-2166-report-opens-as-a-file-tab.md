@@ -52,6 +52,17 @@ Ends in an owner look (Accept or Reject) on a frozen build serving a pull reques
   Fixed, sized from a stale width); a many-thread Was this addressed? is a
   report (it was excluded); the every-ask check fails on a missing report.
   Asked again in ask-v008.
+- ask-v008: the report tab's glyph **Accept**; Q5 **Accept**, "The agent
+  drawer side of things works correctly now, but the hamburger menu
+  navigation doesn't work and the report is ugly as crap. Like we need maybe
+  a system prompt and a template to fit the reports in." The menu is fixed
+  (a section was searched for by its Markdown title, which a code span or a
+  link makes unlike its rendered text; a report that fits the pane had no
+  room to scroll; the page was not laid out yet). The every-ask check now
+  chooses every section of every report's menu and asserts where it lands.
+  The report's look waits on the designer's report templates and their
+  system prompt; this card builds them when they land. No look for the menu
+  fix alone: it goes in with the template build.
 
 ## Progress (2026-11-14, claimed)
 

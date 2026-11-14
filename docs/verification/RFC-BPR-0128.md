@@ -494,3 +494,61 @@ Done (`47dc394c8`):
   `ATTENDED_FIXTURE_AGENT_FAILED:no-report` unless the turn shows a report
   card for every ask expected to be one: What changed, Explain this file, What
   could break, and Was this addressed? on the pull request and on a file.
+
+Host 49914/49924 stopped; root `ask-v007` removed.
+
+## Owner look ask-v008 (session `e0af7c17512af1546f9e6069d3c5f96e`)
+
+Frozen from `47dc394c8`. Handed back 2026-11-14 at sequence 34. Verdicts,
+verbatim (the coordinator saved the attachment outside the repository):
+
+- `BPR-2166-report-tab-glyph`, **Accept**.
+- `RFC-BPR-0128-Q5-one-ask`, **Accept**: "The agent drawer side of things
+  works correctly now, but the hamburger menu navigation doesn't work and the
+  report is ugly as crap. Like we need maybe a system prompt and a template to
+  fit the reports in." (Attachment: the Was this addressed? report's tab, each
+  thread a bold `path:line: Verdict` line, the ☰ button at the top right.)
+
+Done:
+
+- **The menu went nowhere** (root causes, all three in `agent_report_view`):
+  1. A section was found by searching the rendered text for its Markdown
+     title. A title with a code span or a link
+     (``[`src/main.cpp:6`](src/main.cpp#L6): Not addressed``) is not its
+     rendered text, so nothing was found and the pane did not move. The menu
+     also showed the Markdown marks. A section is now found as the block its
+     heading renders as, in the outline's order, with the title's marks
+     stripped (links keep their words, code spans keep what is in them).
+     The menu shows the rendered text. A block's heading level is no guide:
+     the paragraph under a heading can carry the heading's level in the
+     rendered document (seen for the Fixture agent's What could break and Was
+     this addressed?).
+  2. A report that fits the pane (every Fixture agent report at a normal
+     window size), or a last section shorter than the pane, has no room to
+     scroll its heading to the top, so choosing it did nothing. Choosing a
+     section now makes that room under the report first.
+  3. A section was scrolled to before the page's layout caught up, against
+     the previous report's height, and the page then shrank back. The page is
+     laid out first.
+- **The course**: the every-ask check (the freeze's `--check` and
+  `application_fixture_agent_every_ask`) opens the menu on every report the
+  run gives (What changed, What could break, Explain this file, Was this
+  addressed? on the pull request and on the file; 7 in all). It chooses each
+  section, last to first, with Return. It fails
+  `ATTENDED_FIXTURE_AGENT_FAILED:report-menu` unless the popover closes, the
+  section is the current one and its heading stands within 12 points of the
+  pane's top. The answered line carries `menus=N` and both checks want at
+  least 5. The check also covers the first step, What changed: its name is
+  the person's ("What changed since my review"), so the ask-v007 no-report
+  check never matched it.
+- **The report's look is held**: the report-card designer is drafting report
+  templates and the system prompt that fills them. The body is not restyled
+  now. The heading level carried by the paragraph under a heading is an input
+  for that build.
+
+Courses: `application_fixture_agent_every_ask` (`menus=7`),
+`application_ask_menu_public_path` (with the ask-v008 row-height
+assertions), `application_ask_addressed_public_path`,
+`application_ask_report_public_path`, `application_explain_file_public_path`.
+
+Host 44048/44130 stopped; root `ask-v008.wfugolhe` removed.

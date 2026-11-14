@@ -58,6 +58,9 @@ namespace bpr::qt {
 		/// \brief The menu's row for the section being read: the last heading
 		/// at or above the pane's top; Summary before the first.
 		[[nodiscard]] auto current_section() const -> int;
+		/// \brief Where section `aIndex`'s heading stands in the pane, from
+		/// the top of what shows; -1 when the report has no such heading.
+		[[nodiscard]] auto section_top(int aIndex) const -> int;
 
 		[[nodiscard]] auto outline() const noexcept -> QListWidget* { return Sections; }
 		[[nodiscard]] auto menu_button() const noexcept -> QToolButton* { return MenuButton; }
@@ -77,9 +80,13 @@ namespace bpr::qt {
 		void               choose(int aRow);
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
 
-		agent_report_document                    Document;
-		std::vector<QString>                     Headings;
+		agent_report_document Document;
+		std::vector<QString>  Headings;
+		/// The rendered heading blocks, in the outline's order; empty when
+		/// the rendering and the outline disagree on how many there are.
+		std::vector<int>                         HeadingBlocks;
 		QWidget*                                 Column     = nullptr;
+		QWidget*                                 Tail       = nullptr;
 		QLabel*                                  Title      = nullptr;
 		QLabel*                                  Byline     = nullptr;
 		QScrollArea*                             Scroll     = nullptr;

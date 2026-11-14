@@ -76,7 +76,9 @@ def main() -> int:
             environment["BPR_ATTENDED_FOOTER_SHOT"] = shot
         line = run(application, data, "reuse", "ATTENDED_FIXTURE_AGENT_ANSWERED", environment, 360)
         print(line)
-        if not line.startswith("ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent") or ":footer=Fixture agent" not in line or not line.endswith(":report=1"):
+        if not line.startswith("ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent") or ":footer=Fixture agent" not in line or ":report=1:menus=" not in line \
+                or not line.rsplit("=", 1)[1].isdigit() or int(line.rsplit("=", 1)[1]) < 5:
+            # Look ask-v008: every report's menu, each section chosen, brought it to the top.
             print("fixture-agent-every-ask: not every ask was answered by the Fixture agent")
             return 1
         if marked.exists():
