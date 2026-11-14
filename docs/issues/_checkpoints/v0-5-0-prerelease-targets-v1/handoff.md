@@ -3178,3 +3178,22 @@ Owner look `ask-v006`, filed and not waited on: session
 Next action: on handback read from cursor 9, record verbatim, stop host
 61578, remove the root. The report card's look waits on the coordinator's
 design worker; BPR-2179 on the grill-rfc.
+
+## ask-v006 handed back; Ask restyled; Q5 parked (2026-11-14)
+
+ask-v006 (sequence 24): file Ask on the tab **Accept** ("Yes but Can we get
+the same style as the comments use."), no setup at launch **Accept**, Q5 one
+ask **Reject** (waits on the report cards). Verbatim in the record. Host
+61578/61588 stopped; root `ask-v006.0gi2v365` removed.
+
+| Commit | What |
+|---|---|
+| `41a7e5c1f` | File tab's and thread's Ask wear the comment drawer's secondary button (`wear_comment_look`); test first; pin |
+| `983372d25` | Verdicts; Q5's acceptance parked on the report-card redesign (BPR-2166, BPR-2168) |
+| main `eac756b1e` | Mirror of the two card notes |
+
+No look filed: the restyle joins the next look that has more to show, naming
+the choice (the comments' secondary button, not the "R" key). Runs: ask,
+explain and every-ask courses, `qt_ask_menu`, `qt_conversation_cards_view`,
+`qt_workbench_window_scale_100`, guard, `architecture_boundaries`, the pin,
+documentation gate. No host or root of mine is running.
