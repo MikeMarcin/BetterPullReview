@@ -56,3 +56,14 @@ variants, right and bottom. Nothing is built before a variant is accepted.
 ## Mockup round 2 (2026-11-14)
 
 [compose-review-lightbox-v2](../../design/compose-review-lightbox-v2/README.md) (`fab8ae093`, a separate design worker): options A to E, each today's Finish your review content with its one-click verdicts, comments and actions on the right or at the bottom. Attended session `fd03fb4ab1abc68d8f5f9ff1b903a7c0`, state `/Users/jaeger/.attended-review-state/compose-review-lightbox-v002-2026-11-14/state`: one choice among A to E or "Keep the existing window", and one Accept/Reject that the content matches today's panel.
+
+## Mockup look v002 (session `fd03fb4ab1abc68d8f5f9ff1b903a7c0`, handed back 2026-11-14)
+
+- `BPR-2175-v2-choice`: **D** (no note), at 2026-11-14T16:40:56Z.
+- `BPR-2175-v2-content`: **Accept** (no note).
+
+Option D is the one to build: today's Finish your review in the lightbox, two
+columns (comments left; summary, one-click verdicts and actions right), each
+comment's words in full up to four lines and a suggestion's change as its
+diff; the window's own controls stay live while it is open (v001's accepted
+point).

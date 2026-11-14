@@ -34,3 +34,11 @@ keep their lines. Checked in `qt_conversation_cards_view`
 (`test_placement_notice_is_a_warning_mark`). Every non-blocking target notice
 folds, including "Goes on the head at line N": the look asks whether that is
 right. Pending: the owner's look.
+
+## Owner look (session `9afc3306d0cf788e0c2eaaec43d5b882`, frozen `200ba998fa15`, handed back 2026-11-14)
+
+- `BPR-2172-placement-mark`: **Reject**. The owner, verbatim: "I can't see what you're saying is there. Next review round show me in screenshots."
+- `BPR-2172-what-folds`: **Reject**. The owner, verbatim: "Show me in screenshots."
+
+Next round: offscreen renders of the composer with each notice, mark closed
+and open, in the candidates' content; one question per criterion.

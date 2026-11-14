@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2173"
 title: "Opening the bottom comment in the drawer scrolls the drawer wrongly"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -33,3 +33,10 @@ now scrolls the notes, no further than their end needs, so the opened card's
 top is clear of the edge chips and its foot is in view; a card whose line is
 off the code's view is still reached by the code moving. Pending: the owner's
 look on the same fixture.
+
+## Owner look (session `9afc3306d0cf788e0c2eaaec43d5b882`, frozen `200ba998fa15`, handed back 2026-11-14)
+
+- `BPR-2173-drawer-scroll`: **Accept** (no note), at 2026-11-14T16:37:13Z.
+
+Both outcomes hold: reproduced and fixed under test (`qt_conversation_cards_view`),
+and the owner's look on the Local comments look's fixture file. Done.

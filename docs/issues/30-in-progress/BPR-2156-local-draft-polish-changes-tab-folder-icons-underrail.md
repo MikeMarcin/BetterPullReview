@@ -60,3 +60,12 @@ notes, verbatim:
 - Save's icon: `QIcon::fromTheme(DocumentSave)`, the style's save icon as the
   fallback; checked in `qt_local_draft_window`.
 - Pending: the owner's look on a frozen build.
+
+## Owner look (session `9afc3306d0cf788e0c2eaaec43d5b882`, frozen `200ba998fa15`, handed back 2026-11-14)
+
+- `BPR-2156-changes-tab`: **Accept** (no note).
+- `BPR-2156-folder-icons`: **Accept** (no note).
+- `BPR-2156-edit-underrail`: **Accept** (no note).
+- `BPR-2156-save-icon`: **Reject**. The owner, verbatim: "Drop the word Save just have the icon.\nAlso that icon does not look like the normal save icon, isn't it just QIcon::ThemeIcon::DocumentSave"
+
+Open: Save as the icon alone.
