@@ -10,7 +10,25 @@ section in two:
 > prompt library where we can create new prompts, edit existing prompts, and
 > we drag/right click from the prompt library to add to surfaces.
 
-Nothing here is built, and no direction is chosen yet.
+Nothing here is built. The owner's verdict is below.
+
+## Owner's verdict (look prompts-settings-v003, 2026-11-14)
+
+The owner handed the look back without choosing an option. Their note, saved
+on the session as feedback and also given to the coordinator in chat,
+verbatim:
+
+> So 2 is closest.
+>
+> But I don't think you need separate settings pages, Just put surfaces over
+> library in the same page.
+>
+> Then I don't think you need those grids in library anymore because surfaces
+> already answers the "at a glance" view I wanted.
+
+Direction 2 carries on as one page in
+[prompts-settings-v4](../prompts-settings-v4/README.md). Directions 1 and 3
+are not chosen.
 
 [index.html](index.html) is standalone HTML with a Light and Dark link at its
 top right. `png/` holds headless renders of its seven frames in both themes,
