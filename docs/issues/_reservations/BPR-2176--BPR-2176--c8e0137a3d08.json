@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2176"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "remove duplicate speech-bubble buttons",
+  "created": "2026-11-14T02:20:27.676200+00:00",
+  "base": "af5d51fb869051e44d1fb0cbb60172bdf927ee75"
+}
