@@ -112,4 +112,14 @@ trimmed to the frame. `frame` is one of `start`, `a-open`, `a-read`, `b-open`,
 
 ## Status
 
-Awaiting the owner's choice.
+Awaiting the owner's choice, asked on 2026-11-14 as one select question (A, B
+or C) with a note:
+
+- Attended-review session `bff4dd72e9f6b027789ae5c1da4eeefe`, candidate
+  `report-card-v3-reading` at revision `629e69ca7374` (the commit that added
+  these mockups).
+- External state directory
+  `~/.attended-review-state/report-card-v003-2026-11-14/` (`state/` is the
+  session, `material/` a copy of the three rounds' folders at that revision
+  for the owner to open).
+- Lifecycle when this was written: prepared and served, unanswered.
