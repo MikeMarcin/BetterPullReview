@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2179"
 title: "Prompts as a settings section of its own, where editing a quick ask is obvious"
-status: "Parked"
+status: "In Progress"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2163"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation": "docs/issues/_reservations/BPR-2179--BPR-2179--371a8a5edb5b.json", "origin": "owner look ask-v002 (session 7268b4da), 2026-11-14, BPR-2163-quick-ask-editor rejected"}
-parked_on: "human-review"
 ---
 
 # BPR-2179: Prompts as a settings section of its own
@@ -113,7 +112,7 @@ Owner, 2026-11-14, verbatim: "disallow duplicate a system prompt". System prompt
 
 ## Spec questions, 2026-11-14 (owner, in chat)
 
-Owner decisions on the questions the spec (`docs/design/prompts-settings-v4/SPEC.md` (on the lane)) raised:
+Owner decisions on the questions the spec (SPEC.md (`docs/design/prompts-settings-v4/SPEC.md` on lane `claude/v0-5-0-prerelease-targets-52265d`)) raised:
 - Action rows ("What changed since my review", "Explain this file", "Was this addressed?"): "Menu only, never chips". The thread-chip placement of "Was this addressed?" in the worked example is withdrawn.
 - About is dropped: placement decides scope; a drop onto a surface whose scope cannot fill the prompt's placeholders is refused with a reason.
 - Tour chats get surfaces: Tour stop, Tour part and Whole tour, under the same model.
@@ -125,3 +124,8 @@ The coordinator set defaults for the rest; the owner can change them:
 - The footnoted condition kinds stay as the spec reads them under Q1.
 
 The card is ready to build.
+
+## Claimed, 2026-11-14
+
+Built from SPEC.md (`docs/design/prompts-settings-v4/SPEC.md` on lane `claude/v0-5-0-prerelease-targets-52265d`) with the
+owner's answers above, in slices. Frontend-design loaded.
