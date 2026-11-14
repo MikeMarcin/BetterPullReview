@@ -7,6 +7,7 @@
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/native_agent_session.hpp"
+#include "bpr/application/prompt_macro_host.hpp"
 #include "bpr/application/prompt_turn_name_host.hpp"
 #include "bpr/application/review_skill_host.hpp"
 
@@ -60,6 +61,12 @@ namespace bpr::adapters::sqlite {
 	/// A row that does not read back valid is left out. Settings resets remove
 	/// it with the file.
 	[[nodiscard]] auto make_prompt_turn_name_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_turn_name_store_port>;
+	/// \brief RFC-BPR-0125 milestone 3 ([[BPR-2146]]) and RFC-BPR-0128. The
+	/// same file's suggested prompts: changes to built-ins, the reviewer's own,
+	/// each place's order and the set's revision. A write from an older
+	/// revision changes nothing; a row a newer build wrote is kept. Settings
+	/// resets remove it with the file.
+	[[nodiscard]] auto make_prompt_macro_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_macro_store_port>;
 	/// \brief [[BPR-2016]], RFC-BPR-0107. What an agent and prompt import
 	/// changes: this file's agent list, edited review skill and each writing
 	/// hook's written-against version, and the hooks in the profile's

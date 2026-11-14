@@ -425,6 +425,54 @@ try {
 	const auto keptAfterRefusal = natives->history(scope, "claude");
 	expect(keptAfterRefusal && keptAfterRefusal->Selected == restored->Id && keptAfterRefusal->Turns.size() == 2U, "failed New session retains prior selected generation and transcript");
 
+	// RFC-BPR-0125 milestone 3 ([[BPR-2146]]) and RFC-BPR-0128 ([[BPR-2163]]).
+	// Suggested prompts: nothing stored is the shipped set at revision 0; a
+	// write names its revision, Quick ask and scopes are kept, an older
+	// revision is refused, a newer build's row is kept and never rewritten.
+	{
+		auto       macros = adapters::sqlite::make_prompt_macro_store(scratch.path());
+		const auto empty  = macros->load();
+		expect(empty && empty->Revision == 0U && empty->Differences == core::prompt_macro_differences{ } && empty->Newer.empty(), "no prompts stored: the shipped set, revision 0");
+		auto body              = core::prompt_macro_body{ .Name = "What could this change break?", .Template = "What could {pr.title} break?", .Subject = core::prompt_subject::pull_request };
+		body.QuickAsk          = false;
+		auto own               = core::prompt_macro{ .Id = "own.security", .Place = core::prompt_place::agent_tab, .Body = { .Name = "Security pass on {file.name}", .Template = "Check {file}", .Subject = core::prompt_subject::open_file } };
+		own.Body.Conditions    = { { .Fact = core::prompt_fact::path, .Patterns = { "src/**", "*.cpp" } }, { .Fact = core::prompt_fact::draft, .Negated = true } };
+		own.Body.QuickAsk      = true;
+		own.Body.Scopes        = { .File = true, .PullRequest = true };
+		own.On                 = false;
+		const auto differences = core::prompt_macro_differences{
+			.Changes = { { .Id = "agent-tab.what-could-break", .Body = body, .WrittenAgainst = 1U }, { .Id = "agent-tab.review-pull-request", .On = false } },
+			.Own     = { own },
+			.Orders  = { { .Place = core::prompt_place::agent_tab, .Ids = { "own.security", "agent-tab.review-pull-request" } } },
+		};
+		expect(macros->store(differences, 0U) == application::prompt_macro_write::stored, "a write from the revision read is stored");
+		macros.reset();
+		macros          = adapters::sqlite::make_prompt_macro_store(scratch.path());
+		const auto read = macros->load();
+		expect(read && read->Revision == 1U && read->Differences == differences, "a restart reads the same prompts back, Quick ask and scopes included");
+		expect(macros->store({ }, 0U) == application::prompt_macro_write::stale && macros->load() == read, "a write from an older revision changes nothing");
+		auto withBadPattern                        = differences;
+		withBadPattern.Own.front().Body.Conditions = { { .Fact = core::prompt_fact::path, .Patterns = { "a\nb" } } };
+		expect(macros->store(withBadPattern, 1U) == application::prompt_macro_write::failed && macros->load() == read, "a pattern with a control character is not written");
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+			expect(sqlite3_exec(database,
+								"INSERT INTO prompt_macros(kind,id,position,place,has_body,name,template,subject,ask,conditions,quick,scopes,on_state,written_against) "
+								"VALUES(1,'own.future',5,'future-place',1,'Future','Future','pull-request','question','',0,0,1,0)",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "a newer build's row is written");
+			sqlite3_close_v2(database);
+		}
+		const auto withNewer = macros->load();
+		expect(withNewer && withNewer->Newer == std::vector<std::string>{ "own.future" } && withNewer->Differences == differences, "a newer build's row is kept apart, never offered");
+		expect(macros->store({ }, 1U) == application::prompt_macro_write::stored, "restoring everything is a write");
+		const auto restoredSet = macros->load();
+		expect(restoredSet && restoredSet->Revision == 2U && restoredSet->Differences == core::prompt_macro_differences{ } && restoredSet->Newer == std::vector<std::string>{ "own.future" },
+			   "a write never rewrites a newer build's row");
+	}
+
 	{
 		sqlite3* database = nullptr;
 		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");

@@ -302,7 +302,40 @@ namespace bpr::adapters::sqlite {
 									"CREATE TABLE IF NOT EXISTS prompt_turn_names("
 									"asked TEXT PRIMARY KEY CHECK(length(CAST(asked AS BLOB)) BETWEEN 1 AND 16384),"
 									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024),"
-									"changed INTEGER NOT NULL CHECK(changed >= 0)) STRICT")) {
+									"changed INTEGER NOT NULL CHECK(changed >= 0)) STRICT")
+				// RFC-BPR-0125 milestone 3 ([[BPR-2146]]) and RFC-BPR-0128
+				// ([[BPR-2163]]). Suggested prompts, as differences from the
+				// shipped set: a built-in's change (`kind` 0) or one of the
+				// reviewer's own (`kind` 1), each place's order, and the set's
+				// revision. Names are stable names, so a row a newer build
+				// wrote is read as newer and kept.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS prompt_macros("
+									"kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 1),"
+									"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
+									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 63),"
+									"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) <= 64),"
+									"has_body INTEGER NOT NULL CHECK(has_body BETWEEN 0 AND 1),"
+									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) <= 120),"
+									"template TEXT NOT NULL CHECK(length(CAST(template AS BLOB)) <= 8192),"
+									"subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB)) <= 64),"
+									"ask TEXT NOT NULL CHECK(length(CAST(ask AS BLOB)) <= 64),"
+									"conditions TEXT NOT NULL CHECK(length(CAST(conditions AS BLOB)) <= 8192),"
+									"quick INTEGER NOT NULL CHECK(quick BETWEEN 0 AND 1),"
+									"scopes INTEGER NOT NULL CHECK(scopes BETWEEN 0 AND 7),"
+									"on_state INTEGER CHECK(on_state IS NULL OR on_state BETWEEN 0 AND 1),"
+									"written_against INTEGER NOT NULL CHECK(written_against BETWEEN 0 AND 4294967295),"
+									"PRIMARY KEY(kind, id)) STRICT")
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS prompt_macro_orders("
+									"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) BETWEEN 1 AND 64),"
+									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 63),"
+									"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
+									"PRIMARY KEY(place, position)) STRICT")
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS prompt_macro_revision("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"revision INTEGER NOT NULL CHECK(revision >= 0)) STRICT")) {
 				return { };
 			}
 			// RFC-BPR-0110: two more writing hooks; RFC-BPR-0114 as amended
@@ -2180,6 +2213,354 @@ namespace bpr::adapters::sqlite {
 			std::filesystem::path Root;
 		};
 
+		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The enum written `aName`
+		/// among `aCount` values named by `stable_name`, if this build knows
+		/// it.
+		template <typename Enum>
+		[[nodiscard]] auto named_value(const std::string_view aName, const std::size_t aCount) -> std::optional<Enum>
+		{
+			for (auto index = std::size_t{ 0 }; index < aCount; ++index) {
+				const auto value = static_cast<Enum>(index);
+				if (core::stable_name(value) == aName) {
+					return value;
+				}
+			}
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto lines_name(const core::prompt_lines_value aLines) -> std::string_view
+		{
+			switch (aLines) {
+			case core::prompt_lines_value::any:     return "any";
+			case core::prompt_lines_value::one:     return "one";
+			case core::prompt_lines_value::several: return "several";
+			}
+			return "any";
+		}
+
+		/// Conditions as text: one per line, `fact`, `is` or `not`, the lines
+		/// value, then each pattern, separated by the unit separator. A
+		/// pattern holding a control character is not stored.
+		[[nodiscard]] auto encode_conditions(const std::vector<core::prompt_condition>& aConditions) -> std::optional<std::string>
+		{
+			auto text = std::string{ };
+			for (const auto& condition : aConditions) {
+				if (!text.empty()) {
+					text += '\n';
+				}
+				text += core::stable_name(condition.Fact);
+				text += '\x1f';
+				text += condition.Negated ? "not" : "is";
+				text += '\x1f';
+				text += lines_name(condition.Lines);
+				for (const auto& pattern : condition.Patterns) {
+					if (std::ranges::any_of(pattern, [](const char aCharacter) { return static_cast<unsigned char>(aCharacter) < 0x20U; })) {
+						return std::nullopt;
+					}
+					text += '\x1f';
+					text += pattern;
+				}
+			}
+			return text;
+		}
+
+		[[nodiscard]] auto split(const std::string_view aText, const char aSeparator) -> std::vector<std::string_view>
+		{
+			auto parts = std::vector<std::string_view>{ };
+			auto start = std::size_t{ 0 };
+			while (start <= aText.size()) {
+				const auto end = std::min(aText.find(aSeparator, start), aText.size());
+				parts.push_back(aText.substr(start, end - start));
+				start = end + 1U;
+			}
+			return parts;
+		}
+
+		[[nodiscard]] auto decode_conditions(const std::string_view aText) -> std::optional<std::vector<core::prompt_condition>>
+		{
+			auto conditions = std::vector<core::prompt_condition>{ };
+			if (aText.empty()) {
+				return conditions;
+			}
+			for (const auto line : split(aText, '\n')) {
+				const auto fields = split(line, '\x1f');
+				if (fields.size() < 3U) {
+					return std::nullopt;
+				}
+				const auto fact = named_value<core::prompt_fact>(fields[0], core::prompt_fact_count);
+				if (!fact || (fields[1] != "is" && fields[1] != "not")) {
+					return std::nullopt;
+				}
+				auto condition = core::prompt_condition{ .Fact = *fact, .Negated = fields[1] == "not" };
+				if (fields[2] == "one") {
+					condition.Lines = core::prompt_lines_value::one;
+				} else if (fields[2] == "several") {
+					condition.Lines = core::prompt_lines_value::several;
+				} else if (fields[2] != "any") {
+					return std::nullopt;
+				}
+				for (auto index = std::size_t{ 3 }; index < fields.size(); ++index) {
+					condition.Patterns.emplace_back(fields[index]);
+				}
+				conditions.push_back(std::move(condition));
+			}
+			return conditions;
+		}
+
+		[[nodiscard]] auto scope_bits(const core::prompt_scopes aScopes) -> std::int64_t { return (aScopes.Thread ? 1 : 0) | (aScopes.File ? 2 : 0) | (aScopes.PullRequest ? 4 : 0); }
+
+		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested
+		/// prompts, as differences from the shipped set.
+		class prompt_macro_store final : public application::prompt_macro_store_port
+		{
+		public:
+			explicit prompt_macro_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+
+			[[nodiscard]] auto load() -> std::optional<application::prompt_macro_stored> override
+			{
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					return read(store->Database.get());
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store(const core::prompt_macro_differences& aDifferences, const std::uint64_t aFrom) -> application::prompt_macro_write override
+			{
+				using application::prompt_macro_write;
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return prompt_macro_write::failed;
+					}
+					auto* const db = store->Database.get();
+					if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+						return prompt_macro_write::failed;
+					}
+					const auto rollback = [db](const prompt_macro_write aOutcome) {
+						static_cast<void>(detail::execute(db, "ROLLBACK"));
+						return aOutcome;
+					};
+					const auto current = read(db);
+					if (!current) {
+						return rollback(prompt_macro_write::failed);
+					}
+					if (current->Revision != aFrom) {
+						return rollback(prompt_macro_write::stale);
+					}
+					// Rows this build cannot read stay as they are.
+					if (!erase_known(db, current->Newer)) {
+						return rollback(prompt_macro_write::failed);
+					}
+					auto position = std::int64_t{ 0 };
+					for (const auto& change : aDifferences.Changes) {
+						if (!write_row(db, 0, change.Id, position++, std::nullopt, change.Body ? &*change.Body : nullptr, change.On, change.WrittenAgainst)) {
+							return rollback(prompt_macro_write::failed);
+						}
+					}
+					position = 0;
+					for (const auto& own : aDifferences.Own) {
+						if (own.BuiltIn || own.Action != core::prompt_action::none || !write_row(db, 1, own.Id, position++, own.Place, &own.Body, own.On, 0U)) {
+							return rollback(prompt_macro_write::failed);
+						}
+					}
+					for (auto place = std::size_t{ 0 }; place < core::prompt_place_count; ++place) {
+						auto erase = detail::prepare(db, "DELETE FROM prompt_macro_orders WHERE place=?1");
+						if (!erase) {
+							return rollback(prompt_macro_write::failed);
+						}
+						bind_text(erase->Value, 1, std::string{ core::stable_name(static_cast<core::prompt_place>(place)) });
+						if (sqlite3_step(erase->Value) != SQLITE_DONE) {
+							return rollback(prompt_macro_write::failed);
+						}
+					}
+					for (const auto& order : aDifferences.Orders) {
+						for (auto index = std::size_t{ 0 }; index < order.Ids.size() && index < core::maximum_prompt_macros; ++index) {
+							auto row = detail::prepare(db, "INSERT INTO prompt_macro_orders(place,position,id) VALUES(?1,?2,?3)");
+							if (!row) {
+								return rollback(prompt_macro_write::failed);
+							}
+							bind_text(row->Value, 1, std::string{ core::stable_name(order.Place) });
+							sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(index));
+							bind_text(row->Value, 3, order.Ids[index]);
+							if (sqlite3_step(row->Value) != SQLITE_DONE) {
+								return rollback(prompt_macro_write::failed);
+							}
+						}
+					}
+					auto revision = detail::prepare(db, "INSERT OR REPLACE INTO prompt_macro_revision(singleton,revision) VALUES(1,?1)");
+					if (!revision) {
+						return rollback(prompt_macro_write::failed);
+					}
+					sqlite3_bind_int64(revision->Value, 1, static_cast<std::int64_t>(aFrom + 1U));
+					if (sqlite3_step(revision->Value) != SQLITE_DONE) {
+						return rollback(prompt_macro_write::failed);
+					}
+					return detail::execute(db, "COMMIT") ? prompt_macro_write::stored : rollback(prompt_macro_write::failed);
+				} catch (...) {
+					return application::prompt_macro_write::failed;
+				}
+			}
+
+		private:
+			[[nodiscard]] static auto read(sqlite3* const aDatabase) -> std::optional<application::prompt_macro_stored>
+			{
+				auto stored = application::prompt_macro_stored{ };
+				if (const auto revision = detail::scalar_integer(aDatabase, "SELECT coalesce((SELECT revision FROM prompt_macro_revision WHERE singleton=1),0)"); revision) {
+					stored.Revision = static_cast<std::uint64_t>(*revision);
+				} else {
+					return std::nullopt;
+				}
+				auto row = detail::prepare(aDatabase,
+										   "SELECT kind,id,place,has_body,name,template,subject,ask,conditions,quick,scopes,on_state,written_against FROM prompt_macros ORDER BY kind,position");
+				if (!row) {
+					return std::nullopt;
+				}
+				for (auto step = sqlite3_step(row->Value); step != SQLITE_DONE; step = sqlite3_step(row->Value)) {
+					if (step != SQLITE_ROW) {
+						return std::nullopt;
+					}
+					const auto kind  = sqlite3_column_int64(row->Value, 0);
+					auto       id    = column_text(row->Value, 1).value_or(std::string{ });
+					const auto place = column_text(row->Value, 2).value_or(std::string{ });
+					const auto body  = sqlite3_column_int64(row->Value, 3) != 0;
+					auto       macro = core::prompt_macro{ .Id = id };
+					auto       known = true;
+					if (kind == 1) {
+						const auto where = named_value<core::prompt_place>(place, core::prompt_place_count);
+						known            = where.has_value();
+						macro.Place      = where.value_or(core::prompt_place::agent_tab);
+					}
+					if (body) {
+						macro.Body.Name       = column_text(row->Value, 4).value_or(std::string{ });
+						macro.Body.Template   = column_text(row->Value, 5).value_or(std::string{ });
+						const auto subject    = named_value<core::prompt_subject>(column_text(row->Value, 6).value_or(std::string{ }), 8U);
+						const auto ask        = named_value<core::prompt_ask>(column_text(row->Value, 7).value_or(std::string{ }), 2U);
+						auto       when       = decode_conditions(column_text(row->Value, 8).value_or(std::string{ }));
+						known                 = known && subject && ask && when;
+						macro.Body.Subject    = subject.value_or(core::prompt_subject::pull_request);
+						macro.Body.Kind       = ask.value_or(core::prompt_ask::question);
+						macro.Body.Conditions = when.value_or(std::vector<core::prompt_condition>{ });
+						macro.Body.QuickAsk   = sqlite3_column_int64(row->Value, 9) != 0;
+						const auto bits       = sqlite3_column_int64(row->Value, 10);
+						macro.Body.Scopes     = { .Thread = (bits & 1) != 0, .File = (bits & 2) != 0, .PullRequest = (bits & 4) != 0 };
+					}
+					const auto on = sqlite3_column_type(row->Value, 11) == SQLITE_NULL ? std::optional<bool>{ } : std::optional{ sqlite3_column_int64(row->Value, 11) != 0 };
+					if (!known) {
+						stored.Newer.push_back(std::move(id));
+						continue;
+					}
+					if (kind == 0) {
+						auto change = core::prompt_builtin_change{ .Id = std::move(id), .On = on, .WrittenAgainst = static_cast<std::uint32_t>(sqlite3_column_int64(row->Value, 12)) };
+						if (body) {
+							change.Body = std::move(macro.Body);
+						}
+						stored.Differences.Changes.push_back(std::move(change));
+					} else {
+						macro.On = on.value_or(true);
+						stored.Differences.Own.push_back(std::move(macro));
+					}
+				}
+				auto order = detail::prepare(aDatabase, "SELECT place,id FROM prompt_macro_orders ORDER BY place,position");
+				if (!order) {
+					return std::nullopt;
+				}
+				for (auto step = sqlite3_step(order->Value); step != SQLITE_DONE; step = sqlite3_step(order->Value)) {
+					if (step != SQLITE_ROW) {
+						return std::nullopt;
+					}
+					const auto place = named_value<core::prompt_place>(column_text(order->Value, 0).value_or(std::string{ }), core::prompt_place_count);
+					auto       id    = column_text(order->Value, 1);
+					if (!place || !id) {
+						continue;
+					}
+					auto found = std::ranges::find(stored.Differences.Orders, *place, &core::prompt_place_order::Place);
+					if (found == stored.Differences.Orders.end()) {
+						stored.Differences.Orders.push_back({ .Place = *place });
+						found = std::prev(stored.Differences.Orders.end());
+					}
+					found->Ids.push_back(std::move(*id));
+				}
+				return stored;
+			}
+
+			/// Deletes every row this build reads; a newer build's rows stay.
+			[[nodiscard]] static auto erase_known(sqlite3* const aDatabase, const std::vector<std::string>& aNewer) -> bool
+			{
+				auto ids = detail::prepare(aDatabase, "SELECT kind,id FROM prompt_macros");
+				if (!ids) {
+					return false;
+				}
+				auto doomed = std::vector<std::pair<std::int64_t, std::string>>{ };
+				for (auto step = sqlite3_step(ids->Value); step != SQLITE_DONE; step = sqlite3_step(ids->Value)) {
+					if (step != SQLITE_ROW) {
+						return false;
+					}
+					auto id = column_text(ids->Value, 1).value_or(std::string{ });
+					if (std::ranges::find(aNewer, id) == aNewer.end()) {
+						doomed.emplace_back(sqlite3_column_int64(ids->Value, 0), std::move(id));
+					}
+				}
+				for (const auto& [kind, id] : doomed) {
+					auto erase = detail::prepare(aDatabase, "DELETE FROM prompt_macros WHERE kind=?1 AND id=?2");
+					if (!erase) {
+						return false;
+					}
+					sqlite3_bind_int64(erase->Value, 1, kind);
+					bind_text(erase->Value, 2, id);
+					if (sqlite3_step(erase->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				return true;
+			}
+
+			[[nodiscard]] static auto write_row(sqlite3* const aDatabase, const std::int64_t aKind, const std::string& aId, const std::int64_t aPosition, const std::optional<core::prompt_place> aPlace,
+												const core::prompt_macro_body* const aBody, const std::optional<bool> aOn, const std::uint32_t aWrittenAgainst) -> bool
+			{
+				if (aPosition >= static_cast<std::int64_t>(core::maximum_prompt_macros)) {
+					return false;
+				}
+				const auto conditions = aBody != nullptr ? encode_conditions(aBody->Conditions) : std::optional{ std::string{ } };
+				if (!conditions) {
+					return false;
+				}
+				auto row = detail::prepare(aDatabase,
+										   "INSERT OR REPLACE INTO prompt_macros(kind,id,position,place,has_body,name,template,subject,ask,conditions,quick,scopes,on_state,written_against) "
+										   "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)");
+				if (!row) {
+					return false;
+				}
+				sqlite3_bind_int64(row->Value, 1, aKind);
+				bind_text(row->Value, 2, aId);
+				sqlite3_bind_int64(row->Value, 3, aPosition);
+				bind_text(row->Value, 4, aPlace ? std::string{ core::stable_name(*aPlace) } : std::string{ });
+				sqlite3_bind_int64(row->Value, 5, aBody != nullptr ? 1 : 0);
+				bind_text(row->Value, 6, aBody != nullptr ? aBody->Name : std::string{ });
+				bind_text(row->Value, 7, aBody != nullptr ? aBody->Template : std::string{ });
+				bind_text(row->Value, 8, aBody != nullptr ? std::string{ core::stable_name(aBody->Subject) } : std::string{ });
+				bind_text(row->Value, 9, aBody != nullptr ? std::string{ core::stable_name(aBody->Kind) } : std::string{ });
+				bind_text(row->Value, 10, *conditions);
+				sqlite3_bind_int64(row->Value, 11, aBody != nullptr && aBody->QuickAsk ? 1 : 0);
+				sqlite3_bind_int64(row->Value, 12, aBody != nullptr ? scope_bits(aBody->Scopes) : 0);
+				if (aOn) {
+					sqlite3_bind_int64(row->Value, 13, *aOn ? 1 : 0);
+				} else {
+					sqlite3_bind_null(row->Value, 13);
+				}
+				sqlite3_bind_int64(row->Value, 14, aWrittenAgainst);
+				return sqlite3_step(row->Value) == SQLITE_DONE;
+			}
+
+			std::filesystem::path Root;
+		};
+
 		/// [[BPR-2016]], RFC-BPR-0107. What an import changes, read and
 		/// written across this file and the profile's workbench settings.
 		class agent_configuration_store final : public application::agent_configuration_store_port
@@ -2446,6 +2827,11 @@ namespace bpr::adapters::sqlite {
 	auto make_prompt_turn_name_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_turn_name_store_port>
 	{
 		return std::make_unique<prompt_turn_name_store>(aRoot);
+	}
+
+	auto make_prompt_macro_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_macro_store_port>
+	{
+		return std::make_unique<prompt_macro_store>(aRoot);
 	}
 
 	auto make_agent_conversation_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_conversation_store_port>
