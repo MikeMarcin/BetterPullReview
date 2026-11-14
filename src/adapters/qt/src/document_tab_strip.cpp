@@ -483,8 +483,11 @@ namespace bpr::qt {
 				const auto label = tab.State == core::document_tab_view_state::unavailable
 					? QStringLiteral("%1 (unavailable)").arg(tab.Name)
 					: tab.Name;
-				const auto index = tab.Report ? Bar->addTab(agent_glyph(Bar->palette()), label) : Bar->addTab(label);
-				auto       tip   = tab.Report ? QStringLiteral("Agent's report: %1").arg(tab.Name) : tab.Path;
+				// docs/design/report-card-v4, defect 4: a report's title is cut
+				// at its end, its glyph kept; a path keeps its end (its name).
+				const auto shownLabel = tab.Report ? Bar->fontMetrics().elidedText(label, Qt::ElideRight, std::max(40, MinimumTab - 72)) : label;
+				const auto index      = tab.Report ? Bar->addTab(agent_glyph(Bar->palette()), shownLabel) : Bar->addTab(shownLabel);
+				auto       tip        = tab.Report ? QStringLiteral("Agent's report: %1").arg(tab.Name) : tab.Path;
 				if (!tab.Pair.isEmpty()) {
 					tip.append(QStringLiteral("\n%1 %2").arg(tab.OwnComparison ? QStringLiteral("Its own comparison:") : QStringLiteral("The window's comparison:"), tab.Pair));
 				}

@@ -1,5 +1,6 @@
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/core/agent_report.hpp"
+#include "bpr/qt/ask_menu.hpp"
 
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -47,6 +48,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -230,6 +232,132 @@ namespace bpr::qt {
 				painter.setBrush(mixed(base, ink, 0.26));
 				painter.drawRoundedRect(QRectF{ 0.0, 0.0, 2.0, static_cast<qreal>(height()) }, 1.0, 1.0);
 			}
+		};
+
+		/// \brief docs/design/report-card-v4 (round 1's C, Attachment, chosen
+		/// 2026-11-14): the report as an attachment under its summary. A row
+		/// on the window's surface colour, a one point border, 7 point corners,
+		/// 7 by 8 padding: a 24 by 30 page carrying the agent glyph, the title
+		/// in semibold (two lines at most) over a 12 point line, a chevron. The
+		/// whole row is Open report; while the report's tab is active it is
+		/// selected (a 1.5 point outline and the selection tint).
+		class report_attachment_row final : public QPushButton
+		{
+		public:
+			explicit report_attachment_row(QWidget* aParent)
+				: QPushButton{ aParent }
+			{
+				setCursor(Qt::PointingHandCursor);
+				setFocusPolicy(Qt::StrongFocus);
+				setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+				setAttribute(Qt::WA_Hover, true);
+				auto* const row = new QHBoxLayout{ this };
+				row->setContentsMargins(8 + 24 + 10, 7, 8 + 16, 7);
+				auto* const words = new QVBoxLayout{ };
+				words->setSpacing(1);
+				Title = new QLabel{ this };
+				Title->setObjectName(QStringLiteral("agentTurnReportTitle"));
+				Title->setTextFormat(Qt::PlainText);
+				Title->setWordWrap(true);
+				Title->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+				auto semibold = Title->font();
+				semibold.setWeight(QFont::DemiBold);
+				Title->setFont(semibold);
+				Meta = new QLabel{ this };
+				Meta->setObjectName(QStringLiteral("agentTurnReportMeta"));
+				Meta->setForegroundRole(QPalette::PlaceholderText);
+				Meta->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+				// The secondary line, a point under the title's size.
+				auto small = Meta->font();
+				small.setPointSizeF(std::max(9.0, small.pointSizeF() - 1.0));
+				Meta->setFont(small);
+				words->addWidget(Title);
+				words->addWidget(Meta);
+				row->addLayout(words, 1);
+			}
+
+			[[nodiscard]] auto title() const noexcept -> QLabel* { return Title; }
+			[[nodiscard]] auto meta() const noexcept -> QLabel* { return Meta; }
+
+			void set_selected(const bool aSelected)
+			{
+				if (Selected != aSelected) {
+					Selected = aSelected;
+					setProperty("bprReportSelected", aSelected);
+					update();
+				}
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				// Two title lines at most.
+				const auto title = std::min(Title->heightForWidth(std::max(40, width() - 8 - 24 - 10 - 8 - 16)), 2 * Title->fontMetrics().lineSpacing());
+				return { 200, std::max(30 + 14, 7 + title + 1 + Meta->sizeHint().height() + 7) };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box  = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+				auto       fill = palette().color(QPalette::Window);
+				auto       edge = palette().color(QPalette::WindowText);
+				edge.setAlphaF(underMouse() || hasFocus() ? 0.35F : 0.18F);
+				if (Selected) {
+					auto tint = palette().color(QPalette::Highlight);
+					tint.setAlphaF(0.14F);
+					painter.setBrush(fill);
+					painter.setPen(Qt::NoPen);
+					painter.drawRoundedRect(box, 7.0, 7.0);
+					painter.setBrush(tint);
+					painter.setPen(QPen{ palette().color(QPalette::Highlight), 1.5 });
+				} else {
+					painter.setBrush(isDown() ? fill.darker(106) : fill);
+					painter.setPen(QPen{ edge, 1.0 });
+				}
+				painter.drawRoundedRect(box, 7.0, 7.0);
+				// The page, its corner folded, carrying the glyph.
+				const auto page = QRectF{ 8.0, (height() - 30) / 2.0, 24.0, 30.0 };
+				auto       ink  = palette().color(QPalette::WindowText);
+				ink.setAlphaF(0.55F);
+				auto sheet = QPainterPath{ };
+				sheet.moveTo(page.topLeft());
+				sheet.lineTo(page.right() - 7.0, page.top());
+				sheet.lineTo(page.right(), page.top() + 7.0);
+				sheet.lineTo(page.bottomRight());
+				sheet.lineTo(page.bottomLeft());
+				sheet.closeSubpath();
+				painter.setBrush(palette().color(QPalette::Base));
+				painter.setPen(QPen{ ink, 1.2 });
+				painter.drawPath(sheet);
+				painter.drawLine(QPointF{ page.right() - 7.0, page.top() }, QPointF{ page.right() - 7.0, page.top() + 7.0 });
+				painter.drawLine(QPointF{ page.right() - 7.0, page.top() + 7.0 }, QPointF{ page.right(), page.top() + 7.0 });
+				agent_glyph(palette()).paint(&painter, QRect{ static_cast<int>(page.left()) + 5, static_cast<int>(page.center().y()) - 6, 14, 14 });
+				// The chevron.
+				const auto middle  = QPointF{ width() - 13.0, height() / 2.0 };
+				auto       chevron = QPainterPath{ };
+				chevron.moveTo(middle + QPointF{ -2.0, -4.0 });
+				chevron.lineTo(middle + QPointF{ 2.0, 0.0 });
+				chevron.lineTo(middle + QPointF{ -2.0, 4.0 });
+				painter.setBrush(Qt::NoBrush);
+				painter.setPen(QPen{ ink, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				painter.drawPath(chevron);
+			}
+
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) {
+					click();
+					return;
+				}
+				QPushButton::keyPressEvent(aEvent);
+			}
+
+		private:
+			QLabel* Title    = nullptr;
+			QLabel* Meta     = nullptr;
+			bool    Selected = false;
 		};
 
 		/// \brief Owner look v003 ("Timestamp would also be nice"): a time
@@ -1353,55 +1481,35 @@ namespace bpr::qt {
 		claim->hide();
 		replyColumn->addWidget(claim);
 		aTurn.Claim = claim;
-		// RFC-BPR-0128 ([[BPR-2166]]). A long answer is a report: a card here
-		// (title, size, first lines) whose Open reads it in a file tab with an
-		// outline. Opening runs nothing, so the card wears no accent.
+		replyColumn->addWidget(answer);
+		// RFC-BPR-0128 ([[BPR-2166]]) as the owner chose it on 2026-11-14
+		// (docs/design/report-card-v4, round 1's C, Attachment): the reply
+		// card is the only surface. The report's summary shows as the answer
+		// does; under it, one attachment row names the report and opens it.
+		// Opening runs nothing, so the row wears no accent but the glyph.
 		{
-			auto* const card = new QFrame{ reply };
+			auto* const card = new QWidget{ reply };
 			card->setObjectName(QStringLiteral("agentTurnReportCard"));
-			card->setFrameShape(QFrame::StyledPanel);
-			card->setAccessibleName(tr("Report"));
 			auto* const cardColumn = new QVBoxLayout{ card };
-			cardColumn->setContentsMargins(10, 8, 10, 8);
-			cardColumn->setSpacing(4);
-			auto* const cardTitle = new QLabel{ card };
-			cardTitle->setObjectName(QStringLiteral("agentTurnReportTitle"));
-			cardTitle->setWordWrap(true);
-			cardTitle->setTextFormat(Qt::PlainText);
-			auto bold = cardTitle->font();
-			bold.setBold(true);
-			cardTitle->setFont(bold);
-			auto* const meta = new QLabel{ card };
-			meta->setObjectName(QStringLiteral("agentTurnReportMeta"));
-			meta->setForegroundRole(QPalette::PlaceholderText);
-			auto* const lead = new QLabel{ card };
-			lead->setObjectName(QStringLiteral("agentTurnReportLead"));
-			lead->setWordWrap(true);
-			lead->setTextFormat(Qt::PlainText);
-			auto* const open = new quiet_push_button{ card };
-			open->setObjectName(QStringLiteral("agentTurnReportOpen"));
-			open->setText(tr("Open report"));
-			open->setToolTip(tr("Read the report in a tab beside the files, with its outline"));
+			cardColumn->setContentsMargins(0, 9, 0, 0);
+			auto* const row = new report_attachment_row{ card };
+			row->setObjectName(QStringLiteral("agentTurnReportOpen"));
 			const auto serial = aTurn.Serial;
-			connect(open, &QPushButton::clicked, this, [this, serial] {
+			connect(row, &QPushButton::clicked, this, [this, serial] {
 				const auto found = std::ranges::find(Turns, serial, &turn::Serial);
 				if (found != Turns.end()) {
 					open_report(static_cast<std::size_t>(std::distance(Turns.begin(), found)));
 				}
 			});
-			cardColumn->addWidget(cardTitle);
-			cardColumn->addWidget(meta);
-			cardColumn->addWidget(lead);
-			cardColumn->addWidget(open, 0, Qt::AlignLeft);
+			cardColumn->addWidget(row);
 			card->hide();
 			replyColumn->addWidget(card);
 			aTurn.ReportCard  = card;
-			aTurn.ReportTitle = cardTitle;
-			aTurn.ReportMeta  = meta;
-			aTurn.ReportLead  = lead;
-			aTurn.ReportOpen  = open;
+			aTurn.ReportTitle = row->title();
+			aTurn.ReportMeta  = row->meta();
+			aTurn.ReportOpen  = row;
 		}
-		replyColumn->addWidget(answer);
+
 		// [[BPR-2061]], owner 2026-11-10. A reply with several suggested
 		// comments drafts them all at once: one quiet action over its cards,
 		// what the last press did, and the Undo of that batch. It starts no
@@ -1776,18 +1884,25 @@ namespace bpr::qt {
 		const auto answer = aTurn.AnswerText.toStdString();
 		// Q4: Explain this file and What changed since my review answer as
 		// reports whatever their length.
-		const auto always = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload;
-		const auto report = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix && aTurn.Returning != core::returning_operation::addressed_threads
+		const auto always  = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload;
+		const auto report  = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix && aTurn.Returning != core::returning_operation::addressed_threads
 			? (core::is_report_answer(answer) || (always && !aTurn.AnswerText.trimmed().isEmpty()))
 			: false;
+		auto       summary = QString{ };
 		if (aTurn.ReportCard != nullptr) {
 			if (report) {
 				const auto named = always ? (!aTurn.Explain.isEmpty() ? tr("Explain %1").arg(aTurn.Explain) : tr("What changed since your review")) : QString{ };
 				const auto card  = core::report_card_of(answer, named.toStdString());
 				aTurn.ReportTitle->setText(QString::fromStdString(card.Title));
-				aTurn.ReportMeta->setText(tr("%n section(s)", nullptr, static_cast<int>(card.Sections)) + tr(", %n line(s)", nullptr, static_cast<int>(card.Lines)));
-				aTurn.ReportLead->setText(QString::fromStdString(card.Lead));
-				aTurn.ReportCard->setAccessibleDescription(tr("Report: %1").arg(aTurn.ReportTitle->text()));
+				// Round 1's wording; defect 2: "1 section", counted without
+				// the title.
+				aTurn.ReportMeta->setText(card.Sections == 0U       ? tr("Report")
+											  : card.Sections == 1U ? tr("Report, 1 section")
+																	: tr("Report, %1 sections").arg(card.Sections));
+				aTurn.ReportOpen->setAccessibleName(tr("Open report: %1").arg(aTurn.ReportTitle->text()));
+				aTurn.ReportOpen->setToolTip(tr("Open report"));
+				aTurn.ReportOpen->updateGeometry();
+				summary = QString::fromStdString(card.Summary);
 			}
 			aTurn.ReportCard->setVisible(report);
 		}
@@ -1795,9 +1910,12 @@ namespace bpr::qt {
 		// Owner look v004: the files and lines the answer names are links;
 		// Copy and Keep local keep the answer as the agent wrote it.
 		// [[BPR-1998]]: the core's one recogniser, for every agent reply.
-		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(aTurn.AnswerText, LineResolve(), aTurn.ContextFile) : aTurn.AnswerText;
-		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial));
-		aTurn.Answer->setVisible(!aTurn.AnswerText.isEmpty() && !report);
+		// A report shows its summary here, rendered (defect 3); the whole
+		// report is its tab.
+		const auto body  = report ? summary : aTurn.AnswerText;
+		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(body, LineResolve(), aTurn.ContextFile) : body;
+		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial) + (report ? "-summary" : ""));
+		aTurn.Answer->setVisible(!body.isEmpty());
 		fit_answer(*aTurn.Answer);
 	}
 
@@ -2616,12 +2734,31 @@ namespace bpr::qt {
 			return;
 		}
 		const auto& turn = Turns[aTurn];
-		// The title the card shows (Q4: the question's, for an answer that is
-		// a report by what was asked).
-		const auto card = core::report_card_of(turn.AnswerText.toStdString(), turn.ReportTitle != nullptr ? turn.ReportTitle->text().toStdString() : std::string{ });
 		// References are links in the report as they are in the answer.
-		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
-		ReportDispatch(aTurn, QString::fromStdString(card.Title), shown);
+		const auto shown  = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
+		auto       byline = turn.Footer != nullptr ? turn.Footer->text().section(QStringLiteral(" · "), 0, 0) : QString{ };
+		if (const auto when = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt); !when.isEmpty()) {
+			byline += (byline.isEmpty() ? QString{ } : QStringLiteral(" · ")) + when;
+		}
+		if (Head != nullptr && !Head->text().isEmpty()) {
+			byline += (byline.isEmpty() ? QString{ } : QStringLiteral(" · ")) + tr("at %1").arg(Head->text());
+		}
+		ReportDispatch(agent_report_document{
+			.Turn     = aTurn,
+			.Title    = turn.ReportTitle != nullptr ? turn.ReportTitle->text() : QString{ },
+			.Markdown = shown,
+			.Question = turn.Question,
+			.Byline   = byline,
+		});
+	}
+
+	void agent_tab_view::mark_open_report(const std::optional<std::size_t> aTurn)
+	{
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			if (auto* const row = static_cast<report_attachment_row*>(Turns[index].ReportOpen.data()); row != nullptr) {
+				row->set_selected(aTurn == index);
+			}
+		}
 	}
 
 	auto agent_tab_view::turn_report_card(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].ReportCard.data() : nullptr; }

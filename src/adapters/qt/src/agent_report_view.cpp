@@ -4,111 +4,528 @@
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include <QApplication>
+#include <QFrame>
+#include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
+#include <QPainter>
+#include <QPainterPath>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStyledItemDelegate>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QToolButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace bpr::qt {
+	namespace {
+		// docs/design/report-card-v4/SPEC.md, the drawings' points.
+		constexpr int column_width      = 572;
+		constexpr int title_top         = 22;
+		constexpr int button_right      = 14;
+		constexpr int button_top        = 12;
+		constexpr int button_width      = 32;
+		constexpr int button_height     = 28;
+		constexpr int popover_width     = 286;
+		constexpr int popover_gap       = 10;
+		constexpr int popover_arrow     = 7;
+		constexpr int row_height        = 24;
+		constexpr int sub_indent        = 14;
+		constexpr int kind_role         = Qt::UserRole;
+		constexpr int index_role        = Qt::UserRole + 1;
+		constexpr int current_role      = Qt::UserRole + 2;
+		constexpr int depth_role        = Qt::UserRole + 4;
+		constexpr int kind_section      = 0;
+		constexpr int kind_divider      = 1;
+		constexpr int kind_conversation = 2;
+		constexpr int kind_source       = 3;
+		constexpr int kind_copy         = 4;
+
+		[[nodiscard]] auto menu_glyph(const QColor& aInk) -> QIcon
+		{
+			auto pixmap = QPixmap{ 30, 30 };
+			pixmap.fill(Qt::transparent);
+			auto painter = QPainter{ &pixmap };
+			painter.setRenderHint(QPainter::Antialiasing, true);
+			painter.setPen(QPen{ aInk, 2.0, Qt::SolidLine, Qt::RoundCap });
+			for (const auto y : { 9.0, 15.0, 21.0 }) {
+				painter.drawLine(QPointF{ 7.0, y }, QPointF{ 23.0, y });
+			}
+			return QIcon{ pixmap };
+		}
+
+		[[nodiscard]] auto bubble_glyph(const QColor& aInk) -> QPixmap
+		{
+			auto pixmap = QPixmap{ 28, 28 };
+			pixmap.fill(Qt::transparent);
+			auto painter = QPainter{ &pixmap };
+			painter.setRenderHint(QPainter::Antialiasing, true);
+			painter.setPen(QPen{ aInk, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			auto path = QPainterPath{ };
+			path.addRoundedRect(QRectF{ 4.0, 5.0, 20.0, 14.0 }, 4.0, 4.0);
+			painter.drawPath(path);
+			painter.drawLine(QPointF{ 9.0, 19.0 }, QPointF{ 7.0, 24.0 });
+			painter.drawLine(QPointF{ 7.0, 24.0 }, QPointF{ 13.0, 19.0 });
+			pixmap.setDevicePixelRatio(2.0);
+			return pixmap;
+		}
+
+		/// The popover: a raised panel hanging from the button by an arrow.
+		class report_popover final : public QFrame
+		{
+		public:
+			explicit report_popover(QWidget* aParent)
+				: QFrame{ aParent, Qt::Popup }
+			{
+				setObjectName(QStringLiteral("agentReportMenu"));
+				setAttribute(Qt::WA_TranslucentBackground, true);
+				setAccessibleName(tr("Report menu"));
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box   = QRectF{ rect() }.adjusted(0.5, popover_arrow + 0.5, -0.5, -0.5);
+				auto       shape = QPainterPath{ };
+				shape.addRoundedRect(box, 10.0, 10.0);
+				// The arrow, under the button's centre.
+				const auto tip   = QPointF{ width() - button_width / 2.0, 0.5 };
+				auto       arrow = QPainterPath{ };
+				arrow.moveTo(tip + QPointF{ -popover_arrow, popover_arrow });
+				arrow.lineTo(tip);
+				arrow.lineTo(tip + QPointF{ popover_arrow, popover_arrow });
+				arrow.closeSubpath();
+				shape     = shape.united(arrow);
+				auto edge = palette().color(QPalette::WindowText);
+				edge.setAlphaF(0.18F);
+				painter.setPen(QPen{ edge, 1.0 });
+				painter.setBrush(palette().color(QPalette::Window));
+				painter.drawPath(shape);
+			}
+
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (aEvent->key() == Qt::Key_Escape) {
+					close();
+					return;
+				}
+				QFrame::keyPressEvent(aEvent);
+			}
+		};
+
+		/// The current section's row: a two point bar in the link colour at
+		/// its left and the selection tint.
+		class section_delegate final : public QStyledItemDelegate
+		{
+		public:
+			using QStyledItemDelegate::QStyledItemDelegate;
+
+			void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+			{
+				if (aIndex.data(kind_role).toInt() == kind_divider) {
+					auto rule = aOption.palette.color(QPalette::WindowText);
+					rule.setAlphaF(0.15F);
+					aPainter->setPen(QPen{ rule, 1.0 });
+					const auto y = aOption.rect.center().y();
+					aPainter->drawLine(aOption.rect.left() + 8, y, aOption.rect.right() - 8, y);
+					return;
+				}
+				if (aIndex.data(current_role).toBool()) {
+					auto tint = aOption.palette.color(QPalette::Highlight);
+					tint.setAlphaF(0.18F);
+					aPainter->fillRect(aOption.rect.adjusted(4, 1, -4, -1), tint);
+					aPainter->fillRect(QRect{ aOption.rect.left() + 4, aOption.rect.top() + 3, 2, aOption.rect.height() - 6 }, aOption.palette.color(QPalette::Link));
+				}
+				// A sub-section's row is indented 14 points.
+				auto shifted = aOption;
+				shifted.rect.adjust(8 + aIndex.data(depth_role).toInt() * sub_indent, 0, 0, 0);
+				QStyledItemDelegate::paint(aPainter, shifted, aIndex);
+			}
+
+			[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
+			{
+				return { QStyledItemDelegate::sizeHint(aOption, aIndex).width(), aIndex.data(kind_role).toInt() == kind_divider ? 9 : row_height };
+			}
+		};
+	} // namespace
+
 	agent_report_view::agent_report_view(QWidget* const aParent)
 		: QWidget{ aParent }
 	{
 		setObjectName(QStringLiteral("agentReportView"));
 		setAccessibleName(tr("Agent's report"));
-		auto* const row = new QHBoxLayout{ this };
+		auto* const row = new QVBoxLayout{ this };
 		row->setContentsMargins(0, 0, 0, 0);
-		row->setSpacing(0);
-		auto* const side   = new QWidget{ this };
-		auto* const column = new QVBoxLayout{ side };
-		column->setContentsMargins(12, 12, 8, 12);
-		column->setSpacing(6);
-		auto* const glyph = new QLabel{ side };
-		glyph->setPixmap(agent_glyph(palette()).pixmap(16, 16));
-		Title = new QLabel{ side };
-		Title->setObjectName(QStringLiteral("agentReportTitle"));
-		Title->setWordWrap(true);
-		Title->setTextFormat(Qt::PlainText);
-		auto bold = Title->font();
-		bold.setBold(true);
-		Title->setFont(bold);
-		auto* const head = new QHBoxLayout{ };
-		head->addWidget(glyph, 0, Qt::AlignTop);
-		head->addWidget(Title, 1);
-		column->addLayout(head);
-		Outline = new QListWidget{ side };
-		Outline->setObjectName(QStringLiteral("agentReportOutline"));
-		Outline->setAccessibleName(tr("Report outline"));
-		Outline->setFrameShape(QFrame::NoFrame);
-		Outline->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		column->addWidget(Outline, 1);
-		side->setFixedWidth(220);
-		row->addWidget(side);
 		Scroll = new QScrollArea{ this };
 		Scroll->setObjectName(QStringLiteral("agentReportScroll"));
 		Scroll->setWidgetResizable(true);
 		Scroll->setFrameShape(QFrame::NoFrame);
-		auto* const page       = new QWidget{ Scroll };
-		auto* const pageColumn = new QVBoxLayout{ page };
-		pageColumn->setContentsMargins(20, 16, 20, 24);
-		Body = new markdown_body_view{ page };
+		Scroll->setBackgroundRole(QPalette::Base);
+		Scroll->viewport()->setBackgroundRole(QPalette::Base);
+		row->addWidget(Scroll);
+		// The page: one centred column, everything open, scrolling as one.
+		auto* const page = new QWidget{ Scroll };
+		page->setBackgroundRole(QPalette::Base);
+		page->setAutoFillBackground(true);
+		auto* const centre = new QHBoxLayout{ page };
+		centre->setContentsMargins(24, title_top, 24 + button_width + button_right, 32);
+		Column = new QWidget{ page };
+		Column->setMaximumWidth(column_width);
+		auto* const column = new QVBoxLayout{ Column };
+		column->setContentsMargins(0, 0, 0, 0);
+		column->setSpacing(6);
+		Title = new QLabel{ Column };
+		Title->setObjectName(QStringLiteral("agentReportTitle"));
+		Title->setWordWrap(true);
+		Title->setTextFormat(Qt::PlainText);
+		auto big = Title->font();
+		big.setPointSizeF(22.0);
+		big.setBold(true);
+		Title->setFont(big);
+		column->addWidget(Title);
+		Byline = new QLabel{ Column };
+		Byline->setObjectName(QStringLiteral("agentReportByline"));
+		Byline->setTextFormat(Qt::RichText);
+		Byline->setWordWrap(true);
+		Byline->setForegroundRole(QPalette::PlaceholderText);
+		auto small = Byline->font();
+		small.setPointSizeF(12.0);
+		Byline->setFont(small);
+		connect(Byline, &QLabel::linkActivated, this, [this](const QString&) {
+			if (ConversationDispatch) {
+				ConversationDispatch(Document.Turn);
+			}
+		});
+		auto* const meta = new QHBoxLayout{ };
+		meta->setSpacing(6);
+		auto* const icon = new QLabel{ Column };
+		icon->setObjectName(QStringLiteral("agentReportQuestionIcon"));
+		icon->setPixmap(bubble_glyph(palette().color(QPalette::Link)));
+		meta->addWidget(icon, 0, Qt::AlignTop);
+		meta->addWidget(Byline, 1);
+		column->addLayout(meta);
+		column->addSpacing(10);
+		Body = new markdown_body_view{ Column };
 		Body->setObjectName(QStringLiteral("agentReportBody"));
 		Body->setAccessibleName(tr("Report"));
+		// Defect 1: in place, as tall as its content; the page scrolls.
+		Body->set_in_place(true);
+		Body->set_height_observer([this] { fit_body(); });
 		Body->set_link_dispatch([this](const std::string& aLink) {
 			if (LinkDispatch) {
 				LinkDispatch(QString::fromStdString(aLink));
 			}
 		});
-		pageColumn->addWidget(Body);
-		pageColumn->addStretch(1);
+		column->addWidget(Body);
+		column->addStretch(1);
+		centre->addStretch(1);
+		centre->addWidget(Column, 100);
+		centre->addStretch(1);
 		Scroll->setWidget(page);
-		row->addWidget(Scroll, 1);
-		connect(Outline, &QListWidget::currentRowChanged, this, [this](const int aRow) { go_to_heading(aRow); });
-		connect(Outline, &QListWidget::itemActivated, this, [this](QListWidgetItem* const aItem) { go_to_heading(Outline->row(aItem)); });
+
+		// The floating button: the pane's, not the page's.
+		MenuButton = new QToolButton{ this };
+		MenuButton->setObjectName(QStringLiteral("agentReportMenuButton"));
+		MenuButton->setAccessibleName(tr("Report menu"));
+		MenuButton->setToolTip(tr("Report menu"));
+		MenuButton->setFixedSize(button_width, button_height);
+		MenuButton->setIconSize(QSize{ 15, 15 });
+		MenuButton->setIcon(menu_glyph(palette().color(QPalette::ButtonText)));
+		MenuButton->setCheckable(true);
+		MenuButton->setFocusPolicy(Qt::StrongFocus);
+		auto* const shadow = new QGraphicsDropShadowEffect{ MenuButton };
+		shadow->setBlurRadius(10.0);
+		shadow->setOffset(0.0, 1.0);
+		shadow->setColor(QColor{ 0, 0, 0, 60 });
+		MenuButton->setGraphicsEffect(shadow);
+		connect(MenuButton, &QToolButton::clicked, this, [this] { open_menu(); });
+		MenuButton->raise();
+
+		Popover          = new report_popover{ this };
+		auto* const list = new QVBoxLayout{ Popover };
+		list->setContentsMargins(6, popover_arrow + 6, 6, 6);
+		Sections = new QListWidget{ Popover };
+		Sections->setObjectName(QStringLiteral("agentReportOutline"));
+		Sections->setAccessibleName(tr("Report sections"));
+		Sections->setFrameShape(QFrame::NoFrame);
+		Sections->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		Sections->setItemDelegate(new section_delegate{ Sections });
+		Sections->setAttribute(Qt::WA_TranslucentBackground, true);
+		Sections->viewport()->setAutoFillBackground(false);
+		Sections->installEventFilter(this);
+		// The current section is marked by its bar and tint, not the list's
+		// own selection; the focused row reads as a quiet tint.
+		{
+			auto quiet = Sections->palette();
+			auto tint  = quiet.color(QPalette::Highlight);
+			tint.setAlphaF(0.10F);
+			quiet.setColor(QPalette::Highlight, tint);
+			quiet.setColor(QPalette::HighlightedText, quiet.color(QPalette::Text));
+			Sections->setPalette(quiet);
+		}
+		list->addWidget(Sections);
+		connect(Sections, &QListWidget::itemActivated, this, [this](QListWidgetItem* const aItem) { choose(Sections->row(aItem)); });
+		connect(Sections, &QListWidget::itemClicked, this, [this](QListWidgetItem* const aItem) { choose(Sections->row(aItem)); });
+		Popover->installEventFilter(this);
+		Scroll->verticalScrollBar()->installEventFilter(this);
 	}
 
-	void agent_report_view::present(const QString& aTitle, const QString& aMarkdown)
+	void agent_report_view::present(const agent_report_document& aDocument)
 	{
-		Title->setText(aTitle);
-		const auto text = aMarkdown.toStdString();
+		Document = aDocument;
+		Title->setText(aDocument.Title);
+		Byline->setText(QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none\">%1</a>%2")
+							.arg(aDocument.Question.toHtmlEscaped(), aDocument.Byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + aDocument.Byline.toHtmlEscaped()));
+		Byline->setToolTip(tr("Show in conversation"));
+		const auto text = aDocument.Markdown.toStdString();
 		if (Dresser) {
 			Dresser(*Body);
 		}
-		Body->set_body(text, "agent-report");
-		const QSignalBlocker blocker{ Outline };
-		Outline->clear();
-		for (const auto& heading : core::report_outline(text)) {
-			auto* const item = new QListWidgetItem{ QString::fromStdString(heading.Title), Outline };
-			item->setData(Qt::UserRole, static_cast<int>(heading.Level));
-			// Deeper headings indent, so the outline reads as the report does.
-			item->setText(QString(static_cast<qsizetype>((heading.Level > 1U ? heading.Level - 1U : 0U) * 3U), QLatin1Char(' ')) + item->text());
-			item->setToolTip(QString::fromStdString(heading.Title));
+		// Defect 5: the title once in the pane. The page shows it above, so
+		// the body starts after the heading it opens with.
+		const auto card    = core::report_card_of(text, aDocument.Title.toStdString());
+		auto       shown   = text;
+		const auto outline = core::report_outline(text);
+		if (!outline.empty() && outline.front().Title == card.Title) {
+			auto skipped = std::size_t{ 0 };
+			auto line    = std::uint32_t{ 0 };
+			while (skipped < shown.size() && line <= outline.front().Line) {
+				const auto end = shown.find('\n', skipped);
+				skipped        = end == std::string::npos ? shown.size() : end + 1U;
+				++line;
+			}
+			shown = shown.substr(skipped);
 		}
+		Body->set_body(shown, "agent-report-" + std::to_string(aDocument.Turn));
+		dress_headings();
+		Headings.clear();
+		const QSignalBlocker blocker{ Sections };
+		Sections->clear();
+		const auto add = [this](const QString& aText, const int aKind, const int aIndex, const int aIndent) {
+			auto* const item = new QListWidgetItem{ aText, Sections };
+			item->setData(kind_role, aKind);
+			item->setData(index_role, aIndex);
+			item->setData(Qt::AccessibleTextRole, aText);
+			item->setData(depth_role, aIndent);
+			if (aKind == kind_divider) {
+				item->setFlags(Qt::NoItemFlags);
+			}
+			return item;
+		};
+		add(tr("Summary"), kind_section, 0, 0);
+		auto index = 1;
+		for (const auto& section : card.Outline) {
+			Headings.push_back(QString::fromStdString(section.Title));
+			// A sub-section's row is indented 14 points.
+			add(QString::fromStdString(section.Title), kind_section, index++, static_cast<int>(std::min<std::uint32_t>(section.Depth, 3U)));
+		}
+		add({ }, kind_divider, 0, 0);
+		auto* const conversation = add(tr("Show in conversation"), kind_conversation, 0, 0);
+		conversation->setIcon(QIcon{ bubble_glyph(palette().color(QPalette::WindowText)) });
+		add(tr("View source"), kind_source, 0, 0)->setData(Qt::UserRole + 3, 0);
+		add(tr("Copy source"), kind_copy, 0, 0);
 		Scroll->verticalScrollBar()->setValue(0);
+		fit_body();
+		place_menu_button();
 	}
 
 	void agent_report_view::set_link_dispatch(std::function<void(const QString&)> aDispatch) { LinkDispatch = std::move(aDispatch); }
 
 	void agent_report_view::set_dresser(std::function<void(markdown_body_view&)> aDresser) { Dresser = std::move(aDresser); }
 
+	void agent_report_view::set_conversation_dispatch(std::function<void(std::size_t)> aDispatch) { ConversationDispatch = std::move(aDispatch); }
+
 	auto agent_report_view::title() const -> QString { return Title->text(); }
+
+	/// The spec's type: a section at 15 semibold, a sub-section at 14
+	/// semibold, each with room above it.
+	void agent_report_view::dress_headings()
+	{
+		auto* const view = Body->rendered_view();
+		if (view == nullptr) {
+			return;
+		}
+		auto shallowest = 0;
+		for (auto block = view->document()->begin(); block.isValid(); block = block.next()) {
+			if (const auto level = block.blockFormat().headingLevel(); level > 0) {
+				shallowest = shallowest == 0 ? level : std::min(shallowest, level);
+			}
+		}
+		for (auto block = view->document()->begin(); block.isValid(); block = block.next()) {
+			const auto level = block.blockFormat().headingLevel();
+			if (level <= 0) {
+				continue;
+			}
+			auto cursor = QTextCursor{ block };
+			cursor.select(QTextCursor::BlockUnderCursor);
+			auto format = QTextCharFormat{ };
+			format.setFontPointSize(level == shallowest ? 15.0 : 14.0);
+			format.setFontWeight(QFont::DemiBold);
+			cursor.mergeCharFormat(format);
+			auto spacing = block.blockFormat();
+			spacing.setTopMargin(level == shallowest ? 18.0 : 12.0);
+			spacing.setBottomMargin(4.0);
+			cursor.setBlockFormat(spacing);
+		}
+		fit_body();
+	}
+
+	void agent_report_view::fit_body()
+	{
+		const auto width = std::max(1, Column->width());
+		Body->setFixedHeight(Body->heightForWidth(width));
+	}
+
+	void agent_report_view::resizeEvent(QResizeEvent* aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		place_menu_button();
+		fit_body();
+	}
+
+	void agent_report_view::place_menu_button()
+	{
+		MenuButton->move(width() - button_right - button_width, button_top);
+		MenuButton->raise();
+	}
+
+	auto agent_report_view::heading_offset(const int aIndex) const -> int
+	{
+		if (aIndex <= 0 || static_cast<std::size_t>(aIndex) > Headings.size()) {
+			return 0;
+		}
+		auto* const view = Body->rendered_view();
+		if (view == nullptr) {
+			return -1;
+		}
+		// The nth heading's own block: the first block from the previous
+		// heading on whose text is the heading's.
+		auto block = view->document()->begin();
+		for (auto seen = 0; block.isValid(); block = block.next()) {
+			if (block.text().trimmed() == Headings[static_cast<std::size_t>(aIndex - 1)] && block.blockFormat().headingLevel() > 0) {
+				break;
+			}
+			static_cast<void>(seen);
+		}
+		if (!block.isValid()) {
+			const auto found = view->document()->find(Headings[static_cast<std::size_t>(aIndex - 1)]);
+			if (found.isNull()) {
+				return -1;
+			}
+			return view->mapTo(Scroll->widget(), view->cursorRect(found).topLeft()).y();
+		}
+		auto cursor = QTextCursor{ block };
+		return view->mapTo(Scroll->widget(), view->cursorRect(cursor).topLeft()).y();
+	}
 
 	void agent_report_view::go_to_heading(const int aIndex)
 	{
-		auto* const item = Outline->item(aIndex);
-		auto* const view = Body->rendered_view();
-		if (item == nullptr || view == nullptr) {
+		const auto offset = heading_offset(aIndex);
+		if (offset < 0) {
 			return;
 		}
-		const auto found = view->document()->find(item->toolTip());
-		if (found.isNull()) {
+		Scroll->verticalScrollBar()->setValue(aIndex == 0 ? 0 : offset - 8);
+	}
+
+	auto agent_report_view::current_section() const -> int
+	{
+		const auto top     = Scroll->verticalScrollBar()->value();
+		const auto atEnd   = Scroll->verticalScrollBar()->value() >= Scroll->verticalScrollBar()->maximum() && Scroll->verticalScrollBar()->maximum() > 0;
+		auto       current = 0;
+		for (auto index = 1; static_cast<std::size_t>(index) <= Headings.size(); ++index) {
+			const auto offset = heading_offset(index);
+			if (offset < 0) {
+				continue;
+			}
+			// At the end, where the last headings cannot reach the top, the
+			// last heading on screen.
+			if (offset - 8 <= top || (atEnd && offset < top + Scroll->viewport()->height())) {
+				current = index;
+			}
+		}
+		return current;
+	}
+
+	void agent_report_view::open_menu()
+	{
+		const auto current = current_section();
+		for (auto row = 0; row < Sections->count(); ++row) {
+			auto* const item = Sections->item(row);
+			item->setData(current_role, item->data(kind_role).toInt() == kind_section && item->data(index_role).toInt() == current);
+			if (item->data(kind_role).toInt() == kind_source) {
+				item->setText(Body->source_visible() ? tr("Rendered") : tr("View source"));
+			}
+		}
+		// Never taller than the pane less its margins; past that the sections
+		// scroll.
+		auto rows = 0;
+		for (auto row = 0; row < Sections->count(); ++row) {
+			rows += Sections->sizeHintForRow(row);
+		}
+		const auto tallest = std::max(120, height() - button_top - button_height - popover_gap - 24);
+		const auto height  = std::min(tallest, rows + popover_arrow + 14);
+		Popover->resize(popover_width, height);
+		const auto corner = MenuButton->mapToGlobal(QPoint{ MenuButton->width(), MenuButton->height() + popover_gap - popover_arrow });
+		Popover->move(corner.x() - popover_width, corner.y());
+		MenuButton->setChecked(true);
+		Popover->show();
+		Sections->setFocus(Qt::PopupFocusReason);
+		Sections->setCurrentRow(current);
+	}
+
+	void agent_report_view::choose(const int aRow)
+	{
+		auto* const item = Sections->item(aRow);
+		if (item == nullptr) {
 			return;
 		}
-		const auto at = view->cursorRect(found).topLeft();
-		Scroll->verticalScrollBar()->setValue(view->mapTo(Scroll->widget(), at).y());
+		const auto kind = item->data(kind_role).toInt();
+		if (kind == kind_divider) {
+			return;
+		}
+		Popover->close();
+		switch (kind) {
+		case kind_section: go_to_heading(item->data(index_role).toInt()); break;
+		case kind_conversation:
+			if (ConversationDispatch) {
+				ConversationDispatch(Document.Turn);
+			}
+			break;
+		case kind_source:
+			Body->show_source(!Body->source_visible());
+			fit_body();
+			break;
+		case kind_copy: Body->copy_source(); break;
+		default:        break;
+		}
+	}
+
+	auto agent_report_view::eventFilter(QObject* const aObject, QEvent* const aEvent) -> bool
+	{
+		if (aObject == Popover && aEvent->type() == QEvent::Hide) {
+			MenuButton->setChecked(false);
+			MenuButton->setFocus(Qt::PopupFocusReason);
+		}
+		if (aObject == Sections && aEvent->type() == QEvent::KeyPress) {
+			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if (key->key() == Qt::Key_Space || key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+				choose(Sections->currentRow());
+				return true;
+			}
+			if (key->key() == Qt::Key_Escape) {
+				Popover->close();
+				return true;
+			}
+		}
+		return QWidget::eventFilter(aObject, aEvent);
 	}
 } // namespace bpr::qt

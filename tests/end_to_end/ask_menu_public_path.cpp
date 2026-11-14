@@ -62,6 +62,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFrame>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -310,9 +311,21 @@ auto main(int argc, char** argv) -> int
 			const auto answer = answer_of(*tab);
 			expect(answer.find("commits=1") != std::string::npos, "the request listed the commits since the review:\n" + answer);
 			auto* const card = tab->turn_report_card(last);
-			expect(card != nullptr && card->isVisibleTo(tab) && !tab->turn_answer_view(last)->isVisibleTo(tab), "a long answer is a report card where it was asked");
-			auto* const title = card->findChild<QLabel*>(QStringLiteral("agentTurnReportTitle"));
-			expect(title != nullptr && title->text() == QStringLiteral("What changed since your review"), "the card names the report");
+			// docs/design/report-card-v4 (owner, 2026-11-14: round 1's C,
+			// Attachment): the summary as the answer, rendered, and under it
+			// one row naming the report.
+			expect(card != nullptr && card->isVisibleTo(tab) && tab->turn_answer_view(last)->isVisibleTo(tab), "a long answer is its summary and a report row where it was asked");
+			const auto summary = tab->turn_answer_view(last)->original_body();
+			expect(summary.find("The new commits change one file") != std::string::npos && summary.find("## Rendering") == std::string::npos && summary.find("RETURNING_ECHO") == std::string::npos,
+				   "the summary is what stands before the first section: " + summary);
+			auto* const title     = card->findChild<QLabel*>(QStringLiteral("agentTurnReportTitle"));
+			auto* const meta      = card->findChild<QLabel*>(QStringLiteral("agentTurnReportMeta"));
+			auto* const rowButton = card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
+			expect(title != nullptr && title->text() == QStringLiteral("What changed since your review") && meta != nullptr && meta->text() == QStringLiteral("Report, 2 sections"),
+				   "the row names the report and its sections, without the title: " + (meta != nullptr ? meta->text().toStdString() : std::string{ }));
+			expect(rowButton != nullptr && rowButton->accessibleName() == QStringLiteral("Open report: What changed since your review") && rowButton->focusPolicy() == Qt::StrongFocus,
+				   "the row is one named focus stop");
+			expect(card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"))->property("bprReportSelected").toBool() == false, "at rest the row is not selected");
 			auto* const strip = window.document_tabs();
 			const auto  files = strip->tabs().size();
 			card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"))->click();
@@ -321,7 +334,36 @@ auto main(int argc, char** argv) -> int
 			expect(strip->tabs().size() == files + 1U && active() != strip->tabs().end() && active()->Report && active()->Name == QStringLiteral("What changed since your review"),
 				   "Open report opens it as a tab in the files' strip");
 			auto* const report = window.report_view();
-			expect(window.report_shown() && report->isVisible() && !window.comparison_surface()->isVisible() && report->outline()->count() == 3, "the report shows with its outline in the comparison's place");
+			expect(window.report_shown() && report->isVisible() && !window.comparison_surface()->isVisible(), "the report shows in the comparison's place");
+			expect(rowButton->property("bprReportSelected").toBool(), "while its tab is active, the card's row is selected");
+			// The straight read: the title once, the byline under it, the
+			// whole report open; a floating menu lists Summary and the
+			// sections, then Show in conversation, View source, Copy source.
+			expect(report->title() == QStringLiteral("What changed since your review") && report->body()->original_body().find("# What changed since your review") == std::string::npos,
+				   "the title is said once in the pane (defect 5)");
+			auto* const byline = report->findChild<QLabel*>(QStringLiteral("agentReportByline"));
+			expect(byline != nullptr && byline->text().contains(QStringLiteral("What changed since my review")), "the question under the title");
+			expect(report->body()->in_place() && report->body()->height() >= report->body()->heightForWidth(report->body()->width()) - 2, "the body is in place, as tall as its content (defect 1)");
+			auto* const menuButton = report->menu_button();
+			expect(menuButton != nullptr && menuButton->isVisible() && menuButton->accessibleName() == QStringLiteral("Report menu") && menuButton->width() == 32 && menuButton->height() == 28,
+				   "the floating Report menu button");
+			expect(menuButton->geometry().right() == report->width() - 14 - 1 && menuButton->geometry().top() == 12, "at the pane's top right");
+			menuButton->click();
+			QApplication::processEvents();
+			auto names = QStringList{ };
+			for (auto at = 0; at < report->outline()->count(); ++at) {
+				names << report->outline()->item(at)->data(Qt::AccessibleTextRole).toString();
+			}
+			expect(report->popover()->isVisible() && names == QStringList({ QStringLiteral("Summary"), QStringLiteral("Rendering"), QStringLiteral("Your conversations"), QString{ }, QStringLiteral("Show in conversation"), QStringLiteral("View source"), QStringLiteral("Copy source") }),
+				   "the popover: Summary, the sections, then the actions: " + names.join(QLatin1Char('|')).toStdString());
+			expect(report->outline()->currentRow() == 0, "it opens on the section being read: Summary at the top");
+			report->outline()->setCurrentRow(2);
+			{
+				QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+				QApplication::sendEvent(report->outline(), &press);
+			}
+			QApplication::processEvents();
+			expect(!report->popover()->isVisible() && report->current_section() == 2, "choosing a section scrolls to it and closes the popover");
 			expect(!window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"))->isEnabled(), "the file controls are drawn in place and off (Q9)");
 			expect(!window.file_ask_button()->isVisible(), "a report's tab has no file Ask (look ask-v005)");
 			expect(tab->isVisible() && tab->ask_button() != nullptr, "the Agent tab keeps its place beside the report");
@@ -346,7 +388,6 @@ auto main(int argc, char** argv) -> int
 			typed->setPlainText(QStringLiteral("About this report"));
 			expect(typed->isEnabled() && typed->toPlainText() == QStringLiteral("About this report") && window.report_shown(), "the Agent tab's field takes input beside the report");
 			typed->clear();
-			report->go_to_heading(2);
 			// A code reference read in the report: its file's tab, at the line.
 			const auto& body = report->body()->original_body();
 			const auto  open = body.find("](");

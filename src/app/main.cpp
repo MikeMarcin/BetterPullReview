@@ -40,6 +40,7 @@
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/core/review_tour_markdown.hpp"
 	#include "bpr/qt/agent_footer.hpp"
+	#include "bpr/qt/agent_report_view.hpp"
 	#include "bpr/qt/agent_setup_view.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
@@ -86,6 +87,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
 #include <QSize>
@@ -8152,6 +8154,18 @@ namespace {
 						return;
 					}
 					shoot(QStringLiteral("report-tab.png"));
+					// The report's menu, open, for the look's pictures.
+					if (auto* const report = window.report_view(); report != nullptr && !shots.isEmpty()) {
+						report->open_menu();
+						QCoreApplication::processEvents();
+						auto picture = window.grab();
+						auto painter = QPainter{ &picture };
+						painter.drawPixmap(window.mapFromGlobal(report->popover()->mapToGlobal(QPoint{ 0, 0 })), report->popover()->grab());
+						painter.end();
+						static_cast<void>(picture.save(shots + QStringLiteral("/report-menu.png")));
+						report->popover()->close();
+						QCoreApplication::processEvents();
+					}
 					static_cast<void>(window.go_to_file_line(QString::fromStdString(path), 6U, false));
 					QCoreApplication::processEvents();
 					if (window.report_shown() || !window.file_ask_button()->isVisible()) {

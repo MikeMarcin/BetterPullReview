@@ -19,6 +19,7 @@
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
@@ -474,10 +475,13 @@ namespace bpr::qt {
 		/// claim, by the thread it was asked about and its turn.
 		using claim_observer = std::function<void(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn)>;
 		void set_claim_observer(claim_observer aObserver) { ClaimObserver = std::move(aObserver); }
-		/// \brief RFC-BPR-0128 ([[BPR-2166]]). A report card's Open: the
-		/// turn, the report's title and its Markdown (references as links).
-		using report_dispatch = std::function<void(std::size_t aTurn, const QString& aTitle, const QString& aMarkdown)>;
+		/// \brief RFC-BPR-0128 ([[BPR-2166]]). A report card's row: the report
+		/// to open as a tab (or go to, when it is open).
+		using report_dispatch = std::function<void(const agent_report_document& aReport)>;
 		void set_report_dispatch(report_dispatch aDispatch) { ReportDispatch = std::move(aDispatch); }
+		/// \brief docs/design/report-card-v4: while a report's tab is active,
+		/// its card's row is selected; none clears it.
+		void mark_open_report(std::optional<std::size_t> aTurn);
 		/// \brief RFC-BPR-0128 with RFC-BPR-0126's queue. Told when the agent
 		/// may take more: setup finished, or a turn settled.
 		/// `aSettled` is true when a turn has just settled.
@@ -843,7 +847,6 @@ namespace bpr::qt {
 			QPointer<QWidget>     ReportCard;
 			QPointer<QLabel>      ReportTitle;
 			QPointer<QLabel>      ReportMeta;
-			QPointer<QLabel>      ReportLead;
 			QPointer<QPushButton> ReportOpen;
 			QPointer<QPushButton> AskMore;
 			QPointer<QWidget>     Asked;

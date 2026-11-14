@@ -76,14 +76,23 @@ namespace bpr::app {
 		auto* const tab = Window->agent_tab();
 		// RFC-BPR-0128 ([[BPR-2166]]). A report card's Open: the report as a
 		// tab beside the files; its references go where the Agent tab's go.
-		tab->set_report_dispatch([this](const std::size_t aTurn, const QString& aTitle, const QString& aMarkdown) {
+		tab->set_report_dispatch([this](const qt::agent_report_document& aReport) {
 			if (!Closing && Window != nullptr) {
-				Window->open_report("turn:" + std::to_string(aTurn), aTitle, aMarkdown);
+				Window->open_report("turn:" + std::to_string(aReport.Turn), aReport);
 			}
 		});
 		if (auto* const report = Window->report_view(); report != nullptr) {
 			report->set_link_dispatch([tab](const QString& aLink) { tab->open_reference(aLink); });
 			report->set_dresser([tab](qt::markdown_body_view& aView) { tab->dress_answer_view(aView); });
+			// docs/design/report-card-v4: the question under the title and
+			// Show in conversation: the Agent tab at the turn, the report's tab
+			// staying open and active.
+			report->set_conversation_dispatch([this, tab](const std::size_t aTurn) {
+				if (!Closing && Window != nullptr) {
+					Window->open_agent_question();
+					tab->reveal_turn(aTurn);
+				}
+			});
 		}
 		tab->set_claim_observer([this](const std::string& aThread, const core::addressed_claim aClaim, const std::size_t aTurn) { record_thread_claim(aThread, aClaim, aTurn); });
 		if (Window->conversation_panel() != nullptr) {

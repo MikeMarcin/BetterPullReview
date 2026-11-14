@@ -1268,7 +1268,7 @@ namespace bpr::qt {
 		void set_quick_ask(ask_menu_source aSource, ask_menu_dispatch aDispatch);
 		/// \brief RFC-BPR-0128 ([[BPR-2166]]). Opens an agent's report as a
 		/// tab beside the files (owner, Q8), its title and Markdown as given.
-		void               open_report(const std::string& aKey, const QString& aTitle, const QString& aMarkdown);
+		void               open_report(const std::string& aKey, const agent_report_document& aReport);
 		[[nodiscard]] auto report_view() const noexcept -> agent_report_view* { return ReportView; }
 		/// \brief Whether the active tab is a report.
 		[[nodiscard]] auto report_shown() const noexcept -> bool { return ReportShown; }
@@ -2981,14 +2981,14 @@ namespace bpr::qt {
 		void                                  press_suggest_change();
 		/// RFC-BPR-0117. Explain this file's control, its card and where a
 		/// press goes.
-		QToolButton*                                       ExplainFileButton = nullptr;
-		ask_menu_button*                                   FileAskButton     = nullptr;
-		ask_menu_button*                                   ReviewAskButton   = nullptr;
-		ask_menu_source                                    QuickAskSource;
-		ask_menu_dispatch                                  QuickAskDispatch;
-		agent_report_view*                                 ReportView  = nullptr;
-		bool                                               ReportShown = false;
-		std::map<std::string, std::pair<QString, QString>> Reports;
+		QToolButton*                                 ExplainFileButton = nullptr;
+		ask_menu_button*                             FileAskButton     = nullptr;
+		ask_menu_button*                             ReviewAskButton   = nullptr;
+		ask_menu_source                              QuickAskSource;
+		ask_menu_dispatch                            QuickAskDispatch;
+		agent_report_view*                           ReportView  = nullptr;
+		bool                                         ReportShown = false;
+		std::map<std::string, agent_report_document> Reports;
 		/// The file controls' enabled states while a report is shown (Q9).
 		std::vector<std::pair<QPointer<QWidget>, bool>>      ReportDisabled;
 		void                                                 apply_report_surface();

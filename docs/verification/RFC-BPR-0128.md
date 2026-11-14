@@ -394,3 +394,58 @@ Done:
   closeout [[BPR-2168]].
 
 Host 61578/61588 stopped; root `ask-v006.0gi2v365` removed.
+
+## The report card and the opened report, as chosen (2026-11-14)
+
+Built from [docs/design/report-card-v4/SPEC.md](../design/report-card-v4/SPEC.md)
+(the owner's choices: round 1's C, Attachment for the card; round 4's C,
+Floating for the opened report). Frontend-design was loaded.
+
+- **Core** (`core_agent_report`): `report_card` is the title (the heading the
+  answer opens with, else the title given, else the first line), the
+  sections at their shallowest level counted without the title (defect 2),
+  the summary (what stands between the title and the first section, Markdown
+  kept; with no prose there the first paragraph after the title, wherever it
+  stands; defect 3) and the outline the menu lists (depth from the shallowest
+  heading). The old lead and line count are gone.
+- **The card** (`agentTurnReportCard`): the reply card is the only surface;
+  the summary shows where the answer shows, rendered, references as links;
+  under it, 9 points down, the attachment row (`agentTurnReportOpen`): window
+  surface colour, one point border, 7 point corners, a page icon carrying the
+  agent glyph, the title semibold over "Report, N sections" (round 1's
+  wording; "Report, 1 section"; "Report" with none), a chevron. The whole row
+  opens the report's tab or goes to it; Space and Return press it; its name is
+  "Open report: " and the title. While the report's tab is active the row is
+  selected (1.5 point outline, selection tint), and not otherwise.
+- **The opened report** (`agentReportView`): the side pane and the View source
+  and Copy source buttons are gone. One centred column (572 points at most)
+  on the code background; the title once, 22 points bold, 22 points under the
+  strip (defect 5: the heading the answer opens with is not repeated in the
+  body); under it the question as a link with a speech-bubble icon and who
+  answered, how long ago and at which head; the body in place, as tall as its
+  content, the page scrolling as one (defect 1). The floating menu button
+  (32 by 28, the pane's top right, 14 by 12 points in, named "Report menu")
+  opens a popover hanging from it: Summary and the sections (sub-sections
+  indented 14 points), the current one (the last heading at or above the
+  pane's top; Summary before the first; at the end, the last on screen)
+  marked by a bar in the link colour and the selection tint; then Show in
+  conversation, View source (Rendered while the source shows) and Copy source.
+  Choosing a section scrolls it to the top and closes the popover; Esc closes
+  it and returns focus to the button; Up, Down, Home, End, Return and Space
+  work in it. Show in conversation and the question show the Agent tab at the
+  turn, the report's tab staying active.
+- **The tab** (defect 4): a report's title is cut at its end, the glyph kept.
+- **Not built:** the Suggested change box and its Add as draft comment. The
+  Agent tab's draft path takes a finding (a file, lines and a comment) from
+  the answer's `bpr-findings` block; a report's suggestion is Markdown with no
+  such structure, so it cannot go through that path as it stands. It needs the
+  report to carry its suggestions as findings (or a structured block) first.
+  Also short of the spec: section headings keep the body's size in place
+  (the in-place body sets its own heading scale); the floating button's
+  shadow and the popover's arrow are drawn but not checked on every platform.
+
+Courses: `application_ask_report_public_path` (summary and row, "Report, 2
+sections", the row's name and focus, selected while the tab is active, the
+title once, the byline, the body in place, the button's size and place, the
+popover's rows and its current section, Return choosing a section and
+closing), `application_explain_file_public_path`, `application_fixture_agent_every_ask`.

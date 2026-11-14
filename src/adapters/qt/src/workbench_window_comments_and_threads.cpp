@@ -1394,7 +1394,7 @@ namespace bpr::qt {
 				});
 				if (!entry.Report.empty()) {
 					const auto found = Reports.find(entry.Report);
-					tabs.back().Name = found != Reports.end() && !found->second.first.isEmpty() ? found->second.first : tr("Report");
+					tabs.back().Name = found != Reports.end() && !found->second.Title.isEmpty() ? found->second.Title : tr("Report");
 					tabs.back().Path = { };
 				}
 			}
@@ -1429,9 +1429,9 @@ namespace bpr::qt {
 		apply_report_surface();
 	}
 
-	void workbench_window::open_report(const std::string& aKey, const QString& aTitle, const QString& aMarkdown)
+	void workbench_window::open_report(const std::string& aKey, const agent_report_document& aReport)
 	{
-		Reports[aKey] = { aTitle, aMarkdown };
+		Reports[aKey] = aReport;
 		if (DocumentTabDispatch) {
 			DocumentTabDispatch(core::open_report_tab_intent{ .Report = aKey });
 		}
@@ -1457,9 +1457,15 @@ namespace bpr::qt {
 			return;
 		}
 		if (shown) {
-			if (ReportView->title() != found->second.first || ReportView->body()->original_body() != found->second.second.toStdString()) {
-				ReportView->present(found->second.first, found->second.second);
+			const auto& open = ReportView->document();
+			if (open.Turn != found->second.Turn || open.Title != found->second.Title || open.Markdown != found->second.Markdown) {
+				ReportView->present(found->second);
 			}
+		}
+		// docs/design/report-card-v4: its card's row is selected while the
+		// report's tab is active.
+		if (AgentTab != nullptr) {
+			AgentTab->mark_open_report(shown ? std::optional{ found->second.Turn } : std::nullopt);
 		}
 		if (shown == ReportShown) {
 			return;
