@@ -33,3 +33,22 @@ Compose review / Finish your review opens as the lightbox from the Ask mockups, 
 1. A mockup of Compose review as that lightbox (light and dark, the narrow and wide windows), shown to the owner as an attended look, one Accept/Reject. No building before it is accepted.
 2. Then: a click inside the window's content outside the lightbox (the diff, a drawer, the review bar), Esc, or choosing another mode tab closes it with its words kept; a test drives each gesture; owner look on a frozen build.
 3. While the lightbox is open the window keeps its own controls: it can be dragged by its title bar, resized, minimised, zoomed and made full screen. The lightbox stays open and re-fits the new size. Window-chrome interaction never dismisses it; only the gestures in 2 do. A test resizes, minimises and restores the window with the lightbox open and checks it is still open and fitted.
+
+## Mockup look v001 (session `e77aa2f7d163c62e21a368b7c023b3dc`, handed back 2026-11-14T05:12:50Z)
+
+Mockups: [compose-review-lightbox-v1](../../design/compose-review-lightbox-v1/README.md), commit `4e2087576217`.
+
+- `BPR-2175-window-controls`: **Accept** (no note). The window's own controls
+  stay live while the lightbox is open, as drawn.
+- `BPR-2175-lightbox-look`: **Reject**. The owner, verbatim:
+
+  > It looks like we changed way too much compared with the existing compose review. We lost the 1 click inteface we have right now and replaced it with a 2 stage it looks like by adding Submit review. The commnets in this mockup look worse than how they look in the current app window.
+  >
+  > I would like the comment box and my action to be on the right or bottom instead of the mockup's left or top.
+  >
+  > I would take the existing window over this design, we should try again.
+
+Next round: today's Compose review content exactly as it is (its one-click
+actions, its comment rendering), only put in the lightbox, with the comment
+box and the action on the right or at the bottom; no Submit review step. Two
+variants, right and bottom. Nothing is built before a variant is accepted.
