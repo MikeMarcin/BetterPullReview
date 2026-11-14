@@ -447,7 +447,9 @@ namespace bpr::qt {
 		FileAskButton->setAccessibleName(tr("Ask about this file"));
 		FileAskButton->setToolTip(tr("Ask about this file"));
 		// Look ask-v005: on the active file's tab, smaller than the tab.
-		FileAskButton->set_compact(document_tab_strip::height_pixels - 10);
+		FileAskButton->set_compact(document_tab_strip::height_pixels - 8);
+		// Look ask-v006: the comments' button.
+		FileAskButton->wear_comment_look();
 		FileAskButton->setEnabled(false);
 		FileAskButton->set_filler([this](QMenu& aMenu) { fill_quick_ask(aMenu, ask_request(core::quick_ask_anchor::file)); });
 		ExplainFileButton = FileAskButton;

@@ -5,11 +5,14 @@
 #include "bpr/qt/drawer_parts.hpp"
 
 #include <QContextMenuEvent>
+#include <QEnterEvent>
 #include <QEvent>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPointer>
 #include <QProxyStyle>
 
@@ -301,12 +304,74 @@ namespace bpr::qt {
 
 	void ask_menu_button::wear_glyph() { setIcon(agent_glyph(palette())); }
 
+	void ask_menu_button::wear_comment_look()
+	{
+		CommentLook = true;
+		setProperty("bprAskLook", QStringLiteral("comment"));
+		setAttribute(Qt::WA_Hover, true);
+		update();
+	}
+
+	void ask_menu_button::enterEvent(QEnterEvent* const aEvent)
+	{
+		menu_tool_button::enterEvent(aEvent);
+		update();
+	}
+
+	void ask_menu_button::leaveEvent(QEvent* const aEvent)
+	{
+		menu_tool_button::leaveEvent(aEvent);
+		update();
+	}
+
+	void ask_menu_button::paintEvent(QPaintEvent* const aEvent)
+	{
+		if (!CommentLook) {
+			menu_tool_button::paintEvent(aEvent);
+			return;
+		}
+		// The comment drawer's secondary button (`note_button`): a rounded
+		// outline (radius 6) on the ground, its edge a rule that darkens
+		// under the pointer or with focus, the words in the ink.
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		painter.setOpacity(isEnabled() ? 1.0 : 0.45);
+		const auto box    = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+		const auto ground = palette().color(QPalette::Base);
+		auto       rule   = palette().color(QPalette::WindowText);
+		rule.setAlphaF(underMouse() || hasFocus() || isDown() ? 0.45F : 0.2F);
+		painter.setPen(QPen{ rule, 1.0 });
+		painter.setBrush(isDown() ? ground.darker(108) : ground);
+		painter.drawRoundedRect(box, 6.0, 6.0);
+		const auto side  = iconSize().height();
+		auto       x     = 6.0;
+		const auto glyph = QRectF{ x, (height() - side) / 2.0, static_cast<qreal>(side), static_cast<qreal>(side) };
+		icon().paint(&painter, glyph.toRect(), Qt::AlignCenter, isEnabled() ? QIcon::Normal : QIcon::Disabled);
+		x += side + 4.0;
+		painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::ButtonText));
+		if (!text().isEmpty()) {
+			painter.drawText(QRectF{ x, 0.0, width() - x - 14.0, static_cast<qreal>(height()) }, Qt::AlignLeft | Qt::AlignVCenter, text());
+		}
+		// The chevron: the menu it opens.
+		const auto middle = QPointF{ width() - 9.0, height() / 2.0 };
+		auto       arrow  = QPainterPath{ };
+		arrow.moveTo(middle + QPointF{ -3.0, -1.5 });
+		arrow.lineTo(middle + QPointF{ 0.0, 1.5 });
+		arrow.lineTo(middle + QPointF{ 3.0, -1.5 });
+		auto chevron = palette().color(QPalette::ButtonText);
+		chevron.setAlphaF(0.7F);
+		painter.setPen(QPen{ chevron, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+		painter.setBrush(Qt::NoBrush);
+		painter.drawPath(arrow);
+	}
+
 	void ask_menu_button::set_compact(const int aHeight)
 	{
 		setText({ });
 		setToolButtonStyle(Qt::ToolButtonIconOnly);
 		const auto glyph = std::max(10, aHeight - 6);
 		setIconSize(QSize{ glyph, glyph });
-		setFixedSize(QSize{ aHeight + glyph / 2 + 6, aHeight });
+		// The glyph, then the chevron, within the comments' outline.
+		setFixedSize(QSize{ glyph + 28, aHeight });
 	}
 } // namespace bpr::qt

@@ -92,9 +92,17 @@ namespace bpr::qt {
 		/// \brief Look ask-v005: the glyph alone, smaller than a tab, for a
 		/// control drawn on a file's tab.
 		void set_compact(int aHeight);
+		/// \brief Look ask-v006 (owner, 2026-11-14: "Yes but Can we get the
+		/// same style as the comments use."): the comment drawer's own button,
+		/// a rounded outline on the ground with the ink for its words, the
+		/// glyph in the accent and a chevron.
+		void wear_comment_look();
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
+		void paintEvent(QPaintEvent* aEvent) override;
+		void enterEvent(QEnterEvent* aEvent) override;
+		void leaveEvent(QEvent* aEvent) override;
 
 	private:
 		void wear_glyph();
@@ -103,6 +111,7 @@ namespace bpr::qt {
 		ask_menu_dispatch                 Dispatch;
 		std::function<ask_menu_request()> Request;
 		std::function<void(QMenu&)>       Filler;
+		bool                              CommentLook = false;
 	};
 } // namespace bpr::qt
 

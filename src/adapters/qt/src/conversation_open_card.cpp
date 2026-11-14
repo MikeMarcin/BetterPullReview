@@ -3186,6 +3186,10 @@ namespace bpr::qt {
 		ask->setObjectName(aName);
 		ask->setAccessibleDescription(tr("Ask the agent a quick question about this thread"));
 		ask->set_filler(Style.AskMenu);
+		// Look ask-v006: the comments' own button, as the tab's Ask wears it.
+		ask->wear_comment_look();
+		// The height of the comments' own buttons beside it.
+		ask->setFixedHeight(std::max(26, QFontMetrics{ ask->font() }.height() + 8));
 		aRow.addWidget(ask, 0, Qt::AlignVCenter);
 	}
 

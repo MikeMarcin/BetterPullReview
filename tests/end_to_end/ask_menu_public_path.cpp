@@ -291,6 +291,11 @@ auto main(int argc, char** argv) -> int
 			return threadAsk != nullptr;
 		},
 			 "the open thread has Ask beside Reply");
+		// Look ask-v006 (owner, 2026-11-14: "Yes but Can we get the same style
+		// as the comments use."): the file tab's Ask and the thread's Ask wear
+		// the comments' rounded outlined button.
+		expect(fileAsk->property("bprAskLook").toString() == QStringLiteral("comment") && threadAsk->property("bprAskLook").toString() == QStringLiteral("comment"),
+			   "the file tab's and the thread's Ask wear the comments' button");
 		expect(cards->findChild<QToolButton*>(QStringLiteral("threadAskAgent")) == nullptr && cards->findChild<QToolButton*>(QStringLiteral("threadWasAddressed")) == nullptr,
 			   "the thread's header agent controls are gone");
 
