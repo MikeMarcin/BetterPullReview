@@ -236,3 +236,27 @@ opened. The check now asks straight away, as a person would, before the Agent
 tab was ever opened; the press opens it, the setup finds the fixture agent, its
 Check runs by itself, and the answer arrives as a report
 (`ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:report=1` on the dev build).
+
+## Owner look ask-v003 (session `09daeb8e2bb15c2c5f23a3dbbddce62c`)
+
+Frozen from `be416d9f6`. Handed back 2026-11-14 at sequence 17. One verdict,
+verbatim; `BPR-2179-prompts-mockup`, `RFC-BPR-0128-Q5-threshold` and
+`ask-right-click-menu` were left unanswered (no decision):
+
+- `BPR-2166-report-file-tab`, **Reject**: "The footer does not say fixture
+  agent" (Its attachment shows the Agent tab with its quick asks and no answer
+  yet, and the status bar's agent footer reading "Claude Code · Default
+  model".)
+
+Why: the picker named the fixture agent (its profile's name), but the footer's
+words come from the run settings, which named the built-in agents by their
+plain names ("Claude Code", "Codex"); so did the setup, its Check and
+Settings. Fixed ([[BPR-2177]]): a tests-on person's session gives the setup
+host the names its agents go by (`agent_setup_projection::Names`: "Fixture
+agent", "Fixture agent (Codex)"), and the setup, Check, Settings and the
+footer's run settings use them. `application_fixture_agent_guard_public_path`
+fails on any widget naming the agent otherwise (it failed with "Claude Code ·
+Default model" before the fix), and on a setup whose Ready line is not
+"Fixture agent is ready". `freeze --check` fails unless the frozen build's
+footer says Fixture agent (`ATTENDED_FIXTURE_AGENT_ANSWERED:…:footer=…`).
+Host 4137/4149 stopped; root `ask-v003.vfh_7ety` removed.
