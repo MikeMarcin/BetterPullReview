@@ -3016,3 +3016,37 @@ build's window after the answer), `BPR-2166-report-file-tab`,
 
 Next action: on handback read from cursor 15, record verbatim, stop host
 12600, remove the root; then as in the section before.
+
+## ask-v004 handed back ("still doesnt work"); every ask answered; ask-v005 filed (2026-11-14)
+
+ask-v004 (sequence 20): `BPR-2166-report-file-tab` **Reject** with the
+malformed_frame text, verbatim in the record; the other four unanswered. Host
+12600/12617 stopped; root `ask-v004.vxhvuzyw` removed.
+
+Root cause: What changed since my review is a tool-free run; the fixture
+agent's init frame listed Read and Grep, which the app refuses. Fixed in the
+fixture agent (it reports the tools its launch gave).
+
+| Commit | What |
+|---|---|
+| `3b65df09d` | Fixture agent tools by `--tools`; the build's check presses every ask a look offers at the next push (17: What changed with the line chip first, every review-bar, file and thread quick ask, typed with the chip, a continuation, two queued); course `application_fixture_agent_every_ask` (fails with the owner's line on the old fixture agent); freeze `--check` runs it; pin |
+| `25f8ac774` | Verdict and root cause recorded; BPR-2166 and BPR-2177 notes. **Frozen commit** |
+| main `06ef487ae` | Mirror of the two card notes |
+
+Runs: 16 focused rows including `application_fixture_agent_every_ask`,
+`application_fixture_agent_guard_public_path`, `fixture_agent_answers`,
+`freeze_attended_build_contract`, `test_network_isolation_manifest`, the ask
+and returning courses, `architecture_boundaries`, the pin; documentation gate
+(lane and main). The frozen executable was run through the same 17 asks
+offscreen at the owner's 350 ms pace: all answered.
+
+Owner look `ask-v005`, filed and not waited on: session
+`b33d123bc164a8497b8f66b86087644f`, state
+`/Users/jaeger/.attended-review-state/ask-v005-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 15, host PID 65778 (Tailscale child 65790).
+Root `/Users/jaeger/ask-v005.a6ilb3sh` from `25f8ac774` (executable SHA-256
+`4ac233ad3cb8…`). Five questions as in ask-v004; the report and footer
+questions carry the offscreen picture of the owner's path answered.
+
+Next action: on handback read from cursor 15, record verbatim, stop host
+65778, remove the root.
