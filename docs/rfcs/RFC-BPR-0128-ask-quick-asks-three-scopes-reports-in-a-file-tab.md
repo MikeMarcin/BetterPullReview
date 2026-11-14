@@ -137,8 +137,9 @@ merge changed any of this pull request's files (Q11).
 - Quick asks, scopes and reports change where agent questions are reached
   and read, not what an agent may read or do: RFC-BPR-0101's fresh and resumed
   rule, RFC-BPR-0102's subjects and RFC-BPR-0125's macro rules hold.
-- No model call is made to build or filter a menu. A quick ask at a wide scope
-  is one run a thread (Q5).
+- No model call is made to build or filter a menu. Was this addressed? at a
+  file or the pull request is one ask carrying every thread, its answer one
+  claim a thread (Q5, as amended 2026-11-14).
 - Suggest the change (RFC-BPR-0118) keeps its entry on the draft field's
   right-click menu; it is not a quick ask in this design.
 - RFC-BPR-0127 (comments absorb notes) governs what an answer keeps (Draft
@@ -200,9 +201,17 @@ answers otherwise.
 
 Recorded in the [verification record](../verification/RFC-BPR-0128.md).
 
-- **Q5, an assumption.** No threshold was given. A press that would start
-  more than five runs (one a thread or file) asks first; five or fewer start
-  at once, one after another. The owner's look asks it.
+- **Q5, amended by the owner (look ask-v005, 2026-11-14).** The assumed
+  threshold (more than five runs ask first) was rejected: "Why would we do it
+  this one instead of having one large prompt with all 6 threads? We could
+  still have it build structured output if we want to display each thread
+  result separately." Was this addressed? at a file or the pull request is now
+  one ask (`returning_operation::addressed_threads`) carrying every thread it
+  reads (each with its path, line, starting commit, conversation and lines then
+  and now, up to 32); the answer lists one claim a thread in a `bpr-claims`
+  block, and each claim reaches its thread's chip as before. A thread's own Ask
+  is unchanged. With one ask a press, the threshold and its confirmation are
+  gone.
 - **Built as the defaults:** Q1, Q2, Q3, Q6, Q12, Q13, Q14. Q4, Q7, Q9, Q10 and
   Q11 belong to milestone `reports-in-a-file-tab`.
 - **RFC-BPR-0125's store and sheet** did not exist; AC04 needs them. Its

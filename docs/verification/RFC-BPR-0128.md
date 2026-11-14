@@ -298,3 +298,66 @@ at once; every turn must be answered. The new course
 (17 asks); with the old fixture agent it fails on What changed with the
 owner's exact malformed_frame line. `freeze --check` runs the same at the next
 push. Host 12600/12617 stopped; root `ask-v004.vxhvuzyw` removed.
+
+## Owner look ask-v005 (session `b33d123bc164a8497b8f66b86087644f`)
+
+Frozen from `25f8ac774`. Handed back 2026-11-14 at sequence 180. Verdicts,
+verbatim; the attachments are described here (the coordinator saved them
+outside the repository):
+
+- `BPR-2166-report-file-tab`, **Reject**: "I think we can make both the agent
+  drawer report card and the file tab report card look a little better. Start
+  a deep worker to give a couple improved front-end design mockups.
+
+  Filetab ask should be on the tab and smaller than the tab so it doesnt read
+  like another tab. Should only be shown for the active tab. Shouldn't be
+  shown for report card tabs." (Two attachments: the Agent tab's report card
+  for What changed since your review, with the file strip's "Ask ⌄" overlapping
+  the third tab; and the report open as a file tab, the strip's "Ask ⌄" over
+  the next tab's name.)
+- `BPR-2177-footer-says-fixture-agent`, **Accept**: "It does although I don't
+  know why it says setup agent on launch if the agent is already set up."
+  (Attachment: just after launch, the footer reads "Set up an agent…" beside
+  "Fixture agent · Default model".)
+- `BPR-2179-prompts-mockup`, **Reject**: "I like parts of all of these. I like
+  the filter of C. I like the larger edit area of A. I like the drag
+  reordering of B. I like being able to see at a glance if they're in the
+  quick ask or suggested chips.
+
+  A single prompt can probably be shown in multiple places. The main
+  difference is the context right. We have context for a review or a file or a
+  thread.
+
+  There's like a concept missing of conditions or triggers. We need conditions
+  to know when an ask should be suggested. I dunno it all feels a bit too
+  loose to me I think we need a grill-rfc to align on what our requirements
+  are." (The coordinator runs that grill-rfc; BPR-2179 is not built here.)
+- `ask-right-click-menu`, **Accept**.
+- `RFC-BPR-0128-Q5-threshold`, **Reject**: "Why would we do it this one
+  instead of having one large prompt with all 6 threads? We could still have
+  it build structured output if we want to display each thread result
+  separately."
+
+What was done:
+
+- **The file's Ask on its tab** (`32654c05d`): a small glyph control drawn on
+  the active tab itself, smaller than the tab, never on a report's tab
+  (`document_tab_strip::set_active_tab_control`); tests first in
+  `application_ask_menu_public_path` and `application_ask_report_public_path`.
+  The report card's look is left to the separate design worker.
+- **Set up an agent… at launch** (`5b328f731`): the footer was drawn while the
+  picker was still hidden (the agents not yet known), offered Set up an
+  agent…, and never redrew when the picker showed. It now follows the picker
+  (`qt_agent_footer`, test first; it failed with the button still shown). The
+  every-ask check fails on a setup offered at launch, and failed so without the
+  fix.
+- **RFC-BPR-0128 amendment, Q5:** one ask carries every thread of a file or
+  the pull request (`returning_operation::addressed_threads`), its answer one
+  claim a thread in a `bpr-claims` block (`core::read_addressed_claims`), each
+  reaching its thread's chip; the five-run threshold and its confirmation are
+  removed (`core_returning_review`, `core_quick_ask`,
+  `application_ask_addressed_public_path`: the file's two threads and the pull
+  request's six each in one launch). Recorded in the RFC's implementation
+  notes.
+
+Host 65778/65790 stopped; root `ask-v005.a6ilb3sh` removed.
