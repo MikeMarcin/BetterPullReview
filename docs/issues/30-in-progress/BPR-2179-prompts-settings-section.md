@@ -129,3 +129,37 @@ The card is ready to build.
 
 Built from SPEC.md (`docs/design/prompts-settings-v4/SPEC.md` on lane `claude/v0-5-0-prerelease-targets-52265d`) with the
 owner's answers above, in slices. Frontend-design loaded.
+
+### Slice 1: surfaces in core (2026-11-14)
+
+`bpr/core/prompt_surfaces.hpp` (`core_prompt_surfaces`): nine surfaces (the
+pull request, file and thread Ask menus and chips, and the owner's Tour stop,
+Tour part and Whole tour), each an ordered list of placements, one prompt at
+most once; the surfaces today's fields describe (`shipped_surfaces`: a quick
+ask's scopes are its menus, a chip's place and About its chip surface, an
+action row never a chip); placing refused with a reason for an action row on
+a chip surface (the owner: menu only), a placeholder the surface cannot fill
+(About dropped; placement decides), and a tour prompt off the tour's
+surfaces; a placement placed again moves; remove and move within a surface.
+
+### The plan for the rest (each its own commit)
+
+2. Storage and host: a placements table beside the differences in
+   `agent-setup.sqlite3`, read over `shipped_surfaces` (absent: shipped),
+   with the revision rule; the host applies placements.
+3. Decisions read the surfaces: the Ask menus' rows and order, and the chips
+   (the first 5 of a surface's whose conditions hold, the rest under More, the
+   owner keeping More).
+4. The Settings page: a Prompts entry under Agents; Surfaces (three columns,
+   each Ask menu and Suggested chips, and the tour chats), the legend, the
+   Prompt library (filter, All / Built-in / Yours / Not on a surface / System,
+   New prompt), the inline editor (name, Answer as, text with Insert and the
+   byte count, conditions, Add to, Duplicate, Reset to default, "On N
+   surfaces", Saved); selection outlining every placement; Add to menus;
+   Option-Up/Down and Delete; drag within a surface and from the library.
+5. Conditions with kinds (greys or hides) and the new built-in conditions,
+   All of these / Any of these.
+6. System prompts in the library (edit and Reset only; never placed,
+   duplicated, added or deleted), the Built-in prompts section removed.
+7. Repository overrides (the Prompts for pop-up and the second layer).
+8. The look: screenshots and one Accept/Reject per criterion.
