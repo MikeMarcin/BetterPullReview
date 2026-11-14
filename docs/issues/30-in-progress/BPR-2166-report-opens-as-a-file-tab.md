@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2166"
 title: "A long answer is a report card that opens as a file tab"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2164"]
 priority: "P2"
@@ -41,3 +41,22 @@ Ends in an owner look (Accept or Reject) on a frozen build serving a pull reques
   "I think this might need to wait until report cards land because the actual
   output in the app is not good enough". Its acceptance now waits on this
   card's report-card redesign; the mechanism stays built.
+
+## Progress (2026-11-14, claimed)
+
+Claimed once [[BPR-2164]] was Done.
+
+- **Q4** (`944421875`): Explain this file and What changed since my review
+  answer as report cards whatever their length, titled for the question
+  ("Explain src/engine/renderer.cpp"), the lead from the answer's first line
+  (`core::report_card_of` with a given title; `application_explain_file_public_path`,
+  `core_agent_report`).
+- **AC06**: with the report showing, the drawer's Tour tab opens and takes
+  input and the Agent tab's question field takes input, the report staying
+  where it is (`application_ask_report_public_path`). Found: the Pull Request
+  menu's Prepare review tour moves to the Tour's Problem step and leaves the
+  report (it goes to Review); a person's click on the Tour tab does not. The
+  tour chat (a published tour's) is not exercised: the returning-review
+  fixture has no published tour.
+- **Remaining:** the owner's look, after the coordinator's report-card design
+  round (the card's look and RFC-BPR-0128 Q5's acceptance wait on it).
