@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/diff_link_map.hpp"
@@ -400,8 +401,14 @@ namespace {
 		// preview is composed (it opens signed out); the account course signs
 		// in from the card first, then pastes.
 		expect(first->home_landing()->state() == qt::landing_state::sign_in && !first->home_list()->queue_shown(), "fresh Home is signed out with no queue");
+		// RFC-BPR-0032 amendment r1 (8d2210540): Home's card opens the
+		// account setup, which stays at its Ready step until the reviewer
+		// leaves it with Start reviewing; the queue shows once it is gone.
+		auto ready = e2e::account_setup_driver{ *first, e2e::account_setup_driver::plan{ .Way = core::account_setup_way::browser } };
 		first->home_landing()->primary_button()->click();
-		wait_for([&] { return first->session_panel()->status() == core::github_status::session_ready && !aOwner.status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session");
+		wait_for([&] { return first->session_panel()->status() == core::github_status::session_ready && !aOwner.status().PublicPreviewSignedOut && !first->account_setup()->isVisible(); },
+				 "Home sign-in reaches an account session");
+		ready.stop();
 		expect(first->home_list()->queue_shown(), "an account shows the queue");
 		submit(*first, 17);
 		expect(first->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"))->isHidden(), "an account opens the destination without a stop");
