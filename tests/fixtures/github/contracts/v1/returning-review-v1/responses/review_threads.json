@@ -465,13 +465,54 @@
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false,
 							"viewerCanReply": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue: the slider accepts a value past its maximum.",
+										"id": "PRRC_cc_7_1",
+										"line": 3,
+										"originalLine": 3,
+										"outdated": false,
+										"path": "src/ui/widgets/slider.cpp",
+										"replyTo": null,
+										"originalCommit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										},
+										"commit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfN18x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_7",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 3,
+							"originalLine": 3,
+							"path": "src/ui/widgets/slider.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						}
 					],
 					"pageInfo": {
-						"endCursor": "Y3Vyc29yOlBSUlRfY2NfNg==",
+						"endCursor": "Y3Vyc29yOlBSUlRfY2NfNw==",
 						"hasNextPage": false
 					},
-					"totalCount": 6
+					"totalCount": 7
 				}
 			}
 		}

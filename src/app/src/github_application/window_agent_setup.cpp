@@ -20,6 +20,7 @@
 #include <QObject>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QTimer>
 #include <QUrl>
 #include <filesystem>
 
@@ -647,6 +648,16 @@ namespace bpr::app {
 				}
 			}
 		}
+	#if defined(BPR_BUILD_TESTING)
+		// [[BPR-2177]], look ask-v002: the picker took the first agent it
+		// offered (Codex, which nothing answered) before the setup had chosen.
+		// A person's session on a tests-on build offers the fixture agent
+		// alone, Claude's protocol first.
+		if (FixtureAgentSession) {
+			std::erase_if(offered, [](const core::agent_profile& aProfile) { return !aProfile.DisplayName.starts_with("Fixture agent"); });
+			std::ranges::stable_partition(offered, [](const core::agent_profile& aProfile) { return aProfile.Id == core::claude_stream_json_profile_id; });
+		}
+	#endif
 		return offered;
 	}
 
@@ -2163,6 +2174,17 @@ namespace bpr::app {
 			CycleDesktop->prefer_send_profile(saved);
 		}
 		observe_conversation_agent();
+	#if defined(BPR_BUILD_TESTING)
+		// [[BPR-2177]], look ask-v002 (owner, 2026-11-14: "Aren't we supposed
+		// to have a mack agent for testing now?"). A person's session on a
+		// tests-on build opens with the fixture agent set up: its Check runs
+		// once, by itself, as soon as a review gives it a workspace to make.
+		if (FixtureAgentSession && !FixtureSetupChecked && AgentReview && aProjection.Step == core::setup_step::check && !aProjection.Checking
+			&& aProjection.State.AgentCheck.State == core::setup_check_state::not_run && aProjection.State.WorkspaceCheck.State == core::setup_check_state::not_run) {
+			FixtureSetupChecked = true;
+			QTimer::singleShot(0, Window.get(), [this] { check_agent_setup(true); });
+		}
+	#endif
 	}
 
 	auto github_application::implementation::grant_key(const std::uint32_t aAgent) const -> std::optional<application::agent_conversation_key>

@@ -83,9 +83,21 @@ namespace {
 				   "## Your conversations\n\nThe thread at `src/engine/renderer.cpp:12` is touched by this change.\n\n"
 				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
+		// Look ask-v002: an explanation and a what-could-break answer are long
+		// enough to be reports (two headings or more), so a look sees the
+		// report card and its tab.
 		if (holds(aRequest, "explain.path")) {
-			return "`src/engine/renderer.cpp` draws each view between `begin_frame()` and `present()`. The resize at `src/engine/renderer.cpp:12` is the one behavioural change.\n\n"
-				   "It fits the rest of the pull request: `src/engine/renderer.h` declares what it defines.\n\n_Fixture agent: a canned answer, nothing was spent._";
+			return "# What this file does\n\n`src/engine/renderer.cpp` draws each view between `begin_frame()` and `present()`.\n\n"
+				   "## What changed\n\nThe resize at `src/engine/renderer.cpp:12` is the one behavioural change: the width and height are clamped to one pixel.\n\n"
+				   "## How it fits\n\n`src/engine/renderer.h` declares what it defines; `src/main.cpp` calls `draw()` once a frame.\n\n"
+				   "_Fixture agent: a canned answer, nothing was spent._";
+		}
+		if (holds(aRequest, "What could this change break")) {
+			return "# What this change could break\n\n"
+				   "## Rendering\n\n- A zero-size window now draws one pixel instead of asserting (`src/engine/renderer.cpp:12`).\n- `draw_scene()` runs before `present()`, so a scene that read the old frame sees the new one.\n\n"
+				   "## Shaders\n\n- `src/engine/shaders/post/bloom.frag` trusts `uScene`; a missing binding samples black.\n\n"
+				   "## Widgets\n\n- `src/ui/widgets/slider.cpp` accepts a value past its maximum.\n\n"
+				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
 		if (holds(aRequest, "bpr.tour-draft.v1")) {
 			return R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other.","solution":"Each view now clears and draws its own scene between begin and present.","stops":[]})";

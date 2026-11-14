@@ -126,21 +126,6 @@ namespace bpr::qt {
 			close();
 			binding->Dispatch.Draft(binding->Request, binding->Row);
 		});
-		menu->addSeparator();
-		auto* const edit = menu->addAction(QObject::tr("Edit Quick Ask\u2026"));
-		edit->setObjectName(QStringLiteral("askRowEdit"));
-		edit->setEnabled(static_cast<bool>(binding->Dispatch.EditOne));
-		QObject::connect(edit, &QAction::triggered, menu, [binding, close] {
-			close();
-			binding->Dispatch.EditOne(binding->Row.Id);
-		});
-		auto* const hide = menu->addAction(QObject::tr("Hide from Quick Asks"));
-		hide->setObjectName(QStringLiteral("askRowHide"));
-		hide->setEnabled(static_cast<bool>(binding->Dispatch.Hide));
-		QObject::connect(hide, &QAction::triggered, menu, [binding, close] {
-			close();
-			binding->Dispatch.Hide(binding->Row.Id);
-		});
 		return menu;
 	}
 

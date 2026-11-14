@@ -217,9 +217,10 @@ auto main(int argc, char** argv) -> int
 			auto* const cards = window.conversation_panel()->cards();
 			// RFC-BPR-0128: any review thread whose start commits have
 			// followed, whoever wrote it; README.md's thread started on the
-			// head, so it is not offered.
+			// head, so it is not offered. Six of seven: slider.cpp's thread
+			// (look ask-v002) takes the pull request past Q5's five.
 			const auto offered = cards->addressed_threads();
-			expect(offered.size() == 5U && !offered.contains("review-thread:PRRT_cc_5"), "every thread commits followed offers Was this addressed?, whoever wrote it");
+			expect(offered.size() == 6U && !offered.contains("review-thread:PRRT_cc_5") && offered.contains("review-thread:PRRT_cc_7"), "every thread commits followed offers Was this addressed?, whoever wrote it");
 			const auto identity = std::string{ "review-thread:PRRT_cc_2" };
 			expect(offered.contains(identity), "the line-12 thread is among them");
 			// Its file open in Review, as a person reaches the thread beside its code.

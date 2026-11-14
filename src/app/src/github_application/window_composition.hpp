@@ -2152,9 +2152,11 @@ namespace bpr::app {
 		const bool&                                                               FixtureAgentSession                    = Profile->FixtureAgentSession;
 		/// [[BPR-2177]]. Which agent programs a fixture build may start.
 		[[nodiscard]] auto fixture_agent_admission() const -> std::function<std::optional<std::string>(const std::string&)>;
-		bool               ReviewLedgerWasPresentOnEntry     = false;
-		bool               ReviewLedgerRoundTripPassed       = false;
-		bool               FixtureReviewMutationHostComposed = false;
+		/// [[BPR-2177]], look ask-v002. The fixture agent's Check ran once.
+		bool FixtureSetupChecked               = false;
+		bool ReviewLedgerWasPresentOnEntry     = false;
+		bool ReviewLedgerRoundTripPassed       = false;
+		bool FixtureReviewMutationHostComposed = false;
 #endif
 		decltype(github_profile_runtime::OwnedVault)&       OwnedVault       = Profile->OwnedVault;
 		decltype(github_profile_runtime::TransportFactory)& TransportFactory = Profile->TransportFactory;

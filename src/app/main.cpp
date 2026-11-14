@@ -82,6 +82,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPixmap>
 #include <QPushButton>
@@ -5642,6 +5643,7 @@ namespace {
 	void          schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
+	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication);
 	void schedule_attended_agent_helpers_look(bpr::app::github_application& aApplication);
 	void schedule_attended_repository_look(bpr::app::github_application& aApplication);
 	#endif
@@ -5723,6 +5725,11 @@ namespace {
 					// the first head from a pushed one.
 					QTextStream{ stdout } << "ATTENDED_HEAD:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::accepted_head(aApplication)) << '\n';
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
+	#if defined(BPR_AGENT_INTEGRATIONS)
+					if (qEnvironmentVariable("BPR_ATTENDED_FIXTURE_AGENT_CHECK") == QStringLiteral("1")) {
+						schedule_attended_fixture_agent_check(aApplication);
+					}
+	#endif
 					if (look == "workshop") {
 						schedule_attended_workshop_look(aApplication);
 					} else if (look == "unknown-review") {
@@ -7889,6 +7896,65 @@ namespace {
 		});
 		timer->start();
 	}
+
+	#if defined(BPR_AGENT_INTEGRATIONS)
+	// [[BPR-2177]], look ask-v002 (owner, 2026-11-14: "Aren't we supposed to
+	// have a mack agent for testing now?"). `BPR_ATTENDED_FIXTURE_AGENT_CHECK=1`:
+	// once the file shows, the build proves a look gets the fixture agent's
+	// answer: the setup is ready by itself, the picker has the fixture agent,
+	// and the review bar's Ask > What could this change break? is answered by
+	// it as a report. A freeze's `--check` reads the line.
+	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication)
+	{
+		auto* const timer   = new QTimer{ &aApplication.window() };
+		const auto  started = automated_clock::now();
+		timer->setInterval(100);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, asked = false, turns = std::size_t{ 0 }, alive = aApplication.liveness()]() mutable {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const tab    = window.agent_tab();
+			auto* const picker = window.agent_panel()->profile_selector();
+			const auto  finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+				timer->stop();
+				timer->deleteLater();
+			};
+			const auto last = tab->turn_count() > 0U ? tab->turn_count() - 1U : 0U;
+			if (automated_clock::now() - started > std::chrono::seconds{ 60 }) {
+				finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:timeout:asked=%1:setup=%2:picker=%3:answer=%4")
+						   .arg(asked ? 1 : 0)
+						   .arg(tab->setup_readiness() == bpr::qt::agent_setup_readiness::ready ? QStringLiteral("ready") : QStringLiteral("unfinished"))
+						   .arg(picker->currentText(), tab->turn_count() > turns ? tab->turn_answer(last).left(160).replace(QLatin1Char('\n'), QLatin1Char(' ')) : QString{ }));
+				return;
+			}
+			if (!asked) {
+				if (tab->setup_readiness() != bpr::qt::agent_setup_readiness::ready || !picker->currentText().startsWith(QStringLiteral("Fixture agent"))) {
+					return;
+				}
+				auto* const ask = window.review_ask_button();
+				ask->refresh_menu();
+				auto* const row = ask->menu() != nullptr ? ask->menu()->findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.what-could-break_pull-request")) : nullptr;
+				if (row == nullptr || !row->isEnabled()) {
+					return;
+				}
+				turns = tab->turn_count();
+				row->trigger();
+				asked = true;
+				return;
+			}
+			if (tab->turn_count() <= turns || !tab->turn_answer(last).contains(QStringLiteral("Fixture agent: a canned answer"))) {
+				return;
+			}
+			const auto* const card = tab->turn_report_card(last);
+			finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:report=%2").arg(picker->currentText()).arg(card != nullptr && !card->isHidden() ? 1 : 0));
+		});
+		timer->start();
+	}
+
+	#endif
 
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	// [[BPR-1594]]. `--attended-agent-look PATH`: on conventional-comments-v1,

@@ -172,8 +172,9 @@ def sentinels(folder, mark):
         program.chmod(0o755)
 
 
-def start(command, log_path, offscreen, path_first=None):
+def start(command, log_path, offscreen, path_first=None, extra_environment=None):
     environment = dict(os.environ)
+    environment.update(extra_environment or {{}})
     if path_first is not None:
         environment["PATH"] = f"{{path_first}}{{os.pathsep}}{{environment.get('PATH', '')}}"
     environment.pop("QT_QPA_PLATFORM", None)
@@ -184,15 +185,16 @@ def start(command, log_path, offscreen, path_first=None):
         return subprocess.Popen(command, cwd=str(ROOT), env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
 
 
-def await_shown(process, log_path):
+def await_shown(process, log_path, ready=None):
     """Returns (shown line or None, head or None, message)."""
-    deadline = time.monotonic() + WAIT_SECONDS
+    ready = ready or READY
+    deadline = time.monotonic() + WAIT_SECONDS + (60 if ready != READY else 0)
     while time.monotonic() < deadline:
         text = log_path.read_text(encoding="utf-8", errors="replace")
         lines = text.splitlines()
         head = next((line.split(":", 1)[1] for line in lines if line.startswith("ATTENDED_HEAD:")), None)
         for line in lines:
-            if line.startswith(READY) or (line.startswith("ATTENDED_") and "_FAILED" in line):
+            if line.startswith(ready) or (line.startswith("ATTENDED_") and "_FAILED" in line):
                 return line, head, ""
         if process.poll() is not None:
             return None, head, f"EXITED {{process.returncode}} within seconds; log {{log_path}}:\\n{{text}}"
@@ -239,6 +241,27 @@ def check(native):
             heads.append(head)
             print(f"CHECK_OK ({{label}}): {{line}} head {{head}}")
         print(f"CHECK_OK fixture agent: {{FIXTURE_AGENTS}}; no real agent program started")
+        if OPEN_FILE is not None and READY == "ATTENDED_FILE_SHOWN":
+            # Look ask-v002 (owner, 2026-11-14: "Aren't we supposed to have a
+            # mack agent for testing now?"): the look opened on an agent that
+            # never answered. The build asks the review bar's What could this
+            # change break? by itself and must get the fixture agent's answer,
+            # as a report, with no step and no real agent.
+            log_path = scratch / "fixture-agent.log"
+            sentinels(scratch / "real-agents", scratch / "real-agent-started")
+            process = start(arguments(None, "single"), log_path, offscreen=True, path_first=scratch / "real-agents",
+                            extra_environment={{"BPR_ATTENDED_FIXTURE_AGENT_CHECK": "1"}})
+            try:
+                line, _, message = await_shown(process, log_path, "ATTENDED_FIXTURE_AGENT_ANSWERED")
+            finally:
+                stop(process)
+            if line is None or not line.startswith("ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent") or not line.endswith(":report=1"):
+                print(f"CHECK_FAILED (fixture agent answers): FIXTURE_AGENT_SILENT: {{line or message}}")
+                return 1
+            if (scratch / "real-agent-started").exists():
+                print(f"CHECK_FAILED (fixture agent answers): REAL_AGENT_STARTED: {{(scratch / 'real-agent-started').read_text().strip()}}")
+                return 1
+            print(f"CHECK_OK (fixture agent answers): {{line}}")
         if NEXT_PUSH and (not heads[0] or heads[0] == heads[1]):
             print(f"CHECK_FAILED: the next push showed head {{heads[1]}}, the first head {{heads[0]}}")
             return 1

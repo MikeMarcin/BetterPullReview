@@ -51,7 +51,8 @@ def main() -> int:
     cases = {
         "returning.operation\tproposed_fix": "**Partly**",
         "returning.operation\tlatest_upload": "# What changed since your review",
-        "explain.path\tsrc/engine/renderer.cpp": "src/engine/renderer.cpp",
+        "explain.path\tsrc/engine/renderer.cpp": "## What changed",
+        "What could this change break?": "## Rendering",
         "bpr.tour-draft.v1": '"schema":"bpr.tour-draft.v1"',
         "bpr.review-preparation": '"kind":"rewrite"',
         "Write a commit message": "Clamp the resize",
