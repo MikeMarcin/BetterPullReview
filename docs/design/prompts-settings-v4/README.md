@@ -12,8 +12,24 @@ Mockups for
 > Then I don't think you need those grids in library anymore because surfaces
 > already answers the "at a glance" view I wanted.
 
-This round draws that one layout. Nothing here is built, and the owner has
-not yet judged it.
+This round draws that one layout. Nothing here is built.
+
+## Owner's verdict (look prompts-settings-v004, 2026-11-14)
+
+Rejected, with the note, verbatim:
+
+> It's okay if the settings page scrolls we don't have to vertically squash
+> the prompts library.
+
+The layout stands with that one change: in a short window the page scrolls.
+Surfaces does not fold, and the library keeps its full height. The "A short
+window" frames below show the folding that was rejected; they are kept as
+what was judged. No new look was drawn.
+
+[SPEC.md](SPEC.md) is the build spec. It also carries what was decided after
+this look: the system prompts join the library, and the two defaults the
+coordinator set (how "Any of these" greys or hides, and that a repository may
+reorder a surface).
 
 [index.html](index.html) is standalone HTML with a Light and Dark link at its
 top right. `png/` holds headless renders of its three frames in both themes,
@@ -54,11 +70,12 @@ first 5 that match; a prompt turned off keeps its placements, dimmed and
 skipped; only the reviewer's own prompts can be deleted, and deleting one
 removes it from every surface after naming them.
 
-## A short window
+## A short window (rejected)
 
 Renders: [light](png/v4-short-light.png), [dark](png/v4-short-dark.png).
 
-**Surfaces folds; the page does not scroll.**
+What was proposed, and rejected in the look: **Surfaces folds; the page does
+not scroll.**
 
 - When the window is too short for both parts, Surfaces folds to one row: the
   three scopes, each with an Ask menu well and a Chips well showing its count.
@@ -71,11 +88,12 @@ Renders: [light](png/v4-short-light.png), [dark](png/v4-short-dark.png).
   surfaces out of sight exactly when a prompt is being dragged to them, and
   because the editor would move under the pointer while typing.
 
-## Not decided
+## Not decided when this was drawn
+
+These were open at the look. [SPEC.md](SPEC.md) says where each stands now.
 
 - With "Any of these" and none holding, which condition's kind and tooltip a
   menu row takes.
 - Whether a repository may reorder a surface, or only add and remove.
 - The settings each built-in condition has. "Count: Replies, Pushes" is only
   there to show a row with settings.
-- The height at which Surfaces folds by itself.
