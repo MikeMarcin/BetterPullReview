@@ -2795,3 +2795,22 @@ Decisions made this round (the owner may overrule them in the look):
 - The Make draft rule is unchanged (a line and a thread each hold one draft of mine); the fix makes the draft that holds it visible and movable.
 
 Not touched: the v002 root and PID 38152; the v005 local-draft root and PID 26296; the v006 local-draft root and PID 51569; PIDs 20044, 39623, 74290, 74692/74706, 10695/39804, 28776; Tailscale 44738; BPR-Test #152 and `-next`; the main checkout's untracked `docs/rfcs/assets/queue-and-steer-v1/`.
+
+### Round 7 (2026-11-14): v006 answered
+
+v006 (`5dd1e60d…`, handed back 00:40:36Z): `agent-keep-one-control` Reject ("That's too subtle in the agent context."), `discuss-from-review-open-comment` Reject (Command-3 lost the comment); ten undecided. Recorded verbatim; host 9121 stopped; the three v006 roots removed. The owner then: "Don't have keep local there, just draft is fine, they can move it to local after. Local is rare and almost non-existent for agent comments you want to keep." Recorded as the AC10 amendment on the RFC.
+
+| Commit | What |
+|---|---|
+| `569e43e01` | v006 verdicts recorded (main `ec6f1f21d`) |
+| `98fae8076` | Command-3 from Review carries the open thread (the strip adopts before it reports); Command-2 back keeps it open; course drives the strip's keys |
+| `92d2f4398` | Agent surfaces: one raised, labelled Draft, struck and disabled where nothing takes a draft; no Keep local; finding queue Draft only |
+| `debf04a89` | Round 7 recorded; queue test follows. **Frozen commit** (main mirror `0b462e35c`) |
+
+Integration pass: 33 of 33 (round-6 set, Discuss course, source contracts). Frontend-design loaded first.
+
+Owner look v007, filed and not waited on: session `efe2da80b42f60b91e24da153dc8ea5b`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v007-2026-11-14/state` (URL in `serve.log`), cursor 36, host 25283 (Tailscale 25291). Roots: `/Users/jaeger/comments-absorb-notes-v007.00rkixl7`, `/Users/jaeger/comments-absorb-notes-agent-v007.md0c4l3i`, `/Users/jaeger/discuss-busy-pr-v003.yq18qmr0`. Twelve questions (listed on the ledger).
+
+Next action: on handback read from cursor 36, record verbatim, stop host 25283, remove the three roots. RFC-BPR-0127's questions all Accept: finish BPR-2162 and close the RFC. Both Discuss questions Accept: finish BPR-2171. Mirror card moves to main.
+
+Decision this round (the owner may overrule it): Explain this file's answer is about a whole file, which takes no draft, so its Draft is always disabled; it keeps nothing now.

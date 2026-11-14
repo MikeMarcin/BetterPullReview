@@ -173,6 +173,14 @@ No decision: `state-control-cards-replies`, `draft-refused-struck-pencil`, `fini
 
 Host 9121 (Tailscale 9129) stopped with the attended-review `stop`; nothing ran from the roots, and `comments-absorb-notes-v006.csdaortz`, `comments-absorb-notes-agent-v006.6vrnvubx` and `discuss-busy-pr-v002.16ews593` were removed with `freeze_attended_build.py remove`.
 
+## Rework round 7 (2026-11-14)
+
+AC10 amended by the owner (Draft alone on the agent's surfaces) and BPR-2171's Command-3 carry fixed; details on [[BPR-2162]] and [[BPR-2171]]. Integration pass: 33 suites and courses, all passing.
+
+## Owner look v007 filed (2026-11-14)
+
+Session `efe2da80b42f60b91e24da153dc8ea5b`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v007-2026-11-14/state` (URL in `serve.log` beside it), cursor 36, host PID 25283 (Tailscale child 25291). Frozen from `debf04a89a09`, three roots, each launcher check passed: `/Users/jaeger/comments-absorb-notes-v007.00rkixl7` (local comments look), `/Users/jaeger/comments-absorb-notes-agent-v007.md0c4l3i` (agent look), `/Users/jaeger/discuss-busy-pr-v003.yq18qmr0` (busy Discuss). One Accept/Reject each: `agent-draft-only` (new, AC10 as amended), `discuss-from-review-open-comment` (reworked), and v006's ten undecided asked again: `state-control-cards-replies`, `draft-refused-struck-pencil`, `finish-review-rows`, `threads-row-move`, `threads-state-filter`, `overview-local-chip`, `overview-no-note-column`, `my-review-by-state`, `finish-review-local-line`, `discuss-only-this-file-column`. Not waited on.
+
 ## Closeout state
 
-Every criterion has direct engineering evidence ([[BPR-2162]] checklist). RFC-BPR-0127 is **not closed**. Looks v003 to v005 were answered with three rejects, reworked in round 6. Its closeout waits on look v006 (`5dd1e60d…`).
+Every criterion has direct engineering evidence ([[BPR-2162]] checklist). RFC-BPR-0127 is **not closed**. Looks v003 to v005 were answered with three rejects, reworked in round 6. Look v006 was answered with two rejects, reworked in round 7. Its closeout waits on look v007 (`efe2da80…`).
