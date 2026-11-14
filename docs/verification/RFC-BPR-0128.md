@@ -449,3 +449,48 @@ sections", the row's name and focus, selected while the tab is active, the
 title once, the byline, the body in place, the button's size and place, the
 popover's rows and its current section, Return choosing a section and
 closing), `application_explain_file_public_path`, `application_fixture_agent_every_ask`.
+
+## Owner look ask-v007 (session `4a98f0b4da5edd59a50568ac513513ac`)
+
+Frozen from `f2e28a932`. Handed back 2026-11-14 at sequence 44. Verdicts,
+verbatim (the coordinator saved the two attachments outside the repository):
+
+- `BPR-2164-ask-style`, **Accept**.
+- `BPR-2166-report-card`, **Accept**.
+- `BPR-2166-opened-report`, **Accept**: "Yes but I think we need a different
+  icon for the tab header, because that one reaads as though this report is
+  going to do something with the agent. It should read as this is a report not
+  a file."
+- `RFC-BPR-0128-Q5-one-ask`, **Reject**: "Why is your mockup report attachment
+  cutting of text. Why does asking was this addressed on the PR in the fixture
+  agaent in the fronzen build not show an attachment report?"
+
+Done (`47dc394c8`):
+
+- **The report tab's glyph.** A report's tab wears a page with a folded corner
+  and three lines of text, drawn in the tab's ink (`report_glyph` in
+  `document_tab_strip.cpp`), not the agent sparkle; the sparkle stays on the
+  card's page icon, where it says who wrote the report.
+- **The row cut its text** (root cause): the attachment row was vertically
+  Fixed and sized its hint from its own `width()`, which is stale (or the
+  default) before layout; at the card's real, narrower width the title wrapped
+  to two lines inside a one-line height and the meta line fell outside it. The
+  row now has height-for-width (the title at most two lines, then elided), its
+  layout asking for the height its width needs. `application_ask_menu_public_path`
+  asserts the row has height-for-width, a narrow row is taller than a wide one
+  and the row is at least as tall as its width needs, the title and meta inside.
+- **The pull-request Was this addressed? showed no report** (root cause): the
+  report decision excluded `addressed_threads` explicitly, and the Fixture
+  agent's answer to it had no sections. Q4 made Explain and What changed
+  reports whatever their length; a many-thread answer is the same kind of
+  thing (a verdict per thread), so it is now a report too, titled with the
+  question ("Was this addressed? (6 threads)"): a summary, one section a thread
+  headed with its file, line and claim, then the `bpr-claims` block, which
+  still posts each claim on its thread. The live prompt (`agent_launch.cpp`)
+  asks for that shape; the Fixture agent answers in it. The one-thread ask
+  stays a plain answer on its thread.
+- **The every-ask check** (the freeze's `--check` and
+  `application_fixture_agent_every_ask`) now fails
+  `ATTENDED_FIXTURE_AGENT_FAILED:no-report` unless the turn shows a report
+  card for every ask expected to be one: What changed, Explain this file, What
+  could break, and Was this addressed? on the pull request and on a file.
