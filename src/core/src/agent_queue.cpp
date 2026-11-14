@@ -154,10 +154,9 @@ namespace bpr::core {
 		if (!unsent(*found)) {
 			return queue_refusal::not_editable;
 		}
+		// Q9 as refined (owner, 2026-11-13): held, not paused; nothing is
+		// sent past it, and Save or Cancel lets the queue continue.
 		found->Held = true;
-		if (aQueue.Paused == queue_pause::none) {
-			aQueue.Paused = queue_pause::reviewer;
-		}
 		++aQueue.Revision;
 		return queue_refusal::none;
 	}

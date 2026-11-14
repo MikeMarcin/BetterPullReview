@@ -68,7 +68,7 @@ namespace bpr::core {
 
 	enum class queue_pause : std::uint8_t {
 		none,
-		/// The reviewer paused it, or edited an entry and has not resumed.
+		/// The reviewer paused it (Pause queue).
 		reviewer,
 		stopped,
 		failed,
@@ -116,10 +116,11 @@ namespace bpr::core {
 	[[nodiscard]] auto withdraw(agent_queue& aQueue, std::uint64_t aId, std::uint64_t aFrom) -> queue_refusal;
 	/// \brief Moves a known-unsent entry by `aBy` places among the unsent.
 	[[nodiscard]] auto reorder(agent_queue& aQueue, std::uint64_t aId, int aBy, std::uint64_t aFrom) -> queue_refusal;
-	/// \brief Q9: an edit holds its entry (and pauses the queue).
+	/// \brief Q9 as refined: an edit holds its entry; nothing is sent past it,
+	/// and the queue is not paused.
 	[[nodiscard]] auto hold(agent_queue& aQueue, std::uint64_t aId, std::uint64_t aFrom) -> queue_refusal;
 	/// \brief Save (with the new text) or Cancel (none) lifts the hold; the
-	/// queue stays paused until resumed.
+	/// queue continues by itself unless paused for another reason.
 	[[nodiscard]] auto release_hold(agent_queue& aQueue, std::uint64_t aId, std::optional<std::string> aText, std::uint64_t aFrom) -> queue_refusal;
 	void               pause(agent_queue& aQueue, queue_pause aWhy);
 	/// \brief Resume queue: never through an edit hold or unresolved delivery.

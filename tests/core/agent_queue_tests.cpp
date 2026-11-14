@@ -57,12 +57,22 @@ namespace {
 		static_cast<void>(enqueue(queue, { .Label = "Draft a reply", .Text = "draft" }, 0U));
 		static_cast<void>(enqueue(queue, ask("Explain this file"), queue.Revision));
 		const auto first = queue.Entries.front().Id;
-		expect(hold(queue, first, queue.Revision) == queue_refusal::none && queue.Paused == queue_pause::reviewer, "an edit holds its entry and pauses");
-		expect(resume(queue, queue.Revision) == queue_refusal::not_editable, "no resume through an edit hold");
-		expect(!next_release(queue, queue_agent::idle), "a held entry is never sent");
-		expect(release_hold(queue, first, std::string{ "edited" }, queue.Revision) == queue_refusal::none && queue.Entries.front().Input.Text == "edited" && queue.Paused == queue_pause::reviewer,
-			   "Save keeps the edit and the pause");
-		expect(resume(queue, queue.Revision) == queue_refusal::none && next_release(queue, queue_agent::idle) == first, "resume releases it, never skipped");
+		// RFC-BPR-0126 Q9 as refined by the owner: an edit holds its entry
+		// without pausing; the queue does not skip past it, and on Save or
+		// Cancel it continues by itself.
+		expect(hold(queue, first, queue.Revision) == queue_refusal::none && queue.Paused == queue_pause::none && queue.Entries.front().Held, "an edit holds its entry, without pausing");
+		expect(!next_release(queue, queue_agent::idle), "a held entry is never sent, and nothing is sent past it");
+		expect(release_hold(queue, first, std::string{ "edited" }, queue.Revision) == queue_refusal::none && queue.Entries.front().Input.Text == "edited" && queue.Paused == queue_pause::none,
+			   "Save keeps the edit");
+		expect(next_release(queue, queue_agent::idle) == first, "and the queue continues with it, never skipped");
+		static_cast<void>(hold(queue, first, queue.Revision));
+		expect(release_hold(queue, first, std::nullopt, queue.Revision) == queue_refusal::none && queue.Entries.front().Input.Text == "edited" && next_release(queue, queue_agent::idle) == first,
+			   "Cancel keeps the text and continues");
+		pause(queue, queue_pause::reviewer);
+		static_cast<void>(hold(queue, first, queue.Revision));
+		static_cast<void>(release_hold(queue, first, std::nullopt, queue.Revision));
+		expect(queue.Paused == queue_pause::reviewer && !next_release(queue, queue_agent::idle), "a queue paused for another reason stays paused");
+		expect(resume(queue, queue.Revision) == queue_refusal::none && next_release(queue, queue_agent::idle) == first, "until resumed");
 		static_cast<void>(mark_sending(queue, first));
 		settle(queue, first, queue_pause::usage_limit);
 		expect(queue.Paused == queue_pause::usage_limit && !next_release(queue, queue_agent::idle), "a usage limit pauses what remains");
