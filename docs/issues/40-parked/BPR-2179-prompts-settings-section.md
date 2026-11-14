@@ -49,3 +49,17 @@ Ask > Edit Quick Asks… opens the new section.
 ## Notes
 
 Parked on the owner's choice of mockup (look ask-v003).
+
+## Grill round, 2026-11-14 (owner)
+
+The owner rejected mockups A, B and C (look ask-v005). Their note, verbatim: "I like parts of all of these. I like the filter of C. I like the larger edit area of A. I like the drag reordering of B. I like being able to see at a glance if they're in the quick ask or suggested chips. ... There's like a concept missing of conditions or triggers. ... I think we need a grill-rfc to align on what our requirements are."
+
+Settled:
+- **Model:** one prompt text with placeholders (`{file}`, `{lines}`, `{thread}`). It is ticked for any of the scopes (pull request, file, thread), and each ticked scope chooses its places: the Ask menu and/or the suggested chips.
+- **Conditions:** chosen from a fixed, named set of built-in conditions, all of which must hold. Examples: new pushes since my review; replies since my comment; the file has unresolved threads; I haven't reviewed this file; the PR is mine or not mine; the thread is unresolved. Free-form rules are out of scope.
+- **Chips:** the user's drag order sets the order, and the first 5 prompts that match are shown.
+- **Built-in prompts:** fully editable, with "Reset to default" on each. They can be turned off but not deleted.
+- **Storage:** two layers. An app-wide list, with per-repository overlays and overrides.
+- **Layout ingredients the owner liked:** C's filter, A's large edit area, B's drag reordering, and seeing at a glance whether a prompt is a quick ask or a chip.
+
+Open, and this blocks the build: how one prompt shows its several placements, both in the list and in the editor. For example, "Was this addressed?" is in the Ask menu and is a chip for a thread, and is in the Ask menu for a PR. The owner asked for mockups from a deep worker to choose between. It is still open how the repository overlay looks in the settings UI (which values are overridden, and how to revert to the app-wide value).
