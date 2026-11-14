@@ -37,3 +37,7 @@ Ends in an owner look (Accept or Reject) on a frozen build serving a pull reques
   tool-free run; fixed under [[BPR-2177]], with every ask now pressed by the
   freeze check and `application_fixture_agent_every_ask`). Asked again in
   ask-v005.
+- ask-v006: RFC-BPR-0128 Q5 as amended (one ask for many threads) **Reject**:
+  "I think this might need to wait until report cards land because the actual
+  output in the app is not good enough". Its acceptance now waits on this
+  card's report-card redesign; the mechanism stays built.
