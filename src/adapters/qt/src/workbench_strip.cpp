@@ -712,8 +712,14 @@ namespace bpr::qt {
 		if (firstAction == nullptr || lastAction == nullptr) {
 			return { };
 		}
-		// A hidden presenter keeps no geometry of its own, so a group whose
-		// end is hidden draws nothing rather than a rail to a stale place.
+		// [[BPR-2156]]. A hidden presenter keeps its last geometry, so a
+		// group with a hidden end draws no rail (the Edit view's progress
+		// track left one under nothing).
+		for (QAction* const action : { firstAction.data(), lastAction.data() }) {
+			if (const auto* const widget = widgetForAction(action); !action->isVisible() || widget == nullptr || widget->isHidden()) {
+				return { };
+			}
+		}
 		const auto first = actionGeometry(firstAction);
 		const auto last  = actionGeometry(lastAction);
 		if (first.isEmpty() || last.isEmpty() || first.left() >= last.right()) {

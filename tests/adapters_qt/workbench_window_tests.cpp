@@ -1051,6 +1051,19 @@ namespace {
 		barActions[10]->setVisible(true);
 		QApplication::processEvents();
 		expect(progressRun(bar->grab().toImage()) && railGap() >= 12, "the restored bar keeps the progress group's own rail");
+		// [[BPR-2156]]. The owner, on the Edit view: "Something weird with
+		// the underrail here". A local draft hides the progress track; its
+		// rail went on being drawn where the track had been, under nothing.
+		// A group with a hidden end draws no rail.
+		const auto trackWas = bar->actionGeometry(barActions[11]);
+		barActions[11]->setVisible(false);
+		QApplication::processEvents();
+		const auto hiddenTrack = bar->grab().toImage();
+		expect(strip->group_rail(2).isEmpty() && !railAt(hiddenTrack, trackWas.center().x()) && !railAt(hiddenTrack, trackWas.left() + 3),
+			   "a hidden progress track leaves no rail where it was (rail " + std::to_string(strip->group_rail(2).left()) + ".." + std::to_string(strip->group_rail(2).right()) + ")");
+		barActions[11]->setVisible(true);
+		QApplication::processEvents();
+		expect(progressRun(bar->grab().toImage()), "shown again, it has its rail again");
 
 		auto oldOrder = barActions;
 		std::rotate(oldOrder.begin() + 4, oldOrder.begin() + 7, oldOrder.begin() + 10);
