@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2164"
 title: "One Ask control at the pull request, the file and the thread"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2163"]
 priority: "P2"
