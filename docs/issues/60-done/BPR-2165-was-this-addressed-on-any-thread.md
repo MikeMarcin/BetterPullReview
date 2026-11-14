@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2165"
 title: "Was this addressed? on any thread, a file or the pull request, with a claim chip"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2164"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2163--BPR-2168--6bc64f9acd90.json","milestone_plan":{"id":"ask-v1","path":"docs/rfcs/plans/ask-v1/milestone-plan.json"},"criteria":["AC05"],"origin":"imported 2026-11-13 from the owner's Ask design (docs/design/ask-v1); cards cut at import"}
+acceptance: [{"criterion":"AC05","outcome":"pass","revision":"612194781","evidence":{"kind":"command","detail":"application_ask_addressed_public_path, application_returning_review_addressed_public_path; owner Accept (BPR-2165-claim-chips) in look ask-v002"}}]
 ---
 
 # BPR-2165: Was this addressed? on any thread, a file or the pull request, with a claim chip
@@ -46,3 +47,10 @@ verification record (`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-
 - **Not claimed:** it depends on [[BPR-2164]] being Done, which is parked on
   the owner's look; the work is done on this lane and the look is filed with
   it. Claim and finish it once BPR-2164 is Done.
+
+## Owner look ask-v002 (2026-11-14)
+
+`BPR-2165-claim-chips` **Accept** (frozen from `612194781`). Claimed and
+finished once BPR-2164 was Done. Q5 (the threshold) was not decided in that
+look ("cant tell missing mock agent and response."); it is asked again in
+ask-v003, now that the pull request's row reaches six threads.

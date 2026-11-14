@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2164"
 title: "One Ask control at the pull request, the file and the thread"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2163"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2163--BPR-2168--6bc64f9acd90.json","milestone_plan":{"id":"ask-v1","path":"docs/rfcs/plans/ask-v1/milestone-plan.json"},"criteria":["AC01","AC02","AC08"],"origin":"imported 2026-11-13 from the owner's Ask design (docs/design/ask-v1); cards cut at import"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC01","outcome":"pass","revision":"7b3fe6eaa","evidence":{"kind":"command","detail":"application_ask_menu_public_path, qt_conversation_cards_view, qt_workbench_window_scale_{100,125,200}"}},{"criterion":"AC02","outcome":"pass","revision":"7b3fe6eaa","evidence":{"kind":"command","detail":"application_ask_menu_public_path (only quick asks; rows name what a press reads; Custom question sends nothing; Edit Quick Asks opens Settings at the prompts)"}},{"criterion":"AC08","outcome":"pass","revision":"7b3fe6eaa","evidence":{"kind":"command","detail":"application_ask_menu_public_path (named, keyboard focus, greyed rows reachable with their reason); owner look pending"}}]
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"7b3fe6eaa","evidence":{"kind":"command","detail":"application_ask_menu_public_path, qt_conversation_cards_view, qt_workbench_window_scale_{100,125,200}; owner Accept in look ask-v002"}},{"criterion":"AC02","outcome":"pass","revision":"7b3fe6eaa","evidence":{"kind":"command","detail":"application_ask_menu_public_path (only quick asks; rows name what a press reads; Custom question sends nothing; Edit Quick Asks opens Settings at the prompts); owner Accept in look ask-v002"}},{"criterion":"AC08","outcome":"pass","revision":"7b3fe6eaa","evidence":{"kind":"command","detail":"application_ask_menu_public_path (named, keyboard focus, greyed rows reachable with their reason); owner look pending; owner Accept in look ask-v002"}}]
 ---
 
 # BPR-2164: One Ask control at the pull request, the file and the thread
@@ -53,3 +52,10 @@ verification record (`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-
   and is its accessible text. A screen-reader pass by a person is not run.
 
 Ends in the owner's look (filed; see the handoff).
+
+## Owner look ask-v002 (2026-11-14)
+
+`BPR-2164-review-bar-ask`, `BPR-2164-file-ask` and `BPR-2164-thread-ask` all
+**Accept** (frozen from `612194781`). On the thread question: "I'm surprised
+there's no ask on the threads mode." (recorded; Threads mode has no Ask
+control yet, a possible follow-up). Done.

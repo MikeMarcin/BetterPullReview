@@ -73,3 +73,17 @@ launch searched the person's own agents (`--attended-launch` set
 Not covered: the Review Cycles Send launcher and the local draft's launcher
 have no guard of their own (their programs come from the same search, which a
 person's session points at the fixture agent).
+
+## Progress: look ask-v002 (2026-11-14)
+
+The look opened on Codex, which nothing answered (owner: "Aren't we supposed
+to have a mack agent for testing now?"): the picker kept the first agent it
+offered (Codex's app-server profile) before the setup had chosen, and that
+profile searched the person's PATH; the setup also waited at Check it works.
+Fixed at `4c50283ba`: only the fixture profiles are offered, Claude's first;
+Codex's profiles run the fixture agent too; the fixture agent's Check runs
+once by itself when a review opens. `application_fixture_agent_guard_public_path`
+now fails on a setup that needs a step or a picker not on the fixture agent.
+`freeze --check` asks What could this change break? in the frozen build and
+fails (`FIXTURE_AGENT_SILENT`) unless the Fixture agent answers it as a report
+(`freeze_attended_build_contract`).
