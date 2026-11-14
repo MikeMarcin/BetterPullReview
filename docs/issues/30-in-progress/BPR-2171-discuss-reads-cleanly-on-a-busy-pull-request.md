@@ -69,7 +69,7 @@ Verified in `session.json`, every decision by the human actor:
 | `ac4-folding-and-bots` | **Accept** | 22:53:56Z | none |
 | `ac5-only-this-file` | **Reject** | 22:59:48Z | "\"Only this file\" breaks the column formatting." (one screenshot: with the toggle on, the list and the file's name ran full width from the left edge) |
 
-Host 26008 (Tailscale 26018) was stopped with the attended-review `stop`. The frozen root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` is **kept**: the owner's app (PID 28776) was still running from it. Remove it with `freeze_attended_build.py remove` once that process has ended.
+Host 26008 (Tailscale 26018) was stopped with the attended-review `stop`. The frozen root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` was kept while the owner's app (PID 28776) ran from it, then removed with `freeze_attended_build.py remove` once it had ended.
 
 ## Rework (2026-11-13)
 
