@@ -126,7 +126,7 @@ namespace bpr::qt {
 		: QWidget{ aParent }
 	{
 		setObjectName(QStringLiteral("localChangesPanel"));
-		setAccessibleName(QStringLiteral("Local Changes"));
+		setAccessibleName(QStringLiteral("Changes"));
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(10, 8, 10, 10);
 		column->setSpacing(6);

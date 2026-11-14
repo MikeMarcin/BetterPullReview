@@ -114,8 +114,9 @@ namespace {
 		auto* const parts = window.local_draft();
 		expect(parts != nullptr, "the window builds the draft's additions");
 		auto* const tabs = window.file_search_tabs();
-		expect(tabs->tabText(0) == QStringLiteral("Files") && tabs->tabText(1) == QStringLiteral("Search") && window.local_changes_tab() == 2 && !tabs->isTabVisible(2),
-			   "Local Changes is a tab beside Files and Search, shown only in author state");
+		expect(tabs->tabText(0) == QStringLiteral("Files") && tabs->tabText(1) == QStringLiteral("Search") && window.local_changes_tab() == 2 && !tabs->isTabVisible(2)
+				   && tabs->tabText(2) == QStringLiteral("Changes"),
+			   "Changes ([[BPR-2156]]: not \"Local Changes\") is a tab beside Files and Search, shown only in author state");
 		expect(parts->files_footer()->parentWidget() != nullptr && tabs->widget(0)->isAncestorOf(parts->files_footer()), "the working files are the Files tab's footer");
 		expect(!parts->working()->isVisible(), "behind a disclosure");
 		for (auto* const root : { parts->bar_leading(), parts->bar_trailing(), parts->notice_row(), parts->files_footer(), parts->edit_page(), parts->notes_page(), parts->status_page() }) {

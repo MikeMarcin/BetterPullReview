@@ -568,7 +568,7 @@ namespace bpr::qt {
 				}
 			}
 			LocalDraft->files_footer()->hide();
-			const auto tab = FileSearchTabs->addTab(LocalDraft->local_changes(), tr("Local Changes"));
+			const auto tab = FileSearchTabs->addTab(LocalDraft->local_changes(), tr("Changes"));
 			FileSearchTabs->setTabToolTip(tab, tr("Stage, commit and push."));
 			FileSearchTabs->setTabVisible(tab, false);
 			connect(FileSearchTabs, &QTabWidget::currentChanged, this, [this] {

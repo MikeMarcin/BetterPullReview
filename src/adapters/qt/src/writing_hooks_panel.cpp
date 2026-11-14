@@ -69,7 +69,7 @@ namespace bpr::qt {
 			{ core::writing_hook::local_discussion, "Change discussion", "Local drafts, conversations", "What the agent is told when you discuss a local draft's change.",
 			  "Sent with every question in a local draft's conversations. You accept or reject what it proposes; nothing is run or published." },
 			// RFC-BPR-0114 as amended 2026-11-12. The agent's commit message.
-			{ core::writing_hook::local_commit_message, "Commit message", "Local Changes, commit box", "How the agent writes a commit's subject and description from what is staged.",
+			{ core::writing_hook::local_commit_message, "Commit message", "Changes tab, commit box", "How the agent writes a commit's subject and description from what is staged.",
 			  "Sent when you ask the agent to fill in a commit. Its answer fills the fields for you to edit; nothing is committed." },
 			// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). The returning questions.
 			{ core::writing_hook::review_latest_upload, "What changed", "Agent tab, What changed since my review",

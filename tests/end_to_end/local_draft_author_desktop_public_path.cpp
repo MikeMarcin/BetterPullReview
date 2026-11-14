@@ -197,8 +197,8 @@ try {
 	expect(window.showing_local_draft() && page->projection().Draft && window.current_modality() == qt::review_modality::review,
 		   "the local draft opens in the pull request window's own review surface, on Review");
 	expect(tabs->tabText(0) == QStringLiteral("Files") && tabs->tabText(1) == QStringLiteral("Search") && window.local_changes_tab() > 1 && tabs->isTabVisible(window.local_changes_tab())
-			   && tabs->tabText(window.local_changes_tab()) == QStringLiteral("Local Changes"),
-		   "the pull request's Files and Search tabs, and Local Changes always present in author state");
+			   && tabs->tabText(window.local_changes_tab()) == QStringLiteral("Changes"),
+		   "the pull request's Files and Search tabs, and Changes always present in author state");
 	expect(window.review_view_picker()->author() && page->branch_button()->isVisible(), "author state: the branch and the picker's Edit");
 	expect(!page->working_disclosure()->isChecked() && !page->working()->isVisible(), "working files wait behind a disclosure");
 	settle_until(s.Lanes, [&] { return page->projection().File && window.local_comparison() && viewer->current_result(); });

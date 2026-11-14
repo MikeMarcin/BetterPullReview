@@ -923,6 +923,19 @@ namespace bpr::qt {
 				paint_progress_mark(*aPainter, QRectF{ centre.x() - (mark_side / 2.0), centre.y() - (mark_side / 2.0), mark_side, mark_side }, shown, Progress);
 			}
 			rect.setLeft(rect.left() + name_inset);
+		} else if (style != nullptr) {
+			// [[BPR-2156]]. The owner, on the Changes tab's folders: "The
+			// folder icons in changes probably make it look better here …
+			// they probably need to be styled to match the OS folders". The
+			// style's own folder, as Changes draws it: macOS's on macOS, the
+			// platform's own elsewhere. It sits in the slot a file's mark
+			// takes, so names start in one column.
+			const auto side   = static_cast<int>(mark_side) + 1;
+			const auto centre = QPoint{ rect.left() + mark_centre, rect.center().y() };
+			const auto mode   = selected ? QIcon::Selected : QIcon::Normal;
+			style->standardIcon(QStyle::SP_DirIcon, &option, option.widget)
+				.paint(aPainter, QRect{ centre.x() - (side / 2), centre.y() - (side / 2), side, side }, Qt::AlignCenter, mode);
+			rect.setLeft(rect.left() + name_inset + 2);
 		}
 		auto small = option.font;
 		small.setPointSizeF(small.pointSizeF() * 0.85);

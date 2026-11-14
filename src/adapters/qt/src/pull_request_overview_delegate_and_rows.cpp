@@ -309,6 +309,14 @@ namespace bpr::qt {
 		label.state &= ~(QStyle::State_HasFocus | QStyle::State_Selected);
 		label.font.setWeight(QFont::DemiBold);
 		label.palette.setColor(QPalette::Text, option.state & QStyle::State_Selected ? option.palette.color(group, QPalette::HighlightedText) : option.palette.color(group, QPalette::PlaceholderText));
+		// [[BPR-2156]]. The style's own folder before the path, as the
+		// Changes tab and the Files tree draw it: macOS's folder on macOS,
+		// the platform's own elsewhere.
+		label.icon = style->standardIcon(QStyle::SP_DirIcon, &option, option.widget);
+		label.features |= QStyleOptionViewItem::HasDecoration;
+		label.decorationSize      = QSize{ 16, 16 };
+		label.decorationPosition  = QStyleOptionViewItem::Left;
+		label.decorationAlignment = Qt::AlignCenter;
 		style->drawControl(QStyle::CE_ItemViewItem, &label, aPainter, label.widget);
 	}
 
