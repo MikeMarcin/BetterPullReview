@@ -3197,3 +3197,31 @@ the choice (the comments' secondary button, not the "R" key). Runs: ask,
 explain and every-ask courses, `qt_ask_menu`, `qt_conversation_cards_view`,
 `qt_workbench_window_scale_100`, guard, `architecture_boundaries`, the pin,
 documentation gate. No host or root of mine is running.
+
+## Report card built; queue controls; BPR-2146 AC11/AC13; BPR-2179 started; ask-v007 filed (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `944421875`, `e44f66291` | BPR-2166 claimed: Q4 (Explain and What changed always reports), AC06 (Tour tab and composer take input beside a report) |
+| `f2e28a932` | The report card and opened report as chosen (docs/design/report-card-v4). **ask-v007 frozen commit** |
+| `1441cd92c`, `153a597cc`, `9bf38f689` | BPR-2151: Q9 refined (hold without pause), Stop all (AC09), typed follow-ups queued, the pending list (Edit, Move, Remove, Pause/Resume), Follow-up behaviour setting |
+| `026c14ed6` | BPR-2146: `application_prompt_macros_public_path` (AC11 keyboard order, chip off, restart; AC13) |
+| `489716a64`, `71df58e10` | BPR-2179 claimed; slice 1, surfaces in core; plan on the card |
+| main `ee99ff8a9`, `9c3b19ca2`, `055144e13`, `2dc9af2ea`, and the BPR-2179 slice mirror | Card mirrors |
+
+Owner look `ask-v007`, filed and not waited on: session
+`4a98f0b4da5edd59a50568ac513513ac`, state
+`/Users/jaeger/.attended-review-state/ask-v007-2026-11-14/state` (URL in
+`serve.log`), cursor 12, host PID 49914 (Tailscale child 49924). Root
+`/Users/jaeger/ask-v007.5ey_590s` from `f2e28a932`. Four questions with
+offscreen pictures: `BPR-2166-report-card`, `BPR-2166-opened-report`,
+`RFC-BPR-0128-Q5-one-ask`, `BPR-2164-ask-style`.
+
+Not done: BPR-2167's merge count (needs a GitHub compare read; plan on the
+card), the report's Suggested change box (no structured suggestion to reuse
+the draft path), BPR-2179 slices 2 to 8 (plan on the card), BPR-2146's drag
+order and AC12 on screen. `application_document_tabs_restoration_public_path`
+fails on "auth-seed failed", from the merged parallel lane.
+
+Next: BPR-2179 slice 2 (placements storage), then 3 and 4; on ask-v007's
+handback read from cursor 12.
