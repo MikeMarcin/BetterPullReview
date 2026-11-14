@@ -72,6 +72,11 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			auto& tab = aState.Tabs[*index];
+			// RFC-BPR-0128. A report is shown as it is: nothing loads.
+			if (tab.report()) {
+				tab.State = document_tab_view_state::ready;
+				return std::nullopt;
+			}
 			if (chosen && tab.View.File != chosen) {
 				tab.View.File = *chosen;
 				tab.View.Selection.reset();
@@ -136,6 +141,30 @@ namespace bpr::core {
 			if (!index) {
 				return open_first(aState, aIntent.File);
 			}
+			// RFC-BPR-0128 (AC06). A code reference read in a report opens its
+			// file's tab: the tab already showing it, else the file tab nearest
+			// before the report takes it, else a new tab after the report. The
+			// report's tab stays beside it.
+			if (aState.Tabs[*index].report()) {
+				const auto showing = std::ranges::find_if(aState.Tabs, [&aIntent](const document_tab& aTab) { return !aTab.report() && aTab.View.File == aIntent.File; });
+				if (showing != aState.Tabs.end()) {
+					return activate(aState, static_cast<std::size_t>(std::distance(aState.Tabs.begin(), showing)));
+				}
+				for (auto before = *index; before > 0U; --before) {
+					if (!aState.Tabs[before - 1U].report()) {
+						auto& taken = aState.Tabs[before - 1U];
+						taken.View.File = aIntent.File;
+						taken.View.Selection.reset();
+						return activate(aState, before - 1U);
+					}
+				}
+				auto tab = new_tab(aState, window_review_position{ .Comparison = *aState.WindowComparison, .File = aIntent.File, .Selection = std::nullopt });
+				if (!tab) {
+					return refused(tab_limit);
+				}
+				aState.Tabs.insert(aState.Tabs.begin() + static_cast<std::ptrdiff_t>(*index + 1U), std::move(*tab));
+				return activate(aState, *index + 1U);
+			}
 			auto& tab = aState.Tabs[*index];
 			if (tab.View.File == aIntent.File) {
 				// The same file again is a retry only where nothing is shown.
@@ -175,6 +204,9 @@ namespace bpr::core {
 			const auto index = index_of(aState, aIntent.Tab);
 			if (!index) {
 				return refused(unknown_tab);
+			}
+			if (aState.Tabs[*index].report()) {
+				return refused(report_tab);
 			}
 			auto tab = new_tab(aState, aState.Tabs[*index].View);
 			if (!tab) {
@@ -262,6 +294,9 @@ namespace bpr::core {
 				return refused(unknown_tab);
 			}
 			auto& tab = aState.Tabs[*index];
+			if (tab.report()) {
+				return refused(report_tab);
+			}
 			if (tab.View.Comparison == *aState.WindowComparison) {
 				return { };
 			}
@@ -279,6 +314,9 @@ namespace bpr::core {
 			const auto index = index_of(aState, aIntent.Tab);
 			if (!index) {
 				return refused(unknown_tab);
+			}
+			if (aState.Tabs[*index].report()) {
+				return refused(report_tab);
 			}
 			const auto& pair = aState.Tabs[*index].View.Comparison;
 			if (aState.WindowComparison == pair) {
@@ -298,6 +336,15 @@ namespace bpr::core {
 				return refused(invalid_comparison);
 			}
 			auto& tab = aState.Tabs[*index];
+			// Q9: while a report is the active tab the comparison's controls
+			// are off; a comparison chosen anyway is the window's.
+			if (tab.report()) {
+				if (aState.WindowComparison == aIntent.Comparison) {
+					return { };
+				}
+				aState.WindowComparison = aIntent.Comparison;
+				return { .Changed = true, .Load = std::nullopt, .Reason = none };
+			}
 			if (tab.View.Comparison == aIntent.Comparison) {
 				return { };
 			}
@@ -322,6 +369,29 @@ namespace bpr::core {
 			}
 			aState.WindowComparison = aIntent.Comparison;
 			return { .Changed = true, .Load = std::nullopt, .Reason = none };
+		}
+
+		[[nodiscard]] auto apply(document_tabs_state& aState, const open_report_tab_intent& aIntent) -> document_tabs_output
+		{
+			if (aIntent.Report.empty()) {
+				return refused(report_tab);
+			}
+			const auto open = std::ranges::find(aState.Tabs, aIntent.Report, &document_tab::Report);
+			if (open != aState.Tabs.end()) {
+				if (aState.Active == open->Id) {
+					return { };
+				}
+				return activate(aState, static_cast<std::size_t>(std::distance(aState.Tabs.begin(), open)));
+			}
+			auto tab = new_tab(aState, window_review_position{ });
+			if (!tab) {
+				return refused(tab_limit);
+			}
+			tab->Report      = aIntent.Report;
+			const auto index = active_index(aState);
+			const auto at    = index ? *index + 1U : aState.Tabs.size();
+			aState.Tabs.insert(aState.Tabs.begin() + static_cast<std::ptrdiff_t>(at), std::move(*tab));
+			return activate(aState, at);
 		}
 
 		[[nodiscard]] auto needs_window(const document_tab_intent& aIntent) -> bool
@@ -465,18 +535,27 @@ namespace bpr::core {
 		auto result             = window_review_tabs{ };
 		result.WindowComparison = *aState.WindowComparison;
 		result.Tabs.reserve(aState.Tabs.size());
+		// RFC-BPR-0128 Q10: a report comes back through its card, not here.
+		auto active = std::optional<std::uint32_t>{ };
 		for (const auto& tab : aState.Tabs) {
+			if (tab.report()) {
+				continue;
+			}
+			if (aState.Active == tab.Id) {
+				active = static_cast<std::uint32_t>(result.Tabs.size());
+			}
 			result.Tabs.push_back(tab.View);
 		}
-		if (const auto index = active_index(aState); index) {
-			result.Active = static_cast<std::uint32_t>(*index);
+		if (!active && !result.Tabs.empty() && aState.Active) {
+			active = 0U;
 		}
+		result.Active = active;
 		return result;
 	}
 
 	auto has_own_comparison(const document_tabs_state& aState, const document_tab& aTab) noexcept -> bool
 	{
-		return aState.WindowComparison && aTab.View.Comparison != *aState.WindowComparison;
+		return !aTab.report() && aState.WindowComparison && aTab.View.Comparison != *aState.WindowComparison;
 	}
 
 	auto find_tab(const document_tabs_state& aState, const document_tab_id aTab) noexcept -> const document_tab*

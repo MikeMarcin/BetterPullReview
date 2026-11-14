@@ -1874,3 +1874,11 @@ bpr_enable_hardening(test_better_pull_review_quick_ask_core_tests)
 bpr_enable_warnings(test_better_pull_review_quick_ask_core_tests)
 bpr_add_network_isolated_test(NAME core_quick_ask COMMAND test_better_pull_review_quick_ask_core_tests)
 set_tests_properties(core_quick_ask PROPERTIES PASS_REGULAR_EXPRESSION "quick-ask-tests:pass")
+# RFC-BPR-0128 ([[BPR-2166]], [[BPR-2167]]). A report by its shape, its outline
+# and card; a commit listing folding a merge of the base branch to one line.
+bpr_add_executable(test_better_pull_review_agent_report_core_tests agent_report_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_report_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_report_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_report_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_report COMMAND test_better_pull_review_agent_report_core_tests)
+set_tests_properties(core_agent_report PROPERTIES PASS_REGULAR_EXPRESSION "agent-report-tests:pass")

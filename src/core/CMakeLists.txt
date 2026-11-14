@@ -176,6 +176,7 @@ add_library(
         src/prompt_macro.cpp
         src/prompt_macro_shipped.cpp
         src/quick_ask.cpp
+        src/agent_report.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
         src/window_title.cpp
