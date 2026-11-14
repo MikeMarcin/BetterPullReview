@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2146"
 title: "Suggested prompt macros: storage and the Settings roster"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0125"]
 depends_on: ["BPR-2145"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2144--BPR-2150--17b3cd6e7b65.json","milestone_acceptance":"AC11-AC13"}
+acceptance: [{"criterion":"AC11","outcome":"pass","revision":"cacec6738","evidence":{"kind":"command","detail":"application_prompt_macros_public_path: a chip turned off leaves the open window; a new order by Option-Up and by drag on Settings › Prompts reaches the chips; both survive a restart"}},{"criterion":"AC12","outcome":"pass","revision":"cacec6738","evidence":{"kind":"command","detail":"sqlite_agent_setup_storage (no tables reads the shipped set; a stale write changes nothing; a newer row is kept); application_prompt_macros_public_path (an unreadable store leaves the shipped chips working and Settings › Prompts says edits are unavailable)"}},{"criterion":"AC13","outcome":"pass","revision":"cacec6738","evidence":{"kind":"command","detail":"application_prompt_macros_public_path: the suggestions toggle hides every chip; Reset agents changes no prompt; Restore built-ins… returns the built-ins and keeps the reviewer's own"}}]
 ---
 
 # Suggested prompt macros: storage and the Settings roster
@@ -56,3 +57,26 @@ Still open: AC11's order made by drag (only the keyboard is exercised), its
 drag announcement, and AC12's unreadable store on screen (the store's side is
 in `sqlite_agent_setup_storage`). BPR-2179 is rebuilding this roster as a
 Prompts section; these courses follow it.
+
+## Progress (2026-11-14): AC11's drag and AC12 on screen; Done
+
+- **Drag** (`cacec6738`): the course drags the last placement on Settings ›
+  Prompts' pull request chips above the first. It sends enter, move and drop
+  on the list's viewport, carrying the data the list itself puts in a drag.
+  The surface takes it, the placement stands first, the chips follow in the
+  open window, and the order survives the restart with the keyboard's.
+- **AC12 on screen**: after the restart course, the store's prompt orders
+  table is replaced with one this build can't read, and the application
+  starts again on the same profile. The shipped chips work, and Settings ›
+  Prompts says "Your prompts can't be read, so the built-ins are shown and
+  changes aren't saved." (`promptsStatus`). With `BPR_ASK_RENDER_ROOT` set,
+  the course saves a render of it (`prompts-unreadable-store`).
+- Ran three times in a row, all passing. One earlier run of the course
+  before these steps were added failed once after 48 seconds and passed on
+  the next run; its output was not kept.
+- Not in this card: the move's announcement ("Moved to 3 of 6") is RFC-BPR-0125's
+  roster text, and its screen-reader acceptance is AC18 (milestone 4). The
+  Prompts page that replaced the roster is [[BPR-2179]]'s; it has no
+  announcement yet.
+
+AC11 to AC13 are evidenced through the window; the card is Done.
