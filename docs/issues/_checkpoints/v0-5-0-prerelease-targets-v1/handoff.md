@@ -2983,3 +2983,36 @@ remove the root. Then: build BPR-2179 in the chosen layout; Q5's answer sets
 AC06 tour checks, AC07 listings); BPR-2168 closeout after the looks; BPR-2151
 queue UI; BPR-2146 AC11 to AC13. Owner note on the thread Ask ("I'm surprised
 there's no ask on the threads mode.") is recorded, not yet carded.
+
+## ask-v003 handed back; the footer names the Fixture agent; ask-v004 filed (2026-11-14)
+
+ask-v003 (sequence 17): one verdict, `BPR-2166-report-file-tab` **Reject**
+"The footer does not say fixture agent"; the other three unanswered (no
+decision). Recorded verbatim in the record and on BPR-2166. Host 4137/4149
+stopped with `stop`; root `ask-v003.vfh_7ety` removed.
+
+| Commit | What |
+|---|---|
+| `8ae8057e9` | The setup host carries the names its agents go by (`agent_setup_projection::Names`); a tests-on person's session names them Fixture agent, so the setup, Check, Settings and the footer's run settings say it; guard course fails on any other name (failed first on "Claude Code · Default model"); `freeze --check` requires `footer=Fixture agent`; `BPR_ATTENDED_FOOTER_SHOT`; pin |
+| `e97dc8bca` | Verdict recorded. **Frozen commit** |
+
+Runs: `application_fixture_agent_guard_public_path`, `qt_agent_setup_view`,
+`qt_settings_window`, `qt_agent_footer`, `application_agent_setup_host`,
+`application_agent_chat_setup_list_contract`, `qt_ask_menu`,
+`application_ask_*_public_path`, `fixture_agent_answers`,
+`freeze_attended_build_contract`, `architecture_boundaries`, the pin,
+documentation gate.
+
+Owner look `ask-v004`, filed and not waited on: session
+`88b6acef99947ab22775b220057b2189`, state
+`/Users/jaeger/.attended-review-state/ask-v004-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 15, host PID 12600 (Tailscale child 12617).
+Root `/Users/jaeger/ask-v004.vxhvuzyw` from `e97dc8bca` (executable SHA-256
+`55aeb240f09b…`; check line `ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture
+agent:footer=Fixture agent · fixture:report=1`). Five questions:
+`BPR-2177-footer-says-fixture-agent` (with an offscreen picture of the frozen
+build's window after the answer), `BPR-2166-report-file-tab`,
+`RFC-BPR-0128-Q5-threshold`, `ask-right-click-menu`, `BPR-2179-prompts-mockup`.
+
+Next action: on handback read from cursor 15, record verbatim, stop host
+12600, remove the root; then as in the section before.
