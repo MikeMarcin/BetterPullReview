@@ -1828,6 +1828,13 @@ bpr_enable_warnings(test_better_pull_review_explain_file_core_tests)
 bpr_add_network_isolated_test(NAME core_explain_file COMMAND test_better_pull_review_explain_file_core_tests)
 # RFC-BPR-0125 milestone 1. Suggested prompts as macros: the shipped set,
 # the template scan, conditions, order and the merge.
+# [[BPR-2179]]: surfaces and placements over the prompt library.
+bpr_add_executable(test_better_pull_review_prompt_surfaces_core_tests prompt_surfaces_tests.cpp)
+target_link_libraries(test_better_pull_review_prompt_surfaces_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_prompt_surfaces_core_tests)
+bpr_enable_warnings(test_better_pull_review_prompt_surfaces_core_tests)
+bpr_add_network_isolated_test(NAME core_prompt_surfaces COMMAND test_better_pull_review_prompt_surfaces_core_tests)
+set_tests_properties(core_prompt_surfaces PROPERTIES PASS_REGULAR_EXPRESSION "prompt surfaces core tests passed")
 bpr_add_executable(test_better_pull_review_prompt_macro_core_tests prompt_macro_tests.cpp)
 target_link_libraries(test_better_pull_review_prompt_macro_core_tests PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_better_pull_review_prompt_macro_core_tests)

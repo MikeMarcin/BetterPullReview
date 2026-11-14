@@ -174,6 +174,7 @@ add_library(
         src/tour_agent_session.cpp
         src/skill_references.cpp
         src/prompt_macro.cpp
+        src/prompt_surfaces.cpp
         src/prompt_macro_shipped.cpp
         src/quick_ask.cpp
         src/agent_report.cpp
