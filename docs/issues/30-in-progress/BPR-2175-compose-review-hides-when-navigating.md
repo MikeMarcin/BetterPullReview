@@ -67,3 +67,25 @@ columns (comments left; summary, one-click verdicts and actions right), each
 comment's words in full up to four lines and a suggestion's change as its
 diff; the window's own controls stay live while it is open (v001's accepted
 point).
+
+## Built (2026-11-14, branch `claude/parallel-backlog-2156-2172-2173`)
+
+Option D: `compose_review_sheet` is a lightbox, the window's own child over
+everything below the title row (the strip with the mode tabs and the window
+controls stays live and undimmed); its panel is centred, as wide as the
+window allows up to 1180 pixels and as tall as its content.
+`review_submission_editor::set_two_columns` puts the comments on the left and
+the summary, the one-click verdicts and the actions on the right once the
+panel is 820 pixels or wider; each comment shows its words in full up to four
+lines and a suggestion's lines under them; "Double-click a comment…" moves
+under the comments box. The expanded page keeps today's one column.
+
+A press on the dimmed window (the diff, a drawer, the review bar under it),
+Esc, its Close and choosing a mode tab close it with its words kept; a press
+inside it or on the title row does not. Resizing, minimising and restoring,
+zooming and full screen keep it open and fitted.
+`test_compose_review_lightbox_gestures_and_window_controls` drives each
+gesture; `qt_workbench_window` at 100, 125 and 200 %,
+`qt_drawer_surfaces_fit`, `application_review_submission_composition` (three
+scales) and the other composed courses that open it pass. Pending: the
+owner's look on a frozen build.

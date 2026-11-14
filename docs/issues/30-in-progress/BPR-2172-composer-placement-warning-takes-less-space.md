@@ -42,3 +42,12 @@ right. Pending: the owner's look.
 
 Next round: offscreen renders of the composer with each notice, mark closed
 and open, in the candidates' content; one question per criterion.
+
+## Screenshots for the next look (2026-11-14)
+
+`test_placement_notices_fold_into_the_composer_mark` (`qt_workbench_line_draft`)
+drives each note through the window's own placement path and, with
+`BPR_NOTICE_RENDER_ROOT`, renders the composer with the mark closed and open:
+may not place, can't place, the file-comment reason, head line, base line and
+earlier commit fold; "Working out where GitHub puts a comment…" (which stops
+Publish) keeps its lines.

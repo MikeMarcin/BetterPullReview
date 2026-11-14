@@ -69,3 +69,12 @@ notes, verbatim:
 - `BPR-2156-save-icon`: **Reject**. The owner, verbatim: "Drop the word Save just have the icon.\nAlso that icon does not look like the normal save icon, isn't it just QIcon::ThemeIcon::DocumentSave"
 
 Open: Save as the icon alone.
+
+## Save icon, second round (2026-11-14)
+
+Save is now the icon alone, named and tipped "Save", from
+`QIcon::fromTheme(QIcon::ThemeIcon::DocumentSave)` with the style's save icon
+where the platform has none (checked in `qt_local_draft_window`). On macOS,
+Qt draws `DocumentSave` as the SF Symbol `square.and.arrow.down`, which is
+the icon of the first look too: the next look shows it rendered and asks
+again.
