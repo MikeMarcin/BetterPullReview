@@ -2774,7 +2774,7 @@ Not touched: sessions `acaf71a2…`, `8ce7e455…`, `4329741d…` and their root
 
 Fresh `rfc-implementer`, same lane; nothing pushed; no attribution lines. Frontend-design loaded first.
 
-Step 0: looks v003 (`acaf71a2…`: 8 Accept, `make-draft-reason` Reject), v004 (`8ce7e455…`: `finish-review-keep-local` Reject, six undecided) and v005 (`4329741d…`: `answer-one-keep-action` Reject, three undecided) recorded verbatim on the ledger and BPR-2162 (`62d426638`, main `6f678dd5f`). Hosts 98149/98159, 42869/42879, 82478/82486 stopped with the attended-review `stop`; roots `comments-absorb-notes-v003.as90oxpw`, `-v004.r230gldo`, `-v005.7ub_34li` removed with `freeze_attended_build.py remove` (nothing ran from them). Discuss session `277831a5…` (handed back 22:59:49Z: ac1-ac4 Accept, ac5 Reject) recorded on BPR-2171; host 26008/26018 stopped; root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` **kept**: the owner's app PID 28776 runs from it.
+Step 0: looks v003 (`acaf71a2…`: 8 Accept, `make-draft-reason` Reject), v004 (`8ce7e455…`: `finish-review-keep-local` Reject, six undecided) and v005 (`4329741d…`: `answer-one-keep-action` Reject, three undecided) recorded verbatim on the ledger and BPR-2162 (`62d426638`, main `6f678dd5f`). Hosts 98149/98159, 42869/42879, 82478/82486 stopped with the attended-review `stop`; roots `comments-absorb-notes-v003.as90oxpw`, `-v004.r230gldo`, `-v005.7ub_34li` removed with `freeze_attended_build.py remove` (nothing ran from them). Discuss session `277831a5…` (handed back 22:59:49Z: ac1-ac4 Accept, ac5 Reject) recorded on BPR-2171; host 26008/26018 stopped; root `/Users/jaeger/discuss-busy-pr-v001.tj2qtseq` removed with `freeze_attended_build.py remove` once the owner's app (PID 28776) had ended.
 
 | Commit | What |
 |---|---|
@@ -2787,7 +2787,7 @@ Integration pass at `8b16fbefb` (dev, Debug, macOS): 37 of 37, listed on BPR-216
 
 Owner look v006, filed and not waited on: session `5dd1e60daeb1b265f39c6e3f84247a43`, state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v006-2026-11-13/state` (URL in `serve.log` beside it), cursor 36, host PID 9121 (Tailscale child 9129). Roots: `/Users/jaeger/comments-absorb-notes-v006.csdaortz`, `/Users/jaeger/comments-absorb-notes-agent-v006.6vrnvubx`, `/Users/jaeger/discuss-busy-pr-v002.16ews593`. Twelve questions, listed on the ledger.
 
-Next action: on handback read from cursor 36; record verbatim on BPR-2162, BPR-2171 and the ledger; stop host 9121 with `stop`; remove the three roots (and `discuss-busy-pr-v001.tj2qtseq` once PID 28776 has ended) with `freeze_attended_build.py remove`. All of RFC-BPR-0127's questions Accept: finish BPR-2162 and close the RFC. Both Discuss questions Accept: finish BPR-2171. Mirror card moves to main.
+Next action: on handback read from cursor 36; record verbatim on BPR-2162, BPR-2171 and the ledger; stop host 9121 with `stop`; remove the three roots with `freeze_attended_build.py remove`. All of RFC-BPR-0127's questions Accept: finish BPR-2162 and close the RFC. Both Discuss questions Accept: finish BPR-2171. Mirror card moves to main.
 
 Decisions made this round (the owner may overrule them in the look):
 - AC10 reads with the amendment: Local is always offered on the agent surfaces; Draft where a line or thread takes one, else the struck pencil.
