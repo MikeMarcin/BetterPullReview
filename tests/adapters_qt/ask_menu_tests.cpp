@@ -45,13 +45,9 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	auto         asked    = std::vector<std::string>{ };
 	auto         drafted  = std::vector<std::string>{ };
-	auto         edited   = std::vector<std::string>{ };
-	auto         hidden   = std::vector<std::string>{ };
 	const auto   dispatch = qt::ask_menu_dispatch{
 		.Ask = [&asked](const qt::ask_menu_request&, const core::quick_ask_row& aRow) { asked.push_back(aRow.Id); },
 		.Draft = [&drafted](const qt::ask_menu_request&, const core::quick_ask_row& aRow) { drafted.push_back(aRow.Id); },
-		.EditOne = [&edited](const std::string& aId) { edited.push_back(aId); },
-		.Hide = [&hidden](const std::string& aId) { hidden.push_back(aId); },
 		.Custom = [](const qt::ask_menu_request&) { },
 		.Edit   = [] { },
 	};
@@ -73,13 +69,12 @@ auto main(int argc, char** argv) -> int
 			names << action->text();
 		}
 	}
-	expect(names == QStringList({ QStringLiteral("Queue"), QStringLiteral("Draft in Agent Tab"), QStringLiteral("Edit Quick Ask…"), QStringLiteral("Hide from Quick Asks") }),
-		   "its menu: Queue, Draft in Agent Tab, Edit Quick Ask…, Hide from Quick Asks: " + names.join(QLatin1Char('|')).toStdString());
+	// Look ask-v002 (owner, 2026-11-14): "Drop edit and hide from the
+	// individual question menu, the edit quick ask on the top level ask
+	// dropdown is sufficient."
+	expect(names == QStringList({ QStringLiteral("Queue"), QStringLiteral("Draft in Agent Tab") }), "its menu: Queue, Draft in Agent Tab: " + names.join(QLatin1Char('|')).toStdString());
 	rowMenu->findChild<QAction*>(QStringLiteral("askRowDraft"))->trigger();
 	expect(drafted == std::vector<std::string>{ "agent-tab.what-could-break" } && asked.empty(), "Draft in Agent Tab drafts it");
-	rowMenu->findChild<QAction*>(QStringLiteral("askRowHide"))->trigger();
-	rowMenu->findChild<QAction*>(QStringLiteral("askRowEdit"))->trigger();
-	expect(hidden.size() == 1U && edited.size() == 1U, "Hide and Edit name the quick ask");
 	rowMenu->findChild<QAction*>(QStringLiteral("askRowQueue"))->trigger();
 	expect(asked.size() == 1U, "Queue asks it");
 

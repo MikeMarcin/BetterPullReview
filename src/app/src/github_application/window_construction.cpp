@@ -1436,7 +1436,14 @@ namespace bpr::app {
 			dependencies.Decision = &DecisionLane;
 			dependencies.Publish  = [this](const application::agent_setup_projection& aProjection) { present_agent_setup(aProjection); };
 			dependencies.Log      = DiagnosticLog; // [[BPR-1828]]
-			AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
+	#if defined(BPR_BUILD_TESTING)
+			// [[BPR-2177]], look ask-v003 (owner, 2026-11-14: "The footer does
+			// not say fixture agent"): the setup, Check and Settings name it.
+			if (FixtureAgentSession) {
+				dependencies.Names = { { core::setup_agent::claude_code, "Fixture agent" }, { core::setup_agent::codex, "Fixture agent (Codex)" } };
+			}
+	#endif
+			AgentSetup = std::make_unique<application::agent_setup_host>(std::move(dependencies));
 		}
 		AgentSetup->load();
 		// [[BPR-1750]], RFC-BPR-0092 D2. The profile's clone folders

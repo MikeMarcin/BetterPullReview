@@ -51,7 +51,8 @@ def main() -> int:
     cases = {
         "returning.operation\tproposed_fix": "**Partly**",
         "returning.operation\tlatest_upload": "# What changed since your review",
-        "explain.path\tsrc/engine/renderer.cpp": "src/engine/renderer.cpp",
+        "explain.path\tsrc/engine/renderer.cpp": "## What changed",
+        "What could this change break?": "## Rendering",
         "bpr.tour-draft.v1": '"schema":"bpr.tour-draft.v1"',
         "bpr.review-preparation": '"kind":"rewrite"',
         "Write a commit message": "Clamp the resize",
@@ -72,6 +73,16 @@ def main() -> int:
     findings = claude_answer(run(claude, ["-p"], user("Review this pull request; answer with a ```bpr-findings block")).stdout)
     block = findings.split("```bpr-findings\n", 1)[1].split("\n```", 1)[0]
     expect(len(json.loads(block)["findings"]) == 2, "the findings block is JSON with two findings")
+
+    # Look ask-v004: a tool-free run (What changed since my review) is told
+    # `--tools ""`; its init frame lists no tool and it reads no file.
+    free = run(claude, ["--tools", "", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], user("returning.operation\tlatest_upload"))
+    first = frames(free.stdout)
+    expect(first[0]["type"] == "system" and first[0]["tools"] == [] and first[0]["mcp_servers"] == [], f"a tool-free run's init lists no tool: {first[0]}")
+    expect(not any(frame.get("type") == "user" or '"tool_use"' in json.dumps(frame) for frame in first), "a tool-free run uses no tool")
+    expect("# What changed since your review" in claude_answer(free.stdout), "and still answers")
+    narrow = frames(run(claude, ["--tools", "Read,Grep,Glob,Bash", "-p"], user("anything")).stdout)
+    expect(narrow[0]["tools"] == ["Read", "Grep", "Glob", "Bash"], f"a read-only run's init lists its tools: {narrow[0]}")
 
     crashed = run(claude, ["-p"], user("FIXTURE_CRASH"))
     expect(crashed.returncode != 0 and "scripted" in crashed.stderr, "a scripted crash fails")

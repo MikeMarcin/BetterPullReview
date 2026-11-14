@@ -2972,3 +2972,172 @@ Session `1f1217eb0f4bf89ce4c521434ce15cdc`, state
 cursor 15, five candidates: BPR-2156-save-icon, BPR-2172-placement-mark,
 BPR-2172-what-folds (both with offscreen screenshots), BPR-2175-lightbox-d,
 BPR-2175-lightbox-gestures. Remove the root with the freeze tool once decided.
+
+## RFC-BPR-0128: ask-v001 verdict, queued Ask, fixture agent, reports first round, BPR-2176 (2026-11-14)
+
+Same `rfc-implementer` lane; nothing pushed; no attribution lines.
+Frontend-design was loaded before the Qt work. Record:
+[RFC-BPR-0128](../../../verification/RFC-BPR-0128.md) (v001 verdict verbatim,
+the owner's refinement, what was built).
+
+| Commit | What |
+|---|---|
+| `a5bdd705c`, `8d4566be7`, `d9be2eadf` | BPR-2176 ready, claimed, built test first: review bar Comment button and menu and the Tour tab's Add stop tool gone; Option-C and Option-Shift-T kept |
+| `d090ee1ae`, `5189a188c` | BPR-2166/BPR-2167 first round: core report tab kind, report shape (Q7), outline and card, merge-of-main folding; Agent tab report card, report file tab with outline, file controls off (Q9); `application_ask_report_public_path` |
+| `17e484e25`, `6f4300bf5` | BPR-2177 (P0, from main `dcbdd5466`): fixture agent (Claude and Codex protocols, canned answers, streamed, scripted crash and usage limit) default for every `--attended` launch; launch guard refuses a real claude/codex; freeze `--check` verifies it; AGENTS.md line |
+| `daaa6dcb0`, `c7f9a5f8d`, `95d01ea5d` | BPR-2151 (RFC-BPR-0126 queue core and host) WIP, readied, claimed |
+| `f50da9ba7` | v001 verdict and refinement: a plain click queues; Shift+click drafts; right click opens Queue / Draft in Agent Tab / Edit Quick Ask... / Hide from Quick Asks and never sends; no answer bar, the Agent tab opens at the turn |
+| `0c291d8b2`, `624215ec4` | Record, cards, pin reseal |
+| `612194781` | Coordinator's BPR-2178 (not built here). **Frozen commit** |
+| main `86a3f41c4` | Mirror: BPR-2151 and BPR-2176 In Progress, BPR-2177 progress, AGENTS.md line |
+
+Runs at `624215ec4` (dev, Debug, macOS): core_* rows, `qt_ask_menu`,
+`application_ask_{menu,addressed,report,queue}_public_path`,
+`application_fixture_agent_guard_public_path`, `fixture_agent_answers`,
+`freeze_attended_build_contract`, `application_explain_file_public_path`,
+`application_returning_review_*`, window tests, contracts and pin all pass.
+Failing and not this lane's: `application_review_tour_link_public_path`
+(clicks a nonexistent `tourReturn`), `application_review_tour_publication_mixed`,
+`application_review_tour_cli_ordinary_stop`. `coding-tidy` and the full suite
+not run.
+
+ask-v001: host 44478/44488 stopped with `stop`; root
+`/Users/jaeger/ask-v001.29vwy7ai` removed (nothing ran from it).
+
+Owner look `ask-v002`, filed and not waited on: session
+`7268b4daaedd9f9318ced6f27e78c873`, state
+`/Users/jaeger/.attended-review-state/ask-v002-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 36, host PID 45701 (Tailscale child 45710).
+Frozen root `/Users/jaeger/ask-v002.bbyayhpn` from `612194781` (executable
+SHA-256 `428e92371c2d…`; both heads reached `ATTENDED_FILE_SHOWN`; the
+fixture-agent check started no real agent). Answers are canned by the Fixture
+agent. Twelve questions, one Accept/Reject each: the six re-asked
+(`BPR-2164-review-bar-ask`, `BPR-2164-file-ask`, `BPR-2164-thread-ask`,
+`BPR-2163-quick-ask-editor`, `BPR-2165-claim-chips`,
+`RFC-BPR-0128-Q5-threshold`), `ask-shift-click-drafts`,
+`ask-right-click-menu`, `ask-opens-agent-tab`, `ask-click-queues`,
+`BPR-2166-report-file-tab`, `BPR-2176-buttons-gone` (tour fixture
+`conventional-comments-v1`).
+
+Next action: on handback read from cursor 36, record verbatim, stop host 45701
+with `stop`, remove the root with `freeze_attended_build.py remove`. Then:
+BPR-2164 and BPR-2165 finish on Accept; BPR-2176 Done on Accept; BPR-2166/2167
+remaining (Q4 Explain as a report by default, the merge's commit count from the
+second parent, AC06 tour checks, AC07's other commit listings); BPR-2168
+closeout after the looks; BPR-2151's queue UI (edit, reorder, resume);
+BPR-2146 AC11 to AC13; BPR-2147 unclaimed. Do not build BPR-2178 here.
+
+Not touched: host 25283/25291 with the v007 roots; other agents' processes;
+BPR-Test.
+
+## RFC-BPR-0128: ask-v002 verdicts, Fixture agent fixes, ask-v003 filed (2026-11-14)
+
+ask-v002 handed back (sequence 107); verdicts verbatim in the
+[record](../../../verification/RFC-BPR-0128.md#owner-look-ask-v002-session-7268b4daaedd9f9318ced6f27e78c873).
+Host 45701/45710 stopped with `stop`; root `ask-v002.bbyayhpn` removed once
+nothing ran from it.
+
+| Commit | What |
+|---|---|
+| `4c50283ba` | Fixture agent set up and chosen in every person's session on a tests-on build (only fixture profiles offered, Claude first; Codex profiles are the fixture; its Check runs once by itself); report-shaped Explain this file and What could break; returning-review-v1 gets a seventh thread (Q5 now reachable: six threads); `freeze --check` asks in the frozen build and fails unless the Fixture agent answers as a report; row menu Queue and Draft only; pin |
+| `8d51a468e` | Verdicts recorded; BPR-2164, BPR-2165, BPR-2176 Done; BPR-2179 parked; BPR-2177 progress |
+| `be416d9f6` | The freeze check asks before the Agent tab was ever opened (the first ask-v003 freeze caught the setup waiting for nothing); pin. **Frozen commit** |
+| main `68ccd1dbd` | BPR-2179 reserved and parked (Prompts as a settings section; mockups first) |
+| main `2e6d54284` | Mirror: BPR-2164, BPR-2165, BPR-2176 Done; BPR-2177 progress |
+
+BPR-2163 is Done and Done is terminal, so the Prompts rework is the new card
+BPR-2179 (the coordinator asked for a reopen). Mockups A, B, C (frontend-design
+loaded) were rendered offscreen; generator outside the repository.
+
+Runs (dev, Debug, macOS): `qt_ask_menu`, `application_ask_{menu,addressed,report,queue}_public_path`,
+`application_fixture_agent_guard_public_path`, `fixture_agent_answers`,
+`application_returning_review_*`, `application_explain_file_public_path`,
+`freeze_attended_build_contract`, `architecture_boundaries`,
+`test_network_isolation_*`, `qt_workbench_window_scale_100`,
+`application_review_round_trip_composition_contract`, documentation gate (lane
+and main). Not run: `coding-tidy`, the full suite.
+
+Owner look `ask-v003`, filed and not waited on: session
+`09daeb8e2bb15c2c5f23a3dbbddce62c`, state
+`/Users/jaeger/.attended-review-state/ask-v003-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 12, host PID 4137 (Tailscale child 4149). Root
+`/Users/jaeger/ask-v003.vfh_7ety` from `be416d9f6` (executable SHA-256
+`b19369bf1651…`; both heads shown; `CHECK_OK (fixture agent answers):
+ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:report=1`). Four questions:
+`BPR-2166-report-file-tab`, `RFC-BPR-0128-Q5-threshold`,
+`ask-right-click-menu` (Queue and Draft only), `BPR-2179-prompts-mockup`
+(options A, B, C with the renders).
+
+Next action: on handback read from cursor 12, record verbatim, stop host 4137,
+remove the root. Then: build BPR-2179 in the chosen layout; Q5's answer sets
+`core::quick_ask_confirm_above`; BPR-2166/2167 remaining (Q4, merge count,
+AC06 tour checks, AC07 listings); BPR-2168 closeout after the looks; BPR-2151
+queue UI; BPR-2146 AC11 to AC13. Owner note on the thread Ask ("I'm surprised
+there's no ask on the threads mode.") is recorded, not yet carded.
+
+## ask-v003 handed back; the footer names the Fixture agent; ask-v004 filed (2026-11-14)
+
+ask-v003 (sequence 17): one verdict, `BPR-2166-report-file-tab` **Reject**
+"The footer does not say fixture agent"; the other three unanswered (no
+decision). Recorded verbatim in the record and on BPR-2166. Host 4137/4149
+stopped with `stop`; root `ask-v003.vfh_7ety` removed.
+
+| Commit | What |
+|---|---|
+| `8ae8057e9` | The setup host carries the names its agents go by (`agent_setup_projection::Names`); a tests-on person's session names them Fixture agent, so the setup, Check, Settings and the footer's run settings say it; guard course fails on any other name (failed first on "Claude Code · Default model"); `freeze --check` requires `footer=Fixture agent`; `BPR_ATTENDED_FOOTER_SHOT`; pin |
+| `e97dc8bca` | Verdict recorded. **Frozen commit** |
+
+Runs: `application_fixture_agent_guard_public_path`, `qt_agent_setup_view`,
+`qt_settings_window`, `qt_agent_footer`, `application_agent_setup_host`,
+`application_agent_chat_setup_list_contract`, `qt_ask_menu`,
+`application_ask_*_public_path`, `fixture_agent_answers`,
+`freeze_attended_build_contract`, `architecture_boundaries`, the pin,
+documentation gate.
+
+Owner look `ask-v004`, filed and not waited on: session
+`88b6acef99947ab22775b220057b2189`, state
+`/Users/jaeger/.attended-review-state/ask-v004-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 15, host PID 12600 (Tailscale child 12617).
+Root `/Users/jaeger/ask-v004.vxhvuzyw` from `e97dc8bca` (executable SHA-256
+`55aeb240f09b…`; check line `ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture
+agent:footer=Fixture agent · fixture:report=1`). Five questions:
+`BPR-2177-footer-says-fixture-agent` (with an offscreen picture of the frozen
+build's window after the answer), `BPR-2166-report-file-tab`,
+`RFC-BPR-0128-Q5-threshold`, `ask-right-click-menu`, `BPR-2179-prompts-mockup`.
+
+Next action: on handback read from cursor 15, record verbatim, stop host
+12600, remove the root; then as in the section before.
+
+## ask-v004 handed back ("still doesnt work"); every ask answered; ask-v005 filed (2026-11-14)
+
+ask-v004 (sequence 20): `BPR-2166-report-file-tab` **Reject** with the
+malformed_frame text, verbatim in the record; the other four unanswered. Host
+12600/12617 stopped; root `ask-v004.vxhvuzyw` removed.
+
+Root cause: What changed since my review is a tool-free run; the fixture
+agent's init frame listed Read and Grep, which the app refuses. Fixed in the
+fixture agent (it reports the tools its launch gave).
+
+| Commit | What |
+|---|---|
+| `3b65df09d` | Fixture agent tools by `--tools`; the build's check presses every ask a look offers at the next push (17: What changed with the line chip first, every review-bar, file and thread quick ask, typed with the chip, a continuation, two queued); course `application_fixture_agent_every_ask` (fails with the owner's line on the old fixture agent); freeze `--check` runs it; pin |
+| `25f8ac774` | Verdict and root cause recorded; BPR-2166 and BPR-2177 notes. **Frozen commit** |
+| main `06ef487ae` | Mirror of the two card notes |
+
+Runs: 16 focused rows including `application_fixture_agent_every_ask`,
+`application_fixture_agent_guard_public_path`, `fixture_agent_answers`,
+`freeze_attended_build_contract`, `test_network_isolation_manifest`, the ask
+and returning courses, `architecture_boundaries`, the pin; documentation gate
+(lane and main). The frozen executable was run through the same 17 asks
+offscreen at the owner's 350 ms pace: all answered.
+
+Owner look `ask-v005`, filed and not waited on: session
+`b33d123bc164a8497b8f66b86087644f`, state
+`/Users/jaeger/.attended-review-state/ask-v005-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 15, host PID 65778 (Tailscale child 65790).
+Root `/Users/jaeger/ask-v005.a6ilb3sh` from `25f8ac774` (executable SHA-256
+`4ac233ad3cb8…`). Five questions as in ask-v004; the report and footer
+questions carry the offscreen picture of the owner's path answered.
+
+Next action: on handback read from cursor 15, record verbatim, stop host
+65778, remove the root.

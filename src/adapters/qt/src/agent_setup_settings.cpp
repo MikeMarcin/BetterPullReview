@@ -764,7 +764,7 @@ namespace bpr::qt {
 		const auto& setup            = aCheck.Setup;
 		const auto& state            = setup.State;
 		const auto  saved            = state.Chosen ? state.Chosen : setup.Preferences.Chosen;
-		const auto  name             = saved ? setup_agent_name(setup.Preferences, *saved) : tr("The agent");
+		const auto  name             = saved ? setup_agent_name(setup, *saved) : tr("The agent");
 		const auto  offer            = aCheck.Decision.Offer;
 		const auto  running          = offer == core::agent_check_offer::running;
 		const auto  workspaceRunning = state.WorkspaceCheck.State == core::setup_check_state::running;

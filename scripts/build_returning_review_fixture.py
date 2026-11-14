@@ -63,6 +63,26 @@ def build(root: Path, name: str, reviewed: str) -> None:
             if thread["id"] == "PRRT_cc_2" and comment["author"]["login"] == REVIEWER["login"]:
                 comment["originalCommit"] = {"oid": reviewed}
                 comment["commit"] = {"oid": reviewed}
+    # Look ask-v002 (owner, 2026-11-14: "cant tell missing mock agent and
+    # response"): the pull request's Was this addressed? reaches more threads
+    # than Q5's five, so its confirmation shows. A seventh, on slider.cpp.
+    connection = threads["data"]["repository"]["pullRequest"]["reviewThreads"]
+    extra = copy.deepcopy(connection["nodes"][5])
+    extra.update({"id": "PRRT_cc_7", "path": "src/ui/widgets/slider.cpp", "line": 3, "originalLine": 3})
+    extra["comments"]["nodes"] = extra["comments"]["nodes"][:1]
+    extra["comments"]["nodes"][0].update({
+        "author": {"id": "U_fixture_tbutler", "login": "tbutler"},
+        "bodyText": "issue: the slider accepts a value past its maximum.",
+        "id": "PRRC_cc_7_1",
+        "line": 3,
+        "originalLine": 3,
+        "path": "src/ui/widgets/slider.cpp",
+    })
+    extra["comments"]["pageInfo"] = {"endCursor": "Y3Vyc29yOlBSUkNfY2NfN18x", "hasNextPage": False}
+    extra["comments"]["totalCount"] = 1
+    connection["nodes"].append(extra)
+    connection["totalCount"] = len(connection["nodes"])
+    connection["pageInfo"]["endCursor"] = "Y3Vyc29yOlBSUlRfY2NfNw=="
     for thread in threads["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]:
         first = thread["comments"]["nodes"][0]
         start = NEXT_HEAD if thread["path"] == "README.md" else reviewed

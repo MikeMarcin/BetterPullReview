@@ -44,27 +44,8 @@ namespace bpr::app {
 		}
 		Window->set_quick_ask([this](const qt::ask_menu_request& aRequest) { return quick_ask_menu(aRequest); },
 							  qt::ask_menu_dispatch{
-								  .Ask   = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { queue_quick_ask(aRequest, aRow); },
-								  .Draft = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { draft_quick_ask(aRequest, aRow); },
-								  .EditOne =
-									  [this](const std::string& aId) {
-										  Window->open_settings(qt::settings_page::agents_and_context);
-										  Window->reveal_prompt_macros();
-										  Window->prompt_macros()->edit(aId);
-									  },
-								  .Hide =
-									  [this](const std::string& aId) {
-										  auto macros = PromptMacroSet.macros();
-										  for (auto& macro : macros) {
-											  if (macro.Id == aId) {
-												  macro.Body.QuickAsk = false;
-											  }
-										  }
-										  if (PromptMacros) {
-											  PromptMacros->save(application::prompt_macro_differences_of(core::shipped_prompt_macros(), macros));
-										  }
-									  },
-
+								  .Ask    = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { queue_quick_ask(aRequest, aRow); },
+								  .Draft  = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { draft_quick_ask(aRequest, aRow); },
 								  .Custom = [this](const qt::ask_menu_request& aRequest) { ask_custom_question(aRequest); },
 								  .Edit   = [this] { Window->open_settings(qt::settings_page::agents_and_context); Window->reveal_prompt_macros(); },
 							  });

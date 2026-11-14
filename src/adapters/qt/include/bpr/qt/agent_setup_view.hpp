@@ -189,7 +189,7 @@ namespace bpr::qt {
 	/// \brief [[BPR-1859]]. The chosen entry's own name for an agent of
 	/// its kind, else the agent's plain name; the setup and Settings' Check
 	/// agent say the same.
-	[[nodiscard]] auto setup_agent_name(const application::agent_setup_preferences& aPreferences, core::setup_agent aAgent) -> QString;
+	[[nodiscard]] auto setup_agent_name(const application::agent_setup_projection& aSetup, core::setup_agent aAgent) -> QString;
 
 	/// \brief [[BPR-1859]]. What the agent row of Check it works proves:
 	/// "Claude Code is signed in", "… is available" or the wrapper's line.

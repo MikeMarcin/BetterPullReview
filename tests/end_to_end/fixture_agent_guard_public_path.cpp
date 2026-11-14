@@ -9,6 +9,7 @@
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -103,20 +104,22 @@ auto main(int argc, char** argv) -> int
 			expect(!access::fixture_agent_admits(*application, refused), "a real agent program is refused: " + refused);
 		}
 
-		// The setup finds the fixture agent, and the picker says so.
+		// The setup finds the fixture agent, already set up and chosen: the
+		// owner's look ask-v002 (2026-11-14) opened on Codex, which no fixture
+		// answered ("Aren't we supposed to have a mack agent for testing now?").
 		window.open_agent_question();
 		auto* const tab = window.agent_tab();
 		wait([tab] { return tab->setup_readiness() != qt::agent_setup_readiness::checking; }, "the agent setup looks for agents");
+		static_cast<void>(e2e::wait_until_plain([tab] { return tab->setup_readiness() == qt::agent_setup_readiness::ready; }, e2e::extended_agent_budget));
 		if (tab->setup_readiness() != qt::agent_setup_readiness::ready) {
-			window.open_agent_setup();
-			const auto check = [&window] {
-				auto* const button = window.agent_setup()->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"));
-				return button != nullptr && button->isVisible() && button->isEnabled() ? button : nullptr;
-			};
-			wait([&] { return check() != nullptr; }, "the setup offers Check it works on the fixture agent");
-			check()->click();
-			wait([tab] { return tab->setup_readiness() == qt::agent_setup_readiness::ready; }, "Check it works passes on the fixture agent");
-			window.open_agent_question();
+			const auto& setup = window.agent_setup()->projection();
+			auto        rows  = std::string{ };
+			for (const auto& row : setup.State.Rows) {
+				rows += std::string{ core::stable_name(row.Agent) } + (row.Verdict.Permitted ? "+" : "-") + std::to_string(static_cast<int>(row.Verdict.Refusal)) + " ";
+			}
+			throw std::runtime_error{ "the fixture agent is set up without a step: step " + std::string{ core::stable_name(setup.Step) } + ", chosen "
+									  + (setup.State.Chosen ? std::string{ core::stable_name(*setup.State.Chosen) } : std::string{ "none" }) + ", rows " + rows
+									  + ", repository " + (setup.State.RepositoryChosen ? "chosen" : "not chosen") + ", checks " + std::to_string(static_cast<int>(setup.State.AgentCheck.State)) + "/" + std::to_string(static_cast<int>(setup.State.WorkspaceCheck.State)) + ", tab state setting-up " + std::to_string(tab->isVisible()) };
 		}
 		auto* const selector = window.agent_panel()->profile_selector();
 		auto        names    = QStringList{ };
@@ -124,9 +127,36 @@ auto main(int argc, char** argv) -> int
 			names << selector->itemText(index);
 		}
 		expect(names.join(QLatin1Char('|')).contains(QStringLiteral("Fixture agent")), "the picker names the fixture agent: " + names.join(QLatin1Char('|')).toStdString());
-		if (const auto index = selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())); index >= 0) {
-			selector->setCurrentIndex(index);
+		if (!selector->currentText().startsWith(QStringLiteral("Fixture agent"))) {
+			auto entries = std::string{ };
+			for (const auto& entry : window.agent_setup()->projection().Preferences.Agents) {
+				entries += entry.Name + "=" + entry.Program + " (" + std::to_string(static_cast<int>(entry.Protocol)) + ", preset " + (entry.Preset ? std::string{ core::stable_name(*entry.Preset) } : std::string{ "none" }) + ") ";
+			}
+			throw std::runtime_error{ "the fixture agent is chosen: " + selector->currentText().toStdString() + " of " + names.join(QLatin1Char('|')).toStdString() + "; entries " + entries
+									  + "; preferred " + std::to_string(window.agent_setup()->projection().Preferences.PreferredAgent) };
 		}
+		for (auto index = 0; index < selector->count(); ++index) {
+			expect(selector->itemText(index).startsWith(QStringLiteral("Fixture agent")), "every offered agent is the fixture: " + names.join(QLatin1Char('|')).toStdString());
+		}
+		// Look ask-v003 (owner, 2026-11-14: "The footer does not say fixture
+		// agent"): every place the agent is named says so.
+		auto footers = 0;
+		for (auto* const footer : window.findChildren<QWidget*>()) {
+			const auto text = footer->property("agentRunSettingsText").toString();
+			if (!text.isEmpty()) {
+				++footers;
+				expect(text.startsWith(QStringLiteral("Fixture agent")), "the footer names the fixture agent: " + text.toStdString());
+			}
+		}
+		if (footers == 0) {
+			auto seen = std::string{ };
+			for (auto* const footer : window.findChildren<QWidget*>()) {
+				seen += footer->accessibleName().toStdString() + (footer->isVisible() ? " (shown) " : " (hidden) ");
+			}
+			throw std::runtime_error{ "a footer names the agent: " + seen };
+		}
+		expect(window.agent_setup()->ready_title() == QStringLiteral("Fixture agent is ready"),
+			   "the setup and its Check name the fixture agent: " + window.agent_setup()->ready_title().toStdString());
 
 		// A question: the fixture agent answers, and no real program ran.
 		auto* const chat  = access::side_chat_panel(*application);

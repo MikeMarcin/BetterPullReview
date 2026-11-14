@@ -319,10 +319,24 @@ auto main(int argc, char** argv) -> int
 		}
 		if (course == "addressed") {
 			// The pull request's Was this addressed? reads every thread
-			// commits followed: five, whoever started them.
+			// commits followed: six, whoever started them, which is more
+			// than Q5's five, so a press asks first (look ask-v002).
 			reviewAsk->refresh_menu();
 			auto* const everything = row(*reviewAsk->menu(), QStringLiteral("conversation.was-addressed"), QStringLiteral("pull-request"));
-			expect(everything != nullptr && everything->isEnabled() && everything->text().endsWith(QStringLiteral("5 threads")), "the pull request's row reads five threads: " + (everything != nullptr ? everything->text().toStdString() : std::string{ }));
+			expect(everything != nullptr && everything->isEnabled() && everything->text().endsWith(QStringLiteral("6 threads")), "the pull request's row reads six threads: " + (everything != nullptr ? everything->text().toStdString() : std::string{ }));
+			{
+				auto asked = std::optional<std::size_t>{ };
+				window.set_quick_ask_confirmation([&asked](const std::size_t aRuns, const QString&) {
+					asked = aRuns;
+					return false;
+				});
+				const auto before = launchesAt();
+				everything->trigger();
+				QApplication::processEvents();
+				expect(asked == std::optional<std::size_t>{ 6U }, "six runs ask first");
+				expect(launchesAt() == before && cards->thread_claims().empty(), "a refused confirmation runs nothing");
+				window.set_quick_ask_confirmation({ });
+			}
 			// README.md's thread started on the head: greyed, saying why.
 			auto readme   = window.ask_request(core::quick_ask_anchor::thread);
 			readme.Thread = QStringLiteral("review-thread:PRRT_cc_5");

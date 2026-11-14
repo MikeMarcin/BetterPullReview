@@ -173,3 +173,128 @@ Built, cards not claimable while [[BPR-2164]] waits on the look:
   many commits a merge brought; the count needs the merge's ancestry from the
   review's objects), the Tour tab and tour chat checks of AC06, and AC07's other
   places commits are listed (the Commits filter).
+
+## Owner look ask-v002 (session `7268b4daaedd9f9318ced6f27e78c873`)
+
+Frozen from `612194781`, on the Fixture agent. Handed back 2026-11-14 at
+sequence 107. Verdicts, verbatim; the attachments stay in the session's state
+(`/Users/jaeger/.attended-review-state/ask-v002-2026-11-14/state`) and are
+described here:
+
+- `BPR-2164-review-bar-ask`, **Accept**.
+- `BPR-2164-file-ask`, **Accept**.
+- `BPR-2164-thread-ask`, **Accept**: "I'm surprised there's no ask on the
+  threads mode."
+- `BPR-2165-claim-chips`, **Accept**.
+- `BPR-2176-buttons-gone`, **Accept**.
+- `ask-click-queues`, **Accept**.
+- `ask-opens-agent-tab`, **Accept**.
+- `ask-shift-click-drafts`, **Accept**.
+- `ask-right-click-menu`, **Accept**: "Drop edit and hide from the individual
+  question menu, the edit quick ask on the top level ask dropdown is
+  sufficient.
+
+  Otherwise good." (Its attachment shows the review bar's Ask menu with a
+  row's menu open: Queue, Draft in Agent Tab, Edit Quick Ask…, Hide from Quick
+  Asks.)
+- `BPR-2166-report-file-tab`, **Reject**: "Aren't we supposed to have a mack
+  agent for testing now? " (Its attachment shows the Agent tab with "Codex
+  stopped before answering", "Codex didn't start. It wrote: codex was not
+  found on PATH or in the usu…", and the footer "Codex · Default model".)
+- `RFC-BPR-0128-Q5-threshold`, **Reject**: "cant tell missing mock agent and
+  response."
+- `BPR-2163-quick-ask-editor`, **Reject**: "It's not really clear that you can
+  open and edit these. I feel like we can do better on the UX design. I also
+  think we should split agents and prompts into separate settings sections."
+  (Two attachments: Settings > Agents & context > Suggested prompts, a list of
+  checkbox rows; and a prompt's sheet.)
+
+Why the look had no fixture answer: the picker took its first offered agent,
+Codex's app-server profile, before the setup had chosen one (the host's policy
+had not arrived, so the found Claude was not yet permitted, and a pick made
+while the setup is known is kept); nothing pointed that profile at the fixture
+agent, so its launch searched the person's PATH. The setup also stopped at
+Check it works. Fixed ([[BPR-2177]]): a person's session on a tests-on build
+offers the fixture agent alone, Claude's protocol first; Codex's profiles are
+the fixture agent too; the fixture agent's Check runs once by itself when a
+review opens, so the setup is ready with no step. Explain this file and What
+could this change break? answer as reports. The returning-review fixture has a
+seventh thread, so the pull request's Was this addressed? reads six threads and
+asks first (Q5). `freeze --check` now asks What could this change break? in the
+frozen build and fails unless the Fixture agent answers it as a report
+(`FIXTURE_AGENT_SILENT`). Course `application_fixture_agent_guard_public_path`
+now fails on a setup that needs a step or a picker not on the fixture agent.
+
+The row menu is Queue and Draft in Agent Tab (`qt_ask_menu`). BPR-2163 reopens
+for a Prompts section of its own; mockups go to the next look before anything
+is built.
+
+The first freeze of ask-v003 (from `8d51a468e`) failed its new check
+(`ATTENDED_FIXTURE_AGENT_FAILED:…step=agent`): the check waited for the setup
+before asking, and the setup only looks for agents once the Agent tab is
+opened. The check now asks straight away, as a person would, before the Agent
+tab was ever opened; the press opens it, the setup finds the fixture agent, its
+Check runs by itself, and the answer arrives as a report
+(`ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:report=1` on the dev build).
+
+## Owner look ask-v003 (session `09daeb8e2bb15c2c5f23a3dbbddce62c`)
+
+Frozen from `be416d9f6`. Handed back 2026-11-14 at sequence 17. One verdict,
+verbatim; `BPR-2179-prompts-mockup`, `RFC-BPR-0128-Q5-threshold` and
+`ask-right-click-menu` were left unanswered (no decision):
+
+- `BPR-2166-report-file-tab`, **Reject**: "The footer does not say fixture
+  agent" (Its attachment shows the Agent tab with its quick asks and no answer
+  yet, and the status bar's agent footer reading "Claude Code · Default
+  model".)
+
+Why: the picker named the fixture agent (its profile's name), but the footer's
+words come from the run settings, which named the built-in agents by their
+plain names ("Claude Code", "Codex"); so did the setup, its Check and
+Settings. Fixed ([[BPR-2177]]): a tests-on person's session gives the setup
+host the names its agents go by (`agent_setup_projection::Names`: "Fixture
+agent", "Fixture agent (Codex)"), and the setup, Check, Settings and the
+footer's run settings use them. `application_fixture_agent_guard_public_path`
+fails on any widget naming the agent otherwise (it failed with "Claude Code ·
+Default model" before the fix), and on a setup whose Ready line is not
+"Fixture agent is ready". `freeze --check` fails unless the frozen build's
+footer says Fixture agent (`ATTENDED_FIXTURE_AGENT_ANSWERED:…:footer=…`).
+Host 4137/4149 stopped; root `ask-v003.vfh_7ety` removed.
+
+## Owner look ask-v004 (session `88b6acef99947ab22775b220057b2189`)
+
+Frozen from `e97dc8bca`. Handed back 2026-11-14 at sequence 20 ("still doesnt
+work", through the coordinator). One verdict, verbatim; the other four were
+left unanswered (no decision):
+
+- `BPR-2166-report-file-tab`, **Reject**: "What went wrong: A line of its
+  output isn't in the format its profile names, or arrived out of order.
+  (malformed_frame)
+
+  It wrote 136 bytes of output and 0 bytes of errors.
+
+  First line this app couldn't read:
+  {"type":"system","subtype":"init","session_id":"fixture-agent","tools":["Read","Grep"],"mcp_servers":[],"plugins":[],"model":"fixture"}"
+  (Its attachment shows the Agent tab after What changed since my review,
+  "Native continuation", "Fixture agent stopped before answering — Fixture
+  agent answered in a form this app can't read.", the footer "Fixture agent ·
+  Default model" and a "renderer.cpp 6" chip in the composer.)
+
+Root cause: What changed since my review is a tool-free writing run
+(`--tools ""` and the rest of `claude_writing_restrictions`); the app reads
+Claude's init frame and refuses one that reports any tool or MCP server
+(BPR-1375). The fixture agent always reported Read and Grep and always read a
+file, so every tool-free run failed; the app was right. The freeze check had
+asked only What could this change break?, an ordinary chat. Fixed
+([[BPR-2177]]): the fixture agent reports the tools its launch gave
+(`--tools`): none for a tool-free run, which then answers without reading, the
+read-only set for a read-only run (`fixture_agent_answers`). The check now asks
+everything a look offers, at the push the look opens on and before the Agent
+tab is opened: What changed first with the line-6 chip, then every quick ask of
+the review bar, the file and a thread (more than five runs confirmed), a typed
+question with the line chip, a second in the same conversation and two queued
+at once; every turn must be answered. The new course
+`application_fixture_agent_every_ask` runs the application itself that way
+(17 asks); with the old fixture agent it fails on What changed with the
+owner's exact malformed_frame line. `freeze --check` runs the same at the next
+push. Host 12600/12617 stopped; root `ask-v004.vxhvuzyw` removed.
