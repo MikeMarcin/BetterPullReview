@@ -1,4 +1,4 @@
-# The opened report (round 2 mockups, no choice made yet)
+# The opened report (round 2 mockups; rejected)
 
 [Round 1](../report-card-v1/README.md) chose the card for an agent's report
 ([RFC-BPR-0128](../../rfcs/RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md)):
@@ -10,7 +10,8 @@ owner chose it on 2026-11-14 with this note:
 
 This round asks that. Three directions for what the reviewer sees when they
 open the attachment, each drawn in the file tab, and in another place where it
-suits one. Nothing here is chosen and no product code changed.
+suits one. **The owner rejected the round** (see [Status](#status)): the report
+opens in the file tab and nowhere else. No product code changed.
 
 [index.html](index.html) is standalone HTML with a Light and Dark link at its
 top right. `png/` holds headless renders of its frames, light and dark; none
@@ -134,14 +135,20 @@ and `c-tab`.
 
 ## Status
 
-Awaiting the owner's choice, asked on 2026-11-14 as one select question (A, B
-or C) with a note:
+**Rejected** (owner, 2026-11-14). The note, verbatim:
+
+> Gross, no. They should all be in the file tab that was already decided upon.
+
+The file tab is the report's only place, as Q8 decided. B's widened drawer and
+C's preview over the window are dropped, and nothing here is built. The
+readings are asked again inside the file tab alone in round 3
+(`docs/design/report-card-v3/`).
 
 - Attended-review session `6427e38b7088fff0461b7af92f62c466`, candidate
   `report-card-v2-opened` at revision `10a96baf690c` (the commit that added
-  these mockups).
+  these mockups), decision `b42bcaf6-39f1-4c90-b803-fa8123d110ce`: reject.
 - External state directory
   `~/.attended-review-state/report-card-v002-2026-11-14/` (`state/` is the
-  session, `material/` a copy of both rounds' folders at that revision for the
-  owner to open).
-- Lifecycle when this was written: prepared and served, unanswered.
+  session, `material/` a copy of both rounds' folders at that revision).
+- Lifecycle: handed back 2026-11-14 with the one candidate decided; the host
+  is stopped.
