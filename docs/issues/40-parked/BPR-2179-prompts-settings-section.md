@@ -108,3 +108,5 @@ Decided:
 - The system prompts appear in the same Prompt library, marked as system. These are the instructions the app sends with an ask, today's "Built-in prompts" section.
 - They can be edited and reset, but not added, deleted, duplicated onto a surface, or placed on one: drag and Add to are refused for them.
 - The separate "Built-in prompts" settings section is removed.
+
+Owner, 2026-11-14, verbatim: "disallow duplicate a system prompt". System prompts have no Duplicate.

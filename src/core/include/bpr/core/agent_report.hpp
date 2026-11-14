@@ -41,20 +41,36 @@ namespace bpr::core {
 	/// code.
 	[[nodiscard]] auto report_outline(std::string_view aAnswer) -> std::vector<report_heading>;
 
-	/// \brief What a report's card shows where it was asked.
+	/// \brief One section the opened report's menu lists.
+	struct report_section
+	{
+		std::string Title;
+		/// 0 for a section, 1 for a sub-section and so on, from the shallowest
+		/// heading after the title.
+		std::uint32_t Depth = 0U;
+		/// The zero-based line of the answer the heading is on.
+		std::uint32_t Line = 0U;
+
+		auto operator<=>(const report_section&) const = default;
+	};
+
+	/// \brief What a report's card and its opened tab show
+	/// (docs/design/report-card-v4/SPEC.md).
 	struct report_card
 	{
-		/// The first heading, or the answer's first line.
-		std::string   Title;
+		/// The heading the answer opens with; else the title given; else the
+		/// answer's first line.
+		std::string Title;
+		/// The sections after the title at their shallowest level.
 		std::uint32_t Sections = 0U;
-		std::uint32_t Lines    = 0U;
-		/// The first lines of prose after the title, at most
-		/// `report_card_lead_lines`, Markdown kept.
-		std::string Lead;
+		/// What stands between the title and the first section, Markdown
+		/// kept; with no prose there, the first paragraph after the title.
+		std::string Summary;
+		/// Every heading after the title, in order.
+		std::vector<report_section> Outline;
 
 		auto operator<=>(const report_card&) const = default;
 	};
-	inline constexpr std::size_t report_card_lead_lines = 3U;
 	/// \details `aTitle`: Q4, the title of an answer that is a report by what
 	/// was asked (Explain this file, What changed); used when it has no
 	/// heading, its lead then starting at its first line.

@@ -34,14 +34,22 @@ namespace {
 		expect(outline.size() == 3U && outline[0] == report_heading{ .Level = 1U, .Title = "What changed since your review", .Line = 0U } && outline[1].Title == "Rendering" && outline[1].Level == 2U
 				   && outline[2].Title == "Threads" && outline[2].Level == 3U,
 			   "the outline is the headings, fenced code left out");
+		// docs/design/report-card-v4 (owner, 2026-11-14): the card is the
+		// summary, rendered, and a row naming the report and its sections.
+		// Defects 2 and 3: sections are counted without the title, and the
+		// summary is what stands between the title and the first section.
 		const auto card = report_card_of(report);
-		expect(card.Title == "What changed since your review" && card.Sections == 3U && card.Lead == "18 commits: the frame pool, and a merge of main.\nNothing else.\nThe clear now waits.",
-			   "the card: title, sections and the first lines: " + card.Lead);
-		expect(report_card_of("First line\nsecond").Title == "First line", "no heading: the first line is the title");
+		expect(card.Title == "What changed since your review" && card.Sections == 1U && card.Summary == "18 commits: the frame pool, and a merge of main.\nNothing else.",
+			   "the card: title, one section, and the summary as written: " + card.Summary);
+		expect(card.Outline.size() == 2U && card.Outline[0].Title == "Rendering" && card.Outline[0].Depth == 0U && card.Outline[1].Title == "Threads" && card.Outline[1].Depth == 1U,
+			   "the outline the report's menu lists: the sections without the title, sub-sections one deeper");
+		const auto review = report_card_of("# Review of #21\n\n## Must fix\n\nThe `clamp` is wrong.\n\nMore.\n\n### A zero height\n\n## Worth a look\n\nx\n");
+		expect(review.Sections == 2U && review.Summary == "The `clamp` is wrong.", "no prose before the first section: the first paragraph after the title, wherever it stands: " + review.Summary);
+		expect(report_card_of("First line\nsecond").Title == "First line" && report_card_of("First line\nsecond").Summary == "second", "no heading: the first line is the title");
 		// Q4: an answer that is a report by what was asked keeps its first
-		// line in the lead and takes the question's title.
-		const auto asked = report_card_of("First line\nsecond", "Explain a.cpp");
-		expect(asked.Title == "Explain a.cpp" && asked.Lead.find("First line") != std::string::npos, "no heading, a title given: the title, and the lead from the start");
+		// line in the summary and takes the question's title.
+		const auto asked = report_card_of("First line\nsecond\n\nlater", "Explain a.cpp");
+		expect(asked.Title == "Explain a.cpp" && asked.Summary == "First line\nsecond" && asked.Sections == 0U, "no heading, a title given: the title, and the summary from the start");
 	}
 
 	void test_merges_fold_and_areas_group()

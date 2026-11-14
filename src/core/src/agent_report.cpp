@@ -137,39 +137,68 @@ namespace bpr::core {
 		auto       card    = report_card{ };
 		const auto lines   = lines_of(aAnswer);
 		const auto outline = report_outline(aAnswer);
-		card.Sections      = static_cast<std::uint32_t>(outline.size());
-		card.Lines         = static_cast<std::uint32_t>(lines.size());
-		auto from          = std::size_t{ 0 };
-		if (!outline.empty()) {
+		auto       from    = std::size_t{ 0 };
+		while (from < lines.size() && trimmed(lines[from]).empty()) {
+			++from;
+		}
+		auto sections = outline;
+		if (!outline.empty() && outline.front().Line == from) {
 			card.Title = outline.front().Title;
-			from       = outline.front().Line + 1U;
+			sections.erase(sections.begin());
+			++from;
 		} else if (!aTitle.empty()) {
 			card.Title = std::string{ aTitle };
-		} else {
-			while (from < lines.size() && trimmed(lines[from]).empty()) {
-				++from;
-			}
-			if (from < lines.size()) {
-				card.Title = std::string{ trimmed(lines[from]) };
-				++from;
-			}
+		} else if (from < lines.size()) {
+			card.Title = std::string{ trimmed(lines[from]) };
+			++from;
 		}
-		auto kept   = std::size_t{ 0 };
-		auto fenced = false;
-		for (auto index = from; index < lines.size() && kept < report_card_lead_lines; ++index) {
-			const auto line = lines[index];
-			if (fence(line)) {
-				fenced = !fenced;
-				continue;
+		auto shallowest = std::uint32_t{ 0 };
+		for (const auto& each : sections) {
+			shallowest = shallowest == 0U ? each.Level : std::min(shallowest, each.Level);
+		}
+		for (const auto& each : sections) {
+			card.Outline.push_back({ .Title = each.Title, .Depth = each.Level - shallowest, .Line = each.Line });
+			card.Sections += each.Level == shallowest ? 1U : 0U;
+		}
+		// The summary: the prose before the first section; with none there,
+		// the first paragraph after the title wherever it stands.
+		const auto first     = sections.empty() ? lines.size() : static_cast<std::size_t>(sections.front().Line);
+		const auto paragraph = [&lines](std::size_t aFrom, const std::size_t aTo, const bool aWhole) {
+			auto text   = std::string{ };
+			auto fenced = false;
+			for (auto index = aFrom; index < aTo; ++index) {
+				const auto line = lines[index];
+				if (fence(line)) {
+					fenced = !fenced;
+				}
+				if (!fenced && !fence(line) && heading(line)) {
+					if (!text.empty()) {
+						break;
+					}
+					continue;
+				}
+				if (trimmed(line).empty() && !fenced) {
+					if (!text.empty() && !aWhole) {
+						break;
+					}
+					if (!text.empty()) {
+						text += '\n';
+					}
+					continue;
+				}
+				if (!text.empty()) {
+					text += '\n';
+				}
+				text += std::string{ line };
 			}
-			if (fenced || trimmed(line).empty() || heading(line)) {
-				continue;
+			while (!text.empty() && (text.back() == '\n' || text.back() == ' ')) {
+				text.pop_back();
 			}
-			if (!card.Lead.empty()) {
-				card.Lead += '\n';
-			}
-			card.Lead += std::string{ trimmed(line) };
-			++kept;
+			return text;
+		};
+		card.Summary = sections.empty() ? paragraph(from, lines.size(), false) : paragraph(from, first, true);
+		if (card.Summary.empty()) {
+			card.Summary = paragraph(from, lines.size(), false);
 		}
 		return card;
 	}
