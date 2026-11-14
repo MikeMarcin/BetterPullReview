@@ -3731,8 +3731,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# composition (window_quick_ask.cpp), the suggested prompts' store and
 	# host, Was this addressed? on any thread with its claims. Presses go
 	# through the existing launch paths; no new effect or path.
+	# BPR-2177 (owner, 2026-11-14): a person's session on a tests-on build runs
+	# the fixture agent and the launch guard refuses a real one; RFC-BPR-0128's
+	# queued Ask (RFC-BPR-0126's queue host), the report tab and Explain this
+	# file in the Agent tab. No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "8022074b619a42392cb7a061f54e55a87dd2c525d6d90572a9e23349af1a3a8a"
+        "07da1b9beff2728d6d10917d40249927a064d2969e204a7f7be199bb470a179e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
