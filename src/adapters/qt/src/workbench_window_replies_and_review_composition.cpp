@@ -757,6 +757,19 @@ namespace bpr::qt {
 		ReviewSubmissionEditor->set_reveal_hint(true);
 	}
 
+	auto workbench_window::review_sheet_top() const -> int
+	{
+		// [[BPR-2175]]. Just below the title row (the strip with the mode
+		// tabs, where the window is dragged), so the review bar under it is
+		// dimmed and a press there closes the lightbox, while the title row
+		// stays live. Without the row, the content area's top.
+		auto* const titleRow = Modality != nullptr ? Modality->parentWidget() : nullptr;
+		if (titleRow != nullptr && titleRow->isVisible()) {
+			return titleRow->mapTo(this, QPoint{ 0, titleRow->height() }).y();
+		}
+		return centralWidget() != nullptr ? centralWidget()->geometry().top() : 0;
+	}
+
 	void workbench_window::place_review_sheet()
 	{
 		if (ReviewSheet == nullptr || CentralSplitter == nullptr) {
@@ -766,9 +779,8 @@ namespace bpr::qt {
 		// (the strip with the mode tabs and the window's own controls), down
 		// to the status line; the composer takes two columns when the panel
 		// is wide enough for them (the owner's option D).
-		auto* const central = centralWidget();
-		const auto  top     = central != nullptr ? central->geometry().top() : 0;
-		const auto  area    = QRect{ 0, top, width(), std::max(0, height() - top) };
+		const auto top  = review_sheet_top();
+		const auto area = QRect{ 0, top, width(), std::max(0, height() - top) };
 		if (ReviewSubmissionEditor != nullptr) {
 			const auto room = std::min(area.width() - (2 * compose_review_sheet::margin), compose_review_sheet::lightbox_width);
 			ReviewSubmissionEditor->set_two_columns(room >= compose_review_sheet::two_column_width);

@@ -10701,14 +10701,17 @@ namespace {
 			process_events();
 		};
 		const auto fitted = [&] {
-			const auto area  = QRect{ 0, window.centralWidget()->geometry().top(), window.width(), window.height() - window.centralWidget()->geometry().top() };
+			const auto top   = window.review_sheet_top();
+			const auto area  = QRect{ 0, top, window.width(), window.height() - top };
 			const auto panel = sheet->panel().translated(sheet->pos());
 			return sheet->geometry() == area && area.contains(panel) && std::abs(panel.center().x() - area.center().x()) <= 1;
 		};
 		expect(open(), "Compose review opens the lightbox");
 		body->setPlainText(words);
 		process_events();
-		expect(sheet->geometry().top() == window.centralWidget()->geometry().top() && fitted(), "it dims the window below the title row, its panel centred");
+		expect(sheet->geometry().top() <= window.review_bar()->mapTo(&window, QPoint{ }).y()
+				   && sheet->geometry().top() == window.modality()->parentWidget()->mapTo(&window, QPoint{ 0, window.modality()->parentWidget()->height() }).y() && fitted(),
+			   "it dims the window below the title row, the review bar too, its panel centred");
 
 		// A press inside the panel keeps it; one on the title row does too.
 		press(sheet, sheet->panel().center());
@@ -10718,7 +10721,8 @@ namespace {
 		expect(window.review_sheet_open(), "a press on the title row (where the window is dragged) keeps it open");
 
 		// A press on the dimmed window: the diff's place, a drawer's, the review bar's.
-		for (const auto at : { QPoint{ sheet->width() / 2, sheet->height() - 4 }, QPoint{ 4, sheet->height() / 2 }, QPoint{ sheet->width() / 2, 4 } }) {
+		const auto bar = sheet->mapFrom(&window, window.review_bar()->mapTo(&window, window.review_bar()->rect().center()));
+		for (const auto at : { QPoint{ sheet->width() / 2, sheet->height() - 4 }, QPoint{ 4, sheet->height() / 2 }, bar }) {
 			expect(open(), "the lightbox opens again");
 			press(sheet, at);
 			expect(!window.review_sheet_open() && !sheet->isVisible() && body->toPlainText() == words,
@@ -10963,7 +10967,7 @@ namespace {
 			// below its title row: the panel centred, the comments on the
 			// left and the summary with its verdicts on the right.
 			const auto panel = sheet->panel().translated(sheet->pos());
-			expect(sheet->parentWidget() == &window && sheet->geometry().top() == window.centralWidget()->geometry().top() && sheet->width() == window.width()
+			expect(sheet->parentWidget() == &window && sheet->geometry().top() == window.review_sheet_top() && sheet->width() == window.width()
 					   && sheet->geometry().bottom() == window.rect().bottom() && std::abs(panel.center().x() - window.rect().center().x()) <= 1
 					   && panel.width() >= qt::compose_review_sheet::two_column_width && whole->two_columns(),
 				   name + ": a lightbox below the title row, its panel centred and in two columns");

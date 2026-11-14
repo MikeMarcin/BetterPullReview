@@ -1681,6 +1681,8 @@ namespace bpr::qt {
 		void open_review_sheet(bool aFocus = true);
 		/// \brief [[BPR-1590]]. Closes the sheet; nothing else changes.
 		void close_review_sheet();
+		/// \brief [[BPR-2175]]. Where the lightbox's dimmed area begins.
+		[[nodiscard]] auto review_sheet_top() const -> int;
 		/// \brief [[BPR-1590]]. The sheet's Expand: the same review as the
 		/// focused page in Discuss, its text, caret and scroll kept.
 		void               expand_review_sheet();
