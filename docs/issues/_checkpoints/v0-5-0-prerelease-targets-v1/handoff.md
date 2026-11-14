@@ -2935,3 +2935,40 @@ cursor 21, seven candidates (BPR-2173-drawer-scroll, BPR-2172-placement-mark,
 BPR-2172-what-folds, BPR-2156-changes-tab, BPR-2156-folder-icons,
 BPR-2156-edit-underrail, BPR-2156-save-icon). Remove the root with
 `scripts/freeze_attended_build.py remove` once decided.
+
+### Third round (2026-11-14)
+
+Looks handed back (verdicts verbatim on the cards): session `9afc3306…`
+(BPR-2173 Accept, now Done; BPR-2156 Changes tab, folder icons and underrail
+Accept, Save icon Reject; BPR-2172 mark and folds Reject, "show me in
+screenshots") and session `fd03fb4a…` (BPR-2175 option D, content Accept).
+Both hosts stopped; root `parallel-backlog-v001` removed with the freeze tool.
+BPR-2173's move to Done is mirrored on branch `claude/parallel-backlog-mirror-3`
+(`f7a891f8f`, a fast-forward of `main` at `2e6d54284`).
+
+Built: `5f943c306` (Save as the DocumentSave icon alone); `819bd6b87` and
+`7b9afcaa0` (BPR-2175 option D: the lightbox, two columns, comments in full up
+to four lines, outside press, Esc and mode tabs close it with its words kept,
+window controls keep it open and fitted; BPR-2172's placement notes rendered
+through the window for the look; `BPR_ATTENDED_LOOK_INSTEAD` chooses the Local
+comments look or Finish your review on a local-draft look's file; app pin
+resealed). Courses: `qt_workbench_window` at three scales,
+`qt_workbench_line_draft`, `qt_drawer_surfaces_fit`, `qt_local_draft_window`,
+`qt_conversation_cards_view`, `qt_composed_github_scale_100`,
+`application_review_submission_composition` at three scales,
+`application_setup_destination_public_path`,
+`application_label_publication_recovery`,
+`application_local_comments_composition_public_path` and
+`application_local_comments_found_public_path`. The pin contract's digest
+check passes; its composition process step is not built here.
+
+Frozen root `/Users/jaeger/parallel-backlog-v003.ipkygz62` from `7b9afcaa0846`
+(executable SHA-256 `a91157cdc6ae…`; launcher check reached
+`ATTENDED_FILE_SHOWN`, no real agent started; both variants reached their own
+lines offscreen with stand-in agents: `ATTENDED_LOCAL_DRAFT_AUTHOR_SHOWN` and,
+with `BPR_ATTENDED_LOOK_INSTEAD=finish-review`, `ATTENDED_FINISH_REVIEW_SHOWN`).
+Session `1f1217eb0f4bf89ce4c521434ce15cdc`, state
+`/Users/jaeger/.attended-review-state/parallel-backlog-v003-2026-11-14/state`,
+cursor 15, five candidates: BPR-2156-save-icon, BPR-2172-placement-mark,
+BPR-2172-what-folds (both with offscreen screenshots), BPR-2175-lightbox-d,
+BPR-2175-lightbox-gestures. Remove the root with the freeze tool once decided.
