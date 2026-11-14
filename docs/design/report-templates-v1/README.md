@@ -1,4 +1,4 @@
-# Report templates (mockups, no choice made yet)
+# Report templates (round 1; B, Dressed)
 
 A template for each report the app asks an agent for, the system prompt that
 asks for it, and two ways to show the result. The report's card and tab are
@@ -9,7 +9,8 @@ report:
 > the report is ugly as crap. Like we need maybe a system prompt and a template
 > to fit the reports in.
 
-Nothing here is chosen and no product code changed.
+**The owner's answer names B, Dressed** (see [Status](#status)). No product
+code changed.
 
 [index.html](index.html) is standalone HTML with a Light and Dark link at its
 top right. `png/` holds headless renders of its frames, light and dark; none
@@ -122,14 +123,21 @@ evidence that its example parses.
 
 ## Status
 
-Awaiting the owner's choice, asked on 2026-11-14 as one select question (A or
-B) with a note:
+**B, Dressed**, by the owner's note of 2026-11-14, verbatim:
+
+> Dressed, possibly with an actual html template to render like how we do our
+> attended review.
+
+The note was saved as feedback and the session was handed back with no option
+pressed, so the session holds the note and no recorded selection. It is read
+here as B. Its second half is explored in
+[round 2](../report-templates-v2/README.md).
 
 - Attended-review session `cbb8554abee0c3273461da24fde5b3a2`, candidate
   `report-templates-v1` at revision `2e74bd6d6702` (the commit that added
-  these mockups).
+  these mockups), feedback `e570e7cb-d0ad-4ed3-a66f-df47973f577b`.
 - External state directory
   `~/.attended-review-state/report-templates-v001-2026-11-14/` (`state/` is
-  the session, `material/` a copy of this folder at that revision for the
-  owner to open).
-- Lifecycle when this was written: prepared and served, unanswered.
+  the session, `material/` a copy of this folder at that revision).
+- Lifecycle: handed back 2026-11-14 with the candidate pending and its
+  feedback saved; the host is stopped.
