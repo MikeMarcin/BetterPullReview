@@ -40,6 +40,7 @@
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/core/review_tour_markdown.hpp"
 	#include "bpr/qt/agent_footer.hpp"
+	#include "bpr/qt/agent_setup_view.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
 	#include "bpr/qt/workshop_candidate_line.hpp"
@@ -7901,9 +7902,9 @@ namespace {
 	// [[BPR-2177]], look ask-v002 (owner, 2026-11-14: "Aren't we supposed to
 	// have a mack agent for testing now?"). `BPR_ATTENDED_FIXTURE_AGENT_CHECK=1`:
 	// once the file shows, the build proves a look gets the fixture agent's
-	// answer: the setup is ready by itself, the picker has the fixture agent,
-	// and the review bar's Ask > What could this change break? is answered by
-	// it as a report. A freeze's `--check` reads the line.
+	// answer: the picker has the fixture agent, and the review bar's Ask >
+	// What could this change break?, pressed before the Agent tab was ever
+	// opened, is answered by it as a report with no setup step. A freeze's `--check` reads the line.
 	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication)
 	{
 		auto* const timer   = new QTimer{ &aApplication.window() };
@@ -7924,14 +7925,29 @@ namespace {
 			};
 			const auto last = tab->turn_count() > 0U ? tab->turn_count() - 1U : 0U;
 			if (automated_clock::now() - started > std::chrono::seconds{ 60 }) {
-				finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:timeout:asked=%1:setup=%2:picker=%3:answer=%4")
+				const auto* const setup = window.agent_setup();
+				const auto        step  = setup != nullptr ? QString::fromUtf8(bpr::core::stable_name(setup->projection().Step).data()) : QStringLiteral("none");
+				auto              rows  = std::string{ };
+				if (setup != nullptr) {
+					for (const auto& row : setup->projection().State.Rows) {
+						rows += std::string{ bpr::core::stable_name(row.Agent) } + "=" + row.Path + (row.Verdict.Permitted ? "+" : "-") + std::to_string(static_cast<int>(row.Verdict.Refusal)) + " ";
+					}
+				}
+				const auto why = setup != nullptr ? QString::fromStdString(rows + "| " + setup->projection().CheckDetail + " / " + setup->projection().WorkspaceDetail).left(400).replace(QLatin1Char('\n'), QLatin1Char(' ')) : QString{ };
+				finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:timeout:asked=%1:setup=%2:step=%3:checks=%4/%5:detail=%6:picker=%7:answer=%8")
 						   .arg(asked ? 1 : 0)
 						   .arg(tab->setup_readiness() == bpr::qt::agent_setup_readiness::ready ? QStringLiteral("ready") : QStringLiteral("unfinished"))
-						   .arg(picker->currentText(), tab->turn_count() > turns ? tab->turn_answer(last).left(160).replace(QLatin1Char('\n'), QLatin1Char(' ')) : QString{ }));
+						   .arg(step)
+						   .arg(setup != nullptr ? static_cast<int>(setup->projection().State.AgentCheck.State) : -1)
+						   .arg(setup != nullptr ? static_cast<int>(setup->projection().State.WorkspaceCheck.State) : -1)
+						   .arg(why, picker->currentText(), tab->turn_count() > turns ? tab->turn_answer(last).left(160).replace(QLatin1Char('\n'), QLatin1Char(' ')) : QString{ }));
 				return;
 			}
 			if (!asked) {
-				if (tab->setup_readiness() != bpr::qt::agent_setup_readiness::ready || !picker->currentText().startsWith(QStringLiteral("Fixture agent"))) {
+				// As the person would: Ask straight away, before the Agent tab
+				// was ever opened; the quick ask waits for the setup, which
+				// needs no step.
+				if (!picker->currentText().startsWith(QStringLiteral("Fixture agent"))) {
 					return;
 				}
 				auto* const ask = window.review_ask_button();

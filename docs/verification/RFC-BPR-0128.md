@@ -228,3 +228,11 @@ now fails on a setup that needs a step or a picker not on the fixture agent.
 The row menu is Queue and Draft in Agent Tab (`qt_ask_menu`). BPR-2163 reopens
 for a Prompts section of its own; mockups go to the next look before anything
 is built.
+
+The first freeze of ask-v003 (from `8d51a468e`) failed its new check
+(`ATTENDED_FIXTURE_AGENT_FAILED:…step=agent`): the check waited for the setup
+before asking, and the setup only looks for agents once the Agent tab is
+opened. The check now asks straight away, as a person would, before the Agent
+tab was ever opened; the press opens it, the setup finds the fixture agent, its
+Check runs by itself, and the answer arrives as a report
+(`ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:report=1` on the dev build).
