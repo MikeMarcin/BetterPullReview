@@ -2881,3 +2881,60 @@ its sheet exists in `qt::prompt_macros_panel`.
 
 Not touched: session `efe2da80…` and host 25283/25291 with the v007 roots;
 other agents' processes; BPR-Test.
+
+## RFC-BPR-0128: ask-v001 verdict, queued Ask, fixture agent, reports first round, BPR-2176 (2026-11-14)
+
+Same `rfc-implementer` lane; nothing pushed; no attribution lines.
+Frontend-design was loaded before the Qt work. Record:
+[RFC-BPR-0128](../../../verification/RFC-BPR-0128.md) (v001 verdict verbatim,
+the owner's refinement, what was built).
+
+| Commit | What |
+|---|---|
+| `a5bdd705c`, `8d4566be7`, `d9be2eadf` | BPR-2176 ready, claimed, built test first: review bar Comment button and menu and the Tour tab's Add stop tool gone; Option-C and Option-Shift-T kept |
+| `d090ee1ae`, `5189a188c` | BPR-2166/BPR-2167 first round: core report tab kind, report shape (Q7), outline and card, merge-of-main folding; Agent tab report card, report file tab with outline, file controls off (Q9); `application_ask_report_public_path` |
+| `17e484e25`, `6f4300bf5` | BPR-2177 (P0, from main `dcbdd5466`): fixture agent (Claude and Codex protocols, canned answers, streamed, scripted crash and usage limit) default for every `--attended` launch; launch guard refuses a real claude/codex; freeze `--check` verifies it; AGENTS.md line |
+| `daaa6dcb0`, `c7f9a5f8d`, `95d01ea5d` | BPR-2151 (RFC-BPR-0126 queue core and host) WIP, readied, claimed |
+| `f50da9ba7` | v001 verdict and refinement: a plain click queues; Shift+click drafts; right click opens Queue / Draft in Agent Tab / Edit Quick Ask... / Hide from Quick Asks and never sends; no answer bar, the Agent tab opens at the turn |
+| `0c291d8b2`, `624215ec4` | Record, cards, pin reseal |
+| `612194781` | Coordinator's BPR-2178 (not built here). **Frozen commit** |
+| main `86a3f41c4` | Mirror: BPR-2151 and BPR-2176 In Progress, BPR-2177 progress, AGENTS.md line |
+
+Runs at `624215ec4` (dev, Debug, macOS): core_* rows, `qt_ask_menu`,
+`application_ask_{menu,addressed,report,queue}_public_path`,
+`application_fixture_agent_guard_public_path`, `fixture_agent_answers`,
+`freeze_attended_build_contract`, `application_explain_file_public_path`,
+`application_returning_review_*`, window tests, contracts and pin all pass.
+Failing and not this lane's: `application_review_tour_link_public_path`
+(clicks a nonexistent `tourReturn`), `application_review_tour_publication_mixed`,
+`application_review_tour_cli_ordinary_stop`. `coding-tidy` and the full suite
+not run.
+
+ask-v001: host 44478/44488 stopped with `stop`; root
+`/Users/jaeger/ask-v001.29vwy7ai` removed (nothing ran from it).
+
+Owner look `ask-v002`, filed and not waited on: session
+`7268b4daaedd9f9318ced6f27e78c873`, state
+`/Users/jaeger/.attended-review-state/ask-v002-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 36, host PID 45701 (Tailscale child 45710).
+Frozen root `/Users/jaeger/ask-v002.bbyayhpn` from `612194781` (executable
+SHA-256 `428e92371c2d…`; both heads reached `ATTENDED_FILE_SHOWN`; the
+fixture-agent check started no real agent). Answers are canned by the Fixture
+agent. Twelve questions, one Accept/Reject each: the six re-asked
+(`BPR-2164-review-bar-ask`, `BPR-2164-file-ask`, `BPR-2164-thread-ask`,
+`BPR-2163-quick-ask-editor`, `BPR-2165-claim-chips`,
+`RFC-BPR-0128-Q5-threshold`), `ask-shift-click-drafts`,
+`ask-right-click-menu`, `ask-opens-agent-tab`, `ask-click-queues`,
+`BPR-2166-report-file-tab`, `BPR-2176-buttons-gone` (tour fixture
+`conventional-comments-v1`).
+
+Next action: on handback read from cursor 36, record verbatim, stop host 45701
+with `stop`, remove the root with `freeze_attended_build.py remove`. Then:
+BPR-2164 and BPR-2165 finish on Accept; BPR-2176 Done on Accept; BPR-2166/2167
+remaining (Q4 Explain as a report by default, the merge's commit count from the
+second parent, AC06 tour checks, AC07's other commit listings); BPR-2168
+closeout after the looks; BPR-2151's queue UI (edit, reorder, resume);
+BPR-2146 AC11 to AC13; BPR-2147 unclaimed. Do not build BPR-2178 here.
+
+Not touched: host 25283/25291 with the v007 roots; other agents' processes;
+BPR-Test.
