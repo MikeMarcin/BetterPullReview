@@ -25,3 +25,10 @@ Load `frontend-design:frontend-design` first. The owner's choice (Q8): the repor
 ## Notes
 
 Ends in an owner look (Accept or Reject) on a frozen build serving a pull request with a long What changed.
+
+## Owner looks (2026-11-14)
+
+- ask-v002, **Reject**: "Aren't we supposed to have a mack agent for testing
+  now? " (no Fixture agent answer; fixed under [[BPR-2177]]).
+- ask-v003, **Reject**: "The footer does not say fixture agent" (the footer
+  named Claude Code; fixed under [[BPR-2177]]). Asked again in ask-v004.
