@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2156"
 title: "Local draft polish: the Changes tab, folder icons in Files and Overview, the Edit view's underrail"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0113", "RFC-BPR-0114"]
 depends_on: []
 priority: "P3"

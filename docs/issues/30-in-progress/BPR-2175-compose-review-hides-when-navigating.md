@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2175"
 title: "Compose review hides when I navigate elsewhere"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"

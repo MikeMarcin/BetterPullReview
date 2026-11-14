@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2172"
 title: "The composer's placement warning takes less space"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"

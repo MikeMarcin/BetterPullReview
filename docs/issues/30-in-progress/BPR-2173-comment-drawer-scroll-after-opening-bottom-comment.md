@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2173"
 title: "Opening the bottom comment in the drawer scrolls the drawer wrongly"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
