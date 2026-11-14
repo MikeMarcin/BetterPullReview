@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2177"
+  ],
+  "reserve_for": "fixture-agent",
+  "purpose": "owner P0: looks never spend agent usage; a fixture agent for every tests-on attended build",
+  "created": "2026-11-14T03:24:40.072194+00:00",
+  "base": "407308808fca875eb9b044762365d8d8b8d52fe0"
+}
