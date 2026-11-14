@@ -73,3 +73,10 @@ Decided: the section has two parts.
 - **The prompt library** is where prompts are created and edited.
 
 A prompt is placed on a surface by dragging it from the library, or through a right-click menu. Next comes a round of mockups for that split.
+
+Owner, 2026-11-14 (after v002), verbatim: "I think conditions are on the prompt itself, we can always duplicate a prompt if we need different conditions. Conditions can also be "any of these are true" or "all of these are true" Weak Auras editor (The wow Addon) had a good conditions UX."
+
+Decided:
+- A prompt's conditions belong to the prompt itself, not to where it is placed. To use different conditions, duplicate the prompt.
+- Conditions combine as either "all of these are true" or "any of these are true".
+- The WeakAuras trigger editor is the interaction reference.
