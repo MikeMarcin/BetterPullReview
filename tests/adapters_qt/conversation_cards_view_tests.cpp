@@ -1378,6 +1378,60 @@ namespace {
 		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("conversationPullRequestHeader")) == nullptr, "a Local comment on a line never says Pull request");
 	}
 
+	/// \brief [[BPR-2173]]. The owner, on look v007 of RFC-BPR-0127: "going
+	/// from image 2 and clicking the bottom comment gives image 1". A tall
+	/// thread is open at its line and the drawer is scrolled down to the
+	/// card under it; opening that card closes the tall thread, and the
+	/// drawer kept its scroll, so the opened card was cut at the top with
+	/// empty drawer under it. The opened card is whole in view, its top
+	/// clear of the edge chips, and nothing but drawer past the end of the
+	/// notes is left under it.
+	auto test_opening_the_card_below_an_open_thread_shows_it_whole() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 520);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 6U ? std::optional{ 100 } : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto forest = std::vector<conversation>{ thread("review-thread:T1", "src/a.cpp", 6U) };
+		for (auto index = 0; index < 6; ++index) {
+			auto post = reply("c-" + std::to_string(index), "review-thread:T1", "tbutler",
+							  "issue (blocking): draw_scene() runs before the clear finishes on the second view, and the depth buffer is shared by both views.");
+			post.Line = 6U;
+			forest.push_back(std::move(post));
+		}
+		view.adopt(forest);
+		const auto comparison = core::file_comparison_digest{ };
+		// The comparison shown, which places my Local comment at its line.
+		view.set_draft(std::nullopt, comparison);
+		view.set_local_comments({
+			qt::local_comment_card{ .Id = 8U, .Revision = 1U, .Body = QStringLiteral("Height is not clamped here. Re-check once the swap chain change lands."), .Comparison = comparison, .Side = core::diff_side::right, .Line = 6U, .Path = QStringLiteral("src/a.cpp") },
+		});
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		auto* const bar = view.verticalScrollBar();
+		expect(view.open_card() != nullptr && view.open_card()->height() > view.viewport()->height(), "the open thread is taller than the drawer");
+		// Scrolled until the Local comment under the thread is in view, as
+		// in the owner's image 2.
+		const auto below = std::ranges::find(view.cards(), std::string{ "local:8" }, &qt::thread_card::Id);
+		expect(below != view.cards().end(), "my Local comment hangs under the thread");
+		bar->setValue(std::min(bar->maximum(), below->Rect.bottom() + 8 - view.viewport()->height()));
+		QApplication::processEvents();
+		const auto scrolled = bar->value();
+		expect(scrolled > 0, "the drawer is scrolled down to the card under the thread");
+		view.open_thread("local:8");
+		QApplication::processEvents();
+		auto* const card = view.open_card();
+		expect(card != nullptr && view.open_thread_id() == "local:8", "the Local comment is open");
+		const auto top = card != nullptr ? card->geometry().top() : -999;
+		expect(top >= 30, "the opened card's top is in view, clear of the edge chips (top " + std::to_string(top) + ", scroll " + std::to_string(bar->value()) + ")");
+		expect(card != nullptr && card->geometry().bottom() <= view.viewport()->height(), "the opened card is whole in view");
+		const auto lowest = std::ranges::max(view.cards(), { }, [](const qt::thread_card& aCard) { return aCard.Rect.bottom(); }).Rect.bottom();
+		expect(lowest - bar->value() >= view.viewport()->height() - 40 || bar->value() == 0,
+			   "no stretch of empty drawer under the opened card (notes end at " + std::to_string(lowest - bar->value()) + " of " + std::to_string(view.viewport()->height()) + ")");
+	}
+
 	/// \brief Owner look v005 ("There's a lot of overlap on the UX here").
 	/// The agent drafted a long comment on a line GitHub may not place: the
 	/// composer's notice arrived after it was laid out, the card kept its
@@ -1420,6 +1474,68 @@ namespace {
 		expect(text->height() >= text->minimumSizeHint().height() && labels->height() >= labels->minimumSizeHint().height(), "nothing is squeezed below its own minimum");
 		expect(card->findChild<QWidget*>(QStringLiteral("threadMaximizeDraft")) != nullptr && card->findChild<QWidget*>(QStringLiteral("conversationShowInDiscuss")) == nullptr,
 			   "the draft being written has one way to Discuss, not two of the same glyph");
+	}
+
+	/// \brief [[BPR-2172]]. The owner, on look v007 of RFC-BPR-0127: "Can
+	/// we make this warning take less space, maybe it's just a warning sign
+	/// on the row above and expands a disclosure on click". Where the
+	/// comment may go is a warning mark beside the label chip; pressing it
+	/// (or Space on it) shows the sentence under the row, and again hides
+	/// it. A notice about the publication itself keeps its lines.
+	auto test_placement_notice_is_a_warning_mark() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 900);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 1U ? std::optional{ 40 } : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		view.adopt({ });
+		const auto comparison = core::file_comparison_digest{ };
+		const auto body       = std::string{ "Height is not clamped here." };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 0U }, .Body = body }, comparison);
+		QApplication::processEvents();
+		const auto draftId = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; })->Id;
+		view.open_thread(draftId);
+		const auto settle = [] {
+			for (auto spin = 0; spin < 30; ++spin) {
+				QApplication::processEvents();
+				QThread::msleep(2);
+			}
+		};
+		const auto words = QStringLiteral("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line.");
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle();
+		const auto plain = view.open_card()->height();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1"), .Notice = words, .NoticeFolds = true });
+		settle();
+		auto* const card   = view.open_card();
+		auto* const mark   = card->findChild<QToolButton*>(QStringLiteral("threadDraftNoticeMark"));
+		auto* const labels = card->findChild<QWidget*>(QStringLiteral("threadDraftLabels"));
+		auto* const status = card->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
+		expect(mark != nullptr && mark->isVisibleTo(card) && status != nullptr && !status->isVisibleTo(card), "the placement notice is a warning mark, its sentence closed");
+		expect(std::abs(mark->mapTo(card, mark->rect().center()).y() - labels->mapTo(card, labels->rect().center()).y()) <= 4, "the mark sits in the tool row, beside the label chip");
+		expect(card->height() <= plain + 2, "the composer does not grow for it (" + std::to_string(card->height()) + " against " + std::to_string(plain) + ")");
+		expect(mark->accessibleName() == QStringLiteral("Placement warning") && mark->accessibleDescription() == words && !mark->toolTip().isEmpty(),
+			   "the mark is named for assistive technology, its sentence its description");
+		mark->click();
+		settle();
+		expect(status->isVisibleTo(card) && status->text() == words && view.open_card()->height() > plain + 10, "pressing it discloses the sentence under the row");
+		expect(mark->accessibleName() == QStringLiteral("Placement warning, shown"), "and its name says the sentence is shown");
+		mark->setFocus();
+		auto space = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(mark, &space);
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(mark, &release);
+		settle();
+		expect(!status->isVisibleTo(card) && !mark->isChecked(), "Space on the mark closes it again");
+		// What the last Publish came to is not folded.
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = false, .Lines = QStringLiteral("Line 1"), .Notice = QStringLiteral("Publishing your comment to GitHub…") });
+		settle();
+		expect(!mark->isVisibleTo(card) && status->isVisibleTo(card) && status->text() == QStringLiteral("Publishing your comment to GitHub…"), "a publication notice keeps its lines, and no mark");
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle();
+		expect(!mark->isVisibleTo(card) && !status->isVisibleTo(card), "with no notice there is neither");
 	}
 
 	auto test_composer_state_control() -> void
@@ -3936,7 +4052,9 @@ auto main(int argc, char** argv) -> int
 	test_local_comments_edges_and_editing();
 	test_composer_state_control();
 	test_composer_notice_keeps_rows_apart();
+	test_placement_notice_is_a_warning_mark();
 	test_look_v002_rework();
+	test_opening_the_card_below_an_open_thread_shows_it_whole();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_controls();

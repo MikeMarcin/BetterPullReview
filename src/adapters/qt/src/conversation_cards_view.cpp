@@ -4921,6 +4921,7 @@ namespace bpr::qt {
 				Picked.clear();
 				Replying.clear();
 				relayout();
+				reveal_opened(chosen);
 			}
 			viewport()->update();
 			return;
@@ -4949,6 +4950,9 @@ namespace bpr::qt {
 				Replying.clear();
 			}
 			relayout();
+			if (Picked.empty()) {
+				reveal_opened(chosen);
+			}
 		}
 		if (!aligned()) {
 			if (const auto index = card_index(chosen); index.has_value()) {
@@ -5210,6 +5214,45 @@ namespace bpr::qt {
 			bar->setValue(bar->value() + aViewportRect.bottom() - viewport()->height() + note_margin);
 		} else if (aViewportRect.top() < 0 && !aligned()) {
 			bar->setValue(bar->value() + aViewportRect.top() - note_margin);
+		}
+	}
+
+	void conversation_cards_view::reveal_opened(const std::string& aId)
+	{
+		// [[BPR-2173]]. The owner, on look v007 of RFC-BPR-0127: with a tall
+		// thread open and the drawer scrolled down to the card under it,
+		// opening that card closed the tall thread and kept the scroll, so
+		// the opened card was cut at the top with empty drawer under it.
+		// Beside the code the notes' own scroll moves (never the code's) so
+		// the opened card's top is clear of the edge chips, and its foot is
+		// in view when the drawer can hold it whole. A card whose line is
+		// above the code's top keeps hanging there: the scroll stops at 0.
+		const auto index = card_index(aId);
+		if (!aligned() || !index.has_value()) {
+			return;
+		}
+		// A card whose line is off the code's view is reached by the code
+		// moving to the line (a chip, Next new), not by the notes.
+		if (const auto& card = Cards[*index]; card.Placed && (card.TargetY < 0 || card.TargetY >= viewport()->height())) {
+			return;
+		}
+		auto* const bar = verticalScrollBar();
+		// First no further than the notes' end needs: the scroll past it
+		// ([[BPR-1740]]) is the reader's to take, not what an opening leaves.
+		const auto overrun = std::max(0, ContentHeight - viewport()->height());
+		const auto from    = std::min(bar->value(), overrun);
+		const auto rect    = Cards[*index].Rect.translated(0, -from);
+		const auto clear   = edge_reach + note_gap;
+		auto       move    = 0;
+		if (rect.bottom() > viewport()->height() - note_margin) {
+			move = rect.bottom() - (viewport()->height() - note_margin);
+		}
+		if (rect.top() - move < clear) {
+			move = rect.top() - clear;
+		}
+		const auto value = std::clamp(from + move, bar->minimum(), bar->maximum());
+		if (value != bar->value()) {
+			bar->setValue(value);
 		}
 	}
 

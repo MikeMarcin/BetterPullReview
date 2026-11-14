@@ -594,6 +594,11 @@ namespace bpr::qt {
 		/// What the last Publish came to ([[BPR-1329]]), else why Publish is
 		/// unavailable, or empty.
 		QString Notice;
+		/// [[BPR-2172]]. `Notice` is a caution about where the comment goes
+		/// that leaves Publish offered: the composer shows it as a warning
+		/// mark in its tool row, its sentence disclosed on press, not as
+		/// lines under the row.
+		bool NoticeFolds = false;
 		/// [[BPR-1329]]. The draft editor offers Publish again as a retry of
 		/// the same publication.
 		bool Retry = false;
@@ -1223,6 +1228,9 @@ namespace bpr::qt {
 		void               notify_marks();
 		void               step_new(int aDirection);
 		void               ensure_visible(const QRect& aViewportRect);
+		/// [[BPR-2173]]. Beside the code, the card just opened is brought
+		/// whole into view by the notes' own scroll.
+		void reveal_opened(const std::string& aId);
 		/// \brief Brings what is being read in an open thread into view: the
 		/// notes' own overflow in Discuss, the code (which the drawer follows)
 		/// in Review, as a wheel over the notes would.
