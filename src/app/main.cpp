@@ -7973,6 +7973,16 @@ namespace {
 				if (!picker->currentText().startsWith(QStringLiteral("Fixture agent")) || !window.go_to_file_line(QString::fromStdString(path), 6U, false)) {
 					return;
 				}
+				// Look ask-v005 (owner: "I don't know why it says setup agent
+				// on launch if the agent is already set up"): at launch the
+				// footer shows the agent and offers no setup.
+				auto* const launchFooter = window.agent_footer_widget();
+				if (launchFooter == nullptr || launchFooter->picker()->isHidden() || launchFooter->settings_button()->isVisibleTo(launchFooter)) {
+					if (automated_clock::now() - started > std::chrono::seconds{ 20 }) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:setup-offered-at-launch:footer=%1").arg(launchFooter != nullptr ? launchFooter->settings_button()->text() : QString{ }));
+					}
+					return;
+				}
 				window.set_quick_ask_confirmation([](std::size_t, const QString&) { return true; });
 				const auto press_row = [&window](bpr::qt::ask_menu_button* aButton, const QString& aRow) {
 					return [&window, aButton, aRow]() {

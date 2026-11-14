@@ -469,6 +469,13 @@ namespace bpr::qt {
 		if (aWatched == Picker && (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::Polish || aEvent->type() == QEvent::Show)) {
 			match_fonts();
 		}
+		// Look ask-v005 (owner, 2026-11-14: "I don't know why it says setup
+		// agent on launch if the agent is already set up"). The picker shows
+		// once the agents are known, after the footer was drawn; what sits
+		// beside it (Set up an agent… or nothing) follows it.
+		if (aWatched == Picker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
+			QMetaObject::invokeMethod(this, [this] { refresh(); }, Qt::QueuedConnection);
+		}
 		return QWidget::eventFilter(aWatched, aEvent);
 	}
 

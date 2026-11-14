@@ -421,6 +421,27 @@ auto main(int argc, char** argv) -> int
 	emit picker->menu()->aboutToShow();
 	expect(find("agentRunSettingsBuilds")->isChecked() && find("agentRunSettingsBuilds")->toolTip().contains(QStringLiteral("Codex's sandbox holds")), "Codex allowed to build: checked, and its tooltip says Codex's sandbox holds it");
 
+	// Look ask-v005 (owner, 2026-11-14: "I don't know why it says setup
+	// agent on launch if the agent is already set up"): the window shows its
+	// footer before the agents are known, so the picker is hidden and the
+	// footer offers Set up an agent…; once the agent is known the picker shows,
+	// and that offer must go.
+	{
+		qt::agent_launch_panel laterPanel;
+		laterPanel.offer_profiles(profiles);
+		laterPanel.profile_selector()->setCurrentIndex(laterPanel.profile_selector()->findData(QVariant::fromValue<qulonglong>(1U)));
+		auto        later = std::make_shared<qt::agent_run_settings_source>(laterPanel);
+		QMainWindow launch;
+		auto* const early = new qt::agent_footer{ later, &launch };
+		launch.statusBar()->addPermanentWidget(early);
+		launch.resize(1100, 200);
+		launch.show();
+		settle();
+		expect(early->settings_button()->isVisible() && early->settings_button()->text() == QStringLiteral("Set up an agent…"), "before the agents are known: Set up an agent…");
+		later->present({ claude });
+		settle();
+		expect(early->picker()->isVisible() && !early->settings_button()->isVisible(), "once the agent is known the picker shows and Set up an agent… goes");
+	}
 	std::cout << "agent-footer:pass\n";
 	return EXIT_SUCCESS;
 }
